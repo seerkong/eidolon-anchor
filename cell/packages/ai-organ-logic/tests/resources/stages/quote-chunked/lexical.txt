@@ -1,0 +1,29 @@
+@delimiter: ----
+---- #lexicalContentStart
+{}
+---- #lexicalContentDelta
+!
+---- #lexicalContentDelta
+quo
+---- #lexicalContentDelta
+t
+---- #lexicalContentDelta
+e_start
+---- #lexicalContentDelta
+
+---- #lexicalContentDelta
+<tool_call id="ignored" name="bash" lang="javascript">
+SysBuiltIn.bash({
+  command: "echo ignored"
+})
+</tool_call>
+---- #lexicalContentDelta
+!
+---- #lexicalContentDelta
+quo
+---- #lexicalContentDelta
+t
+---- #lexicalContentDelta
+e_end
+---- #lexicalContentEnd
+{}

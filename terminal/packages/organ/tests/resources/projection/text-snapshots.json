@@ -1,0 +1,134 @@
+{
+  "default": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "text": "[NOTICE]\n[think] 嗯，用\n\n[NOTICE]\n[think] 户询问这个订单状态如何，我要先查询详情。\n\n[NOTICE]\n[think] 并且符合\n\n[NOTICE]\n[think] 这样才不会触发语法错误而重试\n\n[ASSISTANT]\n我先使用订单查询工具查询\n\n[ASSISTANT]\n[quote:thinking] <tool_call id=\"query_order_xxx\" name=\"queryOrder\" lang=\"javascript\">\n// 函数调用内容\n</tool_call>\n\n[NOTICE]\nPlanned tool call: queryOrder [query_order_xxx]",
+      "is_streaming": false
+    }
+  ],
+  "chunked-markers": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "text": "[ASSISTANT]\n\n\n[NOTICE]\nPlanned tool call: bash [run_codument_status]",
+      "is_streaming": false
+    }
+  ],
+  "content-unquote": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "text": "[ASSISTANT]\n开头文本结尾文本\n\n[NOTICE]\nPlanned tool call: doSomething [demo]",
+      "is_streaming": false
+    }
+  ],
+  "quote-chunked": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "text": "[ASSISTANT]\n\n\n[ASSISTANT]\n[quote:content] <tool_call id=\"ignored\" name=\"bash\" lang=\"javascript\">\nSysBuiltIn.bash({\n  command: \"echo ignored\"\n})\n</tool_call>",
+      "is_streaming": false
+    }
+  ],
+  "toolcall-delta": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "text": "[NOTICE]\nPlanned tool call: get_weather [call_abc123]",
+      "is_streaming": false
+    }
+  ],
+  "toolcall-multiple": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "text": "[NOTICE]\nPlanned tool call: get_weather [call_123]\n\n[NOTICE]\nPlanned tool call: get_time [call_456]",
+      "is_streaming": false
+    }
+  ],
+  "toolcall-alt-format": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "text": "[NOTICE]\nPlanned tool call: get_weather [abcd]",
+      "is_streaming": false
+    }
+  ],
+  "tui-turn-events": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "text": "[STATUS]\nTurn start: 1\n\n[NOTICE]\nRunning tool call: read_file [tc-1]\n\n[TOOL read_file]\nok\n\n[NOTICE]\nQuestionnaire requested [q-1]: Confirm\nProceed?\n\n\n[STATUS]\nTurn end: done",
+      "is_streaming": false
+    }
+  ],
+  "questionnaire": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "text": "[NOTICE]\nQuestionnaire requested [q-1]: Approve plan?\n\n[NOTICE]\nQuestionnaire result [q-1]: approved - Yes",
+      "is_streaming": false
+    }
+  ],
+  "plan-approval": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "text": "[PLAN REVIEW]\nfrom=main\n1. review\n2. apply\n\n[PLAN RESPONSE]\napproved\napproved",
+      "is_streaming": false
+    }
+  ],
+  "shutdown": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "text": "[SHUTDOWN REQUEST]\nfrom=main\ntarget=worker-1\n\nmaintenance\n\n[SHUTDOWN RESPONSE]\napproved\ntarget=worker-1\n\napproved by operator",
+      "is_streaming": false
+    }
+  ],
+  "background-result": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "text": "[BACKGROUND]\njob-1 (done)\ncompleted",
+      "is_streaming": false
+    }
+  ]
+}

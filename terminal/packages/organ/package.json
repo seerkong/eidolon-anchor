@@ -1,0 +1,27 @@
+{
+  "name": "@terminal/organ",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./AIAgent": "./src/AIAgent/index.ts",
+    "./AIAgent/*": "./src/AIAgent/*.ts",
+    "./stream/*": "./src/stream/*.ts"
+  },
+  "dependencies": {
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*",
+    "@cell/membrane": "workspace:*",
+    "@cell/mod-profiles": "workspace:*",
+    "@cell/ai-organ-logic": "workspace:*",
+    "@cell/symbiont-logic": "workspace:*",
+    "@terminal/core": "workspace:*",
+    "depa-data-graph-core": "^0.1.0",
+    "xstream": "^11.14.0"
+  }
+}

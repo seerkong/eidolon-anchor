@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface ShutdownStatusOuterInput { request_id: string; }
+export type ShutdownStatusOuterOutput = string;
+export type ShutdownStatus = (input: ShutdownStatusOuterInput) => ShutdownStatusOuterOutput;
+</?>

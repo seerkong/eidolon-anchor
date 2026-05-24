@@ -1,0 +1,19 @@
+{
+  "threshold": {
+    "lines": 0.8
+  },
+  "include_prefixes": [
+    "../cell/packages/ai-organ-logic/src/composer/AIAgent/",
+    "../../../cell/packages/ai-organ-logic/src/composer/AIAgent/",
+    "../cell/packages/core-logic/src/runtime/ToolFuncRegistry.ts",
+    "../../../cell/packages/core-logic/src/runtime/ToolFuncRegistry.ts",
+    "../cell/packages/core-contract/src/types.ts",
+    "../../../cell/packages/core-contract/src/types.ts"
+  ],
+  "exclude_substrings": [
+    "/tests/",
+    ".test.",
+    ".spec.",
+    "/vendor/"
+  ]
+}

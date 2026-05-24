@@ -1,0 +1,18 @@
+<type_def lang="typescript" ?>
+export interface DetachedToolCallOuterInput {
+  tool_name: string;
+  arguments: any;
+  agent_type: string;
+}
+
+export type DetachedToolCallOuterOutput = string;
+
+export type DetachedToolCall = (input: DetachedToolCallOuterInput) => DetachedToolCallOuterOutput;
+</?>
+
+<warning ?>
+This tool starts a detached actor that will execute one tool call.
+
+The detached actor user prompt is a JSON string:
+{ "tool_name": <tool_name>, "arguments": <arguments> }.
+</?>

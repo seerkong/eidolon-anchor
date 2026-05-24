@@ -1,0 +1,12 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"questionnaire"}
+---- #tuiMessage
+Plan approval plan-1
+1. review
+2. apply
+---- #tuiControl
+{"cmd":"NewMessage","category":"result"}
+---- #tuiMessage
+Plan approval approved: approved
+

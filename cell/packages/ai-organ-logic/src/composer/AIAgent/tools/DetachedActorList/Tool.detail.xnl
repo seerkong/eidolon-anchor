@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export type DetachedActorListOuterInput = Record<string, never>;
+export type DetachedActorListOuterOutput = string;
+export type DetachedActorList = (input: DetachedActorListOuterInput) => DetachedActorListOuterOutput;
+</?>

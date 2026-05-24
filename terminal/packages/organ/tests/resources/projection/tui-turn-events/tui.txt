@@ -1,0 +1,24 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"turn"}
+---- #tuiMessage
+Starting turn 1
+---- #tuiControl
+{"cmd":"NewMessage","category":"toolcall"}
+---- #tuiMessage
+read_file [tc-1]
+---- #tuiControl
+{"cmd":"NewMessage","category":"result"}
+---- #tuiMessage
+read_file: ok
+---- #tuiControl
+{"cmd":"NewMessage","category":"questionnaire"}
+---- #tuiMessage
+Confirm
+Proceed?
+
+1) free_text
+---- #tuiControl
+{"cmd":"NewMessage","category":"done"}
+---- #tuiMessage
+Turn done

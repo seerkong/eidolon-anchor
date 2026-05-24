@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-vendor-data-graph-modular-node-identity</track_id>
+    <track_name>重构 vendor data-graph 的模块化节点标识系统</track_name>
+    <goal>让 vendor/depa-data-graph 从基于裸字符串的节点身份模型升级为基于 NodeRef/GraphModule 的模块化句柄系统，并以兼容迁移方式统一 code-first、DSL 与 codegen 的 graph identity。</goal>
+    <created_at>2026-04-10T00:00:00Z</created_at>
+    <updated_at>2026-04-10T13:34:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>6</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Track Freeze">
+      <goal>冻结 proposal、spec、design、plan 与 analysis，使该 track 可以直接进入实现。</goal>
+      <tasks>
+        <task id="T1.1" name="收紧 proposal.md 的范围、目标与非目标" status="DONE" priority="P0">
+          <description>将问题收敛为 vendor graph identity architecture，而不是泛化的“字符串常量整理”，并明确长期目标是 NodeRef/GraphModule，而非全局 enum。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">proposal 已明确本 track 的目标是模块化句柄系统</criterion>
+            <criterion id="T1.1-AC2" checked="true">proposal 已明确不做事项与影响范围</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="固化可验证 spec.md requirements" status="DONE" priority="P0">
+          <description>把结构化 identity、module ports、scoped mount、ref-first wiring、DSL/codegen 收口与兼容迁移写成可验证 requirement。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">spec 已覆盖 NodeRef/PortRef 与 GraphModule 的正式 requirement</criterion>
+            <criterion id="T1.2-AC2" checked="true">spec 已覆盖兼容迁移与 domain-agnostic 边界</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.3" name="补齐 design.md、plan.xml、metadata 与 analysis" status="DONE" priority="P0">
+          <description>补齐架构设计、phase 计划、metadata 与外部记忆，使该 track 从设计讨论进入可执行状态。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.3-AC1" checked="true">design 已锁定长期正式方案与迁移顺序</criterion>
+            <criterion id="T1.3-AC2" checked="true">plan.xml 已分解到 identity core、module API、DSL/codegen 与验证 phase</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>track 文档完整、自包含，并能直接指导后续实现</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="Vendor Identity Core">
+      <goal>在 vendor core 中建立结构化 node identity 与 scope-aware mount 的最小正式内核。</goal>
+      <context_files>
+        <file>vendor/depa-data-graph/packages/core/src/graph.ts</file>
+        <file>vendor/depa-data-graph/packages/core/src/typed-model.ts</file>
+        <file>vendor/depa-data-graph/packages/core/src/typed-graph-v2.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T2.1" name="红：建立 NodeRef / GraphModule focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>先为结构化 ref、module 边界、多实例 mount 与 runtime canonical ID 建立 focused tests，锁定最小长期语义。</description>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">tests 能锁定 ref identity 与值类型推断的基本行为</criterion>
+            <criterion id="T2.1-AC2" checked="true">tests 能锁定同一 module 多次 mount 时的 canonical ID 隔离语义</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="绿：实现 NodeRef / PortRef / GraphModule / mount core" status="DONE" priority="P0" estimated_days="3">
+          <description>在 vendor core 中实现正式的 identity primitive、module shape 与 scope-aware mount 机制，并保留可序列化 canonical ID。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">vendor 已存在正式的结构化 node identity primitive</criterion>
+            <criterion id="T2.2-AC2" checked="true">vendor 已存在 graph module 与 scoped mount 的正式实现</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.3" name="文档化 identity core 的边界与术语" status="DONE" priority="P1" estimated_days="1">
+          <description>更新 vendor architect 文档，明确 ref、module、mount、canonical ID 与 visibility 的定义，避免后续实现漂移。</description>
+          <dependencies>T2.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.3-AC1" checked="true">vendor 文档已解释 identity core 的正式概念模型</criterion>
+            <criterion id="T2.3-AC2" checked="true">文档已明确字符串 ID 降级为 runtime projection，而非主要编程对象</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>vendor 已具备稳定的 identity core，可承接 builder/runtime API 升级</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="Ref-First Builder And Runtime API">
+      <goal>让 graph builder 与 runtime API 全面支持 ref-first wiring，同时为字符串调用点提供受控兼容层。</goal>
+      <context_files>
+        <file>vendor/depa-data-graph/packages/core/src/graph.ts</file>
+        <file>vendor/depa-data-graph/packages/core/src/graph-builders.ts</file>
+        <file>vendor/depa-data-graph/packages/core/src/index.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T3.1" name="红：建立 ref-first get/set/deps/outputs regression tests" status="DONE" priority="P0" estimated_days="1">
+          <description>为 `get/set/peek/node`、builder deps/outputs、processor wiring 与字符串兼容重载建立 focused regression tests。</description>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">tests 能锁定 ref-first runtime API 的基本行为</criterion>
+            <criterion id="T3.1-AC2" checked="true">tests 能锁定字符串兼容层在迁移期间不回归</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="绿：实现 ref-aware builder 与 runtime overload" status="DONE" priority="P0" estimated_days="3">
+          <description>升级 builder 与 graph runtime API，使声明节点、依赖和 outputs 时可以正式使用 refs；字符串重载仅作为兼容入口保留。</description>
+          <dependencies>T3.1,T2.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">`addSignal/addComputed/addProcessor/addConsumer/addAsync` 已支持 ref-first 调用</criterion>
+            <criterion id="T3.2-AC2" checked="true">`get/set/peek/node` 已支持 ref-first 调用</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.3" name="迁移一个 code-first subgraph 示例为 module/ref 写法" status="DONE" priority="P1" estimated_days="1">
+          <description>选择 vendor demo 中现有 subgraph 作为试点，将其改写为 GraphModule + mount + public ports 形式，作为正式示例。</description>
+          <dependencies>T3.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.3-AC1" checked="true">vendor 示例已展示 module ports 与 mount 的基本用法</criterion>
+            <criterion id="T3.3-AC2" checked="true">示例不再依赖手工字符串前缀约定完成跨层 wiring</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>vendor builder/runtime API 已以 ref-first 作为正式推荐路径</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P4" name="DSL / Codegen Convergence And Migration Pilots">
+      <goal>让 JSON DSL / codegen 收口到同一 identity model，并在 AI Agent 与前端各完成一条试点迁移。</goal>
+      <context_files>
+        <file>vendor/depa-data-graph/tools/graph-codegen/src/generate.ts</file>
+        <file>vendor/depa-data-graph/tools/graph-codegen/src/parse.ts</file>
+        <file>cell/packages/core-logic/src/stream/pipeline/createLLMStagePipeline.ts</file>
+        <file>vendor/depa-data-graph/examples/demo/src/app/subgraphs/createActorSubgraph.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T4.1" name="红：建立 DSL/codegen identity parity tests" status="DONE" priority="P0" estimated_days="1">
+          <description>为 JSON DSL / codegen 与 code-first module 在公开 identity surface 上的一致性建立 focused tests。</description>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">tests 能锁定 codegen 产物与 code-first module 的 public surface 对齐</criterion>
+            <criterion id="T4.1-AC2" checked="true">tests 能锁定 DSL 路径不退回扁平字符串 truth source</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="绿：扩展 JSON DSL / codegen 到 module-aware identity model" status="DONE" priority="P0" estimated_days="3">
+          <description>扩展 JSON spec 和 graph-codegen，使其能表达或生成 module ports、visibility 与 ref-aware public surface，并将公开输入/输出物化为正式的 GraphModule.inputs/outputs，同时确保未标记为 public 的 computed/async 节点不会误落到 GraphModule.outputs，且 runtime build path 能把 JSON raw ids 解析到 generated module refs，并把 signal 驱动的 public input/output 端口真正落成可解析的 runtime port/bridge。</description>
+          <dependencies>T4.1,T3.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">JSON DSL 与 codegen 已对齐 ref/module identity model</criterion>
+            <criterion id="T4.2-AC2" checked="true">codegen 不再只生成扁平字符串接口</criterion>
+            <criterion id="T4.2-AC3" checked="true">JSON runtime build path 已能把 raw node id、deps、outputs 与 async projections 映射到 generated module refs</criterion>
+            <criterion id="T4.2-AC4" checked="true">JSON signal public ports 在 runtime 中已具备可解析的真实节点或桥接节点，而不是仅停留在 generated identity surface</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.3" name="试点：迁移一条 AI Agent graph 路径到 ref/module 模型" status="DONE" priority="P0" estimated_days="2">
+          <description>选择一条受字符串命名影响明显的 AI Agent graph 使用路径作为试点，验证该 identity model 适用于 agent 场景而非仅限前端 demo。</description>
+          <dependencies>T4.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.3-AC1" checked="true">至少一条 AI Agent graph 路径已使用 ref/module identity</criterion>
+            <criterion id="T4.3-AC2" checked="true">试点迁移未把 AI-specific 语义错误下沉到 vendor identity layer</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>code-first、DSL-first 与至少两类使用场景已经共享同一 identity model</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P5" name="Verification And Compatibility Freeze">
+      <goal>完成 focused tests、strict validation 与兼容边界冻结，锁定该 track 的长期正式结果。</goal>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <tasks>
+        <task id="T5.1" name="运行 vendor focused tests 与迁移试点回归" status="DONE" priority="P0" estimated_days="1">
+          <description>运行 identity core、builder/runtime、DSL/codegen 与试点迁移的 focused tests，确认 ref/module identity 在各层稳定工作。</description>
+          <acceptance_criteria>
+            <criterion id="T5.1-AC1" checked="true">vendor identity 相关 focused tests 全部通过</criterion>
+            <criterion id="T5.1-AC2" checked="true">试点迁移路径的回归测试全部通过</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.2" name="冻结兼容策略并回写 analysis / 文档状态" status="DONE" priority="P0" estimated_days="1">
+          <description>明确字符串兼容 API 的适用边界、推荐路径与后续降级策略，并同步更新 track analysis 与文档状态。</description>
+          <dependencies>T5.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.2-AC1" checked="true">文档已明确 ref-first 为正式路径，字符串 API 为兼容层</criterion>
+            <criterion id="T5.2-AC2" checked="true">analysis 已记录迁移边界、风险与验证结果</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.3" name="执行 strict validation 并关闭 track 文档层变更" status="DONE" priority="P0" estimated_days="1">
+          <description>执行 `codument validate refactor-vendor-data-graph-modular-node-identity --strict`，确认 track 文档与计划结构合法。</description>
+          <dependencies>T5.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.3-AC1" checked="true">strict validation 通过</criterion>
+            <criterion id="T5.3-AC2" checked="true">track 文档状态与实际实现进度一致</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>vendor data-graph 的模块化 identity model 已通过 focused tests 与 strict validation 锁定</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+</plan>

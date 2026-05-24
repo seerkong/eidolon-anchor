@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-and-ai-domain-kernel",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-10T19:17:54Z",
+  "updated_at": "2026-04-11T12:48:00Z",
+  "description": "将当前 AI 运行时演进为平台微内核 + AI 领域微内核的分层架构。"
+}

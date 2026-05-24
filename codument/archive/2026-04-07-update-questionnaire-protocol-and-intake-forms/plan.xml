@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>update-questionnaire-protocol-and-intake-forms</track_id>
+    <track_name>更新问卷协议与 intake 表单体验</track_name>
+    <goal>让 questionnaire 在 text view 与 TUI 中都具备稳定的编号协议、自由填写分支、可解析的文本回答格式，以及更合理的推荐类 intake 表单</goal>
+    <created_at>2026-04-06T11:17:39Z</created_at>
+    <updated_at>2026-04-07T04:46:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Protocol Contract">
+      <goal>冻结问卷展示协议、文本回答协议与自由填写分支规则</goal>
+      <tasks>
+        <task id="T1.1" name="冻结问卷展示协议" status="DONE" priority="P0">
+          <description>将问卷文本展示对齐到 `ask-multi-question-free`，明确 `Q1/Q2`、`A/B/C` 与最后一个自由填写选项。</description>
+        </task>
+        <task id="T1.2" name="冻结文本回答协议" status="DONE" priority="P0">
+          <description>明确支持 `q1: a ; q2: b` 与 `q3: D balabala` 这类回答格式，并定义大小写与分隔符规则。</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Projection And Parser">
+      <goal>修复多题问卷在投影与解析链路中的压扁和歧义</goal>
+      <tasks>
+        <task id="T2.1" name="保留完整 questions 结构贯穿 semantic/history/runtime client" status="DONE" priority="P0">
+          <description>去除“只保留首题”的压扁逻辑，确保题目数量、类型、选项和顺序完整保留。</description>
+        </task>
+        <task id="T2.2" name="为 parser 增加协议化快速路径" status="DONE" priority="P0">
+          <description>让 parser 先识别题号+字母格式，再回退到 LLM 解析。</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Recommendation Intake Strategy">
+      <goal>让推荐类场景优先生成结构化 intake 表单</goal>
+      <tasks>
+        <task id="T3.1" name="定义 recommendation intake 生成策略" status="DONE" priority="P0">
+          <description>为推荐/规划/决策类场景增加优先使用 2-4 个高信息量问题的结构化问卷策略。</description>
+        </task>
+        <task id="T3.2" name="落地 travel recommendation exemplar" status="DONE" priority="P0">
+          <description>确保旅行推荐首轮 questionnaire 不再退化为单个自由文本问题。</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P4" name="Verification">
+      <goal>通过自动化与手工点验确认协议、解析和推荐类 intake 一致可用</goal>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <tasks>
+        <task id="T4.1" name="补齐问卷协议与 parser focused tests" status="DONE" priority="P0">
+          <description>覆盖多题投影、字母编号、自由填写选项与协议化文本回答解析。</description>
+        </task>
+        <task id="T4.2" name="运行 terminal TUI 测试并手工点验 travel intake" status="DONE" priority="P0">
+          <description>验证 text view / TUI 问卷展示、文本回答格式，以及旅行推荐首轮 intake 质量。</description>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+
+  <validations>
+    <validation id="V1" name="Protocol Surface" status="DONE">
+      问卷文本协议与 `ask-multi-question-free` 对齐。
+    </validation>
+    <validation id="V2" name="Textual Parsing" status="DONE">
+      `q1: a ; q2: b` 与 `q3: D balabala` 可被稳定解析。
+    </validation>
+    <validation id="V3" name="Recommendation Intake Quality" status="DONE">
+      旅行推荐首轮 questionnaire 为合理的结构化 intake。
+    </validation>
+  </validations>
+
+  <summary>
+    <total_phases>4</total_phases>
+    <total_tasks>8</total_tasks>
+    <total_subtasks>0</total_subtasks>
+    <completed>8</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+  </summary>
+</plan>

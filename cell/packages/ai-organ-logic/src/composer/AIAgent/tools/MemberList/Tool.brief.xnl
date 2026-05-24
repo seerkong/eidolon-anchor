@@ -1,0 +1,4 @@
+<tool>
+  <name>MemberList</name>
+  <description>List member actors in the current session.</description>
+</tool>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>add-ai-agent-vm-rx-data-plane</track_id>
+    <track_name>为 AiAgentVm 建立 public/private 响应式数据面</track_name>
+    <goal>用 depa-data-graph 建立 VM 级 stream+signal 数据契约</goal>
+    <created_at>2026-04-26T14:17:03Z</created_at>
+    <updated_at>2026-04-27T00:00:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>3</gap_loop_round>
+  </metadata>
+  <phases>
+    <phase id="P1" name="契约与测试">
+      <goal>先以测试定义 public/private RxData 边界</goal>
+      <tasks>
+        <task id="T1.1" name="定义 rx data 类型测试" status="DONE" priority="P0">
+          <description>覆盖 contract 中 public 读面不可写、private 写面可写，并确认不再是 null 占位。</description>
+          <acceptance_criteria><criterion id="T1.1-AC1" checked="true">已补充 rx seam 初始化测试；占位类型替换由 T2.1 完成</criterion></acceptance_criteria>
+        </task>
+        <task id="T1.2" name="定义 binding dispose 测试" status="DONE" priority="P0"><description>覆盖释放幂等性。</description></task>
+        <task id="T1.3" name="定义 contract/logic 分层测试" status="DONE" priority="P0"><description>确认 ai-core-contract 不依赖 depa-data-graph 实现类，ai-core-logic 负责具体 factory/binding。</description></task>
+      </tasks>
+    </phase>
+    <phase id="P2" name="实现 VM RxData 数据面">
+      <goal>实现类型、初始化与 semantic/domain stream 绑定</goal>
+      <tasks>
+        <task id="T2.1" name="替换 contract 中 private/public RxData 占位类型" status="DONE" priority="P0"><description>在 ai-core-contract 中定义不依赖 depa-data-graph class 的 stream/signal 协议类型。</description></task>
+        <task id="T2.2" name="实现 ensureVmRxData binding" status="DONE" priority="P0"><description>在 ai-core-logic 中创建 depa-data-graph backed rx data，并挂载 VM rx data 与 binding。</description></task>
+        <task id="T2.3" name="桥接 semantic stream" status="DONE" priority="P0"><description>接入 AgentEventGraph，确保 semantic events 进入 private/public rx data。</description></task>
+        <task id="T2.4" name="提供 conversation domain optional binding seam" status="DONE" priority="P1"><description>core 不直接依赖 ai-organ-logic；外层可把 history/prompt/session domain streams 接入 private rx data。</description></task>
+      </tasks>
+    </phase>
+    <phase id="P3" name="验证">
+      <goal>验证响应式数据面稳定且不破坏现有 runtime</goal>
+      <tasks>
+        <task id="T3.1" name="运行 ai-core-logic 测试" status="DONE" priority="P0"><description>覆盖 VM 与 stream 相关测试。</description></task>
+        <task id="T3.2" name="运行 ai-organ-logic 相关测试" status="DONE" priority="P1"><description>覆盖 conversation domain 接入。</description></task>
+      </tasks>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+    </phase>
+  </phases>
+</plan>

@@ -1,0 +1,14 @@
+{
+  "name": "@desktop/organ-support",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@desktop/core": "workspace:*",
+    "@desktop/organ": "workspace:*"
+  }
+}

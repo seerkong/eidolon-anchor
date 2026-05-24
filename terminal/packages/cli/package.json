@@ -1,0 +1,39 @@
+{
+  "name": "@terminal/cli",
+  "description": "terminal cli command line",
+  "types": "src/index.ts",
+  "module": "src/index.ts",
+  "main": "src/index.ts",
+  "version": "0.1.1",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --preload ../tui/src/preload.ts src/index.ts"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^24.0.0",
+    "@types/yargs": "^17.0.32"
+  },
+  "dependencies": {
+    "yargs": "^17.7.2",
+    "@terminal/organ-support": "workspace:*",
+    "@terminal/tui": "workspace:*",
+    "solid-js": "^1.9.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "open": "^9.1.0",
+    "strip-ansi": "^7.1.0"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}

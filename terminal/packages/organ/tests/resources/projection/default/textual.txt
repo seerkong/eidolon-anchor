@@ -1,0 +1,28 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"think"}
+---- #tuiMessage
+🤔 Think: 嗯，用
+---- #tuiMessage
+户询问这个订单状态如何，我要先查询详情。
+---- #tuiMessage
+并且符合
+---- #tuiMessage
+这样才不会触发语法错误而重试
+---- #tuiControl
+{"cmd":"NewMessage","category":"assist"}
+---- #tuiMessage
+🤖 Assist: 我先使用订单查询工具查询
+---- #tuiControl
+{"cmd":"NewMessage","category":"quote"}
+---- #tuiMessage ?q1
+🛐 Quote: <tool_call id="query_order_xxx" name="queryOrder" lang="javascript">
+// 函数调用内容
+</tool_call>
+/?q1
+---- #tuiControl
+{"cmd":"NewMessage","category":"toolcall"}
+---- #tuiMessage
+🔧 ToolCall: queryOrder
+Custom.orderDetail(`ORDER-1234`)
+

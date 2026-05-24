@@ -1,0 +1,4 @@
+<tool>
+  <name>webfetch</name>
+  <brief>Fetches content from a specified URL.</brief>
+</tool>

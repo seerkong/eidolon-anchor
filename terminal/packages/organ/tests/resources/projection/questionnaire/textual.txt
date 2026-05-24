@@ -1,0 +1,12 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"questionnaire"}
+---- #tuiMessage
+❓ Questionnaire: Approve plan?
+1) Yes
+2) No
+---- #tuiControl
+{"cmd":"NewMessage","category":"questionnaire"}
+---- #tuiMessage
+❓ Questionnaire: Questionnaire q-1: Yes
+

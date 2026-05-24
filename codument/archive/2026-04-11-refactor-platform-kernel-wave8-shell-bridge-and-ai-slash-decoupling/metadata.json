@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-wave8-shell-bridge-and-ai-slash-decoupling",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T10:05:00Z",
+  "updated_at": "2026-04-11T12:05:00Z",
+  "description": "让 shell 更接近平台无关 bridge，并将 AI slash/direct-action contract 下沉到 AI domain kernel。"
+}

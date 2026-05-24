@@ -1,0 +1,246 @@
+export const COMMAND_ID = {
+  SessionList: "session.list",
+  SessionNew: "session.new",
+  SessionShare: "session.share",
+  SessionRevert: "session.revert",
+  SessionUnshare: "session.unshare",
+  SessionRename: "session.rename",
+  SessionTimeline: "session.timeline",
+  SessionFork: "session.fork",
+  SessionCompact: "session.compact",
+  SessionUndo: "session.undo",
+  SessionRedo: "session.redo",
+  SessionInterrupt: "session.interrupt",
+  SessionSidebarToggle: "session.sidebar.toggle",
+  SessionToggleConceal: "session.toggle.conceal",
+  SessionToggleTimestamps: "session.toggle.timestamps",
+  SessionCopy: "session.copy",
+  SessionExport: "session.export",
+  SessionToggleThinking: "session.toggle.thinking",
+  SessionToggleDiffwrap: "session.toggle.diffwrap",
+  SessionToggleActions: "session.toggle.actions",
+  SessionToggleScrollbar: "session.toggle.scrollbar",
+  SessionToggleAnimations: "session.toggle.animations",
+  SessionPageUp: "session.page.up",
+  SessionPageDown: "session.page.down",
+  SessionHalfPageUp: "session.half.page.up",
+  SessionHalfPageDown: "session.half.page.down",
+  SessionFirst: "session.first",
+  SessionLast: "session.last",
+  SessionMessagesLastUser: "session.messages_last_user",
+  SessionMessageNext: "session.message.next",
+  SessionMessagePrevious: "session.message.previous",
+  SessionParent: "session.parent",
+  SessionChildPrevious: "session.child.previous",
+  SessionChildNext: "session.child.next",
+  ModelList: "model.list",
+  ModelCycleRecent: "model.cycle_recent",
+  ModelCycleRecentReverse: "model.cycle_recent_reverse",
+  ModelCycleFavorite: "model.cycle_favorite",
+  ModelCycleFavoriteReverse: "model.cycle_favorite_reverse",
+  AgentList: "agent.list",
+  AgentCycle: "agent.cycle",
+  AgentCycleReverse: "agent.cycle.reverse",
+  VariantCycle: "variant.cycle",
+  Status: "system.status",
+  McpList: "mcp.list",
+  ThemeSwitch: "theme.switch",
+  ThemeSwitchMode: "theme.switch_mode",
+  PromptEditor: "prompt.editor",
+  PromptSubmit: "prompt.submit",
+  PromptClear: "prompt.clear",
+  PromptPaste: "prompt.paste",
+  PromptSlashActor: "prompt.slash.actor",
+  PromptSlashMember: "prompt.slash.member",
+  PromptSlashHolon: "prompt.slash.holon",
+  PromptStash: "prompt.stash",
+  PromptStashPop: "prompt.stash.pop",
+  PromptStashList: "prompt.stash.list",
+  MessageCopy: "message.copy",
+  MessagesCopy: "messages.copy",
+  ProviderConnect: "provider.connect",
+  Shortcuts: "help.shortcuts",
+  HelpShow: "help.show",
+  DocsOpen: "docs.open",
+  WebuiOpen: "webui.open",
+  AppExit: "app.exit",
+  AppDebug: "app.debug",
+  AppConsole: "app.console",
+  AppHeapSnapshot: "app.heap_snapshot",
+  TerminalSuspend: "terminal.suspend",
+  TerminalTitleToggle: "terminal.title.toggle",
+  TipsToggle: "tips.toggle",
+} as const
+
+export type CommandID = (typeof COMMAND_ID)[keyof typeof COMMAND_ID]
+
+export const COMMAND_ID_LIST = Object.values(COMMAND_ID)
+export const COMMAND_ID_TUPLE = COMMAND_ID_LIST as [CommandID, ...CommandID[]]
+
+export type SlashCommandDef = {
+  slash: string
+  description: string
+  command: CommandID
+  aliases?: string[]
+  sessionOnly?: boolean
+  shareFeatureOnly?: boolean
+  disabledWhenShared?: boolean
+  disabledWhenNotShared?: boolean
+  source?: "prompt"
+}
+
+export const SLASH_COMMANDS: SlashCommandDef[] = [
+  {
+    slash: "/undo",
+    description: "undo the last message",
+    command: COMMAND_ID.SessionUndo,
+    sessionOnly: true,
+  },
+  {
+    slash: "/redo",
+    description: "redo the last message",
+    command: COMMAND_ID.SessionRedo,
+    sessionOnly: true,
+  },
+  {
+    slash: "/compact",
+    aliases: ["/summarize"],
+    description: "compact the session",
+    command: COMMAND_ID.SessionCompact,
+    sessionOnly: true,
+  },
+  {
+    slash: "/unshare",
+    description: "unshare a session",
+    command: COMMAND_ID.SessionUnshare,
+    sessionOnly: true,
+    disabledWhenNotShared: true,
+  },
+  {
+    slash: "/rename",
+    description: "rename session",
+    command: COMMAND_ID.SessionRename,
+    sessionOnly: true,
+  },
+  {
+    slash: "/copy",
+    description: "copy session transcript to clipboard",
+    command: COMMAND_ID.SessionCopy,
+    sessionOnly: true,
+  },
+  {
+    slash: "/export",
+    description: "export session transcript to file",
+    command: COMMAND_ID.SessionExport,
+    sessionOnly: true,
+  },
+  {
+    slash: "/timeline",
+    description: "jump to message",
+    command: COMMAND_ID.SessionTimeline,
+    sessionOnly: true,
+  },
+  {
+    slash: "/fork",
+    description: "fork from message",
+    command: COMMAND_ID.SessionFork,
+    sessionOnly: true,
+  },
+  {
+    slash: "/thinking",
+    description: "toggle thinking visibility",
+    command: COMMAND_ID.SessionToggleThinking,
+    sessionOnly: true,
+  },
+  {
+    slash: "/share",
+    description: "share a session",
+    command: COMMAND_ID.SessionShare,
+    sessionOnly: true,
+    shareFeatureOnly: true,
+    disabledWhenShared: true,
+  },
+  {
+    slash: "/new",
+    aliases: ["/clear"],
+    description: "create a new session",
+    command: COMMAND_ID.SessionNew,
+  },
+  {
+    slash: "/models",
+    description: "list models",
+    command: COMMAND_ID.ModelList,
+  },
+  {
+    slash: "/agents",
+    description: "list agents",
+    command: COMMAND_ID.AgentList,
+  },
+  {
+    slash: "/session",
+    aliases: ["/resume", "/continue"],
+    description: "list sessions",
+    command: COMMAND_ID.SessionList,
+  },
+  {
+    slash: "/status",
+    description: "show status",
+    command: COMMAND_ID.Status,
+  },
+  {
+    slash: "/mcp",
+    description: "toggle MCPs",
+    command: COMMAND_ID.McpList,
+  },
+  {
+    slash: "/theme",
+    description: "toggle theme",
+    command: COMMAND_ID.ThemeSwitch,
+  },
+  {
+    slash: "/editor",
+    description: "open editor",
+    command: COMMAND_ID.PromptEditor,
+    source: "prompt",
+  },
+  {
+    slash: "/connect",
+    description: "connect to a provider",
+    command: COMMAND_ID.ProviderConnect,
+  },
+  {
+    slash: "/actor",
+    description: "actor shortcuts",
+    command: COMMAND_ID.PromptSlashActor,
+    source: "prompt",
+  },
+  {
+    slash: "/member",
+    description: "member shortcuts",
+    command: COMMAND_ID.PromptSlashMember,
+    source: "prompt",
+  },
+  {
+    slash: "/holon",
+    description: "holon shortcuts",
+    command: COMMAND_ID.PromptSlashHolon,
+    source: "prompt",
+  },
+  {
+    slash: "/shortcuts",
+    aliases: ["/keys", "/keybinds"],
+    description: "show the shortcut overview",
+    command: COMMAND_ID.Shortcuts,
+  },
+  {
+    slash: "/help",
+    description: "show help",
+    command: COMMAND_ID.HelpShow,
+  },
+  {
+    slash: "/exit",
+    aliases: ["/quit", "/q"],
+    description: "exit the app",
+    command: COMMAND_ID.AppExit,
+  },
+]

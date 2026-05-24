@@ -1,0 +1,140 @@
+<type_def lang="typescript" ?>
+export type QuestionnaireSuspendPolicy = "pause_all" | "continue_others";
+
+export type QuestionnaireKind = "clarification" | "approval" | "freeform" | "form";
+
+export type QuestionnaireQuestionType =
+  | "text"
+  | "yes_no"
+  | "number"
+  | "single_select"
+  | "multi_select"
+  | "json";
+
+export type QuestionnaireChoice =
+  | string
+  | {
+      value: string;
+      label?: string;
+    };
+
+export type QuestionnaireQuestion = {
+  id: string;
+  prompt: string;
+  type: QuestionnaireQuestionType;
+  required?: boolean;
+  choices?: QuestionnaireChoice[];
+  default?: unknown;
+  helpText?: string;
+};
+
+export interface QuestionnaireOuterInput {
+  questionnaireId?: string;
+  kind?: QuestionnaireKind;
+  title?: string;
+  intro?: string;
+  suspendPolicy?: QuestionnaireSuspendPolicy;
+  questions: QuestionnaireQuestion[];
+}
+
+// NOTE: The tool return value is not used for control flow.
+// The tool emits a QuestionnaireRequest event and marks `questionnaire_pending` on the actor.
+// The executor waits/resumes based on the pending control state, not the return value.
+export type QuestionnaireOuterOutput = string;
+
+export type Questionnaire = (input: QuestionnaireOuterInput) => QuestionnaireOuterOutput;
+</?>
+
+<usage_guidance ?>
+- When you need clarification for recommendation, planning, or decision-support tasks, prefer one structured questionnaire round instead of one vague free-text prompt.
+- Prefer 2-4 high-information questions in the first round.
+- For travel recommendation, prioritize trip timing, budget, travel party, and preferences or constraints.
+- Prefer `single_select`, `multi_select`, `number`, and `text` in a mixed form when that reduces ambiguity.
+- Do not collapse recommendation intake into a single "please describe your needs" text question unless the user's intent is still extremely unclear.
+- The downstream terminal protocol renders questions as `Q1`, `Q2`, ... with lettered options `A)`, `B)`, `C)` and a final free-text branch.
+- Write prompts and choices so the user can answer compactly, for example `Q1: A ; Q2: B ; Q3: D quiet and less commercial`.
+</?>
+
+<demo #approval ?>
+!unquote_start
+<tool_call id="questionnaire_approval" lang="javascript" ?>
+SysBuiltIn.Questionnaire({
+  questionnaireId: "approve-delete",
+  kind: "approval",
+  suspendPolicy: "pause_all",
+  title: "Confirm Delete",
+  intro: "This action cannot be undone.",
+  questions: [
+    {
+      id: "confirm",
+      prompt: "Proceed?",
+      type: "yes_no",
+      required: true,
+    }
+  ]
+})
+!unquote_end
+</?>
+
+<demo #travel_recommendation ?>
+!unquote_start
+<tool_call id="questionnaire_travel_intake" lang="javascript" ?>
+SysBuiltIn.Questionnaire({
+  questionnaireId: "travel-intake",
+  kind: "form",
+  suspendPolicy: "pause_all",
+  title: "Travel Intake",
+  intro: "Answer by option label or add your own preference when needed.",
+  questions: [
+    {
+      id: "timing",
+      prompt: "When are you planning to travel?",
+      type: "single_select",
+      required: true,
+      choices: ["Within 1 month", "1-3 months", "More than 3 months away"]
+    },
+    {
+      id: "budget",
+      prompt: "What budget range should I target per person?",
+      type: "single_select",
+      required: true,
+      choices: ["Budget", "Mid-range", "Higher comfort"]
+    },
+    {
+      id: "party",
+      prompt: "Who are you traveling with?",
+      type: "multi_select",
+      required: true,
+      choices: ["Solo", "Partner", "Friends", "Family with kids"]
+    },
+    {
+      id: "preferences",
+      prompt: "What do you care about most for this trip?",
+      type: "text",
+      required: true,
+      helpText: "Examples: nature, food, quiet pace, low walking load, avoid crowds"
+    }
+  ]
+})
+!unquote_end
+</?>
+
+<demo #freeform ?>
+!unquote_start
+<tool_call id="questionnaire_freeform" lang="javascript" ?>
+SysBuiltIn.Questionnaire({
+  questionnaireId: "need-context",
+  kind: "clarification",
+  suspendPolicy: "continue_others",
+  title: "Need More Info",
+  questions: [
+    {
+      id: "details",
+      prompt: "Please describe what you want.",
+      type: "text",
+      required: true,
+    }
+  ]
+})
+!unquote_end
+</?>

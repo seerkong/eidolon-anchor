@@ -1,0 +1,23 @@
+{
+  "name": "@backend/elysia-shell",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "build": "bun build --compile --target bun --external sqlite3 src/index.ts --outfile dist/eidolon-anchor-backend"
+  },
+  "dependencies": {
+    "@shared/composer": "workspace:*",
+    "@backend/composer": "workspace:*",
+    "elysia": "^0.8.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.4.0"
+  }
+}

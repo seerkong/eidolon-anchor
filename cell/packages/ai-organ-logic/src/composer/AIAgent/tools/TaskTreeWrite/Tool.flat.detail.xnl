@@ -1,0 +1,44 @@
+<type_def lang="typescript" ?>
+export type TaskStatus = "pending" | "in_progress" | "completed";
+
+export interface TaskNodeDraft {
+  id?: string;
+  content: string;
+  status: TaskStatus;
+  activeForm?: string;
+}
+
+export type TaskTreeWriteFlatOuterInput =
+  | {
+      op: "replace_root";
+      tasks: TaskNodeDraft[];
+    }
+  | {
+      op: "update_status";
+      task_id: string;
+      status: TaskStatus;
+    };
+
+export type TaskTreeWriteFlatOuterOutput = string;
+
+export type TaskTreeWriteFlat = (input: TaskTreeWriteFlatOuterInput) => TaskTreeWriteFlatOuterOutput;
+</?>
+
+<warning ?>
+此变体仅用于单层任务列表管理。
+如果是在编码场景，则除本工具规则外，还需要额外遵循当前会话中的编码规则与代码修改约束；这些规则不会因为使用任务树工具而失效。
+
+支持操作：
+- `replace_root`
+- `update_status`
+
+禁止操作：
+- `expand`
+
+适用场景：
+- 只需要维护线性任务列表。
+- 不希望暴露树形拆分能力。
+- prompt/schema 需要明确禁止层级化展开。
+
+如需要树形任务拆分，应改用默认的 `TaskTreeWrite` tree 变体。
+</?>

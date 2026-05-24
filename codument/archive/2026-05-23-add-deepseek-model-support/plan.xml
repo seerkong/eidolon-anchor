@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>add-deepseek-model-support</track_id>
+    <type>feature</type>
+    <status>completed</status>
+    <created_at>2026-05-18T00:00:00Z</created_at>
+    <updated_at>2026-05-18T00:00:00Z</updated_at>
+    <description>把 DeepSeek 模型族的缓存友好策略、上下文窗口映射和 provider / prompt 迁移方案纳入本项目的正式迭代。</description>
+    <commit_mode>manual</commit_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Model family and provider inventory" status="DONE">
+      <goal>梳理当前 provider / model / prompt 流程，并对齐 DeepSeek-TUI 的缓存与上下文策略。</goal>
+      <tasks>
+        <task id="T1.1" name="Inventory current model flow" status="DONE" priority="P0">
+          <description>梳理 local model state、provider list、runtime model resolution 和 prompt build 的实际路径。</description>
+        </task>
+        <task id="T1.2" name="Capture DeepSeek reference rules" status="DONE" priority="P0">
+          <description>整理 DeepSeek-TUI 中的 context window、prefix cache、compaction 和 model alias 规则。</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="DeepSeek capability layer" status="DONE">
+      <goal>把 DeepSeek 变成可复用的模型能力层，而不是零散特判。</goal>
+      <tasks>
+        <task id="T2.1" name="Add DeepSeek capability mapping" status="DONE" priority="P0">
+          <description>定义 DeepSeek family、alias、context window 和 compaction threshold 的模型能力映射。</description>
+        </task>
+        <task id="T2.2" name="Align runtime provider resolution" status="DONE" priority="P0">
+          <description>让 runtime 在不破坏现有 provider 行为的前提下，按模型能力决定 DeepSeek 相关路径。</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Prompt serialization and cache stability" status="DONE">
+      <goal>减少 DeepSeek 请求的稳定前缀漂移，提高缓存命中率。</goal>
+      <tasks>
+        <task id="T3.1" name="Stabilize prompt assembly" status="DONE" priority="P0">
+          <description>保持 prompt parts 的顺序、范围和序列化输出稳定，明确稳定前缀与动态内容边界。</description>
+        </task>
+        <task id="T3.2" name="Apply model-aware compaction policy" status="DONE" priority="P0">
+          <description>根据模型上下文窗口计算 compaction 阈值，避免过早重写稳定前缀。</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P4" name="Verification and rollout" status="DONE">
+      <goal>通过测试和回归验证，确认 DeepSeek 支持不会破坏既有模型流。</goal>
+      <tasks>
+        <task id="T4.1" name="Add focused tests" status="DONE" priority="P0">
+          <description>补充模型别名、context window、prompt 序列化、compaction 和 fallback 的聚焦测试。</description>
+        </task>
+        <task id="T4.2" name="Review rollout boundaries" status="DONE" priority="P1">
+          <description>确认 DeepSeek 规则的应用边界，避免把非 DeepSeek provider 一并改坏。</description>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+
+  <summary>
+    <total_phases>4</total_phases>
+    <total_tasks>8</total_tasks>
+    <completed>8</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+  </summary>
+</plan>

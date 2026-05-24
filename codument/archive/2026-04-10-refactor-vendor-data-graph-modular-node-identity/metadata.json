@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-vendor-data-graph-modular-node-identity",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-10T00:00:00Z",
+  "updated_at": "2026-04-10T00:00:00Z",
+  "description": "将 vendor/depa-data-graph 从基于裸字符串的节点身份模型升级为基于 NodeRef 与 GraphModule 的模块化句柄系统。"
+}

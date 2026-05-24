@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface ReadOuterInput { filePath: string; offset?: number; limit?: number; }
+export type ReadOuterOutput = string;
+export type read = (input: ReadOuterInput) => ReadOuterOutput;
+</?>

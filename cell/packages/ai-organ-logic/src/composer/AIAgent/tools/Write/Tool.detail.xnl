@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface WriteOuterInput { filePath: string; content: string; }
+export type WriteOuterOutput = string;
+export type write = (input: WriteOuterInput) => WriteOuterOutput;
+</?>

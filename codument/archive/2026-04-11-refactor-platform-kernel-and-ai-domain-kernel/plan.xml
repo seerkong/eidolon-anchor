@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-platform-kernel-and-ai-domain-kernel</track_id>
+    <track_name>将当前 AI 运行时演进为平台微内核与 AI 领域微内核</track_name>
+    <goal>形成平台微内核 + AI 领域微内核的正式分层设计，并制定可执行的增量迁移路径。</goal>
+    <created_at>2026-04-10T19:17:54Z</created_at>
+    <updated_at>2026-04-11T12:48:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Architecture Boundary Freeze">
+      <goal>冻结平台内核、AI 领域内核与 app overlay 的正式边界。</goal>
+      <tasks>
+        <task id="T1.1" name="定义平台微内核能力边界" status="DONE" priority="P0" estimated_days="2">
+          <description>锁定哪些能力属于跨领域平台内核，哪些能力必须留在 AI 领域层。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">平台微内核能力清单明确且不包含 AI 专属语义</criterion>
+            <criterion id="T1.1-AC2" checked="true">AI 领域微内核能力清单明确且不被错误抽空</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="冻结 vendor 原语复用策略与禁止事项" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 vendor 复用原则、禁止重复造轮子、禁止空泛抽象等反模式。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">vendor actor/processor/data-graph 的职责归位明确</criterion>
+            <criterion id="T1.2-AC2" checked="true">反模式与非目标被正式记录</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Contract And Package Design">
+      <goal>设计新的 contract / logic / support / mod / profile 边界。</goal>
+      <tasks>
+        <task id="T2.1" name="设计平台内核 contract 与 runtime facet" status="DONE" priority="P0" estimated_days="3">
+          <description>定义平台级 runtime contract、capability ports、assembly contract 和 state facet。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">platform contract 与 AI domain contract 的边界可单独描述</criterion>
+            <criterion id="T2.1-AC2" checked="true">assembly/result/state contract 不再默认 AI-shaped</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="设计目标包结构与兼容过渡策略" status="DONE" priority="P1" estimated_days="2">
+          <description>给出从现有 cell/core/organ/mod 结构迁移到目标微内核结构的包级过渡方案。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">目标包结构、命名与兼容阶段明确</criterion>
+            <criterion id="T2.2-AC2" checked="true">不要求单轮重构完成全部 rename/cutover</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Profile And Runtime Adoption Design">
+      <goal>设计 profile 叠加模型与 shell/runtime entry 的消费边界。</goal>
+      <tasks>
+        <task id="T3.1" name="定义 platform-only -> ai-kernel -> ai-app profile 叠加模型" status="DONE" priority="P0" estimated_days="2">
+          <description>明确平台基线、AI 领域基线、AI app overlay 的组合顺序与 ownership。</description>
+          <dependencies>T2.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">profile 组合顺序明确</criterion>
+            <criterion id="T3.1-AC2" checked="true">未来非 AI 领域可在 platform-only 之上独立组装</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="定义 shell 与 support adoption 边界" status="DONE" priority="P0" estimated_days="2">
+          <description>明确 terminal/tui/headless 仅消费装配结果与 capability ports，support 实现按平台/AI 归位。</description>
+          <dependencies>T3.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">shell 不再作为默认产品定义宿主</criterion>
+            <criterion id="T3.2-AC2" checked="true">support adoption 边界与缺失语义明确</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P4" name="Migration And Verification Plan">
+      <goal>形成增量迁移路径、focused tests 与最终实施基线。</goal>
+      <confirm protocol="yield-human-confirm" when="after" status="DONE" />
+      <tasks>
+        <task id="T4.1" name="制定增量迁移波次与实施顺序" status="DONE" priority="P0" estimated_days="2">
+          <description>将架构方案转换为可分阶段实施的迁移波次，避免一次性大重构。</description>
+          <dependencies>T3.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">迁移阶段、先后顺序与回退风险明确</criterion>
+            <criterion id="T4.1-AC2" checked="true">当前 AI runtime 的连续可运行性被保护</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="定义 focused verification baseline" status="DONE" priority="P0" estimated_days="1">
+          <description>为 ownership、profile 顺序、capability 缺失语义、runtime adoption 建立 focused verification baseline。</description>
+          <dependencies>T4.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">验证关注行为与 ownership，而不只是文件搬迁</criterion>
+            <criterion id="T4.2-AC2" checked="true">架构基线可供后续实现 track 继续使用</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

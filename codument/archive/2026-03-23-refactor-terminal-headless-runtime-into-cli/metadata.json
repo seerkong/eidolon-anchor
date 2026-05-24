@@ -1,0 +1,10 @@
+{
+  "track_id": "refactor-terminal-headless-runtime-into-cli",
+  "track_name": "将 terminal 无头运行链路从 tui 拆分到 cli",
+  "type": "feature",
+  "status": "completed",
+  "commit_mode": "manual",
+  "created_at": "2026-03-22",
+  "updated_at": "2026-03-23T00:00:00Z",
+  "description": "将 terminal 无头运行入口从 tui 侧拆分到 cli 包，沉淀共享 runtime helper，并让 tui 的 project-root 解析复用公共逻辑。"
+}

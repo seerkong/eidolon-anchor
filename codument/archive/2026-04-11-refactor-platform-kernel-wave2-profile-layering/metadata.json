@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-wave2-profile-layering",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T05:06:36Z",
+  "updated_at": "2026-04-11T05:15:20Z",
+  "description": "承接平台微内核架构的第二波实施：引入 platform-only -> ai-kernel -> ai-coding 的正式 profile layering。"
+}

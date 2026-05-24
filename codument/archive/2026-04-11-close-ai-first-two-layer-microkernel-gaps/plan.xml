@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>close-ai-first-two-layer-microkernel-gaps</track_id>
+    <track_name>收敛 AI-first 两层微内核的剩余 gap</track_name>
+    <goal>在“两层微内核已成立”的前提下，继续关闭平台 baseline 偏薄、domain-ai 宿主未完全收口、shell facade 偏厚、AI-shaped 外露泄露，以及平台通用性证据不足这五类 gap。</goal>
+    <created_at>2026-04-11T15:11:32Z</created_at>
+    <updated_at>2026-04-11T18:35:08Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>phase</validation_granularity>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Execution Baseline Refresh">
+      <goal>把最新 gap 结论、非 blocker 结论和新 session 接棒入口冻结为当前 track 的正式真相源。</goal>
+      <tasks>
+        <task id="T1.1" name="刷新 track 的自包含基线" status="DONE" priority="P0" estimated_days="1">
+          <description>更新 proposal、design、spec，使执行者无需回溯 2026-04-11 archive 也能理解当前剩余 gap 与边界。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">track 明确区分“AI-first 两层微内核已成立”与“平台微内核已被充分验证”</criterion>
+            <criterion id="T1.1-AC2" checked="true">track 明确记录 `platform-logic` 不是当前 blocker，而是 evidence-gated 候选层</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="提供新 session 接棒上下文" status="DONE" priority="P0" estimated_days="1">
+          <description>补齐 context 与 analysis 基线，让后续 session 能直接从首个 TODO 任务继续执行。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">新 session 可以直接识别默认起手任务、相关代码宿主与停止条件</criterion>
+            <criterion id="T1.2-AC2" checked="true">analysis 文件已包含平台偏薄、宿主透传、shell glue 与 evidence gate 的最新判断</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Platform Baseline Tightening">
+      <goal>在不引入无证据 `platform-logic` 的前提下，补强平台 baseline，并收紧平台侧残余的历史 AI/runtime 依赖。</goal>
+      <tasks>
+        <task id="T2.1" name="判定 platform baseline 的过渡依赖与真实泄露" status="DONE" priority="P0" estimated_days="2">
+          <description>审查 `platform-contract`、`platform-support`、`mod-platform-kernel` 当前依赖和外露面，区分哪些仍是可接受的过渡依赖，哪些已构成平台边界泄露。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">形成一份明确的依赖分类：可接受过渡依赖 / 应收紧泄露 / 明确保留在 AI domain 的能力</criterion>
+            <criterion id="T2.1-AC2" checked="true">结论可直接指导下一步代码收紧，而不是重新讨论是否创建 `platform-logic`</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="实施第一批 platform baseline 收紧" status="DONE" priority="P0" estimated_days="3">
+          <description>基于 `T2.1` 的分类，收紧平台侧最值得优先处理的历史依赖或外露面，同时保持 `platform-only` 不隐式注入 AI domain 能力。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">至少关闭一批已确认的 platform leakage，而不是只新增说明文档</criterion>
+            <criterion id="T2.2-AC2" checked="true">`platform-only`、`ai-kernel`、`ai-coding` 的 layering 语义保持不回退</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.3" name="补 focused tests 或 guard 锁定平台边界" status="DONE" priority="P1" estimated_days="1">
+          <description>为 `T2.2` 的收紧结果补 focused verification，防止 `platform-*` 再次回流明显的 AI-specific 依赖。</description>
+          <dependencies>T2.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.3-AC1" checked="true">新增或更新 focused tests / guard，能证明平台侧未回流明显 AI-shaped 依赖</criterion>
+            <criterion id="T2.3-AC2" checked="true">验证覆盖 `platform-contract`、`platform-support`、`mod-platform-kernel` 中被修改的边界</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Domain AI Truth-Source Consolidation">
+      <goal>继续把 `domain-ai-*` 从显式宿主推进为默认真相源与第一批真实实现宿主。</goal>
+      <tasks>
+        <task id="T3.1" name="盘点 domain-ai 外露面中的历史透传" status="DONE" priority="P0" estimated_days="2">
+          <description>审查 `domain-ai-contract`、`domain-ai-logic` 的对外 surface，识别仍直接透传 `core-*` / `organ-*` 的类型、函数和宿主边界。</description>
+          <dependencies>T2.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">形成一份 public surface 级别的透传清单，并按优先级排序</criterion>
+            <criterion id="T3.1-AC2" checked="true">明确哪些透传属于底层 primitive 暂留，哪些已影响 domain host 真实性</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="迁移第一批 host-facing truth source 到 domain-ai" status="DONE" priority="P0" estimated_days="3">
+          <description>选择一批最影响外部 ownership 判断的 host-facing contract 或 logic，从历史透传收口到 `domain-ai-*` 正式宿主。</description>
+          <dependencies>T3.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">`domain-ai-*` 新增或承接至少一批真实宿主实现，而不是继续只做薄转发</criterion>
+            <criterion id="T3.2-AC2" checked="true">外部 consumer 的 formal import 面保持稳定或更收敛，不回退到历史入口</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.3" name="用 focused verification 锁定 domain-ai 宿主收口" status="DONE" priority="P1" estimated_days="1">
+          <description>补 focused tests 或 guard，证明新增 consumer 默认优先走 `domain-ai-*`，且真实宿主收口没有回流。</description>
+          <dependencies>T3.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.3-AC1" checked="true">验证能区分“consumer 已切换”与“真实宿主已收口”两个层次</criterion>
+            <criterion id="T3.3-AC2" checked="true">被收口的 surface 在回归时会被 focused tests 或 guard 捕获</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P4" name="Shell Facade Slimming">
+      <goal>让 terminal / tui / headless 更接近消费窄 facade port 的 bridge，而不是继续直接编排较多 AI runtime glue。</goal>
+      <tasks>
+        <task id="T4.1" name="定义 shell 下一批应下沉的 AI glue" status="DONE" priority="P0" estimated_days="1">
+          <description>基于 `TerminalRuntime`、TUI runtime 和当前 `domain-ai-logic` facade，确认仍留在 shell 的 AI glue 中，哪些最适合作为下一批收口对象。</description>
+          <dependencies>T3.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">形成明确的下一批 shell glue 清单，并按风险与收益排序</criterion>
+            <criterion id="T4.1-AC2" checked="true">清单能区分“shell 应持有的 bridge 职责”与“应下沉的 AI orchestration glue”</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="提供更窄 facade 并 cutover shell consumer" status="DONE" priority="P0" estimated_days="3">
+          <description>在 `domain-ai-logic` 或相邻正式宿主上提供更窄 facade，使 shell 主路径优先消费 facade，而不是继续直接编排 AI-specific 细节。</description>
+          <dependencies>T4.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">`TerminalRuntime` 等入口对 AI glue 的直接编排职责继续下降</criterion>
+            <criterion id="T4.2-AC2" checked="true">未引入第二套 shell 真相源，也未把 shell 逻辑机械搬回 platform 层</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.3" name="验证 shell 主路径仍连续可运行" status="DONE" priority="P1" estimated_days="1">
+          <description>对 shell runtime adoption 进行 focused verification，确保 turn lifecycle、slash runtime、projection bridge 不回退。</description>
+          <dependencies>T4.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.3-AC1" checked="true">至少覆盖 terminal runtime adoption 的 focused tests 通过</criterion>
+            <criterion id="T4.3-AC2" checked="true">shell 不新增第二套默认 slash/help/config/orchestration 真相源</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P5" name="Ownership Leakage Reduction And Evidence Validation">
+      <goal>继续收紧 AI-shaped 外露面，并给出比“AI-first 架构已成立”更强的证据性判断。</goal>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <tasks>
+        <task id="T5.1" name="治理最影响 ownership 判断的 AI-shaped 外露面" status="DONE" priority="P1" estimated_days="2">
+          <description>优先收紧会误导 platform/domain 边界判断的 AI-shaped 命名与类型外露面，不做大爆炸 rename。</description>
+          <dependencies>T4.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.1-AC1" checked="true">至少一批最影响 ownership 判断的 AI-shaped 外露面被收紧、替换或记录为明确暂留</criterion>
+            <criterion id="T5.1-AC2" checked="true">收紧方式不依赖一次性全仓 rename，也不只追求目录对称</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.2" name="执行平台通用性证据验证路线" status="DONE" priority="P0" estimated_days="3">
+          <description>在“第二领域 spike”或“真实重复实现分析”两条路线中选择一条，验证平台 baseline 的通用性结论，并同步更新 evidence gate 结论。当前已完成的是更强的否定性证据判断，而不是关闭 `Gap E` 本身。</description>
+          <dependencies>T5.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.2-AC1" checked="true">给出比“AI-first 已成立”更强的证据性判断，明确平台边界的可复用部分与未证明部分</criterion>
+            <criterion id="T5.2-AC2" checked="true">若证据仍不足，明确记录 `platform-logic` 继续禁止引入，而不是模糊留白</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.3" name="回写最终结论与后续建议" status="DONE" priority="P1" estimated_days="1">
+          <description>将 `T5.2` 的证据结论回写到 analysis、design 与 metadata 所需位置，确保本 track 在结束时仍保持自包含。</description>
+          <dependencies>T5.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.3-AC1" checked="true">track 内部文档与最终证据判断一致，不需要额外口头补充才能理解</criterion>
+            <criterion id="T5.3-AC2" checked="true">若仍有残余 gap，能够直接指向后续 track 或 archive 决策</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P6" name="Review Follow-Up Reconciliation">
+      <goal>将最新 review 发现回写为新的执行入口，避免把“第一轮收口完成”误判为“整条 track 已 fully complete”。</goal>
+      <tasks>
+        <task id="T6.1" name="回调完成态并统一 track 语义" status="DONE" priority="P0" estimated_days="1">
+          <description>将 `plan.xml`、`metadata.json`、`context.md` 与最新 review 结论对齐，明确当前是“第一轮收口完成，track 仍在进行中”。</description>
+          <acceptance_criteria>
+            <criterion id="T6.1-AC1" checked="true">track 不再宣称自己已经 fully complete</criterion>
+            <criterion id="T6.1-AC2" checked="true">新 session 能明确理解：哪些动作已完成，哪些 gap 仍待继续关闭</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T6.2" name="继续收紧 domain-ai public-surface truth source" status="DONE" priority="P0" estimated_days="2">
+          <description>基于 review 结论，继续减少 `domain-ai-contract` / `domain-ai-logic` 对历史 `core-*` / `organ-*` primitive 的 host-facing 透传，把当前“显式宿主”继续推进为更真实的 truth source。</description>
+          <dependencies>T6.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T6.2-AC1" checked="true">至少收紧一批高优先级 host-facing forwarding surface，而不是只增加 alias</criterion>
+            <criterion id="T6.2-AC2" checked="true">`domain-ai-*` 的 public surface 更少把历史宿主暴露为默认真相源</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T6.3" name="继续治理更广义 AI-shaped 外露面" status="DONE" priority="P1" estimated_days="2">
+          <description>在 shell-facing alias 之外，继续识别并收紧最影响 ownership 判断的 AI-shaped 类型名或 surface，避免 `T5.1` 只停留在第一批别名替换。</description>
+          <dependencies>T6.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T6.3-AC1" checked="true">至少关闭一批 review 中确认仍残留的 AI-shaped public-surface leakage</criterion>
+            <criterion id="T6.3-AC2" checked="true">收紧动作不依赖一次性全仓 rename</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T6.4" name="决定 Gap E 的后续归属" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 `Gap E` 是继续留在当前 track 作为未闭合 gap，还是拆分到独立 evidence track；无论选择哪条路线，都必须避免把当前否定性证据判断误写为 gap 已关闭。</description>
+          <dependencies>T6.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T6.4-AC1" checked="true">对 `Gap E` 给出明确处理路线：当前 track 继续执行，或拆为后续独立 track</criterion>
+            <criterion id="T6.4-AC2" checked="true">如果未建立第二领域或更强重复实现证据，当前 track 不得再次被误标为 fully complete</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P7" name="Gap E Evidence Continuation">
+      <goal>继续执行 `Gap E` 的正向证据路线，在不夸大当前平台结论的前提下，验证平台 baseline 的跨领域可复用边界。</goal>
+      <tasks>
+        <task id="T7.1" name="执行 Gap E 的下一轮证据路线" status="DONE" priority="P0" estimated_days="3">
+          <description>继续在“第二领域 spike”或“更强重复实现分析”两条路线中选择其一，产出更接近正向结论的证据；如果证据仍不足，则明确记录未证明部分并保持 track `in_progress`。</description>
+          <dependencies>T6.4</dependencies>
+          <acceptance_criteria>
+            <criterion id="T7.1-AC1" checked="true">对平台 baseline 哪些部分已被证明跨领域可复用、哪些仍未被证明给出更强证据</criterion>
+            <criterion id="T7.1-AC2" checked="true">若证据仍不足，当前 track 继续保持 `in_progress`，且 `platform-logic` 继续禁止引入</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P8" name="Gap E Positive-Evidence Execution">
+      <goal>在结构化证据矩阵基础上，继续寻找真正的正向跨领域证据，决定平台边界是否还能得到更强验证。</goal>
+      <tasks>
+        <task id="T8.1" name="执行第二领域 spike 或更强重复实现样例" status="DONE" priority="P0" estimated_days="4">
+          <description>基于 `analysis/gap-e-evidence-matrix.md` 的未证明项，选择“最小第二领域 spike”或“更强重复实现样例”其中一条路线，产出真正新增的正向证据；若仍失败，则明确记录失败点并考虑拆分为独立 evidence track。</description>
+          <dependencies>T7.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T8.1-AC1" checked="true">至少新增一类此前不存在的正向证据，而不是重复当前否定性判断</criterion>
+            <criterion id="T8.1-AC2" checked="true">若仍未形成正向证据，明确记录失败点，并给出是否拆分独立 evidence track 的决策</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P9" name="Completion Semantics Reconciliation">
+      <goal>统一 track 完成态、上下文入口与 evidence gate 门槛表述，确保新 session 不会被当前 `completed` 语义误导。</goal>
+      <tasks>
+        <task id="T9.1" name="统一 completed 语义与上下文描述" status="DONE" priority="P0" estimated_days="1">
+          <description>对齐 `context.md`、`metadata.json`、analysis 与 track 范围结论，明确“当前 track 完成”是指当前范围内目标完成，而不是两层微内核全部成熟度 gap 已关闭。</description>
+          <dependencies>T8.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T9.1-AC1" checked="true">`context.md` 不再同时出现“track 已完成”和“当前仍存在剩余 gap”的冲突表述</criterion>
+            <criterion id="T9.1-AC2" checked="true">新 session 仅阅读当前 track 即能理解：哪些目标已完成，哪些问题只是后续候选工作</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T9.2" name="修正 platform-logic evidence gate 的门槛表述" status="DONE" priority="P0" estimated_days="1">
+          <description>把 evidence gate 从“出现第二领域或重复实现证据”修正为“出现足够强的第二领域或重复实现证据，且仍需证明需要独立 `platform-logic`”，避免最小第二领域 spike 被误读成放开信号。</description>
+          <dependencies>T9.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T9.2-AC1" checked="true">`context.md`、相关 analysis 与 guardrail 文案不再暗示“只要有第二领域证据就能引入 platform-logic”</criterion>
+            <criterion id="T9.2-AC2" checked="true">新 session 能明确理解：当前最小第二领域 spike 只证明平台 baseline，不证明 `platform-logic` 合法</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T9.3" name="决定当前 track 的最终收尾动作" status="DONE" priority="P1" estimated_days="1">
+          <description>在完成 `T9.1` 与 `T9.2` 后，决定当前 track 是否可归档；若仍保留未收口的语义问题，则继续保持 `in_progress` 并明确后续入口。</description>
+          <dependencies>T9.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T9.3-AC1" checked="true">归档或继续进行的决策有明确理由，不再依赖口头说明</criterion>
+            <criterion id="T9.3-AC2" checked="true">若选择归档，track 内文档已不存在误导新 session 的完成态矛盾</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

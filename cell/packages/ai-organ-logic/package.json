@@ -1,0 +1,25 @@
+{
+  "name": "@cell/ai-organ-logic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "description": "AI-specific organization-layer logic aligned with orchestration, coordination, and recovery ownership.",
+  "dependencies": {
+    "@cell/ai-support": "workspace:*",
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-organ-contract": "workspace:*",
+    "@cell/symbiont-contract": "workspace:*",
+    "@cell/symbiont-logic": "workspace:*",
+    "depa-data-graph-core": "^0.1.0",
+    "depa-actor": "^0.1.1",
+    "depa-processor": "^0.1.0",
+    "@iarna/toml": "^2.2.5",
+    "@modelcontextprotocol/sdk": "^1.25.2"
+  }
+}

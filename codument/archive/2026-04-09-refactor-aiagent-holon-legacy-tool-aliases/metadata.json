@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-holon-legacy-tool-aliases",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-09T07:19:24Z",
+  "updated_at": "2026-04-09T07:37:43Z",
+  "description": "将 internal-only 的 Collective/Formation 旧工具族收口为 holon-first alias，去掉平行主逻辑"
+}

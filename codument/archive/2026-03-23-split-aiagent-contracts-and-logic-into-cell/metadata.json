@@ -1,0 +1,8 @@
+{
+  "track_id": "split-aiagent-contracts-and-logic-into-cell",
+  "type": "refactor",
+  "status": "archived",
+  "created_at": "2026-03-22T14:43:50Z",
+  "updated_at": "2026-03-22T16:27:42Z",
+  "description": "将 backend/packages/core/src/modules/AIAgent 与 backend/packages/organ/src/AIAgent 的契约与逻辑拆分迁移到 cell/packages 下的新分层包。"
+}

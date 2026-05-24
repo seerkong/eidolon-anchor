@@ -1,0 +1,35 @@
+<type_def lang="typescript" ?>
+export interface BashOuterInput {
+  command: string;
+  timeoutSeconds?: number;
+  workdir?: string;
+  description?: string;
+}
+
+export type BashOuterOutput = string;
+export type bash = (input: BashOuterInput) => BashOuterOutput;
+</?>
+
+<warning ?>
+Use this tool for shell-native operations.
+</?>
+
+<warning ?>
+Search:
+When searching code or file paths, prefer `rg` for content search and `rg --files` for file discovery before falling back to slower alternatives like `grep`, `find`, or `ls -R`.
+</?>
+
+<warning ?>
+Read:
+Prefer targeted reads such as `sed -n`, `head`, `tail`, or `nl -ba` over dumping entire large files. Do not use bash to directly edit normal text files when `read`, `edit`, or `write` can express the change more precisely.
+</?>
+
+<warning ?>
+Structured Output / Git:
+Prefer `jq` for JSON or structured output. Prefer non-interactive git commands with narrow output.
+</?>
+
+<warning ?>
+Tests / Scripts:
+After changes, prefer the smallest relevant test target before broader suites. Prefer project-provided scripts over handcrafted shell pipelines when both fit.
+</?>

@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "types": ["vitest/globals"],
+    "paths": {
+      "@frontend/composer": ["./src"],
+      "@frontend/composer/*": ["./src/*"],
+      "@frontend/core": ["../core/src"],
+      "@frontend/core/*": ["../core/src/*"],
+      "@shared/composer": ["../../../shared/packages/composer/src"],
+      "@shared/composer/*": ["../../../shared/packages/composer/src/*"]
+    }
+  },
+  "include": ["src", "test"]
+}

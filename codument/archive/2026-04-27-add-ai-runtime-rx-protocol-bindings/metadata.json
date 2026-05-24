@@ -1,0 +1,8 @@
+{
+  "track_id": "add-ai-runtime-rx-protocol-bindings",
+  "type": "feature",
+  "status": "archived",
+  "created_at": "2026-04-26T14:17:03Z",
+  "updated_at": "2026-04-27T00:00:00Z",
+  "description": "从已落地的 AiAgentVmPublicRxData 派生 shared semantic protocol frame binding，供 TUI/web/OpenAI-compatible 等协议后续消费。"
+}

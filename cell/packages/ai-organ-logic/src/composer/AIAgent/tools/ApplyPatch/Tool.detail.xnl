@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface ApplyPatchOuterInput { patchText: string; }
+export type ApplyPatchOuterOutput = string;
+export type apply_patch = (input: ApplyPatchOuterInput) => ApplyPatchOuterOutput;
+</?>

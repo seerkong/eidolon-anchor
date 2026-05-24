@@ -1,0 +1,11 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"assist"}
+---- #tuiControl
+{"cmd":"NewMessage","category":"toolcall"}
+---- #tuiMessage ?m3
+bash
+SysBuiltIn.bash({
+  command: "codument status"
+})
+/?m3

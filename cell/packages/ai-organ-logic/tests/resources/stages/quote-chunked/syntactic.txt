@@ -1,0 +1,5 @@
+@delimiter: ----
+---- #syntacticContentStart
+---- #syntacticQuote
+{"source":"content","text":"<tool_call id=\"ignored\" name=\"bash\" lang=\"javascript\">\nSysBuiltIn.bash({\n  command: \"echo ignored\"\n})\n</tool_call>"}
+---- #syntacticContentEnd

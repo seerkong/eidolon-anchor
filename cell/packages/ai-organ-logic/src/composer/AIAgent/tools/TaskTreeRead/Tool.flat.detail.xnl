@@ -1,0 +1,34 @@
+<type_def lang="typescript" ?>
+export interface TaskTreeReadOuterInput {}
+
+export type FlatTaskNodeView = {
+  id: string;
+  content: string;
+  status: "pending" | "in_progress" | "completed";
+  activeForm: string;
+  depth: number;
+  parentId: string | null;
+};
+
+export type TaskTreeReadOuterOutput = string;
+
+export type TaskTreeReadFlat = (input: TaskTreeReadOuterInput) => TaskTreeReadOuterOutput;
+</?>
+
+<warning ?>
+此变体返回扁平任务数组视图，而不是完整任务树 JSON。
+如果是在编码场景，则除本工具规则外，还需要额外遵循当前会话中的编码规则与代码修改约束；这些规则同样约束读取后的下一步决策。
+
+适用场景：
+- 需要快速查看当前全部任务的线性列表。
+- 只关心 depth、parentId 和状态，不需要完整嵌套结构。
+- 配合 flat task 模式做单层任务管理。
+
+不适用场景：
+- 需要完整树状 children 结构时，应改用 `TaskTreeRead` 默认 tree 变体。
+
+输出规则：
+- 返回 JSON 字符串。
+- 每个任务包含 `depth` 与 `parentId`。
+- 根层任务的 `parentId` 为 `null`。
+</?>

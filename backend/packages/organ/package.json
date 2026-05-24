@@ -1,0 +1,30 @@
+{
+  "name": "@backend/organ",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test",
+    "test:coverage:stdrun": "bun test --coverage --coverage-reporter=lcov",
+    "check:coverage:stdrun": "bun run scripts/checkCoverageScope.ts",
+    "gate:coverage:stdrun": "bun run test:coverage:stdrun && bun run check:coverage:stdrun"
+  },
+  "dependencies": {
+    "@backend/core": "workspace:*",
+    "@backend/composer": "workspace:*",
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*",
+    "@cell/mod-profiles": "workspace:*",
+    "@cell/ai-organ-contract": "workspace:*",
+    "@cell/symbiont-logic": "workspace:*",
+    "@cell/symbiont-contract": "workspace:*",
+    "@cell/ai-organ-logic": "workspace:*",
+    "@iarna/toml": "^2.2.5",
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "xstream": "^11.14.0"
+  }
+}

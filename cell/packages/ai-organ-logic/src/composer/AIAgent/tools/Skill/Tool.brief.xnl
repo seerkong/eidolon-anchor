@@ -1,0 +1,5 @@
+<tool {
+  name = "Skill"
+  namespace = "SysBuiltIn"
+  description = "Load a skill to gain specialized knowledge for a task. The skill content will be injected into the conversation."
+}>

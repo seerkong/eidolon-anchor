@@ -1,0 +1,9 @@
+{
+  "track_id": "add-aiagent-background-teams-protocols-autonomy",
+  "type": "feature",
+  "status": "completed",
+  "commit_mode": "manual",
+  "created_at": "2026-03-03T17:45:08Z",
+  "updated_at": "2026-03-06T00:00:00Z",
+  "description": "add background tasks, agent teams, team protocols, autonomous agents onto this repo's AiAgent runtime/actor/fiber orchestrator/datagraph design, excluding persistence/restart recovery. Adopt lane/scope gating so Questionnaire suspendPolicy=pause_all blocks interactive/team but does not block background/autonomy. Runtime capabilities are implemented; remaining work focuses on terminal TUI entrypoints: primary-facing tools plus explicit `/<cmd>` prompt-template triggers for background, teams, protocols, and autonomy, with an extensible command-registry design for future Claude Code / Codex-like custom commands."
+}

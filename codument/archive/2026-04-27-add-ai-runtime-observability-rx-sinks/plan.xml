@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>add-ai-runtime-observability-rx-sinks</track_id>
+    <track_name>增加 AI runtime 响应式可观测 sinks 与扩展事实</track_name>
+    <goal>从 public RxData 派生可观测数据面并提供隔离的 sinks</goal>
+    <created_at>2026-04-26T14:17:03Z</created_at>
+    <updated_at>2026-04-26T19:04:38Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+  <phases>
+    <phase id="P1" name="可观测契约与测试">
+      <goal>定义 ObservabilityRxData、sink protocol 与失败隔离测试</goal>
+      <tasks>
+        <task id="T1.1" name="编写 observability rx stream 测试" status="DONE" priority="P0"><description>验证 privateRxData 可写 observability stream、publicRxData 只读 observability stream，以及多来源 records 均符合标准 envelope。</description></task>
+        <task id="T1.2" name="编写 sink 失败隔离测试" status="DONE" priority="P0"><description>失败 sink 不影响其他 sink 和用户协议。</description></task>
+        <task id="T1.3" name="编写 observability-only extension fact 测试" status="DONE" priority="P0"><description>验证 extension fact helper 写入 private observability stream，不写 SemanticEvent union，但可经 public stream 被 sinks 消费。</description></task>
+      </tasks>
+    </phase>
+    <phase id="P2" name="实现 sinks">
+      <goal>实现 log sink 与 session trace artifact sink</goal>
+      <tasks>
+        <task id="T2.1" name="扩展 VM RxData observability stream" status="DONE" priority="P0"><description>在 contract 与 logic rxData 中新增 private writable / public readonly observability records/errors stream。</description></task>
+        <task id="T2.2" name="实现 ObservabilityRxData factory" status="DONE" priority="P0"><description>从 public observability stream 派生 records/errors；如需 usage/traceSummary 则读取常规 public signals。</description></task>
+        <task id="T2.3" name="实现 log sink" status="DONE" priority="P0"><description>输出 channel-aware structured log。</description></task>
+        <task id="T2.4" name="实现 session trace artifact sink" status="DONE" priority="P0"><description>通过注入 writer 或 sink options 按 session/request 写入 timeline artifact。</description></task>
+      </tasks>
+    </phase>
+    <phase id="P3" name="扩展事实与 provider capture">
+      <goal>提供受控事实写入与 provider scene capture 层间边界</goal>
+      <tasks>
+        <task id="T3.1" name="新增 observability-only extension fact envelope/helper" status="DONE" priority="P0"><description>扩展可受控写入观测事实，不拿 private writer，也不写 SemanticEvent union。</description></task>
+        <task id="T3.2" name="新增 provider scene capture hook" status="DONE" priority="P1"><description>contract 定义 hook，provider runtime 调用 hook，外层注入副作用实现，并可转为 observability-only fact。</description></task>
+      </tasks>
+    </phase>
+    <phase id="P4" name="验证">
+      <goal>验证可观测链路不影响用户协议输出</goal>
+      <tasks>
+        <task id="T4.1" name="运行 observability 定向测试" status="DONE" priority="P0"><description>覆盖 projection、sinks、extension facts。</description></task>
+        <task id="T4.2" name="运行协议绑定相邻测试" status="DONE" priority="P1"><description>确认 sink 失败不影响协议输出。</description></task>
+      </tasks>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+    </phase>
+  </phases>
+</plan>

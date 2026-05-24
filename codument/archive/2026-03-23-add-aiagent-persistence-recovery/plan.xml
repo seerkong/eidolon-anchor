@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>add-aiagent-persistence-recovery</track_id>
+    <track_name>AIAgent Actor-centric 持久化与保守恢复</track_name>
+    <goal>为 session 增加 actor-centric runtime snapshot，持久化 AiAgentVm durable subset、actor 全状态与 fiber 调度态，并补充收口 post-review 暴露的 session-scoped 语义、DOP 边界与恢复证明</goal>
+    <created_at>2026-03-17T00:00:00Z</created_at>
+    <status>completed</status>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Schema 与恢复模型">
+      <goal>将设计从业务 metadata-centric 调整为 actor/vm/fiber snapshot-centric</goal>
+      <tasks>
+        <task id="T1.1" name="明确 VM durable subset schema" status="DONE" priority="P0">
+          定义 `vm.json` 的字段边界、版本字段与不可持久化字段清单。
+        </task>
+        <task id="T1.2" name="明确 ActorSnapshot schema" status="DONE" priority="P0">
+          定义 actor durable fields、all mailboxes 序列化格式、hydration 边界。
+        </task>
+        <task id="T1.3" name="明确 FiberSnapshot schema" status="DONE" priority="P0">
+          定义 fiber 调度态元数据、actor 绑定关系与 interrupted downgrade 语义。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Runtime Snapshot Repository">
+      <goal>建立 session-scoped runtime snapshot repository 与原子读写能力</goal>
+      <tasks>
+        <task id="T2.1" name="红：snapshot repository 测试" status="DONE" priority="P0">
+          覆盖 manifest、vm、actors、fibers、indexes 的读写、版本与损坏容错。
+        </task>
+        <task id="T2.2" name="绿：实现 runtime snapshot repository" status="DONE" priority="P0">
+          <dependencies>T2.1</dependencies>
+          提供统一的 snapshot 读写接口与原子替换能力。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Actor 全状态持久化">
+      <goal>完成 actor durable fields 与 all mailboxes 的序列化和恢复</goal>
+      <tasks>
+        <task id="T3.1" name="红：ActorSnapshot schema 测试" status="DONE" priority="P0">
+          覆盖 messages、identity、protocol state、taskTree、pendingQuestionnaires 等 durable fields。
+        </task>
+        <task id="T3.2" name="绿：实现 actor serializer/hydrator" status="DONE" priority="P0">
+          <dependencies>T3.1</dependencies>
+        </task>
+        <task id="T3.3" name="红：all mailboxes 恢复测试" status="DONE" priority="P0">
+          覆盖 `control`、`childDone`、`teamInbox`、`humanInput`、`toolResult`、`aiGenerated` 的序列化、顺序与恢复。
+        </task>
+        <task id="T3.4" name="绿：实现 actor mailbox durability" status="DONE" priority="P0">
+          <dependencies>T3.3</dependencies>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P4" name="Fiber 调度态持久化">
+      <goal>持久化 fiber 调度态元数据并恢复 actor ↔ fiber binding</goal>
+      <tasks>
+        <task id="T4.1" name="红：FiberSnapshot schema 测试" status="DONE" priority="P0">
+          覆盖 lane、status、workloadKind、parentFiberId、waitingReason、actorKey 绑定。
+        </task>
+        <task id="T4.2" name="绿：实现 fiber serializer/hydrator" status="DONE" priority="P0">
+          <dependencies>T4.1</dependencies>
+        </task>
+        <task id="T4.3" name="红：unfinished background -> interrupted 测试" status="DONE" priority="P0">
+          覆盖 background lane fiber 在恢复时的降级语义。
+        </task>
+        <task id="T4.4" name="绿：实现 background interrupted downgrade" status="DONE" priority="P0">
+          <dependencies>T4.3</dependencies>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P5" name="VM 恢复与 Runtime Bootstrap">
+      <goal>恢复 VM durable subset，并重装配 process-local runtime handles</goal>
+      <tasks>
+        <task id="T5.1" name="红：VM durable subset 测试" status="DONE" priority="P0">
+          覆盖 `primaryActorKey`、durable indices、schema version 与 process-only 字段排除。
+        </task>
+        <task id="T5.2" name="绿：实现 VM serializer/hydrator" status="DONE" priority="P0">
+          <dependencies>T5.1</dependencies>
+        </task>
+        <task id="T5.3" name="红：session recovery 集成测试" status="DONE" priority="P0">
+          覆盖 runtime 启动 -> 写 snapshot -> dispose -> restart -> actors/fibers/vm 可恢复。
+        </task>
+        <task id="T5.4" name="绿：实现 recovery bootstrap" status="DONE" priority="P0">
+          <dependencies>T5.3</dependencies>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P6" name="上层能力投影与显示">
+      <goal>将 team/background/protocol/autonomy 状态统一投影到 tools / TUI</goal>
+      <tasks>
+        <task id="T6.1" name="红：恢复后查询视图测试" status="DONE" priority="P1">
+          覆盖 `/team list`、`/team status`、`/bg list`、`/bg status`、`/protocol status`、`/autonomy status`。
+        </task>
+        <task id="T6.2" name="绿：实现 derived indexes 与查询投影" status="DONE" priority="P1">
+          <dependencies>T6.1</dependencies>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P7" name="Deferred Hooks">
+      <goal>为未来 exact-resume 与 replay-safe taxonomy 预留边界</goal>
+      <tasks>
+        <task id="T7.1" name="记录 replay safety taxonomy" status="DONE" priority="P2">
+          预留 `no_replay / replay_safe / manual_confirm` 分类位置。
+        </task>
+        <task id="T7.2" name="记录 future continuation checkpoints" status="DONE" priority="P2">
+          说明 continuation 级恢复继续 deferred，不在本 milestone 实现。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P8" name="Transcript-first 消息恢复">
+      <goal>将 actor messages 的恢复主源切换为 actor-scoped transcript，并落地新的 session actors 目录布局</goal>
+      <tasks>
+        <task id="T8.1" name="红：actor transcript loader 与新目录布局测试" status="DONE" priority="P0">
+          覆盖 primary/subagent/teammate actor 目录命名、transcript 写入/备份、旧 message_history 兼容读取、transcript -> ChatMessage 恢复。
+        </task>
+        <task id="T8.2" name="绿：实现 actor-scoped transcript persistence 与 message recovery" status="DONE" priority="P0">
+          <dependencies>T8.1</dependencies>
+          实现 `actors/<actor_dir>/transcript.txt` 写入、备份、兼容读取与 transcript-first message 恢复。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P9" name="Snapshot 单源化与恢复重建">
+      <goal>去除 actor/fiber snapshot 的 messages 主数据，并从 vm/actors/fibers 主快照重建 team/background/protocol/autonomy</goal>
+      <tasks>
+        <task id="T9.1" name="红：snapshot 去消息化与无 indexes 恢复测试" status="DONE" priority="P0">
+          覆盖 actor/fiber snapshot 不再承载 messages、indexes 缺失/损坏时仍可从主快照恢复、显式 actor ↔ fiber binding 恢复。
+        </task>
+        <task id="T9.2" name="绿：实现 snapshot 去消息化与恢复主源纠偏" status="DONE" priority="P0">
+          <dependencies>T9.1</dependencies>
+          停止从 actor/fiber snapshot 恢复 messages，恢复时以 vm/actors/fibers 主快照 + transcript 为主，indexes 降级为 projection/cache。
+        </task>
+        <task id="T9.3" name="红：投影视图从主快照重建测试" status="DONE" priority="P0">
+          覆盖 team/background/protocol/autonomy 由主快照重建，而不是依赖 persisted derived indexes。
+        </task>
+        <task id="T9.4" name="绿：实现 team/background/protocol/autonomy projection rebuild" status="DONE" priority="P0">
+          <dependencies>T9.3</dependencies>
+          从 actor identities、mailboxes、fiber binding、VM durable subset 重建上层查询状态，并保留 derived indexes 落盘作为 cache。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P10" name="回归验证与兼容收口">
+      <goal>更新相关测试、TUI 可见性与 Codument 状态，确保整改后的恢复语义稳定</goal>
+      <tasks>
+        <task id="T10.1" name="红：TUI / history / compat 回归测试" status="DONE" priority="P1">
+          覆盖新 actors 目录布局、旧布局兼容、TUI session history isolation、slash 非持久化边界与恢复后状态可见性。
+        </task>
+        <task id="T10.2" name="绿：完成兼容层、更新验证并收口 track" status="DONE" priority="P1">
+          <dependencies>T10.1</dependencies>
+          完成兼容层与回归修复，更新 plan/metadata/status，并通过 `codument validate add-aiagent-persistence-recovery --strict`。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P11" name="Session-scoped 语义收口">
+      <goal>收口 team / autonomy / protocol 的查询、恢复与调度作用域，消除 process-scoped 语义残留</goal>
+      <tasks>
+        <task id="T11.1" name="红：多 session 隔离回归测试" status="DONE" priority="P0">
+          覆盖 `/team list`、`/team status`、`/protocol status`、`/shutdown-status`、`/autonomy status` 在同进程多 session 并存与顺序恢复场景下不串读、不串写。
+        </task>
+        <task id="T11.2" name="绿：收口 team / autonomy 的 session-bound runtime access" status="DONE" priority="P0">
+          <dependencies>T11.1</dependencies>
+          让 TeamManager、tool runtime context 与 AutonomyRunner 仅使用当前 `AiAgentVm` 对应的 roster / runtime state。
+        </task>
+        <task id="T11.3" name="绿：收口 protocol 的 session-bound recovery 与查询路径" status="DONE" priority="P0">
+          <dependencies>T11.1</dependencies>
+          移除 protocol 的跨 session existing-plus-restored merge 语义，并让查询工具只读取当前 session 对应的 protocol state。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P12" name="恢复后可见视图一致性">
+      <goal>确保恢复后的 team / TUI 可见视图持续派生自 actor / vm / fiber 当前真相源</goal>
+      <tasks>
+        <task id="T12.1" name="红：恢复后 teammate 继续执行的视图同步测试" status="DONE" priority="P1">
+          覆盖 teammate 在 recovery 之后继续输出 assistant 消息时，`/team status` 与 TUI 视图会刷新为最新结果，而不是停留在恢复时刻的快照。
+        </task>
+        <task id="T12.2" name="绿：收口 roster / view 的消息真相源" status="DONE" priority="P1">
+          <dependencies>T12.1</dependencies>
+          移除或弱化独立 `messages` 副本作为长期真相源的角色，使视图层回收到 actor 当前状态。
+        </task>
+        <task id="T12.3" name="绿：验证恢复后 tools / TUI 投影持续同步" status="DONE" priority="P1">
+          <dependencies>T12.2</dependencies>
+          验证 projection/cache 只作为派生层，不会在 runtime 继续推进后长期滞后。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P13" name="恢复边界证明补齐">
+      <goal>补齐 transcript 降级、兼容布局与 background terminal state 的恢复证明</goal>
+      <tasks>
+        <task id="T13.1" name="红：transcript 降级与 mixed-layout compat 测试" status="DONE" priority="P1">
+          覆盖 transcript 尾部损坏、marker 缺失、半条 tool call、questionnaire 中断与 old/new layout 混合恢复。
+        </task>
+        <task id="T13.2" name="红：background terminal state 无 indexes 恢复测试" status="DONE" priority="P1">
+          覆盖 `completed|failed|cancelled` background task 在 derived indexes 缺失、损坏或过期时仍可由主快照恢复。
+        </task>
+        <task id="T13.3" name="绿：实现 transcript / background 恢复边界修复" status="DONE" priority="P1">
+          <dependencies>T13.1,T13.2</dependencies>
+          按保守恢复语义补齐 reducer、compat path 与主快照恢复逻辑，确保 indexes 仅作为 cache。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P14" name="DOP 边界与隐藏状态收口">
+      <goal>减少 VM 外挂 state 与 metadata 杂项字段，让关键 session runtime state 显式归属于 AiAgentVm / AiAgentActor</goal>
+      <tasks>
+        <task id="T14.1" name="评估并收口 BackgroundTaskRegistry 的显式归属" status="DONE" priority="P2">
+          评估 `WeakMap&lt;AiAgentVm, Registry&gt;` sidecar state 的保留边界，必要时迁移为 `AiAgentVm` 的显式 session state。
+        </task>
+        <task id="T14.2" name="收口 metadata 魔法字段与运行时旁路" status="DONE" priority="P2">
+          收口 `__autonomy_task_ownership`、`__ai_orchestrator`、`__ai_driver`、`__actor_fiber_bindings`、`__deferred_team_resumes` 等字段，避免 metadata 继续充当主状态杂物箱。
+        </task>
+        <task id="T14.3" name="红：隐藏状态与显式 ownership 回归测试" status="DONE" priority="P2">
+          建立回归测试，证明关键 session runtime state 能显式定位到 `AiAgentVm` / `AiAgentActor` 或绑定到当前 VM 的 typed runtime context。
+        </task>
+        <task id="T14.4" name="绿：完成 post-review closure 并重新收口 track" status="DONE" priority="P2">
+          <dependencies>T14.1,T14.2,T14.3</dependencies>
+          更新文档、回归测试与 track 状态，确保 strict session-scoped semantics、single source of truth 与 DOP ownership 已闭环。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P15" name="Residual Follow-up 收口">
+      <goal>收口二次 review 暴露的剩余一致性问题，确保 background 恢复与 team activity 视图完全对齐主真相源</goal>
+      <tasks>
+        <task id="T15.1" name="红：stale background index 不得复活 terminal task" status="DONE" priority="P1">
+          覆盖主快照与 `backgroundTasks.json` 冲突时的恢复优先级，证明 terminal task 不会被 stale index 单独回填或复活。
+        </task>
+        <task id="T15.2" name="绿：收紧 terminal background 的 index fallback" status="DONE" priority="P1">
+          <dependencies>T15.1</dependencies>
+          将 `backgroundTasks` index 的角色进一步收口为 cache/diagnostics，避免其在主快照缺席时默认充当唯一恢复输入。
+        </task>
+        <task id="T15.3" name="红：team activity timestamp 持续同步测试" status="DONE" priority="P1">
+          覆盖 recovery 后 teammate 连续多轮输出、team status 刷新与 TUI 排序依赖的 `lastActiveAt` 同步推进。
+        </task>
+        <task id="T15.4" name="绿：收口 team activity 时间真相源" status="DONE" priority="P1">
+          <dependencies>T15.3</dependencies>
+          让 teammate 新 assistant 输出也能推动可见 activity timestamp，或将其改为从 actor/fiber 当前状态稳定推导。
+        </task>
+        <task id="T15.5" name="补齐 residual compatibility / recovery 证明" status="DONE" priority="P2">
+          覆盖 old/new mixed transcript layout 与 questionnaire pending 持久化恢复的端到端验证，作为本轮 residual follow-up 的最终证明。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P16" name="Schema 与 Recovery Contract 收口">
+      <goal>收口 transcript 单源化、snapshot schema contract、typed recovery report 与日志目录布局，消除当前实现与设计基线的剩余偏差</goal>
+      <tasks>
+        <task id="T16.1" name="收口 transcript-first 的唯一消息真相源" status="DONE" priority="P1">
+          移除 recovery 对 snapshot messages 的 fallback 依赖，确保 `AiAgentActor.messages` 仅由 actor transcript / legacy transcript compat 恢复。
+        </task>
+        <task id="T16.2" name="收口 manifest/vm/fiber schema contract" status="DONE" priority="P1">
+          统一 `version` / `updatedAt` / `workloadKind` 等字段命名，保留 old layout 兼容读取，但停止继续写入漂移字段作为主 schema。
+        </task>
+        <task id="T16.3" name="将 recovery report 提升为 typed runtime output" status="DONE" priority="P2">
+          让 corruptions 与 transcript fallback 来源通过 `RecoverAiAgentRuntimeResult` / `AiAgentVm` 的显式 typed 字段暴露，而不是仅挂在 metadata 杂项字段中。
+        </task>
+        <task id="T16.4" name="收口 orchestration history 日志布局" status="DONE" priority="P2">
+          将 `orchestration_history.txt` 迁到 `logs/` 目录，并保留对旧 session 根目录布局的兼容迁移。
+        </task>
+        <task id="T16.5" name="补齐本轮 contract closure 回归验证" status="DONE" priority="P1">
+          覆盖 transcript 缺失时不再从 snapshot messages 回填、new schema manifest/vm/fiber 读写、typed recovery report 暴露与日志布局兼容。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P17" name="Autonomy Dispatch UX 收口">
+      <goal>补齐无需预先知道 task_id 的 autonomy 任务派发入口，避免用户只能手工写 TaskTree 再等待主 agent 或 runner 间接推进</goal>
+      <tasks>
+        <task id="T17.1" name="新增自然语言 autonomy dispatch 入口" status="DONE" priority="P1">
+          提供 `AutonomyDispatch` 能力，允许用户仅通过任务描述创建 pending task、自动启动 autonomy（如未启用）并立即触发一次 dispatch/tick。
+        </task>
+        <task id="T17.2" name="新增 `/autonomy dispatch :: <任务描述>` slash 交互" status="DONE" priority="P1">
+          将该交互接入 direct slash command 路径，使用户无需先知道 task_id 即可派发 autonomy 任务。
+        </task>
+        <task id="T17.3" name="补齐 autonomy dispatch UX 回归测试" status="DONE" priority="P1">
+          覆盖 slash 解析、primary-facing tool 调用与“无 task_id 也能创建并派发 autonomy 任务”的集成验证。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P18" name="Lane-aware Spawn UX 收口">
+      <goal>将 `/team` 与 `/autonomy` 的 teammate 创建交互统一到 `spawn-leader|spawn-worker + [@agent_name]`，减少 role / agent_type 样板输入</goal>
+      <tasks>
+        <task id="T18.1" name="新增 lane-aware spawn shorthand 解析" status="DONE" priority="P1">
+          支持 `/team spawn-leader|spawn-worker` 与 `/autonomy spawn-leader|spawn-worker`，并映射到显式 `TeamSpawn` 参数。
+        </task>
+        <task id="T18.2" name="补齐 `@agent_name` 省略与默认回退语义" status="DONE" priority="P1">
+          让 slash 层可通过 `@agent_name` 选择已加载 agent config；省略时默认使用 `agent_type=code`，同时 `/autonomy spawn-*` 自动设置 `lane=autonomy` 与 `share_task_tree=true`。
+        </task>
+        <task id="T18.3" name="同步帮助文案与回归测试" status="DONE" priority="P1">
+          更新 slash namespace help / TUI help 示例，并覆盖新 spawn shorthand 的解析回归测试。
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P19" name="Autonomy Visibility 与 Transcript Persistence 收口">
+      <goal>补齐 autonomy 任务可见性与 append-only transcript contract，避免 dispatch 后用户无感知、以及 snapshot 保存引入高频全量 transcript 重写</goal>
+      <tasks>
+        <task id="T19.1" name="收口 snapshot 保存对 transcript 的写入策略" status="DONE" priority="P1">
+          runtime snapshot 保存仅在 transcript 缺失时做初始化写入；已有 actor transcript 继续由 append-only message history 负责，不再在每次 tick 后全量覆盖。
+        </task>
+        <task id="T19.2" name="补齐 autonomy claim 可见性与 worker 协议提示" status="DONE" priority="P1">
+          让 autonomy claim 回流到主 agent 可见流，并为 autonomy teammate 注入默认 task-tree 协议提示，降低任务长期卡在 `in_progress` 且用户无结果感知的概率。
+        </task>
+        <task id="T19.3" name="补齐 transcript / autonomy 可见性回归测试" status="DONE" priority="P1">
+          覆盖 direct slash 保存 snapshot 时不重写既有 transcript，以及 autonomy dispatch / spawn 的可见性与默认协议提示行为。
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

@@ -1,0 +1,3 @@
+export interface MemberAssignOuterInput { target: string; mode: "final" | "none" | "stream"; content: string; }
+export type MemberAssignOuterOutput = string;
+export type MemberAssign = (input: MemberAssignOuterInput) => MemberAssignOuterOutput;

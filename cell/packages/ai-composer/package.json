@@ -1,0 +1,19 @@
+{
+  "name": "@cell/ai-composer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "description": "AI runtime composition surface aligned with formal composer ownership.",
+  "dependencies": {
+    "@cell/platform-contract": "workspace:*",
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract.ts",
+    "./ai-contract": "./src/ai-contract.ts",
+    "./*": "./src/*"
+  }
+}

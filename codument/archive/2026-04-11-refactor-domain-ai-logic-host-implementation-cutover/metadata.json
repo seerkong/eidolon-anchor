@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-domain-ai-logic-host-implementation-cutover",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T15:05:00Z",
+  "updated_at": "2026-04-11T15:32:00Z",
+  "description": "让 domain-ai-logic 从显式宿主 + re-export 收口，推进为第一批真实 AI logic 实现宿主。"
+}

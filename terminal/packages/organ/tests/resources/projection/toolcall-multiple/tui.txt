@@ -1,0 +1,13 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"toolcall"}
+---- #tuiMessage ?m2
+get_weather
+{"location":"SF"}
+/?m2
+---- #tuiControl
+{"cmd":"NewMessage","category":"toolcall"}
+---- #tuiMessage ?m4
+get_time
+{"timezone":"PST"}
+/?m4

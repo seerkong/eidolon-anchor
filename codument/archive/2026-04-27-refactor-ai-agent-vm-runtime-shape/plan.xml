@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-ai-agent-vm-runtime-shape</track_id>
+    <track_name>重构 AiAgentVm 标准运行时字段形态</track_name>
+    <goal>按 actors、holonRuntime、inner/outer ctx、snapshots 与 rx data 分类建立 AiAgentVm 标准字段设计</goal>
+    <created_at>2026-04-26T14:17:03Z</created_at>
+    <updated_at>2026-04-27T00:00:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+  <phases>
+    <phase id="P1" name="字段现状测试与边界确认">
+      <goal>用测试锁定 createVM 与 ensure helpers 的兼容行为</goal>
+      <tasks>
+        <task id="T1.1" name="补充 AiAgentVm 兼容行为测试" status="DONE" priority="P0">
+          <description>覆盖 aiFacet、sessionState、runtimeContext 与 holonRuntime 的同源关系。</description>
+          <acceptance_criteria><criterion id="T1.1-AC1" checked="true">测试能在重构前表达现有兼容预期</criterion></acceptance_criteria>
+        </task>
+        <task id="T1.2" name="确认字段 ownership 分类" status="DONE" priority="P0">
+          <description>更新或扩展 AI_AGENT_VM_FACET_OWNERSHIP，表达 actors、holonRuntime、runtime knobs、non-rx data、rx data。</description>
+          <acceptance_criteria><criterion id="T1.2-AC1" checked="true">ownership 可覆盖新一级分类并预留 rx 字段类别</criterion></acceptance_criteria>
+        </task>
+        <task id="T1.3" name="补充 innerCtx 兼容行为测试" status="DONE" priority="P0">
+          <description>覆盖 registries、mcpManager、recovery 与 innerCtx 的同源关系。</description>
+          <acceptance_criteria><criterion id="T1.3-AC1" checked="true">旧字段访问与 innerCtx 返回同源对象</criterion></acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P2" name="实现字段形态重构">
+      <goal>调整 AiAgentVm 类型与 createVM 初始化，使 holonRuntime/innerCtx/snapshots 与兼容 facade 同源</goal>
+      <tasks>
+        <task id="T2.1" name="新增 AiHolonRuntime 与 AiRuntimeInnerCtx 类型" status="DONE" priority="P0">
+          <description>定义 holonRuntime 与 innerCtx，迁移 session/runtime context 和 registries/MCP/recovery 的主归属。</description>
+          <acceptance_criteria><criterion id="T2.1-AC1" checked="true">TypeScript 类型检查通过</criterion></acceptance_criteria>
+        </task>
+        <task id="T2.2" name="新增 runtime snapshot 与 rx seam 字段" status="DONE" priority="P0">
+          <description>定义 AiRuntimeImmutableSnapshot、AiRuntimeMutableSnapshot、public/private RxData 与 binding 的字段 seam；private binding 统一命名为 privateRxBinding。</description>
+          <acceptance_criteria><criterion id="T2.2-AC1" checked="true">VM 创建后 snapshot 与 rx seam 字段存在且类型稳定</criterion></acceptance_criteria>
+        </task>
+        <task id="T2.2a" name="按现状扩充 innerCtx 与 snapshots 首批字段" status="DONE" priority="P1">
+          <description>根据当前 runtime.ts 与相邻调用点，把新增字段按 innerCtx、immutableSnapshot、mutableSnapshot 生命周期边界归类。</description>
+          <acceptance_criteria><criterion id="T2.2a-AC1" checked="true">新增字段均有明确类别，不形成无边界 controller runtime</criterion></acceptance_criteria>
+        </task>
+        <task id="T2.3" name="重构 AiAgentVm 类型定义" status="DONE" priority="P0">
+          <description>按 actors、holonRuntime、runtime knobs、non-rx data、rx data 表达字段。</description>
+          <acceptance_criteria><criterion id="T2.3-AC1" checked="true">TypeScript 类型检查通过</criterion></acceptance_criteria>
+        </task>
+        <task id="T2.4" name="更新 createVM 与 ensure helpers" status="DONE" priority="P0">
+          <description>确保 helper 不会产生分叉状态。</description>
+          <acceptance_criteria><criterion id="T2.4-AC1" checked="true">兼容测试通过</criterion></acceptance_criteria>
+        </task>
+        <task id="T2.5" name="拆分 ai-core-contract 与 ai-core-logic 数据/逻辑边界" status="DONE" priority="P0">
+          <description>将 AiAgentVm、runtime ctx/snapshot、registry dataclass 与 persisted snapshot 类型迁移到 ai-core-contract，ai-core-logic 仅保留静态 registry 逻辑类、createVM 与 ensure helpers。</description>
+          <acceptance_criteria>
+            <criterion id="T2.5-AC1" checked="true">ai-core-contract 不依赖也不 import ai-core-logic</criterion>
+            <criterion id="T2.5-AC2" checked="true">ai-core-logic 的 VM、registry 与 runtime snapshot 类型复用 contract 包契约</criterion>
+            <criterion id="T2.5-AC3" checked="true">相关 runtime 与 organ logic 测试通过</criterion>
+            <criterion id="T2.5-AC4" checked="true">registry 原实例方法迁移为以 dataclass 为第一个参数的 logic 静态方法</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P3" name="验证与收口">
+      <goal>验证 runtime 与 organ 依赖调用点仍兼容</goal>
+      <tasks>
+        <task id="T3.1" name="运行 ai-core-logic 定向测试" status="DONE" priority="P0"><description>运行 runtime 相关测试。</description></task>
+        <task id="T3.2" name="运行 ai-organ-logic 相关测试" status="DONE" priority="P1"><description>覆盖 ensureVmRuntimeContext 调用点。</description></task>
+      </tasks>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+    </phase>
+  </phases>
+</plan>

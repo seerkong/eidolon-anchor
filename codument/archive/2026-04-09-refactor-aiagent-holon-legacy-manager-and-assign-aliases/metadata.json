@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-holon-legacy-manager-and-assign-aliases",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-09T09:39:18Z",
+  "updated_at": "2026-04-09T09:57:14Z",
+  "description": "将 OrganizationManager 的 legacy collective/formation helper 与 assign alias module 从内部主实现路径中清理掉"
+}

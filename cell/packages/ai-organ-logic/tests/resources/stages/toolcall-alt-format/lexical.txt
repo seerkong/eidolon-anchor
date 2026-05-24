@@ -1,0 +1,11 @@
+@delimiter: ----
+---- #lexicalToolCallStart
+{}
+---- #lexicalToolCallDelta
+{"index": 0, "id": "abcd", "type": "function", "function": {"name": "get_weather"}}
+---- #lexicalToolCallDelta
+{"index": 0, "function": {"arguments": "{\"location\": \"San Francisco"}}
+---- #lexicalToolCallDelta
+{"index": 0, "function": {"arguments": ", US\"}"}}
+---- #lexicalToolCallEnd
+{}

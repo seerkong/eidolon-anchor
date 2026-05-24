@@ -1,0 +1,12 @@
+<tool>
+  <name>webfetch</name>
+  <brief>Fetches content from a specified URL.</brief>
+  <details>
+    Input:
+    - url: string
+    - format: "markdown" | "text" | "html" (default: markdown)
+    - timeout: seconds (max 120)
+
+    Output: string
+  </details>
+</tool>

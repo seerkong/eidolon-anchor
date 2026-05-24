@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-wave1-contract-composer-and-ownership",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-10T20:06:35Z",
+  "updated_at": "2026-04-11T04:26:46Z",
+  "description": "承接平台微内核架构的第一波实施：platform contract、platform composer contract 与 ownership tables。"
+}

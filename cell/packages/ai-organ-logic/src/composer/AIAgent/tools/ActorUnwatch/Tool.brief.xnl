@@ -1,0 +1,4 @@
+<tool>
+  <name>ActorUnwatch</name>
+  <description>Disable watched state for an actor.</description>
+</tool>

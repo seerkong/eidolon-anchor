@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-platform-kernel-subwave-import-cutover-phase2-legacy-alias-cleanup</track_id>
+    <track_name>平台微内核后续 sub-wave：import cutover phase2 legacy alias cleanup</track_name>
+    <goal>删除工作区旧 support/mod path alias，并建立 focused guard 防止 legacy alias 回流。</goal>
+    <created_at>2026-04-11T08:32:00Z</created_at>
+    <updated_at>2026-04-11T08:40:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Track Setup">
+      <goal>建立 phase2 的规范与计划。</goal>
+      <tasks>
+        <task id="T1.1" name="创建 phase2 track 文档" status="DONE" priority="P0" estimated_days="1">
+          <description>创建 proposal/spec/design/plan 与 analysis 文件。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">track 文档完整</criterion>
+            <criterion id="T1.1-AC2" checked="true">phase2 范围明确锚定在 legacy alias cleanup</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Alias Cleanup">
+      <goal>从工作区开发路径解析层移除旧 alias。</goal>
+      <tasks>
+        <task id="T2.1" name="删除 legacy path alias" status="DONE" priority="P0" estimated_days="1">
+          <description>移除各工作区 `tsconfig.json` 中对 `@cell/organ-support` / `@cell/mod-sys-*` 的 path 映射。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">旧 alias 已从工作区 tsconfig 清除</criterion>
+            <criterion id="T2.1-AC2" checked="true">新 alias 仍可正常工作</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Regression Guard">
+      <goal>防止 legacy alias 回流。</goal>
+      <tasks>
+        <task id="T3.1" name="补 alias guard 并验证" status="DONE" priority="P0" estimated_days="1">
+          <description>增加 focused test，约束旧 package 名称不得回流到工作区 tsconfig path alias。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">focused guard 可检测 legacy alias 回流</criterion>
+            <criterion id="T3.1-AC2" checked="true">相关测试与 codument validate 通过</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

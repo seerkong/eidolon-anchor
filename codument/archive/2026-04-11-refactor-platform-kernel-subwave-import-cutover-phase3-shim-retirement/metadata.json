@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-subwave-import-cutover-phase3-shim-retirement",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T08:52:00Z",
+  "updated_at": "2026-04-11T09:00:00Z",
+  "description": "删除 legacy support/mod shim package，并将 migration guard 切换为 shim retirement 状态。"
+}

@@ -1,0 +1,45 @@
+[
+  {
+    "trace": {
+      "event_id": "evt-1",
+      "actor_id": "",
+      "session_id": "",
+      "request_id": "",
+      "conversation_id": "",
+      "stream_id": "",
+      "parent_event_id": "",
+      "causation_event_id": "",
+      "correlation_id": "",
+      "turn_id": "",
+      "turn_index": 0,
+      "sequence": 1,
+      "emitted_at": 0,
+      "surface": "unknown"
+    },
+    "actor": {
+      "actor_id": "a1",
+      "actor_name": "main",
+      "actor_kind": "primary",
+      "agent_definition_name": null,
+      "agent_manifest_type": "unknown",
+      "role_label": null,
+      "actor_projection": null,
+      "parent_actor_id": null,
+      "root_actor_id": null
+    },
+    "team": {
+      "team_id": "team-1",
+      "team_name": "Team",
+      "coordinator_actor_id": "",
+      "teammate_name": "",
+      "teammate_role": "",
+      "task_id": ""
+    },
+    "event_type": "semantic_background_result",
+    "background_result": {
+      "task_id": "job-1",
+      "status": "done",
+      "result_text": "completed"
+    }
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-holon-remove-runtime-event-aliases",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-09T10:26:24Z",
+  "updated_at": "2026-04-09T10:31:32Z",
+  "description": "移除 AgentEventGraph 的 collective event alias 与 core-contract 的 Collective runtime alias"
+}

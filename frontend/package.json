@@ -1,0 +1,20 @@
+{
+  "name": "eidolon-anchor-frontend",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "../shared",
+    "../shared/packages/*"
+  ],
+  "scripts": {
+    "sync-static": "bun run ./scripts/sync-static.ts",
+    "dev:vue": "bun run sync-static && cd packages/vue && bun run dev",
+    "dev:react": "bun run sync-static && cd packages/react && bun run dev",
+    "dev:bastard": "cd packages/bastard && bun run dev",
+    "build:vue": "bun run sync-static && cd packages/vue && bun run build",
+    "build:react": "bun run sync-static && cd packages/react && bun run build",
+    "build:bastard": "cd packages/bastard && bun run build",
+    "test": "cd packages/core && bun run test && cd ../composer && bun run test"
+  }
+}

@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>add-tui-system-management-surfaces</track_id>
+    <track_name>添加 TUI 系统管理界面</track_name>
+    <goal>让 prototype TUI 中已有的 session、provider/model、agent、MCP materials 收敛成可一致触发、可联动当前状态、可验证的 system management surfaces</goal>
+    <created_at>2026-04-07T22:10:00Z</created_at>
+    <updated_at>2026-04-07T07:48:02Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>1</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Contract Freeze">
+      <goal>冻结 system management surfaces 与 graph/sync/local adapter 的职责边界</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/command-palette.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/graph.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/navigation/route-context.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/state/local-context.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/materials-manifest.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T1.1" name="冻结 session surface 与 route/current session state 边界" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 session list / rename / delete 的交互边界，以及它们如何通过 route/current session state 与主界面同步。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">已明确 session switcher 的输入输出契约</criterion>
+            <criterion id="T1.1-AC2" checked="true">已明确 route/current session state 的单一真相</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="冻结 provider/model/agent 与 current selection 的分层规则" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 provider connect、model switch、agent switch 如何联动 graph-backed current selection，以及 local favorites/recent 的 adapter 责任。</description>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">已明确 provider/model/agent surface 的写回路径</criterion>
+            <criterion id="T1.2-AC2" checked="true">已明确 current selection 与 local adapter 的职责边界</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.3" name="冻结 MCP management surface 与 sync refresh 合同" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 MCP status 展示、toggle/reconnect 操作与 sync 刷新之间的闭环，不把运行时管理细节误并入 graph。</description>
+          <acceptance_criteria>
+            <criterion id="T1.3-AC1" checked="true">已明确 MCP surface 的操作与刷新契约</criterion>
+            <criterion id="T1.3-AC2" checked="true">已明确 MCP state 使用 sync truth 而非平行状态</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>session、selection、MCP 三条系统管理链路的职责边界已写清，可直接进入实现</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="Session And Selection Surfaces">
+      <goal>让 session、provider/model、agent surfaces 与 graph-backed current state 形成可用闭环</goal>
+      <estimated_days>3</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/session/session-list-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/session/session-rename-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/provider/provider-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/provider/model-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/agent/agent-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/index.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T2.1" name="收敛 session switcher surface 与 route 同步" status="DONE" priority="P0" estimated_days="1">
+          <description>让 session list / rename / delete 在 prototype 主界面中以一致方式触发，并保证切换后 route/current session state 与消息区同步。</description>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">session switch 后主界面读取到正确会话</criterion>
+            <criterion id="T2.1-AC2" checked="true">rename/delete 不破坏当前 session surface 交互</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="收敛 provider/model surfaces 与 current selection" status="DONE" priority="P0" estimated_days="1">
+          <description>让 provider connect 与 model switch 通过当前 selection/state adapter 稳定写回，并在主界面与 status surfaces 中保持一致。</description>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">model switch 后 current selection 与主界面一致</criterion>
+            <criterion id="T2.2-AC2" checked="true">provider connect 后可用 provider/model 状态及时刷新</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.3" name="收敛 agent surface 与默认模型回填规则" status="DONE" priority="P0" estimated_days="1">
+          <description>让 agent 切换与 selection/current model 回填规则保持一致，不出现 dialog 已切换但主界面 selection 未更新的漂移。</description>
+          <acceptance_criteria>
+            <criterion id="T2.3-AC1" checked="true">agent switch 后 current selection 一致更新</criterion>
+            <criterion id="T2.3-AC2" checked="true">agent/model 的联动不会破坏 local favorites/recent adapter</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>session、provider/model、agent surfaces 已形成 graph-backed 当前态闭环</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="MCP And Surface Consistency">
+      <goal>完成 MCP management 闭环，并对齐 command palette / status / system surfaces 的一致性</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/mcp/mcp-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/status/status-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/command-palette.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/state/sync-context.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T3.1" name="完成 MCP status/toggle/reconnect 的最小闭环" status="DONE" priority="P0" estimated_days="1">
+          <description>确保 MCP dialog 中的 toggle/reconnect 操作后，sync 数据及时刷新，状态展示与真实 runtime 一致。</description>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">MCP 操作后状态可刷新并稳定展示</criterion>
+            <criterion id="T3.1-AC2" checked="true">MCP surface 不依赖平行本地状态真相</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="对齐 command palette、status 和 system surfaces 的入口语义" status="DONE" priority="P0" estimated_days="1">
+          <description>让 command palette、status surface 与各 system dialogs 展示同一组系统管理能力，不继续出现“已有 material 但入口语义不一致”的分叉。</description>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">主要 system actions 在 palette/status 中一致可见</criterion>
+            <criterion id="T3.2-AC2" checked="true">用户能从现有入口理解 session/provider-model/agent/MCP 的职责分工</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>MCP 与 system surface 入口语义已统一，不再是散装 dialog 集合</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P4" name="Verification">
+      <goal>通过 focused tests 和手工点验确认 system management surfaces 可持续使用</goal>
+      <estimated_days>2</estimated_days>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <context_files>
+        <file>terminal/packages/tui/tests/prototype-command-palette.test.tsx</file>
+        <file>terminal/packages/tui/tests/prototype-graph.test.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/session/session-list-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/provider/model-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/agent/agent-dialog.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/system/mcp/mcp-dialog.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T4.1" name="补 system surfaces focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>新增或更新测试，覆盖 session switch、provider/model/agent selection 更新、MCP state refresh 和 system入口一致性。</description>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">存在 session / selection / MCP focused tests</criterion>
+            <criterion id="T4.1-AC2" checked="true">存在 system入口一致性的 focused tests</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="运行 terminal TUI 测试并手工点验 system surfaces" status="DONE" priority="P0" estimated_days="1">
+          <description>执行 terminal TUI 相关测试，并手工点验 session switch、provider connect、model switch、agent switch、MCP toggle/reconnect 与 status/palette 入口一致性。</description>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</criterion>
+            <criterion id="T4.2-AC2" checked="true">手工点验覆盖 session/provider-model/agent/MCP 四条系统管理链路</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>system management surfaces 已被自动化测试与手工验收确认</criterion>
+        <criterion>gap-loop 验证无阻塞缺口</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+
+  <validations>
+    <validation id="V1" name="Session Surface" status="PASSED">
+      验证 session switch / rename / delete 是否能稳定联动当前 route 和主界面。
+    </validation>
+    <validation id="V2" name="Selection Surfaces" status="PASSED">
+      验证 provider/model/agent 是否能稳定更新 current selection。
+    </validation>
+    <validation id="V3" name="MCP And Entry Consistency" status="PASSED">
+      验证 MCP 管理闭环以及 palette/status/system surfaces 的入口语义是否一致。
+    </validation>
+  </validations>
+
+  <risks>
+    <risk id="R1" name="system surface 看似可打开，但 current state 写回不一致" level="high">
+      <impact>高</impact>
+      <probability>中</probability>
+      <mitigation>先冻结 route/selection/sync 各自职责，再用 focused tests 锁住写回路径。</mitigation>
+    </risk>
+    <risk id="R2" name="MCP toggle 后 UI 与 runtime 状态漂移" level="high">
+      <impact>高</impact>
+      <probability>中</probability>
+      <mitigation>将 refresh 视为闭环必经步骤，并在测试中验证状态更新。</mitigation>
+    </risk>
+    <risk id="R3" name="track 被误解为“已经完成”，导致缺失验证" level="medium">
+      <impact>中</impact>
+      <probability>高</probability>
+      <mitigation>在 design/plan 中明确记录“已有 materials + 待补闭环”而非假定完成。</mitigation>
+    </risk>
+  </risks>
+
+  <summary>
+    <total_phases>4</total_phases>
+    <total_tasks>10</total_tasks>
+    <total_subtasks>0</total_subtasks>
+    <total_estimated_days>9</total_estimated_days>
+    <completed>10</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+    <by_priority>
+      <p0 count="10" days="9" />
+    </by_priority>
+  </summary>
+</plan>

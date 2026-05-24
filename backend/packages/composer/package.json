@@ -1,0 +1,31 @@
+{
+  "name": "@backend/composer",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "@shared/composer": "workspace:*",
+    "@backend/core": "workspace:*",
+    "@backend/organ": "workspace:*",
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-organ-logic": "workspace:*",
+    "@google/genai": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.25.2",
+    "mysql2": "^3.9.4",
+    "openai": "^4.77.0",
+    "reflect-metadata": "^0.2.2",
+    "sqlite3": "^5.1.7",
+    "typeorm": "^0.3.19",
+    "xstream": "^11.14.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}

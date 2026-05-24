@@ -1,0 +1,30 @@
+<type_def lang="typescript" ?>
+export interface WebsearchOuterInput {
+  query: string;
+  numResults?: number;
+  livecrawl?: "fallback" | "preferred";
+  type?: "auto" | "fast" | "deep";
+  contextMaxCharacters?: number;
+}
+
+export type WebsearchOuterOutput = string;
+
+export type websearch = (input: WebsearchOuterInput) => WebsearchOuterOutput;
+</?>
+
+<warning ?>
+Use this tool to get up-to-date information beyond the model's knowledge cutoff. Prefer specific queries (include year/month) for current events.
+</?>
+
+<demo #good_usage_demo1 ?>
+!unquote_start
+<tool_call id="websearch_demo1" lang="javascript" ?>
+SysBuiltIn.websearch({
+  query: "OpenAI o3 release date 2025",
+  numResults: 8,
+  livecrawl: "fallback",
+  type: "auto",
+  contextMaxCharacters: 10000
+})
+!unquote_end
+</?>

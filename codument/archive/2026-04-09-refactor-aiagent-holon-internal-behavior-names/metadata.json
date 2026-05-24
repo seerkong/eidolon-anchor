@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-holon-internal-behavior-names",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-09T02:18:08Z",
+  "updated_at": "2026-04-09T07:19:24Z",
+  "description": "将 AIAgent 主实现路径中的 collective/formation 内部行为名继续收口到 holon + governance，并明确保留的调度/兼容边界"
+}

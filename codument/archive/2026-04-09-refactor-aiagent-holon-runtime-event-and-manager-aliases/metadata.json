@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-holon-runtime-event-and-manager-aliases",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-09T07:37:43Z",
+  "updated_at": "2026-04-09T07:37:43Z",
+  "description": "将 OrganizationManager 的旧 collective/formation helper 收口为 holon-first 包装，并把 autonomous runtime event wording 切到 holon 语义"
+}

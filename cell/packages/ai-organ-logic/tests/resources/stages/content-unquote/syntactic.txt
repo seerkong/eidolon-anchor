@@ -1,0 +1,9 @@
+@delimiter: ----
+---- #syntacticContentStart
+---- #syntacticContentDelta
+开头文本
+---- #syntacticStructuredNode
+{"source":"unquote","nodes":[{"tag":"tool_call","text":"doSomething()","attrs":{"id":"demo","name":"doSomething","lang":"javascript"}}]}
+---- #syntacticContentDelta
+结尾文本
+---- #syntacticContentEnd

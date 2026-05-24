@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface MultieditOuterInput { filePath: string; edits: Array<{ filePath?: string; oldString: string; newString: string; replaceAll?: boolean }>; }
+export type MultieditOuterOutput = string;
+export type multiedit = (input: MultieditOuterInput) => MultieditOuterOutput;
+</?>

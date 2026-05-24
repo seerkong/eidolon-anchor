@@ -1,0 +1,31 @@
+@delimiter: ----
+---- #ingressControl
+{"event":"StreamStart"}
+---- #ingressThink
+嗯，用
+---- #ingressThink
+户询问这个订单状态如何，我要先查询详情。
+---- #ingressThink
+并且符合
+---- #ingressThink ?think_quote
+!quote_start
+!unquote_start
+<tool_call id="query_order_xxx" lang="javascript">
+// 函数调用内容
+</tool_call>
+!unquote_end
+!quote_end
+/?think_quote
+---- #ingressThink
+这样才不会触发语法错误而重试
+---- #ingressContent
+我先使用订单查询工具查询
+---- #ingressContent ?content_toolcall
+!unquote_start
+<tool_call id="query_order_xxx" lang="javascript">
+Custom.orderDetail(`ORDER-1234`)
+</tool_call>
+!unquote_end
+/?content_toolcall
+---- #ingressControl
+{"event":"StreamEnd"}

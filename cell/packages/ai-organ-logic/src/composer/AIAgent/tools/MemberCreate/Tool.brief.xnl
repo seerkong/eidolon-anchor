@@ -1,0 +1,4 @@
+<tool>
+  <name>MemberCreate</name>
+  <description>Create a member actor in the current session.</description>
+</tool>

@@ -1,0 +1,35 @@
+{
+  "name": "@backend/koa-shell",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "dev": "node --import @swc-node/register/esm-register --watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "bun build --target node --external sqlite3 --external reflect-metadata src/index.ts --outfile dist/index.js"
+  },
+  "dependencies": {
+    "@shared/composer": "workspace:*",
+    "@backend/composer": "workspace:*",
+    "koa": "^3.1.1",
+    "koa-body": "^7.0.1",
+    "@koa/router": "^15.2.0",
+    "koa-route": "^4.0.1",
+    "koa-send": "^5.0.1",
+    "koa-websocket": "^7.0.0",
+    "reflect-metadata": "^0.2.2",
+    "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "@swc-node/register": "^1.10.0",
+    "@swc/core": "^1.10.0",
+    "@types/koa": "^3.0.1",
+    "@types/koa-route": "^3.2.8",
+    "@types/koa-send": "^4.1.4",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "track_id": "add-ai-agent-vm-rx-data-plane",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-04-26T14:17:03Z",
+  "updated_at": "2026-04-27T00:00:00Z",
+  "description": "基于 ai-core-contract/ai-core-logic 分层与 depa-data-graph，为 AiAgentVm 建立 public/private stream+signal 响应式数据面。"
+}

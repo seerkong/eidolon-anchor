@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-to-member-holon-primary-model",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-08T17:21:22Z",
+  "updated_at": "2026-04-09T01:39:37Z",
+  "description": "将 AIAgent 的正式对象模型切换到 member / holon / primary，并把组织命令面收口到 /holon、文本分隔符收口到 --"
+}

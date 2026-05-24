@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-aiagent-to-member-holon-primary-model</track_id>
+    <track_name>将 AIAgent 正式模型切换到 member / holon / primary</track_name>
+    <goal>把 collective/formation/control 正式收口为 holon+governance 与 primary，并将组织命令面切换到 /holon、文本分隔符切换到 --。</goal>
+    <created_at>2026-04-08T17:21:22Z</created_at>
+    <updated_at>2026-04-09T01:39:37Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Track Freeze">
+      <goal>固化 rename track 的 proposal / spec / design / plan 边界。</goal>
+      <tasks>
+        <task id="T1.1" name="编写 proposal.md" status="DONE" priority="P0">
+          <description>把 holon / primary / -- 语法切换整理为自包含的 breaking rename proposal。</description>
+        </task>
+        <task id="T1.2" name="编写 spec.md" status="DONE" priority="P0">
+          <description>将 member / holon、governance、primary、/holon、-- 语法写成可验证 requirement。</description>
+          <dependencies>T1.1</dependencies>
+        </task>
+        <task id="T1.3" name="编写 design.md 与 plan.xml" status="DONE" priority="P0">
+          <description>固化正式 rename 的层次边界、兼容策略与实施顺序。</description>
+          <dependencies>T1.2</dependencies>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>track 文档完整、自包含，并能直接指导后续实现</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="Formal Contract Rename">
+      <goal>先收口正式对象模型、执行语义与 slash contract。</goal>
+      <tasks>
+        <task id="T2.1" name="收口组织与执行 contract 命名" status="DONE" priority="P0">
+          <description>将正式 contract 从 member/collective/formation + control 切换到 member/holon + primary，并引入 governance 枚举。</description>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">formal contract 不再把 collective / formation 作为正式组织 kind</criterion>
+            <criterion id="T2.1-AC2" checked="true">formal contract 不再把 control 作为正式执行 kind</criterion>
+            <criterion id="T2.1-AC3" checked="true">holon.governance 正式支持 autonomous | leader_led</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="收口 slash namespace 与 formal command surface" status="DONE" priority="P0">
+          <description>将正式组织一级命令面统一为 /holon，并把旧 /collective /formation 降为非正式 surface。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">formal slash namespace 只展示 /actor /member /holon</criterion>
+            <criterion id="T2.2-AC2" checked="true">help / catalog / prompt 不再把 /collective 与 /formation 作为正式 surface 展示</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>formal object model 与 formal command surface 已完成命名收口</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="Runtime Truth Rename">
+      <goal>将 runtime truth、organization actor state 与 resolve 路径同步切换到 holon / primary。</goal>
+      <tasks>
+        <task id="T3.1" name="收口 actor identity/type 与 actor key" status="DONE" priority="P0">
+          <description>将 identity.kind、actor.type 与 organization actor key 前缀切换到 member/holon 与 primary。</description>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">organization actor 使用 identity.kind=holon</criterion>
+            <criterion id="T3.1-AC2" checked="true">主执行 actor 使用 actor.type=primary</criterion>
+            <criterion id="T3.1-AC3" checked="true">正式 organization actor key 收口为 holon:&lt;id&gt;</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="收口 holonState 与 session/runtime truth 字段" status="DONE" priority="P0">
+          <description>将 collectiveState/formationState 与 collectives/formations 收口为统一的 holon state 与 holon store。</description>
+          <dependencies>T3.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">runtime 不再以 collectiveState / formationState 作为正式 actor-owned state 名</criterion>
+            <criterion id="T3.2-AC2" checked="true">sessionState 不再以 collectives / formations 作为正式 store 名</criterion>
+            <criterion id="T3.2-AC3" checked="true">status / resolve / assign 路径默认命中新命名下的 runtime truth</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.3" name="收口 governance 分支与组织行为投影" status="DONE" priority="P1">
+          <description>让原 collective/formation 的行为分支改由 governance 决定，而不是旧 kind 决定。</description>
+          <dependencies>T3.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.3-AC1" checked="true">autonomous 与 leader_led 的行为分支由 governance 明确表达</criterion>
+            <criterion id="T3.3-AC2" checked="true">appoint 仅对 leader_led 生效并 fail-fast 校验</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>runtime truth 已经不再依赖旧正式命名作为核心分支</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P4" name="Command And Tool Surface Rename">
+      <goal>将工具族、slash parser 与 prompt/content 语法切换到 Holon* 与 --。</goal>
+      <tasks>
+        <task id="T4.1" name="收口组织工具族到 Holon*" status="DONE" priority="P0">
+          <description>将 Collective*/Formation* 正式工具族切换到 Holon*，并统一 governance 输入。</description>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">formal organization tool family 只保留 HolonCreate / Status / Add / Assign / Appoint</criterion>
+            <criterion id="T4.1-AC2" checked="true">旧 Collective* / Formation* 不再作为正式 tool family 暴露</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="将 slash 自由文本分隔符切换到 --" status="DONE" priority="P0">
+          <description>把 create/assign 等命令的 prompt/content 分隔从 :: 改为 --，并同步解析器与帮助文案。</description>
+          <dependencies>T4.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">formal slash examples 与 parser 默认使用 --</criterion>
+            <criterion id="T4.2-AC2" checked="true">help / tips / prompt / tests 不再把 :: 当作正式展示语法</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.3" name="决定并实现旧 slash 的过渡策略" status="DONE" priority="P1">
+          <description>如保留 /collective /formation parser 兼容，则将其严格收口为 deprecated alias，不再展示为正式 surface。</description>
+          <dependencies>T4.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.3-AC1" checked="true">旧 slash 如保留，只作为 parser alias 存在</criterion>
+            <criterion id="T4.3-AC2" checked="true">正式帮助面不再展示旧 slash</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>formal command / tool surface 已切换到 holon 与 -- 语法</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P5" name="Persistence And Recovery Rename">
+      <goal>将 snapshot / persistence / recovery 结构同步切换到新命名，并明确 breaking 边界。</goal>
+      <tasks>
+        <task id="T5.1" name="收口 snapshot schema 与 repository 命名" status="DONE" priority="P0">
+          <description>同步调整 VM snapshot、actor snapshot、repository 和相关 index 结构中的旧正式命名。</description>
+          <acceptance_criteria>
+            <criterion id="T5.1-AC1" checked="true">snapshot 正式结构不再把 collectives / formations 作为新模型正式字段</criterion>
+            <criterion id="T5.1-AC2" checked="true">snapshot actor state 不再把 collectiveState / formationState 作为新模型正式字段</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.2" name="明确旧 snapshot / session 的 breaking 恢复边界" status="DONE" priority="P0">
+          <description>在实现与文档中明确旧命名数据不保证直接恢复，避免 runtime 长期保留双字段双命名。</description>
+          <dependencies>T5.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.2-AC1" checked="true">实现中不为旧命名长期保留正式双字段兼容层</criterion>
+            <criterion id="T5.2-AC2" checked="true">文档明确声明本次 rename 的 breaking recovery 边界</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>persistence / recovery 已与新命名一致，并明确 breaking 范围</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P6" name="Docs And Verification">
+      <goal>同步文档、tests 与 vendor 指南，并完成严格验证。</goal>
+      <tasks>
+        <task id="T6.1" name="同步 docs / tips / prompt / theater 报告" status="DONE" priority="P1">
+          <description>将正式仓库中的说明文本切换到 member / holon / primary 与 -- 语法。</description>
+        </task>
+        <task id="T6.2" name="同步 focused tests 与 fixtures" status="DONE" priority="P0">
+          <description>更新 slash command tests、runtime recovery tests、organization tests 与 TUI tests，使其以新命名为基线。</description>
+          <dependencies>T6.1</dependencies>
+        </task>
+        <task id="T6.3" name="执行 strict validation 与回归验证" status="DONE" priority="P0">
+          <description>运行 `codument validate refactor-aiagent-to-member-holon-primary-model --strict` 与受影响 focused tests，确认 rename 收口。</description>
+          <dependencies>T6.2</dependencies>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>新命名已经通过 docs、tests 与 strict validation 锁定</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+</plan>

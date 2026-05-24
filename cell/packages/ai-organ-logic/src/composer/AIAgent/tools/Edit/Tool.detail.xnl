@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface EditOuterInput { filePath: string; oldString: string; newString: string; replaceAll?: boolean; }
+export type EditOuterOutput = string;
+export type edit = (input: EditOuterInput) => EditOuterOutput;
+</?>

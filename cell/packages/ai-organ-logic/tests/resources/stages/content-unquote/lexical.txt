@@ -1,0 +1,19 @@
+@delimiter: ----
+---- #lexicalContentStart
+{}
+---- #lexicalContentDelta
+开头文本
+
+---- #lexicalUnquoteStart
+{}
+---- #lexicalUnquoteDelta
+<tool_call id="demo" name="doSomething" lang="javascript">
+doSomething()
+</tool_call>
+---- #lexicalUnquoteEnd
+{}
+---- #lexicalContentDelta
+
+结尾文本
+---- #lexicalContentEnd
+{}

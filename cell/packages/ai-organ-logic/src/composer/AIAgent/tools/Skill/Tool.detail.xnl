@@ -1,0 +1,18 @@
+<type_def lang="typescript" ?>
+export interface SkillOuterInput {
+  skill?: string;
+}
+
+export type SkillOuterOutput = string;
+
+export type Skill = (input: SkillOuterInput) => SkillOuterOutput;
+</?>
+
+<demo #good_usage_demo1 ?>
+!unquote_start
+<tool_call id="skill_demo1" lang="javascript" ?>
+SysBuiltIn.Skill({
+  skill: "debugging"
+})
+!unquote_end
+</?>

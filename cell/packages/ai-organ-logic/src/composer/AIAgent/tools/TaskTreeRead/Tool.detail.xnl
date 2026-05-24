@@ -1,0 +1,68 @@
+<type_def lang="typescript" ?>
+export interface TaskTreeReadOuterInput {}
+
+export type TaskTreeReadOuterOutput = string;
+
+export type TaskTreeRead = (input: TaskTreeReadOuterInput) => TaskTreeReadOuterOutput;
+</?>
+
+<warning ?>
+在需要修改任务树时，先用此工具获取任务树当前状态，确保后续写操作基于准确 id 与分支信息。
+如果是在编码场景，则除本工具规则外，还需要额外遵循当前会话中的编码规则与代码修改约束；这些规则同样约束读取后的下一步决策。
+
+何时使用：
+- 需要获取任务 id 以执行 `update_status` 或 `expand`。
+- 不确定当前哪个任务处于 `in_progress`。
+- 需要验证任务层级、深度或分支状态。
+
+不应频繁无决策地读取：
+- 每次读取后必须紧跟一个具体的写操作决策，禁止连续多次读取而不采取行动。
+- 如果刚刚读取过且任务树未发生变更，不应重复读取。
+- 读取是为了获取精确信息以支撑下一步操作，而非用于"观望"。
+
+解读规则：
+- 输出为运行时任务树状态的完整 JSON。
+- 根任务位于 `root.children`。
+- `status` 取值为：`pending`、`in_progress`、`completed`。
+- 子任务嵌套在 `children` 下。
+- `nextId` 是内部分配器状态，不是任务节点。
+</?>
+
+<workflow ?>
+推荐的"读后再写"流程：
+1) 调用 `TaskTreeRead` 获取当前 id 和活跃分支。
+2) 基于读取结果做出一个具体的更新决策。
+3) 调用 `TaskTreeWrite` 执行该更新（仅一次）。
+4) 仅在重大变更后可选地再次调用 `TaskTreeRead` 验证结果。
+</?>
+
+<demo #good_usage_demo1 ?>
+!unquote_start
+<tool_call id="task_tree_read_demo1" lang="javascript" ?>
+SysBuiltIn.TaskTreeRead({})
+!unquote_end
+</?>
+
+<demo #good_usage_demo2 ?>
+!unquote_start
+<tool_call id="task_tree_read_before_update" lang="javascript" ?>
+SysBuiltIn.TaskTreeRead({})
+!unquote_end
+
+// 然后使用返回的 id 执行精确的状态变更。
+!unquote_start
+<tool_call id="task_tree_write_after_read" lang="javascript" ?>
+SysBuiltIn.TaskTreeWrite({
+  op: "update_status",
+  task_id: "task-3",
+  status: "completed"
+})
+!unquote_end
+</?>
+
+<demo #avoid_usage_demo1 ?>
+!unquote_start
+// 错误示范：不读取任务树就猜测任务 id。
+// 正确做法：TaskTreeRead -> 获取精确 id -> TaskTreeWrite。
+!unquote_end
+</?>

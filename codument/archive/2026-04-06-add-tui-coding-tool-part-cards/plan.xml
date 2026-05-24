@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>add-tui-coding-tool-part-cards</track_id>
+    <track_name>接入 TUI coding 工具专用消息卡片</track_name>
+    <goal>让新的 prototype TUI 在真实 session 中使用结构化 coding tool part cards，而不是摘要 tool 卡片</goal>
+    <created_at>2026-04-05T15:13:24Z</created_at>
+    <updated_at>2026-04-06T02:35:00Z</updated_at>
+    <status>in_progress</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Discovery And Contract Freeze">
+      <goal>冻结 runtime tool part 到 prototype 渲染链的边界与首批范围</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/data.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/graph.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/message/materials/tool-cards.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T1.1" name="冻结当前 projection 与 renderer 边界" status="DONE" priority="P0" estimated_days="1">
+          <description>确认 runtime message、runtime part、PrototypeMessage 和 MessageCards 之间的真实边界，避免在实现阶段重复摸索。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">明确记录当前 `runtimeMessagesToPrototypeMessages(...)` 会丢失真实 `ToolPart`</criterion>
+            <criterion id="T1.1-AC2" checked="true">明确记录 `MessageCards` 仍使用摘要 `ToolCard`，尚未接入 registry</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="冻结首批 dedicated card 范围与 fallback 规则" status="DONE" priority="P0" estimated_days="1">
+          <description>明确本 track 首批仅接入 coding 工具，并定义 unsupported tool 的 fallback 行为。</description>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">首批工具范围仅包含 `bash`、`edit`、`write`、`read`、`grep`、`glob`、`list`、`patch`</criterion>
+            <criterion id="T1.2-AC2" checked="true">未命中 allowlist 的工具继续使用 `GenericTool`</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>投影边界、allowlist 和 fallback 规则已经写入 track 文档</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="Projection Refactor">
+      <goal>让 graph 投影结果保留 structured coding tool parts，并形成稳定的渲染 item</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/data.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/graph.ts</file>
+        <file>terminal/packages/core/src/AIAgent/TuiApp.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T2.1" name="定义 card-ready timeline item 形态" status="DONE" priority="P0" estimated_days="1">
+          <description>将 prototype 渲染输入从“每条 message 一卡”扩展为可表达 assistant 文本与 tool part 的 timeline item。</description>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">assistant 文本与 tool part 可以同时存在于同一条 runtime message 的渲染结果中</criterion>
+            <criterion id="T2.1-AC2" checked="true">每个 `ToolPart` 保留稳定 identity，并直接携带 `tool`、`input`、`output`、`metadata`、`part`</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="改造 runtime 投影保留 tool part 顺序与更新" status="DONE" priority="P0" estimated_days="1">
+          <description>让 projection 在处理 `message.part.updated` 时输出按 part 顺序排列的 assistant text/tool items，并正确反映 pending/completed/error 更新。</description>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">同一 assistant message 内的文本与 tool part 顺序可预测</criterion>
+            <criterion id="T2.2-AC2" checked="true">同一个 tool call 的状态更新不会导致 item identity 漂移</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>graph 投影已能输出 card-ready timeline item</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="Rendering Integration">
+      <goal>将新的消息区渲染主链接入 coding tool card registry，并保留兜底</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/message/cards.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/message/materials/tool-registry.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/message/materials/tool-chrome.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T3.1" name="接入首批 coding 工具的 registry-driven 渲染" status="DONE" priority="P0" estimated_days="1">
+          <description>让消息区对 coding 工具使用 dedicated card，而不再使用摘要型 `ToolCard`。</description>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">`bash`、`edit`、`write`、`read`、`grep`、`glob`、`list`、`patch` 走 dedicated card</criterion>
+            <criterion id="T3.1-AC2" checked="true">prototype session 中可直接消费真实 runtime `ToolPart`</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="保留 unsupported tool 的 generic fallback" status="DONE" priority="P0" estimated_days="1">
+          <description>让未覆盖工具仍可见，并避免新旧卡片并存造成双重渲染或缺失渲染。</description>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">unsupported tool 继续显示 `GenericTool`</criterion>
+            <criterion id="T3.2-AC2" checked="true">不存在“既不走 dedicated 也不走 fallback”的工具黑洞</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>首批 coding 工具卡片已接入主链，generic fallback 仍然有效</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P4" name="Verification">
+      <goal>用测试和 gap-loop 验证投影、渲染路由和 fallback 行为</goal>
+      <estimated_days>2</estimated_days>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <context_files>
+        <file>terminal/packages/tui/tests/message-card-compatibility.test.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/data.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/message/cards.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T4.1" name="补 projection、renderer 和 fallback 测试" status="DONE" priority="P0" estimated_days="1">
+          <description>新增或更新测试，覆盖 timeline item 投影、dedicated card 路由和 unsupported tool fallback。</description>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">测试覆盖 assistant 文本与多个 tool part 的顺序</criterion>
+            <criterion id="T4.1-AC2" checked="true">测试覆盖 dedicated card 与 fallback card 的选择逻辑</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="运行 terminal TUI 测试并记录结果" status="DONE" priority="P0" estimated_days="1">
+          <description>执行 terminal TUI 相关测试，确认该 track 的改造不破坏现有 prototype message card 能力。</description>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</criterion>
+            <criterion id="T4.2-AC2" checked="true">测试结果和剩余风险被记录到 track 进展文档</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>测试已覆盖 dedicated card 与 fallback 行为</criterion>
+        <criterion>gap-loop 验证无阻塞缺口</criterion>
+      </gate_criteria>
+    </phase>
+    <phase id="P5" name="Runtime Tool Part Delivery Repair">
+      <goal>补齐真实 runtime 到 prototype 的 structured tool part 输送链，避免 dedicated card 只停留在 renderer 侧</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/organ/src/AIAgent/TerminalRuntime.ts</file>
+        <file>terminal/packages/tui/src/runtime/TuiRuntimeClient.ts</file>
+        <file>terminal/packages/tui/tests/mock-new-message-card.test.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T5.1" name="让 runtime bridge 暴露结构化 tool history 事件" status="DONE" priority="P0" estimated_days="1">
+          <description>修复当前 bridge 仅输出 toolcall/result 文本片段的问题，使 TUI client 能拿到带 tool name、call id、arguments 和 result 的结构化事件。</description>
+          <acceptance_criteria>
+            <criterion id="T5.1-AC1" checked="true">真实 runtime turn 中的 tool call 不再只能以纯文本 category/chunk 形式暴露</criterion>
+            <criterion id="T5.1-AC2" checked="true">client 能从 bridge 获取创建/更新 `ToolPart` 所需的 call id、tool 名称和输入输出信息</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.2" name="将结构化 tool history 投影为 prototype runtime `ToolPart`" status="DONE" priority="P0" estimated_days="1">
+          <description>在 TuiRuntimeClient 中消费结构化 tool history，生成真实 assistant message + tool part，而不是继续显示 toolcall/result 文本消息。</description>
+          <acceptance_criteria>
+            <criterion id="T5.2-AC1" checked="true">编辑文件时可在 prototype timeline 中看到真实 `edit`/`bash` 等 tool part，而不是仅 assistant 文本</criterion>
+            <criterion id="T5.2-AC2" checked="true">tool part 的 pending/completed/error 更新保持同一 identity</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.3" name="补充真实 runtime 主链回归测试" status="DONE" priority="P0" estimated_days="1">
+          <description>新增测试覆盖 bridge 结构化 tool 事件到 prototype tool part 的完整链路，防止再次只测 registry 不测 runtime 输送。</description>
+          <acceptance_criteria>
+            <criterion id="T5.3-AC1" checked="true">自动化测试能断言 runtime client 产出 `ToolPart`，而不是 toolcall/result 文本</criterion>
+            <criterion id="T5.3-AC2" checked="true">回归测试保留原有 assistant text/new message 行为检查</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.4" name="收紧文本文件编辑的 tool 选择提示词" status="DONE" priority="P0" estimated_days="1">
+          <description>将“普通文本文件优先使用 edit/write tool，不要用 bash 直接修改”的规则写入默认 runtime system prompt，并补测试固定。</description>
+          <acceptance_criteria>
+            <criterion id="T5.4-AC1" checked="true">system prompt 明确要求文本文件编辑优先使用 `edit` / `write`，读取优先使用 `read`</criterion>
+            <criterion id="T5.4-AC2" checked="true">自动化测试覆盖这条 tool 选择规则，防止回退为 bash 改文件</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.5" name="补齐 prototype 真实入口的 provider 装配" status="DONE" priority="P0" estimated_days="1">
+          <description>修复真实 prototypeTui 入口缺少 Theme/Sync/Keybind/Route/Local 等 provider 的问题，避免 tool cards 在真实界面触发时崩溃。</description>
+          <acceptance_criteria>
+            <criterion id="T5.5-AC1" checked="true">真实 TUI 入口渲染 dedicated tool cards 时不再出现 `ThemeProvider is not defined` 等上下文错误</criterion>
+            <criterion id="T5.5-AC2" checked="true">自动化测试覆盖真实 provider 树下的 tool card 渲染</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.6" name="放宽文件工具到权限允许的目录并固定 `~/` 语义" status="DONE" priority="P0" estimated_days="1">
+          <description>修复文件工具路径语义与重复暴露问题：保留更完整的 `read`/`write`/`edit`，删除重复且较弱的 `read_file`/`write_file`/`edit_file`，并支持权限允许的绝对路径与 `~/` home 路径，避免模型因“工作区外”误判回退到 bash。</description>
+          <acceptance_criteria>
+            <criterion id="T5.6-AC1" checked="true">仅保留 `read`/`write`/`edit` 这一套更完整的文件工具，并支持工作区外的绝对路径</criterion>
+            <criterion id="T5.6-AC2" checked="true">system prompt 明确 `~/...` 是 home 路径，且 `read`/`write`/`edit` 可用于当前权限允许的目录</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>真实 runtime 到 prototype 的 structured tool part 主链已经贯通</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+
+  <validations>
+    <validation id="V1" name="Structured Coding Tool Card Coverage" status="DONE">
+      验证首批 coding 工具是否已从摘要卡升级为结构化专用卡片。
+      <checks>
+        <check name="coding tool allowlist 生效">`bash`、`edit`、`write`、`read`、`grep`、`glob`、`list`、`patch` 命中 dedicated card</check>
+        <check name="tool state 可持续更新">同一 tool part 的 pending/completed/error 更新能反映到同一张卡</check>
+      </checks>
+    </validation>
+    <validation id="V2" name="Unsupported Tool Visibility" status="DONE">
+      验证未覆盖工具不会因为新卡片主链而消失。
+      <checks>
+        <check name="generic fallback 可见">未命中 allowlist 的 tool part 仍显示 generic fallback</check>
+        <check name="不存在渲染黑洞">不存在 tool part 被投影后在消息区消失的情况</check>
+      </checks>
+    </validation>
+  </validations>
+
+  <risks>
+    <risk id="R1" name="部分工具卡片依赖 prototype 上下文" level="medium">
+      <impact>中</impact>
+      <probability>中</probability>
+      <mitigation>首批只接入 coding 工具，并在 prototype 内补最小兼容层，不回退到旧 shell。</mitigation>
+    </risk>
+    <risk id="R2" name="part 顺序处理不当导致阅读顺序退化" level="medium">
+      <impact>中</impact>
+      <probability>中</probability>
+      <mitigation>先用测试固定 assistant 文本与 tool part 的顺序规则，再做视觉优化。</mitigation>
+    </risk>
+  </risks>
+
+  <summary>
+    <total_phases>5</total_phases>
+    <total_tasks>14</total_tasks>
+    <total_subtasks>0</total_subtasks>
+    <total_estimated_days>13</total_estimated_days>
+    <completed>14</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+    <by_priority>
+      <p0 count="14" days="14" />
+    </by_priority>
+  </summary>
+</plan>

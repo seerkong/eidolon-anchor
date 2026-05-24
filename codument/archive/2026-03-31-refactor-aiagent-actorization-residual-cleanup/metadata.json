@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-actorization-residual-cleanup",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-03-31T00:00:00Z",
+  "updated_at": "2026-03-31T23:59:59Z",
+  "description": "收口 AIAgent actorization 剩余兼容缓存、projection fallback 与术语漂移。"
+}

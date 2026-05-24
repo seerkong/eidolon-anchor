@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-wave7-platform-kernel-baseline-and-support-seeding",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T10:05:00Z",
+  "updated_at": "2026-04-11T11:28:00Z",
+  "description": "建立第一版真实平台 kernel baseline，并让 platform-support 承接首批跨领域环境实现。"
+}

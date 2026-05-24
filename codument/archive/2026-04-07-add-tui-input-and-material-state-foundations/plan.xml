@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>add-tui-input-and-material-state-foundations</track_id>
+    <track_name>接入 TUI 输入与共享状态基础设施</track_name>
+    <goal>为 prototype TUI 建立可持续的结构化 composer、graph 化 shared state 与 file picker/frecency 输入底座</goal>
+    <created_at>2026-04-06T16:02:18Z</created_at>
+    <updated_at>2026-04-07T22:00:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>6</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Contract Freeze">
+      <goal>冻结结构化 composer、graph state 和 file picker 的职责边界</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/composer.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/materials/extmarks.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/materials/prompt-history.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/state/sync-context.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/state/local-context.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/infra/perf/frecency.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T1.1" name="冻结结构化 composer 输入合同" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 slash、mention、file、image、paste、prompt history 和 extmark 在 prototype composer 中的职责边界，以及纯文本 fallback 的共存规则。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">已明确哪些输入必须产生 structured prompt part，哪些继续按 plain text 处理</criterion>
+            <criterion id="T1.1-AC2" checked="true">已明确 extmark 和 prompt history 的恢复边界，不再依赖隐式约定</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="冻结 graph state 与 adapter 分层规则" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 route/current selection/material current state 进入 graph，而 sync bootstrap、本地偏好和持久化文件仍保留为外围 adapter。</description>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">已明确进入 graph 的当前态范围</criterion>
+            <criterion id="T1.2-AC2" checked="true">已明确 local-context、sync-context、route-context 的剩余职责</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.3" name="冻结 file picker 与 frecency 接口" status="DONE" priority="P0" estimated_days="1">
+          <description>明确文件候选发现、frecency 排序、选中后插入 structured file part 与更新 frecency 的最小闭环。</description>
+          <acceptance_criteria>
+            <criterion id="T1.3-AC1" checked="true">已明确 file picker 的输入输出契约</criterion>
+            <criterion id="T1.3-AC2" checked="true">已明确 frecency 在排序和选中回写中的职责</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>composer / graph / file picker 的边界已写入 track 文档，可直接进入实现</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="Graph Foundations">
+      <goal>建立 current selection/material state 的 graph 真相，并把 bridge contexts 降级为 adapter</goal>
+      <estimated_days>3</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/graph.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/index.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/state/sync-context.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/state/sync-store.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/state/local-context.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/materials/navigation/route-context.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T2.1" name="为当前 selection 与 route 建立 graph snapshot" status="DONE" priority="P0" estimated_days="1">
+          <description>在现有 prototype graph 上增加 route、agent、provider/model 等 current state 投影，供 composer 与 system surfaces 共同消费。</description>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">存在统一 graph-backed current state 供 view 读取</criterion>
+            <criterion id="T2.1-AC2" checked="true">现有 prototype selection 渲染不因 graph 扩展而退化</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="收敛 materials current state 的读取路径" status="DONE" priority="P0" estimated_days="1">
+          <description>让 materials/system surfaces 读取 graph 当前态，而不是继续以 sync/local/route 各自为真相。</description>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">至少一条 system/material surface 读取 graph current state</criterion>
+            <criterion id="T2.2-AC2" checked="true">sync-context 与 local-context 保留 bootstrap/adapter 职责而非长期真相</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.3" name="保留本地偏好 adapter 并固定同步边界" status="DONE" priority="P0" estimated_days="1">
+          <description>确保 recent/favorite/theme mode 等本地偏好不被粗暴搬入 graph，同时图上的当前态能与这些偏好稳定同步。</description>
+          <acceptance_criteria>
+            <criterion id="T2.3-AC1" checked="true">本地偏好文件继续可用</criterion>
+            <criterion id="T2.3-AC2" checked="true">当前态和偏好之间不存在双写漂移</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>prototype 的 current selection/material state 已形成统一 graph 真相</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="Structured Composer Integration">
+      <goal>把 prompt part、extmark 和 prompt history 接回 prototype composer 主链</goal>
+      <estimated_days>4</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/composer.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/materials/extmarks.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/materials/prompt-history.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/materials/prompt-info.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/materials/paste.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/index.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T3.1" name="恢复 prompt part 与 extmark 主链" status="DONE" priority="P0" estimated_days="1">
+          <description>让 composer 能持有 structured prompt parts，并通过 extmark 恢复虚拟文本占位与 range 同步。</description>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">file/agent/text 类 prompt part 可在输入区显示虚拟占位</criterion>
+            <criterion id="T3.1-AC2" checked="true">编辑后 extmark 与 prompt part range 保持同步</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="恢复 structured prompt history" status="DONE" priority="P0" estimated_days="1">
+          <description>提交后持久化完整 prompt info，并支持按历史恢复输入时一并恢复结构化 parts 与 extmarks。</description>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">历史输入可恢复 structured parts</criterion>
+            <criterion id="T3.2-AC2" checked="true">历史恢复后提交链不退化为纯文本</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.3" name="接入 slash/mention/file/image structured input" status="DONE" priority="P0" estimated_days="2">
+          <description>为 prototype composer 接入最小可用的 slash、mention、file、image 输入能力，并与 plain text 提交共存。</description>
+          <acceptance_criteria>
+            <criterion id="T3.3-AC1" checked="true">slash 和 mention 可以进入 structured prompt part 主链</criterion>
+            <criterion id="T3.3-AC2" checked="true">file/image 注入与纯文本输入共存，不破坏当前 submit 流程</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>prototype composer 已能提交并恢复结构化输入</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P4" name="File Picker And Frecency">
+      <goal>落地最小可用 file picker，并将选中的文件注入为 structured prompt part</goal>
+      <estimated_days>3</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/infra/perf/frecency.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/composer/composer.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/index.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/ui/dialog-select.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T4.1" name="实现 workspace file picker surface" status="DONE" priority="P0" estimated_days="1">
+          <description>提供一个可搜索的 workspace file picker，用于从 prototype composer 中选择文件。</description>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">用户可从 composer 触发 file picker 并查看候选文件</criterion>
+            <criterion id="T4.1-AC2" checked="true">picker 可通过键盘完成筛选与选择</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="将 frecency 接入候选排序与选中回写" status="DONE" priority="P0" estimated_days="1">
+          <description>候选文件按 frecency 排序，文件被选中后更新其使用记录。</description>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">高频最近文件优先展示</criterion>
+            <criterion id="T4.2-AC2" checked="true">选中文件后 frecency 记录被更新</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.3" name="将选中文件插入为 structured file part" status="DONE" priority="P0" estimated_days="1">
+          <description>picker 选中的文件被插入为 structured file part，并正确更新 extmarks、prompt history 与提交链。</description>
+          <acceptance_criteria>
+            <criterion id="T4.3-AC1" checked="true">选中文件后输入区出现结构化 file placeholder</criterion>
+            <criterion id="T4.3-AC2" checked="true">file part 能被历史恢复并参与后续提交</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>file picker 与 frecency 已形成最小可用闭环</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P5" name="Verification">
+      <goal>通过自动化测试和手工点验确认 graph/composer/file picker 底座可持续使用</goal>
+      <estimated_days>2</estimated_days>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <context_files>
+        <file>terminal/packages/tui/tests/prototype-graph.test.ts</file>
+        <file>terminal/packages/tui/tests/prototype-command-palette.test.tsx</file>
+        <file>terminal/packages/tui/tests/dialog-prompt.test.tsx</file>
+        <file>terminal/packages/tui/tests/prototype-scroll.test.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T5.1" name="补 graph/composer/file picker focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>新增或更新测试，覆盖 graph current state、structured prompt history、extmark 恢复、file picker 和 frecency 排序。</description>
+          <acceptance_criteria>
+            <criterion id="T5.1-AC1" checked="true">存在 graph current state 与 adapter 边界的 focused tests</criterion>
+            <criterion id="T5.1-AC2" checked="true">存在 structured composer / file picker / frecency 的 focused tests</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.2" name="运行 terminal TUI 测试并手工点验输入闭环" status="DONE" priority="P0" estimated_days="1">
+          <description>执行 terminal TUI 测试，并手工点验 slash、mention、file picker、history restore 与普通文本提交流程。前五轮 gap-loop 已分别补齐 file picker 选中后的 frecency 回写、prompt history 游标对当前 draft 的保存/恢复、graph-backed route/selection adapter 的响应式订阅、提交后重置 prompt history live draft 以恢复后续历史遍历，以及 direct typed @mention 在 submit 时进入 structured prompt part 主链；focused tests 已通过，但完整 `bun test terminal/packages/tui/tests` 仍受既有 `@opentui/solid` `jsxDEV` 装载错误影响。根据用户明确指示，本 track 以风险接受方式标记完成并归档，未完成的手工点验作为已知残余风险保留在归档记录中。</description>
+          <acceptance_criteria>
+            <criterion id="T5.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</criterion>
+            <criterion id="T5.2-AC2" checked="true">手工点验覆盖 structured input、history restore、file picker 和 plain text fallback（按用户明确指示以风险接受方式完成归档）</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>输入与 shared state 基础设施已被自动化测试与手工验收确认</criterion>
+        <criterion>gap-loop 验证无阻塞缺口</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+
+  <validations>
+    <validation id="V1" name="Structured Composer Chain" status="PASSED">
+      验证 prototype composer 是否已恢复 structured prompt parts、extmarks 与 prompt history 主链。
+    </validation>
+    <validation id="V2" name="Graph-Backed Shared State" status="PASSED">
+      验证 current selection/material state 是否已由 graph 提供统一真相。
+    </validation>
+    <validation id="V3" name="File Picker Frecency Loop" status="PASSED">
+      验证 file picker、frecency 排序与 structured file insertion 是否闭环。
+    </validation>
+  </validations>
+
+  <risks>
+    <risk id="R1" name="graph 与 adapter 双写导致当前态漂移" level="high">
+      <impact>高</impact>
+      <probability>中</probability>
+      <mitigation>先冻结 graph/adapter 边界，再用 focused tests 锁住 current state 读取路径。</mitigation>
+    </risk>
+    <risk id="R2" name="extmark 恢复导致 textarea 编辑回归" level="high">
+      <impact>高</impact>
+      <probability>中</probability>
+      <mitigation>分阶段恢复 extmark 与 prompt history，并优先覆盖插入/编辑/恢复测试。</mitigation>
+    </risk>
+    <risk id="R3" name="file picker 过早膨胀成大范围文件管理功能" level="medium">
+      <impact>中</impact>
+      <probability>中</probability>
+      <mitigation>只交付 workspace file picker + frecency 排序 + structured insertion 的最小闭环。</mitigation>
+    </risk>
+  </risks>
+
+  <summary>
+    <total_phases>5</total_phases>
+    <total_tasks>14</total_tasks>
+    <total_subtasks>0</total_subtasks>
+    <total_estimated_days>14</total_estimated_days>
+    <completed>14</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+    <by_priority>
+      <p0 count="14" days="14" />
+    </by_priority>
+  </summary>
+</plan>

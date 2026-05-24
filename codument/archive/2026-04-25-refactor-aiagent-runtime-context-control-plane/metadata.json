@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-runtime-context-control-plane",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-19T15:17:31Z",
+  "updated_at": "2026-04-25T14:45:32Z",
+  "description": "迁移参考项目中控制大模型执行上下文的 runtime context control plane，包括 work_mode/task_phase、动态 prompt assemble、phase-aware compaction 与 continuation baseline。"
+}

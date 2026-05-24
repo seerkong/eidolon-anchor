@@ -1,0 +1,29 @@
+{
+  "name": "@backend/core",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "depa-actor": "^0.1.1",
+    "@shared/composer": "workspace:*",
+    "@backend/organ": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*",
+    "@google/genai": "^1.30.0",
+    "@iarna/toml": "^2.2.5",
+    "js-yaml": "^4.1.1",
+    "reflect-metadata": "^0.2.2",
+    "typeorm": "^0.3.19",
+    "xstream": "^11.14.0"
+  },
+  "devDependencies": {
+    "@types/iarna__toml": "^2.0.5",
+    "@types/js-yaml": "^4.0.9",
+    "typescript": "^5.4.0"
+  }
+}

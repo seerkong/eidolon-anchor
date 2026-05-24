@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-platform-kernel-wave2-profile-layering</track_id>
+    <track_name>实施平台微内核 Wave 2 的 profile layering</track_name>
+    <goal>建立 platform-only -> ai-kernel -> ai-coding 的正式 profile layering，并保持当前 AI runtime 主路径连续可运行。</goal>
+    <created_at>2026-04-11T05:06:36Z</created_at>
+    <updated_at>2026-04-11T05:15:20Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Profile Truth Source">
+      <goal>在 `@cell/mod-profiles` 中建立正式的三层 profile truth source。</goal>
+      <tasks>
+        <task id="T1.1" name="定义三层 profile 结构" status="DONE" priority="P0" estimated_days="1">
+          <description>建立 `platform-only`、`ai-kernel`、`ai-coding` 的正式 layering 与兼容别名。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">三层 profile 顺序在单一 truth source 中定义</criterion>
+            <criterion id="T1.1-AC2" checked="true">兼容别名不形成第二真相源</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="将默认 coding runtime 收口到 ai-coding 正式入口" status="DONE" priority="P0" estimated_days="1">
+          <description>更新主运行入口到 `ai-coding` 正式装配函数，但保持兼容路径可用。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">TerminalRuntime 显式消费 ai-coding 装配入口</criterion>
+            <criterion id="T1.2-AC2" checked="true">headless 路径不因本波次中断</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Focused Verification">
+      <goal>通过 focused verification 锁定 layering 顺序、能力缺失语义与主路径连续运行。</goal>
+      <tasks>
+        <task id="T2.1" name="补齐 profile layering focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>补充 profile order、capability absence 与兼容别名的 focused tests。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">自动化覆盖 platform-only / ai-kernel / ai-coding 的 layering 语义</criterion>
+            <criterion id="T2.1-AC2" checked="true">缺失 capability 通过行为断言锁定，而非源码 grep</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="验证 terminal/tui/headless 主路径仍可运行" status="DONE" priority="P0" estimated_days="1">
+          <description>确认 Wave 2 结束时 terminal/tui/headless 主路径仍然连续可运行。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">terminal adoption tests 通过</criterion>
+            <criterion id="T2.2-AC2" checked="true">tui/headless smoke tests 通过</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

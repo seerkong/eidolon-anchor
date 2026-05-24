@@ -1,0 +1,21 @@
+{
+  "name": "@frontend/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@vue/reactivity": "^3.4.0",
+    "inversify": "^6.0.1",
+    "reflect-metadata": "^0.2.2",
+    "@shared/composer": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.3.0",
+    "jsdom": "^27.4.0"
+  }
+}

@@ -1,0 +1,5 @@
+<tool {
+  name = "TaskTreeReadFlat"
+  namespace = "SysBuiltIn"
+  description = "读取扁平任务列表视图，返回 depth 与 parentId，适合单层或列表式任务管理。"
+}>

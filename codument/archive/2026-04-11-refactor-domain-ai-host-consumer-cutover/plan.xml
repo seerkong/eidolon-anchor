@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-domain-ai-host-consumer-cutover</track_id>
+    <track_name>将 domain-ai 显式宿主推进为默认消费入口</track_name>
+    <goal>让 `@cell/domain-ai-contract` / `@cell/domain-ai-logic` 成为 AI-specific contract/logic 的默认消费入口。</goal>
+    <created_at>2026-04-11T13:05:00Z</created_at>
+    <updated_at>2026-04-11T13:28:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+  <phases>
+    <phase id="P1" name="Consumer Ownership Freeze">
+      <goal>冻结哪些 consumer 应优先切到 domain-ai host。</goal>
+      <tasks>
+        <task id="T1.1" name="定义 consumer cutover ownership 表" status="DONE" priority="P0" estimated_days="1">
+          <description>明确哪些 composer/mod/shell/test 调用方应切到 `domain-ai-*`。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">cutover 范围明确</criterion>
+            <criterion id="T1.1-AC2" checked="true">不引入第二真相源</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P2" name="Consumer Cutover">
+      <goal>完成第一批默认消费入口切换。</goal>
+      <tasks>
+        <task id="T2.1" name="切换 domain-ai contract/logic consumer" status="DONE" priority="P0" estimated_days="2">
+          <description>调整 composer/mod/shell/test 入口优先消费 `@cell/domain-ai-contract` / `@cell/domain-ai-logic`。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">第一批 consumer 已切换</criterion>
+            <criterion id="T2.1-AC2" checked="true">历史入口未形成回流</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P3" name="Focused Verification">
+      <goal>验证默认消费入口与 ownership 不回归。</goal>
+      <tasks>
+        <task id="T3.1" name="运行 domain-ai host focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>覆盖 package surface、runtime composer、shell adoption 等关键面。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">focused tests 通过</criterion>
+            <criterion id="T3.1-AC2" checked="true">domain-ai host 成为默认入口</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

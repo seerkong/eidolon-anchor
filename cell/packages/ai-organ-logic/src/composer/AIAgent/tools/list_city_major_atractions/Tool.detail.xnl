@@ -1,0 +1,18 @@
+<type_def lang="typescript" ?>
+export interface ListCityMajorAtractionsOuterInput {
+  city?: string;
+}
+
+export type ListCityMajorAtractionsOuterOutput = string;
+
+export type list_city_major_atractions = (input: ListCityMajorAtractionsOuterInput) => ListCityMajorAtractionsOuterOutput;
+</?>
+
+<demo #good_usage_demo1 ?>
+!unquote_start
+<tool_call id="list_city_major_atractions_demo1" lang="javascript" ?>
+SysBuiltIn.list_city_major_atractions({
+  city: "Tokyo"
+})
+!unquote_end
+</?>

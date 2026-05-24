@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-vendor-data-graph-stream-foundations",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-02T13:05:57Z",
+  "updated_at": "2026-04-03T12:00:00Z",
+  "description": "沉淀 vendor data-graph 中的通用 stream/timeline/projection foundations，并推动 symbiont、core、terminal 收口到 vendor。"
+}

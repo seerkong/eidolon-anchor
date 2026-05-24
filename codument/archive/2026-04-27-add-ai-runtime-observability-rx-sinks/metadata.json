@@ -1,0 +1,8 @@
+{
+  "track_id": "add-ai-runtime-observability-rx-sinks",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-04-26T14:17:03Z",
+  "updated_at": "2026-04-27T00:00:00Z",
+  "description": "基于已归档 VM RxData 与 semantic protocol frame，从 public facts 派生 ObservabilityRxData，提供隔离的日志、trace artifact、扩展事实与 provider capture 边界。"
+}

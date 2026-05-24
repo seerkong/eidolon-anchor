@@ -1,0 +1,6 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"result"}
+---- #tuiMessage
+✅ Result: job-1: completed
+

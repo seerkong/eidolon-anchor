@@ -1,0 +1,10 @@
+{
+  "track_id": "add-aiagent-persistence-recovery",
+  "track_name": "AIAgent Actor-centric 持久化与保守恢复",
+  "status": "completed",
+  "type": "feature",
+  "commit_mode": "manual",
+  "created_at": "2026-03-17",
+  "updated_at": "2026-03-18T23:59:59Z",
+  "description": "为 session 增加 actor-centric runtime snapshot，持久化 AiAgentVm durable subset、actor 全状态与 fiber 调度态，并完成 transcript-first、typed recovery report、schema contract 与 logs 日志布局收口"
+}

@@ -1,0 +1,13 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"assist"}
+---- #tuiControl
+{"cmd":"NewMessage","category":"quote"}
+---- #tuiMessage ?q1
+🛐 Quote: <tool_call id="ignored" name="bash" lang="javascript">
+SysBuiltIn.bash({
+  command: "echo ignored"
+})
+</tool_call>
+/?q1
+

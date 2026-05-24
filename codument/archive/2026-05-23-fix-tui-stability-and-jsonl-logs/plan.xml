@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>fix-tui-stability-and-jsonl-logs</track_id>
+    <track_name>Fix TUI stability and migrate non-state logs to JSONL</track_name>
+    <type>feature</type>
+    <status>completed</status>
+    <created_at>2026-05-20T17:23:35Z</created_at>
+    <updated_at>2026-05-20T19:28:00Z</updated_at>
+    <goal>Stabilize eidolon-tui under sustained coding sessions and move non-state logs to append-only JSONL storage</goal>
+    <description>Fix TUI freeze and hang risks by reducing hot-path logging/projection pressure and migrating non-state diagnostics to append-only JSONL storage.</description>
+    <commit_mode>manual</commit_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>10</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Reproduce and define the pressure boundary">
+      <goal>Lock down the failing behavior with focused regression tests and log classification decisions.</goal>
+      <tasks>
+        <task id="T1.1" name="Add regression tests for hot-path pressure" status="DONE" priority="P0">
+          <description>Cover repeated runtime event updates, sync event churn, and the current logging behavior that blocks the UI thread.</description>
+        </task>
+        <task id="T1.2" name="Define non-state log classification and JSONL contract" status="DONE" priority="P0">
+          <description>Finalize the initial boundary for non-state diagnostics and record the JSONL append-only file shape in decisions.md.</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Implement stability and log migration">
+      <goal>Move diagnostics out of the synchronous hot path and reduce repeated projection cost.</goal>
+      <tasks>
+        <task id="T2.1" name="Add append-only JSONL sink for diagnostics" status="DONE" priority="P0">
+          <description>Replace synchronous text-file writes for non-state logs with buffered JSONL append-only persistence.</description>
+        </task>
+        <task id="T2.2" name="Reduce runtime and sync hot-path logging" status="DONE" priority="P0">
+          <description>Trim high-frequency log calls in runtime-client, sync-context, and dialog/input paths so event storms do not flood disk or stdout.</description>
+        </task>
+        <task id="T2.3" name="Bound projection and cache growth" status="DONE" priority="P0">
+          <description>Reduce repeated full rebuilds of runtime message projections and cap or prune caches that grow over long sessions.</description>
+        </task>
+        <task id="T2.4" name="Harden fallback subscribe and cleanup paths" status="DONE" priority="P1">
+          <description>Add abort-aware control and retry backoff to the fallback subscribe loop and keep disposal paths deterministic.</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Validate and document the new behavior">
+      <goal>Prove the fix under test and capture the final user-visible behavior.</goal>
+      <tasks>
+        <task id="T3.1" name="Run focused regression coverage" status="DONE" priority="P0">
+          <description>Verify the new JSONL sink, the pressure tests, and the long-session stability checks.</description>
+        </task>
+        <task id="T3.2" name="Update docs and final verification notes" status="DONE" priority="P1">
+          <description>Record the new log storage model and summarize the stability changes for later implementation and review.</description>
+        </task>
+        <task id="T3.3" name="Preserve print-logs console mirror CLI compatibility" status="DONE" priority="P1">
+          <description>Declare the hidden print-logs option under strict TUI CLI parsing and verify it still enables the JSONL console mirror path.</description>
+        </task>
+      </tasks>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+    </phase>
+  </phases>
+</plan>

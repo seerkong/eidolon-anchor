@@ -1,0 +1,11 @@
+packages:
+  - "cell"
+  - "cell/packages/*"
+  - "shared"
+  - "shared/packages/*"
+  - "backend"
+  - "backend/packages/*"
+  - "desktop"
+  - "frontend/packages/*"
+  - "terminal"
+  - "terminal/packages/*"

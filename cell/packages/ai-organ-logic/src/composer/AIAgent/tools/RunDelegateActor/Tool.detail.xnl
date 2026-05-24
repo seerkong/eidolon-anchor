@@ -1,0 +1,54 @@
+<type_def lang="typescript" ?>
+export interface RunDelegateActorOuterInput {
+  description: string;
+  prompt: string;
+  agent_type: string;
+  mode?: "sync_wait" | "detached";
+}
+
+export type RunDelegateActorOuterOutput = string;
+
+export type RunDelegateActor = (input: RunDelegateActorOuterInput) => RunDelegateActorOuterOutput;
+</?>
+
+<warning ?>
+此工具用于创建有明确边界的 delegate actor，执行高价值的并行子任务，而非模糊的委派。
+
+输入质量规则：
+- `description` 必须简短且面向结果。
+- `prompt` 必须包含具体范围、约束条件和期望的输出格式。
+- `agent_type` 应与任务性质匹配（如 explorer 用于探索发现，fixer 用于执行修复）。
+
+与任务树协同规则：
+- 若存在任务树状态，每次委派仅针对当前活跃分支的单个目标，不应同时委派多个分支。
+- 若存在任务树状态，委派前应确认目标任务节点处于 `in_progress` 状态。
+- 若存在任务树状态，delegate actor 完成后 control actor 负责更新对应任务节点状态。
+- 无论是否使用任务树，都禁止并行委派相互矛盾或存在资源冲突的任务。
+- 若未使用任务树，仍需保持单目标委派，但无需依赖任务节点状态。
+
+输出要求：
+- 要求 delegate actor 返回可执行的产物（文件路径、diff、测试命令及结果）。
+- 不接受纯文字描述性的"建议"作为委派结果，必须是可直接应用的具体产出。
+</?>
+
+<demo #good_usage_demo1 ?>
+!unquote_start
+<tool_call id="run_delegate_actor_demo1" lang="javascript" ?>
+SysBuiltIn.RunDelegateActor({
+  description: "Investigate build failure",
+  prompt: "Check latest logs, identify root cause, and propose a concrete fix.",
+  agent_type: "fixer"
+})
+!unquote_end
+</?>
+
+<demo #good_usage_demo2 ?>
+!unquote_start
+<tool_call id="run_delegate_actor_planning_demo" lang="javascript" ?>
+SysBuiltIn.RunDelegateActor({
+  description: "Map task-tree related prompts in backend",
+  prompt: "Search backend prompt files related to task planning. Return exact paths and a concise diff proposal for consistency.",
+  agent_type: "explorer"
+})
+!unquote_end
+</?>

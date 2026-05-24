@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "types": ["vite/client"],
+    "paths": {
+      "@frontend/vue": ["./src"],
+      "@frontend/vue/*": ["./src/*"],
+      "@frontend/core": ["../core/src"],
+      "@frontend/core/*": ["../core/src/*"],
+      "@frontend/composer": ["../composer/src"],
+      "@frontend/composer/*": ["../composer/src/*"],
+      "@shared/composer": ["../../../shared/packages/composer/src"],
+      "@shared/composer/*": ["../../../shared/packages/composer/src/*"]
+    }
+  },
+  "include": ["src", "vite.config.ts"]
+}

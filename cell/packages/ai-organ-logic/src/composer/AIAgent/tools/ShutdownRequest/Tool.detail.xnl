@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface ShutdownRequestOuterInput { member_id: string; reason?: string; }
+export type ShutdownRequestOuterOutput = string;
+export type ShutdownRequest = (input: ShutdownRequestOuterInput) => ShutdownRequestOuterOutput;
+</?>

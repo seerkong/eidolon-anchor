@@ -1,0 +1,5 @@
+export interface ActorWatchOuterInput { target: string; }
+export type ActorWatchOuterOutput = string;
+export type ActorWatch = (input: ActorWatchOuterInput) => ActorWatchOuterOutput;
+
+Use this tool to enable watched state for an actor.

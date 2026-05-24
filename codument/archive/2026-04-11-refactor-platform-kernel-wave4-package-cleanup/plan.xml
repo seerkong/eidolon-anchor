@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-platform-kernel-wave4-package-cleanup</track_id>
+    <track_name>实施平台微内核 Wave 4 的 package cleanup</track_name>
+    <goal>清理旧 runtime profile alias，只保留正式 profile naming，并保持 terminal/tui/headless 主路径连续可运行。</goal>
+    <created_at>2026-04-11T05:55:48Z</created_at>
+    <updated_at>2026-04-11T06:00:03Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Alias Cleanup">
+      <goal>移除旧 profile alias，并将剩余调用方切到正式命名。</goal>
+      <tasks>
+        <task id="T1.1" name="移除 default-coding 兼容导出" status="DONE" priority="P0" estimated_days="1">
+          <description>从 `@cell/mod-profiles` 删除旧 alias，只保留正式 profile naming。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">`defaultCodingRuntimeProfile` 已删除</criterion>
+            <criterion id="T1.1-AC2" checked="true">`assembleDefaultCodingRuntimeProfile` 已删除</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="更新剩余测试与调用方到正式 naming" status="DONE" priority="P0" estimated_days="1">
+          <description>将所有残留引用切到 `ai-coding` 正式导出。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">代码与测试不再引用旧 alias</criterion>
+            <criterion id="T1.2-AC2" checked="true">focused tests 改为验证正式 naming</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Focused Verification">
+      <goal>通过 focused verification 锁定别名清理后主路径仍可运行。</goal>
+      <tasks>
+        <task id="T2.1" name="运行 runtime/profile focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>验证 profile layering、runtime adoption 与正式 naming 断言。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">runtime/profile focused tests 全部通过</criterion>
+            <criterion id="T2.1-AC2" checked="true">正式 naming 断言通过</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="验证 terminal/tui/headless smoke tests" status="DONE" priority="P0" estimated_days="1">
+          <description>确认主路径在别名清理后未被打断。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">terminal/headless 主路径测试通过</criterion>
+            <criterion id="T2.2-AC2" checked="true">tui semantic 主路径测试通过</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

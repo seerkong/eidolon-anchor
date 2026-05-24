@@ -1,0 +1,3 @@
+export interface ActorAssignOuterInput { target: string; mode: "final" | "none" | "stream"; content: string; }
+export type ActorAssignOuterOutput = string;
+export type ActorAssign = (input: ActorAssignOuterInput) => ActorAssignOuterOutput;

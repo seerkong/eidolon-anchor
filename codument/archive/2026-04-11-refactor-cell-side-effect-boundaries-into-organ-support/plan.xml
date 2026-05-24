@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-cell-side-effect-boundaries-into-organ-support</track_id>
+    <track_name>将 cell 中确定性的副作用边界收敛到 organ-support</track_name>
+    <goal>建立“数据与接口在 *-contract、副作用实现于 organ-support、其他逻辑留在 *-logic”的正式分层，并完成第一批高确定性副作用实现的 contract/support 拆分。</goal>
+    <created_at>2026-04-10T15:24:45Z</created_at>
+    <updated_at>2026-04-10T17:41:04Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>3</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="边界冻结">
+      <goal>冻结本次 contract / support / logic 分层边界、纳入范围与排除范围。</goal>
+      <context_files>
+        <file>in-scope-organ-support-migrations.md</file>
+        <file>proposal.md</file>
+        <file>design.md</file>
+      </context_files>
+      <tasks>
+        <task id="T1.1" name="冻结第一批迁移清单与非范围模块" status="DONE" priority="P0" estimated_days="1">
+          <description>以 track 内独立范围文件为正式清单，锁定第一批高确定性副作用实现和本次明确排除项。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">范围文件明确列出第一批高确定性迁移项</criterion>
+            <criterion id="T1.1-AC2" checked="true">LLM HTTP adapter、本地文件/进程工具实现与次一级边界问题被明确标记为非范围</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="冻结 contract 所有权规则" status="DONE" priority="P0" estimated_days="1">
+          <description>明确哪些副作用接口属于 core-contract，哪些属于 organ-contract，以及 organ-support 的实现责任。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">core-logic 依赖的副作用接口所有权归属到 core-contract</criterion>
+            <criterion id="T1.2-AC2" checked="true">organ-logic 专属副作用接口所有权归属到 organ-contract</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Contract Extraction">
+      <goal>将第一批副作用接口从逻辑层抽离到 contract 层。</goal>
+      <tasks>
+        <task id="T2.1" name="提取 core runtime persistence effect contracts" status="DONE" priority="P0" estimated_days="2">
+          <description>为消息历史、编排历史、actor transcript、runtime snapshot、config/skill loading 中由 core-logic 依赖的副作用提取正式 contract。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">core-contract 暴露第一批 core runtime side-effect interfaces</criterion>
+            <criterion id="T2.1-AC2" checked="true">core-logic 不再把这些副作用接口定义在自身包内作为正式真相源</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="提取 organ-side effect contracts" status="DONE" priority="P0" estimated_days="1">
+          <description>为本地权限配置、agent loader 等 organ-logic 专属副作用提取 organ-contract 接口与数据定义。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">organ-contract 暴露本次纳入范围的组织层副作用接口</criterion>
+            <criterion id="T2.2-AC2" checked="true">organ-logic 不再将这些接口定义为自身包内正式真相源</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Support Implementation">
+      <goal>在 organ-support 中实现第一批本地文件 / 本地目录 backend，并拆分 mixed modules。</goal>
+      <tasks>
+        <task id="T3.1" name="实现本地历史与持久化 backend" status="DONE" priority="P0" estimated_days="3">
+          <description>在 organ-support 中实现 message history、orchestration history、actor transcript、runtime snapshot 的本地 backend。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">organ-support 提供本地文件历史与 snapshot backend</criterion>
+            <criterion id="T3.1-AC2" checked="true">ActorTranscript 与 RuntimeSnapshots 的 mixed module 拆分完成</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="实现本地配置与目录加载 backend" status="DONE" priority="P0" estimated_days="2">
+          <description>在 organ-support 中实现 LocalPermissionConfig、AgentLoader、SkillLoader、LlmConfigLoader 的本地 backend，并保留纯解析逻辑在 *-logic。</description>
+          <dependencies>T2.1,T2.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">organ-support 提供本地权限配置与目录加载实现</criterion>
+            <criterion id="T3.2-AC2" checked="true">纯解析与内存 registry 逻辑仍位于 *-logic</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P4" name="Runtime Adoption & Verification">
+      <goal>让 runtime entry 显式装配 organ-support 实现，并验证范围边界。</goal>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <tasks>
+        <task id="T4.1" name="更新 runtime entry 装配路径" status="DONE" priority="P0" estimated_days="2">
+          <description>调整 terminal 等 runtime entry，使其显式装配 organ-support 实现，而不是继续直接消费逻辑层本地 backend。</description>
+          <dependencies>T3.1,T3.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">runtime entry 通过 organ-support 获取第一批环境实现</criterion>
+            <criterion id="T4.1-AC2" checked="true">逻辑层不再作为默认本地 backend 的正式装配来源</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="更新边界测试并验证非范围未被卷入" status="DONE" priority="P0" estimated_days="2">
+          <description>补充或更新 focused tests，验证第一批边界重构完成，且 LLM adapter、工具实现、MCP transport 等明确非范围模块未被误改为本次必需项。</description>
+          <dependencies>T4.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">受影响测试验证 contract/support/logic 边界</criterion>
+            <criterion id="T4.2-AC2" checked="true">明确非范围模块未被纳入本轮实现闭环</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

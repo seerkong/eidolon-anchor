@@ -1,0 +1,56 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "typeRoots": ["../backend/node_modules/@types", "../node_modules/@types"],
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@cell/core-contract": ["packages/core-contract/src/index.ts"],
+      "@cell/core-contract/*": ["packages/core-contract/src/*"],
+      "@cell/platform-contract": ["packages/platform-contract/src/index.ts"],
+      "@cell/platform-contract/*": ["packages/platform-contract/src/*"],
+      "@cell/core-logic": ["packages/core-logic/src/index.ts"],
+      "@cell/core-logic/*": ["packages/core-logic/src/*"],
+      "@cell/ai-core-contract": ["packages/ai-core-contract/src/index.ts"],
+      "@cell/ai-core-contract/*": ["packages/ai-core-contract/src/*"],
+      "@cell/ai-core-logic": ["packages/ai-core-logic/src/index.ts"],
+      "@cell/ai-core-logic/*": ["packages/ai-core-logic/src/*"],
+      "@cell/ai-support": ["packages/ai-support/src/index.ts"],
+      "@cell/ai-support/*": ["packages/ai-support/src/*"],
+      "@cell/ai-organ-logic": ["packages/ai-organ-logic/src/index.ts"],
+      "@cell/ai-organ-logic/*": ["packages/ai-organ-logic/src/*"],
+      "@cell/ai-composer": ["packages/ai-composer/src/index.ts"],
+      "@cell/ai-composer/*": ["packages/ai-composer/src/*"],
+      "@cell/mod-ai-coding": ["packages/mod-ai-coding/src/index.ts"],
+      "@cell/mod-ai-coding/*": ["packages/mod-ai-coding/src/*"],
+      "@cell/mod-platform-kernel": ["packages/mod-platform-kernel/src/index.ts"],
+      "@cell/mod-platform-kernel/*": ["packages/mod-platform-kernel/src/*"],
+      "@cell/mod-ai-kernel": ["packages/mod-ai-kernel/src/index.ts"],
+      "@cell/mod-ai-kernel/*": ["packages/mod-ai-kernel/src/*"],
+      "@cell/membrane": ["packages/membrane/src/index.ts"],
+      "@cell/membrane/*": ["packages/membrane/src/*"],
+      "@cell/ai-organ-contract": ["packages/ai-organ-contract/src/index.ts"],
+      "@cell/ai-organ-contract/*": ["packages/ai-organ-contract/src/*"],
+      "@cell/symbiont-logic": ["packages/symbiont-logic/src/index.ts"],
+      "@cell/symbiont-logic/*": ["packages/symbiont-logic/src/*"],
+      "@cell/symbiont-contract": ["packages/symbiont-contract/src/index.ts"],
+      "@cell/symbiont-contract/*": ["packages/symbiont-contract/src/*"],
+      "@cell/platform-support": ["packages/platform-support/src/index.ts"],
+      "@cell/platform-support/*": ["packages/platform-support/src/*"],
+      "@shared/composer": ["../shared/packages/composer/src/index.ts"]
+    }
+  },
+  "include": [
+    "packages/*/src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/__tests__/**"
+  ]
+}

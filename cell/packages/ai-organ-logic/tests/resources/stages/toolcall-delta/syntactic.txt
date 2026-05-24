@@ -1,0 +1,3 @@
+@delimiter: ----
+---- #syntacticToolCall
+{"tool_call_id":"call_abc123","tool_name":"get_weather","arguments_text":"{\"location\": \"San Francisco\"}","protocol":"openai","call_kind":"json_function"}

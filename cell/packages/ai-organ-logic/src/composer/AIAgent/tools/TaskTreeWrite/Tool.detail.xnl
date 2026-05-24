@@ -1,0 +1,148 @@
+<type_def lang="typescript" ?>
+export type TaskStatus = "pending" | "in_progress" | "completed";
+
+export interface TaskNodeDraft {
+  id?: string;
+  content: string;
+  status: TaskStatus;
+  activeForm?: string;
+}
+
+export type TaskTreeWriteOuterInput =
+  | {
+      op: "replace_root";
+      tasks: TaskNodeDraft[];
+    }
+  | {
+      op: "expand";
+      parent_id: string;
+      tasks: TaskNodeDraft[];
+    }
+  | {
+      op: "update_status";
+      task_id: string;
+      status: TaskStatus;
+    };
+
+export type TaskTreeWriteOuterOutput = string;
+
+export type TaskTreeWrite = (input: TaskTreeWriteOuterInput) => TaskTreeWriteOuterOutput;
+</?>
+
+<warning ?>
+当使用任务树追踪多步骤执行时，此工具是任务树状态的权威写入入口。
+任务树是结构化进度追踪方式之一，并非唯一进度追踪手段。
+如果是在编码场景，则除本工具规则外，还需要额外遵循当前会话中的编码规则与代码修改约束；这些规则不会因为使用任务树工具而失效。
+
+何时使用 TaskTree：
+- 工作包含 3 个及以上有意义的步骤。
+- 需要对当前 in_progress 步骤进行拆分。
+- 某步骤已完成或已开始，需要更新状态。
+
+何时不需要使用 TaskTree（以下场景禁止创建任务树）：
+- 任务是单步即可完成的简单操作（如回答问题、单次文件编辑、运行一条命令）。
+- 仅在思考或推理，尚无可执行的实际进展。
+- 用户请求是纯对话/咨询类，不涉及多步骤执行。
+- 整体工作预计在 1-2 次工具调用内即可完成。
+
+操作边界规则：
+- `replace_root`：仅用于初始化或重置顶层任务列表。当已有任务树且只需局部更新时，不应使用 replace_root，改用 update_status 或 expand。
+- `expand`：仅可对当前 `in_progress` 的父节点使用，且每个父节点只能 expand 一次。不应对 pending 或 completed 节点 expand。
+- `update_status`：用于常规进度变更，是最常用的操作。优先使用此操作而非 replace_root。
+
+何时不需要将任务节点继续拆分（不下钻 expand）：
+- 该节点的工作可在单次工具调用中完成，无需进一步分解。
+- 该节点已经足够具体，拆分后的子任务不会带来额外的执行清晰度。
+- 当前深度已达 3 层或以上，除非确实必要否则不应继续下钻。
+- 拆分后子任务数量仅为 1 个——说明无需拆分，直接执行即可。
+
+运行时硬约束（必须遵守）：
+- 最多 20 个根任务。
+- 每次 `expand` 最多 8 个子任务。
+- 最大深度为 4 层。
+- 总任务数上限 120。
+- 同层级兄弟节点中最多只能有一个 `in_progress`。
+
+质量规则：
+- 任务描述必须具体、面向结果。
+- 不要创建推测性分支。
+- 不要将未完全完成的步骤标记为 `completed`。
+- 如遇阻塞，保持任务 `in_progress` 并通过 `expand` 添加具体子步骤。
+- 若父节点不是 `in_progress`，先更新状态再 `expand`。
+
+ID 规则：
+- 不确定任务 id 时，先调用 `TaskTreeRead`。
+- 新任务优先省略 `id`，由运行时生成稳定 id。
+- 禁止为已有节点编造 id。
+</?>
+
+<workflow ?>
+推荐流程：
+1) 初始化：使用 `replace_root` 创建清晰的顶层步骤，其中恰好一个为 `in_progress`。
+2) 推进：随着工作进展使用 `update_status` 更新状态。
+3) 拆分：仅在当前活跃步骤确实需要细化时使用 `expand`；若单次调用可完成则不拆分。
+4) 验证：在重大更新后或 id/状态不确定时调用 `TaskTreeRead` 确认。
+</?>
+
+<demo #good_usage_demo1 ?>
+!unquote_start
+<tool_call id="todo_tree_replace_root" lang="javascript" ?>
+SysBuiltIn.TaskTreeWrite({
+  op: "replace_root",
+  tasks: [
+    { content: "Analyze failure logs", status: "in_progress", activeForm: "main" },
+    { content: "Apply and verify fix", status: "pending", activeForm: "main" }
+  ]
+})
+!unquote_end
+</?>
+
+<demo #good_usage_demo2 ?>
+!unquote_start
+<tool_call id="todo_tree_expand" lang="javascript" ?>
+SysBuiltIn.TaskTreeWrite({
+  op: "expand",
+  parent_id: "task-1",
+  tasks: [
+    { content: "Collect stderr output", status: "in_progress" },
+    { content: "Identify root cause", status: "pending" }
+  ]
+})
+!unquote_end
+</?>
+
+<demo #good_usage_demo3 ?>
+!unquote_start
+<tool_call id="todo_tree_update_status" lang="javascript" ?>
+SysBuiltIn.TaskTreeWrite({
+  op: "update_status",
+  task_id: "task-1",
+  status: "completed"
+})
+!unquote_end
+</?>
+
+<demo #good_usage_demo4 ?>
+!unquote_start
+<tool_call id="todo_tree_progress_update" lang="javascript" ?>
+SysBuiltIn.TaskTreeWrite({
+  op: "update_status",
+  task_id: "task-2",
+  status: "in_progress"
+})
+!unquote_end
+</?>
+
+<demo #avoid_usage_demo1 ?>
+!unquote_start
+// 错误示范：对非 in_progress 的任务执行 expand
+// 正确做法：先调用 update_status 将其设为 in_progress，再 expand。
+!unquote_end
+</?>
+
+<demo #avoid_usage_demo2 ?>
+!unquote_start
+// 错误示范：将同层多个兄弟任务同时设为 in_progress。
+// 正确做法：同层级始终只保留一个活跃分支。
+!unquote_end
+</?>

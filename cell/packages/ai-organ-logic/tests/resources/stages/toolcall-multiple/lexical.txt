@@ -1,0 +1,13 @@
+@delimiter: ----
+---- #lexicalToolCallStart
+{}
+---- #lexicalToolCallDelta
+{"index": 0, "id": "call_123", "type": "function", "function": {"name": "get_weather"}}
+---- #lexicalToolCallDelta
+{"index": 0, "function": {"arguments": "{\"location\":\"SF\"}"}}
+---- #lexicalToolCallDelta
+{"index": 1, "id": "call_456", "type": "function", "function": {"name": "get_time"}}
+---- #lexicalToolCallDelta
+{"index": 1, "function": {"arguments": "{\"timezone\":\"PST\"}"}}
+---- #lexicalToolCallEnd
+{}

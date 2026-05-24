@@ -1,0 +1,9 @@
+export interface MemberCreateOuterInput {
+  name: string;
+  agent_type: string;
+  prompt: string;
+}
+export type MemberCreateOuterOutput = string;
+export type MemberCreate = (input: MemberCreateOuterInput) => MemberCreateOuterOutput;
+
+Use this tool to create a new member actor in the current session.

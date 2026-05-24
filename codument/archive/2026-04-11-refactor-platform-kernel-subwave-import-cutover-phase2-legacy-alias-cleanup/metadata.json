@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-subwave-import-cutover-phase2-legacy-alias-cleanup",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T08:32:00Z",
+  "updated_at": "2026-04-11T08:40:00Z",
+  "description": "删除工作区旧 support/mod path alias，并为 legacy alias 回流建立 focused guard。"
+}

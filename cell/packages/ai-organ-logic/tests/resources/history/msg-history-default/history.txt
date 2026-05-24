@@ -1,0 +1,19 @@
+@delimiter: ----
+---- #think
+t1t2
+---- #content
+c1c2
+---- #tool_call
+{"type":"json","source":"tool","tool_call":{"id":"tc-1","functionName":"read_file","functionArguments":"{}"}}
+---- #tool_call_error
+{"errors":["bad"],"source":"tool"}
+---- #tool_call_start
+{"toolName":"read","toolCallId":"tc-1","arguments":"{}"}
+---- #tool_call_result
+{"toolName":"read","toolCallId":"tc-1","result":"ok","isError":false}
+---- #questionnaire_request
+{"questionnaireId":"q-1","toolCallId":"tc-1","kind":"approval","title":"Confirm","intro":null,"suspendPolicy":"pause_all","questions":[{"id":"q1","prompt":"Confirm","type":"yes_no","required":true}]}
+---- #questionnaire_result
+{"questionnaireId":"q-1","toolCallId":null,"rawText":"yes","status":"ok","answers":{"q1":true},"errors":null}
+---- #user_input
+hello

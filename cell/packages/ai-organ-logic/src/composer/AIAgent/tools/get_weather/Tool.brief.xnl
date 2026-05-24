@@ -1,0 +1,5 @@
+<tool {
+  name = "get_weather"
+  namespace = "SysBuiltIn"
+  description = "Get weather of a location, the user should supply a location first."
+}>

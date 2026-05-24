@@ -1,0 +1,33 @@
+@delimiter: ----
+---- #lexicalThinkingStart
+{}
+---- #lexicalThinkingDelta
+嗯，用
+---- #lexicalThinkingDelta
+户询问这个订单状态如何，我要先查询详情。
+---- #lexicalThinkingDelta
+并且符合
+---- #lexicalThinkingDelta
+!quote_start
+!unquote_start
+<tool_call id="query_order_xxx" name="queryOrder" lang="javascript">
+// 函数调用内容
+</tool_call>
+!unquote_end
+!quote_end
+---- #lexicalThinkingDelta
+这样才不会触发语法错误而重试
+---- #lexicalThinkingEnd
+{}
+---- #lexicalContentStart
+{}
+---- #lexicalContentDelta
+我先使用订单查询工具查询
+---- #lexicalContentDelta
+!unquote_start
+<tool_call id="query_order_xxx" name="queryOrder" lang="javascript">
+Custom.orderDetail(`ORDER-1234`)
+</tool_call>
+!unquote_end
+---- #lexicalContentEnd
+{}

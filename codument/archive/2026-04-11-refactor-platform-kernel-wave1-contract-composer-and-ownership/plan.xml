@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-platform-kernel-wave1-contract-composer-and-ownership</track_id>
+    <track_name>实施平台微内核 Wave 1 的 contract、composer 与 ownership 收口</track_name>
+    <goal>建立第一版 platform contract、platform composer contract 与 ownership tables，作为后续 profile/shell/package 波次的正式基线。</goal>
+    <created_at>2026-04-10T20:06:35Z</created_at>
+    <updated_at>2026-04-11T04:26:46Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Ownership Freeze">
+      <goal>将 Wave 1 所需的 contract ownership、runtime facet 与 package mapping 先冻结成正式表格。</goal>
+      <tasks>
+        <task id="T1.1" name="产出 contract ownership table" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 platform contract 与 AI domain contract 的正式 ownership 边界。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">contract ownership table 覆盖当前关键 core/composer/organ 边界</criterion>
+            <criterion id="T1.1-AC2" checked="true">AI-shaped surface 的迁出方向明确</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="产出 runtime facet 与 package mapping table" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 `AiAgentVm` 的 platform/domain facet 归属，以及现有包的目标职责。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">runtime facet table 明确 platform/domain 切分</criterion>
+            <criterion id="T1.2-AC2" checked="true">package mapping table 明确现有包的新职责</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Composer Contract Cutover">
+      <goal>将 `@cell/composer` contract 收口为平台级 capability composition contract。</goal>
+      <tasks>
+        <task id="T2.1" name="重构 platform composer contract" status="DONE" priority="P0" estimated_days="2">
+          <description>调整 `RuntimeAssemblyContext/State/Result` 及相关 contract，移除直接 AI-shaped 依赖。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">composer contract 不再直接依赖 `AgentConfig` / `ToolSchema`</criterion>
+            <criterion id="T2.1-AC2" checked="true">AI domain assembly contribution 有正式边界位置</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="为 composer contract 兼容过渡提供最小适配" status="DONE" priority="P1" estimated_days="1">
+          <description>在不引入第二真相源的前提下，为现有 AI runtime 保留最小兼容过渡层。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">现有 runtime 仍可通过正式 composer contract 路径运行</criterion>
+            <criterion id="T2.2-AC2" checked="true">未新建平行 composer truth source</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Focused Verification">
+      <goal>通过 focused verification 锁定 ownership 与 AI runtime 连续可运行。</goal>
+      <confirm protocol="yield-human-confirm" when="after" status="DONE" />
+      <tasks>
+        <task id="T3.1" name="补齐 ownership 与 composer focused tests" status="DONE" priority="P0" estimated_days="2">
+          <description>补充验证 composer ownership、contract ownership 与 AI-shaped surface 退出方向的 focused tests。</description>
+          <dependencies>T2.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">focused tests 验证行为和 ownership，而非源码 grep</criterion>
+            <criterion id="T3.1-AC2" checked="true">composer/platform contract 边界具备自动化保护</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="验证当前 AI runtime 主路径连续可运行" status="DONE" priority="P0" estimated_days="1">
+          <description>确认 terminal/tui/headless 主路径在 Wave 1 结束时仍可运行。</description>
+          <dependencies>T3.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">terminal 主路径可运行</criterion>
+            <criterion id="T3.2-AC2" checked="true">tui/headless 主路径未被本波次打断</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

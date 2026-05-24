@@ -1,0 +1,19 @@
+@delimiter: ----
+---- #semanticThinkStart
+---- #semanticThinkDelta
+嗯，用
+---- #semanticThinkDelta
+户询问这个订单状态如何，我要先查询详情。
+---- #semanticThinkDelta
+并且符合
+---- #semanticThinkDelta
+这样才不会触发语法错误而重试
+---- #semanticThinkEnd
+---- #semanticContentStart
+---- #semanticContentDelta
+我先使用订单查询工具查询
+---- #semanticContentEnd
+---- #semanticQuote
+{"source":"thinking","text":"<tool_call id=\"query_order_xxx\" name=\"queryOrder\" lang=\"javascript\">\n// 函数调用内容\n</tool_call>"}
+---- #semanticToolCallPlanned
+{"tool_call_id":"query_order_xxx","tool_name":"queryOrder","arguments_text":"Custom.orderDetail(`ORDER-1234`)","protocol":"xml","call_kind":"xml_tag"}

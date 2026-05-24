@@ -1,0 +1,8 @@
+{
+  "track_id": "define-platform-logic-evidence-gate",
+  "type": "design",
+  "status": "completed",
+  "created_at": "2026-04-11T13:05:00Z",
+  "updated_at": "2026-04-11T14:44:00Z",
+  "description": "为 platform-logic 的引入设置正式证据门槛，避免无证据提前抽象。"
+}

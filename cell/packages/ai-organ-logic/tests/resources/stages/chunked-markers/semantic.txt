@@ -1,0 +1,5 @@
+@delimiter: ----
+---- #semanticContentStart
+---- #semanticContentEnd
+---- #semanticToolCallPlanned
+{"tool_call_id":"run_codument_status","tool_name":"bash","arguments_text":"SysBuiltIn.bash({\n  command: \"codument status\"\n})","protocol":"xml","call_kind":"xml_tag"}

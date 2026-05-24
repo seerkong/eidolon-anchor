@@ -1,0 +1,15 @@
+{
+  "name": "@cell/mod-platform-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "description": "Platform kernel baseline capabilities for cell runtimes.",
+  "dependencies": {
+    "@cell/platform-support": "workspace:*"
+  }
+}

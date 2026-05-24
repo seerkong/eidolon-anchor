@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-wave9-domain-ai-contract-logic-explicitization",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T10:05:00Z",
+  "updated_at": "2026-04-11T12:33:00Z",
+  "description": "让 AI 领域微内核的 contract/logic 边界显式存在，并继续收紧 composer/ai-contract 为更薄的 AI facet。"
+}

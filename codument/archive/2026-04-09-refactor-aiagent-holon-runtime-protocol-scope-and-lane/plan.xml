@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-aiagent-holon-runtime-protocol-scope-and-lane</track_id>
+    <track_name>将 holon runtime protocol 的 collective lane/workload/scope marker 收口</track_name>
+    <goal>让 runtime protocol 中的 scheduler lane、workload 与 task-tree holon scope marker 全部对齐 holon + governance 心智。</goal>
+    <created_at>2026-04-09T07:37:43Z</created_at>
+    <updated_at>2026-04-09T09:01:44Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+  <phases>
+    <phase id="P1" name="Track Freeze">
+      <goal>固化 protocol rename 的 breaking 边界和新命名。</goal>
+      <tasks>
+        <task id="T1.1" name="编写 proposal/spec/design/plan" status="DONE" priority="P0">
+          <description>明确本轮将通过 schema bump 处理 lane/workload/activeForm protocol rename。</description>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>已明确本轮是 runtime protocol 级 breaking migration，而不是字符串别名替换</criterion>
+      </gate_criteria>
+    </phase>
+    <phase id="P2" name="Protocol Refactor">
+      <goal>收口 lane/workload/scope marker 与 snapshot version。</goal>
+      <tasks>
+        <task id="T2.1" name="引入 holon runtime protocol helper" status="DONE" priority="P0">
+          <description>统一定义和解析 holon governance scope marker。</description>
+        </task>
+        <task id="T2.2" name="切换 lane 与 workload 到新协议名" status="DONE" priority="P0">
+          <description>将 collective lane/workload 切到 autonomous_holon 命名，并同步 member/runtime paths。</description>
+          <dependencies>T2.1</dependencies>
+        </task>
+        <task id="T2.3" name="切换 activeForm scope marker 到 governance-explicit 协议" status="DONE" priority="P0">
+          <description>将 `collective:` / `formation:` 收口到 `holon:<governance>:`。</description>
+          <dependencies>T2.1</dependencies>
+        </task>
+        <task id="T2.4" name="升级 snapshot schema version 并同步 recovery" status="DONE" priority="P0">
+          <description>将新协议作为唯一正式恢复版本，旧协议 fail-fast。</description>
+          <dependencies>T2.2,T2.3</dependencies>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>runtime protocol 默认命名不再把 collective 作为调度或 scope 真相</criterion>
+      </gate_criteria>
+    </phase>
+    <phase id="P3" name="Tests And Validation">
+      <goal>同步 focused tests、报告和 strict validation。</goal>
+      <tasks>
+        <task id="T3.1" name="更新 focused tests 与 theater 报告" status="DONE" priority="P0">
+          <description>同步 lane/workload/scope marker 的新协议名和 breaking 边界。</description>
+        </task>
+        <task id="T3.2" name="执行 strict validation 与 focused regression" status="DONE" priority="P0">
+          <description>运行相关 tests 与 `codument validate refactor-aiagent-holon-runtime-protocol-scope-and-lane --strict`。</description>
+          <dependencies>T3.1</dependencies>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>protocol rename 已通过 tests 与 strict validation 锁定</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+</plan>

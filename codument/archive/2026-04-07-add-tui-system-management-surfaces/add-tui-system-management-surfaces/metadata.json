@@ -1,0 +1,8 @@
+{
+  "track_id": "add-tui-system-management-surfaces",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-04-07T22:10:00Z",
+  "updated_at": "2026-04-07T07:48:02Z",
+  "description": "为 prototype TUI 将 session、provider/model、agent、MCP 等 system materials 收敛为可一致触发、可联动当前选择态的系统管理界面"
+}

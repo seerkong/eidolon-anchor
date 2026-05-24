@@ -1,0 +1,9 @@
+{
+  "track_id": "update-aiagent-tasktree-tools",
+  "type": "feature",
+  "status": "completed",
+  "commit_mode": "manual",
+  "created_at": "2026-02-26T14:36:33Z",
+  "updated_at": "2026-02-26T15:26:23Z",
+  "description": "补建 TaskTree 相关改动的 Codument track，覆盖 TaskTreeWrite/TaskTreeRead、RunSubAgent 重命名、ToolDefinitions 去重与终端侧对齐"
+}

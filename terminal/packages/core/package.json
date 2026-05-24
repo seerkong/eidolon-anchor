@@ -1,0 +1,21 @@
+{
+  "name": "@terminal/core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "test:js": "bun test"
+  },
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./AIAgent": "./src/AIAgent/index.ts",
+    "./AIAgent/*": "./src/AIAgent/*.ts"
+  },
+  "dependencies": {
+    "@cell/mod-ai-kernel": "workspace:*",
+    "@cell/ai-core-contract": "workspace:*",
+    "@shared/core": "workspace:*"
+  }
+}

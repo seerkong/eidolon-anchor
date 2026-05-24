@@ -1,0 +1,4 @@
+<tool>
+  <name>DetachedActorStatus</name>
+  <brief>Query a detached actor status by task_id.</brief>
+</tool>

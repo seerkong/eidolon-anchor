@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-wave4-package-cleanup",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T05:55:48Z",
+  "updated_at": "2026-04-11T06:00:03Z",
+  "description": "承接平台微内核架构的第四波实施：执行旧 runtime profile 路径清理与最小物理结构收尾。"
+}

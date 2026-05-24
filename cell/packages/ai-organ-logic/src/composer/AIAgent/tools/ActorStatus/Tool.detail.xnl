@@ -1,0 +1,5 @@
+export interface ActorStatusOuterInput { target: string; }
+export type ActorStatusOuterOutput = string;
+export type ActorStatus = (input: ActorStatusOuterInput) => ActorStatusOuterOutput;
+
+Use this tool to inspect an actor by name, key, id, or typed reference.

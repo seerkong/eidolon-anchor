@@ -1,0 +1,13 @@
+@delimiter: ----
+---- #ingressControl
+{"event":"StreamStart"}
+---- #ingressTool
+{"index":0,"id":"call_abc123","type":"function","function":{"name":"get_weather"}}
+---- #ingressTool
+{"index":0,"function":{"arguments":"{\"location\":"}}
+---- #ingressTool
+{"index":0,"function":{"arguments":" \"San Francisco"}}
+---- #ingressTool
+{"index":0,"function":{"arguments":", US\"}"}}
+---- #ingressControl
+{"event":"StreamEnd"}

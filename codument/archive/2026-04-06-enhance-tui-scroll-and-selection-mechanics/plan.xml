@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>enhance-tui-scroll-and-selection-mechanics</track_id>
+    <track_name>增强 TUI 滚动与选择机制</track_name>
+    <goal>在现有 prototype scroll 主链上增强滚动稳定性、边界导航、选择态与流式更新之间的协调</goal>
+    <created_at>2026-04-05T19:06:45Z</created_at>
+    <updated_at>2026-04-06T03:54:02Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>1</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Rule Freeze">
+      <goal>冻结滚动、自动跟底和选择态协调规则</goal>
+      <estimated_days>1</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/infra/perf/scroll-history.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/index.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T1.1" name="冻结自动跟底与手动浏览切换规则" status="DONE" priority="P0" estimated_days="1">
+          <description>明确何时自动跟底、何时尊重用户手动浏览，以及何时恢复自动跟随。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">手动浏览期间不会被无条件强制跳底</criterion>
+            <criterion id="T1.1-AC2" checked="true">用户明确回到底部后可恢复自动跟底</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>滚动与选择规则已写入 track 文档</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="Scroll Behavior Hardening">
+      <goal>在现有 scroll helpers 和 PrototypeView 接线中增强交互稳定性</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/infra/perf/scroll-history.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/index.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T2.1" name="增强边界导航与手动浏览逻辑" status="DONE" priority="P0" estimated_days="1">
+          <description>在不重做主链的前提下，增强 PageUp/PageDown/Home/End 与手动历史浏览表现。</description>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">PageUp/PageDown/Home/End 表现稳定</criterion>
+            <criterion id="T2.1-AC2" checked="true">手动浏览不会因流式更新被频繁打断</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="协调选择态与滚动副作用" status="DONE" priority="P0" estimated_days="1">
+          <description>在选择文本或其他交互过程中，避免滚动和点击副作用破坏选择体验。</description>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">选择存在时不会因无关副作用被明显打断</criterion>
+            <criterion id="T2.2-AC2" checked="true">基础 wheel/arrow scroll 行为无回归</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.3" name="修正历史区焦点恢复与可视反馈" status="DONE" priority="P0" estimated_days="1">
+          <description>允许历史区在 composer 保留草稿时重新获得活跃焦点并滚动，补齐触摸板 / 滚轮 / 键盘一致性，并将 bottom bar 焦点切换正式化。</description>
+          <acceptance_criteria>
+            <criterion id="T2.3-AC1" checked="true">composer 有内容时，点击历史区后仍可继续滚动历史</criterion>
+            <criterion id="T2.3-AC2" checked="true">输入区与历史区能通过颜色变化区分当前焦点</criterion>
+            <criterion id="T2.3-AC3" checked="true">bottom bar `History` / `Composer` 与区域真实焦点保持一致</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>滚动行为在流式更新、手动浏览和选择态下均更稳定</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="Verification">
+      <goal>通过自动化测试和手工点验验证滚动与选择机制</goal>
+      <estimated_days>2</estimated_days>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <context_files>
+        <file>terminal/packages/tui/tests/prototype-scroll.test.tsx</file>
+        <file>terminal/packages/tui/tests/help-copy.test.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T3.1" name="补滚动相关自动化测试" status="DONE" priority="P0" estimated_days="1">
+          <description>新增或更新测试，覆盖边界跳转、手动浏览期间的流式更新和选择态相关场景。</description>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">存在 PageUp/PageDown/Home/End 的自动化测试</criterion>
+            <criterion id="T3.1-AC2" checked="true">存在手动浏览与流式更新协调的自动化测试</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="运行 terminal TUI 测试并手工点验" status="DONE" priority="P0" estimated_days="1">
+          <description>执行 terminal TUI 测试，并手工验证滚动、选择、边界跳转、触摸板与 bottom bar 焦点切换表现。</description>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</criterion>
+            <criterion id="T3.2-AC2" checked="true">手工点验覆盖 wheel、touchpad、arrow、page、edge、selection 和焦点切换场景</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>滚动与选择机制已被自动化测试和手工验收确认</criterion>
+        <criterion>gap-loop 验证无阻塞缺口</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+
+  <validations>
+    <validation id="V1" name="Reliable History Browsing" status="PASSED">
+      验证历史浏览与边界导航是否稳定。
+      <checks>
+        <check name="基础滚动无回归">wheel 与 arrow scroll 仍正常</check>
+        <check name="边界跳转稳定">PageUp/PageDown/Home/End 行为稳定</check>
+      </checks>
+    </validation>
+    <validation id="V2" name="Selection And Streaming Coordination" status="PASSED">
+      验证选择态与流式更新不会破坏滚动体验。
+      <checks>
+        <check name="手动浏览不被强制跳底">用户浏览历史时不会被无条件拉回底部</check>
+        <check name="选择体验无明显破坏">选择存在时不会被滚动副作用轻易打断</check>
+      </checks>
+    </validation>
+  </validations>
+
+  <risks>
+    <risk id="R1" name="自动跟底与手动浏览反复打架" level="high">
+      <impact>高</impact>
+      <probability>中</probability>
+      <mitigation>先冻结规则，再用测试固定“跟底/暂停/恢复”的行为边界。</mitigation>
+    </risk>
+    <risk id="R2" name="增强过程导致已有滚动路径回归" level="medium">
+      <impact>中</impact>
+      <probability>中</probability>
+      <mitigation>保留现有 smoke tests 并扩展，而不是替换。</mitigation>
+    </risk>
+  </risks>
+
+  <summary>
+    <total_phases>3</total_phases>
+    <total_tasks>6</total_tasks>
+    <total_subtasks>0</total_subtasks>
+    <total_estimated_days>5</total_estimated_days>
+    <completed>6</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+    <by_priority>
+      <p0 count="6" days="6" />
+    </by_priority>
+  </summary>
+</plan>

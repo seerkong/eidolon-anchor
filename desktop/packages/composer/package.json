@@ -1,0 +1,11 @@
+{
+  "name": "@desktop/composer",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@desktop/organ-support": "workspace:*",
+    "@desktop/organ": "workspace:*"
+  }
+}

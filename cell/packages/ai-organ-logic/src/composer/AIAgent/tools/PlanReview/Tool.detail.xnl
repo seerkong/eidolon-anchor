@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface PlanReviewOuterInput { request_id: string; approve: boolean; feedback?: string; }
+export type PlanReviewOuterOutput = string;
+export type PlanReview = (input: PlanReviewOuterInput) => PlanReviewOuterOutput;
+</?>

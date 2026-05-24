@@ -1,0 +1,9 @@
+@delimiter: ----
+---- #semanticContentStart
+---- #semanticContentDelta
+开头文本
+---- #semanticContentDelta
+结尾文本
+---- #semanticContentEnd
+---- #semanticToolCallPlanned
+{"tool_call_id":"demo","tool_name":"doSomething","arguments_text":"doSomething()","protocol":"xml","call_kind":"xml_tag"}

@@ -1,0 +1,440 @@
+{
+  "default": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "[think] 嗯，用",
+        "level": "info"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "[think] 户询问这个订单状态如何，我要先查询详情。",
+        "level": "info"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "[think] 并且符合",
+        "level": "info"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "[think] 这样才不会触发语法错误而重试",
+        "level": "info"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_start"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_chunk",
+        "chunk": "我先使用订单查询工具查询"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_end"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_message",
+        "message": "[quote:thinking] <tool_call id=\"query_order_xxx\" name=\"queryOrder\" lang=\"javascript\">\n// 函数调用内容\n</tool_call>"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Planned tool call: queryOrder [query_order_xxx]",
+        "level": "info"
+      }
+    }
+  ],
+  "chunked-markers": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_start"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_end"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Planned tool call: bash [run_codument_status]",
+        "level": "info"
+      }
+    }
+  ],
+  "content-unquote": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_start"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_chunk",
+        "chunk": "开头文本"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_chunk",
+        "chunk": "结尾文本"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_end"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Planned tool call: doSomething [demo]",
+        "level": "info"
+      }
+    }
+  ],
+  "quote-chunked": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_start"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_stream_end"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "assistant_message",
+        "message": "[quote:content] <tool_call id=\"ignored\" name=\"bash\" lang=\"javascript\">\nSysBuiltIn.bash({\n  command: \"echo ignored\"\n})\n</tool_call>"
+      }
+    }
+  ],
+  "toolcall-delta": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Planned tool call: get_weather [call_abc123]",
+        "level": "info"
+      }
+    }
+  ],
+  "toolcall-multiple": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Planned tool call: get_weather [call_123]",
+        "level": "info"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Planned tool call: get_time [call_456]",
+        "level": "info"
+      }
+    }
+  ],
+  "toolcall-alt-format": [
+    {
+      "actor": {
+        "actor_id": "primary",
+        "title": "Primary",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Planned tool call: get_weather [abcd]",
+        "level": "info"
+      }
+    }
+  ],
+  "tui-turn-events": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "status",
+        "message": "Turn start: 1"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Running tool call: read_file [tc-1]",
+        "level": "info"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "tool_result",
+        "tool_name": "read_file",
+        "output": "ok"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Questionnaire requested [q-1]: Confirm\nProceed?\n",
+        "level": "info"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "status",
+        "message": "Turn end: done"
+      }
+    }
+  ],
+  "questionnaire": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Questionnaire requested [q-1]: Approve plan?",
+        "level": "info"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "notice",
+        "message": "Questionnaire result [q-1]: approved - Yes",
+        "level": "info"
+      }
+    }
+  ],
+  "plan-approval": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "plan_approval_request",
+        "request_id": "plan-1",
+        "sender": "main",
+        "plan": "1. review\n2. apply"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "plan_approval_response",
+        "request_id": "plan-1",
+        "approved": true,
+        "feedback": "approved"
+      }
+    }
+  ],
+  "shutdown": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "shutdown_request",
+        "request_id": "shutdown-1",
+        "sender": "main",
+        "message": "target=worker-1\n\nmaintenance"
+      }
+    },
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "shutdown_response",
+        "request_id": "shutdown-1",
+        "approved": true,
+        "reason": "target=worker-1\n\napproved by operator"
+      }
+    }
+  ],
+  "background-result": [
+    {
+      "actor": {
+        "actor_id": "a1",
+        "title": "main",
+        "kind": "primary"
+      },
+      "event": {
+        "event_type": "background_result",
+        "task_id": "job-1",
+        "status": "done",
+        "result": "completed"
+      }
+    }
+  ]
+}

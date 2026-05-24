@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface LsOuterInput { path?: string; ignore?: string[]; }
+export type LsOuterOutput = string;
+export type ls = (input: LsOuterInput) => LsOuterOutput;
+</?>

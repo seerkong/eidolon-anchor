@@ -1,0 +1,15 @@
+{
+  "name": "@cell/ai-organ-contract",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "description": "AI-specific organization-layer contracts aligned with ai-core and ai-support ownership.",
+  "dependencies": {
+    "@cell/ai-core-contract": "workspace:*"
+  }
+}

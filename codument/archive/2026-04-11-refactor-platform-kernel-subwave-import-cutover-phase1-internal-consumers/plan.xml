@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-platform-kernel-subwave-import-cutover-phase1-internal-consumers</track_id>
+    <track_name>平台微内核后续 sub-wave：import cutover phase1 internal consumers</track_name>
+    <goal>完成内部消费者对新 support 宿主包的第一批 import cutover，并为旧 support 包建立回流保护。</goal>
+    <created_at>2026-04-11T08:05:00Z</created_at>
+    <updated_at>2026-04-11T08:20:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Track Setup">
+      <goal>建立 phase1 import cutover 的规范与计划。</goal>
+      <tasks>
+        <task id="T1.1" name="创建 cutover phase1 track 文档" status="DONE" priority="P0" estimated_days="1">
+          <description>创建 proposal/spec/design/plan 与 analysis 基础文件。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">track 文档完整且自包含</criterion>
+            <criterion id="T1.1-AC2" checked="true">phase1 范围与非目标明确</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Internal Consumer Cutover">
+      <goal>将仓内真实内部消费者切到新 support 宿主。</goal>
+      <tasks>
+        <task id="T2.1" name="替换内部 direct imports" status="DONE" priority="P0" estimated_days="1">
+          <description>把 `cell/packages/organ-logic` 与 `terminal/packages/organ` 中直接 import `@cell/organ-support` 的消费者切到 `@cell/domain-ai-support`。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">phase1 范围内旧 support import 已清零</criterion>
+            <criterion id="T2.1-AC2" checked="true">行为测试未回归</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Regression Guard">
+      <goal>建立 focused protection，防止旧 support import 回流。</goal>
+      <tasks>
+        <task id="T3.1" name="补 migration guard 并验证" status="DONE" priority="P0" estimated_days="1">
+          <description>增加 focused test 约束旧 support import 只能留在 compatibility package 内。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">focused guard 可阻止旧 support import 回流</criterion>
+            <criterion id="T3.1-AC2" checked="true">codument validate 与相关测试通过</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

@@ -1,0 +1,8 @@
+{
+  "track_id": "add-shell-local-permission-controls",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-04-08T00:00:00Z",
+  "updated_at": "2026-04-08T09:00:00Z",
+  "description": "为 AI coding 工具增加 home 级本地权限配置、workspace 外路径白名单与 questionnaire 审批接线"
+}

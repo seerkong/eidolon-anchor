@@ -1,0 +1,5 @@
+export interface ActorUnwatchOuterInput { target: string; }
+export type ActorUnwatchOuterOutput = string;
+export type ActorUnwatch = (input: ActorUnwatchOuterInput) => ActorUnwatchOuterOutput;
+
+Use this tool to disable watched state for an actor.

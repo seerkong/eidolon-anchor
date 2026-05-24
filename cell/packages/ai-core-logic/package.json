@@ -1,0 +1,21 @@
+{
+  "name": "@cell/ai-core-logic",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "description": "Formal AI core logic host for runtime glue, runtime facades, and shell bootstrap helpers.",
+  "dependencies": {
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/symbiont-logic": "workspace:*",
+    "@cell/symbiont-contract": "workspace:*",
+    "depa-data-graph-core": "^0.1.0",
+    "depa-actor": "^0.1.1",
+    "depa-processor": "^0.1.0",
+    "@shared/composer": "workspace:*"
+  }
+}

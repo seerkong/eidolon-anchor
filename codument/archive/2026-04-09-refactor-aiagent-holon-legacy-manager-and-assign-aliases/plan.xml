@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-aiagent-holon-legacy-manager-and-assign-aliases</track_id>
+    <track_name>清理 holon legacy manager helper 与 assign alias module</track_name>
+    <goal>让 OrganizationManager 的默认内部 helper 和 assign core module 全部回到 holon/governance 命名。</goal>
+    <created_at>2026-04-09T09:39:18Z</created_at>
+    <updated_at>2026-04-09T09:57:14Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+  <phases>
+    <phase id="P1" name="Track Freeze">
+      <goal>锁定 legacy manager helper 与 assign alias cleanup 边界。</goal>
+      <tasks>
+        <task id="T1.1" name="编写 proposal/spec/plan" status="DONE" priority="P0">
+          <description>明确本轮只清理 OrganizationManager legacy helper 与 assign alias module。</description>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>已确认 runtime event alias 与 record type rename 不混入本 track</criterion>
+      </gate_criteria>
+    </phase>
+    <phase id="P2" name="Manager Cleanup">
+      <goal>将内部组织 helper 收口为 governance-first 路径。</goal>
+      <tasks>
+        <task id="T2.1" name="重构 OrganizationManager 内部 helper" status="DONE" priority="P0">
+          <description>以 autonomous/leader_led 为主轴重构 get/resolve/list helper，并移除未使用 legacy public method。</description>
+        </task>
+        <task id="T2.2" name="切换内部调用方到新 helper" status="DONE" priority="P0">
+          <description>同步 AutonomousHolonTaskRunner、assign core 与 holon tooling 的调用路径。</description>
+          <dependencies>T2.1</dependencies>
+        </task>
+        <task id="T2.3" name="删除 assign alias module" status="DONE" priority="P1">
+          <description>移除 `_collectiveAssignCore.ts` 与 `_formationAssignCore.ts`。</description>
+          <dependencies>T2.2</dependencies>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>仓库内部主实现已不再依赖 collective/formation manager helper 与 assign alias module</criterion>
+      </gate_criteria>
+    </phase>
+    <phase id="P3" name="Tests And Closure">
+      <goal>同步 tests、报告与 strict validation。</goal>
+      <tasks>
+        <task id="T3.1" name="更新 focused tests 与报告" status="DONE" priority="P0">
+          <description>同步组织工具/runner 相关 tests 与 theater 报告的当前剩余面。</description>
+        </task>
+        <task id="T3.2" name="执行 strict validation 与 focused regression" status="DONE" priority="P0">
+          <description>运行相关 tests 与 `codument validate refactor-aiagent-holon-legacy-manager-and-assign-aliases --strict`。</description>
+          <dependencies>T3.1</dependencies>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>manager cleanup 已通过 focused regression 与 strict validation 锁定</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+</plan>

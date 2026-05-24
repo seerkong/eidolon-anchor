@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface CoordinationStatusOuterInput { request_id: string; }
+export type CoordinationStatusOuterOutput = string;
+export type CoordinationStatus = (input: CoordinationStatusOuterInput) => CoordinationStatusOuterOutput;
+</?>

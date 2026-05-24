@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-cell-runtime-to-composer-and-mod-profiles",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-03T12:30:00Z",
+  "updated_at": "2026-04-04T09:30:00Z",
+  "description": "建立 @cell/composer、@cell/mod-sys-kernel、@cell/mod-sys-coding 的正式组合层，并将 TerminalRuntime 的默认产品定义迁移到 composer/profile/mod 装配结果。"
+}

@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-subwave-import-cutover-phase1-internal-consumers",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T08:05:00Z",
+  "updated_at": "2026-04-11T08:20:00Z",
+  "description": "将仓内内部消费者从旧 support 包名切到新宿主包，并为 legacy support import 建立 focused guard。"
+}

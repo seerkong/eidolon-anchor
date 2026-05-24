@@ -1,0 +1,7 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"toolcall"}
+---- #tuiMessage
+🔧 ToolCall: get_weather
+{"location": "San Francisco"}
+

@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>standardize-tui-dialogs</track_id>
+    <type>refactor</type>
+    <status>in_progress</status>
+    <created_at>2026-05-23T11:37:22Z</created_at>
+    <updated_at>2026-05-23T14:11:05Z</updated_at>
+    <description>统一改造 eidolon-tui 剩余 dialog，使其符合当前 Dialog UI/UX 标准，并保留 Sessions 专属密集列表体验。</description>
+    <commit_mode>manual</commit_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Inventory and baseline coverage" status="DONE">
+      <goal>确认剩余 dialog 范围，并为高风险共享组件建立基础验证。</goal>
+      <tasks>
+        <task id="T1.1" name="Inventory remaining dialogs" status="DONE" priority="P0">
+          <description>扫描所有 TUI dialog implementation 和调用点，标记 shared、custom、already-compliant 三类。</description>
+          <acceptance_criteria>
+            <criterion checked="true">产出剩余 dialog 清单并映射到标准 dialog category。</criterion>
+            <criterion checked="true">确认 DialogSelect 可覆盖的列表类弹窗范围。</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="Add focused dialog behavior tests" status="DONE" priority="P0">
+          <description>为 shared dialog primitive 的 action labels、search clear、row truncation、footer anchoring 和 close behavior 添加聚焦测试。</description>
+          <acceptance_criteria>
+            <criterion checked="true">测试覆盖 bracketed action rendering。</criterion>
+            <criterion checked="true">测试覆盖列表长文本单行截断和右侧 action/metadata 不重叠。</criterion>
+            <criterion checked="true">测试覆盖 Escape 和 `[关闭(esc)]` 关闭行为。</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Shared dialog primitive standardization" status="DONE">
+      <goal>统一 shared dialog primitives，让多数选择类、表单类、确认类和信息类弹窗自动继承规范。</goal>
+      <tasks>
+        <task id="T2.1" name="Standardize Dialog shell and header" status="DONE" priority="P0">
+          <description>调整 dialog shell/header/footer 的边框、内边距、关闭动作和可复用布局能力。</description>
+          <acceptance_criteria>
+            <criterion checked="true">Dialog shell 使用 OpenTUI 内置 border。</criterion>
+            <criterion checked="true">默认关闭动作显示为 `[关闭(esc)]` 并可点击。</criterion>
+            <criterion checked="true">普通 dialog 保持 5% 左右和 10% 上下外部空间。</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="Standardize DialogSelect lists" status="DONE" priority="P0">
+          <description>改造 DialogSelect 的搜索、清空、列表 body、hover/focus、footer、截断和滚动行为。</description>
+          <acceptance_criteria>
+            <criterion checked="true">搜索区 `[清空]` 右对齐且能重置搜索。</criterion>
+            <criterion checked="true">列表 body 填充剩余高度，footer 不漂浮在大块空白上方。</criterion>
+            <criterion checked="true">列表项长文本保持单行截断且 hover/focus 文字可读。</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.3" name="Standardize alert confirm and prompt dialogs" status="DONE" priority="P0">
+          <description>改造 Alert、Confirm、Prompt shared components 的 action labels、布局、异步确认和 close behavior。</description>
+          <acceptance_criteria>
+            <criterion checked="true">Alert 使用标准 `[关闭(esc)]` 或 bracketed ok action。</criterion>
+            <criterion checked="true">Confirm 使用 `[取消]` 和 `[确认]` 或配置的 bracketed verb。</criterion>
+            <criterion checked="true">Prompt/form dialog 保持稳定输入和异步提交防重复。</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Custom dialog migration" status="DONE">
+      <goal>迁移不能通过 shared primitive 自动覆盖的 custom dialog。</goal>
+      <tasks>
+        <task id="T3.1" name="Migrate file picker dialog" status="DONE" priority="P1">
+          <description>将 composer file picker 对齐列表类 dialog 标准，压缩多余说明文本并统一 close/footer/search 行为。</description>
+          <acceptance_criteria>
+            <criterion checked="true">文件列表行保持单行截断，不与右侧信息重叠。</criterion>
+            <criterion checked="true">close/footer/search 行为符合标准。</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="Migrate shortcuts and status dialogs" status="DONE" priority="P1">
+          <description>将 shortcuts 和 status 对齐 information dialog 标准，统一边框、滚动区、footer 和 close action。</description>
+          <acceptance_criteria>
+            <criterion checked="true">Shortcuts dialog 不再使用非标准 footer 文案。</criterion>
+            <criterion checked="true">Status dialog 内容区可滚动并使用标准 close action。</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.3" name="Migrate provider auth dialogs" status="DONE" priority="P1">
+          <description>将 provider OAuth/API key 相关子弹窗对齐 information/form dialog 标准。</description>
+          <acceptance_criteria>
+            <criterion checked="true">OAuth/API key dialog 使用标准边框和 bracketed actions。</criterion>
+            <criterion checked="true">复制、确认、取消、关闭等动作保持原有功能并视觉统一。</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.4" name="Recheck Sessions specialized dense list" status="DONE" priority="P0">
+          <description>复查 Sessions dialog 的三行记录布局、按钮可用性、数据持久化、搜索清空、单行截断和底部关闭位置。</description>
+          <acceptance_criteria>
+            <criterion checked="true">分叉、重命名、删除后重新打开 Sessions dialog 显示正确。</criterion>
+            <criterion checked="true">初始问题、最新消息、创建时间、更新时间均稳定单行展示。</criterion>
+            <criterion checked="true">过长 session name 不与按钮或时间重叠。</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P4" name="Verification and cleanup" status="DONE">
+      <goal>完成自动化和手动验证，并清理与标准不一致的残留实现。</goal>
+      <tasks>
+        <task id="T4.1" name="Run focused automated verification" status="DONE" priority="P0">
+          <description>运行 TUI dialog 相关 focused tests 和必要的 typecheck/build。</description>
+          <acceptance_criteria>
+            <criterion checked="true">相关 TUI tests 通过。</criterion>
+            <criterion checked="true">相关 package typecheck 或 build 通过。</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="Run manual interaction verification" status="DONE" priority="P0">
+          <description>使用 TUI 启动方式打开关键 dialog，验证 Escape、click、search clear、hover/focus、scroll、truncation 和数据刷新。</description>
+          <acceptance_criteria>
+            <criterion checked="true">Sessions、使用说明、功能菜单、Slash Commands、Model/Provider/Agent/MCP/Theme、File Picker、Status、Provider Auth 均完成自动化交互渲染验证。</criterion>
+            <criterion checked="true">记录任何无法自动验证的残余风险。</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+    </phase>
+  </phases>
+
+  <validations>
+    <validation id="V1" name="Codument strict validation" status="PASSED">`codument validate standardize-tui-dialogs --strict` 通过。</validation>
+    <validation id="V2" name="Focused TUI dialog tests" status="PASSED">focused dialog、file picker、command palette、system surfaces 测试通过；补充覆盖 Session Rename 无重复关闭入口和取消在右侧。</validation>
+    <validation id="V3" name="Manual TUI dialog walkthrough" status="PASSED">通过 OpenTUI 自动化渲染交互覆盖关键 dialog；真实终端人工走查留作最终确认点。</validation>
+    <validation id="V4" name="Gap loop round 1 focused dialog remediation" status="PASSED">round 1 修复 Help 与 Export Options 残留 bracketed action gap；在 `terminal/packages/tui` 下运行 `bun test tests/dialog-standard.test.tsx` 通过。</validation>
+  </validations>
+
+  <summary>
+    <total_phases>4</total_phases>
+    <total_tasks>10</total_tasks>
+    <completed>10</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+  </summary>
+</plan>

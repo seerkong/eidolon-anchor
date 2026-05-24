@@ -1,0 +1,5 @@
+export type MemberListOuterInput = Record<string, never>;
+export type MemberListOuterOutput = string;
+export type MemberList = (input: MemberListOuterInput) => MemberListOuterOutput;
+
+Use this tool to list member actors in the current session.

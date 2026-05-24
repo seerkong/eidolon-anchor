@@ -1,0 +1,8 @@
+{
+  "track_id": "add-tui-research-tool-cards",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-04-05T16:01:16Z",
+  "updated_at": "2026-04-06T05:55:10Z",
+  "description": "将 webfetch、codesearch、websearch 从 generic fallback 提升为 prototype TUI 中的专用 research tool cards"
+}

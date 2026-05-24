@@ -1,0 +1,23 @@
+{
+  "name": "@opentui",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "cd packages/core && bun run build",
+    "pre-publish": "bun scripts/pre-publish.ts",
+    "publish": "bun run pre-publish && bun run publish:core && bun run publish:react && bun run publish:solid",
+    "publish:core": "cd packages/core && bun run publish",
+    "prepare-release": "bun scripts/prepare-release.ts",
+    "prettier:write": "prettier --write .",
+    "test": "bun run --filter '@opentui/core' --filter '@opentui/solid' --filter '@opentui/react' --if-present test"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  },
+  "prettier": {
+    "semi": false,
+    "printWidth": 120
+  }
+}

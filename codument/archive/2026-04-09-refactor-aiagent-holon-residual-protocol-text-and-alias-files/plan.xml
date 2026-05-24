@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-aiagent-holon-residual-protocol-text-and-alias-files</track_id>
+    <track_name>继续收口 holon residual protocol text 与 alias 文件名</track_name>
+    <goal>移除 autonomous holon envelope 与 formal assign path 里的残留 collective 协议文本，并删除已无引用的旧 alias 文件。</goal>
+    <created_at>2026-04-09T09:15:14Z</created_at>
+    <updated_at>2026-04-09T09:26:14Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+  <phases>
+    <phase id="P1" name="Track Freeze">
+      <goal>锁定本轮 residual cleanup 的边界。</goal>
+      <tasks>
+        <task id="T1.1" name="编写 proposal/spec/plan" status="DONE" priority="P0">
+          <description>明确本轮只处理 residual protocol text、formal error wording 与 alias 文件名。</description>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>已确认不把 actor state 的更深层 `collectiveId/formationId` 清理混入本 track</criterion>
+      </gate_criteria>
+    </phase>
+    <phase id="P2" name="Residual Cleanup">
+      <goal>完成 protocol text、formal error wording 与 alias 文件名清理。</goal>
+      <tasks>
+        <task id="T2.1" name="切换 autonomous holon envelope protocol text" status="DONE" priority="P0">
+          <description>将 `<collective_task>` 收口为 holon-first protocol tag，并同步解析路径。</description>
+        </task>
+        <task id="T2.2" name="切换 formal autonomous holon assign error wording" status="DONE" priority="P0">
+          <description>让 formal HolonAssign 使用 holon-first error / target type，同时由 legacy alias 做旧名映射。</description>
+          <dependencies>T2.1</dependencies>
+        </task>
+        <task id="T2.3" name="删除已无引用的旧 alias 文件" status="DONE" priority="P1">
+          <description>移除 collectiveEnvelope/formationEnvelope/RuntimeCollectiveController/CollectiveTaskRunner。</description>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>默认内部实现路径中不再以旧 alias 文件名或 `<collective_task>` 表达当前正式模型</criterion>
+      </gate_criteria>
+    </phase>
+    <phase id="P3" name="Tests And Closure">
+      <goal>补齐 focused tests、文档回写与 strict validation。</goal>
+      <tasks>
+        <task id="T3.1" name="更新 focused tests 与报告" status="DONE" priority="P0">
+          <description>补充 formal/legacy error 边界与 envelope protocol text 的测试，并同步 theater 报告。</description>
+        </task>
+        <task id="T3.2" name="执行 strict validation 与 focused regression" status="DONE" priority="P0">
+          <description>运行相关 tests 与 `codument validate refactor-aiagent-holon-residual-protocol-text-and-alias-files --strict`。</description>
+          <dependencies>T3.1</dependencies>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>residual cleanup 已通过 focused regression 与 strict validation 锁定</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+</plan>

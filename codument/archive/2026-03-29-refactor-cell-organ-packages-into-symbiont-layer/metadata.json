@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-cell-organ-packages-into-symbiont-layer",
+  "type": "refactor",
+  "status": "in_progress",
+  "created_at": "2026-03-25T00:00:00Z",
+  "updated_at": "2026-03-25T23:59:00Z",
+  "description": "将 cell 中可脱离项目核心复用的低层 organ 包重构为 symbiont 分层，并新增 symbiont-logic。"
+}

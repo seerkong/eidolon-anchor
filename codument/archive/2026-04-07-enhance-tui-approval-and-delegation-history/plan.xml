@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>enhance-tui-approval-and-delegation-history</track_id>
+    <track_name>增强 TUI 审批历史与 delegation 展示</track_name>
+    <goal>让 prototype TUI 同时具备可直接操作的 approval/question 交互、可回看的历史摘要，以及 delegation/question/task tree 的结构化卡片展示</goal>
+    <created_at>2026-04-06T05:51:28Z</created_at>
+    <updated_at>2026-04-07T03:12:31Z</updated_at>
+    <status>in_progress</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="Contract Freeze">
+      <goal>冻结 approval pane、history 和 delegation/question cards 的职责边界与交互合同</goal>
+      <estimated_days>2</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/approval/approval-pane.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/approval/approval-utils.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/graph.ts</file>
+        <file>terminal/packages/tui/tests/prototype-approval-utils.test.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T1.1" name="冻结 approval pane 与 history 的生命周期边界" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 pending request 只在 approval pane 中交互，completed request 才进入历史摘要，并定义它们与 composer blocked 的一致性约束。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">已明确 pending / completed approval 的展示边界</criterion>
+            <criterion id="T1.1-AC2" checked="true">已明确 approval pane、history 和 composer blocked 的一致性规则</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.2" name="冻结 permission/question 交互式回复合同" status="DONE" priority="P0" estimated_days="1">
+          <description>把 permission 的 once/always/reject，以及 questionnaire 的单选、多选、多题切换、自定义答案、reject 和未答题组为空等行为写成明确合同。</description>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">permission 回复能力与详情展示范围明确</criterion>
+            <criterion id="T1.2-AC2" checked="true">questionnaire 交互规则与答案解析规则明确</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.3" name="冻结 delegation/question/task tree cards 的接入边界" status="DONE" priority="P0" estimated_days="1">
+          <description>明确 question 在 pending interactive、completed history 和 tool card 三个阶段的职责分工，并定义 delegation/task tree 的接入边界。</description>
+          <acceptance_criteria>
+            <criterion id="T1.3-AC1" checked="true">已明确 question 的三态职责分工</criterion>
+            <criterion id="T1.3-AC2" checked="true">已明确 task、question、tasktreewrite、tasktreeread 的主链接入边界</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>approval interaction、history 和 question/delegation cards 的职责边界已写入 track 文档</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="Approval Interaction And History">
+      <goal>补齐 approval/question 交互式回复与历史摘要主链</goal>
+      <estimated_days>3</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/approval/approval-pane.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/approval/approval-utils.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/index.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/graph.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T2.1" name="补齐 permission/question 交互式回复的 prototype parity" status="DONE" priority="P0" estimated_days="1">
+          <description>对照当前 prototype approval pane 与历史 gap findings，补齐 permission richer details、questionnaire 多题与自定义答案、reject 和答案解析等行为缺口。</description>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">permission 支持 once/always/reject 且展示足够上下文</criterion>
+            <criterion id="T2.1-AC2" checked="true">questionnaire 支持多题、多选、自定义答案和 reject，且未答题组保持空数组</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="建立 approval / questionnaire 历史摘要投影" status="DONE" priority="P0" estimated_days="1">
+          <description>让 permission/question 处理完成后进入历史区，保留结果摘要与关键上下文，而不是处理后直接消失。</description>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">completed permission / questionnaire 可在历史区回看</criterion>
+            <criterion id="T2.2-AC2" checked="true">active item 与 history item 不会重复或冲突</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.3" name="固定 approval pane、history 与 composer blocked 一致性" status="DONE" priority="P0" estimated_days="1">
+          <description>确保 active request、blocked 状态和历史摘要切换时机保持一致，不出现“已完成仍阻塞”或“已转历史但仍可操作”的漂移。</description>
+          <acceptance_criteria>
+            <criterion id="T2.3-AC1" checked="true">composer blocked 只由 active approval/question 控制</criterion>
+            <criterion id="T2.3-AC2" checked="true">请求完成后 unblock 与历史回显时机一致</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>approval/question 的交互式回复与历史摘要主链已贯通</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="Delegation And Question Card Integration">
+      <goal>把 delegation、question 和 task tree cards 接入消息主链，并统一历史语义</goal>
+      <estimated_days>3</estimated_days>
+      <context_files>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/message/materials/tool-registry.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/message/cards.tsx</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/graph.ts</file>
+        <file>terminal/packages/tui/tests/message-card-compatibility.test.ts</file>
+      </context_files>
+      <tasks>
+        <task id="T3.1" name="接入 task/question/task tree dedicated cards" status="DONE" priority="P0" estimated_days="1">
+          <description>让 `task`、`question`、`tasktreewrite`、`tasktreeread` 在新的消息主链中命中结构化卡片，而不是继续退回摘要或 generic fallback。</description>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">四类工具调用命中 dedicated cards</criterion>
+            <criterion id="T3.1-AC2" checked="true">question card 不会与当前 active questionnaire pane 发生职责冲突</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="为 delegation 历史与问卷结果统一展示语义" status="DONE" priority="P0" estimated_days="1">
+          <description>统一 approval summary、question answers 与 delegation progress 的摘要语言和信息层次，便于用户按时间线回看。</description>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">delegation 历史与 approval/question history 形成统一摘要语言</criterion>
+            <criterion id="T3.2-AC2" checked="true">用户无需依赖原始输出文本即可理解 delegation/question 结果</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.3" name="对齐与 session navigation / history 的交互顺序" status="DONE" priority="P0" estimated_days="1">
+          <description>确保 delegation、question 和 approval 历史进入消息时间线后，不破坏现有历史导航、滚动和时间顺序语义。</description>
+          <acceptance_criteria>
+            <criterion id="T3.3-AC1" checked="true">新增历史项与现有消息时间顺序一致</criterion>
+            <criterion id="T3.3-AC2" checked="true">不会破坏现有 history navigation / scroll 语义</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>delegation、question 和 task tree 已作为结构化卡片进入消息主链</criterion>
+        <criterion>approval/delegation 历史语言已统一收敛</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P4" name="Verification">
+      <goal>通过自动化测试和手工点验确认 approval/history/delegation 三条链路一致可用</goal>
+      <estimated_days>2</estimated_days>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+      <context_files>
+        <file>terminal/packages/tui/tests/prototype-approval-utils.test.ts</file>
+        <file>terminal/packages/tui/tests/prototype-graph.test.ts</file>
+        <file>terminal/packages/tui/tests/message-card-compatibility.test.ts</file>
+        <file>terminal/packages/tui/src/cli/cmd/tui/prototype/features/approval/approval-pane.tsx</file>
+      </context_files>
+      <tasks>
+        <task id="T4.1" name="补 approval/history/delegation focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>新增或更新测试，覆盖 permission/question 交互、答案解析、history projection、delegation/question/task tree card 命中，以及 blocked/unblocked 一致性。</description>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">存在 approval/question 交互与答案解析的 focused tests</criterion>
+            <criterion id="T4.1-AC2" checked="true">存在 history projection 与 delegation/question/task tree cards 的 focused tests</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="运行 terminal TUI 测试并手工点验完整交互闭环" status="DONE" priority="P0" estimated_days="1">
+          <description>已执行 `codument validate enhance-tui-approval-and-delegation-history --strict`、`bun run test:terminal:tui`，并补充 `terminal/packages/tui/tests/prototype-approval-history-interaction.test.tsx` 作为受控 PrototypeView 交互验收，覆盖 permission 回复、questionnaire 多题/自定义答案/reject、问卷中心状态、delegation/question/task tree cards 与 blocked/unblocked 切换。按 Codument 协议，阶段级 `yield-gap-loop` 仍需由父层 fresh-spawn 独立执行。</description>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</criterion>
+            <criterion id="T4.2-AC2" checked="true">手工点验覆盖 approval 交互、history 回看和 delegation/question/task tree cards</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>approval interaction、history projection 和 delegation/question cards 已被测试与手工验收确认</criterion>
+        <criterion>gap-loop 验证无阻塞缺口</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+
+  <validations>
+    <validation id="V1" name="Interactive Approval Flow" status="PASSED">
+      验证 permission / questionnaire 是否仍然可以在 prototype approval pane 中直接完成交互。
+      <checks>
+        <check name="permission 回复可操作">支持 allow once / allow always / reject，并展示足够上下文</check>
+        <check name="questionnaire 作答可操作">支持多题、多选、自定义答案、reject，且答案解析符合预期</check>
+      </checks>
+    </validation>
+    <validation id="V2" name="Approval History Integrity" status="PASSED">
+      验证 approval/question 完成后是否能稳定进入历史区，并与 active pane 保持一致。
+      <checks>
+        <check name="completed request 可回看">permission / questionnaire 完成后有结构化历史摘要</check>
+        <check name="active/history 不冲突">活动请求与历史摘要不重复、不串线</check>
+      </checks>
+    </validation>
+    <validation id="V3" name="Delegation And Question Card Coverage" status="PASSED">
+      验证 delegation、question 和 task tree 是否已经作为结构化卡片进入消息主链。
+      <checks>
+        <check name="四类工具命中专用卡片">`task`、`question`、`tasktreewrite`、`tasktreeread` 命中 dedicated cards</check>
+        <check name="与 approval 交互边界清晰">active questionnaire 不会与 question card 交互职责冲突</check>
+      </checks>
+    </validation>
+  </validations>
+
+  <risks>
+    <risk id="R1" name="活动请求与历史摘要重复展示" level="high">
+      <impact>高</impact>
+      <probability>中</probability>
+      <mitigation>先冻结 pending/completed 生命周期边界，再用 focused tests 固定切换时机。</mitigation>
+    </risk>
+    <risk id="R2" name="question 同时作为交互表单和工具卡片导致职责冲突" level="high">
+      <impact>高</impact>
+      <probability>中</probability>
+      <mitigation>明确 question 在 pending interactive、completed history 和 tool card 三个阶段中的职责分工。</mitigation>
+    </risk>
+    <risk id="R3" name="只补展示不补交互，导致 track 目标继续含糊" level="medium">
+      <impact>中</impact>
+      <probability>中</probability>
+      <mitigation>已将 permission/question 交互式回复显式写入 spec、design、plan 和 acceptance。</mitigation>
+    </risk>
+  </risks>
+
+  <summary>
+    <total_phases>4</total_phases>
+    <total_tasks>11</total_tasks>
+    <total_subtasks>0</total_subtasks>
+    <total_estimated_days>10</total_estimated_days>
+    <completed>11</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+    <by_priority>
+      <p0 count="11" days="11" />
+    </by_priority>
+  </summary>
+</plan>

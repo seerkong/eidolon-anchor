@@ -1,0 +1,160 @@
+/**
+ * Theme CSS Variables
+ * This file contains all theme color definitions.
+ * Each theme provides a complete set of CSS custom properties.
+ */
+
+:root {
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* ===== E-Ink Theme (Default / Light) ===== */
+:root,
+.theme-e-ink {
+  --bg: #f7f7f5;
+  --bg-2: #ecebe7;
+  --bg-3: #e5e4e0;
+  --card: rgba(252, 252, 250, 0.95);
+  --border: #d2d0c8;
+  --text: #2f2f2f;
+  --text-secondary: #4a4a4a;
+  --muted: #6a6a6a;
+  --accent: #4a4a4a;
+  --input-bg: #f0f0ed;
+  --input-border: #c8c6be;
+
+  /* Code block */
+  --code-bg: #e8e7e3;
+  --code-text: #2f2f2f;
+  --code-border: #d2d0c8;
+
+  /* Status colors - light theme optimized */
+  --status-done: #2e7d32;
+  --status-done-bg: rgba(46, 125, 50, 0.12);
+  --status-done-border: #4caf50;
+  --status-failed: #c62828;
+  --status-failed-bg: rgba(198, 40, 40, 0.12);
+  --status-failed-border: #ef5350;
+  --status-init: #f57c00;
+  --status-init-bg: rgba(245, 124, 0, 0.12);
+  --status-init-border: #ff9800;
+
+  /* Alert colors */
+  --alert-info-border: #64b5f6;
+  --alert-error-border: #ef5350;
+
+  /* Table */
+  --table-border: #d2d0c8;
+
+  /* Chip/Badge */
+  --chip-bg: #e8e7e3;
+  --chip-border: #d2d0c8;
+
+  /* Log */
+  --log-text: #4a4a4a;
+
+  /* Scrollbar */
+  --scrollbar-track: #e8e7e3;
+  --scrollbar-thumb: #c8c6be;
+  --scrollbar-thumb-hover: #a8a6a0;
+}
+
+/* ===== CRT Amber Theme ===== */
+.theme-crt-amber {
+  --bg: #1a1205;
+  --bg-2: #2a1f0a;
+  --bg-3: #3a2c10;
+  --card: rgba(26, 18, 5, 0.85);
+  --border: rgba(255, 184, 94, 0.35);
+  --text: #ffddae;
+  --text-secondary: #f0c88a;
+  --muted: #e4b87a;
+  --accent: #f0a44c;
+  --input-bg: rgba(38, 26, 10, 0.85);
+  --input-border: rgba(255, 184, 94, 0.4);
+
+  /* Code block */
+  --code-bg: rgba(60, 45, 15, 0.7);
+  --code-text: #ffd080;
+  --code-border: rgba(255, 184, 94, 0.5);
+
+  /* Status colors - amber theme optimized */
+  --status-done: #7fff7f;
+  --status-done-bg: rgba(80, 130, 50, 0.25);
+  --status-done-border: rgba(127, 255, 127, 0.4);
+  --status-failed: #ff9a8a;
+  --status-failed-bg: rgba(150, 60, 50, 0.25);
+  --status-failed-border: rgba(255, 154, 138, 0.4);
+  --status-init: #ffe066;
+  --status-init-bg: rgba(150, 120, 40, 0.25);
+  --status-init-border: rgba(255, 224, 102, 0.4);
+
+  /* Alert colors */
+  --alert-info-border: rgba(255, 184, 94, 0.5);
+  --alert-error-border: rgba(255, 120, 100, 0.5);
+
+  /* Table */
+  --table-border: rgba(255, 184, 94, 0.25);
+
+  /* Chip/Badge */
+  --chip-bg: rgba(38, 26, 10, 0.85);
+  --chip-border: rgba(255, 184, 94, 0.35);
+
+  /* Log */
+  --log-text: #f0c88a;
+
+  /* Scrollbar */
+  --scrollbar-track: rgba(26, 18, 5, 0.9);
+  --scrollbar-thumb: rgba(255, 184, 94, 0.4);
+  --scrollbar-thumb-hover: rgba(255, 184, 94, 0.6);
+}
+
+/* ===== CRT Green Theme ===== */
+.theme-crt-green {
+  --bg: #04130a;
+  --bg-2: #0b2415;
+  --bg-3: #12351e;
+  --card: rgba(4, 19, 10, 0.82);
+  --border: rgba(141, 227, 143, 0.35);
+  --text: #c6ffd8;
+  --text-secondary: #a8f0ba;
+  --muted: #8fe0ac;
+  --accent: #5fd87d;
+  --input-bg: rgba(6, 28, 14, 0.85);
+  --input-border: rgba(141, 227, 143, 0.4);
+
+  /* Code block */
+  --code-bg: rgba(15, 50, 30, 0.7);
+  --code-text: #80ffa0;
+  --code-border: rgba(141, 227, 143, 0.5);
+
+  /* Status colors - green theme optimized */
+  --status-done: #7fff9a;
+  --status-done-bg: rgba(60, 140, 80, 0.25);
+  --status-done-border: rgba(127, 255, 154, 0.4);
+  --status-failed: #ffaa90;
+  --status-failed-bg: rgba(160, 70, 50, 0.25);
+  --status-failed-border: rgba(255, 170, 144, 0.4);
+  --status-init: #ffee70;
+  --status-init-bg: rgba(160, 140, 50, 0.25);
+  --status-init-border: rgba(255, 238, 112, 0.4);
+
+  /* Alert colors */
+  --alert-info-border: rgba(141, 227, 143, 0.5);
+  --alert-error-border: rgba(255, 130, 110, 0.5);
+
+  /* Table */
+  --table-border: rgba(141, 227, 143, 0.25);
+
+  /* Chip/Badge */
+  --chip-bg: rgba(6, 28, 14, 0.85);
+  --chip-border: rgba(141, 227, 143, 0.35);
+
+  /* Log */
+  --log-text: #a8f0ba;
+
+  /* Scrollbar */
+  --scrollbar-track: rgba(4, 19, 10, 0.9);
+  --scrollbar-thumb: rgba(141, 227, 143, 0.4);
+  --scrollbar-thumb-hover: rgba(141, 227, 143, 0.6);
+}

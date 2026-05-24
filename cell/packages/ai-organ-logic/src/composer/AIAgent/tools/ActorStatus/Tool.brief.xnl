@@ -1,0 +1,4 @@
+<tool>
+  <name>ActorStatus</name>
+  <description>Show the status of an actor.</description>
+</tool>

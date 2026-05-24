@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface BatchOuterInput { tool_calls: Array<{ tool: string; parameters: Record<string, unknown> }>; }
+export type BatchOuterOutput = string;
+export type batch = (input: BatchOuterInput) => BatchOuterOutput;
+</?>

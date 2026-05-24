@@ -1,0 +1,12 @@
+{
+  "name": "eidolon-anchor-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "bun run --cwd packages/shell src/dev.ts",
+    "build:macos": "bun run --cwd packages/shell scripts/build-macos.ts",
+    "build:windows": "bun run --cwd packages/shell scripts/build-windows.ts",
+    "build:dispatch": "bun run --cwd packages/shell scripts/build-dispatch.ts"
+  }
+}

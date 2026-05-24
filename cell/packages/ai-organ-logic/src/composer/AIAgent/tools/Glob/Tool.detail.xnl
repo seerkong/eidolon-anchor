@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface GlobOuterInput { pattern: string; path?: string; }
+export type GlobOuterOutput = string;
+export type glob = (input: GlobOuterInput) => GlobOuterOutput;
+</?>

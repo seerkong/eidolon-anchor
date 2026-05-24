@@ -1,0 +1,5 @@
+<tool {
+  name = "TaskTreeWrite"
+  namespace = "SysBuiltIn"
+  description = "更新层级任务树状态（replace_root / expand / update_status），遵循严格的分支约束。单步简单任务不需要使用此工具。"
+}>

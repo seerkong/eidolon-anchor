@@ -1,0 +1,18 @@
+{
+  "name": "@cell/mod-ai-kernel",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "description": "AI domain kernel baseline capabilities for cell runtimes.",
+  "dependencies": {
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-organ-logic": "workspace:*",
+    "@cell/ai-support": "workspace:*"
+  }
+}

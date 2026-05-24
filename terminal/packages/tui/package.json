@@ -1,0 +1,62 @@
+{
+  "name": "@terminal/tui",
+  "description": "eidolon ai terminal ui",
+  "types": "src/entry/index.ts",
+  "module": "src/entry/index.ts",
+  "main": "src/entry/index.ts",
+  "version": "0.1.1",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --preload ./src/entry/preload.ts src/entry/tui_a1-main.ts",
+    "test": "bun run ./scripts/test.ts"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^24.0.0",
+    "@types/yargs": "^17.0.32"
+  },
+  "dependencies": {
+    "depa-data-graph-core": "^0.1.0",
+    "depa-data-graph-solid": "^0.1.0",
+    "@opentui/core": "0.1.96",
+    "@opentui/solid": "0.1.96",
+    "@solid-primitives/event-bus": "^0.1.0",
+    "solid-js": "1.9.11",
+    "open": "^9.1.0",
+    "opentui-spinner": "^0.0.6",
+    "strip-ansi": "^7.1.0",
+    "clipboardy": "^4.0.0",
+    "diff": "^7.0.0",
+    "fuzzysort": "^2.0.4",
+    "remeda": "^2.0.7",
+    "zod": "^3.23.8",
+    "@solid-primitives/scheduled": "^1.4.0",
+    "@shared/composer": "workspace:*",
+    "@terminal/core": "workspace:*",
+    "@terminal/organ": "workspace:*",
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-support": "workspace:*",
+    "@cell/mod-profiles": "workspace:*",
+    "@cell/symbiont-logic": "workspace:*",
+    "yargs": "^17.7.2"
+  },
+  "exports": {
+    ".": {
+      "types": "./src/entry/index.ts",
+      "import": "./src/entry/index.ts"
+    },
+    "./cli": {
+      "types": "./src/entry/cli.ts",
+      "import": "./src/entry/cli.ts"
+    },
+    "./cli/*": {
+      "types": "./src/entry/*",
+      "import": "./src/entry/*"
+    }
+  },
+  "engines": {
+    "bun": ">=1.2.0"
+  }
+}

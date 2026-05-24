@@ -1,0 +1,5 @@
+<tool {
+  name = "RunDelegateActor"
+  namespace = "SysBuiltIn"
+  description = "Spawn a delegate actor for a focused subtask."
+}>

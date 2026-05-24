@@ -1,0 +1,5 @@
+<tool {
+  name = "TaskTreeRead"
+  namespace = "SysBuiltIn"
+  description = "读取完整任务树 JSON 状态，获取精确 id、活跃分支和层级结构。每次读取后应紧跟具体写操作，不应频繁无决策地读取。"
+}>

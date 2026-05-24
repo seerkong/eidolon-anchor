@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-shell-runtime-facade-phase2</track_id>
+    <track_name>推进 shell runtime facade phase2</track_name>
+    <goal>让 shell/runtime entry 优先消费更窄的 domain runtime facade port，而不是继续直接拼接 AI orchestration internals。</goal>
+    <created_at>2026-04-11T13:05:00Z</created_at>
+    <updated_at>2026-04-11T14:18:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+  <phases>
+    <phase id="P1" name="Facade Ownership Freeze">
+      <goal>冻结哪些 shell 责任应下沉为更窄 facade port。</goal>
+      <tasks>
+        <task id="T1.1" name="定义 shell facade ownership 表" status="DONE" priority="P0" estimated_days="1">
+          <description>明确哪些 AI glue 仍留在 shell，哪些应转为 domain facade port。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">ownership 表明确</criterion>
+            <criterion id="T1.1-AC2" checked="true">shell 不形成第二真相源</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P2" name="Facade Cutover">
+      <goal>完成第一轮更窄 facade port cutover。</goal>
+      <tasks>
+        <task id="T2.1" name="引入并消费更窄的 domain runtime facade" status="DONE" priority="P0" estimated_days="2">
+          <description>让 terminal/tui/headless 入口优先消费新的 domain runtime facade port。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">shell 直接依赖减少</criterion>
+            <criterion id="T2.1-AC2" checked="true">adoption 行为保持稳定</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P3" name="Focused Verification">
+      <goal>验证 shell facade 收紧后主路径不回归。</goal>
+      <tasks>
+        <task id="T3.1" name="运行 shell runtime facade focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>覆盖 terminal/tui/headless adoption 与 capability-port ownership。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">focused tests 通过</criterion>
+            <criterion id="T3.1-AC2" checked="true">shell 更接近 platform-neutral bridge</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

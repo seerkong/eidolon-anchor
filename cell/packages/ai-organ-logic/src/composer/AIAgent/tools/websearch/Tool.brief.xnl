@@ -1,0 +1,5 @@
+<tool {
+  name = "websearch"
+  namespace = "SysBuiltIn"
+  description = "Search the web using Exa (MCP)."
+}>

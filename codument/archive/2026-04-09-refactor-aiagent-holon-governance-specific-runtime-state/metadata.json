@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-aiagent-holon-governance-specific-runtime-state",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-09T13:52:17Z",
+  "updated_at": "2026-04-09T14:17:43Z",
+  "description": "将 runtime truth 中剩余的 collective/formation governance-specific type/state/payload 字段收口为 holon-first 命名"
+}

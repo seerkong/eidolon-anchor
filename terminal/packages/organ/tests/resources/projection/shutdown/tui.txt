@@ -1,0 +1,12 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"notice"}
+---- #tuiMessage
+Shutdown request shutdown-1 worker-1
+maintenance
+---- #tuiControl
+{"cmd":"NewMessage","category":"result"}
+---- #tuiMessage
+Shutdown approved worker-1
+approved by operator
+

@@ -1,0 +1,301 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-data-graph-to-reference-aligned-stages</track_id>
+    <track_name>基于 DataGraph 重建与参考项目对齐的流式阶段模型</track_name>
+    <goal>收敛到与参考项目对齐的 lexical/syntactic/semantic 事件体系、DataGraph 流水线与 terminal projections，并以 breaking change 方式删除旧压缩链路与兼容层。</goal>
+    <created_at>2026-03-22T17:02:29Z</created_at>
+    <updated_at>2026-03-24T23:59:00Z</updated_at>
+    <status>in_progress</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="契约冻结与 Guardrail 基线">
+      <goal>冻结与参考项目对齐的阶段事件契约、transcript naming 和实施顺序约束，为后续正式主链路切换建立单一规范源。</goal>
+      <tasks>
+        <task id="T1.1" name="盘点参考项目阶段事件与产生时机" status="DONE" priority="P0">
+          <description>逐项盘点参考项目的 lexical、syntactic、semantic 事件族、字段、构造规则与 transcript naming，形成 TypeScript 侧的目标对齐表。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">已形成 lexical/syntactic/semantic 事件与字段映射清单</criterion>
+            <criterion id="T1.1-AC2" checked="true">已形成事件产生时机和 transcript naming 的对齐清单</criterion>
+          </acceptance_criteria>
+          <subtasks>
+              <subtask id="T1.1.1" name="收集参考项目 lexical/syntactic/semantic 契约定义" status="DONE" />
+              <subtask id="T1.1.2" name="收集参考项目阶段转换和事件发出时机" status="DONE" />
+          </subtasks>
+        </task>
+        <task id="T1.2" name="红：建立 phase-1 约束测试与命名规范" status="DONE" priority="P0">
+          <description>先为 P1 契约冻结阶段建立约束测试，确保在契约未稳定前不提前污染主链路，并为正式 stage / projection transcript 命名约定建立失败校验。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">存在失败校验约束第一阶段不得直接切换旧入口</criterion>
+            <criterion id="T1.2-AC2" checked="true">存在失败校验约束新 fixtures 与 projector 使用约定命名</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.3" name="绿：新建 stage contract 与 transcript naming" status="DONE" priority="P0">
+          <description>在不修改旧正式来源的前提下，完整新建 lexical/syntactic/semantic TypeScript 契约和 transcript naming。</description>
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.3-AC1" checked="true">新三层事件契约可单独编译</criterion>
+            <criterion id="T1.3-AC2" checked="true">事件名、字段名、构造语义与参考项目完全对齐</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.4" name="补齐字段映射与构造规则对齐表" status="DONE" priority="P0">
+          <description>根据偏差复核结果，补全 lexical、syntactic、semantic 三层事件的字段映射、共享字段与逐事件构造规则，使 `reference-event-alignment.md` 成为可直接对照参考源码的正式对齐表。</description>
+          <dependencies>T1.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.4-AC1" checked="true">lexical/syntactic/semantic 三层事件均存在共享字段与逐事件字段映射</criterion>
+            <criterion id="T1.4-AC2" checked="true">逐事件构造规则和时机说明已落盘，可直接对照参考项目源码复核</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.5" name="补齐 phase-1 旧入口防护测试与正式命名校验" status="DONE" priority="P0">
+          <description>新增专门的 phase-1 guardrail 测试，静态约束历史旧 stream/terminal 入口不得接入新的 `stream/*` stage contract，并将正式 stage / projection transcript naming 校验明确纳入 P1 测试面。</description>
+          <dependencies>T1.4</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.5-AC1" checked="true">存在失败校验约束旧入口不得引用新的 `stream/*` stage contract surface</criterion>
+            <criterion id="T1.5-AC2" checked="true">存在失败校验约束 stage / projection fixtures 使用正式 transcript 命名</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T1.6" name="统一 P1 范围文档与执行记录" status="DONE" priority="P0">
+          <description>修正文档与 analysis 记录中的 P1 范围漂移，确保 `data-graph-overview.md`、`analysis/task_plan.md`、`analysis/progress.md` 与 `plan.xml` 的 phase 切分和当前状态一致。</description>
+          <dependencies>T1.5</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.6-AC1" checked="true">track 文档中的 P1 交付边界已与 `plan.xml` 对齐</criterion>
+            <criterion id="T1.6-AC2" checked="true">analysis 记录中的 track id、phase 状态与当前执行现实一致</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>已冻结 phase-1 规则，且新的三层事件契约成为后续实现的正式规范来源</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="Stage DataGraph 流水线">
+      <goal>完成 lexical、syntactic、semantic 三阶段 DataGraph 与 semantic-first runtime pipeline，实现正式链路收敛。</goal>
+      <tasks>
+        <task id="T2.1" name="红：建立 lexical/syntactic/semantic 阶段 fixtures 失败测试" status="DONE" priority="P0">
+          <description>先为阶段 pipeline 建立 lexical、syntactic、semantic 三层 transcript fixtures 与失败测试，覆盖核心解析和时机契约。</description>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">已存在 lexical fixtures 和失败测试</criterion>
+            <criterion id="T2.1-AC2" checked="true">已存在 syntactic / semantic fixtures 和失败测试</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.2" name="绿：新建 lexical 与 syntactic DataGraph" status="DONE" priority="P0">
+          <description>在正式 `stream/*` 命名空间中实现 lexical 与 syntactic 阶段推进，使其按参考项目时机从 ingress 产生 lexical 事件并进一步产生 syntactic 事件。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">lexical graph 能稳定产生 lexical 事件与 transcript</criterion>
+            <criterion id="T2.2-AC2" checked="true">syntactic graph 能稳定产生 quote、structured node、tool call、error 等事件</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.3" name="绿：新建 semantic projector 与 runtime semantic pipeline" status="DONE" priority="P0">
+          <description>在 `organ-logic` 中新增 semantic projector 与 runtime semantic pipeline，使 semantic 成为正式 canonical payload，并删除旧投影残骸。</description>
+          <dependencies>T2.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.3-AC1" checked="true">semantic projector 与参考项目语义层对齐</criterion>
+            <criterion id="T2.3-AC2" checked="true">runtime 与上层消费仅以 semantic 作为 canonical event</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.4" name="收口 live stage dispatch 到 DataGraph 驱动" status="DONE" priority="P0">
+          <description>将 live stage runtime 中 lexical/syntactic/semantic 的事件派发收口到 `DataGraph` signal/consumer/batch 机制，避免新的 stage pipeline 退回为纯 callback imperative 派发。</description>
+          <dependencies>T2.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.4-AC1" checked="true">live stage runtime 中的阶段事件派发明确落到 `DataGraph`</criterion>
+            <criterion id="T2.4-AC2" checked="true">新阶段内核不再只是 `LiveLLMStagePipeline` 外挂监听器集合</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.5" name="删除 runtime 到 terminal 的 semantic 双路径" status="DONE" priority="P0">
+          <description>移除 runtime 中 direct terminal bridge 旁路重跑 semantic 的实现，让 runtime bus、turn bridge 与 notification bridge 只消费同一条 canonical semantic source。</description>
+          <dependencies>T2.4</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.5-AC1" checked="true">terminal 不再从 ingress 旁路额外生成一份 semantic 事件</criterion>
+            <criterion id="T2.5-AC2" checked="true">去除为双路径而存在的 skip/replay 补洞逻辑</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.6" name="收口 canonical stage replay 到真正的 stage-based DataGraph" status="DONE" priority="P0">
+          <description>让 canonical lexical fixture replay 与 runtime 一样经过显式的 lexical -> syntactic -> semantic `DataGraph` 阶段节点，而不是继续停留在纯数组分桶与纯函数映射路径上。</description>
+          <dependencies>T2.5</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.6-AC1" checked="true">canonical stage replay 已通过显式 lexical/syntactic/semantic graph 节点推进</criterion>
+            <criterion id="T2.6-AC2" checked="true">`referenceAlignedStageScenario` 不再直接以纯函数 bulk pipeline 作为正式验证内核</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T2.7" name="收口 live ingress adapter 到共享 stage kernel" status="DONE" priority="P0">
+          <description>让 live/runtime 路径不再在 `LiveLLMStagePipeline` 内单独实现 syntactic/semantic parser，而是先把 ingress timeline 适配为 lexical events，再喂给与 canonical replay 共享的 `ReferenceAlignedStageDataGraph`。</description>
+          <dependencies>T2.6</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.7-AC1" checked="true">`LiveLLMStagePipeline` 已收口为 ingress -> lexical adapter + shared stage graph kernel</criterion>
+            <criterion id="T2.7-AC2" checked="true">raw tool-call live path 不再提前发出半成品 syntactic/semantic tool call</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>正式 stage pipeline 已可独立运行，并可作为主链路语义来源</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="TUI 与 Textual 消费图">
+      <goal>为新语义链路建立 TUI、Textual、card、text 四类终端消费图及其独立 fixtures 和测试。</goal>
+      <tasks>
+        <task id="T3.1" name="红：建立 TUI 与 Textual projector fixtures 失败测试" status="DONE" priority="P0">
+          <description>为 TUI、Textual、TuiCardGraph 与 TuiTextGraph 建立独立 fixtures，覆盖 actor 切换、streaming、tool result、questionnaire、plan approval、shutdown 等场景。</description>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">已存在 TUI projector fixtures 和失败测试</criterion>
+            <criterion id="T3.1-AC2" checked="true">已存在 Textual projector fixtures 和失败测试</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.2" name="绿：新建 TUI projector" status="DONE" priority="P0">
+          <description>在 terminal 侧新增 `TuiProjectionGraph`、`TuiCardGraph`、`TuiTextGraph`，并使其并列消费新的 semantic canonical events。</description>
+          <dependencies>T3.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">TUI projector 可稳定重放 fixtures</criterion>
+            <criterion id="T3.2-AC2" checked="true">TUI projector 不依赖旧的直接字符串拼接路径</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.3" name="绿：新建 Textual projector" status="DONE" priority="P0">
+          <description>新增 `TextualProjectionGraph`，使其与 TUI 一样基于新的 semantic graph 消费，并具备独立测试面。</description>
+          <dependencies>T3.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.3-AC1" checked="true">Textual projector 可稳定重放 fixtures</criterion>
+            <criterion id="T3.3-AC2" checked="true">Textual projector 与 TUI projector 共享 canonical event，而非共享旧终端实现细节</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.4" name="接通 Textual 正式 runtime 入口" status="DONE" priority="P0">
+          <description>使 runtime bridge 能按 projection 明确选择 TUI 或 Textual 输出，让 `TextualProjectionGraph` 不只停留在测试和 hub 内部，而是成为正式可到达的终端入口。</description>
+          <dependencies>T3.3,T2.5</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.4-AC1" checked="true">存在可选择 Textual projection 的正式 runtime bridge surface</criterion>
+            <criterion id="T3.4-AC2" checked="true">TUI 与 Textual 两个 runtime 入口都消费 canonical semantic event，而不是共享旧字符串拼接细节</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.5" name="补齐 TUI/Textual projection fixtures 场景矩阵" status="DONE" priority="P0">
+          <description>将 `chunked-markers`、`toolcall-multiple`、`toolcall-alt-format` 等已在阶段层承诺的场景补齐到 TUI/Textual projection fixtures 与回放测试中，使终端投影层的 gate 与阶段层场景矩阵一致。</description>
+          <dependencies>T3.4,T2.6</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.5-AC1" checked="true">projection fixtures 已覆盖 `chunked-markers`、`toolcall-multiple`、`toolcall-alt-format`</criterion>
+            <criterion id="T3.5-AC2" checked="true">`reference_aligned_terminal_projection.test.ts` 已将新增场景纳入正式回放</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T3.6" name="为 TuiCardGraph 与 TuiTextGraph 建立独立 fixtures" status="DONE" priority="P0">
+          <description>为 `TuiCardGraph` 与 `TuiTextGraph` 新增独立可回放 fixture 格式和测试，不再只依赖内联断言或手写事件数组来证明 card/text projection 的稳定性。</description>
+          <dependencies>T3.5</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.6-AC1" checked="true">card/text projection 存在独立 fixture 文件并可稳定重放</criterion>
+            <criterion id="T3.6-AC2" checked="true">现有 card/text 测试改为 fixture replay + 补充断言的组合模式</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>TUI、Textual、card、text 四套消费图都已基于新链路形成稳定独立测试面</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P4" name="全链路验证 Gate">
+      <goal>跑通新链路的完整测试闭环，并将其作为 semantic-first cutover 的验证 gate。</goal>
+      <tasks>
+        <task id="T4.1" name="运行新链路测试闭环" status="DONE" priority="P0">
+          <description>运行 ingress->lexical、lexical->syntactic、syntactic->semantic、semantic->textual、semantic->tui、semantic->card/text 测试，并验证所需 fixtures 场景均通过。</description>
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">`default`、`chunked-markers`、`quote-chunked`、`content-unquote`、`toolcall-delta`、`toolcall-multiple`、`toolcall-alt-format` 场景通过</criterion>
+            <criterion id="T4.1-AC2" checked="true">`tui-turn-events`、`questionnaire`、`plan-approval`、`shutdown`、`background-result` 场景通过</criterion>
+            <criterion id="T4.1-AC3" checked="true">TUI 与 Textual 两条消费链都能稳定重放</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.2" name="补齐缺失 fixtures 与 guardrail 证据" status="DONE" priority="P0">
+          <description>补齐 `toolcall-multiple`、`toolcall-alt-format`、`tui-turn-events` 等新链路 fixtures，并让 phase-1 guardrail 对真实 legacy surfaces 或删除断言生效，而不是空数组通过。</description>
+          <dependencies>T4.1,T3.4</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">缺失的 stage/projection fixtures 已补齐并纳入测试</criterion>
+            <criterion id="T4.2-AC2" checked="true">guardrail 测试对真实 legacy entrypoints 或删除目标形成有效约束</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.3" name="重跑扩展 gate 并回写完成状态" status="DONE" priority="P0">
+          <description>在 `T2.6`、`T3.5`、`T3.6` 完成后，重跑新的阶段、terminal、card/text 闭环测试，并将计划中的完成状态与实际证据重新对齐。</description>
+          <dependencies>T4.2,T3.6</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.3-AC1" checked="true">扩展后的 stage + projection + card/text fixtures 全部通过</criterion>
+            <criterion id="T4.3-AC2" checked="true">`plan.xml` 中相关 follow-up 任务状态已与最新验证结果一致</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.4" name="补齐 live-vs-replay parity gate 与状态对齐" status="DONE" priority="P0">
+          <description>为 live ingress path 增加与 canonical replay 共享 stage kernel 的 parity gate，并将 `analysis/task_plan.md` 中的实现/验证状态同步到当前事实。</description>
+          <dependencies>T2.7,T4.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.4-AC1" checked="true">存在基于同一组 live lexical outputs 的 replay parity 测试，锁定 syntactic / semantic 最终输出一致</criterion>
+            <criterion id="T4.4-AC2" checked="true">`analysis/task_plan.md` 已不再保留与当前完成态冲突的 phase 状态</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T4.5" name="补齐 direct slash canonical-history 回归验证" status="DONE" priority="P1">
+          <description>为 direct slash 结果补充回归验证，锁定它不再绕过 runtime semantic bus / history，而是通过正式 terminal projection 与 transcript 链路可见。</description>
+          <dependencies>T5.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T4.5-AC1" checked="true">direct slash 的可见输出已通过 runtime semantic/event-bus 路径进入 terminal bridge</criterion>
+            <criterion id="T4.5-AC2" checked="true">direct slash 相关测试已从“不持久化”收敛为 canonical history 语义验证</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>semantic-first cutover 所需的阶段、runtime 与 terminal 验证已经齐备</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P5" name="主链路切换与旧链路收口">
+      <goal>按 breaking-change 路线切换现有测试、terminal 消费入口和 runtime 主 pipeline，并最终移除旧压缩路径。</goal>
+      <confirm protocol="yield-human-confirm" when="after" status="TODO" />
+      <tasks>
+        <task id="T5.1" name="逐段切换内部测试和消费入口" status="DONE" priority="P1">
+          <description>按“先内部测试、再 terminal/organ 消费入口、再 runtime 主 pipeline”的顺序，将旧入口切换到 semantic-first 新链路，并在每次替换后重跑全链路测试。</description>
+          <acceptance_criteria>
+            <criterion id="T5.1-AC1" checked="true">每次替换后全链路测试保持通过</criterion>
+            <criterion id="T5.1-AC2" checked="true">runtime、terminal 与关键内部测试已切到 semantic-first 正式链路</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.2" name="删除旧压缩路径并完成收尾" status="DONE" priority="P1">
+          <description>删除历史压缩路径与兼容残骸，完成最终的 `ingress -> lexical -> syntactic -> semantic -> projections` 结构收敛。</description>
+          <dependencies>T5.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.2-AC1" checked="true">旧多职责实现已被移除或降级为非正式来源</criterion>
+            <criterion id="T5.2-AC2" checked="true">最终结构已收敛为 ingress -> lexical -> syntactic -> semantic -> projections</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.3" name="收口 direct slash 输出到 canonical semantic/history 链路" status="DONE" priority="P1">
+          <description>将 direct slash 的用户可见输出从 bridge 内部直写，收口到 `AgentEventGraph` 的 canonical semantic event 链路，并让 terminal 与 history 共享同一份结果。</description>
+          <dependencies>T5.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.3-AC1" checked="true">direct slash 输出不再通过仅存在于 terminal bridge 内部的 helper 直接生成可见内容</criterion>
+            <criterion id="T5.3-AC2" checked="true">direct slash 输出可被 runtime terminal 与 message history 共同观察到</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.4" name="回写 track 真实影响范围与偏差收口状态" status="DONE" priority="P1">
+          <description>把当前实现真实涉及的模块边界与本轮偏差收口结果回写到 track 文档和 analysis 记录中，避免继续低估影响范围或遗留状态漂移。</description>
+          <dependencies>T4.5,T5.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.4-AC1" checked="true">`proposal.md` / `design.md` 的 impact 已覆盖 composer、support、cli 等真实受影响模块</criterion>
+            <criterion id="T5.4-AC2" checked="true">analysis / report / plan 中不再保留与本轮收口事实冲突的叙述</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.5" name="修正活跃 capability spec 对旧 terminal surface 的引用" status="DONE" priority="P1">
+          <description>把活跃 `codument/specs/*` 中仍绑定已删除旧终端实现细节的 requirement 收敛到当前 semantic-first terminal projection surface，避免 capability 当前真相继续指向不存在的旧文件。</description>
+          <dependencies>T5.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.5-AC1" checked="true">活跃 specs 不再将问卷展示职责绑定到已删除的 `terminal/packages/organ/src/AIAgent/TuiEventGraph.ts`</criterion>
+            <criterion id="T5.5-AC2" checked="true">更新后的 capability spec 能正确描述当前正式 terminal projection / runtime bridge 的职责边界</criterion>
+          </acceptance_criteria>
+        </task>
+        <task id="T5.6" name="补齐 backend package impact 边界并同步交付记录" status="DONE" priority="P1">
+          <description>将 `backend/packages/core`、`backend/packages/organ` 等当前真实受影响的 package surface 补入 track impact 文档，并同步 `analysis/task_plan.md`、`analysis/progress.md`、`metadata.json` 的交付记录，避免归档前继续低估变更半径。</description>
+          <dependencies>T5.5</dependencies>
+          <acceptance_criteria>
+            <criterion id="T5.6-AC1" checked="true">`proposal.md` / `design.md` 已明确纳入 `backend/packages/core` 与 `backend/packages/organ` 的影响范围</criterion>
+            <criterion id="T5.6-AC2" checked="true">analysis / metadata 已同步本轮新增偏差收口任务与完成事实</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>新链路已稳定替代旧链路，且仓库内正式消费路径完成收敛</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+</plan>

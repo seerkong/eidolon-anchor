@@ -1,0 +1,22 @@
+{
+  "name": "@desktop/shell",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/dev.ts",
+    "build:app": "mkdir -p build/EidolonAnchor.app/Contents/MacOS && bun build --compile --minify --sourcemap --target bun --external webview-bun --external sqlite3 --external reflect-metadata src/main.ts --outfile build/EidolonAnchor.app/Contents/MacOS/eidolon-anchor.bin",
+    "build:macos": "bun run scripts/build-macos.ts",
+    "build:windows": "bun run scripts/build-windows.ts",
+    "build:dispatch": "bun run scripts/build-dispatch.ts"
+  },
+  "dependencies": {
+    "webview-bun": "^2.4.0",
+    "@desktop/composer": "workspace:*",
+    "@shared/composer": "workspace:*"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "typescript": "^5.4.0"
+  }
+}

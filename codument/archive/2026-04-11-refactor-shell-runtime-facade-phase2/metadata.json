@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-shell-runtime-facade-phase2",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T13:05:00Z",
+  "updated_at": "2026-04-11T14:18:00Z",
+  "description": "让 shell/runtime entry 优先消费更窄的 domain runtime facade port。"
+}

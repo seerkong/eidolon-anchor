@@ -1,0 +1,5 @@
+<tool {
+  name = "DetachedToolCall"
+  namespace = "SysBuiltIn"
+  description = "Run a single tool call in a detached actor."
+}>

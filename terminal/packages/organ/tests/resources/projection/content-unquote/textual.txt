@@ -1,0 +1,13 @@
+@delimiter: ----
+---- #tuiControl
+{"cmd":"NewMessage","category":"assist"}
+---- #tuiMessage
+🤖 Assist: 开头文本
+---- #tuiMessage
+结尾文本
+---- #tuiControl
+{"cmd":"NewMessage","category":"toolcall"}
+---- #tuiMessage
+🔧 ToolCall: doSomething
+doSomething()
+

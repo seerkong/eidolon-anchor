@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-platform-kernel-wave9-domain-ai-contract-logic-explicitization</track_id>
+    <track_name>实施平台微内核 Wave 9 的 domain-ai contract/logic explicitization</track_name>
+    <goal>让 AI 领域微内核的 contract/logic 边界显式存在，并继续收紧 `composer/ai-contract` 为更薄的 AI facet。</goal>
+    <created_at>2026-04-11T10:05:00Z</created_at>
+    <updated_at>2026-04-11T12:33:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <execution_mode>sequential</execution_mode>
+  </metadata>
+  <phases>
+    <phase id="P1" name="Domain Ownership Freeze">
+      <goal>冻结 AI domain contract/logic 的正式 ownership。</goal>
+      <tasks>
+        <task id="T1.1" name="定义 AI domain ownership 表" status="DONE" priority="P0" estimated_days="1">
+          <description>明确历史 `core-*` / `organ-*` 中哪些能力目标迁往 AI domain package。</description>
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">AI domain ownership 表明确</criterion>
+            <criterion id="T1.1-AC2" checked="true">与平台 ownership 不冲突</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P2" name="Domain Explicitization">
+      <goal>建立显式 AI domain 宿主与更薄的 AI facet。</goal>
+      <tasks>
+        <task id="T2.1" name="引入最小 domain-ai contract/logic 宿主并收紧 ai-contract" status="DONE" priority="P0" estimated_days="2">
+          <description>让 AI 领域微内核在正式包或等价真相源上显式存在。</description>
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">AI domain 边界显式存在</criterion>
+            <criterion id="T2.1-AC2" checked="true">`composer/ai-contract` 变得更薄</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+    <phase id="P3" name="Focused Verification">
+      <goal>验证 domain explicitization 不回归。</goal>
+      <tasks>
+        <task id="T3.1" name="运行 contract/logic ownership focused tests" status="DONE" priority="P0" estimated_days="1">
+          <description>验证 AI domain ownership、composer facet 与 profile adoption。</description>
+          <dependencies>T2.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">focused tests 通过</criterion>
+            <criterion id="T3.1-AC2" checked="true">无第二真相源回流</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+    </phase>
+  </phases>
+</plan>

@@ -1,0 +1,29 @@
+@delimiter: ----
+---- #lexicalContentStart
+{}
+---- #lexicalContentDelta
+!
+---- #lexicalContentDelta
+un
+---- #lexicalContentDelta
+quote
+---- #lexicalContentDelta
+_start
+---- #lexicalContentDelta
+
+---- #lexicalContentDelta
+<tool_call id="run_codument_status" name="bash" lang="javascript">
+SysBuiltIn.bash({
+  command: "codument status"
+})
+</tool_call>
+---- #lexicalContentDelta
+!
+---- #lexicalContentDelta
+un
+---- #lexicalContentDelta
+quote
+---- #lexicalContentDelta
+_end
+---- #lexicalContentEnd
+{}

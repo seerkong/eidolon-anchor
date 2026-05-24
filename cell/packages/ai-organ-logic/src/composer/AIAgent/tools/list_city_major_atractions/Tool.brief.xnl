@@ -1,0 +1,5 @@
+<tool {
+  name = "list_city_major_atractions"
+  namespace = "SysBuiltIn"
+  description = "List major attractions for a city. If no city specified, returns all available cities."
+}>

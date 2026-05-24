@@ -1,0 +1,8 @@
+{
+  "track_id": "enhance-tui-approval-and-delegation-history",
+  "type": "feature",
+  "status": "in_progress",
+  "created_at": "2026-04-06T05:51:28Z",
+  "updated_at": "2026-04-07T03:12:31Z",
+  "description": "增强 prototype TUI 的 approval/question 交互、历史摘要与 delegation/question/task tree 结构化展示"
+}

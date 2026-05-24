@@ -1,0 +1,4 @@
+<tool>
+  <name>ActorWatch</name>
+  <description>Enable watched state for an actor.</description>
+</tool>

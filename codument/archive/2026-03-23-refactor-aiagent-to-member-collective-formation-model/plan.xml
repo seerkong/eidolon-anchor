@@ -1,0 +1,825 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-aiagent-to-member-collective-formation-model</track_id>
+    <track_name>AIAgent 全面切换到 member / collective / formation actor 模型</track_name>
+    <goal>以 breaking change 方式将整个 AIAgent 项目统一切换到 member / collective / formation 与 control / delegate / detached 的 actor 心智模型，替换旧命令、旧工具、旧持久化与旧文档，并同步重写 vendor depa-actor 面向 AI agent 的说明、示例与模拟测试</goal>
+    <created_at>2026-03-21T00:00:00Z</created_at>
+    <updated_at>2026-03-22T10:45:00Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+  </metadata>
+
+  <phases>
+    <phase id="P1" name="规范与设计">
+      <goal>固化 breaking change 边界、正式对象模型、命令协议与技术决策</goal>
+      <tasks>
+        <task id="T1.1" name="编写 spec.md" status="DONE" priority="P0">
+          输出新对象模型、命令协议、监听协议、breaking change 边界与 vendor 改造范围。
+          <acceptance_criteria>
+            <criterion id="T1.1-AC1" checked="true">spec.md 明确 member / collective / formation 与 control / delegate / detached 的正式语义</criterion>
+            <criterion id="T1.1-AC2" checked="true">spec.md 明确 assign / assign:r / assign:n / assign:s 与 watch / unwatch 的正式协议</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T1.2" name="编写 proposal.md" status="DONE" priority="P0">
+          说明 breaking change 动机、目标/非目标、变更列表与影响范围。
+          <dependencies>T1.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.2-AC1" checked="true">proposal.md 明确不兼容重构前命令、工具、变量名和恢复数据</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T1.3" name="编写 design.md" status="DONE" priority="P0">
+          记录对象分层、协议分层、命令面、持久化边界、vendor 改造和风险/权衡。
+          <dependencies>T1.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.3-AC1" checked="true">design.md 覆盖 runtime、tools、命令面、持久化、文档和 vendor 的整体方案</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T1.4" name="补充 command-aligned tool surface 设计" status="DONE" priority="P0">
+          根据 `docs/ai/modules/AIAgent/reorg/command-spec.md`、`docs/ai/modules/AIAgent/reorg/relationship-model.md` 与 `p5-tool-implementation-design.md` 明确新底层 tool 家族、已删除工具边界与实现阶段拆分。
+          <dependencies>T1.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T1.4-AC1" checked="true">track 文档明确重构前 API 会被删除，而不是 rename-only 迁移</criterion>
+            <criterion id="T1.4-AC2" checked="true">track 文档明确新的底层 tool 需要直接跟随 `/actor /member /collective /formation` 正式命令设计</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>spec/proposal/design 三件套一致且已确认 breaking change 范围</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P2" name="正式词汇与协议底座">
+      <goal>将新对象词汇、任务派发协议和监听协议下沉为全项目共享的正式底座</goal>
+      <tasks>
+        <task id="T2.1" name="红：正式词汇与 assign/watch 协议测试" status="DONE" priority="P0">
+          为对象命名、assign 四种写法（其中 assign 与 assign:r 同语义）、watch/unwatch 与 assign:s 自动 watched 行为建立失败测试。
+          <acceptance_criteria>
+            <criterion id="T2.1-AC1" checked="true">协议测试覆盖 assign/final、assign:r/final、assign:n/none、assign:s/stream 的语义差异</criterion>
+            <criterion id="T2.1-AC2" checked="true">协议测试覆盖 assign:s 结束后目标仍保持 watched 状态</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T2.1.1" name="编写失败测试：assign 协议矩阵" status="DONE" />
+            <subtask id="T2.1.2" name="编写失败测试：watch / unwatch 边界" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T2.2" name="绿：实现共享对象词汇与协议模型" status="DONE" priority="P0">
+          <dependencies>T2.1</dependencies>
+          在 core/runtime/tool shared 层引入正式对象词汇、协议枚举和 watched 语义真相源。
+          <acceptance_criteria>
+            <criterion id="T2.2-AC1" checked="true">shared 层不再以旧正式名词定义业务协议</criterion>
+            <criterion id="T2.2-AC2" checked="true">assign/watch 协议可被 runtime、tools、terminal 与 vendor 示例复用</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>正式对象词汇与 assign/watch 协议已成为共享底座</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P3" name="执行语义与 actor identity 重构">
+      <goal>将重构前执行语义彻底切换为 control / delegate / detached actor</goal>
+      <tasks>
+        <task id="T3.1" name="红：control / delegate / detached identity 测试" status="DONE" priority="P0">
+          覆盖 actor identity、生命周期、spawn/attach/detach 行为以及 detached actor 的运行语义。
+          <acceptance_criteria>
+            <criterion id="T3.1-AC1" checked="true">测试覆盖 control actor、delegate actor、detached actor 的正式命名与语义</criterion>
+            <criterion id="T3.1-AC2" checked="true">测试覆盖 detached actor 不再沿用重构前后台任务语义</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T3.2" name="绿：重构 actor identity 与执行语义实现" status="DONE" priority="P0">
+          <dependencies>T3.1</dependencies>
+          替换 runtime identity、mailbox/control state、spawn 流程和事件文案中的旧执行语义命名。
+          <acceptance_criteria>
+            <criterion id="T3.2-AC1" checked="true">runtime 不再以重构前执行语义命名作为正式实现名</criterion>
+            <criterion id="T3.2-AC2" checked="true">delegate / detached actor 走统一 actor 协议而非特殊旁路协议</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T3.3" name="重构 detached actor 对应的后台任务入口" status="DONE" priority="P1">
+          <dependencies>T3.2</dependencies>
+          用 detached actor 取代重构前后台执行入口、视图与状态投影。
+          <acceptance_criteria>
+            <criterion id="T3.3-AC1" checked="true">重构前后台任务术语从运行时和展示层移除</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T3.4" name="收口 member 执行 type，确保组织/执行语义正交" status="DONE" priority="P0">
+          <dependencies>T3.2,T4.2</dependencies>
+          将常规 member actor 从 `type=control` 收口为 `identity.kind=member + type=delegate`，并为后台 member 预留 `type=detached` 语义；同步修正 runtime workload、executor 分支、transcript/message history/snapshot 恢复和 focused tests。
+          <acceptance_criteria>
+            <criterion id="T3.4-AC1" checked="true">常规 member actor 不再使用 `actor.type = control`，而是使用 `identity.kind = member` 与 `actor.type = delegate`</criterion>
+            <criterion id="T3.4-AC2" checked="true">执行 type 继续只表达 `control / delegate / detached`，组织语义继续只表达 `member / collective / formation`</criterion>
+            <criterion id="T3.4-AC3" checked="true">member workload、executor turn 完成语义、transcript/message history/snapshot 恢复在 member-delegate 模型下保持正确</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T3.4.1" name="修正 member 创建路径与 runtime helper" status="DONE" />
+            <subtask id="T3.4.2" name="修正 member-delegate 的 workload / executor 分支" status="DONE" />
+            <subtask id="T3.4.3" name="修正 member transcript、message history 与 snapshot 恢复" status="DONE" />
+            <subtask id="T3.4.4" name="补 focused tests 锁定 member-delegate 正交模型" status="DONE" />
+          </subtasks>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>执行语义已切换到 control / delegate / detached actor，旧正式命名不再驱动运行时行为</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P4" name="组织语义与编排模型重构">
+      <goal>以 member / collective / formation 完成组织语义收口</goal>
+      <tasks>
+        <task id="T4.1" name="红：member / collective / formation 组织模型测试" status="DONE" priority="P0">
+          覆盖成员归属、collective 自治、formation 任命 leader、组织 actor 寻址和基础嵌套行为。
+          <acceptance_criteria>
+            <criterion id="T4.1-AC1" checked="true">测试覆盖 member、collective、formation 的正式语义差异</criterion>
+            <criterion id="T4.1-AC2" checked="true">测试覆盖 formation appoint 与 collective/formation add</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T4.1.1" name="编写失败测试：组织关系与 leader 任命" status="DONE" />
+            <subtask id="T4.1.2" name="编写失败测试：collective 自治任务分配" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T4.2" name="绿：实现新的组织模型与路由" status="DONE" priority="P0">
+          <dependencies>T4.1</dependencies>
+          在 runtime / roster / manager 层实现 member、collective、formation 的正式对象与路由行为。
+          <acceptance_criteria>
+            <criterion id="T4.2-AC1" checked="true">重构前组织实现名被正式实现名替换</criterion>
+            <criterion id="T4.2-AC2" checked="true">formation 通过 appoint 建立 leader 语义，collective 通过自治机制推进任务</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T4.3" name="拆除重构前组织业务实现入口" status="DONE" priority="P1">
+          <dependencies>T4.2</dependencies>
+          删除重构前组织入口与兼容分支，确保组织模型单源化。
+          <acceptance_criteria>
+            <criterion id="T4.3-AC1" checked="true">正式实现层不再保留重构前组织兼容入口</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>组织模型已切换为 member / collective / formation，旧组织语义不再作为正式实现存在</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P5" name="命令面与工具接口重构">
+      <goal>按正式命令设计重建 command-aligned lower-level tools，并切换 terminal / TUI / minimal 的公开命令面</goal>
+      <tasks>
+        <task id="T5.1" name="红：command-aligned tool matrix 与 slash command 测试" status="DONE" priority="P0">
+          覆盖 `/actor`、`/member`、`/collective`、`/formation` 的解析、底层 tool 组合关系、assign 模式（含 `assign:r` 显式 request/response）和 watch/unwatch 行为，并验证已删除旧公开 surface 不再出现。
+          <dependencies>T1.4</dependencies>
+          <references>
+            <reference>./p5-tool-implementation-design.md</reference>
+            <reference>docs/ai/modules/AIAgent/reorg/index.md</reference>
+            <reference>docs/ai/modules/AIAgent/reorg/command-spec.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T5.1-AC1" checked="true">测试覆盖正式 tool matrix：Actor*、Member*、Collective*、Formation* 与命令面的映射关系</criterion>
+            <criterion id="T5.1-AC2" checked="true">测试覆盖 assign / assign:r / assign:n / assign:s、watch / unwatch 与对象引用规则</criterion>
+            <criterion id="T5.1-AC3" checked="true">测试覆盖已删除旧 tool API 与旧公开入口被删除</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T5.1.1" name="编写失败测试：actor ref 解析与 assign mode 协议矩阵" status="DONE" />
+            <subtask id="T5.1.2" name="编写失败测试：ActorAssign / ActorStatus / ActorWatch / ActorUnwatch" status="DONE" />
+            <subtask id="T5.1.3" name="编写失败测试：MemberCreate / MemberList / MemberAssign" status="DONE" />
+            <subtask id="T5.1.4" name="编写失败测试：CollectiveCreate / Add / Assign / Status" status="DONE" />
+            <subtask id="T5.1.5" name="编写失败测试：FormationCreate / Add / Appoint / Assign / Status" status="DONE" />
+            <subtask id="T5.1.6" name="编写失败测试：已删除旧 tool 与旧命令 surface 删除" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T5.2" name="绿：补齐 actor-native 核心工具与组织结构工具语义缺口" status="DONE" priority="P0">
+          <dependencies>T5.1</dependencies>
+          在已接线的新命令面基础上，补齐 `Actor* / Member* / Collective* / Formation*` 工具矩阵的正式协议语义，重点修复 assign 三种 mode 差异、organization actor 的 watched 真相源、typed wrapper 输出契约，以及遗留 transitional tool/alias 对正式 surface 的污染。
+          <references>
+            <reference>./p5-tool-implementation-design.md</reference>
+            <reference>docs/ai/modules/AIAgent/reorg/command-spec.md</reference>
+            <reference>docs/ai/modules/AIAgent/reorg/relationship-model.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T5.2-AC1" checked="true">builtin tool registry 只注册新的正式 tool 家族，不再以重构前工具族作为公开真相源</criterion>
+            <criterion id="T5.2-AC2" checked="true">collective 自治能力被内化为 collective 行为，而不是独立旧工具家族</criterion>
+            <criterion id="T5.2-AC3" checked="true">旧 send / dispatch / broadcast 不再作为正式工具动词存在</criterion>
+            <criterion id="T5.2-AC4" checked="true">shared foundation helper 覆盖 actor ref 解析、assign mode 解析、watched 状态写回与统一 output mapper，并被各新工具复用</criterion>
+            <criterion id="T5.2-AC5" checked="true">`ActorAssign / ActorStatus / ActorWatch / ActorUnwatch` 按 `p5-tool-implementation-design.md` 的输入、输出、校验和关键测试要求落地</criterion>
+            <criterion id="T5.2-AC6" checked="true">`MemberCreate / MemberList / MemberAssign` 按 `p5-tool-implementation-design.md` 的输入、输出、校验和关键测试要求落地</criterion>
+            <criterion id="T5.2-AC7" checked="true">`CollectiveCreate / CollectiveAdd / CollectiveAssign / CollectiveStatus` 按 `p5-tool-implementation-design.md` 的输入、输出、校验和关键测试要求落地</criterion>
+            <criterion id="T5.2-AC8" checked="true">`FormationCreate / FormationAdd / FormationAppoint / FormationAssign / FormationStatus` 按 `p5-tool-implementation-design.md` 的输入、输出、校验和关键测试要求落地</criterion>
+            <criterion id="T5.2-AC9" checked="true">每个新工具均完成 registry 注册、typed output mapper、已删除旧接口 fail-fast 行为与对应 focused tests</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T5.2.1" name="实现 shared foundation：actor ref resolver / mode parser / watched helper / output mapper" status="DONE" />
+            <subtask id="T5.2.2" name="补齐 ActorAssign 的 final/none/stream 协议差异" status="DONE" />
+            <subtask id="T5.2.3" name="补齐 ActorStatus / ActorWatch / ActorUnwatch 的 organization actor watched 真相源" status="DONE" />
+            <subtask id="T5.2.4" name="补齐 MemberCreate / MemberList / MemberAssign 的 typed output 与 mode 语义" status="DONE" />
+            <subtask id="T5.2.5" name="补齐 CollectiveCreate / CollectiveAdd / CollectiveAssign / CollectiveStatus 的 typed output 与 stream watched 语义" status="DONE" />
+            <subtask id="T5.2.6" name="补齐 FormationCreate / FormationAdd / FormationAppoint / FormationAssign / FormationStatus 的 typed output 与 stream watched 语义" status="DONE" />
+            <subtask id="T5.2.7" name="收口 builtin tool registry 中的非 command-aligned 正式 surface" status="DONE" />
+            <subtask id="T5.2.8" name="为 transitional tool/alias 增加 internal-only 定位或继续迁移" status="DONE" />
+            <subtask id="T5.2.9" name="新增 focused tests 锁定 assign mode contract 与 watched 行为" status="DONE" />
+            <subtask id="T5.2.10" name="将 ShutdownRequest 输入契约收口到 member_id" status="DONE" />
+            <subtask id="T5.2.11" name="将 MemberStatus 正式纳入 command-aligned member tool matrix 文档与验收" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T5.3" name="绿：让 slash command 组合新的底层 tools，并在 P5 语义补齐后复验" status="DONE" priority="P0">
+          <dependencies>T5.2</dependencies>
+          terminal / TUI / minimal 已切到 `/actor /member /collective /formation` 正式命令面；本任务继续负责在 T5.2 补齐后复验 direct slash 只依赖完成态 tool matrix，而不是依赖 transitional tool 行为或半完成协议。
+          <references>
+            <reference>./p5-tool-implementation-design.md</reference>
+            <reference>docs/ai/modules/AIAgent/reorg/command-spec.md</reference>
+            <reference>docs/ai/modules/AIAgent/reorg/relationship-model.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T5.3-AC1" checked="true">terminal/tui/minimal 只暴露 `/actor`、`/member`、`/collective`、`/formation` 正式命令面</criterion>
+            <criterion id="T5.3-AC2" checked="true">slash command 不再直接依赖已删除旧工具与旧公开命名</criterion>
+            <criterion id="T5.3-AC3" checked="true">slash command 接入的 tool 输出与 watched/mode 语义已和 T5.2 完成态契约一致</criterion>
+            <criterion id="T5.3-AC4" checked="true">TUI / terminal 用户可见交互文案不再沿用重构前执行语义词汇</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T5.3.1" name="接线 `/actor` 到 Actor* 工具族" status="DONE" />
+            <subtask id="T5.3.2" name="接线 `/member` 到 Member* 工具族" status="DONE" />
+            <subtask id="T5.3.3" name="接线 `/collective` 到 Collective* 工具族" status="DONE" />
+            <subtask id="T5.3.4" name="接线 `/formation` 到 Formation* 工具族" status="DONE" />
+            <subtask id="T5.3.5" name="更新 terminal / TUI / minimal 的 help、catalog、completion 与 direct slash" status="DONE" />
+            <subtask id="T5.3.6" name="清理 TUI 中重构前执行语义的用户可见旧文案" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T5.4" name="拆除重构前工具与残留 transitional surface" status="DONE" priority="P1">
+          <dependencies>T5.3</dependencies>
+          已删除重构前正式命令入口；本任务继续清理仍留在 builtin registry 和正式实现层中的 transitional tool / alias / removed schema，使正式公开 surface 与 track 设计一致。
+          <references>
+            <reference>./p5-tool-implementation-design.md</reference>
+            <reference>docs/ai/modules/AIAgent/reorg/command-spec.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T5.4-AC1" checked="true">重构前公开工具族不再作为正式公开 API 注册</criterion>
+            <criterion id="T5.4-AC2" checked="true">已删除一级命令不再作为正式公开命令入口存在</criterion>
+            <criterion id="T5.4-AC3" checked="true">执行 helper 与 internal-only transitional surface 不再作为与正式命令矩阵冲突的公开真相源</criterion>
+            <criterion id="T5.4-AC4" checked="true">重构前执行/自治 alias 已从正式实现层清理</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T5.4.1" name="删除重构前 tool registry 与 schema name" status="DONE" />
+            <subtask id="T5.4.2" name="删除重构前公开命令入口" status="DONE" />
+            <subtask id="T5.4.3" name="删除旧帮助文案、旧 catalog 与旧 direct slash 测试依赖" status="DONE" />
+            <subtask id="T5.4.4" name="仅保留文档级迁移说明或 fail-fast 提示，不保留新的正式 runtime alias；并完成执行 helper 正名" status="DONE" />
+            <subtask id="T5.4.5" name="清理 builtin registry 中与正式命令矩阵冲突的 transitional tool surface" status="DONE" />
+            <subtask id="T5.4.6" name="清理正式实现层中的重构前执行/自治 alias 与过渡壳" status="DONE" />
+          </subtasks>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>命令面与 tool surface 已完整切换到新的正式协议</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P6" name="持久化、恢复与目录命名重构">
+      <goal>将持久化 schema、目录命名和恢复契约切换到新模型，并停止旧数据兼容恢复</goal>
+      <tasks>
+        <task id="T6.1" name="红：新持久化命名与旧数据不兼容测试" status="DONE" priority="P0">
+          覆盖新的 metadata key、目录布局、watched 状态持久化以及旧 session/snapshot/indexes 的拒绝恢复行为。
+          <acceptance_criteria>
+            <criterion id="T6.1-AC1" checked="true">测试覆盖新目录/字段命名与 watched 状态恢复</criterion>
+            <criterion id="T6.1-AC2" checked="true">测试覆盖旧数据不会被新运行时静默兼容恢复</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T6.2" name="绿：实现新 schema、目录命名与恢复错误路径" status="DONE" priority="P0">
+          <dependencies>T6.1</dependencies>
+          重写 persistence/recovery 命名、schema 和错误提示，移除旧恢复兼容路径。
+          <acceptance_criteria>
+            <criterion id="T6.2-AC1" checked="true">runtime snapshot、恢复报告与目录命名使用新模型词汇</criterion>
+            <criterion id="T6.2-AC2" checked="true">旧恢复路径被删除或明确报错</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>持久化与恢复契约已切换到新模型，旧数据不再被正式支持</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P7" name="视图投影与交互体验收口">
+      <goal>让 TUI、terminal、minimal 和状态投影全面呈现新对象模型与监听语义</goal>
+      <tasks>
+        <task id="T7.1" name="红：状态视图与事件流交互测试" status="DONE" priority="P1">
+          覆盖 actor status、watched 状态展示、assign:s 之后的持续事件推送、unwatch 行为与 detached actor 可见性。
+          <acceptance_criteria>
+            <criterion id="T7.1-AC1" checked="true">测试覆盖 assign:s -> watched -> unwatch 的完整交互链路</criterion>
+            <criterion id="T7.1-AC2" checked="true">测试覆盖 collective / formation / detached actor 的状态显示</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T7.2" name="绿：实现新视图投影与文案收口" status="DONE" priority="P1">
+          <dependencies>T7.1</dependencies>
+          替换视图文案、状态面板、事件提示和结果回流中的旧概念词。
+          <acceptance_criteria>
+            <criterion id="T7.2-AC1" checked="true">交互文案与状态视图只使用新正式词汇</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>所有交互视图已与新命令协议和新对象模型一致</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P8" name="文档与 vendor depa-actor 重写">
+      <goal>重写 AIAgent 正式文档与 vendor depa-actor 的 AI agent 说明、示例和模拟测试</goal>
+      <tasks>
+        <task id="T8.1" name="重写 AIAgent 正式文档，并统一执行语义词汇" status="DONE" priority="P1">
+          重写模块文档、howto、命令说明和关系说明，只保留新心智模型作为正式说明；同时消除 reorg 文档与 track 中的双版本执行语义。
+          <acceptance_criteria>
+            <criterion id="T8.1-AC1" checked="true">正式文档不再以旧概念词作为正式说明入口</criterion>
+            <criterion id="T8.1-AC2" checked="true">reorg 文档中的执行语义已与 track 当前正式词汇统一</criterion>
+            <criterion id="T8.1-AC3" checked="true">reorg / howto 文档与当前实现对 `/member status` / `MemberStatus` 的正式支持保持一致，不再出现命令面与 tool matrix 漏项</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T8.1.1" name="统一 reorg 文档中的 control / delegate / detached 词汇" status="DONE" />
+            <subtask id="T8.1.2" name="校正文档中的 removed tool/schema 字段示例" status="DONE" />
+            <subtask id="T8.1.3" name="补齐 reorg / howto 对 `/member status` 与 `MemberStatus` 的正式说明" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T8.2" name="红：vendor AI agent 示例与模拟测试" status="DONE" priority="P1">
+          为 vendor `depa-actor` 编写失败测试，覆盖 member/collective/formation、assign/watch/unwatch 的最小 AI agent 例子。
+          <acceptance_criteria>
+            <criterion id="T8.2-AC1" checked="true">vendor 模拟测试覆盖新的对象模型与派发/监听协议</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T8.3" name="绿：重写 vendor 文档、示例与测试实现" status="DONE" priority="P1">
+          <dependencies>T8.2</dependencies>
+          重写 `vendor/depa-actor/ACTOR-FOR-AI-AGENTS.md`，并落地最小完整示例与模拟测试。
+          <acceptance_criteria>
+            <criterion id="T8.3-AC1" checked="true">ACTOR-FOR-AI-AGENTS.md 使用新模型解释概念关系</criterion>
+            <criterion id="T8.3-AC2" checked="true">vendor 示例与模拟测试可体现 assign:s 自动 watched 语义</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>AIAgent 与 vendor depa-actor 的正式文档、示例和测试已统一到新模型</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P9" name="回归验证与收口">
+      <goal>完成旧概念残留清理、测试覆盖率验证、strict 校验和交付收口</goal>
+      <tasks>
+        <task id="T9.1" name="全文残留扫描与命名清理" status="DONE" priority="P0">
+          扫描旧正式概念词、旧命令词和旧工具名在实现层与正式文档层的残留，并清理。
+          <acceptance_criteria>
+            <criterion id="T9.1-AC1" checked="true">旧正式概念词不再残留于正式实现层和正式文档层</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T9.2" name="运行测试与覆盖率验证" status="DONE" priority="P0">
+          运行相关单元测试、集成测试、TUI/terminal 测试和 vendor 模拟测试，并验证新增代码覆盖率目标。
+          <acceptance_criteria>
+            <criterion id="T9.2-AC1" checked="true">相关测试全绿</criterion>
+            <criterion id="T9.2-AC2" checked="true">新增代码覆盖率满足项目目标</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T9.3" name="执行 codument strict 校验并更新 tracks.md" status="DONE" priority="P1">
+          运行 strict 校验，更新 metadata / progress / tracks.md，并收口交付说明。
+          <acceptance_criteria>
+            <criterion id="T9.3-AC1" checked="true">`codument validate refactor-aiagent-to-member-collective-formation-model --strict` 通过</criterion>
+            <criterion id="T9.3-AC2" checked="true">`codument/tracks.md` 出现本 track 条目</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>测试、覆盖率、全文残留扫描与 strict 校验全部通过</criterion>
+      </gate_criteria>
+      <confirm protocol="yield-human-confirm" when="after" status="TODO" />
+    </phase>
+
+    <phase id="P10" name="偏差补齐与语义收口">
+      <goal>收口本轮 gap 分析中识别出的剩余偏差，确保 track 设计、reorg 文档与当前实现重新对齐</goal>
+      <tasks>
+        <task id="T10.1" name="收口 organization actor 投影与 actor_type 语义" status="DONE" priority="P0">
+          修正 collective / formation 当前仅以 tool-layer actor-like subject 暴露时的字段语义，避免继续用 `actor_type` 承载组织语义；为 organization projection 建立稳定的 `organization_kind` / execution-kind 输出约定，并补 focused tests。
+          <dependencies>T5.2,T7.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T10.1-AC1" checked="true">`ActorStatus` 对 organization target 不再把 `collective` / `formation` 误报为 execution-level `actor_type`</criterion>
+            <criterion id="T10.1-AC2" checked="true">organization target 的状态输出能稳定区分组织语义与执行语义，且不再违反 `identity.kind` / `actor.type` 正交设计</criterion>
+            <criterion id="T10.1-AC3" checked="true">相关 terminal/TUI/tests 已按新字段语义更新</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T10.1.1" name="修正 ActorStatus / resolver 的 organization projection 输出" status="DONE" />
+            <subtask id="T10.1.2" name="更新 focused tests，移除对 organization `actor_type=collective|formation` 的固化" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T10.2" name="收口 collective final contract 到正式 assign 语义" status="DONE" priority="P0">
+          修正 `CollectiveAssign(mode=final)` 与 `ActorAssign(target=collective:..., mode=final)` 仍返回 queued/pending 的问题，使 `final` 真正返回 final contract，而不是一次带推进的 enqueue 回执。
+          <dependencies>T10.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T10.2-AC1" checked="true">collective 的 `assign/final` 不再以 `queued + pending` 作为正式成功输出</criterion>
+            <criterion id="T10.2-AC2" checked="true">`ActorAssign` 与 `CollectiveAssign` 在 collective target 上共享同一 final 语义与输出 contract</criterion>
+            <criterion id="T10.2-AC3" checked="true">focused tests 覆盖 collective final result contract，而不是把 pending 队列态固化为正确行为</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T10.2.1" name="实现 collective final contract 与结果投影" status="DONE" />
+            <subtask id="T10.2.2" name="补 focused tests 覆盖 collective final result" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T10.3" name="让 typed wrapper 真正收口到 ActorAssign / ActorStatus" status="DONE" priority="P0">
+          重构 `Member* / Collective* / Formation*` 中仍在复制派发/状态逻辑的实现，使 typed wrapper 只负责类型校验、组织态字段投影与更友好的错误文案，统一复用 `ActorAssign / ActorStatus` 真相源。
+          <dependencies>T10.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T10.3-AC1" checked="true">`MemberStatus / CollectiveStatus / FormationStatus` 不再各自维护独立状态真相源</criterion>
+            <criterion id="T10.3-AC2" checked="true">`MemberAssign / CollectiveAssign / FormationAssign` 不再各自复制 watch/tick/output 主逻辑，而是包装 `ActorAssign`</criterion>
+            <criterion id="T10.3-AC3" checked="true">shared output mapper / fail-fast helper 被 typed wrapper 统一复用</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T10.3.1" name="收口 typed status wrapper 到 ActorStatus" status="DONE" />
+            <subtask id="T10.3.2" name="收口 typed assign wrapper 到 ActorAssign" status="DONE" />
+            <subtask id="T10.3.3" name="更新 focused tests，锁定 wrapper-over-actor contract" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T10.4" name="补齐组织嵌套模型或回收文档承诺" status="DONE" priority="P1">
+          对齐 `relationship-model.md` 中 collective / formation 可嵌套的正式表述与 runtime 实现：若本 track 要求支持嵌套，则补齐 session schema、resolver、status/add/assign 路由；若暂不支持，则回收当前式文档承诺并明确边界。
+          <dependencies>T10.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T10.4-AC1" checked="true">organization nesting 的实现能力或文档边界二者至少一方与另一方完全一致</criterion>
+            <criterion id="T10.4-AC2" checked="true">不会再出现文档承诺 collective/formation 嵌套而实现层只能存 `memberIds` 平面关系的漂移</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T10.5" name="补齐工具校验契约与错误分流" status="DONE" priority="P1">
+          为 `MemberCreate / CollectiveCreate / FormationCreate / CollectiveAdd / FormationAdd` 补齐名称唯一、重复加入 fail-fast、wrong-type / not-found 错误分流与对应测试，使其达到 P5 设计要求。
+          <dependencies>T10.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T10.5-AC1" checked="true">member/collective/formation create 的 duplicate name 会 fail-fast</criterion>
+            <criterion id="T10.5-AC2" checked="true">collective/formation add 的 duplicate membership 会 fail-fast</criterion>
+            <criterion id="T10.5-AC3" checked="true">wrong type 与 not found 输出被稳定区分，并有 focused tests 锁定</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T10.6" name="收口 assign:r 帮助文案与 track 文档引用" status="DONE" priority="P2">
+          补齐 terminal/TUI/minimal help、prompt expansion、catalog 中对 `assign:r` 的正式展示；同时修正 `plan.xml` 中失效的 reorg 文档引用，避免继续依赖缺失文档。
+          <dependencies>T10.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T10.6-AC1" checked="true">`assign:r` 在用户可见帮助文案中作为正式命令被展示</criterion>
+            <criterion id="T10.6-AC2" checked="true">track 不再引用当前缺失的 `migration-plan.md` / `naming-and-concept-map.md`，或已补回对应文档</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>本轮 gap 报告中的剩余偏差已被实现、文档和测试共同收口</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P11" name="剩余偏差执行收口">
+      <goal>把第 4 版 gap 报告识别出的剩余偏差转成可执行任务，并在实现、TUI 交互和文档真相源上完成闭环</goal>
+      <tasks>
+        <task id="T11.1" name="统一 organization actor 的真相源表述与实现边界" status="DONE" priority="P0">
+          对齐 track / reorg 文档与当前实现中 collective / formation 的定位，明确它们在本 track 中是 runtime 正式 actor，还是 actor-addressable organization projection；若选择 projection，则同步收口 spec/design/reorg 文档表述与相关输出契约。
+          <dependencies>T10.6</dependencies>
+          <acceptance_criteria>
+            <criterion id="T11.1-AC1" checked="true">track / reorg / 当前实现对 collective / formation 的定位不再冲突</criterion>
+            <criterion id="T11.1-AC2" checked="true">不会再出现“文档要求 runtime actor”而实现仅有 organization projection 的真相源漂移</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T11.2" name="把 watched 状态接入真实事件投递链路" status="DONE" priority="P0">
+          让 `watch / unwatch` 和 `assign:s` 不再只修改 `watch_state` 投影，而是实际驱动 TUI/runtime 的 watched target 事件消费与异步通知链路；必要时补充 organization/member watched routing helper 与 focused tests。
+          <dependencies>T11.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T11.2-AC1" checked="true">watched target 的事件不再仅停留在 status 投影，而能进入 TUI/runtime 消费链路</criterion>
+            <criterion id="T11.2-AC2" checked="true">`watch / unwatch` 对后续事件可见性产生真实行为差异，并有 focused tests 锁定</criterion>
+            <criterion id="T11.2-AC3" checked="true">`assign:s` 至少能让目标后续事件进入 watched 通知链路，而不是只有 JSON 回执</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T11.3" name="收口 TUI e2e 与当前 formal assign contract" status="DONE" priority="P1">
+          修正 `terminal/packages/tui/tests/actor-dispatch-visibility-e2e.test.ts` 中仍固化旧 `CollectiveAssign(final)` 契约与旧 target echo 的断言，使 TUI e2e 与当前 formal tool contract 保持一致。
+          <dependencies>T11.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T11.3-AC1" checked="true">TUI e2e 不再断言旧的 `pending/queued` collective final 语义</criterion>
+            <criterion id="T11.3-AC2" checked="true">TUI e2e 与 `organization_tools.test.ts` 对 collective final contract 的预期一致</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T11.4" name="清理 internal-only Background* 命名残留" status="DONE" priority="P2">
+          将 internal-only detached actor 相关工具与模块中的 `Background*` 文件/目录命名收口到 `Detached*` 语义，避免正式 surface 已正名而内部路径继续保留旧模型词汇。
+          <dependencies>T11.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T11.4-AC1" checked="true">internal-only detached actor tool 的目录/模块命名不再残留 `Background*` 旧词汇</criterion>
+            <criterion id="T11.4-AC2" checked="true">相关导入、测试和工具注册在重命名后保持通过</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T11.5" name="收口 detached actor workload 与过时 background alias" status="DONE" priority="P2">
+          将 detached actor 专属 workload / event alias / recovery helper 中仍沿用 `background_*` 的内部命名切到 `detached_*`，但保留纯调度层的 background scheduler 术语不动，避免把 detached actor 正式执行语义继续混入旧词汇。
+          <dependencies>T11.4</dependencies>
+          <acceptance_criteria>
+            <criterion id="T11.5-AC1" checked="true">detached actor 专属 workload 常量与测试不再使用 `background_delegate_task` / `background_bash_task` / `background_toolcall_task`</criterion>
+            <criterion id="T11.5-AC2" checked="true">`StreamEvents` 中不再保留 `BackgroundTask*` 旧 alias 作为正式导出</criterion>
+            <criterion id="T11.5-AC3" checked="true">snapshot/recovery 中针对 detached actor workload 的 helper 命名完成正名，相关 focused tests 通过</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T11.6" name="统一 background 调度 helper 命名" status="DONE" priority="P3">
+          将 scheduler / driver / UI runtime 中表示 background 调度的 helper 与公开 driver 方法统一到 `background` 命名，同时不改动已持久化 lane 值与 completion mode 常量，避免引入额外 schema 兼容成本。
+          <dependencies>T11.5</dependencies>
+          <acceptance_criteria>
+            <criterion id="T11.6-AC1" checked="true">`isBackgroundAiAgentLane`、`tickUntilBackgroundSettled`、`startBackgroundPump` 等 helper/API 完成正名</criterion>
+            <criterion id="T11.6-AC2" checked="true">terminal/tui/minimal 与相关 focused tests 均切到新的调度 helper 命名</criterion>
+            <criterion id="T11.6-AC3" checked="true">lane 持久化值和 completion mode 不被这一轮变更波及</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>第 4 版 gap 报告中的剩余偏差已被转成任务并在代码、测试、文档三层完成闭环</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P12" name="第 5 版偏差执行收口">
+      <goal>把第 5 版 gap 报告识别出的 detached helper 语义和残留命名资产偏差转成可执行任务，并在实现、测试和 track 真相源上完成闭环</goal>
+      <tasks>
+        <task id="T12.1" name="收口 RunDelegateActor 的 detached 正式语义" status="DONE" priority="P1">
+          将 delegate helper 的正式输入契约、运行时 mode/lane 命名与相关文档示例从 `background` 收口到 `detached`，避免继续让公开 helper 使用旧执行语义词汇；若需要兼容既有恢复数据，仅保留恢复路径 fallback，不让运行时主协议继续暴露 `background`。
+          <dependencies>T11.6</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-5.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T12.1-AC1" checked="true">`RunDelegateActor` 的 schema、outer types、detail/brief prompt 不再把 `background` 作为正式 mode 写法</criterion>
+            <criterion id="T12.1-AC2" checked="true">delegate helper / driver / persistence 的主协议不再以 `background` 作为 detached actor 的正式 mode/lane 语义真相源</criterion>
+            <criterion id="T12.1-AC3" checked="true">相关 focused tests 覆盖 detached mode 新写法，并避免因旧 mode 字符串导致协议漂移</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T12.1.1" name="更新 RunDelegateActor 的公开输入契约与文档示例" status="DONE" />
+            <subtask id="T12.1.2" name="收口 delegate runtime / lane / driver / snapshot 中的 detached mode 真相源" status="DONE" />
+            <subtask id="T12.1.3" name="补 focused tests 锁定 detached helper 新契约" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T12.2" name="清理目录与测试资产中的旧语义命名残留" status="DONE" priority="P2">
+          将仍直接位于 AIAgent 主路径中的 `background / team / subagent / autonomy` 目录名与测试文件名收口到 detached / delegate / member / collective / formation 语义，降低 grep 和维护时的双模型干扰。
+          <dependencies>T12.1</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-5.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T12.2-AC1" checked="true">AIAgent backend 主目录中不再保留 detached actor 专属的 `background/` 路径命名</criterion>
+            <criterion id="T12.2-AC2" checked="true">主测试资产中不再保留会误导 formal model 的 `background / subagent / team / autonomy` 文件名残留</criterion>
+            <criterion id="T12.2-AC3" checked="true">相关导入、测试选择器与引用在重命名后保持通过</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T12.3" name="复验第 5 版偏差收口结果" status="DONE" priority="P2">
+          运行 detached helper、runtime recovery、组织工具与 TUI 交互的聚焦测试，并确认 `.report/aiagent-member-collective-formation-gap-report-5.md` 中的两个剩余偏差均已被代码和测试收口。
+          <dependencies>T12.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T12.3-AC1" checked="true">与 detached helper / recovery / organization / TUI 相关的聚焦测试通过</criterion>
+            <criterion id="T12.3-AC2" checked="true">第 5 版报告中的剩余偏差已不再成立，或已在 track 中明确回收边界</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>第 5 版 gap 报告中的 detached helper 语义与残留命名资产偏差已完成代码、测试和 track 三层闭环</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P13" name="第 6 版偏差执行收口">
+      <goal>把第 6 版 gap 报告识别出的 detached 内部协议真相源和默认 prompt 旧术语残留转成可执行任务，并在实现、测试和 track 真相源上完成闭环</goal>
+      <tasks>
+        <task id="T13.1" name="收口 childDone mailbox 与 live delegate mode alias" status="DONE" priority="P1">
+          将 detached 执行语义的内部真相源继续从 `background` 收口到 `detached`：包括 actor mailbox schema、delegate helper live input 类型、runtime normalization helper 与 snapshot/recovery 边界的兼容策略。要求 `background` 仅保留在恢复兼容路径，不再作为 live runtime 主协议输入。
+          <dependencies>T12.3</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-6.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T13.1-AC1" checked="true">`AiAgentMailboxSchema.childDone.mode` 与 delegate helper live input 类型不再使用 `background`</criterion>
+            <criterion id="T13.1-AC2" checked="true">旧 `background` alias 只保留在 snapshot/recovery 等受控恢复边界</criterion>
+            <criterion id="T13.1-AC3" checked="true">focused tests 锁定 detached childDone contract 与 recovery fallback 边界</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T13.1.1" name="修改 mailbox schema 与 delegate runtime helper 的 live mode 契约" status="DONE" />
+            <subtask id="T13.1.2" name="把 legacy background alias 下沉到恢复边界" status="DONE" />
+            <subtask id="T13.1.3" name="补 focused tests 覆盖 detached childDone 与 recovery fallback" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T13.2" name="清理默认 runtime prompt 中的旧执行语义残留" status="DONE" priority="P2">
+          清理 TUI runtime 默认 code agent prompt 中仍存在的 `background` 旧术语，使默认提示词与 `detached` 正式执行语义一致。
+          <dependencies>T13.1</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-6.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T13.2-AC1" checked="true">默认 code agent prompt 不再使用 `background` 表达 detached 工作</criterion>
+            <criterion id="T13.2-AC2" checked="true">AIAgent 主路径中的非测试 prompt 资产不再残留这处旧执行语义文案</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T13.3" name="复验第 6 版偏差收口结果" status="DONE" priority="P2">
+          运行 detached helper、runtime actor/snapshot recovery 与相关 focused tests，确认第 6 版报告中的剩余偏差均已被代码和测试收口。
+          <dependencies>T13.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T13.3-AC1" checked="true">与 detached childDone contract / recovery fallback / lane semantics 相关的聚焦测试通过</criterion>
+            <criterion id="T13.3-AC2" checked="true">第 6 版报告中的 2 个剩余偏差已不再成立</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>第 6 版 gap 报告中的 detached 内部协议真相源与默认 prompt 旧术语偏差已完成代码、测试和 track 三层闭环</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P14" name="第 7 版偏差执行收口">
+      <goal>把第 7 版 gap 报告识别出的 live driver protocol 与 track 状态资产漂移转成可执行任务，并在实现、测试和 track 真相源上完成闭环</goal>
+      <tasks>
+        <task id="T14.1" name="收口 background live driver protocol 与 lane 恢复边界" status="DONE" priority="P1">
+          将 `OrchestratorDriver` 中 live `tick.scope`、background helper 与 lane 语义重新统一到 `background` 调度命名，同时把 detached actor 的正式执行语义继续保持在 `detached`；并删除旧 lane alias 的恢复兼容分支，避免混入过时协议。
+          <dependencies>T13.3</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-7.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T14.1-AC1" checked="true">`OrchestratorDriver` 的 live `tick.scope` schema、分支判断和发包值统一使用 `background` 调度语义</criterion>
+            <criterion id="T14.1-AC2" checked="true">lane 不再保留 `background` 到 `detached` 的恢复兼容分支，live helper 与恢复边界都只接受当前模型</criterion>
+            <criterion id="T14.1-AC3" checked="true">focused tests 锁定新的 live driver scope 契约与恢复边界</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T14.2" name="收口 track 状态资产与测试文案漂移" status="DONE" priority="P2">
+          对齐 `metadata.json`、`analysis/progress.md`、`analysis/task_plan.md` 与当前真实进度；同时清理 detached/background 主路径测试中的 `bg` 旧缩写与过时文案，使“ready / zero-hit clean”只在实际成立时出现。
+          <dependencies>T14.1</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-7.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T14.2-AC1" checked="true">track 的 metadata/progress/task_plan 状态不再互相冲突</criterion>
+            <criterion id="T14.2-AC2" checked="true">detached / background 主路径测试标题、注释、局部变量以及 `bg` 缩写不再沿用过时旧语义</criterion>
+            <criterion id="T14.2-AC3" checked="true">progress 文案不再高估 zero-hit 清理状态，或相关残留已被继续清掉</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T14.3" name="复验第 7 版偏差收口结果" status="DONE" priority="P2">
+          运行 live driver protocol、lane semantics、detached/background 主路径测试与 track 状态文件相关的聚焦验证，确认第 7 版报告中的剩余偏差均已被代码和文档收口。
+          <dependencies>T14.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T14.3-AC1" checked="true">与 live driver scope / lane recovery / detached tests 相关的聚焦测试通过</criterion>
+            <criterion id="T14.3-AC2" checked="true">第 7 版报告中的 2 个剩余偏差已不再成立</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>第 7 版 gap 报告中的 live driver protocol 与 track 状态资产偏差已完成代码、测试和 track 三层闭环</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P15" name="协议常量显式化收口">
+      <goal>将 member coordination protocol 的裸字符串真相源收口为 core 显式常量对象，并同步收紧 runtime snapshot/tool/engine 主路径类型</goal>
+      <tasks>
+        <task id="T15.1" name="收口 protocol name/kind/status/decision 真相源" status="DONE" priority="P2">
+          在 core shared 层新增 member coordination protocol 的显式常量对象与 guard helper，并让 `ProtocolEngine`、executor、shutdown/plan tool、runtime actor snapshot 统一引用这些正式常量。
+          <dependencies>T14.3</dependencies>
+          <acceptance_criteria>
+            <criterion id="T15.1-AC1" checked="true">`shutdown / plan_approval` 及其 protocol kind、status、decision 不再以主路径裸字符串散落在 engine/tool/runtime 中</criterion>
+            <criterion id="T15.1-AC2" checked="true">runtime actor 的 `planApproval` / `shutdownProtocol` 状态使用共享协议类型，而不是宽泛字符串</criterion>
+            <criterion id="T15.1-AC3" checked="true">protocol envelope 校验、snapshot recovery 默认值与 focused tests 统一引用共享常量对象</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T15.1.1" name="在 core shared 层新增 protocol 常量对象与 guard helper" status="DONE" />
+            <subtask id="T15.1.2" name="替换 engine / executor / shutdown-plan tool / snapshot 主路径裸字符串" status="DONE" />
+            <subtask id="T15.1.3" name="补 focused tests 覆盖 protocol 常量对象与 snapshot 类型收紧" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T15.2" name="复验协议常量显式化结果" status="DONE" priority="P2">
+          运行 protocol engine、plan approval gating、shutdown tool、runtime snapshot repository 与 runtime recovery 相关的聚焦测试，并更新 track 状态资产。
+          <dependencies>T15.1</dependencies>
+          <acceptance_criteria>
+            <criterion id="T15.2-AC1" checked="true">协议常量对象相关聚焦测试通过</criterion>
+            <criterion id="T15.2-AC2" checked="true">track 的 plan/progress/task_plan/metadata 与本轮真实改造状态保持一致</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>member coordination protocol 的 name/kind/status/decision 已完成共享常量化，主路径不再依赖裸字符串真相源</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P16" name="第 8 版偏差执行收口">
+      <goal>把第 8 版 gap 报告识别出的 recovery breaking boundary 漂移转成可执行任务，并在实现、测试和 track 真相源上完成闭环</goal>
+      <tasks>
+        <task id="T16.1" name="收紧 snapshot/recovery 的旧结构兼容边界" status="DONE" priority="P1">
+          将 `RuntimeSnapshotRepository` 与 `recoverAiAgentRuntime` 从“尽量兼容旧结构”收口到“只接受当前合法 snapshot shape”；删除旧 monolithic actor snapshot、旧 manifest/index 回退与宽松 schema 兜底在主恢复路径中的正式地位，并在遇到旧结构时明确 fail-fast。
+          <dependencies>T15.2</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-8.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T16.1-AC1" checked="true">`RuntimeSnapshotRepository` 不再把旧 monolithic actor snapshot 形态作为当前合法恢复输入</criterion>
+            <criterion id="T16.1-AC2" checked="true">`recoverAiAgentRuntime` 对旧 session/snapshot/index 结构给出明确错误，而不是静默兼容恢复</criterion>
+            <criterion id="T16.1-AC3" checked="true">主恢复路径只接受当前 snapshot 目录布局与必要 manifest/index 字段，不再通过旧式回退推导继续恢复</criterion>
+          </acceptance_criteria>
+          <subtasks>
+            <subtask id="T16.1.1" name="定义当前唯一合法 snapshot shape 与 fail-fast 边界" status="DONE" />
+            <subtask id="T16.1.2" name="删除 repository/recovery 中的旧形态回退与宽松兼容壳" status="DONE" />
+            <subtask id="T16.1.3" name="统一旧恢复输入的错误文案与调用路径行为" status="DONE" />
+          </subtasks>
+        </task>
+
+        <task id="T16.2" name="补齐旧数据拒绝恢复的 focused tests" status="DONE" priority="P1">
+          新增 focused tests，覆盖旧 actor snapshot、旧 manifest/index 回退和旧 derived indexes 形态在当前 recovery boundary 下的 fail-fast 行为，确保 T6 的 breaking boundary 有持续回归保护。
+          <dependencies>T16.1</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-8.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T16.2-AC1" checked="true">测试覆盖旧 monolithic actor snapshot 被拒绝恢复</criterion>
+            <criterion id="T16.2-AC2" checked="true">测试覆盖缺失当前必要 manifest/index 字段时 recovery 明确失败</criterion>
+            <criterion id="T16.2-AC3" checked="true">测试不再把“旧结构尽量恢复”固化为正确行为</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T16.3" name="复验第 8 版偏差收口结果并更新 track 状态资产" status="DONE" priority="P2">
+          运行 recovery/snapshot focused tests，并同步更新 `analysis/progress.md`、`analysis/task_plan.md`、`metadata.json` 等状态资产，使其与真实 recovery 边界重新一致。
+          <dependencies>T16.2</dependencies>
+          <acceptance_criteria>
+            <criterion id="T16.3-AC1" checked="true">recovery/snapshot focused tests 通过，且覆盖旧数据拒绝恢复边界</criterion>
+            <criterion id="T16.3-AC2" checked="true">track 的 progress/task_plan/metadata 不再高估 recovery compat shell 已删除的状态</criterion>
+            <criterion id="T16.3-AC3" checked="true">第 8 版报告中的剩余偏差已被代码、测试和 track 三层收口</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>第 8 版 gap 报告中的 recovery breaking boundary 偏差已完成代码、测试和 track 三层闭环</criterion>
+      </gate_criteria>
+    </phase>
+
+    <phase id="P17" name="第 9 版偏差执行收口">
+      <goal>把第 9 版 gap 报告识别出的状态契约尾差、稳定排序缺口、snapshot 类型真相源漂移与 track 文档引用残留转成可执行任务，并在实现、测试和 track 资产上完成闭环</goal>
+      <tasks>
+        <task id="T17.1" name="补齐 ActorStatus 与组织状态工具的正式契约" status="DONE" priority="P1">
+          为 `ActorStatus / CollectiveStatus / FormationStatus` 补齐 `lifecycle_state`、organization `task_summary`、detached actor projection 与 typed status 的 actor-basics 字段，使状态工具重新符合 P5 design 中的 formal surface 约定。
+          <dependencies>T16.3</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-9.md</reference>
+            <reference>./p5-tool-implementation-design.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T17.1-AC1" checked="true">`ActorStatus` 返回 `lifecycle_state`，并为 organization target 返回稳定的 `task_summary` 投影</criterion>
+            <criterion id="T17.1-AC2" checked="true">`ActorStatus` 对 detached actor 返回 detached-specific projection，而不是只暴露通用 actor 字段</criterion>
+            <criterion id="T17.1-AC3" checked="true">`CollectiveStatus / FormationStatus` 返回 actor-basics 与 task summary，不再只停留在 member/leader 投影</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T17.2" name="补齐 MemberList 的稳定排序契约" status="DONE" priority="P2">
+          将 `MemberList` 的输出顺序收口为稳定排序真相源，并新增 focused tests，避免当前“依赖对象遍历顺序”的隐式行为继续被当成正式 contract。
+          <dependencies>T17.1</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-9.md</reference>
+            <reference>./p5-tool-implementation-design.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T17.2-AC1" checked="true">`MemberList` 的 `members` 输出使用稳定排序，而不是依赖对象遍历顺序</criterion>
+            <criterion id="T17.2-AC2" checked="true">focused tests 锁定 `MemberList` 的稳定顺序与 `member_count` 契约</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T17.3" name="清理 snapshot 类型中的 legacy schemaVersion 真相源" status="DONE" priority="P2">
+          在 snapshot 类型与 hydrate helper 层移除仍残留的 `schemaVersion`/`version ?? schemaVersion` 正式表达，只保留当前 `version` 作为单一合法 current-shape 真相源；同时保留 repository 对旧结构 fail-fast 的恢复边界。
+          <dependencies>T17.2</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-9.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T17.3-AC1" checked="true">`RuntimeSnapshotManifest / Vm / Actor / Fiber` 当前正式类型不再把 legacy `schemaVersion` 当作 current-shape 字段</criterion>
+            <criterion id="T17.3-AC2" checked="true">`hydrateVM / hydrateActor / RuntimeSnapshots` 不再使用 `version ?? schemaVersion` 作为主路径恢复真相源</criterion>
+            <criterion id="T17.3-AC3" checked="true">focused tests 锁定当前 snapshot shape 不再含 legacy `schemaVersion` fallback</criterion>
+          </acceptance_criteria>
+        </task>
+
+        <task id="T17.4" name="修正文档引用并回写第 9 版状态资产" status="DONE" priority="P3">
+          清理 track `design.md` 中对缺失 `migration-plan.md` 的引用，并将第 9 版偏差与其执行结果回写到 plan/progress/task_plan/metadata，保证 track 自身重新自洽。
+          <dependencies>T17.3</dependencies>
+          <references>
+            <reference>../../../../.report/aiagent-member-collective-formation-gap-report-9.md</reference>
+          </references>
+          <acceptance_criteria>
+            <criterion id="T17.4-AC1" checked="true">`design.md` 不再引用当前缺失的 `migration-plan.md`</criterion>
+            <criterion id="T17.4-AC2" checked="true">第 9 版偏差已被写入 track 并作为已执行任务归档到 plan/task_plan/progress/metadata</criterion>
+            <criterion id="T17.4-AC3" checked="true">status/status-tools/snapshot focused tests 通过，且 track 资产与真实改造状态保持一致</criterion>
+          </acceptance_criteria>
+        </task>
+      </tasks>
+      <gate_criteria>
+        <criterion>第 9 版 gap 报告中的状态契约、稳定排序、snapshot 类型与文档资产尾差已完成代码、测试和 track 三层闭环</criterion>
+      </gate_criteria>
+    </phase>
+  </phases>
+</plan>

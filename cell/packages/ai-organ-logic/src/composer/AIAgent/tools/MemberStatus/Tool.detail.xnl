@@ -1,0 +1,3 @@
+export interface MemberStatusOuterInput { target: string; }
+export type MemberStatusOuterOutput = string;
+export type MemberStatus = (input: MemberStatusOuterInput) => MemberStatusOuterOutput;

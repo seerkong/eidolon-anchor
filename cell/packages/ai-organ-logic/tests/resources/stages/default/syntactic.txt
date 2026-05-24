@@ -1,0 +1,19 @@
+@delimiter: ----
+---- #syntacticThinkingStart
+---- #syntacticThinkingDelta
+嗯，用
+---- #syntacticThinkingDelta
+户询问这个订单状态如何，我要先查询详情。
+---- #syntacticThinkingDelta
+并且符合
+---- #syntacticQuote
+{"source":"thinking","text":"<tool_call id=\"query_order_xxx\" name=\"queryOrder\" lang=\"javascript\">\n// 函数调用内容\n</tool_call>"}
+---- #syntacticThinkingDelta
+这样才不会触发语法错误而重试
+---- #syntacticThinkingEnd
+---- #syntacticContentStart
+---- #syntacticContentDelta
+我先使用订单查询工具查询
+---- #syntacticStructuredNode
+{"source":"unquote","nodes":[{"tag":"tool_call","text":"Custom.orderDetail(`ORDER-1234`)","attrs":{"id":"query_order_xxx","name":"queryOrder","lang":"javascript"}}]}
+---- #syntacticContentEnd

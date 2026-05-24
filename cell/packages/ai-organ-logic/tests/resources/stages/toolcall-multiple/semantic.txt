@@ -1,0 +1,5 @@
+@delimiter: ----
+---- #semanticToolCallPlanned
+{"tool_call_id":"call_123","tool_name":"get_weather","arguments_text":"{\"location\":\"SF\"}","protocol":"openai","call_kind":"json_function"}
+---- #semanticToolCallPlanned
+{"tool_call_id":"call_456","tool_name":"get_time","arguments_text":"{\"timezone\":\"PST\"}","protocol":"openai","call_kind":"json_function"}

@@ -1,0 +1,5 @@
+@delimiter: ----
+---- #syntacticContentStart
+---- #syntacticStructuredNode
+{"source":"unquote","nodes":[{"tag":"tool_call","text":"SysBuiltIn.bash({\n  command: \"codument status\"\n})","attrs":{"id":"run_codument_status","name":"bash","lang":"javascript"}}]}
+---- #syntacticContentEnd

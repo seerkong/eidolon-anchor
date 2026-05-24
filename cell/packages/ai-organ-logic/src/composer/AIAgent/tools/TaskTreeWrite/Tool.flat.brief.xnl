@@ -1,0 +1,5 @@
+<tool {
+  name = "TaskTreeWriteFlat"
+  namespace = "SysBuiltIn"
+  description = "更新单层任务列表状态（replace_root / update_status），不支持 expand。"
+}>

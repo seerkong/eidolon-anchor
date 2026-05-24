@@ -1,0 +1,5 @@
+<type_def lang="typescript" ?>
+export interface GrepOuterInput { pattern: string; path?: string; include?: string; }
+export type GrepOuterOutput = string;
+export type grep = (input: GrepOuterInput) => GrepOuterOutput;
+</?>

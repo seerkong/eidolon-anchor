@@ -1,0 +1,8 @@
+{
+  "track_id": "refactor-platform-kernel-wave6-vm-platform-ai-facet-split",
+  "type": "refactor",
+  "status": "completed",
+  "created_at": "2026-04-11T10:05:00Z",
+  "updated_at": "2026-04-11T10:52:00Z",
+  "description": "将 AiAgentVm 拆为 platform facet 与 AI facet，并建立兼容迁移入口。"
+}

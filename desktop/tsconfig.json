@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "target": "ES2021",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "types": ["bun-types"],
+    "outDir": "dist"
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/scripts/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

@@ -20,6 +20,7 @@ import {
   resolveProjectWorkDir,
 } from "../../../../platform-support/src/index"
 import { AgentRegistry, SkillRegistry, ToolFuncRegistry } from "@cell/ai-core-logic"
+import { loadAgentsFromDir } from "../../../../ai-support/src/agent/LocalFileAgentLoader"
 import { applyModPlatformKernel } from "../../../../mod-platform-kernel/src/index"
 import {
   aiCodingRuntimeProfile,
@@ -139,7 +140,7 @@ describe("runtime profile composer", () => {
     expect(dataAssembly.policies["data-overlayOwner"]).toBe("data-overlay")
   })
 
-  it("seeds the ai-coding agent and runtime assembly when no agents are configured", () => {
+  it("seeds built-in ai-coding delegate agents and runtime assembly when no agents are configured", () => {
     const assembly = assembleAiCodingRuntimeProfile({
       workDir: "/tmp/codex-workdir",
       skillsDescription: "- skill-a: does something useful",
@@ -148,12 +149,21 @@ describe("runtime profile composer", () => {
     })
 
     expect(assembly.profileId).toBe("ai-coding")
-    expect(Object.keys(assembly.agentConfigs)).toEqual(["code"])
-    expect(assembly.agentConfigs.code?.description).toBe("Default code agent")
-    expect(assembly.systemPrompt).toContain("You are a coding agent at /tmp/codex-workdir.")
-    expect(assembly.systemPrompt).toContain("`assign`, `assign:r`, `assign:n`, `assign:s`")
+    expect(Object.keys(assembly.agentConfigs)).toEqual(["code", "explorer", "librarian", "oracle", "designer", "fixer"])
+    expect(assembly.agentConfigs.code?.description).toBe("默认编码执行 agent，用于通用的委派 coding 工作。")
+    expect(assembly.agentConfigs.explorer?.prompt.join("\n")).toContain("只读，不做代码修改")
+    expect(assembly.agentConfigs.librarian?.prompt.join("\n")).toContain("不依赖固定 MCP 名称")
+    expect(assembly.agentConfigs.fixer?.prompt.join("\n")).toContain("诊断类工具/MCP")
+    expect(assembly.systemPrompt).toContain("你是位于 /tmp/codex-workdir 的 coding agent。")
+    expect(assembly.systemPrompt).toContain("可以通过 RunDelegateActor 工具使用内置和用户配置的 delegate agent")
+    expect(assembly.systemPrompt).toContain("- explorer: 只读代码库发现")
+    expect(assembly.systemPrompt).toContain("`assign`、`assign:r`、`assign:n`、`assign:s`")
+    expect(assembly.systemPrompt).toContain("MCP 工具调用没有默认的单次超时")
+    expect(assembly.systemPrompt).toContain('`_eidolon: { "timeoutMs": <milliseconds> }`')
+    expect(assembly.systemPrompt).toContain("300000ms")
     expect(assembly.systemPrompt).toContain("- reviewer: reviews code")
-    expect(assembly.slashCommandSurfaces).toEqual(["/actor", "/member", "/holon"])
+    expect(assembly.systemPrompt).toContain("诊断类工具/MCP")
+    expect(assembly.slashCommandSurfaces).toEqual(["/goal", "/actor", "/member", "/holon"])
     expect(assembly.slashCommands.find((command) => command.namespace === "member")?.actions.list?.toolName).toBe("MemberList")
     expect(assembly.capabilityIds).toEqual(["mod-platform-kernel", "mod-ai-kernel", "mod-ai-coding"])
     expect(assembly.policies.runtimeBootstrapOwner).toBe("mod-ai-kernel")
@@ -164,9 +174,14 @@ describe("runtime profile composer", () => {
     const defaultDelegateTool = assembly.allTools.find((tool) => tool.function.name === "RunDelegateActor")
     const defaultAgentTypeSchema = JSON.stringify(defaultDelegateTool?.function.parameters.properties.agent_type ?? {})
     expect(defaultAgentTypeSchema).toContain("\"code\"")
+    expect(defaultAgentTypeSchema).toContain("\"explorer\"")
+    expect(defaultAgentTypeSchema).toContain("\"librarian\"")
+    expect(defaultAgentTypeSchema).toContain("\"oracle\"")
+    expect(defaultAgentTypeSchema).toContain("\"designer\"")
+    expect(defaultAgentTypeSchema).toContain("\"fixer\"")
 
     const registries = assembly.createRegistries()
-    expect(AgentRegistry.keys(registries.agentRegistry)).toEqual(["code"])
+    expect(AgentRegistry.keys(registries.agentRegistry)).toEqual(["code", "explorer", "librarian", "oracle", "designer", "fixer"])
     expect(ToolFuncRegistry.get(registries.toolRegistry, "ActorAssign")).toBeTruthy()
 
     const toolset = assembly.buildToolset({
@@ -177,7 +192,27 @@ describe("runtime profile composer", () => {
     expect(toolset.some((tool) => tool.function.name === "Skill")).toBe(true)
   })
 
-  it("preserves explicitly loaded agents instead of injecting the ai-coding fallback", () => {
+  it("appends workspace AGENTS.md instructions to the ai-coding system prompt", () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-profile-agents-md-"))
+    fs.writeFileSync(path.join(workDir, "AGENTS.md"), "workspace-only instructions\n", "utf-8")
+
+    try {
+      const assembly = assembleAiCodingRuntimeProfile({
+        workDir,
+        skillsDescription: "",
+        loadedAgents: {},
+        delegateAgentDescriptions: "",
+      })
+
+      expect(assembly.systemPrompt).toContain(`你是位于 ${workDir} 的 coding agent。`)
+      expect(assembly.systemPrompt).toEndWith("AGENTS.md (workspace):\nworkspace-only instructions")
+      expect(assembly.systemPrompt).not.toContain("AGENTS.md (home)")
+    } finally {
+      fs.rmSync(workDir, { recursive: true, force: true })
+    }
+  })
+
+  it("merges explicitly loaded agents with built-in ai-coding delegates", () => {
     const loadedAgents = {
       reviewer: {
         name: "reviewer",
@@ -194,14 +229,60 @@ describe("runtime profile composer", () => {
       delegateAgentDescriptions: "- reviewer: reviews code",
     })
 
-    expect(assembly.agentConfigs).toEqual(loadedAgents)
-    expect(AgentRegistry.keys(assembly.createRegistries().agentRegistry)).toEqual(["reviewer"])
+    expect(assembly.agentConfigs.reviewer).toEqual(loadedAgents.reviewer)
+    expect(assembly.agentConfigs.explorer?.description).toContain("只读代码库发现")
+    expect(AgentRegistry.keys(assembly.createRegistries().agentRegistry)).toEqual([
+      "code",
+      "explorer",
+      "librarian",
+      "oracle",
+      "designer",
+      "fixer",
+      "reviewer",
+    ])
 
     const delegateTool = assembly.allTools.find((tool) => tool.function.name === "RunDelegateActor")
     const agentTypeSchema = JSON.stringify(delegateTool?.function.parameters.properties.agent_type ?? {})
 
     expect(agentTypeSchema).toContain("reviewer")
-    expect(agentTypeSchema).not.toContain("\"code\"")
+    expect(agentTypeSchema).toContain("\"code\"")
+    expect(agentTypeSchema).toContain("\"explorer\"")
+  })
+
+  it("loads workspace agents from AGENT.md folder definitions", () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "runtime-profile-agent-md-"))
+    const agentDir = path.join(workDir, ".eidolon", "agents", "reviewer")
+    fs.mkdirSync(agentDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(agentDir, "AGENT.md"),
+      [
+        "---",
+        "name: reviewer",
+        "type: subagent",
+        "description: 代码审查 agent。",
+        "identity_asset: IDENTITY.md",
+        "routing_asset: ROUTING.md",
+        "tools:",
+        "  - read",
+        "  - grep",
+        "---",
+        "你是 Reviewer，负责审查风险。",
+      ].join("\n"),
+      "utf-8",
+    )
+    fs.writeFileSync(path.join(agentDir, "IDENTITY.md"), "保持只读，输出问题优先。", "utf-8")
+    fs.writeFileSync(path.join(agentDir, "ROUTING.md"), "适合代码审查和风险排序。", "utf-8")
+
+    try {
+      const agents = loadAgentsFromDir(path.join(workDir, ".eidolon", "agents"))
+
+      expect(agents.reviewer?.description).toBe("代码审查 agent。")
+      expect(agents.reviewer?.tools).toEqual(["read", "grep"])
+      expect(agents.reviewer?.prompt.join("\n")).toContain("保持只读")
+      expect(agents.reviewer?.prompt.join("\n")).toContain("风险排序")
+    } finally {
+      fs.rmSync(workDir, { recursive: true, force: true })
+    }
   })
 
   it("wires the support-backed skill loader into the ai-coding runtime registries", () => {

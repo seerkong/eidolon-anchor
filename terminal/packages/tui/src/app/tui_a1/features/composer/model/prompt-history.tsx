@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import path from "path"
 import { Global } from "../../../../../support/global"
 import { onMount } from "solid-js"
@@ -11,7 +12,7 @@ export type { PromptInfo } from "./prompt-info"
 
 const MAX_HISTORY_ENTRIES = 50
 
-type PromptHistoryState = {
+export type PromptHistoryState = {
   index: number
   history: PromptInfo[]
   draft?: PromptInfo

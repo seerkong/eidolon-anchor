@@ -79,7 +79,7 @@ describe("acceptance: llm config and compression", () => {
     cleanupDirs.push(homeDir);
     setTestHome(homeDir);
 
-    writeJson(path.join(homeDir, ".eidolon", "llm-provider-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
           name: "openai",
@@ -89,7 +89,7 @@ describe("acceptance: llm config and compression", () => {
         },
       ],
     });
-    writeJson(path.join(homeDir, ".eidolon", "llm-present-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
       default_preset: "default",
       presets: {
         default: {

@@ -5,7 +5,7 @@
 ## 目标
 
 - 将 AI runtime 相关 package topology 重构为 `ai-core-*` / `ai-organ-*` / `ai-support` / `ai-composer` / `membrane` 的明确分层。
-- 让 `ai-composer` 对齐参考项目 `sparrow_composer` 的职责，而不是继续把 composer ownership 下沉到 `ai-core-logic`。
+- 让 `ai-composer` 职责就应当是 `composer`，而不是继续把 composer ownership 下沉到 `ai-core-logic`。
 - 让 `membrane` 成为 `ai-composer` 之上的更高层 facade 聚合面。
 - 让 terminal 按职责消费合适层级的 facade，而不是被错误限制为单一路径，也不继续无边界直接引用内部实现。
 
@@ -20,7 +20,7 @@
 
 ### 3. AI-specific organ ownership 尚未分离
 - 当前 `organ-contract` / `organ-logic` 同时承载 AI-specific orchestration / organization / coordination / permission / recovery 等能力。
-- 参考架构要求引入与 `sparrow_organ_data` / `sparrow_organ_logic` 对齐的专属 organ ownership。
+- 要求引入内核层之上的器官层 organ ownership。
 - 即使已经引入 `ai-organ-*`，当前旧 `organ-*` 仍保留一部分真实源码，导致“新包负责 ownership、旧包仍是实现宿主”的双真相状态没有真正结束。
 
 ### 4. membrane 还不是正式的高层 facade 宿主
@@ -78,13 +78,11 @@
 ### 决策 1：`ai-composer` 负责 composer ownership，`ai-core-logic` 只负责 core glue
 
 理由：
-- 这和参考项目 `sparrow_composer` 的职责对应。
 - 如果把 composition contract 继续下沉到 `ai-core-logic`，会重新制造 logic 包承载组合面的问题。
 
 ### 决策 2：新增 `ai-organ-*`，而不是继续在历史 `organ-*` 上增量堆叠
 
 理由：
-- 用户明确要求与 `sparrow_organ_data` / `sparrow_organ_logic` 的职责对齐。
 - 仅在旧 `organ-*` 中继续增量堆叠，会让 AI-specific ownership 长期模糊不清。
 
 补充约束：

@@ -34,6 +34,17 @@ describe("provider retry classification", () => {
     expect(invalidModel.classificationReason).toBe("provider_error_non_retryable");
   });
 
+  it("classifies OpenAI-compatible upstream 500 do_request_failed errors as retryable", () => {
+    const classification = classifyProviderRetry(
+      new Error(
+        "OpenAI fetch error 500: {\"error\":{\"message\":\"upstream error: do request failed\",\"type\":\"new_api_error\",\"code\":\"do_request_failed\"}}",
+      ),
+    );
+
+    expect(classification.retryable).toBe(true);
+    expect(classification.classificationReason).toBe("http_500_retryable");
+  });
+
   it("classifies first-event timeout as safe stream recovery with a narrow policy", () => {
     const classification = classifyProviderRetry(new Error("first event exceeded timeout after 5s"));
     const policy = resolveProviderRetryPolicy(classification.classificationReason);

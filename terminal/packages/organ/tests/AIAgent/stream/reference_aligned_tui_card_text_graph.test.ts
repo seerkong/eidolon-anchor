@@ -78,6 +78,31 @@ describe("reference aligned tui card/text graphs", () => {
     expect(snapshot!.text).toContain("[ASSISTANT]\n[quote:thinking]");
     expect(snapshot!.text).toContain("Planned tool call: queryOrder [query_order_xxx]");
   });
+
+  test("card and text projections cap retained in-memory state", () => {
+    const cardGraph = new TuiCardGraph();
+    const textGraph = new TuiTextGraph();
+
+    for (let index = 0; index < 1_100; index += 1) {
+      cardGraph.consumeSemanticEvent({
+        event_type: "semantic_notice",
+        actor: { actor_id: "primary", actor_name: "Primary", actor_kind: "primary" },
+        message: `notice ${index}`,
+        level: "info",
+      } as SemanticEvent);
+    }
+    expect(cardGraph.getEvents()).toHaveLength(1_000);
+    expect((cardGraph.getEvents()[0]?.event as any).message).toBe("notice 100");
+
+    textGraph.consumeSemanticEvent({
+      event_type: "semantic_content_delta",
+      actor: { actor_id: "primary", actor_name: "Primary", actor_kind: "primary" },
+      text: "x".repeat(220_000),
+    } as SemanticEvent);
+    const snapshot = textGraph.getSnapshot("primary");
+    expect(snapshot?.text.length).toBeLessThanOrEqual(200_000);
+    expect(snapshot?.text.startsWith("[older output trimmed]")).toBe(true);
+  });
 });
 
 async function loadScenarioSemanticEvents(scenario: string): Promise<SemanticEvent[]> {

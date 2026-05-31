@@ -3,6 +3,9 @@ import type { AiRuntimeOuterCtx } from "./AiRuntimeOuterCtx";
 import type { McpManagerLike } from "./McpManagerLike";
 import type { AiRuntimeRegistries } from "./RuntimeRegistries";
 import type { ObservabilityRecord } from "./Observability";
+import type { ActorSurfaceRuntimeStateData } from "./ActorSurface";
+import type { DurableControlSignalData, DurableControlSignalStore } from "./DurableControlSignal";
+import type { HeartbeatSchedulerRuntimeState } from "./Heartbeat";
 import type { SemanticEvent } from "../stream/semantic";
 import type { UsageData } from "../stream/common";
 
@@ -131,10 +134,48 @@ export type VmDetachedActorRecord = {
   error?: string;
 };
 
+export type VmThreadGoalStatus =
+  | "active"
+  | "paused"
+  | "blocked"
+  | "usage_limited"
+  | "budget_limited"
+  | "complete";
+
+export type VmThreadGoalRecord = {
+  goalId: string;
+  objective: string;
+  status: VmThreadGoalStatus;
+  tokenBudget?: number;
+  tokensUsed: number;
+  timeUsedSeconds: number;
+  createdAt: number;
+  updatedAt: number;
+  completionAudit?: string;
+  blockedReason?: string;
+  blockedTurnCount?: number;
+  blockedLastTurnKey?: number;
+  lastContinuationAt?: number;
+};
+
 export type VmSessionState = {
   memberRoster: Record<string, VmMemberRosterEntry>;
   holons: Record<string, VmHolonRecord>;
   detachedActors: Record<string, VmDetachedActorRecord>;
+  actorSurface: ActorSurfaceRuntimeStateData;
+  controlSignals: DurableControlSignalStore;
+  threadGoal: VmThreadGoalRecord | null;
+};
+
+export type VmThreadGoalRuntimeState = {
+  activeGoalId?: string;
+  turnSequence?: number;
+  turnStartedAt?: number;
+  lastAccountedAt?: number;
+  lastAccountedTokens?: number;
+  continuationTurns: number;
+  continuationInFlight: boolean;
+  lastContinuationAt?: number;
 };
 
 export type VmDeferredResume = {
@@ -153,6 +194,8 @@ export type VmRuntimeContext = {
   deferredMemberResumes: VmDeferredResume[];
   interactiveTurnActive: boolean;
   conversationDomainRuntime: unknown | null;
+  heartbeatScheduler: HeartbeatSchedulerRuntimeState | null;
+  threadGoalRuntime: VmThreadGoalRuntimeState;
   autonomousHolonTaskSignals: CompletionSignalRegistryLike<string, { status: string; resultText: string | null }>;
   leaderLedHolonRouteSignals: CompletionSignalRegistryLike<string, { resultText: string | null }>;
 };
@@ -202,6 +245,20 @@ export type AiAgentVmTraceSummaryData = {
   lastEventAt: number | null;
 };
 
+export type AiAgentVmControlSignalStreamEvent = DurableControlSignalData & {
+  delivery?: "emitted" | "recovered" | "ignored";
+};
+
+export type AiAgentVmSchedulerSignalData = {
+  readyFiberIds: string[];
+  runningFiberIds: string[];
+  suspendedFiberIds: string[];
+  blockedFiberIds: string[];
+  pendingResumeFiberIds: string[];
+  interruptedFiberIds: string[];
+  updatedAt: number | null;
+};
+
 export type AiAgentVmRxBinding = {
   dispose: () => void;
 };
@@ -213,8 +270,10 @@ export type AiAgentVmPublicRxData = {
   sessionDomainStream: AiAgentVmRxStream<AiAgentVmDomainRxEvent>;
   observabilityRecords: AiAgentVmRxStream<ObservabilityRecord>;
   observabilityErrors: AiAgentVmRxStream<ObservabilityRecord>;
+  controlSignals: AiAgentVmRxStream<AiAgentVmControlSignalStreamEvent>;
   usage: AiAgentVmReadonlyRxSignal<AiAgentVmUsageData>;
   traceSummary: AiAgentVmReadonlyRxSignal<AiAgentVmTraceSummaryData>;
+  scheduler: AiAgentVmReadonlyRxSignal<AiAgentVmSchedulerSignalData>;
 };
 
 export type AiAgentVmPrivateRxData = {
@@ -224,8 +283,10 @@ export type AiAgentVmPrivateRxData = {
   sessionDomainStream: AiAgentVmWritableRxStream<AiAgentVmDomainRxEvent>;
   observabilityRecords: AiAgentVmWritableRxStream<ObservabilityRecord>;
   observabilityErrors: AiAgentVmWritableRxStream<ObservabilityRecord>;
+  controlSignals: AiAgentVmWritableRxStream<AiAgentVmControlSignalStreamEvent>;
   usage: AiAgentVmWritableRxSignal<AiAgentVmUsageData>;
   traceSummary: AiAgentVmWritableRxSignal<AiAgentVmTraceSummaryData>;
+  scheduler: AiAgentVmWritableRxSignal<AiAgentVmSchedulerSignalData>;
 };
 
 export type AiHolonRuntime = {

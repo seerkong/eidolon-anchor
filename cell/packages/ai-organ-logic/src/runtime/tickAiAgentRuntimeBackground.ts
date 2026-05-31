@@ -1,5 +1,6 @@
 import { ensureVmRuntimeContext, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
 import type { AiAgentOrchestratorDriver } from "../OrchestratorDriver";
+import { maybeStartThreadGoalContinuation } from "../goals/ThreadGoalRuntime";
 
 export async function tickAiAgentRuntimeBackground(params: {
   vm: AiAgentVm;
@@ -10,7 +11,13 @@ export async function tickAiAgentRuntimeBackground(params: {
 }): Promise<void> {
   ensureVmRuntimeContext(params.vm);
 
-  await params.driver.tickUntilBlocked({
+  maybeStartThreadGoalContinuation({
+    vm: params.vm,
+    driver: params.driver,
+    now: params.now,
+  });
+
+  await params.driver.tickUntilBackgroundSettled({
     now: params.now,
     maxTicks: params.maxTicks ?? 20,
     maxWallMs: params.maxWallMs ?? 50,

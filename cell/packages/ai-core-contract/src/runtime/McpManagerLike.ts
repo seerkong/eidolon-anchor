@@ -9,5 +9,5 @@ export type McpToolSchemaLike = {
 
 export type McpManagerLike = {
   getOpenaiTools: () => McpToolSchemaLike[];
-  callTool: (name: string, args: unknown) => Promise<string> | string;
+  callTool: (name: string, args: unknown, options?: { timeoutMs?: number }) => Promise<string> | string;
 };

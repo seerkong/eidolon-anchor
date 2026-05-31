@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { createMemo, createSignal, type Component, For, Match, Show, Switch } from "solid-js"
 import path from "path"
 import { Locale } from "../../../../../support/util/locale"

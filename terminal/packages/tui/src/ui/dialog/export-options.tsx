@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { TextareaRenderable, TextAttributes } from "@opentui/core"
 import { useTheme } from "../../providers/theme"
 import { DialogHeader, useDialog, type DialogContext } from "./context"

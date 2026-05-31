@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 // Message List is a dense operational surface for the active in-memory timeline.
 // Keep row height stable and actions explicit so users can quickly fork or revert
 // from a specific message without scanning the full transcript.

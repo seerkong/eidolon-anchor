@@ -6,6 +6,9 @@ import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   ensureVmRuntimeContext,
   ensureVmSessionState,
+  ensureVmRxData,
+  getPendingDurableControlSignals,
+  markDurableControlSignalConsumed,
   getControlActor,
   hydrateActor,
   hydrateVM,
@@ -103,6 +106,384 @@ type OrchestratorStateLike = {
   fibers: Record<string, any>
   deadLetters: any[]
   sequence: number
+}
+
+const COOPERATIVE_EXEC_STATE_METADATA_KEY = "cooperativeExecState"
+
+function cloneJsonValue<T>(value: T): T | undefined {
+  if (value === undefined) return undefined
+  try {
+    return JSON.parse(JSON.stringify(value)) as T
+  } catch {
+    return undefined
+  }
+}
+
+function asArray(value: unknown): any[] {
+  return Array.isArray(value) ? value : []
+}
+
+function asNonNegativeInteger(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback
+}
+
+function parseOpSequence(opId: string): number {
+  const parts = opId.split(":")
+  const raw = parts[parts.length - 1]
+  const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0
+}
+
+function normalizeCooperativeInflight(value: unknown): any | undefined {
+  if (!value || typeof value !== "object") return undefined
+  const raw = value as Record<string, unknown>
+  const kind = typeof raw.kind === "string" ? raw.kind : ""
+  const opId = typeof raw.opId === "string" ? raw.opId : ""
+  if (!kind || !opId) return undefined
+  if (kind === "compress") return { kind, opId }
+  if (kind === "llm") {
+    return {
+      kind,
+      opId,
+      turn: asNonNegativeInteger(raw.turn, 0),
+      tools: cloneJsonValue(asArray(raw.tools)) ?? [],
+    }
+  }
+  if (kind === "tool") {
+    return {
+      kind,
+      opId,
+      funcName: typeof raw.funcName === "string" ? raw.funcName : "",
+      toolCallId: typeof raw.toolCallId === "string" ? raw.toolCallId : "",
+      args: cloneJsonValue(raw.args) ?? {},
+    }
+  }
+  if (kind === "questionnaire_parse") {
+    return {
+      kind,
+      opId,
+      questionnaireId: typeof raw.questionnaireId === "string" ? raw.questionnaireId : "",
+      toolCallId: typeof raw.toolCallId === "string" ? raw.toolCallId : "",
+      rawText: typeof raw.rawText === "string" ? raw.rawText : "",
+    }
+  }
+  return undefined
+}
+
+function normalizeCooperativeExecState(value: unknown): any | null {
+  if (!value || typeof value !== "object") return null
+  const raw = value as Record<string, unknown>
+  const phase = typeof raw.phase === "string" ? raw.phase : ""
+  if (!["drain", "compress", "start_llm", "wait_llm", "start_tool", "wait_tool", "wait_questionnaire_parse"].includes(phase)) {
+    return null
+  }
+  return {
+    phase,
+    turn: asNonNegativeInteger(raw.turn, 0),
+    tools: cloneJsonValue(asArray(raw.tools)) ?? [],
+    toolCalls: cloneJsonValue(asArray(raw.toolCalls)) ?? [],
+    toolIndex: asNonNegativeInteger(raw.toolIndex, 0),
+    nextOpSeq: Math.max(1, asNonNegativeInteger(raw.nextOpSeq, 1)),
+    pendingToolResults: cloneJsonValue(asArray(raw.pendingToolResults)) ?? [],
+    pendingAiGenerated: cloneJsonValue(asArray(raw.pendingAiGenerated)) ?? [],
+    inflight: normalizeCooperativeInflight(raw.inflight),
+    messageHistoryAttached: false,
+    messageHistoryDetach: undefined,
+  }
+}
+
+function serializeCooperativeExecState(value: unknown): any | null {
+  return normalizeCooperativeExecState(value)
+}
+
+function readPersistedCooperativeExecState(fiberSnapshot: RuntimeSnapshotFiber): any | null {
+  return normalizeCooperativeExecState(fiberSnapshot.metadata?.[COOPERATIVE_EXEC_STATE_METADATA_KEY])
+}
+
+function hasPendingAiGeneratedForInflight(actor: AiAgentActor, execState: any | null): boolean {
+  const opId = typeof execState?.inflight?.opId === "string" ? execState.inflight.opId : ""
+  if (!opId) return false
+  if (Array.isArray(execState?.pendingAiGenerated) && execState.pendingAiGenerated.some((entry: any) => entry?.opId === opId)) {
+    return true
+  }
+  const mailbox = actor.peekMailbox("aiGenerated") as any[]
+  return mailbox.some((entry: any) => entry?.opId === opId)
+}
+
+function recoverInterruptedCooperativeInflight(actor: AiAgentActor, execState: any | null): any | null {
+  if (!execState?.inflight || hasPendingAiGeneratedForInflight(actor, execState)) return execState
+  const inflight = execState.inflight
+
+  if (inflight.kind === "tool") {
+    const outputText = `Error: interrupted tool call '${inflight.funcName || "tool"}' did not produce a result before session recovery`
+    return {
+      ...execState,
+      pendingAiGenerated: [
+        ...(Array.isArray(execState.pendingAiGenerated) ? execState.pendingAiGenerated : []),
+        {
+          kind: "tool_done",
+          opId: inflight.opId,
+          funcName: inflight.funcName ?? "",
+          toolCallId: inflight.toolCallId ?? "",
+          args: cloneJsonValue(inflight.args) ?? {},
+          output: outputText,
+          outputText,
+        },
+      ],
+    }
+  }
+
+  if (inflight.kind === "llm") {
+    return { ...execState, phase: "start_llm", inflight: undefined }
+  }
+
+  if (inflight.kind === "compress") {
+    return { ...execState, phase: "compress", inflight: undefined }
+  }
+
+  if (inflight.kind === "questionnaire_parse") {
+    return {
+      ...execState,
+      phase: "drain",
+      inflight: undefined,
+      pendingToolResults: [
+        {
+          toolCallId: inflight.toolCallId ?? "",
+          questionnaireId: inflight.questionnaireId ?? "",
+          content: inflight.rawText ?? "",
+        },
+        ...(Array.isArray(execState.pendingToolResults) ? execState.pendingToolResults : []),
+      ],
+    }
+  }
+
+  return execState
+}
+
+function findLastAssistantToolCalls(actor: AiAgentActor): any[] {
+  for (let i = actor.messages.length - 1; i >= 0; i--) {
+    const message = actor.messages[i] as any
+    if (message?.role !== "assistant") continue
+    const toolCalls = message.tool_calls ?? message.toolCalls
+    return Array.isArray(toolCalls) ? cloneJsonValue(toolCalls) ?? [] : []
+  }
+  return []
+}
+
+function inferCooperativeExecStateFromPendingAiGenerated(actor: AiAgentActor): any | null {
+  const pending = actor.peekMailbox("aiGenerated") as any[]
+  const event = pending.find((entry) => entry && typeof entry === "object" && typeof entry.kind === "string")
+  if (!event) return null
+  const opId = typeof event.opId === "string" ? event.opId : ""
+  if (!opId) return null
+  const nextOpSeq = Math.max(1, parseOpSequence(opId) + 1)
+  const base = {
+    turn: 0,
+    tools: [],
+    toolCalls: [] as any[],
+    toolIndex: 0,
+    nextOpSeq,
+    pendingToolResults: [],
+    pendingAiGenerated: [],
+    messageHistoryAttached: false,
+    messageHistoryDetach: undefined,
+  }
+
+  if (event.kind === "tool_done") {
+    const toolCalls = findLastAssistantToolCalls(actor)
+    const toolCallId = String(event.toolCallId ?? "")
+    const toolIndex = Math.max(0, toolCalls.findIndex((toolCall) => String(toolCall?.id ?? "") === toolCallId))
+    return {
+      ...base,
+      phase: "wait_tool",
+      toolCalls,
+      toolIndex,
+      inflight: {
+        kind: "tool",
+        opId,
+        funcName: String(event.funcName ?? ""),
+        toolCallId,
+        args: cloneJsonValue(event.args) ?? {},
+      },
+    }
+  }
+
+  if (event.kind === "llm_done") {
+    return {
+      ...base,
+      phase: "wait_llm",
+      inflight: { kind: "llm", opId, turn: 0, tools: [] },
+    }
+  }
+
+  if (event.kind === "compress_done") {
+    return {
+      ...base,
+      phase: "compress",
+      inflight: { kind: "compress", opId },
+    }
+  }
+
+  if (event.kind === "questionnaire_parsed") {
+    return {
+      ...base,
+      phase: "wait_questionnaire_parse",
+      inflight: {
+        kind: "questionnaire_parse",
+        opId,
+        questionnaireId: String(event.questionnaireId ?? ""),
+        toolCallId: String(event.toolCallId ?? ""),
+        rawText: String(event.rawText ?? ""),
+      },
+    }
+  }
+
+  return null
+}
+
+function hasRecoveredMailboxWork(actor: AiAgentActor, execState: any | null): boolean {
+  return actor.hasPending("aiGenerated")
+    || actor.hasPending("control")
+    || actor.hasPending("childDone")
+    || actor.hasPending("coordination")
+    || actor.hasPending("memberInbox")
+    || actor.hasPending("heartbeatWake")
+    || actor.hasPending("humanInput")
+    || actor.hasPending("toolResult")
+    || (Array.isArray(execState?.pendingAiGenerated) && execState.pendingAiGenerated.length > 0)
+    || (Array.isArray(execState?.pendingToolResults) && execState.pendingToolResults.length > 0)
+    || execState?.phase === "start_llm"
+    || execState?.phase === "compress"
+}
+
+function isRecoverabilityCheckedWaitReason(waitingReason: unknown): boolean {
+  return waitingReason === "external"
+    || waitingReason === "idle_external"
+    || waitingReason === "wait_llm_result"
+    || waitingReason === "wait_tool_result"
+    || waitingReason === "wait_compress_result"
+    || waitingReason === "wait_questionnaire_parse"
+    || waitingReason === null
+    || waitingReason === undefined
+}
+
+function hasRecoverableDurableControlSignal(params: {
+  vm: AiAgentVm
+  fiberSnapshot: RuntimeSnapshotFiber
+}): boolean {
+  const actorKey = params.fiberSnapshot.actorKey
+  if (!actorKey) return false
+  const pending = getPendingDurableControlSignals(params.vm.sessionState.controlSignals, {
+    actorKey,
+    fiberId: params.fiberSnapshot.fiberId,
+  })
+  return pending.some((signal) => signal.signalClass === "wake" || signal.signalClass === "interrupt")
+}
+
+function hasRecoverableProtocolWait(actor: AiAgentActor | undefined, fiberSnapshot: RuntimeSnapshotFiber): boolean {
+  if (!actor) return false
+  const workloadKind = readPersistedWorkloadKind(fiberSnapshot)
+  if (
+    workloadKind === "member_turn"
+    || workloadKind === "autonomous_holon_task"
+    || workloadKind === "detached_delegate_task"
+    || workloadKind === "detached_bash_task"
+    || workloadKind === "detached_toolcall_task"
+  ) {
+    return true
+  }
+
+  if (actor.planApproval?.status === "pending" || actor.shutdownCoordination?.status === "pending") {
+    return true
+  }
+
+  if (actor.detachedTask && !isTerminalFiberStatus(actor.detachedTask.status)) {
+    return true
+  }
+
+  return false
+}
+
+function hasRecoverableSessionProtocolState(vm: AiAgentVm, fiberSnapshot: RuntimeSnapshotFiber): boolean {
+  if (fiberSnapshot.actorKey !== vm.controlActorKey) return false
+  const sessionState = ensureVmSessionState(vm)
+  return Object.keys(sessionState.memberRoster).length > 0
+    || Object.keys(sessionState.holons).length > 0
+    || Object.keys(sessionState.detachedActors).length > 0
+    || getCoordinationEngine().list(vm).some((record) => record.status === "pending")
+}
+
+function mailboxContainsPayload(actor: AiAgentActor, mailboxKind: keyof AiAgentActor["mailboxes"], payload: unknown): boolean {
+  const entries = actor.peekMailbox(mailboxKind as any) as unknown[]
+  return entries.some((entry) => {
+    if (entry === payload) return true
+    try {
+      return JSON.stringify(entry) === JSON.stringify(payload)
+    } catch {
+      return false
+    }
+  })
+}
+
+function redeliverPendingDurableControlSignalsOnRecovery(params: {
+  vm: AiAgentVm
+  restoredFibers: Array<{ fiberId: string; actor: AiAgentActor }>
+  now: number
+}): Set<string> {
+  const restoredFiberIds = new Set(params.restoredFibers.map((fiber) => fiber.fiberId))
+  const schedulableFiberIds = new Set<string>()
+  const pending = getPendingDurableControlSignals(params.vm.sessionState.controlSignals)
+  if (!pending.length) return schedulableFiberIds
+
+  const { privateRxData } = ensureVmRxData(params.vm)
+  for (const signal of pending) {
+    const actor = params.vm.actors[signal.actorKey]
+    if (!actor) continue
+    if (signal.fiberId && !restoredFiberIds.has(signal.fiberId)) continue
+
+    if (signal.mailboxKind && signal.payload !== undefined && !mailboxContainsPayload(actor, signal.mailboxKind, signal.payload)) {
+      actor.send(signal.mailboxKind as any, signal.payload as any)
+    }
+    markDurableControlSignalConsumed(params.vm.sessionState.controlSignals, signal.eventId)
+    privateRxData.controlSignals.append({
+      ...signal,
+      delivery: "recovered",
+    })
+
+    if (signal.fiberId && (signal.signalClass === "wake" || signal.signalClass === "interrupt")) {
+      schedulableFiberIds.add(signal.fiberId)
+    }
+  }
+
+  return schedulableFiberIds
+}
+
+function assertRecoverableSuspendedFiberSnapshots(params: {
+  vm: AiAgentVm
+  fibers: Record<string, RuntimeSnapshotFiber>
+}): void {
+  for (const fiberSnapshot of Object.values(params.fibers)) {
+    if (fiberSnapshot.status !== "suspended") continue
+    const waitingReason = fiberSnapshot.waitingReason ?? fiberSnapshot.metadata?.waitingReason
+    if (!isRecoverabilityCheckedWaitReason(waitingReason)) continue
+
+    const actor = fiberSnapshot.actorKey ? params.vm.actors[fiberSnapshot.actorKey] : undefined
+    const execState = readPersistedCooperativeExecState(fiberSnapshot)
+    if (hasRecoverableProtocolWait(actor, fiberSnapshot)) continue
+    if (hasRecoverableSessionProtocolState(params.vm, fiberSnapshot)) continue
+    if (actor && hasRecoveredMailboxWork(actor, execState)) continue
+    if (hasRecoverableDurableControlSignal({ vm: params.vm, fiberSnapshot })) continue
+
+    throw new Error(
+      [
+        "unrecoverable_suspended_fiber",
+        `fiberId=${fiberSnapshot.fiberId}`,
+        `actorKey=${fiberSnapshot.actorKey ?? ""}`,
+        `waitingReason=${String(waitingReason ?? "")}`,
+        "missing recoverable mailbox work, cooperative exec state, or durable control signal",
+      ].join(": "),
+    )
+  }
 }
 
 export type RuntimePersistenceSupport = {
@@ -402,6 +783,7 @@ function toPersistedFiberSnapshot(params: {
       timeoutAt: params.stateRecord?.timeoutAt ?? null,
       retryAt: params.stateRecord?.retryAt ?? null,
       completionBinding: params.completionBinding ?? null,
+      [COOPERATIVE_EXEC_STATE_METADATA_KEY]: serializeCooperativeExecState(params.ctx.execState),
       resumeMetadata: {
         kind: "safe_boundary",
         value: "after_mailbox_drain",
@@ -503,6 +885,10 @@ export async function saveAiAgentRuntimeSnapshot(params: {
       ]
     }),
   )
+  assertRecoverableSuspendedFiberSnapshots({
+    vm: params.vm,
+    fibers: fiberSnapshots,
+  })
 
   const vmSnapshot = serializeVM(params.vm)
 
@@ -653,6 +1039,10 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     .map((fiberSnapshot) => {
       const actor = fiberSnapshot.actorKey ? actors[fiberSnapshot.actorKey] : undefined
       if (!actor) return null
+      const execState = recoverInterruptedCooperativeInflight(actor,
+        readPersistedCooperativeExecState(fiberSnapshot)
+          ?? inferCooperativeExecStateFromPendingAiGenerated(actor),
+      )
       return {
         fiberId: fiberSnapshot.fiberId,
         vm,
@@ -661,6 +1051,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
         basePriority: typeof fiberSnapshot.metadata?.basePriority === "number" ? (fiberSnapshot.metadata.basePriority as number) : 1,
         lane: normalizeAiAgentLane(fiberSnapshot.lane) ?? undefined,
         workload: readPersistedWorkloadKind(fiberSnapshot),
+        execState: execState ?? undefined,
       }
     })
     .filter(Boolean) as Array<{
@@ -671,7 +1062,14 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     basePriority: number
     lane?: AiAgentLane
     workload?: AiAgentWorkload
+    execState?: any
   }>
+
+  const recoveredControlSignalFiberIds = redeliverPendingDurableControlSignalsOnRecovery({
+    vm,
+    restoredFibers,
+    now,
+  })
 
   const restoredState = {
     options: {
@@ -694,6 +1092,26 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
   } as OrchestratorStateLike
 
   const restoredFibersMap = restoredState.fibers as Record<string, any>
+  for (const fiber of restoredFibers) {
+    const record = restoredFibersMap[fiber.fiberId]
+    if (!record || (!hasRecoveredMailboxWork(fiber.actor, fiber.execState ?? null) && !recoveredControlSignalFiberIds.has(fiber.fiberId))) {
+      continue
+    }
+    if (isTerminalFiberStatus(record.status) && record.status !== "failed") {
+      continue
+    }
+    restoredFibersMap[fiber.fiberId] = {
+      ...record,
+      status: "ready",
+      waitingReason: undefined,
+      suspendPolicy: undefined,
+      lastError: undefined,
+      timeoutAt: undefined,
+      retryAt: undefined,
+      step: { tag: "agent_step", payload: { fiberId: fiber.fiberId } },
+      updatedAt: now,
+    }
+  }
   for (const record of Object.values(restoredFibersMap) as any[]) {
     if (record.parentId && (restoredState.fibers as any)[record.parentId]) {
       const parent = (restoredState.fibers as any)[record.parentId]
@@ -725,6 +1143,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
           ctx.execState = next
         },
         resumeFiber: helpers.resume,
+        emitFiberSignal: helpers.emitFiberSignal,
       })
     },
     options: {

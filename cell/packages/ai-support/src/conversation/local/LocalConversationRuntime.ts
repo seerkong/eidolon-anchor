@@ -216,6 +216,37 @@ function readPromptPayloadText(payload: Record<string, unknown>, keys: string[])
   return null;
 }
 
+function isToolMessage(message: ChatMessage | undefined): boolean {
+  return String(message?.role ?? "") === "tool";
+}
+
+function findToolCallGroupStart(messages: ChatMessage[], index: number): number {
+  let start = Math.max(0, Math.min(index, messages.length - 1));
+  if (isToolMessage(messages[start])) {
+    while (start > 0 && isToolMessage(messages[start - 1])) start -= 1;
+    if (start > 0 && String(messages[start - 1]?.role ?? "") === "assistant") start -= 1;
+  }
+  return start;
+}
+
+function findLateStatusOverlayInsertIndex(messages: ChatMessage[]): number {
+  if (messages.length === 0) return 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (String(messages[index]?.role ?? "") === "user") return index;
+  }
+  return findToolCallGroupStart(messages, messages.length - 1);
+}
+
+function insertLateStatusOverlay(messages: ChatMessage[], overlay: ChatMessage): ChatMessage[] {
+  const next = [...messages];
+  next.splice(findLateStatusOverlayInsertIndex(next), 0, overlay);
+  return next;
+}
+
+function isLateStatusOverlayPayload(payload: Record<string, unknown>): boolean {
+  return payload.insertPlacement === "late_status" || payload.overlayKind === "work_context";
+}
+
 function resolveActorKey(params: {
   session: ConversationSessionRawState;
   actorKey?: string;
@@ -229,6 +260,32 @@ function resolveActorKey(params: {
     ?? Object.keys(params.session.promptIndex.heads)[0]
     ?? null
   );
+}
+
+function resolvePromptTargetHistoryGenerationId(params: {
+  promptGeneration?: ActorPromptGenerationData | null;
+  historyIndex: ConversationSessionRawState["historyIndex"];
+  actorKey: string;
+}): string | null {
+  const metadataTarget = typeof params.promptGeneration?.metadata?.targetHistoryGenerationId === "string"
+    ? params.promptGeneration.metadata.targetHistoryGenerationId.trim()
+    : "";
+  if (metadataTarget && params.historyIndex.generations[metadataTarget]) {
+    return metadataTarget;
+  }
+  const transformTarget = params.promptGeneration?.transforms
+    .map((transform) => {
+      const value = transform.payload?.targetHistoryGenerationId;
+      return typeof value === "string" ? value.trim() : "";
+    })
+    .find((value) => value && params.historyIndex.generations[value]);
+  if (transformTarget) {
+    return transformTarget;
+  }
+  const compactCandidates = Object.values(params.historyIndex.generations)
+    .filter((generation) => generation.actorKey === params.actorKey && generation.generationId.includes("__compact__"))
+    .sort((a, b) => String(b.updatedAt ?? b.createdAt ?? "").localeCompare(String(a.updatedAt ?? a.createdAt ?? "")));
+  return compactCandidates[0]?.generationId ?? null;
 }
 
 export async function loadConversationSessionRawState(params: {
@@ -268,14 +325,34 @@ export async function loadConversationActorRawState(params: {
   }
 
   const actorBinding = session.actorBindings[actorKey];
-  const historyHeadGenerationId =
-    actorBinding?.historyHeadGenerationId
-    ?? session.historyIndex.heads[actorKey]?.activeGenerationId
-    ?? null;
   const promptHeadGenerationId =
     actorBinding?.promptHeadGenerationId
     ?? session.promptIndex.heads[actorKey]?.activePromptGenerationId
     ?? null;
+  const promptGeneration = promptHeadGenerationId
+    ? await params.repository.loadPromptGeneration(promptHeadGenerationId)
+    : null;
+  const declaredHistoryHeadGenerationId =
+    actorBinding?.historyHeadGenerationId
+    ?? session.historyIndex.heads[actorKey]?.activeGenerationId
+    ?? null;
+  const promptTargetHistoryGenerationId = resolvePromptTargetHistoryGenerationId({
+    promptGeneration,
+    historyIndex: session.historyIndex,
+    actorKey,
+  });
+  const declaredHistoryGeneration = declaredHistoryHeadGenerationId
+    ? await params.repository.loadHistoryGeneration(declaredHistoryHeadGenerationId)
+    : null;
+  const promptTargetHistoryGeneration = promptTargetHistoryGenerationId
+    ? await params.repository.loadHistoryGeneration(promptTargetHistoryGenerationId)
+    : null;
+  const historyHeadGenerationId =
+    promptGeneration
+    && promptTargetHistoryGeneration
+    && declaredHistoryGeneration?.createdReason !== "compaction"
+      ? promptTargetHistoryGenerationId
+      : declaredHistoryHeadGenerationId;
 
   const visibleGenerationIds = historyHeadGenerationId
     ? buildVisibleGenerationOrder({
@@ -289,10 +366,9 @@ export async function loadConversationActorRawState(params: {
   ).filter((generation): generation is ActorHistoryGenerationData => !!generation);
   const activeHistoryGeneration = historyHeadGenerationId
     ? (visibleHistoryGenerations.find((generation) => generation.generationId === historyHeadGenerationId)
+      ?? (historyHeadGenerationId === promptTargetHistoryGenerationId ? promptTargetHistoryGeneration : null)
+      ?? (historyHeadGenerationId === declaredHistoryHeadGenerationId ? declaredHistoryGeneration : null)
       ?? await params.repository.loadHistoryGeneration(historyHeadGenerationId))
-    : null;
-  const promptGeneration = promptHeadGenerationId
-    ? await params.repository.loadPromptGeneration(promptHeadGenerationId)
     : null;
 
   return {
@@ -346,7 +422,7 @@ function materializePromptTransformPrelude(params: {
       }
       case "overlay": {
         const overlay = readPromptPayloadText(payload, ["content", "text", "overlay", "prompt"]);
-        if (overlay) {
+        if (overlay && !isLateStatusOverlayPayload(payload)) {
           preludeEntries.push({ message: { role: "system", content: overlay } as ChatMessage });
         }
         break;
@@ -390,6 +466,22 @@ function materializePromptTransformPrelude(params: {
   return preludeEntries.map((entry) => entry.message);
 }
 
+function materializePromptTransformLateStatusOverlays(params: {
+  rawState: ConversationActorRawState;
+}): ChatMessage[] {
+  const promptGeneration = params.rawState.promptGeneration;
+  if (!promptGeneration) return [];
+  const overlays: ChatMessage[] = [];
+  for (const transform of promptGeneration.transforms) {
+    if (transform.kind !== "overlay") continue;
+    const payload = transform.payload ?? {};
+    if (!isLateStatusOverlayPayload(payload)) continue;
+    const overlay = readPromptPayloadText(payload, ["content", "text", "overlay", "prompt"]);
+    if (overlay) overlays.push({ role: "system", content: overlay } as ChatMessage);
+  }
+  return overlays;
+}
+
 export function materializeConversationVisibleHistory(rawState: ConversationActorRawState): ChatMessage[] {
   return rawState.visibleHistoryGenerations.flatMap((generation) => committedHistoryRefsToMessages(generation.messages));
 }
@@ -398,10 +490,14 @@ export function materializeConversationRuntimePrompt(rawState: ConversationActor
   const activeTailMessages = rawState.activeHistoryGeneration
     ? committedHistoryRefsToMessages(rawState.activeHistoryGeneration.messages)
     : [];
-  return [
+  let materialized = [
     ...materializePromptTransformPrelude({ rawState }),
     ...activeTailMessages,
   ];
+  for (const overlay of materializePromptTransformLateStatusOverlays({ rawState })) {
+    materialized = insertLateStatusOverlay(materialized, overlay);
+  }
+  return materialized;
 }
 
 function extractActiveTailMessages(params: {

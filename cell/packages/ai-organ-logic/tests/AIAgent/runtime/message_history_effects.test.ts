@@ -174,6 +174,127 @@ describe("LocalFileMessageHistoryEffects", () => {
     expect(parsed.records[0].payload).toBe("<state_snapshot />");
   });
 
+  it("appends formal conversation history to the current compact generation head", () => {
+    const sessionDir = makeTempSessionDir();
+    const effects = new LocalFileMessageHistoryEffects({
+      sessionPathProvider: () => sessionDir,
+    });
+    const nowIso = new Date().toISOString();
+    const conversationDir = path.join(sessionDir, "conversation");
+    fs.mkdirSync(path.join(conversationDir, "history-generations"), { recursive: true });
+    fs.writeFileSync(path.join(conversationDir, "history.index.json"), JSON.stringify({
+      version: 1,
+      sessionId: path.basename(sessionDir),
+      heads: {
+        main: {
+          version: 1,
+          sessionId: path.basename(sessionDir),
+          actorKey: "main",
+          actorId: "actor-main",
+          activeGenerationId: "main__compact__test",
+          visibleGenerationIds: ["main__active", "main__compact__test"],
+          updatedAt: nowIso,
+        },
+      },
+      lineages: {
+        main__compact__test: {
+          version: 1,
+          sessionId: path.basename(sessionDir),
+          actorKey: "main",
+          actorId: "actor-main",
+          generationId: "main__compact__test",
+          parentGenerationId: "main__active",
+          rolledBackFromGenerationId: null,
+          predecessorGenerationIds: ["main__active"],
+          successorGenerationIds: [],
+          forkGenerationIds: [],
+          branchLabel: null,
+          updatedAt: nowIso,
+        },
+      },
+      generations: {
+        main__active: {
+          generationId: "main__active",
+          actorKey: "main",
+          actorId: "actor-main",
+          sealed: true,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        },
+        main__compact__test: {
+          generationId: "main__compact__test",
+          actorKey: "main",
+          actorId: "actor-main",
+          sealed: false,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+        },
+      },
+      updatedAt: nowIso,
+    }, null, 2));
+    fs.writeFileSync(path.join(conversationDir, "session.index.json"), JSON.stringify({
+      version: 1,
+      sessionId: path.basename(sessionDir),
+      session: {
+        version: 1,
+        sessionId: path.basename(sessionDir),
+        activeActorKey: "main",
+        actorBindings: {
+          main: {
+            actorKey: "main",
+            actorId: "actor-main",
+            boundAt: nowIso,
+            historyHeadGenerationId: "main__compact__test",
+            promptHeadGenerationId: "main__prompt__test",
+          },
+        },
+        contextAssetRegistry: null,
+        contextAssets: [],
+        activeSelection: null,
+        createdAt: nowIso,
+        updatedAt: nowIso,
+      },
+      lineage: null,
+      updatedAt: nowIso,
+    }, null, 2));
+    fs.writeFileSync(path.join(conversationDir, "history-generations", "main__compact__test.json"), JSON.stringify({
+      version: 1,
+      generationId: "main__compact__test",
+      sessionId: path.basename(sessionDir),
+      actorKey: "main",
+      actorId: "actor-main",
+      parentGenerationId: "main__active",
+      predecessorGenerationIds: ["main__active"],
+      createdReason: "compaction",
+      sealed: false,
+      messageCount: 0,
+      messages: [],
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    }, null, 2));
+
+    effects.appendMessage({
+      stream: "content",
+      payload: "after compact",
+      agentKey: "main",
+      agentActorId: "actor-main",
+      actorType: "primary",
+    });
+
+    const historyIndex = JSON.parse(fs.readFileSync(path.join(conversationDir, "history.index.json"), "utf-8"));
+    const sessionIndex = JSON.parse(fs.readFileSync(path.join(conversationDir, "session.index.json"), "utf-8"));
+    const compactGeneration = JSON.parse(fs.readFileSync(
+      path.join(conversationDir, "history-generations", "main__compact__test.json"),
+      "utf-8",
+    ));
+    expect(historyIndex.heads.main.activeGenerationId).toBe("main__compact__test");
+    expect(historyIndex.heads.main.visibleGenerationIds).toEqual(["main__active", "main__compact__test"]);
+    expect(sessionIndex.session.actorBindings.main.historyHeadGenerationId).toBe("main__compact__test");
+    expect(compactGeneration.messages).toHaveLength(1);
+    expect(compactGeneration.messages[0].message.content).toBe("after compact");
+    expect(fs.existsSync(path.join(conversationDir, "history-generations", "main__active.json"))).toBe(false);
+  });
+
   it("backs up member-scoped delegate history into matching backup directory", async () => {
     const sessionDir = makeTempSessionDir();
     const effects = new LocalFileMessageHistoryEffects({

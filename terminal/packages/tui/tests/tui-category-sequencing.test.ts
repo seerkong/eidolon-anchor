@@ -49,10 +49,10 @@ describe("TUI category card sequencing", () => {
         opts?.onChunk?.("Thinking text\n")
         controls.push("toolcall")
         opts?.onControl?.({ cmd: "NewMessage", category: "toolcall" })
-        opts?.onChunk?.("DetachedBash call_1\n")
+        opts?.onChunk?.("RunDetachedBash call_1\n")
         controls.push("result")
         opts?.onControl?.({ cmd: "NewMessage", category: "result" })
-        opts?.onChunk?.("DetachedBash: {\"task_id\":\"t1\",\"status\":\"running\"}\n")
+        opts?.onChunk?.("RunDetachedBash: {\"task_id\":\"t1\",\"status\":\"running\"}\n")
         controls.push("done")
         opts?.onControl?.({ cmd: "NewMessage", category: "done" })
         opts?.onChunk?.("Turn no_tool_calls\n")
@@ -87,7 +87,7 @@ describe("TUI category card sequencing", () => {
       const assistantTextMessages = await getAssistantTextMessages(sdk)
       expect(unique(assistantTextMessages.map((message) => message.mode))).toEqual(["think"])
       expect(assistantTextMessages.map((message) => message.text).join("\n")).toContain("Thinking text")
-      expect(assistantTextMessages.some((message) => message.text.includes("DetachedBash"))).toBe(false)
+      expect(assistantTextMessages.some((message) => message.text.includes("RunDetachedBash"))).toBe(false)
       expect(assistantTextMessages.some((message) => message.text.includes("Turn no_tool_calls"))).toBe(false)
     } finally {
       __setRuntimeBridgeFactoryForTest(null)
@@ -117,7 +117,7 @@ describe("TUI category card sequencing", () => {
 
         controls.push("toolcall")
         opts?.onControl?.({ cmd: "NewMessage", category: "toolcall" })
-        opts?.onChunk?.("DetachedBash call_1\n")
+        opts?.onChunk?.("RunDetachedBash call_1\n")
 
         notifyHistory?.({
           stream: "tool_call_result",
@@ -133,7 +133,7 @@ describe("TUI category card sequencing", () => {
 
         controls.push("result")
         opts?.onControl?.({ cmd: "NewMessage", category: "result" })
-        opts?.onChunk?.("DetachedBash: {\"status\":\"completed\"}\n")
+        opts?.onChunk?.("RunDetachedBash: {\"status\":\"completed\"}\n")
         return "ok"
       },
       async abort() {},
@@ -175,7 +175,7 @@ describe("TUI category card sequencing", () => {
 
       const assistantTextMessages = await getAssistantTextMessages(sdk)
       expect(unique(assistantTextMessages.map((message) => message.mode))).toEqual(["think"])
-      expect(assistantTextMessages.some((message) => message.text.includes("DetachedBash"))).toBe(false)
+      expect(assistantTextMessages.some((message) => message.text.includes("RunDetachedBash"))).toBe(false)
 
       const toolParts = events
         .filter((event): event is Event<"message.part.updated"> => event.type === "message.part.updated")

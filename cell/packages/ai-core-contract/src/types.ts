@@ -10,6 +10,7 @@ export type ToolSchema = {
 export type AiAgentOneActorRuntime<TVm = any, TActor = any> = {
   vm: TVm;
   actor: TActor;
+  signal?: AbortSignal;
 };
 
 export type ToolDef<

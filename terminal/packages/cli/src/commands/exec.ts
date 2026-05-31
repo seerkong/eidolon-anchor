@@ -90,6 +90,7 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           describe: "enable workspace-bounded automatic execution",
         })
         .option("dangerously-bypass-approvals-and-sandbox", {
+          alias: ["yolo"],
           type: "boolean",
           conflicts: ["full-auto"],
           describe: "skip approvals and workspace sandbox checks",

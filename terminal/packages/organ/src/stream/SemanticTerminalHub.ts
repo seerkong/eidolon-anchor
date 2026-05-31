@@ -1,5 +1,4 @@
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
-import { AppendOnlyEventLog } from "depa-data-graph-core";
 import type { TuiEvent } from "@terminal/core/AIAgent/TuiStreamEvents";
 
 import { TextualProjectionGraph } from "./TextualProjectionGraph";
@@ -15,18 +14,16 @@ export class SemanticTerminalHub {
   readonly textualProjection = new TextualProjectionGraph();
   readonly tuiCard = new TuiCardGraph();
   readonly tuiText = new TuiTextGraph();
-  private readonly eventLog = new AppendOnlyEventLog<SemanticEvent>();
-  private readonly subscriptions: Subscription[] = [];
-
-  constructor() {
-    this.subscriptions.push(this.bindProjection((event) => this.tuiProjection.consumeSemanticEvent(event)));
-    this.subscriptions.push(this.bindProjection((event) => this.textualProjection.consumeSemanticEvent(event)));
-    this.subscriptions.push(this.bindProjection((event) => this.tuiCard.consumeSemanticEvent(event)));
-    this.subscriptions.push(this.bindProjection((event) => this.tuiText.consumeSemanticEvent(event)));
-  }
+  private completed = false;
 
   consumeSemanticEvent(event: SemanticEvent): void {
-    this.eventLog.append(event);
+    if (this.completed) {
+      return;
+    }
+    this.tuiProjection.consumeSemanticEvent(event);
+    this.textualProjection.consumeSemanticEvent(event);
+    this.tuiCard.consumeSemanticEvent(event);
+    this.tuiText.consumeSemanticEvent(event);
   }
 
   onTuiEvent(handler: (event: TuiEvent) => void): Subscription {
@@ -46,31 +43,13 @@ export class SemanticTerminalHub {
   }
 
   dispose(): void {
-    for (const subscription of this.subscriptions) {
-      subscription.unsubscribe();
+    if (this.completed) {
+      return;
     }
-    this.subscriptions.length = 0;
-    this.eventLog.dispose();
+    this.completed = true;
     this.tuiProjection.dispose();
     this.textualProjection.dispose();
     this.tuiCard.dispose?.();
     this.tuiText.dispose?.();
-  }
-
-  private bindProjection(consume: (event: SemanticEvent) => void): Subscription {
-    const stream = this.eventLog.stream({ replay: false });
-    const subscription = stream.subscribe({
-      next: (entry) => {
-        consume(entry.value);
-      },
-      error: () => {},
-      complete: () => {},
-    });
-
-    return {
-      unsubscribe: () => {
-        subscription.unsubscribe();
-      },
-    };
   }
 }

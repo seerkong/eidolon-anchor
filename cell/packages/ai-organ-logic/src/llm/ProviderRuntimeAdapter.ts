@@ -14,6 +14,8 @@ import {
   splitResponsesModelOptions,
 } from "./ProviderOptions";
 import { getProviderDriver } from "./ProviderDriverRegistry";
+import { emitProviderDiagnostic } from "./ProviderDiagnostics";
+import { executeWithProviderRetry } from "./ProviderErrors";
 
 export type ProviderRuntimeLlmAdapterSettings = {
   providerId: string;
@@ -92,16 +94,34 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
     const prepared = this.prepareRequest(options);
     captureProviderScene(prepared, "request");
     try {
-      const result = await this.driver.createStream({
-        model: options.model,
-        messages: options.messages,
-        tools: options.tools,
-        requestOptions: prepared.requestOptions,
-        extraBody: prepared.extraBody,
-        connectionOptions: prepared.connectionOptions,
-        runtime: prepared.runtime,
-        signal: options.signal,
-      }) as LlmStreamResult;
+      const result = await executeWithProviderRetry(
+        () => this.driver.createStream({
+          model: options.model,
+          messages: options.messages,
+          tools: options.tools,
+          requestOptions: prepared.requestOptions,
+          extraBody: prepared.extraBody,
+          connectionOptions: prepared.connectionOptions,
+          runtime: prepared.runtime,
+          signal: options.signal,
+        }) as Promise<LlmStreamResult>,
+        {
+          stage: "stream",
+          providerId: this.runtime.providerId,
+          selectedModel: this.runtime.selectedModel,
+          onDiagnostic: (event) => {
+            emitProviderDiagnostic(this.runtime.diagnostics, "retry", {
+              ...event,
+              agentName: this.runtime.providerId || this.runtime.adapterName || "provider",
+              actorId: this.runtime.actorId,
+              sessionId: this.runtime.sessionId,
+              turnId: this.runtime.turnId,
+              traceId: this.runtime.traceId,
+              eventType: "provider_retry_diagnostic",
+            });
+          },
+        },
+      );
       captureProviderScene(prepared, "response");
       return result;
     } catch (error) {

@@ -197,7 +197,7 @@ describe("TuiRuntimeClient local-runtime questionnaire e2e", () => {
       )
 
       expect(texts).toContain("ask questionnaire")
-      expect(texts).toContain("Yes")
+      expect(texts).toContain("Q1: A")
       expect(texts).toContain("assistant after questionnaire")
     } finally {
       await disposeTuiRuntimeBridge(sessionID)
@@ -333,7 +333,7 @@ describe("TuiRuntimeClient local-runtime questionnaire e2e", () => {
         (entry.parts ?? []).flatMap((part) => (part.type === "text" ? [part.text] : [])),
       )
 
-      expect(texts).toContain("Yes")
+      expect(texts).toContain("Q1: A")
       expect(texts).toContain("assistant after resume reply")
     } finally {
       await disposeTuiRuntimeBridge(sessionID)

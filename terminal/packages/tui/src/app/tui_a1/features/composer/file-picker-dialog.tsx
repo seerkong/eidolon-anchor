@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import path from "path"
 import { readdir } from "fs/promises"
 import { RGBA, ScrollBoxRenderable, TextAttributes } from "@opentui/core"

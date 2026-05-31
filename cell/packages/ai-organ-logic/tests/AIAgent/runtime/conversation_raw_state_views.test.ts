@@ -16,6 +16,7 @@ import {
   loadConversationRuntimeMessages,
   loadConversationSessionRawState,
   LocalFileConversationPersistenceRepositoryFactory,
+  materializeConversationRuntimePrompt,
 } from "@cell/ai-support";
 
 function makeTempSessionDir(): string {
@@ -54,6 +55,83 @@ describe("conversation raw state views", () => {
       toolCallId: "call_1",
       tool_call_id: "call_1",
     });
+  });
+
+  it("restores work-context overlays at a late legal boundary without splitting tool calls", () => {
+    const historyGeneration: ActorHistoryGenerationData = {
+      version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+      generationId: "hist-tool",
+      sessionId: "ses_raw",
+      actorKey: "main",
+      actorId: "actor-main",
+      parentGenerationIds: [],
+      messages: chatMessagesToCommittedHistoryRefs({
+        messages: [
+          {
+            role: "assistant",
+            content: "",
+            reasoning_content: "thinking",
+            tool_calls: [{ id: "tc-1", type: "function", function: { name: "bash", arguments: "{}" } }],
+          } as any,
+          { role: "tool", tool_call_id: "tc-1", content: "tool result" } as any,
+        ],
+        actorKey: "main",
+        actorId: "actor-main",
+        recordIdPrefix: "hist-tool",
+        transcriptPath: null,
+      }),
+      sealed: false,
+      createdAt: new Date(1).toISOString(),
+      updatedAt: new Date(2).toISOString(),
+    };
+    const promptGeneration: ActorPromptGenerationData = {
+      version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+      promptGenerationId: "prompt-tool",
+      sessionId: "ses_raw",
+      actorKey: "main",
+      actorId: "actor-main",
+      basedOnPromptGenerationId: null,
+      basis: {
+        version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+        basisHistoryGenerationIds: ["hist-tool"],
+        basisMessageRecordIds: historyGeneration.messages.map((message) => message.recordId),
+      },
+      transforms: [
+        {
+          transformId: "work-context",
+          kind: "overlay",
+          payload: {
+            overlayKind: "work_context",
+            insertPlacement: "late_status",
+            content: "<runtime_work_context>\nwork_mode: general_execution\n</runtime_work_context>",
+          },
+          appliedAt: new Date(3).toISOString(),
+        },
+      ],
+      materializedContext: null,
+      sealed: false,
+      createdAt: new Date(3).toISOString(),
+      sealedAt: null,
+      updatedAt: new Date(3).toISOString(),
+    };
+
+    const messages = materializeConversationRuntimePrompt({
+      session: { sessionId: "ses_raw" },
+      actorKey: "main",
+      actorId: "actor-main",
+      historyHeadGenerationId: "hist-tool",
+      promptHeadGenerationId: "prompt-tool",
+      visibleGenerationIds: ["hist-tool"],
+      visibleHistoryGenerations: [historyGeneration],
+      activeHistoryGeneration: historyGeneration,
+      promptGeneration,
+      contextAssetIds: [],
+    } as any);
+
+    expect(messages.map((message) => message.role)).toEqual(["system", "assistant", "tool"]);
+    expect(messages[0]?.content).toContain("<runtime_work_context>");
+    expect((messages[1] as any).reasoning_content).toBe("thinking");
+    expect((messages[2] as any).tool_call_id).toBe("tc-1");
   });
 
   it("recovers tool call ids from source records when older committed messages dropped them", () => {

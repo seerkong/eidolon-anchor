@@ -24,14 +24,31 @@ const DEFAULT_WORK_MODE: WorkMode = WORK_MODES.general_execution;
 const DEFAULT_TASK_PHASE: TaskPhase = TASK_PHASES.implementation;
 const PROMPT_PLAN_VERSION = 1;
 
+function normalizeStableHashValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeStableHashValue);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, entry]) => [key, normalizeStableHashValue(entry)]),
+  );
+}
+
 function stableHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  return createHash("sha256").update(JSON.stringify(normalizeStableHashValue(value))).digest("hex");
+}
+
+function stableToolSchemas(tools: any[]): unknown[] {
+  return [...tools]
+    .sort((left, right) =>
+      String(left?.function?.name ?? left?.name ?? "").localeCompare(String(right?.function?.name ?? right?.name ?? "")))
+    .map(normalizeStableHashValue);
 }
 
 function buildPromptPlanCacheProfile(params: {
   actor: AiAgentActor;
   systemPrompts: string[];
-  toolNames: string[];
+  tools: any[];
 }): PromptPlanData["cacheProfile"] | undefined {
   const capabilities = params.actor.modelConfig.capabilities;
   const cachePolicy = capabilities?.cachePolicy;
@@ -41,11 +58,11 @@ function buildPromptPlanCacheProfile(params: {
     stablePrefixEnabled: true,
     providerManagedPrefixCache: cachePolicy.providerManagedPrefixCache,
     preferLateCompaction: cachePolicy.preferLateCompaction,
-    stablePrefixSections: ["system", "work_context", "tools"],
+    stablePrefixSections: ["system", "tools"],
     stablePrefixHash: stableHash({
       family: capabilities.family,
       systemPrompts: params.systemPrompts,
-      toolNames: [...params.toolNames].sort(),
+      tools: stableToolSchemas(params.tools),
     }),
     compactionThresholdTokens: cachePolicy.compactionThresholdTokens,
   };
@@ -387,18 +404,36 @@ function countRecentToolEvidence(messages: Array<{ role?: string }>): number {
 
 function resolveSessionId(vm: AiAgentVm): string {
   const sessionId = (vm.outerCtx?.metadata as Record<string, unknown> | undefined)?.sessionId;
-  return typeof sessionId === "string" && sessionId.trim() ? sessionId : "default";
+  return typeof sessionId === "string" && sessionId.trim() ? sessionId : "__unsessioned__";
 }
 
-function insertSystemOverlay(messages: ChatMessage[], overlay: string | null): ChatMessage[] {
+function isToolMessage(message: ChatMessage | undefined): boolean {
+  return String(message?.role ?? "") === "tool";
+}
+
+function findToolCallGroupStart(messages: ChatMessage[], index: number): number {
+  let start = Math.max(0, Math.min(index, messages.length - 1));
+  if (isToolMessage(messages[start])) {
+    while (start > 0 && isToolMessage(messages[start - 1])) start -= 1;
+    if (start > 0 && String(messages[start - 1]?.role ?? "") === "assistant") start -= 1;
+    return start;
+  }
+  return start;
+}
+
+function findLateStatusOverlayInsertIndex(messages: ChatMessage[]): number {
+  if (messages.length === 0) return 0;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (String(messages[index]?.role ?? "") === "user") return index;
+  }
+  return findToolCallGroupStart(messages, messages.length - 1);
+}
+
+function insertLateStatusOverlay(messages: ChatMessage[], overlay: string | null): ChatMessage[] {
   if (!overlay) return [...messages];
   const next = [...messages];
-  const insertAt = next.findIndex((message) => String(message.role ?? "") !== "system");
   const overlayMessage = { role: "system", content: overlay } as ChatMessage;
-  if (insertAt === -1) {
-    next.push(overlayMessage);
-    return next;
-  }
+  const insertAt = findLateStatusOverlayInsertIndex(next);
   next.splice(insertAt, 0, overlayMessage);
   return next;
 }
@@ -553,7 +588,7 @@ export function buildPromptPlanForActorExecution(params: {
   const cacheProfile = buildPromptPlanCacheProfile({
     actor: params.actor,
     systemPrompts,
-    toolNames,
+    tools: params.tools,
   });
   return {
     version: PROMPT_PLAN_VERSION,
@@ -577,6 +612,50 @@ export function buildPromptPlanForActorExecution(params: {
   };
 }
 
+export type WorkModeToolGuidance = {
+  prefer: string[];
+  avoidUntilNeeded: string[];
+};
+
+export function resolveWorkModeToolGuidance(workContext: ActorWorkContextData): WorkModeToolGuidance {
+  if (
+    workContext.taskPhase === TASK_PHASES.context_build
+    || workContext.taskPhase === TASK_PHASES.context_build_then_code
+    || workContext.taskPhase === TASK_PHASES.inspection_only
+  ) {
+    return {
+      prefer: ["read", "grep", "glob", "ls"],
+      avoidUntilNeeded: ["write", "edit", "multiedit", "apply_patch", "bash"],
+    };
+  }
+  if (workContext.taskPhase === TASK_PHASES.verification) {
+    return {
+      prefer: ["bash", "read", "grep"],
+      avoidUntilNeeded: ["write", "edit", "multiedit", "apply_patch"],
+    };
+  }
+  if (workContext.workMode === WORK_MODES.external_research) {
+    return {
+      prefer: ["websearch", "webfetch", "read"],
+      avoidUntilNeeded: ["write", "edit", "multiedit", "apply_patch"],
+    };
+  }
+  if (
+    workContext.workMode === WORK_MODES.localized_repair
+    || workContext.workMode === WORK_MODES.small_edit
+    || workContext.workMode === WORK_MODES.focused_assignment
+  ) {
+    return {
+      prefer: ["read", "grep", "edit", "apply_patch", "bash"],
+      avoidUntilNeeded: [],
+    };
+  }
+  return {
+    prefer: [],
+    avoidUntilNeeded: [],
+  };
+}
+
 export function buildWorkContextOverlayText(workContext: ActorWorkContextData): string {
   const lines = [
     "<runtime_work_context>",
@@ -589,6 +668,13 @@ export function buildWorkContextOverlayText(workContext: ActorWorkContextData): 
     lines.push("instruction: keep verification target, failure reason, and command/result continuity explicit.");
   } else {
     lines.push("instruction: prefer the shortest concrete execution path over broad scouting.");
+  }
+  const toolGuidance = resolveWorkModeToolGuidance(workContext);
+  if (toolGuidance.prefer.length || toolGuidance.avoidUntilNeeded.length) {
+    lines.push("<tool_guidance>");
+    if (toolGuidance.prefer.length) lines.push(`prefer: ${toolGuidance.prefer.join(", ")}`);
+    if (toolGuidance.avoidUntilNeeded.length) lines.push(`avoid_until_needed: ${toolGuidance.avoidUntilNeeded.join(", ")}`);
+    lines.push("</tool_guidance>");
   }
   lines.push("</runtime_work_context>");
   return lines.join("\n");
@@ -609,7 +695,7 @@ export function materializeExecutionMessagesWithWorkContext(params: {
   const workContextOverlay = buildWorkContextOverlayText(promptPlan.workContext);
   return {
     promptPlan,
-    executionMessages: insertSystemOverlay(params.messages, workContextOverlay),
+    executionMessages: insertLateStatusOverlay(params.messages, workContextOverlay),
     workContextOverlay,
   };
 }
@@ -668,6 +754,7 @@ export function recordPromptPlanForActorExecution(params: {
     payload: {
       content: buildWorkContextOverlayText(promptPlan.workContext),
       overlayKind: "work_context",
+      insertPlacement: "late_status",
       promptPlanVersion: promptPlan.version,
     },
     occurredAt: params.occurredAt,
@@ -717,13 +804,13 @@ export function decideCompactionPolicy(
   if (taskPhase === TASK_PHASES.context_build || taskPhase === TASK_PHASES.context_build_then_code) {
     return {
       policy: "work_context_gate",
-      decision: context.tokenPressure >= 1.1 ? "rewrite" : "skip",
+      decision: context.tokenPressure >= 1 ? "rewrite" : "skip",
       reason: "bounded_context_build",
       workMode,
       taskPhase,
       protectedCategories: ["discovery_evidence", "coordination_state"],
       rewrittenCategories: ["low_signal_chatter"],
-      skipReason: context.tokenPressure >= 1.1 ? null : "protected_context_build",
+      skipReason: context.tokenPressure >= 1 ? null : "protected_context_build",
     };
   }
   if (taskPhase === TASK_PHASES.verification) {

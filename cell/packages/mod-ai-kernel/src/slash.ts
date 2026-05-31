@@ -182,6 +182,21 @@ function parseAction(
       return parseCreateMemberCommand(namespace, command, action, trimmed, descriptor.parse);
     case "create_holon":
       return parseCreateHolonCommand(namespace, command, action, trimmed, descriptor.parse);
+    case "rest": {
+      const form = descriptor.parse.form ?? action;
+      if (trimmed === form) {
+        return { kind: "direct_execute", command, namespace, action, args: { [descriptor.parse.argName ?? "text"]: "" } };
+      }
+      const prefix = `${form} `;
+      if (!trimmed.startsWith(prefix)) return null;
+      return {
+        kind: "direct_execute",
+        command,
+        namespace,
+        action,
+        args: { [descriptor.parse.argName ?? "text"]: normalize(trimmed.slice(prefix.length)) },
+      };
+    }
   }
 }
 
@@ -205,6 +220,8 @@ function getPromptForms(descriptor: RuntimeSlashCommandActionDescriptor): string
       return [descriptor.parse.form];
     case "create_holon":
       return [descriptor.parse.form];
+    case "rest":
+      return [descriptor.parse.form ?? ""];
   }
 }
 
@@ -250,8 +267,31 @@ export function resolveAiSlashCommand(
   if (!descriptor) return null;
 
   const rest = normalize(namespaceMatch[2] ?? "");
+  if (namespace === "goal" && !rest) {
+    return { kind: "direct_execute", command: `/${namespace}`, namespace, action: "status", args: { command: "status" } };
+  }
+
   if (!rest || rest === "help") {
     return { kind: "direct_execute", command: `/${namespace}`, namespace, action: "help", args: {} };
+  }
+
+  if (namespace === "goal") {
+    if (rest === "status") {
+      return { kind: "direct_execute", command: `/${namespace}`, namespace, action: "status", args: { command: "status" } };
+    }
+    if (rest === "edit") {
+      return { kind: "direct_execute", command: `/${namespace}`, namespace, action: "edit", args: { command: "edit", objective: "" } };
+    }
+    if (rest.startsWith("edit ")) {
+      return { kind: "direct_execute", command: `/${namespace}`, namespace, action: "edit", args: { command: "edit", objective: normalize(rest.slice(5)) } };
+    }
+    if (rest === "pause" || rest === "resume" || rest === "clear") {
+      return { kind: "direct_execute", command: `/${namespace}`, namespace, action: rest, args: { command: rest } };
+    }
+    if (rest.startsWith("set ")) {
+      return { kind: "direct_execute", command: `/${namespace}`, namespace, action: "set", args: { command: "set", objective: normalize(rest.slice(4)) } };
+    }
+    return { kind: "direct_execute", command: `/${namespace}`, namespace, action: "set", args: { command: "set", objective: rest } };
   }
 
   for (const [action, actionDescriptor] of Object.entries(descriptor.actions)) {

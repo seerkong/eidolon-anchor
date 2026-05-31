@@ -1,4 +1,5 @@
 export { spawnChildExecutionActor } from "./agent/DelegateActor";
+export { forceCompressActorHistory } from "./exec/AiAgentExecutor";
 export {
   createAiAgentOrchestratorDriver,
   createAiAgentOrchestratorDriverWithCooperative,
@@ -55,6 +56,7 @@ export {
   injectConversationSessionRawState,
   materializeConversationHistoryMessagesFromVm,
   materializeConversationRuntimeMessagesFromVm,
+  recordConversationTranscriptEvidenceInRuntime,
   recordPromptOverlayToConversationDomainRuntime,
   recordPromptRequestToConversationDomainRuntime,
   registerContextBlockToConversationDomainRuntime,
@@ -90,6 +92,7 @@ export {
   materializeExecutionMessagesWithWorkContext,
   recordPromptPlanForActorExecution,
   resetActorContinuationBaseline,
+  resolveWorkModeToolGuidance,
   resolveTurnWorkContextForActor,
 } from "./runtime/ContextControlPlane";
 export { createShellRuntimeFacade } from "./runtime/ShellRuntimeFacade";
@@ -110,6 +113,63 @@ export {
   providerSceneToObservabilityRecord,
   semanticEventToObservabilityRecord,
 } from "./observability/ObservabilityRx";
+export {
+  createDiagnosticPipeline,
+  createDiagnosticSubgraph,
+  SceneStore,
+  SceneRecorder,
+  SceneReplay,
+  manifestToNode,
+  nodeToManifest,
+  messageToNode,
+  nodeToMessage,
+  observableGraphMiddleware,
+  createObservableGraph,
+  createSessionTraceSink,
+  sessionTraceExportXnl,
+  sessionTraceImportFile,
+} from "./observability";
+export type {
+  DiagnosticPipeline,
+  DiagnosticPipelineOptions,
+  DiagnosticPipelineStats,
+  PipelineRecord,
+} from "./observability/DiagnosticPipeline";
+export type {
+  DiagnosticSubgraph,
+  DiagnosticModule,
+  DiagnosticSummary,
+  ModelSelectionSignal,
+  ContinuationSignal,
+  TurnTimingEntry,
+  CompactionEntry,
+  ToolCallEntry,
+  RetryEntry,
+} from "./observability/DiagnosticSubgraph";
+export type {
+  SceneRecorderOptions,
+} from "./observability/SceneRecorder";
+export type {
+  ReplayTurn,
+  ReplayDiff,
+  SceneReplayOptions,
+} from "./observability/SceneReplay";
+export type {
+  ToolDef,
+  SceneManifest,
+  SceneMessage,
+  SceneToolCall,
+} from "./observability/SceneTypes";
+export type {
+  ObservableGraphMiddlewareOptions,
+} from "./observability/ObservableGraphMiddleware";
+export type {
+  ObservableGraph,
+  ObservableGraphOptions,
+} from "./observability/createObservableGraph";
+export type {
+  SessionTraceSinkOptions,
+} from "./observability/SessionTraceSink";
 export {
   configureShellRuntimeEffects,
   createShellRuntimePaths,

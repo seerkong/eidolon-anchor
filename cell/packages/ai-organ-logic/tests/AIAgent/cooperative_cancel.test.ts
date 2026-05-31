@@ -73,6 +73,125 @@ describe("Stage 3 cooperative cancel", () => {
     expect(s.fibers[fiberId].status).not.toBe("cancelled");
   });
 
+  it("aborts an inflight tool when control.cancel_requested is present", async () => {
+    const toolRegistry = new ToolFuncRegistry();
+    const actor = createActor({
+      key: "main",
+      llmClient: llmAdapter,
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "ok" }),
+      },
+    });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      registries: { toolRegistry },
+    });
+    const abortController = new AbortController();
+    actor.send("control", { kind: "cancel_requested" });
+
+    let nextState: any;
+    const outcome = await aiAgentCooperativeStep({
+      fiberId: `${actor.key}:${actor.id}`,
+      vm,
+      actor,
+      messages: [],
+      state: {
+        phase: "wait_tool",
+        turn: 1,
+        tools: [],
+        toolCalls: [],
+        toolIndex: 0,
+        nextOpSeq: 2,
+        pendingToolResults: [],
+        pendingAiGenerated: [],
+        inflight: {
+          kind: "tool",
+          opId: "tool:main:1",
+          funcName: "SlowTool",
+          toolCallId: "tc_slow",
+          args: {},
+          abortController,
+        },
+        messageHistoryAttached: false,
+      },
+      setState: (state) => {
+        nextState = state;
+      },
+      resumeFiber: () => {},
+    });
+
+    expect(outcome).toEqual({ kind: "suspend", reason: "idle_external" });
+    expect(abortController.signal.aborted).toBe(true);
+    expect(nextState?.inflight).toBeUndefined();
+  });
+
+  it("does not replay the latest user message after control.cancel_requested is consumed", async () => {
+    const toolRegistry = new ToolFuncRegistry();
+    const actor = createActor({
+      key: "main",
+      llmClient: llmAdapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "cancel this turn" } as any],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "should not run" }),
+      },
+    });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      registries: { toolRegistry },
+    });
+    actor.send("control", { kind: "cancel_requested" });
+
+    let savedState: any = {
+      phase: "wait_llm",
+      turn: 1,
+      tools: [],
+      toolCalls: [],
+      toolIndex: 0,
+      nextOpSeq: 2,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      inflight: { kind: "llm", opId: "llm:main:1", turn: 1, tools: [] },
+      messageHistoryAttached: false,
+    };
+    const fiberId = `${actor.key}:${actor.id}`;
+
+    const cancelOutcome = await aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor,
+      messages: actor.messages,
+      state: savedState,
+      setState: (state) => {
+        savedState = state;
+      },
+      resumeFiber: () => {},
+    });
+
+    expect(cancelOutcome).toEqual({ kind: "suspend", reason: "idle_external" });
+    expect(savedState.phase).toBe("drain");
+
+    const resumedOutcome = await aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor,
+      messages: actor.messages,
+      state: savedState,
+      setState: (state) => {
+        savedState = state;
+      },
+      resumeFiber: () => {},
+    });
+
+    expect(resumedOutcome).toEqual({ kind: "suspend", reason: "idle_external" });
+    expect(savedState.phase).toBe("drain");
+  });
+
   it("cancels a member main fiber when shutdown_requested is present", async () => {
     const toolRegistry = new ToolFuncRegistry();
     const members = getMemberManager();

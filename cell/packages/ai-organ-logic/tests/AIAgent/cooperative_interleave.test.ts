@@ -109,12 +109,12 @@ describe("Stage 3 cooperative stepping", () => {
     await advanceUntil({
       driver,
       fiberId: mainFiberId,
-      predicate: (fiber) => fiber.status === "suspended" && fiber.waitingReason === "external",
+      predicate: (fiber) => fiber.status === "suspended" && fiber.waitingReason === "wait_llm_result",
     });
 
     const s1 = driver.getState();
     expect(s1.fibers[mainFiberId].status).toBe("suspended");
-    expect(s1.fibers[mainFiberId].waitingReason).toBe("external");
+    expect(s1.fibers[mainFiberId].waitingReason).toBe("wait_llm_result");
 
     // Main is waiting; worker should be runnable.
     expect(selectNextFiberId(s1)).toBe(workerFiberId);
@@ -134,7 +134,7 @@ describe("Stage 3 cooperative stepping", () => {
     expect(["ready", "suspended"].includes(s3.fibers[mainFiberId].status)).toBe(true);
   });
 
-  it("runs other fibers while main waits for tool_result", async () => {
+  it("runs other fibers while main waits for tool result", async () => {
     const toolDone = deferred<string>();
     const mockAdapter = {
       type: "openai" as const,
@@ -219,12 +219,12 @@ describe("Stage 3 cooperative stepping", () => {
     await advanceUntil({
       driver,
       fiberId: mainFiberId,
-      predicate: (fiber) => fiber.status === "suspended" && fiber.waitingReason === "tool_result",
+      predicate: (fiber) => fiber.status === "suspended" && fiber.waitingReason === "wait_tool_result",
     });
 
     const s1 = driver.getState();
     expect(s1.fibers[mainFiberId].status).toBe("suspended");
-    expect(s1.fibers[mainFiberId].waitingReason).toBe("tool_result");
+    expect(s1.fibers[mainFiberId].waitingReason).toBe("wait_tool_result");
 
     expect(selectNextFiberId(s1)).toBe(workerFiberId);
 

@@ -57,6 +57,35 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     expect(body.thinking).toEqual({ type: "enabled" });
   });
 
+  it("strips runtime-only diagnostic fields from chat completion requests", async () => {
+    let body: any;
+    const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
+      apiKey: "test-key",
+      baseUrl: "https://api.deepseek.com/v1",
+      providerOptions: {
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body ?? "{}"));
+          return sseResponse();
+        },
+      },
+    });
+
+    await adapter.createStream({
+      model: "deepseek-reasoner",
+      messages: [{ role: "user", content: "hello" }],
+      tools: [],
+      extraBody: {
+        prompt_plan: { id: "plan", turn: 1 },
+        work_context: { task_phase: "implementation" },
+        thinking: { type: "enabled" },
+      },
+    });
+
+    expect(body.prompt_plan).toBeUndefined();
+    expect(body.work_context).toBeUndefined();
+    expect(body.thinking).toEqual({ type: "enabled" });
+  });
+
   it("preserves reasoning-only assistant messages for DeepSeek replay", async () => {
     let body: any;
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({

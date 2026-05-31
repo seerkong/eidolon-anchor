@@ -174,7 +174,7 @@
   - 原因：`member` 是组织身份，不是执行位阶；继续复用 `control` 会让 runtime guard、workload、transcript 与历史压缩分支持续混层
 
 - 决策：常规 member 统一使用 `actor.type = delegate`，后台 member 使用 `actor.type = detached`
-  - 原因：执行语义只表达运行方式；该策略同时贴近 sparrow-agents 中 root-vs-worker 的分层思路，并保留 member 的组织身份
+  - 原因：执行语义只表达运行方式；该策略同时贴近 root-vs-worker 的分层思路，并保留 member 的组织身份
 
 - 决策：将 `assign` 作为唯一正式派发动词
   - 原因：降低记忆负担，避免 `send / call / stream / dispatch / broadcast` 并存

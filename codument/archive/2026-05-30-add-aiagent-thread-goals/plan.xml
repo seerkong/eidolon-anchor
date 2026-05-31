@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>add-aiagent-thread-goals</track_id>
+    <track_name>为 AIAgent 添加 thread goal runtime</track_name>
+    <goal>实现与 Codex 同等级的 thread goal 能力：/goal 用户入口、goal tools、持久化状态、自动计费、idle continuation、complete/blocked 审计和状态同步。</goal>
+    <created_at>2026-05-29T18:19:43Z</created_at>
+    <updated_at>2026-05-30T03:18:20Z</updated_at>
+    <status>completed</status>
+    <commit_mode>manual</commit_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>6</gap_loop_round>
+    <type>feature</type>
+    <description>为本项目补齐与 Codex 同等级的 thread goal 能力：/goal 入口、goal tools、持久化状态、自动计费与 idle continuation、complete/blocked 审计和用户可见状态同步。</description>
+</metadata>
+
+  <phases>
+    <phase id="P1" name="Goal model and persistence" priority="P0" status="DONE">
+      <goal>建立 thread goal 数据模型、存储边界和最小可验证测试。</goal>
+      <tasks>
+        <task id="T1.1" name="Define goal schema and storage contract" status="DONE" priority="P0">
+          <description>Define the persisted goal shape, statuses, budget/usage fields, and thread-scoped repository contract.</description>
+        </task>
+        <task id="T1.2" name="Implement goal persistence and state transitions" status="DONE" priority="P0">
+          <description>Implement storage, retrieval, replace/update/clear flows, and persisted-thread guardrails.</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P2" name="Slash command and tool surface" priority="P0" status="DONE">
+      <goal>提供 `/goal` 用户入口以及 get/create/update goal 模型工具。</goal>
+      <tasks>
+        <task id="T2.1" name="Add slash and tool contract tests" status="DONE" priority="P0">
+          <description>Cover `/goal` parse forms, replacement confirmation, and goal tool schema/permission expectations.</description>
+        </task>
+        <task id="T2.2" name="Implement goal command and tool handlers" status="DONE" priority="P0">
+          <description>Wire `/goal` actions and register model-callable goal tools in the builtin tool set.</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P3" name="Runtime accounting and auto continuation" priority="P0" status="DONE">
+      <goal>把 goal 连接到 turn 生命周期、usage accounting、budget limit 和 idle continuation。</goal>
+      <tasks>
+        <task id="T3.1" name="Add runtime accounting and continuation tests" status="DONE" priority="P0">
+          <description>Cover turn start/finish, tool completion, abort, budget exhaustion, and idle continuation behavior.</description>
+        </task>
+        <task id="T3.2" name="Implement goal runtime hooks and hidden prompts" status="DONE" priority="P0">
+          <description>Compute usage deltas, maintain runtime goal state, and inject continuation / budget prompts when required.</description>
+        </task>
+      </tasks>
+    </phase>
+
+    <phase id="P4" name="Status propagation and final verification" priority="P1" status="DONE">
+      <goal>让 goal 状态对用户可见，并完成最终验证与 gap-loop 收口。</goal>
+      <tasks>
+        <task id="T4.1" name="Add state propagation and audit tests" status="DONE" priority="P1">
+          <description>Cover goal update events, UI/status visibility, and strict complete/blocked audit outcomes.</description>
+        </task>
+        <task id="T4.2" name="Wire status surface and run targeted verification" status="DONE" priority="P1">
+          <description>Connect the goal state to user-visible surfaces and run targeted verification for the new capability.</description>
+        </task>
+      </tasks>
+      <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+    </phase>
+  </phases>
+</plan>
+

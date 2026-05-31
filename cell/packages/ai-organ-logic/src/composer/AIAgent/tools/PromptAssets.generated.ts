@@ -21,8 +21,6 @@ import DetachedActorList_Tool_brief_xnl from "./DetachedActorList/Tool.brief.xnl
 import DetachedActorList_Tool_detail_xnl from "./DetachedActorList/Tool.detail.xnl" with { type: "text" }
 import DetachedActorStatus_Tool_brief_xnl from "./DetachedActorStatus/Tool.brief.xnl" with { type: "text" }
 import DetachedActorStatus_Tool_detail_xnl from "./DetachedActorStatus/Tool.detail.xnl" with { type: "text" }
-import DetachedBash_Tool_brief_xnl from "./DetachedBash/Tool.brief.xnl" with { type: "text" }
-import DetachedBash_Tool_detail_xnl from "./DetachedBash/Tool.detail.xnl" with { type: "text" }
 import DetachedToolCall_Tool_brief_xnl from "./DetachedToolCall/Tool.brief.xnl" with { type: "text" }
 import DetachedToolCall_Tool_detail_xnl from "./DetachedToolCall/Tool.detail.xnl" with { type: "text" }
 import Edit_Tool_brief_xnl from "./Edit/Tool.brief.xnl" with { type: "text" }
@@ -55,6 +53,8 @@ import Read_Tool_brief_xnl from "./Read/Tool.brief.xnl" with { type: "text" }
 import Read_Tool_detail_xnl from "./Read/Tool.detail.xnl" with { type: "text" }
 import RunDelegateActor_Tool_brief_xnl from "./RunDelegateActor/Tool.brief.xnl" with { type: "text" }
 import RunDelegateActor_Tool_detail_xnl from "./RunDelegateActor/Tool.detail.xnl" with { type: "text" }
+import RunDetachedBash_Tool_brief_xnl from "./RunDetachedBash/Tool.brief.xnl" with { type: "text" }
+import RunDetachedBash_Tool_detail_xnl from "./RunDetachedBash/Tool.detail.xnl" with { type: "text" }
 import ShutdownRequest_Tool_brief_xnl from "./ShutdownRequest/Tool.brief.xnl" with { type: "text" }
 import ShutdownRequest_Tool_detail_xnl from "./ShutdownRequest/Tool.detail.xnl" with { type: "text" }
 import ShutdownStatus_Tool_brief_xnl from "./ShutdownStatus/Tool.brief.xnl" with { type: "text" }
@@ -116,10 +116,6 @@ export const toolPromptAssets = {
   "DetachedActorStatus": {
     "Tool.brief.xnl": DetachedActorStatus_Tool_brief_xnl,
     "Tool.detail.xnl": DetachedActorStatus_Tool_detail_xnl,
-  },
-  "DetachedBash": {
-    "Tool.brief.xnl": DetachedBash_Tool_brief_xnl,
-    "Tool.detail.xnl": DetachedBash_Tool_detail_xnl,
   },
   "DetachedToolCall": {
     "Tool.brief.xnl": DetachedToolCall_Tool_brief_xnl,
@@ -184,6 +180,10 @@ export const toolPromptAssets = {
   "RunDelegateActor": {
     "Tool.brief.xnl": RunDelegateActor_Tool_brief_xnl,
     "Tool.detail.xnl": RunDelegateActor_Tool_detail_xnl,
+  },
+  "RunDetachedBash": {
+    "Tool.brief.xnl": RunDetachedBash_Tool_brief_xnl,
+    "Tool.detail.xnl": RunDetachedBash_Tool_detail_xnl,
   },
   "ShutdownRequest": {
     "Tool.brief.xnl": ShutdownRequest_Tool_brief_xnl,

@@ -73,11 +73,14 @@ type StreamDiagnosticState = {
   lastTextLengthByStageAndPart: Map<string, number>
   lastAtByStageAndKey: Map<string, number>
   sinksBySession: Map<string, JsonlAppendOnlySink>
+  sessionTouchOrder: string[]
   workDir: string
   fallbackSessionID?: string
 }
 
 const GLOBAL_STATE_KEY = "__eidolonTuiStreamDiagnosticsState"
+const MAX_DIAGNOSTIC_KEYS = 2_000
+const MAX_DIAGNOSTIC_SESSION_SINKS = 16
 
 function getState(): StreamDiagnosticState {
   const root = globalThis as typeof globalThis & {
@@ -88,10 +91,28 @@ function getState(): StreamDiagnosticState {
       lastTextLengthByStageAndPart: new Map(),
       lastAtByStageAndKey: new Map(),
       sinksBySession: new Map(),
+      sessionTouchOrder: [],
       workDir: process.cwd(),
     }
   }
   return root[GLOBAL_STATE_KEY]
+}
+
+function rememberMapKey<T>(map: Map<string, T>, key: string, value: T): void {
+  if (map.has(key)) {
+    map.delete(key)
+  }
+  map.set(key, value)
+  while (map.size > MAX_DIAGNOSTIC_KEYS) {
+    const oldest = map.keys().next().value
+    if (oldest === undefined) break
+    map.delete(oldest)
+  }
+}
+
+function touchSession(state: StreamDiagnosticState, sessionID: string): void {
+  state.sessionTouchOrder = state.sessionTouchOrder.filter((id) => id !== sessionID)
+  state.sessionTouchOrder.push(sessionID)
 }
 
 function nowMs(): number {
@@ -144,11 +165,22 @@ function findNearestDiagnosticsWorkDir(startDir: string): string {
 function sinkForSession(sessionID: string): JsonlAppendOnlySink {
   const state = getState()
   const existing = state.sinksBySession.get(sessionID)
-  if (existing) return existing
+  if (existing) {
+    touchSession(state, sessionID)
+    return existing
+  }
 
   const filePath = path.join(state.workDir, ".eidolon", "sessions", sessionID, "diagnostics", "tui-stream.jsonl")
   const sink = new JsonlAppendOnlySink(filePath)
   state.sinksBySession.set(sessionID, sink)
+  touchSession(state, sessionID)
+  while (state.sinksBySession.size > MAX_DIAGNOSTIC_SESSION_SINKS) {
+    const oldest = state.sessionTouchOrder.shift()
+    if (!oldest || oldest === sessionID) break
+    const oldSink = state.sinksBySession.get(oldest)
+    state.sinksBySession.delete(oldest)
+    void oldSink?.flush().catch(() => {})
+  }
   return sink
 }
 
@@ -230,13 +262,13 @@ export function traceStreamEvent(stage: StreamDiagnosticStage, event: StreamDiag
   const at = nowMs()
   const state = getState()
   const previousAt = state.lastAtByStageAndKey.get(key)
-  state.lastAtByStageAndKey.set(key, at)
+  rememberMapKey(state.lastAtByStageAndKey, key, at)
 
   const rawPartKey = partKey(event.properties?.part)
   const stagedPartKey = rawPartKey ? `${stage}:${rawPartKey}` : undefined
   const previousTextLength = stagedPartKey ? state.lastTextLengthByStageAndPart.get(stagedPartKey) : undefined
   if (stagedPartKey && typeof summary.textLength === "number") {
-    state.lastTextLengthByStageAndPart.set(stagedPartKey, summary.textLength)
+    rememberMapKey(state.lastTextLengthByStageAndPart, stagedPartKey, summary.textLength)
   }
 
   traceStreamDiagnostic(stage, {
@@ -260,7 +292,7 @@ export function traceRuntimeHistoryEvent(
   const key = `runtime.history:${sessionID || state.fallbackSessionID || "unknown"}:${stream}`
   const at = nowMs()
   const previousAt = state.lastAtByStageAndKey.get(key)
-  state.lastAtByStageAndKey.set(key, at)
+  rememberMapKey(state.lastAtByStageAndKey, key, at)
   traceStreamDiagnostic("runtime.history", {
     sessionID,
     stream,

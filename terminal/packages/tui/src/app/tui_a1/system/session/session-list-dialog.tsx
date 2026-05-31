@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 // Sessions is intentionally a custom dense surface rather than a generic DialogSelect.
 // Keep vertical chrome, padding, hover color, and per-row metadata extremely compact so
 // users can scan many sessions at once without scrolling.
@@ -18,7 +19,7 @@ import "opentui-spinner/solid"
 
 const SESSION_TIME_WIDTH = 18
 const SESSION_INSET = 1
-const SESSION_ACTION_WIDTH = 30
+const SESSION_ACTION_WIDTH = 40
 
 function sortSessionsByUpdated(sessions: Session[]) {
   return [...sessions].sort((a, b) => b.time.updated - a.time.updated)
@@ -328,6 +329,16 @@ export function DialogSessionList() {
                         {isCurrent() && !option.working ? "● " : ""}{option.id} {option.name}
                       </text>
                       <box flexShrink={0} width={SESSION_ACTION_WIDTH} flexDirection="row" justifyContent="flex-end" gap={1}>
+                        <text
+                          fg={actionText(isActive())}
+                          attributes={TextAttributes.BOLD}
+                          onMouseUp={(evt) => {
+                            evt.stopPropagation()
+                            selectOption(option)
+                          }}
+                        >
+                          [加载]
+                        </text>
                         <text
                           fg={actionText(isActive())}
                           attributes={TextAttributes.BOLD}

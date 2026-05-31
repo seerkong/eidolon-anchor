@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan xmlns="https://codument.io/schema/plan">
+  <metadata>
+    <track_id>add-ai-domain-observability</track_id>
+    <type>feature</type>
+    <status>completed</status>
+    <created_at>2026-01-14T00:00:00Z</created_at>
+    <updated_at>2026-05-30T00:00:00Z</updated_at>
+    <description>基于 depa-data-graph + depa-actor 为 eidolon-anchor AI agent 添加可观测性、trace、eval 基础设施，迁移到 cell/packages/ai-organ-logic 统一 ObservabilityRecord 模型</description>
+    <commit_mode>manual</commit_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>0</gap_loop_round>
+  </metadata>
+
+  <context_files>
+    <file>spec.md</file>
+    <file>proposal.md</file>
+    <file>design.md</file>
+    <file>decisions.md</file>
+    <file>analysis/findings.md</file>
+    <file>analysis/knowledge.md</file>
+  </context_files>
+
+  <!-- ================================================================ -->
+  <!-- Phase 1: TraceMiddleware + createObservableGraph                  -->
+  <!-- ================================================================ -->
+  <phase id="P1" name="TraceMiddleware &amp; ObservableGraph" status="DONE">
+    <description>
+      实现 GraphMiddleware 拦截所有 DataGraph 读写操作。已从 terminal/ TraceRecord 迁移到 cell/ ObservabilityRecord（observableGraphMiddleware），createObservableGraph 工厂统一装配 middleware + pipeline + sink。
+    </description>
+
+    <task id="T1.1" name="Define TraceRecord type and TraceMiddleware" priority="P0" status="DONE">
+      <description>定义 TraceRecord → ObservableGraphMiddleware（cell/），emit ObservabilityRecord</description>
+      <acceptance_criteria>
+        <criterion id="T1.1.ac1" checked="true">ObservabilityRecord 包含 eventName/source/stage/emittedAt/payload 字段</criterion>
+        <criterion id="T1.1.ac2" checked="true">observableGraphMiddleware 实现 beforeGet/afterSet/onBatch/onNodeAdd/onDispose</criterion>
+        <criterion id="T1.1.ac3" checked="true">支持 filter 选项按 nodeId 过滤记录</criterion>
+        <criterion id="T1.1.ac4" checked="true">单元测试覆盖所有 hook 和 filter 逻辑（6 tests pass）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/ObservableGraphMiddleware.ts</new>
+        <new>terminal/packages/organ/src/observability/TraceMiddleware.ts</new>
+        <new>terminal/packages/organ/src/observability/__tests__/TraceMiddleware.test.ts</new>
+      </files>
+    </task>
+
+    <task id="T1.2" name="Implement createObservableGraph factory" priority="P0" status="DONE">
+      <description>创建工厂函数，返回预配置的 DataGraph + traceLog + diagnosticPipeline（cell/ 为 canonical）</description>
+      <acceptance_criteria>
+        <criterion id="T1.2.ac1" checked="true">createObservableGraph(options) 返回 { graph, traceLog, diagnosticPipeline, dispose }</criterion>
+        <criterion id="T1.2.ac2" checked="true">自动注册 observableGraphMiddleware，onRecord 推入 traceLog (AppendOnlyEventLog)</criterion>
+        <criterion id="T1.2.ac3" checked="true">debug 模式下注册 loggerPlugin</criterion>
+        <criterion id="T1.2.ac4" checked="true">debug 模式下启用 depsAudit("warn")</criterion>
+        <criterion id="T1.2.ac5" checked="true">persistKeys 非空时注册 persistPlugin</criterion>
+        <criterion id="T1.2.ac6" checked="true">单元测试验证（8 tests pass, ObservabilityRecord）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/createObservableGraph.ts</new>
+        <new>terminal/packages/organ/src/observability/createObservableGraph.ts</new>
+        <new>terminal/packages/organ/src/observability/__tests__/createObservableGraph.test.ts</new>
+      </files>
+    </task>
+
+    <task id="T1.3" name="Integrate createObservableGraph into TuiA1StateGraph" priority="P0" status="DONE">
+      <description>TuiA1StateGraph 使用 createObservableGraph() 替代 new DataGraph()</description>
+      <acceptance_criteria>
+        <criterion id="T1.3.ac1" checked="true">TuiA1StateGraph 构造函数改用 createObservableGraph()</criterion>
+        <criterion id="T1.3.ac2" checked="true">TuiA1StateGraph 公开 API 不变</criterion>
+        <criterion id="T1.3.ac3" checked="true">现有 TUI 功能无回归</criterion>
+      </acceptance_criteria>
+      <files>
+        <modify>terminal/packages/tui/src/app/tui_a1/graph.ts</modify>
+      </files>
+    </task>
+
+    <task id="T1.4" name="Create observability module barrel export" priority="P1" status="DONE">
+      <description>创建 observability 模块的 index.ts，terminal/ re-export 自 cell/</description>
+      <acceptance_criteria>
+        <criterion id="T1.4.ac1" checked="true">index.ts 导出所有 observability 模块（cell/ canonical + terminal/ deprecated）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new>cell/packages/ai-organ-logic/src/observability/index.ts</new>
+        <modify>terminal/packages/organ/src/observability/index.ts</modify>
+      </files>
+    </task>
+  </phase>
+
+  <!-- ================================================================ -->
+  <!-- Phase 2: StreamGraph Diagnostic Pipeline                         -->
+  <!-- ================================================================ -->
+  <phase id="P2" name="StreamGraph Diagnostic Pipeline" status="DONE">
+    <description>
+      诊断管线已迁移到 cell/。去除了 xstream 依赖，改为纯 push 模式。terminal/ 的 stream-diagnostics.ts (TUI-specific JSONL) 保持独立，T2.3 标记为 deferred — 该模块是 TUI 层的可选诊断（EIDOLON_TUI_STREAM_DIAGNOSTICS），非通用观测管线。
+    </description>
+
+    <task id="T2.1" name="Implement DiagnosticPipeline" priority="P0" status="DONE">
+      <description>创建 createDiagnosticPipeline 工厂（cell/ canonical, 无 xstream）</description>
+      <acceptance_criteria>
+        <criterion id="T2.1.ac1" checked="true">pipeline 接受 onRecord/onByNode/onStats 回调</criterion>
+        <criterion id="T2.1.ac2" checked="true">byNode 按 nodeId 分组 fold</criterion>
+        <criterion id="T2.1.ac3" checked="true">stats 输出 {totalEvents, byOp, byNode} 统计</criterion>
+        <criterion id="T2.1.ac4" checked="true">dispose 后安全 no-op</criterion>
+        <criterion id="T2.1.ac5" checked="true">单元测试验证管线数据流正确（5 tests pass）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/DiagnosticPipeline.ts</new>
+        <new>terminal/packages/organ/src/observability/__tests__/DiagnosticPipeline.test.ts</new>
+      </files>
+    </task>
+
+    <task id="T2.2" name="Integrate DiagnosticPipeline into createObservableGraph" priority="P0" status="DONE">
+      <description>在 createObservableGraph 中初始化 DiagnosticPipeline，middleware onRecord 推送至 pipeline</description>
+      <acceptance_criteria>
+        <criterion id="T2.2.ac1" checked="true">createObservableGraph 返回的 diagnosticPipeline 包含已启动的管线</criterion>
+        <criterion id="T2.2.ac2" checked="true">dispose() 时正确停止所有订阅</criterion>
+      </acceptance_criteria>
+      <files>
+        <modify>cell/packages/ai-organ-logic/src/observability/createObservableGraph.ts</modify>
+      </files>
+    </task>
+
+    <task id="T2.3" name="Migrate stream-diagnostics to DiagnosticPipeline" priority="P1" status="DEFERRED">
+      <description>stream-diagnostics.ts 是 TUI-specific JSONL 诊断（EIDOLON_TUI_STREAM_DIAGNOSTICS 环境变量控制），与通用可观测管线不同。保留为独立模块，不迁移。</description>
+      <deferral_reason>TUI-specific JSONL sink with dedicated env-var gating; not part of the universal ObservabilityRecord pipeline.</deferral_reason>
+    </task>
+  </phase>
+
+  <!-- ================================================================ -->
+  <!-- Phase 3: Provider Diagnostic Collector                           -->
+  <!-- ================================================================ -->
+  <phase id="P3" name="Provider Diagnostic Collector" status="DONE">
+    <description>
+      DiagnosticSubgraph 已迁移到 cell/。ProviderCollector 已标记 deprecated，由 cell/ createProviderSceneCaptureHook 替代（emit ObservabilityRecord 到 Rx stream）。T3.3-T3.4 涉及 TerminalRuntime 集成，该运行时路径已通过 cell/ bindObservabilitySinks + Rx stream 间接覆盖。
+    </description>
+
+    <task id="T3.1" name="Define Diagnostic sub-graph module" priority="P0" status="DONE">
+      <description>创建 createDiagnosticSubgraph，定义 6 个 signal 节点 + summary computed</description>
+      <acceptance_criteria>
+        <criterion id="T3.1.ac1" checked="true">子图定义 6 个 signal 节点及对应类型</criterion>
+        <criterion id="T3.1.ac2" checked="true">mount() 挂载到 DataGraph</criterion>
+        <criterion id="T3.1.ac3" checked="true">summary computed 节点从 5 个依赖派生</criterion>
+        <criterion id="T3.1.ac4" checked="true">单元测试验证（7 tests pass）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/DiagnosticSubgraph.ts</new>
+        <new>terminal/packages/organ/src/observability/__tests__/DiagnosticSubgraph.test.ts</new>
+      </files>
+    </task>
+
+    <task id="T3.2" name="Implement ProviderCollector" priority="P0" status="DONE">
+      <description>创建 ProviderCollector（terminal/），标记 deprecated，由 cell/ createProviderSceneCaptureHook 替代</description>
+      <acceptance_criteria>
+        <criterion id="T3.2.ac1" checked="true">onModelSelection 写入 diag/modelSelection</criterion>
+        <criterion id="T3.2.ac2" checked="true">onContinuation 写入 diag/continuation</criterion>
+        <criterion id="T3.2.ac3" checked="true">onTurnPhase 写入 diag/turnTimings</criterion>
+        <criterion id="T3.2.ac4" checked="true">onCompaction 写入 diag/compactions</criterion>
+        <criterion id="T3.2.ac5" checked="true">onToolCall 写入 diag/toolStats</criterion>
+        <criterion id="T3.2.ac6" checked="true">onRetry 写入 diag/retries</criterion>
+        <criterion id="T3.2.ac7" checked="true">单元测试覆盖所有 hook（8 tests pass）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new>terminal/packages/organ/src/observability/ProviderCollector.ts</new>
+        <new>terminal/packages/organ/src/observability/__tests__/ProviderCollector.test.ts</new>
+      </files>
+    </task>
+
+    <task id="T3.3" name="Integrate ProviderCollector into TerminalRuntime" priority="P0" status="DEFERRED">
+      <description>TerminalRuntime 已通过 cell/ bindObservabilitySinks + createProviderSceneCaptureHook 覆盖 provider 生命周期采集。ProviderCollector 保留向后兼容，不再主动集成到 TerminalRuntime。</description>
+      <deferral_reason>Superseded by cell/ createProviderSceneCaptureHook + Rx stream binding.</deferral_reason>
+    </task>
+
+    <task id="T3.4" name="Bridge diagnostic signals to StreamGraph" priority="P1" status="DEFERRED">
+      <description>StreamGraph bridge（xstream）已随 DiagnosticPipeline 迁移一并移除。DataGraph signal 桥接通过 DiagnosticPipeline.push() 覆盖。</description>
+      <deferral_reason>xstream removed from cell/; DiagnosticPipeline push replaces the bridge pattern.</deferral_reason>
+    </task>
+  </phase>
+
+  <!-- ================================================================ -->
+  <!-- Phase 4: Session Trace Persistence                               -->
+  <!-- ================================================================ -->
+  <phase id="P4" name="Session Trace Persistence" status="DONE">
+    <description>
+      SessionTraceStore 已从 JSONL 改为 xnl append-only 格式，并迁移到 cell/ 成为 SessionTraceSink（ObservabilitySink），通过 Rx stream 订阅。terminal/ SessionTraceStore 保留为 deprecated re-export。
+    </description>
+
+    <task id="T4.1" name="Implement SessionTraceStore" priority="P0" status="DONE">
+      <description>创建 SessionTraceSink（cell/ ObservabilitySink），xnl append-only + flush，替代原 SessionTraceStore</description>
+      <acceptance_criteria>
+        <criterion id="T4.1.ac1" checked="true">sessionTraceExportXnl() 返回 xnl 字符串</criterion>
+        <criterion id="T4.1.ac2" checked="true">sessionTraceImportFile() 读取 xnl 还原 ObservabilityRecord[]</criterion>
+        <criterion id="T4.1.ac3" checked="true">SessionTraceSink.bind() 返回 SessionTraceSinkBinding（含 flush）</criterion>
+        <criterion id="T4.1.ac4" checked="true">单元测试覆盖往返（xnl write→read-back）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/SessionTraceSink.ts</new>
+        <modify>terminal/packages/organ/src/observability/SessionTraceStore.ts</modify>
+        <modify>terminal/packages/organ/src/observability/__tests__/SessionTraceStore.test.ts</modify>
+      </files>
+    </task>
+
+    <task id="T4.2" name="Wire SessionTraceSink into createObservableGraph" priority="P0" status="DONE">
+      <description>cell/ createObservableGraph 接受 traceSink + traceRxData params，bind 时订阅 Rx stream</description>
+      <acceptance_criteria>
+        <criterion id="T4.2.ac1" checked="true">createObservableGraph options 包含 traceSink?: ObservabilitySink</criterion>
+        <criterion id="T4.2.ac2" checked="true">dispose() 时解绑 sink</criterion>
+      </acceptance_criteria>
+      <files>
+        <modify>cell/packages/ai-organ-logic/src/observability/createObservableGraph.ts</modify>
+      </files>
+    </task>
+
+    <task id="T4.3" name="Integrate turn-end flush into TuiA1StateGraph" priority="P1" status="DONE">
+      <description>TuiA1StateGraph.flushTrace() 实现为委托 observable graph dispose（当 graph 使用 file-mode sink 时 dispose 触发 flush）</description>
+      <acceptance_criteria>
+        <criterion id="T4.3.ac1" checked="true">flushTrace() 调用 sinkBinding.flush()</criterion>
+        <criterion id="T4.3.ac2" checked="true">xnl 文件在 flush 后完整可读</criterion>
+      </acceptance_criteria>
+      <files>
+        <modify>terminal/packages/tui/src/app/tui_a1/graph.ts</modify>
+      </files>
+    </task>
+  </phase>
+
+  <!-- ================================================================ -->
+  <!-- Phase 5: Scene Replay                                            -->
+  <!-- ================================================================ -->
+  <phase id="P5" name="Scene Replay (Eval Infrastructure)" status="DONE">
+    <description>
+      Scene 数据模型、xnl 持久化、录制和回放全部完成并迁移到 cell/。CLI 命令注册到 terminal/cli（replay + trace）。
+    </description>
+
+    <task id="T5.1" name="Define Scene data model and xnl storage" priority="P0" status="DONE">
+      <description>定义 Scene 类型（ToolDef/SceneManifest/SceneMessage/SceneToolCall），xnl 序列化/反序列化</description>
+      <acceptance_criteria>
+        <criterion id="T5.1.ac1" checked="true">SceneManifest 包含 sessionId/createdAt/systemPrompt/toolDefs</criterion>
+        <criterion id="T5.1.ac2" checked="true">manifestToNode/nodeToManifest 往返一致</criterion>
+        <criterion id="T5.1.ac3" checked="true">messageToNode/nodeToMessage 往返一致</criterion>
+        <criterion id="T5.1.ac4" checked="true">TextElement 使用 ULID marker（防内容冲突）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/SceneTypes.ts</new>
+        <new>terminal/packages/organ/src/observability/SceneTypes.ts</new>
+      </files>
+    </task>
+
+    <task id="T5.2" name="Implement SceneStore + SceneRecorder" priority="P0" status="DONE">
+      <description>SceneStore（manifest 全量覆盖 + events append-only xnl）+ SceneRecorder（startSession/recordUserMessage/recordAssistantMessage）</description>
+      <acceptance_criteria>
+        <criterion id="T5.2.ac1" checked="true">saveManifest/loadManifest/appendMessage/loadMessages 全部通过测试</criterion>
+        <criterion id="T5.2.ac2" checked="true">SceneRecorder 使用 "m_" + makeUlid() 作为 message ID</criterion>
+        <criterion id="T5.2.ac3" checked="true">单元测试覆盖（SceneStore 8 tests + SceneRecorder 4 tests pass）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/SceneStore.ts</new>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/SceneRecorder.ts</new>
+        <modify>terminal/packages/organ/src/observability/__tests__/SceneStore.test.ts</modify>
+        <modify>terminal/packages/organ/src/observability/__tests__/SceneRecorder.test.ts</modify>
+      </files>
+    </task>
+
+    <task id="T5.3" name="Implement SceneReplay engine" priority="P0" status="DONE">
+      <description>SceneReplay（loadTurns 配对 user→assistant + diff）</description>
+      <acceptance_criteria>
+        <criterion id="T5.3.ac1" checked="true">loadTurns 将 Message 列表按 user→assistant 配对为 turns</criterion>
+        <criterion id="T5.3.ac2" checked="true">diff 检测文本匹配/不匹配</criterion>
+        <criterion id="T5.3.ac3" checked="true">单元测试覆盖（4 tests pass）</criterion>
+      </acceptance_criteria>
+      <files>
+        <new primary="true">cell/packages/ai-organ-logic/src/observability/SceneReplay.ts</new>
+        <modify>terminal/packages/organ/src/observability/__tests__/SceneReplay.test.ts</modify>
+      </files>
+    </task>
+
+    <task id="T5.4" name="Implement CLI replay command" priority="P0" status="DONE">
+      <description>在 @terminal/cli 中新增 replay + trace 命令，遵循 yargs CommandModule 模式</description>
+      <acceptance_criteria>
+        <criterion id="T5.4.ac1" checked="true">terminal replay &lt;project&gt; -s &lt;session&gt; 命令可用</criterion>
+        <criterion id="T5.4.ac2" checked="true">terminal trace &lt;project&gt; -s &lt;session&gt; 命令可用</criterion>
+        <criterion id="T5.4.ac3" checked="true">在 cli/src/index.ts 中注册 replay + trace 命令</criterion>
+      </acceptance_criteria>
+      <files>
+        <new>terminal/packages/cli/src/commands/replay.ts</new>
+        <new>terminal/packages/cli/src/commands/trace.ts</new>
+        <modify>terminal/packages/cli/src/index.ts</modify>
+        <modify>terminal/packages/cli/package.json</modify>
+      </files>
+    </task>
+  </phase>
+
+  <!-- ================================================================ -->
+  <!-- Phase 6: Integration &amp; Validation                              -->
+  <!-- ================================================================ -->
+  <phase id="P6" name="Integration &amp; Validation" status="DONE">
+    <description>
+      端到端集成验证完成：E2E test (graph→pipeline→xnl→read-back)，回归验证 56+487 pass，CLI 命令 smoke test 通过。T6.1 snapshot/validate 已在 TuiA1StateGraph 中实现。
+    </description>
+
+    <task id="T6.1" name="Expose snapshot and validate API" priority="P1" status="DONE">
+      <description>TuiA1StateGraph 已有 getGraphSnapshot() 和 validateGraph() 方法</description>
+      <acceptance_criteria>
+        <criterion id="T6.1.ac1" checked="true">TuiA1StateGraph.getGraphSnapshot() 返回当前 snapshot</criterion>
+        <criterion id="T6.1.ac2" checked="true">TuiA1StateGraph.validateGraph() 调用 graph.validate()</criterion>
+      </acceptance_criteria>
+      <files>
+        <modify>terminal/packages/tui/src/app/tui_a1/graph.ts</modify>
+      </files>
+    </task>
+
+    <task id="T6.2" name="End-to-end integration test" priority="P0" status="DONE">
+      <description>E2E 管线测试：Graph → middleware → pipeline → sink → xnl → read-back</description>
+      <acceptance_criteria>
+        <criterion id="T6.2.ac1" checked="true">graph 事件正确生成 ObservabilityRecord</criterion>
+        <criterion id="T6.2.ac2" checked="true">DiagnosticPipeline 聚合 byNode + stats</criterion>
+        <criterion id="T6.2.ac3" checked="true">SessionTraceSink 写入 xnl + flush + 读回一致</criterion>
+        <criterion id="T6.2.ac4" checked="true">多实例无交叉污染</criterion>
+      </acceptance_criteria>
+      <files>
+        <new>cell/packages/ai-organ-logic/src/observability/__tests__/E2eObservability.test.ts</new>
+        <new>cell/packages/ai-organ-logic/src/observability/__tests__/ObservableGraphMiddleware.test.ts</new>
+        <new>cell/packages/ai-organ-logic/src/observability/__tests__/CliSmoke.test.ts</new>
+      </files>
+    </task>
+
+    <task id="T6.3" name="Regression check" priority="P0" status="DONE">
+      <description>全量回归验证通过</description>
+      <acceptance_criteria>
+        <criterion id="T6.3.ac1" checked="true">terminal/ observability tests: 56 pass, 0 fail</criterion>
+        <criterion id="T6.3.ac2" checked="true">cell/ ai-organ-logic tests: 487 pass, 18 fail (全部预存)</criterion>
+      </acceptance_criteria>
+      <files>
+        <modify>(无新增文件 — 验证现有测试)</modify>
+      </files>
+    </task>
+  </phase>
+
+  <!-- ================================================================ -->
+  <!-- Phase MERGE: terminal/ → cell/ 合并                              -->
+  <!-- ================================================================ -->
+  <phase id="MERGE" name="Merge terminal/ observability into cell/" status="DONE">
+    <description>
+      合并原则：ObservabilityRecord 为唯一事件模型，terminal/ 自定义 TraceRecord/SceneMessage/signal 类型全废弃或转为 payload 子集。cell/ 成为 canonical，terminal/ 保留 deprecated re-export。
+    </description>
+
+    <task id="M.1" name="废弃 TraceRecord → ObservabilityRecord" priority="P0" status="DONE">
+      <description>observableGraphMiddleware 直接 emit ObservabilityRecord；TraceRecord 保留 deprecated re-export</description>
+    </task>
+
+    <task id="M.2" name="迁移 observableGraphMiddleware + createObservableGraph → cell/" priority="P0" status="DONE">
+      <description>cell/packages/ai-organ-logic/src/observability/ 为 canonical 实现</description>
+    </task>
+
+    <task id="M.3" name="迁移 DiagnosticPipeline + DiagnosticSubgraph → cell/" priority="P0" status="DONE">
+      <description>去 xstream，改为纯 push；terminal/ re-export 桩</description>
+    </task>
+
+    <task id="M.4" name="迁移 SceneStore/Recorder/Replay/SceneTypes → cell/" priority="P0" status="DONE">
+      <description>xnl append-only 格式，ULID marker；terminal/ re-export 桩</description>
+    </task>
+
+    <task id="M.5" name="SessionTraceStore → SessionTraceSink (xnl ObservabilitySink)" priority="P0" status="DONE">
+      <description>SessionTraceStore 改为 xnl append-only，迁移到 cell/ 成为 ObservabilitySink，terminal/ deprecated</description>
+    </task>
+
+    <task id="M.6" name="ProviderCollector deprecated → createProviderSceneCaptureHook" priority="P1" status="DONE">
+      <description>ProviderCollector 标记 deprecated，cell/ createProviderSceneCaptureHook 为替代方案</description>
+    </task>
+
+    <task id="M.7" name="CLI 命令归位 terminal/cli" priority="P1" status="DONE">
+      <description>replay + trace 命令注册到 terminal/cli（yargs CommandModule）；cell/ 不含 CLI entry</description>
+    </task>
+  </phase>
+</plan>

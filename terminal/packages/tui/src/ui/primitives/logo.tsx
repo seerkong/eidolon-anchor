@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { TextAttributes } from "@opentui/core"
 import { For } from "solid-js"
 import { useTheme } from "../../providers/theme"

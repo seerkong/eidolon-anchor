@@ -216,16 +216,22 @@ export async function processRuntimeIngressStream(params: {
   adapterType: LlmAdapterType
   eventBus?: DomainRuntimeEventGraph
   actorMeta?: { agentKey: string; agentActorId: string }
+  signal?: AbortSignal
 }) {
   const runtime = IngressStreamRuntime.create()
-  const [ingressStreams, runAdapter] = createIngressStreamAdapter(params.stream, runtime, params.adapterType)
+  const [ingressStreams, runAdapter] = createIngressStreamAdapter(params.stream, runtime, params.adapterType, {
+    signal: params.signal,
+  })
   const { semanticGraph, runPipeline } = createSemanticStreamPipeline(
     ingressStreams,
     params.actorMeta ?? { agentKey: "unknown", agentActorId: "unknown" },
   )
 
   if (params.eventBus) {
-    semanticGraph.onSemanticEvent((event) => params.eventBus!.emit(event))
+    semanticGraph.onSemanticEvent((event) => {
+      if (params.signal?.aborted) return
+      params.eventBus!.emit(event)
+    })
   }
 
   const results = await Promise.all([runAdapter(), runPipeline()])

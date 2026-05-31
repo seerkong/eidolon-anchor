@@ -150,6 +150,44 @@ describe("exec command", () => {
     expect(processLike.exitCode).toBe(2)
   })
 
+  test("maps yolo alias into dangerous approval mode", async () => {
+    const calls: any[] = []
+    const processLike: ExecCommandProcessLike = {
+      env: { PWD: "/launch" },
+      cwd: () => "/fallback",
+      stdout: { write: () => true },
+      stderr: { write: () => true },
+      exitCode: 0,
+    }
+
+    const command = createExecCommand({
+      parseExecConfigOverride: () => ({ mcp: true }),
+      readHeadlessInput: async (prompt) => prompt,
+      resolveProjectWorkDir: () => "/resolved/workspace",
+      runHeadlessExec: async (options) => {
+        calls.push(options)
+        return {
+          status: "completed",
+          visibleOutput: "done",
+          finalMessage: "done",
+          warnings: [],
+          failureSummary: null,
+        }
+      },
+      processLike,
+      reportError: () => {},
+    })
+
+    await yargs(["exec", "do work", "--yolo"])
+      .scriptName("terminal")
+      .command(command)
+      .exitProcess(false)
+      .parseAsync()
+
+    expect(calls).toHaveLength(1)
+    expect(calls[0].approvalMode).toBe("dangerous")
+  })
+
   test("resolves approval mode precedence", () => {
     expect(resolveExecApprovalMode({})).toBe("default")
     expect(resolveExecApprovalMode({ fullAuto: true })).toBe("full-auto")

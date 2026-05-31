@@ -1,11 +1,18 @@
-import {
-  AppendOnlyEventLog,
-  createReducerProjection,
-  DataGraph,
-  type ReducerProjection,
-} from "depa-data-graph-core"
+import { createObservableGraph } from "@terminal/organ/observability"
+import type { SessionTraceStore } from "@terminal/organ/observability"
 import { buildQuestionnaireProtocolQuestion } from "@cell/ai-core-contract/runtime/QuestionnaireProtocol"
-import type { Message, Part, PermissionRequest, Question, QuestionAnswer, QuestionRequest, ToolPart } from "@terminal/core/AIAgent"
+import type { ActorSurfaceProjectionData } from "@cell/ai-core-contract/runtime/ActorSurface"
+import type {
+  Message,
+  Part,
+  PermissionRequest,
+  Question,
+  QuestionAnswer,
+  QuestionRequest,
+  RuntimeUsage,
+  ToolPart,
+  UserInputHistoryEntry,
+} from "@terminal/core/AIAgent"
 import {
   createRuntimePlaceholderMessages,
   defaultTuiA1Selection,
@@ -32,10 +39,16 @@ type TuiA1RuntimeParts = Record<string, Part[]>
 type TuiA1PermissionQueue = Record<string, PermissionRequest[]>
 type TuiA1QuestionQueue = Record<string, QuestionRequest[]>
 type TuiA1HistoryMessages = Record<string, TuiA1Message[]>
+type TuiA1RuntimeUsageBySession = Record<string, RuntimeUsage>
+type TuiA1UserInputHistoryBySession = Record<string, UserInputHistoryEntry[]>
 type TuiA1QuestionnaireStatus = "pending" | "done" | "rejected"
 type TuiA1QuestionnaireRecords = Record<string, Record<string, TuiA1QuestionnaireRecord>>
 
 const MAX_RUNTIME_CACHE_MESSAGES = 100
+const MAX_HISTORY_MESSAGES_PER_SESSION = 200
+const MAX_VISIBLE_TIMELINE_MESSAGES = 300
+const MAX_QUESTIONNAIRE_RECORDS_PER_SESSION = 100
+const MAX_USER_INPUT_HISTORY_PER_SESSION = 100
 
 export type TuiA1QuestionnaireRecord = {
   id: string
@@ -64,13 +77,17 @@ export type TuiA1ProjectionSnapshot = {
   route: Route
   selection: TuiA1Selection
   sessionID?: string
+  activeTranscriptKey?: string
   messages: TuiA1Message[]
   runtimeMessages: TuiA1RuntimeMessages
   runtimeParts: TuiA1RuntimeParts
   permissions: TuiA1PermissionQueue
   questions: TuiA1QuestionQueue
   historyMessages: TuiA1HistoryMessages
+  runtimeUsage: TuiA1RuntimeUsageBySession
+  userInputHistory: TuiA1UserInputHistoryBySession
   questionnaireRecords: TuiA1QuestionnaireRecords
+  actorSurface: ActorSurfaceProjectionData | null
 }
 
 export type TuiA1GraphEvent =
@@ -106,6 +123,13 @@ export type TuiA1GraphEvent =
       partsByMessage: Record<string, Part[]>
     }
   | {
+      type: "runtime-hydrate-actor-transcript"
+      sessionID: string
+      transcriptKey: string
+      messages: Message[]
+      partsByMessage: Record<string, Part[]>
+    }
+  | {
       type: "runtime-message-updated"
       message: Message
     }
@@ -117,6 +141,22 @@ export type TuiA1GraphEvent =
   | {
       type: "runtime-part-updated"
       part: Part
+    }
+  | {
+      type: "runtime-usage-updated"
+      sessionID: string
+      usage: RuntimeUsage
+    }
+  | {
+      type: "runtime-user-input-history-updated"
+      sessionID: string
+      history: UserInputHistoryEntry[]
+    }
+  | {
+      type: "runtime-user-input-history-appended"
+      sessionID: string
+      entry: UserInputHistoryEntry
+      history?: UserInputHistoryEntry[]
     }
   | {
       type: "permission-asked"
@@ -153,6 +193,10 @@ export type TuiA1GraphEvent =
       rejected: boolean
     }
   | {
+      type: "set-actor-surface"
+      surface: ActorSurfaceProjectionData | null
+    }
+  | {
       type: "local-append-messages"
       messages: TuiA1Message[]
     }
@@ -184,13 +228,17 @@ function createInitialSnapshot(options: {
     route: options.route ?? { type: "home" },
     selection: cloneSelection(options.selection ?? defaultTuiA1Selection),
     sessionID: options.sessionID,
+    activeTranscriptKey: options.sessionID,
     messages: [...options.initialMessages],
     runtimeMessages: {},
     runtimeParts: {},
     permissions: {},
     questions: {},
     historyMessages: {},
+    runtimeUsage: {},
+    userInputHistory: {},
     questionnaireRecords: {},
+    actorSurface: null,
   }
 }
 
@@ -214,6 +262,21 @@ function cloneRuntimeMessage(message: Message): Message {
 
 function cloneRuntimePart(part: Part): Part {
   return structuredClone(part)
+}
+
+function cloneRuntimeUsage(usage: RuntimeUsage): RuntimeUsage {
+  return { ...usage }
+}
+
+function cloneUserInputHistoryEntry(entry: UserInputHistoryEntry): UserInputHistoryEntry {
+  return { ...entry }
+}
+
+function boundUserInputHistory(entries: UserInputHistoryEntry[] | undefined): UserInputHistoryEntry[] {
+  return (entries ?? [])
+    .filter((entry) => String(entry.text ?? "").trim())
+    .slice(-MAX_USER_INPUT_HISTORY_PER_SESSION)
+    .map(cloneUserInputHistoryEntry)
 }
 
 function isSameSelection(left: TuiA1Selection, right: TuiA1Selection): boolean {
@@ -459,9 +522,46 @@ function mergeTimelineMessages(base: TuiA1Message[], overlay: TuiA1Message[]): T
     .map((entry) => entry.message)
 }
 
+function retainTail<T>(items: T[], maxItems: number): T[] {
+  if (items.length <= maxItems) return items
+  return items.slice(-maxItems)
+}
+
+function boundTimelineMessages(messages: TuiA1Message[]): TuiA1Message[] {
+  return retainTail(messages, MAX_VISIBLE_TIMELINE_MESSAGES)
+}
+
+function boundHistoryMessages(messages: TuiA1Message[]): TuiA1Message[] {
+  return retainTail(messages, MAX_HISTORY_MESSAGES_PER_SESSION)
+}
+
+function boundQuestionnaireRecords(
+  records: Record<string, TuiA1QuestionnaireRecord>,
+): Record<string, TuiA1QuestionnaireRecord> {
+  const entries = Object.values(records)
+  if (entries.length <= MAX_QUESTIONNAIRE_RECORDS_PER_SESSION) return records
+
+  const retained = entries
+    .sort((left, right) => {
+      const pendingDiff = Number(right.status === "pending") - Number(left.status === "pending")
+      if (pendingDiff !== 0) return pendingDiff
+      return right.updatedAt - left.updatedAt
+    })
+    .slice(0, MAX_QUESTIONNAIRE_RECORDS_PER_SESSION)
+
+  return Object.fromEntries(retained.map((record) => [record.id, record]))
+}
+
+function upsertBoundedQuestionnaireRecord(
+  records: Record<string, TuiA1QuestionnaireRecord> | undefined,
+  nextRecord: TuiA1QuestionnaireRecord,
+): Record<string, TuiA1QuestionnaireRecord> {
+  return boundQuestionnaireRecords(upsertQuestionnaireRecord(records, nextRecord))
+}
+
 function historyMessagesForSnapshot(snapshot: TuiA1ProjectionSnapshot): TuiA1Message[] {
   if (!snapshot.sessionID) return []
-  return [...(snapshot.historyMessages[snapshot.sessionID] ?? [])]
+  return boundHistoryMessages([...(snapshot.historyMessages[snapshot.sessionID] ?? [])])
 }
 
 function upsertHistoryMessage(messages: TuiA1Message[] | undefined, nextMessage: TuiA1Message): TuiA1Message[] {
@@ -542,7 +642,7 @@ function applyRuntimeProjection(state: TuiA1ProjectionSnapshot): TuiA1Projection
     selection,
     messages:
       mergedMessages.length > 0
-        ? mergedMessages
+        ? boundTimelineMessages(mergedMessages)
         : createRuntimePlaceholderMessages(selection, !state.sessionID),
   }
 }
@@ -559,6 +659,31 @@ function boundRuntimeCaches(state: TuiA1ProjectionSnapshot): TuiA1ProjectionSnap
     runtimeMessages: Object.fromEntries(retainedMessages.map((message) => [message.id, message])),
     runtimeParts: Object.fromEntries(
       Object.entries(state.runtimeParts).filter(([messageID]) => retainedIDs.has(messageID)),
+    ),
+  }
+}
+
+function boundSnapshotCaches(state: TuiA1ProjectionSnapshot): TuiA1ProjectionSnapshot {
+  return {
+    ...boundRuntimeCaches(state),
+    messages: boundTimelineMessages(state.messages),
+    historyMessages: Object.fromEntries(
+      Object.entries(state.historyMessages).map(([sessionID, messages]) => [
+        sessionID,
+        boundHistoryMessages(messages),
+      ]),
+    ),
+    userInputHistory: Object.fromEntries(
+      Object.entries(state.userInputHistory).map(([sessionID, history]) => [
+        sessionID,
+        boundUserInputHistory(history),
+      ]),
+    ),
+    questionnaireRecords: Object.fromEntries(
+      Object.entries(state.questionnaireRecords).map(([sessionID, records]) => [
+        sessionID,
+        boundQuestionnaireRecords(records),
+      ]),
     ),
   }
 }
@@ -797,19 +922,44 @@ function reduceTuiA1GraphState(
           boundRuntimeCaches({
             ...state,
             sessionID: event.sessionID,
+            activeTranscriptKey: event.sessionID,
             busy: event.busy,
             runtimeMessages: Object.fromEntries(event.messages.map((message) => [message.id, cloneRuntimeMessage(message)])),
             runtimeParts: cloneRuntimeParts(event.partsByMessage),
             historyMessages: {
               ...state.historyMessages,
-              [event.sessionID]: nextHistory,
+              [event.sessionID]: boundHistoryMessages(nextHistory),
             },
             questionnaireRecords: {
               ...state.questionnaireRecords,
-              [event.sessionID]: {
+              [event.sessionID]: boundQuestionnaireRecords({
                 ...(state.questionnaireRecords[event.sessionID] ?? {}),
                 ...hydratedQuestionnaire.records,
-              },
+              }),
+            },
+          }),
+        )
+      }
+    case "runtime-hydrate-actor-transcript":
+      {
+        const hydratedQuestionnaire = hydrateQuestionnaireStateFromRuntimeSession(
+          event.sessionID,
+          event.messages,
+          event.partsByMessage,
+        )
+        return applyRuntimeProjection(
+          boundRuntimeCaches({
+            ...state,
+            sessionID: event.sessionID,
+            activeTranscriptKey: event.transcriptKey,
+            runtimeMessages: Object.fromEntries(event.messages.map((message) => [message.id, cloneRuntimeMessage(message)])),
+            runtimeParts: cloneRuntimeParts(event.partsByMessage),
+            questionnaireRecords: {
+              ...state.questionnaireRecords,
+              [event.sessionID]: boundQuestionnaireRecords({
+                ...(state.questionnaireRecords[event.sessionID] ?? {}),
+                ...hydratedQuestionnaire.records,
+              }),
             },
           }),
         )
@@ -863,6 +1013,34 @@ function reduceTuiA1GraphState(
         }),
       )
     }
+    case "runtime-usage-updated":
+      return {
+        ...state,
+        runtimeUsage: {
+          ...state.runtimeUsage,
+          [event.sessionID]: cloneRuntimeUsage(event.usage),
+        },
+      }
+    case "runtime-user-input-history-updated":
+      return {
+        ...state,
+        userInputHistory: {
+          ...state.userInputHistory,
+          [event.sessionID]: boundUserInputHistory(event.history),
+        },
+      }
+    case "runtime-user-input-history-appended": {
+      const nextHistory = event.history
+        ? event.history
+        : [...(state.userInputHistory[event.sessionID] ?? []), event.entry]
+      return {
+        ...state,
+        userInputHistory: {
+          ...state.userInputHistory,
+          [event.sessionID]: boundUserInputHistory(nextHistory),
+        },
+      }
+    }
     case "permission-asked":
       return {
         ...state,
@@ -888,7 +1066,7 @@ function reduceTuiA1GraphState(
         },
         questionnaireRecords: {
           ...state.questionnaireRecords,
-          [event.request.sessionID]: upsertQuestionnaireRecord(
+          [event.request.sessionID]: upsertBoundedQuestionnaireRecord(
             state.questionnaireRecords[event.request.sessionID],
             buildPendingQuestionnaireRecord(event.request),
           ),
@@ -908,9 +1086,11 @@ function reduceTuiA1GraphState(
         ...state,
         historyMessages: {
           ...state.historyMessages,
-          [event.request.sessionID]: upsertHistoryMessage(
-            state.historyMessages[event.request.sessionID],
-            buildPermissionHistoryMessage(event.request, event.reply),
+          [event.request.sessionID]: boundHistoryMessages(
+            upsertHistoryMessage(
+              state.historyMessages[event.request.sessionID],
+              buildPermissionHistoryMessage(event.request, event.reply),
+            ),
           ),
         },
       })
@@ -919,14 +1099,16 @@ function reduceTuiA1GraphState(
         ...state,
         historyMessages: {
           ...state.historyMessages,
-          [event.request.sessionID]: upsertHistoryMessage(
-            state.historyMessages[event.request.sessionID],
-            buildQuestionHistoryMessage(event.request, event.answers, event.rejected),
+          [event.request.sessionID]: boundHistoryMessages(
+            upsertHistoryMessage(
+              state.historyMessages[event.request.sessionID],
+              buildQuestionHistoryMessage(event.request, event.answers, event.rejected),
+            ),
           ),
         },
         questionnaireRecords: {
           ...state.questionnaireRecords,
-          [event.request.sessionID]: upsertQuestionnaireRecord(
+          [event.request.sessionID]: upsertBoundedQuestionnaireRecord(
             state.questionnaireRecords[event.request.sessionID],
             buildCompletedQuestionnaireRecord(
               event.request,
@@ -937,10 +1119,15 @@ function reduceTuiA1GraphState(
           ),
         },
       })
+    case "set-actor-surface":
+      return {
+        ...state,
+        actorSurface: event.surface ? structuredClone(event.surface) : null,
+      }
     case "local-append-messages":
       return {
         ...state,
-        messages: [...state.messages, ...event.messages],
+        messages: boundTimelineMessages([...state.messages, ...event.messages]),
       }
     case "local-patch-message":
       return {
@@ -960,9 +1147,8 @@ function reduceTuiA1GraphState(
 }
 
 export class TuiA1StateGraph {
-  readonly graph = new DataGraph<undefined>(() => undefined)
-  private readonly log = new AppendOnlyEventLog<TuiA1GraphEvent>()
-  private readonly projection: ReducerProjection<TuiA1GraphEvent, TuiA1ProjectionSnapshot>
+  readonly graph!: ReturnType<typeof createObservableGraph>["graph"]
+  private obs!: ReturnType<typeof createObservableGraph>
 
   constructor(options: {
     busy?: boolean
@@ -973,7 +1159,8 @@ export class TuiA1StateGraph {
     sessionID?: string
   }) {
     const initialSnapshot = createInitialSnapshot(options)
-
+    this.obs = createObservableGraph({})
+    this.graph = this.obs.graph
     this.graph.addSignal<TuiA1ProjectionSnapshot>("snapshot", initialSnapshot)
     this.graph.addComputed("messages", ["snapshot"], (ctx) => ctx.get<TuiA1ProjectionSnapshot>("snapshot").messages)
     this.graph.addComputed("busy", ["snapshot"], (ctx) => ctx.get<TuiA1ProjectionSnapshot>("snapshot").busy)
@@ -997,16 +1184,15 @@ export class TuiA1StateGraph {
     this.graph.addComputed("questionnaireCenter", ["snapshot"], (ctx) =>
       questionnaireCenterForSnapshot(ctx.get<TuiA1ProjectionSnapshot>("snapshot")),
     )
+    this.graph.addComputed("actorSurface", ["snapshot"], (ctx) =>
+      ctx.get<TuiA1ProjectionSnapshot>("snapshot").actorSurface,
+    )
     this.graph.addComputed("currentState", ["route", "selection", "sessionID"], (ctx) => ({
       route: ctx.get<Route>("route"),
       selection: ctx.get<TuiA1Selection>("selection"),
       sessionID: ctx.get<string | undefined>("sessionID"),
     }))
 
-    this.projection = createReducerProjection(this.log, {
-      initial: initialSnapshot,
-      reducer: (state, entry) => reduceTuiA1GraphState(state, entry.value),
-    })
   }
 
   snapshot(): TuiA1ProjectionSnapshot {
@@ -1016,10 +1202,10 @@ export class TuiA1StateGraph {
   dispatch(event: TuiA1GraphEvent): void {
     const current = this.snapshot()
     const startedAt = streamDiagnosticNow()
-    const next = reduceTuiA1GraphState(current, event)
-    if (next === current) return
+    const reduced = reduceTuiA1GraphState(current, event)
+    if (reduced === current) return
+    const next = boundSnapshotCaches(reduced)
     this.graph.set("snapshot", next)
-    this.log.append(event)
     if (event.type === "runtime-part-updated") {
       traceStreamDiagnostic("tui_a1.receive", {
         eventType: event.type,
@@ -1072,6 +1258,21 @@ export class TuiA1StateGraph {
     })
   }
 
+  hydrateActorTranscript(options: {
+    sessionID: string
+    transcriptKey: string
+    messages: Message[]
+    partsByMessage: Record<string, Part[]>
+  }): void {
+    this.dispatch({
+      type: "runtime-hydrate-actor-transcript",
+      sessionID: options.sessionID,
+      transcriptKey: options.transcriptKey,
+      messages: options.messages,
+      partsByMessage: options.partsByMessage,
+    })
+  }
+
   applyRuntimeMessageUpdated(message: Message): void {
     this.dispatch({ type: "runtime-message-updated", message })
   }
@@ -1082,6 +1283,18 @@ export class TuiA1StateGraph {
 
   applyRuntimePartUpdated(part: Part): void {
     this.dispatch({ type: "runtime-part-updated", part })
+  }
+
+  applyRuntimeUsageUpdated(sessionID: string, usage: RuntimeUsage): void {
+    this.dispatch({ type: "runtime-usage-updated", sessionID, usage })
+  }
+
+  setUserInputHistory(sessionID: string, history: UserInputHistoryEntry[]): void {
+    this.dispatch({ type: "runtime-user-input-history-updated", sessionID, history })
+  }
+
+  appendUserInputHistory(sessionID: string, entry: UserInputHistoryEntry, history?: UserInputHistoryEntry[]): void {
+    this.dispatch({ type: "runtime-user-input-history-appended", sessionID, entry, history })
   }
 
   applyPermissionAsked(request: PermissionRequest): void {
@@ -1112,6 +1325,10 @@ export class TuiA1StateGraph {
     this.dispatch({ type: "record-question-history", request, answers, rejected })
   }
 
+  setActorSurface(surface: ActorSurfaceProjectionData | null): void {
+    this.dispatch({ type: "set-actor-surface", surface })
+  }
+
   appendLocalMessages(messages: TuiA1Message[]): void {
     this.dispatch({ type: "local-append-messages", messages })
   }
@@ -1121,8 +1338,37 @@ export class TuiA1StateGraph {
   }
 
   dispose(): void {
-    this.projection.dispose()
-    this.log.dispose()
-    this.graph.dispose()
+    this.obs.dispose()
+  }
+
+  /**
+   * Exposes the DiagnosticPipeline for advanced observability use.
+   * The pipeline receives all TraceRecord events from the DataGraph
+   * via the TraceMiddleware, and aggregates them into by-node groups
+   * and global statistics.
+   */
+  diagnosticPipeline() {
+    return this.obs.diagnosticPipeline
+  }
+
+  /** Flush pending trace records to file (when SessionTraceSink is bound). */
+  async flushTrace(): Promise<void> {
+    await this.obs.flushTrace?.();
+  }
+
+  /** Returns a snapshot of the current graph state for debugging. */
+  getGraphSnapshot() {
+    return this.snapshot()
+  }
+
+  /** Validates graph integrity (deps audit). */
+  validateGraph(): string[] {
+    const errors: string[] = []
+    try {
+      this.graph.validate?.()
+    } catch (e) {
+      errors.push(String(e))
+    }
+    return errors
   }
 }

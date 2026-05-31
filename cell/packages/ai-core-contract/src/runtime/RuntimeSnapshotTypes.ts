@@ -16,12 +16,15 @@ import type {
   VmDetachedActorRecord,
   VmHolonRecord,
   VmRecoveryState,
+  VmThreadGoalRecord,
 } from "./AiAgentVm";
 import type {
   ActorWorkContextData,
   ContinuationBaselineData,
 } from "./ContextControl";
+import type { DurableControlSignalStore } from "./DurableControlSignal";
 import type { QuestionnaireRequestPayload } from "./Questionnaire";
+import type { HeartbeatSchedule } from "./Heartbeat";
 
 export const RUNTIME_SNAPSHOT_SCHEMA_VERSION = 3;
 
@@ -103,6 +106,9 @@ export type RuntimeSnapshotVm = RuntimeRootSnapshotBase & {
   sessionState?: {
     holons?: VmHolonRecord[];
     detachedActors?: VmDetachedActorRecord[];
+    controlSignals?: DurableControlSignalStore;
+    heartbeatSchedules?: HeartbeatSchedule[];
+    threadGoal?: VmThreadGoalRecord | null;
   };
   runtimeMetadata: {
     sessionScope: "session";

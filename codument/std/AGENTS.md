@@ -7,8 +7,8 @@
 - 搜索已有工作：`codument list`、`codument list --specs`
 - 确定范围：新增能力 vs 修改现有能力
 - 选择唯一的 `track-id`：kebab-case 命名，动词开头（`add-`、`update-`、`remove-`、`refactor-`）
-- 创建文件：`spec.md`，`proposal.md`、`design.md`(可选)、`plan.xml`
-- 编写规范增量：使用 `## ADDED|MODIFIED|REMOVED Requirements`，每个需求至少包含一个 `#### Scenario:`
+- 创建文件：`spec_deltas/<capability>/delta.xml`、`proposal.md`、`design.md`(可选)、`plan.xml`；大型 track 可创建 `proposal/` 和 `design/` 子目录，由根级文件引用
+- 编写规范增量：使用 XML `<spec-patch>`，通过 `spec://` selector 与 `op="upsert|delete|move"` 表达变更；BDD 场景使用可嵌套 `<suite>` / `<case>`
 - 验证：`codument validate [track-id] --strict`
 - 等待批准：提案获批前不要开始实现
 
@@ -36,11 +36,11 @@
 - 为现有行为编写测试
 
 **工作流程**
-1. 查看 `codument/project.md` 和 `codument/product.md` 了解项目上下文
+1. 查看 `codument/attractors/` 下与任务相关的项目级吸引子；旧项目没有该目录时，兼容读取 `codument/project.md` 和 `codument/product.md`
 2. 阅读 `codument/std/workflow.md` 了解工作流程
 3. 运行 `codument list` 和 `codument list --specs` 查看当前状态
 4. 选择唯一的动词开头 `track-id`，在 `codument/tracks/<id>/` 下创建文件
-5. 编写 `spec.md` 规范增量，使用 `## ADDED|MODIFIED|REMOVED Requirements`
+5. 编写 `spec_deltas/<capability>/delta.xml` XML 规范增量，使用 `<spec-patch>`、`spec://` selector 和 `op="upsert|delete|move"`
 6. 编写 `proposal.md` 说明背景和动机、变更什么、“要做”和“不做”、 变更内容、影响范围
 7. 按需编写 `design.md` 说明上下文、方案概览、影响范围与修改点、决策、风险/权衡、兼容性设计、迁移计划、待解决问题
 8. 编写 `plan.xml` 结构化任务清单
@@ -61,17 +61,18 @@
 ### 阶段三：归档变更
 
 部署后，创建归档：
-- 将 `tracks/[id]/` 移动到 `archive/YYYY-MM-DD-[id]/`
-- 如果能力发生变化，更新 `specs/`
+- 将 `tracks/[id]/` 移动到 `archive/YYYY-MM/YYYY-MM-DD-HHmm-[id]/`，时间来自 track 最后更新时间
+- 如果能力发生变化，更新 `spec://` registry；如有 durable decision，提升到 `decision://`
+- 仅当 `codument/config/feature.json` 启用 `knowledgeSync` 或 `projectMemory` 时，才同步外部知识面或 memory
 - 尝试运行 `codument validate --strict` 确认归档的变更通过检查；如果系统找不到 `codument` 命令，可跳过该外部 CLI validate 步骤，并明确说明已跳过
 
 ## 开始任何任务前
 
 **上下文检查清单：**
-- [ ] 阅读 `specs/[capability]/spec.md` 中的相关规范
+- [ ] 阅读 `specs/[capability].xml` 或 `specs/[capability]/index.xml` 中的相关规范；旧项目可兼容读取 `specs/[capability]/spec.md`
 - [ ] 检查 `tracks/` 中的待处理变更是否有冲突
-- [ ] 阅读 `codument/project.md` 了解项目约定
-- [ ] 阅读 `codument/product.md` 了解产品定义
+- [ ] 阅读 `codument/attractors/` 下与任务相关的吸引子
+- [ ] 旧项目无 attractors 时，再兼容读取 `codument/project.md`、`codument/product.md`
 - [ ] 运行 `codument list` 查看活跃变更
 - [ ] 运行 `codument list --specs` 查看现有能力
 
@@ -97,12 +98,12 @@ codument upgrade-workspace      # 升级工作区内置标准文件与命令
 codument upgrade-track <id>     # 升级单个 track 到支持波次的新版本
 codument status                # 查看项目状态
 
-# 波次执行命令
-/codument:discuss <track-id>    # 阶段级讨论，生成 context.md
-/codument:plan-wave <track-id>  # 规划波次 DAG，更新 plan.xml
-/codument:execute-wave <track-id> [phase]  # 按波次 DAG 执行任务
-/codument:gap-loop <track-id> [--background <path>]... [--phase <phase-id>]  # fresh agent gap 分析与修正闭环
-/codument:verify <track-id>     # 独立验证子代理模式
+# AI skill 入口（优先）
+请使用 codument-discuss skill, 讨论track: <track-id>
+请使用 codument-plan-wave skill, 规划track: <track-id>
+请使用 codument-execute-wave skill, 执行track: <track-id>
+请使用 codument-gap-loop skill, 检查track: <track-id>
+请使用 codument-verify skill, 验证track: <track-id>
 
 # 调试
 codument show [track] --json
@@ -120,22 +121,31 @@ codument validate [track] --strict
 
 ```
 codument/
-├── project.md              # 项目约定（技术栈、架构、代码风格）
-├── product.md              # 产品定义（愿景、目标用户、核心功能）
-├── tech-stack.md           # 技术栈配置
-├── workflow.md             # 工作流规范（开发流程、质量门控）
+├── attractors/             # 项目级吸引子集合，允许用户自定义
+│   ├── project.md          # 项目约定（新项目默认）
+│   └── product.md          # 产品定义（新项目默认）
+├── config/
+│   └── feature.json        # 可选能力开关，默认关闭 knowledgeSync/projectMemory
+├── legacy/                 # 旧格式保留区，不是新事实真源
+├── std/
+│   ├── AGENTS.md           # AI 助手标准指南
+│   └── workflow.md         # Codument 标准工作流
+├── workflows/
+│   └── workflow.md         # 项目级工作流约定
 ├── state.json              # 状态持久化
-├── specs/                  # 当前真相 - 已构建的内容
-│   └── [capability]/       # 单一聚焦的能力
-│       ├── spec.md         # 需求和场景
-│       └── design.md       # 技术设计（可选）
+├── specs/                  # capability contract registry
+│   ├── [capability].xml    # 小 capability 可用单文件 XML
+│   └── [capability]/       # 大 capability 可升级为同名目录
+│       └── index.xml       # 通过 include 组织拆分 XML
 ├── tracks/                 # 变更追踪 - 待实现的变更
 │   └── [track-id]/
 │       ├── analysis/       # 创建/规划阶段 analysis 产物（planning-with-files 外部记忆）
 │       │   ├── findings.md    # 分析中直接找到的事实、约束、问题与结论
 │       │   └── knowledge.md   # 阅读后沉淀出的知识上下文、术语与机制理解
 │       ├── proposal.md     # 为什么、是什么、影响
-│       ├── spec.md         # 规范增量（ADDED/MODIFIED/REMOVED）
+│       ├── spec_deltas/    # XML 规范增量（spec-patch）
+│       │   └── [capability]/
+│       │       └── delta.xml
 │       ├── plan.xml        # 结构化任务清单
 │       ├── decisions.md    # 决策问题、选项、结论与理由（需要决策时创建）
 │       ├── design.md       # 技术决策（可选）
@@ -147,8 +157,9 @@ codument/
 │       └── waves/          # 波次级产出（波次模式）
 │           └── WAVE-P{n}-{序号}/
 │               └── index.md
+├── decisions/              # 长期决策 registry
 └── archive/                # 已完成的变更
-    └── YYYY-MM-DD-[id]/
+    └── YYYY-MM/YYYY-MM-DD-HHmm-[id]/
 ```
 
 ## 创建变更追踪
@@ -185,37 +196,26 @@ codument/
 - 受影响的代码：[关键文件/系统]
 ```
 
-3. **编写规范增量 spec.md：**
-```markdown
-## ADDED Requirements
-### Requirement: 新功能名称
-系统应当（SHALL）提供...
-
-#### Scenario: 成功场景
-- **GIVEN** 前置条件
-- **WHEN** 用户执行某操作
-- **THEN** 预期结果
-
-#### Scenario: 失败场景
-- **GIVEN** 前置条件
-- **WHEN** 用户执行某操作
-- **AND** 某条件不满足
-- **THEN** 系统返回错误信息
-
-## MODIFIED Requirements
-### Requirement: 现有功能名称
-[完整的修改后需求]
-
-#### Scenario: 更新后的场景
-- **GIVEN** 新的前置条件
-- **WHEN** 新的操作
-- **THEN** 新的预期结果
-
-## REMOVED Requirements
-### Requirement: 旧功能名称
-**原因**：[为什么移除]
-**迁移**：[如何处理]
+3. **编写 XML 规范增量：**
+```xml
+<spec-patch version="1">
+  <requirement op="upsert" selector="spec://auth/requirement/login" id="login">
+    <statement>系统 SHALL 支持用户登录。</statement>
+    <suite id="password-login" name="密码登录">
+      <case id="success">
+        <given>用户账号存在且密码正确</given>
+        <when>用户提交登录请求</when>
+        <then>系统 SHALL 创建登录会话</then>
+      </case>
+    </suite>
+  </requirement>
+</spec-patch>
 ```
+
+- 每个 capability 一个文件：`spec_deltas/<capability>/delta.xml`。
+- 新增/修改用 `op="upsert"`，删除用 `op="delete"`，移动用 `op="move" to="spec://..."`。
+- 需求正文用 `<statement>`；多层级 BDD/测试场景用 `<suite>` 嵌套 `<case>`，case 内使用 `<given>`、`<when>`、`<then>`。
+- 不再为新 track 编写 Markdown `## ADDED Requirements` / `### Requirement:` / `#### Scenario:`。
 
 4. **编写 plan.xml：**
 
@@ -319,45 +319,33 @@ codument/
 
 ## 规范文件格式
 
-### Scenario 格式
+### XML case 格式
 
-使用 GIVEN/WHEN/THEN/AND 结构描述场景：
+使用 `<suite>` / `<case>` 的树形结构描述可测试场景。`suite` 可以嵌套，适合表达多层级测试目录；`case` 内使用 `<given>`、`<when>`、`<then>`、可选 `<and>`。
 
-**正确**（使用 #### 标题 + GIVEN/WHEN/THEN）：
-```markdown
-#### Scenario: 用户登录成功
-- **GIVEN** 用户已注册且账户正常
-- **AND** 用户在登录页面
-- **WHEN** 用户输入正确的用户名和密码
-- **AND** 用户点击登录按钮
-- **THEN** 系统返回 JWT 令牌
-- **AND** 用户被重定向到首页
+```xml
+<suite id="password-login" name="密码登录">
+  <case id="success">
+    <given>用户已注册且账户正常</given>
+    <and>用户在登录页面</and>
+    <when>用户输入正确的用户名和密码</when>
+    <then>系统 SHALL 创建登录会话</then>
+  </case>
+</suite>
 ```
 
-**关键字说明**：
-- **GIVEN**：前置条件（初始状态）
-- **AND**：补充前一个关键字的条件
-- **WHEN**：触发动作
-- **THEN**：预期结果
-
-**错误**（不要使用列表项或粗体作为场景标题）：
-```markdown
-- **Scenario: 用户登录**  ❌
-**Scenario**: 用户登录     ❌
-### Scenario: 用户登录      ❌
-```
-
-每个需求必须有至少一个 Scenario。
+每个 capability 应至少有一个 `<requirement>`，每个可测试需求应至少有一个 `<case>`。
 
 ### 需求措辞
 - 对规范性需求使用 SHALL/MUST（除非故意设为非规范性，否则避免使用 should/may）
 
-### 增量操作
+### XML 增量操作
 
-- `## ADDED Requirements` - 新能力
-- `## MODIFIED Requirements` - 变更的行为
-- `## REMOVED Requirements` - 废弃的功能
-- `## RENAMED Requirements` - 名称变更
+- `op="upsert"` - 新增或完整替换 selector 指向的节点
+- `op="delete"` - 删除 selector 指向的节点
+- `op="move"` - 将 selector 指向的节点移动到 `to="spec://..."`
+
+变更点类型不通过新增 operation 名称表达，而通过 XML 节点 tag 表达，例如 `<requirement>`、`<statement>`、`<suite>`、`<case>`。
 
 ### ADDED vs MODIFIED 的选择
 
@@ -372,12 +360,12 @@ codument/
 ### 常见错误
 
 **"Track must have at least one delta"**
-- 检查 `tracks/[id]/spec.md` 是否存在
-- 验证文件是否有操作前缀（## ADDED Requirements）
+- 检查 `tracks/[id]/spec_deltas/**/*.xml` 是否存在
+- 验证 XML 根节点是 `<spec-patch>`，且至少有一个带 `op` 与 `selector="spec://..."` 的 mutation
 
-**"Requirement must have at least one scenario"**
-- 检查场景是否使用 `#### Scenario:` 格式（4 个井号）
-- 不要对场景标题使用列表项或粗体
+**"XML spec delta root must be <spec-patch>"**
+- 检查新 track 是否误写成 Markdown delta
+- 将 Markdown 的 Requirement/Scenario 改写为 `<requirement>`、`<statement>`、`<suite>`、`<case>`
 
 **"Invalid plan.xml format"**
 - 检查 XML 语法是否正确
@@ -409,7 +397,7 @@ codument show [track] --json
 
 ### 清晰引用
 - 使用 `file.ts:42` 格式表示代码位置
-- 将规范引用为 `specs/auth/spec.md`
+- 将规范引用为 `spec://auth/requirement/login` 或 `specs/auth.xml`
 - 链接相关变更和 PR
 
 ### 能力命名
@@ -438,7 +426,7 @@ codument show [track] --json
 4. 确保场景格式正确
 
 ### 缺少上下文
-1. 首先阅读 project.md 和 product.md
+1. 首先阅读 `codument/attractors/` 下与任务相关的吸引子；旧项目没有 attractors 时，再兼容阅读 `codument/project.md` 和 `codument/product.md`
 2. 检查相关规范
 3. 查看最近的归档
 4. 请求澄清（使用 **ask-single-question-free** 或 **ask-multi-question-free**）
@@ -456,7 +444,7 @@ codument show [track] --json
 - `plan.xml` - 结构化实现步骤
 - `decisions.md` - 决策问题、选项、用户答复、最终结论与理由
 - `design.md` - 方案设计与决策摘要
-- `spec.md` - 需求和行为
+- `spec_deltas/` - XML 规范增量；旧 track 可兼容 `spec.md`
 - `context.md` - 波次执行上下文（波次模式）
 - `state.md` - 波次执行状态追踪（波次模式）
 
@@ -467,12 +455,12 @@ codument show [item]       # 查看详情
 codument validate --strict # 正确吗？
 codument archive <id>      # 标记完成
 
-# 波次执行
-/codument:discuss <id>      # 阶段讨论
-/codument:plan-wave <id>    # 规划波次 DAG
-/codument:execute-wave <id> # 执行波次
-/codument:gap-loop <id>     # fresh agent gap 分析与修正
-/codument:verify <id>       # 独立验证
+# AI skill 入口（优先）
+请使用 codument-discuss skill, 讨论track: <id>
+请使用 codument-plan-wave skill, 规划track: <id>
+请使用 codument-execute-wave skill, 执行track: <id>
+请使用 codument-gap-loop skill, 检查track: <id>
+请使用 codument-verify skill, 验证track: <id>
 ```
 
 记住：规范是真相，变更追踪是提案。保持同步。
@@ -535,7 +523,7 @@ Codument 使用三层确认机制确保重要决策得到用户认可：
 #### 第一层：规范确认
 
 在创建 track 时：
-1. **spec.md 确认**：展示起草的规范，等待用户确认或修改（使用 **ask-single-question-free**）
+1. **XML spec delta 确认**：展示起草的 `spec_deltas/<capability>/delta.xml`，等待用户确认或修改（使用 **ask-single-question-free**）
 2. **plan.xml + 模式确认**：在同一轮交互中确认任务计划，并选择提交模式（auto/manual）与校验模式（`yield-human-confirm` 或 `yield-gap-loop`）；仅在 `yield-gap-loop` 下继续选择粒度（使用 **ask-single-question-free**）
 
 #### 第二层：阶段/任务确认（可配置）
@@ -549,8 +537,8 @@ Codument 使用三层确认机制确保重要决策得到用户认可：
 #### 第三层：项目文档确认
 
 在 track 完成后：
-1. **product.md 更新确认**：如需更新，展示 diff 等待确认（使用 **ask-single-question-closed**）
-2. **project.md 更新确认**：如需更新，展示 diff 等待确认（使用 **ask-single-question-closed**）
+1. **attractors 更新确认**：如需更新 `codument/attractors/` 下的项目级吸引子，展示 diff 等待确认（使用 **ask-single-question-closed**）
+2. **旧项目兼容确认**：仅当项目尚未迁移到 `codument/attractors/` 且确需更新旧 `codument/product.md` / `codument/project.md` 时，展示 diff 等待确认（使用 **ask-single-question-closed**）
 3. **归档/删除确认**：询问用户选择处理方式（使用 **ask-single-question-closed**）
 
 ### 确认原则

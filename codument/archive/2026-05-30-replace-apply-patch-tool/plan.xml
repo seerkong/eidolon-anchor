@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan track_id="replace-apply-patch-tool">
+  <metadata>
+    <title>Replace ApplyPatch Tool</title>
+    <type>feature</type>
+    <status>DONE</status>
+    <commit_mode>manual</commit_mode>
+    <validation_mode>yield-gap-loop</validation_mode>
+    <validation_granularity>final_phase</validation_granularity>
+    <gap_loop_round>1</gap_loop_round>
+      <track_id>replace-apply-patch-tool</track_id>
+    <created_at>2026-05-29T15:40:36Z</created_at>
+    <updated_at>2026-05-29T16:03:59Z</updated_at>
+    <description>Replace this project’s existing ApplyPatch tool with a more complete apply_patch implementation, including related editing lifecycle mechanisms.</description>
+</metadata>
+
+  <phase id="P1" name="Characterize current behavior and add regression tests" priority="P0" status="DONE">
+    <task id="T1.1" name="Locate current ApplyPatch tests and project test command" priority="P0" status="DONE">
+      <description>Find existing test conventions and the minimal command for ApplyPatch/tool logic tests.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Relevant test files or test locations are identified.</criterion>
+        <criterion checked="true">A minimal targeted test command is documented in task notes or final summary.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T1.2" name="Add parser and output compatibility tests" priority="P0" status="DONE">
+      <description>Add failing tests for structured patch envelope, operations, retained unified diff, and new metadata fields.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Tests cover Add/Update/Delete/Move parsing expectations.</criterion>
+        <criterion checked="true">Tests assert successful output keeps diff and includes structured metadata.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T1.3" name="Add safety and matcher behavior tests" priority="P0" status="DONE">
+      <description>Add failing tests for named anchors, match modes, ambiguous failures, stale hunk diagnostics, and file operation guards.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Tests cover true named anchors and consecutive anchors.</criterion>
+        <criterion checked="true">Tests cover exact, anchored_exact, normalized, fuzzy, and ambiguous failure behavior.</criterion>
+        <criterion checked="true">Tests cover add-existing, move-existing, duplicate path, missing path, and directory guards.</criterion>
+      </acceptance_criteria>
+    </task>
+  </phase>
+
+  <phase id="P2" name="Implement ApplyPatch core" priority="P0" status="DONE">
+    <task id="T2.1" name="Replace parser and patch model" priority="P0" status="DONE">
+      <description>Introduce operation/hunk/anchor/match-mode model and strict parser behavior in ApplyPatch Logic.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Patch envelope validation rejects malformed or empty patches.</criterion>
+        <criterion checked="true">Update hunks store ordered anchors and hunk body lines.</criterion>
+        <criterion checked="true">Patch paths continue using this project's path resolution semantics.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T2.2" name="Implement anchor-aware match ladder" priority="P0" status="DONE">
+      <description>Implement exact, anchored_exact, normalized, and fuzzy hunk matching with fail-closed ambiguity handling.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Named anchors affect hunk placement.</criterion>
+        <criterion checked="true">Normalized/fuzzy matching only applies when candidate location is unique.</criterion>
+        <criterion checked="true">Failures include actionable hunk diagnostics.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T2.3" name="Implement staged writes and operation guards" priority="P0" status="DONE">
+      <description>Build a staged write/delete plan with add/update/delete/move guards before filesystem mutation.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Existing add targets and existing move destinations are rejected.</criterion>
+        <criterion checked="true">Missing update/delete targets and directory targets are rejected.</criterion>
+        <criterion checked="true">Duplicate resolved paths in one patch are rejected.</criterion>
+      </acceptance_criteria>
+    </task>
+  </phase>
+
+  <phase id="P3" name="Integrate permissions, freshness, output, and prompts" priority="P0" status="DONE">
+    <task id="T3.1" name="Preserve permission governance and add freshness/context refresh integration" priority="P0" status="DONE">
+      <description>Ensure all touched paths go through current permission flow; connect read freshness/cache invalidation if available, otherwise provide refresh hints.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Permission denial prevents any mutation.</criterion>
+        <criterion checked="true">Successful output includes context_refresh_hint for touched files.</criterion>
+        <criterion checked="true">If a read cache hook exists, writes validate/invalidate it; otherwise the limitation is recorded.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T3.2" name="Return compatible diff plus structured metadata" priority="P0" status="DONE">
+      <description>Extend success/failure payloads to keep old diff compatibility and add metadata.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Success includes message, diff, ok, touched files, counts, absolute paths, and match_modes_used.</criterion>
+        <criterion checked="true">Failure includes structured error/detail/suggestions and hunk recovery information where relevant.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T3.3" name="Update ApplyPatch tool prompt and coding guidance" priority="P1" status="DONE">
+      <description>Update Tool.detail/brief or related prompt assets to document patch-first editing, named anchors, small hunks, and retry guidance.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Tool detail documents supported directives and hunk line prefixes.</criterion>
+        <criterion checked="true">Tool guidance recommends named anchors and reread-on-failure recovery.</criterion>
+        <criterion checked="true">Guidance discourages shell-simulated text editing for ordinary edits.</criterion>
+      </acceptance_criteria>
+    </task>
+  </phase>
+
+  <phase id="P4" name="Verify and close migration" priority="P0" status="DONE">
+    <task id="T4.1" name="Run targeted ApplyPatch tests" priority="P0" status="DONE">
+      <description>Run the minimal relevant test suite for ApplyPatch and adjacent file editing helpers.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Targeted tests pass.</criterion>
+        <criterion checked="true">Any unsupported freshness limitation is explicitly documented in summary or code comments.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T4.2" name="Run neighboring verification" priority="P1" status="DONE">
+      <description>Run neighboring tool/prompt tests or type checks needed to ensure registration and prompt assets remain valid.</description>
+      <acceptance_criteria>
+        <criterion checked="true">Neighboring verification passes or any unrelated failure is documented with evidence.</criterion>
+      </acceptance_criteria>
+    </task>
+    <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+  </phase>
+</plan>

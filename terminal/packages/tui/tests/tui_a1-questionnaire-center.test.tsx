@@ -2,6 +2,7 @@
 import { describe, expect, it } from "bun:test"
 import { testRender } from "@opentui/solid"
 import type { Message, Part, QuestionRequest, TuiRuntimeSdk } from "@terminal/core/AIAgent"
+import type { ActorSurfaceProjectionData } from "@cell/ai-core-contract/runtime/ActorSurface"
 import { TuiA1View, DialogQuestionnaireCenter } from "../src/app/tui_a1"
 import type { TuiA1QuestionnaireRecord } from "../src/app/tui_a1/graph"
 import { ArgsProvider } from "../src/providers/args"
@@ -225,7 +226,63 @@ function renderDialog(entries: TuiA1QuestionnaireRecord[]) {
   )
 }
 
-function createRuntimeMock(messages: Array<{ info: Message; parts: Part[] }>): TuiRuntimeSdk {
+function createActorSurfaceMock(): ActorSurfaceProjectionData {
+  return {
+    conversationLanes: [
+      {
+        laneId: "lane:primary",
+        kind: "primary",
+        displayName: "Primary",
+        backendIdentity: { kind: "primary", name: "Main Agent" },
+        actorId: "actor_primary",
+        actorKey: "primary",
+        initialized: true,
+        status: "idle",
+      },
+      {
+        laneId: "lane:member:planner",
+        kind: "member",
+        displayName: "Planner",
+        backendIdentity: { kind: "member", name: "Planner", role: "planning", agentType: "teammate" },
+        initialized: false,
+        status: "idle",
+      },
+    ],
+    actorLanes: [
+      {
+        actorId: "actor_primary",
+        actorKey: "primary",
+        actorType: "primary",
+        displayName: "Primary",
+        transcriptKey: { sessionId: "ses_1", actorId: "actor_primary", actorKey: "primary" },
+        runtimeStatus: "idle",
+        cancellable: false,
+      },
+      {
+        actorId: "actor_delegate",
+        actorKey: "delegate",
+        actorType: "delegate",
+        displayName: "Delegate",
+        transcriptKey: { sessionId: "ses_1", actorId: "actor_delegate", actorKey: "delegate" },
+        runtimeStatus: "running",
+        activeTurnId: "turn_delegate",
+        cancellable: true,
+      },
+    ],
+    selectedLaneId: "lane:primary",
+    selectedActorId: "actor_primary",
+    selectedTarget: { laneId: "lane:primary", actorId: "actor_primary" },
+    questionnaireSurface: [],
+  }
+}
+
+function createRuntimeMock(
+  messages: Array<{ info: Message; parts: Part[] }>,
+  actorSurface: ActorSurfaceProjectionData | null = createActorSurfaceMock(),
+  actorMessages: Record<string, Array<{ info: Message; parts: Part[] }>> = {},
+): TuiRuntimeSdk {
+  let currentSurface = actorSurface
+  const messagesForTarget = (actorID?: string, laneID?: string) => actorMessages[actorID ?? laneID ?? ""] ?? messages
   return {
     client: {
       app: {
@@ -237,6 +294,35 @@ function createRuntimeMock(messages: Array<{ info: Message; parts: Part[] }>): T
       session: {
         messages: async () => ({ data: messages }),
         status: async () => ({ data: { ses_1: { type: "idle" } } }),
+      },
+      actor: {
+        surface: async () => ({ data: currentSurface }),
+        messages: async ({ actorID, laneID }: { actorID?: string; laneID?: string }) => ({
+          data: messagesForTarget(actorID, laneID),
+        }),
+        select: async ({ laneID, actorID }: { laneID?: string; actorID?: string }) => {
+          currentSurface = currentSurface
+            ? {
+                ...currentSurface,
+                selectedLaneId: laneID ?? currentSurface.selectedLaneId,
+                selectedActorId: actorID,
+                selectedTarget: { laneId: laneID, actorId: actorID },
+              }
+            : null
+          return { data: currentSurface }
+        },
+        cancel: async () => ({ data: currentSurface }),
+        send: async ({ laneID, actorID }: { laneID?: string; actorID?: string }) => {
+          currentSurface = currentSurface
+            ? {
+                ...currentSurface,
+                selectedLaneId: laneID ?? currentSurface.selectedLaneId,
+                selectedActorId: actorID,
+                selectedTarget: { laneId: laneID, actorId: actorID },
+              }
+            : null
+          return { data: currentSurface }
+        },
       },
     },
     event: {
@@ -266,6 +352,56 @@ function renderTuiA1WithDialogs(messages: Array<{ info: Message; parts: Part[] }
                                       directory={process.cwd()}
                                       runtime={createRuntimeMock(messages)}
                                       sessionID={sessionID}
+                                    />
+                                  </CommandProvider>
+                                </DialogProvider>
+                              </FrecencyProvider>
+                            </PromptHistoryProvider>
+                          </LocalProvider>
+                        </RouteProvider>
+                      </TuiA1StateProvider>
+                    </KeybindProvider>
+                  </ThemeProvider>
+                </SyncProvider>
+            </RuntimeClientProvider>
+          </ToastProvider>
+        </KVProvider>
+      </ExitProvider>
+    </ArgsProvider>
+  )
+}
+
+function renderTuiA1WithRuntime(
+  messages: Array<{ info: Message; parts: Part[] }>,
+  runtime: TuiRuntimeSdk,
+  sessionID = "ses_1",
+) {
+  return (
+    <ArgsProvider>
+      <ExitProvider onExit={async () => {}}>
+        <KVProvider>
+          <ToastProvider>
+            <RuntimeClientProvider url="mock">
+                <SyncProvider>
+                  <ThemeProvider mode="dark">
+                    <KeybindProvider>
+                      <TuiA1StateProvider runtimeEnabled={true} sessionID={sessionID}>
+                        <RouteProvider>
+                          <LocalProvider>
+                            <PromptHistoryProvider>
+                              <FrecencyProvider>
+                                <DialogProvider>
+                                  <CommandProvider>
+                                    <TuiA1View
+                                      directory={process.cwd()}
+                                      runtime={runtime}
+                                      sessionID={sessionID}
+                                      initialMessages={messages.map((entry) => ({
+                                        id: entry.info.id,
+                                        kind: "user",
+                                        text: "",
+                                        createdAt: entry.info.time.created,
+                                      }))}
                                     />
                                   </CommandProvider>
                                 </DialogProvider>
@@ -559,29 +695,139 @@ describe("tui_a1 questionnaire center", () => {
       setup.mockInput.pressEscape()
       await renderSettled(setup, 2)
 
-      await clickSpanByText(setup, "[消息列表]")
+      await clickSpanByText(setup, "[消息]")
       await renderSettled(setup, 3)
       expect(captureText(setup)).toContain("消息列表")
       setup.mockInput.pressEscape()
       await renderSettled(setup, 2)
 
-      await clickSpanByText(setup, "[会话列表]")
+      await clickSpanByText(setup, "[会话]")
       await renderSettled(setup, 3)
       expect(captureText(setup)).toContain("Sessions")
       setup.mockInput.pressEscape()
       await renderSettled(setup, 2)
 
-      await clickSpanByText(setup, "[使用说明]")
+      await clickSpanByText(setup, "[Actor]")
       await renderSettled(setup, 3)
-      expect(captureText(setup)).toContain("Keyboard Shortcuts")
+      let text = captureText(setup)
+      expect(text).toContain("Actor列表")
+      expect(text).toContain("Conversation Lanes")
+      expect(text).toContain("Planner")
+      expect(text).toContain("planning")
+      expect(text).toContain("Actor Lanes")
+      expect(text).toContain("Delegate")
+      expect(text).toContain("发送输入")
       setup.mockInput.pressEscape()
       await renderSettled(setup, 2)
 
-      await clickSpanByText(setup, "[功能菜单]")
+      await clickSpanByText(setup, "[菜单]")
       await renderSettled(setup, 3)
-      const text = captureText(setup)
+      text = captureText(setup)
       expect(text).toContain("Quit")
       expect(text).toContain("Slash Commands")
+      expect(text).toContain("使用说明")
+
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 3)
+      expect(captureText(setup)).toContain("Keyboard Shortcuts")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("switches the main transcript when selecting an actor from Actor list", async () => {
+    const primaryMessage = createAssistantMessage("msg-primary", 100, 120)
+    const delegateMessage = createAssistantMessage("msg-delegate", 200, 220)
+    const runtime = createRuntimeMock(
+      [
+        {
+          info: primaryMessage,
+          parts: [createTextPart(primaryMessage.id, "text-primary", "primary session history")],
+        },
+      ],
+      createActorSurfaceMock(),
+      {
+        actor_delegate: [
+          {
+            info: delegateMessage,
+            parts: [createTextPart(delegateMessage.id, "text-delegate", "delegate private history")],
+          },
+        ],
+      },
+    )
+
+    const setup = await testRender(
+      () => renderTuiA1WithRuntime([
+        {
+          info: primaryMessage,
+          parts: [createTextPart(primaryMessage.id, "text-primary", "primary session history")],
+        },
+      ], runtime),
+      {
+        width: 100,
+        height: 32,
+        kittyKeyboard: true,
+      },
+    )
+
+    try {
+      await renderSettled(setup, 5)
+      expect(captureText(setup)).toContain("primary session history")
+
+      await clickSpanByText(setup, "[Actor]")
+      await renderSettled(setup, 3)
+      await clickSpanByText(setup, "Delegate")
+      await renderSettled(setup, 5)
+
+      const text = captureText(setup)
+      expect(text).toContain("delegate private history")
+      expect(text).not.toContain("primary session history")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("shows an empty transcript for an uninitialized actor lane instead of the primary history", async () => {
+    const primaryMessage = createAssistantMessage("msg-primary", 100, 120)
+    const runtime = createRuntimeMock(
+      [
+        {
+          info: primaryMessage,
+          parts: [createTextPart(primaryMessage.id, "text-primary", "primary session history")],
+        },
+      ],
+      createActorSurfaceMock(),
+      {
+        "lane:member:planner": [],
+      },
+    )
+
+    const setup = await testRender(
+      () => renderTuiA1WithRuntime([
+        {
+          info: primaryMessage,
+          parts: [createTextPart(primaryMessage.id, "text-primary", "primary session history")],
+        },
+      ], runtime),
+      {
+        width: 100,
+        height: 32,
+        kittyKeyboard: true,
+      },
+    )
+
+    try {
+      await renderSettled(setup, 5)
+      expect(captureText(setup)).toContain("primary session history")
+
+      await clickSpanByText(setup, "[Actor]")
+      await renderSettled(setup, 3)
+      await clickSpanByText(setup, "Planner")
+      await renderSettled(setup, 5)
+
+      const text = captureText(setup)
+      expect(text).toContain("Planner")
+      expect(text).not.toContain("primary session history")
     } finally {
       setup.renderer.destroy()
     }

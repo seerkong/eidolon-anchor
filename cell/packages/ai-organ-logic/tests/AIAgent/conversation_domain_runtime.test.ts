@@ -4,6 +4,7 @@ import {
   appendLiveHistoryMessageToConversationDomainRuntime,
   createConversationDomainRuntime,
   emitConversationDomainEvent,
+  recordConversationTranscriptEvidenceInRuntime,
   subscribeConversationHistory,
   teeConversationHistoryStream,
   setConversationDomainPersistHooks,
@@ -168,6 +169,64 @@ describe("conversation domain runtime", () => {
     });
 
     expect(runtime.sessionStateSignal.get()["ses-2"]?.lineage?.parentSessionId).toBe("ses-1");
+  });
+
+  it("bounds append-only domain and assembly buffers in memory", () => {
+    const runtime = createConversationDomainRuntime();
+    const vm = {
+      runtimeContext: {
+        conversationDomainRuntime: runtime,
+      },
+      outerCtx: {
+        metadata: {
+          sessionId: "ses-bounded",
+        },
+      },
+    } as any;
+
+    for (let index = 0; index < 650; index += 1) {
+      emitConversationDomainEvent(runtime, {
+        type: "actor_history_generation_created",
+        sessionId: "ses-bounded",
+        actorKey: "main",
+        generationId: "main__active",
+        occurredAt: new Date(index).toISOString(),
+      });
+      appendLiveHistoryMessageToConversationDomainRuntime({
+        vm,
+        actorKey: "main",
+        actorId: "actor-main",
+        message: {
+          role: "assistant",
+          content: `message ${index}`,
+          startAt: index,
+          endAt: index,
+        },
+        occurredAt: new Date(index).toISOString(),
+      });
+      recordConversationTranscriptEvidenceInRuntime({
+        vm,
+        actorKey: "main",
+        actorId: "actor-main",
+        transcriptRecord: {
+          stream: "content",
+          payload: `chunk ${index}`,
+          startAt: index,
+          endAt: index,
+        },
+      });
+    }
+
+    const assemblyState = runtime.messageAssemblySignal.get()["ses-bounded::main"];
+
+    expect(runtime.historyEvents).toHaveLength(500);
+    expect(runtime.historyEvents[0]?.type).toBe("actor_history_generation_created");
+    expect(runtime.historyEvents[0]?.occurredAt).toBe(new Date(400).toISOString());
+    expect(assemblyState.reducedMessages).toHaveLength(300);
+    expect(assemblyState.reducedMessages[0]?.content).toBe("message 350");
+    expect(assemblyState.transcriptRecords).toHaveLength(400);
+    expect(assemblyState.transcriptRecords[0]?.payload).toBe("chunk 250");
+    expect(assemblyState.emittedMessageCount).toBe(650);
   });
 
   it("keeps teammate live history actor-scoped without moving the primary session selection", () => {

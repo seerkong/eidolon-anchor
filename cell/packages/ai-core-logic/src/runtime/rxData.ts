@@ -4,11 +4,13 @@ import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
 import type { ObservabilityRecord } from "@cell/ai-core-contract/runtime/Observability";
 import type {
   AiAgentVm,
+  AiAgentVmControlSignalStreamEvent,
   AiAgentVmDomainRxEvent,
   AiAgentVmPrivateRxData,
   AiAgentVmPublicRxData,
   AiAgentVmReadonlyRxSignal,
   AiAgentVmRxBinding,
+  AiAgentVmSchedulerSignalData,
   AiAgentVmRxStream,
   AiAgentVmRxSubscription,
   AiAgentVmTraceSummaryData,
@@ -31,6 +33,16 @@ const EMPTY_TRACE_SUMMARY: AiAgentVmTraceSummaryData = {
   lastEventAt: null,
 };
 
+const EMPTY_SCHEDULER_SIGNAL: AiAgentVmSchedulerSignalData = {
+  readyFiberIds: [],
+  runningFiberIds: [],
+  suspendedFiberIds: [],
+  blockedFiberIds: [],
+  pendingResumeFiberIds: [],
+  interruptedFiberIds: [],
+  updatedAt: null,
+};
+
 type RxDataRuntime = {
   vm: AiAgentVm;
 };
@@ -43,6 +55,7 @@ type RxGraphState = {
   sessionLog: AppendOnlyEventLog<AiAgentVmDomainRxEvent>;
   observabilityLog: AppendOnlyEventLog<ObservabilityRecord>;
   observabilityErrorLog: AppendOnlyEventLog<ObservabilityRecord>;
+  controlSignalLog: AppendOnlyEventLog<AiAgentVmControlSignalStreamEvent>;
 };
 
 export type EnsureVmRxDataResult = {
@@ -72,6 +85,7 @@ export function ensureVmRxData(vm: AiAgentVm): EnsureVmRxDataResult {
     state.sessionLog.dispose();
     state.observabilityLog.dispose();
     state.observabilityErrorLog.dispose();
+    state.controlSignalLog.dispose();
     state.graph.dispose();
   });
   const publicBinding = createRxBinding();
@@ -100,6 +114,7 @@ function createRxGraphState(vm: AiAgentVm): RxGraphState {
   const graph = new DataGraph<RxDataRuntime>(() => ({ vm }));
   graph.addSignal<AiAgentVmUsageData>("usage", ZERO_USAGE);
   graph.addSignal<AiAgentVmTraceSummaryData>("traceSummary", EMPTY_TRACE_SUMMARY);
+  graph.addSignal<AiAgentVmSchedulerSignalData>("scheduler", EMPTY_SCHEDULER_SIGNAL);
 
   return {
     graph,
@@ -109,6 +124,7 @@ function createRxGraphState(vm: AiAgentVm): RxGraphState {
     sessionLog: new AppendOnlyEventLog<AiAgentVmDomainRxEvent>(),
     observabilityLog: new AppendOnlyEventLog<ObservabilityRecord>(),
     observabilityErrorLog: new AppendOnlyEventLog<ObservabilityRecord>(),
+    controlSignalLog: new AppendOnlyEventLog<AiAgentVmControlSignalStreamEvent>(),
   };
 }
 
@@ -125,8 +141,10 @@ function createPrivateRxData(state: RxGraphState): AiAgentVmPrivateRxData {
     sessionDomainStream: createWritableLogStream(state.sessionLog),
     observabilityRecords: createWritableLogStream(state.observabilityLog),
     observabilityErrors: createWritableLogStream(state.observabilityErrorLog),
+    controlSignals: createWritableLogStream(state.controlSignalLog),
     usage: createWritableGraphSignal(state.graph, "usage"),
     traceSummary: createWritableGraphSignal(state.graph, "traceSummary"),
+    scheduler: createWritableGraphSignal(state.graph, "scheduler"),
   };
 }
 
@@ -138,8 +156,10 @@ function createPublicRxData(privateRxData: AiAgentVmPrivateRxData): AiAgentVmPub
     sessionDomainStream: readonlyStream(privateRxData.sessionDomainStream),
     observabilityRecords: readonlyStream(privateRxData.observabilityRecords),
     observabilityErrors: readonlyStream(privateRxData.observabilityErrors),
+    controlSignals: readonlyStream(privateRxData.controlSignals),
     usage: readonlySignal(privateRxData.usage),
     traceSummary: readonlySignal(privateRxData.traceSummary),
+    scheduler: readonlySignal(privateRxData.scheduler),
   };
 }
 

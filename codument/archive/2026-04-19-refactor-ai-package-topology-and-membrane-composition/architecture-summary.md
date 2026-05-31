@@ -33,17 +33,14 @@
 
 - `@cell/ai-organ-contract`
   - 新增
-  - 对应参考项目 `sparrow_organ_data`
   - 负责 AI-specific orchestration / organization / permission / persistence / `RuntimeDeps` 等组织层契约
 
 - `@cell/ai-organ-logic`
   - 新增
-  - 对应参考项目 `sparrow_organ_logic`
   - 负责 orchestration、organization、coordination、permission runtime、task tree、runtime recovery 等 AI 组织层逻辑
 
 - `@cell/ai-composer`
   - 由当前 `@cell/composer` 演进并改名
-  - 对应参考项目 `sparrow_composer`
   - 负责 runtime composition contract、profile/extension reducer、runtime deps 组合 helper
   - 不承载本地宿主实现
 
@@ -105,7 +102,7 @@ membrane <- terminal/* and future host adapters
 
 ## 6. 本轮的关键约束
 
-1. `ai-composer` 的职责对齐参考项目 `sparrow_composer`，而不是继续把 composer 逻辑放进 `ai-core-logic`。
+1. `ai-composer` 的职责就是 `composer`，而不是继续把 composer 逻辑放进 `ai-core-logic`。
 2. `ai-core-logic` 与 `ai-organ-logic` 必须分工明确：
    - core 负责 AI core runtime glue
    - organ 负责组织层逻辑与运行时依赖组合

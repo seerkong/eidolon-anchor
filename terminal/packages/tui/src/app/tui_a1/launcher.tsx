@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { render } from "@opentui/solid"
 import { parseModelRef, type TuiRuntimeSdk } from "@terminal/core/AIAgent"
 import type { Args } from "../../providers/args"

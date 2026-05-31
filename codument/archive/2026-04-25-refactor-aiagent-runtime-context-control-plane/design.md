@@ -2,7 +2,7 @@
 
 ## 背景
 
-参考项目 `sparrow-agents` 中，控制大模型执行上下文的核心并不是某一份 prompt，而是一套运行时控制面：
+用户期望控制大模型执行上下文的核心并不是某一份 prompt，而是一套运行时控制面：
 
 - 正式 `work_mode` / `task_phase` 状态
 - turn start / tool round 的状态推进

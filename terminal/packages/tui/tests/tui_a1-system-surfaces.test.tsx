@@ -45,6 +45,40 @@ function countOccurrences(input: string, search: string) {
   return input.split(search).length - 1
 }
 
+function displayWidth(text: string) {
+  let width = 0
+  for (const char of text) {
+    width += char.codePointAt(0)! > 0xff ? 2 : 1
+  }
+  return width
+}
+
+function findSpanOnLine(setup: Awaited<ReturnType<typeof testRender>>, lineContains: string, text: string) {
+  const frame = setup.captureSpans()
+  for (const [lineIndex, line] of frame.lines.entries()) {
+    const lineText = line.spans.map((span) => span.text).join("")
+    if (!lineText.includes(lineContains)) continue
+    let x = 0
+    for (const span of line.spans) {
+      const offset = span.text.indexOf(text)
+      if (offset >= 0) {
+        return {
+          x: x + displayWidth(span.text.slice(0, offset)),
+          y: lineIndex,
+        }
+      }
+      x += span.width ?? displayWidth(span.text)
+    }
+  }
+  throw new Error(`Unable to find ${text} on line containing ${lineContains}`)
+}
+
+async function clickSpanOnLine(setup: Awaited<ReturnType<typeof testRender>>, lineContains: string, text: string) {
+  const span = findSpanOnLine(setup, lineContains, text)
+  const x = span.x + Math.max(1, Math.floor(displayWidth(text) / 2))
+  await setup.mockMouse.click(x, span.y)
+}
+
 function OpenDialogOnMount(props: { render: () => JSX.Element }) {
   const dialog = useDialog()
 
@@ -106,6 +140,18 @@ function renderSurfaceHarness(dialogRender: () => JSX.Element, options?: { sessi
       </ExitProvider>
     </ArgsProvider>
   )
+}
+
+function HomeSessionSurface() {
+  const { stateGraph } = useTuiA1State()
+  const dialog = useDialog()
+
+  onMount(() => {
+    stateGraph.setRoute({ type: "home" })
+    dialog.replace(() => <DialogSessionList />)
+  })
+
+  return <box width="100%" height="100%" />
 }
 
 describe("tui_a1 system surfaces", () => {
@@ -237,6 +283,29 @@ describe("tui_a1 system surfaces", () => {
       expect(text).toContain("Shortcuts")
       expect(text).toContain("Appearance")
       expect(countOccurrences(text, "[关闭(esc)]")).toBe(1)
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("loads a session from the load button on the session surface", async () => {
+    const setup = await testRender(() => renderSurfaceHarness(() => <HomeSessionSurface />), {
+      width: 120,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 8)
+      const initial = captureText(setup)
+      expect(initial).toContain("route:home")
+      expect(initial).toContain("Mock Session")
+
+      await clickSpanOnLine(setup, "Mock Session", "[加载]")
+      await renderSettled(setup, 6)
+
+      const text = captureText(setup)
+      expect(text).toContain("route:session:ses_1")
     } finally {
       setup.renderer.destroy()
     }

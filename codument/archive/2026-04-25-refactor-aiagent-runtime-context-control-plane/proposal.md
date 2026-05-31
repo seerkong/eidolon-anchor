@@ -1,7 +1,7 @@
 # 变更：重构 AIAgent Runtime Context Control Plane
 
 ## 背景和动机 (Context And Why)
-当前本项目已经完成 `.eidolon` conversation domain persistence 的主链落地，但对“大模型执行上下文控制”这件事，仍缺少参考项目 `sparrow-agents` 那种正式、联动的数据驱动控制面。现状更偏向局部 prompt 组装与局部 runtime 逻辑，还没有把 `work_mode`、`task_phase`、动态 prompt assemble、phase-aware compaction、continuation baseline 等机制收口成统一主链。
+当前本项目已经完成 `.eidolon` conversation domain persistence 的主链落地，但对“大模型执行上下文控制”这件事，仍缺少正式、联动的数据驱动控制面。现状更偏向局部 prompt 组装与局部 runtime 逻辑，还没有把 `work_mode`、`task_phase`、动态 prompt assemble、phase-aware compaction、continuation baseline 等机制收口成统一主链。
 
 本次 track 的目标，是把参考项目中用于控制 LLM 执行上下文的关键机制，迁移为本项目的标准实现方式，并对齐本项目既有的 `vendor/depa-data-graph`、`vendor/depa-actor`、signal + stream、以及 `cell/packages/ai-support` 的 `.eidolon` 副作用分层。
 

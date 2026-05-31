@@ -119,6 +119,32 @@ describe("local permission exec modes", () => {
     }
   });
 
+  test("unsupported bash syntax follows approval semantics instead of surfacing parser errors", () => {
+    const { workDir, authorityRoot } = buildPermissionSandbox();
+    fs.writeFileSync(
+      path.join(authorityRoot, "permissions.json"),
+      JSON.stringify({ permission: { "*": "ask" } }, null, 2),
+    );
+    const command = "for f in $(find . -name 'step-config-def.json' | sort); do echo \"$f\"; done";
+
+    const defaultMode = authorizeLocalToolCall(
+      buildRuntime({ workDir, authorityRoot, mode: "default" }),
+      "bash",
+      { command },
+    );
+    expect(defaultMode.ok).toBe(false);
+    if (!defaultMode.ok) {
+      expect(defaultMode.output).toContain("unsupported bash syntax");
+    }
+
+    const fullAutoMode = authorizeLocalToolCall(
+      buildRuntime({ workDir, authorityRoot, mode: "full-auto" }),
+      "bash",
+      { command },
+    );
+    expect(fullAutoMode).toEqual({ ok: true });
+  });
+
   test("dangerous mode bypasses normal denials but still protects permission config files", () => {
     const { workDir, authorityRoot, externalFile } = buildPermissionSandbox();
 
@@ -144,6 +170,16 @@ describe("local permission exec modes", () => {
     expect(protectedWrite.ok).toBe(false);
     if (!protectedWrite.ok) {
       expect(protectedWrite.output).toContain("Protected local permission config path");
+    }
+
+    const protectedBashWrite = authorizeLocalToolCall(
+      buildRuntime({ workDir, authorityRoot, mode: "dangerous" }),
+      "bash",
+      { command: `echo $(printf hi > ${path.join(authorityRoot, "permissions.json")})` },
+    );
+    expect(protectedBashWrite.ok).toBe(false);
+    if (!protectedBashWrite.ok) {
+      expect(protectedBashWrite.output).toContain("Protected local permission config path");
     }
   });
 

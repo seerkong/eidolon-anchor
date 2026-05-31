@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { useTheme } from "../../providers/theme"
 
 export interface TodoItemProps {

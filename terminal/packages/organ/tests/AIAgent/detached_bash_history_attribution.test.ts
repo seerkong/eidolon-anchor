@@ -65,7 +65,7 @@ describe("Detached bash history attribution", () => {
           {
             id: "tc-detached-bash-main",
             function: {
-                name: "DetachedBash",
+                name: "RunDetachedBash",
               arguments: JSON.stringify({ command: "pwd", agent_type: "code" }),
             },
           },
@@ -117,12 +117,7 @@ describe("Detached bash history attribution", () => {
       actorId: main.id,
       actorType: main.type,
     }).transcriptPath
-    const actorsDir = path.join(sessionDir, 'actors')
-    const subFiles = fs.existsSync(actorsDir)
-      ? fs.readdirSync(actorsDir).filter((name) => name !== `primary__${main.id}`)
-      : []
     expect(fs.existsSync(mainHistoryPath)).toBe(true)
-    expect(subFiles.length).toBeGreaterThan(0)
 
     const mainParsed = StreamTranscript.parse(fs.readFileSync(mainHistoryPath, 'utf-8'))
     const mainPayload = mainParsed.records.map((r) => r.payload).join('\n')

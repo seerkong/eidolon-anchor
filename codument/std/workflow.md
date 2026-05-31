@@ -3,7 +3,7 @@
 ## 指导原则
 
 1. **规范是真实来源：** 所有工作必须在 plan.xml 中追踪
-2. **技术栈是慎重选择的：** 对技术栈的更改必须在实现前记录在 tech-stack.md 中
+2. **技术栈是慎重选择的：** 对技术栈的更改必须在实现前记录到 `codument/attractors/` 下相关项目级吸引子；旧项目可兼容记录到既有 `codument/tech-stack.md`
 3. **测试驱动开发：** 在实现功能前编写单元测试
 4. **高代码覆盖率：** 所有模块的代码覆盖率目标为 >80%
 5. **用户体验优先：** 每个决策都应优先考虑用户体验
@@ -39,9 +39,9 @@
    ```
    目标：新代码覆盖率 >80%
 
-7. **记录偏差：** 如果实现与技术栈不同：
+7. **记录偏差：** 如果实现与技术栈约定不同：
    - **停止**实现
-   - 用新设计更新 `tech-stack.md`
+   - 用新设计更新 `codument/attractors/` 下相关项目级吸引子；旧项目可兼容更新既有 `codument/tech-stack.md`
    - 添加带日期的注释解释更改
    - 恢复实现
 
@@ -113,7 +113,7 @@
    - 如果仍失败，停止并请求用户指导
 
 4. **提议手动验证计划：**
-   - 分析 product.md 和 plan.xml 确定用户目标
+   - 分析 `codument/attractors/` 下相关吸引子和 plan.xml 确定用户目标；旧项目没有 attractors 时，再兼容分析 `codument/product.md`
    - 生成分步验证计划，包括命令和预期结果
 
 5. **等待用户反馈：**
@@ -220,23 +220,23 @@ git commit -m "test(utils): Add tests for parseTaskDetails function"
 
 ### 波次执行流程
 
-1. **讨论阶段**（`/codument:discuss`）
+1. **讨论阶段**（`请使用 codument-discuss skill, 讨论track: <track-id>`）
    - 针对当前阶段进行深度讨论
    - 生成 `context.md` 记录讨论结论和上下文
 
-2. **波次规划**（`/codument:plan-wave`）
+2. **波次规划**（`请使用 codument-plan-wave skill, 规划track: <track-id>`）
    - 分析任务间的依赖关系
    - 将任务分配到波次，构建 DAG
    - 更新 plan.xml 中的 `<waves>` 和 task 的 `wave` 属性
 
-3. **波次执行**（`/codument:execute-wave`）
+3. **波次执行**（`请使用 codument-execute-wave skill, 执行track: <track-id>`）
    - 按拓扑排序确定波次执行顺序
    - 同一波次内的任务通过 `Task()` 分派给子代理并行执行
    - 每个子代理获得独立的 200k 上下文窗口
    - 编排器保持轻量（~10-15% 上下文），通过 `state.md` 传递跨波次知识
-   - 支持指定单个阶段执行：`/codument:execute-wave <track-id> P2`
+   - 支持指定单个阶段执行：`请使用 codument-execute-wave skill, 执行track: <track-id> P2`
 
-4. **独立验证**（`/codument:verify`）
+4. **独立验证**（`请使用 codument-verify skill, 验证track: <track-id>`）
    - 启动独立验证子代理
    - 目标倒推验证：从目标出发，逐层验证实现
    - 三级验证：存在性 → 实质性 → 连通性

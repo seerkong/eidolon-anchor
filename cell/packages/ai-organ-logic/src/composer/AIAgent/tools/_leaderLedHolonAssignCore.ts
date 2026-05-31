@@ -101,7 +101,7 @@ export async function queueLeaderLedHolonAssign(params: {
       },
     },
   }
-  holonActor.send("memberInbox", {
+  const mailboxPayload = {
     from: params.runtime.actor.identity?.kind === "member" ? params.runtime.actor.identity.name : params.runtime.actor.key,
     text: buildLeaderLedHolonEnvelope({
       kind: "assign",
@@ -113,8 +113,14 @@ export async function queueLeaderLedHolonAssign(params: {
       content: params.content,
     }),
     ts: Date.now(),
-  } as any)
-  driver.resumeFiber(`${holonActor.key}:${holonActor.id}`, Date.now())
+  } as any
+  driver.emitFiberSignal({
+    fiberId: `${holonActor.key}:${holonActor.id}`,
+    signalKind: "mailbox_enqueue",
+    mailbox: { kind: "memberInbox", payload: mailboxPayload },
+    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberInbox:${routeId}`,
+    createdAt: mailboxPayload.ts,
+  })
 
   const formationSubject = resolveActorSubject(params.runtime.vm, target)
   if (params.mode === "stream" && formationSubject) {

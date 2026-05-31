@@ -1,6 +1,7 @@
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
 import fs from "fs";
+import os from "node:os";
 import path from "path";
 import { Client as MCPClientSdk } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
@@ -18,7 +19,126 @@ export const debugLog = (msg: string) => {
 export const infoLog = (msg: string) => console.log(`  [INFO] ${msg}`);
 export const errorLog = (msg: string) => console.log(`  [ERROR] ${msg}`);
 
-export function loadMcpServers(mcpDir: string) {
+const DEFAULT_MCP_REQUEST_TIMEOUT_MS = 30_000;
+const MAX_MCP_REQUEST_TIMEOUT_MS = 5 * 60_000;
+const MCP_CALL_OPTIONS_KEY = "_eidolon";
+
+function hasExplicitRequestTimeout(options?: { timeoutMs?: number }): boolean {
+  return typeof options?.timeoutMs === "number" && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0;
+}
+
+function normalizeRequestTimeoutMs(value: unknown, fallback = DEFAULT_MCP_REQUEST_TIMEOUT_MS): number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? Math.min(Math.floor(value), MAX_MCP_REQUEST_TIMEOUT_MS)
+    : fallback;
+}
+
+function timeoutMessage(timeoutMs: number): string {
+  return `Request timeout after ${timeoutMs}ms`;
+}
+
+function shouldUseRequestTimeout(
+  method: string,
+  options?: { timeoutMs?: number },
+): boolean {
+  return method !== "tools/call" || hasExplicitRequestTimeout(options);
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+  onTimeout?: () => void,
+): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          try {
+            onTimeout?.();
+          } finally {
+            reject(new Error(timeoutMessage(timeoutMs)));
+          }
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+async function fetchWithTimeout(
+  input: string | URL,
+  init: RequestInit,
+  timeoutMs?: number,
+): Promise<Response> {
+  if (!timeoutMs || timeoutMs <= 0) {
+    return await fetch(input, init);
+  }
+  const controller = new AbortController();
+  return await withTimeout(
+    fetch(input, { ...init, signal: controller.signal }),
+    timeoutMs,
+    () => controller.abort(),
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function cloneJsonValue<T>(value: T): T {
+  try {
+    return JSON.parse(JSON.stringify(value)) as T;
+  } catch {
+    return value;
+  }
+}
+
+function withMcpCallOptionsSchema(schema: any): any {
+  const parameters = isRecord(schema) ? cloneJsonValue(schema) : { type: "object", properties: {} };
+  if (typeof parameters.type === "string" && parameters.type !== "object") {
+    return parameters;
+  }
+  parameters.type = "object";
+  parameters.properties = isRecord(parameters.properties) ? parameters.properties : {};
+  parameters.properties[MCP_CALL_OPTIONS_KEY] = {
+    type: "object",
+    description:
+      "Optional Eidolon MCP call options. Use timeoutMs only when this specific call is expected to take longer, for example browser automation or long-running remote work. The option is stripped before forwarding to the MCP server.",
+    properties: {
+      timeoutMs: {
+        type: "integer",
+        minimum: 1,
+        maximum: MAX_MCP_REQUEST_TIMEOUT_MS,
+        description: `Per-call timeout in milliseconds. MCP tool calls have no default per-call timeout; maximum is ${MAX_MCP_REQUEST_TIMEOUT_MS}.`,
+      },
+    },
+    additionalProperties: false,
+  };
+  return parameters;
+}
+
+function extractMcpCallOptions(argumentsObj: any): { args: any; timeoutMs?: number } {
+  if (!isRecord(argumentsObj)) {
+    return { args: argumentsObj };
+  }
+  const rawOptions = argumentsObj[MCP_CALL_OPTIONS_KEY];
+  const timeoutMs = isRecord(rawOptions)
+    ? normalizeRequestTimeoutMs(rawOptions.timeoutMs, Number.NaN)
+    : Number.NaN;
+  if (!(MCP_CALL_OPTIONS_KEY in argumentsObj)) {
+    return { args: argumentsObj };
+  }
+  const { [MCP_CALL_OPTIONS_KEY]: _options, ...stripped } = argumentsObj;
+  return {
+    args: stripped,
+    timeoutMs: Number.isFinite(timeoutMs) ? timeoutMs : undefined,
+  };
+}
+
+function loadMcpDir(mcpDir: string): Record<string, any> {
   const servers: Record<string, any> = {};
   if (!fs.existsSync(mcpDir)) return servers;
   for (const file of fs.readdirSync(mcpDir)) {
@@ -27,12 +147,20 @@ export function loadMcpServers(mcpDir: string) {
     try {
       const config = JSON.parse(fs.readFileSync(full, "utf-8"));
       servers[path.parse(file).name] = config;
-      debugLog(`Loaded MCP server config: ${file}`);
+      debugLog(`Loaded MCP server config from ${mcpDir}: ${file}`);
     } catch (e: any) {
       errorLog(`Failed to load MCP config ${file}: ${e.message}`);
     }
   }
   return servers;
+}
+
+export function loadMcpServers(workspaceMcpDir: string) {
+  const homeMcpDir = path.join(os.homedir(), ".eidolon", "mcp");
+  const base = loadMcpDir(homeMcpDir);
+  const overlay = loadMcpDir(workspaceMcpDir);
+  // workspace overlay overrides home base for same-name servers
+  return { ...base, ...overlay };
 }
 
 export function sanitizeMcpIdentifier(name: string) {
@@ -64,7 +192,7 @@ export function parseJsonrpcResponse(data: any): [any, string | null] {
 
 export interface MCPTransport {
   connect(): Promise<boolean>;
-  sendRequest(method: string, params?: any): Promise<[any, string | null]>;
+  sendRequest(method: string, params?: any, options?: { timeoutMs?: number }): Promise<[any, string | null]>;
   close(): void;
 }
 
@@ -72,14 +200,22 @@ export class StdioTransport implements MCPTransport {
   private command: string;
   private args: string[];
   private env: Record<string, string>;
+  private requestTimeoutMs: number;
   private proc: any = null;
   private stdoutBuf = "";
-  private queue: any[] = [];
+  private pending = new Map<
+    string,
+    {
+      resolve: (response: any) => void;
+      timer?: ReturnType<typeof setTimeout>;
+    }
+  >();
 
-  constructor(command: string, args: string[], env?: Record<string, string>) {
+  constructor(command: string, args: string[], env?: Record<string, string>, requestTimeoutMs?: number) {
     this.command = command;
     this.args = args;
     this.env = { ...process.env, ...(env || {}) } as Record<string, string>;
+    this.requestTimeoutMs = normalizeRequestTimeoutMs(requestTimeoutMs);
   }
 
   async connect(): Promise<boolean> {
@@ -93,7 +229,14 @@ export class StdioTransport implements MCPTransport {
         this.stdoutBuf = this.stdoutBuf.slice(idx + 1);
         try {
           const json = JSON.parse(line.trim());
-          this.queue.push(json);
+          if (json?.id && this.pending.has(json.id)) {
+            const pending = this.pending.get(json.id)!;
+            this.pending.delete(json.id);
+            if (pending.timer) clearTimeout(pending.timer);
+            pending.resolve(json);
+          } else {
+            debugLog(`Unmatched JSON-RPC message: ${JSON.stringify(json)}`);
+          }
         } catch (e) {
           debugLog(`JSON decode error: ${e}`);
         }
@@ -127,22 +270,30 @@ export class StdioTransport implements MCPTransport {
     this.proc.stdin.write(line);
   }
 
-  async sendRequest(method: string, params?: any): Promise<[any, string | null]> {
+  async sendRequest(method: string, params?: any, options?: { timeoutMs?: number }): Promise<[any, string | null]> {
     const req = createJsonrpcRequest(method, params);
-    this._write(req);
-    const timeoutMs = 30000;
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      if (this.queue.length) {
-        const resp = this.queue.shift();
-        if (resp.id === req.id) return parseJsonrpcResponse(resp);
+    const useTimeout = shouldUseRequestTimeout(method, options);
+    const timeoutMs = normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs);
+    const responsePromise = new Promise<any>((resolve) => {
+      const pending: { resolve: (response: any) => void; timer?: ReturnType<typeof setTimeout> } = { resolve };
+      if (useTimeout) {
+        pending.timer = setTimeout(() => {
+          this.pending.delete(req.id);
+          resolve({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: timeoutMessage(timeoutMs) } });
+        }, timeoutMs);
       }
-      await new Promise((r) => setTimeout(r, 50));
-    }
-    return [null, "Request timeout"];
+      this.pending.set(req.id, pending);
+    });
+    this._write(req);
+    return parseJsonrpcResponse(await responsePromise);
   }
 
   close() {
+    for (const [id, pending] of this.pending.entries()) {
+      if (pending.timer) clearTimeout(pending.timer);
+      pending.resolve({ jsonrpc: "2.0", id, error: { code: -32000, message: "Transport closed" } });
+    }
+    this.pending.clear();
     if (this.proc) this.proc.kill();
   }
 }
@@ -151,15 +302,17 @@ export class StreamableHTTPTransport implements MCPTransport {
   private url: string;
   private headers: Headers;
   private sessionId: string | null = null;
+  private requestTimeoutMs: number;
 
-  constructor(url: string, headers?: Record<string, string>) {
+  constructor(url: string, headers?: Record<string, string>, requestTimeoutMs?: number) {
     this.url = url;
     this.headers = new Headers(headers || {});
+    this.requestTimeoutMs = normalizeRequestTimeoutMs(requestTimeoutMs);
   }
 
   async connect(): Promise<boolean> {
     const base = this.url.split("/").slice(0, -1).join("/");
-    const health = await fetch(`${base}/health`).catch(() => null);
+    const health = await fetchWithTimeout(`${base}/health`, {}, this.requestTimeoutMs).catch(() => null);
     infoLog(`Checking server health: ${base}/health -> ${health?.status}`);
     const [result, error] = await this.sendRequest("initialize", {
       protocolVersion: "2025-11-25",
@@ -171,7 +324,12 @@ export class StreamableHTTPTransport implements MCPTransport {
       return false;
     }
     infoLog(`Initialize response: ${JSON.stringify(result)}`);
-    await this.sendNotification("notifications/initialized", {});
+    try {
+      await this.sendNotification("notifications/initialized", {});
+    } catch (e: any) {
+      errorLog(`Initialized notification error: ${e?.message || e}`);
+      return false;
+    }
     infoLog("Sent initialized notification");
     return true;
   }
@@ -179,21 +337,51 @@ export class StreamableHTTPTransport implements MCPTransport {
   private async sendNotification(method: string, params: any) {
     const headers = new Headers(this.headers);
     if (this.sessionId) headers.set("Mcp-Session-Id", this.sessionId);
-    await fetch(this.url, { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", method, params }) });
+    await fetchWithTimeout(
+      this.url,
+      { method: "POST", headers, body: JSON.stringify({ jsonrpc: "2.0", method, params }) },
+      this.requestTimeoutMs,
+    );
   }
 
-  async sendRequest(method: string, params?: any): Promise<[any, string | null]> {
+  async sendRequest(method: string, params?: any, options?: { timeoutMs?: number }): Promise<[any, string | null]> {
+    const useTimeout = shouldUseRequestTimeout(method, options);
+    const timeoutMs = useTimeout
+      ? normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs)
+      : normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs);
     const req = createJsonrpcRequest(method, params);
     const headers = new Headers(this.headers);
     headers.set("Content-Type", "application/json");
     headers.set("Accept", "application/json, text/event-stream");
     if (this.sessionId) headers.set("Mcp-Session-Id", this.sessionId);
-    const resp = await fetch(this.url, { method: "POST", headers, body: JSON.stringify(req) });
+    let resp: Response;
+    try {
+      resp = await fetchWithTimeout(
+        this.url,
+        { method: "POST", headers, body: JSON.stringify(req) },
+        useTimeout ? timeoutMs : undefined,
+      );
+    } catch (error) {
+      return [null, error instanceof Error ? error.message : String(error)];
+    }
     if (resp.headers.has("Mcp-Session-Id")) this.sessionId = resp.headers.get("Mcp-Session-Id");
-    if (!resp.ok) return [null, `HTTP ${resp.status}: ${await resp.text()}`];
+    if (!resp.ok) {
+      const bodyPromise = resp.text();
+      const text = useTimeout
+        ? await withTimeout(bodyPromise, timeoutMs).catch((error) =>
+            error instanceof Error ? error.message : String(error)
+          )
+        : await bodyPromise.catch((error) => error instanceof Error ? error.message : String(error));
+      return [null, `HTTP ${resp.status}: ${text}`];
+    }
     const contentType = resp.headers.get("content-type") || "";
     if (contentType.includes("text/event-stream")) {
-      const text = await resp.text();
+      let text: string;
+      try {
+        text = useTimeout ? await withTimeout(resp.text(), timeoutMs) : await resp.text();
+      } catch (error) {
+        return [null, error instanceof Error ? error.message : String(error)];
+      }
       for (const line of text.split("\n")) {
         if (line.startsWith("data:")) {
           const jsonStr = line.slice(5).trim();
@@ -202,7 +390,12 @@ export class StreamableHTTPTransport implements MCPTransport {
       }
       return [null, "No data in SSE response"];
     }
-    const json = await resp.json();
+    let json: any;
+    try {
+      json = useTimeout ? await withTimeout(resp.json(), timeoutMs) : await resp.json();
+    } catch (error) {
+      return [null, error instanceof Error ? error.message : String(error)];
+    }
     return parseJsonrpcResponse(json);
   }
 
@@ -212,8 +405,10 @@ export class StreamableHTTPTransport implements MCPTransport {
 export class SSETransport implements MCPTransport {
   private client: MCPClientSdk;
   private transport: SSEClientTransport;
+  private requestTimeoutMs: number;
 
-  constructor(private url: string, private headers?: Record<string, string>) {
+  constructor(private url: string, private headers?: Record<string, string>, requestTimeoutMs?: number) {
+    this.requestTimeoutMs = normalizeRequestTimeoutMs(requestTimeoutMs);
     this.client = new MCPClientSdk({ name: "ts-mcp-client", version: "0.1.0" });
     this.transport = new SSEClientTransport(new URL(this.url), {
       eventSourceInit: this.headers ? ({ headers: this.headers } as any) : undefined,
@@ -223,7 +418,11 @@ export class SSETransport implements MCPTransport {
 
   async connect(): Promise<boolean> {
     try {
-      await this.client.connect(this.transport);
+      await withTimeout(
+        this.client.connect(this.transport),
+        this.requestTimeoutMs,
+        () => this.transport.close(),
+      );
       return true;
     } catch (e: any) {
       errorLog(`SSE connect error: ${e?.message || e}`);
@@ -231,17 +430,28 @@ export class SSETransport implements MCPTransport {
     }
   }
 
-  async sendRequest(method: string, params?: any): Promise<[any, string | null]> {
+  async sendRequest(method: string, params?: any, options?: { timeoutMs?: number }): Promise<[any, string | null]> {
+    const useTimeout = shouldUseRequestTimeout(method, options);
+    const timeoutMs = useTimeout
+      ? normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs)
+      : normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs);
     try {
       if (method === "tools/list") {
-        const resp = await this.client.request({ method, params }, ListToolsResultSchema);
+        const resp = await withTimeout(
+          this.client.request({ method, params }, ListToolsResultSchema),
+          timeoutMs,
+        );
         return [resp, null];
       }
       if (method === "tools/call") {
-        const resp = await this.client.request({ method, params }, CallToolResultSchema);
+        const request = this.client.request({ method, params }, CallToolResultSchema);
+        const resp = useTimeout ? await withTimeout(request, timeoutMs) : await request;
         return [resp, null];
       }
-      const resp = await this.client.request({ method, params }, undefined as any);
+      const resp = await withTimeout(
+        this.client.request({ method, params }, undefined as any),
+        timeoutMs,
+      );
       return parseJsonrpcResponse(resp as any);
     } catch (e: any) {
       return [null, e?.message || String(e)];
@@ -258,17 +468,20 @@ export class MCPClient {
   transport: MCPTransport | null = null;
   tools: MCPTool[] = [];
   connected = false;
-  constructor(public serverName: string, public config: any) {}
+  private requestTimeoutMs: number;
+  constructor(public serverName: string, public config: any) {
+    this.requestTimeoutMs = normalizeRequestTimeoutMs(config?.requestTimeoutMs ?? config?.timeoutMs);
+  }
 
   async connect() {
     const transportType = this.config.type || "stdio";
     infoLog(`Connecting to ${this.serverName} using ${transportType}...`);
     if (transportType === "stdio") {
-      this.transport = new StdioTransport(this.config.command, this.config.args || [], this.config.env);
+      this.transport = new StdioTransport(this.config.command, this.config.args || [], this.config.env, this.requestTimeoutMs);
     } else if (transportType === "streamable" || transportType === "http") {
-      this.transport = new StreamableHTTPTransport(this.config.url, this.config.headers);
+      this.transport = new StreamableHTTPTransport(this.config.url, this.config.headers, this.requestTimeoutMs);
     } else if (transportType === "sse") {
-      this.transport = new SSETransport(this.config.url, this.config.headers);
+      this.transport = new SSETransport(this.config.url, this.config.headers, this.requestTimeoutMs);
     } else {
       errorLog(`Unknown transport type: ${transportType}`);
       return false;
@@ -303,10 +516,10 @@ export class MCPClient {
     }
   }
 
-  async callTool(toolName: string, args: any) {
+  async callTool(toolName: string, args: any, options?: { timeoutMs?: number }) {
     if (!this.connected || !this.transport) return "Error: Not connected";
     infoLog(`Calling tool: ${toolName} with args: ${JSON.stringify(args)}`);
-    const [result, error] = await this.transport.sendRequest("tools/call", { name: toolName, arguments: args });
+    const [result, error] = await this.transport.sendRequest("tools/call", { name: toolName, arguments: args }, options);
     if (error) return `Error: ${error}`;
     const contents = result?.content || [];
     const texts = contents.filter((c: any) => c.type === "text").map((c: any) => c.text || "");
@@ -345,16 +558,19 @@ export class MCPManager {
       function: {
         name: t.fullName,
         description: t.description,
-        parameters: t.inputSchema,
+        parameters: withMcpCallOptionsSchema(t.inputSchema),
       },
     }));
   }
 
-  async callTool(fullName: string, argumentsObj: any) {
+  async callTool(fullName: string, argumentsObj: any, options?: { timeoutMs?: number }) {
     const tool = this.tools.find((t) => t.fullName === fullName);
     if (!tool) return `Error: Tool not found: ${fullName}`;
     if (!this.clients[tool.serverName]) return `Error: Server not connected: ${tool.serverName}`;
-    return this.clients[tool.serverName].callTool(tool.name, argumentsObj);
+    const extracted = extractMcpCallOptions(argumentsObj);
+    return this.clients[tool.serverName].callTool(tool.name, extracted.args, {
+      timeoutMs: options?.timeoutMs ?? extracted.timeoutMs,
+    });
   }
 
   isMcpTool(name: string) {

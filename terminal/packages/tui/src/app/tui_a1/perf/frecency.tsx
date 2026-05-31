@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import path from "path"
 import { Global } from "../../../support/global"
 import { onMount } from "solid-js"

@@ -15,6 +15,8 @@ import type {
 
 type Subscription = { unsubscribe: () => void };
 
+const MAX_TUI_CARD_EVENTS = 1_000;
+
 export class TuiCardGraph {
   private readonly listeners = new Set<(event: TuiActorEvent) => void>();
   private readonly events: TuiActorEvent[] = [];
@@ -26,6 +28,9 @@ export class TuiCardGraph {
     }
     for (const actorEvent of mapSemanticEventToCardEvents(event)) {
       this.events.push(actorEvent);
+      if (this.events.length > MAX_TUI_CARD_EVENTS) {
+        this.events.splice(0, this.events.length - MAX_TUI_CARD_EVENTS);
+      }
       for (const listener of [...this.listeners]) {
         listener(actorEvent);
       }
@@ -51,6 +56,7 @@ export class TuiCardGraph {
   dispose(): void {
     this.completed = true;
     this.listeners.clear();
+    this.events.length = 0;
   }
 }
 

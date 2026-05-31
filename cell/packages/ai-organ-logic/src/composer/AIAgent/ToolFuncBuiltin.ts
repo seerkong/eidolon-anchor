@@ -29,24 +29,35 @@ import { buildHolonStatusToolDef } from "./tools/HolonStatus"
 import { buildHolonAssignToolDef } from "./tools/HolonAssign"
 import { buildDetachedActorStatusToolDef } from "./tools/DetachedActorStatus"
 import { buildDetachedActorListToolDef } from "./tools/DetachedActorList"
-import { buildDetachedBashToolDef } from "./tools/DetachedBash"
+import { buildRunDetachedBashToolDef } from "./tools/RunDetachedBash"
 import { buildDetachedToolCallToolDef } from "./tools/DetachedToolCall"
+import { buildDetachedActorLogsToolDef } from "./tools/DetachedActorLogs"
+import { buildDetachedActorMessagesToolDef } from "./tools/DetachedActorMessages"
+import { buildDetachedActorResultToolDef } from "./tools/DetachedActorResult"
 import { buildWebfetchToolDef } from "./tools/webfetch"
 import { buildWebsearchToolDef } from "./tools/websearch"
 import { buildShutdownRequestToolDef } from "./tools/ShutdownRequest"
 import { buildShutdownStatusToolDef } from "./tools/ShutdownStatus"
 import { buildPlanReviewToolDef } from "./tools/PlanReview"
 import { buildCoordinationStatusToolDef } from "./tools/CoordinationStatus"
+import { buildGoalCommandToolDef } from "./tools/GoalCommand"
+import { buildGoalCreateToolDef } from "./tools/GoalCreate"
+import { buildGoalGetToolDef } from "./tools/GoalGet"
+import { buildGoalUpdateToolDef } from "./tools/GoalUpdate"
 import { buildTaskTreeDefaultToolDefsFromManifest } from "./tools/taskTreeManifestBundle"
+import {
+  buildCancelScheduleToolDef,
+  buildCreateIntervalToolDef,
+  buildCreateTimeoutToolDef,
+  buildListSchedulesToolDef,
+} from "./tools/HeartbeatTools"
 
 export const INTERNAL_ONLY_BUILTIN_TOOL_NAMES = new Set([
-  "DetachedActorList",
-  "DetachedActorStatus",
-  "DetachedBash",
   "DetachedToolCall",
   "ShutdownRequest",
   "ShutdownStatus",
   "CoordinationStatus",
+  "GoalCommand",
 ])
 
 export function buildBuiltinToolDefs(options?: { includeInternalOnly?: boolean }): AnyToolDef[] {
@@ -81,14 +92,25 @@ export function buildBuiltinToolDefs(options?: { includeInternalOnly?: boolean }
     buildHolonAssignToolDef(),
     buildSkillToolDef(),
     buildRunDelegateActorToolDef(),
-    buildDetachedBashToolDef(),
+    buildRunDetachedBashToolDef(),
     buildDetachedToolCallToolDef(),
     buildDetachedActorListToolDef(),
     buildDetachedActorStatusToolDef(),
+    buildDetachedActorLogsToolDef(),
+    buildDetachedActorMessagesToolDef(),
+    buildDetachedActorResultToolDef(),
     buildShutdownRequestToolDef(),
     buildShutdownStatusToolDef(),
     buildPlanReviewToolDef(),
     buildCoordinationStatusToolDef(),
+    buildGoalGetToolDef(),
+    buildGoalCreateToolDef(),
+    buildGoalUpdateToolDef(),
+    buildGoalCommandToolDef(),
+    buildCreateTimeoutToolDef(),
+    buildCreateIntervalToolDef(),
+    buildListSchedulesToolDef(),
+    buildCancelScheduleToolDef(),
     buildWebfetchToolDef(),
     buildWebsearchToolDef(),
   ]

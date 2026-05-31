@@ -53,7 +53,7 @@ describe("TUI category graph", () => {
       event_type: "semantic_tool_call_start",
       tool_call: {
         tool_call_id: "call_1",
-        tool_name: "DetachedBash",
+        tool_name: "RunDetachedBash",
         arguments_text: "{}",
         protocol: "openai",
         call_kind: "json_function",
@@ -65,7 +65,7 @@ describe("TUI category graph", () => {
       event_type: "semantic_tool_call_result",
       tool_call: {
         tool_call_id: "call_1",
-        tool_name: "DetachedBash",
+        tool_name: "RunDetachedBash",
         arguments_text: "{}",
         protocol: "openai",
         call_kind: "json_function",
@@ -83,8 +83,8 @@ describe("TUI category graph", () => {
 
     const messages = events.filter((e) => e.kind === 'message').map((e) => String(e.payload))
     expect(messages.some((m) => m.includes('thinking text'))).toBe(true)
-    expect(messages.some((m) => m.includes('DetachedBash [call_1]'))).toBe(true)
-    expect(messages.some((m) => m.includes('DetachedBash: {"task_id":"t1"}'))).toBe(true)
+    expect(messages.some((m) => m.includes('RunDetachedBash [call_1]'))).toBe(true)
+    expect(messages.some((m) => m.includes('RunDetachedBash: {"task_id":"t1"}'))).toBe(true)
     expect(messages.some((m) => m.includes('🤔 Think'))).toBe(false)
     expect(messages.some((m) => m.includes('🤖 Assist'))).toBe(false)
   })

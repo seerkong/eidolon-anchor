@@ -1,3 +1,5 @@
+import { buildExecRuntimeMetadata } from "@terminal/organ/AIAgent/TerminalRuntime"
+
 import { cmd } from "../support/cli/cmd/cmd"
 import { UI } from "../support/cli/ui"
 import { Log } from "../support/util/log"
@@ -6,6 +8,21 @@ import { tuiA1Tui } from "../app/tui_a1"
 import { configureTuiRuntime } from "../runtime/bridge/TuiRuntime"
 import { resolveProjectWorkDir } from "../support/util/project"
 import { isTuiStreamDiagnosticsEnabled } from "../support/util/stream-diagnostics"
+
+type TuiThreadRuntimeArgs = {
+  dangerouslyBypassApprovalsAndSandbox?: boolean
+}
+
+export function buildTuiThreadRuntimeMetadata(
+  workDir: string,
+  args: TuiThreadRuntimeArgs,
+): Record<string, unknown> | undefined {
+  if (!args.dangerouslyBypassApprovalsAndSandbox) return undefined
+  return buildExecRuntimeMetadata({
+    workDir,
+    approvalMode: "dangerous",
+  })
+}
 
 export const thread = cmd({
   command: "tui [project]",
@@ -63,6 +80,11 @@ export const thread = cmd({
         type: "number",
         describe: "Per-turn timeout in seconds (default: no timeout)",
       })
+      .option("dangerously-bypass-approvals-and-sandbox", {
+        alias: ["yolo"],
+        type: "boolean",
+        describe: "skip approvals and workspace sandbox checks",
+      })
       .option("print-logs", {
         type: "boolean",
         hidden: true,
@@ -118,6 +140,7 @@ export const thread = cmd({
       timeoutSeconds: args.timeout,
       debug: args.debug,
       mcp: args.mcp,
+      metadata: buildTuiThreadRuntimeMetadata(cwd, args),
     })
 
     Log.Default.info("tui.thread.launch", {

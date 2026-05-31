@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildProviderDriverRegistry, getProviderDriver, ProviderRuntimeLlmAdapter } from "@cell/ai-organ-logic/llm";
+import { buildProviderDriverRegistry, getProviderDriver, ProviderExecutionError, ProviderRuntimeLlmAdapter } from "@cell/ai-organ-logic/llm";
 import type { ProviderDriverDefinition } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 
 describe("provider runtime driver registry", () => {
@@ -40,10 +40,36 @@ describe("provider runtime driver registry", () => {
     expect(prepared.contract.body?.model_capabilities).toEqual(
       expect.objectContaining({
         family: "deepseek",
-        contextWindow: 128000,
         reasoningEffort: "high",
       }),
     );
+  });
+
+  it("keeps runtime-only prompt diagnostics out of DeepSeek request contracts", () => {
+    const adapter = new ProviderRuntimeLlmAdapter({
+      providerId: "deepseek",
+      selectedModel: "deepseek/deepseek-reasoner",
+      adapterName: "deepseek",
+      options: {
+        apiKey: "k-deepseek",
+        baseURL: "https://api.deepseek.com/v1",
+      },
+    });
+
+    const prepared = adapter.prepareRequest({
+      model: "deepseek-reasoner",
+      messages: [],
+      tools: [],
+      extraBody: {
+        prompt_plan: { id: "plan", turn: 1 },
+        work_context: { task_phase: "implementation" },
+        thinking: { type: "enabled" },
+      },
+    });
+
+    expect(prepared.contract.body).not.toHaveProperty("prompt_plan");
+    expect(prepared.contract.body).not.toHaveProperty("work_context");
+    expect(prepared.contract.body?.thinking).toEqual({ type: "enabled" });
   });
 
   it("prepares connection, request, extra body, and continuation options", () => {
@@ -150,6 +176,62 @@ describe("provider runtime driver registry", () => {
     expect(captures).toEqual([
       expect.objectContaining({ phase: "request" }),
       expect.objectContaining({ phase: "error", error: "provider unavailable" }),
+    ]);
+  });
+
+  it("retries transient provider runtime stream failures and emits diagnostics", async () => {
+    const diagnostics: unknown[] = [];
+    let attempts = 0;
+    const driver: ProviderDriverDefinition = {
+      name: "test-driver",
+      adapterNames: ["openai-chat"],
+      createStream: async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          throw new ProviderExecutionError(
+            "OpenAI fetch error 500: {\"error\":{\"message\":\"upstream error: do request failed\",\"code\":\"do_request_failed\"}}",
+            { providerErrorCode: "do_request_failed", requestedDelaySeconds: 0, statusCode: 500 },
+          );
+        }
+        return {
+          stream: (async function* () {
+            yield { type: "done" };
+          })(),
+        };
+      },
+    };
+    const adapter = new ProviderRuntimeLlmAdapter({
+      providerId: "test-provider",
+      selectedModel: "test-model",
+      adapterName: "openai-chat",
+      driver,
+      runtime: {
+        actorId: "actor-1",
+        sessionId: "session-1",
+        turnId: "turn-1",
+        traceId: "trace-1",
+        diagnostics: {
+          retryEvents: { onNext: (event) => diagnostics.push(event) },
+        },
+      },
+    });
+
+    await adapter.createStream({ model: "test-model", messages: [], tools: [] });
+
+    expect(attempts).toBe(2);
+    expect(diagnostics).toEqual([
+      expect.objectContaining({
+        eventType: "provider_retry_diagnostic",
+        providerId: "test-provider",
+        selectedModel: "test-model",
+        classificationReason: "http_500_retryable",
+        retryCount: 1,
+        terminationReason: "retry_scheduled",
+        actorId: "actor-1",
+        sessionId: "session-1",
+        turnId: "turn-1",
+        traceId: "trace-1",
+      }),
     ]);
   });
 });

@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import type {
   TuiRuntimeSdk,
 } from "@terminal/core/AIAgent"

@@ -5,14 +5,18 @@ import path from "path";
 
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import type { ToolDef } from "@cell/ai-core-contract/types";
+import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
-import { createVM } from "@cell/ai-core-logic/runtime/runtime";
+import { createVM, ensureVmRxData } from "@cell/ai-core-logic/runtime/runtime";
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
 import { LocalFileConversationPersistenceRepositoryFactory } from "@cell/ai-support";
 import {
   __setCompressionDepsForTest,
   __setLoopHooksForTest,
   aiAgentLoopStreaming,
+  forceCompressActorHistory,
+  resolveProviderToolSchemaPolicy,
+  resolveProviderToolsetForActor,
 } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
 
 const mockAdapter = {
@@ -170,6 +174,101 @@ describe("ai_agent_loop_streaming", () => {
   afterEach(() => {
     __setCompressionDepsForTest(null);
     __setLoopHooksForTest(null);
+  });
+
+  it("keeps the full provider tool schema stable for prefix-cache models", () => {
+    const actor = createActor({
+      key: "main",
+      modelConfig: {
+        model: "deepseek-reasoner",
+        capabilities: {
+          family: "deepseek",
+          cachePolicy: {
+            stablePrefix: true,
+            providerManagedPrefixCache: true,
+            preferLateCompaction: true,
+          },
+        },
+      },
+    });
+    actor.workContext = {
+      ...actor.workContext,
+      workMode: WORK_MODES.docs_then_code,
+      taskPhase: TASK_PHASES.context_build,
+    };
+    const tools = [
+      { function: { name: "write" } },
+      { function: { name: "read" } },
+      { function: { name: "grep" } },
+      { function: { name: "read" } },
+    ];
+
+    expect(resolveProviderToolSchemaPolicy(actor)).toBe("stable_surface");
+    expect(resolveProviderToolsetForActor(actor, tools).map((tool) => tool.function.name)).toEqual([
+      "grep",
+      "read",
+      "write",
+    ]);
+  });
+
+  it("allows non-prefix-cache models to adopt work-mode tool schema trimming", () => {
+    const actor = createActor({ key: "main", modelConfig: { model: "mock-model" } });
+    actor.workContext = {
+      ...actor.workContext,
+      workMode: WORK_MODES.docs_then_code,
+      taskPhase: TASK_PHASES.context_build,
+    };
+    const tools = [
+      { function: { name: "write" } },
+      { function: { name: "read" } },
+      { function: { name: "bash" } },
+      { function: { name: "grep" } },
+    ];
+
+    expect(resolveProviderToolSchemaPolicy(actor)).toBe("dynamic_work_mode_surface");
+    expect(resolveProviderToolsetForActor(actor, tools).map((tool) => tool.function.name)).toEqual([
+      "read",
+      "grep",
+    ]);
+  });
+
+  it("records provider-ready prompt token estimates in the vm usage signal", async () => {
+    const adapter = {
+      type: "openai" as const,
+      async createStream() {
+        async function* stream() {
+          yield { ok: true };
+        }
+        return { stream: stream() };
+      },
+    };
+    const actor = createTestActor(adapter);
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      processStream: async () => ({ role: "assistant", content: "done" }),
+    });
+    actor.callbacks.buildToolset = () => [
+      {
+        type: "function",
+        function: {
+          name: "large_schema_tool",
+          description: "schema token sentinel ".repeat(80),
+          parameters: { type: "object", properties: { value: { type: "string" } } },
+        },
+      },
+    ];
+
+    await aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [{ role: "user", content: "hello after compaction" }],
+    });
+
+    const usage = ensureVmRxData(vm).publicRxData.usage.get();
+    expect(usage.prompt_tokens).toBeGreaterThan(100);
+    expect(usage.total_tokens).toBe(usage.prompt_tokens);
+    expect(usage.is_estimated).toBe(true);
   });
 
   it("invokes dispatch/pipeline hooks in expected order", async () => {
@@ -712,6 +811,219 @@ describe("ai_agent_loop_streaming", () => {
     expect(compressCalled).toBe(false);
   });
 
+  it("runs auto compression gate against the provider-ready prompt", async () => {
+    const actor = createTestActor();
+    actor.modelConfig.inputLimit = 100;
+    const toolRegistry = new ToolFuncRegistry();
+    let ratioMessages: any[] | null = null;
+    let compressedInput: any[] | null = null;
+
+    __setCompressionDepsForTest({
+      estimateUsageRatio: (messages) => {
+        ratioMessages = messages;
+        return 0.9;
+      },
+      compressHistory: async (params: any) => {
+        compressedInput = params.messages;
+        return [
+          { role: "user", content: "compressed" },
+          { role: "assistant", content: "ack" },
+        ];
+      },
+    });
+
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      effects: {
+        messageHistory: {
+          appendMessage: () => {},
+          backupHistory: async () => {},
+        },
+      },
+      processStream: async () => ({ role: "assistant", content: "final" }),
+    });
+
+    const originalMessages = [{ role: "user", content: "seed" }];
+    await aiAgentLoopStreaming({ vm, actor, messages: originalMessages });
+
+    expect(compressedInput).toBe(originalMessages);
+    expect(ratioMessages).not.toBe(originalMessages);
+    expect(ratioMessages?.some((message: any) => String(message?.content ?? "").includes("<runtime_work_context>"))).toBe(true);
+  });
+
+  it("compresses dense bundle-like tool output before the provider request exceeds the model limit", async () => {
+    let createStreamCalls = 0;
+    let maxProviderRequestTokens = 0;
+    const denseBundle = "function a(){return b.c(d)};".repeat(500);
+    const actor = createActor({
+      key: "main",
+      modelConfig: { model: "mock-model", inputLimit: 4000 },
+      llmClient: {
+        type: "openai" as const,
+        async createStream() {
+          createStreamCalls += 1;
+          async function* stream() {
+            yield { ok: true };
+          }
+          return { stream: stream() };
+        },
+      },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "final" }),
+      },
+    });
+    const toolRegistry = new ToolFuncRegistry();
+
+    __setCompressionDepsForTest({
+      estimateUsageRatio: (messages, inputLimit) => {
+        const providerRequestTokens = Math.ceil(JSON.stringify(messages).length / 2.5);
+        maxProviderRequestTokens = Math.max(maxProviderRequestTokens, providerRequestTokens);
+        return providerRequestTokens / inputLimit;
+      },
+      compressHistory: async () => [
+        { role: "user", content: "<state_snapshot><overall_goal>summary</overall_goal></state_snapshot>" },
+        { role: "assistant", content: "Understood." },
+        { role: "user", content: "continue" },
+      ],
+    });
+
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      effects: {
+        messageHistory: {
+          appendMessage: () => {},
+          backupHistory: async () => {},
+        },
+      },
+      processStream: async () => ({ role: "assistant", content: "final" }),
+    });
+
+    const result = await aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [
+        { role: "user", content: "inspect this" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "tc-dense", name: "bash", input: { command: "dump bundle" } }],
+        },
+        { role: "tool", content: denseBundle, toolCallId: "tc-dense" },
+        { role: "user", content: "continue" },
+      ],
+    });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(maxProviderRequestTokens).toBeGreaterThan(actor.modelConfig.inputLimit ?? 0);
+    expect(result.messages.some((message: any) => String(message?.content ?? "").includes(denseBundle))).toBe(false);
+    expect(createStreamCalls).toBe(1);
+  });
+
+  it("blocks the provider request when compaction cannot shrink an over-limit prompt", async () => {
+    const actor = createTestActor({
+      type: "openai" as const,
+      async createStream() {
+        throw new Error("provider should not be called");
+      },
+    });
+    actor.modelConfig.inputLimit = 100;
+    const toolRegistry = new ToolFuncRegistry();
+
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 2,
+      compressHistory: async () => null,
+    });
+
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      effects: {
+        messageHistory: {
+          appendMessage: () => {},
+          backupHistory: async () => {},
+        },
+      },
+      processStream: async () => ({ role: "assistant", content: "final" }),
+    });
+
+    await expect(aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [
+        { role: "user", content: "start" },
+        { role: "user", content: "function a(){return b.c(d)};".repeat(50) },
+        { role: "user", content: "continue" },
+      ],
+    })).rejects.toThrow("Context window preflight blocked");
+  });
+
+  it("reactively compacts and retries once when provider reports context overflow", async () => {
+    let createStreamCalls = 0;
+    let compressCalls = 0;
+    const requestedMessages: any[][] = [];
+    const actor = createTestActor({
+      type: "openai" as const,
+      async createStream(options: any) {
+        createStreamCalls += 1;
+        requestedMessages.push(options.messages);
+        if (createStreamCalls === 1) {
+          throw new Error(
+            "OpenAI fetch error 400: This model's maximum context length is 1048576 tokens. Please reduce the length of the messages.",
+          );
+        }
+        async function* stream() {
+          yield { ok: true };
+        }
+        return { stream: stream() };
+      },
+    });
+    actor.modelConfig.inputLimit = 10_000;
+    const toolRegistry = new ToolFuncRegistry();
+
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 0.1,
+      compressHistory: async (params: any) => {
+        compressCalls += 1;
+        expect(params.recentKeep).toBe(5);
+        return [
+          { role: "user", content: "<state_snapshot><overall_goal>reactive</overall_goal></state_snapshot>" },
+          { role: "assistant", content: "Understood." },
+          { role: "user", content: "continue" },
+        ];
+      },
+    });
+
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      effects: {
+        messageHistory: {
+          appendMessage: () => {},
+          backupHistory: async () => {},
+        },
+      },
+      processStream: async () => ({ role: "assistant", content: "final" }),
+    });
+
+    const result = await aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [
+        { role: "user", content: "start" },
+        { role: "assistant", content: "large context placeholder" },
+        { role: "user", content: "continue" },
+      ],
+    });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(createStreamCalls).toBe(2);
+    expect(compressCalls).toBe(1);
+    expect(JSON.stringify(requestedMessages[1])).toContain("reactive");
+  });
+
   it("backs up and compresses without rewriting transcript evidence when threshold is reached", async () => {
     const actor = createTestActor();
     actor.modelConfig.inputLimit = 100;
@@ -823,6 +1135,44 @@ describe("ai_agent_loop_streaming", () => {
     expect(actor.continuationBaseline.lastResetReason).toContain("compaction:auto");
     expect(promptGeneration?.metadata?.policyDecision).toBeTruthy();
     expect(promptGeneration?.metadata?.continuationBaselineAfter).toEqual(actor.continuationBaseline);
+  });
+
+  it("manual compaction reports already compact enough without rewriting history", async () => {
+    const actor = createTestActor();
+    actor.modelConfig.inputLimit = 1000;
+    const toolRegistry = new ToolFuncRegistry();
+    let compressCalled = false;
+    let backupCalled = false;
+
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 0.1,
+      compressHistory: async () => {
+        compressCalled = true;
+        return [];
+      },
+    });
+
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      effects: {
+        messageHistory: {
+          appendMessage: () => {},
+          backupHistory: async () => {
+            backupCalled = true;
+          },
+        },
+      },
+      processStream: async () => ({ role: "assistant", content: "final" }),
+    });
+
+    const messages = [{ role: "user", content: "short" }];
+    const result = await forceCompressActorHistory({ vm, actor, messages });
+
+    expect(result).toEqual({ ok: true, tokensBefore: expect.any(Number), messagesAfter: 1, compacted: false });
+    expect(compressCalled).toBe(false);
+    expect(backupCalled).toBe(false);
+    expect(messages).toEqual([{ role: "user", content: "short" }]);
   });
 
   it("injects runtime hints through memberInbox without treating them as semantic user input", async () => {

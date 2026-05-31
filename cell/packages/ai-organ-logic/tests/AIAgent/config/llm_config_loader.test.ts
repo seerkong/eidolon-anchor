@@ -6,6 +6,7 @@ import path from "path";
 import {
   flattenModelConfig,
   normalizeAdapterName,
+  parseProviderCatalogRaw,
   resolveActorModelConfig,
 } from "@cell/ai-organ-logic/llm";
 import { loadAgentPresetConfig, loadLLMProviderConfig } from "@cell/ai-support";
@@ -59,7 +60,7 @@ describe("llm config loader", () => {
           adapter: "deepseek",
           baseURL: "https://api.deepseek.com/v1",
           apiKey: "k-deepseek",
-          models: [{ name: "deepseek-reasoner", output: 8192 }],
+          models: [{ name: "deepseek-reasoner", context: 128000, output: 8192 }],
         },
       ],
     };
@@ -77,7 +78,6 @@ describe("llm config loader", () => {
     expect(flattened?.capabilities).toEqual(
       expect.objectContaining({
         family: "deepseek",
-        contextWindow: 128000,
         cachePolicy: expect.objectContaining({
           stablePrefix: true,
           providerManagedPrefixCache: true,
@@ -86,6 +86,36 @@ describe("llm config loader", () => {
         }),
       }),
     );
+  });
+
+  it("reads model input and output limits from limits without DeepSeek clamping", () => {
+    const catalog = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "deepseek",
+          adapter: "deepseek",
+          options: { baseURL: "https://api.deepseek.com/v1", apiKey: "k-deepseek" },
+          models: [
+            {
+              id: "deepseek-v4-pro",
+              limits: { context: 700000, output: 300000 },
+            },
+          ],
+        },
+      ],
+    });
+
+    const flattened = flattenModelConfig("deepseek/deepseek-v4-pro", catalog);
+
+    expect(flattened).toEqual(
+      expect.objectContaining({
+        provider: "deepseek",
+        model: "deepseek-v4-pro",
+        inputLimit: 700000,
+        outputLimit: 300000,
+      }),
+    );
+    expect(flattened?.capabilities?.cachePolicy?.compactionThresholdTokens).toBe(560000);
   });
 
   it("validates LLMProviderConfig shape", () => {
@@ -130,13 +160,13 @@ describe("llm config loader", () => {
     expect(isAgentPresetConfig(bad)).toBe(false);
   });
 
-  it("loads valid llm-provider-config.json", () => {
+  it("loads valid llm-provider.json", () => {
     const workdir = makeTempWorkdir();
     const homeDir = makeTempHomeDir();
     cleanupDirs.push(workdir);
     cleanupDirs.push(homeDir);
     setTestHome(homeDir);
-    writeJson(path.join(homeDir, ".eidolon", "llm-provider-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
           name: "openai",
@@ -156,7 +186,7 @@ describe("llm config loader", () => {
     expect(loaded?.providers[0]?.models[0]?.reasoning?.effort).toBe("high");
   });
 
-  it("returns null when llm-provider-config.json is missing", () => {
+  it("returns null when llm-provider.json is missing", () => {
     const workdir = makeTempWorkdir();
     const homeDir = makeTempHomeDir();
     cleanupDirs.push(workdir);
@@ -172,13 +202,13 @@ describe("llm config loader", () => {
     expect(logs.some((line) => line.startsWith("error:"))).toBe(true);
   });
 
-  it("returns null and logs error for invalid llm-provider-config.json", () => {
+  it("returns null and logs error for invalid llm-provider.json", () => {
     const workdir = makeTempWorkdir();
     const homeDir = makeTempHomeDir();
     cleanupDirs.push(workdir);
     cleanupDirs.push(homeDir);
     setTestHome(homeDir);
-    const target = path.join(homeDir, ".eidolon", "llm-provider-config.json");
+    const target = path.join(homeDir, ".eidolon", "llm-provider.json");
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, "{ invalid", "utf-8");
     const logs: string[] = [];
@@ -191,13 +221,13 @@ describe("llm config loader", () => {
     expect(logs.some((line) => line.startsWith("error:"))).toBe(true);
   });
 
-  it("loads valid llm-present-config.json", () => {
+  it("loads valid agent-preset.json", () => {
     const workdir = makeTempWorkdir();
     const homeDir = makeTempHomeDir();
     cleanupDirs.push(workdir);
     cleanupDirs.push(homeDir);
     setTestHome(homeDir);
-    writeJson(path.join(homeDir, ".eidolon", "llm-present-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
       default_preset: "default",
       presets: {
         default: {
@@ -211,7 +241,7 @@ describe("llm config loader", () => {
     expect(loaded?.preset).toBe("default");
   });
 
-  it("returns null when llm-present-config.json is missing", () => {
+  it("returns null when agent-preset.json is missing", () => {
     const workdir = makeTempWorkdir();
     const homeDir = makeTempHomeDir();
     cleanupDirs.push(workdir);
@@ -331,7 +361,7 @@ describe("llm config loader", () => {
     cleanupDirs.push(workdir);
     cleanupDirs.push(homeDir);
     setTestHome(homeDir);
-    writeJson(path.join(homeDir, ".eidolon", "llm-provider-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
           name: "openai",
@@ -342,7 +372,7 @@ describe("llm config loader", () => {
         },
       ],
     });
-    writeJson(path.join(homeDir, ".eidolon", "llm-present-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
       default_preset: "default",
       presets: {
         default: {
@@ -374,7 +404,7 @@ describe("llm config loader", () => {
     cleanupDirs.push(workdir);
     cleanupDirs.push(homeDir);
     setTestHome(homeDir);
-    writeJson(path.join(homeDir, ".eidolon", "llm-provider-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
           name: "openai",
@@ -385,7 +415,7 @@ describe("llm config loader", () => {
         },
       ],
     });
-    writeJson(path.join(homeDir, ".eidolon", "llm-present-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
       default_preset: "default",
       presets: {
         default: {
@@ -413,7 +443,7 @@ describe("llm config loader", () => {
     cleanupDirs.push(workdir);
     cleanupDirs.push(homeDir);
     setTestHome(homeDir);
-    writeJson(path.join(homeDir, ".eidolon", "llm-provider-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
           name: "openai",
@@ -424,7 +454,7 @@ describe("llm config loader", () => {
         },
       ],
     });
-    writeJson(path.join(homeDir, ".eidolon", "llm-present-config.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
       default_preset: "default",
       presets: {
         default: {

@@ -287,8 +287,8 @@ describe("TerminalRuntime composer adoption", () => {
 
     const llmTurn = await runtime!.turn("hello")
     expect(llmTurn).toContain("ok")
-    expect(systemPrompt).toContain(`You are a coding agent at ${activeWorkdir}.`)
-    expect(systemPrompt).toContain("work loop:")
+    expect(systemPrompt).toContain(`你是位于 ${activeWorkdir} 的 coding agent。`)
+    expect(systemPrompt).toContain("工作循环：")
     expect(systemPrompt).toContain("定位/复现 -> 按需规划 -> 修改 -> 验证 -> 收口")
 
     const memberList = await runtime!.turn("/member list")

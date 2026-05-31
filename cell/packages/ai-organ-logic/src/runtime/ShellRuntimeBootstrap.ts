@@ -33,7 +33,12 @@ export type ShellRuntimeEffects = {
 
 export type ShellRuntimeActorCallbacks = {
   buildToolset: (currentVm: DomainRuntimeVm) => unknown[];
-  processStream: (_runtime: unknown, streamActor: { key: string; id: string }, stream: unknown) => Promise<unknown>;
+  processStream: (
+    _runtime: unknown,
+    streamActor: { key: string; id: string },
+    stream: unknown,
+    options?: { signal?: AbortSignal },
+  ) => Promise<unknown>;
 };
 
 export type RecoverOrCreateShellRuntimeParams = {
@@ -71,7 +76,7 @@ export function createShellRuntimePaths(workDir: string): ShellRuntimePaths {
   };
 }
 
-export function ensureShellRuntimeSessionDir(workDir: string, sessionKey = "default"): string {
+export function ensureShellRuntimeSessionDir(workDir: string, sessionKey: string): string {
   const sessionDir = path.join(workDir, ".eidolon", "sessions", sessionKey);
   fs.mkdirSync(sessionDir, { recursive: true });
   return sessionDir;

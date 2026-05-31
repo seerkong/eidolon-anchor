@@ -4,6 +4,7 @@ import { testRender } from "@opentui/solid"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { TuiA1View } from "../src/app/tui_a1"
 import type { TuiA1Message } from "../src/app/tui_a1/data"
+import type { Message, Part, TuiRuntimeSdk } from "@terminal/core/AIAgent"
 import { Clipboard } from "../src/support/util/clipboard"
 import { scrollToBottom } from "../src/app/tui_a1/perf/scroll-history"
 
@@ -17,6 +18,88 @@ function buildMessages(count: number): TuiA1Message[] {
     createdAt: Date.now() - (count - index) * 1000,
     text: `Message ${index}\n${"card body ".repeat(12)}`,
   }))
+}
+
+function buildRuntimeMessages(count: number, sessionID = "ses_1"): Array<{ info: Message; parts: Part[] }> {
+  return Array.from({ length: count }, (_, index) => {
+    const messageID = `assistant-${index}`
+    return {
+      info: {
+        id: messageID,
+        sessionID,
+        role: "assistant",
+        time: {
+          created: Date.now() - (count - index) * 1000,
+          completed: Date.now() - (count - index) * 1000 + 1,
+        },
+        agent: "build",
+        providerID: "openai",
+        modelID: "gpt-5.4",
+        mode: "assist",
+        path: {
+          cwd: process.cwd(),
+          root: process.cwd(),
+        },
+        cost: 0,
+        tokens: {
+          input: 0,
+          output: 0,
+          reasoning: 0,
+          cache: {
+            read: 0,
+            write: 0,
+          },
+        },
+        finish: "stop",
+      },
+      parts: [
+        {
+          id: `${messageID}-text`,
+          sessionID,
+          messageID,
+          type: "text",
+          text: `Message ${index}\n${"card body ".repeat(12)}`,
+        },
+      ],
+    }
+  })
+}
+
+function createRuntimeWithUserInputHistory(options: {
+  sessionID?: string
+  messages?: Array<{ info: Message; parts: Part[] }>
+  userInputs: Array<{ text: string; createdAt?: number }>
+}): TuiRuntimeSdk {
+  const sessionID = options.sessionID ?? "ses_1"
+  const messages = options.messages ?? buildRuntimeMessages(40, sessionID)
+  return {
+    url: "mock",
+    client: {
+      app: {
+        agents: async () => ({ data: [{ name: "build" }] }),
+      },
+      config: {
+        get: async () => ({ data: { model: "openai/gpt-5.4" } }),
+      },
+      session: {
+        list: async () => ({ data: [{ id: sessionID, title: "Mock Session" } as any] }),
+        create: async () => ({ data: { id: sessionID, title: "Mock Session" } as any }),
+        get: async () => ({ data: { id: sessionID, title: "Mock Session" } as any }),
+        messages: async () => ({ data: messages }),
+        userInputs: async () => ({ data: options.userInputs }),
+        status: async () => ({ data: { [sessionID]: { type: "idle" } } as any }),
+      },
+      tui: {
+        openSessions: async () => ({ data: undefined }),
+      },
+    },
+    event: {
+      on: () => () => {},
+      subscribe: async function* () {},
+      listen: () => () => {},
+      emit: () => {},
+    },
+  } as unknown as TuiRuntimeSdk
 }
 
 async function renderSettled(setup: Awaited<ReturnType<typeof testRender>>, passes = 2) {
@@ -157,6 +240,54 @@ describe("tui_a1 scrollbox", () => {
       await setup.renderOnce()
 
       expect(target!.scrollTop).toBeLessThan(before)
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("keeps shift-arrow user input history navigation in the composer", async () => {
+    let scrollbox: ScrollBoxRenderable | undefined
+    const sessionID = "ses_1"
+    const runtime = createRuntimeWithUserInputHistory({
+      sessionID,
+      messages: buildRuntimeMessages(40, sessionID),
+      userInputs: [
+        { text: "first saved input", createdAt: 1 },
+        { text: "second saved input", createdAt: 2 },
+      ],
+    })
+
+    const setup = await testRender(
+      () => (
+        <TuiA1View
+          directory={process.cwd()}
+          runtime={runtime}
+          sessionID={sessionID}
+          onScrollboxReady={(value) => {
+            scrollbox = value
+          }}
+        />
+      ),
+      {
+        width: 120,
+        height: 40,
+        kittyKeyboard: true,
+      },
+    )
+
+    try {
+      await renderSettled(setup, 6)
+
+      const target = scrollbox
+      expect(target).toBeTruthy()
+      const before = target!.scrollTop
+      expect(before).toBeGreaterThan(0)
+
+      setup.mockInput.pressArrow("up", { shift: true })
+      await renderSettled(setup, 2)
+
+      expect(target!.scrollTop).toBe(before)
+      expect(setup.captureCharFrame()).toContain("second saved input")
     } finally {
       setup.renderer.destroy()
     }
@@ -426,15 +557,15 @@ describe("tui_a1 scrollbox", () => {
       expect(target).toBeTruthy()
       expect(isNearBottom(target!)).toBe(true)
 
-      await clickSpanByText(setup, "会话列表")
+      await clickSpanByText(setup, "会话")
       await renderSettled(setup, 2)
-      await clickSpanByText(setup, "使用说明")
+      await clickSpanByText(setup, "Actor")
       await renderSettled(setup, 2)
-      await clickSpanByText(setup, "功能菜单")
+      await clickSpanByText(setup, "菜单")
       await renderSettled(setup, 2)
-      await clickSpanByText(setup, "会话列表")
+      await clickSpanByText(setup, "会话")
       await renderSettled(setup, 2)
-      await clickSpanByText(setup, "使用说明")
+      await clickSpanByText(setup, "Actor")
       await renderSettled(setup, 2)
 
       const beforeWheel = target!.scrollTop

@@ -18,7 +18,11 @@ export function buildApplyPatchToolDef(): ToolDef<ApplyPatchOuterInput, ApplyPat
       function: {
         name: "apply_patch",
         description: "Apply a structured patch to accessible files. Supports relative, absolute, and ~/ home-directory paths inside permitted roots.",
-        parameters: { type: "object", properties: { patchText: { type: "string" } }, required: ["patchText"] },
+        parameters: {
+          type: "object",
+          properties: { patchText: { type: "string" }, patch: { type: "string" } },
+          anyOf: [{ required: ["patchText"] }, { required: ["patch"] }],
+        },
       },
     },
     briefPromptXnl: readPromptFromDir("ApplyPatch", "Tool.brief.xnl"),

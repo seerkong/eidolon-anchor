@@ -19,10 +19,14 @@ import {
 } from "depa-actor";
 
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
-import { ensureVmRuntimeContext, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
+import type { AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor";
+import type { DurableControlSignalData, DurableControlSignalInput } from "@cell/ai-core-contract/runtime/DurableControlSignal";
+import { emitDurableControlSignal, markDurableControlSignalConsumed } from "@cell/ai-core-logic/runtime/DurableControlSignals";
+import { ensureVmRuntimeContext, ensureVmRxData, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
 import { AI_AGENT_COORDINATION_KINDS, AI_AGENT_COORDINATION_NAMES } from "@cell/ai-core-logic";
 import { normalizeDelegateRunMode, type DelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode";
 import {
+  DETACHED_ACTOR_KINDS,
   type DetachedActorKind,
   DETACHED_ACTOR_STATUSES,
   getDetachedActorRegistry,
@@ -36,6 +40,7 @@ import {
 import { inferFiberWorkload, resolveMainFiberWorkload, type AiAgentWorkload } from "./lane/AiAgentWorkload";
 import { getCoordinationEngine } from "./coordination/CoordinationEngine";
 import { getMemberManager } from "./organization/MemberManager";
+import { getDetachedActorObservabilityStore } from "./detached/DetachedActorObservability";
 
 export const AI_AGENT_ORCHESTRATOR_TICK_SCOPES = {
   all: "all",
@@ -193,6 +198,96 @@ function updateDetachedActorStatus(
   } as any);
 }
 
+function appendDetachedActorTerminalObservation(
+  vm: AiAgentVm,
+  taskId: string | undefined,
+  status: typeof DETACHED_ACTOR_STATUSES.completed | typeof DETACHED_ACTOR_STATUSES.failed | typeof DETACHED_ACTOR_STATUSES.cancelled,
+  text: string,
+): void {
+  if (!taskId) return;
+  getDetachedActorObservabilityStore(vm).appendMessage(taskId, {
+    role: "system_event",
+    kind: status === DETACHED_ACTOR_STATUSES.failed ? "error" : "status",
+    text,
+  });
+}
+
+function abortActorInflightWork(actor: AiAgentActor, ctx: FiberContext | undefined): void {
+  actor.llmAbortController?.abort();
+  actor.llmAbortController = null;
+  const abortController = ctx?.execState?.inflight?.abortController;
+  if (abortController && typeof abortController.abort === "function") {
+    abortController.abort();
+  }
+}
+
+function publishSchedulerSignal(runtime: AiAgentOrchestratorRuntime, vm: AiAgentVm, updatedAt: number): void {
+  const fibers = Object.values(runtime.state.fibers as Record<string, any>);
+  const pendingResumeFiberIds = Array.from(runtime.pendingResumes);
+  const interruptedFiberIds = fibers
+    .filter((fiber) => fiber.waitingReason === "interrupted" || fiber.waitingReason === "cancel_requested")
+    .map((fiber) => String(fiber.id))
+    .filter(Boolean);
+  const { privateRxData } = ensureVmRxData(vm);
+  privateRxData.scheduler.set({
+    readyFiberIds: fibers.filter((fiber) => fiber.status === "ready").map((fiber) => String(fiber.id)).filter(Boolean),
+    runningFiberIds: fibers.filter((fiber) => fiber.status === "running").map((fiber) => String(fiber.id)).filter(Boolean),
+    suspendedFiberIds: fibers.filter((fiber) => fiber.status === "suspended").map((fiber) => String(fiber.id)).filter(Boolean),
+    blockedFiberIds: fibers.filter((fiber) => fiber.status === "blocked").map((fiber) => String(fiber.id)).filter(Boolean),
+    pendingResumeFiberIds,
+    interruptedFiberIds,
+    updatedAt,
+  });
+}
+
+function applyResumeFiber(runtime: AiAgentOrchestratorRuntime, fiberId: string, now: number): void {
+  if (!fiberId) return;
+
+  updateDetachedActorStatus(runtime, fiberId, "running");
+
+  const current = runtime.state.fibers[fiberId];
+  if (!current) return;
+  if (current.status === "failed") {
+    runtime.pendingResumes.delete(fiberId);
+    runtime.state = {
+      ...runtime.state,
+      fibers: {
+        ...runtime.state.fibers,
+        [fiberId]: {
+          ...current,
+          status: "ready",
+          waitingReason: undefined,
+          suspendPolicy: undefined,
+          retryAt: undefined,
+          timeoutAt: undefined,
+          lastError: undefined,
+          step: { tag: "agent_step", payload: { fiberId } } as any,
+          updatedAt: now,
+        },
+      },
+    };
+    const ctx = runtime.fiberIndex.get(fiberId);
+    if (ctx) publishSchedulerSignal(runtime, ctx.vm, now);
+    return;
+  }
+  if (current.status !== "suspended") {
+    runtime.pendingResumes.add(fiberId);
+    const ctx = runtime.fiberIndex.get(fiberId);
+    if (ctx) publishSchedulerSignal(runtime, ctx.vm, now);
+    return;
+  }
+
+  const next = reduceOrchestrator(runtime.state, {
+    type: "resume",
+    fiberId,
+    now,
+    nextStep: { tag: "agent_step", payload: { fiberId } },
+  });
+  runtime.state = next.state;
+  const ctx = runtime.fiberIndex.get(fiberId);
+  if (ctx) publishSchedulerSignal(runtime, ctx.vm, now);
+}
+
 type FiberContext = {
   fiberId: string;
   vm: AiAgentVm;
@@ -211,7 +306,19 @@ export type FiberStepOutcome =
   | { kind: typeof AI_AGENT_FIBER_RESULT_KINDS.cancel; reason: string; propagateToChildren?: boolean }
   | { kind: typeof AI_AGENT_FIBER_RESULT_KINDS.fail; error: string };
 
-type RunStep = (ctx: FiberContext, helpers: { resume: (fiberId: string) => void }) => Promise<FiberStepOutcome>;
+export type EmitFiberSignalParams<K extends keyof AiAgentMailboxSchema = keyof AiAgentMailboxSchema> =
+  Omit<DurableControlSignalInput, "actorKey" | "actorId" | "fiberId" | "mailboxKind" | "payload"> & {
+    fiberId: string;
+    mailbox?: {
+      kind: K;
+      payload: AiAgentMailboxSchema[K];
+    };
+  };
+
+type RunStep = (ctx: FiberContext, helpers: {
+  resume: (fiberId: string) => void;
+  emitFiberSignal: (params: EmitFiberSignalParams) => DurableControlSignalData | null;
+}) => Promise<FiberStepOutcome>;
 
 type WaiterStoreResultMap = {
   autonomousHolonTaskSignals: { status: string; resultText: string | null };
@@ -239,6 +346,8 @@ export type AiAgentOrchestratorDriver = {
   };
   tick: (now: number) => void;
   resumeFiber: (fiberId: string, now: number) => void;
+  emitFiberSignal: (params: EmitFiberSignalParams) => DurableControlSignalData | null;
+  reviveFiber: (fiberId: string, now: number) => void;
   suspendFiber: (fiberId: string, now: number, reason: FiberWaitingReason, suspendPolicy?: SuspendPolicy) => void;
   tickUntilBlocked: (params: { now: number; maxTicks?: number; maxWallMs?: number }) => Promise<void>;
   tickUntilForegroundSettled: (params: { now: number; maxTicks?: number; maxWallMs?: number }) => Promise<void>;
@@ -468,6 +577,7 @@ export type AiAgentOrchestratorRuntime = {
   state: OrchestratorState<AiAgentOrchestrationSchema>;
   fiberIndex: RuntimeIndexHook<string, FiberContext>;
   pendingResumes: Set<string>;
+  backgroundTasks: Set<Promise<unknown>>;
   childDoneMap: CompletionBindingRegistry<
     string,
     {
@@ -479,6 +589,7 @@ export type AiAgentOrchestratorRuntime = {
     }
   >;
   spawnFiber: AiAgentOrchestratorDriver["spawnFiber"];
+  emitFiberSignal: AiAgentOrchestratorDriver["emitFiberSignal"];
   runStep: RunStep;
 };
 
@@ -497,6 +608,53 @@ function findLastAssistantText(messages: any[]): string {
     }
   }
   return "(delegate actor returned no text)";
+}
+
+function findLastToolText(messages: any[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg?.role !== "tool") continue;
+    const content = msg?.content;
+    if (typeof content === "string") return content;
+    if (content === undefined || content === null) return "";
+    try {
+      return JSON.stringify(content);
+    } catch {
+      return String(content);
+    }
+  }
+  return "";
+}
+
+function resolveDetachedChildOutputText(done: { taskKind?: DetachedActorKind } | null, messages: any[], isChildExecution: boolean): string {
+  if (!isChildExecution) return "";
+  if (done?.taskKind === DETACHED_ACTOR_KINDS.bash || done?.taskKind === DETACHED_ACTOR_KINDS.toolCall) {
+    return findLastToolText(messages) || findLastAssistantText(messages);
+  }
+  return findLastAssistantText(messages);
+}
+
+function emitChildDoneToParent(params: {
+  runtime: AiAgentOrchestratorRuntime;
+  parentFiberId: string;
+  childFiberId: string;
+  mode: DelegateRunMode;
+  toolCallId?: string;
+  payload: AiAgentMailboxSchema["childDone"];
+  terminalKind: "cancelled" | "failed" | "completed";
+}): void {
+  const signal = params.runtime.emitFiberSignal({
+    fiberId: params.parentFiberId,
+    signalKind: "mailbox_enqueue",
+    signalClass: params.mode === "sync_wait" ? undefined : "ordinary",
+    mailbox: { kind: "childDone", payload: params.payload },
+    toolCallId: params.toolCallId,
+    idempotencyKey: `${params.parentFiberId}:${params.childFiberId}:childDone:${params.terminalKind}:${params.toolCallId ?? ""}`,
+  });
+  if (!signal) {
+    const parentCtx = params.runtime.fiberIndex.get(params.parentFiberId);
+    parentCtx?.actor.send("childDone", params.payload);
+  }
 }
 
 const ORCH_MAILBOX_PRIORITY = {
@@ -524,17 +682,36 @@ function hasRunningFibersWhere(
   return Object.entries(state.fibers).some(([id, f]) => f.status === "running" && predicate(id));
 }
 
+function isAsyncWaitReason(reason: unknown): boolean {
+  return reason === "external"
+    || reason === "tool_result"
+    || reason === "wait_llm_result"
+    || reason === "wait_tool_result"
+    || reason === "wait_compress_result"
+    || reason === "wait_questionnaire_parse";
+}
+
 function hasInflightAsync(runtime: AiAgentOrchestratorRuntime): boolean {
   for (const [fiberId, ctx] of Object.entries(runtime.fiberIndex.snapshot())) {
     const rec = runtime.state.fibers[fiberId];
     if (!rec) continue;
     if (rec.status !== "suspended") continue;
-    const reason = rec.waitingReason;
-    if (reason !== "external" && reason !== "tool_result") continue;
+    if (!isAsyncWaitReason(rec.waitingReason)) continue;
     const inflight = (ctx.execState as any)?.inflight;
     if (inflight) return true;
   }
   return false;
+}
+
+async function waitForBackgroundTasks(runtime: AiAgentOrchestratorRuntime, deadlineMs: number): Promise<void> {
+  while (runtime.backgroundTasks.size > 0) {
+    if (Date.now() > deadlineMs) return;
+    await Promise.race([
+      Promise.allSettled(Array.from(runtime.backgroundTasks)),
+      new Promise<void>((resolve) => setTimeout(resolve, 5)),
+    ]);
+    await flushMicrotasks();
+  }
 }
 
 function hasInflightAsyncWhere(runtime: AiAgentOrchestratorRuntime, predicate: (fiberId: string) => boolean): boolean {
@@ -543,8 +720,7 @@ function hasInflightAsyncWhere(runtime: AiAgentOrchestratorRuntime, predicate: (
     const rec: any = runtime.state.fibers[fiberId];
     if (!rec) continue;
     if (rec.status !== "suspended") continue;
-    const reason = rec.waitingReason;
-    if (reason !== "external" && reason !== "tool_result") continue;
+    if (!isAsyncWaitReason(rec.waitingReason)) continue;
     const inflight = (ctx.execState as any)?.inflight;
     if (inflight) return true;
   }
@@ -622,24 +798,7 @@ function createOrchestratorActor(): ActorDef<AiAgentOrchestratorRuntime, AiAgent
         const payload = envelope.payload as any;
         const fiberId = String(payload?.fiberId ?? "");
         const now = typeof payload?.now === "number" ? payload.now : Date.now();
-        if (!fiberId) return;
-
-        updateDetachedActorStatus(runtime, fiberId, "running");
-
-        const current = runtime.state.fibers[fiberId];
-        if (!current) return;
-        if (current.status !== "suspended") {
-          runtime.pendingResumes.add(fiberId);
-          return;
-        }
-
-        const next = reduceOrchestrator(runtime.state, {
-          type: "resume",
-          fiberId,
-          now,
-          nextStep: { tag: "agent_step", payload: { fiberId } },
-        });
-        runtime.state = next.state;
+        applyResumeFiber(runtime, fiberId, now);
         return;
       }
 
@@ -735,13 +894,18 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
       runtimeContext.currentOrchestrator = {
         parentFiberId: fiberId,
         spawnFiber: runtime.spawnFiber,
-      };
+        registerBackgroundTask: (task: Promise<unknown>) => {
+          runtime.backgroundTasks.add(task);
+          task.finally(() => runtime.backgroundTasks.delete(task));
+        },
+      } as any;
 
       try {
         const result = await runtime.runStep(ctx, {
           resume: (id) => {
             self.send(runtime.orchestratorId, "resume_fiber", { fiberId: id, now: Date.now() });
           },
+          emitFiberSignal: runtime.emitFiberSignal,
         });
 
         const isChildExecution = isDelegateFiberKind(ctx.kind) || isChildExecutionActor(ctx.actor);
@@ -773,26 +937,34 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
           const done = runtime.childDoneMap.get(fiberId);
           if (done) {
             const parentCtx = runtime.fiberIndex.get(done.parentFiberId);
-            const outputText = isChildExecution ? findLastAssistantText(ctx.messages) : "";
+            const outputText = resolveDetachedChildOutputText(done, ctx.messages, isChildExecution);
             if (parentCtx) {
-              parentCtx.actor.send("childDone", {
+              emitChildDoneToParent({
+                runtime,
+                parentFiberId: done.parentFiberId,
+                childFiberId: fiberId,
+                mode: done.mode,
+                toolCallId: done.toolCallId,
+                terminalKind: "cancelled",
+                payload: {
                 childFiberId: fiberId,
                 childActorKey: ctx.actor.key,
                 childActorId: ctx.actor.id,
                 mode: done.mode,
                 toolCallId: done.toolCallId,
                 outputText: outputText || `Delegate actor ${ctx.actor.key} cancelled`,
+                },
               });
-
-              if (done.mode === "sync_wait") {
-                self.send(runtime.orchestratorId, "resume_fiber", {
-                  fiberId: done.parentFiberId,
-                  now: Date.now(),
-                });
-              }
 
               if (done.mode === "detached" && done.taskId && done.taskKind) {
                 const registry = getDetachedActorRegistry(parentCtx.vm);
+                const terminalText = outputText || `Delegate actor ${ctx.actor.key} cancelled`;
+                appendDetachedActorTerminalObservation(
+                  parentCtx.vm,
+                  done.taskId,
+                  DETACHED_ACTOR_STATUSES.cancelled,
+                  terminalText,
+                );
                 registry.update(done.taskId, {
                   kind: done.taskKind,
                   status: DETACHED_ACTOR_STATUSES.cancelled,
@@ -801,7 +973,7 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                   childFiberId: fiberId,
                   childActorKey: ctx.actor.key,
                   childActorId: ctx.actor.id,
-                  outputText: outputText || `Delegate actor ${ctx.actor.key} cancelled`,
+                  outputText: terminalText,
                 });
 
                 parentCtx.vm.eventBus?.emitDetachedActorDone(
@@ -814,7 +986,7 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                     childFiberId: fiberId,
                     childActorKey: ctx.actor.key,
                     childActorId: ctx.actor.id,
-                    outputText: outputText || `Delegate actor ${ctx.actor.key} cancelled`,
+                    outputText: terminalText,
                   },
                 );
 
@@ -870,24 +1042,32 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
           if (isChildExecution && done) {
             const parentCtx = runtime.fiberIndex.get(done.parentFiberId);
             if (parentCtx) {
-              parentCtx.actor.send("childDone", {
+              emitChildDoneToParent({
+                runtime,
+                parentFiberId: done.parentFiberId,
+                childFiberId: fiberId,
+                mode: done.mode,
+                toolCallId: done.toolCallId,
+                terminalKind: "failed",
+                payload: {
                 childFiberId: fiberId,
                 childActorKey: ctx.actor.key,
                 childActorId: ctx.actor.id,
                 mode: done.mode,
                 toolCallId: done.toolCallId,
                 outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+                },
               });
-
-              if (done.mode === "sync_wait") {
-                self.send(runtime.orchestratorId, "resume_fiber", {
-                  fiberId: done.parentFiberId,
-                  now: Date.now(),
-                });
-              }
 
               if (done.mode === "detached" && done.taskId && done.taskKind) {
                 const registry = getDetachedActorRegistry(parentCtx.vm);
+                const terminalText = `Delegate actor ${ctx.actor.key} failed: ${error}`;
+                appendDetachedActorTerminalObservation(
+                  parentCtx.vm,
+                  done.taskId,
+                  DETACHED_ACTOR_STATUSES.failed,
+                  terminalText,
+                );
                 registry.update(done.taskId, {
                   kind: done.taskKind,
                   status: DETACHED_ACTOR_STATUSES.failed,
@@ -896,7 +1076,7 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                   childFiberId: fiberId,
                   childActorKey: ctx.actor.key,
                   childActorId: ctx.actor.id,
-                  outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+                  outputText: terminalText,
                   error,
                 });
 
@@ -910,7 +1090,7 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                     childFiberId: fiberId,
                     childActorKey: ctx.actor.key,
                     childActorId: ctx.actor.id,
-                    outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+                    outputText: terminalText,
                     error,
                   },
                 );
@@ -966,26 +1146,33 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
           const done = runtime.childDoneMap.get(fiberId);
           if (done) {
             const parentCtx = runtime.fiberIndex.get(done.parentFiberId);
-            const outputText = isChildExecution ? findLastAssistantText(ctx.messages) : "";
+            const outputText = resolveDetachedChildOutputText(done, ctx.messages, isChildExecution);
             if (parentCtx) {
-              parentCtx.actor.send("childDone", {
+              emitChildDoneToParent({
+                runtime,
+                parentFiberId: done.parentFiberId,
+                childFiberId: fiberId,
+                mode: done.mode,
+                toolCallId: done.toolCallId,
+                terminalKind: "completed",
+                payload: {
                 childFiberId: fiberId,
                 childActorKey: ctx.actor.key,
                 childActorId: ctx.actor.id,
                 mode: done.mode,
                 toolCallId: done.toolCallId,
                 outputText,
+                },
               });
-
-              if (done.mode === "sync_wait") {
-                self.send(runtime.orchestratorId, "resume_fiber", {
-                  fiberId: done.parentFiberId,
-                  now: Date.now(),
-                });
-              }
 
               if (done.mode === "detached" && done.taskId && done.taskKind) {
                 const registry = getDetachedActorRegistry(parentCtx.vm);
+                appendDetachedActorTerminalObservation(
+                  parentCtx.vm,
+                  done.taskId,
+                  DETACHED_ACTOR_STATUSES.completed,
+                  outputText || `Delegate actor ${ctx.actor.key} completed`,
+                );
                 registry.update(done.taskId, {
                   kind: done.taskKind,
                   status: DETACHED_ACTOR_STATUSES.completed,
@@ -1067,24 +1254,32 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
         if (isChildExecution && done) {
           const parentCtx = runtime.fiberIndex.get(done.parentFiberId);
           if (parentCtx) {
-            parentCtx.actor.send("childDone", {
+            emitChildDoneToParent({
+              runtime,
+              parentFiberId: done.parentFiberId,
+              childFiberId: fiberId,
+              mode: done.mode,
+              toolCallId: done.toolCallId,
+              terminalKind: "failed",
+              payload: {
               childFiberId: fiberId,
               childActorKey: ctx.actor.key,
               childActorId: ctx.actor.id,
               mode: done.mode,
               toolCallId: done.toolCallId,
               outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+              },
             });
-
-            if (done.mode === "sync_wait") {
-              self.send(runtime.orchestratorId, "resume_fiber", {
-                fiberId: done.parentFiberId,
-                now: Date.now(),
-              });
-            }
 
             if (done.mode === "detached" && done.taskId && done.taskKind) {
               const registry = getDetachedActorRegistry(parentCtx.vm);
+              const terminalText = `Delegate actor ${ctx.actor.key} failed: ${error}`;
+              appendDetachedActorTerminalObservation(
+                parentCtx.vm,
+                done.taskId,
+                DETACHED_ACTOR_STATUSES.failed,
+                terminalText,
+              );
               registry.update(done.taskId, {
                 kind: done.taskKind,
                 status: DETACHED_ACTOR_STATUSES.failed,
@@ -1093,7 +1288,7 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                 childFiberId: fiberId,
                 childActorKey: ctx.actor.key,
                 childActorId: ctx.actor.id,
-                outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+                outputText: terminalText,
                 error,
               });
               parentCtx.vm.eventBus?.emitDetachedActorDone(
@@ -1106,7 +1301,7 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                   childFiberId: fiberId,
                   childActorKey: ctx.actor.key,
                   childActorId: ctx.actor.id,
-                  outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+                  outputText: terminalText,
                   error,
                 },
               );
@@ -1170,6 +1365,7 @@ export function createAiAgentOrchestratorDriver(params: {
     basePriority: number;
     lane?: AiAgentLane;
     workload?: AiAgentWorkload;
+    execState?: any;
   }>;
   runStep: RunStep;
   options?: {
@@ -1197,6 +1393,44 @@ export function createAiAgentOrchestratorDriver(params: {
   let runtime!: AiAgentOrchestratorRuntime;
   const actorRuntime = new ActorRuntime<AiAgentOrchestratorRuntime, AiAgentOrchestrationSchema>(() => runtime);
 
+  const emitFiberSignal = (input: EmitFiberSignalParams): DurableControlSignalData | null => {
+    const ctx = runtime.fiberIndex.get(input.fiberId);
+    if (!ctx) return null;
+    const now = input.createdAt ?? Date.now();
+    const emitted = emitDurableControlSignal(ctx.vm.sessionState.controlSignals, {
+      ...input,
+      actorKey: ctx.actor.key,
+      actorId: ctx.actor.id,
+      fiberId: input.fiberId,
+      mailboxKind: input.mailbox?.kind,
+      payload: input.mailbox?.payload,
+      createdAt: now,
+    });
+
+    if (!emitted.created) return emitted.signal;
+
+    if (input.mailbox) {
+      ctx.actor.send(input.mailbox.kind as any, input.mailbox.payload as any);
+    }
+    markDurableControlSignalConsumed(ctx.vm.sessionState.controlSignals, emitted.signal.eventId);
+    ensureVmRxData(ctx.vm).privateRxData.controlSignals.append({
+      ...emitted.signal,
+      delivery: input.signalKind === "late_completion_ignored" ? "ignored" : "emitted",
+    });
+
+    if (emitted.signal.signalClass === "interrupt") {
+      abortActorInflightWork(ctx.actor, ctx);
+    }
+
+    if (emitted.signal.signalClass === "interrupt" || emitted.signal.signalClass === "wake") {
+      applyResumeFiber(runtime, input.fiberId, now);
+    } else {
+      publishSchedulerSignal(runtime, ctx.vm, now);
+    }
+
+    return emitted.signal;
+  };
+
   const fibers: Record<string, FiberContext> = {};
   for (const f of params.fibers) {
     fibers[f.fiberId] = {
@@ -1206,6 +1440,7 @@ export function createAiAgentOrchestratorDriver(params: {
       messages: f.messages,
       lane: f.lane,
       workload: f.workload ?? resolveMainFiberWorkload(f.lane),
+      execState: f.execState,
     };
   }
 
@@ -1253,6 +1488,9 @@ export function createAiAgentOrchestratorDriver(params: {
         taskId: input.onDone.taskId,
         taskKind: input.onDone.taskKind,
       });
+      if (normalizeDelegateRunMode(input.onDone.mode) === "detached" && input.onDone.taskId) {
+        getDetachedActorObservabilityStore(input.vm).bindFiber(input.onDone.taskId, input.fiberId);
+      }
     }
 
     runtime.actorRuntime.register(input.fiberId, createFiberActor(input.fiberId));
@@ -1282,8 +1520,10 @@ export function createAiAgentOrchestratorDriver(params: {
       }),
     fiberIndex: actorRuntime.ensureFacet("cell.orchestrator.fiberIndex", () => createRuntimeIndexHook(fibers)),
     pendingResumes: new Set(params.restore?.pendingResumes ?? []),
+    backgroundTasks: new Set(),
     childDoneMap: createCompletionBindingRegistry(params.restore?.childDoneMap ?? {}),
     spawnFiber,
+    emitFiberSignal,
     runStep: params.runStep,
   };
 
@@ -1321,6 +1561,28 @@ export function createAiAgentOrchestratorDriver(params: {
     },
     resumeFiber: (fiberId, now) => {
       actorRuntime.sendFrom("client", orchestratorId, "resume_fiber", { fiberId, now });
+    },
+    emitFiberSignal,
+    reviveFiber: (fiberId, now) => {
+      const current = runtime.state.fibers[fiberId];
+      if (!current) return;
+      runtime.state = {
+        ...runtime.state,
+        fibers: {
+          ...runtime.state.fibers,
+          [fiberId]: {
+            ...current,
+            status: "ready",
+            waitingReason: undefined,
+            suspendPolicy: undefined,
+            retryAt: undefined,
+            timeoutAt: undefined,
+            lastError: undefined,
+            step: { tag: "agent_step", payload: { fiberId } } as any,
+            updatedAt: now,
+          },
+        },
+      };
     },
     suspendFiber: (fiberId, now, reason, suspendPolicy) => {
       runtime.state = reduceOrchestrator(runtime.state, {
@@ -1478,13 +1740,15 @@ export function createAiAgentOrchestratorDriver(params: {
           if (
             hasInflightAsyncWhere(runtime, isBackground) ||
             hasPendingResumesWhere(runtime, isBackground) ||
-            hasRunningFibersWhere(runtime.state, isBackground)
+            hasRunningFibersWhere(runtime.state, isBackground) ||
+            runtime.backgroundTasks.size > 0
           ) {
             await waitForNoRunningFibersWhere({
               getState: () => runtime.state,
               deadlineMs: start + wall,
               predicate: isBackground,
             });
+            await waitForBackgroundTasks(runtime, start + wall);
             await flushMicrotasks();
             await new Promise<void>((r) => setTimeout(r, 5));
             continue;
@@ -1627,6 +1891,7 @@ export function createAiAgentOrchestratorDriverWithCooperative(params: {
           ctx.execState = next;
         },
         resumeFiber: helpers.resume,
+        emitFiberSignal: helpers.emitFiberSignal,
       });
     },
     options: params.options,

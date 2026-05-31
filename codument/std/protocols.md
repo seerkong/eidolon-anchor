@@ -2,6 +2,21 @@
 
 This document defines reusable protocol blocks referenced by prompts and `<confirm>` elements in plan.xml.
 
+## Common Rule: Question ToolCall Usage
+
+Question ToolCalls are only a transport mechanism for real user questions. They are never a capability probe.
+
+**Never do this:**
+- Do not call a question ToolCall only to test whether the runtime supports questions.
+- Do not ask placeholder questions such as `A) your answer`, `Type your answer`, or `User input required`.
+- Do not ask an extra question only because a prompt mentions interactive-question support.
+
+**Required behavior:**
+- Trigger an ask protocol only when the workflow has a real clarification, choice, approval, or failure-handling question.
+- If the environment supports a question ToolCall and a real ask protocol is triggered, use the ToolCall with the same concrete question content.
+- If no real question is required, continue the workflow without asking.
+- If the ToolCall API requires options, every option must be meaningful for the concrete workflow question; do not use dummy options to satisfy the schema.
+
 ## Protocol: ask-single-question-closed
 **ID:** ask-single-question-closed
 
@@ -10,7 +25,8 @@ This document defines reusable protocol blocks referenced by prompts and `<confi
 **Behavior:**
 - Ask one question at a time.
 - Use lettered options (`A)`, `B)`, `C)`...).
-- If the environment supports question ToolCalls, use those ToolCalls with equivalent content.
+- Follow **Common Rule: Question ToolCall Usage**.
+- If this protocol is triggered and the environment supports question ToolCalls, use those ToolCalls with equivalent content.
 
 **Example (suggested):**
 ```
@@ -31,7 +47,8 @@ B) [选项 B]
   - Do NOT require the literal text "自定义答案".
   - Use a flexible label such as "其他（可填写）" / "自由输入" / "自定义".
   - In ToolCall environments that already provide a built-in free-input/"Other" option, do NOT add a duplicate.
-- If the environment supports question ToolCalls, use those ToolCalls with equivalent content.
+- Follow **Common Rule: Question ToolCall Usage**.
+- If this protocol is triggered and the environment supports question ToolCalls, use those ToolCalls with equivalent content.
 
 **Example (suggested):**
 ```
@@ -50,7 +67,8 @@ C) [其他（可填写）]
 - Prefix each question with `Q1`/`Q2`... and ask the user to answer by label.
 - Use lettered options (`A)`, `B)`, `C)`...).
 - Provide brief context and examples per question when helpful.
-- If the environment supports question ToolCalls, use those ToolCalls with equivalent content.
+- Follow **Common Rule: Question ToolCall Usage**.
+- If this protocol is triggered and the environment supports question ToolCalls, use those ToolCalls with equivalent content.
 
 **Response Format (recommended):**
 ```
@@ -76,7 +94,8 @@ q4: <answer>
   - Use a flexible label such as "其他（可填写）" / "自由输入" / "自定义".
   - In ToolCall environments that already provide a built-in free-input/"Other" option, do NOT add a duplicate.
 - Provide brief context and examples per question when helpful.
-- If the environment supports question ToolCalls, use those ToolCalls with equivalent content.
+- Follow **Common Rule: Question ToolCall Usage**.
+- If this protocol is triggered and the environment supports question ToolCalls, use those ToolCalls with equivalent content.
 
 **Response Format (recommended):**
 ```
@@ -141,7 +160,7 @@ q4: <answer>
 5. The fresh child agent performs one complete round of:
    - target comparison
    - gap report generation
-   - optional `plan.xml` / `spec.md` / `design.md` updates
+   - optional `plan.xml` / `spec_deltas/**/*.xml` / `design.md` updates
    - optional first-pass repair
 6. The fresh child agent MUST end by returning only structured XML.
 7. Before starting each fresh round, the parent orchestrator MUST update `<gap_loop_round>` to the next round number.

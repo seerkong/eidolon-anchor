@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "yargs": "^17.7.2",
+    "@terminal/organ": "workspace:*",
     "@terminal/organ-support": "workspace:*",
     "@terminal/tui": "workspace:*",
     "solid-js": "^1.9.3",

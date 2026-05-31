@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { createEffect, createMemo, createSignal, For, onCleanup } from "solid-js"
 import type { ColorInput } from "@opentui/core"
 import { useTheme } from "../../../providers/theme"

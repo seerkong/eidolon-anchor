@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import type { TextareaRenderable } from "@opentui/core"
 import { useKeyboard } from "@opentui/solid"
 import { createMemo, createSignal, For, Show } from "solid-js"

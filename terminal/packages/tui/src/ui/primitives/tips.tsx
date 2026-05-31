@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { createMemo, createSignal, For } from "solid-js"
 import { useTheme } from "../../providers/theme"
 
@@ -63,7 +64,7 @@ const TIPS = [
   "Use {highlight}PageUp{/highlight}/{highlight}PageDown{/highlight} to navigate through conversation history",
   "Press {highlight}Home{/highlight} or {highlight}End{/highlight} to jump to the start or end of the visible conversation",
   "Press {highlight}shift+enter{/highlight} to add a newline in the composer without submitting",
-  "Click {highlight}会话列表{/highlight} in the bottom bar to resume an existing conversation",
-  "Click {highlight}使用说明{/highlight} in the bottom bar to browse keyboard shortcuts",
+  "Click {highlight}会话{/highlight} in the bottom bar to resume an existing conversation",
+  "Open {highlight}菜单{/highlight} then {highlight}使用说明{/highlight} to browse keyboard shortcuts",
   "Run {highlight}/help{/highlight} from the prompt or pick Help in the command palette to reopen the guide",
 ]

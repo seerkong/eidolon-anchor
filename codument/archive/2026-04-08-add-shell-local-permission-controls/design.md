@@ -70,7 +70,7 @@
 
 ### 决策 3：workspace 外目录 map 缺失时通过 questionnaire 授权并写回
 
-在本项目里继续吸收 `sparrow` 的目录授权能力：
+在本项目里继续完善目录授权能力：
 
 - workspace 外目录缺少白名单时，不再只返回硬拒绝
 - 而是发起正式 questionnaire

@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { useGraphSignal } from "depa-data-graph-solid"
 import { createStore } from "solid-js/store"
 import { batch, createEffect, createMemo, onMount } from "solid-js"

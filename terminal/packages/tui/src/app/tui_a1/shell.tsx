@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import type { TuiRuntimeSdk } from "@terminal/core/AIAgent"
 import type { Args } from "../../providers/args"
 import { ArgsProvider } from "../../providers/args"

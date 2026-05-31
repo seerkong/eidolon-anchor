@@ -64,6 +64,32 @@ describe("OpenAI Chat driver helpers", () => {
     ]);
   });
 
+  it("stringifies object tool results for OpenAI chat replay", () => {
+    expect(
+      normalizeOpenAIChatMessages([
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [{ id: "call_1", name: "create_interval", input: { name: "wake" } }],
+        },
+        { role: "tool", toolCallId: "call_1", content: { ok: true, payload: { count: 2 } } },
+      ]),
+    ).toEqual([
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: { name: "create_interval", arguments: JSON.stringify({ name: "wake" }) },
+          },
+        ],
+      },
+      { role: "tool", tool_call_id: "call_1", content: JSON.stringify({ ok: true, payload: { count: 2 } }) },
+    ]);
+  });
+
   it("drops reasoning-only assistant messages before OpenAI chat replay", () => {
     expect(
       normalizeOpenAIChatMessages([
@@ -234,6 +260,56 @@ describe("OpenAI Chat driver helpers", () => {
         ],
       },
       { role: "tool", tool_call_id: "call_b", content: "release script" },
+    ]);
+  });
+
+  it("keeps DeepSeek reasoning content on split duplicate tool-call replay", () => {
+    const messages = normalizeOpenAIChatMessages(
+      [
+        { role: "user", content: "remove global deepseek command" },
+        {
+          role: "assistant",
+          content: "",
+          reasoningContent: "I should inspect the global package and binary.",
+          toolCalls: [
+            { id: "call_pkg", name: "bash", input: { command: "cat ~/.bun/install/global/package.json" } },
+            { id: "call_bin", name: "bash", input: { command: "which deepseek" } },
+          ],
+        },
+        { role: "tool", toolCallId: "call_pkg", content: "{\"dependencies\":{\"deepseek-tui\":\"^0.8.37\"}}" },
+        {
+          role: "assistant",
+          content: "",
+          toolCalls: [
+            { id: "call_bin", name: "bash", input: { command: "which deepseek" } },
+          ],
+        },
+        { role: "tool", toolCallId: "call_bin", content: "/Users/kongweixian/.bun/bin/deepseek" },
+      ],
+      { preserveReasoningContent: true },
+    );
+
+    expect(messages).toEqual([
+      { role: "user", content: "remove global deepseek command" },
+      {
+        role: "assistant",
+        content: "",
+        reasoning_content: "I should inspect the global package and binary.",
+        tool_calls: [
+          {
+            id: "call_pkg",
+            type: "function",
+            function: { name: "bash", arguments: JSON.stringify({ command: "cat ~/.bun/install/global/package.json" }) },
+          },
+          {
+            id: "call_bin",
+            type: "function",
+            function: { name: "bash", arguments: JSON.stringify({ command: "which deepseek" }) },
+          },
+        ],
+      },
+      { role: "tool", tool_call_id: "call_pkg", content: "{\"dependencies\":{\"deepseek-tui\":\"^0.8.37\"}}" },
+      { role: "tool", tool_call_id: "call_bin", content: "/Users/kongweixian/.bun/bin/deepseek" },
     ]);
   });
 

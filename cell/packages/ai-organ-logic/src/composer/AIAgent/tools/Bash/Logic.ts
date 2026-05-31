@@ -6,11 +6,13 @@ import {
   stdMakeIdentityOuterOutput,
   stdMakeNullOuterComputed,
 } from "depa-processor"
-import { spawnSync } from "child_process"
 import path from "path"
 import { authorizeLocalToolCall } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime"
+import { ensureVmRuntimeContext } from "@cell/ai-core-logic/runtime/runtime"
+import { getDetachedActorObservabilityStore } from "@cell/ai-organ-logic/detached/DetachedActorObservability"
 import {
   executeSandboxedBashCommand,
+  executeStreamingSandboxedBashCommand,
   resolveSandboxBackendSelectionFromRuntime,
   type SpawnSyncLike,
 } from "@cell/ai-organ-logic/sandbox"
@@ -47,13 +49,42 @@ export const bashCoreLogic: StdInnerLogic<BashInnerRuntime, BashInnerInput, Bash
       return "Error: Dangerous command blocked"
     }
     const selection = resolveSandboxBackendSelectionFromRuntime(runtime, cwd, typeof _config?.platform === "string" ? String(_config.platform) : undefined)
-    return executeSandboxedBashCommand({
+    const currentFiberId = ensureVmRuntimeContext(runtime.vm).currentOrchestrator?.parentFiberId
+    const store = getDetachedActorObservabilityStore(runtime.vm)
+    const detachedTaskId = typeof currentFiberId === "string" ? store.getTaskIdForFiber(currentFiberId) : null
+    // Tests can inject a sync spawn override via _config.spawnSyncFn.
+    // In production we use async spawn so the event loop stays responsive
+    // during long-running commands.
+    const spawnSyncOverride: SpawnSyncLike | undefined =
+      typeof _config?.spawnSyncFn === "function" ? (_config.spawnSyncFn as SpawnSyncLike) : undefined
+    if (spawnSyncOverride) {
+      // Test path: use synchronous spawnSync (blocks event loop, acceptable for tests)
+      return executeSandboxedBashCommand({
+        command,
+        cwd,
+        timeoutMs,
+        selection,
+        spawnSyncFn: spawnSyncOverride,
+      })
+    }
+
+    // Production path: use async spawn to avoid blocking the event loop
+    const result = await executeStreamingSandboxedBashCommand({
       command,
       cwd,
       timeoutMs,
       selection,
-      spawnSyncFn: typeof _config?.spawnSyncFn === "function" ? (_config.spawnSyncFn as SpawnSyncLike) : spawnSync,
+      signal: (runtime as any)?.signal instanceof AbortSignal ? (runtime as any).signal : undefined,
+      ...(detachedTaskId
+        ? {
+            onStdout: (text: string) => store.appendLog(detachedTaskId, { source: "stdout", text }),
+            onStderr: (text: string) => store.appendLog(detachedTaskId, { source: "stderr", text }),
+          }
+        : {}),
     })
+    if (result.error) return `Error: ${result.error}`
+    if (result.timedOut) return `Error: bash command timed out after ${timeoutMs}ms`
+    return result.outputText
   } catch (e: any) {
     return `Error: ${e.message}`
   }

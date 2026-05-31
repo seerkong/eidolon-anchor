@@ -3,15 +3,21 @@ import os from "node:os"
 import path from "node:path"
 
 import {
+  buildActorSurfaceProjection,
   buildDomainRuntimeSemanticBase,
+  createActorSurfaceFacade,
   type DomainMessageHistoryEvent,
   DomainRuntimeEventGraph,
   DomainRuntimeHistoryGraph,
+  ensureVmRxData,
+  recoverHeartbeatSchedules,
+  startHeartbeatSchedulerWorker,
   type DomainRuntimeVm,
 } from "@cell/ai-core-logic"
 import {
   createRuntimeLlmAdapter,
   emitRuntimeDirectSlashAssistantOutput,
+  forceCompressActorHistory,
   createShellRuntimeFacade,
   createShellRuntimePaths,
   ensureShellRuntimeSessionDir,
@@ -39,7 +45,13 @@ import {
   type RuntimeCompositionSlashRuntime as RuntimeSlashRuntime,
 } from "@cell/membrane/runtime-composition"
 import { aiCodingRuntimeProfile } from "@cell/mod-profiles"
+import type { ActorSurfaceProjectionData } from "@cell/ai-core-contract/runtime/ActorSurface"
+import type { AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor"
+import type { AiAgentVmUsageData } from "@cell/ai-core-contract/runtime/AiAgentVm"
+import type { HeartbeatSchedule, HeartbeatWakePayload } from "@cell/ai-core-contract/runtime/Heartbeat"
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic"
+import type { AiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver"
+import type { AiAgentRuntimeCoordinator } from "@cell/ai-organ-logic/runtime/AiAgentRuntimeCoordinator"
 import type { Agent } from "@terminal/core/AIAgent"
 import type { TuiControl, TuiEvent, TuiMessageCategory } from "@terminal/core/AIAgent/TuiStreamEvents"
 import type { ExecApprovalMode } from "../stream/ExecProtocolGraph"
@@ -51,6 +63,17 @@ export type RuntimeBridgeNotification = {
 }
 
 export type RuntimeBridgeHistoryEvent = DomainMessageHistoryEvent
+
+export type RuntimeBridgeInitStatus = {
+  phase: "mcp"
+  status: "starting" | "connecting" | "connected" | "failed" | "completed"
+  serverName?: string
+  serverIndex?: number
+  serverTotal?: number
+  message: string
+}
+
+type RuntimeBridgeInitStatusHandler = (status: RuntimeBridgeInitStatus) => void
 
 export type TuiRuntimeBridge = {
   agents?: () => Promise<Agent[]>
@@ -65,9 +88,31 @@ export type TuiRuntimeBridge = {
       onControl?: (control: TuiControl) => void | Promise<void>
     },
   ) => Promise<string>
+  compact: () => Promise<{ ok: boolean; message: string }>
+  getActorSurface?: (options?: {
+    selectedLaneId?: string
+    selectedActorId?: string
+  }) => Promise<ActorSurfaceProjectionData>
+  selectActorSurfaceTarget?: (target: {
+    laneId?: string
+    actorId?: string
+  }) => Promise<ActorSurfaceProjectionData>
+  sendActorHumanMessage?: (target: {
+    laneId?: string
+    actorId?: string
+  }, text: string) => Promise<ActorSurfaceProjectionData>
+  cancelActorTurn?: (request: {
+    actorId: string
+    turnId?: string
+  }) => Promise<ActorSurfaceProjectionData>
+  submitQuestionnaireResponse?: (questionnaireId: string, responseText: string) => Promise<{
+    status: "submitted" | "not_pending" | "owner_missing"
+    projection: ActorSurfaceProjectionData
+  }>
   abort: () => Promise<void>
   dispose: () => void
   subscribeNotifications: (handler: (notification: RuntimeBridgeNotification) => void) => { unsubscribe: () => void }
+  subscribeUsage?: (handler: (usage: AiAgentVmUsageData) => void) => { unsubscribe: () => void }
   subscribeHistoryEvents?: (handler: (event: RuntimeBridgeHistoryEvent) => void) => { unsubscribe: () => void }
   loadConversationState?: () => Promise<{
     activeActorKey: string | null
@@ -81,6 +126,14 @@ export type TuiRuntimeBridge = {
     historyMessages: ChatMessage[]
     runtimeMessages: ChatMessage[]
   } | null>
+  loadActorConversationMessages?: (target: {
+    laneId?: string
+    actorId?: string
+    limit?: number
+  }) => Promise<{
+    actorKey: string | null
+    messages: ChatMessage[]
+  }>
 }
 
 export type TuiRuntimeConfig = {
@@ -181,11 +234,20 @@ const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat"
 const USE_MOCK = process.env.MOCK_OPENAI === "1"
 
-const SKILLS_DESCRIPTION = "(dynamic; reloaded from .eidolon/skills each turn)"
+const SKILLS_DESCRIPTION = "(动态加载；每轮从 .eidolon/skills 重新读取)"
 const shellRuntimeFacade = createShellRuntimeFacade()
 
 let llmAdapterFactoryOverride: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string }) => Promise<any>) = null
 let runtimeAssemblyFactoryOverride: null | RuntimeCompositionFactory = null
+
+// ProviderCollector registry — set via configureProviderCollector()
+let currentProviderCollector: import("../observability/ProviderCollector").ProviderCollector | null = null
+
+export function configureProviderCollector(
+  collector: import("../observability/ProviderCollector").ProviderCollector | null,
+): void {
+  currentProviderCollector = collector
+}
 const turnSemanticBridgeBySession = new Map<string, SemanticTerminalRuntimeBridge>()
 const notificationSemanticBridgeBySession = new Map<string, SemanticTerminalRuntimeBridge>()
 const runtimeCoordinationEmitterBySession = new Map<
@@ -217,6 +279,28 @@ const runtimeDetachedDoneEmitterBySession = new Map<
     error?: string
   }) => void
 >()
+
+export async function drainHeartbeatFiredSchedules(params: {
+  fired: HeartbeatSchedule[]
+  driver: Pick<AiAgentOrchestratorDriver, "tickUntilBlocked" | "tickUntilBackgroundSettled">
+  runtimeCoordinator: Pick<AiAgentRuntimeCoordinator, "enqueue">
+  maxWallMs?: number
+}): Promise<void> {
+  if (params.fired.length === 0) return
+  await params.runtimeCoordinator.enqueue(async () => {
+    const now = Date.now()
+    await params.driver.tickUntilBlocked({
+      now,
+      maxTicks: 200,
+      maxWallMs: params.maxWallMs ?? 120_000,
+    })
+    await params.driver.tickUntilBackgroundSettled({
+      now: Date.now(),
+      maxTicks: 20,
+      maxWallMs: 250,
+    })
+  }).catch(() => {})
+}
 
 export function __setLlmAdapterFactoryForTest(factory: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string }) => Promise<any>)) {
   llmAdapterFactoryOverride = factory
@@ -403,8 +487,9 @@ function buildSystemMessages(prompt: string[]) {
 }
 
 async function createRuntimeBridge(
-  sessionKey = "default",
+  sessionKey: string,
   projection: RuntimeProjectionMode = "textual",
+  options?: { onInitStatus?: RuntimeBridgeInitStatusHandler },
 ): Promise<TuiRuntimeBridge | null> {
   const paths = createShellRuntimePaths(runtimeConfig.workDir)
   const defaultRuntimeAssemblyFactory =
@@ -513,11 +598,44 @@ async function createRuntimeBridge(
   let mcpManager: MCPManager | null = null
   if (runtimeConfig.mcp !== false) {
     const mcpServers = loadMcpServers(paths.MCP_DIR)
-    if (Object.keys(mcpServers).length > 0) {
+    const mcpServerNames = Object.keys(mcpServers)
+    if (mcpServerNames.length > 0) {
+      options?.onInitStatus?.({
+        phase: "mcp",
+        status: "starting",
+        serverTotal: mcpServerNames.length,
+        message: `正在初始化 MCP (${mcpServerNames.length} 个服务)...`,
+      })
       mcpManager = new MCPManager(mcpServers)
-      for (const name of Object.keys(mcpServers)) {
-        await mcpManager.connectServer(name)
+      let connectedCount = 0
+      for (const [index, name] of mcpServerNames.entries()) {
+        options?.onInitStatus?.({
+          phase: "mcp",
+          status: "connecting",
+          serverName: name,
+          serverIndex: index + 1,
+          serverTotal: mcpServerNames.length,
+          message: `正在连接 MCP ${index + 1}/${mcpServerNames.length}: ${name}`,
+        })
+        const connected = await mcpManager.connectServer(name)
+        if (connected) connectedCount += 1
+        options?.onInitStatus?.({
+          phase: "mcp",
+          status: connected ? "connected" : "failed",
+          serverName: name,
+          serverIndex: index + 1,
+          serverTotal: mcpServerNames.length,
+          message: connected
+            ? `MCP 已连接 ${index + 1}/${mcpServerNames.length}: ${name}`
+            : `MCP 连接失败 ${index + 1}/${mcpServerNames.length}: ${name}`,
+        })
       }
+      options?.onInitStatus?.({
+        phase: "mcp",
+        status: "completed",
+        serverTotal: mcpServerNames.length,
+        message: `MCP 初始化完成 ${connectedCount}/${mcpServerNames.length}`,
+      })
     }
   }
 
@@ -536,7 +654,7 @@ async function createRuntimeBridge(
   notificationSemanticBridgeBySession.set(sessionKey, asyncSemanticRuntimeBridge)
   const actorCallbacks = {
     buildToolset: (currentVm: DomainRuntimeVm) => runtimeAssembly.buildToolset(currentVm),
-    processStream: (_runtime: any, streamActor: any, stream: any) => {
+    processStream: (_runtime: any, streamActor: any, stream: any, options?: { signal?: AbortSignal }) => {
       const currentType = (actor.llmClient as any)?.type
       const streamAdapterType =
         currentType === "openai" || currentType === "anthropic" || currentType === "claude" || currentType === "codex" || currentType === "deepseek"
@@ -550,6 +668,7 @@ async function createRuntimeBridge(
           agentKey: streamActor.key,
           agentActorId: streamActor.id,
         },
+        signal: options?.signal,
       })
     },
   }
@@ -604,6 +723,39 @@ async function createRuntimeBridge(
     if (!persistSnapshots || !sessionMaterialized) return
     await runtimeCoordinator.saveSnapshot().catch(() => {})
   }
+  const emitHeartbeatWakeSignal = (event: { schedule: HeartbeatSchedule; wake: HeartbeatWakePayload }) => {
+    const fiberId = `${event.schedule.targetActorKey}:${event.schedule.targetActorId}`
+    driver.emitFiberSignal({
+      fiberId,
+      signalKind: "mailbox_enqueue",
+      mailbox: { kind: "heartbeatWake", payload: event.wake },
+      idempotencyKey: `${fiberId}:heartbeatWake:${event.schedule.scheduleId}:${event.wake.fireCount}`,
+      createdAt: Date.parse(event.wake.firedAt),
+    })
+  }
+  const recoveredHeartbeatFires: HeartbeatSchedule[] = []
+  recoverHeartbeatSchedules(vm as any, {
+    now: Date.now(),
+    deliver: emitHeartbeatWakeSignal,
+    onRecoveredFire: (schedule) => {
+      recoveredHeartbeatFires.push(schedule)
+    },
+  })
+  const heartbeatWorker = startHeartbeatSchedulerWorker(vm as any, {
+    intervalMs: 1000,
+    deliver: emitHeartbeatWakeSignal,
+    afterTick: async (fired) => {
+      if (fired.length === 0) return
+      await drainHeartbeatFiredSchedules({
+        fired,
+        driver,
+        runtimeCoordinator,
+        maxWallMs: runtimeConfig.timeoutSeconds && runtimeConfig.timeoutSeconds > 0
+          ? runtimeConfig.timeoutSeconds * 1000
+          : 120_000,
+      })
+    },
+  })
   runtimeInboxInjectorBySession.set(sessionKey, async (payload) => {
     await runtimeCoordinator.deliverMemberInbox({
       actor,
@@ -711,7 +863,48 @@ async function createRuntimeBridge(
     }
   })
 
+  const getRecoveredMailboxWorkFiberIds = () => {
+    const runtime = driver.inspectRuntime()
+    const fiberIds: string[] = []
+    for (const fiber of Object.values(runtime.fibers) as any[]) {
+      const fiberActor = fiber?.actor
+      if (!fiberActor) continue
+      const hasWork = fiberActor.hasPending?.("aiGenerated")
+        || fiberActor.hasPending?.("childDone")
+        || fiberActor.hasPending?.("coordination")
+        || fiberActor.hasPending?.("memberInbox")
+        || fiberActor.hasPending?.("heartbeatWake")
+        || fiberActor.hasPending?.("humanInput")
+        || fiberActor.hasPending?.("toolResult")
+        || ((fiber.execState?.pendingAiGenerated?.length ?? 0) > 0)
+        || ((fiber.execState?.pendingToolResults?.length ?? 0) > 0)
+      if (hasWork && typeof fiber.fiberId === "string") {
+        fiberIds.push(fiber.fiberId)
+      }
+    }
+    return fiberIds
+  }
+
   runtimeCoordinator.startBackgroundPump()
+  const recoveredMailboxWorkFiberIds = getRecoveredMailboxWorkFiberIds()
+  if (recoveredHeartbeatFires.length > 0 || recoveredMailboxWorkFiberIds.length > 0) {
+    void runtimeCoordinator.enqueue(async () => {
+      const now = Date.now()
+      const fiberIds = new Set(recoveredMailboxWorkFiberIds)
+      for (const fiberId of fiberIds) {
+        driver.resumeFiber(fiberId, now)
+      }
+      await driver.tickUntilForegroundSettled({ now, maxTicks: 200 }).catch(() => {})
+      await driver.tickUntilBackgroundSettled({ now: Date.now(), maxTicks: 200 }).catch(() => {})
+    }).catch(() => {})
+  }
+
+  const reviveMainFiberForInteractiveTurnIfNeeded = () => {
+    const status = driver.getState().fibers[mainFiberId]?.status
+    if (status === "failed" || status === "cancelled") {
+      driver.reviveFiber(mainFiberId, Date.now())
+    }
+  }
 
   const runTurn = async (timeoutSeconds?: number) => {
     const latestModelConfig = runtimeSupport.resolveActorModelConfig({
@@ -765,6 +958,7 @@ async function createRuntimeBridge(
     }
 
     actor.modelConfig = latestModelConfig
+    reviveMainFiberForInteractiveTurnIfNeeded()
     await runtimeCoordinator.runInteractiveTurn({
       mainFiberId,
       timeoutMs: timeoutSeconds && timeoutSeconds > 0 ? timeoutSeconds * 1000 : undefined,
@@ -797,6 +991,7 @@ async function createRuntimeBridge(
         },
       }
       activeTurn = turnState
+      currentProviderCollector?.onTurnPhase("request_send")
       let eventChain: Promise<void> = Promise.resolve()
       let eventChainPending = false
       let eventChainError: unknown = null
@@ -857,23 +1052,44 @@ async function createRuntimeBridge(
         }
         const expanded = slashRuntime?.resolveCommand(input) ?? null
         const normalizedInput = expanded && expanded.kind === "prompt_expand" ? expanded.prompt : input
-        activateSessionMaterialization()
-        if (actor.hasPending("control")) {
-          const pending = actor
-            .drainMailbox("control")
-            .find((entry: any) => entry?.kind === "questionnaire_pending" && typeof entry?.toolCallId === "string")
-          if (pending?.toolCallId) {
-            actor.send("toolResult", {
-              toolCallId: pending.toolCallId,
-              questionnaireId: pending.questionnaireId,
-              content: normalizedInput,
-            })
-          } else {
-            actor.send("humanInput", normalizedInput)
-          }
-        } else {
-          actor.send("humanInput", normalizedInput)
-        }
+	        activateSessionMaterialization()
+	        if (actor.hasPending("control")) {
+	          const pending = actor
+	            .drainMailbox("control")
+	            .find((entry: AiAgentMailboxSchema["control"]): entry is Extract<AiAgentMailboxSchema["control"], { kind: "questionnaire_pending" }> =>
+	              entry.kind === "questionnaire_pending" && typeof entry.toolCallId === "string",
+	            )
+	          if (pending?.toolCallId) {
+	            driver.emitFiberSignal({
+	              fiberId: mainFiberId,
+	              signalKind: "mailbox_enqueue",
+	              mailbox: {
+	                kind: "toolResult",
+	                payload: {
+	                  toolCallId: pending.toolCallId,
+	                  questionnaireId: pending.questionnaireId,
+	                  content: normalizedInput,
+	                },
+	              },
+	              toolCallId: pending.toolCallId,
+	              idempotencyKey: `${mainFiberId}:toolResult:${pending.toolCallId}:${Date.now()}`,
+	            })
+	          } else {
+	            driver.emitFiberSignal({
+	              fiberId: mainFiberId,
+	              signalKind: "mailbox_enqueue",
+	              mailbox: { kind: "humanInput", payload: normalizedInput },
+	              idempotencyKey: `${mainFiberId}:humanInput:${Date.now()}`,
+	            })
+	          }
+	        } else {
+	          driver.emitFiberSignal({
+	            fiberId: mainFiberId,
+	            signalKind: "mailbox_enqueue",
+	            mailbox: { kind: "humanInput", payload: normalizedInput },
+	            idempotencyKey: `${mainFiberId}:humanInput:${Date.now()}`,
+	          })
+	        }
         const timeoutSeconds =
           opts?.timeoutSeconds !== undefined ? opts.timeoutSeconds : runtimeConfig.timeoutSeconds
         await runTurn(timeoutSeconds)
@@ -885,6 +1101,7 @@ async function createRuntimeBridge(
       } finally {
         turnState.resolveSettled()
         if (activeTurn === turnState) activeTurn = null
+        currentProviderCollector?.onTurnPhase("response_complete")
         listener.unsubscribe()
       }
       return output
@@ -903,21 +1120,165 @@ async function createRuntimeBridge(
     if (turnState) {
       turnState.cancelled = true
     }
-    actor.send("control", { kind: "cancel_requested" } as any)
-    for (const childActor of Object.values(vm.actors)) {
-      if (!childActor || childActor === actor) continue
-      if (childActor.type !== "delegate") continue
-      childActor.send("control", { kind: "shutdown_requested" } as any)
-      driver.resumeFiber(`${childActor.key}:${childActor.id}`, Date.now())
+    const abortActorRuntime = (targetActor: any) => {
+      targetActor?.llmAbortController?.abort()
+      targetActor.llmAbortController = null
     }
-    const now = Date.now()
-    driver.resumeFiber(mainFiberId, now)
-    await driver.tickUntilForegroundSettled({ now, maxTicks: 20, maxWallMs: 250 }).catch(() => {})
-    await turnState?.settledPromise
+    const abortActorInflight = (targetActor: any) => {
+      for (const fiber of Object.values(driver.inspectRuntime().fibers) as any[]) {
+        if (fiber?.actor !== targetActor) continue
+        const abortController = fiber?.execState?.inflight?.abortController
+        if (abortController && typeof abortController.abort === "function") {
+          abortController.abort()
+        }
+      }
+    }
+	    abortActorRuntime(actor)
+	    abortActorInflight(actor)
+	    driver.emitFiberSignal({
+	      fiberId: mainFiberId,
+	      signalKind: "interrupt_requested",
+	      mailbox: { kind: "control", payload: { kind: "cancel_requested" } as any },
+	      idempotencyKey: `${mainFiberId}:cancel:${Date.now()}`,
+	    })
+	    for (const childActor of Object.values(vm.actors)) {
+	      if (!childActor || childActor === actor) continue
+	      if (childActor.type !== "delegate") continue
+	      abortActorRuntime(childActor)
+	      abortActorInflight(childActor)
+	      const childFiberId = `${childActor.key}:${childActor.id}`
+	      driver.emitFiberSignal({
+	        fiberId: childFiberId,
+	        signalKind: "interrupt_requested",
+	        mailbox: { kind: "control", payload: { kind: "shutdown_requested" } as any },
+	        idempotencyKey: `${childFiberId}:shutdown:${Date.now()}`,
+	      })
+	    }
+	    await turnState?.settledPromise
+	  }
+
+  const compact = async () => {
+    const refreshedModelConfig = runtimeSupport.resolveActorModelConfig({
+      workDir: paths.WORKDIR,
+      agentKey: "main",
+      fallbackModelConfig,
+      fallbackOverrideKeys: runtimeConfig.model ? ["model"] : [],
+    })
+    actor.modelConfig = refreshedModelConfig
+    const refreshedAdapterType = runtimeConfig.adapter ? baseAdapterType : refreshedModelConfig.adapter || baseAdapterType
+    const refreshed = await createRuntimeLlmAdapter({
+      adapterType: refreshedAdapterType,
+      workDir: paths.WORKDIR,
+      defaults: {
+        openai: { apiKey: OPENAI_API_KEY, baseUrl: OPENAI_BASE_URL, model: OPENAI_MODEL },
+        anthropic: { apiKey: ANTHROPIC_API_KEY, baseUrl: ANTHROPIC_BASE_URL, model: ANTHROPIC_MODEL },
+        deepseek: { apiKey: DEEPSEEK_API_KEY, baseUrl: DEEPSEEK_BASE_URL, model: DEEPSEEK_MODEL },
+      },
+      useMock: USE_MOCK,
+      overrides: { apiKey: refreshedModelConfig.apiKey, baseUrl: refreshedModelConfig.baseUrl },
+      factoryOverride: llmAdapterFactoryOverride,
+    })
+    if (refreshed) actor.llmClient = refreshed
+    const result = await runtimeCoordinator.enqueue(async () => {
+      const compressed = await forceCompressActorHistory({
+        vm,
+        actor,
+        messages: actor.messages,
+        trigger: "manual_compact",
+      })
+      await persistSnapshot()
+      return compressed
+    })
+    if (!result.ok) {
+      return { ok: false, message: result.error }
+    }
+    if (!result.compacted) {
+      return {
+        ok: true,
+        message: `Session already compact enough (${result.tokensBefore} estimated tokens, ${result.messagesAfter} messages)`,
+      }
+    }
+    currentProviderCollector?.onCompaction({
+      beforeMessageCount: actor.messages.length,
+      afterMessageCount: result.messagesAfter,
+      reason: "manual_compact",
+    })
+    return {
+      ok: true,
+      message: `Session compacted (${result.tokensBefore} estimated tokens -> ${result.messagesAfter} messages)`,
+    }
+  }
+
+  const createDurableActorSurfaceFacade = () => createActorSurfaceFacade(vm as any, {
+    emitFiberSignal: (input) => {
+      driver.emitFiberSignal({
+        fiberId: input.fiberId,
+        signalKind: input.signalKind,
+        mailbox: input.mailbox as any,
+        toolCallId: input.toolCallId,
+        idempotencyKey: input.idempotencyKey,
+        createdAt: input.createdAt,
+      })
+    },
+  })
+
+  const getActorSurface = async (options?: {
+    selectedLaneId?: string
+    selectedActorId?: string
+  }) => buildActorSurfaceProjection(vm as any, options)
+
+  const selectActorSurfaceTarget = async (target: {
+    laneId?: string
+    actorId?: string
+  }) => createDurableActorSurfaceFacade().selectActorSurfaceTarget(target)
+
+  const sendActorHumanMessage = async (target: {
+    laneId?: string
+    actorId?: string
+  }, text: string) => {
+    const projection = createDurableActorSurfaceFacade().sendActorHumanMessage(target, text)
+    const actorId = target.actorId ?? projection.selectedActorId
+    const laneId = target.laneId ?? projection.selectedLaneId
+    const actorLane = projection.actorLanes.find((lane) => lane.actorId === actorId)
+      ?? projection.actorLanes.find((lane) => lane.actorId === projection.conversationLanes.find((lane) => lane.laneId === laneId)?.actorId)
+    if (actorLane) {
+      const now = Date.now()
+      await driver.tickUntilForegroundSettled({ now, maxTicks: 20, maxWallMs: 250 }).catch(() => {})
+      await driver.tickUntilBackgroundSettled({ now, maxTicks: 20, maxWallMs: 250 }).catch(() => {})
+      await persistSnapshot()
+    }
+    return projection
+  }
+
+  const cancelActorTurn = async (request: {
+    actorId: string
+    turnId?: string
+  }) => {
+    const projection = createDurableActorSurfaceFacade().cancelActorTurn(request)
+    const actorLane = projection.actorLanes.find((lane) => lane.actorId === request.actorId)
+    if (actorLane) {
+      const now = Date.now()
+      await driver.tickUntilBlocked({ now, maxTicks: 80, maxWallMs: 2_000 }).catch(() => {})
+      await persistSnapshot()
+    }
+    return projection
+  }
+
+  const submitQuestionnaireResponse = async (questionnaireId: string, responseText: string) => {
+    const before = buildActorSurfaceProjection(vm as any)
+    const pending = before.questionnaireSurface.find((item) => item.questionnaireId === questionnaireId)
+    const result = createDurableActorSurfaceFacade().submitQuestionnaireResponse(questionnaireId, responseText)
+    if (result.status === "submitted" && pending?.ownerActorKey && pending.ownerActorId) {
+      const now = Date.now()
+      await driver.tickUntilBlocked({ now, maxTicks: 160, maxWallMs: 5_000 }).catch(() => {})
+      await persistSnapshot()
+    }
+    return result
   }
 
   const dispose = () => {
     void persistSnapshot()
+    heartbeatWorker.dispose()
     runtimeCoordinator.dispose()
     eventBusConsumer.unsubscribe()
     runtimeCoordinationEmitterBySession.delete(sessionKey)
@@ -945,6 +1306,10 @@ async function createRuntimeBridge(
   const subscribeHistoryEvents = (handler: (event: RuntimeBridgeHistoryEvent) => void) => {
     historyListeners.add(handler)
     return { unsubscribe: () => historyListeners.delete(handler) }
+  }
+  const subscribeUsage = (handler: (usage: AiAgentVmUsageData) => void) => {
+    const { publicRxData } = ensureVmRxData(vm)
+    return publicRxData.usage.subscribe(handler)
   }
 
   const loadConversationViews = async () => {
@@ -978,6 +1343,44 @@ async function createRuntimeBridge(
     }
   }
 
+  const loadActorConversationMessages = async (target: {
+    laneId?: string
+    actorId?: string
+    limit?: number
+  }) => {
+    const projection = buildActorSurfaceProjection(vm as any)
+    const actorLane = target.actorId
+      ? projection.actorLanes.find((lane) => lane.actorId === target.actorId)
+      : undefined
+    const conversationLane = target.laneId
+      ? projection.conversationLanes.find((lane) => lane.laneId === target.laneId)
+      : undefined
+    const selectedActorLane = projection.selectedActorId
+      ? projection.actorLanes.find((lane) => lane.actorId === projection.selectedActorId)
+      : undefined
+    const selectedConversationLane = projection.selectedLaneId
+      ? projection.conversationLanes.find((lane) => lane.laneId === projection.selectedLaneId)
+      : undefined
+    const hasExplicitTarget = Boolean(target.actorId || target.laneId)
+    const actorKey =
+      actorLane?.actorKey
+      ?? conversationLane?.actorKey
+      ?? (!hasExplicitTarget ? selectedActorLane?.actorKey : undefined)
+      ?? (!hasExplicitTarget ? selectedConversationLane?.actorKey : undefined)
+      ?? null
+    if (!actorKey) {
+      return { actorKey: null, messages: [] }
+    }
+    const messages = materializeConversationHistoryMessagesFromVm({ vm, actorKey })
+    const limit = Number.isFinite(target.limit) && target.limit && target.limit > 0
+      ? Math.floor(target.limit)
+      : undefined
+    return {
+      actorKey,
+      messages: limit ? messages.slice(-limit) : messages,
+    }
+  }
+
   const injectRuntimeHint = async (text: string) => {
     const normalized = String(text ?? "").trim()
     if (!normalized) return
@@ -1001,12 +1404,20 @@ async function createRuntimeBridge(
     slashRuntime,
     injectRuntimeHint,
     turn,
+    compact,
+    getActorSurface,
+    selectActorSurfaceTarget,
+    sendActorHumanMessage,
+    cancelActorTurn,
+    submitQuestionnaireResponse,
     abort,
     dispose,
     subscribeNotifications,
+    subscribeUsage,
     subscribeHistoryEvents,
     loadConversationState,
     loadConversationViews,
+    loadActorConversationMessages,
   }
 }
 
@@ -1016,14 +1427,18 @@ function runtimeCacheKey(sessionKey: string, projection: RuntimeProjectionMode):
   return `${projection}:${sessionKey}`
 }
 
-async function getRuntimeBridge(sessionKey: string, projection: RuntimeProjectionMode) {
+async function getRuntimeBridge(
+  sessionKey: string,
+  projection: RuntimeProjectionMode,
+  options?: { onInitStatus?: RuntimeBridgeInitStatusHandler },
+) {
   const cacheKey = runtimeCacheKey(sessionKey, projection)
   const existing = sessionRuntimePromises.get(cacheKey)
   if (existing) {
     return existing
   }
 
-  const created = createRuntimeBridge(sessionKey, projection)
+  const created = createRuntimeBridge(sessionKey, projection, options)
   sessionRuntimePromises.set(cacheKey, created)
   return created
 }
@@ -1039,23 +1454,24 @@ async function disposeRuntimeBridge(sessionKey: string, projection: RuntimeProje
   runtime?.dispose()
 }
 
-export async function getTuiRuntimeBridge(sessionKey = "default") {
-  return getRuntimeBridge(sessionKey, "content")
+export async function getTuiRuntimeBridge(sessionKey: string, options?: { onInitStatus?: RuntimeBridgeInitStatusHandler }) {
+  return getRuntimeBridge(sessionKey, "content", options)
 }
 
-export async function getTextualRuntimeBridge(sessionKey = "default") {
-  return getRuntimeBridge(sessionKey, "textual")
+export async function getTextualRuntimeBridge(sessionKey: string, options?: { onInitStatus?: RuntimeBridgeInitStatusHandler }) {
+  return getRuntimeBridge(sessionKey, "textual", options)
 }
 
-export async function disposeTuiRuntimeBridge(sessionKey = "default") {
+export async function disposeTuiRuntimeBridge(sessionKey: string) {
   await disposeRuntimeBridge(sessionKey, "content")
 }
 
-export async function disposeTextualRuntimeBridge(sessionKey = "default") {
+export async function disposeTextualRuntimeBridge(sessionKey: string) {
   await disposeRuntimeBridge(sessionKey, "textual")
 }
 
 export function configureTuiRuntime(config: TuiRuntimeConfig) {
+  const pendingRuntimes = [...sessionRuntimePromises.values()]
   runtimeConfig.workDir = config.workDir
   runtimeConfig.adapter = config.adapter
   runtimeConfig.model = config.model
@@ -1065,6 +1481,9 @@ export function configureTuiRuntime(config: TuiRuntimeConfig) {
   runtimeConfig.ephemeral = config.ephemeral === true
   runtimeConfig.metadata = normalizeTerminalRuntimeMetadata(config.workDir, config.metadata)
   sessionRuntimePromises.clear()
+  for (const runtimePromise of pendingRuntimes) {
+    void runtimePromise.then((runtime) => runtime?.dispose()).catch(() => {})
+  }
 }
 
 export type TerminalRuntimeBridge = TuiRuntimeBridge

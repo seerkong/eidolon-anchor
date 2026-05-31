@@ -110,13 +110,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     sessionOnly: true,
   },
   {
-    slash: "/unshare",
-    description: "unshare a session",
-    command: COMMAND_ID.SessionUnshare,
-    sessionOnly: true,
-    disabledWhenNotShared: true,
-  },
-  {
     slash: "/rename",
     description: "rename session",
     command: COMMAND_ID.SessionRename,
@@ -153,14 +146,6 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     sessionOnly: true,
   },
   {
-    slash: "/share",
-    description: "share a session",
-    command: COMMAND_ID.SessionShare,
-    sessionOnly: true,
-    shareFeatureOnly: true,
-    disabledWhenShared: true,
-  },
-  {
     slash: "/new",
     aliases: ["/clear"],
     description: "create a new session",
@@ -168,6 +153,7 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
   },
   {
     slash: "/models",
+    aliases: ["/model"],
     description: "list models",
     command: COMMAND_ID.ModelList,
   },

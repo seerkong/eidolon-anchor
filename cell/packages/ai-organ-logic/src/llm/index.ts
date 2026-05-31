@@ -25,8 +25,6 @@ export {
   resolvePrimaryCandidates,
 } from "./ModelConfigOps";
 export {
-  compactionThresholdForDeepSeekModel,
-  contextWindowForDeepSeekModel,
   isDeepSeekModelRef,
   resolveDeepSeekModelCapabilities,
   resolveDeepSeekReasoningEffort,

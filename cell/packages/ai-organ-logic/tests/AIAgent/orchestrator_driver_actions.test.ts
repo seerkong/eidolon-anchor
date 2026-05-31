@@ -119,4 +119,33 @@ describe("OrchestratorDriver: orchestrator action handling", () => {
     // Latch should immediately resume it.
     expect(driver.getState().fibers[fiberId].status).toBe("ready");
   });
+
+  it("revives a failed fiber when explicitly resumed", async () => {
+    const actor = createActor({ key: "main" });
+    const vm = createVM({ controlActorKey: "main", actors: { main: actor } });
+    const fiberId = `${actor.key}:${actor.id}`;
+
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor, messages: [], basePriority: 1 }],
+      runStep: async () => ({ kind: "yield" }),
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+
+    driver.actorRuntime.sendFrom("test", driver.orchestratorId, "fiber_result", {
+      fiberId,
+      now: Date.now(),
+      kind: "fail",
+      error: "context window exceeded",
+    });
+    await flushMicrotasks();
+    expect(driver.getState().fibers[fiberId].status).toBe("failed");
+    expect(driver.getState().fibers[fiberId].lastError).toBe("context window exceeded");
+
+    driver.resumeFiber(fiberId, Date.now());
+    await flushMicrotasks();
+
+    expect(driver.getState().fibers[fiberId].status).toBe("ready");
+    expect(driver.getState().fibers[fiberId].lastError).toBeUndefined();
+    expect(driver.inspectRuntime().pendingResumes).not.toContain(fiberId);
+  });
 });

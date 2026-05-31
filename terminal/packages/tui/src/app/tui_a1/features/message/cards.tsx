@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { useTerminalDimensions } from "@opentui/solid"
@@ -49,7 +50,7 @@ function fitLine(left: string, right: string, width: number, fill = " "): string
   return `${fittedLeft}${fill.repeat(gapWidth)}${right}`
 }
 
-function frameLine(params: {
+export function frameLine(params: {
   leftCorner: string
   rightCorner: string
   leftLabel?: string

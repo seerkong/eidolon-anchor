@@ -1,5 +1,9 @@
 import { describe, expect, it } from "bun:test";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import {
+  applyCheapCompactionPipeline,
   compressHistory,
   findSplitPoint,
   loadCompressionPrompt,
@@ -114,6 +118,46 @@ describe("context_compressor", () => {
     expect(loggerCalls.length).toBeGreaterThan(0);
   });
 
+  it("fits compression request history within the supplied token budget", async () => {
+    let requestMessages: any[] | null = null;
+    const llmAdapter = {
+      type: "openai" as const,
+      async createStream(options: any) {
+        requestMessages = options.messages;
+        async function* stream() {
+          yield {
+            choices: [{ delta: { content: "<state_snapshot><overall_goal>budgeted</overall_goal></state_snapshot>" } }],
+          };
+        }
+        return { stream: stream() };
+      },
+    };
+
+    const messages = [
+      { role: "user", content: "old-a".repeat(400) },
+      { role: "assistant", content: "old-b".repeat(400) },
+      { role: "user", content: "old-c".repeat(400) },
+      { role: "assistant", content: "recent" },
+      { role: "user", content: "tail" },
+      { role: "assistant", content: "tail ack" },
+      { role: "user", content: "last" },
+    ];
+
+    const result = await compressHistory({
+      messages,
+      llmAdapter,
+      model: "mock-model",
+      inputLimit: 800,
+      tokenBudget: 600,
+    });
+
+    expect(result?.[0]?.content).toContain("budgeted");
+    const serializedOld = String(requestMessages?.[1]?.content ?? "");
+    expect(serializedOld.length).toBeLessThan(JSON.stringify(messages.slice(0, 3), null, 2).length);
+    expect(serializedOld).toContain("old-");
+    expect(serializedOld).not.toContain("old-a");
+  });
+
   it("returns null when compressed tokens are not smaller", async () => {
     const llmAdapter = {
       type: "openai" as const,
@@ -154,5 +198,38 @@ describe("context_compressor", () => {
   it("loads compression prompt from markdown file", () => {
     const prompt = loadCompressionPrompt();
     expect(prompt).toContain("<state_snapshot>");
+  });
+
+  it("persists oversized tool results before micro compacting older results", () => {
+    const artifactDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-tool-results-"));
+    const largeOutput = "FULL_OUTPUT_".repeat(200);
+    const messages = [
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-big", type: "function", function: { name: "bash", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "tc-big", content: largeOutput },
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-small", type: "function", function: { name: "bash", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "tc-small", content: "small result" },
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-recent", type: "function", function: { name: "bash", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "tc-recent", content: "recent result" },
+    ];
+
+    const result = applyCheapCompactionPipeline(messages, {
+      artifactDir,
+      toolResultBudgetBytes: 100,
+      toolResultPersistThresholdBytes: 100,
+      toolResultPreviewChars: 24,
+      microKeepRecentToolResults: 1,
+      microMinContentChars: 10,
+    });
+
+    expect(result.changed).toBe(true);
+    expect(result.stats.persistedToolResults).toBe(1);
+    expect(result.stats.microCompactedToolResults).toBeGreaterThanOrEqual(1);
+    const compactedBig = String(result.messages[1]?.content ?? "");
+    expect(compactedBig).toContain("Earlier tool result compacted");
+    expect(compactedBig).toContain("Full output persisted at:");
+    const persistedPath = compactedBig.match(/Full output persisted at:\s*([^\]]+?)(?:\. Re-run|\n|$)/)?.[1]?.trim();
+    expect(persistedPath).toBeTruthy();
+    expect(fs.readFileSync(String(persistedPath), "utf8")).toBe(largeOutput);
+    expect(String(result.messages.at(-1)?.content ?? "")).toBe("recent result");
   });
 });

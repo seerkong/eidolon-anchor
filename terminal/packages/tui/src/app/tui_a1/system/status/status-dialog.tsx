@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { useTheme } from "../../../../providers/theme"
 import { useSync } from "../../state/sync-context"
 import { useGraphSignal } from "depa-data-graph-solid"

@@ -9,6 +9,7 @@ import { LocalFilePermissionConfigStore } from "@cell/ai-support";
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
+import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver";
 
@@ -37,10 +38,10 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("s08 detached tools", () => {
-  it("DetachedBash returns task_id and command runs in a detached actor", async () => {
+  it("RunDetachedBash returns task_id and command runs in a detached actor", async () => {
     const workDir = makeTempDir("detached-bash-");
     const outPath = path.join(workDir, "out.txt");
-    const cmd = `echo hello > ${JSON.stringify(outPath)}`;
+    const cmd = `echo hello > ${JSON.stringify(outPath)}; echo hello`;
 
     const adapter = makeMockAdapter();
 
@@ -81,7 +82,7 @@ describe("s08 detached tools", () => {
             {
                 id: "tc-detached-bash-1",
               function: {
-                name: "DetachedBash",
+                name: "RunDetachedBash",
                 arguments: JSON.stringify({ command: cmd, agent_type: "code" }),
               },
             },
@@ -138,8 +139,6 @@ describe("s08 detached tools", () => {
     const started = JSON.parse(String((toolMsg as any)?.content ?? ""));
     expect(typeof started?.task_id).toBe("string");
 
-    expect(fs.existsSync(outPath)).toBe(false);
-
     await driver.tickUntilBackgroundSettled({ now: Date.now(), maxTicks: 100, maxWallMs: 2000 });
     await flushMicrotasks();
 
@@ -153,6 +152,13 @@ describe("s08 detached tools", () => {
     );
     expect(doneEvent).toBeTruthy();
     expect((doneEvent as any)?.background_result?.status).toBe("completed");
+
+    const result = JSON.parse(String(await ToolFuncRegistry.call(toolRegistry, "DetachedActorResult", vm, main, {
+      task_id: started.task_id,
+    })));
+    expect(result.status).toBe("completed");
+    expect(result.output_text).toContain("hello");
+    expect(result.logs.entries.map((entry: any) => entry.text).join("")).toContain("hello");
   });
 
   it("DetachedToolCall returns task_id and runs a single tool call", async () => {
@@ -263,7 +269,7 @@ describe("s08 detached tools", () => {
     expect(fs.readFileSync(filePath, "utf-8").trim()).toBe("hi");
   });
 
-  it("DetachedBash delegate actor stops after the first tool result instead of recursively exploring", async () => {
+  it("RunDetachedBash runs directly without recursively exploring through a delegate actor", async () => {
     const workDir = makeTempDir("detached-bash-stop-");
     const adapter = makeMockAdapter();
 
@@ -302,7 +308,7 @@ describe("s08 detached tools", () => {
             {
               id: "tc-detached-bash-stop-1",
               function: {
-                name: "DetachedBash",
+                name: "RunDetachedBash",
                 arguments: JSON.stringify({ command: "pwd", agent_type: "code" }),
               },
             },
@@ -354,6 +360,6 @@ describe("s08 detached tools", () => {
     await driver.tickUntilBackgroundSettled({ now: Date.now(), maxTicks: 100, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    expect(delegateTurns).toBe(1);
+    expect(delegateTurns).toBe(0);
   });
 });

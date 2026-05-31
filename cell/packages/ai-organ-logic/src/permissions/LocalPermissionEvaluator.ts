@@ -131,7 +131,20 @@ export function evaluateLocalToolPermission(params: {
 
   if (toolName === "bash") {
     const command = String(payload.command ?? "");
-    const segmentTokensList = parseBashSegments(command);
+    let segmentTokensList: BashToken[][];
+    try {
+      segmentTokensList = parseBashSegments(command);
+    } catch (error) {
+      const fallback = evaluateUnsupportedBashSyntax({
+        error,
+        command,
+        workDir,
+        authorityRoot,
+        approvalGrant,
+      });
+      if (fallback) return fallback;
+      throw error;
+    }
     const normalizedSegments = segmentTokensList.map((segmentTokens) => {
       if (bashSegmentModifiesProtectedPermissionConfig(segmentTokens, workDir, authorityRoot)) {
         throw new Error("Protected local permission config path cannot be modified via generic bash commands");
@@ -450,6 +463,63 @@ function evaluateWorkspaceAccessGate(params: {
   return { action: "allow" };
 }
 
+function evaluateUnsupportedBashSyntax(params: {
+  error: unknown;
+  command: string;
+  workDir: string;
+  authorityRoot?: string;
+  approvalGrant?: LocalPermissionApprovalGrant | WorkspaceAccessApprovalGrant;
+}): LocalPermissionDecision | null {
+  if (
+    !(params.error instanceof LocalPermissionConfigError) ||
+    params.error.message !== "Unsupported shell syntax for permission parsing"
+  ) {
+    return null;
+  }
+  if (bashRawCommandReferencesProtectedPermissionConfig(params.command, params.workDir, params.authorityRoot)) {
+    throw new Error("Protected local permission config path cannot be modified via generic bash commands");
+  }
+
+  const rawCommand = params.command.trim();
+  const serializedTarget = serializeBashSegments([rawCommand]);
+  const decision = evaluatePermissionRuleSet({
+    workDir: params.workDir,
+    permissionName: "bash",
+    pattern: rawCommand,
+    authorityRoot: params.authorityRoot,
+  });
+  if (decision.action === "allow" && decision.matchedRule) {
+    return { action: "allow", permissionName: "bash", target: serializedTarget };
+  }
+  if (decision.action === "deny" && decision.matchedRule) {
+    return {
+      action: "deny",
+      message: "local permission denied for bash command with unsupported syntax",
+      matchedRule: decision.matchedRule,
+      permissionName: "bash",
+      target: serializedTarget,
+    };
+  }
+  if (matchesApprovalGrant(params.approvalGrant, "bash", params.workDir, serializedTarget)) {
+    return { action: "allow", permissionName: "bash", target: serializedTarget };
+  }
+  return {
+    action: "ask",
+    message: "Approve bash command with unsupported syntax?",
+    fallbackMessage: "local permission requires approval for unsupported bash syntax",
+    matchedRule: decision.matchedRule,
+    permissionName: "bash",
+    target: serializedTarget,
+    approvalGrant: {
+      kind: "local_permission",
+      toolName: "bash",
+      permissionName: "bash",
+      workDir: params.workDir,
+      target: serializedTarget,
+    },
+  };
+}
+
 function parseBashSegments(command: string): BashToken[][] {
   const stripped = sanitizeSupportedBashMultilineCommand(command);
   if (!stripped) {
@@ -481,13 +551,50 @@ function parseBashSegments(command: string): BashToken[][] {
   return segments;
 }
 
+function collapseBashMultilineCommand(command: string): string {
+  const lines = command.split(/\r\n|\n|\r/);
+  const result: string[] = [];
+  for (const line of lines) {
+    const trimmed = line.trimEnd();
+    if (result.length > 0 && result[result.length - 1].trimEnd().endsWith("\\")) {
+      // Backslash line continuation: strip trailing \ and join
+      const prev = result[result.length - 1].trimEnd();
+      result[result.length - 1] = prev.slice(0, -1) + " " + line.trimStart();
+    } else if (result.length > 0 && lineHasUnclosedQuote(result[result.length - 1])) {
+      // Quoted string spans multiple lines: join and preserve the newline in the token
+      result[result.length - 1] += " " + line;
+    } else {
+      result.push(line);
+    }
+  }
+  return result.join("\n");
+}
+
+function lineHasUnclosedQuote(line: string): boolean {
+  let single = false;
+  let double = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === "\\") { i++; continue; }
+    if (ch === "'" && !double) { single = !single; }
+    if (ch === '"' && !single) { double = !double; }
+  }
+  return single || double;
+}
+
 function sanitizeSupportedBashMultilineCommand(command: string): string {
   const stripped = command.trim();
   if (!stripped.includes("\n") && !stripped.includes("\r")) {
     return stripped;
   }
 
-  const lines = stripped.split(/\r\n|\n|\r/);
+  // Collapse backslash-continued lines and quoted multiline strings
+  const collapsed = collapseBashMultilineCommand(stripped);
+  if (!collapsed.includes("\n") && !collapsed.includes("\r")) {
+    return collapsed;
+  }
+
+  const lines = collapsed.split(/\r\n|\n|\r/);
   const sanitizedLines: string[] = [];
   let index = 0;
   let sawSupportedHeredoc = false;
@@ -840,6 +947,18 @@ function bashTokenTargetsProtectedPermissionConfig(text: string, workDir: string
   const candidate = text.trim();
   if (!candidate) return false;
   return isProtectedPermissionConfigPath(resolveRequestedPath(workDir, candidate), authorityRoot);
+}
+
+function bashRawCommandReferencesProtectedPermissionConfig(command: string, workDir: string, authorityRoot?: string): boolean {
+  const normalizedCommand = command.replace(/['"]/g, "");
+  return protectedPermissionConfigPaths(authorityRoot).some((protectedPath) => {
+    const resolvedPath = path.resolve(protectedPath);
+    const candidates = [
+      resolvedPath,
+      path.relative(path.resolve(workDir), resolvedPath),
+    ].filter((candidate) => candidate && candidate !== ".");
+    return candidates.some((candidate) => normalizedCommand.includes(candidate));
+  });
 }
 
 function matchesApprovalGrant(

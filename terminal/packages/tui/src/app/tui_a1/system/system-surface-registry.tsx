@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import type { JSX } from "solid-js"
 import type { KeybindsConfig } from "@terminal/core/AIAgent"
 import { COMMAND_ID, SLASH_COMMANDS, type CommandID } from "../../../commands/catalog"

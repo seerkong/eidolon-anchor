@@ -1,6 +1,6 @@
 import { createRecoveryHooks, createSnapshotCodec } from "depa-actor";
 
-import { createVM, getAiRuntimeFacet, type AiAgentVm, type CreateVMParams } from "../runtime";
+import { createVM, ensureVmRuntimeContext, getAiRuntimeFacet, type AiAgentVm, type CreateVMParams } from "../runtime";
 import type { AiAgentActor } from "../actor";
 import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
@@ -23,6 +23,16 @@ const VM_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentVm, RuntimeSnapshotVm>({
       sessionState: {
         holons: Object.values(sessionState.holons).map((record) => ({ ...record, memberIds: [...record.memberIds] })),
         detachedActors: Object.values(sessionState.detachedActors).map((record) => ({ ...record })),
+        controlSignals: {
+          events: sessionState.controlSignals.events.map((event) => ({ ...event })),
+          idempotencyIndex: { ...sessionState.controlSignals.idempotencyIndex },
+          consumedEventIds: { ...sessionState.controlSignals.consumedEventIds },
+        },
+        threadGoal: sessionState.threadGoal ? { ...sessionState.threadGoal } : null,
+        heartbeatSchedules: Object.values(ensureVmRuntimeContext(vm).heartbeatScheduler?.schedules ?? {}).map((record) => ({
+          ...record,
+          payload: { ...record.payload },
+        })),
       },
       runtimeMetadata: {
         sessionScope: "session",
@@ -67,6 +77,23 @@ function hydrateVMFromSnapshot(
     detachedActors: Object.fromEntries(
       (snapshot.sessionState?.detachedActors ?? []).map((record) => [record.taskId, { ...record }]),
     ),
+    controlSignals: snapshot.sessionState?.controlSignals
+      ? {
+          events: snapshot.sessionState.controlSignals.events.map((event) => ({ ...event })),
+          idempotencyIndex: { ...snapshot.sessionState.controlSignals.idempotencyIndex },
+          consumedEventIds: { ...snapshot.sessionState.controlSignals.consumedEventIds },
+        }
+      : undefined,
+    threadGoal: snapshot.sessionState?.threadGoal ? { ...snapshot.sessionState.threadGoal } : null,
+  };
+  const heartbeatScheduler = {
+    schedules: Object.fromEntries(
+      (snapshot.sessionState?.heartbeatSchedules ?? []).map((record) => [
+        record.scheduleId,
+        { ...record, payload: { ...record.payload } },
+      ]),
+    ),
+    sequence: snapshot.sessionState?.heartbeatSchedules?.length ?? 0,
   };
   return createVM({
     ...args.params,
@@ -76,6 +103,10 @@ function hydrateVMFromSnapshot(
     aiFacet: {
       ...(args.params?.aiFacet ?? {}),
       sessionState,
+    },
+    runtimeContext: {
+      ...(args.params?.runtimeContext ?? {}),
+      heartbeatScheduler,
     },
     recovery: {
       restoredFromSnapshot: true,

@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { createMemo, createSignal, Show } from "solid-js"
 import { OpenHorizontalBorder } from "../../../../../ui/primitives/border"
 import { BoxRenderable, RGBA, TextAttributes } from "@opentui/core"

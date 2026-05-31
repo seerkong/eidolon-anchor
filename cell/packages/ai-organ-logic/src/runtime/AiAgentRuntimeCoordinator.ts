@@ -154,16 +154,23 @@ export function createAiAgentRuntimeCoordinator(params: {
   }) => {
     const dispatch = async () => {
       const mailboxTag = getCoordinationEngine().parseEnvelopeText(deliverParams.payload.text) ? "coordination" : "memberInbox";
-      deliverParams.actor.send(mailboxTag, {
+      const payload = {
         from: deliverParams.payload.from,
         text: deliverParams.payload.text,
         ts: typeof deliverParams.payload.ts === "number" ? deliverParams.payload.ts : Date.now(),
-      } as any);
+      };
+      const now = Date.now();
+      params.driver.emitFiberSignal({
+        fiberId: deliverParams.mainFiberId,
+        signalKind: "mailbox_enqueue",
+        signalClass: deliverParams.payload.defer ? "ordinary" : "wake",
+        mailbox: { kind: mailboxTag as any, payload: payload as any },
+        idempotencyKey: `${deliverParams.mainFiberId}:${mailboxTag}:${payload.ts}:${payload.from}`,
+        createdAt: now,
+      });
       if (deliverParams.payload.defer) {
         return;
       }
-      const now = Date.now();
-      params.driver.resumeFiber(deliverParams.mainFiberId, now);
       await params.driver.tickUntilBlocked({
         now,
         maxTicks: deliverParams.foregroundMaxTicks ?? 20,

@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { useTheme } from "../../providers/theme"
 import { DialogHeader, useDialog, type DialogContext } from "./context"
 import { useKeyboard } from "@opentui/solid"

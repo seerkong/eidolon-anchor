@@ -1,5 +1,3 @@
-import { AppendOnlyEventLog, createReducerProjection, type ReducerProjection } from "depa-data-graph-core";
-
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
 
 import type { TuiActorDescriptor, TuiTextSnapshot } from "./TuiCardTypes";
@@ -21,38 +19,25 @@ const INITIAL_TUI_TEXT_PROJECTION_STATE: TuiTextProjectionState = {
   lastSnapshot: null,
 };
 
+const MAX_TUI_TEXT_SNAPSHOT_CHARS = 200_000;
+const TUI_TEXT_TRUNCATION_MARKER = "[older output trimmed]\n\n";
+
 export class TuiTextGraph {
   private readonly listeners = new Set<(snapshot: TuiTextSnapshot) => void>();
-  private readonly eventLog = new AppendOnlyEventLog<SemanticEvent>();
-  private readonly projection: ReducerProjection<SemanticEvent, TuiTextProjectionState>;
-  private readonly projectionSubscription: { unsubscribe: () => void };
+  private state = INITIAL_TUI_TEXT_PROJECTION_STATE;
   private completed = false;
-
-  constructor() {
-    this.projection = createReducerProjection(this.eventLog, {
-      initial: INITIAL_TUI_TEXT_PROJECTION_STATE,
-      reducer: (state, entry) => reduceTuiTextProjectionState(state, entry.value),
-    });
-
-    this.projectionSubscription = this.projection.stream({ emitCurrent: false }).subscribe({
-      next: (state) => {
-        if (!state.lastSnapshot) {
-          return;
-        }
-        for (const listener of [...this.listeners]) {
-          listener(state.lastSnapshot);
-        }
-      },
-      error: () => {},
-      complete: () => {},
-    });
-  }
 
   consumeSemanticEvent(event: SemanticEvent): void {
     if (this.completed) {
       return;
     }
-    this.eventLog.append(event);
+    this.state = reduceTuiTextProjectionState(this.state, event);
+    if (!this.state.lastSnapshot) {
+      return;
+    }
+    for (const listener of [...this.listeners]) {
+      listener(this.state.lastSnapshot);
+    }
   }
 
   onTextSnapshot(handler: (snapshot: TuiTextSnapshot) => void): Subscription {
@@ -68,11 +53,11 @@ export class TuiTextGraph {
   }
 
   getSnapshot(actorId: string): TuiTextSnapshot | null {
-    return this.projection.getState().snapshots.get(actorId)?.snapshot ?? null;
+    return this.state.snapshots.get(actorId)?.snapshot ?? null;
   }
 
   getSnapshots(): TuiTextSnapshot[] {
-    return [...this.projection.getState().snapshots.values()].map((state) => state.snapshot);
+    return [...this.state.snapshots.values()].map((state) => state.snapshot);
   }
 
   dispose(): void {
@@ -80,9 +65,7 @@ export class TuiTextGraph {
       return;
     }
     this.completed = true;
-    this.projectionSubscription.unsubscribe();
-    this.projection.dispose();
-    this.eventLog.dispose();
+    this.state = INITIAL_TUI_TEXT_PROJECTION_STATE;
     this.listeners.clear();
   }
 }
@@ -126,7 +109,7 @@ function reduceSemanticEvent(
       return;
     }
     const prefix = text ? "\n\n" : "";
-    text = `${text}${prefix}[${label}]\n${body}`;
+    text = limitSnapshotText(`${text}${prefix}[${label}]\n${body}`);
   };
 
   switch (event.event_type) {
@@ -136,15 +119,15 @@ function reduceSemanticEvent(
     case "semantic_content_start":
       isStreaming = true;
       streamingLabel = "ASSISTANT";
-      text = text ? `${text}\n\n[ASSISTANT]\n` : "[ASSISTANT]\n";
+      text = limitSnapshotText(text ? `${text}\n\n[ASSISTANT]\n` : "[ASSISTANT]\n");
       break;
     case "semantic_content_delta":
       if (!streamingLabel) {
         isStreaming = true;
         streamingLabel = "ASSISTANT";
-        text = text ? `${text}\n\n[ASSISTANT]\n` : "[ASSISTANT]\n";
+        text = limitSnapshotText(text ? `${text}\n\n[ASSISTANT]\n` : "[ASSISTANT]\n");
       }
-      text += event.text;
+      text = limitSnapshotText(text + event.text);
       break;
     case "semantic_content_end":
       isStreaming = false;
@@ -231,6 +214,14 @@ function reduceSemanticEvent(
     },
     streamingLabel,
   };
+}
+
+function limitSnapshotText(text: string): string {
+  if (text.length <= MAX_TUI_TEXT_SNAPSHOT_CHARS) {
+    return text;
+  }
+  const keep = MAX_TUI_TEXT_SNAPSHOT_CHARS - TUI_TEXT_TRUNCATION_MARKER.length;
+  return `${TUI_TEXT_TRUNCATION_MARKER}${text.slice(-Math.max(keep, 0))}`;
 }
 
 function buildActorDescriptor(actor: SemanticEvent["actor"]): TuiActorDescriptor {

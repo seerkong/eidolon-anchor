@@ -144,7 +144,7 @@ export async function queueAutonomousHolonAssign(params: {
     },
   }
 
-  holonActor.send("memberInbox", {
+  const mailboxPayload = {
     from: params.runtime.actor.identity?.kind === "member" ? params.runtime.actor.identity.name : params.runtime.actor.key,
     text: buildAutonomousHolonEnvelope({
       kind: "assign",
@@ -156,8 +156,14 @@ export async function queueAutonomousHolonAssign(params: {
       content,
     }),
     ts: Date.now(),
-  } as any)
-  driver.resumeFiber(`${holonActor.key}:${holonActor.id}`, Date.now())
+  } as any
+  driver.emitFiberSignal({
+    fiberId: `${holonActor.key}:${holonActor.id}`,
+    signalKind: "mailbox_enqueue",
+    mailbox: { kind: "memberInbox", payload: mailboxPayload },
+    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberInbox:${taskId}`,
+    createdAt: mailboxPayload.ts,
+  })
 
   if (mode === "final") {
     const settled = await waitForAutonomousHolonTaskFinal({

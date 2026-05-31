@@ -10,7 +10,7 @@
 
 ## “要做”和“不做” (Goals / Non-Goals)
 **目标:**
-- 将 `@cell/composer` 改名为 `@cell/ai-composer`，并明确其对应参考项目 `sparrow_composer` 的职责。
+- 将 `@cell/composer` 改名为 `@cell/ai-composer`，职责是`composer`。
 - 将 `@cell/domain-ai-contract`、`@cell/domain-ai-logic`、`@cell/domain-ai-support` 分别演进为 `@cell/ai-core-contract`、`@cell/ai-core-logic`、`@cell/ai-support`。
 - 新增 `@cell/ai-organ-contract` 与 `@cell/ai-organ-logic`，承接 AI-specific organ data / organ logic 的正式 ownership。
 - 将 `cell/packages/core-logic` 中残留的 AI 领域专属逻辑实现迁入 `@cell/ai-core-logic`，并完成数据/逻辑分离。

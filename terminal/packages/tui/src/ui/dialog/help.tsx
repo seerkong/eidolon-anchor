@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { TextAttributes } from "@opentui/core"
 import { useTheme } from "../../providers/theme"
 import { DialogHeader, useDialog } from "./context"
@@ -30,7 +31,7 @@ export function DialogHelp() {
           Use {keybind.print("status_view")} or /status for system facts, {keybind.print("session_list")} or /session for saved sessions, and {keybind.print("model_list")} or /models for model selection.
         </text>
         <text fg={theme.textMuted}>
-          Use {keybind.print("shortcuts_view")} or /shortcuts for the categorized key binding guide, and use the bottom bar 使用说明 button when you want to inspect everything without leaving the shell.
+          Use {keybind.print("shortcuts_view")} or /shortcuts for the categorized key binding guide, or open 菜单 then 使用说明 when you want to inspect everything without leaving the shell.
         </text>
         <text fg={theme.textMuted}>
           Use {keybind.print("theme_list")} or /theme to adjust appearance, and /help or the command palette to reopen this guide.

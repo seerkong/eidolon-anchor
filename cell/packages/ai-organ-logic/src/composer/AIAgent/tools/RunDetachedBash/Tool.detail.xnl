@@ -1,0 +1,16 @@
+<type_def lang="typescript" ?>
+export interface RunDetachedBashOuterInput {
+  command: string;
+  agent_type: string;
+}
+
+export type RunDetachedBashOuterOutput = string;
+
+export type RunDetachedBash = (input: RunDetachedBashOuterInput) => RunDetachedBashOuterOutput;
+</?>
+
+<warning ?>
+This tool starts a detached background task that will execute a single bash command.
+
+The detached task input is a JSON string: { "command": <command> }.
+</?>

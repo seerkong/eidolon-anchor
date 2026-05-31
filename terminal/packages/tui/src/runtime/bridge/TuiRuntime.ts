@@ -1,5 +1,6 @@
 export type {
   RuntimeBridgeHistoryEvent,
+  RuntimeBridgeInitStatus,
   RuntimeBridgeNotification,
   TuiRuntimeBridge,
   TuiRuntimeConfig,

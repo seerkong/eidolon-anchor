@@ -6,15 +6,34 @@ import path from "path";
 import { bashCoreLogic } from "@cell/ai-organ-logic/composer/AIAgent/tools/Bash/Logic";
 import { configureLocalPermissionConfigStore } from "@cell/ai-organ-logic/permissions/LocalPermissionConfig";
 import {
+  createLinuxSandboxCommand,
   createMacOsSeatbeltCommand,
   createMacOsSeatbeltPolicy,
+  createWindowsSandboxCommand,
   executeSandboxedBashCommand,
   resolveSandboxBackendSelection,
 } from "@cell/ai-organ-logic/sandbox";
 
+function createMockActorRuntime() {
+  const facets = new Map<string, unknown>();
+  return {
+    ensureFacet: (key: string, factory: () => unknown) => {
+      if (!facets.has(key)) facets.set(key, factory());
+      return facets.get(key);
+    },
+    setFacet: (key: string, value: unknown) => {
+      facets.set(key, value);
+    },
+  };
+}
+
 function runtimeWithMetadata(metadata: Record<string, unknown>, workDir = "/workspace/project"): any {
+  const actorRuntime = createMockActorRuntime();
   return {
     vm: {
+      actorRuntime,
+      aiFacet: {},
+      holonRuntime: {},
       outerCtx: {
         workDir,
         metadata,
@@ -144,6 +163,54 @@ describe("sandbox backend runtime", () => {
     ]);
   });
 
+  it("selects Linux and Windows sandbox backends for restricted modes", () => {
+    const linuxReadOnly = resolveSandboxBackendSelection({
+      workDir: "/workspace/project",
+      platform: "linux",
+      metadata: {
+        sandbox_permissions: {
+          sandbox_mode: "read-only",
+        },
+      },
+    });
+    const linuxWorkspaceWrite = resolveSandboxBackendSelection({
+      workDir: "/workspace/project",
+      platform: "linux",
+      metadata: {
+        sandbox_permissions: {
+          sandbox_mode: "workspace-write",
+        },
+      },
+    });
+    const windowsReadOnly = resolveSandboxBackendSelection({
+      workDir: "C:\\workspace\\project",
+      platform: "win32",
+      metadata: {
+        sandbox_permissions: {
+          sandbox_mode: "read-only",
+        },
+      },
+    });
+    const windowsWorkspaceWrite = resolveSandboxBackendSelection({
+      workDir: "C:\\workspace\\project",
+      platform: "win32",
+      metadata: {
+        sandbox_permissions: {
+          sandbox_mode: "workspace-write",
+        },
+      },
+    });
+
+    expect(linuxReadOnly.backendName).toBe("linux-bwrap");
+    expect(linuxReadOnly.writableRoots).toEqual([]);
+    expect(linuxWorkspaceWrite.backendName).toBe("linux-bwrap");
+    expect(linuxWorkspaceWrite.writableRoots).toContain("/workspace/project");
+    expect(windowsReadOnly.backendName).toBe("windows-elevated");
+    expect(windowsReadOnly.writableRoots).toEqual([]);
+    expect(windowsWorkspaceWrite.backendName).toBe("windows-elevated");
+    expect(windowsWorkspaceWrite.writableRoots.length).toBeGreaterThan(0);
+  });
+
   it("keeps danger-full-access explicitly unsandboxed", () => {
     const selection = resolveSandboxBackendSelection({
       workDir: "/workspace/project",
@@ -182,6 +249,53 @@ describe("sandbox backend runtime", () => {
     expect(command.policy).toContain("WRITABLE_ROOT_0");
     expect(command.policy).toContain("PROTECTED_METADATA_0");
     expect(command.policy).not.toContain("(allow network-outbound)");
+  });
+
+  it("builds Linux bubblewrap command args with read-only base and writable roots", () => {
+    const command = createLinuxSandboxCommand({
+      command: "printf ok",
+      workDir: "/workspace/project",
+      writableRoots: ["/workspace/project"],
+      networkAccess: "disabled",
+      sandboxMode: "workspace-write",
+      tempDir: "/tmp",
+      bwrapPath: "/usr/bin/bwrap",
+      shellPath: "/bin/sh",
+    });
+
+    expect(command.executable).toBe("/usr/bin/bwrap");
+    expect(command.args).toContain("--ro-bind");
+    expect(command.args).toContain("/");
+    expect(command.args).toContain("--bind");
+    expect(command.args).toContain("/workspace/project");
+    expect(command.args).toContain("--unshare-net");
+    expect(command.args).toContain("--");
+    expect(command.args.at(-3)).toBe("/bin/sh");
+    expect(command.args.at(-2)).toBe("-lc");
+    expect(command.args.at(-1)).toBe("printf ok");
+  });
+
+  it("builds Windows elevated runner args with scoped writable roots", () => {
+    const command = createWindowsSandboxCommand({
+      command: "echo ok",
+      workDir: "C:\\workspace\\project",
+      writableRoots: ["C:\\workspace\\project", "D:\\shared"],
+      networkAccess: "disabled",
+      sandboxMode: "workspace-write",
+      runnerPath: "C:\\eidolon\\windows-sandbox-runner.exe",
+    });
+
+    expect(command.executable).toBe("C:\\eidolon\\windows-sandbox-runner.exe");
+    expect(command.args).toContain("--mode");
+    expect(command.args).toContain("workspace-write");
+    expect(command.args).toContain("--network");
+    expect(command.args).toContain("disabled");
+    expect(command.args).toContain("--writable-root");
+    expect(command.args).toContain("C:\\workspace\\project");
+    expect(command.args).toContain("D:\\shared");
+    expect(command.args).toContain("--");
+    expect(command.args.at(-5)).toBe("cmd.exe");
+    expect(command.args.at(-1)).toBe("echo ok");
   });
 
   it("includes network permissions only when network access is enabled", () => {
@@ -225,6 +339,58 @@ describe("sandbox backend runtime", () => {
     expect(calls[0]?.executable).toBe("/usr/bin/sandbox-exec");
     expect(calls[0]?.args).toContain("--");
     expect(calls[0]?.options.cwd).toBe("/workspace/project");
+    expect(calls[0]?.options.shell).toBe(false);
+  });
+
+  it("routes Linux Bash execution through bubblewrap instead of an unsandboxed shell", () => {
+    const calls: Array<{ executable: string; args: string[]; options: any }> = [];
+    const output = executeSandboxedBashCommand({
+      command: "pwd",
+      cwd: "/workspace/project",
+      timeoutMs: 120000,
+      selection: {
+        backendName: "linux-bwrap",
+        sandboxMode: "workspace-write",
+        networkAccess: "disabled",
+        workDir: "/workspace/project",
+        writableRoots: ["/workspace/project"],
+        platform: "linux",
+      },
+      spawnSyncFn: (executable, args, options) => {
+        calls.push({ executable, args: args ?? [], options });
+        return { stdout: "/workspace/project\n", stderr: "", status: 0 } as any;
+      },
+    });
+
+    expect(output).toBe("/workspace/project");
+    expect(calls[0]?.executable).toBe("bwrap");
+    expect(calls[0]?.args).toContain("--unshare-net");
+    expect(calls[0]?.options.shell).toBe(false);
+  });
+
+  it("routes Windows Bash execution through elevated runner instead of an unsandboxed shell", () => {
+    const calls: Array<{ executable: string; args: string[]; options: any }> = [];
+    const output = executeSandboxedBashCommand({
+      command: "cd",
+      cwd: "C:\\workspace\\project",
+      timeoutMs: 120000,
+      selection: {
+        backendName: "windows-elevated",
+        sandboxMode: "workspace-write",
+        networkAccess: "disabled",
+        workDir: "C:\\workspace\\project",
+        writableRoots: ["C:\\workspace\\project"],
+        platform: "win32",
+      },
+      spawnSyncFn: (executable, args, options) => {
+        calls.push({ executable, args: args ?? [], options });
+        return { stdout: "C:\\workspace\\project\r\n", stderr: "", status: 0 } as any;
+      },
+    });
+
+    expect(output).toBe("C:\\workspace\\project");
+    expect(calls[0]?.executable).toBe("eidolon-windows-sandbox-runner");
+    expect(calls[0]?.args).toContain("--writable-root");
     expect(calls[0]?.options.shell).toBe(false);
   });
 

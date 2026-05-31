@@ -1,0 +1,5 @@
+<tool {
+  name = "RunDetachedBash"
+  namespace = "SysBuiltIn"
+  description = "Run a bash command in a detached background task."
+}>

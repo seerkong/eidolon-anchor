@@ -1,0 +1,8 @@
+preload = ["@opentui/solid/preload"]
+
+[test]
+preload = ["@opentui/solid/preload"]
+
+[build]
+jsxImportSource = "@opentui/solid"
+loader = { ".tsx" = "tsx" }

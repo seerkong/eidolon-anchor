@@ -15,7 +15,7 @@ import {
   createAiAgentOrchestratorDriverWithCooperative,
   getMemberManager,
 } from "@cell/ai-organ-logic"
-import { aiAgentLoopStreaming } from "@cell/ai-organ-logic/exec/AiAgentExecutor"
+import { aiAgentCooperativeStep, aiAgentLoopStreaming } from "@cell/ai-organ-logic/exec/AiAgentExecutor"
 import { createAutonomousHolonController } from "@cell/ai-organ-logic/organization/AutonomousHolonController"
 import { getDetachedActorRegistry } from "@cell/ai-organ-logic/detached/DetachedActorRegistry"
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine"
@@ -60,6 +60,362 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("runtime recovery bootstrap", () => {
+  it("revives a failed fiber that still has recovered mailbox work", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-failed-human-input"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "continued" }),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: actor.key,
+      actors: { [actor.key]: actor },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+    })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    driver.actorRuntime.sendFrom("test", driver.orchestratorId, "fiber_result", {
+      fiberId,
+      now: Date.now(),
+      kind: "fail",
+      error: "context window exceeded",
+    })
+    actor.send("humanInput", "继续")
+    await flushMicrotasks()
+    await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+
+    const recovered = await recoverAiAgentRuntime({
+      sessionDir,
+      sessionId,
+      llmClient: adapter,
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      actorCallbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "continued" }),
+      },
+    })
+
+    expect(recovered).toBeTruthy()
+    const state = recovered!.driver.getState().fibers[fiberId]
+    expect(state?.status).toBe("ready")
+    expect(state?.lastError).toBeUndefined()
+  })
+
+  it("resumes a recovered pending aiGenerated tool result from a legacy snapshot", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-pending-ai-generated"
+    const adapter = makeMockAdapter()
+    const toolCall = {
+      id: "call_recovered_tool",
+      type: "function",
+      function: { name: "RecoveredTool", arguments: "{\"path\":\"demo\"}" },
+    }
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      recovery: { restoredFromSnapshot: true },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "continue after tool" } as any,
+        { role: "assistant", content: "", tool_calls: [toolCall] } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "continued" }),
+      },
+    })
+
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: {
+        toolRegistry: composeToolRegistry({ includeInternalOnly: true }),
+      } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+
+    const mainFiberId = `${root.key}:${root.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId: mainFiberId, vm, actor: root, messages: root.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    const opId = `tool:${mainFiberId}:245`
+    ;(driver.inspectRuntime().fibers[mainFiberId] as any).execState = {
+      phase: "wait_tool",
+      turn: 1,
+      tools: [],
+      toolCalls: [toolCall],
+      toolIndex: 0,
+      nextOpSeq: 246,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      inflight: {
+        kind: "tool",
+        opId,
+        funcName: "RecoveredTool",
+        toolCallId: "call_recovered_tool",
+        args: { path: "demo" },
+      },
+      messageHistoryAttached: false,
+    }
+    root.send("aiGenerated", {
+      kind: "tool_done",
+      opId,
+      funcName: "RecoveredTool",
+      toolCallId: "call_recovered_tool",
+      args: { path: "demo" },
+      output: "---",
+      outputText: "---",
+    } as any)
+    driver.suspendFiber(mainFiberId, Date.now(), "tool_result")
+
+    await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+
+    const manifestPath = path.join(sessionDir, "runtime_state", "manifest.json")
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"))
+    const fiberPath = path.join(sessionDir, "runtime_state", manifest.fiberFiles[mainFiberId])
+    const fiberSnapshot = JSON.parse(fs.readFileSync(fiberPath, "utf-8"))
+    expect(fiberSnapshot.metadata.cooperativeExecState?.phase).toBe("wait_tool")
+    delete fiberSnapshot.metadata.cooperativeExecState
+    fs.writeFileSync(fiberPath, `${JSON.stringify(fiberSnapshot, null, 2)}\n`)
+
+    const recovered = await recoverAiAgentRuntime({
+      sessionDir,
+      sessionId,
+      llmClient: adapter as any,
+      registries: {
+        toolRegistry: composeToolRegistry({ includeInternalOnly: true }),
+      } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+      actorCallbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "continued" }),
+      },
+    })
+
+    expect(recovered).toBeTruthy()
+    expect(recovered!.driver.getState().fibers[mainFiberId]?.status).toBe("ready")
+
+    await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 20, maxWallMs: 2000 })
+    expect(recovered!.controlActor.peekMailbox("aiGenerated")).toEqual([])
+    expect(recovered!.controlActor.messages.some((message: any) => message?.role === "tool" && message?.content === "---")).toBe(true)
+    expect(recovered!.controlActor.messages.some((message: any) => message?.role === "assistant" && message?.content === "continued")).toBe(true)
+  })
+
+  it("turns an interrupted recovered inflight tool into an error tool result", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-interrupted-tool"
+    const adapter = makeMockAdapter()
+    const toolCall = {
+      id: "call_interrupted_tool",
+      type: "function",
+      function: { name: "SlowTool", arguments: "{\"path\":\"demo\"}" },
+    }
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      recovery: { restoredFromSnapshot: true },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "run slow tool" } as any,
+        { role: "assistant", content: "", tool_calls: [toolCall] } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "continued after interruption" }),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    const fiberId = `${root.key}:${root.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor: root, messages: root.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    ;(driver.inspectRuntime().fibers[fiberId] as any).execState = {
+      phase: "wait_tool",
+      turn: 1,
+      tools: [],
+      toolCalls: [toolCall],
+      toolIndex: 0,
+      nextOpSeq: 835,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      inflight: {
+        kind: "tool",
+        opId: `tool:${fiberId}:834`,
+        funcName: "SlowTool",
+        toolCallId: "call_interrupted_tool",
+        args: { path: "demo" },
+      },
+      messageHistoryAttached: false,
+    }
+    driver.suspendFiber(fiberId, Date.now(), "tool_result")
+
+    await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+
+    const recovered = await recoverAiAgentRuntime({
+      sessionDir,
+      sessionId,
+      llmClient: adapter as any,
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+      actorCallbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "continued after interruption" }),
+      },
+    })
+
+    expect(recovered).toBeTruthy()
+    expect(recovered!.driver.getState().fibers[fiberId]?.status).toBe("ready")
+
+    await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 20, maxWallMs: 2000 })
+
+    const toolMessage = recovered!.controlActor.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "call_interrupted_tool")
+    expect(toolMessage?.content).toContain("interrupted tool call")
+    expect(recovered!.controlActor.messages.some((message: any) => message?.role === "assistant" && message?.content === "continued after interruption")).toBe(true)
+  })
+
+  it("continues a recovered drain state when history already ends with a tool result", async () => {
+    const adapter = makeMockAdapter()
+    const toolCall = {
+      id: "call_recovered_done_tool",
+      type: "function",
+      function: { name: "RecoveredTool", arguments: "{\"path\":\"demo\"}" },
+    }
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "run recovered tool" } as any,
+        { role: "assistant", content: "", tool_calls: [toolCall] } as any,
+        { role: "tool", tool_call_id: "call_recovered_done_tool", content: "done" } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "continued after recovered tool" }),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    const fiberId = `${root.key}:${root.id}`
+    let savedState: any = {
+      phase: "drain",
+      turn: 1,
+      tools: [],
+      toolCalls: [],
+      toolIndex: 0,
+      nextOpSeq: 12,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      inflight: undefined,
+      messageHistoryAttached: false,
+    }
+
+    const outcome = await aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: root,
+      messages: root.messages,
+      state: savedState,
+      setState: (state) => {
+        savedState = state
+      },
+      resumeFiber: () => {},
+    })
+
+    expect(outcome).toEqual({ kind: "yield" })
+    expect(savedState.phase).toBe("start_llm")
+  })
+
+  it("continues a recovered drain state when history already ends with an unanswered user input", async () => {
+    const adapter = makeMockAdapter()
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      recovery: { restoredFromSnapshot: true },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "previous task" } as any,
+        { role: "assistant", content: "previous answer" } as any,
+        { role: "user", content: "请继续" } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "continued after recovered user" }),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    const fiberId = `${root.key}:${root.id}`
+    let savedState: any = {
+      phase: "drain",
+      turn: 1,
+      tools: [],
+      toolCalls: [],
+      toolIndex: 0,
+      nextOpSeq: 12,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      inflight: undefined,
+      messageHistoryAttached: false,
+    }
+
+    const outcome = await aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: root,
+      messages: root.messages,
+      state: savedState,
+      setState: (state) => {
+        savedState = state
+      },
+      resumeFiber: () => {},
+    })
+
+    expect(outcome).toEqual({ kind: "yield" })
+    expect(savedState.phase).toBe("start_llm")
+  })
+
   it("restores session state and projects recovered status to tools", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-recovery"

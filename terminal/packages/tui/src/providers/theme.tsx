@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { createEffect, createMemo } from "solid-js"
 import { useSync } from "../app/tui_a1/state/sync-context"
 import { createSimpleContext } from "./helper"

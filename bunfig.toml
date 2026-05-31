@@ -1,0 +1,2 @@
+[test]
+preload = ["./terminal/packages/tui/src/entry/preload.ts"]

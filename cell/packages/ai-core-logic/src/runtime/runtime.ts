@@ -27,7 +27,6 @@ import type {
   RuntimeCallbacks as ContractRuntimeCallbacks,
   RuntimeEffects,
   RuntimeOptions,
-  AiRuntimeRegistries as ContractRuntimeRegistries,
   VmAutonomousHolonRecord,
   VmDeferredResume,
   VmDetachedActorRecord,
@@ -41,8 +40,11 @@ import type {
   VmRuntimeContext,
   VmSessionState,
 } from "@cell/ai-core-contract/runtime/AiAgentVm";
+import type { ActorSurfaceRuntimeStateData } from "@cell/ai-core-contract/runtime/ActorSurface";
+import type { AiRuntimeRegistries as ContractRuntimeRegistries } from "@cell/ai-core-contract/runtime/RuntimeRegistries";
 import type { AiRuntimeOuterCtx } from "@cell/ai-core-contract/runtime/AiRuntimeOuterCtx";
 import type { McpManagerLike } from "@cell/ai-core-contract/runtime/McpManagerLike";
+import { cloneDurableControlSignalStore, createEmptyDurableControlSignalStore } from "./DurableControlSignals";
 
 export { AI_AGENT_VM_FACET_OWNERSHIP } from "@cell/ai-core-contract/runtime/AiAgentVm";
 export { bindVmDomainRxStreams, ensureVmRxData } from "./rxData";
@@ -94,6 +96,17 @@ export function createEmptyVmSessionState(): VmSessionState {
     memberRoster: {},
     holons: {},
     detachedActors: {},
+    actorSurface: createEmptyActorSurfaceRuntimeState(),
+    controlSignals: createEmptyDurableControlSignalStore(),
+    threadGoal: null,
+  };
+}
+
+function createEmptyActorSurfaceRuntimeState(): ActorSurfaceRuntimeStateData {
+  return {
+    laneActorBindings: {},
+    pendingQuestionnaires: {},
+    answeredQuestionnaires: {},
   };
 }
 
@@ -104,6 +117,11 @@ export function createEmptyVmRuntimeContext(): VmRuntimeContext {
     deferredMemberResumes: [],
     interactiveTurnActive: false,
     conversationDomainRuntime: null,
+    heartbeatScheduler: null,
+    threadGoalRuntime: {
+      continuationTurns: 0,
+      continuationInFlight: false,
+    },
     autonomousHolonTaskSignals: createCompletionSignalRegistry<string, { status: string; resultText: string | null }>(),
     leaderLedHolonRouteSignals: createCompletionSignalRegistry<string, { resultText: string | null }>(),
   };
@@ -116,6 +134,15 @@ function materializeVmSessionState(sessionState?: Partial<VmSessionState>): VmSe
     memberRoster: { ...(sessionState?.memberRoster ?? {}) },
     holons: { ...(sessionState?.holons ?? {}) },
     detachedActors: { ...(sessionState?.detachedActors ?? {}) },
+    actorSurface: {
+      ...createEmptyActorSurfaceRuntimeState(),
+      ...(sessionState?.actorSurface ?? {}),
+      laneActorBindings: { ...(sessionState?.actorSurface?.laneActorBindings ?? {}) },
+      pendingQuestionnaires: { ...(sessionState?.actorSurface?.pendingQuestionnaires ?? {}) },
+      answeredQuestionnaires: { ...(sessionState?.actorSurface?.answeredQuestionnaires ?? {}) },
+    },
+    controlSignals: cloneDurableControlSignalStore(sessionState?.controlSignals),
+    threadGoal: sessionState?.threadGoal ? { ...sessionState.threadGoal } : null,
   };
 }
 
@@ -128,6 +155,12 @@ function materializeVmRuntimeContext(runtimeContext?: Partial<VmRuntimeContext>)
     driver: runtimeContext?.driver ?? null,
     currentOrchestrator: runtimeContext?.currentOrchestrator ?? null,
     conversationDomainRuntime: runtimeContext?.conversationDomainRuntime ?? null,
+    heartbeatScheduler: runtimeContext?.heartbeatScheduler ?? null,
+    threadGoalRuntime: {
+      continuationTurns: 0,
+      continuationInFlight: false,
+      ...(runtimeContext?.threadGoalRuntime ?? {}),
+    },
     autonomousHolonTaskSignals:
       runtimeContext?.autonomousHolonTaskSignals ??
       createCompletionSignalRegistry<string, { status: string; resultText: string | null }>(),

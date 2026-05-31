@@ -1,6 +1,7 @@
 import type { ProviderDriverDefinition, ProviderDriverRequestParams, ProviderDriverStreamParams } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
 import { resolveDeepSeekModelCapabilities } from "../DeepSeekModelCapabilities";
+import { sanitizeProviderExtraBody } from "../ProviderOptions";
 
 function getString(options: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
@@ -18,7 +19,7 @@ function buildDeepSeekExtraBody(params: ProviderDriverRequestParams): Record<str
   });
   const extraBody: Record<string, unknown> = {
     ...params.requestOptions,
-    ...params.extraBody,
+    ...sanitizeProviderExtraBody(params.extraBody),
   };
   if (capabilities) {
     extraBody.model_capabilities ??= capabilities;
@@ -27,7 +28,6 @@ function buildDeepSeekExtraBody(params: ProviderDriverRequestParams): Record<str
       stable_prefix: true,
       provider_managed_prefix_cache: true,
       prefer_late_compaction: true,
-      compaction_threshold_tokens: capabilities.cachePolicy?.compactionThresholdTokens,
     };
   }
   return extraBody;
@@ -69,4 +69,3 @@ export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
     },
   };
 }
-

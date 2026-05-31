@@ -4,6 +4,7 @@ import os from "os";
 import path from "path";
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
+import { createActorSurfaceFacade } from "@cell/ai-core-logic/runtime/ActorSurface";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
@@ -272,6 +273,87 @@ describe("local permission questionnaire integration", () => {
     });
 
     const toolMsg = messages.find((message) => message?.role === "tool" && message?.tool_call_id === "tc-read-2");
+    expect(toolMsg).toBeTruthy();
+    expect(String((toolMsg as any).content)).toContain("1: secret");
+  });
+
+  it("replays local permission approval submitted through the actor surface", async () => {
+    const { workDir, authorityRoot } = buildPermissionSandbox();
+    const actor = createActor({
+      key: "main",
+      llmClient: makeParserAdapter({ approved: true }),
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [buildReadToolDef().schema],
+        processStream: (() => {
+          let first = true;
+          return async () => {
+            if (first) {
+              first = false;
+              return {
+                role: "assistant",
+                tool_calls: [
+                  {
+                    id: "tc-read-surface",
+                    function: { name: "read", arguments: JSON.stringify({ filePath: "secret.txt" }) },
+                  },
+                ],
+              };
+            }
+            return { role: "assistant", content: "done" };
+          };
+        })(),
+      },
+    });
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(buildReadToolDef() as any);
+    const vm = createVM({
+      controlActorKey: actor.key,
+      actors: { [actor.key]: actor },
+      registries: { toolRegistry },
+      eventBus: new AgentEventGraph(),
+      outerCtx: {
+        workDir,
+        metadata: {
+          local_permissions: {
+            authority_root: authorityRoot,
+          },
+        },
+      },
+    });
+
+    const fiberId = `${actor.key}:${actor.id}`;
+    const messages: any[] = [];
+    const stateRef = { current: undefined as any };
+    actor.send("humanInput", "start");
+
+    await advanceCooperativeUntil({
+      vm,
+      actor,
+      messages,
+      fiberId,
+      stateRef,
+      predicate: () => createActorSurfaceFacade(vm).getActorSurface().questionnaireSurface.length > 0,
+    });
+
+    const facade = createActorSurfaceFacade(vm);
+    const pending = facade.getActorSurface().questionnaireSurface[0];
+    expect(pending?.questionnaireId).toBeTruthy();
+    const submitted = facade.submitQuestionnaireResponse(pending!.questionnaireId, "Q1: A");
+    expect(submitted.status).toBe("submitted");
+    expect(facade.getActorSurface().questionnaireSurface).toEqual([]);
+    expect(actor.pendingQuestionnaires[pending!.questionnaireId]).toBeTruthy();
+
+    await advanceCooperativeUntil({
+      vm,
+      actor,
+      messages,
+      fiberId,
+      stateRef,
+      predicate: () => messages.some((message) => message?.role === "tool" && message?.tool_call_id === "tc-read-surface"),
+    });
+
+    const toolMsg = messages.find((message) => message?.role === "tool" && message?.tool_call_id === "tc-read-surface");
     expect(toolMsg).toBeTruthy();
     expect(String((toolMsg as any).content)).toContain("1: secret");
   });

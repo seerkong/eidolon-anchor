@@ -1,6 +1,7 @@
 import type { LlmAdapter, LlmGenerateOptions, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
 import type { ToolSchema } from "@cell/ai-core-contract/types";
 import { normalizeOpenAIChatMessages } from "./OpenAIChatHelpers";
+import { ProviderExecutionError } from "./ProviderErrors";
 import type { ProviderOptions } from "./ProviderPlugins";
 
 type OpenAICompletionsNodejsFetchAdapterSettings = {
@@ -8,6 +9,8 @@ type OpenAICompletionsNodejsFetchAdapterSettings = {
   baseUrl?: string;
   providerOptions?: ProviderOptions;
 };
+
+const INTERNAL_EXTRA_BODY_KEYS = new Set(["prompt_plan", "work_context"]);
 
 function buildCompletionsUrl(baseUrl?: string): string {
   const base = baseUrl || "https://api.openai.com/v1";
@@ -76,6 +79,24 @@ function toOpenAITools(tools: ToolSchema[]): ToolSchema[] | undefined {
   return tools;
 }
 
+function sanitizeExtraBody(extraBody: unknown): Record<string, unknown> {
+  if (!extraBody || typeof extraBody !== "object" || Array.isArray(extraBody)) return {};
+  return Object.fromEntries(
+    Object.entries(extraBody as Record<string, unknown>)
+      .filter(([key, value]) => value !== undefined && !INTERNAL_EXTRA_BODY_KEYS.has(key)),
+  );
+}
+
+function parseOpenAIErrorCode(errorText: string): string {
+  try {
+    const parsed = JSON.parse(errorText);
+    const error = parsed && typeof parsed === "object" ? (parsed as any).error : null;
+    return typeof error?.code === "string" ? error.code : "";
+  } catch {
+    return "";
+  }
+}
+
 export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
   readonly type = "openai" as const;
   private apiKey: string;
@@ -101,7 +122,7 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       tools: toolset,
     };
 
-    const extra = extraBody && typeof extraBody === "object" ? { ...extraBody } : {};
+    const extra = sanitizeExtraBody(extraBody);
     const providerOptions = this.providerOptions;
     const isDeepseek = isDeepseekRequest(model, this.baseUrl, providerOptions);
 
@@ -137,7 +158,10 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
-      throw new Error(`OpenAI fetch error ${res.status}: ${errorText || res.statusText}`);
+      throw new ProviderExecutionError(`OpenAI fetch error ${res.status}: ${errorText || res.statusText}`, {
+        providerErrorCode: parseOpenAIErrorCode(errorText),
+        statusCode: res.status,
+      });
     }
 
     return { stream: streamToOpenAIChunks(res) };

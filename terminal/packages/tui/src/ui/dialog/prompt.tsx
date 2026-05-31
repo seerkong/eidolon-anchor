@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { TextareaRenderable, TextAttributes } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { onCleanup, onMount, type JSX } from "solid-js"

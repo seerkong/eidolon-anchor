@@ -371,16 +371,18 @@ export class MemberManager {
     if (!actor || !driver) {
       return;
     }
-    if (getCoordinationEngine().parseEnvelopeText(payload.text)) {
-      actor.send("coordination", payload as any);
-    } else {
-      actor.send("memberInbox", payload as any);
-    }
+    const mailboxKind = getCoordinationEngine().parseEnvelopeText(payload.text) ? "coordination" : "memberInbox";
+    driver.emitFiberSignal({
+      fiberId: rec.fiberId,
+      signalKind: "mailbox_enqueue",
+      signalClass: runtime.interactiveTurnActive === true ? "ordinary" : "wake",
+      mailbox: { kind: mailboxKind as any, payload: payload as any },
+      idempotencyKey: `${rec.fiberId}:${mailboxKind}:${payload.ts}:${payload.from}`,
+      createdAt: payload.ts,
+    });
 
     if (runtime.interactiveTurnActive === true) {
       runtime.deferredMemberResumes.push({ fiberId: rec.fiberId, at: Date.now() });
-    } else {
-      driver.resumeFiber(rec.fiberId, Date.now());
     }
 
     params.vm.effects.orchestrationHistory?.appendEvent({

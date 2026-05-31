@@ -1,0 +1,11 @@
+{
+  "track_id": "add-aiagent-thread-goals",
+  "track_name": "为 AIAgent 添加 thread goal runtime",
+  "status": "completed",
+  "type": "feature",
+  "commit_mode": "manual",
+  "created_at": "2026-05-29T18:19:43Z",
+  "updated_at": "2026-05-30T03:18:20Z",
+  "description": "为本项目补齐与 Codex 同等级的 thread goal 能力：/goal 入口、goal tools、持久化状态、自动计费与 idle continuation、complete/blocked 审计和用户可见状态同步。"
+}
+

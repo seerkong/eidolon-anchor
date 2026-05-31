@@ -32,7 +32,7 @@ function firstExistingProjectOrHomeConfigPath(workDir: string, filenames: string
 export const LocalFileRuntimeConfigLoader: CoreRuntimeConfigLoader = {
   loadLLMProviderConfig(workDir: string, logger?: RuntimeLogFn): LLMProviderConfig | null {
     try {
-      return loadProviderCatalog(firstExistingProjectOrHomeConfigPath(workDir, ["llm-provider-config.json", "llm-provider.json"]));
+      return loadProviderCatalog(firstExistingProjectOrHomeConfigPath(workDir, ["llm-provider.json"]));
     } catch (error) {
       logger?.("error", "Failed to load LLM provider catalog", {
         error: error instanceof Error ? error.message : String(error),
@@ -43,10 +43,7 @@ export const LocalFileRuntimeConfigLoader: CoreRuntimeConfigLoader = {
 
   loadAgentPresetConfig(workDir: string, logger?: RuntimeLogFn): AgentPresetConfig | null {
     try {
-      const presentConfigPath = firstExistingProjectOrHomeConfigPath(workDir, ["llm-present-config.json", "agent-preset.json"]);
-      if (presentConfigPath?.endsWith("agent-preset.json")) {
-        return JSON.parse(fs.readFileSync(presentConfigPath, "utf-8")) as AgentPresetConfig;
-      }
+      const presentConfigPath = firstExistingProjectOrHomeConfigPath(workDir, ["agent-preset.json"]);
       const presentConfig = loadPresentConfig({ configPath: presentConfigPath, workdir: workDir });
       return {
         preset: presentConfig.defaultPreset,

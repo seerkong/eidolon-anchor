@@ -109,7 +109,6 @@ export class LocalFileMessageHistoryEffects implements MessageHistoryEffects {
     const sessionId = path.basename(sessionPath);
     const actorKey = event.agentKey;
     const actorId = event.agentActorId;
-    const generationId = `${actorKey}__active`;
     const nowIso = new Date().toISOString();
     const paths = getLocalConversationPaths(sessionPath);
 
@@ -138,6 +137,10 @@ export class LocalFileMessageHistoryEffects implements MessageHistoryEffects {
       lineage: null,
       updatedAt: nowIso,
     });
+    const generationId =
+      sessionIndex.session.actorBindings[actorKey]?.historyHeadGenerationId
+      ?? historyIndex.heads[actorKey]?.activeGenerationId
+      ?? `${actorKey}__active`;
 
     const generationPath = getLocalHistoryGenerationPath(sessionPath, generationId);
     const generation = readJsonBestEffort(generationPath, {
@@ -181,10 +184,13 @@ export class LocalFileMessageHistoryEffects implements MessageHistoryEffects {
       actorKey,
       actorId,
       activeGenerationId: generationId,
-      visibleGenerationIds: [generationId],
+      visibleGenerationIds: Array.from(new Set([
+        ...(historyIndex.heads[actorKey]?.visibleGenerationIds ?? []),
+        generationId,
+      ])),
       updatedAt: nowIso,
     };
-    historyIndex.lineages[generationId] = {
+    historyIndex.lineages[generationId] = historyIndex.lineages[generationId] ?? {
       version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
       sessionId,
       actorKey,

@@ -522,4 +522,78 @@ describe("TuiA1StateGraph", () => {
 
     graph.dispose()
   })
+
+  it("bounds local and runtime-backed timeline caches", () => {
+    const graph = new TuiA1StateGraph({
+      initialMessages: [],
+      selection: defaultTuiA1Selection,
+    })
+
+    graph.appendLocalMessages(
+      Array.from({ length: 360 }, (_, index) => createUserMessage(`local-${index}`, `local ${index}`)),
+    )
+
+    expect(graph.snapshot().messages).toHaveLength(300)
+    expect(graph.snapshot().messages[0]?.id).toBe("local-60")
+
+    const runtimeMessages = Array.from({ length: 140 }, (_, index) =>
+      createRuntimeAssistantMessage(`runtime-${index}`, {
+        time: {
+          created: index,
+          completed: index,
+        },
+      }),
+    )
+
+    graph.hydrateRuntimeSession({
+      sessionID: "ses_1",
+      busy: false,
+      messages: runtimeMessages,
+      partsByMessage: Object.fromEntries(
+        runtimeMessages.map((message, index) => [
+          message.id,
+          [createTextPart(message.id, `part-${index}`, `runtime ${index}`)],
+        ]),
+      ),
+    })
+
+    const snapshot = graph.snapshot()
+    expect(Object.keys(snapshot.runtimeMessages)).toHaveLength(100)
+    expect(snapshot.runtimeMessages["runtime-0"]).toBeUndefined()
+    expect(snapshot.runtimeMessages["runtime-139"]).toBeDefined()
+    expect(snapshot.messages.length).toBeLessThanOrEqual(300)
+
+    graph.dispose()
+  })
+
+  it("bounds questionnaire history and keeps pending records first", () => {
+    const graph = new TuiA1StateGraph({
+      initialMessages: [],
+      selection: defaultTuiA1Selection,
+    })
+    graph.setSessionID("ses_1")
+
+    for (let index = 0; index < 125; index += 1) {
+      const request = createQuestionRequest(`question-${index}`)
+      graph.applyQuestionAsked(request)
+      if (index < 124) {
+        graph.recordQuestionHistory(request, [["safe"]])
+        graph.applyQuestionReplied("ses_1", request.id)
+      }
+    }
+
+    const snapshot = graph.snapshot()
+    const records = Object.values(snapshot.questionnaireRecords["ses_1"] ?? {})
+    const history = snapshot.historyMessages["ses_1"] ?? []
+
+    expect(records).toHaveLength(100)
+    expect(records.some((record) => record.id === "question-124" && record.status === "pending")).toBe(true)
+    expect(graph.graph.get<TuiA1QuestionnaireCenter>("questionnaireCenter").entries[0]).toMatchObject({
+      id: "question-124",
+      status: "pending",
+    })
+    expect(history.length).toBeLessThanOrEqual(200)
+
+    graph.dispose()
+  })
 })

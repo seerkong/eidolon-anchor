@@ -1,5 +1,6 @@
 import type { ProviderDriverDefinition, ProviderDriverRequestParams, ProviderDriverStreamParams } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
+import { sanitizeProviderExtraBody } from "../ProviderOptions";
 
 function getString(options: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
@@ -22,7 +23,7 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
           tools: params.tools,
           stream: true,
           ...params.requestOptions,
-          ...params.extraBody,
+          ...sanitizeProviderExtraBody(params.extraBody),
         },
       };
     },
@@ -40,7 +41,7 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
         model: params.model,
         messages: params.messages as any[],
         tools: params.tools as any[],
-        extraBody: { ...params.requestOptions, ...params.extraBody },
+        extraBody: { ...params.requestOptions, ...sanitizeProviderExtraBody(params.extraBody) },
         signal: params.signal,
       });
     },

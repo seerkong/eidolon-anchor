@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import type { TextareaRenderable, KeyBinding } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
 import { createMemo, createSignal, Show } from "solid-js"
@@ -9,7 +10,7 @@ import { useDialog } from "../../../../ui/dialog/context"
 import { DialogSelect } from "../../../../ui/dialog/select"
 import { useLocal } from "../../state/local-context"
 import { formatAgentOptionDescription, sortAgentsByCurrent } from "../../system/agent/agent-option"
-import { usePromptHistory } from "./model/prompt-history"
+import { movePromptHistoryCursor, usePromptHistory, type PromptHistoryState } from "./model/prompt-history"
 import { useTuiA1StateOptional } from "../../state/state-context"
 import { clonePromptInfo, normalizePromptInfoForSubmit } from "./model/prompt-parts"
 import { restoreExtmarksFromParts, syncExtmarksWithPromptParts, type ExtmarkStore } from "./model/extmarks"
@@ -88,7 +89,9 @@ export function Composer(props: {
   blockLabel?: string
   directory: string
   focused?: boolean
+  statusLabel?: string
   selectionLabel: string
+  userInputHistory?: PromptInfo[]
   onHistoryScrollRequest?: (event: {
     scroll?: { direction?: string }
     preventDefault: () => void
@@ -111,6 +114,11 @@ export function Composer(props: {
     stateGraph ? clonePromptInfo(stateGraph.graph.get<PromptInfo>("composer")) : { input: "", parts: [] },
   )
   const [value, setValue] = createSignal(initialPrompt().input)
+  const [factHistoryState, setFactHistoryState] = createSignal<PromptHistoryState>({
+    index: 0,
+    history: [],
+    draft: undefined,
+  })
   const [store, setStore] = createStore<ExtmarkStore>({
     prompt: initialPrompt(),
     extmarkToPartIndex: new Map(),
@@ -125,11 +133,6 @@ export function Composer(props: {
     if (focused()) return
     props.onHistoryScrollRequest?.(event)
   }
-  const previewText = createMemo(() => {
-    const lines = (value() || composerPlaceholder()).split("\n")
-    if (lines.length <= 4) return lines.join("\n")
-    return [...lines.slice(0, 3), `${lines[3]} …`].join("\n")
-  })
   const promptPartSummary = createMemo(() => {
     const fileCount = store.prompt.parts.filter((part) => part.type === "file").length
     const agentCount = store.prompt.parts.filter((part) => part.type === "agent").length
@@ -187,6 +190,7 @@ export function Composer(props: {
     }
     stateGraph?.setComposer(nextPrompt)
     setValue(nextPrompt.input)
+    if (textarea) textarea.cursorOffset = textarea.plainText.length
     textarea?.focus()
   }
 
@@ -211,6 +215,21 @@ export function Composer(props: {
       },
       local.agent.list().map((agent) => agent.name),
     )
+  }
+
+  const moveFactUserInputHistory = (direction: 1 | -1) => {
+    if (!textarea) return
+    const current = clonePromptInfo({
+      ...store.prompt,
+      input: textarea.plainText,
+    })
+    const state = {
+      ...factHistoryState(),
+      history: (props.userInputHistory ?? []).map(clonePromptInfo),
+    }
+    const { nextState, prompt } = movePromptHistoryCursor(state, direction, current)
+    setFactHistoryState(nextState)
+    if (prompt) restorePrompt(prompt)
   }
 
   const openAgentPicker = () => {
@@ -319,6 +338,18 @@ export function Composer(props: {
     if (!focused() || !textarea || props.busy || props.blocked) return
     if (event.defaultPrevented) return
 
+    if ((event as { shift?: boolean }).shift && event.name === "up") {
+      moveFactUserInputHistory(-1)
+      event.preventDefault()
+      return
+    }
+
+    if ((event as { shift?: boolean }).shift && event.name === "down") {
+      moveFactUserInputHistory(1)
+      event.preventDefault()
+      return
+    }
+
     if ((event as { alt?: boolean }).alt && event.name === "up") {
       const previous = promptHistory.move(-1, clonePromptInfo({
         ...store.prompt,
@@ -376,8 +407,15 @@ export function Composer(props: {
       paddingLeft={1}
       paddingRight={1}
       onMouseDown={() => {
+        const wasFocused = focused()
         props.onFocusRequest?.()
-        textarea?.focus()
+        if (!wasFocused && textarea) {
+          setTimeout(() => {
+            if (!textarea!.isDestroyed) {
+              textarea!.cursorOffset = textarea!.plainText.length
+            }
+          }, 0)
+        }
       }}
       onMouseUp={() => {
         if (renderer.getSelection()?.getSelectedText()) return
@@ -387,16 +425,15 @@ export function Composer(props: {
       onMouseScroll={routeHistoryScroll}
     >
       <box flexDirection="row" onMouseScroll={routeHistoryScroll}>
-        <text fg={focused() ? theme.inputBorder : theme.textMuted}>{props.selectionLabel}</text>
-        <box flexGrow={1} />
-        <text fg={props.busy ? theme.warning : theme.textMuted}>
-          {props.blocked
-            ? props.blockLabel ?? "approval required before submit"
-            : props.busy
-              ? "streaming local reply"
-              : `shift+enter newline · ctrl+g mention · ctrl+o file · ${
-                  keybind.print("input_clear") || "ctrl+shift+l"
-                } clear`}
+        <text fg={props.statusLabel ? theme.warning : props.busy ? theme.warning : theme.textMuted} overflow="hidden">
+          {props.statusLabel ??
+            (props.blocked
+              ? props.blockLabel ?? "approval required before submit"
+              : props.busy
+                ? "streaming local reply"
+                : `shift+enter newline · ctrl+g mention · ctrl+o file · ${
+                    keybind.print("input_clear") || "ctrl+shift+l"
+                  } clear`)}
         </text>
       </box>
       <Show when={store.prompt.parts.length > 0}>
@@ -405,24 +442,8 @@ export function Composer(props: {
         </text>
       </Show>
 
-      <Show
-        when={focused()}
-        fallback={
-          <box
-            minHeight={1}
-            paddingTop={0}
-            paddingBottom={0}
-            backgroundColor={theme.panelGlow}
-            onMouseScroll={routeHistoryScroll}
-          >
-            <text fg={value().length > 0 ? theme.text : theme.textMuted} wrapMode="word" onMouseScroll={routeHistoryScroll}>
-              {previewText()}
-            </text>
-          </box>
-        }
-      >
-        <box minHeight={2} backgroundColor={theme.panelGlow}>
-          <textarea
+      <box minHeight={2} backgroundColor={theme.panelGlow}>
+        <textarea
             ref={(value: TextareaRenderable) => {
               textarea = value
               promptPartTypeId =
@@ -439,6 +460,11 @@ export function Composer(props: {
                   setStore,
                 )
               }
+              setTimeout(() => {
+                if (!value.isDestroyed) {
+                  value.cursorOffset = value.plainText.length
+                }
+              }, 0)
               props.onReady?.(value)
             }}
             focused={focused()}
@@ -466,10 +492,16 @@ export function Composer(props: {
             }}
           />
         </box>
-      </Show>
-      <text fg={value().length > 0 ? theme.secondary : theme.textMuted} onMouseScroll={routeHistoryScroll}>
-        {value().length} chars · {store.prompt.parts.length} parts
-      </text>
+      <box flexDirection="row" onMouseScroll={routeHistoryScroll}>
+        <text flexGrow={1} fg={focused() ? theme.userBorder : theme.textMuted} overflow="hidden">
+          {props.selectionLabel}
+        </text>
+        <box flexShrink={0}>
+          <text fg={focused() ? theme.userBorder : theme.textMuted}>
+            {value().length} chars · {store.prompt.parts.length} parts
+          </text>
+        </box>
+      </box>
     </box>
   )
 }

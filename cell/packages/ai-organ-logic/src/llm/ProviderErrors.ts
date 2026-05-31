@@ -65,7 +65,7 @@ export const RESPONSES_TOOL_CONTEXT_RECOVERY_POLICY: ProviderRetryPolicy = {
   baseDelaySeconds: 0,
 };
 
-const HTTP_STATUS_RE = /\bhttp\s*(\d{3})\b/i;
+const HTTP_STATUS_RE = /\b(?:http|fetch error)\s*(\d{3})\b/i;
 const NON_RETRYABLE_PATTERNS = [
   "unauthorized",
   "forbidden",
@@ -94,6 +94,9 @@ const RETRYABLE_PATTERNS = [
   "too many requests",
   "rate limit",
   "upstream overloaded",
+  "upstream error",
+  "do request failed",
+  "do_request_failed",
   "overloaded",
 ];
 

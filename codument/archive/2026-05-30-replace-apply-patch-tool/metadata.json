@@ -1,0 +1,8 @@
+{
+  "track_id": "replace-apply-patch-tool",
+  "type": "feature",
+  "status": "done",
+  "created_at": "2026-05-29T15:40:36Z",
+  "updated_at": "2026-05-29T16:03:59Z",
+  "description": "Replace this project’s existing ApplyPatch tool apply_patch implementation, including related editing lifecycle mechanisms."
+}

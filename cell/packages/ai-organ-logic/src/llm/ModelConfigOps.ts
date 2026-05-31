@@ -30,9 +30,8 @@ export type LlmActorModelConfig = {
 };
 
 export const LLM_CONFIG_DIR_NAME = ".eidolon";
-export const LEGACY_LLM_CONFIG_FILE_NAME = "llm-config.json";
-export const PROVIDER_CONFIG_FILE_NAME = "llm-provider-config.json";
-export const PRESENT_CONFIG_FILE_NAME = "llm-present-config.json";
+export const PROVIDER_CONFIG_FILE_NAME = "llm-provider.json";
+export const PRESENT_CONFIG_FILE_NAME = "agent-preset.json";
 
 function resolveHomeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || os.homedir();
@@ -103,6 +102,40 @@ function optionalNumber(value: unknown, filePath: string, context: string): numb
   return value;
 }
 
+function optionalNestedNumber(
+  obj: Record<string, unknown>,
+  keys: readonly string[],
+  filePath: string,
+  context: string,
+): number | undefined {
+  for (const key of keys) {
+    const value = optionalNumber(obj[key], filePath, `${context}.${key}`);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+function resolveModelLimit(
+  modelItem: Record<string, unknown>,
+  filePath: string,
+  modelContext: string,
+  key: "context" | "output",
+): number {
+  const topLevelKeys = key === "context"
+    ? ["context", "input", "inputContext", "input_context", "maxInputTokens", "max_input_tokens"]
+    : ["output", "outputContext", "output_context", "maxOutputTokens", "max_output_tokens"];
+  const topLevel = optionalNestedNumber(modelItem, topLevelKeys, filePath, modelContext);
+  if (topLevel !== undefined) return topLevel;
+
+  for (const nestedKey of ["limits", "limit"]) {
+    const limits = optionalObject(modelItem[nestedKey], filePath, `${modelContext}.${nestedKey}`);
+    const nested = optionalNestedNumber(limits, topLevelKeys, filePath, `${modelContext}.${nestedKey}`);
+    if (nested !== undefined) return nested;
+  }
+
+  return 0;
+}
+
 export function normalizeModelOptions(options: Record<string, unknown> = {}): Record<string, unknown> {
   const aliases: Record<string, string> = {
     max_output_tokens: "max_tokens",
@@ -169,8 +202,8 @@ export function parseProviderCatalogRaw(raw: Record<string, unknown>, filePath =
       return {
         name,
         adapter: optionalString(modelItem.adapter, filePath, `${modelContext}.adapter`),
-        context: optionalNumber(modelItem.context, filePath, `${modelContext}.context`) ?? 0,
-        output: optionalNumber(modelItem.output, filePath, `${modelContext}.output`) ?? 0,
+        context: resolveModelLimit(modelItem, filePath, modelContext, "context"),
+        output: resolveModelLimit(modelItem, filePath, modelContext, "output"),
         reasoning: isObject(modelItem.reasoning) ? { effort: modelItem.reasoning.effort as any } : undefined,
         options: optionalObject(modelItem.options, filePath, `${modelContext}.options`),
       };
@@ -192,9 +225,6 @@ export function loadProviderCatalog(configPath?: string): LlmProviderCatalogConf
   const raw = readJsonObjectIfExists(filePath);
   if (raw) return parseProviderCatalogRaw(raw, filePath);
   if (configPath) throw new Error(`LLM config file not found: ${filePath}`);
-  const legacyPath = path.join(resolveHomeDir(), LLM_CONFIG_DIR_NAME, LEGACY_LLM_CONFIG_FILE_NAME);
-  const legacyRaw = readJsonObjectIfExists(legacyPath);
-  if (legacyRaw) return parseProviderCatalogRaw(legacyRaw, legacyPath);
   throw new Error(`LLM config file not found: ${filePath}`);
 }
 
@@ -262,13 +292,26 @@ export function flattenModelConfig(
     outputLimit: model?.output ?? 0,
     reasoningEffort: model?.reasoning?.effort,
   });
+  const inputLimit = model?.context ?? 0;
+  // Derive compaction threshold from the user-configured context window
+  // for models that support prefix caching.
+  if (capabilities && inputLimit > 0) {
+    capabilities.cachePolicy ??= {
+      stablePrefix: true,
+      providerManagedPrefixCache: true,
+      preferLateCompaction: true,
+    };
+    capabilities.cachePolicy.compactionThresholdTokens = Math.floor(
+      (inputLimit * 80) / 100,
+    );
+  }
   return {
     provider: provider.name,
     adapter,
     model: model?.name ?? modelName,
     baseURL,
     apiKey,
-    inputLimit: capabilities?.contextWindow ?? model?.context ?? 0,
+    inputLimit,
     outputLimit: model?.output ?? 0,
     reasoningEffort: capabilities?.reasoningEffort ?? model?.reasoning?.effort,
     capabilities,
@@ -346,4 +389,3 @@ export function resolveActorModelConfig(params: {
   }
   return resolved;
 }
-

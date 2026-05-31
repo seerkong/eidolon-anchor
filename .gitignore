@@ -4,11 +4,14 @@
 .npmrc
 bunfig.toml
 **/bunfig.toml
+!bunfig.toml
 .gemini
 .eidolon
 .serena
 .theater
 .opencode
+.envrc
+.codument-local/
 data.sqlite
 bun.lock
 testdata/

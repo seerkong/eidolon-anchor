@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
+import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { aiAgentCooperativeStep, __setCompressionDepsForTest } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
 import { createAiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver";
@@ -31,7 +32,7 @@ async function advanceUntil(params: {
 describe("Stage 3 cooperative compression", () => {
   it("runs compression asynchronously and applies compressed history", async () => {
     const toolRegistry = new ToolFuncRegistry();
-    const historyEvents: any[] = [];
+    const backupCalls: any[] = [];
 
     __setCompressionDepsForTest({
       estimateUsageRatio: () => 0.9,
@@ -65,14 +66,18 @@ describe("Stage 3 cooperative compression", () => {
       { role: "user", content: "A".repeat(500) },
     ];
 
+    const eventBus = new AgentEventGraph();
     const vm = createVM({
       controlActorKey: "main",
       actors: { main: actor },
       registries: { toolRegistry },
+      eventBus,
       effects: {
         messageHistory: {
-          appendMessage: (event) => historyEvents.push(event),
-          backupHistory: async () => {},
+          appendMessage: () => {},
+          backupHistory: async (params) => {
+            backupCalls.push(params);
+          },
         },
       },
     });
@@ -105,6 +110,6 @@ describe("Stage 3 cooperative compression", () => {
     });
 
     expect(messages[0]?.content).toBe("COMPRESSED");
-    expect(historyEvents.length).toBeGreaterThan(0);
+    expect(backupCalls.length).toBeGreaterThan(0);
   });
 });

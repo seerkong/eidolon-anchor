@@ -120,7 +120,7 @@ describe("local permission evaluator", () => {
     }
   });
 
-  it("fails closed on unsupported multiline bash commands", () => {
+  it("requires approval for unsupported multiline bash commands", () => {
     configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
     const root = makeTempRoot();
     const workDir = path.join(root, "workspace");
@@ -131,12 +131,54 @@ describe("local permission evaluator", () => {
       bash: { "git *": "allow" },
     });
 
-    expect(() => evaluateLocalToolPermission({
+    const decision = evaluateLocalToolPermission({
       workDir,
       toolName: "bash",
       payload: { command: "git status\nrm -rf tmp" },
       authorityRoot,
-    })).toThrow("Unsupported shell syntax for permission parsing");
+    });
+    expect(decision.action).toBe("ask");
+    expect(decision.fallbackMessage).toContain("unsupported bash syntax");
+    expect(decision.target).toBe(JSON.stringify(["git status\nrm -rf tmp"]));
+  });
+
+  it("requires approval for unsupported bash syntax instead of throwing a parser error", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {
+      "*": "ask",
+      bash: {
+        "git *": "allow",
+      },
+    });
+
+    const command =
+      "for f in $(find . -name 'step-config-def.json' | sort); do if grep -q \"task_template\" \"$f\" 2>/dev/null; then echo \"HAS: $f\"; fi; done";
+    const decision = evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command },
+      authorityRoot,
+    });
+
+    expect(decision.action).toBe("ask");
+    expect(decision.message).toContain("unsupported syntax");
+    expect(decision.approvalGrant).toMatchObject({
+      kind: "local_permission",
+      permissionName: "bash",
+      target: JSON.stringify([command]),
+    });
+
+    expect(evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command },
+      authorityRoot,
+      approvalGrant: decision.approvalGrant,
+    }).action).toBe("allow");
   });
 
   it("allows supported python heredoc commands when the normalized rule matches", () => {
@@ -159,6 +201,79 @@ describe("local permission evaluator", () => {
     }).action).toBe("allow");
   });
 
+  it("requires approval for python heredoc forms that cannot be normalized safely", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {
+      "*": "ask",
+      bash: { "python3 *": "allow" },
+    });
+
+    const command = "python3 << 'PYEOF'\nprint('hi')\nPYEOF";
+    const decision = evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command },
+      authorityRoot,
+    });
+
+    expect(parseBashCommandSegments("python3 - <<'PYEOF'\nprint('hi')\nPYEOF")).toEqual(["python3 -"]);
+    expect(() => parseBashCommandSegments(command)).toThrow("Unsupported shell syntax");
+    expect(decision.action).toBe("ask");
+    expect(decision.target).toBe(JSON.stringify([command]));
+  });
+
+  it("collapses backslash line continuations before permission parsing", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {
+      "*": "deny",
+      bash: { "git *": "allow" },
+    });
+
+    // Backslash continuation: git add \ then files on next lines
+    expect(parseBashCommandSegments(
+      "git add \\\n  file1.py \\\n  file2.py"
+    )).toEqual(["git add file1.py file2.py"]);
+
+    expect(evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command: "git add \\\n  file1.py \\\n  file2.py" },
+      authorityRoot,
+    }).action).toBe("allow");
+  });
+
+  it("collapses quoted multiline strings before permission parsing", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {
+      "*": "deny",
+      bash: { "git *": "allow" },
+    });
+
+    // Quoted string spanning multiple lines: git commit -m "msg\n..."
+    expect(parseBashCommandSegments(
+      'git commit -m "line1\nline2\nline3"'
+    )).toEqual(['git commit -m line1 line2 line3']);
+
+    expect(evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command: 'git commit -m "line1\nline2"' },
+      authorityRoot,
+    }).action).toBe("allow");
+  });
+
   it("denies redirect writes to protected local permission files", () => {
     configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
     const root = makeTempRoot();
@@ -174,6 +289,24 @@ describe("local permission evaluator", () => {
       workDir,
       toolName: "bash",
       payload: { command: `printf hi > ${path.join(authorityRoot, "permissions.json")}` },
+      authorityRoot,
+    })).toThrow("Protected local permission config path");
+  });
+
+  it("still blocks protected permission config writes when bash syntax is unsupported", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {
+      "*": "ask",
+    });
+
+    expect(() => evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command: `echo $(printf hi > ${path.join(authorityRoot, "permissions.json")})` },
       authorityRoot,
     })).toThrow("Protected local permission config path");
   });

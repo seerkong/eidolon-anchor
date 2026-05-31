@@ -5,7 +5,7 @@ import path from "node:path"
 import yargs from "yargs/yargs"
 
 import { findNearestProjectRoot } from "@cell/platform-support"
-import { thread } from "../src/entry/thread"
+import { buildTuiThreadRuntimeMetadata, thread } from "../src/entry/thread"
 
 let tempRoot: string | null = null
 
@@ -57,5 +57,44 @@ describe("tui thread project root resolution", () => {
       .parseAsync()
 
     expect(parsed.printLogs).toBe(true)
+  })
+
+  it("accepts the dangerous bypass flag under strict option parsing", async () => {
+    const parsed = await yargs(["--dangerously-bypass-approvals-and-sandbox"])
+      .command("$0 [project]", "", thread.builder as any, () => {})
+      .strictOptions()
+      .strictCommands()
+      .help(false)
+      .parseAsync()
+
+    expect(parsed.dangerouslyBypassApprovalsAndSandbox).toBe(true)
+  })
+
+  it("accepts the yolo alias under strict option parsing", async () => {
+    const parsed = await yargs(["--yolo"])
+      .command("$0 [project]", "", thread.builder as any, () => {})
+      .strictOptions()
+      .strictCommands()
+      .help(false)
+      .parseAsync()
+
+    expect(parsed.dangerouslyBypassApprovalsAndSandbox).toBe(true)
+  })
+
+  it("builds danger-full-access runtime metadata for the dangerous bypass flag", () => {
+    const metadata = buildTuiThreadRuntimeMetadata("/tmp/demo-workspace", {
+      dangerouslyBypassApprovalsAndSandbox: true,
+    })
+
+    expect(metadata?.sandbox_permissions).toMatchObject({
+      sandbox_mode: "danger-full-access",
+      network_access: "enabled",
+      approval_policy: "never",
+    })
+    expect(metadata?.exec_protocol).toMatchObject({
+      mode: "dangerous",
+      additional_writable_roots: [],
+      ephemeral: false,
+    })
   })
 })

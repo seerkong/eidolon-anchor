@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { createContext, createMemo, onCleanup, useContext, type ParentProps } from "solid-js"
 import {
   attachSelectionToMessages,

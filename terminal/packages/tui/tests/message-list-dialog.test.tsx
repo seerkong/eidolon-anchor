@@ -134,7 +134,7 @@ describe("message list dialog", () => {
     try {
       await renderSettled(setup, 8)
 
-      await clickSpanByText(setup, "[消息列表]")
+      await clickSpanByText(setup, "[消息]")
       await renderSettled(setup, 4)
 
       const text = captureText(setup)
@@ -160,7 +160,7 @@ describe("message list dialog", () => {
 
     try {
       await renderSettled(setup, 8)
-      await clickSpanByText(setup, "[消息列表]")
+      await clickSpanByText(setup, "[消息]")
       await renderSettled(setup, 4)
 
       await clickSpanByText(setup, "[分叉会话]")
@@ -189,7 +189,7 @@ describe("message list dialog", () => {
 
     try {
       await renderSettled(setup, 8)
-      await clickSpanByText(setup, "[消息列表]")
+      await clickSpanByText(setup, "[消息]")
       await renderSettled(setup, 4)
 
       await clickSpanByText(setup, "[回退至此]")
@@ -202,11 +202,75 @@ describe("message list dialog", () => {
       expect(messageText).toContain("newer question")
       expect(messageText).not.toContain("收到：newer question")
 
-      await clickSpanByText(setup, "[消息列表]")
+      await clickSpanByText(setup, "[消息]")
       await renderSettled(setup, 4)
       const dialogText = captureText(setup).slice(captureText(setup).indexOf("消息列表"))
       expect(dialogText).toContain("newer question")
       expect(dialogText).not.toContain("收到：newer question")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("shows a loading session hint while a session is hydrating", async () => {
+    const runtime = createTuiRuntimeClient()
+    const originalMessages = runtime.client.session.messages.bind(runtime.client.session)
+    runtime.client.session.messages = (async (...args: Parameters<typeof originalMessages>) => {
+      await tick(180)
+      return originalMessages(...args)
+    }) as typeof runtime.client.session.messages
+
+    const setup = await testRender(() => renderMessageListHarness(runtime, "ses_1"), {
+      width: 130,
+      height: 44,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 2)
+      expect(captureText(setup)).toContain("正在加载会话...")
+
+      await tick(260)
+      await renderSettled(setup, 6)
+
+      const text = captureText(setup)
+      expect(text).toContain("shift+enter newline")
+      expect(text).not.toContain("正在加载会话...")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("shows runtime status messages above the composer", async () => {
+    const { runtime, sessionID } = await createSeededRuntime()
+    const setup = await testRender(() => renderMessageListHarness(runtime, sessionID), {
+      width: 130,
+      height: 44,
+    })
+
+    try {
+      await renderSettled(setup, 4)
+      runtime.event.emit({
+        type: "session.status",
+        properties: {
+          sessionID,
+          status: { type: "busy", message: "正在初始化 MCP..." },
+        },
+      } as any)
+      await renderSettled(setup, 2)
+
+      expect(captureText(setup)).toContain("正在初始化 MCP...")
+
+      runtime.event.emit({
+        type: "session.status",
+        properties: {
+          sessionID,
+          status: { type: "idle" },
+        },
+      } as any)
+      await renderSettled(setup, 2)
+
+      expect(captureText(setup)).not.toContain("正在初始化 MCP...")
     } finally {
       setup.renderer.destroy()
     }

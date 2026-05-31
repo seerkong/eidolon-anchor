@@ -143,8 +143,13 @@ export function createAutonomousHolonTaskRunner(_params: {
             }
 
             params.members.markMemberShutdownRequested({ vm: params.vm, memberId: member.memberId, requestId: `idle-timeout:${idleTimeoutMs}` });
-            member.actor.send("control", { kind: "shutdown_requested" } as any);
-            member.driver.resumeFiber(member.fiberId, now);
+            member.driver.emitFiberSignal({
+              fiberId: member.fiberId,
+              signalKind: "interrupt_requested",
+              mailbox: { kind: "control", payload: { kind: "shutdown_requested" } as any },
+              idempotencyKey: `${member.fiberId}:idle-timeout-shutdown:${idleTimeoutMs}:${now}`,
+              createdAt: now,
+            });
 
             params.vm.eventBus?.emitAutonomousHolonIdleExit?.(
               { key: member.actor.key, id: member.actor.id },

@@ -66,6 +66,46 @@ const mockRuntimeBridge: TuiRuntimeBridge = {
     )
     return text
   },
+  async getActorSurface() {
+    return {
+      conversationLanes: [
+        {
+          laneId: "lane:primary",
+          kind: "primary",
+          displayName: "Mock Agent",
+          backendIdentity: { kind: "primary", name: "Mock Agent" },
+          actorId: "mock-actor",
+          actorKey: "mock",
+          initialized: true,
+          status: "idle",
+        },
+      ],
+      actorLanes: [
+        {
+          actorId: "mock-actor",
+          actorKey: "mock",
+          actorType: "primary",
+          displayName: "Mock Agent",
+          transcriptKey: {
+            actorId: "mock-actor",
+            actorKey: "mock",
+          },
+          runtimeStatus: "idle",
+          cancellable: false,
+        },
+      ],
+      selectedLaneId: "lane:primary",
+      selectedActorId: "mock-actor",
+      selectedTarget: {
+        laneId: "lane:primary",
+        actorId: "mock-actor",
+      },
+      questionnaireSurface: [],
+    }
+  },
+  async compact() {
+    return { ok: true, message: "Mock runtime compacted" }
+  },
   async abort(): Promise<void> {},
   dispose(): void {},
   subscribeNotifications() {

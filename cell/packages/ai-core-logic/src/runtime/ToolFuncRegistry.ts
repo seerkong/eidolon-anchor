@@ -31,6 +31,16 @@ export class ToolFuncRegistry extends ToolFuncRegistryData {
     return ToolFuncRegistry.list(this);
   }
 
+  async call(
+    name: string,
+    vm: AiAgentVm,
+    actor: AiAgentActor,
+    args: unknown,
+    meta?: { toolCallId?: string; localPermissionGrant?: unknown; signal?: AbortSignal },
+  ): Promise<unknown> {
+    return await ToolFuncRegistry.call(this, name, vm, actor, args, meta);
+  }
+
   static create(entries: Record<string, AnyToolDef> = {}): ToolFuncRegistryData {
     return new ToolFuncRegistryData(entries);
   }
@@ -59,13 +69,14 @@ export class ToolFuncRegistry extends ToolFuncRegistryData {
     vm: AiAgentVm,
     actor: AiAgentActor,
     args: unknown,
-    meta?: { toolCallId?: string; localPermissionGrant?: unknown },
+    meta?: { toolCallId?: string; localPermissionGrant?: unknown; signal?: AbortSignal },
   ): Promise<unknown> {
     const runtime: AiAgentOneActorRuntime<AiAgentVm, AiAgentActor> = { vm, actor };
     const extendedRuntime = {
       ...runtime,
       toolCallId: meta?.toolCallId,
       localPermissionGrant: meta?.localPermissionGrant,
+      signal: meta?.signal,
     } as any;
 
     const tool = ToolFuncRegistry.get(registry, name);

@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import type { Event, TuiRuntimeSdk } from "@terminal/core/AIAgent"
 import { createSimpleContext } from "./helper"
 import { createEmitter } from "@solid-primitives/event-bus"

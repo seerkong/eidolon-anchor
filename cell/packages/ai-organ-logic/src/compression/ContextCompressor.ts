@@ -1,3 +1,7 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
 import compressionPrompt from "./CompressionPrompt.md" with { type: "text" };
 import type { LlmAdapter } from "@cell/ai-core-contract/LlmTypes";
 import { estimateTokens } from "./TokenEstimator";
@@ -13,8 +17,40 @@ type CompressHistoryParams = {
   llmAdapter: LlmAdapter;
   model: string;
   inputLimit: number;
+  tokenBudget?: number;
+  recentKeep?: number;
   logger?: LoggerLike;
   processStream?: (stream: AsyncIterable<any>) => Promise<any>;
+};
+
+type ToolResultRef = {
+  messageIndex: number;
+  blockIndex?: number;
+  toolCallId: string;
+  getContent: () => unknown;
+  setContent: (content: string) => void;
+};
+
+export type CheapCompactionStats = {
+  persistedToolResults: number;
+  microCompactedToolResults: number;
+  tokensBefore: number;
+  tokensAfter: number;
+};
+
+export type CheapCompactionResult = {
+  messages: any[];
+  changed: boolean;
+  stats: CheapCompactionStats;
+};
+
+export type CheapCompactionOptions = {
+  artifactDir?: string | null;
+  toolResultBudgetBytes?: number;
+  toolResultPersistThresholdBytes?: number;
+  toolResultPreviewChars?: number;
+  microKeepRecentToolResults?: number;
+  microMinContentChars?: number;
 };
 
 function warn(logger: LoggerLike | undefined, message: string, error?: unknown): void {
@@ -59,6 +95,190 @@ function toSummaryText(value: any): string {
   }
 
   return parts.join("").trim();
+}
+
+function cloneMessages(messages: any[]): any[] {
+  try {
+    return structuredClone(messages);
+  } catch {
+    return JSON.parse(JSON.stringify(messages));
+  }
+}
+
+function stringifyContent(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === undefined || value === null) return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function normalizeToolCallId(message: any, block?: any): string {
+  const raw =
+    block?.tool_use_id
+    ?? block?.toolUseId
+    ?? block?.tool_call_id
+    ?? block?.toolCallId
+    ?? message?.tool_call_id
+    ?? message?.toolCallId
+    ?? message?.toolCallID
+    ?? "";
+  return typeof raw === "string" && raw ? raw : "unknown";
+}
+
+function collectToolResultRefs(messages: any[]): ToolResultRef[] {
+  const refs: ToolResultRef[] = [];
+  messages.forEach((message, messageIndex) => {
+    if (!message || typeof message !== "object") return;
+    if (message.role === "tool") {
+      refs.push({
+        messageIndex,
+        toolCallId: normalizeToolCallId(message),
+        getContent: () => message.content,
+        setContent: (content) => {
+          message.content = content;
+        },
+      });
+    }
+
+    if (!Array.isArray(message.content)) return;
+    message.content.forEach((block: any, blockIndex: number) => {
+      if (!block || typeof block !== "object" || block.type !== "tool_result") return;
+      refs.push({
+        messageIndex,
+        blockIndex,
+        toolCallId: normalizeToolCallId(message, block),
+        getContent: () => block.content,
+        setContent: (content) => {
+          block.content = content;
+        },
+      });
+    });
+  });
+  return refs;
+}
+
+function sanitizeArtifactName(value: string): string {
+  const safe = value.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return safe.slice(0, 80) || "tool-result";
+}
+
+function persistToolResult(params: {
+  artifactDir: string;
+  toolCallId: string;
+  content: string;
+  previewChars: number;
+}): string {
+  fs.mkdirSync(params.artifactDir, { recursive: true });
+  const hash = crypto.createHash("sha256").update(params.content).digest("hex").slice(0, 16);
+  const fileName = `${sanitizeArtifactName(params.toolCallId)}-${hash}.txt`;
+  const filePath = path.join(params.artifactDir, fileName);
+  if (!fs.existsSync(filePath)) {
+    fs.writeFileSync(filePath, params.content);
+  }
+  const preview = params.content.slice(0, params.previewChars);
+  return [
+    "<persisted-tool-result>",
+    `Full output persisted at: ${filePath}`,
+    `Original characters: ${params.content.length}`,
+    "Preview:",
+    preview,
+    "</persisted-tool-result>",
+  ].join("\n");
+}
+
+function extractPersistedPath(content: string): string | null {
+  const match = content.match(/Full output persisted at:\s*(.+)/);
+  return match?.[1]?.trim() || null;
+}
+
+export function applyToolResultBudget(
+  messages: any[],
+  options: Pick<CheapCompactionOptions, "artifactDir" | "toolResultBudgetBytes" | "toolResultPersistThresholdBytes" | "toolResultPreviewChars"> = {},
+): { changed: boolean; persisted: number } {
+  const artifactDir = typeof options.artifactDir === "string" && options.artifactDir ? options.artifactDir : null;
+  if (!artifactDir) {
+    return { changed: false, persisted: 0 };
+  }
+
+  const maxBytes = options.toolResultBudgetBytes ?? 200_000;
+  const persistThreshold = options.toolResultPersistThresholdBytes ?? 30_000;
+  const previewChars = options.toolResultPreviewChars ?? 2_000;
+  const refs = collectToolResultRefs(messages);
+  let total = refs.reduce((sum, ref) => sum + stringifyContent(ref.getContent()).length, 0);
+  if (total <= maxBytes) {
+    return { changed: false, persisted: 0 };
+  }
+
+  let persisted = 0;
+  const ranked = refs
+    .map((ref) => ({ ref, content: stringifyContent(ref.getContent()) }))
+    .sort((a, b) => b.content.length - a.content.length);
+  for (const item of ranked) {
+    if (total <= maxBytes) break;
+    if (item.content.length <= persistThreshold) continue;
+    if (item.content.includes("<persisted-tool-result>")) continue;
+    const replacement = persistToolResult({
+      artifactDir,
+      toolCallId: item.ref.toolCallId,
+      content: item.content,
+      previewChars,
+    });
+    item.ref.setContent(replacement);
+    persisted += 1;
+    total = refs.reduce((sum, ref) => sum + stringifyContent(ref.getContent()).length, 0);
+  }
+
+  return { changed: persisted > 0, persisted };
+}
+
+export function microCompactToolResults(
+  messages: any[],
+  options: Pick<CheapCompactionOptions, "microKeepRecentToolResults" | "microMinContentChars"> = {},
+): { changed: boolean; compacted: number } {
+  const keepRecent = Math.max(0, Math.floor(options.microKeepRecentToolResults ?? 3));
+  const minChars = Math.max(0, Math.floor(options.microMinContentChars ?? 120));
+  const refs = collectToolResultRefs(messages);
+  if (refs.length <= keepRecent) {
+    return { changed: false, compacted: 0 };
+  }
+
+  let compacted = 0;
+  for (const ref of refs.slice(0, refs.length - keepRecent)) {
+    const content = stringifyContent(ref.getContent());
+    if (content.length <= minChars) continue;
+    const persistedPath = extractPersistedPath(content);
+    ref.setContent(
+      persistedPath
+        ? `[Earlier tool result compacted. Full output persisted at: ${persistedPath}. Re-run the tool or read that file if needed.]`
+        : "[Earlier tool result compacted. Re-run the tool if the full output is needed.]",
+    );
+    compacted += 1;
+  }
+  return { changed: compacted > 0, compacted };
+}
+
+export function applyCheapCompactionPipeline(
+  messages: any[],
+  options: CheapCompactionOptions = {},
+): CheapCompactionResult {
+  const tokensBefore = estimateTokens(messages);
+  let next = cloneMessages(messages);
+  const budget = applyToolResultBudget(next, options);
+  const micro = microCompactToolResults(next, options);
+  const tokensAfter = estimateTokens(next);
+  return {
+    messages: next,
+    changed: budget.changed || micro.changed,
+    stats: {
+      persistedToolResults: budget.persisted,
+      microCompactedToolResults: micro.compacted,
+      tokensBefore,
+      tokensAfter,
+    },
+  };
 }
 
 async function collectStreamText(stream: AsyncIterable<any>): Promise<string> {
@@ -126,6 +346,48 @@ export function loadCompressionPrompt(): string {
   return compressionPrompt;
 }
 
+function fitMessagesWithinTokenBudget(messages: any[], tokenBudget: number): any[] {
+  if (!Number.isFinite(tokenBudget) || tokenBudget <= 0) {
+    return [];
+  }
+
+  let fitted = [...messages];
+  while (fitted.length > 1 && estimateTokens(fitted) > tokenBudget) {
+    fitted.shift();
+  }
+
+  if (estimateTokens(fitted) <= tokenBudget) {
+    return fitted;
+  }
+
+  const single = fitted[0];
+  if (!single) {
+    return [];
+  }
+
+  const next = { ...single };
+  const content = typeof next.content === "string" ? next.content : "";
+  if (!content) {
+    return estimateTokens([next]) <= tokenBudget ? [next] : [];
+  }
+
+  let low = 0;
+  let high = content.length;
+  let best = "";
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+    const candidate = { ...next, content: content.slice(0, mid) };
+    if (estimateTokens([candidate]) <= tokenBudget) {
+      best = candidate.content;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
+  }
+
+  return best ? [{ ...next, content: best }] : [];
+}
+
 export async function compressHistory(params: CompressHistoryParams): Promise<any[] | null> {
   const { messages, llmAdapter, model, inputLimit, logger, processStream } = params;
 
@@ -133,7 +395,7 @@ export async function compressHistory(params: CompressHistoryParams): Promise<an
     return null;
   }
 
-  const splitPoint = findSplitPoint(messages);
+  const splitPoint = findSplitPoint(messages, params.recentKeep ?? 4);
   if (splitPoint <= 0) {
     return null;
   }
@@ -147,7 +409,22 @@ export async function compressHistory(params: CompressHistoryParams): Promise<an
 
   try {
     const prompt = loadCompressionPrompt();
-    const serializedOld = JSON.stringify(oldMessages, null, 2);
+    const requestOverheadTokens = estimateTokens([
+      { role: "system", content: prompt },
+      { role: "user", content: "[]" },
+    ]);
+    const safeInputLimit = Math.max(1, Math.floor(inputLimit * 0.9));
+    const tokenBudget = Math.floor(Math.min(params.tokenBudget ?? safeInputLimit, safeInputLimit) - requestOverheadTokens);
+    if (tokenBudget <= 0) {
+      warn(logger, "compressHistory failed: compression prompt overhead exceeds request budget");
+      return null;
+    }
+    const oldMessagesForCompression = fitMessagesWithinTokenBudget(oldMessages, tokenBudget);
+    if (oldMessagesForCompression.length === 0) {
+      warn(logger, "compressHistory failed: no old messages fit within compression request budget");
+      return null;
+    }
+    const serializedOld = JSON.stringify(oldMessagesForCompression, null, 2);
     const { stream } = await llmAdapter.createStream({
       model,
       messages: [

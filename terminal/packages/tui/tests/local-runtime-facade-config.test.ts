@@ -23,6 +23,16 @@ const originalHome = process.env.HOME
 
 type TestRuntimeBridge = TuiRuntimeBridge
 
+const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms))
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
+
 function createTempProject() {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-anchor-tui-"))
   const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-anchor-home-"))
@@ -86,6 +96,68 @@ const MEMBER_LIST_SLASH_COMMANDS: SlashCommandDescriptor[] = [
 ]
 
 describe("TuiRuntimeClient local-runtime mode", () => {
+  it("tracks prompt history from user_input facts and usage signal updates", async () => {
+    const { workDir } = createTempProject()
+    let historyHandler: ((event: any) => void) | undefined
+    let usageHandler: ((usage: any) => void) | undefined
+
+    __setRuntimeBridgeFactoryForTest(async () => ({
+      async turn(input: string, opts?: { onControl?: (control: { cmd: "NewMessage"; category?: string }) => void; onChunk?: (chunk: string) => void }) {
+        historyHandler?.({
+          stream: "user_input",
+          payload: input,
+          startAt: 11,
+          endAt: 11,
+          agentKey: "main",
+          agentActorId: "actor-main",
+        })
+        usageHandler?.({
+          prompt_tokens: 42,
+          completion_tokens: 0,
+          total_tokens: 42,
+          cache_creation_tokens: 0,
+          cache_read_tokens: 0,
+          is_estimated: true,
+        })
+        await opts?.onControl?.({ cmd: "NewMessage", category: "assist" })
+        await opts?.onChunk?.("ok")
+        return "ok"
+      },
+      async abort() {},
+      dispose() {},
+      subscribeNotifications() {
+        return { unsubscribe() {} }
+      },
+      subscribeHistoryEvents(handler: (event: any) => void) {
+        historyHandler = handler
+        return { unsubscribe() { historyHandler = undefined } }
+      },
+      subscribeUsage(handler: (usage: any) => void) {
+        usageHandler = handler
+        return { unsubscribe() { usageHandler = undefined } }
+      },
+    }) as TestRuntimeBridge)
+
+    const sdk = createTuiRuntimeClient({
+      mode: "local-runtime",
+      directory: workDir,
+    })
+    const events: any[] = []
+    const unsub = sdk.event.on((event) => events.push(event))
+    const session = await sdk.client.session.create({})
+
+    await sdk.client.session.prompt({
+      sessionID: session.data?.id,
+      parts: [{ id: "p1", type: "text", text: "事实输入" } as Part],
+    })
+
+    const inputs = await sdk.client.session.userInputs({ sessionID: session.data?.id })
+    expect(inputs.data?.map((entry) => entry.text)).toEqual(["事实输入"])
+    expect(events.some((event) => event.type === "session.user_input" && event.properties.text === "事实输入")).toBe(true)
+    expect(events.some((event) => event.type === "session.usage" && event.properties.usage.total_tokens === 42)).toBe(true)
+    unsub()
+  })
+
   it("uses local provider config instead of mock metadata", async () => {
     const { workDir, homeDir } = createTempProject()
 
@@ -339,30 +411,34 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.rmSync(homeDir, { recursive: true, force: true })
   })
 
-  it("uses runtime-provided agents instead of the static catalog defaults", async () => {
+  it("uses catalog agents without starting a default runtime bridge", async () => {
     const { workDir, homeDir } = createTempProject()
+    let runtimeStarts = 0
 
-    __setRuntimeBridgeFactoryForTest(async () => ({
-      async agents() {
-        return [
-          {
-            name: "code",
-            description: "Default code agent",
-            mode: "primary",
-            permission: [],
-            options: {},
-          },
-        ]
-      },
-      async turn() {
-        return "ok"
-      },
-      async abort() {},
-      dispose() {},
-      subscribeNotifications(_handler: any) {
-        return { unsubscribe() {} }
-      },
-    }))
+    __setRuntimeBridgeFactoryForTest(async () => {
+      runtimeStarts += 1
+      return {
+        async agents() {
+          return [
+            {
+              name: "code",
+              description: "Default code agent",
+              mode: "primary",
+              permission: [],
+              options: {},
+            },
+          ]
+        },
+        async turn() {
+          return "ok"
+        },
+        async abort() {},
+        dispose() {},
+        subscribeNotifications(_handler: any) {
+          return { unsubscribe() {} }
+        },
+      }
+    })
 
     const sdk = createTuiRuntimeClient({
       mode: "local-runtime",
@@ -370,14 +446,55 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     })
 
     const agents = await sdk.client.app.agents()
-    expect(agents.data!).toEqual([
-      expect.objectContaining({
-        name: "code",
-        description: "Default code agent",
-      }),
-    ])
-    expect(agents.data!.some((agent) => agent.name === "build")).toBe(false)
+    expect(runtimeStarts).toBe(0)
+    expect(agents.data!.some((agent) => agent.name === "code")).toBe(true)
 
+    fs.rmSync(workDir, { recursive: true, force: true })
+    fs.rmSync(homeDir, { recursive: true, force: true })
+  })
+
+  it("emits an MCP initialization status while starting the local runtime bridge", async () => {
+    const { workDir, homeDir } = createTempProject()
+    const bridgeStart = deferred<TuiRuntimeBridge>()
+    const statusMessages: string[] = []
+
+    __setRuntimeBridgeFactoryForTest(async () => bridgeStart.promise)
+
+    const sdk = createTuiRuntimeClient({
+      mode: "local-runtime",
+      directory: workDir,
+    })
+    const unsubscribe = sdk.event.on("session.status", (event) => {
+      const message = event.properties?.status?.message
+      if (typeof message === "string") {
+        statusMessages.push(message)
+      }
+    })
+
+    const session = await sdk.client.session.create({})
+    const prompt = sdk.client.session.prompt({
+      sessionID: session.data?.id,
+      parts: [{ id: "input", type: "text", text: "hello" } as any],
+    })
+    await tick()
+
+    expect(statusMessages).toContain("正在初始化 MCP...")
+
+    bridgeStart.resolve({
+      async turn() {
+        return "ok"
+      },
+      async compact() {
+        return { ok: true, message: "ok" }
+      },
+      async abort() {},
+      dispose() {},
+      subscribeNotifications(_handler: any) {
+        return { unsubscribe() {} }
+      },
+    })
+    await prompt
+    unsubscribe()
     fs.rmSync(workDir, { recursive: true, force: true })
     fs.rmSync(homeDir, { recursive: true, force: true })
   })
@@ -418,6 +535,7 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     })
 
     const session = await sdk.client.session.create({})
+    await sdk.client.session.abort({ sessionID: session.data?.id })
     const messages = await sdk.client.session.messages({ sessionID: session.data?.id })
     const texts = messages.data!.flatMap((entry) =>
       entry.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])),
@@ -426,6 +544,57 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     expect(texts).toContain("runtime-first user")
     expect(texts).toContain("runtime-first assistant")
     expect(texts).not.toContain("runtime prelude")
+
+    fs.rmSync(workDir, { recursive: true, force: true })
+    fs.rmSync(homeDir, { recursive: true, force: true })
+  })
+
+  it("hydrates persisted local session history without starting a runtime bridge", async () => {
+    const { workDir, homeDir } = createTempProject()
+    const sessionID = "persisted-no-runtime-start"
+    const sessionDir = path.join(workDir, ".eidolon", "sessions", sessionID)
+    fs.mkdirSync(sessionDir, { recursive: true })
+
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    await bootstrapConversationHistoryFromMessages({
+      sessionId: sessionID,
+      actorKey: "main",
+      actorId: "actor-main",
+      messages: [
+        { role: "user", content: "persisted first question" } as any,
+        { role: "assistant", content: "persisted first answer" } as any,
+      ],
+      repository,
+    })
+
+    let runtimeStarts = 0
+    __setRuntimeBridgeFactoryForTest(async () => {
+      runtimeStarts += 1
+      return {
+        async turn() {
+          return "ok"
+        },
+        async abort() {},
+        dispose() {},
+        subscribeNotifications(_handler: any) {
+          return { unsubscribe() {} }
+        },
+      }
+    })
+
+    const sdk = createTuiRuntimeClient({
+      mode: "local-runtime",
+      directory: workDir,
+    })
+
+    const messages = await sdk.client.session.messages({ sessionID })
+    const texts = messages.data!.flatMap((entry) =>
+      entry.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])),
+    )
+
+    expect(runtimeStarts).toBe(0)
+    expect(texts).toContain("persisted first question")
+    expect(texts).toContain("persisted first answer")
 
     fs.rmSync(workDir, { recursive: true, force: true })
     fs.rmSync(homeDir, { recursive: true, force: true })

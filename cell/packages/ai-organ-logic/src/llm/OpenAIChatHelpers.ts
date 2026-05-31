@@ -53,6 +53,17 @@ function normalizeOpenAIToolCallId(message: any): string | undefined {
   return typeof value === "string" && value ? value : undefined;
 }
 
+function normalizeOpenAIToolMessageContent(content: unknown): string | unknown[] {
+  if (Array.isArray(content)) return content;
+  if (typeof content === "string") return content;
+  if (content === undefined || content === null) return "";
+  try {
+    return JSON.stringify(content);
+  } catch {
+    return String(content);
+  }
+}
+
 function hasOpenAIMessageContent(message: any): boolean {
   if (!message || !("content" in message)) return false;
   if (typeof message.content === "string") return message.content.length > 0;
@@ -126,7 +137,7 @@ export function normalizeOpenAIChatMessages(
       const toolCallId = normalizeOpenAIToolCallId(message);
       const normalized: Record<string, unknown> = {
         role: "tool",
-        content: message.content ?? "",
+        content: normalizeOpenAIToolMessageContent(message.content),
       };
       if (toolCallId) normalized.tool_call_id = toolCallId;
       if (typeof message.name === "string" && message.name) normalized.name = message.name;
@@ -215,6 +226,26 @@ export function repairOpenAIChatToolCallAdjacency(messages: any[]): any[] {
     let nextIndex = index + 1;
     while (nextIndex < messages.length && messages[nextIndex]?.role === "tool") {
       toolMessages.push(messages[nextIndex]);
+      nextIndex += 1;
+    }
+    while (
+      nextIndex + 1 < messages.length &&
+      messages[nextIndex]?.role === "assistant" &&
+      Array.isArray(messages[nextIndex]?.tool_calls) &&
+      messages[nextIndex].tool_calls.length > 0 &&
+      !hasOpenAIMessageContent(messages[nextIndex]) &&
+      !hasOpenAIReasoningContent(messages[nextIndex]) &&
+      messages[nextIndex + 1]?.role === "tool"
+    ) {
+      const duplicateToolCalls = messages[nextIndex].tool_calls;
+      const duplicateToolCallIds = new Set(duplicateToolCalls.map((toolCall: any) => String(toolCall?.id ?? "")).filter(Boolean));
+      const allDuplicateCallsWereDeclared = duplicateToolCallIds.size > 0
+        && Array.from(duplicateToolCallIds).every((id) => message.tool_calls.some((toolCall: any) => String(toolCall?.id ?? "") === id));
+      if (!allDuplicateCallsWereDeclared) break;
+      while (nextIndex + 1 < messages.length && messages[nextIndex + 1]?.role === "tool") {
+        toolMessages.push(messages[nextIndex + 1]);
+        nextIndex += 1;
+      }
       nextIndex += 1;
     }
 

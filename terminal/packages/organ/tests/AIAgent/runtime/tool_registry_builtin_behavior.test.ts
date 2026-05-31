@@ -4,6 +4,9 @@ import os from "os";
 import path from "path";
 
 import { composeToolRegistry } from "@cell/ai-organ-logic/composer/AIAgent/ToolFuncComposer";
+import { BASE_TOOLS, buildAllTools } from "@cell/ai-organ-logic/composer/AIAgent/ToolDefinitions";
+import { configureLocalPermissionConfigStore } from "@cell/ai-organ-logic";
+import { LocalFilePermissionConfigStore } from "@cell/ai-support";
 import { createActor, createVM } from "@cell/ai-core-logic";
 
 function makeTempDir(prefix: string): string {
@@ -11,6 +14,8 @@ function makeTempDir(prefix: string): string {
 }
 
 const joinTokens = (...parts: string[]) => parts.join("");
+
+configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
 
 describe("tool_registry_builtin_behavior", () => {
   it("keeps builtin tool behavior and supports dynamic MCP ToolDef", async () => {
@@ -41,9 +46,13 @@ describe("tool_registry_builtin_behavior", () => {
     expect(registry.get("FormationAppoint")).toBeFalsy();
     expect(registry.get("FormationStatus")).toBeFalsy();
     expect(registry.get("FormationAssign")).toBeFalsy();
-    expect(registry.get("DetachedActorList")).toBeFalsy();
-    expect(registry.get("DetachedActorStatus")).toBeFalsy();
+    expect(registry.get("DetachedActorList")).toBeTruthy();
+    expect(registry.get("DetachedActorStatus")).toBeTruthy();
     expect(registry.get("DetachedBash")).toBeFalsy();
+    expect(registry.get("RunDetachedBash")).toBeTruthy();
+    expect(registry.get("DetachedActorLogs")).toBeTruthy();
+    expect(registry.get("DetachedActorMessages")).toBeTruthy();
+    expect(registry.get("DetachedActorResult")).toBeTruthy();
     expect(registry.get("DetachedToolCall")).toBeFalsy();
     expect(registry.get("ShutdownRequest")).toBeFalsy();
     expect(registry.get("ShutdownStatus")).toBeFalsy();
@@ -57,6 +66,27 @@ describe("tool_registry_builtin_behavior", () => {
     expect(registry.get(joinTokens("Auto", "nomy", "Tick"))).toBeFalsy();
     expect(registry.get(joinTokens("Auto", "nomy", "Status"))).toBeFalsy();
 
+    const baseToolNames = new Set(BASE_TOOLS.map((tool) => tool.function.name));
+    expect(baseToolNames.has("RunDelegateActor")).toBe(false);
+    expect(baseToolNames.has("DetachedActorList")).toBe(true);
+    expect(baseToolNames.has("DetachedActorStatus")).toBe(true);
+    expect(baseToolNames.has("DetachedBash")).toBe(false);
+    expect(baseToolNames.has("RunDetachedBash")).toBe(true);
+    expect(baseToolNames.has("DetachedActorLogs")).toBe(true);
+    expect(baseToolNames.has("DetachedActorMessages")).toBe(true);
+    expect(baseToolNames.has("DetachedActorResult")).toBe(true);
+    expect(baseToolNames.has("DetachedToolCall")).toBe(false);
+
+    const allToolNames = new Set(buildAllTools("", {
+      code: { description: "Code agent" } as any,
+    }).map((tool) => tool.function.name));
+    expect(allToolNames.has("RunDelegateActor")).toBe(true);
+    expect(allToolNames.has("DetachedBash")).toBe(false);
+    expect(allToolNames.has("RunDetachedBash")).toBe(true);
+    expect(allToolNames.has("DetachedActorLogs")).toBe(true);
+    expect(allToolNames.has("DetachedActorMessages")).toBe(true);
+    expect(allToolNames.has("DetachedActorResult")).toBe(true);
+
     const internalRegistry = composeToolRegistry({ includeInternalOnly: true });
     expect(internalRegistry.get("CollectiveCreate")).toBeFalsy();
     expect(internalRegistry.get("CollectiveAdd")).toBeFalsy();
@@ -69,6 +99,11 @@ describe("tool_registry_builtin_behavior", () => {
     expect(internalRegistry.get("FormationAssign")).toBeFalsy();
     expect(internalRegistry.get("DetachedActorList")).toBeTruthy();
     expect(internalRegistry.get("DetachedActorStatus")).toBeTruthy();
+    expect(internalRegistry.get("DetachedBash")).toBeFalsy();
+    expect(internalRegistry.get("RunDetachedBash")).toBeTruthy();
+    expect(internalRegistry.get("DetachedActorLogs")).toBeTruthy();
+    expect(internalRegistry.get("DetachedActorMessages")).toBeTruthy();
+    expect(internalRegistry.get("DetachedActorResult")).toBeTruthy();
 
     const actor = createActor({ key: "test" });
     const vm = createVM({

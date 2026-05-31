@@ -11,7 +11,9 @@
     ".": "./src/index.ts",
     "./AIAgent": "./src/AIAgent/index.ts",
     "./AIAgent/*": "./src/AIAgent/*.ts",
-    "./stream/*": "./src/stream/*.ts"
+    "./stream/*": "./src/stream/*.ts",
+    "./observability": "./src/observability/index.ts",
+    "./observability/*": "./src/observability/*.ts"
   },
   "dependencies": {
     "@cell/ai-core-contract": "workspace:*",
@@ -22,6 +24,7 @@
     "@cell/symbiont-logic": "workspace:*",
     "@terminal/core": "workspace:*",
     "depa-data-graph-core": "^0.1.0",
+    "xnl-core": "^0.1.1",
     "xstream": "^11.14.0"
   }
 }

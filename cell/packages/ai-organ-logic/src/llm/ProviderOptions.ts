@@ -1,5 +1,7 @@
 import type { ResponsesContinuationConfig } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 
+const INTERNAL_PROVIDER_EXTRA_BODY_KEYS = new Set(["prompt_plan", "work_context"]);
+
 function toSnakeCase(value: string): string {
   return value
     .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
@@ -41,6 +43,13 @@ export function extractProviderConnectionOptions(options: Record<string, unknown
     "websocket_connect_timeout_seconds",
   ]);
   return Object.fromEntries(Object.entries(normalized).filter(([key, value]) => connectionKeys.has(key) && value != null));
+}
+
+export function sanitizeProviderExtraBody(extraBody?: Record<string, unknown>): Record<string, unknown> {
+  if (!extraBody || typeof extraBody !== "object" || Array.isArray(extraBody)) return {};
+  return Object.fromEntries(
+    Object.entries(extraBody).filter(([key, value]) => value !== undefined && !INTERNAL_PROVIDER_EXTRA_BODY_KEYS.has(key)),
+  );
 }
 
 function splitByKeys(

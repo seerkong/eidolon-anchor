@@ -35,7 +35,6 @@
   - AI 领域微内核应保留哪些能力
   - `mod-platform-kernel -> mod-ai-kernel -> mod-ai-app` 的 profile 叠加方式
   - shell / runtime entry / persistence support 的消费边界
-- 新增一份独立分析文件，记录本次对 `sparrow-agents` 与本项目的对比结论
 
 ## 影响范围
 

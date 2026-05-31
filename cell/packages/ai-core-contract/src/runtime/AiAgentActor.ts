@@ -14,6 +14,7 @@ import type {
   ContinuationBaselineData,
 } from "./ContextControl";
 import type { QuestionnaireRequestPayload } from "./Questionnaire";
+import type { HeartbeatWakePayload } from "./Heartbeat";
 import type { ChatMessage, Logger, XStream } from "@shared/composer";
 
 export type ActorType = ActorExecutionKind;
@@ -50,6 +51,7 @@ export type AiAgentMailboxSchema = {
     text: string;
     ts: number;
   };
+  heartbeatWake: HeartbeatWakePayload;
   humanInput: string;
   toolResult: { toolCallId: string; questionnaireId?: string; content: string };
   aiGenerated: unknown;
@@ -194,7 +196,7 @@ export type HolonActorState =
 
 export type AiAgentActorCallbacks<TVm = any, TActor = any> = {
   buildToolset: (vm: TVm, actor: TActor) => any[];
-  processStream: (vm: TVm, actor: TActor, stream: any) => Promise<any>;
+  processStream: (vm: TVm, actor: TActor, stream: any, options?: { signal?: AbortSignal }) => Promise<any>;
 };
 
 export interface AiAgentActorData<TVm = any, TActor = any> {

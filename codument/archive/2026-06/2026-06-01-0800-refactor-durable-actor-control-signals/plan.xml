@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plan>
+  <metadata>
+    <track_id>refactor-durable-actor-control-signals</track_id>
+    <type>refactor</type>
+    <status>completed</status>
+    <created_at>2026-05-31T15:29:05Z</created_at>
+    <updated_at>2026-06-01T00:00:00Z</updated_at>
+    <description>Root refactor for durable actor control signals, mailbox priority scheduling, cooperative interrupt, typed waits, and recovery invariants.</description>
+    <gap_loop_round>2</gap_loop_round>
+  </metadata>
+  <commit_mode>manual</commit_mode>
+  <validation_mode>yield-gap-loop</validation_mode>
+  <validation_granularity>final_phase</validation_granularity>
+  <execution_mode>sequential</execution_mode>
+
+  <phases>
+  <phase id="P1" name="Control Signal Model And Invariants" status="DONE">
+    <task id="T1.1" name="Write durable control signal model tests" priority="P0" status="DONE">
+      <description>Use TDD to specify event identity, causation, correlation, priority, mailbox kind, op id, idempotency key, and unblock classification.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T1.1-red" checked="true">Failing tests define durable control signal normalization and idempotency behavior.</criterion>
+        <criterion id="AC-T1.1-priority" checked="true">Tests distinguish interrupt, wake, and ordinary mailbox classes.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T1.2" name="Implement durable control signal data contract" priority="P0" status="DONE">
+      <description>Add typed data structures and reducers for durable control signals without replacing execution paths yet.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T1.2-tests" checked="true">Control signal model tests pass.</criterion>
+        <criterion id="AC-T1.2-layering" checked="true">Contract and logic layering remains consistent with project package boundaries.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T1.3" name="Write suspended fiber invariant tests" priority="P0" status="DONE">
+      <description>Specify invalid and repairable states, especially suspended external fibers with empty mailboxes and no cooperative exec state.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T1.3-invalid" checked="true">Tests fail for silent acceptance of unrecoverable suspended external state.</criterion>
+        <criterion id="AC-T1.3-repair" checked="true">Tests cover safe repair when durable control signals exist.</criterion>
+      </acceptance_criteria>
+    </task>
+  </phase>
+
+  <phase id="P2" name="Mailbox Enqueue Scheduling And Cooperative Interrupt" status="DONE">
+    <task id="T2.1" name="Write enqueue scheduling tests" priority="P0" status="DONE">
+      <description>Specify behavior for suspended fiber wake, running actor ordinary enqueue, and running actor wake-message enqueue without actor re-entry.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T2.1-no-reentry" checked="true">Tests assert actor handler is not re-entered while running.</criterion>
+        <criterion id="AC-T2.1-wake" checked="true">Tests assert suspended matching wait becomes ready or pending resume.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T2.2" name="Implement unified enqueue and resume boundary" priority="P0" status="DONE">
+      <description>Introduce the shared control API that persists a signal, enqueues mailbox data, and schedules matching suspended fibers.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T2.2-api" checked="true">Unblock-capable messages can be emitted through one shared API.</criterion>
+        <criterion id="AC-T2.2-idempotent" checked="true">Repeated signal emission or redelivery does not double-consume completion.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T2.3" name="Write and implement cancel interrupt tests" priority="P0" status="DONE">
+      <description>Cover cancel during LLM, tool, compression, and non-abortable work; assert control mailbox priority and late completion handling.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T2.3-abort" checked="true">Abortable in-flight work receives abort on cancel.</criterion>
+        <criterion id="AC-T2.3-late" checked="true">Late completions after cancel do not revive cancelled fibers.</criterion>
+        <criterion id="AC-T2.3-priority" checked="true">Cancel is consumed ahead of ordinary mailbox messages.</criterion>
+      </acceptance_criteria>
+    </task>
+  </phase>
+
+  <phase id="P3" name="Typed Waits And Execution Path Migration" status="DONE">
+    <task id="T3.1" name="Write typed wait reason tests" priority="P0" status="DONE">
+      <description>Specify wait reasons for LLM, tool, compression, questionnaire parsing, child done, human input, and idle external waits.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T3.1-typed" checked="true">Internal async waits no longer persist only generic external waiting.</criterion>
+        <criterion id="AC-T3.1-match" checked="true">Each typed wait has a matching unblock predicate.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T3.2" name="Migrate cooperative async completions" priority="P0" status="DONE">
+      <description>Replace split `actor.send` plus `resumeFiber` patterns for LLM, tool, compression, and questionnaire completion with durable control signal emission.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T3.2-no-split" checked="true">Targeted completion paths no longer rely on separate manual resume calls for correctness.</criterion>
+        <criterion id="AC-T3.2-existing" checked="true">Existing cooperative executor tests remain passing.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T3.3" name="Add compatibility fallback for legacy snapshots" priority="P1" status="DONE">
+      <description>Keep transcript-tail repair as a conservative fallback for old sessions while preferring durable control signals.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T3.3-legacy" checked="true">Legacy sessions without control signals recover conservatively when safe.</criterion>
+        <criterion id="AC-T3.3-primary" checked="true">New sessions recover from durable control signals first.</criterion>
+      </acceptance_criteria>
+    </task>
+  </phase>
+
+  <phase id="P4" name="Persistence Recovery And Data Plane Observability" status="DONE">
+    <task id="T4.1" name="Write recovery crash-point tests" priority="P0" status="DONE">
+      <description>Simulate crash after durable event before resume, after mailbox before projection, after projection before snapshot, and after cancel before late completion.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T4.1-crash" checked="true">Crash-point fixtures reproduce previous stuck class before implementation.</criterion>
+        <criterion id="AC-T4.1-resume" checked="true">Recovered runtime continues without manual transcript editing.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T4.2" name="Implement durable control recovery" priority="P0" status="DONE">
+      <description>Persist and recover control events, rebuild mailbox or exec state, and mark matching fibers ready during recovery.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T4.2-redelivery" checked="true">Unconsumed durable signals are redelivered or reduced during recovery.</criterion>
+        <criterion id="AC-T4.2-dedupe" checked="true">Consumed signals are not applied twice.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T4.3" name="Expose control stream and scheduler signals" priority="P1" status="DONE">
+      <description>Add Rx data-plane observability for control event stream and scheduler readiness signals without mixing semantic event streams.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T4.3-stream" checked="true">Control facts appear as ordered stream records.</criterion>
+        <criterion id="AC-T4.3-signal" checked="true">Current scheduler readiness appears as signal/projection.</criterion>
+      </acceptance_criteria>
+    </task>
+    <task id="T-sync-knowledge-docs" name="同步项目知识文档" priority="P1" status="DONE">
+      <description>根据 feature.json 中配置的 knowledgeSync targets 和对应 attractor，判断并同步受影响的知识目录。</description>
+      <acceptance_criteria>
+        <criterion id="AC-read-attractor" checked="true">已读取目标 knowledge attractor</criterion>
+        <criterion id="AC-decide-sync" checked="true">已判断是否需要同步 docs 或外部知识目录</criterion>
+        <criterion id="AC-log-reason" checked="true">已记录未同步的理由或已完成同步</criterion>
+      </acceptance_criteria>
+    </task>
+    <confirm protocol="yield-gap-loop" when="after" status="DONE" />
+  </phase>
+  <phase id="P5" name="Round 1 Gap Repairs" status="DONE">
+    <task id="T5.1" name="Migrate remaining actor-surface and holon wake paths" priority="P0" status="DONE">
+      <description>Replace remaining direct mailbox enqueue plus naked resume paths for actor-surface input/cancel/questionnaire, heartbeat wake, and holon/coordination handoffs with durable control signal emission.</description>
+      <acceptance_criteria>
+        <criterion id="AC-T5.1-surface" checked="true">Actor-surface human input, cancel, and questionnaire response can be emitted through a durable signal boundary.</criterion>
+        <criterion id="AC-T5.1-holon" checked="true">Holon/member routing and idle shutdown wake paths use durable control signal emission instead of split enqueue/resume.</criterion>
+        <criterion id="AC-T5.1-heartbeat" checked="true">Heartbeat wake delivery can be emitted through a durable signal boundary without a separate resume step.</criterion>
+        <criterion id="AC-T5.1-tests" checked="true">Focused tests cover the migrated actor-surface durable signal boundary.</criterion>
+      </acceptance_criteria>
+    </task>
+  </phase>
+  </phases>
+
+  <summary>
+    <total_phases>5</total_phases>
+    <total_tasks>14</total_tasks>
+    <completed>14</completed>
+    <in_progress>0</in_progress>
+    <todo>0</todo>
+    <blocked>0</blocked>
+  </summary>
+</plan>

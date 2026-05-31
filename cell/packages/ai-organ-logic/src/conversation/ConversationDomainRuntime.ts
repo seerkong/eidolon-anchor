@@ -92,6 +92,10 @@ export type ConversationDomainEventStream<TEvent> = {
   subscribe: (listener: DomainListener<TEvent>) => { unsubscribe: () => void };
 };
 
+const MAX_CONVERSATION_DOMAIN_EVENTS_PER_STREAM = 500;
+const MAX_MESSAGE_ASSEMBLY_TRANSCRIPT_RECORDS = 400;
+const MAX_MESSAGE_ASSEMBLY_REDUCED_MESSAGES = 300;
+
 export type ConversationDomainPersistHooks = {
   history?: (event: ConversationHistoryDomainEvent) => void;
   prompt?: (event: ConversationPromptDomainEvent) => void;
@@ -133,6 +137,40 @@ function createValueSignal<T>(initial: T): ValueSignal<T> {
 
 function actorRuntimeKey(sessionId: string, actorKey: string): string {
   return `${sessionId}::${actorKey}`;
+}
+
+function retainTail<T>(items: T[], maxItems: number): T[] {
+  if (items.length <= maxItems) return items;
+  return items.slice(-maxItems);
+}
+
+function appendBounded<T>(items: T[], item: T, maxItems: number): T[] {
+  if (items.length < maxItems) return [...items, item];
+  return [...items.slice(items.length - maxItems + 1), item];
+}
+
+function trimMutableTail<T>(items: T[], maxItems: number): void {
+  const extra = items.length - maxItems;
+  if (extra > 0) items.splice(0, extra);
+}
+
+function chatMessagesEqual(left: ChatMessage, right: ChatMessage): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function findSharedMessageSuffixPrefix(previous: ChatMessage[], next: ChatMessage[]): number {
+  const maxShared = Math.min(previous.length, next.length);
+  for (let length = maxShared; length > 0; length -= 1) {
+    let matched = true;
+    for (let index = 0; index < length; index += 1) {
+      if (!chatMessagesEqual(previous[previous.length - length + index]!, next[index]!)) {
+        matched = false;
+        break;
+      }
+    }
+    if (matched) return length;
+  }
+  return 0;
 }
 
 function currentSessionActiveActorKey(session?: ConversationSessionRawState | null): string | null {
@@ -363,7 +401,7 @@ function resolveSessionIdFromVm(vm: AiAgentVm): string {
   if (explicit) return explicit;
   const sessionDir = typeof metadata.sessionDir === "string" ? metadata.sessionDir.trim() : "";
   if (sessionDir) return path.basename(sessionDir);
-  return "default";
+  return "__unsessioned__";
 }
 
 function upsertHistoryGeneration(
@@ -557,6 +595,7 @@ export function appendConversationDomainEvent(
 
   if (event.type.startsWith("actor_history_")) {
     runtime.historyEvents.push(event);
+    trimMutableTail(runtime.historyEvents, MAX_CONVERSATION_DOMAIN_EVENTS_PER_STREAM);
     if (!keyActor) return;
     const current = runtime.historyStateSignal.get()[keyActor];
     if (event.type === "actor_history_generation_created") {
@@ -758,6 +797,7 @@ export function appendConversationDomainEvent(
 
   if (event.type.startsWith("actor_prompt_")) {
     runtime.promptEvents.push(event);
+    trimMutableTail(runtime.promptEvents, MAX_CONVERSATION_DOMAIN_EVENTS_PER_STREAM);
     if (!keyActor) return;
     const current = runtime.promptStateSignal.get()[keyActor] ?? {
       sessionId: event.sessionId,
@@ -941,6 +981,7 @@ export function appendConversationDomainEvent(
   }
 
   runtime.sessionEvents.push(event);
+  trimMutableTail(runtime.sessionEvents, MAX_CONVERSATION_DOMAIN_EVENTS_PER_STREAM);
   const currentSession = runtime.sessionStateSignal.get()[event.sessionId] ?? createEmptySessionState(event.sessionId);
   if (event.type === "local_conversation_session_created") {
     const nextSession = event.session
@@ -1279,14 +1320,18 @@ export function appendLiveHistoryMessageToConversationDomainRuntime(params: {
     emittedMessageCount: 0,
     updatedAt: new Date(0).toISOString(),
   };
-  const nextReducedMessages = [...currentAssembly.reducedMessages, params.message];
+  const nextReducedMessages = appendBounded(
+    currentAssembly.reducedMessages,
+    params.message,
+    MAX_MESSAGE_ASSEMBLY_REDUCED_MESSAGES,
+  );
   runtime.messageAssemblySignal.set({
     ...messageAssemblyStates,
     [key]: {
       ...currentAssembly,
       actorId: params.actorId,
       reducedMessages: nextReducedMessages,
-      emittedMessageCount: nextReducedMessages.length,
+      emittedMessageCount: currentAssembly.emittedMessageCount + 1,
       updatedAt: occurredAt,
     },
   });
@@ -1505,7 +1550,11 @@ export function recordConversationTranscriptEvidenceInRuntime(params: {
     [key]: {
       ...current,
       actorId: params.actorId,
-      transcriptRecords: [...current.transcriptRecords, params.transcriptRecord],
+      transcriptRecords: appendBounded(
+        current.transcriptRecords,
+        params.transcriptRecord,
+        MAX_MESSAGE_ASSEMBLY_TRANSCRIPT_RECORDS,
+      ),
       updatedAt: new Date().toISOString(),
     },
   });
@@ -1871,15 +1920,20 @@ export function updateConversationDomainFromTranscriptRecordBatch(params: {
   const current = runtime.messageAssemblySignal.get()[key];
   if (!current) return;
   const reducedMessages = reduceTranscriptToMessages(current.transcriptRecords);
+  const previousReducedMessages = current.reducedMessages;
+  const sharedCount = findSharedMessageSuffixPrefix(previousReducedMessages, reducedMessages);
+  const newMessages = reducedMessages.slice(sharedCount);
+  const nextReducedMessages = retainTail([...previousReducedMessages, ...newMessages], MAX_MESSAGE_ASSEMBLY_REDUCED_MESSAGES);
   runtime.messageAssemblySignal.set({
     ...runtime.messageAssemblySignal.get(),
     [key]: {
       ...current,
+      reducedMessages: nextReducedMessages,
+      emittedMessageCount: current.emittedMessageCount + newMessages.length,
       updatedAt: new Date().toISOString(),
     },
   });
-  if (reducedMessages.length <= current.emittedMessageCount) return;
-  for (const message of reducedMessages.slice(current.emittedMessageCount)) {
+  for (const message of newMessages) {
     appendLiveHistoryMessageToConversationDomainRuntime({
       vm: params.vm,
       actorKey: params.actorKey,

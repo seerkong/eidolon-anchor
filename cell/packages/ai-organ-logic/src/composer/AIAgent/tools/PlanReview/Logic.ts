@@ -110,8 +110,17 @@ export const planReviewCoreLogic: StdInnerLogic<PlanReviewInnerRuntime, PlanRevi
   if (target?.kind === "member") {
     members.sendMessage({ to: target.memberId, from: runtime.actor.key, text: outbound.text })
   } else {
-    target.actor.send("coordination", { from: runtime.actor.key, text: outbound.text, ts: Date.now() } as any)
-    driver.resumeFiber(`${target.actor.key}:${target.actor.id}`, Date.now())
+    const now = Date.now()
+    driver.emitFiberSignal({
+      fiberId: `${target.actor.key}:${target.actor.id}`,
+      signalKind: "mailbox_enqueue",
+      mailbox: {
+        kind: "coordination",
+        payload: { from: runtime.actor.key, text: outbound.text, ts: now } as any,
+      },
+      idempotencyKey: `${target.actor.key}:${target.actor.id}:coordination:${requestId}:${now}`,
+      createdAt: now,
+    })
   }
   return JSON.stringify({
     ok: true,

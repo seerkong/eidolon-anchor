@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { createMemo, createSignal, onMount, Show } from "solid-js"
 import { useSync } from "../../state/sync-context"
 import { map, pipe, sortBy } from "remeda"

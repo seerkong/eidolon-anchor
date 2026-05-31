@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { InputRenderable, RGBA, TextAttributes, type ScrollBoxRenderable, type TextareaRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, onCleanup, onMount, Show } from "solid-js"
@@ -11,10 +12,18 @@ import {
   type PermissionRequest,
   type QuestionAnswer,
   type QuestionRequest,
+  type RuntimeUsage,
   type TuiRuntimeSdk,
+  type UserInputHistoryEntry,
 } from "@terminal/core/AIAgent"
+import type {
+  ActorConversationLaneData,
+  ActorRuntimeLaneData,
+  ActorSurfaceProjectionData,
+} from "@cell/ai-core-contract/runtime/ActorSurface"
 import { useExit } from "../../providers/exit"
-import { MessageCards } from "./features/message/cards"
+import { useKeybind } from "../../providers/keybind"
+import { MessageCards, frameLine } from "./features/message/cards"
 import { sessionContext } from "./features/message/model/session-context"
 import { BottomBar } from "./bottom-bar"
 import { Composer } from "./features/composer/composer"
@@ -40,11 +49,12 @@ import {
   scrollToEdge,
 } from "./perf/scroll-history"
 import { DialogHeader, useDialog } from "../../ui/dialog/context"
-import { DialogSelect } from "../../ui/dialog/select"
+import { DialogSelect, type DialogSelectOption } from "../../ui/dialog/select"
 import { copyRendererSelection } from "../../ui/selection/copy"
 import { DialogShortcuts } from "./system/shortcuts/shortcuts-dialog"
 import { DialogSessionList } from "./system/session/session-list-dialog"
 import { DialogMessageList } from "./system/message/message-list-dialog"
+import { Keybind } from "../../support/util/keybind"
 import { Locale } from "../../support/util/locale"
 import { useTuiA1StateOptional } from "./state/state-context"
 import { buildRuntimePromptParts } from "./features/composer/model/prompt-parts"
@@ -110,9 +120,23 @@ function safeUseToast() {
   }
 }
 
+function safeUseKeybind() {
+  try {
+    return useKeybind()
+  } catch {
+    return {
+      match() {
+        return false
+      },
+    } as Pick<ReturnType<typeof useKeybind>, "match">
+  }
+}
+
 function createMessageID(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 }
+
+const SESSION_INTERRUPT_DOUBLE_PRESS_MS = 1000
 
 const tuiA1AgentColors = [
   theme.secondary,
@@ -151,52 +175,6 @@ function formatTurnDuration(ms?: number): string {
   return parts.join(" ")
 }
 
-type TurnDurationSample = {
-  id: string
-  createdAt: number
-  durationMs: number
-}
-
-function buildRuntimeTurnSamples(runtimeMessages: Record<string, Message>, now: number): TurnDurationSample[] {
-  return Object.values(runtimeMessages)
-    .filter((message): message is Extract<Message, { role: "assistant" }> => message.role === "assistant")
-    .map((message) => ({
-      id: message.id,
-      createdAt: message.time.created,
-      durationMs: (message.time.completed ?? now) - message.time.created,
-    }))
-    .sort((left, right) => right.createdAt - left.createdAt)
-}
-
-function buildLocalTurnSamples(
-  messages: TuiA1Message[],
-  localCompletedTurnDurations: Record<string, number>,
-  now: number,
-): TurnDurationSample[] {
-  return messages
-    .filter((message): message is Extract<TuiA1Message, { kind: "assistant" }> => message.kind === "assistant")
-    .map((message) => {
-      if (message.streaming) {
-        return {
-          id: message.id,
-          createdAt: message.createdAt,
-          durationMs: now - message.createdAt,
-        } satisfies TurnDurationSample
-      }
-
-      const durationMs = localCompletedTurnDurations[message.id]
-      if (durationMs == null) return undefined
-
-      return {
-        id: message.id,
-        createdAt: message.createdAt,
-        durationMs,
-      } satisfies TurnDurationSample
-    })
-    .filter((sample: TurnDurationSample | undefined): sample is TurnDurationSample => Boolean(sample))
-    .sort((left, right) => right.createdAt - left.createdAt)
-}
-
 function estimateTuiA1Tokens(messages: TuiA1Message[]): number {
   const chars = messages.reduce((sum, message) => {
     if (message.kind === "tool") {
@@ -221,6 +199,29 @@ export function DialogQuestionnaireCenter(props: {
       {(entry: () => TuiA1QuestionnaireCenter["entries"][number]) => <QuestionnaireDetail entry={entry()} onBack={() => setSelected(undefined)} />}
     </Show>
   )
+}
+
+function summarizeBackendIdentity(lane: ActorConversationLaneData): string {
+  const identity = lane.backendIdentity
+  if (identity.kind === "member") return [identity.name, identity.role, identity.agentType].filter(Boolean).join(" · ")
+  if (identity.kind === "holon") return [identity.name, identity.governance].filter(Boolean).join(" · ")
+  if (identity.kind === "actor_definition") return identity.actorDefinitionName ?? identity.name ?? "actor definition"
+  return identity.name ?? identity.agentName ?? identity.kind
+}
+
+function actorStatusText(status: string): string {
+  switch (status) {
+    case "waiting_for_human":
+      return "等待用户"
+    case "cancel_requested":
+      return "取消中"
+    case "running":
+      return "运行中"
+    case "idle":
+      return "空闲"
+    default:
+      return status
+  }
 }
 
 function QuestionnaireHistoryList(props: {
@@ -582,6 +583,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
   const dialog = safeUseDialog()
   const exit = safeUseExit()
   const toast = safeUseToast()
+  const keybind = safeUseKeybind()
   const scrollMode = props.scrollMode ?? "mouse"
   const stateContext = useTuiA1StateOptional()
   const initialSelection = props.selection ?? defaultTuiA1Selection
@@ -608,7 +610,11 @@ export function TuiA1View(props: TuiA1ViewProps) {
   const activeQuestion = useGraphSignal<QuestionRequest | undefined, undefined>(stateGraph.graph, "activeQuestion")
   const composerBlocked = useGraphSignal<boolean, undefined>(stateGraph.graph, "composerBlocked")
   const questionnaireCenter = useGraphSignal<TuiA1QuestionnaireCenter, undefined>(stateGraph.graph, "questionnaireCenter")
+  const actorSurface = useGraphSignal<ActorSurfaceProjectionData | null, undefined>(stateGraph.graph, "actorSurface")
   const selectionLabel = useGraphSignal<string, undefined>(stateGraph.graph, "selectionLabel")
+  const [sessionLoadLabel, setSessionLoadLabel] = createSignal<string | undefined>()
+  const [runtimeStatusLabel, setRuntimeStatusLabel] = createSignal<string | undefined>()
+  let sessionLoadToken = 0
   const composerBlockLabel = createMemo(() => {
     const permission = activePermission()
     if (permission) return `permission required: ${permission.permission}`
@@ -621,13 +627,18 @@ export function TuiA1View(props: TuiA1ViewProps) {
   const [autoFollowHistory, setAutoFollowHistory] = createSignal(true)
   const [focusRegion, setFocusRegion] = createSignal<TuiA1FocusRegion>("composer")
   const [now, setNow] = createSignal(Date.now())
-  const [localCompletedTurnDurations, setLocalCompletedTurnDurations] = createSignal<Record<string, number>>({})
+  const [activeRoundStartedAt, setActiveRoundStartedAt] = createSignal<number | undefined>()
+  const [lastRoundDurationMs, setLastRoundDurationMs] = createSignal<number | undefined>()
+  const [maxRoundDurationMs, setMaxRoundDurationMs] = createSignal<number | undefined>()
   const timers = new Set<TimerHandle>()
   let bootstrapped = false
   let initialRuntimePromptSubmitted = false
   let runtimeUnsub: (() => void) | undefined
+  let disposed = false
   let pendingScrollToBottom = false
   let pendingForcedScrollToBottom = false
+  let lastSessionInterruptAt = 0
+  let sessionInterruptInFlight = false
 
   const registerTimer = <T extends TimerHandle>(timer: T) => {
     timers.add(timer)
@@ -644,14 +655,24 @@ export function TuiA1View(props: TuiA1ViewProps) {
   const composerHasDraft = () => (textarea?.plainText ?? "").length > 0
   const historyFocused = () => focusRegion() === "history"
   const composerFocused = () => focusRegion() === "composer"
-  const historyIndicatorColor = () => RGBA.fromHex("#6f7a87")
+  const historyIndicatorColor = () => theme.userBorder
   const historyIndicatorText = () => {
-    const width = Math.max(1, dimensions().width - 2)
-    return "━".repeat(width)
+    const width = Math.max(1, dimensions().width)
+    return frameLine({
+      leftCorner: "╭",
+      rightCorner: "╮",
+      leftLabel: "COMPOSER",
+      width,
+    })
   }
   const shouldRouteHistoryArrowKeys = () => historyFocused() || !composerHasDraft()
   const turnCount = createMemo(() => messages().filter((message) => message.kind === "user").length)
   const tokenUsageLabel = createMemo(() => {
+    const activeSessionID = sessionID()
+    const runtimeUsage = activeSessionID ? snapshot().runtimeUsage[activeSessionID] : undefined
+    if (runtimeUsage && runtimeUsage.total_tokens > 0) {
+      return `${runtimeUsage.is_estimated ? "~" : ""}${formatCompactNumber(runtimeUsage.total_tokens)} tok`
+    }
     const runtimeMessages = Object.values(snapshot().runtimeMessages)
     const assistantMessages = runtimeMessages.filter(
       (message): message is Extract<Message, { role: "assistant" }> => message.role === "assistant",
@@ -665,45 +686,63 @@ export function TuiA1View(props: TuiA1ViewProps) {
     }
     return `~${formatCompactNumber(estimateTuiA1Tokens(messages()))} tok`
   })
-  const runtimeTurnSamples = createMemo(() => buildRuntimeTurnSamples(snapshot().runtimeMessages, now()))
-  const localTurnSamples = createMemo(() => buildLocalTurnSamples(messages(), localCompletedTurnDurations(), now()))
-  const activeTurnStartedAt = createMemo(() => {
-    const runtimeMessages = Object.values(snapshot().runtimeMessages)
-      .filter((message): message is Extract<Message, { role: "assistant" }> => message.role === "assistant")
-      .filter((message) => !message.time.completed)
-      .sort((left, right) => right.time.created - left.time.created)
-    if (runtimeMessages[0]) return runtimeMessages[0].time.created
-
-    const localStreaming = [...messages()]
-      .reverse()
-      .find((message): message is Extract<TuiA1Message, { kind: "assistant" }> => message.kind === "assistant" && Boolean(message.streaming))
-    return localStreaming?.createdAt
+  const currentUserInputHistory = createMemo(() => {
+    const activeSessionID = sessionID()
+    return activeSessionID ? snapshot().userInputHistory[activeSessionID] ?? [] : []
   })
-  const latestTurnDurationMs = createMemo(() => {
-    const latestRuntime = runtimeTurnSamples()[0]
-    if (latestRuntime) return latestRuntime.durationMs
-
-    const latestLocal = localTurnSamples()[0]
-    return latestLocal?.durationMs
+  const currentRoundDurationMs = createMemo(() => {
+    const startedAt = activeRoundStartedAt()
+    if (startedAt == null) return lastRoundDurationMs()
+    return Math.max(0, now() - startedAt)
   })
-  const currentTurnDurationLabel = createMemo(() => {
-    const activeStartedAt = activeTurnStartedAt()
-    if (activeStartedAt != null) return formatTurnDuration(now() - activeStartedAt)
-    return formatTurnDuration(latestTurnDurationMs())
-  })
-  const sessionMaxTurnDurationMs = createMemo(() => {
-    const durations = [...runtimeTurnSamples(), ...localTurnSamples()].map((sample) => sample.durationMs)
-    if (durations.length === 0) return undefined
-    return Math.max(...durations)
-  })
-  const maxTurnDurationLabel = createMemo(() => formatTurnDuration(sessionMaxTurnDurationMs()))
+  const currentRoundDurationLabel = createMemo(() => formatTurnDuration(currentRoundDurationMs()))
+  const maxRoundDurationLabel = createMemo(() => formatTurnDuration(maxRoundDurationMs()))
   const bottomBarMetricsLabel = createMemo(
-    () => `${tokenUsageLabel()} · ${turnCount()}轮 · 本轮 ${currentTurnDurationLabel()} · 峰值 ${maxTurnDurationLabel()}`,
+    () => `${tokenUsageLabel()} · ${turnCount()}轮 · 本轮 ${currentRoundDurationLabel()} · 峰值 ${maxRoundDurationLabel()}`,
   )
+  const startRoundTimer = (startedAt = Date.now()) => {
+    setActiveRoundStartedAt(startedAt)
+    setNow(startedAt)
+  }
+  const finishRoundTimer = (completedAt = Date.now()) => {
+    const startedAt = activeRoundStartedAt()
+    if (startedAt == null) return
+
+    const durationMs = Math.max(0, completedAt - startedAt)
+    setActiveRoundStartedAt(undefined)
+    setLastRoundDurationMs(durationMs)
+    setMaxRoundDurationMs((currentMax) => Math.max(currentMax ?? 0, durationMs))
+    setNow(completedAt)
+  }
   const questionnaireFooterLabel = createMemo(() => {
     const center = questionnaireCenter()
     return `问卷 ${center.doneCount}/${center.pendingCount}`
   })
+  const selectedActorTargetLabel = createMemo(() => {
+    const surface = actorSurface()
+    if (!surface) return "目标:Primary"
+
+    const target = surface.selectedTarget
+    const lane = target.laneId
+      ? surface.conversationLanes.find((item) => item.laneId === target.laneId)
+      : undefined
+    const actor = target.actorId
+      ? surface.actorLanes.find((item) => item.actorId === target.actorId)
+      : undefined
+    return `目标:${lane?.displayName ?? actor?.displayName ?? surface.selectedLaneId}`
+  })
+  const composerSelectionLabel = createMemo(() => `${selectionLabel()} · ${selectedActorTargetLabel()}`)
+  const selectedActorTarget = () => actorSurface()?.selectedTarget ?? { laneId: "lane:primary" }
+  const shouldSendPromptToActorTarget = () => {
+    const target = selectedActorTarget()
+    if (target.laneId && target.laneId !== "lane:primary") return true
+    if (target.actorId) {
+      const surface = actorSurface()
+      const primaryActorId = surface?.conversationLanes.find((lane) => lane.laneId === "lane:primary")?.actorId
+      return target.actorId !== primaryActorId
+    }
+    return Boolean(target.laneId && target.laneId !== "lane:primary")
+  }
   const syncScrollboxStickyState = (value = autoFollowHistory()) => {
     if (scrollbox) scrollbox.stickyScroll = value
   }
@@ -819,7 +858,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
     }
   }
 
-  const streamAssistant = (messageID: string, fullText: string, startedAt: number) => {
+  const streamAssistant = (messageID: string, fullText: string) => {
     let index = 0
     const step = 3
     const timer = registerTimer(
@@ -835,30 +874,109 @@ export function TuiA1View(props: TuiA1ViewProps) {
 
         if (index >= fullText.length) {
           releaseTimer(timer)
-          setLocalCompletedTurnDurations((current) => ({
-            ...current,
-            [messageID]: Math.max(0, (completedAt ?? Date.now()) - startedAt),
-          }))
           stateGraph.setBusy(false)
+          finishRoundTimer(completedAt ?? Date.now())
         }
       }, 18),
     )
   }
 
   const loadRuntimeSession = async (sessionID: string) => {
-    if (!props.runtime) return
-    const [messagesResult, statusResult] = await Promise.all([
-      props.runtime.client.session.messages({ sessionID }),
-      props.runtime.client.session.status(),
-    ])
+    if (!props.runtime || disposed) return
+    const loadToken = ++sessionLoadToken
+    setSessionLoadLabel("正在加载会话...")
+    try {
+      const [messagesResult, statusResult, userInputsResult] = await Promise.all([
+        props.runtime.client.session.messages({ sessionID }),
+        props.runtime.client.session.status(),
+        props.runtime.client.session.userInputs({ sessionID }),
+      ])
+      if (disposed || loadToken !== sessionLoadToken) return
 
-    stateGraph.hydrateRuntimeSession({
-      sessionID,
-      busy: statusResult.data?.[sessionID]?.type === "busy",
-      messages: (messagesResult.data ?? []).map((item) => item.info),
-      partsByMessage: Object.fromEntries((messagesResult.data ?? []).map((item) => [item.info.id, item.parts ?? []])),
+      stateGraph.hydrateRuntimeSession({
+        sessionID,
+        busy: statusResult.data?.[sessionID]?.type === "busy",
+        messages: (messagesResult.data ?? []).map((item) => item.info),
+        partsByMessage: Object.fromEntries((messagesResult.data ?? []).map((item) => [item.info.id, item.parts ?? []])),
+      })
+      const statusMessage = statusResult.data?.[sessionID]?.message
+      setRuntimeStatusLabel(typeof statusMessage === "string" && statusMessage.trim() ? statusMessage : undefined)
+      stateGraph.setUserInputHistory(sessionID, userInputsResult.data ?? [])
+      maybeScrollToBottom(true)
+      void refreshActorSurface()
+    } finally {
+      if (!disposed && loadToken === sessionLoadToken) {
+        setSessionLoadLabel(undefined)
+      }
+    }
+  }
+
+  const refreshActorSurface = async () => {
+    if (disposed) return
+    if (!props.runtime?.client.actor?.surface) {
+      stateGraph.setActorSurface(null)
+      return
+    }
+    const state = await props.runtime.client.actor.surface({ sessionID: sessionID() }).catch(() => ({ data: null }))
+    if (disposed) return
+    stateGraph.setActorSurface(state.data ?? null)
+  }
+
+  type ActorListTarget = {
+    laneID?: string
+    actorID?: string
+    cancellable?: boolean
+    turnID?: string
+  }
+
+  const actorTranscriptViewKey = (surface: ActorSurfaceProjectionData, target: ActorListTarget): string => {
+    const hasExplicitLane = target.laneID !== undefined
+    const hasExplicitActor = target.actorID !== undefined
+    const actorID = hasExplicitActor ? target.actorID : hasExplicitLane ? undefined : surface.selectedTarget.actorId
+    const laneID = hasExplicitLane ? target.laneID : surface.selectedTarget.laneId
+    const actorLane = actorID ? surface.actorLanes.find((lane) => lane.actorId === actorID) : undefined
+    const conversationLane = laneID ? surface.conversationLanes.find((lane) => lane.laneId === laneID) : undefined
+    const laneActor = conversationLane?.actorId
+      ? surface.actorLanes.find((lane) => lane.actorId === conversationLane.actorId)
+      : undefined
+    const transcriptKey = actorLane?.transcriptKey ?? laneActor?.transcriptKey
+    if (transcriptKey) {
+      return [
+        "actor",
+        transcriptKey.sessionId ?? sessionID(),
+        transcriptKey.actorKey,
+        transcriptKey.actorId,
+      ].filter(Boolean).join(":")
+    }
+    if (laneID) return `lane:${laneID}`
+    if (actorID) return `actor:${actorID}`
+    return `session:${sessionID() ?? "__unsessioned__"}`
+  }
+
+  const loadActorTranscript = async (
+    target: ActorListTarget,
+    surface: ActorSurfaceProjectionData | null | undefined = actorSurface(),
+  ): Promise<boolean> => {
+    const activeSessionID = sessionID()
+    if (!activeSessionID || !surface || !props.runtime?.client.actor?.messages) return false
+    const result = await props.runtime.client.actor.messages({
+      sessionID: activeSessionID,
+      laneID: target.laneID,
+      actorID: target.actorID,
+      limit: 100,
+    }).catch((error) => {
+      toast.error(error)
+      return null
+    })
+    if (!result) return false
+    stateGraph.hydrateActorTranscript({
+      sessionID: activeSessionID,
+      transcriptKey: actorTranscriptViewKey(surface, target),
+      messages: (result.data ?? []).map((item) => item.info),
+      partsByMessage: Object.fromEntries((result.data ?? []).map((item) => [item.info.id, item.parts ?? []])),
     })
     maybeScrollToBottom(true)
+    return true
   }
 
   const bootstrapRuntime = async () => {
@@ -866,10 +984,16 @@ export function TuiA1View(props: TuiA1ViewProps) {
 
     runtimeUnsub?.()
     runtimeUnsub = props.runtime.event.on((event: Event) => {
+      if (disposed) return
       switch (event.type) {
         case "session.status": {
           if (event.properties?.sessionID !== sessionID()) return
-          stateGraph.setBusy(event.properties?.status?.type === "busy")
+          const status = event.properties?.status as { type?: string; message?: unknown } | undefined
+          const nextBusy = status?.type === "busy"
+          const message = typeof status?.message === "string" ? status.message.trim() : ""
+          setRuntimeStatusLabel(message || undefined)
+          stateGraph.setBusy(nextBusy)
+          if (!nextBusy) finishRoundTimer()
           break
         }
         case "message.updated": {
@@ -884,6 +1008,29 @@ export function TuiA1View(props: TuiA1ViewProps) {
           if (!part || part.sessionID !== sessionID()) return
           stateGraph.applyRuntimePartUpdated(part)
           maybeScrollToBottom()
+          break
+        }
+        case "session.usage": {
+          const payload = event.properties as { sessionID?: string; usage?: RuntimeUsage } | undefined
+          if (!payload?.sessionID || payload.sessionID !== sessionID() || !payload.usage) return
+          stateGraph.applyRuntimeUsageUpdated(payload.sessionID, payload.usage)
+          break
+        }
+        case "session.user_input": {
+          const payload = event.properties as {
+            sessionID?: string
+            text?: string
+            createdAt?: number
+            history?: UserInputHistoryEntry[]
+          } | undefined
+          if (!payload?.sessionID || payload.sessionID !== sessionID()) return
+          const text = String(payload.text ?? "").trim()
+          if (!text && !payload.history) return
+          stateGraph.appendUserInputHistory(
+            payload.sessionID,
+            { text, ...(typeof payload.createdAt === "number" ? { createdAt: payload.createdAt } : {}) },
+            payload.history,
+          )
           break
         }
         case "message.removed": {
@@ -924,6 +1071,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
           break
         }
       }
+      void refreshActorSurface()
     })
 
     const [agentsResult, configResult] = await Promise.all([
@@ -997,8 +1145,10 @@ export function TuiA1View(props: TuiA1ViewProps) {
       }
       const agent = currentSelection.agent
       const messageID = makeMessageId()
+      const roundStartedAt = Date.now()
 
       clear?.()
+      startRoundTimer(roundStartedAt)
       stateGraph.setBusy(true)
       maybeScrollToBottom(true)
 
@@ -1012,6 +1162,35 @@ export function TuiA1View(props: TuiA1ViewProps) {
           model: selectedModel,
           messageID,
         })
+        return
+      }
+
+      if (props.runtime.client.actor?.send && shouldSendPromptToActorTarget()) {
+        const target = selectedActorTarget()
+        const targetLane = target.laneId
+        const targetActor = targetLane && targetLane !== "lane:primary" ? undefined : target.actorId
+        void props.runtime.client.actor
+          .send({
+            sessionID: activeSessionID,
+            laneID: targetLane,
+            actorID: targetActor,
+            text: prompt,
+          })
+          .then(async (result) => {
+            const selectedSurface = result.data ?? actorSurface()
+            stateGraph.setActorSurface(selectedSurface ?? null)
+            const selectedTarget = selectedSurface?.selectedTarget
+            const hydrated = await loadActorTranscript({
+              laneID: selectedTarget?.laneId ?? targetLane,
+              actorID: selectedTarget?.actorId ?? targetActor,
+            }, selectedSurface)
+            if (!hydrated) await loadRuntimeSession(activeSessionID)
+          })
+          .catch(toast.error)
+          .finally(() => {
+            stateGraph.setBusy(false)
+            finishRoundTimer()
+          })
         return
       }
 
@@ -1031,11 +1210,12 @@ export function TuiA1View(props: TuiA1ViewProps) {
       return
     }
 
+    const roundStartedAt = Date.now()
     const userMessage: TuiA1Message = {
       id: createMessageID("user"),
       kind: "user",
       text: promptInfo.input,
-      createdAt: Date.now(),
+      createdAt: roundStartedAt,
     }
     const toolMessage: TuiA1Message = {
       id: createMessageID("tool"),
@@ -1049,7 +1229,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
         mode: "tui_a1",
         parts: promptInfo.parts.length,
       },
-      createdAt: Date.now(),
+      createdAt: roundStartedAt,
     }
     const assistantMessage: TuiA1Message = {
       id: createMessageID("assistant"),
@@ -1062,6 +1242,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
     }
 
     stateGraph.appendLocalMessages([userMessage, toolMessage])
+    startRoundTimer(roundStartedAt)
     stateGraph.setBusy(true)
     clear?.()
     maybeScrollToBottom(true)
@@ -1073,7 +1254,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
           summary: "Simulated reply prepared. Streaming assistant content into the scroll region.",
         })
         stateGraph.appendLocalMessages([assistantMessage])
-        streamAssistant(assistantMessage.id, buildLocalReply(promptInfo.input), assistantMessage.createdAt)
+        streamAssistant(assistantMessage.id, buildLocalReply(promptInfo.input))
 
         releaseTimer(timer)
       }, 220),
@@ -1136,6 +1317,144 @@ export function TuiA1View(props: TuiA1ViewProps) {
   const openShortcutOverview = () => {
     dialog.replace(() => <DialogShortcuts />)
   }
+  const openActorList = async () => {
+    if (props.runtime?.client.actor?.surface) {
+      await refreshActorSurface()
+    }
+    const surface = actorSurface()
+    if (!surface) {
+      toast.show({ message: "当前 runtime 不支持 Actor 列表", variant: "warning" })
+      return
+    }
+
+    const selectTarget = async (target: ActorListTarget) => {
+      if (props.runtime?.client.actor?.select) {
+        const selected = await props.runtime.client.actor.select({
+          sessionID: sessionID(),
+          laneID: target.laneID,
+          actorID: target.actorID,
+        }).catch(() => null)
+        stateGraph.setActorSurface(selected?.data ?? actorSurface())
+        await loadActorTranscript(target, selected?.data ?? actorSurface())
+      }
+      dialog.clear()
+      focusComposer()
+    }
+    const cancelTarget = async (target: ActorListTarget) => {
+      if (!target.actorID || !props.runtime?.client.actor?.cancel) return
+      const selected = await props.runtime.client.actor.cancel({
+        sessionID: sessionID(),
+        actorID: target.actorID,
+        turnID: target.turnID,
+      }).catch((error) => {
+        toast.error(error)
+        return null
+      })
+      stateGraph.setActorSurface(selected?.data ?? actorSurface())
+      await loadActorTranscript(target, selected?.data ?? actorSurface())
+      toast.show({ message: "已请求取消 Actor", variant: "info" })
+    }
+    const sendDraftToTarget = async (target: ActorListTarget) => {
+      const text = (textarea?.plainText ?? "").trim()
+      if (!text || !props.runtime?.client.actor?.send) {
+        toast.show({ message: "输入框没有可发送内容", variant: "warning" })
+        return
+      }
+      let activeSessionID = sessionID()
+      if (!activeSessionID) {
+        const created = await props.runtime.client.session.create({})
+        activeSessionID = created.data?.id
+        if (!activeSessionID) return
+        stateGraph.setSessionID(activeSessionID)
+      }
+      const selected = await props.runtime.client.actor.send({
+        sessionID: activeSessionID,
+        laneID: target.laneID,
+        actorID: target.actorID,
+        text,
+      }).catch((error) => {
+        toast.error(error)
+        return null
+      })
+      stateGraph.setActorSurface(selected?.data ?? actorSurface())
+      textarea?.setText("")
+      stateGraph.setComposer({ input: "", parts: [] })
+      dialog.clear()
+      focusComposer()
+      const selectedSurface = selected?.data ?? actorSurface()
+      const selectedTarget = selectedSurface?.selectedTarget
+      const hydrated = await loadActorTranscript({
+        laneID: selectedTarget?.laneId ?? target.laneID,
+        actorID: selectedTarget?.actorId ?? target.actorID,
+      }, selectedSurface)
+      if (!hydrated) await loadRuntimeSession(activeSessionID)
+    }
+
+    const options: DialogSelectOption<ActorListTarget>[] = [
+      ...surface.conversationLanes.map((lane) => ({
+        title: lane.displayName,
+        value: { laneID: lane.laneId, actorID: lane.actorId },
+        description: `${actorStatusText(lane.status)} · ${summarizeBackendIdentity(lane)}`,
+        meta: lane.initialized ? "已初始化" : "未初始化",
+        detail: [summarizeBackendIdentity(lane), lane.actorId ?? lane.actorKey ?? lane.laneId].filter(Boolean).join(" · "),
+        footer: surface.selectedTarget.laneId === lane.laneId ? "当前" : undefined,
+        category: "Conversation Lanes",
+        onSelect: () => {
+          void selectTarget({ laneID: lane.laneId, actorID: lane.actorId })
+        },
+      })),
+      ...surface.actorLanes.map((actorLane) => ({
+        title: `${actorLane.displayName} · ${actorLane.actorType}`,
+        value: {
+          laneID: actorLane.actorType === "primary" ? "lane:primary" : undefined,
+          actorID: actorLane.actorId,
+          cancellable: actorLane.cancellable,
+          turnID: actorLane.activeTurnId,
+        },
+        description: `${actorStatusText(actorLane.runtimeStatus)} · ${actorLane.cancellable ? "可取消" : "不可取消"}`,
+        meta: actorLane.actorKey,
+        detail: actorLane.transcriptKey.actorKey,
+        footer: surface.selectedTarget.actorId === actorLane.actorId ? "当前" : undefined,
+        category: "Actor Lanes",
+        onSelect: () => {
+          void selectTarget({
+            laneID: actorLane.actorType === "primary" ? "lane:primary" : undefined,
+            actorID: actorLane.actorId,
+          })
+        },
+      })),
+    ]
+
+    dialog.replace(() => (
+      <DialogSelect
+        title="Actor列表"
+        skipFilter={false}
+        options={options}
+        current={surface.selectedTarget.actorId || surface.selectedTarget.laneId
+          ? {
+              laneID: surface.selectedTarget.laneId,
+              actorID: surface.selectedTarget.actorId,
+            }
+          : undefined}
+        keybind={[
+          {
+            title: "取消",
+            keybind: Keybind.parse("c")[0]!,
+            onTrigger: (option) => {
+              void cancelTarget(option.value)
+            },
+          },
+          {
+            title: "发送输入",
+            keybind: Keybind.parse("s")[0]!,
+            onTrigger: (option) => {
+              void sendDraftToTarget(option.value)
+            },
+          },
+        ]}
+      />
+    ))
+  }
   const openUsageGuide = () => {
     if (props.onOpenUsage) {
       props.onOpenUsage()
@@ -1180,6 +1499,12 @@ export function TuiA1View(props: TuiA1ViewProps) {
         title="功能菜单"
         skipFilter={true}
         options={[
+          {
+            title: "使用说明",
+            value: "usage",
+            description: "Open usage guidance and shortcuts",
+            onSelect: () => openUsageGuide(),
+          },
           {
             title: "Quit",
             value: "quit",
@@ -1226,7 +1551,41 @@ export function TuiA1View(props: TuiA1ViewProps) {
   })
 
   useKeyboard((event) => {
-    if (shouldRouteHistoryArrowKeys() && event.name === "up") {
+    if (
+      dialog.stack.length === 0
+      && !activePermission()
+      && !activeQuestion()
+      && keybind.match("session_interrupt", event)
+    ) {
+      event.preventDefault()
+      event.stopPropagation()
+
+      const activeSessionID = sessionID()
+      if (!props.runtime || !activeSessionID) {
+        lastSessionInterruptAt = 0
+        return
+      }
+
+      const now = Date.now()
+      const isDoublePress = now - lastSessionInterruptAt <= SESSION_INTERRUPT_DOUBLE_PRESS_MS
+      lastSessionInterruptAt = now
+      if (!isDoublePress || sessionInterruptInFlight) return
+
+      sessionInterruptInFlight = true
+      void props.runtime.client.session
+        .abort({ sessionID: activeSessionID })
+        .catch(toast.error)
+        .finally(() => {
+          sessionInterruptInFlight = false
+        })
+      return
+    }
+
+    if (event.defaultPrevented) return
+
+    const isShiftVerticalArrow = event.shift && (event.name === "up" || event.name === "down")
+
+    if (!isShiftVerticalArrow && shouldRouteHistoryArrowKeys() && event.name === "up") {
       focusHistory()
       disableAutoFollowHistory()
       scrollByLine(scrollbox, "up")
@@ -1234,7 +1593,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
       event.preventDefault()
       return
     }
-    if (shouldRouteHistoryArrowKeys() && event.name === "down") {
+    if (!isShiftVerticalArrow && shouldRouteHistoryArrowKeys() && event.name === "down") {
       focusHistory()
       disableAutoFollowHistory()
       scrollByLine(scrollbox, "down")
@@ -1304,6 +1663,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
   })
 
   onCleanup(() => {
+    disposed = true
     runtimeUnsub?.()
     for (const timer of timers) {
       clearTimeout(timer)
@@ -1413,7 +1773,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
             </sessionContext.Provider>
           </box>
         </scrollbox>
-        <box width="100%" paddingLeft={1} paddingRight={1}>
+        <box width="100%">
           <text fg={historyIndicatorColor()} wrapMode="char" onMouseScroll={handleManualHistoryWheel}>
             {historyIndicatorText()}
           </text>
@@ -1442,7 +1802,9 @@ export function TuiA1View(props: TuiA1ViewProps) {
         blockLabel={composerBlockLabel()}
         directory={props.directory}
         focused={composerFocused()}
-        selectionLabel={selectionLabel()}
+        statusLabel={sessionLoadLabel() ?? runtimeStatusLabel()}
+        selectionLabel={composerSelectionLabel()}
+        userInputHistory={currentUserInputHistory().map((entry) => ({ input: entry.text, parts: [] }))}
         onHistoryScrollRequest={handleManualHistoryWheel}
         onFocusRequest={focusComposer}
         onReady={(value) => {
@@ -1461,7 +1823,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
         onOpenQuestionnaires={openQuestionnaireCenter}
         onOpenMessageList={openMessageList}
         onOpenSessionList={openSessionList}
-        onOpenUsage={openUsageGuide}
+        onOpenActorList={openActorList}
         onOpenFunctionMenu={openFunctionMenu}
       />
     </box>

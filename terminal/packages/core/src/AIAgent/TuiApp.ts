@@ -1,3 +1,5 @@
+import type { ActorSurfaceProjectionData } from "@cell/ai-core-contract/runtime/ActorSurface"
+
 export type KeybindsConfig = Record<string, string | undefined>
 
 export type Path = {
@@ -446,6 +448,20 @@ export type MessageWithParts = {
   parts: Part[]
 }
 
+export type UserInputHistoryEntry = {
+  text: string
+  createdAt?: number
+}
+
+export type RuntimeUsage = {
+  prompt_tokens: number
+  completion_tokens: number
+  total_tokens: number
+  cache_creation_tokens: number
+  cache_read_tokens: number
+  is_estimated: boolean
+}
+
 export type SessionPromptInput = {
   sessionID?: string
   messageID?: string
@@ -486,6 +502,7 @@ export type TuiRuntimeClient = {
     create(input?: Record<string, unknown>, options?: Record<string, unknown>): ClientResult<Session>
     get(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<Session>
     messages(input?: { sessionID?: string; limit?: number }, options?: Record<string, unknown>): ClientResult<MessageWithParts[]>
+    userInputs(input?: { sessionID?: string; limit?: number }, options?: Record<string, unknown>): ClientResult<UserInputHistoryEntry[]>
     todo(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<Todo[]>
     diff(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<Array<{ path: string; hunks: string }>>
     status(input?: Record<string, unknown>, options?: Record<string, unknown>): ClientResult<Record<string, SessionStatus>>
@@ -508,6 +525,25 @@ export type TuiRuntimeClient = {
   question: {
     reply(input: { requestID: string; answers: QuestionAnswer[] }, options?: Record<string, unknown>): ClientResult<unknown>
     reject(input: { requestID: string }, options?: Record<string, unknown>): ClientResult<unknown>
+  }
+  actor?: {
+    surface(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<ActorSurfaceProjectionData | null>
+    messages(
+      input?: { sessionID?: string; laneID?: string; actorID?: string; limit?: number },
+      options?: Record<string, unknown>,
+    ): ClientResult<MessageWithParts[]>
+    select(
+      input: { sessionID?: string; laneID?: string; actorID?: string },
+      options?: Record<string, unknown>,
+    ): ClientResult<ActorSurfaceProjectionData | null>
+    cancel(
+      input: { sessionID?: string; actorID: string; turnID?: string },
+      options?: Record<string, unknown>,
+    ): ClientResult<ActorSurfaceProjectionData | null>
+    send(
+      input: { sessionID?: string; laneID?: string; actorID?: string; text: string },
+      options?: Record<string, unknown>,
+    ): ClientResult<ActorSurfaceProjectionData | null>
   }
   provider: {
     list(input?: Record<string, unknown>, options?: Record<string, unknown>): ClientResult<ProviderListResponse>

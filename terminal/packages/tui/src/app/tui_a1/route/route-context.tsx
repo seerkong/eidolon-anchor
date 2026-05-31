@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { useGraphSignal } from "depa-data-graph-solid"
 import { createSimpleContext } from "../../../providers/helper"
 import { useTuiA1State } from "../state/state-context"

@@ -14,6 +14,7 @@ function makeTempWorkdir(): string {
 describe("direct slash canonical history", () => {
   it("shows direct slash output and persists it into message_history files through the semantic bus", async () => {
     const workdir = makeTempWorkdir()
+    const sessionKey = `direct-slash-list-${Date.now()}`
     configureTuiRuntime({
       workDir: workdir,
       adapter: "openai",
@@ -35,7 +36,7 @@ describe("direct slash canonical history", () => {
     }))
 
     try {
-      const runtime = await getTuiRuntimeBridge()
+      const runtime = await getTuiRuntimeBridge(sessionKey)
       expect(runtime).toBeTruthy()
       const chunks: string[] = []
       await runtime!.turn("/member list", {
@@ -62,7 +63,7 @@ describe("direct slash canonical history", () => {
       expect(historyText.includes("/member list")).toBe(false)
       expect(historyText.includes('"ok":true')).toBe(true)
     } finally {
-      await disposeTuiRuntimeBridge()
+      await disposeTuiRuntimeBridge(sessionKey)
       __setLlmAdapterFactoryForTest(null)
       if (previousForce === undefined) delete process.env.TUI_FORCE_MOCK_RESPONDER
       else process.env.TUI_FORCE_MOCK_RESPONDER = previousForce
@@ -70,6 +71,7 @@ describe("direct slash canonical history", () => {
   })
   it("shows namespace help directly and persists the visible output into message_history files", async () => {
     const workdir = makeTempWorkdir()
+    const sessionKey = `direct-slash-help-${Date.now()}`
     configureTuiRuntime({
       workDir: workdir,
       adapter: "openai",
@@ -91,7 +93,7 @@ describe("direct slash canonical history", () => {
     }))
 
     try {
-      const runtime = await getTuiRuntimeBridge()
+      const runtime = await getTuiRuntimeBridge(sessionKey)
       expect(runtime).toBeTruthy()
       const chunks: string[] = []
       await runtime!.turn("/actor help", {
@@ -118,7 +120,7 @@ describe("direct slash canonical history", () => {
 
       expect(historyText.includes("`/actor` commands:")).toBe(true)
     } finally {
-      await disposeTuiRuntimeBridge()
+      await disposeTuiRuntimeBridge(sessionKey)
       __setLlmAdapterFactoryForTest(null)
       if (previousForce === undefined) delete process.env.TUI_FORCE_MOCK_RESPONDER
       else process.env.TUI_FORCE_MOCK_RESPONDER = previousForce

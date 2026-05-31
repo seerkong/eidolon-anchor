@@ -272,14 +272,15 @@ describe("file tool path access", () => {
 
     const parsed = JSON.parse(String(output))
     expect(parsed).toMatchObject({
-      message: "Patch could not be applied to demo.txt: update hunk not found in demo.txt",
+      message: 'Patch could not be applied to demo.txt: update hunk not found in demo.txt (unnamed hunk); expected "missing"',
       filePath: "demo.txt",
       error: "patch_failed",
-      detail: "update hunk not found in demo.txt",
+      detail: 'update hunk not found in demo.txt (unnamed hunk); expected "missing"',
     })
     expect(parsed.suggestions).toEqual([
       "Read the target file again and copy the exact current hunk, including unchanged context lines.",
       "Reduce the patch to a smaller single-hunk change after confirming the current file contents.",
+      "Use a named @@ anchor such as @@ def methodName or @@ class TypeName to locate the intended region.",
       "If the file changed since the patch was drafted, rebuild the patch from a fresh read before retrying.",
     ])
   })

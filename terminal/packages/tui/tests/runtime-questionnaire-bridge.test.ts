@@ -52,7 +52,7 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
           return ""
         }
 
-        if (input === "Yes") {
+        if (input === "Q1: A") {
           notifyHistory?.({
             stream: "questionnaire_result",
             payload: JSON.stringify({
@@ -123,7 +123,7 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
 
       expect(turns).toEqual([
         { sessionID: "ses_1", input: "need questionnaire" },
-        { sessionID: "ses_1", input: "Yes" },
+        { sessionID: "ses_1", input: "Q1: A" },
       ])
 
       const replied = events.find((event) => event.type === "question.replied") as Event<"question.replied"> | undefined
@@ -136,8 +136,217 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
       const textParts = (messages.data ?? []).flatMap((entry) =>
         (entry.parts ?? []).flatMap((part) => (part.type === "text" ? [part.text] : [])),
       )
-      expect(textParts).toContain("Yes")
+      expect(textParts).toContain("Q1: A")
       expect(textParts).toContain("confirmed")
+    } finally {
+      __setRuntimeBridgeFactoryForTest(null)
+    }
+  })
+
+  it("uses questionnaire id facade replies when the runtime bridge supports them", async () => {
+    const turns: Array<{ sessionID: string; input: string }> = []
+    const submitted: Array<{ questionnaireId: string; text: string }> = []
+    let notifyHistory: ((event: RuntimeHistoryEvent) => void) | null = null
+
+    __setRuntimeBridgeFactoryForTest(async (sessionID) => ({
+      async turn(input: string) {
+        turns.push({ sessionID: String(sessionID ?? ""), input })
+        notifyHistory?.({
+          stream: "questionnaire_request",
+          payload: JSON.stringify({
+            questionnaireId: "q_delegate",
+            toolCallId: "call_delegate",
+            kind: "approval",
+            title: "Delegate approval",
+            suspendPolicy: "pause_all",
+            questions: [
+              {
+                id: "q1",
+                prompt: "Continue delegate?",
+                type: "yes_no",
+                required: true,
+              },
+            ],
+          }),
+          agentKey: "delegate",
+          agentActorId: "actor_delegate",
+        })
+        return ""
+      },
+      async submitQuestionnaireResponse(questionnaireId: string, text: string) {
+        submitted.push({ questionnaireId, text })
+        return {
+          status: "submitted",
+          projection: {
+            conversationLanes: [],
+            actorLanes: [],
+            selectedLaneId: "lane:primary",
+            selectedTarget: { laneId: "lane:primary" },
+            questionnaireSurface: [],
+          },
+        }
+      },
+      async abort() {},
+      dispose() {},
+      subscribeNotifications() {
+        return { unsubscribe() {} }
+      },
+      subscribeHistoryEvents(handler: (event: RuntimeHistoryEvent) => void) {
+        notifyHistory = handler
+        return {
+          unsubscribe() {
+            notifyHistory = null
+          },
+        }
+      },
+    } as any))
+
+    try {
+      const sdk = createTuiRuntimeClient()
+      const events: Event[] = []
+      const unsub = sdk.event.on((event) => events.push(event))
+
+      await sdk.client.session.prompt({
+        parts: [{ id: "part-1", type: "text", text: "need delegate approval" } as Part],
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      await sdk.client.question.reply({
+        requestID: "q_delegate",
+        answers: [["Yes"]],
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      unsub()
+
+      expect(turns).toEqual([{ sessionID: "ses_1", input: "need delegate approval" }])
+      expect(submitted).toEqual([{ questionnaireId: "q_delegate", text: "Q1: A" }])
+      const replied = events.find((event) => event.type === "question.replied") as Event<"question.replied"> | undefined
+      expect(replied?.properties).toMatchObject({
+        sessionID: "ses_1",
+        requestID: "q_delegate",
+      })
+    } finally {
+      __setRuntimeBridgeFactoryForTest(null)
+    }
+  })
+
+  it("hydrates pending questionnaires from the actor surface projection", async () => {
+    const submitted: Array<{ questionnaireId: string; text: string }> = []
+
+    __setRuntimeBridgeFactoryForTest(async () => ({
+      async getActorSurface() {
+        return {
+          conversationLanes: [
+            {
+              laneId: "lane:primary",
+              kind: "primary",
+              displayName: "Primary",
+              backendIdentity: { kind: "primary", name: "Primary" },
+              actorId: "actor_primary",
+              actorKey: "primary",
+              initialized: true,
+              status: "idle",
+            },
+          ],
+          actorLanes: [
+            {
+              actorId: "actor_delegate",
+              actorKey: "delegate",
+              actorType: "delegate",
+              displayName: "Delegate",
+              transcriptKey: { actorId: "actor_delegate", actorKey: "delegate" },
+              runtimeStatus: "waiting_for_human",
+              cancellable: false,
+            },
+          ],
+          selectedLaneId: "lane:primary",
+          selectedTarget: { laneId: "lane:primary", actorId: "actor_primary" },
+          questionnaireSurface: [
+            {
+              questionnaireId: "q_delegate",
+              ownerActorId: "actor_delegate",
+              ownerActorKey: "delegate",
+              ownerFiberId: "delegate:actor_delegate",
+              toolCallId: "call_delegate",
+              suspendPolicy: "pause_all",
+              lifecycleState: "pending",
+              request: {
+                questionnaireId: "q_delegate",
+                toolCallId: "call_delegate",
+                kind: "approval",
+                title: "Delegate approval",
+                suspendPolicy: "pause_all",
+                questions: [
+                  {
+                    id: "q1",
+                    prompt: "Continue delegate?",
+                    type: "yes_no",
+                    required: true,
+                  },
+                ],
+              },
+            },
+          ],
+        }
+      },
+      async submitQuestionnaireResponse(questionnaireId: string, text: string) {
+        submitted.push({ questionnaireId, text })
+        return {
+          status: "submitted",
+          projection: {
+            conversationLanes: [],
+            actorLanes: [],
+            selectedLaneId: "lane:primary",
+            selectedTarget: { laneId: "lane:primary" },
+            questionnaireSurface: [],
+          },
+        }
+      },
+      async abort() {},
+      dispose() {},
+      subscribeNotifications() {
+        return { unsubscribe() {} }
+      },
+      subscribeHistoryEvents() {
+        return { unsubscribe() {} }
+      },
+    } as any))
+
+    try {
+      const sdk = createTuiRuntimeClient()
+      const events: Event[] = []
+      const unsub = sdk.event.on((event) => events.push(event))
+
+      await sdk.client.actor.surface({ sessionID: "ses_actor_surface" })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const asked = events.find((event) => event.type === "question.asked") as Event<"question.asked"> | undefined
+      expect(asked?.properties).toMatchObject({
+        id: "q_delegate",
+        sessionID: "ses_actor_surface",
+        title: "Delegate approval",
+        questions: [
+          {
+            id: "q1",
+            question: "Continue delegate?",
+            input_kind: "yes_no",
+          },
+        ],
+      })
+
+      await sdk.client.question.reply({
+        requestID: "q_delegate",
+        answers: [["Yes"]],
+      })
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      unsub()
+
+      expect(submitted).toEqual([{ questionnaireId: "q_delegate", text: "Q1: A" }])
+      const replied = events.find((event) => event.type === "question.replied") as Event<"question.replied"> | undefined
+      expect(replied?.properties).toMatchObject({
+        sessionID: "ses_actor_surface",
+        requestID: "q_delegate",
+      })
     } finally {
       __setRuntimeBridgeFactoryForTest(null)
     }

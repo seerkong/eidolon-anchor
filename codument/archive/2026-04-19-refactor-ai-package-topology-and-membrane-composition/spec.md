@@ -24,11 +24,10 @@
 ### Requirement: AI composer ownership SHALL belong to @cell/ai-composer rather than ai-core-logic
 系统应当让 AI runtime composition contract、profile/extension reducer 与 runtime deps composition helper 的正式宿主变为 `@cell/ai-composer`，而不是继续让 composer 逻辑散落到 runtime entry 或 `ai-core-logic` 中。
 
-#### Scenario: Composer is renamed and aligned with sparrow_composer-style responsibility
+#### Scenario: Composer is renamed and aligned with composer-style responsibility
 - **GIVEN** 当前 `@cell/composer` 已承担 runtime assembly contract 与 profile reduction
 - **WHEN** 本轮重构完成
 - **THEN** 该包必须迁移并改名为 `@cell/ai-composer`
-- **AND** 其职责必须对齐参考项目 `sparrow_composer` 的组合层职责
 
 #### Scenario: Core logic does not become the fallback host for composition ownership
 - **GIVEN** `ai-core-logic` 负责 AI core runtime glue 和 host-facing helper

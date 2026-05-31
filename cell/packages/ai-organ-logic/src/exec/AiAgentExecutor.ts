@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type { LlmAdapter } from "@cell/ai-core-contract/LlmTypes";
 import {
   applyConversationCompaction,
@@ -24,7 +26,7 @@ import type {
 } from "@cell/ai-core-contract/runtime/ContextControl";
 import type { AgentLoopResult } from "@cell/ai-core-contract/types";
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
-import { ensureVmRuntimeContext, ensureVmSessionState, getControlActor, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
+import { ensureVmRuntimeContext, ensureVmRxData, ensureVmSessionState, getControlActor, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
 import {
   createDispatchHandler,
   createPipelineHandler,
@@ -34,7 +36,7 @@ import {
 } from "@cell/symbiont-contract/runtime/ActorFramework";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import type { ToolFuncRegistryData } from "@cell/ai-core-contract/runtime/RuntimeRegistries";
-import { compressHistory } from "@cell/ai-organ-logic/compression/ContextCompressor";
+import { applyCheapCompactionPipeline, compressHistory } from "@cell/ai-organ-logic/compression/ContextCompressor";
 import { estimateTokens, estimateUsageRatio } from "@cell/ai-organ-logic/compression/TokenEstimator";
 import { parseQuestionnaireAnswer } from "@cell/ai-organ-logic/questionnaire/parseQuestionnaireAnswer";
 import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager";
@@ -69,16 +71,19 @@ import {
   materializeExecutionMessagesWithWorkContext,
   recordPromptPlanForActorExecution,
   resetActorContinuationBaseline,
+  resolveWorkModeToolGuidance,
   resolveTurnWorkContextForActor,
 } from "../runtime/ContextControlPlane";
 import { getCoordinationEngine } from "../coordination/CoordinationEngine";
 import { getMemberManager } from "../organization/MemberManager";
+import { getDetachedActorObservabilityStore } from "../detached/DetachedActorObservability";
 import { getOrganizationManager } from "../organization/OrganizationManager";
 import { normalizeOpenAIChatMessages } from "../llm/OpenAIChatHelpers";
+import { accountThreadGoalUsage, getThreadGoal } from "../goals/ThreadGoalManager";
 
 const isDebugEnabled = (): boolean => (globalThis as any)?.process?.env?.AI_LOOP_DEBUG === "1";
 
-type ProcessStreamFn = (vm: AiAgentVm, stream: any) => Promise<any>;
+type ProcessStreamFn = (vm: AiAgentVm, stream: any, options?: { signal?: AbortSignal }) => Promise<any>;
 
 type CompressionDeps = {
   estimateUsageRatio: typeof estimateUsageRatio;
@@ -90,22 +95,22 @@ let compressionDeps: CompressionDeps = {
   compressHistory,
 };
 
-function isAutonomousHolonActor(actor: AiAgentActor | undefined | null): actor is AiAgentActor {
+function isAutonomousHolonActor(actor: AiAgentActor | undefined | null): boolean {
   return actor?.identity?.kind === "holon" && actor.identity.governance === "autonomous";
 }
 
-function isLeaderLedHolonActor(actor: AiAgentActor | undefined | null): actor is AiAgentActor {
+function isLeaderLedHolonActor(actor: AiAgentActor | undefined | null): boolean {
   return actor?.identity?.kind === "holon" && actor.identity.governance === "leader_led";
 }
 
 function getAutonomousHolonState(actor: AiAgentActor | undefined | null) {
-  return isAutonomousHolonActor(actor) && actor.holonState?.governance === "autonomous"
+  return actor && isAutonomousHolonActor(actor) && actor.holonState?.governance === "autonomous"
     ? actor.holonState
     : null;
 }
 
 function getLeaderLedHolonState(actor: AiAgentActor | undefined | null) {
-  return isLeaderLedHolonActor(actor) && actor.holonState?.governance === "leader_led"
+  return actor && isLeaderLedHolonActor(actor) && actor.holonState?.governance === "leader_led"
     ? actor.holonState
     : null;
 }
@@ -189,6 +194,65 @@ function isToolAllowed(actor: AiAgentActor, toolName: string): boolean {
   return allowed.includes(toolName);
 }
 
+export type ProviderToolSchemaPolicy = "stable_surface" | "dynamic_work_mode_surface";
+
+export function resolveProviderToolSchemaPolicy(actor: AiAgentActor): ProviderToolSchemaPolicy {
+  return actor.modelConfig.capabilities?.cachePolicy?.stablePrefix === true
+    ? "stable_surface"
+    : "dynamic_work_mode_surface";
+}
+
+function dedupeToolSchemas(tools: any[]): any[] {
+  const seen = new Set<string>();
+  return tools.filter((tool) => {
+    const name = getToolName(tool);
+    if (!name || seen.has(name)) return false;
+    seen.add(name);
+    return true;
+  });
+}
+
+export function resolveProviderToolsetForActor(actor: AiAgentActor, tools: any[]): any[] {
+  const allowedTools = dedupeToolSchemas(tools.filter((tool) => isToolAllowed(actor, getToolName(tool))));
+  if (resolveProviderToolSchemaPolicy(actor) === "stable_surface") {
+    return [...allowedTools].sort((left, right) => getToolName(left).localeCompare(getToolName(right)));
+  }
+  const avoidUntilNeeded = new Set(resolveWorkModeToolGuidance(getActorWorkContext(actor)).avoidUntilNeeded);
+  return allowedTools.filter((tool) => !avoidUntilNeeded.has(getToolName(tool)));
+}
+
+function logWorkModeToolExecutionAdvisory(vm: AiAgentVm, actor: AiAgentActor, toolName: string): void {
+  const workContext = getActorWorkContext(actor);
+  const guidance = resolveWorkModeToolGuidance(workContext);
+  if (!guidance.avoidUntilNeeded.includes(toolName)) return;
+  vm.effects.log?.("debug", "work mode advisory tool executed", {
+    actorKey: actor.key,
+    toolName,
+    workMode: workContext.workMode,
+    taskPhase: workContext.taskPhase,
+    advisory: "avoid_until_needed",
+  });
+}
+
+async function callToolWithWorkModeAdvisory(params: {
+  toolRegistry: ToolFuncRegistryData;
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  toolName: string;
+  args: unknown;
+  meta?: { toolCallId?: string; signal?: AbortSignal };
+}): Promise<unknown> {
+  logWorkModeToolExecutionAdvisory(params.vm, params.actor, params.toolName);
+  return await ToolFuncRegistry.call(
+    params.toolRegistry,
+    params.toolName,
+    params.vm,
+    params.actor,
+    params.args,
+    params.meta,
+  );
+}
+
 function isWebTool(toolName: string): boolean {
   return toolName === "webfetch" || toolName === "websearch";
 }
@@ -220,6 +284,155 @@ function isHistoryTrackedActor(actor: AiAgentActor): boolean {
 
 function shouldCompressActorHistory(actor: AiAgentActor): boolean {
   return actor.type === "primary" || actor.identity?.kind === "member";
+}
+
+function resolveCompactionInputLimit(actor: AiAgentActor): number {
+  const inputLimit = actor.modelConfig.inputLimit ?? 0;
+  const compactionThreshold = actor.modelConfig.capabilities?.cachePolicy?.compactionThresholdTokens;
+  if (compactionThreshold != null && compactionThreshold > 0 && compactionThreshold < (inputLimit || Number.MAX_SAFE_INTEGER)) {
+    return compactionThreshold;
+  }
+  return inputLimit;
+}
+
+function buildProviderPromptForActorTurn(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  messages: any[];
+  tools: any[];
+  llmAdapter: LlmAdapter;
+  model: string;
+}): { baseMessages: any[]; promptPlan: PromptPlanData; executionMessages: any[]; providerMessages: any[] } {
+  const sessionId = typeof (params.vm.outerCtx?.metadata as any)?.sessionId === "string"
+    ? String((params.vm.outerCtx?.metadata as any).sessionId)
+    : "__unsessioned__";
+  const baseMessages = withIdentityReinjection(params.messages, params.actor);
+  const { promptPlan, executionMessages } = materializeExecutionMessagesWithWorkContext({
+    actor: params.actor,
+    messages: baseMessages,
+    tools: params.tools,
+    sessionId,
+    selectedModel: params.model,
+  });
+  return {
+    baseMessages,
+    promptPlan,
+    executionMessages,
+    providerMessages: prepareMessagesForLlmAdapter(params.llmAdapter, executionMessages),
+  };
+}
+
+function assertProviderPromptWithinInputLimit(params: {
+  actor: AiAgentActor;
+  providerMessages: any[];
+  stage: string;
+}): void {
+  const inputLimit = params.actor.modelConfig.inputLimit ?? 0;
+  if (inputLimit <= 0) return;
+  const estimatedTokens = estimateTokens(params.providerMessages);
+  if (estimatedTokens < inputLimit) return;
+  throw new Error(
+    `Context window preflight blocked ${params.stage}: estimated ${estimatedTokens} input tokens exceeds model limit ${inputLimit}. `
+      + "Auto compaction did not reduce the prompt below the provider limit; compact the session or remove large tool outputs before continuing.",
+  );
+}
+
+function estimateProviderRequestPromptTokens(params: {
+  providerMessages: any[];
+  tools?: any[];
+}): number {
+  const messageTokens = estimateTokens(params.providerMessages);
+  const tools = Array.isArray(params.tools) ? params.tools : [];
+  if (tools.length === 0) return messageTokens;
+  return messageTokens + estimateTokens([{ role: "system", content: JSON.stringify(tools) }]);
+}
+
+function isPromptTooLongError(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("prompt_too_long") ||
+    lower.includes("too many tokens") ||
+    lower.includes("maximum context length") ||
+    lower.includes("context window") ||
+    lower.includes("reduce the length of the messages") ||
+    lower.includes("requested") && lower.includes("tokens") && lower.includes("maximum")
+  );
+}
+
+function recordEstimatedProviderPromptUsage(vm: AiAgentVm, promptTokens: number): void {
+  if (!Number.isFinite(promptTokens) || promptTokens <= 0) return;
+  const { privateRxData } = ensureVmRxData(vm);
+  privateRxData.usage.set((previous) => ({
+    ...previous,
+    prompt_tokens: previous.prompt_tokens + promptTokens,
+    total_tokens: previous.total_tokens + promptTokens,
+    is_estimated: true,
+  }));
+}
+
+function resolveCompactionArtifactDir(vm: AiAgentVm, actor: AiAgentActor): string | null {
+  const metadata = (vm.outerCtx?.metadata as any) ?? {};
+  const sessionDir = typeof metadata.sessionDir === "string" && metadata.sessionDir ? metadata.sessionDir : "";
+  if (sessionDir) {
+    return path.join(sessionDir, "artifacts", "tool-results", actor.key);
+  }
+  const workDir = typeof vm.outerCtx?.workDir === "string" && vm.outerCtx.workDir ? vm.outerCtx.workDir : "";
+  if (workDir) {
+    const sessionId = typeof metadata.sessionId === "string" && metadata.sessionId ? metadata.sessionId : "__unsessioned__";
+    return path.join(workDir, ".eidolon", "task_outputs", "tool-results", sessionId, actor.key);
+  }
+  return null;
+}
+
+function applyCheapCompactionForActor(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  messages: any[];
+}): void {
+  if (!shouldCompressActorHistory(params.actor) || !Array.isArray(params.messages) || params.messages.length === 0) {
+    return;
+  }
+  const result = applyCheapCompactionPipeline(params.messages, {
+    artifactDir: resolveCompactionArtifactDir(params.vm, params.actor),
+  });
+  if (!result.changed) {
+    return;
+  }
+  params.messages.length = 0;
+  params.messages.push(...result.messages);
+  params.vm.effects.log?.("debug", "cheap context compaction applied", {
+    actorKey: params.actor.key,
+    ...result.stats,
+  });
+}
+
+function appendDetachedMessageForFiber(
+  vm: AiAgentVm,
+  fiberId: string,
+  input: {
+    role: "user" | "assistant" | "tool" | "system_event"
+    kind: "message" | "tool_call" | "tool_result" | "error" | "status"
+    text: string
+    toolName?: string
+    toolCallId?: string
+  },
+): void {
+  const store = getDetachedActorObservabilityStore(vm)
+  const taskId = store.getTaskIdForFiber(fiberId)
+  if (!taskId) return
+  store.appendMessage(taskId, input)
+}
+
+function assistantTextFromMessage(msg: any): string {
+  const content = msg?.content
+  if (typeof content === "string") return content
+  if (content === undefined || content === null) return ""
+  try {
+    return JSON.stringify(content)
+  } catch {
+    return String(content)
+  }
 }
 
 function getMemberId(actor: AiAgentActor): string | undefined {
@@ -307,7 +520,7 @@ function resolveLoopDeps(vm: AiAgentVm, actor: AiAgentActor): {
   }
 
   const buildToolsetFn = () => actor.callbacks.buildToolset(vm, actor);
-  const processStreamFn: ProcessStreamFn = (localVm, stream) => actor.callbacks.processStream(localVm, actor, stream);
+  const processStreamFn: ProcessStreamFn = (localVm, stream, options) => actor.callbacks.processStream(localVm, actor, stream, options);
 
   const callbackExtraBody = vm.callbacks.resolveExtraBody?.(vm);
   const baseExtraBody: Record<string, unknown> = {};
@@ -432,6 +645,33 @@ function resolveOwnedBoardTask(vm: AiAgentVm, taskId: string): { ownerActorKey: 
   return null;
 }
 
+function emitActorMailboxSignal(params: {
+  vm: AiAgentVm
+  actor: AiAgentActor
+  mailboxKind: string
+  payload: unknown
+  signalKind?: "mailbox_enqueue" | "interrupt_requested"
+  idempotencyKey: string
+  createdAt?: number
+}): void {
+  const driver = ensureVmRuntimeContext(params.vm).driver as any;
+  const fiberId = `${params.actor.key}:${params.actor.id}`;
+  const now = params.createdAt ?? Date.now();
+  if (driver?.emitFiberSignal) {
+    driver.emitFiberSignal({
+      fiberId,
+      signalKind: params.signalKind ?? "mailbox_enqueue",
+      mailbox: { kind: params.mailboxKind, payload: params.payload },
+      idempotencyKey: params.idempotencyKey,
+      createdAt: now,
+    });
+    return;
+  }
+
+  params.actor.send(params.mailboxKind as any, params.payload as any);
+  driver?.resumeFiber?.(fiberId, now);
+}
+
 function settleOwnedBoardTaskFromMemberResult(vm: AiAgentVm, actor: AiAgentActor): void {
   const taskId = findLatestAssignedTaskId(actor.messages);
   if (!taskId) return;
@@ -468,7 +708,8 @@ function relayMemberResultToLeaderLedHolon(vm: AiAgentVm, actor: AiAgentActor, t
     return false;
   }
 
-  holonActor.send("memberInbox", {
+  const now = Date.now();
+  const payload = {
     from: actor.identity.name || actor.key,
     text: buildLeaderLedHolonEnvelope({
       kind: "result",
@@ -477,12 +718,18 @@ function relayMemberResultToLeaderLedHolon(vm: AiAgentVm, actor: AiAgentActor, t
       leaderMemberId: actor.identity.memberId,
       text,
     }),
-    ts: Date.now(),
-  } as any);
+    ts: now,
+  } as any;
 
+  emitActorMailboxSignal({
+    vm,
+    actor: holonActor,
+    mailboxKind: "memberInbox",
+    payload,
+    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberInbox:${now}:${actor.key}:leader_result`,
+    createdAt: now,
+  });
   drainLeaderLedHolonActorInbox(vm, holonActor);
-  const driver = ensureVmRuntimeContext(vm).driver as any;
-  driver?.resumeFiber?.(`${holonActor.key}:${holonActor.id}`, Date.now());
   return true;
 }
 
@@ -499,7 +746,8 @@ function relayLeaderLedHolonStageEventFromLeaderInbox(vm: AiAgentVm, actor: AiAg
     return false;
   }
 
-  holonActor.send("memberInbox", {
+  const now = Date.now();
+  const payload = {
     from: actor.identity.name || actor.key,
     text: buildLeaderLedHolonEnvelope({
       kind: "event",
@@ -509,11 +757,17 @@ function relayLeaderLedHolonStageEventFromLeaderInbox(vm: AiAgentVm, actor: AiAg
       eventType: "leader_received",
       text: `${actor.identity.name} received holon route ${parsed.payload.routeId}`,
     }),
-    ts: Date.now(),
-  } as any);
+    ts: now,
+  } as any;
 
-  const driver = ensureVmRuntimeContext(vm).driver as any;
-  driver?.resumeFiber?.(`${holonActor.key}:${holonActor.id}`, Date.now());
+  emitActorMailboxSignal({
+    vm,
+    actor: holonActor,
+    mailboxKind: "memberInbox",
+    payload,
+    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberInbox:${now}:${actor.key}:leader_received`,
+    createdAt: now,
+  });
   return true;
 }
 
@@ -539,7 +793,8 @@ function relayMemberResultToAutonomousHolon(vm: AiAgentVm, actor: AiAgentActor, 
     );
   }
 
-  holonActor.send("memberInbox", {
+  const now = Date.now();
+  const payload = {
     from: actor.identity.name || actor.key,
     text: buildAutonomousHolonEnvelope({
       kind: "result",
@@ -550,12 +805,18 @@ function relayMemberResultToAutonomousHolon(vm: AiAgentVm, actor: AiAgentActor, 
       ownerActorId: actor.id,
       text,
     }),
-    ts: Date.now(),
-  } as any);
+    ts: now,
+  } as any;
 
+  emitActorMailboxSignal({
+    vm,
+    actor: holonActor,
+    mailboxKind: "memberInbox",
+    payload,
+    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberInbox:${now}:${actor.key}:autonomous_result`,
+    createdAt: now,
+  });
   drainAutonomousHolonActorInbox(vm, holonActor);
-  const driver = ensureVmRuntimeContext(vm).driver as any;
-  driver?.resumeFiber?.(`${holonActor.key}:${holonActor.id}`, Date.now());
   return true;
 }
 
@@ -571,12 +832,19 @@ function routeLeaderLedHolonMessageToActor(params: {
   if (!target || !driver) {
     return;
   }
-  target.send("memberInbox", {
+  const now = Date.now();
+  emitActorMailboxSignal({
+    vm: params.vm,
+    actor: target,
+    mailboxKind: "memberInbox",
+    payload: {
     from: params.from,
     text: params.text,
-    ts: Date.now(),
-  } as any);
-  driver.resumeFiber?.(`${params.actorKey}:${params.actorId}`, Date.now());
+      ts: now,
+    },
+    idempotencyKey: `${params.actorKey}:${params.actorId}:memberInbox:${now}:${params.from}`,
+    createdAt: now,
+  });
 }
 
 function resolveAutonomousHolonTaskWaiters(
@@ -585,7 +853,7 @@ function resolveAutonomousHolonTaskWaiters(
   result: { status: string; resultText: string | null },
 ): void {
   const runtimeContext = ensureVmRuntimeContext(vm);
-  runtimeContext.autonomousHolonTaskSignals.resolve(taskId, result);
+  runtimeContext.autonomousHolonTaskSignals.resolve?.(taskId, result);
 }
 
 function resolveLeaderLedHolonRouteWaiters(
@@ -594,7 +862,7 @@ function resolveLeaderLedHolonRouteWaiters(
   result: { resultText: string | null },
 ): void {
   const runtimeContext = ensureVmRuntimeContext(vm);
-  runtimeContext.leaderLedHolonRouteSignals.resolve(routeId, result);
+  runtimeContext.leaderLedHolonRouteSignals.resolve?.(routeId, result);
 }
 
 function drainLeaderLedHolonActorInbox(vm: AiAgentVm, actor: AiAgentActor): void {
@@ -903,6 +1171,7 @@ async function drainActorMailboxes(
   drainChildDoneIntoMessages(actor, messages);
   drainMemberInboxIntoMessages(vm, actor, messages);
   drainCoordinationIntoMessages(vm, actor, messages);
+  drainHeartbeatWakeIntoMessages(actor, messages);
   drainHumanInputIntoMessages(vm, actor, messages);
 
   for (const toolResult of actor.drainMailbox("toolResult")) {
@@ -1009,7 +1278,7 @@ async function drainActorMailboxes(
       messages.push({
         role: "tool",
         tool_call_id: toolCallId,
-        content: resolvedOutput,
+        content: outputText,
       });
       continue;
     }
@@ -1041,7 +1310,7 @@ async function drainActorMailboxes(
       messages.push({
         role: "tool",
         tool_call_id: toolCallId,
-        content: resolvedOutput,
+        content: outputText,
       });
       continue;
     }
@@ -1233,6 +1502,22 @@ function drainCoordinationIntoMessages(vm: AiAgentVm, actor: AiAgentActor, messa
   }
 }
 
+function drainHeartbeatWakeIntoMessages(actor: AiAgentActor, messages: any[]): void {
+  for (const payload of actor.drainMailbox("heartbeatWake")) {
+    const content = [
+      `Heartbeat wake: ${payload.name}`,
+      `Schedule: ${payload.scheduleId}`,
+      `Kind: ${payload.kind}`,
+      `Purpose: ${payload.description}`,
+      `Message: ${payload.message}`,
+      `Fire count: ${payload.fireCount}`,
+      `Fired at: ${payload.firedAt}`,
+      `Payload: ${JSON.stringify(payload.payload ?? {})}`,
+    ].join("\n");
+    messages.push({ role: "user", content });
+  }
+}
+
 function drainHumanInputIntoMessages(vm: AiAgentVm, actor: AiAgentActor, messages: any[]): void {
   const eventBus = vm.eventBus;
   const eventActor = toEventActorRef(actor);
@@ -1242,6 +1527,48 @@ function drainHumanInputIntoMessages(vm: AiAgentVm, actor: AiAgentActor, message
     messages.push({ role: "user", content: text });
     eventBus?.emitUserInput(eventActor, text);
   }
+}
+
+function estimateGoalTokenUsage(messages: any[]): number {
+  try {
+    return estimateTokens(messages);
+  } catch {
+    return 0;
+  }
+}
+
+function beginGoalTurn(vm: AiAgentVm, messages: any[]): void {
+  const goal = getThreadGoal(vm);
+  const runtime = ensureVmRuntimeContext(vm).threadGoalRuntime;
+  runtime.continuationInFlight = false;
+  if (!goal || goal.status !== "active") {
+    runtime.activeGoalId = undefined;
+    return;
+  }
+  const now = Date.now();
+  runtime.activeGoalId = goal.goalId;
+  runtime.turnSequence = (runtime.turnSequence ?? 0) + 1;
+  runtime.turnStartedAt = now;
+  runtime.lastAccountedAt = now;
+  runtime.lastAccountedTokens = estimateGoalTokenUsage(messages);
+}
+
+function accountGoalProgress(vm: AiAgentVm, messages: any[]): void {
+  const goal = getThreadGoal(vm);
+  if (!goal || goal.status !== "active") return;
+  const runtime = ensureVmRuntimeContext(vm).threadGoalRuntime;
+  if (runtime.activeGoalId && runtime.activeGoalId !== goal.goalId) return;
+  const now = Date.now();
+  const currentTokens = estimateGoalTokenUsage(messages);
+  const previousTokens = runtime.lastAccountedTokens ?? currentTokens;
+  const previousAt = runtime.lastAccountedAt ?? now;
+  accountThreadGoalUsage({
+    vm,
+    tokenDelta: Math.max(0, currentTokens - previousTokens),
+    timeDeltaSeconds: Math.max(0, Math.floor((now - previousAt) / 1000)),
+  });
+  runtime.lastAccountedTokens = currentTokens;
+  runtime.lastAccountedAt = now;
 }
 
 function emitVisibleAssistantError(vm: AiAgentVm, actor: AiAgentActor, message: string): void {
@@ -1829,12 +2156,14 @@ async function maybeCompressMessages(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
   messages: any[];
+  tools: any[];
   llmAdapter: LlmAdapter;
   model: string;
   processStreamFn: ProcessStreamFn;
   promptPlan?: PromptPlanData | null;
 }): Promise<void> {
   const { vm, actor, messages, llmAdapter, model, processStreamFn } = params;
+  applyCheapCompactionForActor({ vm, actor, messages });
   resolveTurnWorkContextForActor({
     actor,
     messages,
@@ -1847,18 +2176,27 @@ async function maybeCompressMessages(params: {
     return;
   }
   const inputLimit = actor.modelConfig.inputLimit ?? 0;
-  if (inputLimit <= 0) {
+  const effectiveLimit = resolveCompactionInputLimit(actor);
+  if (effectiveLimit <= 0) {
     return;
   }
 
-  const ratio = compressionDeps.estimateUsageRatio(messages, inputLimit);
+  const promptBuild = buildProviderPromptForActorTurn({
+    vm,
+    actor,
+    messages,
+    tools: params.tools,
+    llmAdapter,
+    model,
+  });
+  const ratio = compressionDeps.estimateUsageRatio(promptBuild.providerMessages, effectiveLimit);
   if (ratio < 0.85) {
     return;
   }
-  const tokensBefore = estimateTokens(messages);
+  const tokensBefore = estimateTokens(promptBuild.providerMessages);
   const policyContext = buildCompactionPolicyContextForActor({
     actor,
-    messages,
+    messages: promptBuild.providerMessages,
     trigger: "auto_threshold",
     mode: "auto",
     tokensBefore,
@@ -1885,6 +2223,7 @@ async function maybeCompressMessages(params: {
       llmAdapter,
       model,
       inputLimit,
+      tokenBudget: Math.floor(effectiveLimit * 0.9),
       logger: {
         warn: (message: string, error?: unknown) =>
           vm.effects.log?.("warn", message, error === undefined ? undefined : { error }),
@@ -1916,6 +2255,197 @@ async function maybeCompressMessages(params: {
   }
 }
 
+async function runReactiveCompaction(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  messages: any[];
+  tools: any[];
+  llmAdapter: LlmAdapter;
+  model: string;
+  processStreamFn: ProcessStreamFn;
+  promptPlan?: PromptPlanData | null;
+  reason: "preflight_over_limit" | "provider_prompt_too_long";
+}): Promise<boolean> {
+  const { vm, actor, messages, llmAdapter, model, processStreamFn } = params;
+  if (!shouldCompressActorHistory(actor)) {
+    return false;
+  }
+  const inputLimit = actor.modelConfig.inputLimit ?? 0;
+  const effectiveLimit = resolveCompactionInputLimit(actor);
+  if (inputLimit <= 0 || effectiveLimit <= 0) {
+    return false;
+  }
+
+  applyCheapCompactionForActor({ vm, actor, messages });
+  const promptBuild = buildProviderPromptForActorTurn({
+    vm,
+    actor,
+    messages,
+    tools: params.tools,
+    llmAdapter,
+    model,
+  });
+  const tokensBefore = estimateTokens(promptBuild.providerMessages);
+  const policyContext = buildCompactionPolicyContextForActor({
+    actor,
+    messages: promptBuild.providerMessages,
+    trigger: `reactive:${params.reason}`,
+    mode: "auto",
+    tokensBefore,
+  });
+  const policyDecision = decideCompactionPolicy(policyContext);
+  if (policyDecision.decision === "skip") {
+    return false;
+  }
+
+  try {
+    await vm.effects.messageHistory?.backupHistory?.({
+      agentKey: actor.key,
+      agentActorId: actor.id,
+      actorType: actor.type,
+    });
+  } catch (error) {
+    vm.effects.log?.("warn", "history backup failed", { error });
+  }
+
+  let compressedMessages: any[] | null = null;
+  try {
+    compressedMessages = await compressionDeps.compressHistory({
+      messages,
+      llmAdapter,
+      model,
+      inputLimit,
+      tokenBudget: Math.floor(effectiveLimit * 0.65),
+      recentKeep: 5,
+      logger: {
+        warn: (message: string, error?: unknown) =>
+          vm.effects.log?.("warn", message, error === undefined ? undefined : { error }),
+      },
+      processStream: (stream) => processStreamFn(vm, stream),
+    });
+  } catch (error) {
+    vm.effects.log?.("warn", "reactive history compression failed", { error });
+    compressedMessages = null;
+  }
+
+  if (!compressedMessages) {
+    return false;
+  }
+
+  messages.length = 0;
+  messages.push(...compressedMessages);
+  applyCheapCompactionForActor({ vm, actor, messages });
+  try {
+    await persistConversationCompaction({
+      vm,
+      actor,
+      compressedMessages: messages,
+      policyContext,
+      policyDecision,
+      promptPlan: params.promptPlan ?? promptBuild.promptPlan,
+    });
+  } catch (error) {
+    vm.effects.log?.("warn", "conversation reactive compaction persistence failed", { error });
+  }
+  return true;
+}
+
+export async function forceCompressActorHistory(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  messages: any[];
+  llmAdapter?: LlmAdapter;
+  model?: string;
+  processStreamFn?: ProcessStreamFn;
+  tools?: any[];
+  trigger?: string;
+}): Promise<{ ok: true; tokensBefore: number; messagesAfter: number; compacted: boolean } | { ok: false; error: string }> {
+  try {
+    const deps = resolveLoopDeps(params.vm, params.actor);
+    const llmAdapter = params.llmAdapter ?? deps.llmAdapter;
+    const model = params.model ?? deps.model;
+    applyCheapCompactionForActor({ vm: params.vm, actor: params.actor, messages: params.messages });
+    resolveTurnWorkContextForActor({
+      actor: params.actor,
+      messages: params.messages,
+      sessionId: typeof (params.vm.outerCtx?.metadata as any)?.sessionId === "string"
+        ? String((params.vm.outerCtx?.metadata as any).sessionId)
+        : undefined,
+      trigger: params.trigger ?? "manual_compact",
+    });
+    const tools = resolveProviderToolsetForActor(params.actor, params.tools ?? deps.buildToolsetFn());
+    const inputLimit = params.actor.modelConfig.inputLimit ?? 0;
+    const effectiveLimit = resolveCompactionInputLimit(params.actor);
+    if (!shouldCompressActorHistory(params.actor)) {
+      return { ok: false, error: "actor history compression is not enabled for this actor" };
+    }
+    if (inputLimit <= 0 || effectiveLimit <= 0) {
+      return { ok: false, error: "model input limit is not configured" };
+    }
+    const promptBuild = buildProviderPromptForActorTurn({
+      vm: params.vm,
+      actor: params.actor,
+      messages: params.messages,
+      tools,
+      llmAdapter,
+      model,
+    });
+    const tokensBefore = estimateTokens(promptBuild.providerMessages);
+    const ratio = compressionDeps.estimateUsageRatio(promptBuild.providerMessages, effectiveLimit);
+    if (ratio < 0.85) {
+      return { ok: true, tokensBefore, messagesAfter: params.messages.length, compacted: false };
+    }
+    const policyContext = buildCompactionPolicyContextForActor({
+      actor: params.actor,
+      messages: promptBuild.providerMessages,
+      trigger: params.trigger ?? "manual_compact",
+      mode: "manual",
+      tokensBefore,
+    });
+    const policyDecision = decideCompactionPolicy(policyContext);
+    if (policyDecision.decision === "skip") {
+      return { ok: true, tokensBefore, messagesAfter: params.messages.length, compacted: false };
+    }
+    try {
+      await params.vm.effects.messageHistory?.backupHistory?.({
+        agentKey: params.actor.key,
+        agentActorId: params.actor.id,
+        actorType: params.actor.type,
+      });
+    } catch (error) {
+      params.vm.effects.log?.("warn", "history backup failed", { error });
+    }
+    const compressedMessages = await compressionDeps.compressHistory({
+      messages: params.messages,
+      llmAdapter,
+      model,
+      inputLimit,
+      tokenBudget: Math.floor(effectiveLimit * 0.9),
+      logger: {
+        warn: (message: string, error?: unknown) =>
+          params.vm.effects.log?.("warn", message, error === undefined ? undefined : { error }),
+      },
+      processStream: (stream) => (params.processStreamFn ?? deps.processStreamFn)(params.vm, stream),
+    });
+    if (!compressedMessages) {
+      return { ok: false, error: "history compression did not produce a smaller summary" };
+    }
+    params.messages.length = 0;
+    params.messages.push(...compressedMessages);
+    await persistConversationCompaction({
+      vm: params.vm,
+      actor: params.actor,
+      compressedMessages,
+      policyContext,
+      policyDecision,
+      promptPlan: promptBuild.promptPlan,
+    });
+    return { ok: true, tokensBefore, messagesAfter: compressedMessages.length, compacted: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 function consumeControlSignals(actor: AiAgentActor): { cancelRequested: boolean; shutdownRequested: boolean } {
   const entries = actor.drainMailbox("control") as any[]
   let cancelRequested = false
@@ -1938,7 +2468,15 @@ function consumeControlSignals(actor: AiAgentActor): { cancelRequested: boolean;
   return { cancelRequested, shutdownRequested }
 }
 
+function abortInflightCooperativeWork(state: AiAgentCooperativeExecState | undefined): void {
+  const abortController = (state?.inflight as any)?.abortController;
+  if (abortController && typeof abortController.abort === "function") {
+    abortController.abort();
+  }
+}
+
 function resetCooperativeStateAfterCancel(state: AiAgentCooperativeExecState): void {
+  abortInflightCooperativeWork(state);
   state.phase = "drain";
   state.tools = [];
   state.toolCalls = [];
@@ -2047,7 +2585,7 @@ export async function aiAgentLoopStreaming({
   messages: any[];
 }): Promise<AgentLoopResult> {
   const { llmAdapter, model, buildToolsetFn, processStreamFn, toolRegistry, extraBody } = resolveLoopDeps(vm, actor);
-  let tools = buildToolsetFn().filter((tool: any) => isToolAllowed(actor, getToolName(tool)));
+  let tools = resolveProviderToolsetForActor(actor, buildToolsetFn());
   const eventBus = vm.eventBus;
   const eventActor = toEventActorRef(actor);
   const stopAfterFirstTool = actor.ctrlOptions.stopAfterFirstTool || vm.options.stopAfterFirstTool === true;
@@ -2078,6 +2616,7 @@ export async function aiAgentLoopStreaming({
     innerInput: (_self, _payload, _state, derived) => ({ messages, tools: derived.tools }),
     innerConfig: () => ({}),
     coreLogic: async (runtime, input) => {
+      applyCheapCompactionForActor({ vm: runtime.vm, actor, messages: input.messages });
       const sessionId = typeof (vm.outerCtx?.metadata as any)?.sessionId === "string"
         ? String((vm.outerCtx?.metadata as any).sessionId)
         : undefined;
@@ -2087,14 +2626,38 @@ export async function aiAgentLoopStreaming({
         sessionId,
         trigger: "turn_start",
       });
-      const baseMessages = withIdentityReinjection(input.messages, actor);
-      const { promptPlan, executionMessages } = materializeExecutionMessagesWithWorkContext({
+      let promptBuild = buildProviderPromptForActorTurn({
+        vm: runtime.vm,
         actor,
-        messages: baseMessages,
+        messages: input.messages,
         tools: input.tools,
-        sessionId: sessionId ?? "default",
-        selectedModel: runtime.model,
+        llmAdapter: runtime.llmAdapter,
+        model: runtime.model,
       });
+      if ((actor.modelConfig.inputLimit ?? 0) > 0 && estimateTokens(promptBuild.providerMessages) >= (actor.modelConfig.inputLimit ?? 0)) {
+        const compacted = await runReactiveCompaction({
+          vm: runtime.vm,
+          actor,
+          messages: input.messages,
+          tools: input.tools,
+          llmAdapter: runtime.llmAdapter,
+          model: runtime.model,
+          processStreamFn: runtime.processStreamFn,
+          promptPlan: promptBuild.promptPlan,
+          reason: "preflight_over_limit",
+        });
+        if (compacted) {
+          promptBuild = buildProviderPromptForActorTurn({
+            vm: runtime.vm,
+            actor,
+            messages: input.messages,
+            tools: input.tools,
+            llmAdapter: runtime.llmAdapter,
+            model: runtime.model,
+          });
+        }
+      }
+      const { baseMessages, promptPlan, providerMessages } = promptBuild;
       recordPromptPlanForActorExecution({
         vm: runtime.vm,
         actor,
@@ -2102,22 +2665,79 @@ export async function aiAgentLoopStreaming({
         tools: input.tools,
         selectedModel: runtime.model,
       });
+      assertProviderPromptWithinInputLimit({
+        actor,
+        providerMessages,
+        stage: "streaming llm turn",
+      });
       const abortController = new AbortController();
       actor.llmAbortController = abortController;
       try {
-      const providerMessages = prepareMessagesForLlmAdapter(runtime.llmAdapter, executionMessages);
-      const { stream } = await runtime.llmAdapter.createStream({
-        model: runtime.model,
-        messages: providerMessages,
-        tools: input.tools,
-        extraBody: {
-          ...(runtime.extraBody ?? {}),
-          prompt_plan: promptPlan,
-          work_context: getActorWorkContext(actor),
-        },
-        signal: abortController.signal,
-      });
-      return await runtime.processStreamFn(runtime.vm, stream);
+        try {
+          recordEstimatedProviderPromptUsage(
+            runtime.vm,
+            estimateProviderRequestPromptTokens({ providerMessages, tools: input.tools }),
+          );
+          const { stream } = await runtime.llmAdapter.createStream({
+            model: runtime.model,
+            messages: providerMessages,
+            tools: input.tools,
+            extraBody: {
+              ...(runtime.extraBody ?? {}),
+              prompt_plan: promptPlan,
+              work_context: getActorWorkContext(actor),
+            },
+            signal: abortController.signal,
+          });
+          return await runtime.processStreamFn(runtime.vm, stream, { signal: abortController.signal });
+        } catch (error) {
+          if (abortController.signal.aborted || !isPromptTooLongError(error)) {
+            throw error;
+          }
+          const compacted = await runReactiveCompaction({
+            vm: runtime.vm,
+            actor,
+            messages: input.messages,
+            tools: input.tools,
+            llmAdapter: runtime.llmAdapter,
+            model: runtime.model,
+            processStreamFn: runtime.processStreamFn,
+            promptPlan,
+            reason: "provider_prompt_too_long",
+          });
+          if (!compacted) {
+            throw error;
+          }
+          const retryPrompt = buildProviderPromptForActorTurn({
+            vm: runtime.vm,
+            actor,
+            messages: input.messages,
+            tools: input.tools,
+            llmAdapter: runtime.llmAdapter,
+            model: runtime.model,
+          });
+          assertProviderPromptWithinInputLimit({
+            actor,
+            providerMessages: retryPrompt.providerMessages,
+            stage: "streaming llm turn reactive retry",
+          });
+          recordEstimatedProviderPromptUsage(
+            runtime.vm,
+            estimateProviderRequestPromptTokens({ providerMessages: retryPrompt.providerMessages, tools: input.tools }),
+          );
+          const { stream } = await runtime.llmAdapter.createStream({
+            model: runtime.model,
+            messages: retryPrompt.providerMessages,
+            tools: input.tools,
+            extraBody: {
+              ...(runtime.extraBody ?? {}),
+              prompt_plan: retryPrompt.promptPlan,
+              work_context: getActorWorkContext(actor),
+            },
+            signal: abortController.signal,
+          });
+          return await runtime.processStreamFn(runtime.vm, stream, { signal: abortController.signal });
+        }
       } finally {
         if (actor.llmAbortController === abortController) actor.llmAbortController = null;
       }
@@ -2184,7 +2804,14 @@ export async function aiAgentLoopStreaming({
 
       const resolvedOutput =
         output === null
-          ? await ToolFuncRegistry.call(runtime.toolRegistry, funcName, runtime.vm, runtime.actor, args, { toolCallId })
+          ? await callToolWithWorkModeAdvisory({
+              toolRegistry: runtime.toolRegistry,
+              vm: runtime.vm,
+              actor: runtime.actor,
+              toolName: funcName,
+              args,
+              meta: { toolCallId },
+            })
           : output;
       const outputText =
         typeof resolvedOutput === "string" ? resolvedOutput : resolvedOutput === undefined ? "" : JSON.stringify(resolvedOutput);
@@ -2222,7 +2849,7 @@ export async function aiAgentLoopStreaming({
           ],
         });
       } else if (!suppress) {
-        messages.push({ role: "tool", tool_call_id: toolCallId, content: output });
+        messages.push({ role: "tool", tool_call_id: toolCallId, content: outputText });
       }
 
       advanceActorWorkContextAfterTool({
@@ -2304,6 +2931,7 @@ export async function aiAgentLoopStreaming({
             vm,
             actor,
             messages,
+            tools,
             llmAdapter,
             model,
             processStreamFn,
@@ -2353,6 +2981,16 @@ export async function aiAgentLoopStreaming({
         return stopWith(stageState.stopReason);
       }
 
+      resolveTurnWorkContextForActor({
+        actor,
+        messages,
+        sessionId: typeof (vm.outerCtx?.metadata as any)?.sessionId === "string"
+          ? String((vm.outerCtx?.metadata as any).sessionId)
+          : undefined,
+        trigger: "turn_start",
+      });
+      tools = resolveProviderToolsetForActor(actor, buildToolsetFn());
+
       await runHookedStage("dispatch:compress", turn, vm, actor, messages, async () => {
         await stageDispatch(stageSelf, createExecutorEnvelope<ExecutorStageSchema, "stage">("stage", { key: "compress" }));
       });
@@ -2360,6 +2998,7 @@ export async function aiAgentLoopStreaming({
       if (eventBus) {
         eventBus.emitAgentTurnStart(eventActor, turn);
       }
+      beginGoalTurn(vm, messages);
 
       await runHookedStage("dispatch:llm", turn, vm, actor, messages, async () => {
         await stageDispatch(stageSelf, createExecutorEnvelope<ExecutorStageSchema, "stage">("stage", { key: "llm" }));
@@ -2368,6 +3007,7 @@ export async function aiAgentLoopStreaming({
       const toolCalls = stageState.toolCalls;
       if (!toolCalls || !toolCalls.length) {
         emitMemberResultToControl(vm, actor, messages);
+        accountGoalProgress(vm, messages);
         return stopWith("no_tool_calls");
       }
 
@@ -2397,23 +3037,29 @@ export async function aiAgentLoopStreaming({
         });
 
         if (outputState.stopReason) {
+          accountGoalProgress(vm, messages);
           return stopWith(outputState.stopReason);
         }
 
         if (stopAfterFirstTool) {
+          accountGoalProgress(vm, messages);
           return stopWith("stop_after_tool");
         }
 
         if (stopAfterTools.length && stopAfterTools.includes(result.funcName)) {
+          accountGoalProgress(vm, messages);
           return stopWith("stop_after_tool");
         }
+        accountGoalProgress(vm, messages);
       }
 
       if (exitAfterToolResult) {
+        accountGoalProgress(vm, messages);
         return stopWith("exit_after_tool_result");
       }
 
       if (maxIterations !== undefined && turn >= maxIterations) {
+        accountGoalProgress(vm, messages);
         return stopWith("max_iterations");
       }
 
@@ -2421,7 +3067,7 @@ export async function aiAgentLoopStreaming({
         console.log("[ai-loop] continue");
       }
 
-      tools = buildToolsetFn().filter((tool: any) => isToolAllowed(actor, getToolName(tool)));
+      tools = resolveProviderToolsetForActor(actor, buildToolsetFn());
     }
   } finally {
     detachMessageHistory();
@@ -2473,8 +3119,8 @@ export type AiAgentCooperativeExecState = {
   pendingAiGenerated: CooperativeAiGeneratedEvent[];
   inflight?:
     | { kind: "compress"; opId: string }
-    | { kind: "llm"; opId: string; turn: number; tools: any[] }
-    | { kind: "tool"; opId: string; funcName: string; toolCallId: string; args: any }
+    | { kind: "llm"; opId: string; turn: number; tools: any[]; abortController?: AbortController }
+    | { kind: "tool"; opId: string; funcName: string; toolCallId: string; args: any; abortController?: AbortController }
     | {
         kind: "questionnaire_parse";
         opId: string;
@@ -2494,6 +3140,11 @@ export type AiAgentFiberStepOutcome =
         | "tool_result"
         | "child_done"
         | "external"
+        | "idle_external"
+        | "wait_llm_result"
+        | "wait_tool_result"
+        | "wait_compress_result"
+        | "wait_questionnaire_parse"
         | "human_clarification"
         | "human_approval"
         | "human_answer";
@@ -2505,6 +3156,10 @@ export type AiAgentFiberStepOutcome =
 
 function ensureCooperativeState(state: AiAgentCooperativeExecState | undefined, vm: AiAgentVm, actor: AiAgentActor): AiAgentCooperativeExecState {
   if (state) {
+    if (isHistoryTrackedActor(actor) && !state.messageHistoryAttached) {
+      state.messageHistoryDetach = attachMessageHistory(vm);
+      state.messageHistoryAttached = true;
+    }
     return state;
   }
 
@@ -2567,6 +3222,14 @@ function normalizeSuspendPolicy(value: unknown): "continue_others" | "pause_all"
   return value === "continue_others" ? "continue_others" : "pause_all";
 }
 
+function latestNonSystemMessageRole(messages: any[]): string {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const role = String(messages[i]?.role ?? "");
+    if (role && role !== "system") return role;
+  }
+  return "";
+}
+
 export async function aiAgentCooperativeStep(params: {
   fiberId: string;
   vm: AiAgentVm;
@@ -2575,6 +3238,14 @@ export async function aiAgentCooperativeStep(params: {
   state?: AiAgentCooperativeExecState;
   setState: (state: AiAgentCooperativeExecState) => void;
   resumeFiber: (fiberId: string) => void;
+  emitFiberSignal?: (input: {
+    fiberId: string;
+    signalKind: "async_completed" | "mailbox_enqueue" | "interrupt_requested" | "resume_requested" | "suspend_recorded" | "late_completion_ignored";
+    mailbox?: { kind: "aiGenerated"; payload: CooperativeAiGeneratedEvent };
+    opId?: string;
+    toolCallId?: string;
+    idempotencyKey?: string;
+  }) => void;
 }): Promise<AiAgentFiberStepOutcome> {
   const { fiberId, vm, actor, messages } = params;
   const eventBus = vm.eventBus;
@@ -2582,6 +3253,38 @@ export async function aiAgentCooperativeStep(params: {
 
   const state = ensureCooperativeState(params.state, vm, actor);
   pumpAiGeneratedMailbox(actor, state);
+
+  const emitAiGeneratedCompletion = (input: {
+    opId: string;
+    event: CooperativeAiGeneratedEvent;
+    toolCallId?: string;
+  }) => {
+    if (!state.inflight || state.inflight.opId !== input.opId) {
+      params.emitFiberSignal?.({
+        fiberId,
+        signalKind: "late_completion_ignored",
+        opId: input.opId,
+        toolCallId: input.toolCallId,
+        idempotencyKey: `${fiberId}:${input.opId}:late_completion_ignored`,
+      });
+      return;
+    }
+
+    if (params.emitFiberSignal) {
+      params.emitFiberSignal({
+        fiberId,
+        signalKind: "async_completed",
+        mailbox: { kind: "aiGenerated", payload: input.event },
+        opId: input.opId,
+        toolCallId: input.toolCallId,
+        idempotencyKey: `${fiberId}:${input.opId}:aiGenerated`,
+      });
+      return;
+    }
+
+    actor.send("aiGenerated", input.event as any);
+    params.resumeFiber(fiberId);
+  };
 
   const { cancelRequested, shutdownRequested } = consumeControlSignals(actor);
   if (shutdownRequested) {
@@ -2595,19 +3298,19 @@ export async function aiAgentCooperativeStep(params: {
     eventBus?.emitAgentTurnEnd(eventActor, "cancelled");
     resetCooperativeStateAfterCancel(state);
     params.setState(state);
-    return { kind: "suspend", reason: "external" };
+    return { kind: "suspend", reason: "idle_external" };
   }
 
   if (isAutonomousHolonActor(actor)) {
     drainAutonomousHolonActorInbox(vm, actor);
     params.setState(state);
-    return { kind: "suspend", reason: "external" };
+    return { kind: "suspend", reason: "idle_external" };
   }
 
   if (isLeaderLedHolonActor(actor)) {
     drainLeaderLedHolonActorInbox(vm, actor);
     params.setState(state);
-    return { kind: "suspend", reason: "external" };
+    return { kind: "suspend", reason: "idle_external" };
   }
 
   const stopAfterFirstTool = actor.ctrlOptions.stopAfterFirstTool || vm.options.stopAfterFirstTool === true;
@@ -2624,12 +3327,14 @@ export async function aiAgentCooperativeStep(params: {
         actor.hasPending("childDone") ||
         actor.hasPending("coordination") ||
         actor.hasPending("memberInbox") ||
+        actor.hasPending("heartbeatWake") ||
         actor.hasPending("humanInput") ||
         actor.hasPending("toolResult");
 
   drainChildDoneIntoMessages(actor, messages);
   drainMemberInboxIntoMessages(vm, actor, messages);
   drainCoordinationIntoMessages(vm, actor, messages);
+  drainHeartbeatWakeIntoMessages(actor, messages);
   drainHumanInputIntoMessages(vm, actor, messages);
 
       const toolResults = actor.drainMailbox("toolResult") as any[];
@@ -2677,8 +3382,23 @@ export async function aiAgentCooperativeStep(params: {
         })
 
       if (!hadMailboxWork && state.pendingToolResults.length === 0 && !hasSeedMessages) {
+        const latestRole = latestNonSystemMessageRole(messages);
+        const shouldResumeAfterRecoveredToolMessage =
+          latestRole === "tool" &&
+          !stopAfterFirstTool &&
+          !exitAfterToolResult &&
+          stopAfterTools.length === 0 &&
+          (maxIterations === undefined || state.turn < maxIterations);
+        const shouldResumeAfterRecoveredUserMessage =
+          latestRole === "user" && actor.recovery?.restoredFromSnapshot === true;
+        if (shouldResumeAfterRecoveredToolMessage || shouldResumeAfterRecoveredUserMessage) {
+          state.phase = "start_llm";
+          params.setState(state);
+          return { kind: "yield" };
+        }
+
         params.setState(state);
-        return { kind: "suspend", reason: "external" };
+        return { kind: "suspend", reason: "idle_external" };
       }
 
       // If we have a questionnaire answer to parse, kick off parsing asynchronously and suspend.
@@ -2715,29 +3435,35 @@ export async function aiAgentCooperativeStep(params: {
         void (async () => {
           try {
             const parsed = await parseQuestionnaireAnswer({ llmAdapter, model, request, rawText });
-            actor.send("aiGenerated", {
-              kind: "questionnaire_parsed",
+            emitAiGeneratedCompletion({
               opId,
-              questionnaireId,
               toolCallId,
-              rawText,
-              parsed,
-            } satisfies CooperativeAiGeneratedEvent as any);
+              event: {
+                kind: "questionnaire_parsed",
+                opId,
+                questionnaireId,
+                toolCallId,
+                rawText,
+                parsed,
+              },
+            });
           } catch (error) {
-            actor.send("aiGenerated", {
-              kind: "questionnaire_parsed",
+            emitAiGeneratedCompletion({
               opId,
-              questionnaireId,
               toolCallId,
-              rawText,
-              parsed: { status: "invalid", answers: {}, errors: [error instanceof Error ? error.message : String(error)] },
-            } satisfies CooperativeAiGeneratedEvent as any);
-          } finally {
-            params.resumeFiber(fiberId);
+              event: {
+                kind: "questionnaire_parsed",
+                opId,
+                questionnaireId,
+                toolCallId,
+                rawText,
+                parsed: { status: "invalid", answers: {}, errors: [error instanceof Error ? error.message : String(error)] },
+              },
+            });
           }
         })();
 
-        return { kind: "suspend", reason: "external" };
+        return { kind: "suspend", reason: "wait_questionnaire_parse" };
       }
 
       state.phase = "compress";
@@ -2756,7 +3482,7 @@ export async function aiAgentCooperativeStep(params: {
       const ev = takePendingEvent(state, "questionnaire_parsed", inflight.opId);
       if (!ev) {
         params.setState(state);
-        return { kind: "suspend", reason: "external" };
+        return { kind: "suspend", reason: "wait_questionnaire_parse" };
       }
 
       state.inflight = undefined;
@@ -2844,7 +3570,7 @@ export async function aiAgentCooperativeStep(params: {
         messages.push({
           role: "tool",
           tool_call_id: toolCallId,
-          content: resolvedOutput,
+          content: outputText,
         });
 
         state.phase = "compress";
@@ -2880,7 +3606,7 @@ export async function aiAgentCooperativeStep(params: {
         messages.push({
           role: "tool",
           tool_call_id: toolCallId,
-          content: resolvedOutput,
+          content: outputText,
         });
 
         state.phase = "compress";
@@ -2909,7 +3635,7 @@ export async function aiAgentCooperativeStep(params: {
         const ev = takePendingEvent(state, "compress_done", state.inflight.opId);
         if (!ev) {
           params.setState(state);
-          return { kind: "suspend", reason: "external" };
+          return { kind: "suspend", reason: "wait_compress_result" };
         }
 
         state.inflight = undefined;
@@ -2953,6 +3679,8 @@ export async function aiAgentCooperativeStep(params: {
         return { kind: "yield" };
       }
 
+      applyCheapCompactionForActor({ vm, actor, messages });
+
       if (!shouldCompressActorHistory(actor)) {
         state.phase = "start_llm";
         params.setState(state);
@@ -2960,18 +3688,14 @@ export async function aiAgentCooperativeStep(params: {
       }
 
       const inputLimit = actor.modelConfig.inputLimit ?? 0;
-      if (inputLimit <= 0) {
+      const effectiveLimit = resolveCompactionInputLimit(actor);
+      if (effectiveLimit <= 0) {
         state.phase = "start_llm";
         params.setState(state);
         return { kind: "yield" };
       }
 
-      const ratio = compressionDeps.estimateUsageRatio(messages, inputLimit);
-      if (ratio < 0.85) {
-        state.phase = "start_llm";
-        params.setState(state);
-        return { kind: "yield" };
-      }
+      const { llmAdapter, model, buildToolsetFn, processStreamFn } = resolveLoopDeps(vm, actor);
       resolveTurnWorkContextForActor({
         actor,
         messages,
@@ -2980,10 +3704,25 @@ export async function aiAgentCooperativeStep(params: {
           : undefined,
         trigger: "compress_gate",
       });
-      const tokensBefore = estimateTokens(messages);
-      const policyContext = buildCompactionPolicyContextForActor({
+      const toolsForPrompt = resolveProviderToolsetForActor(actor, buildToolsetFn());
+      const promptBuild = buildProviderPromptForActorTurn({
+        vm,
         actor,
         messages,
+        tools: toolsForPrompt,
+        llmAdapter,
+        model,
+      });
+      const ratio = compressionDeps.estimateUsageRatio(promptBuild.providerMessages, effectiveLimit);
+      if (ratio < 0.85) {
+        state.phase = "start_llm";
+        params.setState(state);
+        return { kind: "yield" };
+      }
+      const tokensBefore = estimateTokens(promptBuild.providerMessages);
+      const policyContext = buildCompactionPolicyContextForActor({
+        actor,
+        messages: promptBuild.providerMessages,
         trigger: "auto_threshold",
         mode: "auto",
         tokensBefore,
@@ -2995,7 +3734,6 @@ export async function aiAgentCooperativeStep(params: {
         return { kind: "yield" };
       }
 
-      const { llmAdapter, model, processStreamFn } = resolveLoopDeps(vm, actor);
       const opId = `compress:${fiberId}:${state.nextOpSeq++}`;
       state.inflight = { kind: "compress", opId };
       params.setState(state);
@@ -3018,6 +3756,7 @@ export async function aiAgentCooperativeStep(params: {
             llmAdapter,
             model,
             inputLimit,
+            tokenBudget: Math.floor(effectiveLimit * 0.9),
             logger: {
               warn: (message: string, error?: unknown) =>
                 vm.effects.log?.("warn", message, error === undefined ? undefined : { error }),
@@ -3028,40 +3767,67 @@ export async function aiAgentCooperativeStep(params: {
           vm.effects.log?.("warn", "history compression failed", { error });
           compressedMessages = null;
         } finally {
-          actor.send("aiGenerated", {
-            kind: "compress_done",
+          emitAiGeneratedCompletion({
             opId,
-            compressedMessages,
-            policyContext,
-            policyDecision,
-          } satisfies CooperativeAiGeneratedEvent as any);
-          params.resumeFiber(fiberId);
+            event: {
+              kind: "compress_done",
+              opId,
+              compressedMessages,
+              policyContext,
+              policyDecision,
+            },
+          });
         }
       })();
 
-      return { kind: "suspend", reason: "external" };
+      return { kind: "suspend", reason: "wait_compress_result" };
     }
 
     if (state.phase === "start_llm") {
       const { llmAdapter, model, buildToolsetFn, processStreamFn, extraBody } = resolveLoopDeps(vm, actor);
-      const tools = buildToolsetFn().filter((tool: any) => isToolAllowed(actor, getToolName(tool)));
       const sessionId = typeof (vm.outerCtx?.metadata as any)?.sessionId === "string"
         ? String((vm.outerCtx?.metadata as any).sessionId)
-        : "default";
+        : "__unsessioned__";
+      applyCheapCompactionForActor({ vm, actor, messages });
       resolveTurnWorkContextForActor({
         actor,
         messages,
         sessionId,
         trigger: "turn_start",
       });
-      const baseMessages = withIdentityReinjection(messages, actor);
-      const { promptPlan, executionMessages } = materializeExecutionMessagesWithWorkContext({
+      const tools = resolveProviderToolsetForActor(actor, buildToolsetFn());
+      let promptBuild = buildProviderPromptForActorTurn({
+        vm,
         actor,
-        messages: baseMessages,
+        messages,
         tools,
-        sessionId,
-        selectedModel: model,
+        llmAdapter,
+        model,
       });
+      if ((actor.modelConfig.inputLimit ?? 0) > 0 && estimateTokens(promptBuild.providerMessages) >= (actor.modelConfig.inputLimit ?? 0)) {
+        const compacted = await runReactiveCompaction({
+          vm,
+          actor,
+          messages,
+          tools,
+          llmAdapter,
+          model,
+          processStreamFn,
+          promptPlan: promptBuild.promptPlan,
+          reason: "preflight_over_limit",
+        });
+        if (compacted) {
+          promptBuild = buildProviderPromptForActorTurn({
+            vm,
+            actor,
+            messages,
+            tools,
+            llmAdapter,
+            model,
+          });
+        }
+      }
+      const { baseMessages, promptPlan, providerMessages } = promptBuild;
       recordPromptPlanForActorExecution({
         vm,
         actor,
@@ -3069,13 +3835,20 @@ export async function aiAgentCooperativeStep(params: {
         tools,
         selectedModel: model,
       });
+      assertProviderPromptWithinInputLimit({
+        actor,
+        providerMessages,
+        stage: "cooperative llm turn",
+      });
 
       state.turn += 1;
       const turn = state.turn;
       eventBus?.emitAgentTurnStart(eventActor, turn);
+      beginGoalTurn(vm, messages);
 
       const opId = `llm:${fiberId}:${state.nextOpSeq++}`;
-      state.inflight = { kind: "llm", opId, turn, tools };
+      const abortController = new AbortController();
+      state.inflight = { kind: "llm", opId, turn, tools, abortController };
       state.tools = tools;
       state.toolCalls = [];
       state.toolIndex = 0;
@@ -3083,22 +3856,73 @@ export async function aiAgentCooperativeStep(params: {
       params.setState(state);
 
       void (async () => {
-        const abortController = new AbortController();
         actor.llmAbortController = abortController;
         try {
-          const providerMessages = prepareMessagesForLlmAdapter(llmAdapter, executionMessages);
-          const { stream } = await llmAdapter.createStream({
-          model,
-          messages: providerMessages,
-          tools,
-          extraBody: {
-            ...(extraBody ?? {}),
-            prompt_plan: promptPlan,
-            work_context: getActorWorkContext(actor),
-          },
-          signal: abortController.signal,
-        });
-          const msg = await processStreamFn(vm, stream);
+          let stream: AsyncIterable<any>;
+          try {
+            recordEstimatedProviderPromptUsage(
+              vm,
+              estimateProviderRequestPromptTokens({ providerMessages, tools }),
+            );
+            stream = (await llmAdapter.createStream({
+              model,
+              messages: providerMessages,
+              tools,
+              extraBody: {
+                ...(extraBody ?? {}),
+                prompt_plan: promptPlan,
+                work_context: getActorWorkContext(actor),
+              },
+              signal: abortController.signal,
+            })).stream;
+          } catch (error) {
+            if (abortController.signal.aborted || !isPromptTooLongError(error)) {
+              throw error;
+            }
+            const compacted = await runReactiveCompaction({
+              vm,
+              actor,
+              messages,
+              tools,
+              llmAdapter,
+              model,
+              processStreamFn,
+              promptPlan,
+              reason: "provider_prompt_too_long",
+            });
+            if (!compacted) {
+              throw error;
+            }
+            const retryPrompt = buildProviderPromptForActorTurn({
+              vm,
+              actor,
+              messages,
+              tools,
+              llmAdapter,
+              model,
+            });
+            assertProviderPromptWithinInputLimit({
+              actor,
+              providerMessages: retryPrompt.providerMessages,
+              stage: "cooperative llm turn reactive retry",
+            });
+            recordEstimatedProviderPromptUsage(
+              vm,
+              estimateProviderRequestPromptTokens({ providerMessages: retryPrompt.providerMessages, tools }),
+            );
+            stream = (await llmAdapter.createStream({
+              model,
+              messages: retryPrompt.providerMessages,
+              tools,
+              extraBody: {
+                ...(extraBody ?? {}),
+                prompt_plan: retryPrompt.promptPlan,
+                work_context: getActorWorkContext(actor),
+              },
+              signal: abortController.signal,
+            })).stream;
+          }
+          const msg = await processStreamFn(vm, stream, { signal: abortController.signal });
           if (abortController.signal.aborted) {
             return;
           }
@@ -3111,27 +3935,30 @@ export async function aiAgentCooperativeStep(params: {
               msg.content_parts.push({ type: "text", text: String(msg.content) });
             }
           }
-          actor.send("aiGenerated", { kind: "llm_done", opId, msg } satisfies CooperativeAiGeneratedEvent as any);
+          emitAiGeneratedCompletion({
+            opId,
+            event: { kind: "llm_done", opId, msg },
+          });
         } catch (error) {
           if (abortController.signal.aborted) {
             return;
           }
           const message = `Error: ${error instanceof Error ? error.message : String(error)}`;
           emitVisibleAssistantError(vm, actor, message);
-          actor.send("aiGenerated", {
-            kind: "llm_done",
+          emitAiGeneratedCompletion({
             opId,
-            msg: { role: "assistant", content: message },
-          } satisfies CooperativeAiGeneratedEvent as any);
+            event: {
+              kind: "llm_done",
+              opId,
+              msg: { role: "assistant", content: message },
+            },
+          });
         } finally {
           if (actor.llmAbortController === abortController) actor.llmAbortController = null;
-          if (!abortController.signal.aborted) {
-            params.resumeFiber(fiberId);
-          }
         }
       })();
 
-      return { kind: "suspend", reason: "external" };
+      return { kind: "suspend", reason: "wait_llm_result" };
     }
 
     if (state.phase === "wait_llm") {
@@ -3145,12 +3972,18 @@ export async function aiAgentCooperativeStep(params: {
       const ev = takePendingEvent(state, "llm_done", inflight.opId);
       if (!ev) {
         params.setState(state);
-        return { kind: "suspend", reason: "external" };
+        return { kind: "suspend", reason: "wait_llm_result" };
       }
 
       state.inflight = undefined;
       const msg = (ev as any).msg;
       messages.push(msg);
+      appendDetachedMessageForFiber(vm, fiberId, {
+        role: "assistant",
+        kind: "message",
+        text: assistantTextFromMessage(msg),
+      });
+      accountGoalProgress(vm, messages);
       const toolCalls = msg?.tool_calls || msg?.toolCalls || [];
       state.toolCalls = Array.isArray(toolCalls) ? toolCalls : [];
       state.toolIndex = 0;
@@ -3166,7 +3999,7 @@ export async function aiAgentCooperativeStep(params: {
           detachCooperativeHistory(state);
           return { kind: "complete" };
         }
-        return { kind: "suspend", reason: "external" };
+        return { kind: "suspend", reason: "idle_external" };
       }
 
       state.phase = "start_tool";
@@ -3185,13 +4018,13 @@ export async function aiAgentCooperativeStep(params: {
             detachCooperativeHistory(state);
             return { kind: "complete" };
           }
-          return { kind: "suspend", reason: "external" };
+          return { kind: "suspend", reason: "idle_external" };
         }
         if (maxIterations !== undefined && state.turn >= maxIterations) {
           eventBus?.emitAgentTurnEnd(eventActor, "max_iterations");
           state.phase = "drain";
           params.setState(state);
-          return { kind: "suspend", reason: "external" };
+          return { kind: "suspend", reason: "idle_external" };
         }
 
         // next turn
@@ -3214,9 +4047,17 @@ export async function aiAgentCooperativeStep(params: {
       if (eventBus) {
         eventBus.emitToolCallStart(eventActor, funcName, toolCallId, JSON.stringify(args, null, 2));
       }
+      appendDetachedMessageForFiber(vm, fiberId, {
+        role: "tool",
+        kind: "tool_call",
+        text: JSON.stringify(args),
+        toolName: funcName,
+        toolCallId,
+      });
 
       const opId = `tool:${fiberId}:${state.nextOpSeq++}`;
-      state.inflight = { kind: "tool", opId, funcName, toolCallId, args };
+      const abortController = new AbortController();
+      state.inflight = { kind: "tool", opId, funcName, toolCallId, args, abortController };
       state.phase = "wait_tool";
       params.setState(state);
 
@@ -3237,7 +4078,17 @@ export async function aiAgentCooperativeStep(params: {
             : `Error: policy violation: tool '${funcName}' is disabled`;
 
           const resolvedOutput =
-            output === null ? await ToolFuncRegistry.call(toolRegistry, funcName, vm, actor, args, { toolCallId }) : output;
+            output === null
+              ? await callToolWithWorkModeAdvisory({
+                  toolRegistry,
+                  vm,
+                  actor,
+                  toolName: funcName,
+                  args,
+                  meta: { toolCallId, signal: abortController.signal },
+                })
+              : output;
+          if (abortController.signal.aborted) return;
           const outputText =
             typeof resolvedOutput === "string" ? resolvedOutput : resolvedOutput === undefined ? "" : JSON.stringify(resolvedOutput);
           const suppress = shouldSuppressToolResultMessage(funcName, outputText);
@@ -3250,35 +4101,42 @@ export async function aiAgentCooperativeStep(params: {
                   : JSON.stringify(resolvedOutput);
             eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, outputText.startsWith("Error:"));
           }
-          actor.send("aiGenerated", {
-            kind: "tool_done",
+          emitAiGeneratedCompletion({
             opId,
-            funcName,
             toolCallId,
-            args,
-            output: resolvedOutput,
-            outputText,
-          } satisfies CooperativeAiGeneratedEvent as any);
+            event: {
+              kind: "tool_done",
+              opId,
+              funcName,
+              toolCallId,
+              args,
+              output: resolvedOutput,
+              outputText,
+            },
+          });
         } catch (error) {
+          if (abortController.signal.aborted) return;
           const outputText = `Error: ${error instanceof Error ? error.message : String(error)}`;
           if (eventBus) {
             eventBus.emitToolCallResult(eventActor, funcName, toolCallId, outputText, true);
           }
-          actor.send("aiGenerated", {
-            kind: "tool_done",
+          emitAiGeneratedCompletion({
             opId,
-            funcName,
             toolCallId,
-            args,
-            output: outputText,
-            outputText,
-          } satisfies CooperativeAiGeneratedEvent as any);
-        } finally {
-          params.resumeFiber(fiberId);
+            event: {
+              kind: "tool_done",
+              opId,
+              funcName,
+              toolCallId,
+              args,
+              output: outputText,
+              outputText,
+            },
+          });
         }
       })();
 
-      return { kind: "suspend", reason: "tool_result" };
+      return { kind: "suspend", reason: "wait_tool_result" };
     }
 
     if (state.phase === "wait_tool") {
@@ -3292,7 +4150,7 @@ export async function aiAgentCooperativeStep(params: {
       const ev = takePendingEvent(state, "tool_done", inflight.opId);
       if (!ev) {
         params.setState(state);
-        return { kind: "suspend", reason: "tool_result" };
+        return { kind: "suspend", reason: "wait_tool_result" };
       }
 
       state.inflight = undefined;
@@ -3300,6 +4158,13 @@ export async function aiAgentCooperativeStep(params: {
       const outputText = String((ev as any).outputText ?? "");
       const funcName = String((ev as any).funcName ?? "");
       const suppress = shouldSuppressToolResultMessage(funcName, outputText);
+      appendDetachedMessageForFiber(vm, fiberId, {
+        role: "tool",
+        kind: outputText.startsWith("Error:") ? "error" : "tool_result",
+        text: outputText,
+        toolName: funcName,
+        toolCallId: String((ev as any).toolCallId ?? ""),
+      });
 
       if (!suppress && (llmAdapter.type === "anthropic" || llmAdapter.type === "claude")) {
         const toolName = String((ev as any).funcName ?? "");
@@ -3318,13 +4183,14 @@ export async function aiAgentCooperativeStep(params: {
           ],
         });
       } else if (!suppress) {
-        messages.push({ role: "tool", tool_call_id: String((ev as any).toolCallId ?? ""), content: (ev as any).output });
+        messages.push({ role: "tool", tool_call_id: String((ev as any).toolCallId ?? ""), content: outputText });
       }
       advanceActorWorkContextAfterTool({
         actor,
         toolName: funcName,
         args: (ev as any).args,
       });
+      accountGoalProgress(vm, messages);
 
       const toolCallId = String((ev as any).toolCallId ?? "");
       const pending = findQuestionnairePendingControl(actor, toolCallId);
@@ -3379,7 +4245,7 @@ export async function aiAgentCooperativeStep(params: {
           detachCooperativeHistory(state);
           return { kind: "complete" };
         }
-        return { kind: "suspend", reason: "external" };
+        return { kind: "suspend", reason: "idle_external" };
       }
 
       if (stopAfterTools.length && stopAfterTools.includes(String((ev as any).funcName ?? ""))) {
@@ -3390,7 +4256,7 @@ export async function aiAgentCooperativeStep(params: {
           detachCooperativeHistory(state);
           return { kind: "complete" };
         }
-        return { kind: "suspend", reason: "external" };
+        return { kind: "suspend", reason: "idle_external" };
       }
 
       state.toolIndex += 1;

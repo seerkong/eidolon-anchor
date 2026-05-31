@@ -27,11 +27,11 @@ describe("Actor transcript recovery", () => {
         { stream: "content", payload: "done" },
         {
           stream: "tool_call_start",
-          payload: JSON.stringify({ toolName: "DetachedBash", toolCallId: "tc-1", arguments: JSON.stringify({ cmd: "pwd" }) }),
+          payload: JSON.stringify({ toolName: "RunDetachedBash", toolCallId: "tc-1", arguments: JSON.stringify({ cmd: "pwd" }) }),
         },
         {
           stream: "tool_call_result",
-          payload: JSON.stringify({ toolName: "DetachedBash", toolCallId: "tc-1", result: "ok", isError: false }),
+          payload: JSON.stringify({ toolName: "RunDetachedBash", toolCallId: "tc-1", result: "ok", isError: false }),
         },
       ],
       { delimiter: "----", includeHeader: true, ensureMarker: true },
@@ -44,9 +44,9 @@ describe("Actor transcript recovery", () => {
         role: "assistant",
         content: "done",
         reasoning_content: "reason",
-        toolCalls: [{ id: "tc-1", name: "DetachedBash", input: { cmd: "pwd" } }],
-        rawToolCalls: [{ id: "tc-1", name: "DetachedBash", input: { cmd: "pwd" } }],
-        rawToolCallsStr: JSON.stringify([{ id: "tc-1", name: "DetachedBash", input: { cmd: "pwd" } }]),
+        toolCalls: [{ id: "tc-1", name: "RunDetachedBash", input: { cmd: "pwd" } }],
+        rawToolCalls: [{ id: "tc-1", name: "RunDetachedBash", input: { cmd: "pwd" } }],
+        rawToolCallsStr: JSON.stringify([{ id: "tc-1", name: "RunDetachedBash", input: { cmd: "pwd" } }]),
       },
       { role: "tool", tool_call_id: "tc-1", content: "ok" },
     ])

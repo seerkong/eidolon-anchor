@@ -10,6 +10,41 @@ const joinTokens = (...parts: string[]) => parts.join("")
 
 const DEFAULT_SLASH_COMMANDS: SlashCommandDescriptor[] = [
   {
+    namespace: "goal",
+    actions: {
+      status: {
+        toolName: "GoalCommand",
+        parse: { kind: "literal", form: "status" },
+        help: "`/goal` or `/goal status` Show the current thread goal",
+      },
+      set: {
+        toolName: "GoalCommand",
+        parse: { kind: "rest", form: "set", argName: "objective" },
+        help: "`/goal <objective>` or `/goal set <objective>` Set the active thread goal",
+      },
+      edit: {
+        toolName: "GoalCommand",
+        parse: { kind: "rest", form: "edit", argName: "objective" },
+        help: "`/goal edit <objective>` Replace the current goal objective",
+      },
+      pause: {
+        toolName: "GoalCommand",
+        parse: { kind: "literal", form: "pause" },
+        help: "`/goal pause` Pause the current goal",
+      },
+      resume: {
+        toolName: "GoalCommand",
+        parse: { kind: "literal", form: "resume" },
+        help: "`/goal resume` Resume the current goal",
+      },
+      clear: {
+        toolName: "GoalCommand",
+        parse: { kind: "literal", form: "clear" },
+        help: "`/goal clear` Clear the current goal",
+      },
+    },
+  },
+  {
     namespace: "actor",
     actions: {
       assign: {
@@ -156,6 +191,26 @@ describe("slash command resolution", () => {
     expect(unwatch?.kind).toBe("direct_execute")
     expect(unwatch?.action).toBe("unwatch")
     expect(unwatch?.args).toEqual({ target: "holon:research" })
+  })
+
+  it("supports /goal direct objective and controls", () => {
+    const set = resolve("/goal ship the persistence recovery track") as any
+    expect(set?.kind).toBe("direct_execute")
+    expect(set?.namespace).toBe("goal")
+    expect(set?.action).toBe("set")
+    expect(set?.args).toEqual({ command: "set", objective: "ship the persistence recovery track" })
+
+    const status = resolve("/goal") as any
+    expect(status?.action).toBe("status")
+    expect(status?.args).toEqual({ command: "status" })
+
+    const pause = resolve("/goal pause") as any
+    expect(pause?.action).toBe("pause")
+    expect(pause?.args).toEqual({ command: "pause" })
+
+    const edit = resolve("/goal edit updated objective") as any
+    expect(edit?.action).toBe("edit")
+    expect(edit?.args).toEqual({ command: "edit", objective: "updated objective" })
   })
 
   it("supports /member create and assign modes", () => {

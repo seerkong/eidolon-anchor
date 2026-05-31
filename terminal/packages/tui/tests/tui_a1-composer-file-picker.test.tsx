@@ -58,7 +58,7 @@ describe("tuiA1 composer file picker", () => {
 
     try {
       await renderSettled(setup, 5)
-      expect(captureText(setup)).toContain("使用说明")
+      expect(captureText(setup)).toContain("Actor")
 
       const before = (setup.renderer as unknown as { listenerCount?: (name: string) => number }).listenerCount?.("selection")
       setup.mockInput.pressKey("o", { ctrl: true })

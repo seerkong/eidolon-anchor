@@ -37,7 +37,7 @@ export type DomainRuntimeAssemblyContext = {
   loadedAgents: Readonly<Record<string, AgentConfig>>;
 };
 
-export type RuntimeSlashCommandNamespace = "actor" | "member" | "holon";
+export type RuntimeSlashCommandNamespace = "actor" | "member" | "holon" | "goal";
 
 export type RuntimeSlashCommandActionParse =
   | { kind: "assign" }
@@ -46,7 +46,8 @@ export type RuntimeSlashCommandActionParse =
   | { kind: "name"; form: string; argName?: string }
   | { kind: "pair"; form: string; argNames: readonly [string, string] }
   | { kind: "create_member"; form: string; defaultAgentType?: string }
-  | { kind: "create_holon"; form: string };
+  | { kind: "create_holon"; form: string }
+  | { kind: "rest"; form?: string; argName?: string };
 
 export type RuntimeSlashCommandActionDescriptor = {
   toolName: string;

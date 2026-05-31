@@ -1,3 +1,4 @@
+/** @jsxImportSource @opentui/solid */
 import { Global } from "../support/global"
 import { createSignal, onMount, type Setter } from "solid-js"
 import { createStore } from "solid-js/store"

@@ -3,6 +3,7 @@ import { AppendOnlyEventLog } from "depa-data-graph-core";
 import type { AutonomousHolonClaimPayload, AutonomousHolonIdleExitPayload } from "@cell/ai-core-contract/runtime/AutonomousHolon";
 import type { DetachedActorKind, DetachedActorTerminalStatus } from "@cell/ai-core-contract/runtime/DetachedActor";
 import type { QuestionnaireRequestPayload, QuestionnaireResultPayload } from "@cell/ai-core-contract/runtime/Questionnaire";
+import type { VmThreadGoalRecord } from "@cell/ai-core-contract/runtime/AiAgentVm";
 import type { IngressSource, JsonToolCall, ParsedXmlToolCall, ToolCallType } from "@cell/ai-core-contract/stream/ingressAdapterTypes";
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
 
@@ -384,6 +385,29 @@ export class AgentEventGraph {
       event_type: "semantic_notice",
       message: `Autonomous holon idle exit: ${payload.memberId} (${payload.idleTimeoutMs}ms)`,
       level: "info",
+    });
+  }
+
+  emitThreadGoalUpdate(
+    actor: ActorLike,
+    payload: { action: string; goal: VmThreadGoalRecord | null; previousGoal?: VmThreadGoalRecord | null; error?: string },
+  ): void {
+    const goal = payload.goal;
+    const parts = [`Thread goal ${payload.action}`];
+    if (goal) {
+      parts.push(`status=${goal.status}`);
+      parts.push(`objective=${goal.objective}`);
+      parts.push(`tokens=${goal.tokensUsed}${goal.tokenBudget ? `/${goal.tokenBudget}` : ""}`);
+      parts.push(`time=${goal.timeUsedSeconds}s`);
+    } else {
+      parts.push("goal=none");
+    }
+    if (payload.error) parts.push(`error=${payload.error}`);
+    this.emit({
+      ...this.toBase(actor),
+      event_type: "semantic_notice",
+      message: parts.join("; "),
+      level: payload.error ? "warning" : "info",
     });
   }
 

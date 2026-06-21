@@ -30,7 +30,7 @@ function findPendingShutdownEnvelope(
 ): { env: { request_id: string; coordination: string; kind: string }; actorKey: string; actorId: string } | null {
   const engine = getCoordinationEngine()
   for (const actor of Object.values(runtime.vm.actors)) {
-    for (const mailboxTag of ["coordination", "memberInbox"] as const) {
+    for (const mailboxTag of ["memberCoordination", "memberChatInbox"] as const) {
       for (const pending of actor.peekMailbox(mailboxTag) as Array<{ text?: string }>) {
         const env = engine.parseEnvelopeText(String(pending?.text ?? ""))
         if (!env || env.request_id !== requestId || env.coordination !== "shutdown") continue

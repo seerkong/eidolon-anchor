@@ -1,4 +1,4 @@
-import type { AgentEventGraph } from "../stream/AgentEventGraph";
+import { AgentEventGraph } from "../stream/AgentEventGraph";
 import type { ToolFuncRegistry } from "./ToolFuncRegistry";
 import {
   ActorRuntime,
@@ -27,6 +27,7 @@ import type {
   RuntimeCallbacks as ContractRuntimeCallbacks,
   RuntimeEffects,
   RuntimeOptions,
+  RuntimeStorageOptions,
   VmAutonomousHolonRecord,
   VmDeferredResume,
   VmDetachedActorRecord,
@@ -35,7 +36,6 @@ import type {
   VmMemberRosterEntry,
   VmOrchestratorContext,
   VmRecoveryReport,
-  VmRecoveryReportActorTranscriptSource,
   VmRecoveryState,
   VmRuntimeContext,
   VmSessionState,
@@ -58,6 +58,7 @@ export type {
   AiRuntimeVmFacet,
   RuntimeEffects,
   RuntimeOptions,
+  RuntimeStorageOptions,
   VmAutonomousHolonRecord,
   VmDeferredResume,
   VmDetachedActorRecord,
@@ -66,7 +67,6 @@ export type {
   VmMemberRosterEntry,
   VmOrchestratorContext,
   VmRecoveryReport,
-  VmRecoveryReportActorTranscriptSource,
   VmRecoveryState,
   VmRuntimeContext,
   VmSessionState,
@@ -96,6 +96,7 @@ export function createEmptyVmSessionState(): VmSessionState {
     memberRoster: {},
     holons: {},
     detachedActors: {},
+    questionnaires: {},
     actorSurface: createEmptyActorSurfaceRuntimeState(),
     controlSignals: createEmptyDurableControlSignalStore(),
     threadGoal: null,
@@ -117,6 +118,8 @@ export function createEmptyVmRuntimeContext(): VmRuntimeContext {
     deferredMemberResumes: [],
     interactiveTurnActive: false,
     conversationDomainRuntime: null,
+    toolCallDomain: null,
+    providerCallDomain: null,
     heartbeatScheduler: null,
     threadGoalRuntime: {
       continuationTurns: 0,
@@ -134,6 +137,7 @@ function materializeVmSessionState(sessionState?: Partial<VmSessionState>): VmSe
     memberRoster: { ...(sessionState?.memberRoster ?? {}) },
     holons: { ...(sessionState?.holons ?? {}) },
     detachedActors: { ...(sessionState?.detachedActors ?? {}) },
+    questionnaires: { ...(sessionState?.questionnaires ?? {}) },
     actorSurface: {
       ...createEmptyActorSurfaceRuntimeState(),
       ...(sessionState?.actorSurface ?? {}),
@@ -155,6 +159,8 @@ function materializeVmRuntimeContext(runtimeContext?: Partial<VmRuntimeContext>)
     driver: runtimeContext?.driver ?? null,
     currentOrchestrator: runtimeContext?.currentOrchestrator ?? null,
     conversationDomainRuntime: runtimeContext?.conversationDomainRuntime ?? null,
+    toolCallDomain: runtimeContext?.toolCallDomain ?? null,
+    providerCallDomain: runtimeContext?.providerCallDomain ?? null,
     heartbeatScheduler: runtimeContext?.heartbeatScheduler ?? null,
     threadGoalRuntime: {
       continuationTurns: 0,
@@ -199,6 +205,41 @@ export type CreateVMParams = {
   sessionState?: Partial<VmSessionState>;
   runtimeContext?: Partial<VmRuntimeContext>;
 };
+
+export type NormalizedRuntimeStorageOptions = Required<RuntimeStorageOptions>;
+
+export function normalizeRuntimeStorageOptions(options?: RuntimeOptions): NormalizedRuntimeStorageOptions {
+  return {
+    logs: options?.storage?.logs !== false,
+    files: options?.storage?.files !== false,
+  };
+}
+
+export function isRuntimeStorageLogsEnabled(vm: Pick<AiAgentVm, "options">): boolean {
+  return normalizeRuntimeStorageOptions(vm.options).logs;
+}
+
+export function isRuntimeStorageFilesEnabled(vm: Pick<AiAgentVm, "options">): boolean {
+  return normalizeRuntimeStorageOptions(vm.options).files;
+}
+
+function materializeRuntimeOptions(options?: RuntimeOptions): RuntimeOptions {
+  return {
+    ...(options ?? {}),
+    storage: {
+      ...normalizeRuntimeStorageOptions(options),
+      ...(options?.storage ?? {}),
+    },
+  };
+}
+
+function materializeRuntimeEffects(options: RuntimeOptions, effects?: RuntimeEffects): RuntimeEffects {
+  const nextEffects = { ...(effects ?? {}) };
+  if (options.storage?.logs === false) {
+    nextEffects.orchestrationHistory = undefined;
+  }
+  return nextEffects;
+}
 
 export function getPlatformRuntimeVm(vm: AiAgentVm): PlatformRuntimeVm {
   return vm;
@@ -278,6 +319,8 @@ export function createVM(params: CreateVMParams): AiAgentVm {
       ...(params.aiFacet?.runtimeContext ?? {}),
     },
   });
+  const options = materializeRuntimeOptions(params.options);
+  const effects = materializeRuntimeEffects(options, params.effects);
 
   let vm!: AiAgentVm;
   const actorRuntime = new ActorRuntime<AiAgentVm, AiAgentMailboxSchema>(() => vm);
@@ -296,7 +339,11 @@ export function createVM(params: CreateVMParams): AiAgentVm {
   vm = {
     controlActorKey,
     actors: { ...params.actors },
-    eventBus: params.eventBus ?? null,
+    // P8 single-writer pipeline (decisions.md decision 8): every vm has an
+    // AgentEventGraph event bus — conversation events flow through it and
+    // the resident MessageHistoryGraph commits to the History domain.
+    // Callers may inject their own bus (e.g. tests observing emitted events).
+    eventBus: params.eventBus ?? new AgentEventGraph(),
     get registries(): RuntimeRegistries {
       return innerCtx.registries;
     },
@@ -304,8 +351,8 @@ export function createVM(params: CreateVMParams): AiAgentVm {
       innerCtx.registries = nextRegistries;
     },
     callbacks: params.callbacks ?? {},
-    options: params.options ?? {},
-    effects: params.effects ?? {},
+    options,
+    effects,
     outerCtx: params.outerCtx ?? {},
     innerCtx,
     get mcpManager(): McpManagerLike | undefined {

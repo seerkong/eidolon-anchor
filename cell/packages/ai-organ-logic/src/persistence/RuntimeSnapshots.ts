@@ -7,9 +7,13 @@ import {
   ensureVmRuntimeContext,
   ensureVmSessionState,
   ensureVmRxData,
+  isRuntimeStorageFilesEnabled,
+  isRuntimeStorageLogsEnabled,
   getPendingDurableControlSignals,
   markDurableControlSignalConsumed,
   getControlActor,
+  collectQuestionnaireRowsForSnapshot,
+  hydrateQuestionnaireRowsIntoRuntime,
   hydrateActor,
   hydrateVM,
   serializeActor,
@@ -19,30 +23,32 @@ import {
   type RuntimeCallbacks,
   type RuntimeEffects,
   type RuntimeRegistries,
-  type RuntimeSnapshotLoadResult,
-  type RuntimeSnapshotManifest,
-  type RuntimeSnapshotPersistedState,
   type RuntimeSnapshotFiber,
   type VmRecoveryReport,
 } from "@cell/ai-core-logic"
-import type { ActorTranscriptStore } from "@cell/ai-core-contract/runtime/ActorTranscript"
+import { hasPendingAiAgentWakeMailbox } from "@cell/ai-core-logic/runtime/actor"
 import type { AiRuntimeOuterCtx } from "@cell/ai-core-contract/runtime/AiRuntimeOuterCtx"
 import type { McpManagerLike } from "@cell/ai-core-contract/runtime/McpManagerLike"
-import type { RuntimeSnapshotRepositoryFactory } from "@cell/ai-core-contract/runtime/RuntimeSnapshotStore"
 import type {
   ActorWorkContextData,
   ContinuationBaselineData,
 } from "@cell/ai-core-contract/runtime/ContextControl"
+import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl"
 import {
-  bootstrapConversationHistoryFromMessages,
   loadConversationActorRawState,
-  loadConversationHistoryMessages,
-  loadConversationRuntimeMessages,
   loadConversationSessionRawState,
 } from "@cell/ai-support"
+import {
+  createRecoveryReadPort,
+  assertConversationRecoverySourceComplete,
+  type RuntimeRecoveryReadPort,
+} from "./RecoveryReadPort"
 import { aiAgentCooperativeStep } from "../exec/AiAgentExecutor"
 import {
+  bindActorConversationProjectionToVm,
   ensureVmConversationDomainRuntime,
+  getConversationActorRawStateFromVm,
+  getConversationSessionRawStateFromVm,
   injectConversationActorRawState,
   injectConversationSessionRawState,
 } from "../conversation/ConversationDomainRuntime"
@@ -50,14 +56,15 @@ import {
   createAiAgentOrchestratorDriver,
   type AiAgentOrchestratorDriver,
 } from "../OrchestratorDriver"
+import { createSessionDiagnosticsXnlLog } from "../runtime/SessionRuntimeXnlLogs"
+import { restoreVmToolCallDomain, getVmToolCallDomain } from "../runtime/ToolCallDomainRuntime"
+import type { ToolCallRecord } from "@cell/ai-core-contract/runtime/ToolCallDomain"
 import type { DelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode"
-import type { ConversationPersistenceRepositoryFactory } from "@cell/ai-organ-contract/persistence/conversation/ConversationPersistence"
 import type {
   CoordinationRecordsIndexSnapshot,
   DetachedActorsIndexSnapshot,
   MemberRosterIndexSnapshot,
   RuntimeDerivedIndexes,
-  RuntimeDerivedIndexesStore,
 } from "@cell/ai-organ-contract/persistence/RuntimeDerivedIndexes"
 import {
   getDetachedActorRegistry,
@@ -68,6 +75,49 @@ import { normalizeAiAgentLane, type AiAgentLane } from "../lane/AiAgentLane"
 import type { AiAgentWorkload } from "../lane/AiAgentWorkload"
 import { getCoordinationEngine, type CoordinationRecord } from "../coordination/CoordinationEngine"
 import { getMemberManager, type MemberRecord } from "../organization/MemberManager"
+import {
+  classifyRealSessionRecovery,
+  evaluateAiAgentRuntimeSnapshotSafepoint,
+  rebuildEffectsFromLifecycleEvidence,
+  type RealSessionRecoveryResult,
+  type RuntimeSnapshotSafepointResult,
+} from "@cell/ai-runtime-control-logic"
+import {
+  buildAiRuntimeInterruptedInflightFailedEvidence,
+  coordinatorDerivation,
+  decideAiRuntimePendingEffectsRecovery,
+  recordAiRuntimeEffectLifecycleEvent,
+  runFileStoreAiRuntimeConcreteCheckpoint,
+} from "@cell/ai-runtime-control-composer"
+import {
+  readRealSessionDurableHeads,
+  inferRuntimeControlCheckpointEffectEvidenceSequence,
+  readRuntimeControlCohortCommitFile,
+  readRuntimeControlEffectEvidence,
+  readRuntimeControlEffectEvidenceThroughSequence,
+  readRuntimeControlSessionUpgradeFile,
+  type AiRuntimeEffectLifecycleEvent,
+} from "@cell/ai-file-store-logic"
+// P2 seam (track refactor-persistent-session-backplane): the pure-I/O
+// persistence routing (snapshot repo access, derived-index read/write,
+// conversation-persistence repo access, snapshot existence + deserialize-side
+// shape validation, the injected support registry) lives in the dedicated
+// @cell/ai-persistence-logic package, which has NO dependency on ai-organ-logic.
+// This module keeps only the runtime-orchestration (gather-from / reconstruct-to
+// the live runtime) and consumes the package below. configureRuntimePersistenceSupport
+// is re-declared locally so the runtime-composition import path stays stable.
+import {
+  configureRuntimePersistenceSupport as configurePersistenceSupportIo,
+  getRuntimePersistenceSupport,
+  getRuntimeSnapshotRepository,
+  hasRuntimeSnapshot as hasRuntimeSnapshotIo,
+  writeDerivedIndexes,
+  loadDerivedIndexes,
+  getConversationPersistenceRepository as getConversationPersistenceRepositoryIo,
+  assertSupportedSnapshotShape,
+  DERIVED_INDEX_FILES,
+  type RuntimePersistenceSupport,
+} from "@cell/ai-persistence-logic"
 
 type PersistedCompletionBinding = {
   parentFiberId: string
@@ -109,6 +159,12 @@ type OrchestratorStateLike = {
 }
 
 const COOPERATIVE_EXEC_STATE_METADATA_KEY = "cooperativeExecState"
+
+export type RuntimeSnapshotSaveResult =
+  | { status: "saved"; safepoint: RuntimeSnapshotSafepointResult }
+  | { status: "skipped_non_safepoint"; safepoint: RuntimeSnapshotSafepointResult }
+  | { status: "skipped_pending_effects"; safepoint: RuntimeSnapshotSafepointResult; pendingEffectIds: string[] }
+  | { status: "skipped_storage_disabled"; safepoint: RuntimeSnapshotSafepointResult }
 
 function cloneJsonValue<T>(value: T): T | undefined {
   if (value === undefined) return undefined
@@ -185,7 +241,15 @@ function normalizeCooperativeExecState(value: unknown): any | null {
     toolIndex: asNonNegativeInteger(raw.toolIndex, 0),
     nextOpSeq: Math.max(1, asNonNegativeInteger(raw.nextOpSeq, 1)),
     pendingToolResults: cloneJsonValue(asArray(raw.pendingToolResults)) ?? [],
-    pendingAiGenerated: cloneJsonValue(asArray(raw.pendingAiGenerated)) ?? [],
+    // P8 single-writer pipeline: entries restored from a serialized
+    // pendingAiGenerated never crossed THIS process's semantic event bus,
+    // so the cooperative output handler must re-emit them on the bus for
+    // the resident graph to commit. Stamp them now.
+    pendingAiGenerated: (cloneJsonValue(asArray(raw.pendingAiGenerated)) ?? []).map((entry: any) =>
+      entry && typeof entry === "object"
+        ? { ...entry, replayedFromEffectEvidence: true }
+        : entry,
+    ),
     inflight: normalizeCooperativeInflight(raw.inflight),
     messageHistoryAttached: false,
     messageHistoryDetach: undefined,
@@ -194,6 +258,79 @@ function normalizeCooperativeExecState(value: unknown): any | null {
 
 function serializeCooperativeExecState(value: unknown): any | null {
   return normalizeCooperativeExecState(value)
+}
+
+type RuntimeControlRecoveryGate = {
+  checkpoint: NonNullable<Awaited<ReturnType<typeof readRuntimeControlCohortCommitFile>>>
+  effects: ReturnType<typeof rebuildEffectsFromLifecycleEvidence>
+  result: RealSessionRecoveryResult
+}
+
+async function readRuntimeControlRecoveryGate(sessionDir: string): Promise<RuntimeControlRecoveryGate> {
+  const upgrade = await readRuntimeControlSessionUpgradeFile({ sessionDir })
+  if (!upgrade) {
+    throw new Error("runtime_control_session_upgrade_required")
+  }
+  const checkpoint = await readRuntimeControlCohortCommitFile({ sessionDir, cohortId: "checkpoint" })
+  if (!checkpoint) {
+    throw new Error("dirty_runtime_control_recovery:missing_checkpoint")
+  }
+  if (upgrade.checkpointCohortId !== checkpoint.cohortId || upgrade.checkpointMarker !== checkpoint.marker) {
+    throw new Error("dirty_runtime_control_recovery:upgrade_checkpoint_mismatch")
+  }
+  const heads = await readRealSessionDurableHeads(sessionDir)
+  const inferredEffectEvidenceSequence = typeof checkpoint.effectEvidenceSequence === "number"
+    ? checkpoint.effectEvidenceSequence
+    : await inferRuntimeControlCheckpointEffectEvidenceSequence({ sessionDir, checkpoint })
+  const effectEvidence = typeof inferredEffectEvidenceSequence === "number"
+    ? await readRuntimeControlEffectEvidenceThroughSequence({ sessionDir, sequence: inferredEffectEvidenceSequence })
+    : []
+  const effects = rebuildEffectsFromLifecycleEvidence(effectEvidence)
+  const result = classifyRealSessionRecovery({
+    heads: heads as any,
+    commitMarkers: { checkpoint },
+    effects,
+  })
+  if (result.classification === "dirty" || result.classification === "orphaned") {
+    throw new Error(`dirty_runtime_control_recovery:${result.classification}`)
+  }
+  return { checkpoint, effects, result }
+}
+
+function assertPendingEffectsBelongToRecoveredInflight(params: {
+  gate: RuntimeControlRecoveryGate
+  fibers: RuntimeSnapshotFiber[]
+}): void {
+  const checkpointEffectIds = new Set(
+    Object.entries(params.gate.effects)
+      .filter(([effectId, effect]) => {
+        const handlerKey = String(effect.handlerKey ?? "")
+        return effectId.startsWith("runtime-checkpoint:")
+          || handlerKey === "runtime_concrete_checkpoint_write"
+      })
+      .map(([effectId]) => effectId),
+  )
+  const decision = decideAiRuntimePendingEffectsRecovery({
+    recovery: {
+      ...params.gate.result,
+      blockers: params.gate.result.blockers.filter((blocker) => {
+        const effectId = typeof blocker.effectId === "string" ? blocker.effectId : ""
+        return !effectId || !checkpointEffectIds.has(effectId)
+      }),
+    },
+    recoveredInflights: params.fibers
+      .map((fiber) => readPersistedCooperativeExecState(fiber)?.inflight)
+      .filter((inflight) => typeof inflight?.opId === "string" && inflight.opId)
+      .map((inflight) => ({
+        kind: String(inflight.kind ?? ""),
+        opId: String(inflight.opId),
+        handlerKey: typeof inflight.funcName === "string" ? inflight.funcName : undefined,
+        toolName: typeof inflight.funcName === "string" ? inflight.funcName : undefined,
+      })),
+  })
+  if (!decision.recoverable) {
+    throw new Error(`dirty_runtime_control_recovery:pending:${decision.danglingEffectIds.join(",")}`)
+  }
 }
 
 function readPersistedCooperativeExecState(fiberSnapshot: RuntimeSnapshotFiber): any | null {
@@ -206,58 +343,161 @@ function hasPendingAiGeneratedForInflight(actor: AiAgentActor, execState: any | 
   if (Array.isArray(execState?.pendingAiGenerated) && execState.pendingAiGenerated.some((entry: any) => entry?.opId === opId)) {
     return true
   }
-  const mailbox = actor.peekMailbox("aiGenerated") as any[]
+  const mailbox = actor.peekMailbox("asyncCompletion") as any[]
   return mailbox.some((entry: any) => entry?.opId === opId)
 }
 
-function recoverInterruptedCooperativeInflight(actor: AiAgentActor, execState: any | null): any | null {
-  if (!execState?.inflight || hasPendingAiGeneratedForInflight(actor, execState)) return execState
+export function buildPendingAiGeneratedFromCompletedEffect(
+  execState: any | null,
+  effectEvidence: AiRuntimeEffectLifecycleEvent[],
+  toolCallDomain?: { getRecord(toolCallId: string): ToolCallRecord | undefined } | null,
+): any | null {
+  const inflight = execState?.inflight
+  const opId = typeof inflight?.opId === "string" ? inflight.opId : ""
+  if (!opId) return null
+  for (let index = effectEvidence.length - 1; index >= 0; index -= 1) {
+    const event = effectEvidence[index]
+    if (event?.kind !== "result" || event.effectId !== opId) continue
+    if (inflight.kind === "llm" && event.effectKind === "provider_completion") {
+      return {
+        kind: "llm_done",
+        opId,
+        msg: cloneJsonValue(event.payload) ?? { role: "assistant", content: "" },
+        // Replayed from durable effect evidence: this result never crossed the
+        // live semantic stream of THIS process, so the cooperative consumer
+        // must perform the conversation-domain write itself (P7).
+        replayedFromEffectEvidence: true,
+      }
+    }
+    if (inflight.kind === "tool" && (event.effectKind === "tool_call" || event.effectKind === "bash" || event.effectKind === "mcp_tool" || event.effectKind === "questionnaire")) {
+      const payload = (event.payload ?? {}) as Record<string, unknown>
+      const toolCallId = typeof payload.toolCallId === "string" ? payload.toolCallId : inflight.toolCallId ?? ""
+      // P4 / decision D3: the ToolCallDomain is the truth for the tool result;
+      // the (link-only) effect evidence merely confirms the result exists. Read
+      // the output text from the restored domain record, falling back to the
+      // evidence payload for snapshots written before the payload was reduced.
+      const record = toolCallId ? toolCallDomain?.getRecord(toolCallId) : undefined
+      const domainOutputText =
+        record && (record.status === "completed" || record.status === "failed") ? record.outputText ?? "" : undefined
+      const outputText = domainOutputText ?? String(payload.outputText ?? payload.output ?? "")
+      return {
+        kind: "tool_done",
+        replayedFromEffectEvidence: true,
+        opId,
+        funcName: inflight.funcName ?? "",
+        toolCallId,
+        args: cloneJsonValue(inflight.args) ?? {},
+        output: domainOutputText ?? payload.output ?? payload.outputText ?? "",
+        outputText,
+      }
+    }
+  }
+  return null
+}
+
+type RecoveredCooperativeInflight = {
+  execState: any | null
+  recoveryEvidence: AiRuntimeEffectLifecycleEvent[]
+}
+
+function recoverInterruptedCooperativeInflight(
+  actor: AiAgentActor,
+  execState: any | null,
+  effectEvidence: AiRuntimeEffectLifecycleEvent[],
+  toolCallDomain?: { getRecord(toolCallId: string): ToolCallRecord | undefined } | null,
+): RecoveredCooperativeInflight {
+  if (!execState?.inflight || hasPendingAiGeneratedForInflight(actor, execState)) {
+    return { execState, recoveryEvidence: [] }
+  }
   const inflight = execState.inflight
+  const completed = buildPendingAiGeneratedFromCompletedEffect(execState, effectEvidence, toolCallDomain)
+  if (completed) {
+    return {
+      execState: {
+        ...execState,
+        pendingAiGenerated: [
+          ...(Array.isArray(execState.pendingAiGenerated) ? execState.pendingAiGenerated : []),
+          completed,
+        ],
+      },
+      recoveryEvidence: [],
+    }
+  }
 
   if (inflight.kind === "tool") {
     const outputText = `Error: interrupted tool call '${inflight.funcName || "tool"}' did not produce a result before session recovery`
+    const failedEvidence = buildAiRuntimeInterruptedInflightFailedEvidence({
+      inflight: {
+        kind: "tool",
+        opId: String(inflight.opId ?? ""),
+        handlerKey: String(inflight.funcName ?? ""),
+        toolName: String(inflight.funcName ?? ""),
+      },
+      error: outputText,
+    })
     return {
-      ...execState,
-      pendingAiGenerated: [
-        ...(Array.isArray(execState.pendingAiGenerated) ? execState.pendingAiGenerated : []),
-        {
-          kind: "tool_done",
-          opId: inflight.opId,
-          funcName: inflight.funcName ?? "",
-          toolCallId: inflight.toolCallId ?? "",
-          args: cloneJsonValue(inflight.args) ?? {},
-          output: outputText,
-          outputText,
-        },
-      ],
+      execState: {
+        ...execState,
+        pendingAiGenerated: [
+          ...(Array.isArray(execState.pendingAiGenerated) ? execState.pendingAiGenerated : []),
+          {
+            kind: "tool_done",
+            opId: inflight.opId,
+            funcName: inflight.funcName ?? "",
+            toolCallId: inflight.toolCallId ?? "",
+            args: cloneJsonValue(inflight.args) ?? {},
+            output: outputText,
+            outputText,
+            // P8: never crossed the live semantic stream; the cooperative
+            // output handler must re-emit on the bus for the graph to commit.
+            replayedFromEffectEvidence: true,
+          },
+        ],
+      },
+      recoveryEvidence: failedEvidence ? [failedEvidence] : [],
     }
   }
 
   if (inflight.kind === "llm") {
-    return { ...execState, phase: "start_llm", inflight: undefined }
+    const outputText = `Error: interrupted LLM request '${inflight.opId || "llm"}' did not produce a result before session recovery`
+    const failedEvidence = buildAiRuntimeInterruptedInflightFailedEvidence({
+      inflight: {
+        kind: "llm",
+        opId: String(inflight.opId ?? ""),
+        handlerKey: "llm:recovery",
+      },
+      error: outputText,
+    })
+    return {
+      execState: { ...execState, phase: "start_llm", inflight: undefined },
+      recoveryEvidence: failedEvidence ? [failedEvidence] : [],
+    }
   }
 
   if (inflight.kind === "compress") {
-    return { ...execState, phase: "compress", inflight: undefined }
+    return { execState: { ...execState, phase: "compress", inflight: undefined }, recoveryEvidence: [] }
   }
 
   if (inflight.kind === "questionnaire_parse") {
     return {
-      ...execState,
-      phase: "drain",
-      inflight: undefined,
-      pendingToolResults: [
-        {
-          toolCallId: inflight.toolCallId ?? "",
-          questionnaireId: inflight.questionnaireId ?? "",
-          content: inflight.rawText ?? "",
-        },
-        ...(Array.isArray(execState.pendingToolResults) ? execState.pendingToolResults : []),
-      ],
+      execState: {
+        ...execState,
+        phase: "drain",
+        inflight: undefined,
+        pendingToolResults: [
+          {
+            toolCallId: inflight.toolCallId ?? "",
+            questionnaireId: inflight.questionnaireId ?? "",
+            content: inflight.rawText ?? "",
+          },
+          ...(Array.isArray(execState.pendingToolResults) ? execState.pendingToolResults : []),
+        ],
+      },
+      recoveryEvidence: [],
     }
   }
 
-  return execState
+  return { execState, recoveryEvidence: [] }
 }
 
 function findLastAssistantToolCalls(actor: AiAgentActor): any[] {
@@ -271,7 +511,7 @@ function findLastAssistantToolCalls(actor: AiAgentActor): any[] {
 }
 
 function inferCooperativeExecStateFromPendingAiGenerated(actor: AiAgentActor): any | null {
-  const pending = actor.peekMailbox("aiGenerated") as any[]
+  const pending = actor.peekMailbox("asyncCompletion") as any[]
   const event = pending.find((entry) => entry && typeof entry === "object" && typeof entry.kind === "string")
   if (!event) return null
   const opId = typeof event.opId === "string" ? event.opId : ""
@@ -342,14 +582,7 @@ function inferCooperativeExecStateFromPendingAiGenerated(actor: AiAgentActor): a
 }
 
 function hasRecoveredMailboxWork(actor: AiAgentActor, execState: any | null): boolean {
-  return actor.hasPending("aiGenerated")
-    || actor.hasPending("control")
-    || actor.hasPending("childDone")
-    || actor.hasPending("coordination")
-    || actor.hasPending("memberInbox")
-    || actor.hasPending("heartbeatWake")
-    || actor.hasPending("humanInput")
-    || actor.hasPending("toolResult")
+  return hasPendingAiAgentWakeMailbox(actor)
     || (Array.isArray(execState?.pendingAiGenerated) && execState.pendingAiGenerated.length > 0)
     || (Array.isArray(execState?.pendingToolResults) && execState.pendingToolResults.length > 0)
     || execState?.phase === "start_llm"
@@ -358,7 +591,6 @@ function hasRecoveredMailboxWork(actor: AiAgentActor, execState: any | null): bo
 
 function isRecoverabilityCheckedWaitReason(waitingReason: unknown): boolean {
   return waitingReason === "external"
-    || waitingReason === "idle_external"
     || waitingReason === "wait_llm_result"
     || waitingReason === "wait_tool_result"
     || waitingReason === "wait_compress_result"
@@ -425,6 +657,52 @@ function mailboxContainsPayload(actor: AiAgentActor, mailboxKind: keyof AiAgentA
   })
 }
 
+function messageContentEqualsPayload(content: unknown, payload: unknown): boolean {
+  if (content === payload) return true
+  if (typeof content === "string") return content === String(payload ?? "")
+  if (!Array.isArray(content)) return false
+  return content.some((part) => {
+    if (typeof part === "string") return part === String(payload ?? "")
+    if (!part || typeof part !== "object") return false
+    const record = part as Record<string, unknown>
+    return record.text === payload || record.content === payload
+  })
+}
+
+function hasCommittedHumanInput(actor: AiAgentActor, payload: unknown): boolean {
+  return actor.messages.some((message: any) => {
+    return message?.role === "user" && messageContentEqualsPayload(message.content, payload)
+  })
+}
+
+function removeOneMailboxPayload(actor: AiAgentActor, mailboxKind: keyof AiAgentActor["mailboxes"], payload: unknown): boolean {
+  const entries = actor.drainMailbox(mailboxKind as any) as unknown[]
+  let removed = false
+  for (const entry of entries) {
+    let matches = entry === payload
+    if (!matches) {
+      try {
+        matches = JSON.stringify(entry) === JSON.stringify(payload)
+      } catch {
+        matches = false
+      }
+    }
+    if (!removed && matches) {
+      removed = true
+      continue
+    }
+    actor.send(mailboxKind as any, entry as any)
+  }
+  return removed
+}
+
+function removeOneCommittedHumanInputMailboxPayload(actor: AiAgentActor): boolean {
+  const entries = actor.peekMailbox("humanInput") as unknown[]
+  const stalePayload = entries.find((entry) => hasCommittedHumanInput(actor, entry))
+  if (stalePayload === undefined) return false
+  return removeOneMailboxPayload(actor, "humanInput", stalePayload)
+}
+
 function redeliverPendingDurableControlSignalsOnRecovery(params: {
   vm: AiAgentVm
   restoredFibers: Array<{ fiberId: string; actor: AiAgentActor }>
@@ -441,7 +719,20 @@ function redeliverPendingDurableControlSignalsOnRecovery(params: {
     if (!actor) continue
     if (signal.fiberId && !restoredFiberIds.has(signal.fiberId)) continue
 
-    if (signal.mailboxKind && signal.payload !== undefined && !mailboxContainsPayload(actor, signal.mailboxKind, signal.payload)) {
+    let signalAlreadyCommitted = false
+    if (signal.mailboxKind === "humanInput" && signal.payload !== undefined && hasCommittedHumanInput(actor, signal.payload)) {
+      removeOneMailboxPayload(actor, signal.mailboxKind, signal.payload)
+      signalAlreadyCommitted = true
+    } else if (signal.mailboxKind === "humanInput" && signal.payload === undefined) {
+      signalAlreadyCommitted = removeOneCommittedHumanInputMailboxPayload(actor)
+    }
+
+    if (
+      !signalAlreadyCommitted
+      && signal.mailboxKind
+      && signal.payload !== undefined
+      && !mailboxContainsPayload(actor, signal.mailboxKind, signal.payload)
+    ) {
       actor.send(signal.mailboxKind as any, signal.payload as any)
     }
     markDurableControlSignalConsumed(params.vm.sessionState.controlSignals, signal.eventId)
@@ -450,7 +741,7 @@ function redeliverPendingDurableControlSignalsOnRecovery(params: {
       delivery: "recovered",
     })
 
-    if (signal.fiberId && (signal.signalClass === "wake" || signal.signalClass === "interrupt")) {
+    if (!signalAlreadyCommitted && signal.fiberId && (signal.signalClass === "wake" || signal.signalClass === "interrupt")) {
       schedulableFiberIds.add(signal.fiberId)
     }
   }
@@ -486,37 +777,16 @@ function assertRecoverableSuspendedFiberSnapshots(params: {
   }
 }
 
-export type RuntimePersistenceSupport = {
-  actorTranscriptStore: ActorTranscriptStore
-  snapshotRepositoryFactory: RuntimeSnapshotRepositoryFactory<
-    RuntimeSnapshotPersistedState,
-    RuntimeSnapshotManifest,
-    RuntimeSnapshotLoadResult
-  >
-  derivedIndexesStore: RuntimeDerivedIndexesStore
-  conversationPersistenceRepositoryFactory?: ConversationPersistenceRepositoryFactory
-}
+// P2 seam: RuntimePersistenceSupport (the injected capability set) is owned by
+// @cell/ai-persistence-logic. Re-export the type so the stable import path
+// (@cell/ai-organ-logic/persistence/RuntimeSnapshots) keeps exposing it.
+export type { RuntimePersistenceSupport }
 
-let configuredRuntimePersistenceSupport: RuntimePersistenceSupport | null = null
-
-function getRuntimePersistenceSupport(): RuntimePersistenceSupport {
-  if (configuredRuntimePersistenceSupport) {
-    return configuredRuntimePersistenceSupport
-  }
-  throw new Error("runtime persistence support is not configured")
-}
-
+// configureRuntimePersistenceSupport stays a local `export function` (the
+// runtime-composition + surface-migration contract checks this exact
+// declaration form) that delegates to the package-owned registry.
 export function configureRuntimePersistenceSupport(support: RuntimePersistenceSupport): void {
-  configuredRuntimePersistenceSupport = support
-}
-
-function assertSupportedSnapshotShape(loaded: { manifest: Record<string, unknown>; vm: Record<string, unknown> }): void {
-  if (typeof loaded.manifest.controlActorKey !== "string" || !loaded.manifest.controlActorKey) {
-    throw new Error("invalid_runtime_snapshot: manifest is missing controlActorKey")
-  }
-  if (typeof loaded.vm.controlActorKey !== "string" || !loaded.vm.controlActorKey) {
-    throw new Error("invalid_runtime_snapshot: vm is missing controlActorKey")
-  }
+  configurePersistenceSupportIo(support)
 }
 
 export type RecoverAiAgentRuntimeParams = {
@@ -530,6 +800,14 @@ export type RecoverAiAgentRuntimeParams = {
   outerCtx?: AiRuntimeOuterCtx
   mcpManager?: McpManagerLike
   actorCallbacks?: Partial<AiAgentActor.ActorCallbacks>
+  /**
+   * T4.2 (track refactor-persistent-session-backplane): the recovery→read port
+   * that routes single-source conversation reads. Defaults to
+   * `createRecoveryReadPort()` (the file-backed single-source loaders); callers
+   * may inject an alternate single-source reader. Recovery NEVER mixes two
+   * sources for the same fact regardless of the injected port.
+   */
+  recoveryReadPort?: RuntimeRecoveryReadPort
 }
 
 export type RecoverAiAgentRuntimeResult = {
@@ -540,31 +818,11 @@ export type RecoverAiAgentRuntimeResult = {
   recoveryReport: VmRecoveryReport
 }
 
-const DERIVED_INDEX_FILES = [
-  "indexes/memberRoster.json",
-  "indexes/detachedActors.json",
-  "indexes/coordinationRecords.json",
-] as const
-
-function getRuntimeSnapshotRepository(sessionDir: string) {
-  return getRuntimePersistenceSupport().snapshotRepositoryFactory.createRuntimeSnapshotRepository(sessionDir)
-}
-
-export async function hasRuntimeSnapshot(sessionDir: string): Promise<boolean> {
-  const manifest = await getRuntimeSnapshotRepository(sessionDir).readManifest()
-  return !!manifest
-}
-
-function buildActorTranscriptDescriptor(actor: Pick<AiAgentActor, "key" | "id" | "type" | "identity" | "agentName">) {
-  return {
-    agentKey: actor.key,
-    actorId: actor.id,
-    actorType: actor.type,
-    identity: actor.identity,
-    agentName: actor.agentName,
-    memberName: actor.identity?.kind === "member" ? actor.identity.name : undefined,
-  }
-}
+// P2 seam: DERIVED_INDEX_FILES, getRuntimeSnapshotRepository and
+// hasRuntimeSnapshot are pure I/O and live in @cell/ai-persistence-logic
+// (imported above). hasRuntimeSnapshot is re-exported so the stable import path
+// keeps the public function.
+export { hasRuntimeSnapshotIo as hasRuntimeSnapshot }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value)
@@ -572,14 +830,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeRecoveredWorkContext(value: unknown): ActorWorkContextData | null {
   if (!isRecord(value)) return null
-  const workMode = typeof value.workMode === "string" ? value.workMode : ""
-  const taskPhase = typeof value.taskPhase === "string" ? value.taskPhase : ""
-  if (!workMode || !taskPhase) return null
+  const rawWorkMode = typeof value.workMode === "string" ? value.workMode : ""
+  const rawTaskPhase = typeof value.taskPhase === "string" ? value.taskPhase : ""
+  const hasWorkMode = rawWorkMode.trim()
+  const hasTaskPhase = rawTaskPhase.trim()
+  if (!hasWorkMode && !hasTaskPhase) return null
+  const workMode = rawWorkMode === WORK_MODES.plan ? WORK_MODES.plan : WORK_MODES.build
+  const taskPhase = rawTaskPhase === TASK_PHASES.answer ? TASK_PHASES.answer : TASK_PHASES.normal
   return {
     workMode,
     taskPhase,
-    workModeSource: typeof value.workModeSource === "string" ? value.workModeSource : "recovered_prompt_truth",
-    taskPhaseSource: typeof value.taskPhaseSource === "string" ? value.taskPhaseSource : "recovered_prompt_truth",
+    workModeSource: rawWorkMode === workMode && typeof value.workModeSource === "string" ? value.workModeSource : "recovered_normalized",
+    taskPhaseSource: rawTaskPhase === taskPhase && typeof value.taskPhaseSource === "string" ? value.taskPhaseSource : "recovered_normalized",
     workModeUpdatedAt: typeof value.workModeUpdatedAt === "string" ? value.workModeUpdatedAt : new Date(0).toISOString(),
     taskPhaseUpdatedAt: typeof value.taskPhaseUpdatedAt === "string" ? value.taskPhaseUpdatedAt : new Date(0).toISOString(),
     actorKey: typeof value.actorKey === "string" ? value.actorKey : undefined,
@@ -626,17 +888,11 @@ function hydrateActorContextControlFromConversation(params: {
   }
 }
 
-async function ensureActorTranscriptInitialized(params: {
-  sessionDir: string
-  actor: AiAgentActor
-}): Promise<void> {
-  const descriptor = buildActorTranscriptDescriptor(params.actor)
-  await getRuntimePersistenceSupport().actorTranscriptStore.ensureInitialized({
-    sessionDir: params.sessionDir,
-    actor: descriptor,
-    messages: params.actor.messages as any,
-  })
-}
+// Single recovery source (spec recovery-one-way-handoff / behavior-delta
+// `no-multi-source-mixing`): the single-source assertion now lives next to the
+// recovery read port in ./RecoveryReadPort and is imported above, so recovery
+// and the read port share ONE definition (no second copy that could drift into
+// a fallback).
 
 function isTerminalFiberStatus(status: unknown): boolean {
   return status === "completed" || status === "cancelled" || status === "failed" || status === "dead_letter"
@@ -650,19 +906,135 @@ function isDetachedActorWorkload(workload: unknown): boolean {
   return typeof workload === "string" && workload.startsWith("detached")
 }
 
-async function writeDerivedIndexes(sessionDir: string, indexes: RuntimeDerivedIndexes): Promise<void> {
-  await getRuntimePersistenceSupport().derivedIndexesStore.write({
-    sessionDir,
-    indexes,
+// P2 seam: writeDerivedIndexes / loadDerivedIndexes / getConversationPersistenceRepository
+// are pure I/O and live in @cell/ai-persistence-logic (imported above).
+// getConversationPersistenceRepository is re-exported so the stable import path
+// keeps the public function.
+export { getConversationPersistenceRepositoryIo as getConversationPersistenceRepository }
+
+async function flushConversationRuntimeToPersistence(params: {
+  sessionDir: string
+  sessionId: string
+  vm: AiAgentVm
+}): Promise<void> {
+  const diagnostics = createSessionDiagnosticsXnlLog({
+    sessionDir: isRuntimeStorageLogsEnabled(params.vm) ? params.sessionDir : undefined,
   })
+  const repository = getConversationPersistenceRepositoryIo(params.sessionDir)
+  if (!repository) {
+    diagnostics.appendRuntimePersistenceEvent({
+      eventType: "runtime_conversation_flush",
+      sessionId: params.sessionId,
+      status: "skipped",
+      reason: "missing_conversation_repository",
+    })
+    await diagnostics.flush().catch(() => {})
+    return
+  }
+
+  const sessionRawState = getConversationSessionRawStateFromVm({
+    vm: params.vm,
+    sessionId: params.sessionId,
+  })
+  if (!sessionRawState) {
+    diagnostics.appendRuntimePersistenceEvent({
+      eventType: "runtime_conversation_flush",
+      sessionId: params.sessionId,
+      status: "skipped",
+      reason: "missing_session_raw_state",
+    })
+    await diagnostics.flush().catch(() => {})
+    return
+  }
+
+  const actorRawStates = Object.values(params.vm.actors)
+    .map((actor) => getConversationActorRawStateFromVm({
+      vm: params.vm,
+      actorKey: actor.key,
+      sessionId: params.sessionId,
+    }))
+    .filter((rawState): rawState is NonNullable<ReturnType<typeof getConversationActorRawStateFromVm>> => !!rawState)
+
+  const historyGenerationCount = actorRawStates.reduce(
+    (total, actorRawState) => total + actorRawState.visibleHistoryGenerations.length,
+    0,
+  )
+  const promptGenerationCount = actorRawStates.reduce(
+    (total, actorRawState) => total + (actorRawState.promptGeneration ? 1 : 0),
+    0,
+  )
+  const messageCount = actorRawStates.reduce(
+    (total, actorRawState) =>
+      total + actorRawState.visibleHistoryGenerations.reduce(
+        (actorTotal, generation) => actorTotal + generation.messages.length,
+        0,
+      ),
+    0,
+  )
+  diagnostics.appendRuntimePersistenceEvent({
+    eventType: "runtime_conversation_flush",
+    sessionId: params.sessionId,
+    status: "start",
+    actorCount: actorRawStates.length,
+    historyGenerationCount,
+    promptGenerationCount,
+    messageCount,
+  })
+  await Promise.all(
+    actorRawStates.flatMap((actorRawState) => [
+      ...actorRawState.visibleHistoryGenerations.map((generation) => repository.writeHistoryGeneration(generation)),
+      ...(actorRawState.promptGeneration ? [repository.writePromptGeneration(actorRawState.promptGeneration)] : []),
+    ]),
+  )
+  await repository.writeHistoryIndex(sessionRawState.historyIndex)
+  await repository.writePromptIndex(sessionRawState.promptIndex)
+  await repository.writeSessionIndex(sessionRawState.sessionIndex)
+  diagnostics.appendRuntimePersistenceEvent({
+    eventType: "runtime_conversation_flush",
+    sessionId: params.sessionId,
+    status: "saved",
+    actorCount: actorRawStates.length,
+    historyGenerationCount,
+    promptGenerationCount,
+    messageCount,
+  })
+  await diagnostics.flush().catch(() => {})
 }
 
-async function loadDerivedIndexes(sessionDir: string): Promise<RuntimeDerivedIndexes> {
-  return await getRuntimePersistenceSupport().derivedIndexesStore.load({ sessionDir })
-}
-
-export function getConversationPersistenceRepository(sessionDir: string) {
-  return getRuntimePersistenceSupport().conversationPersistenceRepositoryFactory?.createRepository(sessionDir) ?? null
+/**
+ * P3 (track harden-runtime-session-robustness, requirement
+ * `timed-out-turn-progress-persisted`): seal ONLY the completed conversation
+ * progress already committed into the in-memory conversation domain, WITHOUT
+ * snapshotting any VM/fiber/ToolCallDomain in-flight state. This is the public
+ * entry the coordinator's timeout branch calls when a turn times out in
+ * mandatory_continuation: the unsafe in-flight tool execution is left
+ * un-snapshotted (the "don't snapshot unsafe tool-execution" invariant holds),
+ * but the completed tool pairs the conversation domain already holds are flushed
+ * so a subsequent continuation can relay from them rather than restart bare.
+ *
+ * NOTE (recovery consistency, decision D2 / Step 0): after this seal,
+ * `conversation/history.index.json` advances PAST the last VM-snapshot
+ * checkpoint marker. The current owned-checkpoint recovery gate rejects that
+ * "conversation-ahead-of-snapshot" prefix as `dirty`
+ * (`head_commit_sequence_mismatch` on the `conversation` head, which is
+ * `requiredForCheckpoint: true`). Teaching the gate to tolerate a forward-only
+ * conversation head is a LARGE change to the recovery invariant and is split to
+ * a follow-up track — see analysis/findings.md "P3" section. Until then, the
+ * seal still durably preserves completed progress on disk (no data loss).
+ */
+export async function sealCompletedConversationProgress(params: {
+  sessionDir: string
+  sessionId: string
+  vm: AiAgentVm
+}): Promise<void> {
+  if (!isRuntimeStorageFilesEnabled(params.vm)) {
+    return
+  }
+  await flushConversationRuntimeToPersistence({
+    sessionDir: params.sessionDir,
+    sessionId: params.sessionId,
+    vm: params.vm,
+  })
 }
 
 function getVmScopedMemberRecords(vm: AiAgentVm): MemberRecord[] {
@@ -851,18 +1223,21 @@ export async function saveAiAgentRuntimeSnapshot(params: {
   sessionId: string
   vm: AiAgentVm
   driver: AiAgentOrchestratorDriver
-}): Promise<void> {
+}): Promise<RuntimeSnapshotSaveResult> {
   const repository = getRuntimeSnapshotRepository(params.sessionDir)
   const inspected = params.driver.inspectRuntime()
-
-  await Promise.all(
-    Object.values(params.vm.actors).map((actor) =>
-      ensureActorTranscriptInitialized({
-        sessionDir: params.sessionDir,
-        actor,
-      }),
-    ),
-  )
+  const safepoint = evaluateAiAgentRuntimeSnapshotSafepoint({ vm: params.vm, inspected })
+  const gate = coordinatorDerivation.decideCheckpointAction({
+    storageFilesEnabled: isRuntimeStorageFilesEnabled(params.vm),
+    safepointSafe: safepoint.safe,
+    pendingEffectIds: [],
+  })
+  if (gate.action === "skip" && gate.reason === "skipped_storage_disabled") {
+    return { status: "skipped_storage_disabled", safepoint }
+  }
+  if (gate.action === "skip" && gate.reason === "skipped_non_safepoint") {
+    return { status: "skipped_non_safepoint", safepoint }
+  }
 
   const actorSnapshots = Object.fromEntries(
     Object.values(params.vm.actors).map((actor) => {
@@ -891,101 +1266,128 @@ export async function saveAiAgentRuntimeSnapshot(params: {
   })
 
   const vmSnapshot = serializeVM(params.vm)
-
-  const manifest = await repository.writeSnapshot({
-    vm: vmSnapshot,
-    actors: actorSnapshots,
-    fibers: fiberSnapshots,
-  })
-
   const indexes = buildDerivedIndexes({
     vm: params.vm,
     driver: params.driver,
   })
-  await writeDerivedIndexes(params.sessionDir, indexes)
+  const questionnaires = collectQuestionnaireRowsForSnapshot(params.vm)
 
-  await repository.writeManifest({
-    ...manifest,
-    sessionId: params.sessionId,
-    createdAt: manifest.createdAt,
-    updatedAt: new Date().toISOString(),
-    indexFiles: [
-      "indexes/actors_by_key.json",
-      "indexes/actors_by_id.json",
-      "indexes/fibers_by_id.json",
-      ...DERIVED_INDEX_FILES,
-    ],
-    derivedIndexFiles: [...DERIVED_INDEX_FILES],
+  const checkpointResult = await runFileStoreAiRuntimeConcreteCheckpoint({
+    sessionDir: params.sessionDir,
+    idempotencyKey: `runtime-checkpoint:${params.sessionId}`,
+    writeConcreteCheckpoint: async () => {
+      await flushConversationRuntimeToPersistence({
+        sessionDir: params.sessionDir,
+        sessionId: params.sessionId,
+        vm: params.vm,
+      })
+      const manifest = await repository.writeSnapshot({
+        vm: vmSnapshot,
+        actors: actorSnapshots,
+        questionnaires,
+        fibers: fiberSnapshots,
+      })
+      await writeDerivedIndexes(params.sessionDir, indexes)
+      await repository.writeManifest({
+        ...manifest,
+        sessionId: params.sessionId,
+        createdAt: manifest.createdAt,
+        updatedAt: new Date().toISOString(),
+        indexFiles: [
+          "indexes/actors_by_key.json",
+          "indexes/actors_by_id.json",
+          "indexes/fibers_by_id.json",
+          ...DERIVED_INDEX_FILES,
+        ],
+        derivedIndexFiles: [...DERIVED_INDEX_FILES],
+      })
+      return { manifestVersion: manifest.version }
+    },
   })
+  if (checkpointResult.status === "skipped_pending_effects") {
+    return {
+      status: "skipped_pending_effects",
+      safepoint,
+      pendingEffectIds: checkpointResult.pendingEffectIds,
+    }
+  }
+  return { status: "saved", safepoint }
 }
 
 export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams): Promise<RecoverAiAgentRuntimeResult | null> {
+  const recoveryGate = await readRuntimeControlRecoveryGate(params.sessionDir)
+  const effectEvidence = await readRuntimeControlEffectEvidence(params.sessionDir)
   const repository = getRuntimeSnapshotRepository(params.sessionDir)
   const loaded = await repository.loadSnapshot()
   if (!loaded) {
     return null
   }
+  assertPendingEffectsBelongToRecoveredInflight({
+    gate: recoveryGate,
+    fibers: Object.values(loaded.fibers),
+  })
   assertSupportedSnapshotShape({
     manifest: loaded.manifest as Record<string, unknown>,
     vm: loaded.vm as Record<string, unknown>,
   })
-
   const cachedIndexes = await loadDerivedIndexes(params.sessionDir)
 
-  const actorTranscriptSources: VmRecoveryReport["actorTranscriptSources"] = {}
-  const conversationRepository = getConversationPersistenceRepository(params.sessionDir)
+  const conversationRepository = getConversationPersistenceRepositoryIo(params.sessionDir)
+
+  // T4.2 (track refactor-persistent-session-backplane, design line 12): recovery's
+  // single-source reads go THROUGH the recovery→read port. The port wraps the
+  // existing single-source conversation loaders and owns the declared-but-
+  // unloadable hard-fail (no multi-source mixing). Behavior is equivalent to the
+  // prior inline `loadConversationActorRawState` + assertion.
+  const recoveryReadPort: RuntimeRecoveryReadPort = params.recoveryReadPort ?? createRecoveryReadPort()
+
+  // One-way recovery handoff (spec recovery-one-way-handoff): the
+  // conversation files are the single recovery source. Each actor's raw
+  // state is loaded once here, hydrated into the in-memory three domains
+  // below, and the actor message mirror is then PROJECTED from the domain
+  // materialization — never the other way around (no bootstrap backfill,
+  // no transcript fallback).
+  const actorConversationRawStates = new Map<
+    string,
+    Awaited<ReturnType<typeof loadConversationActorRawState>>
+  >()
 
   const actorEntries = await Promise.all(
     Object.values(loaded.actors).map(async (snapshot) => {
+      // Single-source read via the read port: each conversation fact from its
+      // single owner (the conversation files); a declared-but-unloadable head
+      // hard-fails inside the port rather than degrading to a second source.
       const actorRawState = conversationRepository
-        ? await loadConversationActorRawState({
+        ? await recoveryReadPort.loadConversationSource({
             sessionDir: params.sessionDir,
             actorKey: snapshot.key,
-            repository: conversationRepository,
           })
         : null
-      const conversationMessages = conversationRepository
-        ? await loadConversationRuntimeMessages({
-            sessionDir: params.sessionDir,
-            actorKey: snapshot.key,
-            repository: conversationRepository,
-          })
-        : null
-      const loadedMessages =
-        conversationMessages && conversationMessages.source === "conversation"
-          ? conversationMessages
-          : await getRuntimePersistenceSupport().actorTranscriptStore.loadMessages({
-              sessionDir: params.sessionDir,
-              actor: {
-                agentKey: snapshot.key,
-                actorId: snapshot.id,
-                actorType: snapshot.type,
-                identity: snapshot.identity,
-              },
-            })
-      actorTranscriptSources[snapshot.key] = {
-        source: loadedMessages.source,
-        path: loadedMessages.path,
-      }
-      if (conversationRepository && loadedMessages.source !== "conversation" && loadedMessages.messages.length > 0) {
-        await bootstrapConversationHistoryFromMessages({
-          sessionId: params.sessionId,
-          actorKey: snapshot.key,
-          actorId: snapshot.id,
-          messages: loadedMessages.messages,
-          transcriptPath: loadedMessages.path,
-          repository: conversationRepository,
-        })
-      }
+      actorConversationRawStates.set(snapshot.key, actorRawState)
       const actor = hydrateActor(snapshot, {
         llmClient: params.llmClient ?? null,
         callbacks: params.actorCallbacks,
-        messages: loadedMessages.messages,
+        messages: [],
       })
       hydrateActorContextControlFromConversation({
         actor,
         actorRawState,
       })
+      // P8 single-writer pipeline (decisions.md decision 8): asyncCompletion
+      // entries carried over from a serialized mailbox snapshot never crossed
+      // THIS process's semantic event bus — they have to flow through the
+      // resident MessageHistoryGraph at consumption time. Stamp them as
+      // replayed-from-effect-evidence so the cooperative output handler
+      // re-emits the corresponding semantic envelope on the bus for the graph
+      // to commit. peekMailbox returns a copy, so drain + re-send is the
+      // only way to mutate the live queue.
+      const recoveredAsync = actor.drainMailbox("asyncCompletion") as any[]
+      for (const entry of recoveredAsync) {
+        if (entry && typeof entry === "object") {
+          ;(entry as any).replayedFromEffectEvidence = true
+        }
+        actor.send("asyncCompletion", entry as any)
+      }
       return [
         snapshot.key,
         actor,
@@ -1006,43 +1408,78 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
         ...((params.outerCtx?.metadata as Record<string, unknown> | undefined) ?? {}),
         sessionId: params.sessionId,
         sessionDir: params.sessionDir,
-        conversationPersistenceRepositoryFactory: getRuntimePersistenceSupport().conversationPersistenceRepositoryFactory,
       },
+      // P3 (refactor-persistent-session-backplane / `explicit-injection`): the
+      // conversation-persistence repository factory is carried as an explicit
+      // typed field, not stashed in the untyped `metadata` bag. Prefer the
+      // caller-injected field; fall back to the configured support for direct
+      // recovery callers that did not pre-thread it.
+      conversationPersistenceRepositoryFactory:
+        params.outerCtx?.conversationPersistenceRepositoryFactory
+        ?? getRuntimePersistenceSupport().conversationPersistenceRepositoryFactory,
     },
     mcpManager: params.mcpManager,
   })
+  hydrateQuestionnaireRowsIntoRuntime(vm, loaded.questionnaires)
+
+  // P4: restore the ToolCallDomain from persisted records so interrupted-tool
+  // recovery can rebuild the result from the domain (decision D3). Older
+  // snapshots omit the field and restore to an empty domain (evidence fallback).
+  restoreVmToolCallDomain(vm, (loaded.vm as { toolCallDomain?: ToolCallRecord[] }).toolCallDomain)
+
+  // Hydrate the in-memory three domains once from the conversation files.
+  // States are keyed by the vm-resolved session id (params.sessionId) so the
+  // live materialization and the loop-entry seed guard both find the hydrated
+  // domains; the loader keys by basename(sessionDir), which can differ.
+  const conversationRuntime = ensureVmConversationDomainRuntime(vm)
   if (conversationRepository) {
-    const conversationRuntime = ensureVmConversationDomainRuntime(vm)
     const sessionRawState = await loadConversationSessionRawState({
       sessionDir: params.sessionDir,
       repository: conversationRepository,
     })
-    injectConversationSessionRawState(conversationRuntime, sessionRawState)
+    injectConversationSessionRawState(conversationRuntime, {
+      ...sessionRawState,
+      sessionId: params.sessionId,
+    })
     for (const actor of Object.values(actors)) {
-      const actorRawState = await loadConversationActorRawState({
-        sessionDir: params.sessionDir,
-        actorKey: actor.key,
-        repository: conversationRepository,
-      })
+      const actorRawState = actorConversationRawStates.get(actor.key) ?? null
       if (actorRawState) {
-        injectConversationActorRawState(conversationRuntime, actorRawState)
+        injectConversationActorRawState(conversationRuntime, {
+          ...actorRawState,
+          session: { ...actorRawState.session, sessionId: params.sessionId },
+        })
       }
     }
   }
+
+  // Switch point: the domains are hydrated; from here the conversation files
+  // have exited the live path. `actor.messages` is a read-only projection of
+  // the in-memory domains (P7 mirror elimination) — bind every recovered
+  // actor's view to the conversation domain runtime; there is no array to
+  // back-fill and no reverse direction.
+  const conversationHydratedAt = Date.now()
+  for (const actor of Object.values(actors)) {
+    bindActorConversationProjectionToVm(vm, actor)
+  }
+
   const controlActor = getControlActor(vm)
   if (!controlActor) {
     return null
   }
 
   const now = Date.now()
+  const recoveryEvidence: AiRuntimeEffectLifecycleEvent[] = []
   const restoredFibers = Object.values(loaded.fibers)
     .map((fiberSnapshot) => {
       const actor = fiberSnapshot.actorKey ? actors[fiberSnapshot.actorKey] : undefined
       if (!actor) return null
-      const execState = recoverInterruptedCooperativeInflight(actor,
+      const recoveredInflight = recoverInterruptedCooperativeInflight(actor,
         readPersistedCooperativeExecState(fiberSnapshot)
           ?? inferCooperativeExecStateFromPendingAiGenerated(actor),
+        effectEvidence,
+        getVmToolCallDomain(vm),
       )
+      recoveryEvidence.push(...recoveredInflight.recoveryEvidence)
       return {
         fiberId: fiberSnapshot.fiberId,
         vm,
@@ -1051,7 +1488,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
         basePriority: typeof fiberSnapshot.metadata?.basePriority === "number" ? (fiberSnapshot.metadata.basePriority as number) : 1,
         lane: normalizeAiAgentLane(fiberSnapshot.lane) ?? undefined,
         workload: readPersistedWorkloadKind(fiberSnapshot),
-        execState: execState ?? undefined,
+        execState: recoveredInflight.execState ?? undefined,
       }
     })
     .filter(Boolean) as Array<{
@@ -1064,6 +1501,13 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     workload?: AiAgentWorkload
     execState?: any
   }>
+
+  for (const event of recoveryEvidence) {
+    await recordAiRuntimeEffectLifecycleEvent({
+      sessionDir: params.sessionDir,
+      event,
+    })
+  }
 
   const recoveredControlSignalFiberIds = redeliverPendingDurableControlSignalsOnRecovery({
     vm,
@@ -1271,7 +1715,6 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     sessionId: params.sessionId,
     restoredAt: Date.now(),
     corruptions: loaded.corruptions,
-    actorTranscriptSources,
   }
 
   vm.recovery = {
@@ -1280,6 +1723,13 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     snapshotVersion: loaded.vm.version,
     restoredAt: recoveryReport.restoredAt,
     report: recoveryReport,
+    // Explicit switch point marker: the one-time conversation-file -> domain
+    // hydration is complete; live reads come from the in-memory domains only.
+    conversationHydration: {
+      completed: true,
+      source: "conversation_files",
+      hydratedAt: conversationHydratedAt,
+    },
   }
 
   const runtimeContext = ensureVmRuntimeContext(vm)

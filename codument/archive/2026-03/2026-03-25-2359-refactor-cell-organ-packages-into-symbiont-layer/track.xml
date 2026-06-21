@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-cell-organ-packages-into-symbiont-layer" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Goal>以 breaking-change 方式将 organ-contract-low/high 重构为 symbiont-contract / organ-contract，并新增 symbiont-logic 承接低层可复用 logic。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-03-25T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-03-25T23:59:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-cell-organ-packages-into-symbiont-layer" name="refactor-cell-organ-packages-into-symbiont-layer" version="1">
+    <Description>将 cell 中的低层 organ 包重构为 symbiont / organ 分层</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="命名与边界冻结" status="DONE" order="0">
+        <Description>冻结 symbiont / organ 的 package naming、职责边界与依赖方向。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="建立 track 文档与边界约束" status="DONE" order="0" priority="P0">
+            <Description>创建 proposal、design、spec 和计划，明确新包命名、第一批迁移实现和 breaking-change 边界。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Package Surface Refactor" status="DONE" order="1">
+        <Description>完成 package 重命名、新增 symbiont-logic、更新路径映射和依赖面。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="重命名 contract 包与 tsconfig path" status="DONE" order="0" priority="P0">
+            <Description>将 organ-contract-low/high 重命名为 symbiont-contract / organ-contract，并同步 cell/backend/terminal 的 path mapping。</Description>
+          </Task>
+          <Task id="T2.2" name="新增 symbiont-logic 并迁移第一批低层实现" status="DONE" order="1" priority="P0">
+            <Description>创建 symbiont-logic package，并迁移 IngressStreams、StreamTranscript、StreamLogger、IngressStreamRuntime、OpenAICompletionsNodejsFetchStreamAdapter。</Description>
+          </Task>
+          <Task id="T2.3" name="更新 workspace imports 与导出面" status="DONE" order="2" priority="P0">
+            <Description>收口 package.json 依赖、源码 import、index re-export 与调用方正式导入面。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Verification" status="DONE" order="2">
+        <Description>更新 layout 测试并验证新的分层边界。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新 package layout / migration tests" status="DONE" order="0" priority="P0">
+            <Description>同步更新 cell package layout、surface migration 以及相关 import 断言测试。</Description>
+          </Task>
+          <Task id="T3.2" name="运行 typecheck 与 targeted tests" status="DONE" order="1" priority="P0">
+            <Description>运行 cell/backend/terminal typecheck 与受影响测试，确认 package 重构收口。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

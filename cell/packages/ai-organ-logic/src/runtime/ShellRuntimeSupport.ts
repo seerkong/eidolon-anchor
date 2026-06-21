@@ -1,5 +1,5 @@
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic"
-import { buildDomainRuntimeSemanticBase, DomainRuntimeEventGraph, DomainRuntimeHistoryGraph } from "@cell/ai-core-logic"
+import { buildDomainRuntimeSemanticBase, DomainRuntimeEventGraph } from "@cell/ai-core-logic"
 import type { ActorType } from "@cell/ai-core-logic/runtime/actor"
 import { IngressStreamRuntime } from "@cell/symbiont-logic/stream/IngressStreamRuntime"
 import {
@@ -7,6 +7,10 @@ import {
   createMockOpenAI,
   createSemanticStreamPipeline,
 } from "../stream"
+import {
+  bindIngressStreamsToSessionXnlLog,
+  createSessionDiagnosticsXnlLog,
+} from "./SessionRuntimeXnlLogs"
 import {
   extractProviderOptions,
   loadProviderConfig,
@@ -41,6 +45,8 @@ export type RuntimeLlmAdapterDefaults = {
 export type RuntimeAdapterOverrides = {
   apiKey?: string
   baseUrl?: string
+  model?: string
+  options?: Record<string, unknown>
 }
 
 export type RuntimeLlmAdapterFactoryOverride = null | ((
@@ -48,21 +54,6 @@ export type RuntimeLlmAdapterFactoryOverride = null | ((
   workDir: string,
   overrides?: RuntimeAdapterOverrides,
 ) => Promise<any>)
-
-export type RuntimeHistoryEffect =
-  | {
-      appendMessage: (event: {
-        stream: string
-        payload: string
-        agentKey: string
-        agentActorId: string
-        actorType?: ActorType
-        agentName?: string
-        memberName?: string
-      }) => void
-    }
-  | null
-  | undefined
 
 export async function createRuntimeLlmAdapter(params: {
   adapterType: LlmAdapterType
@@ -81,21 +72,18 @@ export async function createRuntimeLlmAdapter(params: {
     params.adapterType === "anthropic" || params.adapterType === "claude"
       ? params.defaults.anthropic
       : params.adapterType === "deepseek"
-        ? params.defaults.deepseek ?? {
-            apiKey: process.env.DEEPSEEK_API_KEY || "",
-            baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1",
-            model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
-          }
+        ? params.defaults.deepseek ?? { apiKey: "", baseUrl: "", model: "" }
       : params.defaults.openai
   const providerConfig = await loadProviderConfig(params.adapterType, params.workDir)
 
   if (params.adapterType === "anthropic") {
-    const providerOptions = extractProviderOptions(providerConfig, "anthropic")
+    const providerOptions = { ...extractProviderOptions(providerConfig, "anthropic"), ...(params.overrides?.options ?? {}) }
     if (params.overrides?.apiKey) providerOptions.apiKey = params.overrides.apiKey
     if (params.overrides?.baseUrl) providerOptions.baseURL = params.overrides.baseUrl
+    const selectedModel = params.overrides?.model || config.model
     return new ProviderRuntimeLlmAdapter({
       providerId: "anthropic",
-      selectedModel: config.model,
+      selectedModel,
       adapterName: "anthropic",
       options: {
         ...providerOptions,
@@ -106,12 +94,13 @@ export async function createRuntimeLlmAdapter(params: {
   }
 
   if (params.adapterType === "claude") {
-    const providerOptions = extractProviderOptions(providerConfig, "claude")
+    const providerOptions = { ...extractProviderOptions(providerConfig, "claude"), ...(params.overrides?.options ?? {}) }
     if (params.overrides?.apiKey) providerOptions.apiKey = params.overrides.apiKey
     if (params.overrides?.baseUrl) providerOptions.baseURL = params.overrides.baseUrl
+    const selectedModel = params.overrides?.model || config.model
     return new ProviderRuntimeLlmAdapter({
       providerId: "claude",
-      selectedModel: config.model,
+      selectedModel,
       adapterName: "claude-code",
       options: {
         ...providerOptions,
@@ -122,9 +111,10 @@ export async function createRuntimeLlmAdapter(params: {
   }
 
   if (params.adapterType === "codex") {
-    const providerOptions = extractProviderOptions(providerConfig, "codex")
+    const providerOptions = { ...extractProviderOptions(providerConfig, "codex"), ...(params.overrides?.options ?? {}) }
     if (params.overrides?.apiKey) providerOptions.apiKey = params.overrides.apiKey
     if (params.overrides?.baseUrl) providerOptions.baseURL = params.overrides.baseUrl
+    const selectedModel = params.overrides?.model || config.model
     const baseUrl = providerOptions.baseURL || config.baseUrl
     const apiKey = providerOptions.apiKey || config.apiKey
     if (params.useMock) {
@@ -144,16 +134,17 @@ export async function createRuntimeLlmAdapter(params: {
     if (!apiKey) return null
     return new ProviderRuntimeLlmAdapter({
       providerId: "codex",
-      selectedModel: config.model,
+      selectedModel,
       adapterName: "openai-responses",
       options: { ...providerOptions, apiKey, baseURL: baseUrl },
     })
   }
 
   if (params.adapterType === "deepseek") {
-    const providerOptions = extractProviderOptions(providerConfig, "deepseek")
+    const providerOptions = { ...extractProviderOptions(providerConfig, "deepseek"), ...(params.overrides?.options ?? {}) }
     if (params.overrides?.apiKey) providerOptions.apiKey = params.overrides.apiKey
     if (params.overrides?.baseUrl) providerOptions.baseURL = params.overrides.baseUrl
+    const selectedModel = params.overrides?.model || config.model
     const baseUrl = providerOptions.baseURL || config.baseUrl
     const apiKey = providerOptions.apiKey || config.apiKey
     if (params.useMock) {
@@ -175,15 +166,16 @@ export async function createRuntimeLlmAdapter(params: {
     if (!apiKey) return null
     return new ProviderRuntimeLlmAdapter({
       providerId: "deepseek",
-      selectedModel: config.model,
+      selectedModel,
       adapterName: "deepseek",
       options: { ...providerOptions, apiKey, baseURL: baseUrl },
     })
   }
 
-  const providerOptions = extractProviderOptions(providerConfig, "openai")
+  const providerOptions = { ...extractProviderOptions(providerConfig, "openai"), ...(params.overrides?.options ?? {}) }
   if (params.overrides?.apiKey) providerOptions.apiKey = params.overrides.apiKey
   if (params.overrides?.baseUrl) providerOptions.baseURL = params.overrides.baseUrl
+  const selectedModel = params.overrides?.model || config.model
   const baseUrl = providerOptions.baseURL || config.baseUrl
   const apiKey = providerOptions.apiKey || config.apiKey
   if (params.useMock) {
@@ -205,7 +197,7 @@ export async function createRuntimeLlmAdapter(params: {
   if (!apiKey) return null
   return new ProviderRuntimeLlmAdapter({
     providerId: "openai",
-    selectedModel: config.model,
+    selectedModel,
     adapterName: "openai-chat",
     options: { ...providerOptions, apiKey, baseURL: baseUrl },
   })
@@ -216,43 +208,54 @@ export async function processRuntimeIngressStream(params: {
   adapterType: LlmAdapterType
   eventBus?: DomainRuntimeEventGraph
   actorMeta?: { agentKey: string; agentActorId: string }
+  sessionDir?: string
+  sessionId?: string
+  storageLogsEnabled?: boolean
   signal?: AbortSignal
 }) {
   const runtime = IngressStreamRuntime.create()
   const [ingressStreams, runAdapter] = createIngressStreamAdapter(params.stream, runtime, params.adapterType, {
     signal: params.signal,
   })
+  const logSessionDir = params.storageLogsEnabled === false ? undefined : params.sessionDir
+  const ingressLog = bindIngressStreamsToSessionXnlLog({
+    sessionDir: logSessionDir,
+    sessionId: params.sessionId,
+    ingressStreams,
+    actorMeta: params.actorMeta,
+  })
+  const diagnosticsLog = createSessionDiagnosticsXnlLog({
+    sessionDir: logSessionDir,
+  })
   const { semanticGraph, runPipeline } = createSemanticStreamPipeline(
     ingressStreams,
     params.actorMeta ?? { agentKey: "unknown", agentActorId: "unknown" },
   )
 
-  if (params.eventBus) {
-    semanticGraph.onSemanticEvent((event) => {
-      if (params.signal?.aborted) return
-      params.eventBus!.emit(event)
-    })
-  }
+  semanticGraph.onSemanticEvent((event) => {
+    if (params.signal?.aborted) return
+    diagnosticsLog.appendSemanticEvent(event)
+    params.eventBus?.emit(event)
+  })
 
-  const results = await Promise.all([runAdapter(), runPipeline()])
-  return results[0]
+  try {
+    const results = await Promise.all([runAdapter(), runPipeline()])
+    return results[0]
+  } finally {
+    ingressLog.dispose()
+    await Promise.all([
+      ingressLog.flush(),
+      diagnosticsLog.flush(),
+    ]).catch(() => {})
+  }
 }
 
 export function emitRuntimeDirectSlashAssistantOutput(params: {
   eventBus: DomainRuntimeEventGraph
-  messageHistoryEffect: RuntimeHistoryEffect
   actor: { key: string; id: string; type?: ActorType }
   text: string
 }): void {
   if (!params.text) return
-
-  const historyGraph = new DomainRuntimeHistoryGraph()
-  const historySub = historyGraph.onHistoryEvent((event) => {
-    params.messageHistoryEffect?.appendMessage({
-      ...event,
-      actorType: params.actor.type,
-    })
-  })
 
   const baseMeta = { agentKey: params.actor.key, agentActorId: params.actor.id }
   const events: SemanticEvent[] = [
@@ -273,9 +276,5 @@ export function emitRuntimeDirectSlashAssistantOutput(params: {
 
   for (const event of events) {
     params.eventBus.emit(event)
-    historyGraph.consumeSemanticEvent(event)
   }
-
-  historySub.unsubscribe()
-  historyGraph.dispose()
 }

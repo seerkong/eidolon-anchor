@@ -32,10 +32,10 @@ function makeTempHomeDir(): string {
       {
         providers: [
           {
-            name: "openai",
-            baseURL: "https://api.example.com",
-            apiKey: "test-key",
-            models: [{ name: "test-model", context: 128000, output: 8192 }],
+            id: "openai",
+            adapter: "openai",
+            options: { baseURL: "https://api.example.com", apiKey: "test-key" },
+            models: [{ id: "test-model", limits: { context: 128000, output: 8192 } }],
           },
         ],
       },
@@ -44,7 +44,7 @@ function makeTempHomeDir(): string {
     ),
   )
   fs.writeFileSync(
-    path.join(dir, ".eidolon", "agent-preset.json"),
+    path.join(dir, ".eidolon", "agent-present.json"),
     JSON.stringify(
       {
         preset: "default",
@@ -93,15 +93,13 @@ describe("TerminalRuntime composer adoption", () => {
         {
           providers: [
             {
-              name: "codeflicker",
+              id: "codeflicker",
               adapter: "codex",
-              baseURL: "http://127.0.0.1:8018/v1",
-              apiKey: "dummy",
+              options: { baseURL: "http://127.0.0.1:8018/v1", apiKey: "dummy" },
               models: [
                 {
-                  name: "wanqing/gpt-5.4",
-                  context: 128000,
-                  output: 8192,
+                  id: "wanqing/gpt-5.4",
+                  limits: { context: 128000, output: 8192 },
                   reasoning: { effort: "high" },
                 },
               ],
@@ -113,7 +111,7 @@ describe("TerminalRuntime composer adoption", () => {
       ),
     )
     fs.writeFileSync(
-      path.join(activeHomeDir, ".eidolon", "agent-preset.json"),
+      path.join(activeHomeDir, ".eidolon", "agent-present.json"),
       JSON.stringify(
         {
           preset: "default",
@@ -153,9 +151,288 @@ describe("TerminalRuntime composer adoption", () => {
 
     const reply = await runtime!.turn("hello")
     expect(reply).toContain("ok")
-    expect(capturedExtraBody).toEqual({
+    expect(capturedExtraBody).toEqual(expect.objectContaining({
       reasoning: {
         effort: "high",
+      },
+    }))
+  })
+
+  it("passes id-only provider model options into the runtime adapter", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "terminal-runtime-composer-home-"))
+    fs.mkdirSync(path.join(activeHomeDir, ".eidolon"), { recursive: true })
+    fs.writeFileSync(
+      path.join(activeHomeDir, ".eidolon", "llm-provider.json"),
+      JSON.stringify(
+        {
+          providers: [
+            {
+              id: "fhl_mom",
+              adapter: "openai-responses",
+              options: {
+                baseURL: "https://www.fhl.mom",
+                apiKey: "k-fhl",
+              },
+              models: [
+                {
+                  id: "gpt-5.5",
+                  limits: { context: 400000, output: 128000 },
+                  options: {
+                    serviceTier: "priority",
+                    store: false,
+                    reasoningEffort: "high",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    )
+    fs.writeFileSync(
+      path.join(activeHomeDir, ".eidolon", "agent-present.json"),
+      JSON.stringify(
+        {
+          preset: "default",
+          presets: {
+            default: {
+              main: {
+                model: "fhl_mom/gpt-5.5",
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    )
+    process.env.HOME = activeHomeDir
+
+    const adapterCalls: Array<{
+      adapterType: string
+      overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }
+    }> = []
+    __setLlmAdapterFactoryForTest(async (adapterType, _workDir, overrides) => {
+      adapterCalls.push({ adapterType, overrides })
+      return {
+        type: adapterType,
+        async createStream() {
+          async function* stream() {
+            yield { choices: [{ delta: { content: "ok" } }] } as any
+          }
+          return { stream: stream() }
+        },
+      }
+    })
+
+    configureTerminalRuntime({
+      workDir: activeWorkdir,
+      mcp: false,
+    })
+
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+    expect(runtime).toBeTruthy()
+    expect(adapterCalls[0]).toEqual({
+      adapterType: "codex",
+      overrides: {
+        apiKey: "k-fhl",
+        baseUrl: "https://www.fhl.mom",
+        model: "gpt-5.5",
+        options: {
+          baseURL: "https://www.fhl.mom",
+          apiKey: "k-fhl",
+          serviceTier: "priority",
+          store: false,
+          reasoningEffort: "high",
+        },
+      },
+    })
+
+    const reply = await runtime!.turn("hello")
+    expect(reply).toContain("ok")
+  })
+
+  it("resolves explicit provider/model runtime config without falling back to the default provider", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "terminal-runtime-composer-home-"))
+    fs.mkdirSync(path.join(activeHomeDir, ".eidolon"), { recursive: true })
+    fs.writeFileSync(
+      path.join(activeHomeDir, ".eidolon", "llm-provider.json"),
+      JSON.stringify(
+        {
+          providers: [
+            {
+              id: "openai",
+              adapter: "openai",
+              options: { baseURL: "https://api.openai.example/v1", apiKey: "k-openai" },
+              models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
+            },
+            {
+              id: "fhl_mom",
+              adapter: "openai-responses",
+              options: {
+                baseURL: "https://www.fhl.mom",
+                apiKey: "k-fhl",
+              },
+              models: [
+                {
+                  id: "gpt-5.5",
+                  limits: { context: 400000, output: 128000 },
+                  options: {
+                    serviceTier: "priority",
+                    store: false,
+                    reasoningEffort: "high",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    )
+    fs.writeFileSync(
+      path.join(activeHomeDir, ".eidolon", "agent-present.json"),
+      JSON.stringify(
+        {
+          "default-preset": "default",
+          presets: {
+            default: {
+              primary: {
+                model: "openai/gpt-4o",
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    )
+    process.env.HOME = activeHomeDir
+
+    const adapterCalls: Array<{
+      adapterType: string
+      overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }
+    }> = []
+    __setLlmAdapterFactoryForTest(async (adapterType, _workDir, overrides) => {
+      adapterCalls.push({ adapterType, overrides })
+      return {
+        type: adapterType,
+        async createStream() {
+          async function* stream() {
+            yield { choices: [{ delta: { content: "ok" } }] } as any
+          }
+          return { stream: stream() }
+        },
+      }
+    })
+
+    configureTerminalRuntime({
+      workDir: activeWorkdir,
+      model: "fhl_mom/gpt-5.5",
+      mcp: false,
+    })
+
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+    expect(runtime).toBeTruthy()
+    expect(adapterCalls[0]).toEqual({
+      adapterType: "codex",
+      overrides: {
+        apiKey: "k-fhl",
+        baseUrl: "https://www.fhl.mom",
+        model: "gpt-5.5",
+        options: {
+          baseURL: "https://www.fhl.mom",
+          apiKey: "k-fhl",
+          serviceTier: "priority",
+          store: false,
+          reasoningEffort: "high",
+        },
+      },
+    })
+
+    const reply = await runtime!.turn("hello")
+    expect(reply).toContain("ok")
+  })
+
+  it("uses primary preset model as the startup model without a code default provider", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "terminal-runtime-composer-home-"))
+    fs.mkdirSync(path.join(activeHomeDir, ".eidolon"), { recursive: true })
+    fs.writeFileSync(
+      path.join(activeHomeDir, ".eidolon", "llm-provider.json"),
+      JSON.stringify(
+        {
+          providers: [
+            {
+              id: "ee-new-api",
+              adapter: "openai-responses",
+              options: { baseURL: "https://ee.example.test/v1", apiKey: "k-ee" },
+              models: [{ id: "gpt-5.5", limits: { context: 400000, output: 128000 } }],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    )
+    fs.writeFileSync(
+      path.join(activeHomeDir, ".eidolon", "agent-present.json"),
+      JSON.stringify(
+        {
+          "default-preset": "default",
+          presets: {
+            default: {
+              primary: {
+                model: "ee-new-api/gpt-5.5",
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    )
+    process.env.HOME = activeHomeDir
+
+    const adapterCalls: Array<{
+      adapterType: string
+      overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }
+    }> = []
+    __setLlmAdapterFactoryForTest(async (adapterType, _workDir, overrides) => {
+      adapterCalls.push({ adapterType, overrides })
+      return {
+        type: adapterType,
+        async createStream() {
+          async function* stream() {
+            yield { choices: [{ delta: { content: "ok" } }] } as any
+          }
+          return { stream: stream() }
+        },
+      }
+    })
+
+    configureTerminalRuntime({
+      workDir: activeWorkdir,
+      mcp: false,
+    })
+
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+    expect(runtime).toBeTruthy()
+    expect(adapterCalls[0]).toEqual({
+      adapterType: "codex",
+      overrides: {
+        apiKey: "k-ee",
+        baseUrl: "https://ee.example.test/v1",
+        model: "gpt-5.5",
+        options: {
+          baseURL: "https://ee.example.test/v1",
+          apiKey: "k-ee",
+        },
       },
     })
   })
@@ -170,18 +447,16 @@ describe("TerminalRuntime composer adoption", () => {
         {
           providers: [
             {
-              name: "codeflicker",
+              id: "codeflicker",
               adapter: "codex",
-              baseURL: "http://127.0.0.1:8018/v1",
-              apiKey: "dummy",
-              models: [{ name: "wanqing/gpt-5.4", context: 128000, output: 8192 }],
+              options: { baseURL: "http://127.0.0.1:8018/v1", apiKey: "dummy" },
+              models: [{ id: "wanqing/gpt-5.4", limits: { context: 128000, output: 8192 } }],
             },
             {
-              name: "codex",
+              id: "codex",
               adapter: "openai",
-              baseURL: "http://127.0.0.1:8019/v1",
-              apiKey: "dummy-openai",
-              models: [{ name: "named-like-codex", context: 128000, output: 8192 }],
+              options: { baseURL: "http://127.0.0.1:8019/v1", apiKey: "dummy-openai" },
+              models: [{ id: "named-like-codex", limits: { context: 128000, output: 8192 } }],
             },
           ],
         },
@@ -190,7 +465,7 @@ describe("TerminalRuntime composer adoption", () => {
       ),
     )
     fs.writeFileSync(
-      path.join(activeHomeDir, ".eidolon", "agent-preset.json"),
+      path.join(activeHomeDir, ".eidolon", "agent-present.json"),
       JSON.stringify(
         {
           preset: "default",
@@ -238,7 +513,7 @@ describe("TerminalRuntime composer adoption", () => {
     seenAdapterTypes.length = 0
 
     fs.writeFileSync(
-      path.join(activeHomeDir, ".eidolon", "agent-preset.json"),
+      path.join(activeHomeDir, ".eidolon", "agent-present.json"),
       JSON.stringify(
         {
           preset: "default",
@@ -293,6 +568,43 @@ describe("TerminalRuntime composer adoption", () => {
 
     const memberList = await runtime!.turn("/member list")
     expect(memberList).toContain("\"member_count\":0")
+  })
+
+  it("consumes /work-mode locally without provider calls or semantic history", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+
+    let providerCalls = 0
+    let providerMessages: Array<{ role?: string; content?: string }> = []
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream(options: { messages?: Array<{ role?: string; content?: string }> }) {
+        providerCalls += 1
+        providerMessages = options.messages ?? []
+        async function* stream() {
+          yield { choices: [{ delta: { content: "ok" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    configureTerminalRuntime({
+      workDir: activeWorkdir,
+      mcp: false,
+    })
+
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+    expect(runtime).toBeTruthy()
+
+    const commandOutput = await runtime!.turn("/work-mode plan")
+    expect(commandOutput).toContain("work_mode: plan")
+    expect(providerCalls).toBe(0)
+
+    await runtime!.turn("hello")
+    expect(providerCalls).toBe(1)
+    expect(providerMessages.some((message) => String(message.content ?? "").includes("work_mode: plan"))).toBe(true)
+    expect(providerMessages.some((message) => String(message.content ?? "").includes("/work-mode plan"))).toBe(false)
   })
 
   it("does not keep a hidden member list route when the assembly removes that action", async () => {
@@ -481,13 +793,16 @@ describe("TerminalRuntime composer adoption", () => {
     const reply = await runtime!.turn("hello")
 
     expect(reply).toContain("ok")
-    expect(capturedMessages).toContainEqual({
-      role: "user",
-      content: "Runtime hint:\nUse the confirmed repo-relative path `src/app.py`; do not fall back to `app.py`.",
-    })
-    expect(capturedMessages).toContainEqual({
-      role: "user",
-      content: "hello",
-    })
+    // The provider prompt is sourced from the conversation-domain
+    // materialization (track refactor-ai-semantic-conversation-spine T4.2);
+    // committed messages carry startAt/endAt timestamps, so assert on the
+    // role/content surface instead of strict object equality.
+    const userContents = capturedMessages
+      .filter((message) => message.role === "user")
+      .map((message) => String(message.content ?? ""))
+    expect(userContents).toContain(
+      "Runtime hint:\nUse the confirmed repo-relative path `src/app.py`; do not fall back to `app.py`.",
+    )
+    expect(userContents).toContain("hello")
   })
 })

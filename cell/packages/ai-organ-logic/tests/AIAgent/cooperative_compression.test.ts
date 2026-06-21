@@ -32,7 +32,6 @@ async function advanceUntil(params: {
 describe("Stage 3 cooperative compression", () => {
   it("runs compression asynchronously and applies compressed history", async () => {
     const toolRegistry = new ToolFuncRegistry();
-    const backupCalls: any[] = [];
 
     __setCompressionDepsForTest({
       estimateUsageRatio: () => 0.9,
@@ -72,14 +71,6 @@ describe("Stage 3 cooperative compression", () => {
       actors: { main: actor },
       registries: { toolRegistry },
       eventBus,
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async (params) => {
-            backupCalls.push(params);
-          },
-        },
-      },
     });
 
     const fiberId = `${actor.key}:${actor.id}`;
@@ -104,12 +95,14 @@ describe("Stage 3 cooperative compression", () => {
     driver.resumeFiber(fiberId, Date.now());
     await flushMicrotasks();
 
+    // P7: the compressed result lands as a domain compaction (summary
+    // transform + compact generation); observe it on the read-only
+    // projection rather than expecting an in-place array rewrite.
     await advanceUntil({
       driver,
-      predicate: () => messages.some((m) => m?.role === "system" && m?.content === "COMPRESSED"),
+      predicate: () => actor.messages.some((m: any) => String(m?.content ?? "").includes("COMPRESSED")),
     });
 
-    expect(messages[0]?.content).toBe("COMPRESSED");
-    expect(backupCalls.length).toBeGreaterThan(0);
+    expect(String(actor.messages[0]?.content ?? "")).toContain("COMPRESSED");
   });
 });

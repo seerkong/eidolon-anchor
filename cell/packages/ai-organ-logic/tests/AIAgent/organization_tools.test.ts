@@ -4,6 +4,7 @@ import { composeToolRegistry } from "@cell/ai-organ-logic/composer/AIAgent/ToolF
 import { buildBuiltinToolDefs } from "@cell/ai-organ-logic/composer/AIAgent/ToolFuncBuiltin"
 import { createActor, createVM, ensureVmRuntimeContext } from "@cell/ai-core-logic"
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver"
+import { createMockProcessStream } from "./__test_support__/mockProcessStream"
 
 function makeMockAdapter() {
   return {
@@ -24,12 +25,12 @@ function createExecutableActor(key: string) {
     modelConfig: { model: "mock" },
     callbacks: {
       buildToolset: () => [],
-      processStream: async (_vm, actor) => {
+      processStream: createMockProcessStream(async (_vm, actor) => {
         if (actor.identity?.kind === "member") {
           return { role: "assistant", content: `${actor.identity.name} done` }
         }
         return { role: "assistant", content: "control idle" }
-      },
+      }),
     },
   })
 }

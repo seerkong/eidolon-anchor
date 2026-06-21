@@ -28,6 +28,10 @@ export function buildOpenAIResponsesProviderDriver(): ProviderDriverDefinition {
       };
     },
     async createStream(params: ProviderDriverStreamParams) {
+      const transportMode = getString(params.connectionOptions, "transport_mode");
+      const websocketUrl = getString(params.connectionOptions, "websocket_url");
+      const supportsWebsockets = params.connectionOptions.supports_websockets;
+      const websocketConnectTimeoutSeconds = params.connectionOptions.websocket_connect_timeout_seconds;
       const adapter = new OpenAIResponsesNodejsFetchLlmAdapter({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
         baseUrl: getString(params.connectionOptions, "base_url", "baseurl"),
@@ -35,6 +39,14 @@ export function buildOpenAIResponsesProviderDriver(): ProviderDriverDefinition {
           apiKey: getString(params.connectionOptions, "api_key", "apikey"),
           baseURL: getString(params.connectionOptions, "base_url", "baseurl"),
           headers: params.connectionOptions.default_headers as Record<string, string> | undefined,
+          // Responses WebSocket v2 transport selection (P1). Default (absent
+          // markers) -> http_sse, identical to today.
+          ...(transportMode ? { transport_mode: transportMode } : {}),
+          ...(supportsWebsockets !== undefined ? { supports_websockets: supportsWebsockets } : {}),
+          ...(websocketUrl ? { websocket_url: websocketUrl } : {}),
+          ...(websocketConnectTimeoutSeconds !== undefined
+            ? { websocket_connect_timeout_seconds: websocketConnectTimeoutSeconds }
+            : {}),
         },
       });
       return adapter.createStream({
@@ -43,6 +55,13 @@ export function buildOpenAIResponsesProviderDriver(): ProviderDriverDefinition {
         tools: params.tools as any[],
         extraBody: { ...params.requestOptions, ...params.extraBody },
         signal: params.signal,
+        // Session/actor identity for previous_response_id continuity (P2). Prefer
+        // the threaded sessionKey; fall back to the runtime session/actor ids.
+        sessionKey:
+          params.sessionKey ||
+          (params.runtime?.sessionId || params.runtime?.actorId
+            ? `${params.runtime?.sessionId ?? ""}/${params.runtime?.actorId ?? ""}`
+            : undefined),
       });
     },
   };

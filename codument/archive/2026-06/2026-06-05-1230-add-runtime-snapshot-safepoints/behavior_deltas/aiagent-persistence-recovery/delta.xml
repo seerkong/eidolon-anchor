@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-persistence-recovery">
+  <upsert selector="behavior://aiagent-persistence-recovery/requirements/runtime-snapshot-safepoints">
+    <requirement id="runtime-snapshot-safepoints">
+    <statement>系统 SHALL save runtime snapshots only at recoverable safepoints or preserve the previous known-good snapshot when the current runtime state is not a safepoint.</statement>
+    <suite id="snapshot-save-safepoint" name="Snapshot save safepoint semantics">
+      <case id="reject-start-tool-half-step">
+        <given>An actor history contains an assistant tool call that requires tool execution</given>
+        <then>The owning fiber cooperative exec state is `start_tool`</then>
+        <then>No durable tool operation or matching tool result exists for that tool call</then>
+        <when>The runtime attempts to save a snapshot</when>
+        <then>The snapshot writer SHALL NOT persist that state as the latest recoverable snapshot</then>
+        <then>The runtime SHALL either advance to a safepoint or skip the save while preserving the previous known-good snapshot</then>
+      </case>
+      <case id="tool-call-has-durable-proof">
+        <given>An actor history contains an assistant tool call without a matching tool result</given>
+        <when>The runtime saves a snapshot</when>
+        <then>The snapshot SHALL contain recoverable proof that the matching tool operation has started or is waiting for completion</then>
+        <then>Recovery SHALL be able to continue without relying on transcript-tail inference</then>
+      </case>
+      <case id="save-after-crash-boundary">
+        <given>A snapshot save has completed successfully</given>
+        <when>The process exits immediately after the save and the session is recovered</when>
+        <then>The recovered runtime SHALL be able to continue or remain in a typed external wait state</then>
+        <then>The recovered message history SHALL NOT contain unmatched assistant tool calls unless a durable operation can produce the matching tool result</then>
+      </case>
+    </suite>
+    <suite id="snapshot-diagnostics" name="Snapshot diagnostics">
+      <case id="diagnose-non-safepoint-skip">
+        <given>The runtime attempts to save while mandatory continuations remain unconsumed</given>
+        <when>The save is skipped or delayed because the state is not a safepoint</when>
+        <then>The runtime SHALL emit diagnostics describing the blocking fiber, phase, and reason</then>
+        <then>The diagnostics SHALL NOT expose provider-private message content or large tool payloads</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/runtime-snapshot-safepoints" strength="hint" />
+    </requirement>
+  </upsert>
+</behavior-patch>

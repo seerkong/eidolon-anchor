@@ -1,6 +1,11 @@
 import {
+  areRuntimeBindingDescriptorsCompatible,
   assembleRuntimeProfile,
+  buildRuntimeBindingDescriptor,
+  type RuntimeBindingDescriptor,
+  type RuntimeEntryType,
   type RuntimeProfile,
+  type RuntimeStorageCapabilityFlags,
 } from "@cell/ai-composer";
 import type {
   RuntimeAssemblyContext,
@@ -10,6 +15,12 @@ import type {
   RuntimeSlashCommandDescriptor,
   RuntimeSlashRuntime,
 } from "@cell/ai-composer/ai-contract";
+
+export type RuntimeCompositionBindingDescriptor = RuntimeBindingDescriptor;
+export type RuntimeCompositionEntryType = RuntimeEntryType;
+export type RuntimeCompositionStorageFlags = RuntimeStorageCapabilityFlags;
+export const buildRuntimeCompositionBindingDescriptor = buildRuntimeBindingDescriptor;
+export const areRuntimeCompositionBindingDescriptorsCompatible = areRuntimeBindingDescriptorsCompatible;
 
 export type RuntimeCompositionContext = RuntimeAssemblyContext;
 export type RuntimeCompositionResult = RuntimeAssemblyResult;

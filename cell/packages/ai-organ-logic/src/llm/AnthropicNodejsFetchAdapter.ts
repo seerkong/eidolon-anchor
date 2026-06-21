@@ -441,15 +441,18 @@ export class AnthropicStreamAdapter {
 
   async processStream(stream: AsyncIterable<any>) {
     await this.ingressControl.send("control", JSON.stringify({ event: "StreamStart" }));
-    for await (const part of stream) {
-      if (process.env.MINIMAX_DEBUG === "1") {
-        console.log("[anthropic] part", JSON.stringify(part, null, 2));
+    try {
+      for await (const part of stream) {
+        if (process.env.MINIMAX_DEBUG === "1") {
+          console.log("[anthropic] part", JSON.stringify(part, null, 2));
+        }
+        await this.processPart(part);
       }
-      await this.processPart(part);
+      await this.flushToolCalls();
+      return this.buildMessage();
+    } finally {
+      await this.ingressControl.send("control", JSON.stringify({ event: "StreamEnd" }));
     }
-    await this.flushToolCalls();
-    await this.ingressControl.send("control", JSON.stringify({ event: "StreamEnd" }));
-    return this.buildMessage();
   }
 
 

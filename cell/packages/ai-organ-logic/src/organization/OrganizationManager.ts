@@ -1,11 +1,29 @@
-import { createActor } from "@cell/ai-core-logic/runtime/actor";
+import { createActor, type AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
 import type { ActorWatchState } from "@cell/ai-core-contract/coordination";
+import type { HolonActorState } from "@cell/ai-core-contract/runtime/AiAgentActor";
 import { ensureVmRuntimeContext, ensureVmSessionState, type AiAgentVm, type VmAutonomousHolonRecord, type VmLeaderLedHolonRecord, type VmHolonRecord } from "@cell/ai-core-logic/runtime/runtime";
 import { AI_AGENT_LANES } from "../lane/AiAgentLane";
 import { AI_AGENT_WORKLOADS } from "../lane/AiAgentWorkload";
 import { getMemberManager } from "./MemberManager";
 
 export type OrganizationHolonRecord = VmAutonomousHolonRecord | VmLeaderLedHolonRecord;
+
+/**
+ * Single writer for holon governance state — the runtime side of the
+ * MemberHolonDataComponents contract's `member_holon.update_holon_governance`
+ * writeCommand (track refactor-ai-multi-agent-domain-integration, P2).
+ *
+ * `actor.holonState` (the `holon.governance` owned fact) is mutated through
+ * THIS function only. Each caller computes its own next HolonActorState; this
+ * writer performs the sole assignment so the ad-hoc write points (the
+ * OrganizationManager governance transitions, the autonomous task runner, and
+ * the assign-cores) all funnel through one owner. Behavior is identical to the
+ * previous direct `actor.holonState = next` assignment — this is purely a
+ * single-writer funnel, no invariant is added or changed.
+ */
+export function writeHolonGovernance(actor: AiAgentActor, next: HolonActorState): void {
+  actor.holonState = next;
+}
 
 function stripOrganizationPrefix(query: string, prefix: "collective" | "formation" | "holon"): string {
   const trimmed = String(query ?? "").trim();
@@ -175,7 +193,7 @@ export class OrganizationManager {
         vm.actorRuntime.register(key, actor);
       }
     } else if (!actor.holonState || actor.holonState.governance !== "autonomous") {
-      actor.holonState = {
+      writeHolonGovernance(actor, {
         governance: "autonomous",
         holonId: record.holonId,
         name: record.name,
@@ -183,7 +201,7 @@ export class OrganizationManager {
         watchState: record.watchState ?? actor.watchState ?? "unwatched",
         taskOwnership: {},
         tasks: {},
-      };
+      });
     }
     actor.watchState = actor.holonState?.watchState ?? record.watchState ?? "unwatched";
     this.ensureOrganizationActorFiber(vm, key, record.holonId);
@@ -220,7 +238,7 @@ export class OrganizationManager {
         vm.actorRuntime.register(key, actor);
       }
     } else if (!actor.holonState || actor.holonState.governance !== "leader_led") {
-      actor.holonState = {
+      writeHolonGovernance(actor, {
         governance: "leader_led",
         holonId: record.holonId,
         name: record.name,
@@ -228,7 +246,7 @@ export class OrganizationManager {
         leaderMemberId: record.leaderMemberId ?? null,
         watchState: record.watchState ?? actor.watchState ?? "unwatched",
         routes: {},
-      };
+      });
     }
     actor.watchState = actor.holonState?.watchState ?? record.watchState ?? "unwatched";
     this.ensureOrganizationActorFiber(vm, key, record.holonId);
@@ -327,7 +345,7 @@ export class OrganizationManager {
       const actor = this.ensureAutonomousHolonActor(vm, holon);
       const memberIds = new Set(actor.holonState?.governance === "autonomous" ? actor.holonState.memberIds : holon.memberIds);
       memberIds.add(memberId);
-      actor.holonState = {
+      writeHolonGovernance(actor, {
         governance: "autonomous",
         holonId: holon.holonId,
         name: actor.holonState?.governance === "autonomous" ? actor.holonState.name : holon.name,
@@ -335,7 +353,7 @@ export class OrganizationManager {
         watchState: actor.holonState?.watchState ?? actor.watchState ?? holon.watchState ?? "unwatched",
         taskOwnership: { ...((actor.holonState?.governance === "autonomous" ? actor.holonState.taskOwnership : {}) ?? {}) },
         tasks: Object.fromEntries(Object.entries(actor.holonState?.governance === "autonomous" ? actor.holonState.tasks : {}).map(([taskId, task]) => [taskId, { ...task }])),
-      };
+      });
       actor.watchState = actor.holonState.watchState;
 
       return this.writeAutonomousHolonIndex(vm, {
@@ -352,7 +370,7 @@ export class OrganizationManager {
     const actor = this.ensureLeaderLedHolonActor(vm, holon);
     const memberIds = new Set(actor.holonState?.governance === "leader_led" ? actor.holonState.memberIds : holon.memberIds);
     memberIds.add(memberId);
-    actor.holonState = {
+    writeHolonGovernance(actor, {
       governance: "leader_led",
       holonId: holon.holonId,
       name: actor.holonState?.governance === "leader_led" ? actor.holonState.name : holon.name,
@@ -360,7 +378,7 @@ export class OrganizationManager {
       leaderMemberId: actor.holonState?.governance === "leader_led" ? actor.holonState.leaderMemberId ?? holon.leaderMemberId ?? null : holon.leaderMemberId ?? null,
       watchState: actor.holonState?.watchState ?? actor.watchState ?? holon.watchState ?? "unwatched",
       routes: Object.fromEntries(Object.entries(actor.holonState?.governance === "leader_led" ? actor.holonState.routes : {}).map(([routeId, route]) => [routeId, { ...route }])),
-    };
+    });
     actor.identity = {
       kind: "holon",
       holonId: holon.holonId,
@@ -385,7 +403,7 @@ export class OrganizationManager {
   private setManagedHolonWatchState(vm: AiAgentVm, holon: OrganizationHolonRecord, watchState: ActorWatchState): OrganizationHolonRecord | null {
     if (holon.governance === "autonomous") {
       const actor = this.ensureAutonomousHolonActor(vm, holon);
-      actor.holonState = {
+      writeHolonGovernance(actor, {
         governance: "autonomous",
         holonId: holon.holonId,
         name: actor.holonState?.governance === "autonomous" ? actor.holonState.name : holon.name,
@@ -393,7 +411,7 @@ export class OrganizationManager {
         watchState,
         taskOwnership: { ...((actor.holonState?.governance === "autonomous" ? actor.holonState.taskOwnership : {}) ?? {}) },
         tasks: Object.fromEntries(Object.entries(actor.holonState?.governance === "autonomous" ? actor.holonState.tasks : {}).map(([taskId, task]) => [taskId, { ...task }])),
-      };
+      });
       actor.watchState = watchState;
 
       return this.writeAutonomousHolonIndex(vm, {
@@ -408,7 +426,7 @@ export class OrganizationManager {
     }
 
     const actor = this.ensureLeaderLedHolonActor(vm, holon);
-    actor.holonState = {
+    writeHolonGovernance(actor, {
       governance: "leader_led",
       holonId: holon.holonId,
       name: actor.holonState?.governance === "leader_led" ? actor.holonState.name : holon.name,
@@ -416,7 +434,7 @@ export class OrganizationManager {
       leaderMemberId: actor.holonState?.governance === "leader_led" ? actor.holonState.leaderMemberId ?? holon.leaderMemberId ?? null : holon.leaderMemberId ?? null,
       watchState,
       routes: Object.fromEntries(Object.entries(actor.holonState?.governance === "leader_led" ? actor.holonState.routes : {}).map(([routeId, route]) => [routeId, { ...route }])),
-    };
+    });
     actor.identity = {
       kind: "holon",
       holonId: holon.holonId,
@@ -440,7 +458,7 @@ export class OrganizationManager {
 
   private appointManagedHolonLeader(vm: AiAgentVm, holon: VmLeaderLedHolonRecord, memberId: string): VmLeaderLedHolonRecord | null {
     const actor = this.ensureLeaderLedHolonActor(vm, holon);
-    actor.holonState = {
+    writeHolonGovernance(actor, {
       governance: "leader_led",
       holonId: holon.holonId,
       name: actor.holonState?.governance === "leader_led" ? actor.holonState.name : holon.name,
@@ -448,7 +466,7 @@ export class OrganizationManager {
       leaderMemberId: memberId,
       watchState: actor.holonState?.watchState ?? actor.watchState ?? holon.watchState ?? "unwatched",
       routes: Object.fromEntries(Object.entries(actor.holonState?.governance === "leader_led" ? actor.holonState.routes : {}).map(([routeId, route]) => [routeId, { ...route }])),
-    };
+    });
     actor.identity = {
       kind: "holon",
       holonId: holon.holonId,

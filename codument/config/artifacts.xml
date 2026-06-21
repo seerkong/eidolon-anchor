@@ -1,0 +1,29 @@
+<artifact-config version="1">
+  <resources>
+    <agent id="artifact-sync-agent" executor="fresh-subagent" />
+    <attractor-profile id="docs-knowledge-profile" name="docs" />
+    <attractor-profile id="project-memory-profile" name="memory" />
+  </resources>
+  <artifacts>
+    <artifact id="docs-knowledge-artifact" kind="knowledge-doc" enabled="true" source-kind="archived-track" source-scope="current">
+      <uses>
+        <use resource="artifact-sync-agent" />
+        <use resource="docs-knowledge-profile" />
+      </uses>
+      <targets>
+        <target id="knowledge-docs" kind="local-dir" path="docs" output-path="knowledge.md" attractor="codument/attractors/docs-knowledge.md" />
+      </targets>
+      <policy dry-run="first" conflict="diff-confirm" provenance="manifest" />
+    </artifact>
+    <artifact id="project-memory-artifact" kind="project-memory" enabled="true" source-kind="project-memory" source-scope="current">
+      <uses>
+        <use resource="artifact-sync-agent" />
+        <use resource="project-memory-profile" />
+      </uses>
+      <targets>
+        <target id="project-memory" kind="local-dir" path="codument/memory" output-path="summaries/project-memory.md" />
+      </targets>
+      <policy dry-run="first" conflict="diff-confirm" provenance="manifest" />
+    </artifact>
+  </artifacts>
+</artifact-config>

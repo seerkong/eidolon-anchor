@@ -180,7 +180,7 @@ export class CoordinationEngine {
     const merged = new Map<string, CoordinationRecord>();
 
     for (const actor of Object.values(vm.actors)) {
-      for (const mailboxTag of ["coordination", "memberInbox"] as const) {
+      for (const mailboxTag of ["memberCoordination", "memberChatInbox"] as const) {
         const pending = actor.peekMailbox(mailboxTag) as Array<{ from?: string; text?: string; ts?: number }>;
         for (const payload of pending) {
           const text = String(payload?.text ?? "");

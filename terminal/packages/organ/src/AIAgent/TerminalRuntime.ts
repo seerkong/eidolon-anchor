@@ -10,43 +10,57 @@ import {
   DomainRuntimeEventGraph,
   DomainRuntimeHistoryGraph,
   ensureVmRxData,
+  isRuntimeStorageLogsEnabled,
   recoverHeartbeatSchedules,
   startHeartbeatSchedulerWorker,
   type DomainRuntimeVm,
 } from "@cell/ai-core-logic"
+import { applyActorModelConfigControlSignals, hasPendingAiAgentWakeMailbox, type AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
 import {
   createRuntimeLlmAdapter,
+  createDefaultRuntimeHookHandlers,
+  defaultProviderConfigPath,
   emitRuntimeDirectSlashAssistantOutput,
   forceCompressActorHistory,
   createShellRuntimeFacade,
   createShellRuntimePaths,
   ensureShellRuntimeSessionDir,
   extractProviderOptions,
+  isPersistedModelStillResolvable,
   loadMcpServers,
+  loadProviderCatalog,
   loadProviderConfig,
+  PROVIDER_CONFIG_FILE_NAME,
   MCPManager,
   processRuntimeIngressStream,
   recoverOrCreateShellRuntime,
+  refreshProviderTransportMarkers,
   setDebug,
   getConversationActorRawStateFromVm,
   getConversationSessionRawStateFromVm,
   materializeConversationHistoryMessagesFromVm,
   materializeConversationRuntimeMessagesFromVm,
+  setActorWorkMode,
   type LlmAdapterType,
 } from "@cell/ai-organ-logic"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import type { ChatMessage } from "@shared/composer"
 import {
   assembleRuntimeCompositionProfile,
+  buildRuntimeCompositionBindingDescriptor,
+  type RuntimeCompositionBindingDescriptor,
   type RuntimeCompositionContext as RuntimeAssemblyContext,
+  type RuntimeCompositionEntryType,
   type RuntimeCompositionFactory,
   type RuntimeCompositionResult as RuntimeAssemblyResult,
   type RuntimeCompositionSlashCommand as RuntimeSlashCommandDescriptor,
   type RuntimeCompositionSlashRuntime as RuntimeSlashRuntime,
+  type RuntimeCompositionStorageFlags,
 } from "@cell/membrane/runtime-composition"
-import { aiCodingRuntimeProfile } from "@cell/mod-profiles"
+import { aiCodingRuntimeProfile, resolveRuntimeProfileById } from "@cell/mod-profiles"
 import type { ActorSurfaceProjectionData } from "@cell/ai-core-contract/runtime/ActorSurface"
-import type { AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor"
+import type { ActorModelConfig, AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor"
+import { WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl"
 import type { AiAgentVmUsageData } from "@cell/ai-core-contract/runtime/AiAgentVm"
 import type { HeartbeatSchedule, HeartbeatWakePayload } from "@cell/ai-core-contract/runtime/Heartbeat"
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic"
@@ -60,6 +74,11 @@ import { SemanticTerminalRuntimeBridge } from "../stream/SemanticTerminalRuntime
 export type RuntimeBridgeNotification = {
   text: string
   category?: TuiMessageCategory
+}
+
+export type RuntimeActiveModelSelection = {
+  providerID: string
+  modelID: string
 }
 
 export type RuntimeBridgeHistoryEvent = DomainMessageHistoryEvent
@@ -76,10 +95,16 @@ export type RuntimeBridgeInitStatus = {
 type RuntimeBridgeInitStatusHandler = (status: RuntimeBridgeInitStatus) => void
 
 export type TuiRuntimeBridge = {
+  /** Binding descriptor produced by the shared profile composition path. */
+  bindingDescriptor?: RuntimeCompositionBindingDescriptor
   agents?: () => Promise<Agent[]>
   slashCommands?: RuntimeSlashCommandDescriptor[]
   slashRuntime?: RuntimeSlashRuntime | null
   injectRuntimeHint?: (text: string) => Promise<void>
+  setActorActiveModel?: (target: {
+    laneId?: string
+    actorId?: string
+  }, model: RuntimeActiveModelSelection) => Promise<ActorSurfaceProjectionData>
   turn: (
     input: string,
     opts?: {
@@ -145,6 +170,12 @@ export type TuiRuntimeConfig = {
   mcp?: boolean
   ephemeral?: boolean
   metadata?: Record<string, unknown>
+  /** Runtime profile selected by the entry; defaults to ai-coding. */
+  profileId?: string
+  /** Surface kind of the entry; defaults to headless. */
+  entryType?: RuntimeCompositionEntryType
+  /** Storage capability flags; defaults to persistent (logs and files enabled). */
+  storage?: Partial<RuntimeCompositionStorageFlags>
 }
 
 type ExecRuntimeMetadataOptions = {
@@ -222,22 +253,70 @@ export function buildExecRuntimeMetadata(options: ExecRuntimeMetadataOptions): R
   return metadata
 }
 
-const LLM_ADAPTER_TYPE = (process.env.LLM_ADAPTER || "openai").toLowerCase() as LlmAdapterType
+const LLM_ADAPTER_TYPE = process.env.LLM_ADAPTER ? (process.env.LLM_ADAPTER.toLowerCase() as LlmAdapterType) : undefined
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || ""
-const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1"
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o"
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || ""
+const OPENAI_MODEL = process.env.OPENAI_MODEL || ""
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || ""
-const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5-20250929"
+const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || ""
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || ""
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || ""
-const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1"
-const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat"
+const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || ""
+const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || ""
 const USE_MOCK = process.env.MOCK_OPENAI === "1"
 
 const SKILLS_DESCRIPTION = "(动态加载；每轮从 .eidolon/skills 重新读取)"
 const shellRuntimeFacade = createShellRuntimeFacade()
 
-let llmAdapterFactoryOverride: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string }) => Promise<any>) = null
+export type TerminalRuntimeBindingInput = {
+  workDir: string
+  entryType: RuntimeCompositionEntryType
+  profileId?: string
+  storage?: Partial<RuntimeCompositionStorageFlags>
+  surfaceCapabilities?: readonly string[]
+}
+
+export type TerminalRuntimeBinding = {
+  profile: ReturnType<typeof resolveRuntimeProfileById>
+  descriptor: RuntimeCompositionBindingDescriptor
+}
+
+export function resolveTerminalRuntimeBindingFromConfig(config: TuiRuntimeConfig): TerminalRuntimeBinding {
+  return composeTerminalRuntimeBinding({
+    workDir: config.workDir,
+    entryType: config.entryType ?? "headless",
+    profileId: config.profileId,
+    storage: config.storage,
+  })
+}
+
+/**
+ * Shared composition entry for CLI, TUI, and headless surfaces. Entries select
+ * a profile, an entry type, storage flags, and surface capabilities; the
+ * profile decides everything else. Storage defaults to persistent (logs and
+ * files enabled).
+ */
+export function composeTerminalRuntimeBinding(input: TerminalRuntimeBindingInput): TerminalRuntimeBinding {
+  const profile = resolveRuntimeProfileById(input.profileId ?? aiCodingRuntimeProfile.id)
+  const descriptor = buildRuntimeCompositionBindingDescriptor({
+    profile,
+    context: {
+      workDir: input.workDir,
+      skillsDescription: SKILLS_DESCRIPTION,
+      loadedAgents: {},
+      delegateAgentDescriptions: "",
+    },
+    entryType: input.entryType,
+    storage: {
+      logs: input.storage?.logs !== false,
+      files: input.storage?.files !== false,
+    },
+    surfaceCapabilities: input.surfaceCapabilities,
+  })
+  return { profile, descriptor }
+}
+
+let llmAdapterFactoryOverride: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }) => Promise<any>) = null
 let runtimeAssemblyFactoryOverride: null | RuntimeCompositionFactory = null
 
 // ProviderCollector registry — set via configureProviderCollector()
@@ -302,7 +381,7 @@ export async function drainHeartbeatFiredSchedules(params: {
   }).catch(() => {})
 }
 
-export function __setLlmAdapterFactoryForTest(factory: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string }) => Promise<any>)) {
+export function __setLlmAdapterFactoryForTest(factory: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }) => Promise<any>)) {
   llmAdapterFactoryOverride = factory
 }
 
@@ -450,7 +529,7 @@ function resolveTuiEventRouting(params: {
   return shellRuntimeFacade.routeProjectionEvent(params)
 }
 
-function resolveLlmAdapterType(cliAdapter?: string): LlmAdapterType {
+function resolveLlmAdapterType(cliAdapter?: string): LlmAdapterType | undefined {
   if (cliAdapter) {
     const normalized = cliAdapter.toLowerCase().replace(/-/g, "_")
     if (normalized === "openai" || normalized === "anthropic" || normalized === "codex" || normalized === "claude" || normalized === "deepseek" || normalized === "deep_seek") {
@@ -458,6 +537,18 @@ function resolveLlmAdapterType(cliAdapter?: string): LlmAdapterType {
     }
   }
   return LLM_ADAPTER_TYPE
+}
+
+function getProviderIdForAdapter(adapterType: LlmAdapterType): string {
+  return adapterType === "anthropic"
+    ? "anthropic"
+    : adapterType === "claude"
+      ? "claude"
+      : adapterType === "codex"
+        ? "codex"
+        : adapterType === "deepseek"
+          ? "deepseek"
+          : "openai"
 }
 
 function getConfigForAdapter(adapterType: LlmAdapterType) {
@@ -482,8 +573,36 @@ function getConfigForAdapter(adapterType: LlmAdapterType) {
   }
 }
 
+function buildAdapterDefaults() {
+  return {
+    openai: {
+      apiKey: OPENAI_API_KEY,
+      baseUrl: OPENAI_BASE_URL,
+      model: OPENAI_MODEL,
+    },
+    anthropic: {
+      apiKey: ANTHROPIC_API_KEY,
+      baseUrl: ANTHROPIC_BASE_URL,
+      model: ANTHROPIC_MODEL,
+    },
+    deepseek: {
+      apiKey: DEEPSEEK_API_KEY,
+      baseUrl: DEEPSEEK_BASE_URL,
+      model: DEEPSEEK_MODEL,
+    },
+  }
+}
+
 function buildSystemMessages(prompt: string[]) {
   return prompt.map((p) => ({ role: "system", content: p }))
+}
+
+function resolveExplicitRuntimeModelRef(model?: string): string | undefined {
+  const normalized = String(model ?? "").trim()
+  if (!normalized) return undefined
+  const separatorIndex = normalized.indexOf("/")
+  if (separatorIndex <= 0 || separatorIndex >= normalized.length - 1) return undefined
+  return normalized
 }
 
 async function createRuntimeBridge(
@@ -492,9 +611,10 @@ async function createRuntimeBridge(
   options?: { onInitStatus?: RuntimeBridgeInitStatusHandler },
 ): Promise<TuiRuntimeBridge | null> {
   const paths = createShellRuntimePaths(runtimeConfig.workDir)
+  const runtimeBinding = resolveTerminalRuntimeBindingFromConfig(runtimeConfig)
   const defaultRuntimeAssemblyFactory =
     runtimeAssemblyFactoryOverride
-    ?? ((context: RuntimeAssemblyContext) => assembleRuntimeCompositionProfile(aiCodingRuntimeProfile, context))
+    ?? ((context: RuntimeAssemblyContext) => assembleRuntimeCompositionProfile(runtimeBinding.profile, context))
   const bootstrapAssembly = defaultRuntimeAssemblyFactory({
     workDir: paths.WORKDIR,
     skillsDescription: SKILLS_DESCRIPTION,
@@ -531,62 +651,51 @@ async function createRuntimeBridge(
 
   setDebug(Boolean(runtimeConfig.debug))
 
-  const baseAdapterType = resolveLlmAdapterType(runtimeConfig.adapter)
-  const baseConfig = getConfigForAdapter(baseAdapterType)
-  const baseModel = runtimeConfig.model || baseConfig.model
-  const baseProviderConfig = await loadProviderConfig(baseAdapterType, paths.WORKDIR)
-  const baseProviderId =
-    baseAdapterType === "anthropic"
-      ? "anthropic"
-      : baseAdapterType === "claude"
-        ? "claude"
-        : baseAdapterType === "codex"
-          ? "codex"
-          : baseAdapterType === "deepseek"
-            ? "deepseek"
-            : "openai"
-  const baseProviderOptions = extractProviderOptions(baseProviderConfig, baseProviderId)
-
-  const fallbackModelConfig = {
-    model: baseModel,
-    provider: baseProviderId,
-    adapter: baseAdapterType,
-    baseUrl: baseProviderOptions.baseURL || baseConfig.baseUrl,
-    apiKey: baseProviderOptions.apiKey || baseConfig.apiKey,
-  }
+  const explicitRuntimeModelRef = resolveExplicitRuntimeModelRef(runtimeConfig.model)
+  const configuredAdapterType = resolveLlmAdapterType(runtimeConfig.adapter)
+  const fallbackModelConfig: ActorModelConfig = configuredAdapterType
+    ? (() => {
+      const baseConfig = getConfigForAdapter(configuredAdapterType)
+      const provider = getProviderIdForAdapter(configuredAdapterType)
+      return {
+        model: runtimeConfig.model && !explicitRuntimeModelRef ? runtimeConfig.model : baseConfig.model,
+        provider,
+        adapter: configuredAdapterType,
+        baseUrl: baseConfig.baseUrl,
+        apiKey: baseConfig.apiKey,
+      }
+    })()
+    : {}
 
   const modelConfig = runtimeSupport.resolveActorModelConfig({
     workDir: paths.WORKDIR,
     agentKey: "main",
+    modelRef: explicitRuntimeModelRef,
+    strictModelRef: Boolean(explicitRuntimeModelRef),
     fallbackModelConfig,
-    fallbackOverrideKeys: runtimeConfig.model ? ["model"] : [],
+    fallbackOverrideKeys: runtimeConfig.model && !explicitRuntimeModelRef ? ["model"] : [],
   })
 
-  const adapterType = runtimeConfig.adapter ? baseAdapterType : modelConfig.adapter || baseAdapterType
+  // A recovered session reuses its PERSISTED modelConfig, which may predate the
+  // provider's Responses-WebSocket-v2 transport config. Gap-fill the transport
+  // markers from the current catalog keyed by the session's actual provider name
+  // so continuity activates without re-resolving the whole (frozen) config.
+  refreshProviderTransportMarkers(modelConfig, paths.WORKDIR)
+
+  const adapterType = configuredAdapterType ?? modelConfig.adapter
+  if (!adapterType) {
+    throw new Error("LLM adapter unavailable: configure agent-present.json with a model present in llm-provider.json")
+  }
   const llmAdapter = await createRuntimeLlmAdapter({
     adapterType,
     workDir: paths.WORKDIR,
-    defaults: {
-      openai: {
-        apiKey: OPENAI_API_KEY,
-        baseUrl: OPENAI_BASE_URL,
-        model: OPENAI_MODEL,
-      },
-      anthropic: {
-        apiKey: ANTHROPIC_API_KEY,
-        baseUrl: ANTHROPIC_BASE_URL,
-        model: ANTHROPIC_MODEL,
-      },
-      deepseek: {
-        apiKey: DEEPSEEK_API_KEY,
-        baseUrl: DEEPSEEK_BASE_URL,
-        model: DEEPSEEK_MODEL,
-      },
-    },
+    defaults: buildAdapterDefaults(),
     useMock: USE_MOCK,
     overrides: {
       apiKey: modelConfig.apiKey,
       baseUrl: modelConfig.baseUrl,
+      model: modelConfig.model,
+      options: modelConfig.options,
     },
     factoryOverride: llmAdapterFactoryOverride,
   })
@@ -654,7 +763,7 @@ async function createRuntimeBridge(
   notificationSemanticBridgeBySession.set(sessionKey, asyncSemanticRuntimeBridge)
   const actorCallbacks = {
     buildToolset: (currentVm: DomainRuntimeVm) => runtimeAssembly.buildToolset(currentVm),
-    processStream: (_runtime: any, streamActor: any, stream: any, options?: { signal?: AbortSignal }) => {
+    processStream: (currentVm: any, streamActor: any, stream: any, options?: { signal?: AbortSignal }) => {
       const currentType = (actor.llmClient as any)?.type
       const streamAdapterType =
         currentType === "openai" || currentType === "anthropic" || currentType === "claude" || currentType === "codex" || currentType === "deepseek"
@@ -668,6 +777,9 @@ async function createRuntimeBridge(
           agentKey: streamActor.key,
           agentActorId: streamActor.id,
         },
+        sessionDir,
+        sessionId: sessionKey,
+        storageLogsEnabled: isRuntimeStorageLogsEnabled(currentVm as DomainRuntimeVm),
         signal: options?.signal,
       })
     },
@@ -679,7 +791,6 @@ async function createRuntimeBridge(
     mainFiberId,
     saveSnapshot,
     effects: {
-      messageHistoryEffect,
       orchestrationHistoryEffect,
     },
   } = await recoverOrCreateShellRuntime({
@@ -696,6 +807,21 @@ async function createRuntimeBridge(
     buildSystemMessages,
     mcpManager: (mcpManager ?? undefined) as any,
     outerCtxMetadata: runtimeConfig.metadata,
+    storage: runtimeBinding.descriptor.storage,
+  })
+  const adapterStateByActor = new WeakMap<AiAgentActor, {
+    adapterType: LlmAdapterType
+    apiKey?: string
+    baseUrl?: string
+    model?: string
+    optionsKey?: string
+  }>()
+  adapterStateByActor.set(actor, {
+    adapterType,
+    apiKey: modelConfig.apiKey,
+    baseUrl: modelConfig.baseUrl,
+    model: modelConfig.model,
+    optionsKey: JSON.stringify(modelConfig.options ?? {}),
   })
   runtimeCoordinationEmitterBySession.set(sessionKey, (payload) => {
     shellRuntimeFacade.emitCoordinationEvent({
@@ -715,6 +841,13 @@ async function createRuntimeBridge(
     vm,
     driver,
     saveSnapshot,
+    // P3: production does NOT inject `sealCompletedProgress` — the coordinator's
+    // default no-op leaves the timeout path non-sealing. Live wiring is deferred
+    // to the follow-up that ships the recovery-gate forward-only relay (enabling
+    // the seal earlier regresses settled-then-timeout recovery to `dirty`). See
+    // codument/tracks/harden-runtime-session-robustness/analysis/findings.md P3.
+    hookDefinitions: runtimeAssembly.hookDefinitions,
+    hookHandlers: createDefaultRuntimeHookHandlers(),
   })
   const activateSessionMaterialization = () => {
     sessionMaterialized = true
@@ -728,8 +861,8 @@ async function createRuntimeBridge(
     driver.emitFiberSignal({
       fiberId,
       signalKind: "mailbox_enqueue",
-      mailbox: { kind: "heartbeatWake", payload: event.wake },
-      idempotencyKey: `${fiberId}:heartbeatWake:${event.schedule.scheduleId}:${event.wake.fireCount}`,
+      mailbox: { kind: "heartbeat", payload: event.wake },
+      idempotencyKey: `${fiberId}:heartbeat:${event.schedule.scheduleId}:${event.wake.fireCount}`,
       createdAt: Date.parse(event.wake.firedAt),
     })
   }
@@ -783,6 +916,9 @@ async function createRuntimeBridge(
     })
   })
   async function executeDirectSlashCommand(input: string): Promise<string | null> {
+    const workModeOutput = executeWorkModeSlashCommand(input)
+    if (workModeOutput !== null) return workModeOutput
+
     const resolved = slashRuntime?.resolveCommand(input) ?? null
     if (!resolved || resolved.kind !== "direct_execute") return null
     if (!enabledSlashNamespaces.has(resolved.namespace)) return null
@@ -801,6 +937,22 @@ async function createRuntimeBridge(
 
     const payload = await ToolFuncRegistry.call(toolRegistry, actionDescriptor.toolName, vm, actor, resolved.args)
     return String(payload ?? "")
+  }
+
+  function executeWorkModeSlashCommand(input: string): string | null {
+    const match = input.trim().match(/^\/work-mode(?:\s+(\S+))?\s*$/)
+    if (!match) return null
+    const value = match[1]
+    if (value !== WORK_MODES.build && value !== WORK_MODES.plan) {
+      return "Usage: /work-mode build | /work-mode plan"
+    }
+    const next = setActorWorkMode({
+      actor,
+      workMode: value,
+      source: "slash_command",
+      occurredAt: new Date().toISOString(),
+    })
+    return `work_mode: ${next.workMode}`
   }
 
   const notificationListeners = new Set<(notification: RuntimeBridgeNotification) => void>()
@@ -869,13 +1021,7 @@ async function createRuntimeBridge(
     for (const fiber of Object.values(runtime.fibers) as any[]) {
       const fiberActor = fiber?.actor
       if (!fiberActor) continue
-      const hasWork = fiberActor.hasPending?.("aiGenerated")
-        || fiberActor.hasPending?.("childDone")
-        || fiberActor.hasPending?.("coordination")
-        || fiberActor.hasPending?.("memberInbox")
-        || fiberActor.hasPending?.("heartbeatWake")
-        || fiberActor.hasPending?.("humanInput")
-        || fiberActor.hasPending?.("toolResult")
+      const hasWork = hasPendingAiAgentWakeMailbox(fiberActor)
         || ((fiber.execState?.pendingAiGenerated?.length ?? 0) > 0)
         || ((fiber.execState?.pendingToolResults?.length ?? 0) > 0)
       if (hasWork && typeof fiber.fiberId === "string") {
@@ -906,16 +1052,49 @@ async function createRuntimeBridge(
     }
   }
 
-  const runTurn = async (timeoutSeconds?: number) => {
-    const latestModelConfig = runtimeSupport.resolveActorModelConfig({
+  const resolveConfiguredActorModelConfig = () => {
+    return runtimeSupport.resolveActorModelConfig({
       workDir: paths.WORKDIR,
       agentKey: "main",
+      modelRef: explicitRuntimeModelRef,
+      strictModelRef: Boolean(explicitRuntimeModelRef),
       fallbackModelConfig,
-      fallbackOverrideKeys: runtimeConfig.model ? ["model"] : [],
+      fallbackOverrideKeys: runtimeConfig.model && !explicitRuntimeModelRef ? ["model"] : [],
     })
-    const nextAdapterType = latestModelConfig.adapter || adapterType
+  }
 
-    const currentType = (actor.llmClient as any)?.type
+  // Load the CURRENT providers catalog using the same project-or-home resolution
+  // that `runtimeSupport.resolveActorModelConfig` uses internally (project
+  // `.eidolon/llm-provider.json` takes precedence over the home default). Returns
+  // null on any error so callers fall back safely (treating the persisted model
+  // as unresolvable -> re-resolve the default preset).
+  const resolveCurrentProviderCatalog = () => {
+    try {
+      const projectCandidate = path.join(paths.WORKDIR, ".eidolon", PROVIDER_CONFIG_FILE_NAME)
+      const configPath = fs.existsSync(projectCandidate) ? projectCandidate : defaultProviderConfigPath()
+      return loadProviderCatalog(configPath)
+    } catch {
+      return null
+    }
+  }
+
+  // Recovery-time guard (requirement `recovery-model-config-validation`): a
+  // recovered actor carries a persisted modelConfig. If its provider/model is no
+  // longer resolvable in the current config, fall back to the default preset;
+  // otherwise preserve the still-resolvable persisted model.
+  const isActorModelConfigResolvable = (targetActor: AiAgentActor) =>
+    isPersistedModelStillResolvable(targetActor.modelConfig, resolveCurrentProviderCatalog())
+
+  const refreshActorAdapterForModelConfig = async (targetActor: AiAgentActor) => {
+    // A recovered actor reuses its PERSISTED modelConfig, which may predate the
+    // provider's Responses-WebSocket-v2 transport config. Gap-fill the transport
+    // markers from the current catalog keyed by the actor's actual provider name
+    // so continuity activates without re-resolving the whole (frozen) config.
+    refreshProviderTransportMarkers(targetActor.modelConfig, paths.WORKDIR)
+    const nextAdapterType = targetActor.modelConfig.adapter || adapterType
+    const previousAdapterState = adapterStateByActor.get(targetActor)
+
+    const currentType = (targetActor.llmClient as any)?.type
     const currentAdapterType =
       currentType === "openai" || currentType === "anthropic" || currentType === "claude" || currentType === "codex" || currentType === "deepseek"
         ? (currentType as LlmAdapterType)
@@ -923,46 +1102,105 @@ async function createRuntimeBridge(
 
     const shouldRefreshAdapter =
       currentAdapterType !== nextAdapterType ||
-      actor.modelConfig.apiKey !== latestModelConfig.apiKey ||
-      actor.modelConfig.baseUrl !== latestModelConfig.baseUrl
+      !targetActor.llmClient ||
+      previousAdapterState?.adapterType !== nextAdapterType ||
+      previousAdapterState?.apiKey !== targetActor.modelConfig.apiKey ||
+      previousAdapterState?.baseUrl !== targetActor.modelConfig.baseUrl ||
+      previousAdapterState?.model !== targetActor.modelConfig.model ||
+      previousAdapterState?.optionsKey !== JSON.stringify(targetActor.modelConfig.options ?? {})
 
     if (shouldRefreshAdapter) {
       const refreshed = await createRuntimeLlmAdapter({
         adapterType: nextAdapterType,
         workDir: paths.WORKDIR,
-        defaults: {
-          openai: {
-            apiKey: OPENAI_API_KEY,
-            baseUrl: OPENAI_BASE_URL,
-            model: OPENAI_MODEL,
-          },
-          anthropic: {
-            apiKey: ANTHROPIC_API_KEY,
-            baseUrl: ANTHROPIC_BASE_URL,
-            model: ANTHROPIC_MODEL,
-          },
-          deepseek: {
-            apiKey: DEEPSEEK_API_KEY,
-            baseUrl: DEEPSEEK_BASE_URL,
-            model: DEEPSEEK_MODEL,
-          },
-        },
+        defaults: buildAdapterDefaults(),
         useMock: USE_MOCK,
         overrides: {
-          apiKey: latestModelConfig.apiKey,
-          baseUrl: latestModelConfig.baseUrl,
+          apiKey: targetActor.modelConfig.apiKey,
+          baseUrl: targetActor.modelConfig.baseUrl,
+          model: targetActor.modelConfig.model,
+          options: targetActor.modelConfig.options,
         },
         factoryOverride: llmAdapterFactoryOverride,
       })
-      if (refreshed) actor.llmClient = refreshed
+      if (refreshed) {
+        targetActor.llmClient = refreshed
+        adapterStateByActor.set(targetActor, {
+          adapterType: nextAdapterType,
+          apiKey: targetActor.modelConfig.apiKey,
+          baseUrl: targetActor.modelConfig.baseUrl,
+          model: targetActor.modelConfig.model,
+          optionsKey: JSON.stringify(targetActor.modelConfig.options ?? {}),
+        })
+      }
+    }
+  }
+
+  const runTurn = async (params: {
+    timeoutSeconds?: number
+  } = {}) => {
+    applyActorModelConfigControlSignals(actor)
+    if (!actor.modelConfig.model || !isActorModelConfigResolvable(actor)) {
+      actor.modelConfig = resolveConfiguredActorModelConfig()
+    }
+    await refreshActorAdapterForModelConfig(actor)
+    reviveMainFiberForInteractiveTurnIfNeeded()
+    const result = await runtimeCoordinator.runInteractiveTurn({
+      mainFiberId,
+      timeoutMs: params.timeoutSeconds && params.timeoutSeconds > 0 ? params.timeoutSeconds * 1000 : undefined,
+    })
+    if (result.status === "timeout_unsettled") {
+      throw new Error(`runtime_turn_unsettled:${result.reason || "unknown"}`)
+    }
+  }
+
+  const enqueueUserProvidedInput = (input: string): string => {
+    const expanded = slashRuntime?.resolveCommand(input) ?? null
+    const normalizedInput = expanded && expanded.kind === "prompt_expand" ? expanded.prompt : input
+    const now = Date.now()
+
+    activateSessionMaterialization()
+    if (actor.hasPending("control")) {
+      let pending: Extract<AiAgentMailboxSchema["control"], { kind: "questionnaire_pending" }> | null = null
+      const rest: AiAgentMailboxSchema["control"][] = []
+      for (const entry of actor.drainMailbox("control")) {
+        if (!pending && entry.kind === "questionnaire_pending" && typeof entry.toolCallId === "string") {
+          pending = entry
+          continue
+        }
+        rest.push(entry)
+      }
+      for (const entry of rest) {
+        actor.send("control", entry)
+      }
+      if (pending?.toolCallId) {
+        driver.emitFiberSignal({
+          fiberId: mainFiberId,
+          signalKind: "mailbox_enqueue",
+          mailbox: {
+            kind: "toolResult",
+            payload: {
+              toolCallId: pending.toolCallId,
+              questionnaireId: pending.questionnaireId,
+              content: normalizedInput,
+            },
+          },
+          toolCallId: pending.toolCallId,
+          idempotencyKey: `${mainFiberId}:toolResult:${pending.toolCallId}:${now}`,
+          createdAt: now,
+        })
+        return normalizedInput
+      }
     }
 
-    actor.modelConfig = latestModelConfig
-    reviveMainFiberForInteractiveTurnIfNeeded()
-    await runtimeCoordinator.runInteractiveTurn({
-      mainFiberId,
-      timeoutMs: timeoutSeconds && timeoutSeconds > 0 ? timeoutSeconds * 1000 : undefined,
+    driver.emitFiberSignal({
+      fiberId: mainFiberId,
+      signalKind: "mailbox_enqueue",
+      mailbox: { kind: "humanInput", payload: normalizedInput },
+      idempotencyKey: `${mainFiberId}:humanInput:${now}`,
+      createdAt: now,
     })
+    return normalizedInput
   }
 
   let chain: Promise<void> = Promise.resolve()
@@ -974,6 +1212,12 @@ async function createRuntimeBridge(
       onControl?: (control: TuiControl) => void | Promise<void>
     },
   ) => {
+    if (activeTurn) {
+      enqueueUserProvidedInput(input)
+      void persistSnapshot()
+      return Promise.resolve("")
+    }
+
     let output = ""
     const execute = async () => {
       let resolveSettled = () => {}
@@ -1042,7 +1286,6 @@ async function createRuntimeBridge(
           await persistSnapshot()
           emitRuntimeDirectSlashAssistantOutput({
             eventBus,
-            messageHistoryEffect,
             actor: { key: actor.key, id: actor.id, type: actor.type },
             text: directOutput,
           })
@@ -1050,49 +1293,10 @@ async function createRuntimeBridge(
           if (eventChainError) throw eventChainError
           return output
         }
-        const expanded = slashRuntime?.resolveCommand(input) ?? null
-        const normalizedInput = expanded && expanded.kind === "prompt_expand" ? expanded.prompt : input
-	        activateSessionMaterialization()
-	        if (actor.hasPending("control")) {
-	          const pending = actor
-	            .drainMailbox("control")
-	            .find((entry: AiAgentMailboxSchema["control"]): entry is Extract<AiAgentMailboxSchema["control"], { kind: "questionnaire_pending" }> =>
-	              entry.kind === "questionnaire_pending" && typeof entry.toolCallId === "string",
-	            )
-	          if (pending?.toolCallId) {
-	            driver.emitFiberSignal({
-	              fiberId: mainFiberId,
-	              signalKind: "mailbox_enqueue",
-	              mailbox: {
-	                kind: "toolResult",
-	                payload: {
-	                  toolCallId: pending.toolCallId,
-	                  questionnaireId: pending.questionnaireId,
-	                  content: normalizedInput,
-	                },
-	              },
-	              toolCallId: pending.toolCallId,
-	              idempotencyKey: `${mainFiberId}:toolResult:${pending.toolCallId}:${Date.now()}`,
-	            })
-	          } else {
-	            driver.emitFiberSignal({
-	              fiberId: mainFiberId,
-	              signalKind: "mailbox_enqueue",
-	              mailbox: { kind: "humanInput", payload: normalizedInput },
-	              idempotencyKey: `${mainFiberId}:humanInput:${Date.now()}`,
-	            })
-	          }
-	        } else {
-	          driver.emitFiberSignal({
-	            fiberId: mainFiberId,
-	            signalKind: "mailbox_enqueue",
-	            mailbox: { kind: "humanInput", payload: normalizedInput },
-	            idempotencyKey: `${mainFiberId}:humanInput:${Date.now()}`,
-	          })
-	        }
+        enqueueUserProvidedInput(input)
         const timeoutSeconds =
           opts?.timeoutSeconds !== undefined ? opts.timeoutSeconds : runtimeConfig.timeoutSeconds
-        await runTurn(timeoutSeconds)
+        await runTurn({ timeoutSeconds })
         await eventChain
         if (eventChainError) throw eventChainError
         if (turnState.runtimeError) {
@@ -1133,57 +1337,58 @@ async function createRuntimeBridge(
         }
       }
     }
-	    abortActorRuntime(actor)
-	    abortActorInflight(actor)
-	    driver.emitFiberSignal({
-	      fiberId: mainFiberId,
-	      signalKind: "interrupt_requested",
-	      mailbox: { kind: "control", payload: { kind: "cancel_requested" } as any },
-	      idempotencyKey: `${mainFiberId}:cancel:${Date.now()}`,
-	    })
-	    for (const childActor of Object.values(vm.actors)) {
-	      if (!childActor || childActor === actor) continue
-	      if (childActor.type !== "delegate") continue
-	      abortActorRuntime(childActor)
-	      abortActorInflight(childActor)
-	      const childFiberId = `${childActor.key}:${childActor.id}`
-	      driver.emitFiberSignal({
-	        fiberId: childFiberId,
-	        signalKind: "interrupt_requested",
-	        mailbox: { kind: "control", payload: { kind: "shutdown_requested" } as any },
-	        idempotencyKey: `${childFiberId}:shutdown:${Date.now()}`,
-	      })
-	    }
-	    await turnState?.settledPromise
-	  }
+    const now = Date.now()
+    activateSessionMaterialization()
+    abortActorRuntime(actor)
+    abortActorInflight(actor)
+    driver.emitFiberSignal({
+      fiberId: mainFiberId,
+      signalKind: "interrupt_requested",
+      mailbox: { kind: "control", payload: { kind: "cancel_requested" } as any },
+      idempotencyKey: `${mainFiberId}:cancel:${now}`,
+      createdAt: now,
+    })
+    driver.settleInterruptedFiber({
+      fiberId: mainFiberId,
+      now,
+      reason: "idle_external" as any,
+      controlKinds: ["cancel_requested"],
+    })
+    for (const childActor of Object.values(vm.actors)) {
+      if (!childActor || childActor === actor) continue
+      if (childActor.type !== "delegate") continue
+      abortActorRuntime(childActor)
+      abortActorInflight(childActor)
+      const childFiberId = `${childActor.key}:${childActor.id}`
+      driver.emitFiberSignal({
+        fiberId: childFiberId,
+        signalKind: "interrupt_requested",
+        mailbox: { kind: "control", payload: { kind: "shutdown_requested" } as any },
+        idempotencyKey: `${childFiberId}:shutdown:${now}`,
+        createdAt: now,
+      })
+      driver.settleInterruptedFiber({
+        fiberId: childFiberId,
+        now,
+        reason: "cancel_requested" as any,
+        controlKinds: [],
+      })
+      driver.resumeFiber(childFiberId, now)
+    }
+    await driver.tickUntilBlocked({ now, maxTicks: 20, maxWallMs: 250 }).catch(() => {})
+    await persistSnapshot()
+  }
 
   const compact = async () => {
-    const refreshedModelConfig = runtimeSupport.resolveActorModelConfig({
-      workDir: paths.WORKDIR,
-      agentKey: "main",
-      fallbackModelConfig,
-      fallbackOverrideKeys: runtimeConfig.model ? ["model"] : [],
-    })
-    actor.modelConfig = refreshedModelConfig
-    const refreshedAdapterType = runtimeConfig.adapter ? baseAdapterType : refreshedModelConfig.adapter || baseAdapterType
-    const refreshed = await createRuntimeLlmAdapter({
-      adapterType: refreshedAdapterType,
-      workDir: paths.WORKDIR,
-      defaults: {
-        openai: { apiKey: OPENAI_API_KEY, baseUrl: OPENAI_BASE_URL, model: OPENAI_MODEL },
-        anthropic: { apiKey: ANTHROPIC_API_KEY, baseUrl: ANTHROPIC_BASE_URL, model: ANTHROPIC_MODEL },
-        deepseek: { apiKey: DEEPSEEK_API_KEY, baseUrl: DEEPSEEK_BASE_URL, model: DEEPSEEK_MODEL },
-      },
-      useMock: USE_MOCK,
-      overrides: { apiKey: refreshedModelConfig.apiKey, baseUrl: refreshedModelConfig.baseUrl },
-      factoryOverride: llmAdapterFactoryOverride,
-    })
-    if (refreshed) actor.llmClient = refreshed
+    applyActorModelConfigControlSignals(actor)
+    if (!actor.modelConfig.model || !isActorModelConfigResolvable(actor)) {
+      actor.modelConfig = resolveConfiguredActorModelConfig()
+    }
+    await refreshActorAdapterForModelConfig(actor)
     const result = await runtimeCoordinator.enqueue(async () => {
       const compressed = await forceCompressActorHistory({
         vm,
         actor,
-        messages: actor.messages,
         trigger: "manual_compact",
       })
       await persistSnapshot()
@@ -1221,6 +1426,57 @@ async function createRuntimeBridge(
       })
     },
   })
+
+  const findActorForSurfaceProjection = (projection: ActorSurfaceProjectionData, target?: {
+    actorId?: string
+    laneId?: string
+  }): AiAgentActor | null => {
+    const actorId = target?.actorId ?? projection.selectedActorId
+    if (actorId) {
+      const byId = Object.values(vm.actors).find((candidate: any) => candidate?.id === actorId)
+      if (byId) return byId as AiAgentActor
+    }
+    const laneId = target?.laneId ?? projection.selectedLaneId
+    const lane = projection.conversationLanes.find((candidate) => candidate.laneId === laneId)
+    if (lane?.actorId) {
+      const byLane = Object.values(vm.actors).find((candidate: any) => candidate?.id === lane.actorId)
+      if (byLane) return byLane as AiAgentActor
+    }
+    return actor
+  }
+
+  const setActorActiveModel = async (
+    target: { laneId?: string; actorId?: string },
+    model: RuntimeActiveModelSelection,
+  ): Promise<ActorSurfaceProjectionData> => {
+    const modelRef = `${model.providerID}/${model.modelID}`
+    const beforeProjection = buildActorSurfaceProjection(vm as any)
+    const targetActorBeforeSignal = findActorForSurfaceProjection(beforeProjection, target) ?? actor
+    const nextModelConfig = runtimeSupport.resolveActorModelConfig({
+      workDir: paths.WORKDIR,
+      agentKey: targetActorBeforeSignal.key,
+      modelRef,
+      strictModelRef: true,
+      fallbackModelConfig: targetActorBeforeSignal.modelConfig?.model
+        ? targetActorBeforeSignal.modelConfig
+        : fallbackModelConfig,
+    })
+    const projection = createDurableActorSurfaceFacade().setActorModelConfig({
+      laneId: target.laneId,
+      actorId: target.actorId,
+      modelRef,
+      source: "user-explicit",
+      requestedBy: "terminal-tui",
+      modelConfig: nextModelConfig,
+    })
+    const targetActor = findActorForSurfaceProjection(projection, target)
+    if (targetActor) {
+      applyActorModelConfigControlSignals(targetActor)
+      await refreshActorAdapterForModelConfig(targetActor)
+    }
+    await persistSnapshot()
+    return projection
+  }
 
   const getActorSurface = async (options?: {
     selectedLaneId?: string
@@ -1385,6 +1641,12 @@ async function createRuntimeBridge(
     const normalized = String(text ?? "").trim()
     if (!normalized) return
     activateSessionMaterialization()
+    if (activeTurn) {
+      const now = Date.now()
+      actor.send("humanInput", `Runtime hint:\n${normalized}`)
+      driver.resumeFiber(mainFiberId, now)
+      return
+    }
     await runtimeCoordinator.deliverMemberInbox({
       actor,
       mainFiberId,
@@ -1399,10 +1661,12 @@ async function createRuntimeBridge(
   }
 
   return {
+    bindingDescriptor: runtimeBinding.descriptor,
     agents: async () => runtimeAgents,
     slashCommands: runtimeAssembly.slashCommands,
     slashRuntime,
     injectRuntimeHint,
+    setActorActiveModel,
     turn,
     compact,
     getActorSurface,
@@ -1479,6 +1743,9 @@ export function configureTuiRuntime(config: TuiRuntimeConfig) {
   runtimeConfig.debug = config.debug
   runtimeConfig.mcp = config.mcp
   runtimeConfig.ephemeral = config.ephemeral === true
+  runtimeConfig.profileId = config.profileId
+  runtimeConfig.entryType = config.entryType
+  runtimeConfig.storage = config.storage
   runtimeConfig.metadata = normalizeTerminalRuntimeMetadata(config.workDir, config.metadata)
   sessionRuntimePromises.clear()
   for (const runtimePromise of pendingRuntimes) {
@@ -1489,6 +1756,9 @@ export function configureTuiRuntime(config: TuiRuntimeConfig) {
 export type TerminalRuntimeBridge = TuiRuntimeBridge
 export type TerminalRuntimeConfig = TuiRuntimeConfig
 
+export const getSessionRuntimeBridge = getTuiRuntimeBridge
+export const disposeSessionRuntimeBridge = disposeTuiRuntimeBridge
+export const configureSessionRuntime = configureTuiRuntime
 export const getTerminalRuntimeBridge = getTextualRuntimeBridge
 export const disposeTerminalRuntimeBridge = disposeTextualRuntimeBridge
 export const configureTerminalRuntime = configureTuiRuntime

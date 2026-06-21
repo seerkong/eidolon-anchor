@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="aiagent-member-holon-primary-model" version="1">
+  <requirement id="member-holon">
+    <statement>系统 SHALL 将 AIAgent 的正式组织对象模型统一为 `member / holon`。</statement>
+    <!-- migrated title: 正式对象模型统一为 `member / holon` -->
+    <suite name="member-holon">
+      <case id="holon" name="用 holon 取代旧组织类型">
+        <given>系统历史上使用 `collective` 与 `formation` 作为一级正式组织类型</given>
+        <when>当前正式模型生效</when>
+        <then>对外正式组织类型 SHALL 只保留 `member` 与 `holon`</then>
+        <then>`collective` 与 `formation` SHALL 不再作为正式组织 kind 出现在正式命令面、正式工具族、正式文档与正式 contract 中</then>
+      </case>
+      <case id="holon-actor" name="holon 继续作为可寻址 actor 暴露">
+        <given>用户通过正式命令或正式 tool surface 寻址一个组织对象</given>
+        <when>runtime 解析目标</when>
+        <then>系统 SHALL 将该对象暴露为可寻址的 `holon` actor</then>
+        <then>SHALL 通过统一 actor 接口提供 `assign`、`status`、`watch`、`unwatch` 等正式能力</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="holon-governance">
+    <statement>系统 SHALL 使用 `holon.governance` 表达组织治理差异。</statement>
+    <!-- migrated title: holon 的治理差异通过 `governance` 表达 -->
+    <suite name="holon-governance">
+      <case id="autonomous-holon-leader" name="autonomous holon 对应无 leader 组织">
+        <given>某个 holon 采用自主决策、成员领取或任务板分发模型</given>
+        <when>runtime 创建、恢复或展示该对象</when>
+        <then>系统 SHALL 使用 `identity.kind = "holon"`</then>
+        <then>SHALL 使用 `identity.governance = "autonomous"`</then>
+      </case>
+      <case id="leader-led-holon-leader" name="leader_led holon 对应 leader 路由组织">
+        <given>某个 holon 采用 leader 路由、结果回流模型</given>
+        <when>runtime 创建、恢复或展示该对象</when>
+        <then>系统 SHALL 使用 `identity.kind = "holon"`</then>
+        <then>SHALL 使用 `identity.governance = "leader_led"`</then>
+      </case>
+      <case id="case-5" name="组织语义与执行语义保持正交">
+        <given>系统同时存在组织语义与执行语义两条 actor 维度</given>
+        <when>runtime 创建或恢复 actor</when>
+        <then>`member / holon` SHALL 只通过 `identity.kind` 表达组织语义</then>
+        <then>`governance` SHALL 只存在于 `holon`</then>
+        <then>`primary / delegate / detached` SHALL 只通过 `actor.type` 表达执行语义</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="primary-delegate-detached">
+    <statement>系统 SHALL 以 `primary / delegate / detached` 作为唯一正式执行语义。</statement>
+    <!-- migrated title: 执行语义正式切换为 `primary / delegate / detached` -->
+    <suite name="primary-delegate-detached">
+      <case id="primary-control" name="primary 替换 control">
+        <given>系统历史上使用 `control` 表达主会话执行体</given>
+        <when>当前正式模型生效</when>
+        <then>系统 SHALL 使用 `primary` 作为正式命名</then>
+        <then>`control` SHALL 不再作为正式执行 type 出现在正式 contract、正式文档与正式 tool surface 中</then>
+      </case>
+      <case id="delegate-detached" name="delegate 与 detached 保持执行分工">
+        <given>系统已使用 `delegate` 与 `detached`</given>
+        <when>当前正式模型生效</when>
+        <then>`delegate` SHALL 表示短生命周期协作执行体</then>
+        <then>`detached` SHALL 表示脱离当前交互回合、可独立推进的执行体</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="assign">
+    <statement>系统 SHALL 以 `assign` 作为唯一正式派发动词，适用于 `member` 与 `holon`。</statement>
+    <!-- migrated title: 任务派发统一为 `assign` -->
+    <suite name="assign">
+      <case id="member-holon" name="member 与 holon 使用同一派发动词">
+        <given>用户要向 `member` 或 `holon` 派发任务</given>
+        <when>用户使用正式命令面或正式 tool surface</when>
+        <then>系统 SHALL 使用 `assign` 作为唯一正式派发动词</then>
+        <then>SHALL 支持 `assign`、`assign:r`、`assign:n`、`assign:s`</then>
+      </case>
+      <case id="assign-s-watched" name="assign:s 自动进入 watched 状态">
+        <given>用户执行 `assign:s`</given>
+        <when>目标 actor 开始执行任务</when>
+        <then>系统 SHALL 输出流式事件</then>
+        <then>目标对象 SHALL 进入 `watched` 状态</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="watch-unwatch">
+    <statement>系统 SHALL 使用 `watch / unwatch` 作为唯一正式对象级持续监听接口。</statement>
+    <!-- migrated title: watch / unwatch 统一控制持续监听 -->
+    <suite name="watch-unwatch">
+      <case id="watch-unwatch" name="watch / unwatch 不控制任务生命周期">
+        <given>某个 actor 已经在工作或空闲</given>
+        <when>用户执行 `watch` 或 `unwatch`</when>
+        <then>系统 SHALL 只改变对象级持续监听状态</then>
+        <then>SHALL 不将 `unwatch` 解释为 cancel、shutdown、interrupt 或任务回滚</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="actor-member-holon">
+    <statement>系统 SHALL 将正式命令面统一收口到 `/actor`、`/member`、`/holon`。</statement>
+    <!-- migrated title: 正式命令面统一为 `/actor`、`/member`、`/holon` -->
+    <suite name="actor-member-holon">
+      <case id="case-11" name="只保留新的一级命令面">
+        <given>系统历史上存在 `/collective` 与 `/formation`</given>
+        <when>当前正式模型生效</when>
+        <then>正式一级命令面 SHALL 只保留 `/actor`、`/member`、`/holon`</then>
+        <then>`/collective` 与 `/formation` 如保留，也只能作为 deprecated parser alias</then>
+      </case>
+      <case id="holon-create-governance" name="holon create 显式接收 governance">
+        <given>用户需要创建组织对象</given>
+        <when>用户使用正式命令面</when>
+        <then>系统 SHALL 支持 `/holon create &lt;governance&gt; &lt;name&gt;`</then>
+        <then>`&lt;governance&gt;` SHALL 只允许 `autonomous | leader_led`</then>
+      </case>
+      <case id="holon-appoint-leader-led" name="holon appoint 只适用于 leader_led">
+        <given>用户使用 `/holon appoint`</given>
+        <when>目标 holon 的 `governance` 不是 `leader_led`</when>
+        <then>系统 SHALL fail-fast</then>
+        <then>SHALL 返回明确的治理不匹配错误</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="holon">
+    <statement>系统 SHALL 以 `Holon*` 作为唯一正式组织工具族。</statement>
+    <!-- migrated title: 正式组织工具族统一为 `Holon*` -->
+    <suite name="holon">
+      <case id="holon-2" name="正式组织工具族映射到 holon 命令面">
+        <given>用户通过底层 tool surface 操作组织对象</given>
+        <when>当前正式模型生效</when>
+        <then>系统 SHALL 提供 `HolonCreate`、`HolonAdd`、`HolonAppoint`、`HolonStatus`、`HolonAssign`</then>
+        <then>`Collective*` 与 `Formation*` SHALL 不再作为默认正式 tool family 暴露</then>
+      </case>
+      <case id="builtin-registry-holon-first" name="builtin registry 只保留 holon-first 组织工具族">
+        <given>runtime 构建 builtin tool registry</given>
+        <when>当前正式模型生效</when>
+        <then>builtin registry SHALL 只注册 `Holon*` 作为组织工具族</then>
+        <then>`includeInternalOnly: true` 也 SHALL NOT 恢复 `Collective* / Formation*`</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="slash">
+    <statement>系统 SHALL 使用 `--` 作为 slash 命令中结构化参数与自由文本的正式分隔符。</statement>
+    <!-- migrated title: slash 自由文本分隔符统一为 double-dash -->
+    <suite name="slash">
+      <case id="create-assign" name="create 与 assign 使用 -- 分隔自由文本">
+        <given>用户通过 slash 命令传递 prompt 或 task content</given>
+        <when>用户使用正式命令面</when>
+        <then>系统 SHALL 使用 `--` 作为唯一正式分隔符</then>
+        <then>`--` 后的全部文本 SHALL 被视为 prompt 或 content</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="autonomous-holon-ownership">
+    <statement>系统 SHALL 提供真正的 autonomous holon actor，并让其持有任务板、ownership 与完成归并的唯一真相源。</statement>
+    <!-- migrated title: autonomous holon 必须持有自己的任务板与 ownership 真相源 -->
+    <suite name="autonomous-holon-ownership">
+      <case id="autonomous-holon-assign" name="autonomous holon 处理 assign 与成员完成回报">
+        <given>用户向一个 `autonomous` holon 发起 `assign`</given>
+        <when>holon actor 接收任务</when>
+        <then>holon actor SHALL 在自己的 mailbox 与 actor-owned state 中记录任务与 ownership</then>
+        <then>holon actor SHALL 通过消息将任务分发给成员</then>
+        <then>holon actor SHALL 通过成员回报消息完成状态归并，而不是依赖 tool 层 polling 或手工补完成</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="leader-led-holon-leader-actor">
+    <statement>系统 SHALL 提供真正的 leader-led holon actor，并让其承担 leader 路由与结果回流。</statement>
+    <!-- migrated title: leader_led holon 必须作为 leader 路由与结果回流 actor -->
+    <suite name="leader-led-holon-leader-actor">
+      <case id="leader-led-holon-leader-2" name="leader_led holon 将任务路由到 leader 并回流给发起者">
+        <given>用户向一个 `leader_led` holon 发起 `assign`</given>
+        <when>holon actor 接收该任务</when>
+        <then>holon actor SHALL 按当前 leader 配置将任务路由给 leader</then>
+        <then>leader 的阶段事件或最终结果 SHALL 先回到该 holon actor</then>
+        <then>该 holon actor SHALL 再依据任务关联关系将这些消息回流给原始发起者</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="coordination-actor-coordination-mailbox">
+    <statement>系统 SHALL 将控制型协作交互收口为 `coordination`，并通过每个业务 actor 自有的 `coordination` mailbox 处理。</statement>
+    <!-- migrated title: coordination 必须通过每个 actor 自有 coordination mailbox 处理 -->
+    <suite name="coordination-actor-coordination-mailbox">
+      <case id="coordination-per-actor-mailbox" name="coordination 采用 per-actor mailbox">
+        <given>系统存在 plan review、shutdown handshake 等带 `request_id` 的控制型交互</given>
+        <when>当前正式模型生效</when>
+        <then>这些交互 SHALL 进入目标 actor 自己的 `coordination` mailbox</then>
+        <then>系统不得引入"一请求一 coordination actor"作为正式模型</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="actor-ownership">
+    <statement>系统 SHALL 让业务状态优先归属于 actor，而不是长期停留在 sessionState、registry、manager 或 runtime bridge 中。</statement>
+    <!-- migrated title: actor ownership 必须成为唯一真相源 -->
+    <suite name="actor-ownership">
+      <case id="manager-registry-factory-projection" name="manager 与 registry 退化为 factory、索引或 projection">
+        <given>系统仍有 `OrganizationManager`、detached registry、coordination helper 等对象</given>
+        <when>当前正式模型生效</when>
+        <then>这些对象 SHALL 退化为 factory、索引、projection 或 parser/reducer helper</then>
+        <then>不得继续作为 `holon`、`detached` 或 `coordination` 的长期业务真相源</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="runtime-truth-persistence">
+    <statement>系统 SHALL 将运行时真相源与持久化结构同步切换到新命名。</statement>
+    <!-- migrated title: runtime truth 与 persistence 必须同步正名 -->
+    <suite name="runtime-truth-persistence">
+      <case id="actor-key-actor-owned-state-holon" name="actor key 与 actor-owned state 收口到 holon">
+        <given>系统历史上使用 `collective:&lt;id&gt;` / `formation:&lt;id&gt;` 与 `collectiveState` / `formationState`</given>
+        <when>当前正式模型生效</when>
+        <then>runtime SHALL 将正式组织 actor key 收口为 `holon:&lt;id&gt;`</then>
+        <then>SHALL 将 actor-owned organization state 收口为统一的 `holonState`</then>
+      </case>
+      <case id="sessionstate-snapshot" name="sessionState 与 snapshot 不再保留旧正式字段">
+        <given>系统历史上在 VM 与 snapshot 中使用 `collectives` / `formations`</given>
+        <when>当前正式模型生效</when>
+        <then>正式 sessionState 与 snapshot 结构 SHALL 收口为 `holons`</then>
+        <then>旧正式字段 SHALL 不再继续作为新模型正式结构存在</then>
+      </case>
+      <case id="governance-specific-runtime-record-holon-first-type-names" name="governance-specific runtime record 使用 holon-first type names">
+        <given>runtime session store 已统一为 `sessionState.holons`</given>
+        <when>当前正式模型生效</when>
+        <then>governance-specific runtime record SHALL 使用 `VmAutonomousHolonRecord` 与 `VmLeaderLedHolonRecord`</then>
+        <then>`VmCollectiveRecord / VmFormationRecord` SHALL NOT 继续作为当前正式类型名</then>
+      </case>
+      <case id="holon-identity-state-envelope-payload-holonid" name="holon identity state 与 envelope payload 统一使用 holonId">
+        <given>holon actor identity、holonState 与 envelope payload 会进入 runtime、snapshot 与 protocol</given>
+        <when>当前正式模型生效</when>
+        <then>这些结构 SHALL 统一使用 `holonId`</then>
+        <then>`collectiveId / formationId` SHALL NOT 继续作为当前正式字段真相</then>
+      </case>
+      <case id="leader-led-holon-route-protocol-holon-first-tag" name="leader-led holon route protocol 使用 holon-first tag">
+        <given>leader-led holon 仍通过 envelope protocol 执行 route/backflow</given>
+        <when>当前正式模型生效</when>
+        <then>payload SHALL 使用 `holonId`</then>
+        <then>route tag SHALL 使用 `&lt;leader_led_holon_route&gt;`</then>
+        <then>`&lt;formation_route&gt;` SHALL NOT 继续作为当前正式 protocol tag</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="holon-runtime-protocol-event-api">
+    <statement>系统 SHALL 让 holon 的 scheduler/workload/scope marker 与 runtime event API 使用治理显式、holon-first 的正式命名。</statement>
+    <!-- migrated title: holon runtime protocol 与 event API 必须使用治理显式命名 -->
+    <suite name="holon-runtime-protocol-event-api">
+      <case id="autonomous-holon-lane-workload" name="autonomous holon lane 与 workload 使用正式治理命名">
+        <given>autonomous holon 相关成员 lane 与 fiber workload 会进入调度、snapshot 与投影视图</given>
+        <when>当前正式模型生效</when>
+        <then>系统 SHALL 使用 `autonomous_holon` 作为正式 lane</then>
+        <then>SHALL 使用 `autonomous_holon_task` 作为正式 workload</then>
+        <then>`collective` 与 `collective_task` SHALL NOT 继续作为当前正式 runtime protocol 真相</then>
+      </case>
+      <case id="task-tree-holon-scope-marker-governance-explicit" name="task-tree holon scope marker 使用 governance-explicit 语义">
+        <given>task-tree activeForm 需要表达 holon 任务归属</given>
+        <when>当前正式模型生效</when>
+        <then>autonomous holon SHALL 使用 `holon:autonomous:&lt;id&gt;`</then>
+        <then>leader-led holon SHALL 使用 `holon:leader_led:&lt;id&gt;`</then>
+        <then>旧组织前缀 SHALL NOT 继续作为当前正式 scope marker</then>
+      </case>
+      <case id="runtime-event-api-holon-first" name="runtime event API 只暴露 holon-first 名称">
+        <given>runtime 需要发出 autonomous holon claim 与 idle-exit 事件</given>
+        <when>当前正式模型生效</when>
+        <then>系统 SHALL 使用 `emitAutonomousHolonClaim` 与 `emitAutonomousHolonIdleExit`</then>
+        <then>旧 event alias SHALL NOT 继续作为当前正式 runtime API 暴露</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="session-snapshot">
+    <statement>系统 SHALL 明确将旧命名下的恢复兼容排除在当前正式运行时范围之外。</statement>
+    <!-- migrated title: 旧 session 与旧 snapshot 不保证兼容恢复 -->
+    <suite name="session-snapshot">
+      <case id="case-29" name="旧数据恢复不被当前模型直接承诺">
+        <given>存在按 `collective / formation / control` 命名持久化的旧 session 或 snapshot</given>
+        <when>当前模型尝试读取这些数据</when>
+        <then>系统 SHALL 不承诺兼容恢复</then>
+        <then>如需兼容，必须通过明确迁移器处理，而不是通过 runtime 双字段双命名长期保留</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="member-holon-primary">
+    <statement>系统 SHALL 重写 AIAgent 相关正式文档、示例与测试基线，使其与当前命名一致。</statement>
+    <!-- migrated title: 正式文档与示例必须使用 `member / holon / primary` -->
+    <suite name="member-holon-primary">
+      <case id="case-30" name="正式文档不再使用旧对象模型作为当前真相">
+        <given>项目内存在 howto、architecture、spec、vendor AI-agent 说明与测试基线</given>
+        <when>当前正式模型生效</when>
+        <then>正式文档 SHALL 统一使用 `member / holon / primary`</then>
+        <then>旧命名如需出现，只能作为迁移说明或历史背景</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

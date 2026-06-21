@@ -1,3 +1,7 @@
 export interface MemberAssignOuterInput { target: string; mode: "final" | "none" | "stream"; content: string; }
 export type MemberAssignOuterOutput = string;
 export type MemberAssign = (input: MemberAssignOuterInput) => MemberAssignOuterOutput;
+
+Use this tool only for persistent member actors that already exist in the current session.
+Resolve `target` by member id or member name only.
+Subagent is a delegate alias, not a member alias; use RunDelegateActor when the user asks for a subagent.

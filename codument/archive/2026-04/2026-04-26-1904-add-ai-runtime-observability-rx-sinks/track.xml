@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-ai-runtime-observability-rx-sinks" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>从 public RxData 派生可观测数据面并提供隔离的 sinks</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-26T14:17:03Z</CreatedAt>
+    <UpdatedAt>2026-04-26T19:04:38Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-ai-runtime-observability-rx-sinks" name="add-ai-runtime-observability-rx-sinks" version="1">
+    <Description>增加 AI runtime 响应式可观测 sinks 与扩展事实</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="可观测契约与测试" status="DONE" order="0">
+        <Description>定义 ObservabilityRxData、sink protocol 与失败隔离测试</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 observability rx stream 测试" status="DONE" order="0" priority="P0">
+            <Description>验证 privateRxData 可写 observability stream、publicRxData 只读 observability stream，以及多来源 records 均符合标准 envelope。</Description>
+          </Task>
+          <Task id="T1.2" name="编写 sink 失败隔离测试" status="DONE" order="1" priority="P0">
+            <Description>失败 sink 不影响其他 sink 和用户协议。</Description>
+          </Task>
+          <Task id="T1.3" name="编写 observability-only extension fact 测试" status="DONE" order="2" priority="P0">
+            <Description>验证 extension fact helper 写入 private observability stream，不写 SemanticEvent union，但可经 public stream 被 sinks 消费。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="实现 sinks" status="DONE" order="1">
+        <Description>实现 log sink 与 session trace artifact sink</Description>
+        <SubNodes>
+          <Task id="T2.1" name="扩展 VM RxData observability stream" status="DONE" order="0" priority="P0">
+            <Description>在 contract 与 logic rxData 中新增 private writable / public readonly observability records/errors stream。</Description>
+          </Task>
+          <Task id="T2.2" name="实现 ObservabilityRxData factory" status="DONE" order="1" priority="P0">
+            <Description>从 public observability stream 派生 records/errors；如需 usage/traceSummary 则读取常规 public signals。</Description>
+          </Task>
+          <Task id="T2.3" name="实现 log sink" status="DONE" order="2" priority="P0">
+            <Description>输出 channel-aware structured log。</Description>
+          </Task>
+          <Task id="T2.4" name="实现 session trace artifact sink" status="DONE" order="3" priority="P0">
+            <Description>通过注入 writer 或 sink options 按 session/request 写入 timeline artifact。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="扩展事实与 provider capture" status="DONE" order="2">
+        <Description>提供受控事实写入与 provider scene capture 层间边界</Description>
+        <SubNodes>
+          <Task id="T3.1" name="新增 observability-only extension fact envelope/helper" status="DONE" order="0" priority="P0">
+            <Description>扩展可受控写入观测事实，不拿 private writer，也不写 SemanticEvent union。</Description>
+          </Task>
+          <Task id="T3.2" name="新增 provider scene capture hook" status="DONE" order="1" priority="P1">
+            <Description>contract 定义 hook，provider runtime 调用 hook，外层注入副作用实现，并可转为 observability-only fact。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="验证" status="DONE" order="3">
+        <Description>验证可观测链路不影响用户协议输出</Description>
+        <SubNodes>
+          <Task id="T4.1" name="运行 observability 定向测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖 projection、sinks、extension facts。</Description>
+          </Task>
+          <Task id="T4.2" name="运行协议绑定相邻测试" status="DONE" order="1" priority="P1">
+            <Description>确认 sink 失败不影响协议输出。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

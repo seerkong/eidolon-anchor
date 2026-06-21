@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="replace-append-only-files-with-xnl" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>重做 append-only XNL 文件存储，覆盖所有应 append-only 的 .xnl 写入场景，并修正 replace-written 历史流设计。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-07T03:37:16Z</CreatedAt>
+    <UpdatedAt>2026-06-10T00:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_replace-append-only-files-with-xnl" name="replace-append-only-files-with-xnl" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="分类准则与测试基线" status="NOT_STARTED" order="0">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Session append-only XNL 改造" status="NOT_STARTED" order="1">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Observability XNL sinks 改造" status="NOT_STARTED" order="2">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="迁移、恢复与知识同步" status="NOT_STARTED" order="3">
+        <SubNodes>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P5" name="返工 payload 包装与 ingress 可读性" status="NOT_STARTED" order="4">
+        <SubNodes>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-aiagent-background-teams-protocols-autonomy" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Legacy archived track migrated with invalid source plan.xml.</Goal>
+    <Description>Original plan.xml could not be parsed during migration: mismatched tag: line 197, column 125</Description>
+    <CommitMode>manual</CommitMode>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-aiagent-background-teams-protocols-autonomy" name="add-aiagent-background-teams-protocols-autonomy" version="1">
+    <Description>Legacy invalid plan preserved under codument/legacy/archive/.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="legacy-plan-preserved" status="DONE" order="0">
+        <Description>Source plan.xml was invalid XML and was preserved for audit.</Description>
+        <SubNodes/>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

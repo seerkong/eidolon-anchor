@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-sandbox-backend-permission-runtime" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>移植 Sparrow 风格 sandbox backend / permission runtime 抽象，并用 Codex macOS Seatbelt 细节实现 macOS backend。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-18T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-05-18T00:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-sandbox-backend-permission-runtime" name="add-sandbox-backend-permission-runtime" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="Sandbox backend abstraction" status="DONE" order="0">
+        <Description>定义平台无关 sandbox backend runtime，并补充失败测试。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add sandbox backend runtime tests" status="DONE" order="0" priority="P0">
+            <Description>测试 backend selection、dangerous fallback、workspace roots 与 macOS command args 生成。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">测试覆盖 sandbox metadata 到 backend selection 的映射。</cdt:Criterion>
+              <cdt:Criterion checked="true">测试 macOS Seatbelt command 使用固定 `/usr/bin/sandbox-exec`。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Implement sandbox backend runtime" status="DONE" order="1" priority="P0">
+            <Description>新增 SandboxBackendRuntime 和 MacOsSeatbeltSandbox 模块。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">提供统一 executeSandboxedBashCommand 入口。</cdt:Criterion>
+              <cdt:Criterion checked="true">提供 macOS Seatbelt policy/command builder。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Bash integration and verification" status="DONE" order="1">
+        <Description>将 Bash 工具接入 sandbox backend runtime，并完成自动化验证。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Integrate Bash tool" status="DONE" order="0" priority="P0">
+            <Description>保留 local permission authorization，然后通过 sandbox backend runtime 执行 Bash 命令。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Bash tool 不再直接调用 spawnSync。</cdt:Criterion>
+              <cdt:Criterion checked="true">danger-full-access 仍走显式 unsandboxed path。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Run focused verification" status="DONE" order="1" priority="P0">
+            <Description>运行新增测试和现有 local permission/Bash 相关测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">新增 sandbox backend 测试通过。</cdt:Criterion>
+              <cdt:Criterion checked="true">现有 local permission exec mode 测试通过。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Workspace access sandbox sync" status="DONE" order="2">
+        <Description>让运行中授权的 workspace-access 写目录同步进入 sandbox backend writable roots。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add workspace-access sandbox tests" status="DONE" order="0" priority="P0">
+            <Description>覆盖 workspace-access write grants 被合并进 sandbox writable roots，read-only 不合并。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">测试覆盖当前 workspace 的 write grant 进入 writableRoots。</cdt:Criterion>
+              <cdt:Criterion checked="true">测试 read-only 或 read-only grant 不扩大 writableRoots。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Merge workspace-access write grants into sandbox selection" status="DONE" order="1" priority="P0">
+            <Description>在 SandboxBackendRuntime 解析 selection 时读取当前 authority root 下的 workspace-access 配置，并合并当前 workspace 的 write entries。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Bash macOS Seatbelt selection 包含 workspace-access write grant 目录。</cdt:Criterion>
+              <cdt:Criterion checked="true">缺失或不可读 workspace-access 配置不破坏现有 sandbox selection。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="Run focused verification" status="DONE" order="2" priority="P0">
+            <Description>运行 sandbox backend 和 local permission 相关聚焦测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">sandbox backend runtime 测试通过。</cdt:Criterion>
+              <cdt:Criterion checked="true">local permission exec mode 测试通过。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="ai-agent-vm-runtime-shape" version="1">
+  <requirement id="aiagentvm">
+    <statement>系统必须在 `AiAgentVm` 类型层面表达 actors、holonRuntime、runtime knobs、non-rx ctx/snapshot 和 rx data 字段的所有权。</statement>
+    <!-- migrated title: AiAgentVm 必须显式表达标准运行时字段类别 -->
+    <suite name="aiagentvm">
+      <case id="case-1" name="字段所有权可被静态阅读">
+        <given>开发者打开 `AiAgentVm` 类型定义</given>
+        <when>查看字段与 ownership 常量</when>
+        <then>必须能区分内层平台字段与外层 AI 领域字段</then>
+        <then>不需要通过 controller runtime 猜测字段归属</then>
+      </case>
+      <case id="actors" name="actors 字段聚合">
+        <given>开发者查看 `AiAgentVm`</given>
+        <when>需要理解 actor 运行能力</when>
+        <then>`controlActorKey`、`actors`、`actorRuntime` 必须位于 actors 分类</then>
+        <then>actor 相关字段不得散落到 `holonRuntime` 或 snapshots 中</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-aiholonruntime">
+    <statement>系统必须新增 `AiHolonRuntime`，专属承载原多 AI 协作 / holon 相关状态，并吸收原 `aiFacet/sessionState/runtimeContext` 中对应字段。</statement>
+    <!-- migrated title: 多 AI 协作状态必须进入 AiHolonRuntime -->
+    <suite name="ai-aiholonruntime">
+      <case id="session-runtime-context-holonruntime" name="session/runtime context 通过 holonRuntime 同源访问">
+        <given>现有代码仍通过 `ensureVmSessionState(vm)` 或 `ensureVmRuntimeContext(vm)` 访问状态</given>
+        <when>VM 已按新结构创建</when>
+        <then>helper 必须从 `vm.holonRuntime` 返回对应对象</then>
+        <then>不得与 `vm.holonRuntime` 形成第二份状态</then>
+      </case>
+      <case id="holonruntime" name="holonRuntime 承载协作相关字段">
+        <given>需要访问 member roster、holons、detached actors、orchestrator context 或 deferred resumes</given>
+        <when>选择字段位置</when>
+        <then>这些字段必须归入 `AiHolonRuntime`</then>
+        <then>不得作为 `AiAgentVm` 顶层散列字段继续扩张</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="airuntimeinnerctx">
+    <statement>系统必须新增 `AiRuntimeInnerCtx`，用于承载原 `registries`、`mcpManager`、`recovery` 等内部运行上下文。</statement>
+    <!-- migrated title: 内部上下文必须进入 AiRuntimeInnerCtx -->
+    <suite name="airuntimeinnerctx">
+      <case id="registries-innerctx" name="registries 迁移到 innerCtx">
+        <given>现有代码需要访问 tool/skill/agent/mcp registries</given>
+        <when>字段结构完成迁移</when>
+        <then>标准访问位置必须是 `vm.innerCtx.registries`</then>
+        <then>可以提供 `vm.registries` 兼容 facade，但不得成为长期主结构</then>
+      </case>
+      <case id="innerctx" name="innerCtx 按类别扩充">
+        <given>实现过程中发现新的内部运行上下文字段</given>
+        <when>该字段不属于 actors、holonRuntime、runtime knobs、snapshot 或 rx data</when>
+        <then>可以归入 `AiRuntimeInnerCtx`</then>
+        <then>必须按子类别记录其生命周期与职责</then>
+        <then>不得把业务领域状态混入 innerCtx</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="vm">
+    <statement>系统必须新增 runtime snapshot 字段，以表达创建时固定事实与运行中可恢复事实。</statement>
+    <!-- migrated title: VM 必须区分不可变与可变快照 -->
+    <suite name="vm">
+      <case id="vm-snapshots" name="创建 VM 时初始化 snapshots">
+        <given>`createVM` 被调用</given>
+        <when>VM 创建完成</when>
+        <then>必须存在 `immutableSnapshot`</then>
+        <then>必须存在 `mutableSnapshot`</then>
+        <then>二者边界必须在类型或注释中说明</then>
+      </case>
+      <case id="snapshot" name="snapshot 按生命周期扩充">
+        <given>实现过程中发现需要纳入 snapshot 的字段</given>
+        <when>字段代表 VM 创建时固定事实</when>
+        <then>必须归入 `AiRuntimeImmutableSnapshot`</then>
+        <when>字段代表运行中可变且需要恢复/持久化的事实</when>
+        <then>必须归入 `AiRuntimeMutableSnapshot`</then>
+        <then>不得把可变状态放入 immutable snapshot</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="aifacet-sessionstate-runtimecontext">
+    <statement>系统必须允许现有调用点继续读取 `aiFacet`、`sessionState`、`runtimeContext`、`registries`、`mcpManager`、`recovery`，但内部语义应收敛到 `holonRuntime` 或 `innerCtx`。</statement>
+    <!-- migrated title: aiFacet/sessionState/runtimeContext 必须形成兼容过渡 -->
+    <suite name="aifacet-sessionstate-runtimecontext">
+      <case id="ensure-helpers" name="现有 ensure helpers 保持可用">
+        <given>现有代码调用 `ensureAiRuntimeFacet(vm)`、`ensureVmSessionState(vm)` 或 `ensureVmRuntimeContext(vm)`</given>
+        <when>VM 字段完成标准化</when>
+        <then>helper 必须返回与新字段一致的对象</then>
+        <then>不得创建彼此分叉的 session/runtime context</then>
+      </case>
+      <case id="registries" name="现有 registries 访问保持可用">
+        <given>现有代码读取 `vm.registries`</given>
+        <when>VM 字段完成标准化</when>
+        <then>读取结果必须与 `vm.innerCtx.registries` 同源</then>
+        <then>修改兼容 facade 不得绕开 `innerCtx`</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="controller-runtime">
+    <statement>系统不得新增一个承载所有历史状态的大型 controller runtime 对象来模拟参考项目。</statement>
+    <!-- migrated title: 第一阶段不得引入 controller-runtime 大杂烩 -->
+    <suite name="controller-runtime">
+      <case id="case-11" name="领域状态按类别归属">
+        <given>需要挂载 conversation domain runtime、rx data 或 observability binding</given>
+        <when>选择字段位置</when>
+        <then>必须按平台、AI 领域、响应式数据、可观测绑定等类别归属</then>
+        <then>不得新增一个无边界 `controllerRuntime` 字段承载所有内容</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-core-contract">
+    <statement>系统必须将 `AiAgentVm`、runtime ctx/snapshot、registry 纯接口与 runtime snapshot persisted 类型等不执行副作用的契约定义放在 `cell/packages/ai-core-contract`，并让 `cell/packages/ai-core-logic` 只提供实现类、初始化逻辑与兼容 helper。</statement>
+    <!-- migrated title: ai-core-contract 必须承载纯数据契约 -->
+    <suite name="ai-core-contract">
+      <case id="contract-logic" name="contract 包不依赖 logic 包">
+        <given>开发者检查 `cell/packages/ai-core-contract`</given>
+        <when>查看 package 依赖与源码 import</when>
+        <then>`ai-core-contract` 不得依赖或 import `@cell/ai-core-logic`</then>
+        <then>纯类型消费者必须能从 `ai-core-contract` 获取 VM 与 registry 数据契约</then>
+      </case>
+      <case id="logic-contract" name="logic 包实现 contract 包契约">
+        <given>`ai-core-logic` 需要创建 `AiAgentVm` 或 registry 实例</given>
+        <when>实现类和 `createVM` 引用 VM、ctx、snapshot 或 registry 形态</when>
+        <then>必须复用 `ai-core-contract` 中的类型或接口</then>
+        <then>不得在 logic 包中维护第二套分叉的数据契约</then>
+      </case>
+      <case id="registry" name="registry 数据与行为分离">
+        <given>`AgentRegistry`、`SkillRegistry`、`McpRegistry` 或 `ToolFuncRegistry` 需要被运行时持有</given>
+        <when>表达其状态与操作</when>
+        <then>`ai-core-contract` 必须提供不包含业务方法的 registry dataclass</then>
+        <then>`ai-core-logic` 必须提供对应静态逻辑类</then>
+        <then>原实例方法必须迁移为以 dataclass 为第一个参数的静态方法</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

@@ -6,6 +6,7 @@ import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { createVM } from "@cell/ai-core-logic/runtime/runtime"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver"
+import { createMockProcessStream } from "./__test_support__/mockProcessStream"
 
 function makeMockAdapter() {
   return {
@@ -82,7 +83,7 @@ describe("detached delegate observability", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (vm, actor) => processStream(vm, actor),
+        processStream: createMockProcessStream(async (vm, actor) => processStream(vm, actor)),
       },
     })
 
@@ -115,7 +116,7 @@ describe("detached delegate observability", () => {
     await driver.tickUntilForegroundSettled({ now, maxTicks: 50, maxWallMs: 2000 })
     await flushMicrotasks()
 
-    const toolMsg = messages.find((m) => m?.role === "tool" && m?.tool_call_id === "tc-detached-delegate")
+    const toolMsg = main.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-detached-delegate")
     const started = JSON.parse(String(toolMsg?.content ?? ""))
     expect(typeof started.task_id).toBe("string")
 

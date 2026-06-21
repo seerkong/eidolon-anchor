@@ -2,6 +2,7 @@ import { describe, expect, it, beforeAll, afterAll } from "bun:test";
 import { existsSync, promises as fsp } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
+import { parseXnl } from "xnl-core";
 import { SceneStore } from "../SceneStore";
 import type { SceneManifest, SceneMessage } from "../SceneTypes";
 
@@ -128,11 +129,25 @@ describe("SceneStore", () => {
     });
 
     // Verify the file exists and parse it directly
-    const filePath = path.join(testRoot, "scenes", sid, "manifest.xnl");
+    const filePath = path.join(testRoot, ".eidolon", "scenes", sid, "manifest.xnl");
     const raw = await fsp.readFile(filePath, "utf8");
     expect(raw).toContain("<SceneManifest");
     expect(raw).toContain("sessionId=");
     expect(raw).toContain("test prompt");
+    expect(raw).not.toContain("<Message");
+
+    const doc = parseXnl(raw);
+    expect(doc.nodes.map((node: any) => node.tag)).toEqual(["SceneManifest"]);
+    expect((doc.nodes[0] as any).metadata).toEqual(expect.objectContaining({
+      version: 1,
+      sessionId: sid,
+      createdAt: 99,
+      updatedAt: 99,
+      toolCount: 1,
+    }));
+    expect((doc.nodes[0] as any).body.map((node: any) => node.tag)).toEqual(["SystemPrompt", "ToolDefs"]);
+    expect((doc.nodes[0] as any).body[1].body[0].extend.order).toEqual(["Description"]);
+    expect((doc.nodes[0] as any).body[1].body[0].extend.children.Description.text).toBe("desc1");
   });
 
   it("events file is valid xnl parseable", async () => {
@@ -142,10 +157,40 @@ describe("SceneStore", () => {
     await store.appendMessage(sid, { id: "x1", role: "user", textParts: ["hi"] });
     await store.appendMessage(sid, { id: "x2", role: "assistant", textParts: ["hello"] });
 
-    const filePath = path.join(testRoot, "scenes", sid, "events.xnl");
+    const filePath = path.join(testRoot, ".eidolon", "scenes", sid, "events.xnl");
     const raw = await fsp.readFile(filePath, "utf8");
-    expect(raw).toContain("<Message");
+    expect(raw).toContain("<SceneMessage");
     expect(raw).toContain(`role="user"`);
+    const doc = parseXnl(raw);
+    expect((doc.nodes[0] as any).metadata).toEqual(expect.objectContaining({
+      version: 1,
+      id: "x1",
+      sessionId: sid,
+      sequence: 0,
+      role: "user",
+    }));
+    expect((doc.nodes[0] as any).body[0].metadata.index).toBe(0);
     expect(raw).toContain("hi");
+  });
+
+  it("uses globally ordered SceneMessage child indexes", async () => {
+    const store = new SceneStore(testRoot);
+    const sid = "ses_events_ordered";
+
+    await store.appendMessage(sid, {
+      id: "x3",
+      role: "assistant",
+      textParts: ["first", "second"],
+      toolCalls: [{ id: "call-1", name: "read", args: { filePath: "README.md" } }],
+    });
+
+    const filePath = path.join(testRoot, ".eidolon", "scenes", sid, "events.xnl");
+    const raw = await fsp.readFile(filePath, "utf8");
+    const doc = parseXnl(raw);
+    expect((doc.nodes[0] as any).body.map((node: any) => [node.tag, node.metadata.index])).toEqual([
+      ["TextPart", 0],
+      ["TextPart", 1],
+      ["ToolCall", 2],
+    ]);
   });
 });

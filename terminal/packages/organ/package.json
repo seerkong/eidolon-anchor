@@ -24,7 +24,7 @@
     "@cell/symbiont-logic": "workspace:*",
     "@terminal/core": "workspace:*",
     "depa-data-graph-core": "^0.1.0",
-    "xnl-core": "^0.1.1",
+    "xnl-core": "^0.1.4",
     "xstream": "^11.14.0"
   }
 }

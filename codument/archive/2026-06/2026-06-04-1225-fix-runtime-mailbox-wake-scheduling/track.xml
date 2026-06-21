@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="fix-runtime-mailbox-wake-scheduling" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>修复 runtime mailbox wake 调度停滞</Goal>
+    <Description>修复 consumed control signal + pending actor mailbox + ready cooperative wait state 导致 coding agent 停滞的问题，并补齐 idle hook mailbox preemption 与 diagnostics。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-03T20:30:00Z</CreatedAt>
+    <UpdatedAt>2026-06-04T04:25:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_fix-runtime-mailbox-wake-scheduling" name="fix-runtime-mailbox-wake-scheduling" version="1">
+    <Description>修复 runtime mailbox wake 调度停滞</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Regression Tests And Fixtures" status="DONE" order="0">
+        <Description>用真实现场形态和 mailbox priority 建立失败测试。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add consumed signal mailbox recovery fixture" status="DONE" order="0" priority="P0">
+            <Description>在 runtime recovery tests 中构造 consumed async_completed tombstone、pending actor asyncCompletion mailbox、ready wait_llm inflight fiber 的恢复场景。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.1-fixture" checked="true">测试 fixture 表达 consumed durable signal plus pending actor mailbox payload。</cdt:Criterion>
+              <cdt:Criterion id="AC-T1.1-fails-before-fix" checked="true">修复前测试能复现不消费 llm_done 或不执行 tool call 的失败。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Add mailbox priority interleave tests" status="DONE" order="1" priority="P0">
+            <Description>覆盖 asyncCompletion 与 humanInput 同时 pending、control interrupt 与 asyncCompletion 同时 pending、heartbeat 不抢占 wake work。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.2-async-before-human" checked="true">asyncCompletion 优先于 humanInput 的 case 被测试覆盖。</cdt:Criterion>
+              <cdt:Criterion id="AC-T1.2-control-priority" checked="true">control interrupt 优先级 case 被测试覆盖。</cdt:Criterion>
+              <cdt:Criterion id="AC-T1.2-heartbeat-lowest" checked="true">heartbeat continuation 不抢占 wake work 的 case 被测试覆盖。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="Add idle hook preemption diagnostics tests" status="DONE" order="2" priority="P0">
+            <Description>覆盖 actor.idle.before 在所有 wake mailbox pending 时 skip，并验证 diagnostics 包含 pending mailbox details 或被合并节流。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.3-preemption" checked="true">所有 wake mailbox pending 都会阻止 idle hook continuation。</cdt:Criterion>
+              <cdt:Criterion id="AC-T1.3-diagnostics" checked="true">重复 stale diagnostics 不会无限刷屏且能说明 pending mailbox 原因。</cdt:Criterion>
+              <cdt:Criterion id="AC-T1.3-background-order" checked="true">background tick 先 drain scheduler/mailbox work，再触发 idle hook continuation，并在 hook enqueue 后再次 settle。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Mailbox Wake And Idle Preemption" status="DONE" order="1">
+        <Description>统一 wake mailbox 判断并让 idle hook 和 goal continuation 尊重 mailbox priority。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Implement shared wake mailbox predicate" status="DONE" order="0" priority="P0">
+            <Description>新增或整理 helper，统一判断 actor 是否有 wake-capable mailbox pending work。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.1-mailboxes" checked="true">helper 覆盖 control、toolResult、asyncCompletion、childDone、memberCoordination、humanInput、memberChatInbox、heartbeat。</cdt:Criterion>
+              <cdt:Criterion id="AC-T2.1-reuse" checked="true">recovery、terminal startup scan、idle hook、goal continuation 使用一致 shared helper 判断。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Fix idle hook preemption" status="DONE" order="1" priority="P0">
+            <Description>让 actor.idle.before producer 在所有 wake mailbox pending 时停止 dispatch，并记录 pending mailbox details。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.2-non-idle" checked="true">任意 wake mailbox pending 时 runtime 不被视为 idle。</cdt:Criterion>
+              <cdt:Criterion id="AC-T2.2-state-recheck" checked="true">每个 idle hook 前基于最新 mailbox 和 driver state 重检。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.4" name="Fix background watchdog idle ordering" status="DONE" order="2" priority="P0">
+            <Description>让 background runtime tick 在触发 actor.idle.before 前先 drain scheduler/mailbox work，并在 idle hook enqueue heartbeat 后再次 settle。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.4-drain-before-hook" checked="true">background tick 的顺序为 settle -&gt; idle hook -&gt; settle，避免 idle continuation 抢占已有 wake work。</cdt:Criterion>
+              <cdt:Criterion id="AC-T2.4-test" checked="true">runtime hook producer focused test 断言 background tick 调用顺序。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="Fix goal continuation preemption" status="DONE" order="3" priority="P0">
+            <Description>让 goal continuation hook 使用同一 wake mailbox preemption 条件，避免 heartbeat 抢占已有工作。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.3-skip" checked="true">pending asyncCompletion、toolResult、childDone、memberCoordination 等都会 skip goal continuation。</cdt:Criterion>
+              <cdt:Criterion id="AC-T2.3-heartbeat" checked="true">goal continuation 只在没有 pending wake mailbox work 时 enqueue heartbeat。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Recovery And Scheduler Normalization" status="DONE" order="2">
+        <Description>修复 ready cooperative wait state 和 consumed signal plus pending mailbox payload 的恢复/调度路径。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Recover schedulable state from actor mailbox payloads" status="DONE" order="0" priority="P0">
+            <Description>在 runtime recovery 中，即使 durable signal 只有 consumed tombstone，只要 actor mailbox 有 wake payload，就使 fiber 可调度。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.1-consumed-signal" checked="true">consumed control signal plus pending mailbox 的 snapshot 能恢复并继续执行。</cdt:Criterion>
+              <cdt:Criterion id="AC-T3.1-no-tail" checked="true">恢复不依赖 transcript-tail inference。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Normalize ready cooperative wait states" status="DONE" order="1" priority="P0">
+            <Description>识别 ready + wait_llm/wait_tool/wait_questionnaire_parse + inflight 状态，并修复为 typed wait 或确保 agent_step 执行。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.2-wait-llm" checked="true">ready wait_llm with matching asyncCompletion 不会停滞。</cdt:Criterion>
+              <cdt:Criterion id="AC-T3.2-wait-tool" checked="true">ready wait_tool with matching completion 不会停滞。</cdt:Criterion>
+              <cdt:Criterion id="AC-T3.2-guard" checked="true">save/recovery 对该不一致形态有 repair 或 diagnostic。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="Extend scheduler settle detection" status="DONE" order="2" priority="P0">
+            <Description>扩展 inflight async 和 background/foreground settle 条件，覆盖 ready cooperative wait state 与 pending wake mailbox work。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.3-ready-wait" checked="true">hasInflightAsync 或等价逻辑覆盖 ready cooperative wait inflight。</cdt:Criterion>
+              <cdt:Criterion id="AC-T3.3-settle" checked="true">settle loops 在 pending wake work 存在时不会过早 break。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Diagnostics And Validation" status="DONE" order="3">
+        <Description>完善高频 hook diagnostics 并完成 focused validation。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Throttle or coalesce repeated stale hook diagnostics" status="DONE" order="0" priority="P1">
+            <Description>对同一 actor、point、reason 和 pending mailbox set 的重复 stale lifecycle diagnostics 做节流或合并。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T4.1-no-flood" checked="true">不再出现每 50ms 写入同一 stale hook diagnostic 的无限刷屏。</cdt:Criterion>
+              <cdt:Criterion id="AC-T4.1-detail" checked="true">保留的 diagnostic 包含 pending mailbox、fiber status、cooperative phase 等排障信息。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Run focused runtime validation" status="DONE" order="1" priority="P0">
+            <Description>运行 focused recovery、durable control signal、hook producer、thread goal runtime 和 cooperative interleave 测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T4.2-recovery" checked="true">runtime recovery focused tests pass。</cdt:Criterion>
+              <cdt:Criterion id="AC-T4.2-hooks" checked="true">runtime hook producer and thread goal runtime focused tests pass。</cdt:Criterion>
+              <cdt:Criterion id="AC-T4.2-interleave" checked="true">cooperative interleave or mailbox priority focused tests pass。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="同步项目知识文档" status="DONE" order="2" priority="P1">
+            <Description>根据 feature.json 中配置的 knowledgeSync targets 和对应 attractor，判断并同步受影响的知识目录。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-read-attractor" checked="true">已读取目标 knowledge attractor。</cdt:Criterion>
+              <cdt:Criterion id="AC-decide-sync" checked="true">已判断是否需要同步 docs 或外部知识目录。</cdt:Criterion>
+              <cdt:Criterion id="AC-log-reason" checked="true">已记录未同步的理由或已完成同步。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="ai-agent-vm-rx-data-plane" version="1">
+  <requirement id="control-signal-stream-and-scheduler-signal">
+    <statement>系统 SHALL expose durable control-signal events as stream data and current scheduler readiness as signal/projection data without mixing the two.</statement>
+    <suite id="stream-signal-separation" name="Control data-plane separation">
+      <case id="control-events-are-stream">
+        <given>The runtime emits mailbox enqueue, control interrupt, async completion, resume, suspend, or cancellation facts</given>
+        <when>These facts enter the data plane</when>
+        <then>The facts SHALL be represented as ordered control event stream records</then>
+        <then>They SHALL carry causation id, correlation id, fiber id, actor key, mailbox kind, priority, and idempotency key where applicable</then>
+      </case>
+      <case id="readiness-is-signal">
+        <given>The scheduler derives whether a fiber is ready, running, suspended, interrupted, or blocked</given>
+        <when>The public runtime data plane exposes current scheduler state</when>
+        <then>The current state SHALL be exposed as signal or signal projection</then>
+        <then>The runtime SHALL NOT encode current readiness by appending fake semantic events</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/ai-agent-vm-rx-data-plane/control-signal-stream-and-scheduler-signal" strength="hint" />
+  </requirement>
+</behaviors>

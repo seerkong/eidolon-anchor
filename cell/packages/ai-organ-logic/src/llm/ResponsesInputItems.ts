@@ -12,8 +12,20 @@ export type OpenAIResponsesInputBuildResult = {
 
 export type OpenAIResponsesAssistantReplayPayload = {
   content?: unknown;
-  tool_calls?: Array<{ id?: string; name?: string; arguments?: unknown; function?: { name?: string; arguments?: unknown } }>;
-  toolCalls?: Array<{ id?: string; name?: string; arguments?: unknown; function?: { name?: string; arguments?: unknown } }>;
+  tool_calls?: Array<{
+    id?: string;
+    name?: string;
+    input?: unknown;
+    arguments?: unknown;
+    function?: { name?: string; arguments?: unknown };
+  }>;
+  toolCalls?: Array<{
+    id?: string;
+    name?: string;
+    input?: unknown;
+    arguments?: unknown;
+    function?: { name?: string; arguments?: unknown };
+  }>;
 };
 
 function normalizeText(content: unknown): string {
@@ -53,8 +65,13 @@ function collectTrailingToolMessages(messages: any[]): any[] {
 function normalizeToolCall(toolCall: any): { id: string; name: string; arguments: string } | null {
   const id = toolCall?.id ? String(toolCall.id) : "";
   const name = toolCall?.function?.name ? String(toolCall.function.name) : toolCall?.name ? String(toolCall.name) : "";
-  const rawArgs = toolCall?.function?.arguments ?? toolCall?.arguments;
-  const args = typeof rawArgs === "string" ? rawArgs : rawArgs ? JSON.stringify(rawArgs) : "";
+  const rawArgs =
+    toolCall?.function?.arguments !== undefined
+      ? toolCall.function.arguments
+      : toolCall?.arguments !== undefined
+        ? toolCall.arguments
+        : toolCall?.input;
+  const args = typeof rawArgs === "string" ? rawArgs : rawArgs !== undefined ? JSON.stringify(rawArgs) : "";
   if (!id) return null;
   return { id, name, arguments: args };
 }

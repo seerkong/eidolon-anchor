@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="runtime-data-subgraph-contracts">
+  <upsert selector="behavior://runtime-data-subgraph-contracts/requirements/data-subgraph-contract-shape">
+    <requirement id="data-subgraph-contract-shape">
+    <statement>系统 SHALL 为 runtime data component 声明 owned fact nodes、derived nodes、write commands、read views、fact streams、projection sinks、allowed recovery reads、forbidden live reads 和 Not Owned Here。</statement>
+    <suite id="contract-shape" name="DataSubgraphContract shape">
+      <case id="declares-owner-boundaries">
+        <given>一个 runtime data component 被注册</given>
+        <when>系统读取该 component 的 contract</when>
+        <then>系统 SHALL 能确定该 component 拥有的事实节点、衍生节点、写命令、读视图和禁止拥有的节点</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://runtime-data-subgraph-contracts/requirements/fact-grade-boundaries">
+
+    <requirement id="fact-grade-boundaries">
+    <statement>系统 SHALL 对 runtime 数据节点标注事实等级，并禁止 journal、checkpoint snapshot、projection/cache、surface view 成为 live truth。</statement>
+    <suite id="not-live-truth" name="Not live truth">
+      <case id="effect-journal-not-tool-result">
+        <given>runtime-control effect evidence 中存在 pending tool effect</given>
+        <when>系统组装下一轮 provider context</when>
+        <then>系统 SHALL NOT 把 pending effect 当作 provider-visible tool result message</then>
+      </case>
+      <case id="snapshot-not-formal-history">
+        <given>checkpoint snapshot 中存在 actor 或 fiber state</given>
+        <when>系统读取 Formal History</when>
+        <then>系统 SHALL NOT 把 snapshot message 当作 Formal History truth</then>
+      </case>
+      <case id="surface-not-domain-owner">
+        <given>TUI surface hydration 读取了 persistence</given>
+        <when>surface 更新显示状态</when>
+        <then>系统 SHALL NOT 让 surface 写入 History、ToolCall 或 TurnState 的 owned facts</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://runtime-data-subgraph-contracts/requirements/core-runtime-components">
+
+    <requirement id="core-runtime-components">
+    <statement>系统 SHALL 为 ActorRuntime、AiTurnState、History、LLM Context、Session、ToolCall、ProviderCall、RuntimeControl、CheckpointSnapshot 和 SurfaceProjection 定义首批 DataSubgraphContract。</statement>
+    <suite id="core-components" name="Core runtime data components">
+      <case id="provider-context-has-owner">
+        <given>系统需要构造 provider request messages</given>
+        <when>系统查询 data subgraph contracts</when>
+        <then>系统 SHALL 能区分 LLM Context、History、Session、ToolCall、ProviderCall 和 RuntimeControl 的职责边界</then>
+        <then>系统 SHALL 能确定 provider context 的合法输入仅为 LLM Context Domain、History Domain active tail 和 Session Domain active binding</then>
+      </case>
+      <case id="session-head-single-resolution-rule">
+        <given>session 同时存在 history head、LLM Context head 和 prompt target 引用</given>
+        <when>系统解析当前 active head</when>
+        <then>系统 SHALL 按 SessionDomain contract 声明的唯一优先级规则解析</then>
+        <then>系统 SHALL NOT 在多个 component 中各自维护独立的 head 解析逻辑</then>
+      </case>
+      <case id="snapshot-content-has-owner">
+        <given>系统需要写入或读取 recoverable snapshot 内容</given>
+        <when>系统查询 data subgraph contracts</when>
+        <then>系统 SHALL 能确定 snapshot 内容的 VM durable subset 由 CheckpointSnapshot contract 唯一声明</then>
+        <then>系统 SHALL NOT 把 control signal payload 或 message 内容写入 snapshot durable subset 之外的位置</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

@@ -18,6 +18,30 @@ export type CommittedHistoryMessageEvent = {
   message: ChatMessage;
 };
 
+/**
+ * Structured, non-fatal anomaly surfaced by the single-writer history reducer
+ * at one of its invariant boundaries. The reducer PRODUCES these (pure); the
+ * host RECORDS them (e.g. `console.warn`). This is observability only: emitting
+ * an anomaly never changes the committed-message set, never throws, and never
+ * adds a second writer.
+ *
+ * - `orphaned_tool_result`: a `semantic_tool_call_result(tool_call_id=X)` was
+ *   consumed but no assistant tool-call for X was ever seen this generation
+ *   (no `semantic_tool_call_start`/`_planned` for X, and X is in no pending
+ *   assistant's toolCalls). This is the codex-adapter bug's exact signature.
+ * - `hollow_assistant_commit`: reserved for P2 (flush of an all-empty pending
+ *   assistant).
+ */
+export type AnomalyReason = "orphaned_tool_result" | "hollow_assistant_commit";
+
+export type AnomalyEvent = {
+  kind: "anomaly";
+  reason: AnomalyReason;
+  toolCallId?: string;
+  agentKey: string;
+  agentActorId: string;
+};
+
 export function toHistoryEvent(ev: SemanticEvent): MessageHistoryEvent | null {
   const meta = {
     agentKey: ev.actor.actor_name || ev.actor.actor_id,
@@ -163,11 +187,11 @@ export function toHistoryEvent(ev: SemanticEvent): MessageHistoryEvent | null {
   }
 }
 
-type HistoryProjectionInput =
+export type HistoryProjectionInput =
   | { kind: "semantic"; event: SemanticEvent }
   | { kind: "complete" };
 
-type PendingAssistantState = {
+export type PendingAssistantState = {
   agentKey: string;
   agentActorId: string;
   content: string[];
@@ -177,10 +201,17 @@ type PendingAssistantState = {
   endAt?: number;
 };
 
-type HistoryProjectionState = {
+export type HistoryProjectionState = {
   completed: boolean;
   lastBatch: MessageHistoryEvent[];
   lastCommittedBatch: CommittedHistoryMessageEvent[];
+  lastAnomalyBatch: AnomalyEvent[];
+  /**
+   * tool_call_ids of every assistant tool-call seen this generation (from
+   * `semantic_tool_call_start`/`_planned` and any pending assistant toolCalls).
+   * A `semantic_tool_call_result` whose tool_call_id is absent here is orphaned.
+   */
+  seenToolCallIds: string[];
   thinkOpen: boolean;
   thinkBuffer: string;
   thinkAgentKey: string;
@@ -196,10 +227,12 @@ type HistoryProjectionState = {
   pendingAssistant: PendingAssistantState | null;
 };
 
-const INITIAL_HISTORY_PROJECTION_STATE: HistoryProjectionState = {
+export const INITIAL_HISTORY_PROJECTION_STATE: HistoryProjectionState = {
   completed: false,
   lastBatch: [],
   lastCommittedBatch: [],
+  lastAnomalyBatch: [],
+  seenToolCallIds: [],
   thinkOpen: false,
   thinkBuffer: "",
   thinkAgentKey: "",
@@ -214,6 +247,11 @@ const INITIAL_HISTORY_PROJECTION_STATE: HistoryProjectionState = {
   contentEndAt: undefined,
   pendingAssistant: null,
 };
+
+/** Fresh initial state for the pure semantic->committed merge core. */
+export function createInitialHistoryProjectionState(): HistoryProjectionState {
+  return { ...INITIAL_HISTORY_PROJECTION_STATE };
+}
 
 function parseJsonSafe(value: string): unknown {
   try {
@@ -246,6 +284,39 @@ function toCommittedToolCall(event: SemanticEvent): ToolCall | null {
   };
 }
 
+function isPlaceholderToolCall(toolCall: ToolCall): boolean {
+  return toolCall.name === toolCall.id && Object.keys(toolCall.input ?? {}).length === 0;
+}
+
+function upsertPendingToolCall(pending: PendingAssistantState, toolCall: ToolCall): void {
+  const index = pending.toolCalls.findIndex((entry) => entry.id === toolCall.id);
+  if (index < 0) {
+    pending.toolCalls = [...pending.toolCalls, toolCall];
+    return;
+  }
+
+  const current = pending.toolCalls[index];
+  if (isPlaceholderToolCall(current) && !isPlaceholderToolCall(toolCall)) {
+    pending.toolCalls = [
+      ...pending.toolCalls.slice(0, index),
+      toolCall,
+      ...pending.toolCalls.slice(index + 1),
+    ];
+    return;
+  }
+
+  if (
+    !isPlaceholderToolCall(toolCall) &&
+    JSON.stringify(toolCall.input ?? {}) !== JSON.stringify(current.input ?? {})
+  ) {
+    pending.toolCalls = [
+      ...pending.toolCalls.slice(0, index),
+      toolCall,
+      ...pending.toolCalls.slice(index + 1),
+    ];
+  }
+}
+
 function createCommittedAssistantMessage(pending: PendingAssistantState): ChatMessage | null {
   const content = pending.content.join("");
   const reasoning = pending.reasoning.join("");
@@ -272,6 +343,7 @@ function createCommittedAssistantMessage(pending: PendingAssistantState): ChatMe
 export class MessageHistoryGraph {
   private readonly listeners = new Set<(event: MessageHistoryEvent) => void>();
   private readonly committedListeners = new Set<(event: CommittedHistoryMessageEvent) => void>();
+  private readonly anomalyListeners = new Set<(event: AnomalyEvent) => void>();
   private readonly inputLog = new AppendOnlyEventLog<HistoryProjectionInput>();
   private readonly projection: ReducerProjection<HistoryProjectionInput, HistoryProjectionState>;
   private readonly projectionSubscription: { unsubscribe: () => void };
@@ -290,6 +362,9 @@ export class MessageHistoryGraph {
         }
         for (const event of state.lastCommittedBatch) {
           this.emitCommitted(event);
+        }
+        for (const event of state.lastAnomalyBatch) {
+          this.emitAnomaly(event);
         }
       },
       error: () => {},
@@ -330,6 +405,26 @@ export class MessageHistoryGraph {
     };
   }
 
+  /**
+   * Subscribe to structured, non-fatal anomalies surfaced at the single-writer
+   * invariant boundaries (e.g. orphaned tool results). Mirrors
+   * {@link onHistoryEvent}/{@link onCommittedMessage}: the reducer produces the
+   * events; the host records them. Observability only — no commit-flow change.
+   */
+  onAnomaly(handler: (event: AnomalyEvent) => void): { unsubscribe: () => void } {
+    if (this.disposed || this.projection.getState().completed) {
+      return {
+        unsubscribe: () => {},
+      };
+    }
+    this.anomalyListeners.add(handler);
+    return {
+      unsubscribe: () => {
+        this.anomalyListeners.delete(handler);
+      },
+    };
+  }
+
   complete(): void {
     if (this.disposed || this.projection.getState().completed) return;
     this.inputLog.append({ kind: "complete" });
@@ -343,6 +438,7 @@ export class MessageHistoryGraph {
     this.inputLog.dispose();
     this.listeners.clear();
     this.committedListeners.clear();
+    this.anomalyListeners.clear();
   }
 
   private emit(event: MessageHistoryEvent): void {
@@ -356,9 +452,30 @@ export class MessageHistoryGraph {
       listener(event);
     }
   }
+
+  private emitAnomaly(event: AnomalyEvent): void {
+    for (const listener of [...this.anomalyListeners]) {
+      listener(event);
+    }
+  }
 }
 
-function reduceHistoryProjection(
+function clonePendingAssistant(pending: PendingAssistantState): PendingAssistantState {
+  return {
+    ...pending,
+    content: [...pending.content],
+    reasoning: [...pending.reasoning],
+    toolCalls: pending.toolCalls.map((toolCall) => ({ ...toolCall, input: { ...toolCall.input } })),
+  };
+}
+
+/**
+ * Pure semantic->committed merge core. This is the single implementation of
+ * the message-assembly commit boundary: the MessageHistoryGraph class above
+ * and the conversation capsule's messageAssemblyDerivation both reduce with
+ * this function. It never mutates the input state.
+ */
+export function reduceHistoryProjection(
   state: HistoryProjectionState,
   input: HistoryProjectionInput,
 ): HistoryProjectionState {
@@ -370,6 +487,9 @@ function reduceHistoryProjection(
     ...state,
     lastBatch: [],
     lastCommittedBatch: [],
+    lastAnomalyBatch: [],
+    seenToolCallIds: [...state.seenToolCallIds],
+    pendingAssistant: state.pendingAssistant ? clonePendingAssistant(state.pendingAssistant) : null,
   };
 
   const emit = (event: MessageHistoryEvent) => {
@@ -380,8 +500,39 @@ function reduceHistoryProjection(
     next.lastCommittedBatch = [...next.lastCommittedBatch, event];
   };
 
+  const emitAnomaly = (event: AnomalyEvent) => {
+    next.lastAnomalyBatch = [...next.lastAnomalyBatch, event];
+  };
+
+  // Record an assistant tool-call's id so a later tool_call_result can be
+  // matched. Pure: only mutates the freshly-cloned `seenToolCallIds`.
+  const markToolCallSeen = (toolCallId: string) => {
+    if (toolCallId && !next.seenToolCallIds.includes(toolCallId)) {
+      next.seenToolCallIds = [...next.seenToolCallIds, toolCallId];
+    }
+  };
+
   const flushCommittedAssistant = () => {
     if (!next.pendingAssistant) return;
+    // Hollow-commit detection (observability only): a pending assistant whose
+    // content, reasoning, AND toolCalls are ALL empty assembles to no message
+    // (`createCommittedAssistantMessage` returns null) — the assistant turn
+    // produced nothing recordable, yet it flushed silently. Surface it via the
+    // existing anomaly channel BEFORE committing. This does NOT change what is
+    // committed: the empty-pending commit behavior below is unchanged.
+    const pending = next.pendingAssistant;
+    const isHollow =
+      pending.content.join("") === "" &&
+      pending.reasoning.join("") === "" &&
+      pending.toolCalls.length === 0;
+    if (isHollow) {
+      emitAnomaly({
+        kind: "anomaly",
+        reason: "hollow_assistant_commit",
+        agentKey: pending.agentKey,
+        agentActorId: pending.agentActorId,
+      });
+    }
     const message = createCommittedAssistantMessage(next.pendingAssistant);
     if (message) {
       emitCommitted({
@@ -544,9 +695,12 @@ function reduceHistoryProjection(
     case "semantic_tool_call_start": {
       flushTranscriptBuffers();
       const pending = ensurePendingAssistant(agentKey, agentActorId, emittedAt);
+      // Record the assistant tool-call id so its later result is not flagged as
+      // orphaned. Use the raw event id (what the result event carries).
+      markToolCallSeen(String(ev.tool_call.tool_call_id ?? "").trim());
       const toolCall = toCommittedToolCall(ev);
       if (toolCall) {
-        pending.toolCalls = [...pending.toolCalls, toolCall];
+        upsertPendingToolCall(pending, toolCall);
       }
       const mapped = toHistoryEvent(ev);
       if (mapped) {
@@ -556,6 +710,23 @@ function reduceHistoryProjection(
     }
     case "semantic_tool_call_result": {
       flushTranscriptBuffers();
+      // Orphan detection (observability only): a tool result whose tool_call_id
+      // was never registered by an assistant tool-call (start/planned, or a
+      // pending assistant's toolCalls) signals the single-writer consumed a
+      // result with no paired call — the codex-adapter bug's signature. Read
+      // pending toolCalls BEFORE flushing clears pendingAssistant.
+      const resultToolCallId = String(ev.tool_call.tool_call_id ?? "").trim();
+      const pendingHasToolCall =
+        next.pendingAssistant?.toolCalls.some((toolCall) => toolCall.id === resultToolCallId) ?? false;
+      if (resultToolCallId && !next.seenToolCallIds.includes(resultToolCallId) && !pendingHasToolCall) {
+        emitAnomaly({
+          kind: "anomaly",
+          reason: "orphaned_tool_result",
+          toolCallId: resultToolCallId,
+          agentKey,
+          agentActorId,
+        });
+      }
       flushCommittedAssistant();
       const mapped = toHistoryEvent(ev);
       if (mapped) {
@@ -575,22 +746,20 @@ function reduceHistoryProjection(
       return next;
     }
     case "semantic_questionnaire_result": {
+      // Stream-level projection only (TUI questionnaire_result history event).
+      // The committed conversation message for a questionnaire answer is the
+      // canonical JSON tool message (questionnaireId/rawText/status/answers/
+      // errors, paired by tool_call_id) which the executor commits through the
+      // tool-result semantic channel — matching the provider-visible shape of
+      // the pre-spine assembly. Committing ev.response_text here as a second
+      // bare tool message would duplicate/diverge from that canonical form
+      // (track refactor-ai-semantic-conversation-spine, T4.3).
       flushTranscriptBuffers();
       flushCommittedAssistant();
       const mapped = toHistoryEvent(ev);
       if (mapped) {
         emit(mapped);
       }
-      emitCommitted({
-        agentKey,
-        agentActorId,
-        message: {
-          role: "tool",
-          content: ev.response_text,
-          startAt: emittedAt,
-          endAt: emittedAt,
-        } as ChatMessage,
-      });
       return next;
     }
     case "semantic_user_input":

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-persistence-recovery">
+  <upsert selector="behavior://aiagent-persistence-recovery/requirements/recover-consumed-signal-mailbox-work">
+    <requirement id="recover-consumed-signal-mailbox-work">
+    <statement>系统 SHALL recover and schedule actor mailbox wake work even when the corresponding durable control signal is present only as a consumed tombstone.</statement>
+    <suite id="consumed-signal-mailbox-payload" name="Consumed signal with pending mailbox payload">
+      <case id="consumed-async-signal-mailbox-pending">
+        <given>`runtime_state/vm.json` contains a consumed `async_completed` control-signal tombstone for op id `X`</given>
+        <then>The actor mailbox snapshot still contains `asyncCompletion` payload for op id `X`</then>
+        <when>The session runtime is recovered</when>
+        <then>The actor mailbox payload SHALL remain the recoverable execution truth</then>
+        <then>The owning fiber SHALL become schedulable without requiring a pending durable signal event</then>
+      </case>
+      <case id="mailbox-work-reconstructs-pending-resume">
+        <given>A recovered actor has pending wake mailbox work and no serialized pending resume</given>
+        <when>The runtime reconstructs orchestrator state</when>
+        <then>The runtime SHALL rebuild the equivalent schedulable state from actor mailbox plus cooperative exec state</then>
+        <then>The runtime SHALL NOT require transcript-tail inference to resume the fiber</then>
+      </case>
+      <case id="pending-resume-never-required-as-sole-truth">
+        <given>A wake message was durably delivered to an actor mailbox before process exit</given>
+        <then>The explicit `pendingResumes` scheduler set was lost or absent</then>
+        <when>The runtime recovers</when>
+        <then>The pending actor mailbox entry SHALL be sufficient to re-schedule the fiber</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/recover-consumed-signal-mailbox-work" strength="hint" />
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://aiagent-persistence-recovery/requirements/cooperative-wait-snapshot-guard">
+
+    <requirement id="cooperative-wait-snapshot-guard">
+    <statement>系统 SHALL reject, repair, or explicitly diagnose snapshots that persist a cooperative async wait as an apparently idle ready fiber.</statement>
+    <suite id="cooperative-wait-guards" name="Cooperative wait snapshot guards">
+      <case id="ready-wait-llm-guard">
+        <given>A snapshot would persist a fiber as `ready` with no waiting reason</given>
+        <then>The cooperative exec state is `wait_llm` with inflight work</then>
+        <when>The snapshot is saved or recovered</when>
+        <then>The runtime SHALL NOT silently accept it as ordinary idle state</then>
+        <then>The runtime SHALL repair it to a schedulable or typed waiting state and emit diagnostics when repair is applied</then>
+      </case>
+      <case id="ready-wait-tool-guard">
+        <given>A snapshot would persist a fiber as `ready` with cooperative exec state `wait_tool` and inflight work</given>
+        <when>The snapshot is saved or recovered</when>
+        <then>The runtime SHALL preserve a deterministic continuation path for the pending tool result</then>
+      </case>
+      <case id="recovery-fixture-covers-empty-pending-signal-store">
+        <given>A recovery fixture has no pending durable control signal events</given>
+        <then>It has consumed wake tombstones, pending actor mailbox payloads, and cooperative wait state</then>
+        <when>The focused recovery test runs</when>
+        <then>The test SHALL prove that mailbox-owned payloads still drive recovery and execution</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/cooperative-wait-snapshot-guard" strength="hint" />
+    </requirement>
+  </upsert>
+</behavior-patch>

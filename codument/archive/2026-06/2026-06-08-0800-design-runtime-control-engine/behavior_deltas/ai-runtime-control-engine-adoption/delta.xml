@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-runtime-control-engine-adoption">
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/domain-wrapper">
+    <requirement id="domain-wrapper">
+    <statement>AI runtime SHALL 通过 AI 领域 wrapper 采用 runtime control engine，将 mailbox、conversation、snapshot、tool/effect result、ingress 和 diagnostics 映射为 vendor 层 command、effect 和 durable head，并通过 depa-actor@0.2.0 CommandDequeGroup 表达内部 command worklist。</statement>
+    <suite id="domain-mapping" name="领域映射">
+      <case id="vendor-hidden-from-ai-runtime-callers">
+        <given>AI runtime 需要提交 human input、tool result 或 snapshot 相关操作</given>
+        <when>业务代码调用 runtime-control 能力</when>
+        <then>业务代码 SHALL 调用 AI 领域语义化 primitive，而不是直接拼装 vendor durable cohort 细节</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/adopt-after-engine-validation">
+
+    <requirement id="adopt-after-engine-validation">
+    <statement>AI runtime SHALL NOT 用未独立验证的 runtime control engine 替换现有编排路径；替换前必须通过 vendor engine conformance tests 和 AI session recovery adoption tests。</statement>
+    <suite id="replacement-gate" name="替换门禁">
+      <case id="test-before-runtime-replacement">
+        <given>runtime control engine 设计或实现已完成</given>
+        <when>准备替换 AI runtime 的 session 编排和持久化路径</when>
+        <then>系统 SHALL 先通过 crash recovery、dirty head classification、long-running effect wait 和 cohort commit 测试</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

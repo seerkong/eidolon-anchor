@@ -82,14 +82,13 @@ describe("acceptance: llm config and compression", () => {
     writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
-          name: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k-openai",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192 }],
+          id: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
         },
       ],
     });
-    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-present.json"), {
       default_preset: "default",
       presets: {
         default: {
@@ -111,12 +110,11 @@ describe("acceptance: llm config and compression", () => {
     expect(resolved.inputLimit).toBe(128000);
   });
 
-  it("triggers backup and compression when usage ratio reaches threshold", async () => {
+  it("triggers compression when usage ratio reaches threshold", async () => {
     const actor = createTestActor();
     actor.modelConfig.inputLimit = 100;
 
     const toolRegistry = new ToolFuncRegistry();
-    const backupCalls: Array<{ agentKey: string; agentActorId: string; actorType?: string }> = [];
     let compressCalled = false;
 
     __setCompressionDepsForTest({
@@ -134,14 +132,6 @@ describe("acceptance: llm config and compression", () => {
       controlActorKey: actor.key,
       actors: { [actor.key]: actor },
       registries: { toolRegistry },
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async (params) => {
-            backupCalls.push(params);
-          },
-        },
-      },
     });
 
     const result = await aiAgentLoopStreaming({
@@ -152,7 +142,6 @@ describe("acceptance: llm config and compression", () => {
 
     expect(result.stopReason).toBe("no_tool_calls");
     expect(compressCalled).toBe(true);
-    expect(backupCalls).toEqual([{ agentKey: actor.key, agentActorId: actor.id, actorType: actor.type }]);
     expect(result.messages[0]).toEqual({ role: "user", content: "compressed input" });
   });
 });

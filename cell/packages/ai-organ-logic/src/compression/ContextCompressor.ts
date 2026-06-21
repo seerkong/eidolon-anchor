@@ -51,6 +51,7 @@ export type CheapCompactionOptions = {
   toolResultPreviewChars?: number;
   microKeepRecentToolResults?: number;
   microMinContentChars?: number;
+  microPreviewChars?: number;
 };
 
 function warn(logger: LoggerLike | undefined, message: string, error?: unknown): void {
@@ -180,9 +181,10 @@ function persistToolResult(params: {
   }
   const preview = params.content.slice(0, params.previewChars);
   return [
-    "<persisted-tool-result>",
+    "<persisted-tool-result status=\"delivered_and_compacted\">",
     `Full output persisted at: ${filePath}`,
     `Original characters: ${params.content.length}`,
+    "The model already received this tool result in an earlier turn. Do not repeat the same tool call solely because the full text is compacted.",
     "Preview:",
     preview,
     "</persisted-tool-result>",
@@ -236,10 +238,11 @@ export function applyToolResultBudget(
 
 export function microCompactToolResults(
   messages: any[],
-  options: Pick<CheapCompactionOptions, "microKeepRecentToolResults" | "microMinContentChars"> = {},
+  options: Pick<CheapCompactionOptions, "microKeepRecentToolResults" | "microMinContentChars" | "microPreviewChars"> = {},
 ): { changed: boolean; compacted: number } {
   const keepRecent = Math.max(0, Math.floor(options.microKeepRecentToolResults ?? 3));
   const minChars = Math.max(0, Math.floor(options.microMinContentChars ?? 120));
+  const previewChars = Math.max(0, Math.floor(options.microPreviewChars ?? 800));
   const refs = collectToolResultRefs(messages);
   if (refs.length <= keepRecent) {
     return { changed: false, compacted: 0 };
@@ -250,11 +253,23 @@ export function microCompactToolResults(
     const content = stringifyContent(ref.getContent());
     if (content.length <= minChars) continue;
     const persistedPath = extractPersistedPath(content);
-    ref.setContent(
-      persistedPath
-        ? `[Earlier tool result compacted. Full output persisted at: ${persistedPath}. Re-run the tool or read that file if needed.]`
-        : "[Earlier tool result compacted. Re-run the tool if the full output is needed.]",
+    const preview = content.slice(0, previewChars);
+    const lines = [
+      "<compacted-tool-result status=\"delivered_and_compacted\">",
+      `Tool call id: ${ref.toolCallId}`,
+      `Original characters: ${content.length}`,
+    ];
+    if (persistedPath) {
+      lines.push(`Full output persisted at: ${persistedPath}`);
+    }
+    lines.push(
+      "This is a compacted form of a tool result that was already delivered. Do not repeat the same tool call solely because older output was compacted.",
     );
+    if (preview) {
+      lines.push("Preview:", preview);
+    }
+    lines.push("</compacted-tool-result>");
+    ref.setContent(lines.join("\n"));
     compacted += 1;
   }
   return { changed: compacted > 0, compacted };

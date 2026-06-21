@@ -18,26 +18,21 @@ type SolidTransformRuntime = {
 
 const require = createRequire(import.meta.url);
 
-const loadPackage = <T>(name: string, pnpmDirectoryPrefix: string, packagePath: string): T => {
-  const fallback = findPnpmPackage(packagePath, pnpmDirectoryPrefix);
-  if (fallback) {
+const loadPackage = <T>(name: string, directoryPrefix: string, packagePath: string): T => {
+  try {
+    return require(name) as T;
+  } catch {
+    const fallback = findBunPackage(packagePath, directoryPrefix);
+    if (!fallback) {
+      throw new Error(`Cannot resolve package ${name}`);
+    }
+
     const packageJson = JSON.parse(readFileSync(path.join(fallback, "package.json"), "utf8")) as {
       main?: string;
     };
     const entry = packageJson.main ?? "index.js";
     return require(path.join(fallback, entry)) as T;
   }
-
-  try {
-    return require(name) as T;
-  } catch (error) {
-    throw error;
-  }
-};
-
-const findPnpmPackage = (packagePath: string, directoryPrefix: string): string | null => {
-  const storeDirectory = findPnpmStoreDirectory(packagePath, directoryPrefix);
-  return storeDirectory ? path.join(storeDirectory, "node_modules", packagePath) : null;
 };
 
 const findBunPackage = (packagePath: string, directoryPrefix: string): string | null => {
@@ -66,7 +61,7 @@ const resolvePackageRoot = (specifier: string, packagePath: string, directoryPre
     // Optional platform packages are not always linked into the package workspace.
   }
 
-  for (const packageRoot of [findBunPackage(packagePath, directoryPrefix), findPnpmPackage(packagePath, directoryPrefix)]) {
+  for (const packageRoot of [findBunPackage(packagePath, directoryPrefix)]) {
     if (packageRoot && existsSync(path.join(packageRoot, "package.json"))) {
       return realpathSync(packageRoot);
     }
@@ -94,45 +89,6 @@ var module = await import(__eidolonPathToFileURL(__eidolonOpenTuiPlatformModule)
     'var module = await (new Function("s", "return import(s)"))("@opentui/core-" + process.platform + "-" + process.arch + "/index.ts");',
     `var module = await new Function("s", "return import(s)")("${platformPackageName}/index.ts");`,
   ].reduce((patched, pattern) => patched.replaceAll(pattern, runtimeImport), bundleText);
-};
-
-const findPnpmStoreDirectory = (packagePath: string, directoryPrefix: string): string | null => {
-  for (const pnpmRoot of getPnpmRoots()) {
-    if (!existsSync(pnpmRoot)) {
-      continue;
-    }
-
-    const match = readdirSync(pnpmRoot)
-      .filter((entry) => entry === directoryPrefix || entry.startsWith(`${directoryPrefix}_`))
-      .sort()[0];
-
-    if (!match) {
-      continue;
-    }
-
-    const candidate = path.join(pnpmRoot, match, "node_modules", packagePath);
-    if (existsSync(candidate)) {
-      return path.join(pnpmRoot, match);
-    }
-  }
-
-  return null;
-};
-
-const getPnpmRoots = (): string[] => {
-  const workspaceRoot = path.resolve(process.cwd(), "..", "..", "..");
-  const nodeModulesRoot = path.join(workspaceRoot, "node_modules");
-  const roots = [path.join(nodeModulesRoot, ".pnpm")];
-
-  if (existsSync(nodeModulesRoot)) {
-    for (const entry of readdirSync(nodeModulesRoot)) {
-      if (entry.startsWith(".old_modules-")) {
-        roots.push(path.join(nodeModulesRoot, entry, ".pnpm"));
-      }
-    }
-  }
-
-  return roots;
 };
 
 const getDefaultExport = <T>(input: T | { default?: T }): T => {

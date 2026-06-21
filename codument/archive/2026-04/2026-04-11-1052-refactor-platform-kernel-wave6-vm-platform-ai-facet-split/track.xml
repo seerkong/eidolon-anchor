@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-wave6-vm-platform-ai-facet-split" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>将当前单体 `AiAgentVm` 拆成 platform facet 与 AI facet，并建立兼容迁移入口。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T10:05:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T10:52:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-wave6-vm-platform-ai-facet-split" name="refactor-platform-kernel-wave6-vm-platform-ai-facet-split" version="1">
+    <Description>实施平台微内核 Wave 6 的 VM platform/AI facet split</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Facet Ownership Freeze" status="DONE" order="0">
+        <Description>冻结 platform facet / AI facet 的正式 ownership。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 VM facet ownership 表" status="DONE" order="0" priority="P0">
+            <Description>明确 `AiAgentVm` 中哪些字段属于 platform facet，哪些属于 AI facet。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">platform facet ownership 明确</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">AI facet ownership 明确</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Runtime Facet Refactor" status="DONE" order="1">
+        <Description>在不打断主路径的前提下落地 facet split。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="在 runtime.ts 中引入 facet type 与 accessor" status="DONE" order="0" priority="P0">
+            <Description>重构 runtime VM 承载体与 accessor，建立兼容迁移入口。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">平台与 AI facet 结构已建立</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">现有调用方可继续通过兼容入口工作</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Focused Verification" status="DONE" order="2">
+        <Description>验证 facet split 后 runtime 行为不回归。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="运行 runtime/adoption focused tests" status="DONE" order="0" priority="P0">
+            <Description>覆盖 snapshot/recovery、orchestrator、terminal adoption 等关键面。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused tests 全部通过</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">不存在第二套 VM truth</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

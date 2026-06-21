@@ -625,13 +625,21 @@ describe("cell package migration surface", () => {
     const aiOrganRuntimeTick = readText(aiOrganRuntimeTickPath)
     expect(aiOrganRuntimeTick).toContain("export async function tickAiAgentRuntimeBackground")
 
-    const aiOrganOrchestratorDriverPath = path.join(repoRoot, "cell", "packages", "ai-organ-logic", "src", "OrchestratorDriver.ts")
+    // The orchestrator driver implementation now lives inside the capsule;
+    // OrchestratorDriver.ts remains the compatibility facade.
+    const aiOrganOrchestratorDriverPath = path.join(repoRoot, "cell", "packages", "ai-organ-logic", "src", "orchestratorCapsule", "internals", "driverRuntime.ts")
     const aiOrganOrchestratorDriver = readText(aiOrganOrchestratorDriverPath)
     expect(aiOrganOrchestratorDriver).toContain("export function createAiAgentOrchestratorDriver")
     expect(aiOrganOrchestratorDriver).toContain("@cell/ai-organ-contract/agent/DelegateRunMode")
     expect(aiOrganOrchestratorDriver).toContain('./exec/AiAgentExecutor')
     expect(aiOrganOrchestratorDriver).not.toContain('@cell/organ-contract/agent/DelegateRunMode')
     expect(aiOrganOrchestratorDriver).not.toContain('@cell/organ-logic/exec/AiAgentExecutor')
+
+    const aiOrganOrchestratorFacadePath = path.join(repoRoot, "cell", "packages", "ai-organ-logic", "src", "OrchestratorDriver.ts")
+    const aiOrganOrchestratorFacade = readText(aiOrganOrchestratorFacadePath)
+    expect(aiOrganOrchestratorFacade).toContain("createAiAgentOrchestratorDriver")
+    expect(aiOrganOrchestratorFacade).toContain("@cell/ai-organ-contract/agent/DelegateRunMode")
+    expect(aiOrganOrchestratorFacade).not.toContain('@cell/organ-contract/agent/DelegateRunMode')
 
     const aiOrganDetachedRegistryPath = path.join(repoRoot, "cell", "packages", "ai-organ-logic", "src", "detached", "DetachedActorRegistry.ts")
     const aiOrganDetachedRegistry = readText(aiOrganDetachedRegistryPath)

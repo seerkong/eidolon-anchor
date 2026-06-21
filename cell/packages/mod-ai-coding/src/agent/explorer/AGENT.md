@@ -15,7 +15,6 @@ tools:
   - glob
   - grep
   - bash
-  - batch
 model_role: default
 supports:
   - read_only

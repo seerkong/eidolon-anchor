@@ -1,0 +1,47 @@
+<capability id="provider-call-domain-lifecycle" version="1">
+  <requirement id="provider-call-record">
+    <statement>每次发往 provider 的请求 SHALL 在 ProviderCallDomain 落一条 ProviderCallRecord 记录：包含 actorKey、turnId、modelRef、temperature 等模型参数、tool schemas snapshot、prompt generation 引用、startedAt；该记录 SHALL 是该次 provider 请求的事实真相，runtime-control evidence 与 cooperative state.inflight 中相关字段 SHALL 退化为该记录的引用。</statement>
+    <suite id="record" name="ProviderCallRecord">
+      <case id="record-created-on-create-stream">
+        <given>buildProviderPromptForActorTurn 完成 + LLM adapter createStream 即将调用</given>
+        <when>检查运行时</when>
+        <then>ProviderCallDomain SHALL 已写入一条 ProviderCallRecord 含完整请求元数据</then>
+        <then>state.inflight.kind=&quot;llm&quot; 的 opId SHALL 与该 ProviderCallRecord 一一对应</then>
+      </case>
+      <case id="metadata-not-scattered">
+        <given>需要查询某次 provider 请求的 temperature 或 tool schemas</given>
+        <when>定位事实源</when>
+        <then>SHALL 通过 ProviderCallDomain ProviderCallRecord 找到</then>
+        <then>SHALL NOT 仅靠 PromptPlanData 或 effect evidence 拼出来</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="reasoning-vs-content">
+    <statement>assistant message 的 reasoning_content 与 final content SHALL 在 ProviderCallDomain 中作为两个独立事实记录；下游消费者（MessageAssembly、TUI cards、observability）SHALL 通过显式字段读取，不再依赖 on-the-fly merge 进 content_parts 的隐式约定。</statement>
+    <suite id="reasoning-fact" name="Reasoning as separate fact">
+      <case id="two-distinct-facts">
+        <given>provider 返回的 assistant message 同时含 reasoning_content 与 content</given>
+        <when>ProviderCallDomain 记录响应</when>
+        <then>SHALL 分别记录 reasoning fact 与 content fact，各带 emittedAt</then>
+        <then>SHALL NOT 仅以合并后的 content_parts 数组形式保存</then>
+      </case>
+      <case id="downstream-explicit-access">
+        <given>TUI think card 或 observability 需要 reasoning</given>
+        <when>读取事实</when>
+        <then>SHALL 通过 ProviderCallDomain reasoning fact 查询</then>
+        <then>SHALL NOT 通过 content_parts.find(type===&quot;reasoning&quot;) 隐式约定</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="failure-classification">
+    <statement>provider 请求失败 SHALL 在 ProviderCallDomain 显式分类为：network_error / provider_rate_limit / provider_invalid_response / aborted_by_user / timeout 等枚举类型；SHALL NOT 仅以&quot;Error: ...&quot;字符串前缀承载错误语义。</statement>
+    <suite id="failures" name="Failure classification">
+      <case id="classified-failure">
+        <given>provider 调用失败</given>
+        <when>ProviderCallDomain 记录失败</when>
+        <then>SHALL 写入显式 failureKind 枚举字段</then>
+        <then>SHALL 同时保留原始 error 字符串作为 audit 字段</then>
+      </case>
+    </suite>
+  </requirement>
+</capability>

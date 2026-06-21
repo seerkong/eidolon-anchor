@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="standardize-tui-dialogs" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Description>统一改造 eidolon-tui 剩余 dialog，使其符合当前 Dialog UI/UX 标准，并保留 Sessions 专属密集列表体验。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-23T11:37:22Z</CreatedAt>
+    <UpdatedAt>2026-05-23T14:11:05Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_standardize-tui-dialogs" name="standardize-tui-dialogs" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="Inventory and baseline coverage" status="DONE" order="0">
+        <Description>确认剩余 dialog 范围，并为高风险共享组件建立基础验证。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Inventory remaining dialogs" status="DONE" order="0" priority="P0">
+            <Description>扫描所有 TUI dialog implementation 和调用点，标记 shared、custom、already-compliant 三类。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">产出剩余 dialog 清单并映射到标准 dialog category。</cdt:Criterion>
+              <cdt:Criterion checked="true">确认 DialogSelect 可覆盖的列表类弹窗范围。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Add focused dialog behavior tests" status="DONE" order="1" priority="P0">
+            <Description>为 shared dialog primitive 的 action labels、search clear、row truncation、footer anchoring 和 close behavior 添加聚焦测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">测试覆盖 bracketed action rendering。</cdt:Criterion>
+              <cdt:Criterion checked="true">测试覆盖列表长文本单行截断和右侧 action/metadata 不重叠。</cdt:Criterion>
+              <cdt:Criterion checked="true">测试覆盖 Escape 和 `[关闭(esc)]` 关闭行为。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Shared dialog primitive standardization" status="DONE" order="1">
+        <Description>统一 shared dialog primitives，让多数选择类、表单类、确认类和信息类弹窗自动继承规范。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Standardize Dialog shell and header" status="DONE" order="0" priority="P0">
+            <Description>调整 dialog shell/header/footer 的边框、内边距、关闭动作和可复用布局能力。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Dialog shell 使用 OpenTUI 内置 border。</cdt:Criterion>
+              <cdt:Criterion checked="true">默认关闭动作显示为 `[关闭(esc)]` 并可点击。</cdt:Criterion>
+              <cdt:Criterion checked="true">普通 dialog 保持 5% 左右和 10% 上下外部空间。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Standardize DialogSelect lists" status="DONE" order="1" priority="P0">
+            <Description>改造 DialogSelect 的搜索、清空、列表 body、hover/focus、footer、截断和滚动行为。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">搜索区 `[清空]` 右对齐且能重置搜索。</cdt:Criterion>
+              <cdt:Criterion checked="true">列表 body 填充剩余高度，footer 不漂浮在大块空白上方。</cdt:Criterion>
+              <cdt:Criterion checked="true">列表项长文本保持单行截断且 hover/focus 文字可读。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="Standardize alert confirm and prompt dialogs" status="DONE" order="2" priority="P0">
+            <Description>改造 Alert、Confirm、Prompt shared components 的 action labels、布局、异步确认和 close behavior。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Alert 使用标准 `[关闭(esc)]` 或 bracketed ok action。</cdt:Criterion>
+              <cdt:Criterion checked="true">Confirm 使用 `[取消]` 和 `[确认]` 或配置的 bracketed verb。</cdt:Criterion>
+              <cdt:Criterion checked="true">Prompt/form dialog 保持稳定输入和异步提交防重复。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Custom dialog migration" status="DONE" order="2">
+        <Description>迁移不能通过 shared primitive 自动覆盖的 custom dialog。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Migrate file picker dialog" status="DONE" order="0" priority="P1">
+            <Description>将 composer file picker 对齐列表类 dialog 标准，压缩多余说明文本并统一 close/footer/search 行为。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">文件列表行保持单行截断，不与右侧信息重叠。</cdt:Criterion>
+              <cdt:Criterion checked="true">close/footer/search 行为符合标准。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Migrate shortcuts and status dialogs" status="DONE" order="1" priority="P1">
+            <Description>将 shortcuts 和 status 对齐 information dialog 标准，统一边框、滚动区、footer 和 close action。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Shortcuts dialog 不再使用非标准 footer 文案。</cdt:Criterion>
+              <cdt:Criterion checked="true">Status dialog 内容区可滚动并使用标准 close action。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="Migrate provider auth dialogs" status="DONE" order="2" priority="P1">
+            <Description>将 provider OAuth/API key 相关子弹窗对齐 information/form dialog 标准。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">OAuth/API key dialog 使用标准边框和 bracketed actions。</cdt:Criterion>
+              <cdt:Criterion checked="true">复制、确认、取消、关闭等动作保持原有功能并视觉统一。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.4" name="Recheck Sessions specialized dense list" status="DONE" order="3" priority="P0">
+            <Description>复查 Sessions dialog 的三行记录布局、按钮可用性、数据持久化、搜索清空、单行截断和底部关闭位置。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">分叉、重命名、删除后重新打开 Sessions dialog 显示正确。</cdt:Criterion>
+              <cdt:Criterion checked="true">初始问题、最新消息、创建时间、更新时间均稳定单行展示。</cdt:Criterion>
+              <cdt:Criterion checked="true">过长 session name 不与按钮或时间重叠。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Verification and cleanup" status="DONE" order="3">
+        <Description>完成自动化和手动验证，并清理与标准不一致的残留实现。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Run focused automated verification" status="DONE" order="0" priority="P0">
+            <Description>运行 TUI dialog 相关 focused tests 和必要的 typecheck/build。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">相关 TUI tests 通过。</cdt:Criterion>
+              <cdt:Criterion checked="true">相关 package typecheck 或 build 通过。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Run manual interaction verification" status="DONE" order="1" priority="P0">
+            <Description>使用 TUI 启动方式打开关键 dialog，验证 Escape、click、search clear、hover/focus、scroll、truncation 和数据刷新。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Sessions、使用说明、功能菜单、Slash Commands、Model/Provider/Agent/MCP/Theme、File Picker、Status、Provider Auth 均完成自动化交互渲染验证。</cdt:Criterion>
+              <cdt:Criterion checked="true">记录任何无法自动验证的残余风险。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

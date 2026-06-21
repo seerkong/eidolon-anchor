@@ -1,4 +1,4 @@
 <tool>
   <name>MemberCreate</name>
-  <description>Create a member actor in the current session.</description>
+  <description>Create a persistent member actor in the current session. Members are durable team/session actors; subagent is a delegate alias, not a member alias.</description>
 </tool>

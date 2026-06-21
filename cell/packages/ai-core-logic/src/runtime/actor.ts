@@ -53,20 +53,45 @@ export type {
 
 export const AI_AGENT_MAILBOXES = {
   control: 0,
-  childDone: 10,
-  coordination: 20,
-  memberInbox: 30,
-  heartbeatWake: 40,
+  toolResult: 10,
+  asyncCompletion: 20,
+  childDone: 30,
+  memberCoordination: 40,
   humanInput: 50,
-  toolResult: 60,
-  aiGenerated: 70,
+  memberChatInbox: 60,
+  heartbeat: 70,
 } as const satisfies MailboxPriority<AiAgentMailboxSchema>;
+
+export const AI_AGENT_WAKE_MAILBOXES = [
+  "control",
+  "toolResult",
+  "asyncCompletion",
+  "childDone",
+  "memberCoordination",
+  "humanInput",
+  "memberChatInbox",
+  "heartbeat",
+] as const satisfies readonly (keyof AiAgentMailboxSchema)[];
+
+export type AiAgentWakeMailbox = (typeof AI_AGENT_WAKE_MAILBOXES)[number];
+
+export function listPendingAiAgentWakeMailboxes(
+  actor: Pick<AiAgentActorContract<AiAgentVm, AiAgentActor>, "hasPending">,
+): AiAgentWakeMailbox[] {
+  return AI_AGENT_WAKE_MAILBOXES.filter((mailbox) => actor.hasPending(mailbox));
+}
+
+export function hasPendingAiAgentWakeMailbox(
+  actor: Pick<AiAgentActorContract<AiAgentVm, AiAgentActor>, "hasPending">,
+): boolean {
+  return listPendingAiAgentWakeMailboxes(actor).length > 0;
+}
 
 function createDefaultWorkContext(): ActorWorkContextData {
   const epoch = new Date(0).toISOString();
   return {
-    workMode: WORK_MODES.general_execution,
-    taskPhase: TASK_PHASES.implementation,
+    workMode: WORK_MODES.build,
+    taskPhase: TASK_PHASES.normal,
     workModeSource: "default",
     taskPhaseSource: "default",
     workModeUpdatedAt: epoch,
@@ -138,6 +163,14 @@ export type CreateActorParams = {
   logger?: Logger;
 };
 
+export type AppliedActorModelConfigControl = {
+  modelConfig: ActorModelConfig;
+  modelRef?: string;
+  source?: string;
+  requestedAt?: number;
+  requestedBy?: string;
+};
+
 let actorCounter = 0;
 
 function makeActorId(): string {
@@ -195,13 +228,21 @@ export function createActor(params: CreateActorParams): AiAgentActor {
   const mailboxes: ActorMailboxQueues = {
     control: [...(params.mailboxes?.control ?? [])],
     childDone: [...(params.mailboxes?.childDone ?? [])],
-    coordination: [...(params.mailboxes?.coordination ?? [])],
-    memberInbox: [...(params.mailboxes?.memberInbox ?? [])],
-    heartbeatWake: [...(params.mailboxes?.heartbeatWake ?? [])],
-    humanInput: [...(params.mailboxes?.humanInput ?? [])],
     toolResult: [...(params.mailboxes?.toolResult ?? [])],
-    aiGenerated: [...(params.mailboxes?.aiGenerated ?? [])],
+    asyncCompletion: [...(params.mailboxes?.asyncCompletion ?? [])],
+    memberCoordination: [...(params.mailboxes?.memberCoordination ?? [])],
+    humanInput: [...(params.mailboxes?.humanInput ?? [])],
+    memberChatInbox: [...(params.mailboxes?.memberChatInbox ?? [])],
+    heartbeat: [...(params.mailboxes?.heartbeat ?? [])],
   };
+
+  // P7 mirror elimination (spec single-in-memory-truth/mirror-eliminated):
+  // `messages` is a read-only view. Until the actor is bound to a vm's
+  // conversation domain runtime it exposes the frozen creation seed (the
+  // hydration input for the domains); once bound it IS the History-domain
+  // projection. There is no writable message array on the actor.
+  const seedMessages: readonly ChatMessage[] = Object.freeze([...(params.messages ?? [])]);
+  let conversationProjection: (() => readonly ChatMessage[]) | null = null;
 
   return {
     initialState: {},
@@ -214,7 +255,12 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     id,
     parentKey: params.parentKey,
     systemPrompts: params.systemPrompts ?? [],
-    messages: params.messages ?? [],
+    get messages(): readonly ChatMessage[] {
+      return conversationProjection ? conversationProjection() : seedMessages;
+    },
+    bindConversationProjection(provider: () => readonly ChatMessage[]): void {
+      conversationProjection = provider;
+    },
     identity: params.identity,
     planApproval: params.planApproval,
     shutdownCoordination: params.shutdownCoordination,
@@ -264,4 +310,32 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     },
     logger: params.logger,
   };
+}
+
+export function applyActorModelConfigControlSignals(actor: AiAgentActor): AppliedActorModelConfigControl | null {
+  if (!actor.hasPending("control")) return null;
+
+  const entries = actor.drainMailbox("control") as AiAgentMailboxSchema["control"][];
+  let latest: AppliedActorModelConfigControl | null = null;
+
+  for (const entry of entries) {
+    if (entry.kind === "set_active_model_config") {
+      latest = {
+        modelConfig: { ...entry.modelConfig },
+        modelRef: entry.modelRef,
+        source: entry.source,
+        requestedAt: entry.requestedAt,
+        requestedBy: entry.requestedBy,
+      };
+      continue;
+    }
+    actor.send("control", entry);
+  }
+
+  if (!latest) return null;
+  actor.modelConfig = {
+    ...actor.modelConfig,
+    ...latest.modelConfig,
+  };
+  return latest;
 }

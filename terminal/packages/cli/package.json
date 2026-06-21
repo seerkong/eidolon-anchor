@@ -7,7 +7,7 @@
   "version": "0.1.1",
   "type": "module",
   "scripts": {
-    "dev": "bun --preload ../tui/src/preload.ts src/index.ts"
+    "dev": "bun --preload ../tui/src/entry/preload.ts src/index.ts"
   },
   "license": "MIT",
   "devDependencies": {
@@ -16,6 +16,7 @@
     "@types/yargs": "^17.0.32"
   },
   "dependencies": {
+    "@cell/ai-runtime-control-composer": "workspace:*",
     "yargs": "^17.7.2",
     "@terminal/organ": "workspace:*",
     "@terminal/organ-support": "workspace:*",

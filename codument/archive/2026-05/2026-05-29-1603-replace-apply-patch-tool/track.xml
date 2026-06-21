@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="replace-apply-patch-tool" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>Replace this project’s existing ApplyPatch tool with a more complete apply_patch implementation, including related editing lifecycle mechanisms.</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-29T15:40:36Z</CreatedAt>
+    <UpdatedAt>2026-05-29T16:03:59Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_replace-apply-patch-tool" name="replace-apply-patch-tool" version="1">
+    <SubNodes>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

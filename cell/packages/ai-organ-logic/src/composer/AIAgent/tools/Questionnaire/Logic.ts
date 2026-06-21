@@ -1,5 +1,6 @@
 import type { StdInnerLogic } from "depa-processor"
 import type { QuestionnaireRequestPayload } from "@cell/ai-core-contract/runtime/Questionnaire"
+import { upsertPendingQuestionnaireRow } from "@cell/ai-core-logic"
 import type {
   QuestionnaireInnerConfig,
   QuestionnaireInnerInput,
@@ -60,6 +61,7 @@ export const questionnaireCoreLogic: StdInnerLogic<
   const existing = (runtime.actor as any)?.pendingQuestionnaires?.[questionnaireId]
   if (!existing) {
     ;(runtime.actor as any).pendingQuestionnaires[questionnaireId] = payload
+    upsertPendingQuestionnaireRow({ vm: runtime.vm as any, actor: runtime.actor as any, request: payload })
     runtime.actor.send("control" as any, {
       kind: "questionnaire_pending",
       toolCallId: payload.toolCallId,

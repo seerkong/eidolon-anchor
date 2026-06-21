@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-durable-actor-control-signals" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>Root refactor for durable actor control signals, mailbox priority scheduling, cooperative interrupt, typed waits, and recovery invariants.</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-31T15:29:05Z</CreatedAt>
+    <UpdatedAt>2026-06-01T00:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-durable-actor-control-signals" name="refactor-durable-actor-control-signals" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="Control Signal Model And Invariants" status="NOT_STARTED" order="0">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Mailbox Enqueue Scheduling And Cooperative Interrupt" status="NOT_STARTED" order="1">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Typed Waits And Execution Path Migration" status="NOT_STARTED" order="2">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Persistence Recovery And Data Plane Observability" status="NOT_STARTED" order="3">
+        <SubNodes>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Round 1 Gap Repairs" status="NOT_STARTED" order="4">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

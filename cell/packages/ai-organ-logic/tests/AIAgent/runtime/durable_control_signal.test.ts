@@ -9,6 +9,7 @@ import {
   markDurableControlSignalConsumed,
   normalizeDurableControlSignal,
 } from "@cell/ai-core-logic/runtime";
+import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { hydrateVM, serializeVM } from "@cell/ai-core-logic/runtime/snapshot";
 import {
@@ -19,7 +20,6 @@ import {
 } from "@cell/ai-organ-logic";
 import { aiAgentCooperativeStep } from "@cell/ai-organ-logic/exec";
 import {
-  LocalFileActorTranscriptStore,
   LocalFileConversationPersistenceRepositoryFactory,
   LocalFileRuntimeDerivedIndexesStore,
   LocalFileRuntimeSnapshotRepositoryFactory,
@@ -29,7 +29,6 @@ import os from "os";
 import path from "path";
 
 configureRuntimePersistenceSupport({
-  actorTranscriptStore: LocalFileActorTranscriptStore,
   snapshotRepositoryFactory: LocalFileRuntimeSnapshotRepositoryFactory,
   derivedIndexesStore: LocalFileRuntimeDerivedIndexesStore,
   conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
@@ -104,8 +103,7 @@ describe("durable control signals", () => {
     const store = createEmptyDurableControlSignalStore();
     emitDurableControlSignal(store, {
       actorKey: "main",
-      mailboxKind: "aiGenerated",
-      signalKind: "mailbox_enqueue",
+      signalKind: "suspend_recorded",
       idempotencyKey: "ordinary",
       createdAt: 1,
     });
@@ -155,6 +153,28 @@ describe("durable control signals", () => {
     expect(getPendingDurableControlSignals(store, { actorKey: "delegate" })).toHaveLength(1);
   });
 
+  it("advances the consumed checkpoint only across contiguous consumed sequences", () => {
+    const store = createEmptyDurableControlSignalStore();
+    const first = emitDurableControlSignal(store, {
+      actorKey: "main",
+      signalKind: "mailbox_enqueue",
+      idempotencyKey: "first",
+    }).signal;
+    const second = emitDurableControlSignal(store, {
+      actorKey: "main",
+      signalKind: "mailbox_enqueue",
+      idempotencyKey: "second",
+    }).signal;
+
+    markDurableControlSignalConsumed(store, second.eventId);
+    expect(store.consumedCheckpoint?.sequence).toBe(0);
+    expect(getPendingDurableControlSignals(store).map((signal) => signal.eventId)).toEqual([first.eventId]);
+
+    markDurableControlSignalConsumed(store, first.eventId);
+    expect(store.consumedCheckpoint?.sequence).toBe(2);
+    expect(getPendingDurableControlSignals(store)).toEqual([]);
+  });
+
   it("stores durable control signals at the session vm level across snapshots", () => {
     const actor = createActor({ key: "main" });
     const vm = createVM({
@@ -180,6 +200,186 @@ describe("durable control signals", () => {
     expect(restored.sessionState.controlSignals.events[0]?.actorKey).toBe("main");
   });
 
+  it("serializes vm control signals without full llm or tool payloads", () => {
+    const actor = createActor({ key: "main" });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+    });
+
+    emitDurableControlSignal(vm.sessionState.controlSignals, {
+      actorKey: "main",
+      actorId: actor.id,
+      fiberId: "fiber-1",
+      mailboxKind: "asyncCompletion",
+      signalKind: "mailbox_enqueue",
+      idempotencyKey: "llm-done-1",
+      payload: {
+        kind: "llm_done",
+        opId: "llm:fiber-1:1",
+        response: {
+          id: "resp-1",
+          reasoning_content: "provider private chain of thought must not enter vm.json",
+          output_text: "assistant final text",
+        },
+        tools: [
+          {
+            type: "function",
+            function: {
+              name: "expensive_tool",
+              parameters: {
+                type: "object",
+                properties: {
+                  secretPayloadShape: { type: "string" },
+                },
+              },
+            },
+          },
+        ],
+      },
+    });
+    emitDurableControlSignal(vm.sessionState.controlSignals, {
+      actorKey: "main",
+      actorId: actor.id,
+      fiberId: "fiber-1",
+      mailboxKind: "toolResult",
+      signalKind: "mailbox_enqueue",
+      idempotencyKey: "tool-done-1",
+      payload: {
+        kind: "tool_done",
+        toolCallId: "call-1",
+        outputText: "complete tool output must not be duplicated in vm.json",
+      },
+    });
+
+    const snapshotJson = JSON.stringify(serializeVM(vm));
+    const events = serializeVM(vm).sessionState?.controlSignals?.events ?? [];
+
+    expect(events).toHaveLength(2);
+    expect(snapshotJson).not.toContain("reasoning_content");
+    expect(snapshotJson).not.toContain("provider private chain of thought");
+    expect(snapshotJson).not.toContain("complete tool output must not be duplicated");
+    expect(snapshotJson).not.toContain("secretPayloadShape");
+    expect(events.every((event) => !("payload" in event))).toBe(true);
+    expect(events.every((event) => "payloadSummary" in event)).toBe(true);
+  });
+
+  it("keeps consumed control signal snapshot growth bounded by compacting full payload history", () => {
+    const actor = createActor({ key: "main" });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+    });
+    const payloadText = "x".repeat(8_000);
+
+    for (let index = 0; index < 80; index += 1) {
+      const signal = emitDurableControlSignal(vm.sessionState.controlSignals, {
+        actorKey: "main",
+        actorId: actor.id,
+        fiberId: "fiber-1",
+        mailboxKind: "toolResult",
+        signalKind: "mailbox_enqueue",
+        idempotencyKey: `consumed-tool-${index}`,
+        payload: {
+          kind: "tool_done",
+          toolCallId: `call-${index}`,
+          outputText: `${payloadText}-${index}`,
+        },
+      }).signal;
+      markDurableControlSignalConsumed(vm.sessionState.controlSignals, signal.eventId);
+    }
+
+    const snapshot = serializeVM(vm);
+    const snapshotJson = JSON.stringify(snapshot);
+
+    expect(snapshot.sessionState?.controlSignals?.events).toEqual([]);
+    expect(snapshot.sessionState?.controlSignals?.consumedCheckpoint?.sequence).toBeGreaterThanOrEqual(80);
+    expect(snapshotJson.length).toBeLessThan(80_000);
+    expect(snapshotJson).not.toContain(payloadText);
+  });
+
+  it("preserves bounded pending signal metadata while omitting the runtime delivery payload", () => {
+    const actor = createActor({ key: "main" });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+    });
+
+    emitDurableControlSignal(vm.sessionState.controlSignals, {
+      actorKey: "main",
+      actorId: actor.id,
+      fiberId: "fiber-1",
+      mailboxKind: "toolResult",
+      signalKind: "async_completed",
+      opId: "tool:fiber-1:1",
+      toolCallId: "call-1",
+      idempotencyKey: "pending-tool-1",
+      payload: {
+        kind: "tool_done",
+        outputText: "runtime-only payload",
+      },
+    });
+
+    const signal = serializeVM(vm).sessionState?.controlSignals?.events[0];
+
+    expect(signal).toMatchObject({
+      eventId: "ctrl_1",
+      sequence: 1,
+      actorKey: "main",
+      fiberId: "fiber-1",
+      mailboxKind: "toolResult",
+      signalKind: "async_completed",
+      signalClass: "wake",
+      opId: "tool:fiber-1:1",
+      toolCallId: "call-1",
+      idempotencyKey: "pending-tool-1",
+    });
+    expect(signal?.payloadSummary?.byteLength).toBeGreaterThan(0);
+    expect(signal?.payloadSummary?.digest).toStartWith("fnv1a32:");
+    expect(signal).not.toHaveProperty("payload");
+  });
+
+  it("hydrates legacy full-payload signals and lazily normalizes them on the next save", () => {
+    const actor = createActor({ key: "main" });
+    const baseVm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+    });
+    const legacySnapshot = serializeVM(baseVm);
+    legacySnapshot.sessionState = {
+      ...legacySnapshot.sessionState,
+      controlSignals: {
+        events: [
+          {
+            eventId: "ctrl_7",
+            actorKey: "main",
+            actorId: actor.id,
+            fiberId: "fiber-1",
+            mailboxKind: "humanInput",
+            signalKind: "mailbox_enqueue",
+            signalClass: "wake",
+            priority: 10,
+            idempotencyKey: "legacy-input-1",
+            createdAt: 123,
+            payload: "legacy full payload",
+          },
+        ],
+        idempotencyIndex: { "legacy-input-1": "ctrl_7" },
+        consumedEventIds: {},
+      },
+    };
+
+    const restored = hydrateVM(legacySnapshot, { main: actor });
+    const restoredSignal = getPendingDurableControlSignals(restored.sessionState.controlSignals)[0];
+    const normalizedJson = JSON.stringify(serializeVM(restored));
+
+    expect(restoredSignal?.payload).toBe("legacy full payload");
+    expect(restoredSignal?.sequence).toBe(7);
+    expect(restoredSignal?.payloadSummary?.digest).toStartWith("fnv1a32:");
+    expect(normalizedJson).not.toContain("legacy full payload");
+    expect(normalizedJson).not.toContain("\"payload\":");
+  });
+
   it("fails fast instead of saving an unrecoverable suspended external fiber", async () => {
     const sessionDir = makeTempSessionDir();
     const actor = createActor({ key: "main" });
@@ -193,6 +393,26 @@ describe("durable control signals", () => {
         vm,
         driver,
       })).rejects.toThrow("unrecoverable_suspended_fiber");
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it("allows suspended idle_external fibers as stable idle safepoints", async () => {
+    const sessionDir = makeTempSessionDir();
+    const actor = createActor({ key: "main" });
+    const vm = createVM({ controlActorKey: "main", actors: { main: actor } });
+    const driver = createSuspendedDriver({ vm, actor, fiberId: "fiber-main" });
+    driver.suspendFiber("fiber-main", 101, "idle_external" as any);
+
+    try {
+      await saveAiAgentRuntimeSnapshot({
+        sessionDir,
+        sessionId: "session-1",
+        vm,
+        driver,
+      });
+      expect(fs.existsSync(path.join(sessionDir, "runtime_state", "manifest.json"))).toBe(true);
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true });
     }
@@ -251,7 +471,8 @@ describe("durable control signals", () => {
     });
 
     expect(first?.eventId).toBe(second?.eventId);
-    expect(vm.sessionState.controlSignals.events).toHaveLength(1);
+    expect(vm.sessionState.controlSignals.events).toHaveLength(0);
+    expect(vm.sessionState.controlSignals.consumedTombstones?.[first!.eventId]?.idempotencyKey).toBe("input-1");
     expect(vm.sessionState.controlSignals.consumedEventIds[first!.eventId]).toBe(true);
     expect(actor.peekMailbox("humanInput")).toEqual(["hello"]);
     expect(driver.getState().fibers["fiber-main"]?.status).toBe("ready");
@@ -293,6 +514,55 @@ describe("durable control signals", () => {
     expect(actor.peekMailbox("control")).toEqual([{ kind: "cancel_requested" }]);
   });
 
+  it("settles an interrupted cooperative fiber at an idle boundary", () => {
+    const actor = createActor({ key: "main" });
+    const vm = createVM({ controlActorKey: "main", actors: { main: actor } });
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId: "fiber-main", vm, actor, messages: actor.messages, basePriority: 1 }],
+      runStep: async () => ({ kind: "suspend", reason: "external" as any }),
+      options: {
+        agingStep: 0,
+        defaultSuspendPolicy: "continue_others",
+      },
+    });
+    const abortController = new AbortController();
+    const ctx = driver.inspectRuntime().fibers["fiber-main"] as any;
+    ctx.execState = {
+      phase: "wait_llm",
+      tools: [{ type: "function", function: { name: "x" } }],
+      toolCalls: [{ id: "call-1" }],
+      toolIndex: 0,
+      pendingToolResults: [{ toolCallId: "call-1", content: "old" }],
+      pendingAiGenerated: [{ kind: "llm_done", opId: "old" }],
+      inflight: { kind: "llm", opId: "llm:fiber-main:1", abortController },
+    };
+    driver.suspendFiber("fiber-main", 100, "wait_llm_result" as any);
+    driver.emitFiberSignal({
+      fiberId: "fiber-main",
+      signalKind: "interrupt_requested",
+      mailbox: { kind: "control", payload: { kind: "cancel_requested" } },
+      idempotencyKey: "cancel-settle",
+      createdAt: 101,
+    });
+
+    driver.settleInterruptedFiber({
+      fiberId: "fiber-main",
+      now: 102,
+      reason: "idle_external" as any,
+      controlKinds: ["cancel_requested"],
+    });
+
+    expect(abortController.signal.aborted).toBe(true);
+    expect(actor.peekMailbox("control")).toEqual([]);
+    expect(ctx.execState.phase).toBe("drain");
+    expect(ctx.execState.inflight).toBeUndefined();
+    expect(ctx.execState.tools).toEqual([]);
+    expect(ctx.execState.pendingAiGenerated).toEqual([]);
+    expect(driver.getState().fibers["fiber-main"]?.status).toBe("suspended");
+    expect(driver.getState().fibers["fiber-main"]?.waitingReason).toBe("idle_external");
+    expect(driver.inspectRuntime().pendingResumes).toEqual([]);
+  });
+
   it("redelivers pending durable signals during recovery and wakes the matching fiber", async () => {
     const sessionDir = makeTempSessionDir();
     const actor = createActor({ key: "main" });
@@ -305,10 +575,10 @@ describe("durable control signals", () => {
       fiberId: "fiber-main",
       mailboxKind: "humanInput",
       signalKind: "mailbox_enqueue",
-      payload: "resume from durable event",
       idempotencyKey: "recover-human-input",
       createdAt: 101,
     }).signal;
+    actor.send("humanInput", "resume from durable mailbox");
 
     try {
       await saveAiAgentRuntimeSnapshot({
@@ -323,7 +593,7 @@ describe("durable control signals", () => {
         sessionId: "session-1",
       });
 
-      expect(recovered?.controlActor.peekMailbox("humanInput")).toEqual(["resume from durable event"]);
+      expect(recovered?.controlActor.peekMailbox("humanInput")).toEqual(["resume from durable mailbox"]);
       expect(recovered?.driver.getState().fibers["fiber-main"]?.status).toBe("ready");
       expect(recovered?.vm.sessionState.controlSignals.consumedEventIds[signal.eventId]).toBe(true);
     } finally {
@@ -359,6 +629,182 @@ describe("durable control signals", () => {
       });
 
       expect(recovered?.controlActor.peekMailbox("humanInput")).toEqual(["already delivered"]);
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it("consumes committed humanInput durable signal and removes stale mailbox copy during recovery", async () => {
+    const sessionDir = makeTempSessionDir();
+    const actor = createActor({
+      key: "main",
+      messages: [{ role: "user", content: "already committed" }] as any[],
+      mailboxes: {
+        humanInput: ["already committed"],
+      },
+    });
+    const vm = createVM({ controlActorKey: "main", actors: { main: actor } });
+    const driver = createSuspendedDriver({ vm, actor, fiberId: "fiber-main" });
+    const signal = emitDurableControlSignal(vm.sessionState.controlSignals, {
+      actorKey: "main",
+      fiberId: "fiber-main",
+      signalKind: "mailbox_enqueue",
+      signalClass: "wake",
+      mailboxKind: "humanInput",
+      payload: "already committed",
+      idempotencyKey: "already-committed-input",
+      createdAt: 101,
+    }).signal;
+
+    try {
+      await saveAiAgentRuntimeSnapshot({
+        sessionDir,
+        sessionId: "session-1",
+        vm,
+        driver,
+      });
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId: "session-1",
+      });
+
+      expect(recovered?.controlActor.peekMailbox("humanInput")).toEqual([]);
+      expect(recovered?.vm.sessionState.controlSignals.consumedEventIds[signal.eventId]).toBe(true);
+      expect(getPendingDurableControlSignals(recovered!.vm.sessionState.controlSignals)).toEqual([]);
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not save ready wait_llm state when the matching asyncCompletion is already pending", async () => {
+    const sessionDir = makeTempSessionDir();
+    const actor = createActor({
+      key: "main",
+      id: "actor-ready-wait",
+      ctrlOptions: {
+        exitAfterToolResult: true,
+      },
+      mailboxes: {
+        asyncCompletion: [
+          {
+            kind: "llm_done",
+            opId: "llm:fiber-main:1",
+            msg: {
+              role: "assistant",
+              content: null,
+              tool_calls: [
+                {
+                  id: "call-read",
+                  type: "function",
+                  function: {
+                    name: "ReadFile",
+                    arguments: "{}",
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    let readFileCalls = 0;
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register({
+      schema: {
+        type: "function",
+        function: { name: "ReadFile", description: "read", parameters: { type: "object" } },
+      },
+      briefPromptXnl: `<tool name="ReadFile" />`,
+      run: async () => {
+        readFileCalls += 1;
+        return "file contents";
+      },
+    } as any);
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      registries: { toolRegistry },
+    });
+    const execState: any = {
+      phase: "wait_llm",
+      turn: 1,
+      tools: [
+        {
+          type: "function",
+          function: { name: "ReadFile", description: "read", parameters: { type: "object" } },
+        },
+      ],
+      toolCalls: [],
+      toolIndex: 0,
+      nextOpSeq: 2,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      inflight: { kind: "llm", opId: "llm:fiber-main:1", turn: 1, tools: [] },
+      messageHistoryAttached: false,
+    };
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId: "fiber-main", vm, actor, messages: actor.messages, basePriority: 1, execState }],
+      runStep: async (ctx, helpers) => await aiAgentCooperativeStep({
+        fiberId: ctx.fiberId,
+        vm: ctx.vm,
+        actor: ctx.actor,
+        messages: ctx.messages,
+        state: ctx.execState,
+        setState: (next) => {
+          ctx.execState = next;
+        },
+        resumeFiber: helpers.resume,
+        emitFiberSignal: helpers.emitFiberSignal,
+      }),
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+    const signal = driver.emitFiberSignal({
+      fiberId: "fiber-main",
+      signalKind: "async_completed",
+      mailbox: {
+        kind: "asyncCompletion",
+        payload: {
+          kind: "llm_done",
+          opId: "llm:fiber-main:1",
+          msg: { role: "assistant", content: null },
+        } as any,
+      },
+      idempotencyKey: "fiber-main:llm:fiber-main:1:asyncCompletion",
+      createdAt: 123,
+    });
+    if (signal) {
+      actor.drainMailbox("asyncCompletion");
+      actor.send("asyncCompletion", {
+        kind: "llm_done",
+        opId: "llm:fiber-main:1",
+        msg: {
+          role: "assistant",
+          content: null,
+          tool_calls: [
+            {
+              id: "call-read",
+              type: "function",
+              function: { name: "ReadFile", arguments: "{}" },
+            },
+          ],
+        },
+      } as any);
+    }
+    expect(vm.sessionState.controlSignals.consumedEventIds[signal!.eventId]).toBe(true);
+    expect(driver.getState().fibers["fiber-main"]?.status).toBe("ready");
+
+    try {
+      const result = await saveAiAgentRuntimeSnapshot({
+        sessionDir,
+        sessionId: "session-consumed-async-mailbox",
+        vm,
+        driver,
+      });
+
+      expect(result.status).toBe("skipped_non_safepoint");
+      expect(fs.existsSync(path.join(sessionDir, "runtime_state", "manifest.json"))).toBe(false);
+      expect(readFileCalls).toBe(0);
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true });
     }
@@ -430,7 +876,7 @@ describe("durable control signals", () => {
     const actor = createActor({
       key: "main",
       mailboxes: {
-        aiGenerated: [
+        asyncCompletion: [
           {
             kind: "llm_done",
             opId: "llm:fiber-main:old",

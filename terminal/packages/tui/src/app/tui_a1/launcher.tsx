@@ -8,6 +8,7 @@ import {
   flushTuiStreamDiagnostics,
   traceStreamDiagnosticSession,
 } from "../../support/util/stream-diagnostics"
+import { restoreTuiTerminalModes } from "../../support/util/terminal-restore"
 import { defaultTuiA1Selection, type TuiA1Selection } from "./data"
 import { TuiA1Shell } from "./shell"
 
@@ -27,8 +28,9 @@ export async function tuiA1Tui(input: TuiA1Input) {
   const parsedModel = parseModelRef(input.args.model)
   const selection: TuiA1Selection = {
     agent: input.args.agent?.trim() || defaultTuiA1Selection.agent,
-    providerID: parsedModel?.providerID || defaultTuiA1Selection.providerID,
-    modelID: parsedModel?.modelID || defaultTuiA1Selection.modelID,
+    providerID: parsedModel?.providerID ?? "",
+    modelID: parsedModel?.modelID ?? "",
+    modelSource: parsedModel ? "cli-arg" : undefined,
   }
   const selectionOverride = {
     agent: Boolean(input.args.agent?.trim()),
@@ -46,6 +48,23 @@ export async function tuiA1Tui(input: TuiA1Input) {
   }
 
   let runtimeForCleanup: TuiRuntimeSdk | undefined
+  let keepAlive: ReturnType<typeof setInterval> | undefined
+  let resolveDestroyed: (() => void) | undefined
+  const destroyed = new Promise<void>((resolve) => {
+    resolveDestroyed = resolve
+  })
+
+  function cleanupAfterDestroy() {
+    if (keepAlive) {
+      clearInterval(keepAlive)
+      keepAlive = undefined
+    }
+    void runtimeForCleanup?.client.instance.dispose()
+    void flushTuiStreamDiagnostics()
+    void input.onExit?.()
+    restoreTuiTerminalModes()
+    resolveDestroyed?.()
+  }
 
   function TuiA1RuntimeRoot() {
     const runtime = useRuntimeClient()
@@ -65,23 +84,31 @@ export async function tuiA1Tui(input: TuiA1Input) {
     )
   }
 
-  await render(
-    () => (
-      <RuntimeClientProvider url="local-runtime" directory={directory}>
-        <TuiA1RuntimeRoot />
-      </RuntimeClientProvider>
-    ),
-    ({
-      targetFps: 30,
-      exitOnCtrlC: true,
-      useAlternateScreen: true,
-      useMouse: true,
-      useKittyKeyboard: {},
-      onDestroy: () => {
-        void runtimeForCleanup?.client.instance.dispose()
-        void flushTuiStreamDiagnostics()
-        void input.onExit?.()
-      },
-    } as Parameters<typeof render>[1]),
-  )
+  try {
+    keepAlive = setInterval(() => {}, 1000)
+    await render(
+      () => (
+        <RuntimeClientProvider url="local-runtime" directory={directory}>
+          <TuiA1RuntimeRoot />
+        </RuntimeClientProvider>
+      ),
+      ({
+        targetFps: 30,
+        exitOnCtrlC: true,
+        useAlternateScreen: true,
+        useMouse: true,
+        useKittyKeyboard: {},
+        onDestroy: () => {
+          cleanupAfterDestroy()
+        },
+      } as Parameters<typeof render>[1]),
+    )
+    await destroyed
+  } finally {
+    if (keepAlive) {
+      clearInterval(keepAlive)
+      keepAlive = undefined
+    }
+    restoreTuiTerminalModes()
+  }
 }

@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-holon-legacy-tool-aliases" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 internal-only 的旧工具族不再维护独立主逻辑，而是成为显式兼容 alias。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-09T07:19:24Z</CreatedAt>
+    <UpdatedAt>2026-04-09T07:37:43Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-holon-legacy-tool-aliases" name="refactor-aiagent-holon-legacy-tool-aliases" version="1">
+    <Description>将 legacy Collective/Formation 工具族收口为 holon-first alias</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>固化 legacy tool alias 收口范围与非目标。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 proposal/spec/design/plan" status="DONE" order="0" priority="P0">
+            <Description>明确本次只收口 internal-only 旧工具族，不继续扩大到更深协议边界。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Legacy Tool Alias Refactor" status="DONE" order="1">
+        <Description>让旧工具族通过 holon-first 主路径执行业务行为。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="抽取 legacy holon alias helper" status="DONE" order="0" priority="P0">
+            <Description>增加 shared helper，用于 collective/formation 到 holon 的解析和 legacy 字段映射。</Description>
+          </Task>
+          <Task id="T2.2" name="收口 Collective* 工具族" status="DONE" order="1" priority="P0">
+            <Description>让 CollectiveCreate/Add/Status/Assign 成为 autonomous holon alias。</Description>
+          </Task>
+          <Task id="T2.3" name="收口 Formation* 工具族" status="DONE" order="2" priority="P0">
+            <Description>让 FormationCreate/Add/Appoint/Status/Assign 成为 leader-led holon alias。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Tests And Validation" status="DONE" order="2">
+        <Description>验证 alias 边界和 focused regression。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="补齐 legacy alias focused tests" status="DONE" order="0" priority="P0">
+            <Description>对 status/assign 继续补 coverage，锁定 internal-only alias 行为。</Description>
+          </Task>
+          <Task id="T3.2" name="执行 strict validation 与 focused tests" status="DONE" order="1" priority="P0">
+            <Description>运行 focused tests 与 `codument validate refactor-aiagent-holon-legacy-tool-aliases --strict`。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

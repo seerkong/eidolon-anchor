@@ -1,6 +1,10 @@
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic"
-import type { DomainRuntimeVm } from "@cell/ai-core-contract"
+import type {
+  DomainRuntimeVm,
+  RuntimeHookDefinition,
+} from "@cell/ai-core-contract"
 import type { AiAgentOrchestratorDriver as DomainRuntimeDriver } from "../OrchestratorDriver"
+import type { RuntimeHookHandlerComponent } from "../hooks/RuntimeHookDispatcher"
 import {
   createAiAgentRuntimeCoordinator,
   type AiAgentRuntimeCoordinator as DomainRuntimeCoordinator,
@@ -121,6 +125,16 @@ export type ShellRuntimeFacade = {
     vm: DomainRuntimeVm
     driver: DomainRuntimeDriver
     saveSnapshot?: () => Promise<void>
+    /**
+     * P3 (requirement `timed-out-turn-progress-persisted`): pure passthrough of
+     * the coordinator's optional seal callback. Production leaves it unset (the
+     * coordinator default no-op performs NO timeout seal); live wiring is
+     * deferred to the follow-up that also ships the recovery-gate forward-only
+     * relay. Retained as the injection seam so the mechanism stays callable.
+     */
+    sealCompletedProgress?: () => Promise<void>
+    hookDefinitions?: readonly RuntimeHookDefinition[]
+    hookHandlers?: Readonly<Record<string, RuntimeHookHandlerComponent | undefined>>
   }) => DomainRuntimeCoordinator
   getActorContextControl: (params: {
     vm: DomainRuntimeVm

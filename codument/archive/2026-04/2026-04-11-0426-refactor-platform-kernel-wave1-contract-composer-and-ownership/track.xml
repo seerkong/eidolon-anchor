@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-wave1-contract-composer-and-ownership" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>建立第一版 platform contract、platform composer contract 与 ownership tables，作为后续 profile/shell/package 波次的正式基线。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-10T20:06:35Z</CreatedAt>
+    <UpdatedAt>2026-04-11T04:26:46Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-wave1-contract-composer-and-ownership" name="refactor-platform-kernel-wave1-contract-composer-and-ownership" version="1">
+    <Description>实施平台微内核 Wave 1 的 contract、composer 与 ownership 收口</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Ownership Freeze" status="DONE" order="0">
+        <Description>将 Wave 1 所需的 contract ownership、runtime facet 与 package mapping 先冻结成正式表格。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="产出 contract ownership table" status="DONE" order="0" priority="P0">
+            <Description>明确 platform contract 与 AI domain contract 的正式 ownership 边界。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">contract ownership table 覆盖当前关键 core/composer/organ 边界</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">AI-shaped surface 的迁出方向明确</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="产出 runtime facet 与 package mapping table" status="DONE" order="1" priority="P0">
+            <Description>明确 `AiAgentVm` 的 platform/domain facet 归属，以及现有包的目标职责。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">runtime facet table 明确 platform/domain 切分</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">package mapping table 明确现有包的新职责</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Composer Contract Cutover" status="DONE" order="1">
+        <Description>将 `@cell/composer` contract 收口为平台级 capability composition contract。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="重构 platform composer contract" status="DONE" order="0" priority="P0">
+            <Description>调整 `RuntimeAssemblyContext/State/Result` 及相关 contract，移除直接 AI-shaped 依赖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">composer contract 不再直接依赖 `AgentConfig` / `ToolSchema`</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">AI domain assembly contribution 有正式边界位置</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="为 composer contract 兼容过渡提供最小适配" status="DONE" order="1" priority="P1">
+            <Description>在不引入第二真相源的前提下，为现有 AI runtime 保留最小兼容过渡层。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">现有 runtime 仍可通过正式 composer contract 路径运行</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">未新建平行 composer truth source</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Focused Verification" status="DONE" order="2">
+        <Description>通过 focused verification 锁定 ownership 与 AI runtime 连续可运行。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="补齐 ownership 与 composer focused tests" status="DONE" order="0" priority="P0">
+            <Description>补充验证 composer ownership、contract ownership 与 AI-shaped surface 退出方向的 focused tests。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused tests 验证行为和 ownership，而非源码 grep</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">composer/platform contract 边界具备自动化保护</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="验证当前 AI runtime 主路径连续可运行" status="DONE" order="1" priority="P0">
+            <Description>确认 terminal/tui/headless 主路径在 Wave 1 结束时仍可运行。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">terminal 主路径可运行</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">tui/headless 主路径未被本波次打断</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:HumanConfirm/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

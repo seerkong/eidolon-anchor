@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-runtime-control-component-boundaries" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Make the control plane's encapsulation and command/message boundaries executable contracts, with minimal refactor of the three control logic clusters.</Goal>
+    <Description>定义控制面 Logic Component boundary declaration、sync_command/async_message 分类与 coordinator/writer 分离契约，为 OrchestratorDriver、RuntimeControlEngine、SnapshotCoordinator 三个集群声明边界并做通过 conformance 所需的最小重构。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-11T12:00:00Z</CreatedAt>
+    <UpdatedAt>2026-06-11T15:30:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-runtime-control-component-boundaries" name="refactor-runtime-control-component-boundaries" version="1">
+    <Description>Refactor Runtime Control Component Boundaries</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Boundary Declaration Contract" status="DONE" order="0">
+        <Description>定义控制面 logic component boundary declaration 与入口分类契约。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests for boundary declaration contract" status="DONE" order="0" priority="P0">
+            <Description>新增 boundary declaration shape、sync_command/async_message 分类与 forbiddenDirectIo 声明的失败测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.1-tests-red" checked="true">测试覆盖 coreLogicEntries、injectedEffectContracts、outerAdapterSurface、entries 分类、forbiddenDirectIo。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Implement control boundary declaration types" status="DONE" order="1" priority="P0">
+            <Description>按 decisions.md 问题 1 确认的宿主实现通用类型与注册（含分类查询 helper）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.2-types" checked="true">类型可被 AI 控制面集群声明复用，且与 DataSubgraphContract 分层一致。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Cluster Boundary Declarations" status="DONE" order="1">
+        <Description>为三个控制面集群声明边界，并验证声明与源码一致。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Declare boundaries for the three control clusters" status="DONE" order="0" priority="P0">
+            <Description>为 OrchestratorDriverLogic、RuntimeControlEngineLogic、SnapshotCoordinatorLogic 写 boundary declaration（core logic 入口、effect contracts、入口分类、forbiddenDirectIo）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.1-declared" checked="true">三个集群均有完整声明，coreLogicEntries 指向真实源码符号。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Add encapsulation conformance and fix violations minimally" status="DONE" order="1" priority="P0">
+            <Description>源码级断言 coreLogicEntries 不含 forbiddenDirectIo；复用 depa-processor adapter 的要求可断言；conformance 暴露的违反点做最小修复（修复前后用既有失败基线对照，不允许新增失败）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.2-encapsulation" checked="true">封装 conformance 全绿且无新增测试失败。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Command-Message And Coordinator Conformance" status="DONE" order="2">
+        <Description>固化 command/message 边界与 coordinator/writer 分离的 conformance cases。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add command-message boundary conformance cases" status="DONE" order="0" priority="P0">
+            <Description>正向：跨 actor 唤醒（childDone/tool result/human input）经 mailbox；同步推进经公开 reducer。负向：直接修改内部字段、绕过 mailbox 的入口被声明禁止。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.1-command-message" checked="true">conformance 覆盖 sync-reducer-input-is-command、cross-actor-unblock-is-message、boundary-classification-is-declared 三个 spec case。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Add coordinator-writer and engine-effect conformance cases" status="DONE" order="1" priority="P0">
+            <Description>非 safepoint 时 writer 只返回结构化跳过、不调度；coordinator 在 orchestration 边界决定推进或跳过；engine 副作用经注入 effect contract 执行并留证据，core reducer 无 IO。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.2-coordinator-engine" checked="true">conformance 覆盖 snapshot-writer-does-not-schedule、coordinator-decides-at-boundary、engine-effects-via-contract 三个 spec case。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="simplify-runtime-work-context-controls" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>将 AI runtime work context 收敛为手动 work mode 和模型 tool-call task phase，删除旧自动推断和调用次数逻辑。</Goal>
+    <Description>WorkMode 收敛为 build/plan，默认 build 并通过 /work-mode 手动切换；TaskPhase 收敛为 normal/answer，并通过模型内部 tool call 切换。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-07T04:11:10Z</CreatedAt>
+    <UpdatedAt>2026-06-07T06:36:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_simplify-runtime-work-context-controls" name="simplify-runtime-work-context-controls" version="1">
+    <Description>简化 Runtime Work Context 控制状态</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="contract and migration tests" status="DONE" order="0">
+        <SubNodes>
+          <Task id="T1.1" name="添加 work context contract failing tests" status="DONE" order="0" priority="P0">
+            <Description>先用测试固定 WorkMode 只允许 build/plan，TaskPhase 只允许 normal/answer，默认 build/normal。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-work-mode-enum-test" checked="true">测试覆盖旧 work mode 枚举不再作为有效运行态值</cdt:Criterion>
+              <cdt:Criterion id="AC-task-phase-enum-test" checked="true">测试覆盖旧 task phase 枚举不再作为有效运行态值</cdt:Criterion>
+              <cdt:Criterion id="AC-default-state-test" checked="true">测试覆盖新 actor 或迁移 actor 默认 build/normal</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="收敛 ContextControl contract 类型" status="DONE" order="1" priority="P0">
+            <Description>修改 runtime context control 类型定义，删除旧枚举并更新相关 snapshot/recovery normalization。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-contract-types-simplified" checked="true">WorkMode 与 TaskPhase 类型只包含目标枚举</cdt:Criterion>
+              <cdt:Criterion id="AC-old-values-normalized" checked="true">恢复或升级旧值时归一化为 build/normal</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="manual work mode control" status="DONE" order="1">
+        <SubNodes>
+          <Task id="T2.1" name="添加 /work-mode slash command tests" status="DONE" order="0" priority="P0">
+            <Description>测试 /work-mode build 和 /work-mode plan 被 runtime 消费，不进入 LLM 历史，不触发 provider 请求。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-command-updates-mode" checked="true">slash command 更新 actor work mode</cdt:Criterion>
+              <cdt:Criterion id="AC-command-not-conversation" checked="true">slash command 不进入 semantic conversation history</cdt:Criterion>
+              <cdt:Criterion id="AC-command-no-provider-call" checked="true">slash command 不触发 provider completion</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="实现手动 work mode 切换入口" status="DONE" order="1" priority="P0">
+            <Description>在 CLI/TUI runtime bridge 中接入 /work-mode 命令，并通过 runtime control 更新 actor work context。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-runtime-command-handler" checked="true">runtime 有单一正式命令处理入口</cdt:Criterion>
+              <cdt:Criterion id="AC-status-visible" checked="true">TUI/运行状态能展示当前 work mode</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="实现 plan 模式权限边界" status="DONE" order="2" priority="P0">
+            <Description>让 plan 模式阻止或显式要求确认写文件、patch、edit、破坏性 bash。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-plan-blocks-write-tools" checked="true">plan 模式下写入类工具不能静默执行</cdt:Criterion>
+              <cdt:Criterion id="AC-build-allows-normal-policy" checked="true">build 模式沿用现有工具权限策略</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="model controlled task phase" status="DONE" order="2">
+        <SubNodes>
+          <Task id="T3.1" name="添加 task phase control tool tests" status="DONE" order="0" priority="P0">
+            <Description>测试模型通过内部 tool call 设置 normal/answer，且该工具不改变 work mode。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-tool-sets-answer" checked="true">task phase tool 可设置 answer</cdt:Criterion>
+              <cdt:Criterion id="AC-tool-sets-normal" checked="true">task phase tool 可设置 normal</cdt:Criterion>
+              <cdt:Criterion id="AC-tool-does-not-change-work-mode" checked="true">task phase tool 不改变 work mode</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="实现 task phase 内部控制工具" status="DONE" order="1" priority="P0">
+            <Description>新增或接入内部 task phase tool，更新 actor work context 并记录可观测事件。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-internal-tool-registered" checked="true">内部工具可被主 actor 调用</cdt:Criterion>
+              <cdt:Criterion id="AC-phase-observable" checked="true">phase 切换有 diagnostics 或 runtime 事件可观测</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="实现 task phase 生命周期规则" status="DONE" order="2" priority="P0">
+            <Description>新 human input 默认重置 normal；answer 后继续调用普通工具时重置 normal。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-new-input-resets-normal" checked="true">新用户输入将 task phase 重置为 normal</cdt:Criterion>
+              <cdt:Criterion id="AC-tool-after-answer-resets" checked="true">answer 后普通工具调用重置 normal</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="remove legacy inference and prompt update" status="DONE" order="3">
+        <SubNodes>
+          <Task id="T4.1" name="删除旧自动推断和调用次数相关逻辑" status="DONE" order="0" priority="P0">
+            <Description>删除用户文本推断旧 work modes、旧 task phase 推断、以及与 work context 相关的调用次数/连续工具次数/轮次启发式。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-no-legacy-work-mode-inference" checked="true">无旧 work mode 文本推断入口</cdt:Criterion>
+              <cdt:Criterion id="AC-no-legacy-task-phase-inference" checked="true">无旧 task phase 文本推断入口</cdt:Criterion>
+              <cdt:Criterion id="AC-no-call-count-switching" checked="true">无调用次数驱动的 work context 切换逻辑</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="更新 prompt overlay 和 tool guidance" status="DONE" order="1" priority="P0">
+            <Description>将 runtime overlay 收敛为 work_mode/task_phase 极简文本，并按 build/plan 与 normal/answer 更新工具建议。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-overlay-minimal" checked="true">prompt overlay 只包含必要 work mode/task phase 指令</cdt:Criterion>
+              <cdt:Criterion id="AC-plan-guidance-readonly" checked="true">plan guidance 偏向只读和验证</cdt:Criterion>
+              <cdt:Criterion id="AC-answer-guidance-final" checked="true">answer guidance 偏向最终回答</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="验证 DeepSeek stable prefix 不受动态状态影响" status="DONE" order="2" priority="P0">
+            <Description>更新 DeepSeek/cache profile 测试，确认 work mode/task phase 变化不进入 stable prefix hash。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-deepseek-hash-stable" checked="true">DeepSeek stable prefix hash 不因 work mode/task phase 变化而改变</cdt:Criterion>
+              <cdt:Criterion id="AC-tool-schema-change-still-hashes" checked="true">工具 schema 变化仍会改变 stable prefix hash</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.4" name="修补 plan 模式 detached bash 工具名边界" status="DONE" order="3" priority="P0">
+            <Description>gap-loop round 1 发现真实工具名 RunDetachedBash 未纳入 plan 模式 destructive bash 阻断，补齐执行期阻断与回归测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-run-detached-bash-plan-blocked" checked="true">plan 模式下 RunDetachedBash 的破坏性命令不能静默执行</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.5" name="修补 plan 模式 delegate 子 actor 权限继承" status="DONE" order="4" priority="P0">
+            <Description>gap-loop round 2 发现 RunDelegateActor 创建的子 actor 未继承父 actor plan work mode，补齐 work context 继承与回归测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-delegate-plan-mode-inherited" checked="true">plan 模式下 delegate 子 actor 写入类工具不能绕过父 actor 的 plan 权限边界</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

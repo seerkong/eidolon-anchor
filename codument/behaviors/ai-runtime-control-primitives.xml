@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="ai-runtime-control-primitives" version="1">
+  <requirement id="package-layering">
+    <statement>系统 SHALL provide AI runtime control contract and logic packages separated as `ai-runtime-control-contract` and `ai-runtime-control-logic`.</statement>
+    <suite id="dependency-direction" name="Dependency Direction">
+      <case id="logic-does-not-depend-on-organ">
+        <given>The AI runtime control logic package is implemented</given>
+        <when>Package dependencies are inspected</when>
+        <then>The logic package SHALL NOT depend on `@cell/ai-organ-logic`</then>
+        <then>The organ logic package MAY depend on the AI runtime control logic package</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/ai-runtime-control-primitives/package-layering" strength="hint" />
+  </requirement>
+  <requirement id="ai-mailbox-policy">
+    <statement>系统 SHALL map AI mailbox entries and cooperative execution state to vendor actor-control work classifications.</statement>
+    <suite id="wake-mailbox-policy" name="Wake Mailbox Policy">
+      <case id="completion-work-classification">
+        <given>An actor is waiting on an inflight LLM or synchronous child result</given>
+        <when>The matching completion mailbox entry is pending</when>
+        <then>The AI mailbox policy SHALL classify the entry as mandatory completion</then>
+      </case>
+      <case id="ordinary-input-classification">
+        <given>An actor has pending human input, member chat, member coordination, ordinary control, ordinary tool result, or heartbeat mailbox work</given>
+        <when>The AI mailbox policy classifies the entry</when>
+        <then>The entry SHALL remain recoverable input, control marker, timer wake, or low priority continuation according to AI semantics</then>
+        <then>The classification SHALL NOT force every pending mailbox into mandatory completion</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-turn-barrier">
+    <statement>系统 SHALL expose an AI turn barrier that can be reused by snapshot save, idle preemption, heartbeat eligibility, recovery scheduling, and TUI settled checks.</statement>
+    <suite id="snapshot-barrier" name="Snapshot Barrier">
+      <case id="safepoint-result-compatible">
+        <given>The current runtime is evaluated for snapshot safety</given>
+        <when>The AI turn barrier is inspected</when>
+        <then>The returned result SHALL preserve the existing safepoint safe/blocker semantics</then>
+        <then>The result SHALL NOT require `AiAgentVm` contract expansion</then>
+      </case>
+      <case id="wake-mailbox-before-snapshot">
+        <given>A wake mailbox entry has been delivered to an actor</given>
+        <then>The actor has not drained that mailbox entry into conversation or cooperative state</then>
+        <when>The snapshot barrier is evaluated</when>
+        <then>The barrier SHALL report the runtime as unsafe</then>
+        <then>The blocker metadata SHALL NOT include raw mailbox payloads</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-durable-head-cohort">
+    <statement>系统 SHALL model AI runtime durable heads as a cohort guarded by AI turn barriers.</statement>
+    <suite id="first-cohort" name="First Cohort">
+      <case id="snapshot-and-conversation-heads">
+        <given>A runtime snapshot and conversation head are both recoverable truth heads</given>
+        <when>The runtime has not reached the snapshot barrier</when>
+        <then>The AI durable head cohort SHALL prevent advancing the latest recoverable conversation head independently from the runtime snapshot</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

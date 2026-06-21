@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-tui-system-management-surfaces" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 prototype TUI 中已有的 session、provider/model、agent、MCP materials 收敛成可一致触发、可联动当前状态、可验证的 system management surfaces</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-07T22:10:00Z</CreatedAt>
+    <UpdatedAt>2026-04-07T07:48:02Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-tui-system-management-surfaces" name="add-tui-system-management-surfaces" version="1">
+    <Description>添加 TUI 系统管理界面</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Contract Freeze" status="DONE" order="0">
+        <Description>冻结 system management surfaces 与 graph/sync/local adapter 的职责边界</Description>
+        <SubNodes>
+          <Task id="T1.1" name="冻结 session surface 与 route/current session state 边界" status="DONE" order="0" priority="P0">
+            <Description>明确 session list / rename / delete 的交互边界，以及它们如何通过 route/current session state 与主界面同步。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">已明确 session switcher 的输入输出契约</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">已明确 route/current session state 的单一真相</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="冻结 provider/model/agent 与 current selection 的分层规则" status="DONE" order="1" priority="P0">
+            <Description>明确 provider connect、model switch、agent switch 如何联动 graph-backed current selection，以及 local favorites/recent 的 adapter 责任。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">已明确 provider/model/agent surface 的写回路径</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">已明确 current selection 与 local adapter 的职责边界</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="冻结 MCP management surface 与 sync refresh 合同" status="DONE" order="2" priority="P0">
+            <Description>明确 MCP status 展示、toggle/reconnect 操作与 sync 刷新之间的闭环，不把运行时管理细节误并入 graph。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">已明确 MCP surface 的操作与刷新契约</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">已明确 MCP state 使用 sync truth 而非平行状态</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Session And Selection Surfaces" status="DONE" order="1">
+        <Description>让 session、provider/model、agent surfaces 与 graph-backed current state 形成可用闭环</Description>
+        <SubNodes>
+          <Task id="T2.1" name="收敛 session switcher surface 与 route 同步" status="DONE" order="0" priority="P0">
+            <Description>让 session list / rename / delete 在 prototype 主界面中以一致方式触发，并保证切换后 route/current session state 与消息区同步。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">session switch 后主界面读取到正确会话</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">rename/delete 不破坏当前 session surface 交互</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="收敛 provider/model surfaces 与 current selection" status="DONE" order="1" priority="P0">
+            <Description>让 provider connect 与 model switch 通过当前 selection/state adapter 稳定写回，并在主界面与 status surfaces 中保持一致。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">model switch 后 current selection 与主界面一致</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">provider connect 后可用 provider/model 状态及时刷新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="收敛 agent surface 与默认模型回填规则" status="DONE" order="2" priority="P0">
+            <Description>让 agent 切换与 selection/current model 回填规则保持一致，不出现 dialog 已切换但主界面 selection 未更新的漂移。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">agent switch 后 current selection 一致更新</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">agent/model 的联动不会破坏 local favorites/recent adapter</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="MCP And Surface Consistency" status="DONE" order="2">
+        <Description>完成 MCP management 闭环，并对齐 command palette / status / system surfaces 的一致性</Description>
+        <SubNodes>
+          <Task id="T3.1" name="完成 MCP status/toggle/reconnect 的最小闭环" status="DONE" order="0" priority="P0">
+            <Description>确保 MCP dialog 中的 toggle/reconnect 操作后，sync 数据及时刷新，状态展示与真实 runtime 一致。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">MCP 操作后状态可刷新并稳定展示</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">MCP surface 不依赖平行本地状态真相</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="对齐 command palette、status 和 system surfaces 的入口语义" status="DONE" order="1" priority="P0">
+            <Description>让 command palette、status surface 与各 system dialogs 展示同一组系统管理能力，不继续出现“已有 material 但入口语义不一致”的分叉。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">主要 system actions 在 palette/status 中一致可见</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">用户能从现有入口理解 session/provider-model/agent/MCP 的职责分工</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Verification" status="DONE" order="3">
+        <Description>通过 focused tests 和手工点验确认 system management surfaces 可持续使用</Description>
+        <SubNodes>
+          <Task id="T4.1" name="补 system surfaces focused tests" status="DONE" order="0" priority="P0">
+            <Description>新增或更新测试，覆盖 session switch、provider/model/agent selection 更新、MCP state refresh 和 system入口一致性。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">存在 session / selection / MCP focused tests</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">存在 system入口一致性的 focused tests</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="运行 terminal TUI 测试并手工点验 system surfaces" status="DONE" order="1" priority="P0">
+            <Description>执行 terminal TUI 相关测试，并手工点验 session switch、provider connect、model switch、agent switch、MCP toggle/reconnect 与 status/palette 入口一致性。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">手工点验覆盖 session/provider-model/agent/MCP 四条系统管理链路</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

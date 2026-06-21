@@ -1,22 +1,13 @@
 export const WORK_MODES = {
-  general_execution: "general_execution",
-  localized_repair: "localized_repair",
-  small_edit: "small_edit",
-  focused_assignment: "focused_assignment",
-  direct_lookup: "direct_lookup",
-  docs_then_code: "docs_then_code",
-  external_research: "external_research",
-  long_running_coordination: "long_running_coordination",
+  build: "build",
+  plan: "plan",
 } as const;
 
 export type WorkMode = typeof WORK_MODES[keyof typeof WORK_MODES];
 
 export const TASK_PHASES = {
-  context_build: "context_build",
-  context_build_then_code: "context_build_then_code",
-  implementation: "implementation",
-  verification: "verification",
-  inspection_only: "inspection_only",
+  normal: "normal",
+  answer: "answer",
 } as const;
 
 export type TaskPhase = typeof TASK_PHASES[keyof typeof TASK_PHASES];

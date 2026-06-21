@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-holon-internal-behavior-names" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让主实现路径中的 collective/formation 旧名退回到明确的 legacy 或调度边界，并将主要内部行为名切到 holon + governance。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-09T02:18:08Z</CreatedAt>
+    <UpdatedAt>2026-04-09T07:19:24Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-holon-internal-behavior-names" name="refactor-aiagent-holon-internal-behavior-names" version="1">
+    <Description>将 AIAgent 内部 collective / formation 行为名收口到 holon 实现模型</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>固化内部命名收口的范围、保留边界与实施顺序。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 proposal.md" status="DONE" order="0" priority="P0">
+            <Description>将 internal behavior naming cleanup 的目标、边界和非目标写成自包含 proposal。</Description>
+          </Task>
+          <Task id="T1.2" name="编写 spec.md" status="DONE" order="1" priority="P0">
+            <Description>定义主实现路径、signal store、envelope、组件命名和保留边界的 requirement。</Description>
+          </Task>
+          <Task id="T1.3" name="编写 design.md 与 plan.xml" status="DONE" order="2" priority="P0">
+            <Description>固化命名策略、保留项和实施阶段。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Internal API And Signal Rename" status="DONE" order="1">
+        <Description>先收口 manager API 与 runtime signal store 的旧命名。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="收口 OrganizationManager 的 holon-first 内部 API" status="DONE" order="0" priority="P0">
+            <Description>将主调用路径从 createCollective/createFormation 等旧入口切到 holon-first API，并将旧入口降为治理分支 helper 或 alias。</Description>
+          </Task>
+          <Task id="T2.2" name="收口 runtime signal store 命名" status="DONE" order="1" priority="P0">
+            <Description>将 collectiveTaskSignals / formationRouteSignals 切到 holon/governance 命名，并同步 wait/resolve 路径。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Protocol And Runtime Component Rename" status="DONE" order="2">
+        <Description>收口 envelope、assign core、executor helper 与自治组织运行时组件的旧命名。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="收口 envelope 与 assign core 命名" status="DONE" order="0" priority="P0">
+            <Description>将 collective/formation envelope 与 assign core 切到 holon/governance 对齐命名。</Description>
+          </Task>
+          <Task id="T3.2" name="收口 controller / task runner / visible internal event wording" status="DONE" order="1" priority="P1">
+            <Description>评估并重命名 RuntimeCollectiveController、CollectiveTaskRunner 等组件，使其职责与 autonomous holon 对齐。</Description>
+          </Task>
+          <Task id="T3.3" name="决定 activeForm 与 lane/workload 的保留或迁移策略" status="DONE" order="2" priority="P1">
+            <Description>对 activeForm 前缀与 collective lane/workload 做保留或迁移决策，并在代码和文档中显式记录。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Tests And Documentation Sync" status="DONE" order="3">
+        <Description>同步 focused tests 与 theater/spec 文档，使默认内部基线清晰反映新命名。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="同步 focused tests 与 internal-only alias 覆盖边界" status="DONE" order="0" priority="P0">
+            <Description>让主实现测试基线使用新内部命名，并把 legacy alias 覆盖显式隔离。</Description>
+          </Task>
+          <Task id="T4.2" name="同步 theater 报告与相关 specs" status="DONE" order="1" priority="P1">
+            <Description>更新 readiness 报告与相关 capability spec，标注哪些旧名已退回到 legacy 或调度边界。</Description>
+          </Task>
+          <Task id="T4.3" name="执行 strict validation 与 focused 回归" status="DONE" order="2" priority="P0">
+            <Description>运行 `codument validate refactor-aiagent-holon-internal-behavior-names --strict` 与受影响 focused tests。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

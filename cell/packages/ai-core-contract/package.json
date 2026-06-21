@@ -11,6 +11,7 @@
   "description": "Formal AI core contract host for runtime assembly and runtime-support facets.",
   "dependencies": {
     "@cell/ai-organ-contract": "workspace:*",
+    "@cell/platform-contract": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@shared/composer": "workspace:*"
   }

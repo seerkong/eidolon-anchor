@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="ai-runtime-rx-protocol-bindings" version="1">
+  <!-- unmapped: # 规范：add-ai-runtime-rx-protocol-bindings -->
+  <!-- unmapped: ## 概述 -->
+  <!-- unmapped: 本 Track 从 `AiAgentVmPublicRxData` 派生协议场景专属 RxData，使不同入口协议共享同一 runtime facts，同时保留各自输出语义。该设计对应参考项目多协议 adapter 的关键思想，但适配本项目 TypeScript 与双层微内核结构。 -->
+  <!-- unmapped: 本 Track 基于已归档的 VM runtime shape 与 VM RxData 数据面：`AiAgentVmPublicRxData` 已提供 `semanticEvents`、`historyDomainStream`、`promptDomainStream`、`sessionDomainStream`、`usage` 和 `traceSummary`；协议绑定不得再重新定义 VM RxData shape，也不得绕过 `ensureVmRxData(vm)` 直接访问 eventBus 或 private writers。 -->
+  <requirement id="rxdata-public-rxdata">
+    <statement>系统必须通过 `AiAgentVmPublicRxData` 创建协议专属数据面，不得直接消费 private rx data。</statement>
+    <!-- migrated title: 协议 RxData 必须从 public RxData 派生 -->
+    <suite name="rxdata-public-rxdata">
+      <case id="case-1" name="创建协议绑定">
+        <given>VM 可以通过 `ensureVmRxData(vm)` 初始化 public rx data</given>
+        <when>TUI、web、terminal 或 OpenAI-compatible adapter 创建输出管线</when>
+        <then>adapter 或 binding factory 必须先取得 `ensureVmRxData(vm).publicRxData`</then>
+        <then>必须从 public rx data 派生协议专属 RxData 或 protocol frames</then>
+        <then>不得直接订阅 VM private rx data</then>
+        <then>不得直接订阅 `vm.eventBus` 作为协议输出主来源</then>
+      </case>
+      <case id="private" name="协议层不能写 private 数据">
+        <given>协议 binding 正在运行</given>
+        <when>它需要输出 content、tool、domain 或 usage 信息</when>
+        <then>它只能读取 public stream/signal</then>
+        <then>不得调用 private stream 的 `append`</then>
+        <then>不得调用 private signal 的 `set`</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="requirement-2">
+    <statement>协议 stream 绑定必须发生在 actor submit/execute 之前。</statement>
+    <!-- migrated title: 协议绑定必须早于请求执行 -->
+    <suite name="requirement-2">
+      <case id="semantic-event" name="不丢失首个 semantic event">
+        <given>请求即将触发 actor runtime</given>
+        <when>协议 adapter 初始化</when>
+        <then>adapter 必须先完成 rx binding</then>
+        <then>随后产生的 turn start、content delta、tool call 等事件都能被协议输出消费</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="semantic-protocol-frame">
+    <statement>系统必须先落地一个不绑定具体 UI 路由的 semantic protocol frame binding，作为 terminal、web/composer 与 OpenAI-compatible adapter 的共同输入层。</statement>
+    <!-- migrated title: 首个协议绑定必须覆盖 semantic protocol frame -->
+    <suite name="semantic-protocol-frame">
+      <case id="semantic-event-frame" name="semantic event 转换为协议 frame">
+        <given>public rx data 收到 turn、content、tool、error 或 questionnaire 语义事件</given>
+        <when>semantic protocol binding 已订阅 public stream</when>
+        <then>它必须输出稳定的 protocol frame</then>
+        <then>frame 必须保留 trace、actor、team 与 event type 等可路由字段</then>
+        <then>具体 TUI/web/OpenAI adapter 可以在后续从该 frame 做协议格式化</then>
+      </case>
+      <case id="domain-stream-frame" name="domain stream 作为可选 frame 来源">
+        <given>conversation domain streams 已通过 `bindVmDomainRxStreams` 接入 VM public rx data</given>
+        <when>semantic protocol binding 启用 domain frame 输出</when>
+        <then>history、prompt、session domain event 必须以只读方式投影为协议 frame</then>
+        <then>未接入 domain runtime 时 binding 仍必须可用</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="stream-signal">
+    <statement>协议 adapter 可以读取 signal 生成最终响应字段，但不得把 signal 状态伪造成 semantic stream event。</statement>
+    <!-- migrated title: 协议输出不得混淆 stream 与 signal -->
+    <suite name="stream-signal">
+      <case id="usage-signal" name="usage 输出来自 signal">
+        <given>OpenAI-compatible 或其他最终响应需要 usage</given>
+        <when>生成响应尾部或 summary</when>
+        <then>usage 必须来自 public/protocol rx data 的 readonly signal</then>
+        <then>不得向 semantic event stream 注入 usage 事件</then>
+      </case>
+      <case id="trace-summary-signal" name="trace summary 输出来自 signal">
+        <given>协议输出需要展示事件计数或最后事件时间</given>
+        <when>生成 runtime summary</when>
+        <then>trace summary 必须来自 public/protocol rx data 的 readonly signal</then>
+        <then>不得通过扫描 private log 或写入 synthetic semantic event 生成 summary</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

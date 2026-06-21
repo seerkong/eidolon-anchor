@@ -5,7 +5,7 @@
  * Layout: {rootDir}/sessions/{sessionId}/trace.xnl
  *
  * Each record serializes as a single-line DataElement node (like JSONL
- * but xnl). Text-heavy fields use ULID-prefixed textMarkers.
+ * but xnl). Text-heavy fields use ULID textMarkers.
  *
  * Sink contract: subscribe to rxData.records, write xnl on each emission.
  * Write failures are swallowed — observability must not break runtime.
@@ -13,9 +13,8 @@
 
 import { promises as fsp } from "node:fs";
 import path from "node:path";
-import { parseXnl, XNL } from "xnl-core";
-import { makeUlid } from "@cell/symbiont-logic";
-import type { DataElementNode, TextElementNode, XnlNode } from "xnl-core";
+import { parseXnl, stringifyLineBlock } from "xnl-core";
+import type { DataElementNode, XnlNode } from "xnl-core";
 import type { ObservabilityRecord } from "@cell/ai-core-contract/runtime/Observability";
 import type { ObservabilitySink, ObservabilityRxData, ObservabilitySinkBinding } from "@cell/ai-organ-contract/observability/Observability";
 
@@ -27,16 +26,12 @@ export type SessionTraceSinkOptions = {
   maxRecordsPerSession?: number;
 };
 
-// ── Marker helper ──────────────────────────
-
-function marker(): string {
-  return "m" + makeUlid();
-}
-
 // ── XNL conversion ────────────────────────
 
 function recordToNode(r: ObservabilityRecord): DataElementNode {
   const metadata: Record<string, XnlNode> = {
+    version: 1,
+    traceKind: "observability",
     eventName: r.eventName,
     source: r.source,
     stage: r.stage,
@@ -47,31 +42,39 @@ function recordToNode(r: ObservabilityRecord): DataElementNode {
   if (r.toolCallId) metadata.toolCallId = r.toolCallId;
   if (r.message) metadata.message = r.message;
   if (r.conversationId) metadata.conversationId = r.conversationId;
+  if (typeof r.trace?.sequence === "number") metadata.sequence = r.trace.sequence;
 
   const body: XnlNode[] = [];
 
   if (r.payload && Object.keys(r.payload).length > 0) {
-    const raw = JSON.stringify(r.payload);
     body.push({
-      kind: "TextElement",
+      kind: "DataElement",
       tag: "Payload",
       metadata: {},
-      textMarker: marker(),
-      text: raw,
-    } as TextElementNode);
+      attributes: r.payload as Record<string, XnlNode>,
+    } as DataElementNode);
   }
 
   if (r.error) {
-    const raw = JSON.stringify(r.error);
     body.push({
-      kind: "TextElement",
+      kind: "DataElement",
       tag: "Error",
       metadata: {},
-      textMarker: marker(),
-      text: raw,
-    } as TextElementNode);
+      attributes: r.error as Record<string, XnlNode>,
+    } as DataElementNode);
   }
 
+  if (body.length === 1 && isDataElement(body[0])) {
+    return {
+      kind: "DataElement",
+      tag: "TraceEntry",
+      metadata,
+      extend: {
+        order: [body[0].tag],
+        children: { [body[0].tag]: body[0] },
+      },
+    };
+  }
   return { kind: "DataElement", tag: "TraceEntry", metadata, body: body.length ? body : undefined };
 }
 
@@ -79,7 +82,18 @@ function nodeToRecord(node: DataElementNode): ObservabilityRecord {
   let payload: Record<string, unknown> | undefined;
   let error: ObservabilityRecord["error"];
 
-  for (const child of node.body ?? []) {
+  const children = [
+    ...(node.extend?.order ?? []).map((tag) => node.extend?.children?.[tag]).filter(Boolean) as XnlNode[],
+    ...(node.body ?? []),
+  ];
+  for (const child of children) {
+    if (isDataElement(child)) {
+      if (child.tag === "Payload") {
+        payload = child.attributes as Record<string, unknown>;
+      } else if (child.tag === "Error") {
+        error = child.attributes as ObservabilityRecord["error"];
+      }
+    }
     if (isTextElement(child)) {
       if (child.tag === "Payload") {
         const raw = child.text ?? "";
@@ -128,7 +142,7 @@ export function createSessionTraceSink(opts: SessionTraceSinkOptions): Observabi
   const writeOne = async (sid: string, record: ObservabilityRecord) => {
     const dir = sessionDir(sid);
     await fsp.mkdir(dir, { recursive: true });
-    const line = XNL.stringify(recordToNode(record)) + "\n";
+    const line = stringifyLineBlock(recordToNode(record)) + "\n";
     await fsp.appendFile(tracePath(sid), line, "utf-8");
   };
 
@@ -155,7 +169,7 @@ export function createSessionTraceSink(opts: SessionTraceSinkOptions): Observabi
 // ── Standalone helpers (for direct use without Rx binding) ──
 
 export function sessionTraceExportXnl(records: ObservabilityRecord[]): string {
-  return records.map((r) => XNL.stringify(recordToNode(r))).join("\n") + (records.length > 0 ? "\n" : "");
+  return records.map((r) => stringifyLineBlock(recordToNode(r))).join("\n") + (records.length > 0 ? "\n" : "");
 }
 
 export async function sessionTraceImportFile(filePath: string): Promise<ObservabilityRecord[]> {
@@ -170,6 +184,6 @@ function isDataElement(n: XnlNode): n is DataElementNode {
   return typeof n === "object" && n !== null && (n as DataElementNode).kind === "DataElement";
 }
 
-function isTextElement(n: XnlNode): n is TextElementNode {
-  return typeof n === "object" && n !== null && (n as TextElementNode).kind === "TextElement";
+function isTextElement(n: XnlNode): n is Extract<XnlNode, { kind: "TextElement" }> {
+  return typeof n === "object" && n !== null && (n as any).kind === "TextElement";
 }

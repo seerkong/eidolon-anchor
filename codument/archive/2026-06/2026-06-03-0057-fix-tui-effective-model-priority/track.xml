@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="fix-tui-effective-model-priority" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>修复 terminal TUI 模型 dialog 选择不按优先级生效，以及 input 底部状态条显示旧 provider/model 的问题。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-02T16:26:33Z</CreatedAt>
+    <UpdatedAt>2026-06-02T16:57:57Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_fix-tui-effective-model-priority" name="fix-tui-effective-model-priority" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="建模与解析器" status="DONE" order="0">
+        <Description>引入 source-aware effective model 数据模型和优先级解析。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义模型来源类型和候选结构" status="DONE" order="0" priority="P0">
+            <Description>在 TUI selection/data 层定义 TuiModelSource、候选值和 effective model 输出，避免 provider/model 继续无来源拍平。</Description>
+          </Task>
+          <Task id="T1.2" name="实现 effective model resolver" status="DONE" order="1" priority="P0">
+            <Description>按 user-explicit、cli-arg、agent-memory、agent-default、runtime-config、recent、provider-default 顺序解析第一个有效候选。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="TUI 状态接线" status="DONE" order="1">
+        <Description>让 graph/local context/model dialog 使用统一的 effective model 投影。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="改造 graph selection projection" status="DONE" order="0" priority="P0">
+            <Description>替换依赖 default selection 的 runtime history 覆盖启发式，改为 source-aware 候选投影。</Description>
+          </Task>
+          <Task id="T2.2" name="改造 local context 模型解析" status="DONE" order="1" priority="P0">
+            <Description>避免 agent 默认同步因为 provider/model-only 变化覆盖人工选择；agent 切换时才重新收集 agent 候选。</Description>
+          </Task>
+          <Task id="T2.3" name="接入模型 dialog 人工选择" status="DONE" order="2" priority="P0">
+            <Description>模型 dialog 选择写入 user-explicit 来源，并立即影响提交链路和状态条。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="显示与验证" status="DONE" order="2">
+        <Description>让状态条显示有效模型，并补齐回归测试。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新 composer 状态条显示" status="DONE" order="0" priority="P0">
+            <Description>input 底部状态条使用 effective model resolver 输出格式化 provider/model。</Description>
+          </Task>
+          <Task id="T3.2" name="补充优先级与投影测试" status="DONE" order="1" priority="P0">
+            <Description>覆盖人工选择优先、启动参数优先于配置、agent-memory 优先于 agent-default、runtime history 不覆盖显式来源。</Description>
+          </Task>
+          <Task id="T3.3" name="运行目标测试" status="DONE" order="2" priority="P1">
+            <Description>运行 TUI graph、local runtime facade 和 slash/model selection 相关测试，确认非 prompt slash 行为不回归。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="VM actor active model 边界" status="DONE" order="3">
+        <Description>让 effective model 通过 cell VM signal 写入每个 actor 的 active model config，而不是作为 terminal turn 参数旁路 runtime。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="新增 actor active model control signal" status="DONE" order="0" priority="P0">
+            <Description>在 actor control mailbox 中增加 set_active_model_config，并提供 cell helper 应用该 control 到 actor.modelConfig。</Description>
+          </Task>
+          <Task id="T4.2" name="改造 terminal bridge 模型切换路径" status="DONE" order="1" priority="P0">
+            <Description>移除 turn({ model }) 旁路，改为 setActorActiveModel 通过 ActorSurface facade 投递 control signal，并根据 actor.modelConfig 刷新 adapter。</Description>
+          </Task>
+          <Task id="T4.3" name="接入 prompt 和 actor send" status="DONE" order="2" priority="P0">
+            <Description>TUI prompt、slash command 和 actor surface send 在发送用户输入前先写入目标 actor 的 active model config。</Description>
+          </Task>
+          <Task id="T4.4" name="补充 cell 与 TUI 测试" status="DONE" order="3" priority="P1">
+            <Description>覆盖 active model control 不吞其他 control，以及 local runtime prompt 会调用 actor active model 写入路径。</Description>
+          </Task>
+          <Task id="T4.5" name="显式模型选择严格解析" status="DONE" order="4" priority="P0">
+            <Description>显式选择 provider/model 时必须解析到配置目录中的已知条目；解析失败时向 TUI 返回 Runtime error，禁止静默 fallback 到旧 actor modelConfig。</Description>
+          </Task>
+          <Task id="T4.6" name="保留 provider/model options" status="DONE" order="5" priority="P0">
+            <Description>将 llm-provider.json 的 provider/model options 写入 ActorModelConfig，并在初始 adapter 创建与 actor active model 切换时传给 ProviderRuntimeAdapter。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

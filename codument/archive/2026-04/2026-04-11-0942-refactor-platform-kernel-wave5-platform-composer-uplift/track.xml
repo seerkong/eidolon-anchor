@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-wave5-platform-composer-uplift" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>将 `@cell/composer` 的根装配器提升为平台 capability composition engine，并把 AI runtime assembly 明确收口为其上的 facet。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T09:18:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T09:42:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-wave5-platform-composer-uplift" name="refactor-platform-kernel-wave5-platform-composer-uplift" version="1">
+    <Description>实施平台微内核 Wave 5 的 platform composer uplift</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Platform Root Contract Freeze" status="DONE" order="0">
+        <Description>冻结 platform-first composer 的 contract 边界。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 platform root assembly contract" status="DONE" order="0" priority="P0">
+            <Description>明确 platform root assembly 的 context/state/result 与 AI facet 的扩展关系。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">platform root contract 与 ai facet contract 的分层明确</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">根装配器不再以 AI facet 作为唯一真相模型</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Composer Engine Uplift" status="DONE" order="1">
+        <Description>调整 `@cell/composer` 的主装配引擎为 platform-first。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="重构 assembleRuntimeProfile 为 platform-first 装配入口" status="DONE" order="0" priority="P0">
+            <Description>让主装配入口先处理 platform assembly，再由 AI facet 完成 domain-specific finalize。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">`assembleRuntimeProfile()` 的根依赖已回到 platform contract</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">AI facet 仍可正确提供 runtime/tooling/catalog/support/slash 资产</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Focused Verification" status="DONE" order="2">
+        <Description>验证 platform-first composer uplift 后 profile 与 shell adoption 不回归。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="运行 composer/profile focused tests" status="DONE" order="0" priority="P0">
+            <Description>验证 platform-only、ai-kernel、ai-coding 的 layering 与 ownership。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">platform-only 不依赖隐式 AI 默认状态</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">ai-kernel / ai-coding layering 仍然成立</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="验证 shell/tui adoption 主路径" status="DONE" order="1" priority="P0">
+            <Description>确认 terminal/tui 继续通过 assembly result 消费 AI facet 资产。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">terminal/tui focused tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">不重新产生第二套 assembly truth</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

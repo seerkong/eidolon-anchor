@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="land-ai-runtime-control-engine" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>cancelled</Status>
+    <Goal>将 AI runtime 的 load/resume/save/effect lifecycle 主流程切换到 ai-runtime-control engine owned mode，并移除旧 shadow/compatibility bypass。</Goal>
+    <Description>基于已完成的 runtime-control engine、composer 和 session-upgrade 能力，真正落地 AI runtime 主流程切换，确保 owned checkpoint 是恢复一致性边界。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-06T06:25:24Z</CreatedAt>
+    <UpdatedAt>2026-06-06T09:42:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_land-ai-runtime-control-engine" name="land-ai-runtime-control-engine" version="1">
+    <Description>落地 AI Runtime Control Engine</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="owned recovery gate tests" status="DONE" order="0">
+        <SubNodes>
+          <Task id="T1.1" name="添加 load/resume owned gate failing tests" status="DONE" order="0" priority="P0">
+            <Description>为已升级 clean session、未升级旧 session、dirty/orphaned session、内部 bypass recovery API 添加测试，先确认当前旧路径缺口。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-clean-owned-load-test" checked="true">测试覆盖 upgraded clean session 可 load/resume</cdt:Criterion>
+              <cdt:Criterion id="AC-old-session-rejected-test" checked="true">测试覆盖未升级旧 session 被要求先升级</cdt:Criterion>
+              <cdt:Criterion id="AC-dirty-session-rejected-test" checked="true">测试覆盖 dirty/orphaned blockers 不被静默恢复</cdt:Criterion>
+              <cdt:Criterion id="AC-internal-bypass-test" checked="true">测试覆盖 lower-level recovery API 不能绕过 owned gate</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="实现生产 load/resume owned gate" status="DONE" order="1" priority="P0">
+            <Description>将 runtime recovery 主入口切到 owned checkpoint gate，读取 upgrade marker、checkpoint marker、real heads 和 effect evidence 后再进入 VM recovery。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-owned-gate-before-repository-load" checked="true">repository.loadSnapshot 前执行 owned gate</cdt:Criterion>
+              <cdt:Criterion id="AC-explicit-upgrade-required-error" checked="true">缺 marker 时返回明确 upgrade-required 错误</cdt:Criterion>
+              <cdt:Criterion id="AC-no-shadow-production-fallback" checked="true">生产恢复路径不再 fallback 到 shadow mode</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="engine-owned checkpoint save" status="DONE" order="1">
+        <SubNodes>
+          <Task id="T2.1" name="添加 checkpoint ownership regression tests" status="DONE" order="0" priority="P0">
+            <Description>用测试确认 checkpoint concrete writes 由 composer/runtime-control engine 驱动，非 safepoint 不提交 authoritative marker。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-support-effect-save-test" checked="true">测试覆盖 concrete writers 作为 support effect 运行</cdt:Criterion>
+              <cdt:Criterion id="AC-non-safepoint-no-commit-test" checked="true">测试覆盖 mandatory work 阻止 checkpoint marker 提交</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="移除 save path shadow/bypass owner" status="DONE" order="1" priority="P0">
+            <Description>删除或封闭 RuntimeSnapshots 中旧 direct writer owner 和 shadow checkpoint production fallback，保留 support effect 实现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-save-mainflow-single-engine-call" checked="true">save 主流程只调用 runtime-control composer checkpoint API</cdt:Criterion>
+              <cdt:Criterion id="AC-concrete-writers-support-only" checked="true">旧 concrete writers 不再决定一致性完成</cdt:Criterion>
+              <cdt:Criterion id="AC-existing-safepoint-tests-pass" checked="true">snapshot safepoint 与 recovery 测试继续通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="同步 checkpoint save owned metadata" status="DONE" order="2" priority="P0">
+            <Description>checkpoint cohort commit 成功后由 runtime-control composer 同步 owned checkpoint metadata，确保 upgrade marker 与当前 checkpoint marker/head sequences 保持一致。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-save-refreshes-owned-marker" checked="true">成功 save 后 runtime-control/upgrade.json 指向当前 checkpoint marker</cdt:Criterion>
+              <cdt:Criterion id="AC-resume-after-post-upgrade-save" checked="true">升级 session 后再次 save 仍可通过生产 owned recovery gate</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="effect lifecycle ownership" status="DONE" order="2">
+        <SubNodes>
+          <Task id="T3.1" name="添加 direct evidence import scan tests" status="DONE" order="0" priority="P0">
+            <Description>添加测试或脚本扫描，防止 executor/coordinator/support 直接 import file-store evidence writer，要求走 runtime-control facade。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-no-direct-evidence-import-test" checked="true">测试扫描禁止非 support/composer owner 直接调用 appendRuntimeControlEffectEvidence</cdt:Criterion>
+              <cdt:Criterion id="AC-lifecycle-regression-tests" checked="true">tool/provider/permission/questionnaire lifecycle 回归测试通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="收敛 effect lifecycle facade" status="DONE" order="1" priority="P0">
+            <Description>按需补充 runtime-level facade，确保 effect request/result/waiting 统一进入 engine，并保留 long-running/permission wait 恢复分类。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-effect-facade-single-entry" checked="true">运行态 effect lifecycle 只有一个正式写入入口</cdt:Criterion>
+              <cdt:Criterion id="AC-waiting-effects-recoverable" checked="true">waiting/pending effects 恢复分类明确</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="projection journal boundary" status="DONE" order="3">
+        <SubNodes>
+          <Task id="T4.1" name="固化 projection/cache recovery tests" status="DONE" order="0" priority="P1">
+            <Description>确认 derived indexes 缺失、过期或损坏时，clean owned checkpoint 仍可恢复并刷新 projection。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-derived-index-cache-test" checked="true">测试覆盖 derived indexes 不作为 durable recovery blocker</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="固化 journal sink boundary tests" status="DONE" order="1" priority="P1">
+            <Description>确认 ingress/diagnostics XNL 作为 journal sink 参与诊断但不受 checkpoint safepoint 管理。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-journal-sink-not-checkpoint-blocker" checked="true">测试覆盖 journal sink 事件数变化不阻止 clean checkpoint recovery</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="historical conformance and migration smoke" status="DONE" order="4">
+        <SubNodes>
+          <Task id="T5.1" name="固化历史 incident conformance cases" status="DONE" order="0" priority="P0">
+            <Description>将 unpaired tool output、duplicate human input、removed handler、multi-head mismatch、late completion、start_tool half-step 等历史问题作为 engine landing conformance tests。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-incident-cases-in-tests" checked="true">历史问题均有 engine landing conformance coverage</cdt:Criterion>
+              <cdt:Criterion id="AC-no-loop-regression" checked="true">重复工具调用类脏 tail 不会恢复成可继续运行状态</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="验证已升级真实 session smoke" status="DONE" order="1" priority="P0">
+            <Description>用已通过 session-upgrade 的真实历史 session 验证 dry-run clean，并通过 runtime load/resume smoke 检查不会立刻停下。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-upgraded-real-session-clean" checked="true">真实 session dry-run classification 为 clean</cdt:Criterion>
+              <cdt:Criterion id="AC-upgraded-real-session-load-smoke" checked="true">真实 session load/resume smoke 不触发 owned gate 错误或立即停止回归</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.3" name="最终替换就绪扫描" status="DONE" order="2" priority="P0">
+            <Description>扫描 RuntimeSnapshots、Executor、Coordinator、TUI/CLI recovery/upgrade 入口，确认无旧 shadow/compatibility owner、无 direct evidence writer、无 bypass recovery。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-no-shadow-owner-left" checked="true">无生产 shadow fallback owner</cdt:Criterion>
+              <cdt:Criterion id="AC-no-direct-evidence-writer-left" checked="true">无非 owner direct evidence writer</cdt:Criterion>
+              <cdt:Criterion id="AC-codument-validate-pass" checked="true">codument validate land-ai-runtime-control-engine --strict 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P6" name="runtime semantic cut and autonomous repro" status="DONE" order="5">
+        <SubNodes>
+          <Task id="T6.1" name="添加 headless 指定 session 恢复执行能力" status="DONE" order="0" priority="P0">
+            <Description>让 eidolon CLI 能指定 session id 加载已有 session 并发送输入，用于自动复现“恢复后请继续”的真实现场，不依赖 TUI 人工操作。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-cli-session-resume-arg" checked="true">CLI exec/run 支持传入 session id 并传递到 runtime bridge</cdt:Criterion>
+              <cdt:Criterion id="AC-cli-session-resume-test" checked="true">单元测试覆盖 session id 参数映射</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.2" name="添加 runtime checkpoint diagnostics" status="DONE" order="1" priority="P0">
+            <Description>在 diagnostics.xnl 记录 checkpoint safepoint/save/skip/drift 事件，用于区分运行中写出问题与恢复读取问题。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-checkpoint-diagnostics-written" checked="true">诊断日志包含 checkpoint start/skip/saved/drift 事件</cdt:Criterion>
+              <cdt:Criterion id="AC-diagnostics-not-authoritative-head" checked="true">新增诊断仍保持 journal sink，不作为 checkpoint blocker</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.3" name="复现 checkpoint 取样后 effect evidence 漂移" status="DONE" order="2" priority="P0">
+            <Description>在 composer/engine 测试中模拟 checkpoint writer 期间 effect evidence 追加，证明旧实现会提交 evidence-ahead-of-snapshot 的 authoritative marker。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-effect-drift-repro-test" checked="true">测试覆盖 writer 窗口追加 effect evidence</cdt:Criterion>
+              <cdt:Criterion id="AC-drift-not-treated-as-session-repair" checked="true">测试场景描述为运行中写出问题，而非历史 session 清理问题</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.4" name="从 runtime-control engine 层用 WAL cursor 定义 checkpoint cut" status="DONE" order="3" priority="P0">
+            <Description>checkpoint prepare 记录 effect WAL logical cursor；writer-window 内追加的 LLM/tool evidence 留作 WAL tail，不纳入本次 checkpoint prefix，也不触发 drift guard。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-drift-is-wal-tail" checked="true">writer 窗口 effect evidence 追加时 checkpoint marker 仍提交，但 effectEvidenceSequence 保持 prepare cursor</cdt:Criterion>
+              <cdt:Criterion id="AC-stable-checkpoint-still-commits" checked="true">无漂移时 checkpoint 正常提交且现有 recovery 测试通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

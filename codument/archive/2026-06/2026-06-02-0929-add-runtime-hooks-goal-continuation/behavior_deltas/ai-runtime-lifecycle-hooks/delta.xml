@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-runtime-lifecycle-hooks">
+  <upsert selector="behavior://ai-runtime-lifecycle-hooks/requirements/lifecycle-hook-contract">
+    <requirement id="lifecycle-hook-contract">
+    <statement>系统 SHALL 定义 AI runtime hook contract，用于通过现有 module extension/manifest 的 `hooks` 字段声明 Sparrow-aligned hook point、mode、matcher、priority、timeout、failure policy、标准组件 handler 与 result action。</statement>
+    <suite id="contract-shape" name="Contract shape">
+      <case id="descriptor-is-data">
+        <given>某个 module 需要扩展 runtime 生命周期</given>
+        <when>它声明 lifecycle hook</when>
+        <then>hook SHALL 写入现有 module extension/manifest 的 `hooks` 字段</then>
+        <then>hook point SHALL be a string using `domain.action.phase` naming such as `actor.idle.before` or `tool.execute.after`</then>
+        <then>hook SHALL 以数据 definition 表达 point、mode、name、extensionId、priority、matcher、timeoutMs、failOpen 与 handler component reference</then>
+        <then>hook descriptor SHALL 能被 composer/runtime assembly 收集</then>
+      </case>
+      <case id="mode-and-action">
+        <given>某个 hook definition 被声明</given>
+        <when>runtime 校验该 hook definition</when>
+        <then>mode SHALL be one of `observe`、`transform`、`decision`、`around`</then>
+        <then>result action SHALL be one of `continue`、`replace`、`deny`、`ask`、`retry`、`stop`</then>
+        <then>系统 SHALL NOT introduce a parallel enum-only lifecycle event model for hook points</then>
+      </case>
+      <case id="result-is-effect-oriented">
+        <given>hook handler 完成决策</given>
+        <when>它返回结果</when>
+        <then>结果 SHALL 使用标准 action、payload/output/message/metadata 与可选 structured effects 表达需要 runtime 应用的副作用</then>
+        <then>hook handler SHALL NOT 直接绕过 actor mailbox 修改其他 actor 的内部状态</then>
+      </case>
+      <case id="diagnostic-report-shape">
+        <given>dispatcher 完成一次 hook dispatch</given>
+        <when>至少一个 hook 被 matched、failed、timed out 或 skipped by reentrancy</when>
+        <then>dispatcher SHALL emit a diagnostic report with event type `hook_dispatch_report`</then>
+        <then>report SHALL include point、trace/session/actor context、final action、elapsed time、steps、payload 与 output</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-lifecycle-hooks/requirements/organ-hook-dispatcher">
+
+    <requirement id="organ-hook-dispatcher">
+    <statement>系统 SHALL 在 `ai-organ-logic` 中提供 hook dispatcher，负责匹配、排序、reentrancy guard、预算、timeout、错误策略、`hook_dispatch_report` diagnostics、标准组件 handler 调用与 result/effect 归一化。</statement>
+    <suite id="dispatch-semantics" name="Dispatch semantics">
+      <case id="matches-and-sorts">
+        <given>runtime assembly 中存在多个 enabled hook descriptors</given>
+        <when>dispatcher 收到某个 lifecycle invocation</when>
+        <then>dispatcher SHALL 只执行 point 与 matcher 匹配的 hooks</then>
+        <then>dispatcher SHALL 按 phase、priority desc、extensionId、name 形成稳定顺序</then>
+      </case>
+      <case id="reentrant-skip">
+        <given>某个 hook 正在同一 point 上执行</given>
+        <when>hook 执行过程中再次触发相同 guard key 的 hook dispatch</when>
+        <then>dispatcher SHALL 跳过 reentrant invocation</then>
+        <then>dispatcher SHALL 记录 reentrant skipped diagnostic</then>
+      </case>
+      <case id="timeout-and-failure-policy">
+        <given>hook 超时或抛错</given>
+        <when>dispatcher 处理失败</when>
+        <then>dispatcher SHALL 记录 failed 或 timed_out diagnostic</then>
+        <then>dispatcher SHALL 根据 hook 的 failOpen 策略决定继续或停止本轮 dispatch</then>
+      </case>
+      <case id="handler-invoked-by-func-style-adapter">
+        <given>dispatcher 准备执行某个 matched hook handler</given>
+        <when>dispatcher 调用该 handler</when>
+        <then>dispatcher SHALL use `depa-processor` `runByFuncStyleAdapter` to execute the hook handler component</then>
+        <then>hook handler SHALL express outer input、derived、inner runtime、inner input、inner config、core logic 与 outer output through the standard component flow</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-lifecycle-hooks/requirements/organ-hook-producer">
+
+    <requirement id="organ-hook-producer">
+    <statement>系统 SHALL 在 `ai-organ-logic` 中生产 lifecycle hook invocation，调用同包 lifecycle hook dispatcher，并在 runtime 串行 mutation 边界应用 hook effects。</statement>
+    <suite id="producer-boundaries" name="Producer boundaries">
+      <case id="interactive-turn-finished-produces-idle-check">
+        <given>interactive turn 完成并清理 runtime active turn 标记</given>
+        <when>runtime 进入可继续调度状态</when>
+        <then>organ runtime SHALL 生产 lifecycle invocation 用于检查 runtime idle</then>
+      </case>
+      <case id="background-watchdog-produces-idle-check">
+        <given>没有前台 turn 正在运行</given>
+        <when>background watchdog tick 发生</when>
+        <then>organ runtime MAY 生产 runtime idle lifecycle invocation</then>
+        <then>watchdog SHALL NOT 直接调用具体 goal continuation 逻辑</then>
+      </case>
+      <case id="effects-apply-through-driver">
+        <given>hook dispatcher 返回 mailbox enqueue 或 resume fiber effect</given>
+        <when>organ runtime 应用 effects</when>
+        <then>effects SHALL 通过 orchestrator driver 和 actor mailbox 机制应用</then>
+        <then>effect application SHALL 发生在 coordinator 串行 enqueue 边界内</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-lifecycle-hooks/requirements/high-frequency-idle-orchestration">
+
+    <requirement id="high-frequency-idle-orchestration">
+    <statement>系统 SHALL 对高频 `actor.idle.before` hook point 使用确定性、受预算约束、可重检状态的编排方式，避免多个 hooks 同时基于过期 idle 状态产生冲突 effects。</statement>
+    <suite id="idle-cycle" name="Idle cycle orchestration">
+      <case id="sequential-with-state-recheck">
+        <given>同一 idle cycle 中有多个 `actor.idle.before` hooks 匹配</given>
+        <when>dispatcher 准备执行下一个 idle hook</when>
+        <then>dispatcher 或 producer SHALL 基于最新 VM/driver state 重建 idle snapshot</then>
+        <then>如果 runtime 已不再 idle，本轮 idle dispatch SHALL 停止</then>
+      </case>
+      <case id="stop-action-stops-current-idle-dispatch">
+        <given>某个 idle hook 返回 `stop` action</given>
+        <when>dispatcher 处理该 hook result</when>
+        <then>dispatcher SHALL stop subsequent hooks in the current `actor.idle.before` dispatch</then>
+        <then>如果 hook 返回 `continue` 或 `replace`，dispatcher SHALL 按标准结果合并规则继续或应用 payload/output/effect</then>
+      </case>
+      <case id="budgeted-idle-cycle">
+        <given>idle hook list 很长或某些 hook 执行较慢</given>
+        <when>本轮 idle dispatch 达到最大 hook 数或总耗时预算</when>
+        <then>dispatcher SHALL 停止本轮 dispatch</then>
+        <then>dispatcher SHALL 发出 budget exhausted diagnostic</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

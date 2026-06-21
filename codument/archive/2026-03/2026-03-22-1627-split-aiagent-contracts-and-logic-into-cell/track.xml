@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="split-aiagent-contracts-and-logic-into-cell" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>按新的 cell 分层将 backend/core 与 backend/organ 中的 AIAgent 契约和逻辑一次性拆分迁移，并将仓库内所有引用切换到 @cell/* 且不保留兼容层</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-03-22T14:43:50Z</CreatedAt>
+    <UpdatedAt>2026-03-22T16:27:42Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_split-aiagent-contracts-and-logic-into-cell" name="split-aiagent-contracts-and-logic-into-cell" version="1">
+    <Description>将 AIAgent 契约与逻辑拆分迁移到 cell 包层</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="迁移清单与分层基线" status="DONE" order="0">
+        <Description>完成逐文件分类、导出面盘点与依赖边界固化，为后续物理迁移建立单一真相源</Description>
+        <SubNodes>
+          <TaskGroup id="T1.1" name="盘点 AIAgent 文件、导出面与引用图" status="DONE" order="0" priority="P0">
+            <Description>收集 backend/core、backend/organ、backend/composer、terminal 与测试中对旧 AIAgent 路径的文件分布、exports 与 import 引用，形成完整迁移输入。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">已有完整的旧路径引用清单，可支持后续一次性改写</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">已识别 core 与 organ 两侧的对外导出面和调用热点</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T1.1.1" name="收集 backend/packages/core/src/modules/AIAgent 文件清单" status="DONE" order="0">
+              </Task>
+              <Task id="T1.1.2" name="收集 backend/packages/organ/src/AIAgent 文件清单" status="DONE" order="1">
+              </Task>
+              <Task id="T1.1.3" name="收集旧 AIAgent 路径在各 workspace 与测试中的引用清单" status="DONE" order="2">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T1.2" name="红：建立分层分类与导出切换约束测试" status="DONE" order="1" priority="P0">
+            <Description>为新分层建立失败测试或校验，锁定 package exports、TS paths 与关键入口导出不再依赖旧路径。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">存在能证明旧路径不可继续作为正式来源的失败校验</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">存在能验证 @cell/* 新导出面覆盖关键使用场景的失败校验</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T1.2.1" name="编写失败测试：新包 exports 与 TS paths 可解析" status="DONE" order="0">
+              </Task>
+              <Task id="T1.2.2" name="编写失败测试：关键调用方不再允许回退旧路径" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T1.3" name="绿：固化逐文件分类表与新包导出骨架" status="DONE" order="2" priority="P0">
+            <Description>按“organ-contract-low -&gt; core-contract -&gt; organ-contract-high -&gt; core-logic -&gt; organ-logic”顺序固化迁移分类，并补齐新包导出入口骨架。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">每个旧文件都有明确迁移目标包或拆分决策</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">cell 相关包导出入口与路径映射具备承接迁移的最小骨架</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T1.3.1" name="建立 core/organ 到 cell 的逐文件分类表" status="DONE" order="0">
+              </Task>
+              <Task id="T1.3.2" name="补齐 @cell/* 包 exports 与 TS path 骨架" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="契约层迁移" status="DONE" order="1">
+        <Description>完成 organ-contract-low、core-contract、organ-contract-high 的契约拆分，并建立稳定依赖方向</Description>
+        <SubNodes>
+          <TaskGroup id="T2.1" name="红：底层契约与核心契约边界测试" status="DONE" order="0" priority="P0">
+            <Description>为 organ-contract-low、core-contract、organ-contract-high 的边界建立失败测试，锁定低层契约不反向依赖 core-contract，且 stream 底层契约下沉规则生效。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">存在失败测试证明 organ-contract-low 不依赖 core-contract</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">存在失败测试证明 stream 底层契约已按规则下沉</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.1.1" name="编写失败测试：organ-contract-low 依赖边界" status="DONE" order="0">
+              </Task>
+              <Task id="T2.1.2" name="编写失败测试：core-contract 与 organ-contract-high 导出契约" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T2.2" name="绿：迁移 organ-contract-low" status="DONE" order="1" priority="P0">
+            <Description>迁移 backend/organ 中不依赖未来 core-contract 的引擎级底层契约，以及从 stream 中抽离出的底层契约抽象。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">organ-contract-low 只包含引擎级底层契约，不引入 core-contract 反向依赖</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">已从旧 stream 体系中抽离并下沉合适的底层契约</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.2.1" name="迁移底层组织/引擎契约到 organ-contract-low" status="DONE" order="0">
+              </Task>
+              <Task id="T2.2.2" name="迁移 stream 底层契约到 organ-contract-low" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T2.3" name="绿：迁移 core-contract" status="DONE" order="2" priority="P0">
+            <Description>将 backend/core AIAgent 中的类型定义、接口、协议常量、核心领域契约迁移到 core-contract，并建立其对 organ-contract-low 的单向依赖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">core-contract 成为 AIAgent 核心底层契约的唯一正式来源</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">core-contract 仅依赖 organ-contract-low，不引入不必要实现依赖</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.3.1" name="迁移类型、接口、协议与核心事件定义到 core-contract" status="DONE" order="0">
+              </Task>
+              <Task id="T2.3.2" name="重建 core-contract 对外 exports" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T2.4" name="绿：迁移 organ-contract-high" status="DONE" order="3" priority="P0">
+            <Description>将 backend/organ 中剔除 organ-contract-low 后的高层组织契约迁移到 organ-contract-high，形成 member/collective/formation/protocol 等高层语义边界。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.4-AC1" checked="true">organ-contract-high 只保留高层组织域契约，不混入运行时实现</cdt:Criterion>
+              <cdt:Criterion id="T2.4-AC2" checked="true">organ-contract-high 与 core-contract、organ-contract-low 的依赖方向清晰且无循环</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.4.1" name="迁移高层组织契约到 organ-contract-high" status="DONE" order="0">
+              </Task>
+              <Task id="T2.4.2" name="重建 organ-contract-high 对外 exports" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="逻辑层迁移" status="DONE" order="2">
+        <Description>完成 core-logic 与 organ-logic 的实现迁移，并让逻辑层只依赖新的契约层</Description>
+        <SubNodes>
+          <TaskGroup id="T3.1" name="红：逻辑层依赖与关键行为回归测试" status="DONE" order="0" priority="P0">
+            <Description>为 core-logic 与 organ-logic 的关键行为建立失败测试，锁定逻辑层改为依赖新契约包后仍满足现有行为。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">存在失败测试覆盖 runtime、stream、protocol、organization 等关键行为</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">存在失败测试锁定逻辑层不得继续依赖旧正式来源</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T3.1.1" name="编写失败测试：core-logic 关键入口与行为" status="DONE" order="0">
+              </Task>
+              <Task id="T3.1.2" name="编写失败测试：organ-logic 关键入口与行为" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T3.2" name="绿：迁移 core-logic" status="DONE" order="1" priority="P0">
+            <Description>将 backend/core AIAgent 中的 runtime、config loader、registry、stream 实现等行为逻辑迁移到 core-logic，并改写其依赖到新的 contract 层。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">core-logic 承接 backend/core AIAgent 的行为实现且不再依赖旧正式来源</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">core-logic 只依赖需要的 contract 层与必要外部库</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T3.2.1" name="迁移 runtime 与 registry 实现到 core-logic" status="DONE" order="0">
+              </Task>
+              <Task id="T3.2.2" name="迁移 config、plan 与 stream 相关实现到 core-logic" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T3.3" name="绿：迁移 organ-logic" status="DONE" order="2" priority="P0">
+            <Description>将 backend/organ AIAgent 中拆分契约后的剩余逻辑迁移到 organ-logic，包括 orchestrator、organization、llm、mcp、compression、persistence、executor 等实现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.3-AC1" checked="true">organ-logic 承接 backend/organ AIAgent 的剩余行为实现</cdt:Criterion>
+              <cdt:Criterion id="T3.3-AC2" checked="true">organ-logic 的 imports 已切换到 @cell/* 契约层与逻辑层</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T3.3.1" name="迁移 organization、protocol、executor、lane 逻辑到 organ-logic" status="DONE" order="0">
+              </Task>
+              <Task id="T3.3.2" name="迁移 llm、mcp、stream、compression、persistence 逻辑到 organ-logic" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="全仓切换与旧路径收口" status="DONE" order="3">
+        <Description>将所有调用方切换到 @cell/*，移除旧正式来源，并恢复仓库的一致导入结构</Description>
+        <SubNodes>
+          <TaskGroup id="T4.1" name="红：全仓 import 切换与导出完整性测试" status="DONE" order="0" priority="P0">
+            <Description>建立失败测试或校验，证明 backend/composer、terminal、测试代码和其他调用方必须通过 @cell/* 消费迁移后的 AIAgent 能力。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">存在失败测试或校验证明旧路径仍被引用时会失败</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">存在失败测试或校验证明关键调用方通过 @cell/* 可正确解析</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T4.1.1" name="编写失败校验：仓库内旧 AIAgent imports 清零" status="DONE" order="0">
+              </Task>
+              <Task id="T4.1.2" name="编写失败校验：关键 workspace 对 @cell/* 导出可解析" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T4.2" name="绿：改写所有调用方 imports 与 package 依赖" status="DONE" order="1" priority="P0">
+            <Description>全量改写 backend/composer、terminal、tests 及其他直接调用方的 imports、package 依赖、TS path 与 exports，使 @cell/* 成为唯一正式来源。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">仓库内相关调用方 imports 已切换到 @cell/*</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">相关 workspace package.json、tsconfig 与 exports 已同步更新</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T4.2.1" name="改写 backend/packages/composer 对 AIAgent 的 imports" status="DONE" order="0">
+              </Task>
+              <Task id="T4.2.2" name="改写 terminal packages 对 AIAgent 的 imports" status="DONE" order="1">
+              </Task>
+              <Task id="T4.2.3" name="改写 organ/core 测试与其他直接调用方 imports" status="DONE" order="2">
+              </Task>
+              <Task id="T4.2.4" name="更新相关 package 依赖与 tsconfig path 映射" status="DONE" order="3">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T4.3" name="绿：收口旧目录的正式来源角色" status="DONE" order="2" priority="P1">
+            <Description>移除或清空旧 AIAgent 目录中作为正式来源的实现与导出入口，确保仓库不再通过旧路径消费迁移后能力。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">旧 AIAgent 路径不再作为正式导出源存在</cdt:Criterion>
+              <cdt:Criterion id="T4.3-AC2" checked="true">未新增兼容层、re-export 层或双轨来源</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T4.3.1" name="清理旧 core/organ AIAgent 导出入口" status="DONE" order="0">
+              </Task>
+              <Task id="T4.3.2" name="删除或重组旧路径中已迁移实现" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="验证与交付" status="DONE" order="4">
+        <Description>通过测试、类型检查与仓库级验证确认迁移完成，并准备交付</Description>
+        <SubNodes>
+          <TaskGroup id="T5.1" name="运行自动化测试与类型检查" status="DONE" order="0" priority="P0">
+            <Description>按工作流运行受影响 workspace 的测试、类型检查与必要构建，验证本次迁移未因导入、导出或边界错误而破坏行为。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">受影响测试通过</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">类型检查或等效静态校验通过</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T5.1.1" name="运行 core/organ/composer 相关测试" status="DONE" order="0">
+              </Task>
+              <Task id="T5.1.2" name="运行 terminal 相关测试与校验" status="DONE" order="1">
+              </Task>
+              <Task id="T5.1.3" name="运行类型检查或等效导入解析校验" status="DONE" order="2">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T5.2" name="修复验证问题并完成收尾文档" status="DONE" order="1" priority="P0">
+            <Description>根据测试和类型检查结果修复收尾问题，更新 track 文档中的实现说明和最终状态。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.2-AC1" checked="true">验证发现的问题已修复或被明确记录</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC2" checked="true">track 文档与计划状态能够反映最终交付结果</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T5.2.1" name="修复测试或静态校验失败项" status="DONE" order="0">
+              </Task>
+              <Task id="T5.2.2" name="更新 plan.xml 与分析文档中的最终状态" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:HumanConfirm/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

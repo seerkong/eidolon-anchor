@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="harden-runtime-session-robustness" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>真实 session 调试副产物的三项健壮性改进（风险升序）：(a) 恢复时校验持久化模型、失效回退默认 preset；(c) orchestration journal O(1) append + 体积轮转 + idle 噪声过滤；(b) 超时/mandatory_continuation 的 turn 落盘已完成进度使续跑接力。不修单轮内 repeat-read（独立后续）。</Goal>
+    <Description>来源：headless exec 续跑不收口调试。主 bug=单轮内 repeat-read（独立排查）；本 track 做 3 项小改进。scoping audit 钉死 seam。(b) MEDIUM：minimal-first，恢复门一致性过大则拆出标 partial。守住「不快照不安全工具执行中」不变量、不破坏 observability 契约。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-20T22:30:00Z</CreatedAt>
+    <UpdatedAt>2026-06-20T22:30:00Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input"  name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior"        domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_harden-runtime-session-robustness" name="harden-runtime-session-robustness" version="1">
+    <Description>会话健壮性加固：(a) 恢复模型校验回退 + (c) journal hygiene + (b) 超时落盘进度。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="Recovery Model-Config Validation + Default Fallback" status="DONE" order="0">
+        <Description>恢复时若持久化 model/provider 在当前配置不可解析则回退默认 preset；可解析则保留。新增 isPersistedModelStillResolvable 谓词；扩 TerminalRuntime runTurn/compact 守卫。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests: stale persisted model falls back to default; valid preserved" status="DONE" order="0" priority="P0">
+            <Description>红：持久化 model/provider 不在当前配置→解析默认 preset；有效持久化 model→保留不覆盖；provider 在但 model 删→回退（绕开 flattenModelConfig 合成陷阱）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">模型校验/回退测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Add isPersistedModelStillResolvable + widen guards" status="DONE" order="1" priority="P0">
+            <Description>新增谓词（查 providers+presets，provider 存在且 model 在其下）；TerminalRuntime:1100/1341 守卫扩为「空或不可解析→resolveConfiguredActorModelConfig（已回退默认）」。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">T1.1 全绿；失效回退默认、有效保留，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Observability Journal Hygiene (O(1) append + rotation)" status="DONE" order="1">
+        <Description>LocalFileOrchestrationHistoryEffects：内存序号计数器替换 per-append 全量解析（O(n²)→O(1)）；体积轮转（默认 64MB/留 4 段）+ idle no-op hook_dispatch_report 丢弃/采样。不破坏 observability 契约。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add failing tests: append is O(1) (no full-file reparse) + journal bounded" status="DONE" order="0" priority="P0">
+            <Description>红：append 不全量读解析整个文件取序号；达上限触发轮转、保留近 N 段、不无界增长；idle no-op 可丢弃；有意义事件仍记录。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">O(1) append + 轮转测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="In-memory sequence counter + size rotation + idle-noise filter" status="DONE" order="1" priority="P0">
+            <Description>序号改内存计数器（惰性初始化一次）；加体积轮转 + idle no-op 过滤；T2.1 全绿；既有失败基线不增。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">T2.1 全绿；append O(1)、journal 有界、契约不破，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Persist Completed Progress On Timed-Out Turn" status="DONE" order="2">
+        <Description>超时/mandatory_continuation 分支调 flushConversationRuntimeToPersistence seal 已完成对（不动 VM/ToolCallDomain in-flight）；恢复门容忍 conversation 领先 snapshot。minimal-first；恢复门若过大则拆出标 partial（决策 2）。不治单轮 repeat-read。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add failing tests: timeout seals completed progress; continuation resumes not restarts" status="DONE" order="0" priority="P0">
+            <Description>红：mandatory_continuation 超时后已完成对被 seal 进 history；后续 continuation 恢复含已完成进度（接力非重启）；不快照 in-flight；恢复容忍 conversation 领先 snapshot 不损坏。落点 packages/ai-organ-logic/tests/AIAgent/runtime/timed_out_turn_progress.test.ts（2 例，先红）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">超时落盘+续跑接力测试以失败状态就位（2 例先红：seal 缺失 / 恢复回到光秃 turn-1）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Flush completed pairs on timeout — MECHANISM done + unit-tested; live production wiring DEFERRED to the gate-relay follow-up" status="DONE" order="1" priority="P0">
+            <Description>PARTIAL（决策 2 / Step 0 实证 = LARGE）：seal **机制**（sealCompletedConversationProgress + coordinator 可选 sealCompletedProgress 回调 + 超时分支调用，不动 VM/ToolCallDomain in-flight）已落地，经 case 1 **直接注入**单测证明。**生产启用（live wiring）DEFERRED**：复审证明在 recovery-gate forward-only relay 之前接入生产 coordinator 会让 settled-then-timeout 会话恢复回归——seal 推进 conversation 头超过 checkpoint，门把 head_commit_sequence_mismatch 判 dirty 并 throw，recoverOrCreateShellRuntime 无 fallback 硬失败。故移除生产绑定（ShellRuntimeBootstrap/TerminalRuntime），coordinator 默认 no-op（生产不 seal）；live 启用与 gate relay **打包进同一 follow-up 一起上**。gate-gap + 撤回证据已在 findings.md P3 记录并以测试 pin（case 2 注入路径）+ NO-REGRESSION（case 3 生产路径）守护。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">PARTIAL：seal 机制全绿且经直接注入单测证明（case 1：已完成对超时 seal 落盘、in-flight 不动）；**生产 wiring DEFERRED** 折叠进 gate forward-only relay 的同一 follow-up（一起上）——coordinator 默认 no-op，生产不做超时 seal，NO-REGRESSION case 3 断言 settled-then-timeout 会话不被 P3 判 dirty/不可恢复；cell/organ 基线 0 net-new（14/14 按名一致）；gate-gap（recoveryScanner head_commit_sequence_mismatch→dirty + AI_RUNTIME_REAL_SESSION_HEADS.conversation.requiredForCheckpoint）+ 撤回理由记于 findings.md P3</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="Closure" status="DONE" order="3">
+        <Description>全量回归（cell + terminal 按名比对基线，0 新增失败）；spec capability 覆盖核对；findings.md 写最终基线。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Final sweep and full regression" status="DONE" order="0" priority="P0">
+            <Description>cell + terminal 全套回归，按名比对基线确认 0 新增失败；runtime-session-robustness 全部 case 有可执行覆盖（(b) 标 partial：mechanism+no-regression 已交付，relay 边界 deferred 已在 delta.xml 标 deferred-followup 并在 findings.md 记录）；findings.md 追加实施结果与最终基线。GapLoop=NO_GAP，AttractorCheck=PASS。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">cell 1076p/14f、organ 136p/14f 均与基线按名一致（0 net-new）；spec 6 case 全有可执行覆盖（continuation-resumes-not-restarts 诚实 deferred，delta.xml 已标注 + findings.md 记录边界）；findings.md 已更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+</Track>

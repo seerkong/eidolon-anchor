@@ -101,7 +101,7 @@ describe("DetachedActorStatus tool", () => {
     await driver.tickUntilForegroundSettled({ now, maxTicks: 50, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const toolMsg = messages.find((m) => m?.role === "tool" && m?.tool_call_id === "tc-detached-2");
+    const toolMsg = main.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-detached-2");
     expect(toolMsg).toBeTruthy();
     const started = JSON.parse(String((toolMsg as any)?.content ?? ""));
     expect(typeof started?.task_id).toBe("string");
@@ -227,7 +227,7 @@ describe("DetachedActorStatus tool", () => {
     await driver.tickUntilForegroundSettled({ now, maxTicks: 50, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const toolMsg = messages.find((m) => m?.role === "tool" && m?.tool_call_id === "tc-detached-3");
+    const toolMsg = main.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-detached-3");
     expect(toolMsg).toBeTruthy();
     const started = JSON.parse(String((toolMsg as any)?.content ?? ""));
     expect(typeof started?.task_id).toBe("string");

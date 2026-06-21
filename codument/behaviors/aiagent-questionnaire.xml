@@ -1,0 +1,211 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="aiagent-questionnaire" version="1">
+  <!-- unmapped: # AIAgent Questionnaire 能力规范 -->
+  <!-- unmapped: ## 概述 -->
+  <!-- unmapped: 本能力规范定义 AIAgent 中以 `Questionnaire` 工具替代旧 Confirm 机制后的当前真相，包括结构化问卷请求/回答事件、终端展示、回答解析以及等待策略。 -->
+  <requirement id="questionnaire-confirm">
+    <statement>系统 MUST 使用 `QuestionnaireRequest` 与 `QuestionnaireResult` 事件替代 `ConfirmRequest` 与 `ConfirmResult`。</statement>
+    <!-- migrated title: Questionnaire 事件替代 Confirm 事件 -->
+    <suite name="questionnaire-confirm">
+      <case id="ai" name="AI 发起问卷请求并进入等待">
+        <given>AIAgent 在一次工具调用链路中需要用户输入</given>
+        <when>AI 发起 `Questionnaire` 工具调用</when>
+        <then>事件流中产生 `QuestionnaireRequest`（结构化）</then>
+        <then>执行器停止原因为 `questionnaire_wait`</then>
+      </case>
+      <case id="case-2" name="用户回答后继续执行">
+        <given>系统处于 `questionnaire_wait`</given>
+        <when>用户用文本回答问卷</when>
+        <then>系统产生 `QuestionnaireResult`（结构化答案）</then>
+        <then>AIAgent 获得结构化答案并继续下一轮执行</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="questionnairerequest-schema">
+    <statement>系统 MUST 定义结构化 `QuestionnaireRequest`，至少包含：
+- `questionnaireId`
+- `toolCallId`
+- `kind`
+- `title` / `intro`
+- `questions[]`
+- `suspendPolicy`</statement>
+    <!-- migrated title: QuestionnaireRequest 为可扩展的结构化 schema -->
+    <suite name="questionnairerequest-schema">
+      <case id="case-3" name="结构化表单问卷">
+        <given>AI 需要用户填写多题表单</given>
+        <when>AI 发出 `QuestionnaireRequest(kind=form)`</when>
+        <then>请求包含多个 `questions`</then>
+        <then>每个问题都有 `id`、`prompt`、`type`</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="questionnaireresult">
+    <statement>系统 MUST 定义结构化 `QuestionnaireResult`，至少包含：
+- `questionnaireId`
+- `toolCallId`
+- `rawText`
+- `answers`
+- `status`
+- `errors`</statement>
+    <!-- migrated title: QuestionnaireResult 为结构化答案且保留原始文本 -->
+    <suite name="questionnaireresult">
+      <case id="case-4" name="结构化答案可用于后续决策">
+        <given>用户已回答问卷</given>
+        <when>产生 `QuestionnaireResult(status=ok)`</when>
+        <then>AIAgent 可直接使用 `answers` 做后续决策</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="requirement-4">
+    <statement>系统 MUST 提供 `parseQuestionnaireAnswer()`，通过一次 LLM 调用，将 `QuestionnaireRequest` 与用户文本回答解析为 `QuestionnaireResult` 所需的结构化答案。</statement>
+    <!-- migrated title: 解析用户回答为结构化答案 -->
+    <suite name="requirement-4">
+      <case id="case-5" name="解析成功">
+        <given>一个 `QuestionnaireRequest` 与用户文本回答</given>
+        <when>调用 `parseQuestionnaireAnswer()`</when>
+        <then>返回 `status=ok`</then>
+        <then>给出完整 `answers`</then>
+      </case>
+      <case id="case-6" name="解析失败后触发再次问卷">
+        <given>用户回答不完整或无法解析</given>
+        <when>`parseQuestionnaireAnswer()` 返回 `status=invalid`</when>
+        <then>系统产生新的 `QuestionnaireRequest(kind=clarification)`</then>
+        <then>原始文本与失败原因可被追踪</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="protocol-aligned-multi-question-questionnaire-presentation">
+    <statement>系统应当（SHALL）让问卷的文本协议对齐 `codument/std/protocols.md` 中的 `ask-multi-question-free`，在多题场景下使用稳定的 `Q1` / `Q2` / `Q3` 题号与 `A` / `B` / `C`... 选项编号。</statement>
+    <!-- migrated title: Protocol-Aligned Multi-Question Questionnaire Presentation -->
+    <suite name="protocol-aligned-multi-question-questionnaire-presentation">
+      <case id="render-recommendation-intake-as-numbered-multi-question-form" name="Render recommendation intake as numbered multi-question form">
+        <given>agent 需要一次性向用户确认多个关键条件</given>
+        <when>系统生成并展示 questionnaire</when>
+        <then>每个问题都带有 `Q1` / `Q2` / `Q3` 题号</then>
+        <then>每个候选答案都带有顺序字母编号</then>
+        <then>文本协议遵循 `ask-multi-question-free`</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="always-preserve-a-free-text-option-as-the-last-choice">
+    <statement>系统应当（SHALL）在带候选选项的问题中始终保留最后一个可自由填写的选项，并为它分配顺序中的最后一个字母编号。</statement>
+    <!-- migrated title: Always Preserve A Free-Text Option As The Last Choice -->
+    <suite name="always-preserve-a-free-text-option-as-the-last-choice">
+      <case id="keep-a-protocol-visible-free-text-branch-for-text-view-answering" name="Keep a protocol-visible free-text branch for text view answering">
+        <given>一个问题存在 `A` / `B` / `C` 等候选选项</given>
+        <when>系统为 text view 或 TUI 渲染该问题</when>
+        <then>最后一个选项保留给用户自由填写</then>
+        <then>该自由填写选项拥有和其他选项相同的顺序字母编号</then>
+        <then>用户可以用该字母后接文本内容作答</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="textual-questionnaire-answers-support-question-labels-and-option-letters">
+    <statement>系统应当（SHALL）接受按题号与选项字母作答的自由文本格式，而不要求用户必须逐题点击 UI。</statement>
+    <!-- migrated title: Textual Questionnaire Answers Support Question Labels And Option Letters -->
+    <suite name="textual-questionnaire-answers-support-question-labels-and-option-letters">
+      <case id="parse-compact-coded-answers-across-multiple-questions" name="Parse compact coded answers across multiple questions">
+        <given>问卷使用 `Q1` / `Q2` / `Q3` 与字母编号展示</given>
+        <when>用户输入 `q1: a ; q2: b`</when>
+        <then>系统正确识别题号与选项字母</then>
+        <then>产生结构化 `answers`</then>
+      </case>
+      <case id="parse-free-text-answers-from-the-last-option-label" name="Parse free-text answers from the last option label">
+        <given>某题的最后一个选项保留给自由填写</given>
+        <when>用户输入 `q3: D balabala`</when>
+        <then>系统将 `D` 识别为自由填写分支</then>
+        <then>将 `balabala` 作为该题的文本答案保留下来</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="data-graph-questionnaire">
+    <statement>系统 MUST 在底层通用 data graph 中将"提出问卷/回答问卷"建模为两类结构化事件：`QuestionnaireRequest` 与 `QuestionnaireResult`。</statement>
+    <!-- migrated title: 底层 data graph 使用结构化 Questionnaire 事件类别 -->
+    <suite name="data-graph-questionnaire">
+      <case id="case-11" name="历史记录包含问卷请求与结果">
+        <given>系统产生问卷请求与结果事件</given>
+        <when>写入消息历史</when>
+        <then>历史中存在可回放的结构化记录</then>
+        <then>记录包含 request 与 result 的 payload</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="tui-projection">
+    <statement>系统 MUST 通过正式的 semantic terminal projection surface 将 `QuestionnaireRequest` 的结构化数据转换为适于终端展示的格式化文本；当前 TUI 路径由 `terminal/packages/organ/src/stream/TuiProjectionGraph.ts` 消费 `semantic_questionnaire_request` 并生成可见文本。对于多题问卷，该文本格式必须对齐 `ask-multi-question-free` 协议，并保留题号、选项编号和自由填写选项。</statement>
+    <!-- migrated title: TUI 终端 projection 将问卷结构化数据格式化为文本 -->
+    <suite name="tui-projection">
+      <case id="case-12" name="终端可读问卷文本">
+        <given>一个包含多题的 `QuestionnaireRequest`</given>
+        <when>TUI 消费该事件</when>
+        <then>输出包含标题、说明、`Q1/Q2/...` 题号与 `A/B/C/...` 选项提示</then>
+        <then>对于可自由填写的问题，最后一个选项为可填写分支</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="shell">
+    <statement>系统 MUST 在终端 shell 中显式展示问卷文本，并收集用户以文本形式的回答。对于多题问卷，系统必须接受以题号和选项字母组合的文本格式作答。</statement>
+    <!-- migrated title: Shell 以文本形式展示问卷并收集用户回复 -->
+    <suite name="shell">
+      <case id="case-13" name="用户以协议化文本回答多题">
+        <given>TUI 已展示符合协议的多题问卷文本</given>
+        <when>用户输入 `Q1: A ; Q2: B` 或 `Q3: D balabala`</when>
+        <then>系统将该文本交给问卷解析器</then>
+        <then>解析器按题号、选项字母和自由填写分支得到结构化答案</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="questionnaire-projection-preserves-full-question-structure">
+    <statement>系统应当（SHALL）在 semantic、history、runtime client 与 TUI projection 链路中保留完整的 `questions[]` 结构，而不是把问卷压扁成首题或单个 `text` 占位。</statement>
+    <!-- migrated title: Questionnaire Projection Preserves Full Question Structure -->
+    <suite name="questionnaire-projection-preserves-full-question-structure">
+      <case id="multi-question-questionnaire-survives-semantic-and-history-projection" name="Multi-question questionnaire survives semantic and history projection">
+        <given>runtime 发出包含多个问题的 `QuestionnaireRequest`</given>
+        <when>该请求经过 semantic projection、message history projection 与 TUI runtime client</when>
+        <then>完整的题目数量、题号顺序、类型与选项都被保留</then>
+        <then>TUI 不会退化为单题 `q1`</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="recommendation-intake-uses-domain-aware-structured-questionnaires">
+    <statement>系统应当（SHALL）让推荐类场景优先生成领域化的结构化 intake 问卷，而不是默认退化成单个自由文本问题。</statement>
+    <!-- migrated title: Recommendation Intake Uses Domain-Aware Structured Questionnaires -->
+    <suite name="recommendation-intake-uses-domain-aware-structured-questionnaires">
+      <case id="travel-recommendation-starts-with-a-structured-intake-round" name="Travel recommendation starts with a structured intake round">
+        <given>用户请求旅行推荐或类似的行程规划建议</given>
+        <when>agent 决定先发起 questionnaire</when>
+        <then>系统优先生成 2-4 个高信息量问题的结构化 intake</then>
+        <then>问题优先使用 `single_select` / `multi_select` / `number` / `text` 的合理组合</then>
+        <then>不退化为单个"请描述你的需求"的自由文本问题，除非用户意图本身极度模糊</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="requirement-13">
+    <statement>系统 MUST 支持 `pause_all` 与 `continue_others` 两种控制策略，并由每个 `QuestionnaireRequest` 通过 `suspendPolicy` 指定。</statement>
+    <!-- migrated title: 等待策略可按请求配置 -->
+    <suite name="requirement-13">
+      <case id="pause-all-actor" name="pause_all 暂停所有 actor">
+        <given>主 actor 与多个 sub actor 同时存在可推进任务</given>
+        <when>任意 actor 发出 `QuestionnaireRequest(suspendPolicy=pause_all)` 并进入等待</when>
+        <then>调度层不再推进其他 actor</then>
+        <then>用户反馈后，所有挂起链路恢复推进</then>
+      </case>
+      <case id="continue-others-actor" name="continue_others 允许其他 actor 继续">
+        <given>主 actor 与多个 sub actor 同时存在可推进任务</given>
+        <when>任意 actor 发出 `QuestionnaireRequest(suspendPolicy=continue_others)` 并进入等待</when>
+        <then>其他 actor 仍可继续被推进</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="confirm">
+    <statement>系统 SHALL 不再产生 `ConfirmRequest` / `ConfirmResult` 事件，也 SHALL 不再使用 `confirm_wait` 停止原因。</statement>
+    <!-- migrated title: Confirm 机制已被移除 -->
+    <suite name="confirm">
+      <case id="confirm" name="不再发出 Confirm 事件">
+        <given>工具调用链路需要用户输入</given>
+        <when>系统发出问卷</when>
+        <then>事件为 `QuestionnaireRequest` / `QuestionnaireResult`</then>
+        <then>不出现 `ConfirmRequest` / `ConfirmResult`</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

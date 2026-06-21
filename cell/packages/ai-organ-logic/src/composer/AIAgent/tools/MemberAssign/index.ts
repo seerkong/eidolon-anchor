@@ -17,7 +17,7 @@ export function buildMemberAssignToolDef(): ToolDef<MemberAssignOuterInput, Memb
       type: "function" as const,
       function: {
         name: "MemberAssign",
-        description: "Assign work to a member actor.",
+        description: "Assign work to a persistent member actor by member id or member name. Members are durable team/session actors; subagent is a delegate alias, not a member alias.",
         parameters: {
           type: "object",
           properties: {

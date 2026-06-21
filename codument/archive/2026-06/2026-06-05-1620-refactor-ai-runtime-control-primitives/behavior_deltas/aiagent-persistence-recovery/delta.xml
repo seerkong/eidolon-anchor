@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-persistence-recovery">
+  <upsert selector="behavior://aiagent-persistence-recovery/requirements/runtime-control-safepoint-source">
+    <requirement id="runtime-control-safepoint-source">
+    <statement>系统 SHALL source snapshot safepoint decisions from the AI runtime control layer rather than from the persistence writer.</statement>
+    <suite id="snapshot-save" name="Snapshot Save">
+      <case id="persistence-consumes-barrier">
+        <given>The snapshot writer is asked to save runtime state</given>
+        <when>It checks whether the runtime is at a safepoint</when>
+        <then>The writer SHALL call the AI runtime control layer for the barrier result</then>
+        <then>The writer SHALL only persist or skip according to that result</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

@@ -12,7 +12,8 @@ export type RunDelegateActor = (input: RunDelegateActorOuterInput) => RunDelegat
 </?>
 
 <warning ?>
-此工具用于创建有明确边界的 delegate actor，执行高价值的并行子任务，而非模糊的委派。
+此工具用于创建有明确边界的临时 delegate actor，执行高价值的并行子任务，而非模糊的委派。
+在 AI agent 领域语境中，subagent 是 delegate 的别名；当用户要求使用 subagent 或子代理时，应使用 RunDelegateActor，而不是创建 member。
 
 输入质量规则：
 - `description` 必须简短且面向结果。

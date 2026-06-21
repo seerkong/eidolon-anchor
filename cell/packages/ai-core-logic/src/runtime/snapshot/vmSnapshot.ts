@@ -1,5 +1,9 @@
 import { createRecoveryHooks, createSnapshotCodec } from "depa-actor";
 
+import {
+  hydrateDurableControlSignalStoreFromSnapshot,
+  serializeDurableControlSignalStoreForSnapshot,
+} from "../DurableControlSignals";
 import { createVM, ensureVmRuntimeContext, getAiRuntimeFacet, type AiAgentVm, type CreateVMParams } from "../runtime";
 import type { AiAgentActor } from "../actor";
 import {
@@ -23,11 +27,7 @@ const VM_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentVm, RuntimeSnapshotVm>({
       sessionState: {
         holons: Object.values(sessionState.holons).map((record) => ({ ...record, memberIds: [...record.memberIds] })),
         detachedActors: Object.values(sessionState.detachedActors).map((record) => ({ ...record })),
-        controlSignals: {
-          events: sessionState.controlSignals.events.map((event) => ({ ...event })),
-          idempotencyIndex: { ...sessionState.controlSignals.idempotencyIndex },
-          consumedEventIds: { ...sessionState.controlSignals.consumedEventIds },
-        },
+        controlSignals: serializeDurableControlSignalStoreForSnapshot(sessionState.controlSignals),
         threadGoal: sessionState.threadGoal ? { ...sessionState.threadGoal } : null,
         heartbeatSchedules: Object.values(ensureVmRuntimeContext(vm).heartbeatScheduler?.schedules ?? {}).map((record) => ({
           ...record,
@@ -42,6 +42,14 @@ const VM_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentVm, RuntimeSnapshotVm>({
       updatedAt: nowIso,
       options: { ...vm.options },
       recovery: vm.recovery,
+      // P4: persist the ToolCallDomain records. Read duck-typed — the concrete
+      // runtime lives in ai-organ-logic (which depends on this package), so we
+      // cannot import it here; the records are plain serializable data.
+      toolCallDomain: (() => {
+        const domain = ensureVmRuntimeContext(vm).toolCallDomain as { getAllRecords?: () => unknown[] } | null;
+        const records = typeof domain?.getAllRecords === "function" ? domain.getAllRecords() : [];
+        return records.map((record) => ({ ...(record as Record<string, unknown>) })) as RuntimeSnapshotVm["toolCallDomain"];
+      })(),
     };
   },
   hydrate: (snapshot) => hydrateVMFromSnapshot(snapshot, {}),
@@ -78,11 +86,7 @@ function hydrateVMFromSnapshot(
       (snapshot.sessionState?.detachedActors ?? []).map((record) => [record.taskId, { ...record }]),
     ),
     controlSignals: snapshot.sessionState?.controlSignals
-      ? {
-          events: snapshot.sessionState.controlSignals.events.map((event) => ({ ...event })),
-          idempotencyIndex: { ...snapshot.sessionState.controlSignals.idempotencyIndex },
-          consumedEventIds: { ...snapshot.sessionState.controlSignals.consumedEventIds },
-        }
+      ? hydrateDurableControlSignalStoreFromSnapshot(snapshot.sessionState.controlSignals)
       : undefined,
     threadGoal: snapshot.sessionState?.threadGoal ? { ...snapshot.sessionState.threadGoal } : null,
   };

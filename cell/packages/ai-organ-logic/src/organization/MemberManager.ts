@@ -371,11 +371,10 @@ export class MemberManager {
     if (!actor || !driver) {
       return;
     }
-    const mailboxKind = getCoordinationEngine().parseEnvelopeText(payload.text) ? "coordination" : "memberInbox";
+    const mailboxKind = getCoordinationEngine().parseEnvelopeText(payload.text) ? "memberCoordination" : "memberChatInbox";
     driver.emitFiberSignal({
       fiberId: rec.fiberId,
       signalKind: "mailbox_enqueue",
-      signalClass: runtime.interactiveTurnActive === true ? "ordinary" : "wake",
       mailbox: { kind: mailboxKind as any, payload: payload as any },
       idempotencyKey: `${rec.fiberId}:${mailboxKind}:${payload.ts}:${payload.from}`,
       createdAt: payload.ts,

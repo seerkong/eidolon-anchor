@@ -1,31 +1,5 @@
 import type { RuntimeLogFn } from "./Logging";
 
-export type MessageHistoryAppendEvent = {
-  stream: string;
-  payload: string;
-  startAt?: number;
-  endAt?: number;
-  agentKey: string;
-  agentActorId: string;
-  persistConversationHistory?: boolean;
-  actorType?: string;
-  agentName?: string;
-  memberName?: string;
-};
-
-export type MessageHistoryBackupParams = {
-  agentKey: string;
-  agentActorId: string;
-  actorType?: string;
-  agentName?: string;
-  memberName?: string;
-};
-
-export type MessageHistoryEffects = {
-  appendMessage: (event: MessageHistoryAppendEvent) => void;
-  backupHistory?: (params: MessageHistoryBackupParams) => Promise<void>;
-};
-
 export type OrchestrationHistoryAppendEvent = {
   stream: string;
   kind: string;

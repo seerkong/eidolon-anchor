@@ -1,7 +1,7 @@
 import {
-  configureTerminalRuntime,
-  disposeTuiRuntimeBridge,
-  getTuiRuntimeBridge,
+  configureSessionRuntime,
+  disposeSessionRuntimeBridge,
+  getSessionRuntimeBridge,
 } from "@terminal/organ/AIAgent/TerminalRuntime"
 import { makeSessionKey } from "@terminal/core/AIAgent"
 import type { TuiControl } from "@terminal/core/AIAgent/TuiStreamEvents"
@@ -15,6 +15,7 @@ export type HeadlessTurnOptions = {
   timeoutSeconds?: number
   debug?: boolean
   mcp?: boolean
+  storage?: { logs?: boolean; files?: boolean }
   onChunk?: (chunk: string) => void | Promise<void>
 }
 
@@ -40,17 +41,19 @@ function resolveHeadlessCategory(control: TuiControl): string | undefined {
 }
 
 export async function runHeadlessTurn(options: HeadlessTurnOptions): Promise<string> {
-  configureTerminalRuntime({
+  configureSessionRuntime({
     workDir: options.workDir,
     adapter: options.adapter,
     model: options.model,
     timeoutSeconds: options.timeoutSeconds,
     debug: options.debug,
     mcp: options.mcp,
+    entryType: "headless",
+    storage: options.storage,
   })
 
   const sessionKey = options.sessionKey?.trim() || makeSessionKey()
-  const runtime = await getTuiRuntimeBridge(sessionKey)
+  const runtime = await getSessionRuntimeBridge(sessionKey)
   if (!runtime) {
     throw new Error("Runtime unavailable: failed to initialize model adapter from configuration")
   }
@@ -72,6 +75,6 @@ export async function runHeadlessTurn(options: HeadlessTurnOptions): Promise<str
     })
     return filteredOutput || rawOutput
   } finally {
-    await disposeTuiRuntimeBridge(sessionKey)
+    await disposeSessionRuntimeBridge(sessionKey)
   }
 }

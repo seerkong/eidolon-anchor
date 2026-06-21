@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-runtime-lifecycle-hooks">
+  <upsert selector="behavior://ai-runtime-lifecycle-hooks/requirements/idle-hook-mailbox-preemption">
+    <requirement id="idle-hook-mailbox-preemption">
+    <statement>系统 SHALL prevent `actor.idle.before` hooks from running as idle continuation while any wake-capable actor mailbox has pending work.</statement>
+    <suite id="idle-preemption" name="Idle hook mailbox preemption">
+      <case id="all-wake-mailboxes-block-idle">
+        <given>An actor has pending `control`, `toolResult`, `asyncCompletion`, `childDone`, `memberCoordination`, `humanInput`, `memberChatInbox`, or `heartbeat` entries</given>
+        <when>The runtime evaluates `actor.idle.before`</when>
+        <then>The producer SHALL treat the actor as non-idle</then>
+        <then>The dispatch SHALL stop before goal continuation or other idle effects are produced</then>
+      </case>
+      <case id="idle-recheck-reports-pending-mailboxes">
+        <given>An idle hook dispatch is skipped because lifecycle state is no longer current</given>
+        <when>The runtime emits hook diagnostics</when>
+        <then>The diagnostic SHOULD include the pending mailbox kinds that made the actor non-idle</then>
+        <then>Repeated equivalent diagnostics SHOULD be throttled or coalesced to avoid flooding orchestration history</then>
+      </case>
+      <case id="background-watchdog-drains-before-idle-hook">
+        <given>The background watchdog observes a ready fiber or pending wake mailbox work</given>
+        <when>It performs a background tick</when>
+        <then>The runtime SHALL attempt scheduler drain before producing lower-priority idle continuation effects</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/ai-runtime-lifecycle-hooks/idle-hook-mailbox-preemption" strength="hint" />
+    </requirement>
+  </upsert>
+</behavior-patch>

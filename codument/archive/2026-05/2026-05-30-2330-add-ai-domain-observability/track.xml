@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="2026-05-30-2330-add-ai-domain-observability" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <CommitMode>manual</CommitMode>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_2026-05-30-2330-add-ai-domain-observability" name="2026-05-30-2330-add-ai-domain-observability" version="1">
+    <SubNodes>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

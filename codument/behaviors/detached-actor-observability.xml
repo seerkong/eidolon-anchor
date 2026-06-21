@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="detached-actor-observability" version="1">
+  <!-- unmapped: # Detached Actor Observability Specification -->
+  <!-- unmapped: ## Requirements -->
+  <requirement id="detached-bash-logs-are-queryable-while-running">
+    <statement>The system SHALL expose scoped, bounded log queries for `RunDetachedBash` tasks while they are pending, running, suspended, or terminal.</statement>
+    <!-- migrated title: Detached bash logs are queryable while running -->
+    <suite name="detached-bash-logs-are-queryable-while-running">
+      <case id="query-recent-stdout-only" name="Query recent stdout only">
+        <given>a `RunDetachedBash` task has emitted stdout and stderr chunks</given>
+        <when>the caller queries detached logs with `sources=["stdout"]`</when>
+        <then>the response SHALL include only stdout log entries</then>
+        <then>the response SHALL include sequence metadata for follow-up polling</then>
+      </case>
+      <case id="query-recent-stderr-only" name="Query recent stderr only">
+        <given>a `RunDetachedBash` task has emitted stderr chunks</given>
+        <when>the caller queries detached logs with `sources=["stderr"]`</when>
+        <then>the response SHALL include only stderr log entries</then>
+        <then>stdout entries SHALL NOT be included</then>
+      </case>
+      <case id="query-log-range-by-sequence" name="Query log range by sequence">
+        <given>a `RunDetachedBash` task has emitted ordered log chunks</given>
+        <when>the caller queries with `after_seq`</when>
+        <then>the response SHALL include only entries with sequence greater than `after_seq`</then>
+        <then>the response SHALL include the next sequence cursor</then>
+      </case>
+      <case id="log-retention-rolls-over" name="Log retention rolls over">
+        <given>a `RunDetachedBash` task emits more logs than the configured retention limits</given>
+        <when>the oldest entries are discarded</when>
+        <then>the query response SHALL report dropped entry or byte metadata</then>
+        <then>the remaining entries SHALL preserve monotonic sequence ordering</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="detached-delegate-messages-are-queryable-while-running">
+    <statement>The system SHALL expose recent message and execution event queries for detached `RunDelegateActor` tasks.</statement>
+    <!-- migrated title: Detached delegate messages are queryable while running -->
+    <suite name="detached-delegate-messages-are-queryable-while-running">
+      <case id="query-recent-assistant-messages" name="Query recent assistant messages">
+        <given>a detached delegate actor has produced assistant messages and tool events</given>
+        <when>the caller queries messages with `roles=["assistant"]`</when>
+        <then>the response SHALL include only assistant message entries</then>
+        <then>the response SHALL include sequence metadata for follow-up polling</then>
+      </case>
+      <case id="query-recent-tool-events" name="Query recent tool events">
+        <given>a detached delegate actor has started and completed tool calls</given>
+        <when>the caller queries messages with `kinds=["tool_call","tool_result"]`</when>
+        <then>the response SHALL include tool call and tool result entries</then>
+        <then>ordinary assistant text SHALL NOT be included unless requested</then>
+      </case>
+      <case id="query-message-range-and-limit" name="Query message range and limit">
+        <given>a detached delegate actor has many message entries</given>
+        <when>the caller provides `after_seq`, `limit_entries`, or `limit_bytes`</when>
+        <then>the response SHALL honor the requested range and limits</then>
+        <then>it SHALL report truncation or dropped-entry metadata when applicable</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="detached-task-result-is-queryable-after-completion">
+    <statement>The system SHALL provide a focused result query for detached tasks that returns terminal status and final output.</statement>
+    <!-- migrated title: Detached task result is queryable after completion -->
+    <suite name="detached-task-result-is-queryable-after-completion">
+      <case id="completed-detached-bash-result" name="Completed detached bash result">
+        <given>a `RunDetachedBash` task has completed</given>
+        <when>the caller queries the detached result</when>
+        <then>the response SHALL include terminal status, final output summary, and available stdout/stderr tail data</then>
+        <then>the response SHALL indicate whether logs were truncated or rolled over</then>
+      </case>
+      <case id="completed-delegate-result" name="Completed delegate result">
+        <given>a detached `RunDelegateActor` task has completed</given>
+        <when>the caller queries the detached result</when>
+        <then>the response SHALL include terminal status and final assistant result text</then>
+        <then>the caller MAY request a bounded recent message tail in the same response</then>
+      </case>
+      <case id="result-requested-before-terminal-state" name="Result requested before terminal state">
+        <given>a detached task is not yet completed, failed, or cancelled</given>
+        <when>the caller queries the detached result without allowing partial results</when>
+        <then>the response SHALL report that the task is not terminal</then>
+        <then>it SHALL include the current task status</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="existing-detached-status-compatibility-is-preserved">
+    <statement>The system SHALL preserve existing detached task status behavior while adding observability-specific tools.</statement>
+    <!-- migrated title: Existing detached status compatibility is preserved -->
+    <suite name="existing-detached-status-compatibility-is-preserved">
+      <case id="existing-status-query-remains-valid" name="Existing status query remains valid">
+        <given>a caller uses `DetachedActorStatus` for an existing detached task</given>
+        <when>the observability implementation is enabled</when>
+        <then>the status response SHALL continue to include task id, kind, status, timestamps, child identifiers, output text, and error</then>
+        <then>callers needing logs or message tails SHALL use the new observability query tools</then>
+        <!-- unmapped: ## Non-Functional Requirements -->
+        <!-- unmapped: - Log and message buffers SHALL be bounded by count and byte limits. -->
+        <!-- unmapped: - Sequence ids SHALL be monotonic per detached task and stable for polling. -->
+        <!-- unmapped: - Query responses SHALL avoid exposing hidden system prompts or non-user-visible reasoning content. -->
+        <!-- unmapped: - Background progression SHALL remain owned by actor/fiber orchestration. -->
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

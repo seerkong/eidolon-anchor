@@ -8,6 +8,7 @@ import { describe, expect, it, beforeAll, afterAll } from "bun:test";
 import { tmpdir } from "node:os";
 import { promises as fsp } from "node:fs";
 import path from "node:path";
+import { parseXnl } from "xnl-core";
 import {
   createObservableGraph,
   createSessionTraceSink,
@@ -91,6 +92,10 @@ describe("E2E observability pipeline", () => {
 
     // 7. Read back from xnl file
     const traceFile = path.join(testRoot, "sessions", "e2e-session", "trace.xnl");
+    const traceRaw = await fsp.readFile(traceFile, "utf8");
+    const traceDoc = parseXnl(traceRaw);
+    expect((traceDoc.nodes[0] as any).metadata.traceKind).toBe("observability");
+    expect((traceDoc.nodes[0] as any).extend.order).toEqual(["Payload"]);
     const importedRecords = await sessionTraceImportFile(traceFile);
 
     expect(importedRecords.length).toBe(traceEntries.length);
@@ -127,6 +132,8 @@ describe("E2E observability pipeline", () => {
     const xnl = sessionTraceExportXnl(records);
     expect(xnl.length).toBeGreaterThan(0);
     expect(xnl).toContain("TraceEntry");
+    const doc = parseXnl(xnl);
+    expect((doc.nodes[0] as any).metadata.traceKind).toBe("observability");
 
     // Write and read back
     const filePath = path.join(testRoot, "roundtrip.xnl");

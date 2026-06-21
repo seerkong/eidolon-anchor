@@ -147,6 +147,87 @@ describe("OpenAIResponsesNodejsFetchLlmAdapter reasoning effort", () => {
     expect(capturedBody?.prompt_cache_key).toBe("cache");
   });
 
+  it("strips OpenAI-compatible unsupported schema keys from responses tools", async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+
+    const adapter = new OpenAIResponsesNodejsFetchLlmAdapter({
+      apiKey: "test-key",
+      baseUrl: "https://api.example.com/v1",
+      providerOptions: {
+        fetch: async (_input, init) => {
+          capturedBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+          return new Response("data: [DONE]\n\n", {
+            status: 200,
+            headers: {
+              "Content-Type": "text/event-stream",
+            },
+          });
+        },
+      },
+    });
+
+    await adapter.createStream({
+      model: "gpt-5.4",
+      messages: [{ role: "user", content: "hello" }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "apply_patch",
+            description: "Apply patch",
+            parameters: {
+              type: "object",
+              properties: {
+                patchText: { type: "string" },
+                patch: { type: "string" },
+              },
+              anyOf: [{ required: ["patchText"] }, { required: ["patch"] }],
+            },
+          },
+        },
+      ],
+    });
+
+    const tool = ((capturedBody?.tools as any[]) ?? [])[0];
+    expect(tool?.parameters).toEqual({
+      type: "object",
+      properties: {
+        patchText: { type: "string" },
+        patch: { type: "string" },
+      },
+    });
+  });
+
+  it("surfaces responses stream failures instead of completing with empty output", async () => {
+    const adapter = new OpenAIResponsesNodejsFetchLlmAdapter({
+      apiKey: "test-key",
+      baseUrl: "https://api.example.com/v1",
+      providerOptions: {
+        fetch: async () =>
+          new Response(
+            'data: {"type":"response.failed","response":{"error":{"code":"upstream_error","message":"Upstream request failed"}}}\n\n',
+            {
+              status: 200,
+              headers: {
+                "Content-Type": "text/event-stream",
+              },
+            },
+          ),
+      },
+    });
+
+    const result = await adapter.createStream({
+      model: "gpt-5.4",
+      messages: [{ role: "user", content: "hello" }],
+      tools: [],
+    });
+
+    await expect((async () => {
+      for await (const _chunk of result.stream) {
+      }
+    })()).rejects.toThrow("upstream_error: Upstream request failed");
+  });
+
   it("summarizes HTML provider failures instead of surfacing the full page", async () => {
     const adapter = new OpenAIResponsesNodejsFetchLlmAdapter({
       apiKey: "test-key",

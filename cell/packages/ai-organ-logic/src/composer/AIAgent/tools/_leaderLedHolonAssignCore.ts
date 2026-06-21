@@ -1,5 +1,5 @@
 import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
-import { getOrganizationManager } from "@cell/ai-organ-logic/organization/OrganizationManager"
+import { getOrganizationManager, writeHolonGovernance } from "@cell/ai-organ-logic/organization/OrganizationManager"
 import { buildLeaderLedHolonEnvelope } from "@cell/ai-organ-logic/organization/leaderLedHolonEnvelope"
 import { getDriver } from "./_controlRuntime"
 import { resolveActorSubject } from "./_resolveActorTarget"
@@ -80,7 +80,7 @@ export async function queueLeaderLedHolonAssign(params: {
 
   const routeId = makeRouteId()
   const now = Date.now()
-  holonActor.holonState = {
+  writeHolonGovernance(holonActor, {
     governance: "leader_led",
     holonId: leaderLedHolon.holonId,
     name: holonActor.holonState?.governance === "leader_led" ? holonActor.holonState.name : leaderLedHolon.name,
@@ -100,7 +100,7 @@ export async function queueLeaderLedHolonAssign(params: {
         updatedAt: now,
       },
     },
-  }
+  })
   const mailboxPayload = {
     from: params.runtime.actor.identity?.kind === "member" ? params.runtime.actor.identity.name : params.runtime.actor.key,
     text: buildLeaderLedHolonEnvelope({
@@ -117,8 +117,8 @@ export async function queueLeaderLedHolonAssign(params: {
   driver.emitFiberSignal({
     fiberId: `${holonActor.key}:${holonActor.id}`,
     signalKind: "mailbox_enqueue",
-    mailbox: { kind: "memberInbox", payload: mailboxPayload },
-    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberInbox:${routeId}`,
+    mailbox: { kind: "memberChatInbox", payload: mailboxPayload },
+    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberChatInbox:${routeId}`,
     createdAt: mailboxPayload.ts,
   })
 

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="update-aiagent-tasktree-tools" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>将已实现的 TaskTree 工具链改动补建为可验证、可归档的 Codument 追踪，并完成严格校验收口</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-02-26T14:36:33Z</CreatedAt>
+    <UpdatedAt>2026-02-26T15:26:52Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_update-aiagent-tasktree-tools" name="update-aiagent-tasktree-tools" version="1">
+    <Description>AIAgent TaskTree 工具链对齐与规范化补建</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="规范文件补建" status="DONE" order="0">
+        <Description>完成 spec/proposal/design 三件套并锁定范围与决策</Description>
+        <cdt:Gate>
+          <cdt:Criterion>spec/proposal/design 内容一致且与现有实现对齐</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <TaskGroup id="T1.1" name="补建 spec.md" status="DONE" order="0" priority="P0">
+            <Description>将 TaskTreeWrite/TaskTreeRead/RunSubAgent 命名与契约、ToolDefinitions schema 去重、terminal minimal 对齐写入规范增量。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">spec.md 使用 ADDED Requirements 并包含 Scenario</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">范围外事项明确排除 vfs 和完整 TUI 重构</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T1.1.1" name="梳理已实现改动边界" status="DONE" order="0">
+              </Task>
+              <Task id="T1.1.2" name="编写规范增量与场景" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T1.2" name="补建 proposal.md" status="DONE" order="1" priority="P0">
+            <Description>说明补建动机、目标/非目标、变更内容与影响范围，确保与现状代码一致。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">proposal 明确这是已实现改动的追踪补建</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">非目标明确不包含新能力扩展</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T1.2.1" name="整理背景与动机" status="DONE" order="0">
+              </Task>
+              <Task id="T1.2.2" name="固化范围与影响说明" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T1.3" name="补建设计说明 design.md" status="DONE" order="2" priority="P1">
+            <Description>记录跨模块影响、关键决策、替代方案、风险和迁移路径，消除技术歧义。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">design.md 覆盖决策、风险/权衡、兼容性和迁移计划</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">影响文件列表覆盖 backend 与 terminal 关键路径</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T1.3.1" name="整理模块影响点" status="DONE" order="0">
+              </Task>
+              <Task id="T1.3.2" name="记录设计决策与替代方案" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="计划与验证收口" status="DONE" order="1">
+        <Description>完成 plan 编排、严格校验和 track 索引更新</Description>
+        <cdt:Gate>
+          <cdt:Criterion>strict 校验通过</cdt:Criterion>
+          <cdt:Criterion>tracks.md 已登记本 track</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <TaskGroup id="T2.1" name="编排 plan.xml" status="DONE" order="0" priority="P0">
+            <Description>使用项目既有 plan 结构编排文档化收口任务，反映当前执行状态。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">plan.xml 包含 metadata、phases、tasks 与验收标准</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">任务状态与实际执行进度一致</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.1.1" name="对齐仓库内 plan 模板" status="DONE" order="0">
+              </Task>
+              <Task id="T2.1.2" name="生成本 track 计划文件" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T2.2" name="执行 codument 严格校验" status="DONE" order="1" priority="P0">
+            <Description>运行 codument validate strict，确保 track 文件完整、格式有效且可进入后续流程。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">codument validate update-aiagent-tasktree-tools --strict 通过</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.2.1" name="执行 strict 校验命令" status="DONE" order="0">
+              </Task>
+              <Task id="T2.2.2" name="若失败则修复并复验" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T2.3" name="更新 tracks.md 活跃索引" status="DONE" order="2" priority="P1">
+            <Description>在活跃 tracks 表中登记 update-aiagent-tasktree-tools，便于全局追踪。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">tracks.md 新增本 track 链接、名称、状态与创建日期</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.3.1" name="插入活跃 track 表格行" status="DONE" order="0">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-wave7-platform-kernel-baseline-and-support-seeding" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>建立第一版真实平台 kernel baseline，并让 `platform-support` 承接首批跨领域环境实现。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T10:05:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T11:28:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-wave7-platform-kernel-baseline-and-support-seeding" name="refactor-platform-kernel-wave7-platform-kernel-baseline-and-support-seeding" version="1">
+    <Description>实施平台微内核 Wave 7 的 platform kernel baseline and support seeding</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Baseline Freeze" status="DONE" order="0">
+        <Description>冻结第一批平台 baseline capability 与 support ownership。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 platform kernel baseline 最小能力集" status="DONE" order="0" priority="P0">
+            <Description>明确 `platform-only` 与 `mod-platform-kernel` 首批承接的 capability。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">platform baseline 能力集明确</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">不含 AI 领域语义</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Baseline Implementation" status="DONE" order="1">
+        <Description>落地平台 baseline 与第一批 platform-support capability。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="实现 mod-platform-kernel 与非空 platform-only" status="DONE" order="0" priority="P0">
+            <Description>建立真实平台 baseline，并保持 profile layering 稳定。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">platform-only 不再为空 profile</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">`ai-kernel` / `ai-coding` layering 保持成立</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Focused Verification" status="DONE" order="2">
+        <Description>验证平台 baseline 和 support ownership。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="运行 platform/profile focused tests" status="DONE" order="0" priority="P0">
+            <Description>验证 platform capability、profile order 与 support ownership。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">platform-support ownership 成立</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

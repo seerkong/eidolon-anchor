@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="complete-runtime-evolution-migration" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>runtime-evolution mission 收口：删唯一残留 no-op MessageHistoryEffects shim；pin session upgrade dry-run/apply 落 clean；建真实事故形态 conformance resource + CLI/TUI/headless 聚焦验收 harness（升级→恢复→续 turn，根因不复现 + 跨表现等价）；4 维命名回归（repeat-read/pending-effect/history-lag/TUI-CLI-divergence）。</Goal>
+    <Description>mission Track-9（W4 收口，全层）。前置 #1–#8 全部归档，G-migration-incident 解除阻塞。scoping audit：大头已做完，本 track = 1 处删 + pin upgrade + harness/resource + 2 命名回归。非目标：不留 compat shim（迁移 reader/拒绝守卫/新格式指针非 shim，保留）、不接受脏数据、不靠绕过、不提交原始真实 session 数据、不做全量 soak。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-20T20:10:00Z</CreatedAt>
+    <UpdatedAt>2026-06-20T21:16:15Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input"  name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior"        domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_complete-runtime-evolution-migration" name="complete-runtime-evolution-migration" version="1">
+    <Description>收口迁移：删 no-op shim + pin upgrade + 事故验收 harness/resource + 4 维命名回归。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="Remove No-op MessageHistoryEffects Shim" status="DONE" order="0">
+        <Description>删除已 no-op 的 LocalFileMessageHistoryEffects + MessageHistoryEffects 端口跳板（mod-ai-kernel 接线）+ executor 调用点（appendMessage/backupHistory）；保留迁移 reader / 拒绝守卫。行为等价。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests: no MessageHistoryEffects shim on the live path" status="DONE" order="0" priority="P0">
+            <Description>源级断言：live 执行路径无 LocalFileMessageHistoryEffects / MessageHistoryEffects 端口与 appendMessage/backupHistory 调用。先红。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">去 shim 源级测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Delete the no-op shim + port hop + executor calls" status="DONE" order="1" priority="P0">
+            <Description>删 LocalFileMessageHistoryEffects + 端口接线 + executor 调用点；保留迁移 reader/拒绝守卫；T1.1 全绿；行为等价、既有失败基线不增。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">T1.1 全绿；shim 已删、行为等价，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Pin Session Upgrade Clean" status="DONE" order="1">
+        <Description>对真实形态 old-session fixture 跑 dry-run→apply，断言 dry-run=upgraded、apply 后 checkpoint 前缀分类=clean；脏数据不被静默接受。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add real-shape old-session fixture + upgrade-clean test (red/coverage)" status="DONE" order="0" priority="P0">
+            <Description>构造真实形态 old-session fixture（transcript.txt + history-generations/*.json 形态）；测试 dry-run 识别 upgraded、apply 后 classifyFileStoreCheckpointPrefix=clean。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">upgrade-clean 测试就位（先红或直接覆盖）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Confirm upgrade lands clean; dirty data rejected" status="DONE" order="1" priority="P0">
+            <Description>确认 apply 后 clean；脏数据经拒绝守卫不被静默接受；既有 upgrade/recovery 套件等价。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">T2.1 全绿；升级落 clean、脏数据被拒，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Incident Acceptance Harness + Resource" status="DONE" order="2">
+        <Description>建重现真实事故形态的最小化/脱敏 conformance resource（不含原始真实数据）+ CLI/TUI/headless 聚焦验收 harness：升级→恢复→续 turn，断言根因不复现（含完整配对工具结果、不重复读）+ 跨表现等价。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add incident conformance resource + cross-surface acceptance harness (red/coverage)" status="DONE" order="0" priority="P0">
+            <Description>最小化/脱敏 incident fixture + harness：升级→recovery→续 turn；断言下一轮 provider context 含完整配对工具结果、不重复读；CLI/TUI/headless 等价 domain 真源。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">事故验收 harness + resource 就位（先红或直接覆盖）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Harness green; root cause does not recur across surfaces" status="DONE" order="1" priority="P0">
+            <Description>harness 全绿；事故根因不复现、跨表现等价；resource 不含原始真实 session 数据。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">T3.1 全绿；根因不复现、跨表现等价，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="Four-Dimension Named Regression Coverage" status="DONE" order="3">
+        <Description>4 维命名回归各有可执行守护：repeat-read-file / TUI-CLI-divergence 显式映射既有；pending-effect / history-lag 补命名回归（或显式映射既有 conformance 并加命名断言）。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Map existing + add missing named regressions (red/coverage)" status="DONE" order="0" priority="P0">
+            <Description>4 维均已有命名可执行 guard（repeat-read=incident_005/acceptance、pending-effect=runtime_data_conformance:18、history-lag=runtime_data_conformance:90、TUI-CLI-divergence=cross-surface-domain-equivalence）；落地 migration_regression_coverage.test.ts 可执行 coverage-map pin。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">4 维命名回归就位（coverage-map 直接覆盖）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="All four dimensions executably covered; green" status="DONE" order="1" priority="P0">
+            <Description>4 维全有命名可执行覆盖且全绿（coverage-map 6 pass，逐维 load-bearing）；ai-organ-logic 0 净新增。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">T4.1 全绿；4 维全覆盖，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P5" name="Closure" status="DONE" order="4">
+        <Description>全量回归（cell + terminal 按名比对基线，0 新增失败）；spec capability 覆盖核对；findings.md 写最终基线；宣布 mission 收口。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="Final sweep and full regression" status="DONE" order="0" priority="P0">
+            <Description>cell + terminal 全套回归，按名比对基线确认 0 新增失败；complete-runtime-evolution-migration 全部 case 有可执行覆盖；findings.md 追加实施结果与最终基线。结果：cell14/organ14/organ-support1/tui29 全 0 净新增；全 case 覆盖；mission 9 track 收口。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">失败集合为基线子集；spec 全部 case 有可执行覆盖；findings.md 已更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+</Track>

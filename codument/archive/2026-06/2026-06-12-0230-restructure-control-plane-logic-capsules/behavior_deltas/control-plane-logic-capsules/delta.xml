@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="control-plane-logic-capsules">
+  <upsert selector="behavior://control-plane-logic-capsules/requirements/capsule-structure">
+    <requirement id="capsule-structure">
+    <statement>每个控制面 logic 集群 SHALL 以 capsule 形态组织：一个稳定的 core logic 入口（output = fn(runtime, input, config) 或 fn(input, config)）、对每个存在的适配轴一个以枚举 id 布线 adapter 的 adapter registry（adapter 实现 MAY 由 support/composer 包在组装时注册，与类型留在 contract 包同理按包级分离落位；当前无适配轴的集群 MAY 省略 registry）、以及不可被外部 import 的 internals。capsule config SHALL 为强类型且只携带 adapter 枚举 id 与少量静态策略，SHALL NOT 携带函数对象或重复 runtime 已有字段。类型 SHALL 只定义在对应 contract 包中，logic 包 SHALL NOT 复制类型定义。</statement>
+    <suite id="capsule-shape" name="Capsule structure">
+      <case id="stable-core-logic-entry">
+        <given>一个控制面集群已重构为 capsule</given>
+        <when>调用方使用该集群能力</when>
+        <then>调用方 SHALL 只通过 core logic 入口传入 (runtime, input, config)</then>
+        <then>调用方 SHALL NOT 通过 config 传入函数对象、controller 或 runtime</then>
+      </case>
+      <case id="adapters-wired-by-enum">
+        <given>capsule 需要选择某个适配轴的实现</given>
+        <when>core logic 解析 config</when>
+        <then>adapter SHALL 经 adapter registry 按枚举 id 解析</then>
+      </case>
+      <case id="internals-not-imported">
+        <given>capsule 的 internals 目录存在私有 helper</given>
+        <when>检查 capsule 外部的 import</when>
+        <then>SHALL NOT 存在来自 capsule 外部对 internals 的 import</then>
+      </case>
+      <case id="types-stay-in-contract">
+        <given>capsule 需要 input/output/config/state 类型</given>
+        <when>检查类型定义位置</when>
+        <then>类型 SHALL 定义于对应 contract 包并被 logic 包 import</then>
+        <then>logic 包 SHALL NOT 重新定义同名类型</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://control-plane-logic-capsules/requirements/derivation-contract">
+
+    <requirement id="derivation-contract">
+    <statement>三个控制面集群的 reducer/projection 加工定义 SHALL 提升为 contract 包中的类型化 derivation contract：声明 initialize/reduce/project/decide 等必需方法集合，并提供运行时断言 helper。流转布线 SHALL 复用既有 vendor/platform 原语并注入 derivation 实现；SHALL NOT 新建平行的 store、scheduler 或 dispatch 框架。</statement>
+    <suite id="derivation" name="Derivation contract">
+      <case id="derivation-methods-asserted">
+        <given>一个 derivation 实现缺少必需方法</given>
+        <when>实现被注入流转布线</when>
+        <then>运行时断言 SHALL 以明确错误失败，指出缺失方法名</then>
+      </case>
+      <case id="derivation-is-pure">
+        <given>derivation contract 声明的 reduce/project 方法</given>
+        <when>检查其实现源码</when>
+        <then>实现 SHALL 是显式 state 上的纯函数，SHALL NOT 直接执行 IO</then>
+      </case>
+      <case id="flow-wiring-reuses-primitives">
+        <given>derivation 需要事件流、信号或投影布线</given>
+        <when>检查布线实现</when>
+        <then>布线 SHALL 复用既有 vendor/platform 原语</then>
+        <then>SHALL NOT 在控制面本地定义平行的 store/scheduler/dispatch 框架</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://control-plane-logic-capsules/requirements/behavior-preservation">
+
+    <requirement id="behavior-preservation">
+    <statement>本重构 SHALL 行为保持：runtime-control-component-boundaries 能力的全部 conformance SHALL 持续通过；既有失败基线 SHALL NOT 增长；调用方表面 SHALL 经兼容导出继续工作；boundary declaration 与 conformance 的源码映射 SHALL 随文件移动同步更新。</statement>
+    <suite id="preservation" name="Behavior preservation">
+      <case id="predecessor-conformance-stays-green">
+        <given>任一集群完成 capsule 重构</given>
+        <when>运行 runtime-control-component-boundaries 的全部 conformance</when>
+        <then>conformance SHALL 全部通过</then>
+      </case>
+      <case id="failure-baseline-does-not-grow">
+        <given>重构前已记录既有失败基线</given>
+        <when>重构后运行同一测试集</when>
+        <then>失败集合 SHALL 是基线的子集</then>
+      </case>
+      <case id="boundary-maps-updated">
+        <given>集群源码文件因 capsule 化而移动</given>
+        <when>检查 boundary declaration 与 encapsulation conformance 的源码映射</when>
+        <then>映射 SHALL 指向移动后的真实文件与符号</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://control-plane-logic-capsules/requirements/guardrail-disposition-recorded">
+
+    <requirement id="guardrail-disposition-recorded">
+    <statement>AiRuntimeTurnSupervisor 在实施中被证实已接线进 live turn 主路径（hint 注入与强制 continuation），其移除属于行为变更，SHALL NOT 在本能力（纯结构重构）内执行；其移除 SHALL 作为 turn/tool/provider lifecycle 能力的显式输入记录，且本能力期间 SHALL NOT 扩展该 guardrail。</statement>
+    <suite id="disposition" name="Guardrail disposition">
+      <case id="supervisor-kept-but-frozen">
+        <given>driver 集群完成 capsule 重构</given>
+        <when>检查 supervisor 相关源码与本 track 改动</when>
+        <then>supervisor 行为 SHALL 与重构前一致（不删除、不扩展）</then>
+        <then>其移除计划 SHALL 记录于 track 决策与后续 lifecycle track 输入</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

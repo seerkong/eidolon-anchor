@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-subwave-import-cutover-phase3-shim-retirement" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>删除 legacy support/mod shim package，并用 focused guard 固化其退场状态。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T08:52:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T09:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-subwave-import-cutover-phase3-shim-retirement" name="refactor-platform-kernel-subwave-import-cutover-phase3-shim-retirement" version="1">
+    <Description>平台微内核后续 sub-wave：import cutover phase3 shim retirement</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Setup" status="DONE" order="0">
+        <Description>建立 phase3 的规范与计划。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="创建 phase3 track 文档" status="DONE" order="0" priority="P0">
+            <Description>创建 proposal/spec/design/plan 与 analysis 文件。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">track 文档完整</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">phase3 范围明确锚定在 shim retirement</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Shim Retirement" status="DONE" order="1">
+        <Description>从工作区物理结构中移除 legacy shim package。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="删除 legacy shim package 目录" status="DONE" order="0" priority="P0">
+            <Description>删除 `cell/packages/organ-support`、`cell/packages/mod-sys-kernel` 与 `cell/packages/mod-sys-coding`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">legacy shim package 目录已删除</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">新宿主 package 仍为唯一 truth host</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Regression Guard" status="DONE" order="2">
+        <Description>用 focused guard 固化 shim retirement 状态。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新 migration guard 并验证" status="DONE" order="0" priority="P0">
+            <Description>将 migration surface tests 更新为要求 legacy shim package 不存在，并继续阻止旧包名回流。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused guard 可检测 shim 回流</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">相关测试与 codument validate 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

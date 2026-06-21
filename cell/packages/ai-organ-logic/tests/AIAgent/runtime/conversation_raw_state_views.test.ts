@@ -39,7 +39,6 @@ describe("conversation raw state views", () => {
       actorKey: "main",
       actorId: "actor-main",
       recordIdPrefix: "hist-tool",
-      transcriptPath: null,
     });
 
     expect(committedMessages[1].message.toolCallId).toBe("call_1");
@@ -78,7 +77,6 @@ describe("conversation raw state views", () => {
         actorKey: "main",
         actorId: "actor-main",
         recordIdPrefix: "hist-tool",
-        transcriptPath: null,
       }),
       sealed: false,
       createdAt: new Date(1).toISOString(),
@@ -103,7 +101,7 @@ describe("conversation raw state views", () => {
           payload: {
             overlayKind: "work_context",
             insertPlacement: "late_status",
-            content: "<runtime_work_context>\nwork_mode: general_execution\n</runtime_work_context>",
+            content: "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\n</runtime_work_context>",
           },
           appliedAt: new Date(3).toISOString(),
         },
@@ -148,7 +146,6 @@ describe("conversation raw state views", () => {
             payload: JSON.stringify({ toolCallId: "call_legacy", result: "ok", isError: false }),
           },
         ],
-        transcriptPath: null,
       },
     ]);
 
@@ -180,7 +177,6 @@ describe("conversation raw state views", () => {
         actorKey: "main",
         actorId: "actor-main",
         recordIdPrefix: "hist-1",
-        transcriptPath: null,
       }),
       createdAt: new Date(1).toISOString(),
       updatedAt: new Date(2).toISOString(),

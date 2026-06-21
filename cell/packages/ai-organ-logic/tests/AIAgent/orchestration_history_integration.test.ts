@@ -10,7 +10,7 @@ import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry";
 import { createLocalFileOrchestrationHistoryEffects } from "@cell/ai-support";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
-import { StreamTranscript } from "@cell/symbiont-logic/stream/StreamTranscript";
+import { getXnlDataUniqueChild, readXnlRecords } from "@cell/ai-file-store-logic";
 import { createAutonomousHolonTaskRunner } from "@cell/ai-organ-logic/organization/AutonomousHolonTaskRunner";
 import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager";
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver";
@@ -44,8 +44,23 @@ async function flushMicrotasks(): Promise<void> {
   }
 }
 
-describe("orchestration_history.jsonl integration", () => {
-  it("records detached actor completion to logs/orchestration_history.jsonl", async () => {
+async function readOrchestrationPayloads(sessionDir: string, stream: string): Promise<any[]> {
+  const filePath = path.join(sessionDir, "logs", "orchestration_history.xnl");
+  const records = await readXnlRecords({ filePath, tag: "OrchestrationEvent" });
+  return records
+    .filter((record) => record.metadata.stream === stream)
+    .map((record) => {
+      const payload = getXnlDataUniqueChild(record, "Payload");
+      return {
+        ...(payload?.attributes ?? {}),
+        kind: record.metadata.kind,
+        stream: record.metadata.stream,
+      };
+    })
+}
+
+describe("orchestration_history.xnl integration", () => {
+  it("records detached actor completion to logs/orchestration_history.xnl", async () => {
     const sessionDir = makeTempSessionDir();
     const orchHistory = createLocalFileOrchestrationHistoryEffects({
       sessionPathProvider: () => sessionDir,
@@ -119,19 +134,16 @@ describe("orchestration_history.jsonl integration", () => {
     await driver.tickUntilBackgroundSettled({ now: Date.now(), maxTicks: 200, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const filePath = path.join(sessionDir, "logs", "orchestration_history.jsonl");
+    const filePath = path.join(sessionDir, "logs", "orchestration_history.xnl");
     expect(fs.existsSync(filePath)).toBe(true);
 
-    const parsed = StreamTranscript.parse(fs.readFileSync(filePath, "utf-8"));
-    const detachedRec = parsed.records.find((r) => r.stream === "detached_actor");
-    expect(detachedRec).toBeTruthy();
-    const payload = JSON.parse(String(detachedRec?.payload ?? "{}"));
+    const [payload] = await readOrchestrationPayloads(sessionDir, "detached_actor");
     expect(payload.kind).toBe("detached_actor_done");
     expect(payload.status).toBe("completed");
     expect(typeof payload.task_id).toBe("string");
   });
 
-  it("records member messages to logs/orchestration_history.jsonl", async () => {
+  it("records member messages to logs/orchestration_history.xnl", async () => {
     const sessionDir = makeTempSessionDir();
     const orchHistory = createLocalFileOrchestrationHistoryEffects({
       sessionPathProvider: () => sessionDir,
@@ -185,16 +197,12 @@ describe("orchestration_history.jsonl integration", () => {
     await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 40, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const filePath = path.join(sessionDir, "logs", "orchestration_history.jsonl");
-    const parsed = StreamTranscript.parse(fs.readFileSync(filePath, "utf-8"));
-    const rec = parsed.records.find((r) => r.stream === "member_message");
-    expect(rec).toBeTruthy();
-    const payload = JSON.parse(String(rec?.payload ?? "{}"));
+    const [payload] = await readOrchestrationPayloads(sessionDir, "member_message");
     expect(payload.kind).toBe("member_message_sent");
     expect(payload.text).toBe("hello");
   });
 
-  it("records coordination events to logs/orchestration_history.jsonl", async () => {
+  it("records coordination events to logs/orchestration_history.xnl", async () => {
     const sessionDir = makeTempSessionDir();
     const orchHistory = createLocalFileOrchestrationHistoryEffects({
       sessionPathProvider: () => sessionDir,
@@ -259,15 +267,12 @@ describe("orchestration_history.jsonl integration", () => {
     await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 80, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const filePath = path.join(sessionDir, "logs", "orchestration_history.jsonl");
-    const parsed = StreamTranscript.parse(fs.readFileSync(filePath, "utf-8"));
-    const records = parsed.records.filter((r) => r.stream === "coordination_event");
-    expect(records.length).toBeGreaterThan(0);
-    const payloads = records.map((r) => JSON.parse(String(r.payload ?? "{}")));
+    const payloads = await readOrchestrationPayloads(sessionDir, "coordination_event");
+    expect(payloads.length).toBeGreaterThan(0);
     expect(payloads.some((payload) => payload.request_id === outbound.request_id && payload.coordination === "shutdown")).toBe(true);
   });
 
-  it("records autonomous holon claim and idle-exit events to logs/orchestration_history.jsonl", async () => {
+  it("records autonomous holon claim and idle-exit events to logs/orchestration_history.xnl", async () => {
     const sessionDir = makeTempSessionDir();
     const orchHistory = createLocalFileOrchestrationHistoryEffects({
       sessionPathProvider: () => sessionDir,
@@ -343,10 +348,7 @@ describe("orchestration_history.jsonl integration", () => {
     await runner.tickOnce();
     await flushMicrotasks();
 
-    const filePath = path.join(sessionDir, "logs", "orchestration_history.jsonl");
-    const parsed = StreamTranscript.parse(fs.readFileSync(filePath, "utf-8"));
-    const records = parsed.records.filter((r) => r.stream === "autonomous_holon_event");
-    const payloads = records.map((r) => JSON.parse(String(r.payload ?? "{}")));
+    const payloads = await readOrchestrationPayloads(sessionDir, "autonomous_holon_event");
     expect(payloads.some((payload) => payload.kind === "autonomous_holon_claim" && payload.member_id)).toBe(true);
     expect(payloads.some((payload) => payload.kind === "autonomous_holon_idle_exit" && payload.member_id)).toBe(true);
   });

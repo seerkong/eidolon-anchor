@@ -16,15 +16,20 @@ export {
 export {
   AnthropicNodejsFetchLlmAdapter,
   ClaudeNodejsFetchLlmAdapter,
+  defaultProviderConfigPath,
   extractProviderOptions,
   flattenModelConfig,
+  isModelRefResolvable,
+  isPersistedModelStillResolvable,
   loadProviderConfig,
   loadProviderCatalog,
   loadPresentConfig,
   normalizeModelOptions,
   OpenAICompletionsNodejsFetchLlmAdapter,
   OpenAIResponsesNodejsFetchLlmAdapter,
+  PROVIDER_CONFIG_FILE_NAME,
   ProviderRuntimeLlmAdapter,
+  refreshProviderTransportMarkers,
   resolveActorModelConfig,
   resolvePresetModelRef,
   resolvePrimaryCandidates,
@@ -76,9 +81,34 @@ export {
   hasRuntimeSnapshot,
   recoverAiAgentRuntime,
   saveAiAgentRuntimeSnapshot,
+  sealCompletedConversationProgress,
 } from "./persistence/RuntimeSnapshots";
+export {
+  createRecoveryReadPort,
+  assertConversationRecoverySourceComplete,
+  type RuntimeRecoveryReadPort,
+} from "./persistence/RecoveryReadPort";
 export { configureLocalPermissionConfigStore } from "./permissions/LocalPermissionConfig";
 export { createAiAgentRuntimeCoordinator } from "./runtime/AiAgentRuntimeCoordinator";
+export { isTerminalTurnState, turnReducer } from "./runtime/TurnReducer";
+export {
+  createToolCallDomainRuntime,
+  ensureVmToolCallDomain,
+  getVmToolCallDomain,
+  restoreVmToolCallDomain,
+  reconstructToolResultsFromDomain,
+  type ToolCallDomainRuntime,
+} from "./runtime/ToolCallDomainRuntime";
+export {
+  createProviderCallDomainRuntime,
+  ensureVmProviderCallDomain,
+  getVmProviderCallDomain,
+  restoreVmProviderCallDomain,
+  getProviderReasoningFact,
+  getProviderContentFact,
+  getLatestActorProviderReasoning,
+  type ProviderCallDomainRuntime,
+} from "./runtime/ProviderCallDomainRuntime";
 export {
   advanceActorWorkContextAfterTool,
   buildCompactionPolicyContextForActor,
@@ -90,10 +120,14 @@ export {
   getActorWorkContext,
   getActorWorkContextFromVm,
   materializeExecutionMessagesWithWorkContext,
+  normalizeTaskPhase,
+  normalizeWorkMode,
   recordPromptPlanForActorExecution,
   resetActorContinuationBaseline,
   resolveWorkModeToolGuidance,
   resolveTurnWorkContextForActor,
+  setActorTaskPhase,
+  setActorWorkMode,
 } from "./runtime/ContextControlPlane";
 export { createShellRuntimeFacade } from "./runtime/ShellRuntimeFacade";
 export {
@@ -101,6 +135,10 @@ export {
   emitRuntimeDirectSlashAssistantOutput,
   processRuntimeIngressStream,
 } from "./runtime/ShellRuntimeSupport";
+export {
+  bindIngressStreamsToSessionXnlLog,
+  createSessionDiagnosticsXnlLog,
+} from "./runtime/SessionRuntimeXnlLogs";
 export {
   bindObservabilitySinks,
   createLogObservabilitySink,
@@ -177,10 +215,30 @@ export {
   recoverOrCreateShellRuntime,
 } from "./runtime/ShellRuntimeBootstrap";
 export { tickAiAgentRuntimeBackground } from "./runtime/tickAiAgentRuntimeBackground";
+export {
+  createRuntimeHookDispatcher,
+  createRuntimeHookHandlerComponent,
+} from "./hooks/RuntimeHookDispatcher";
+export {
+  createDefaultRuntimeHookHandlers,
+} from "./hooks/DefaultRuntimeHookHandlers";
+export {
+  runRuntimeLifecycleHook,
+} from "./hooks/RuntimeHookProducer";
+export type {
+  RuntimeHookDispatcher,
+  RuntimeHookDispatcherOptions,
+  RuntimeHookDispatchOutput,
+  RuntimeHookDispatchParams,
+  RuntimeHookHandlerComponent,
+  RuntimeHookHandlerRuntime,
+} from "./hooks/RuntimeHookDispatcher";
+export type {
+  RuntimeLifecycleHookParams,
+} from "./hooks/RuntimeHookProducer";
 export { LLMSemanticProjector } from "./stream/semantic/LLMSemanticProjector";
 export type {
   RuntimeAdapterOverrides,
-  RuntimeHistoryEffect,
   RuntimeLlmAdapterDefaults,
   RuntimeLlmAdapterFactoryOverride,
 } from "./runtime/ShellRuntimeSupport";

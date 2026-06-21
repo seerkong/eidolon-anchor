@@ -102,7 +102,7 @@ describe("web tool gating (network_access)", () => {
     });
 
     const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
-    const toolMsg = result.messages.find((m: any) => m?.role === "tool" && m?.tool_call_id === "tc-web-1");
+    const toolMsg = result.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-web-1");
     expect(toolMsg).toBeTruthy();
     expect(String(toolMsg.content)).toContain("policy violation");
     expect(calls).toBe(0);
@@ -184,10 +184,10 @@ describe("web tool gating (network_access)", () => {
     await advanceUntil({
       driver,
       fiberId,
-      predicate: () => messages.some((m) => m?.role === "tool" && m?.tool_call_id === "tc-web-2"),
+      predicate: () => actor.messages.some((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-web-2"),
     });
 
-    const toolMsg = messages.find((m) => m?.role === "tool" && m?.tool_call_id === "tc-web-2");
+    const toolMsg = actor.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-web-2");
     expect(toolMsg).toBeTruthy();
     expect(String((toolMsg as any).content)).toContain("policy violation");
     expect(calls).toBe(0);

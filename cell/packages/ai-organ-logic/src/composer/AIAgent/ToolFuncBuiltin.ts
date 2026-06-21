@@ -1,7 +1,6 @@
 import type { AnyToolDef } from "@cell/ai-core-contract/types"
 import { buildBashToolDef } from "./tools/Bash"
 import { buildApplyPatchToolDef } from "./tools/ApplyPatch"
-import { buildBatchToolDef } from "./tools/Batch"
 import { buildEditToolDef } from "./tools/Edit"
 import { buildGlobToolDef } from "./tools/Glob"
 import { buildGrepToolDef } from "./tools/Grep"
@@ -41,6 +40,7 @@ import { buildShutdownStatusToolDef } from "./tools/ShutdownStatus"
 import { buildPlanReviewToolDef } from "./tools/PlanReview"
 import { buildCoordinationStatusToolDef } from "./tools/CoordinationStatus"
 import { buildGoalCommandToolDef } from "./tools/GoalCommand"
+import { buildSetTaskPhaseToolDef } from "./tools/SetTaskPhase"
 import { buildGoalCreateToolDef } from "./tools/GoalCreate"
 import { buildGoalGetToolDef } from "./tools/GoalGet"
 import { buildGoalUpdateToolDef } from "./tools/GoalUpdate"
@@ -65,7 +65,6 @@ export function buildBuiltinToolDefs(options?: { includeInternalOnly?: boolean }
   const defs = [
     buildBashToolDef(),
     buildApplyPatchToolDef(),
-    buildBatchToolDef(),
     buildEditToolDef(),
     buildGlobToolDef(),
     buildGrepToolDef(),
@@ -107,6 +106,7 @@ export function buildBuiltinToolDefs(options?: { includeInternalOnly?: boolean }
     buildGoalCreateToolDef(),
     buildGoalUpdateToolDef(),
     buildGoalCommandToolDef(),
+    buildSetTaskPhaseToolDef(),
     buildCreateTimeoutToolDef(),
     buildCreateIntervalToolDef(),
     buildListSchedulesToolDef(),

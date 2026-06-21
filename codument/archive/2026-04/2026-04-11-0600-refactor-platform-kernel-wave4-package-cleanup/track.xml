@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-wave4-package-cleanup" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>清理旧 runtime profile alias，只保留正式 profile naming，并保持 terminal/tui/headless 主路径连续可运行。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T05:55:48Z</CreatedAt>
+    <UpdatedAt>2026-04-11T06:00:03Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-wave4-package-cleanup" name="refactor-platform-kernel-wave4-package-cleanup" version="1">
+    <Description>实施平台微内核 Wave 4 的 package cleanup</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Alias Cleanup" status="DONE" order="0">
+        <Description>移除旧 profile alias，并将剩余调用方切到正式命名。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="移除 default-coding 兼容导出" status="DONE" order="0" priority="P0">
+            <Description>从 `@cell/mod-profiles` 删除旧 alias，只保留正式 profile naming。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">`defaultCodingRuntimeProfile` 已删除</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">`assembleDefaultCodingRuntimeProfile` 已删除</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="更新剩余测试与调用方到正式 naming" status="DONE" order="1" priority="P0">
+            <Description>将所有残留引用切到 `ai-coding` 正式导出。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">代码与测试不再引用旧 alias</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">focused tests 改为验证正式 naming</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Focused Verification" status="DONE" order="1">
+        <Description>通过 focused verification 锁定别名清理后主路径仍可运行。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="运行 runtime/profile focused tests" status="DONE" order="0" priority="P0">
+            <Description>验证 profile layering、runtime adoption 与正式 naming 断言。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">runtime/profile focused tests 全部通过</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">正式 naming 断言通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="验证 terminal/tui/headless smoke tests" status="DONE" order="1" priority="P0">
+            <Description>确认主路径在别名清理后未被打断。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">terminal/headless 主路径测试通过</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">tui semantic 主路径测试通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

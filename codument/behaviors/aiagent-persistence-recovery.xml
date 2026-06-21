@@ -1,0 +1,495 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="aiagent-persistence-recovery" version="1">
+  <requirement id="durable-control-signal-recovery">
+    <statement>系统 SHALL persist unblock-capable actor control signals durably and replay or re-deliver them during session recovery.</statement>
+    <suite id="outbox-inbox-recovery" name="Outbox and inbox recovery">
+      <case id="crash-after-control-event-before-resume">
+        <given>A tool, LLM, child, human, or cancel event has been persisted as a durable control signal</given>
+        <then>The process crashes before the matching resume is applied</then>
+        <when>The session runtime is recovered</when>
+        <then>The runtime SHALL re-deliver or reduce the durable signal into the actor mailbox or cooperative exec state</then>
+        <then>The owning fiber SHALL become schedulable if the signal satisfies its wait condition</then>
+      </case>
+      <case id="crash-after-mailbox-before-projection">
+        <given>A durable control signal has been enqueued into an actor mailbox</given>
+        <then>The process crashes before transcript or projection persistence completes</then>
+        <when>The session runtime is recovered</when>
+        <then>The control signal SHALL remain available for actor execution</then>
+        <then>Transcript projection SHALL be rebuilt or repaired as a read model</then>
+      </case>
+      <case id="idempotent-redelivery">
+        <given>The same durable control signal is encountered more than once during recovery</given>
+        <when>The runtime replays control events</when>
+        <then>The runtime SHALL de-duplicate by event id, op id, fiber id, and tool call id as applicable</then>
+        <then>The actor SHALL NOT apply the same completion twice</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/durable-control-signal-recovery" strength="hint" />
+  </requirement>
+  <requirement id="suspended-fiber-invariant">
+    <statement>系统 SHALL reject, repair, or explicitly diagnose suspended fiber snapshots that have no recoverable wait condition or pending control signal.</statement>
+    <suite id="snapshot-invariants" name="Snapshot invariants">
+      <case id="invalid-external-empty-state">
+        <given>A fiber snapshot would be saved as suspended with generic external waiting</given>
+        <then>The actor has no pending mailbox entries, no cooperative exec state, no durable pending control signal, and no terminal condition</then>
+        <when>The runtime attempts to save or recover the snapshot</when>
+        <then>The runtime SHALL NOT silently persist or accept the state as a healthy blocked fiber</then>
+        <then>The runtime SHALL either mark it recoverable-failed with diagnostics or rehydrate it to a deterministic ready state when a safe continuation rule exists</then>
+      </case>
+      <case id="projection-tail-not-primary-control-truth">
+        <given>The transcript or conversation history ends with a tool result</given>
+        <when>The runtime recovers control state</when>
+        <then>The runtime MAY use the transcript tail as a conservative repair hint</then>
+        <then>The runtime SHALL prefer durable control signals, actor mailboxes, and cooperative exec state as the primary control truth</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/suspended-fiber-invariant" strength="hint" />
+  </requirement>
+  <requirement id="vm-snapshot-boundaries">
+    <statement>系统 SHALL keep the VM snapshot as a bounded durable subset and SHALL NOT persist complete AI message history, provider-private content, or large tool outputs in `runtime_state/vm.json`.</statement>
+    <suite id="durable-subset" name="VM durable subset boundary">
+      <case id="no-ai-history-payloads-in-vm-json">
+        <given>An actor turn produces assistant messages, reasoning content, tool calls, and tool results</given>
+        <when>The runtime writes `runtime_state/vm.json`</when>
+        <then>The VM snapshot SHALL NOT contain complete `llm_done.msg`, `tool_done.output`, `tool_done.outputText`, `reasoning_content`, or complete tool schemas</then>
+        <then>The message content SHALL remain recoverable from actor transcript, conversation history, or a referenced artifact store</then>
+      </case>
+      <case id="bounded-vm-growth">
+        <given>A session runs many LLM/tool cycles and all corresponding control signals have been consumed</given>
+        <when>The runtime writes repeated VM snapshots</when>
+        <then>The serialized VM snapshot size SHALL remain bounded by session control state, not by historical LLM/tool content volume</then>
+        <then>Consumed control signal records SHALL be compacted or checkpointed into small idempotency tombstones</then>
+      </case>
+      <case id="legacy-full-payload-snapshot-recovery">
+        <given>A legacy session contains full LLM/tool payloads inside `sessionState.controlSignals.events`</given>
+        <when>The runtime recovers and saves the session with the new snapshot writer</when>
+        <then>The runtime SHALL preserve recoverability</then>
+        <then>The next saved VM snapshot SHALL normalize or migrate those control signals to the bounded durable format</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/vm-snapshot-boundaries" strength="hint" />
+  </requirement>
+  <requirement id="control-signal-payload-refs">
+    <statement>系统 SHALL persist durable control signal payloads as typed metadata or payload references rather than unbounded mailbox payload copies.</statement>
+    <suite id="payload-normalization" name="Control signal payload normalization">
+      <case id="async-completion-stores-ref">
+        <given>An async LLM or tool operation completes with a large result</given>
+        <when>The runtime emits the durable control signal that wakes the owning fiber</when>
+        <then>The signal SHALL store op id, tool call id, mailbox kind, signal kind, priority, created time, and a small payload reference or digest</then>
+        <then>The full completion payload SHALL be delivered through the actor mailbox and persisted by the appropriate actor mailbox, transcript, conversation, or artifact surface</then>
+      </case>
+      <case id="unconsumed-mailbox-payload-remains-actor-owned">
+        <given>A mailbox payload is not yet consumed at snapshot time</given>
+        <when>The runtime writes actor snapshots</when>
+        <then>The actor mailbox snapshot SHALL retain enough payload data to continue mailbox drain after recovery</then>
+        <then>The VM control signal snapshot SHALL NOT duplicate that payload as a second content truth source</then>
+      </case>
+      <case id="projection-not-promoted-by-accident">
+        <given>Derived indexes or projection files exist for member, detached actor, coordination, conversation, or UI views</given>
+        <when>The runtime recovers a session</when>
+        <then>Those projections SHALL either be rebuildable from VM, actor, fiber, transcript, conversation, and artifact truth sources or be explicitly modeled as durable state</then>
+        <then>They SHALL NOT silently become the only source of truth for recoverable state</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/control-signal-payload-refs" strength="hint" />
+  </requirement>
+  <requirement id="snapshot-guardrails">
+    <statement>系统 SHALL provide guard tests or diagnostics that prevent VM snapshot boundary regressions.</statement>
+    <suite id="snapshot-guards" name="Snapshot guardrails">
+      <case id="vm-json-forbidden-fields">
+        <given>A test runtime produces assistant reasoning, tool output, MCP output, and consumed control signals</given>
+        <when>The test inspects serialized `vm.json`</when>
+        <then>The test SHALL fail if `vm.json` contains provider-private fields such as `reasoning_content` or full `tool_done.outputText` payloads</then>
+      </case>
+      <case id="vm-json-size-regression">
+        <given>A fixture produces repeated consumed LLM/tool completion signals</given>
+        <when>The test compares VM snapshot size before and after additional consumed history</when>
+        <then>The test SHALL fail if VM snapshot growth is proportional to historical message or tool payload bytes</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/snapshot-guardrails" strength="hint" />
+  </requirement>
+  <requirement id="questionnaire-table-persistence">
+    <statement>系统 SHALL persist questionnaire state as first-class rows in `runtime_state/questionnaires.xnl` and SHALL NOT persist questionnaire request payloads inside actor snapshots.</statement>
+    <suite id="questionnaire-xnl-table" name="Questionnaire XNL table">
+      <case id="questionnaires-xnl-uses-row-nodes">
+        <given>A runtime has pending or answered questionnaires</given>
+        <when>The runtime writes a snapshot</when>
+        <then>The snapshot SHALL write `runtime_state/questionnaires.xnl` as repeated `QuestionnaireRow` XNL data nodes without an outer wrapper node</then>
+        <then>The writer SHALL use xnl-core parsing and stringifying APIs rather than XML syntax or ad hoc string concatenation</then>
+      </case>
+      <case id="actor-snapshot-does-not-own-questionnaires">
+        <given>An actor owns a pending questionnaire</given>
+        <when>The runtime writes actor snapshot files</when>
+        <then>The actor metadata, state, and mailbox snapshot files SHALL NOT store `pendingQuestionnaires` as durable questionnaire truth</then>
+        <then>The questionnaire SHALL remain recoverable from `runtime_state/questionnaires.xnl`</then>
+      </case>
+      <case id="recover-pending-questionnaires-from-table">
+        <given>A session is recovered from snapshot files</given>
+        <when>`runtime_state/questionnaires.xnl` contains pending questionnaire rows</when>
+        <then>The runtime SHALL rebuild the actor surface pending questionnaire list from those rows</then>
+        <then>The TUI SHALL show pending questionnaires when loading the session</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/questionnaire-table-persistence" strength="hint" />
+  </requirement>
+  <requirement id="recover-consumed-signal-mailbox-work">
+    <statement>系统 SHALL recover and schedule actor mailbox wake work even when the corresponding durable control signal is present only as a consumed tombstone.</statement>
+    <suite id="consumed-signal-mailbox-payload" name="Consumed signal with pending mailbox payload">
+      <case id="consumed-async-signal-mailbox-pending">
+        <given>`runtime_state/vm.json` contains a consumed `async_completed` control-signal tombstone for op id `X`</given>
+        <then>The actor mailbox snapshot still contains `asyncCompletion` payload for op id `X`</then>
+        <when>The session runtime is recovered</when>
+        <then>The actor mailbox payload SHALL remain the recoverable execution truth</then>
+        <then>The owning fiber SHALL become schedulable without requiring a pending durable signal event</then>
+      </case>
+      <case id="mailbox-work-reconstructs-pending-resume">
+        <given>A recovered actor has pending wake mailbox work and no serialized pending resume</given>
+        <when>The runtime reconstructs orchestrator state</when>
+        <then>The runtime SHALL rebuild the equivalent schedulable state from actor mailbox plus cooperative exec state</then>
+        <then>The runtime SHALL NOT require transcript-tail inference to resume the fiber</then>
+      </case>
+      <case id="pending-resume-never-required-as-sole-truth">
+        <given>A wake message was durably delivered to an actor mailbox before process exit</given>
+        <then>The explicit `pendingResumes` scheduler set was lost or absent</then>
+        <when>The runtime recovers</when>
+        <then>The pending actor mailbox entry SHALL be sufficient to re-schedule the fiber</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/recover-consumed-signal-mailbox-work" strength="hint" />
+  </requirement>
+  <requirement id="cooperative-wait-snapshot-guard">
+    <statement>系统 SHALL reject, repair, or explicitly diagnose snapshots that persist a cooperative async wait as an apparently idle ready fiber.</statement>
+    <suite id="cooperative-wait-guards" name="Cooperative wait snapshot guards">
+      <case id="ready-wait-llm-guard">
+        <given>A snapshot would persist a fiber as `ready` with no waiting reason</given>
+        <then>The cooperative exec state is `wait_llm` with inflight work</then>
+        <when>The snapshot is saved or recovered</when>
+        <then>The runtime SHALL NOT silently accept it as ordinary idle state</then>
+        <then>The runtime SHALL repair it to a schedulable or typed waiting state and emit diagnostics when repair is applied</then>
+      </case>
+      <case id="ready-wait-tool-guard">
+        <given>A snapshot would persist a fiber as `ready` with cooperative exec state `wait_tool` and inflight work</given>
+        <when>The snapshot is saved or recovered</when>
+        <then>The runtime SHALL preserve a deterministic continuation path for the pending tool result</then>
+      </case>
+      <case id="recovery-fixture-covers-empty-pending-signal-store">
+        <given>A recovery fixture has no pending durable control signal events</given>
+        <then>It has consumed wake tombstones, pending actor mailbox payloads, and cooperative wait state</then>
+        <when>The focused recovery test runs</when>
+        <then>The test SHALL prove that mailbox-owned payloads still drive recovery and execution</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/cooperative-wait-snapshot-guard" strength="hint" />
+  </requirement>
+  <requirement id="runtime-snapshot-safepoints">
+    <statement>系统 SHALL save runtime snapshots only at recoverable safepoints or preserve the previous known-good snapshot when the current runtime state is not a safepoint.</statement>
+    <suite id="snapshot-save-safepoint" name="Snapshot save safepoint semantics">
+      <case id="reject-start-tool-half-step">
+        <given>An actor history contains an assistant tool call that requires tool execution</given>
+        <then>The owning fiber cooperative exec state is `start_tool`</then>
+        <then>No durable tool operation or matching tool result exists for that tool call</then>
+        <when>The runtime attempts to save a snapshot</when>
+        <then>The snapshot writer SHALL NOT persist that state as the latest recoverable snapshot</then>
+        <then>The runtime SHALL either advance to a safepoint or skip the save while preserving the previous known-good snapshot</then>
+      </case>
+      <case id="tool-call-has-durable-proof">
+        <given>An actor history contains an assistant tool call without a matching tool result</given>
+        <when>The runtime saves a snapshot</when>
+        <then>The snapshot SHALL contain recoverable proof that the matching tool operation has started or is waiting for completion</then>
+        <then>Recovery SHALL be able to continue without relying on transcript-tail inference</then>
+      </case>
+      <case id="save-after-crash-boundary">
+        <given>A snapshot save has completed successfully</given>
+        <when>The process exits immediately after the save and the session is recovered</when>
+        <then>The recovered runtime SHALL be able to continue or remain in a typed external wait state</then>
+        <then>The recovered message history SHALL NOT contain unmatched assistant tool calls unless a durable operation can produce the matching tool result</then>
+      </case>
+    </suite>
+    <suite id="snapshot-diagnostics" name="Snapshot diagnostics">
+      <case id="diagnose-non-safepoint-skip">
+        <given>The runtime attempts to save while mandatory continuations remain unconsumed</given>
+        <when>The save is skipped or delayed because the state is not a safepoint</when>
+        <then>The runtime SHALL emit diagnostics describing the blocking fiber, phase, and reason</then>
+        <then>The diagnostics SHALL NOT expose provider-private message content or large tool payloads</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/runtime-snapshot-safepoints" strength="hint" />
+  </requirement>
+  <requirement id="append-only-xnl-storage">
+    <statement>系统 SHALL store every append-only session record stream as parser-valid top-level XNL records appended with filesystem append operations, and SHALL keep replace-written state files bounded.</statement>
+    <suite id="classification" name="XNL file classification">
+      <case id="shared-xnl-helpers">
+        <given>The implementation writes or reads runtime XNL persistence records covered by this requirement</given>
+        <when>The implementation serializes, appends, or reads those records</when>
+        <then>The implementation SHALL use shared project-level XNL formatter, append helper, and read helper where practical</then>
+        <then>The formatter SHALL follow xnl-core-compatible AST and syntax rules</then>
+        <then>The append helper SHALL write one complete top-level record plus newline per append</then>
+        <then>The read helper SHALL be built on XNL-provided parser/helper functions rather than reimplementing an XNL parser</then>
+        <then>The read helper SHALL parse multi-root append streams and reject root-wrapper growing history for append-only streams</then>
+      </case>
+      <case id="append-only-classification">
+        <given>A session file records historical facts, audit facts, replay facts, diagnostics, message history, prompt materialization history, orchestration events, or runtime-control evidence</given>
+        <when>The component persists the fact to an XNL file</when>
+        <then>The component SHALL append one complete top-level XNL element per record</then>
+        <then>The component SHALL NOT rewrite a growing root wrapper, JSON array, JSONL stream, or plain text transcript as the authoritative append-only format</then>
+      </case>
+      <case id="attribute-unique-child-body-shape">
+        <given>An append-only XNL record has exactly one event subject, payload, payload reference, or structured result</given>
+        <when>The record is serialized</when>
+        <then>A pure key-value subject SHALL be represented in the top-level node's custom attribute block</then>
+        <then>A single subject that has its own tag, metadata, attributes, or text marker semantics SHALL be represented as a named child node in `()`</then>
+        <then>The writer SHALL use `[]` body only when the record has multiple peer child nodes, ordered blocks, or mixed text/data children</then>
+      </case>
+      <case id="replace-state-classification">
+        <given>A session file stores bounded current state such as a manifest, index, head, cursor, checkpoint marker, or projection metadata</given>
+        <when>The component persists that state</when>
+        <then>The component MAY use replace-written JSON or replace-written XNL only if the file does not contain historical record bodies</then>
+        <then>The file SHALL remain bounded by current state rather than growing with session event count</then>
+      </case>
+      <case id="replace-xnl-review">
+        <given>An XNL file is currently written by full replacement</given>
+        <when>The file's rows represent lifecycle history or recovery/audit evidence rather than bounded current state</when>
+        <then>The implementation SHALL convert it to an append-only XNL stream or split historical facts into a dedicated append-only XNL stream</then>
+      </case>
+    </suite>
+    <suite id="required-session-streams" name="Required append-only session streams">
+      <case id="conversation-history-xnl">
+        <given>The runtime persists actor conversation history records</given>
+        <when>The record is saved</when>
+        <then>The record SHALL be appended to `conversation/history.xnl` as a top-level XNL record</then>
+        <then>`conversation/history-generations/*.json` SHALL NOT be used as the authoritative format for new or upgraded sessions</then>
+      </case>
+      <case id="prompt-generation-xnl">
+        <given>The runtime persists prompt materialization records that are retained for recovery, audit, or debugging</given>
+        <when>The record is saved</when>
+        <then>The record SHALL be appended to `conversation/prompts.xnl` as a top-level XNL record</then>
+        <then>Prompt caches that are rebuildable SHALL be explicitly non-authoritative</then>
+      </case>
+      <case id="remove-actor-transcript-xnl">
+        <given>The runtime persists actor-originated conversation history</given>
+        <when>The record is saved in a new or upgraded session</when>
+        <then>The actor source SHALL be represented in `conversation/history.xnl` generation and message metadata</then>
+        <then>The runtime SHALL NOT create or append to `actors/&amp;amp;lt;actor-dir&amp;amp;gt;/transcript.xnl` as an independent history file</then>
+        <then>`transcript.txt` and legacy `transcript.xnl` files SHALL NOT be used as recovery or append-only history sources for new or upgraded sessions</then>
+      </case>
+      <case id="runtime-control-effects-xnl">
+        <given>The runtime-control engine records effect lifecycle evidence</given>
+        <when>The evidence is persisted</when>
+        <then>The evidence SHALL be appended to `runtime-control/effects.xnl` as a top-level XNL record with monotonic sequence metadata</then>
+        <then>`runtime-control/effects.jsonl` SHALL NOT be used for new or upgraded sessions</then>
+      </case>
+      <case id="orchestration-history-xnl">
+        <given>The runtime records orchestration history</given>
+        <when>The event is persisted</when>
+        <then>The event SHALL be appended to `logs/orchestration_history.xnl` as a top-level XNL record</then>
+        <then>`logs/orchestration_history.jsonl` SHALL NOT be used for new or upgraded sessions</then>
+      </case>
+      <case id="runtime-ingress-diagnostics-xnl">
+        <given>The runtime records ingress or diagnostic event facts</given>
+        <when>The event is persisted</when>
+        <then>The event SHALL be appended to `logs/ingress.xnl` or `logs/diagnostics.xnl` as a top-level XNL record</then>
+        <then>Any head JSON for those logs SHALL contain only bounded cursor, count, id, timestamp, or sequence state</then>
+      </case>
+    </suite>
+    <suite id="history-message-format" name="History message XNL format">
+      <case id="message-first-layer">
+        <given>The runtime writes a record to `conversation/history.xnl`</given>
+        <when>The record is serialized</when>
+        <then>The top-level XNL node SHALL represent one message, not a generation wrapper</then>
+        <then>The message metadata SHALL include actor source fields such as `actorKey` and `actorId`</then>
+      </case>
+      <case id="message-blocks-second-layer">
+        <given>A history message contains multiple blocks</given>
+        <when>The message is serialized</when>
+        <then>The message body SHALL contain the block nodes in order</then>
+        <then>`Think` and `Content` blocks SHALL be XNL text nodes without a `mime` metadata field</then>
+        <then>`Think` and `Content` text markers SHALL be generated ULIDs</then>
+        <then>Non-text blocks such as tool calls, tool results, artifact refs, and questionnaire refs SHALL be XNL data nodes</then>
+      </case>
+      <case id="no-transcript-source-record-blobs">
+        <given>A history message is persisted to `conversation/history.xnl`, including runtime commits, compaction writes, legacy history-generation migration, and transcript-only legacy session bootstrap</given>
+        <when>The `HistoryMessage` record is serialized</when>
+        <then>The writer SHALL NOT persist legacy transcript-shaped `sourceRecords` payload blobs or `transcriptPath` fields in `HistoryMessage` attributes</then>
+        <then>The message text SHALL live only in the block children rather than being duplicated as attribute payload strings</then>
+        <then>Readers MAY keep accepting `sourceRecords` attributes from records written before this rule for tool-call-id recovery and user-input history compatibility</then>
+      </case>
+      <case id="compact-open-tag-format">
+        <given>The history writer serializes message and block nodes</given>
+        <when>It writes XNL text</when>
+        <then>The formatter SHALL keep the node name, metadata fields, and attribute block on the same opening line when an attribute block exists</then>
+        <then>The formatter SHALL be based on xnl-core compatible syntax or AST rules rather than ad hoc XML string concatenation</then>
+      </case>
+    </suite>
+    <suite id="prompt-generation-format" name="Prompt generation XNL format">
+      <case id="prompt-generation-first-layer">
+        <given>The runtime writes a record to `conversation/prompts.xnl`</given>
+        <when>The prompt generation is serialized</when>
+        <then>The top-level XNL node SHALL represent one `PromptGeneration` record</then>
+        <then>The prompt generation metadata SHALL include `id`, `sessionId`, `actorKey`, `actorId`, `reason`, `sealed`, `createdAt`, and `updatedAt` when available</then>
+      </case>
+      <case id="prompt-generation-second-layer">
+        <given>A prompt generation has basis refs, transforms, and materialized context</given>
+        <when>The prompt generation is serialized</when>
+        <then>The body SHALL contain structured second-layer nodes such as `Basis`, `BasisRef`, `Transform`, and `MaterializedContext`</then>
+        <then>`MaterializedContext` SHALL be an XNL text node with a generated ULID marker</then>
+        <then>`Basis`, `BasisRef`, and `Transform` SHALL be XNL data nodes</then>
+      </case>
+      <case id="prompt-authority-classification">
+        <given>A prompt materialization is persisted</given>
+        <when>The record is written to `conversation/prompts.xnl`</when>
+        <then>The record SHALL explicitly state whether it is recoverable audit truth or a rebuildable non-authoritative cache</then>
+        <then>Rebuildable prompt caches SHALL NOT be used as recovery fact sources</then>
+      </case>
+    </suite>
+    <suite id="runtime-effect-event-format" name="Runtime effect event XNL format">
+      <case id="effect-event-first-layer">
+        <given>The runtime-control engine writes a record to `runtime-control/effects.xnl`</given>
+        <when>The lifecycle evidence is serialized</when>
+        <then>The top-level XNL node SHALL represent one `RuntimeEffectEvent` lifecycle event</then>
+        <then>The top-level metadata SHALL include `sequence`, `kind`, `effectKind`, `effectId`, and `handlerKey`</then>
+        <then>The implementation SHALL NOT wrap the full lifecycle event object in a generic nested `event` data node</then>
+      </case>
+      <case id="effect-event-second-layer">
+        <given>An effect lifecycle event has kind `request`, `waiting`, `result`, or `failed`</given>
+        <when>The event is serialized</when>
+        <then>The event-specific subject SHALL be stored as a named child node in `()`, such as `Request`, `Wait`, `Result`, or `Error`</then>
+        <then>The writer SHALL NOT use a `[]` body solely to wrap a single event-specific subject</then>
+        <then>Small structured subjects SHALL be expanded directly into the event-specific child node attributes rather than wrapped as `{ payload = ... }` by default</then>
+        <then>The writer MAY use a `payload` field only when that field has a real sibling at the same level and the schema documents the sibling semantics</then>
+        <then>Large payloads, text bodies, provider outputs, or tool outputs SHALL be stored as artifact refs, digests, or bounded summaries rather than top-level metadata</then>
+      </case>
+    </suite>
+    <suite id="ingress-event-format" name="Ingress event XNL format">
+      <case id="ingress-typed-top-level">
+        <given>The runtime writes a record to `logs/ingress.xnl`</given>
+        <when>The ingress event is serialized</when>
+        <then>The top-level XNL node SHALL represent the ingress category directly rather than a generic `IngressEvent` wrapper</then>
+        <then>The writer SHALL NOT use `IngressEvent` containing `Data` containing `{ payload = ... }` for new records</then>
+      </case>
+      <case id="ingress-text-readable">
+        <given>An ingress event contains think or content text</given>
+        <when>The event is serialized</when>
+        <then>The event SHALL be written as a typed XNL text node such as `Think` or `Content`</then>
+        <then>The human-readable text SHALL be the text node body, not JSON inside a payload field</then>
+      </case>
+      <case id="ingress-structured-events">
+        <given>An ingress event contains tool, control, or other structured data</given>
+        <when>The event is serialized</when>
+        <then>The event SHALL use a typed top-level data node with metadata and direct attributes when the subject is a pure key-value structure</then>
+        <then>The event MAY use `()` only when a single child subject has its own tag, metadata, attributes, or text-marker semantics</then>
+      </case>
+    </suite>
+    <suite id="orchestration-event-format" name="Orchestration event XNL format">
+      <case id="orchestration-event-first-layer">
+        <given>The runtime writes a record to `logs/orchestration_history.xnl`</given>
+        <when>The orchestration event is serialized</when>
+        <then>The top-level XNL node SHALL represent one `OrchestrationEvent`</then>
+        <then>The top-level metadata SHALL include `version`, `sequence`, `observedAt`, `stream`, and `kind`</then>
+        <then>The implementation SHALL NOT wrap the full event object in a generic nested `event` data node</then>
+      </case>
+      <case id="orchestration-event-payload-shape">
+        <given>An orchestration event has one payload subject</given>
+        <when>The event is serialized</when>
+        <then>Small structured payloads SHALL be stored as a `Payload` child node in `()`</then>
+        <then>Large hook reports, long text, or complex diagnostic objects SHALL be stored as `PayloadRef` child nodes in `()` with artifact refs, digests, or bounded summaries</then>
+      </case>
+    </suite>
+    <suite id="questionnaire-table-boundary" name="Questionnaire table boundary">
+      <case id="questionnaire-current-state-table">
+        <given>`runtime_state/questionnaires.xnl` stores only current questionnaire rows for recovery of pending or answered questionnaire state</given>
+        <when>The runtime writes a snapshot</when>
+        <then>The file MAY remain a replace-written bounded XNL table of `QuestionnaireRow` nodes</then>
+        <then>The implementation SHALL prove that the table does not grow as an audit log of questionnaire lifecycle events</then>
+        <then>`QuestionnaireRow` SHALL use `[]` for multiple typed children such as `Request`, `Result`, and `Metadata`</then>
+      </case>
+      <case id="questionnaire-history-split">
+        <given>The runtime needs questionnaire lifecycle audit or replay history</given>
+        <when>The lifecycle facts are persisted</when>
+        <then>The facts SHALL be stored in a dedicated append-only XNL stream rather than hidden inside the replace-written questionnaire state table</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/append-only-xnl-storage" strength="hint" />
+  </requirement>
+  <requirement id="xnl-conversation-history">
+    <statement>系统 SHALL make XNL conversation history the upgraded session's authoritative message history format.</statement>
+    <suite id="conversation-migration" name="Conversation history migration">
+      <case id="remove-json-history-generations">
+        <given>An upgraded session has conversation history records</given>
+        <when>The session is saved or recovered after upgrade</when>
+        <then>The session SHALL use XNL append-only conversation history records instead of `conversation/history-generations/*.json` as the authoritative history source</then>
+      </case>
+      <case id="remove-transcript-txt">
+        <given>A legacy session contains actor `transcript.txt` files</given>
+        <when>The session is upgraded to the new append-only storage model</when>
+        <then>The upgrade SHALL migrate transcript facts into XNL record streams</then>
+        <then>The upgraded session SHALL NOT retain `transcript.txt` as a recovery or append-only history source</then>
+      </case>
+      <case id="history-index-is-head-state">
+        <given>Conversation indexes or heads are written after upgrade</given>
+        <when>The system updates visible heads, active actor selection, or generation cursors</when>
+        <then>The JSON index/head files SHALL only point to XNL stream positions or generation ids and SHALL NOT store growing message bodies</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="xnl-runtime-control-evidence">
+    <statement>系统 SHALL store runtime-control evidence and orchestration history as XNL append-only streams.</statement>
+    <suite id="runtime-control-migration" name="Runtime control record migration">
+      <case id="effects-xnl">
+        <given>The runtime-control engine records an effect lifecycle event</given>
+        <when>The event is persisted</when>
+        <then>The event SHALL be appended to an XNL effect evidence stream</then>
+        <then>The system SHALL NOT use `runtime-control/effects.jsonl` for new upgraded sessions</then>
+      </case>
+      <case id="orchestration-xnl">
+        <given>The runtime records orchestration history</given>
+        <when>The event is persisted</when>
+        <then>The event SHALL be appended to an XNL orchestration stream</then>
+        <then>The system SHALL NOT use `logs/orchestration_history.jsonl` for new upgraded sessions</then>
+      </case>
+      <case id="log-heads-are-cursors">
+        <given>The runtime updates diagnostic or ingress log heads</given>
+        <when>The head JSON file is written</when>
+        <then>The head SHALL contain cursor state such as count, sequence, id, and timestamp only</then>
+        <then>The head SHALL NOT embed the full last event payload</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="xnl-prompt-records">
+    <statement>系统 SHALL classify prompt materialization data as either XNL audit records or rebuildable cache, and SHALL NOT persist prompt history as many authoritative JSON generation files.</statement>
+    <suite id="prompt-generation-migration" name="Prompt generation migration">
+      <case id="prompt-audit-xnl">
+        <given>A prompt materialization must be retained for recovery, audit, or debugging</given>
+        <when>The prompt materialization is persisted</when>
+        <then>The system SHALL append it as an XNL prompt record</then>
+      </case>
+      <case id="prompt-cache-not-authoritative">
+        <given>A prompt materialization is only a rebuildable cache</given>
+        <when>The prompt cache is persisted</when>
+        <then>The cache SHALL be explicitly marked as non-authoritative and SHALL NOT be used as a recovery fact source</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="runtime-control-safepoint-source">
+    <statement>系统 SHALL source snapshot safepoint decisions from the AI runtime control layer rather than from the persistence writer.</statement>
+    <suite id="snapshot-save" name="Snapshot Save">
+      <case id="persistence-consumes-barrier">
+        <given>The snapshot writer is asked to save runtime state</given>
+        <when>It checks whether the runtime is at a safepoint</when>
+        <then>The writer SHALL call the AI runtime control layer for the barrier result</then>
+        <then>The writer SHALL only persist or skip according to that result</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="conversation-single-recovery-source">
+    <statement>对话恢复 SHALL 以会话文件（history、prompts、session.index）为唯一来源；SHALL NOT 读取 actor transcript（该形态已删除）；transcript-only 旧 session SHALL 被显式拒绝而非静默降级。</statement>
+    <suite id="single-source" name="Single recovery source">
+      <case id="no-transcript-fallback">
+        <given>恢复流程选择对话来源</given>
+        <when>会话文件缺失或不完整</when>
+        <then>恢复 SHALL 失败并返回显式错误</then>
+        <then>SHALL NOT 回退到 transcript 或其它部分事实源</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

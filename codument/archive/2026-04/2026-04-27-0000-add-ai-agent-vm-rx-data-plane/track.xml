@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-ai-agent-vm-rx-data-plane" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>用 depa-data-graph 建立 VM 级 stream+signal 数据契约</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-26T14:17:03Z</CreatedAt>
+    <UpdatedAt>2026-04-27T00:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-ai-agent-vm-rx-data-plane" name="add-ai-agent-vm-rx-data-plane" version="1">
+    <Description>为 AiAgentVm 建立 public/private 响应式数据面</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="契约与测试" status="DONE" order="0">
+        <Description>先以测试定义 public/private RxData 边界</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 rx data 类型测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖 contract 中 public 读面不可写、private 写面可写，并确认不再是 null 占位。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">已补充 rx seam 初始化测试；占位类型替换由 T2.1 完成</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="定义 binding dispose 测试" status="DONE" order="1" priority="P0">
+            <Description>覆盖释放幂等性。</Description>
+          </Task>
+          <Task id="T1.3" name="定义 contract/logic 分层测试" status="DONE" order="2" priority="P0">
+            <Description>确认 ai-core-contract 不依赖 depa-data-graph 实现类，ai-core-logic 负责具体 factory/binding。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="实现 VM RxData 数据面" status="DONE" order="1">
+        <Description>实现类型、初始化与 semantic/domain stream 绑定</Description>
+        <SubNodes>
+          <Task id="T2.1" name="替换 contract 中 private/public RxData 占位类型" status="DONE" order="0" priority="P0">
+            <Description>在 ai-core-contract 中定义不依赖 depa-data-graph class 的 stream/signal 协议类型。</Description>
+          </Task>
+          <Task id="T2.2" name="实现 ensureVmRxData binding" status="DONE" order="1" priority="P0">
+            <Description>在 ai-core-logic 中创建 depa-data-graph backed rx data，并挂载 VM rx data 与 binding。</Description>
+          </Task>
+          <Task id="T2.3" name="桥接 semantic stream" status="DONE" order="2" priority="P0">
+            <Description>接入 AgentEventGraph，确保 semantic events 进入 private/public rx data。</Description>
+          </Task>
+          <Task id="T2.4" name="提供 conversation domain optional binding seam" status="DONE" order="3" priority="P1">
+            <Description>core 不直接依赖 ai-organ-logic；外层可把 history/prompt/session domain streams 接入 private rx data。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="验证" status="DONE" order="2">
+        <Description>验证响应式数据面稳定且不破坏现有 runtime</Description>
+        <SubNodes>
+          <Task id="T3.1" name="运行 ai-core-logic 测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖 VM 与 stream 相关测试。</Description>
+          </Task>
+          <Task id="T3.2" name="运行 ai-organ-logic 相关测试" status="DONE" order="1" priority="P1">
+            <Description>覆盖 conversation domain 接入。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

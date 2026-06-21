@@ -5,6 +5,7 @@ import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver";
+import { createMockProcessStream } from "./__test_support__/mockProcessStream";
 
 function makeMockAdapter() {
   return {
@@ -67,7 +68,7 @@ describe("Stage 2: delegate actor childDone injection", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (vm, actor) => processStream(vm, actor),
+        processStream: createMockProcessStream(async (vm, actor) => processStream(vm, actor)),
       },
     });
 
@@ -101,11 +102,11 @@ describe("Stage 2: delegate actor childDone injection", () => {
     await flushMicrotasks();
 
     // Parent should have received the delegate actor completion as a tool message.
-    const toolMsgs = messages.filter((m) => m?.role === "tool" && m?.tool_call_id === "tc-sub-1");
+    const toolMsgs = main.messages.filter((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-sub-1");
     expect(toolMsgs).toHaveLength(1);
     expect(String(toolMsgs[0].content)).toBe("child result");
 
-    const parentDone = messages.find((m) => m?.role === "assistant" && m?.content === "parent done");
+    const parentDone = main.messages.find((m: any) => m?.role === "assistant" && m?.content === "parent done");
     expect(parentDone).toBeTruthy();
 
     // The child fiber exists and is completed.
@@ -158,7 +159,7 @@ describe("Stage 2: delegate actor childDone injection", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (vm, actor) => processStream(vm, actor),
+        processStream: createMockProcessStream(async (vm, actor) => processStream(vm, actor)),
       },
     });
 
@@ -200,8 +201,8 @@ describe("Stage 2: delegate actor childDone injection", () => {
     await driver.tickUntilBlocked({ now: Date.now(), maxTicks: 20, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const idxChild = messages.findIndex((m) => m?.role === "assistant" && String(m?.content ?? "").includes("Delegate actor"));
-    const idxUser = messages.findIndex((m) => m?.role === "user" && m?.content === "next");
+    const idxChild = main.messages.findIndex((m: any) => m?.role === "assistant" && String(m?.content ?? "").includes("Delegate actor"));
+    const idxUser = main.messages.findIndex((m: any) => m?.role === "user" && m?.content === "next");
     expect(idxChild).toBeGreaterThanOrEqual(0);
     expect(idxUser).toBeGreaterThanOrEqual(0);
     expect(idxChild).toBeLessThan(idxUser);

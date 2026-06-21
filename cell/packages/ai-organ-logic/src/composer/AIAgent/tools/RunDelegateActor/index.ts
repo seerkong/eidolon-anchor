@@ -24,7 +24,7 @@ export function buildRunDelegateActorToolDef(): ToolDef<
     type: "function" as const,
     function: {
       name: "RunDelegateActor",
-      description: "Spawn a delegate actor for a focused delegated task.",
+      description: "Spawn a temporary delegate actor for a focused delegated task. In AI-agent terminology, this is the subagent tool.",
       parameters: {
         type: "object",
           properties: {

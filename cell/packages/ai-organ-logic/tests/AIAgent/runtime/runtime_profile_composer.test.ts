@@ -14,6 +14,13 @@ import type {
   RuntimeExtension as PlatformRuntimeExtension,
 } from "@cell/ai-composer/contract"
 import type { RuntimeExtension } from "@cell/ai-composer/ai-contract"
+import type {
+  RuntimeHookDefinition,
+  RuntimeHookDispatchReport,
+  RuntimeHookEffect,
+  RuntimeHookInvocationContext,
+  RuntimeHookResult,
+} from "@cell/ai-core-contract"
 import {
   createPlatformRuntimeRegistries,
   findNearestProjectRoot,
@@ -169,6 +176,10 @@ describe("runtime profile composer", () => {
     expect(assembly.policies.runtimeBootstrapOwner).toBe("mod-ai-kernel")
     expect(assembly.policies.delegateAgentSelectionOwner).toBe("mod-ai-coding")
     expect(assembly.policies.defaultAppProfile).toBe("coding")
+    expect(assembly.hookDefinitions.map((definition) => definition.execution.componentId)).toEqual([
+      "mod-ai-kernel.goal-continuation",
+      "mod-ai-coding.actor-idle-observer",
+    ])
     expect(assembly.allTools.some((tool) => tool.function.name === "Skill")).toBe(true)
     expect(assembly.allTools.some((tool) => tool.function.name === "RunDelegateActor")).toBe(true)
     const defaultDelegateTool = assembly.allTools.find((tool) => tool.function.name === "RunDelegateActor")
@@ -443,6 +454,9 @@ describe("runtime profile composer", () => {
     expect(assembly.policies.defaultAppProfile).toBeUndefined()
     expect(assembly.runtimeCatalog).toBeTruthy()
     expect(assembly.runtimeSupport).toBeTruthy()
+    expect(assembly.hookDefinitions.map((definition) => definition.execution.componentId)).toEqual([
+      "mod-ai-kernel.goal-continuation",
+    ])
     expect(typeof assembly.runtimeSupport?.createAgentLoader).toBe("function")
     expect(typeof assembly.runtimeSupport?.resolveActorModelConfig).toBe("function")
     expect(Object.keys(assembly.agentConfigs)).toEqual([])
@@ -482,5 +496,119 @@ describe("runtime profile composer", () => {
     expect(assembly.systemPrompt).toContain("Custom overlay at /tmp/custom-profile.")
     expect(assembly.capabilityIds).toEqual(["custom-overlay"])
     expect(assembly.policies.customOverlayOwner).toBe("custom-overlay")
+  })
+
+  it("exposes lifecycle hook contract types with effect-oriented results", () => {
+    const effect: RuntimeHookEffect = {
+      type: "mailbox_enqueue",
+      actorId: "primary",
+      mailbox: "heartbeat",
+      payload: {
+        heartbeatKind: "runtime_internal_context",
+        source: "goal",
+        text: "Continue the active goal.",
+      },
+    }
+    const result: RuntimeHookResult = {
+      action: "continue",
+      effects: [effect],
+      metadata: { owner: "test" },
+    }
+    const context: RuntimeHookInvocationContext = {
+      point: "actor.idle.before",
+      sessionId: "session-1",
+      actorName: "primary",
+      actorKind: "main",
+      traceId: "trace-1",
+      payload: { idle: true },
+    }
+    const report: RuntimeHookDispatchReport = {
+      eventType: "hook_dispatch_report",
+      point: context.point,
+      sessionId: context.sessionId,
+      actorName: context.actorName,
+      traceId: context.traceId,
+      finalAction: result.action,
+      elapsedMs: 1,
+      steps: [],
+      effects: result.effects,
+    }
+    const definition: RuntimeHookDefinition = {
+      name: "goal-continuation",
+      extensionId: "mod-ai-kernel",
+      point: "actor.idle.before",
+      mode: "decision",
+      execution: {
+        style: "component",
+        componentId: "mod-ai-kernel.goal-continuation",
+      },
+      priority: 100,
+      timeoutMs: 500,
+      failOpen: true,
+      matcher: {
+        actorNames: ["primary"],
+        tags: ["goal"],
+      },
+    }
+
+    expect(definition.point).toBe("actor.idle.before")
+    expect(definition.mode).toBe("decision")
+    expect(definition.execution.style).toBe("component")
+    expect(result.effects).toEqual([effect])
+    expect(report.eventType).toBe("hook_dispatch_report")
+  })
+
+  it("assembles lifecycle hook definitions from runtime extensions in overlay order", () => {
+    const firstHook: RuntimeHookDefinition = {
+      name: "first-idle",
+      extensionId: "first-overlay",
+      point: "actor.idle.before",
+      mode: "observe",
+      execution: {
+        style: "component",
+        componentId: "first-overlay.first-idle",
+      },
+    }
+    const secondHook: RuntimeHookDefinition = {
+      name: "second-idle",
+      extensionId: "second-overlay",
+      point: "actor.idle.before",
+      mode: "decision",
+      priority: 10,
+      execution: {
+        style: "component",
+        componentId: "second-overlay.second-idle",
+      },
+    }
+    const firstExtension: RuntimeExtension = {
+      id: "first-overlay",
+      hooks: [firstHook],
+      apply(state) {
+        return state
+      },
+    }
+    const secondExtension: RuntimeExtension = {
+      id: "second-overlay",
+      hooks: [secondHook],
+      apply(state) {
+        return state
+      },
+    }
+
+    const assembly = assembleRuntimeProfile(
+      {
+        id: "hook-profile",
+        extensions: [firstExtension, secondExtension],
+      },
+      {
+        workDir: "/tmp/hook-profile",
+        skillsDescription: "",
+        loadedAgents: {},
+        delegateAgentDescriptions: "",
+      },
+    )
+
+    expect(assembly.hookDefinitions).toEqual([firstHook, secondHook])
+    expect((assembly as Record<string, unknown>).hookDispatcher).toBeUndefined()
   })
 })

@@ -48,7 +48,7 @@ describe("SessionTraceStore", () => {
     const filePath = path.join(tmpDir, "trace.xnl");
     const store = createSessionTraceStore({ mode: "file", filePath });
 
-    store.append(makeRecord({ seq: 1, nodeId: "a" }));
+    store.append(makeRecord({ seq: 1, nodeId: "a", valueSnapshot: { status: "before" } }));
     store.append(makeRecord({ seq: 2, nodeId: "b" }));
 
     await store.flushToFile();
@@ -60,6 +60,8 @@ describe("SessionTraceStore", () => {
 
     const doc = parseXnl(raw);
     expect(doc.nodes.length).toBe(2);
+    expect((doc.nodes[0] as any).metadata.traceKind).toBe("graph");
+    expect((doc.nodes[0] as any).extend.order).toEqual(["Value"]);
 
     // importFromFile roundtrips
     const imported = await store.importFromFile();
@@ -95,6 +97,7 @@ describe("SessionTraceStore", () => {
     // parseable
     const doc = parseXnl(xnl);
     expect(doc.nodes.length).toBe(2);
+    expect((doc.nodes[0] as any).metadata.traceKind).toBe("graph");
     store.dispose();
   });
 

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-fiber-orchestration">
+  <upsert selector="behavior://aiagent-fiber-orchestration/requirements/mailbox-wake-scheduling-consistency">
+    <requirement id="mailbox-wake-scheduling-consistency">
+    <statement>系统 SHALL treat pending wake-capable actor mailbox entries as scheduler wake truth even when the matching durable control signal has already been consumed.</statement>
+    <suite id="mailbox-priority-wake" name="Mailbox priority wake scheduling">
+      <case id="async-completion-before-human-input">
+        <given>An actor has pending `asyncCompletion` and pending `humanInput` entries</given>
+        <when>The runtime schedules the owning fiber</when>
+        <then>The fiber SHALL first continue the cooperative async boundary represented by `asyncCompletion` according to actor mailbox priority</then>
+        <then>The user input SHALL remain queued until the higher-priority async completion has been processed</then>
+      </case>
+      <case id="heartbeat-does-not-preempt-wake-work">
+        <given>An actor has pending `asyncCompletion`, `toolResult`, `childDone`, `memberCoordination`, `humanInput`, `memberChatInbox`, or `control` work</given>
+        <when>A goal continuation or other idle hook wants to enqueue `heartbeat` work</when>
+        <then>The runtime SHALL NOT treat the actor as idle</then>
+        <then>The lower-priority `heartbeat` continuation SHALL NOT preempt existing wake work</then>
+      </case>
+      <case id="ready-fiber-with-mailbox-wake-runs-agent-step">
+        <given>A fiber is `ready` and its actor has pending wake-capable mailbox work</given>
+        <when>The foreground or background scheduler settles the runtime</when>
+        <then>The scheduler SHALL execute an `agent_step` for that fiber or keep settling until the wake work is consumed</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-fiber-orchestration/mailbox-wake-scheduling-consistency" strength="hint" />
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://aiagent-fiber-orchestration/requirements/cooperative-wait-state-normalization">
+
+    <requirement id="cooperative-wait-state-normalization">
+    <statement>系统 SHALL normalize or actively schedule fibers whose cooperative exec state is waiting on async work while the fiber record is not suspended on the matching typed wait reason.</statement>
+    <suite id="ready-wait-state" name="Ready fiber cooperative wait state">
+      <case id="ready-wait-llm-with-completion">
+        <given>A fiber record is `ready` with `waitingReason` unset</given>
+        <then>Its cooperative exec state is `wait_llm` with inflight op id `X`</then>
+        <then>The actor mailbox contains `asyncCompletion` for op id `X`</then>
+        <when>The runtime saves, recovers, or settles the scheduler</when>
+        <then>The runtime SHALL either normalize the fiber to `suspended + wait_llm_result` before waiting</then>
+        <then>Or SHALL schedule an `agent_step` that drains the matching async completion</then>
+      </case>
+      <case id="ready-wait-tool-with-completion">
+        <given>A fiber record is `ready` with cooperative exec state `wait_tool` and matching pending completion work</given>
+        <when>The runtime saves, recovers, or settles the scheduler</when>
+        <then>The runtime SHALL NOT leave the fiber indefinitely idle</then>
+        <then>The matching tool completion SHALL be consumed or the fiber SHALL be normalized to the typed wait state</then>
+      </case>
+      <case id="inflight-async-detection-covers-ready-wait">
+        <given>A cooperative exec state has `wait_llm`, `wait_tool`, or `wait_questionnaire_parse` with inflight work</given>
+        <when>The scheduler checks whether async work is still outstanding</when>
+        <then>The check SHALL include both suspended typed waits and ready fibers with cooperative wait state</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-fiber-orchestration/cooperative-wait-state-normalization" strength="hint" />
+    </requirement>
+  </upsert>
+</behavior-patch>

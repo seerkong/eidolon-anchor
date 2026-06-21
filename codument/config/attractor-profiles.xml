@@ -1,0 +1,30 @@
+<!--
+  config/attractor-profiles.xml —— 命名 attractor 组合（XML，vfs 标准）。
+  取代旧 attractor-profiles.json。被 track.xml / operation-hooks.xml 的 <cdt:AttractorCheck use="<name>"/> 按 profile 名引用。
+  每个 <Profile enabled="true|false">（默认 true）。profile 的开关【取代 feature.json 的能力开关】——
+  例如 docs profile 启用 = 开启 docs 知识同步能力；未来不再需要 codument/config/feature.json。
+-->
+<AttractorProfiles version="1">
+
+  <Profile name="coding" enabled="true">
+    <Description>编码方向（默认仅 project）</Description>
+    <Attractor ref="vfs://@/codument/attractors/project.md"/>
+  </Profile>
+
+  <!-- 启用即开启 docs 知识同步能力（取代旧 feature.json knowledgeSync.enabled）；停用则 docs 相关 hook/同步不触发 -->
+  <Profile name="docs" enabled="true">
+    <Description>docs 知识方向（分层晋升 + 分形规范）</Description>
+    <Attractor ref="vfs://@/codument/attractors/knowledge-tiers.md"/>
+    <Attractor ref="vfs://@/codument/attractors/model-driven-docs.md"/>
+    <Attractor ref="vfs://@/codument/std/docs-modeling-fractal/index.md"/>
+    <Attractor ref="vfs://@/codument/std/docs-impl-fractal/index.md"/>
+    <Attractor ref="vfs://@/codument/std/spec/folder-manifest.md"/>
+  </Profile>
+
+  <!-- 启用即开启长期项目记忆提升能力（取代旧 feature.json projectMemory.enabled）；停用则归档不提升 memory:// -->
+  <Profile name="memory" enabled="true">
+    <Description>长期记忆方向（lessons/incidents/patterns/summaries）</Description>
+    <Attractor ref="vfs://@/codument/attractors/project-memory.md"/>
+  </Profile>
+
+</AttractorProfiles>

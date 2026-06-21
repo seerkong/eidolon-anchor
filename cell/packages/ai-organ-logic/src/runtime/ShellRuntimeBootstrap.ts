@@ -18,6 +18,10 @@ import {
   recoverAiAgentRuntime,
   saveAiAgentRuntimeSnapshot,
 } from "../persistence/RuntimeSnapshots";
+import {
+  createWriteBehindPersistenceWritePort,
+  type PersistenceWriteBehindPort,
+} from "../persistence/WriteBehindPersistencePort";
 
 export type ShellRuntimePaths = {
   WORKDIR: string;
@@ -27,7 +31,6 @@ export type ShellRuntimePaths = {
 };
 
 export type ShellRuntimeEffects = {
-  messageHistoryEffect: ReturnType<RuntimeSupportDescriptor["createMessageHistoryEffects"]>;
   orchestrationHistoryEffect: ReturnType<RuntimeSupportDescriptor["createOrchestrationHistoryEffects"]>;
 };
 
@@ -55,6 +58,8 @@ export type RecoverOrCreateShellRuntimeParams = {
   buildSystemMessages: (prompt: string[]) => Array<{ role: string; content: string }>;
   mcpManager?: unknown;
   outerCtxMetadata?: Record<string, unknown>;
+  /** Storage capability flags from the runtime binding; defaults to enabled. */
+  storage?: { logs?: boolean; files?: boolean };
 };
 
 export type RecoverOrCreateShellRuntimeResult = {
@@ -90,17 +95,12 @@ export function configureShellRuntimeEffects(params: {
 
   configureLocalPermissionConfigStore(runtimeSupport.permissionConfigStore);
   configureRuntimePersistenceSupport({
-    actorTranscriptStore: runtimeSupport.persistence.actorTranscriptStore,
     snapshotRepositoryFactory: runtimeSupport.persistence.snapshotRepositoryFactory,
     derivedIndexesStore: runtimeSupport.persistence.derivedIndexesStore,
     conversationPersistenceRepositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
   });
 
   return {
-    messageHistoryEffect: runtimeSupport.createMessageHistoryEffects({
-      sessionPathProvider: () => sessionDir,
-      log: () => {},
-    }),
     orchestrationHistoryEffect: runtimeSupport.createOrchestrationHistoryEffects({
       sessionPathProvider: () => sessionDir,
       log: () => {},
@@ -116,6 +116,24 @@ export async function recoverOrCreateShellRuntime(
     sessionDir: params.sessionDir,
   });
 
+  // P3 (refactor-persistent-session-backplane / `explicit-injection`): build the
+  // typed write-behind persistence port + repository factory once and thread
+  // them through `outerCtx` as EXPLICIT typed fields. The prior implicit
+  // `metadata.conversationPersistenceRepositoryFactory` untyped channel is gone.
+  const persistenceWritePort: PersistenceWriteBehindPort = createWriteBehindPersistenceWritePort();
+  const conversationPersistenceRepositoryFactory =
+    params.runtimeSupport.persistence.conversationPersistenceRepositoryFactory;
+  const buildOuterCtx = () => ({
+    workDir: params.workDir,
+    metadata: {
+      ...(params.outerCtxMetadata ?? {}),
+      sessionId: params.sessionKey,
+      sessionDir: params.sessionDir,
+    },
+    persistenceWritePort,
+    conversationPersistenceRepositoryFactory,
+  });
+
   const recovered =
     (await hasRuntimeSnapshot(params.sessionDir))
       ? await recoverAiAgentRuntime({
@@ -125,19 +143,10 @@ export async function recoverOrCreateShellRuntime(
           eventBus: params.eventBus,
           registries: params.registries as any,
           callbacks: { buildSystemMessages: params.buildSystemMessages },
-          outerCtx: {
-            workDir: params.workDir,
-            metadata: {
-              ...(params.outerCtxMetadata ?? {}),
-              sessionId: params.sessionKey,
-              sessionDir: params.sessionDir,
-              conversationPersistenceRepositoryFactory: params.runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
-            },
-          },
+          outerCtx: buildOuterCtx(),
           mcpManager: params.mcpManager as any,
           effects: {
             log: () => {},
-            messageHistory: effects.messageHistoryEffect,
             orchestrationHistory: effects.orchestrationHistoryEffect,
           },
           actorCallbacks: params.actorCallbacks as any,
@@ -150,14 +159,21 @@ export async function recoverOrCreateShellRuntime(
 
   if (recovered) {
     actor = recovered.controlActor;
+    if (actor.systemPrompts.length === 0 && params.systemPrompt.trim()) {
+      actor.systemPrompts = [params.systemPrompt];
+    }
     vm = recovered.vm;
+    if (params.storage) {
+      vm.options = { ...vm.options, storage: { ...params.storage } };
+    }
     driver = recovered.driver as ReturnType<typeof createAiAgentOrchestratorDriverWithCooperative>;
   } else {
     actor = createActor({
       key: "main",
       llmClient: params.llmClient as any,
       modelConfig: params.modelConfig,
-      messages: [{ role: "system", content: params.systemPrompt }],
+      systemPrompts: params.systemPrompt.trim() ? [params.systemPrompt] : [],
+      messages: [],
       callbacks: params.actorCallbacks as any,
     });
 
@@ -165,21 +181,13 @@ export async function recoverOrCreateShellRuntime(
       controlActorKey: actor.key,
       actors: { [actor.key]: actor },
       registries: params.registries as any,
+      options: params.storage ? { storage: { ...params.storage } } : undefined,
       callbacks: { buildSystemMessages: params.buildSystemMessages },
       eventBus: params.eventBus,
-      outerCtx: {
-        workDir: params.workDir,
-        metadata: {
-          ...(params.outerCtxMetadata ?? {}),
-          sessionId: params.sessionKey,
-          sessionDir: params.sessionDir,
-          conversationPersistenceRepositoryFactory: params.runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
-        },
-      },
+      outerCtx: buildOuterCtx(),
       mcpManager: params.mcpManager as any,
       effects: {
         log: () => {},
-        messageHistory: effects.messageHistoryEffect,
         orchestrationHistory: effects.orchestrationHistoryEffect,
       },
     });
@@ -200,13 +208,23 @@ export async function recoverOrCreateShellRuntime(
 
   const mainFiberId = `${actor.key}:${actor.id}`;
   const saveSnapshot = async () => {
-    await saveAiAgentRuntimeSnapshot({
+    return await saveAiAgentRuntimeSnapshot({
       sessionDir: params.sessionDir,
       sessionId: params.sessionKey,
       vm,
       driver,
     });
   };
+  // P3 (requirement `timed-out-turn-progress-persisted`): production does NOT
+  // bind a real `sealCompletedProgress` callback. The seal MECHANISM
+  // (`sealCompletedConversationProgress`) and the coordinator's optional
+  // `sealCompletedProgress` param are retained (unit-tested via direct
+  // injection), but live timeout-sealing is DEFERRED to the follow-up that also
+  // teaches the recovery gate a forward-only conversation head. Enabling the
+  // seal ahead of that gate relay would advance the conversation head past the
+  // checkpoint marker and make a settled-then-timed-out session recover `dirty`
+  // (regression). The coordinator's default no-op leaves on-disk state
+  // recoverable exactly as before this track. See analysis/findings.md "P3".
 
   return {
     actor,

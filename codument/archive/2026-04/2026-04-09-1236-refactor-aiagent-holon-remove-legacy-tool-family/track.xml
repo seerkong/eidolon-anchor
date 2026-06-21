@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-holon-remove-legacy-tool-family" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 builtin registry 与仓库源码中不再保留 internal-only Collective/Formation 旧工具族。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-09T12:36:09Z</CreatedAt>
+    <UpdatedAt>2026-04-09T12:36:09Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-holon-remove-legacy-tool-family" name="refactor-aiagent-holon-remove-legacy-tool-family" version="1">
+    <Description>移除 legacy Collective/Formation tool family</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>锁定 legacy tool family removal 边界。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 proposal/spec/plan" status="DONE" order="0" priority="P0">
+            <Description>明确本轮删除 internal-only Collective/Formation tool family，不影响其他 internal-only tools。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Tool Family Removal" status="DONE" order="1">
+        <Description>删除 legacy tool defs、prompt assets 与源码目录。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="移除 builtin registry 中的 legacy tool family" status="DONE" order="0" priority="P0">
+            <Description>删除 ToolFuncBuiltin 中的 Collective/Formation imports、tool defs 与 internal-only 名单。</Description>
+          </Task>
+          <Task id="T2.2" name="移除 prompt assets 与工具源码目录" status="DONE" order="1" priority="P0">
+            <Description>删除 PromptAssets.generated 中的相关入口，并移除 Collective*/Formation* 工具目录。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Tests And Closure" status="DONE" order="2">
+        <Description>同步 tests、报告与 strict validation。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新 focused tests 与报告" status="DONE" order="0" priority="P0">
+            <Description>移除 legacy tool 调用断言，并同步 theater 报告的当前剩余面。</Description>
+          </Task>
+          <Task id="T3.2" name="执行 strict validation 与 focused regression" status="DONE" order="1" priority="P0">
+            <Description>运行相关 tests 与 `codument validate refactor-aiagent-holon-remove-legacy-tool-family --strict`。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

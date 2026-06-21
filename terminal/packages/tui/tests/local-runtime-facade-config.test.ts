@@ -10,11 +10,13 @@ import type {
 } from "@cell/membrane/runtime-composition"
 import {
   applyConversationCompaction,
-  bootstrapConversationHistoryFromMessages,
-  LocalFileActorTranscriptStore,
+  chatMessagesToCommittedHistoryRefs,
   LocalFileConversationPersistenceRepositoryFactory,
 } from "@cell/ai-support"
+import { CONVERSATION_PERSISTENCE_SCHEMA_VERSION } from "@cell/ai-organ-contract"
+import type { ConversationPersistenceRepository } from "@cell/ai-organ-contract"
 import { createAiSlashRuntime } from "@cell/mod-ai-kernel"
+import { parseProviderCatalogRaw } from "@cell/ai-organ-logic/llm"
 import { __setRuntimeBridgeFactoryForTest, createTuiRuntimeClient } from "../src/runtime/client/TuiRuntimeClient"
 import { __setRuntimeCatalogAssemblyFactoryForTest } from "../src/runtime/catalog/TuiRuntimeCatalog"
 import type { TuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
@@ -22,6 +24,106 @@ import type { TuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
 const originalHome = process.env.HOME
 
 type TestRuntimeBridge = TuiRuntimeBridge
+
+/**
+ * Test fixture writer: seeds conversation persistence files from a message
+ * list. The runtime bootstrap-backfill helper was deleted with the one-way
+ * recovery handoff (spec recovery-one-way-handoff/no-bootstrap-backfill);
+ * tests that need pre-existing conversation files write them directly here.
+ */
+async function bootstrapConversationHistoryFixture(params: {
+  sessionId: string
+  actorKey: string
+  actorId: string
+  messages: any[]
+  repository: ConversationPersistenceRepository
+}): Promise<void> {
+  const historyIndex = await params.repository.loadHistoryIndex()
+  if (historyIndex.heads[params.actorKey]?.activeGenerationId) {
+    return
+  }
+
+  const sessionIndex = await params.repository.loadSessionIndex()
+  const generationId = `${params.actorKey}__active`
+  const nowIso = new Date().toISOString()
+  const committedMessages = chatMessagesToCommittedHistoryRefs({
+    messages: params.messages,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    recordIdPrefix: generationId,
+  })
+
+  await params.repository.writeHistoryGeneration({
+    version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+    generationId,
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    parentGenerationId: null,
+    predecessorGenerationIds: [],
+    createdReason: "bootstrap",
+    sealed: false,
+    messageCount: committedMessages.length,
+    messages: committedMessages,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  })
+
+  historyIndex.heads[params.actorKey] = {
+    version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    activeGenerationId: generationId,
+    visibleGenerationIds: [generationId],
+    updatedAt: nowIso,
+  }
+  historyIndex.lineages[generationId] = {
+    version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    generationId,
+    parentGenerationId: null,
+    rolledBackFromGenerationId: null,
+    predecessorGenerationIds: [],
+    successorGenerationIds: [],
+    forkGenerationIds: [],
+    branchLabel: null,
+    updatedAt: nowIso,
+  }
+  historyIndex.generations[generationId] = {
+    generationId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    sealed: false,
+    createdAt: nowIso,
+    updatedAt: nowIso,
+  }
+  historyIndex.updatedAt = nowIso
+  await params.repository.writeHistoryIndex(historyIndex)
+
+  sessionIndex.session.activeActorKey = sessionIndex.session.activeActorKey ?? params.actorKey
+  sessionIndex.session.actorBindings[params.actorKey] = {
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    boundAt: nowIso,
+    historyHeadGenerationId: generationId,
+    promptHeadGenerationId:
+      sessionIndex.session.actorBindings[params.actorKey]?.promptHeadGenerationId ?? null,
+  }
+  sessionIndex.session.activeSelection = {
+    sessionId: params.sessionId,
+    activeActorKey: params.actorKey,
+    historyHeadGenerationId: generationId,
+    promptHeadGenerationId:
+      sessionIndex.session.actorBindings[params.actorKey]?.promptHeadGenerationId ?? null,
+    selectedAt: nowIso,
+  }
+  sessionIndex.session.updatedAt = nowIso
+  sessionIndex.updatedAt = nowIso
+  await params.repository.writeSessionIndex(sessionIndex)
+}
 
 const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -43,10 +145,9 @@ function createTempProject() {
       {
         providers: [
           {
-            name: "openai",
-            baseURL: "https://api.deepseek.com",
-            apiKey: "test-key",
-            models: [{ name: "deepseek-reasoner", context: 128000, output: 8192 }],
+            id: "openai",
+            options: { baseURL: "https://api.deepseek.com", apiKey: "test-key" },
+            models: [{ id: "deepseek-reasoner", limits: { context: 128000, output: 8192 } }],
           },
         ],
       },
@@ -55,7 +156,7 @@ function createTempProject() {
     ),
   )
   fs.writeFileSync(
-    path.join(homeDir, ".eidolon", "agent-preset.json"),
+    path.join(homeDir, ".eidolon", "agent-present.json"),
     JSON.stringify(
       {
         preset: "default",
@@ -160,8 +261,19 @@ describe("TuiRuntimeClient local-runtime mode", () => {
 
   it("uses local provider config instead of mock metadata", async () => {
     const { workDir, homeDir } = createTempProject()
+    let runtimeTurnModel: unknown
 
     __setRuntimeBridgeFactoryForTest(async () => ({
+      async setActorActiveModel(_target, model) {
+        runtimeTurnModel = model
+        return {
+          conversationLanes: [],
+          actorLanes: [],
+          selectedLaneId: "lane:primary",
+          selectedTarget: { laneId: "lane:primary" },
+          questionnaireSurface: [],
+        }
+      },
       async turn(_input: string, opts?: { onControl?: (control: { cmd: "NewMessage"; category?: string }) => void; onChunk?: (chunk: string) => void }) {
         await opts?.onControl?.({ cmd: "NewMessage", category: "assist" })
         await opts?.onChunk?.("真实回复")
@@ -211,6 +323,111 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     expect(assistant?.role).toBe("assistant")
     expect(assistant && "providerID" in assistant ? assistant.providerID : undefined).toBe("openai")
     expect(assistant && "modelID" in assistant ? assistant.modelID : undefined).toBe("deepseek-reasoner")
+    expect(runtimeTurnModel).toEqual({
+      providerID: "openai",
+      modelID: "deepseek-reasoner",
+    })
+    fs.rmSync(workDir, { recursive: true, force: true })
+    fs.rmSync(homeDir, { recursive: true, force: true })
+  })
+
+  it("uses primary agent preset as local runtime default model", async () => {
+    const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-anchor-tui-"))
+    const homeDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-anchor-home-"))
+    fs.mkdirSync(path.join(homeDir, ".eidolon"), { recursive: true })
+    fs.writeFileSync(
+      path.join(homeDir, ".eidolon", "llm-provider.json"),
+      JSON.stringify(
+        {
+          providers: [
+            {
+              id: "ee-new-api",
+              adapter: "openai-responses",
+              options: { baseURL: "https://ee.example.test/v1", apiKey: "test-key" },
+              models: [{ id: "gpt-5.5", limits: { context: 400000, output: 128000 } }],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    )
+    fs.writeFileSync(
+      path.join(homeDir, ".eidolon", "agent-present.json"),
+      JSON.stringify(
+        {
+          "default-preset": "default",
+          presets: {
+            default: {
+              primary: {
+                model: "ee-new-api/gpt-5.5",
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+    )
+    process.env.HOME = homeDir
+
+    const sdk = createTuiRuntimeClient({
+      mode: "local-runtime",
+      directory: workDir,
+    })
+
+    const configProviders = await sdk.client.config.providers()
+    expect(configProviders.data!.providers[0]?.id).toBe("ee-new-api")
+    expect(configProviders.data!.default["ee-new-api"]).toBe("gpt-5.5")
+
+    const config = await sdk.client.config.get()
+    expect(config.data!.model).toBe("ee-new-api/gpt-5.5")
+
+    fs.rmSync(workDir, { recursive: true, force: true })
+    fs.rmSync(homeDir, { recursive: true, force: true })
+  })
+
+  it("keeps prompt history visible when explicit model selection fails", async () => {
+    const { workDir, homeDir } = createTempProject()
+    let turnCalled = false
+
+    __setRuntimeBridgeFactoryForTest(async () => ({
+      async setActorActiveModel(_target, model) {
+        throw new Error(`Provider not found: ${model.providerID}`)
+      },
+      async turn() {
+        turnCalled = true
+        return "should not run"
+      },
+      async abort() {},
+      dispose() {},
+      subscribeNotifications(_handler: any) {
+        return { unsubscribe() {} }
+      },
+    }) as TestRuntimeBridge)
+
+    const sdk = createTuiRuntimeClient({
+      mode: "local-runtime",
+      directory: workDir,
+    })
+    const session = await sdk.client.session.create({})
+
+    await sdk.client.session.prompt({
+      sessionID: session.data?.id,
+      model: {
+        providerID: "fhl_mon",
+        modelID: "gpt-5.5",
+      },
+      parts: [{ id: "p1", type: "text", text: "这条输入应当保留" } as Part],
+    })
+
+    const messages = await sdk.client.session.messages({ sessionID: session.data?.id })
+    const user = messages.data!.find((entry) => entry.info.role === "user")
+    const assistant = messages.data!.find((entry) => entry.info.role === "assistant")
+
+    expect(turnCalled).toBe(false)
+    expect(user?.parts.find((part) => part.type === "text")?.text).toBe("这条输入应当保留")
+    expect(assistant?.parts.find((part) => part.type === "text")?.text).toContain("Runtime error: Provider not found: fhl_mon")
     fs.rmSync(workDir, { recursive: true, force: true })
     fs.rmSync(homeDir, { recursive: true, force: true })
   })
@@ -218,16 +435,15 @@ describe("TuiRuntimeClient local-runtime mode", () => {
   it("uses the formal runtime catalog descriptor instead of a hidden local config truth", async () => {
     const { workDir, homeDir } = createTempProject()
     const customBundle: RuntimeCatalogConfigBundle = {
-      providerConfig: {
+      providerConfig: parseProviderCatalogRaw({
         providers: [
           {
-            name: "anthropic",
-            baseURL: "https://api.anthropic.example",
-            apiKey: "anthropic-key",
-            models: [{ name: "claude-formal", context: 200000, output: 16000 }],
+            id: "anthropic",
+            options: { baseURL: "https://api.anthropic.example", apiKey: "anthropic-key" },
+            models: [{ id: "claude-formal", limits: { context: 200000, output: 16000 } }],
           },
         ],
-      },
+      }),
       presetConfig: {
         preset: "formal",
         presets: {
@@ -556,7 +772,7 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.mkdirSync(sessionDir, { recursive: true })
 
     const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
-    await bootstrapConversationHistoryFromMessages({
+    await bootstrapConversationHistoryFixture({
       sessionId: sessionID,
       actorKey: "main",
       actorId: "actor-main",
@@ -799,7 +1015,7 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.mkdirSync(sessionDir, { recursive: true })
 
     const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
-    await bootstrapConversationHistoryFromMessages({
+    await bootstrapConversationHistoryFixture({
       sessionId: sessionID,
       actorKey: "main",
       actorId: "actor-main",
@@ -851,7 +1067,7 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.mkdirSync(sessionDir, { recursive: true })
 
     const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
-    await bootstrapConversationHistoryFromMessages({
+    await bootstrapConversationHistoryFixture({
       sessionId: sessionID,
       actorKey: "main",
       actorId: "actor-main",
@@ -903,7 +1119,7 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.mkdirSync(sessionDir, { recursive: true })
 
     const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
-    await bootstrapConversationHistoryFromMessages({
+    await bootstrapConversationHistoryFixture({
       sessionId: sessionID,
       actorKey: "main",
       actorId: "actor-main",
@@ -953,24 +1169,20 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.rmSync(homeDir, { recursive: true, force: true })
   })
 
-  it("bootstraps transcript-only legacy sessions before hydrating historical messages", async () => {
+  it("does not bootstrap transcript-only legacy sessions: conversation files are the single history source", async () => {
     const { workDir, homeDir } = createTempProject()
     const sessionID = "legacy-session"
     const sessionDir = path.join(workDir, ".eidolon", "sessions", sessionID)
     fs.mkdirSync(path.join(sessionDir, "runtime_state"), { recursive: true })
 
-    await LocalFileActorTranscriptStore.writeMessages({
-      sessionDir,
-      actor: {
-        agentKey: "main",
-        actorId: "actor-main",
-        actorType: "primary",
-      },
-      messages: [
-        { role: "user", content: "legacy user" } as any,
-        { role: "assistant", content: "legacy assistant" } as any,
-      ],
-    })
+    // The actor transcript format has been removed: no runtime code knows
+    // this path anymore, so recreate the residual legacy file literally.
+    const legacyActorDir = path.join(sessionDir, "actors", "primary__actor-main")
+    fs.mkdirSync(legacyActorDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(legacyActorDir, "transcript.txt"),
+      "@delimiter: ----\n---- #user\nlegacy user\n---- #assistant\nlegacy assistant\n",
+    )
 
     fs.writeFileSync(
       path.join(sessionDir, "runtime_state", "manifest.json"),
@@ -1020,12 +1232,17 @@ describe("TuiRuntimeClient local-runtime mode", () => {
       entry.parts.flatMap((part) => (part.type === "text" ? [part.text] : [])),
     )
 
-    expect(texts).toContain("legacy user")
-    expect(texts.some((text) => text.includes("legacy assistant"))).toBe(true)
+    // One-way recovery handoff (spec recovery-one-way-handoff): the
+    // conversation files are the single history source. A transcript-only
+    // legacy session no longer backfills conversation files from the
+    // transcript array — its legacy content does not hydrate, and no
+    // conversation history head appears.
+    expect(texts).not.toContain("legacy user")
+    expect(texts.some((text) => text.includes("legacy assistant"))).toBe(false)
 
     const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
     const historyIndex = await repository.loadHistoryIndex()
-    expect(historyIndex.heads.main?.activeGenerationId).toBe("main__active")
+    expect(historyIndex.heads.main?.activeGenerationId).toBeUndefined()
     fs.rmSync(workDir, { recursive: true, force: true })
     fs.rmSync(homeDir, { recursive: true, force: true })
   })
@@ -1037,7 +1254,7 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.mkdirSync(sessionDir, { recursive: true })
 
     const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
-    await bootstrapConversationHistoryFromMessages({
+    await bootstrapConversationHistoryFixture({
       sessionId: sessionID,
       actorKey: "main",
       actorId: "actor-main",

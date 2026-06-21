@@ -8,6 +8,8 @@ import type { ActorModelConfig } from "@cell/ai-core-logic/runtime/actor";
 import fs from "fs";
 import path from "path";
 import {
+  PRESENT_CONFIG_FILE_NAME,
+  PROVIDER_CONFIG_FILE_NAME,
   loadPresentConfig,
   loadProviderCatalog,
   resolveActorModelConfig,
@@ -32,7 +34,7 @@ function firstExistingProjectOrHomeConfigPath(workDir: string, filenames: string
 export const LocalFileRuntimeConfigLoader: CoreRuntimeConfigLoader = {
   loadLLMProviderConfig(workDir: string, logger?: RuntimeLogFn): LLMProviderConfig | null {
     try {
-      return loadProviderCatalog(firstExistingProjectOrHomeConfigPath(workDir, ["llm-provider.json"]));
+      return loadProviderCatalog(firstExistingProjectOrHomeConfigPath(workDir, [PROVIDER_CONFIG_FILE_NAME]));
     } catch (error) {
       logger?.("error", "Failed to load LLM provider catalog", {
         error: error instanceof Error ? error.message : String(error),
@@ -43,7 +45,7 @@ export const LocalFileRuntimeConfigLoader: CoreRuntimeConfigLoader = {
 
   loadAgentPresetConfig(workDir: string, logger?: RuntimeLogFn): AgentPresetConfig | null {
     try {
-      const presentConfigPath = firstExistingProjectOrHomeConfigPath(workDir, ["agent-preset.json"]);
+      const presentConfigPath = firstExistingProjectOrHomeConfigPath(workDir, [PRESENT_CONFIG_FILE_NAME]);
       const presentConfig = loadPresentConfig({ configPath: presentConfigPath, workdir: workDir });
       return {
         preset: presentConfig.defaultPreset,
@@ -74,16 +76,26 @@ export function loadAgentPresetConfig(workDir: string, logger?: RuntimeLogFn): A
   return LocalFileRuntimeConfigLoader.loadAgentPresetConfig(workDir, logger);
 }
 
+export function validateLocalRuntimeConfigFiles(workDir: string): void {
+  const providerConfigPath = firstExistingProjectOrHomeConfigPath(workDir, [PROVIDER_CONFIG_FILE_NAME]);
+  const presentConfigPath = firstExistingProjectOrHomeConfigPath(workDir, [PRESENT_CONFIG_FILE_NAME]);
+  loadProviderCatalog(providerConfigPath);
+  loadPresentConfig({ configPath: presentConfigPath, workdir: workDir });
+}
+
 export function resolveActorModelConfigFromLocalFiles(params: {
   workDir: string;
   agentKey: string;
+  modelRef?: string;
   fallbackModelConfig: ActorModelConfig;
   fallbackOverrideKeys?: (keyof ActorModelConfig)[];
+  strictModelRef?: boolean;
   logger?: RuntimeLogFn;
 }): ActorModelConfig {
   const { workDir, logger } = params;
   return resolveActorModelConfig({
     ...params,
+    modelRef: params.modelRef,
     providerConfig: loadLLMProviderConfig(workDir, logger),
     presetConfig: loadAgentPresetConfig(workDir, logger),
   });

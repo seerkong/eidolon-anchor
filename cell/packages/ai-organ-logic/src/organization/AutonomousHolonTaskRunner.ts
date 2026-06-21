@@ -4,7 +4,7 @@ import type { AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
 import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager";
 import type { AiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver";
 import type { MemberManager, MemberRecord } from "./MemberManager";
-import { getOrganizationManager } from "./OrganizationManager";
+import { getOrganizationManager, writeHolonGovernance } from "./OrganizationManager";
 import {
   parseHolonTaskScope,
 } from "./holonRuntimeProtocol";
@@ -38,7 +38,7 @@ function resolveHolonEventActor(params: {
 function recordAutonomousHolonTaskOwnership(vm: AiAgentVm, holonId: string, taskId: string, ownerActorKey: string): void {
   const actor = vm.actors[getOrganizationManager().getHolonActorKey(holonId)]
   if (actor?.identity?.kind !== "holon" || actor.identity.governance !== "autonomous") return
-  actor.holonState = {
+  writeHolonGovernance(actor, {
     governance: "autonomous",
     holonId,
     name: actor.holonState?.governance === "autonomous" ? actor.holonState.name : actor.identity.name,
@@ -51,7 +51,7 @@ function recordAutonomousHolonTaskOwnership(vm: AiAgentVm, holonId: string, task
     tasks: Object.fromEntries(
       Object.entries(actor.holonState?.governance === "autonomous" ? actor.holonState.tasks : {}).map(([entryTaskId, task]) => [entryTaskId, { ...task }]),
     ),
-  }
+  })
 }
 
 function findClaimable(nodes: TaskNode[]): TaskNode | null {
@@ -131,7 +131,7 @@ export function createAutonomousHolonTaskRunner(_params: {
             if (member.lifecycleState !== "active") {
               continue;
             }
-            if (member.actor.hasPending("memberInbox" as any)) {
+            if (member.actor.hasPending("memberChatInbox" as any)) {
               member.lastActiveAt = now;
               continue;
             }

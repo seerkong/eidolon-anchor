@@ -13,14 +13,18 @@
     "@cell/ai-support": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",
     "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-file-store-logic": "workspace:*",
+    "@cell/ai-persistence-logic": "workspace:*",
+    "@cell/ai-runtime-control-composer": "workspace:*",
+    "@cell/ai-runtime-control-logic": "workspace:*",
     "@cell/ai-organ-contract": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",
     "depa-data-graph-core": "^0.1.0",
-    "depa-actor": "^0.1.1",
+    "depa-actor": "file:/Users/kongweixian/infra-dev/depa-actor",
     "depa-processor": "^0.1.0",
     "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/sdk": "^1.25.2",
-    "xnl-core": "^0.1.1"
+    "xnl-core": "^0.1.4"
   }
 }

@@ -12,10 +12,12 @@ import {
   materializeExecutionMessagesWithWorkContext,
   recordPromptPlanForActorExecution,
   resolveTurnWorkContextForActor,
+  setActorTaskPhase,
+  setActorWorkMode,
 } from "@cell/ai-organ-logic";
 
 describe("context control plane", () => {
-  it("resolves docs-then-code work context and retains it across weak continue input", () => {
+  it("defaults to build/normal and does not infer mode or phase from user text", () => {
     const actor = createActor({ key: "main" });
 
     const first = resolveTurnWorkContextForActor({
@@ -23,27 +25,66 @@ describe("context control plane", () => {
       messages: [{ role: "user", content: "先读 docs 了解项目结构，然后按现有架构重构这个实现" }],
       sessionId: "ses-1",
     });
-    expect(first.workMode).toBe(WORK_MODES.docs_then_code);
-    expect(first.taskPhase).toBe(TASK_PHASES.context_build_then_code);
-    expect(first.workModeSource).toBe("derived");
+    expect(first.workMode).toBe(WORK_MODES.build);
+    expect(first.taskPhase).toBe(TASK_PHASES.normal);
+    expect(first.workModeSource).toBe("default");
 
     const second = resolveTurnWorkContextForActor({
       actor,
       messages: [{ role: "user", content: "继续" }],
       sessionId: "ses-1",
     });
-    expect(second.workMode).toBe(WORK_MODES.docs_then_code);
-    expect(second.workModeSource).toBe("inherited");
-    expect(second.taskPhase).toBe(TASK_PHASES.context_build_then_code);
+    expect(second.workMode).toBe(WORK_MODES.build);
+    expect(second.taskPhase).toBe(TASK_PHASES.normal);
   });
 
-  it("advances task phase after verification-style tool rounds", () => {
+  it("updates work mode only through the explicit setter", () => {
     const actor = createActor({ key: "main" });
-    resolveTurnWorkContextForActor({
+
+    const plan = setActorWorkMode({
       actor,
-      messages: [{ role: "user", content: "fix this failing test" }],
+      workMode: WORK_MODES.plan,
+      source: "slash_command",
+      occurredAt: "2026-06-07T00:00:00.000Z",
+    });
+    expect(plan.workMode).toBe(WORK_MODES.plan);
+    expect(plan.workModeSource).toBe("slash_command");
+    expect(plan.taskPhase).toBe(TASK_PHASES.normal);
+
+    const build = setActorWorkMode({ actor, workMode: WORK_MODES.build, source: "slash_command" });
+    expect(build.workMode).toBe(WORK_MODES.build);
+    expect(build.taskPhase).toBe(TASK_PHASES.normal);
+  });
+
+  it("lets the model set task phase without changing work mode", () => {
+    const actor = createActor({ key: "main" });
+    setActorWorkMode({ actor, workMode: WORK_MODES.plan, source: "slash_command" });
+
+    const answer = setActorTaskPhase({
+      actor,
+      taskPhase: TASK_PHASES.answer,
+      source: "tool_call",
+      occurredAt: "2026-06-07T00:00:00.000Z",
+    });
+
+    expect(answer.workMode).toBe(WORK_MODES.plan);
+    expect(answer.taskPhase).toBe(TASK_PHASES.answer);
+    expect(answer.taskPhaseSource).toBe("tool_call");
+  });
+
+  it("resets answer phase on new user input and after normal tools", () => {
+    const actor = createActor({ key: "main" });
+    setActorTaskPhase({ actor, taskPhase: TASK_PHASES.answer, source: "tool_call" });
+
+    const turn = resolveTurnWorkContextForActor({
+      actor,
+      messages: [{ role: "user", content: "continue" }],
       sessionId: "ses-1",
     });
+    expect(turn.taskPhase).toBe(TASK_PHASES.normal);
+    expect(turn.taskPhaseSource).toBe("turn_reset");
+
+    setActorTaskPhase({ actor, taskPhase: TASK_PHASES.answer, source: "tool_call" });
 
     const next = advanceActorWorkContextAfterTool({
       actor,
@@ -51,22 +92,20 @@ describe("context control plane", () => {
       args: { command: "bun test packages/foo" },
     });
 
-    expect(next.taskPhase).toBe(TASK_PHASES.verification);
-    expect(next.taskPhaseSource).toBe("tool_verification");
+    expect(next.taskPhase).toBe(TASK_PHASES.normal);
+    expect(next.taskPhaseSource).toBe("tool_after_answer");
   });
 
   it("renders work-mode tool guidance inside the late status overlay", () => {
     const actor = createActor({ key: "main" });
-    const workContext = resolveTurnWorkContextForActor({
-      actor,
-      messages: [{ role: "user", content: "先读 docs 了解项目结构，然后按现有架构重构这个实现" }],
-      sessionId: "ses-1",
-    });
+    const workContext = setActorWorkMode({ actor, workMode: WORK_MODES.plan, source: "slash_command" });
 
     const overlay = buildWorkContextOverlayText(workContext);
     expect(overlay).toContain("<tool_guidance>");
-    expect(overlay).toContain("prefer: read, grep, glob, ls");
-    expect(overlay).toContain("avoid_until_needed: write, edit, multiedit, apply_patch, bash");
+    expect(overlay).toContain("work_mode: plan");
+    expect(overlay).toContain("task_phase: normal");
+    expect(overlay).toContain("prefer: read, grep, glob, ls, bash");
+    expect(overlay).toContain("avoid_until_needed: write, edit, multiedit, apply_patch");
   });
 
   it("records prompt plan metadata and overlay transform into conversation runtime", () => {
@@ -145,6 +184,24 @@ describe("context control plane", () => {
     expect(String(executionMessages[4]?.content ?? "")).toContain("<runtime_work_context>");
     expect((executionMessages[2] as any).tool_calls?.[0]?.id).toBe("tc-1");
     expect((executionMessages[3] as any).tool_call_id).toBe("tc-1");
+  });
+
+  it("materializes actor system prompts when recovered history no longer contains system messages", () => {
+    const actor = createActor({
+      key: "main",
+      systemPrompts: ["root shell prompt"],
+    });
+
+    const { promptPlan, executionMessages } = materializeExecutionMessagesWithWorkContext({
+      actor,
+      sessionId: "ses-1",
+      messages: [{ role: "user", content: "continue" }] as any,
+      tools: [],
+    });
+
+    expect(promptPlan.metadata.systemPromptCount).toBe(1);
+    expect(promptPlan.systemPrompts).toEqual(["root shell prompt"]);
+    expect(executionMessages[0]).toEqual({ role: "system", content: "root shell prompt" });
   });
 
   it("materializes work context before the tail tool-call group when there is no user at the tail", () => {
@@ -283,11 +340,8 @@ describe("context control plane", () => {
       tools: [readTool, bashTool],
     });
 
-    resolveTurnWorkContextForActor({
-      actor,
-      messages: [{ role: "user", content: "fix the bug" }],
-      sessionId: "ses-1",
-    });
+    setActorWorkMode({ actor, workMode: WORK_MODES.plan, source: "slash_command" });
+    setActorTaskPhase({ actor, taskPhase: TASK_PHASES.answer, source: "tool_call" });
     const repairPlan = buildPromptPlanForActorExecution({
       sessionId: "ses-1",
       actor,
@@ -305,13 +359,9 @@ describe("context control plane", () => {
     expect(changedSchemaPlan.cacheProfile?.stablePrefixHash).not.toBe(repairPlan.cacheProfile?.stablePrefixHash);
   });
 
-  it("skips auto compaction during bounded context build until pressure is high enough", () => {
+  it("skips auto compaction during plan mode until pressure is high enough", () => {
     const actor = createActor({ key: "main", modelConfig: { inputLimit: 1000 } });
-    resolveTurnWorkContextForActor({
-      actor,
-      messages: [{ role: "user", content: "先读 docs 然后重构这个模块" }],
-      sessionId: "ses-1",
-    });
+    setActorWorkMode({ actor, workMode: WORK_MODES.plan, source: "slash_command" });
 
     const context = buildCompactionPolicyContextForActor({
       actor,
@@ -323,16 +373,12 @@ describe("context control plane", () => {
     const decision = decideCompactionPolicy(context);
 
     expect(decision.decision).toBe("skip");
-    expect(decision.skipReason).toBe("protected_context_build");
+    expect(decision.skipReason).toBe("protected_plan_mode");
   });
 
-  it("forces compaction during context build at the model input limit", () => {
+  it("forces compaction during plan mode at the model input limit", () => {
     const actor = createActor({ key: "main", modelConfig: { inputLimit: 1000 } });
-    resolveTurnWorkContextForActor({
-      actor,
-      messages: [{ role: "user", content: "先读 docs 然后重构这个模块" }],
-      sessionId: "ses-1",
-    });
+    setActorWorkMode({ actor, workMode: WORK_MODES.plan, source: "slash_command" });
 
     const context = buildCompactionPolicyContextForActor({
       actor,

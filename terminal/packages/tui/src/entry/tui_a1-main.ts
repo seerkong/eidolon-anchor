@@ -1,10 +1,12 @@
 import yargs from "yargs"
 import { hideBin } from "yargs/helpers"
+import { validateLocalRuntimeConfigFiles } from "@cell/ai-support"
 import { tuiA1Tui } from "../app/tui_a1"
 import { resolveProjectWorkDir } from "../support/util/project"
 import { configureTuiRuntime } from "../runtime/bridge/TuiRuntime"
 import { Log } from "../support/util/log"
 import { isTuiStreamDiagnosticsEnabled } from "../support/util/stream-diagnostics"
+import { restoreTuiTerminalModes } from "../support/util/terminal-restore"
 
 async function main() {
   const args = await yargs(hideBin(process.argv))
@@ -75,6 +77,7 @@ async function main() {
     enabled: isTuiStreamDiagnosticsEnabled(),
     env: "EIDOLON_TUI_STREAM_DIAGNOSTICS",
   })
+  validateLocalRuntimeConfigFiles(cwd)
   process.chdir(cwd)
 
   const prompt = await (async () => {
@@ -90,6 +93,7 @@ async function main() {
     timeoutSeconds: args.timeout,
     debug: args.debug,
     mcp: args.mcp,
+    entryType: "tui",
   })
 
   await tuiA1Tui({
@@ -105,6 +109,13 @@ async function main() {
 }
 
 main().catch((error) => {
-  console.error(error)
-  process.exit(1)
+  restoreTuiTerminalModes()
+  const message = error instanceof Error ? (error.stack ?? error.message) : String(error)
+  Log.Default.error("tui.tui_a1.failed", {
+    error: message,
+  })
+  process.stderr.write(`\nTUI startup failed:\n${message}\n`)
+  void Log.flush().finally(() => {
+    process.exit(1)
+  })
 })

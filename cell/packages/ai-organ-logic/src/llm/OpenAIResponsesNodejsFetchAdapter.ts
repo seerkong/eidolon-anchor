@@ -1,6 +1,7 @@
 import type { LlmAdapter, LlmGenerateOptions, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
 import type { ProviderOptions } from "./ProviderPlugins";
 import { ProviderExecutionError } from "./ProviderErrors";
+import { stripOpenAICompatibleUnsupportedSchemaKeys } from "./OpenAIChatHelpers";
 import { appendFileSync, mkdirSync } from "fs";
 import path from "path";
 import { randomUUID } from "crypto";
@@ -23,7 +24,273 @@ function buildResponsesUrl(baseUrl?: string): string {
   if (base.endsWith("/")) {
     base = base.slice(0, -1);
   }
+  if (base.endsWith("/responses")) return base;
   return `${base}/responses`;
+}
+
+// Derive the Responses WebSocket v2 URL from the HTTP `/responses` base url:
+//   https://host/v1/responses -> wss://host/v1/responses   (http -> ws)
+// An explicit `websocketUrl` override wins, but is still scheme-normalized to
+// ws(s) and `/responses`-suffixed so callers may pass either form.
+export function buildResponsesWebsocketUrl(baseUrl: string, websocketUrl?: string): string {
+  const override = String(websocketUrl || "").trim();
+  let base = override || buildResponsesUrl(baseUrl);
+  if (!base.endsWith("/responses")) base = buildResponsesUrl(base);
+  if (base.startsWith("https://")) return `wss://${base.slice("https://".length)}`;
+  if (base.startsWith("http://")) return `ws://${base.slice("http://".length)}`;
+  return base;
+}
+
+// Strip WebSocket control headers (the runtime sets these); keep Authorization
+// and everything else (mirrors sparrow `_normalize_websocket_headers`).
+const WEBSOCKET_DISALLOWED_HEADERS = new Set([
+  "connection",
+  "upgrade",
+  "host",
+  "sec-websocket-key",
+  "sec-websocket-version",
+  "sec-websocket-extensions",
+  "sec-websocket-protocol",
+  "sec-websocket-accept",
+]);
+
+function normalizeWebsocketHeaders(headers: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    const name = String(key || "").trim();
+    if (!name) continue;
+    if (WEBSOCKET_DISALLOWED_HEADERS.has(name.toLowerCase())) continue;
+    out[name] = String(value);
+  }
+  return out;
+}
+
+export type ResponsesTransportMode = "websocket" | "http_sse";
+
+export type ResponsesTransportOptions = {
+  transportMode?: string;
+  supportsWebsockets?: boolean;
+  websocketUrl?: string;
+};
+
+// transport selection (mirrors sparrow `_resolve_transport_mode`):
+//   auto      -> websocket when WS-capable (supports_websockets || websocket_url), else http_sse
+//   websocket -> forced websocket
+//   http_sse  -> forced http_sse
+export function resolveResponsesTransportMode(opts: ResponsesTransportOptions): ResponsesTransportMode {
+  const requested = String(opts.transportMode || "auto").trim().toLowerCase() || "auto";
+  if (requested === "websocket") return "websocket";
+  if (requested === "http_sse") return "http_sse";
+  const websocketUrl = String(opts.websocketUrl || "").trim();
+  const capable = Boolean(opts.supportsWebsockets) || Boolean(websocketUrl);
+  return capable ? "websocket" : "http_sse";
+}
+
+const DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS = 20000;
+
+// Minimal WebSocket surface the transport relies on (Bun/DOM compatible).
+type ResponsesWebSocketLike = {
+  send(data: string): void;
+  close(code?: number, reason?: string): void;
+  onopen: ((ev: any) => void) | null;
+  onmessage: ((ev: any) => void) | null;
+  onerror: ((ev: any) => void) | null;
+  onclose: ((ev: any) => void) | null;
+};
+
+type ResponsesWebSocketFactory = (url: string, options: { headers: Record<string, string> }) => ResponsesWebSocketLike;
+
+function defaultWebSocketFactory(url: string, options: { headers: Record<string, string> }): ResponsesWebSocketLike {
+  // Bun supports `new WebSocket(url, { headers })` (custom-header extension).
+  return new (globalThis as any).WebSocket(url, options) as ResponsesWebSocketLike;
+}
+
+function parseWebsocketMessageData(raw: any): any | ResponsesDone | undefined {
+  let text: string;
+  if (typeof raw === "string") {
+    text = raw;
+  } else if (raw && typeof (raw as any).toString === "function") {
+    text = String(raw);
+  } else {
+    return;
+  }
+  text = text.trim();
+  if (!text) return;
+  if (text === "[DONE]") return RESPONSES_DONE;
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Surface a JSON-parse failure as an error event (mirrors sparrow).
+    return { type: "error", error: { message: text } };
+  }
+}
+
+// WebSocket transport: connect, send the request body as one JSON message, and
+// expose incoming messages as an async iterable of event OBJECTS suitable for
+// `responsesEventsToChunks`. Connect failure / error throws so `createStream`
+// can fall back to HTTP SSE. Resolves once the socket is open (so a synchronous
+// or early connect failure rejects before any chunks are consumed).
+function openResponsesWebsocketEvents(params: {
+  url: string;
+  headers: Record<string, string>;
+  body: Record<string, unknown>;
+  factory: ResponsesWebSocketFactory;
+  connectTimeoutMs: number;
+  signal?: AbortSignal;
+}): Promise<AsyncIterable<any>> {
+  const { url, headers, body, factory, connectTimeoutMs, signal } = params;
+
+  return new Promise<AsyncIterable<any>>((resolveOpen, rejectOpen) => {
+    let opened = false;
+    let settledOpen = false;
+    const queue: any[] = [];
+    let waiter: ((value: IteratorResult<any>) => void) | null = null;
+    let ended = false;
+    let failure: Error | null = null;
+    let ws: ResponsesWebSocketLike;
+
+    let connectTimer: ReturnType<typeof setTimeout> | undefined;
+    const clearConnectTimer = () => {
+      if (connectTimer !== undefined) {
+        clearTimeout(connectTimer);
+        connectTimer = undefined;
+      }
+    };
+
+    const settleOpenOk = (iterable: AsyncIterable<any>) => {
+      if (settledOpen) return;
+      settledOpen = true;
+      clearConnectTimer();
+      resolveOpen(iterable);
+    };
+    const settleOpenErr = (error: Error) => {
+      if (settledOpen) return;
+      settledOpen = true;
+      clearConnectTimer();
+      try {
+        ws?.close();
+      } catch {
+      }
+      rejectOpen(error);
+    };
+
+    const pushEvent = (event: any) => {
+      if (ended) return;
+      if (waiter) {
+        const resolve = waiter;
+        waiter = null;
+        resolve({ value: event, done: false });
+      } else {
+        queue.push(event);
+      }
+    };
+    const finish = (error?: Error) => {
+      if (error && !failure) failure = error;
+      ended = true;
+      if (waiter) {
+        const resolve = waiter;
+        waiter = null;
+        resolve({ value: undefined, done: true });
+      }
+    };
+
+    const iterable: AsyncIterable<any> = {
+      [Symbol.asyncIterator](): AsyncIterator<any> {
+        return {
+          next(): Promise<IteratorResult<any>> {
+            if (queue.length > 0) {
+              return Promise.resolve({ value: queue.shift(), done: false });
+            }
+            if (ended) {
+              if (failure) return Promise.reject(failure);
+              return Promise.resolve({ value: undefined, done: true });
+            }
+            return new Promise<IteratorResult<any>>((resolve) => {
+              waiter = resolve;
+            });
+          },
+          return(): Promise<IteratorResult<any>> {
+            ended = true;
+            try {
+              ws?.close();
+            } catch {
+            }
+            return Promise.resolve({ value: undefined, done: true });
+          },
+        };
+      },
+    };
+
+    try {
+      ws = factory(url, { headers });
+    } catch (error) {
+      settleOpenErr(error instanceof Error ? error : new Error(String(error)));
+      return;
+    }
+
+    if (connectTimeoutMs > 0) {
+      connectTimer = setTimeout(() => {
+        if (!opened) settleOpenErr(new Error("OpenAI responses websocket connect timeout"));
+      }, connectTimeoutMs);
+    }
+
+    if (signal) {
+      if (signal.aborted) {
+        settleOpenErr(new Error("OpenAI responses websocket aborted"));
+        return;
+      }
+      signal.addEventListener(
+        "abort",
+        () => {
+          if (!opened) settleOpenErr(new Error("OpenAI responses websocket aborted"));
+          else finish(new Error("OpenAI responses websocket aborted"));
+          try {
+            ws?.close();
+          } catch {
+          }
+        },
+        { once: true },
+      );
+    }
+
+    ws.onopen = () => {
+      opened = true;
+      try {
+        ws.send(JSON.stringify(body));
+      } catch (error) {
+        settleOpenErr(error instanceof Error ? error : new Error(String(error)));
+        return;
+      }
+      settleOpenOk(iterable);
+    };
+    ws.onmessage = (ev: any) => {
+      const event = parseWebsocketMessageData(ev?.data);
+      if (event === undefined) return;
+      if (event === RESPONSES_DONE) {
+        finish();
+        try {
+          ws.close();
+        } catch {
+        }
+        return;
+      }
+      pushEvent(event);
+    };
+    ws.onerror = (ev: any) => {
+      const error = new Error(
+        typeof ev?.message === "string" && ev.message ? ev.message : "OpenAI responses websocket error",
+      );
+      if (!opened) settleOpenErr(error);
+      else finish(error);
+    };
+    ws.onclose = () => {
+      if (!opened) {
+        settleOpenErr(new Error("OpenAI responses websocket closed before open"));
+        return;
+      }
+      finish();
+    };
+  });
 }
 
 function compactWhitespace(value: string): string {
@@ -165,6 +432,20 @@ function normalizeToolOutput(content: unknown): string {
   }
 }
 
+function extractResponsesEventErrorMessage(event: any): string {
+  const error = event?.error ?? event?.response?.error;
+  const code = typeof error?.code === "string" && error.code ? `${error.code}: ` : "";
+  const message =
+    typeof error?.message === "string" && error.message
+      ? error.message
+      : typeof event?.message === "string" && event.message
+        ? event.message
+        : event?.type === "response.failed"
+          ? "OpenAI responses request failed"
+          : "OpenAI responses error";
+  return `${code}${message}`;
+}
+
 function getToolCallId(msg: any): string {
   if (!msg) return "";
   const raw = msg.tool_call_id ?? msg.toolCallId ?? msg.toolCallID ?? "";
@@ -182,20 +463,30 @@ function collectTrailingToolMessages(messages: any[]): any[] {
   return trailing;
 }
 
+function normalizeToolCall(toolCall: any): { id: string; name: string; arguments: string } | null {
+  const id = toolCall?.id ? String(toolCall.id) : "";
+  const name = toolCall?.function?.name ? String(toolCall.function.name) : toolCall?.name ? String(toolCall.name) : "";
+  const rawArgs =
+    toolCall?.function?.arguments !== undefined
+      ? toolCall.function.arguments
+      : toolCall?.arguments !== undefined
+        ? toolCall.arguments
+        : toolCall?.input;
+  const args = typeof rawArgs === "string" ? rawArgs : rawArgs !== undefined ? JSON.stringify(rawArgs) : "";
+  if (!id) return null;
+  return { id, name, arguments: args };
+}
+
 function findLatestAssistantToolCalls(messages: any[]): Map<string, { name: string; arguments: string }> {
   for (let i = messages.length - 1; i >= 0; i--) {
     const msg = messages[i];
     if (!msg || msg.role !== "assistant") continue;
-    const toolCalls = msg.tool_calls || msg.toolCalls || msg.tool_calls;
+    const toolCalls = msg.tool_calls || msg.toolCalls;
     if (!Array.isArray(toolCalls) || toolCalls.length === 0) continue;
     const map = new Map<string, { name: string; arguments: string }>();
     for (const tc of toolCalls) {
-      const id = tc?.id ? String(tc.id) : "";
-      const name = tc?.function?.name ? String(tc.function.name) : "";
-      const rawArgs = tc?.function?.arguments;
-      const args = typeof rawArgs === "string" ? rawArgs : rawArgs ? JSON.stringify(rawArgs) : "";
-      if (!id) continue;
-      map.set(id, { name, arguments: args });
+      const normalized = normalizeToolCall(tc);
+      if (normalized) map.set(normalized.id, { name: normalized.name, arguments: normalized.arguments });
     }
     return map;
   }
@@ -260,127 +551,130 @@ function buildInput(messages: any[]): BuildInputResult {
 }
 
 
-async function* streamToOpenAIChunks(response: Response, onResponseId?: (id: string) => void): AsyncIterable<any> {
-  if (!response.body) {
-    const payload = await response.json().catch(() => null);
-    if (payload) {
-      yield payload;
-    }
+// "DONE" sentinel ends an event stream (mirrors SSE `data: [DONE]`).
+const RESPONSES_DONE = "DONE" as const;
+type ResponsesDone = typeof RESPONSES_DONE;
+
+// Module-level previous_response_id store, keyed by session/actor (mirrors
+// sparrow `latest_assistant_response_id_by_session`). `OpenAIResponsesDriver`
+// builds a NEW adapter per call, so a per-instance field can never bridge turns
+// — this module-level map does. Continuity is server-side via previous_response_id;
+// we never replay reasoning ourselves. Only WS turns read/write it (HTTP SSE must
+// never carry previous_response_id — the proxy returns 400). An empty session key
+// disables continuity so sessions never cross-contaminate through a shared key.
+const responsesPreviousResponseIdBySession = new Map<string, string>();
+
+function getStoredPreviousResponseId(sessionKey: string | undefined): string | undefined {
+  const key = String(sessionKey || "").trim();
+  if (!key) return undefined;
+  return responsesPreviousResponseIdBySession.get(key);
+}
+
+function storePreviousResponseId(sessionKey: string | undefined, responseId: string): void {
+  const key = String(sessionKey || "").trim();
+  if (!key) return;
+  if (!responseId) return;
+  responsesPreviousResponseIdBySession.set(key, responseId);
+}
+
+// Test-only: clear the module-level continuity store between cases.
+export function __resetResponsesContinuationStoreForTests(): void {
+  responsesPreviousResponseIdBySession.clear();
+}
+
+function parseResponsesSseLine(line: string): any | ResponsesDone | undefined {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.startsWith(":")) return;
+  if (!trimmed.startsWith("data:")) return;
+  const payload = trimmed.replace(/^data:\s*/, "");
+  if (payload === "[DONE]") return RESPONSES_DONE;
+  try {
+    return JSON.parse(payload);
+  } catch {
     return;
   }
+}
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
+// Transport-agnostic event -> Chat-Completions chunk parser.
+//
+// Takes already-parsed Responses-API event OBJECTS (the SAME shape whether they
+// arrived via SSE `data:` lines or WebSocket messages) and yields the same
+// `{ choices: [{ delta: ... }] }` chunks the SSE path produced. The trailing
+// tool_calls flush (function_call items accumulated in a Map) happens once the
+// source iterable is exhausted, so a pure tool-call turn still yields its
+// tool_calls chunk. A `"DONE"` sentinel in the stream ends parsing early.
+export async function* responsesEventsToChunks(
+  events: AsyncIterable<any> | Iterable<any>,
+  onResponseId?: (id: string) => void,
+): AsyncIterable<any> {
   let emittedText = false;
   const toolCalls = new Map<string, { id: string; name: string; arguments: string }>();
   const itemToCallId = new Map<string, string>();
 
-  const flushLine = (line: string): any | "DONE" | undefined => {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith(":")) return;
-    if (!trimmed.startsWith("data:")) return;
-    const payload = trimmed.replace(/^data:\s*/, "");
-    if (payload === "[DONE]") return "DONE";
-    try {
-      return JSON.parse(payload);
-    } catch {
-      return;
+  for await (const event of events as AsyncIterable<any>) {
+    if (event === RESPONSES_DONE) break;
+    if (!event || typeof event !== "object") continue;
+    if (event.type === "response.created") {
+      const responseId = event.response?.id || event.id;
+      if (responseId && onResponseId) onResponseId(String(responseId));
+      continue;
     }
-  };
-
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() || "";
-      for (const line of lines) {
-        const event = flushLine(line);
-        if (event === "DONE") return;
-        if (!event || typeof event !== "object") continue;
-        if (event.type === "response.created") {
-          const responseId = event.response?.id || event.id;
-          if (responseId && onResponseId) onResponseId(String(responseId));
-          continue;
-        }
-        if (event.type === "response.completed") {
-          const responseId = event.response?.id || event.id;
-          if (responseId && onResponseId) onResponseId(String(responseId));
-          continue;
-        }
-        if (event.type === "response.output_text.delta") {
-          const delta = typeof event.delta === "string" ? event.delta : typeof event.text === "string" ? event.text : "";
-          if (delta) {
-            emittedText = true;
-            yield { choices: [{ delta: { content: delta } }] };
-          }
-          continue;
-        }
-        if (event.type === "response.output_text.done") {
-          const text = typeof event.text === "string" ? event.text : typeof event.delta === "string" ? event.delta : "";
-          if (text && !emittedText) {
-            emittedText = true;
-            yield { choices: [{ delta: { content: text } }] };
-          }
-          continue;
-        }
-        if (event.type === "response.output_item.added" && event.item?.type === "function_call") {
-          const itemId = String(event.item?.id || "");
-          const callId = String(event.item?.call_id || "");
-          if (itemId && callId) itemToCallId.set(itemId, callId);
-          const key = callId || itemId;
-          if (!key) continue;
-          if (!toolCalls.has(key)) {
-            toolCalls.set(key, { id: callId || itemId, name: String(event.item?.name || ""), arguments: String(event.item?.arguments || "") });
-          }
-          continue;
-        }
-        if (event.type === "response.function_call_arguments.delta") {
-          const itemId = String(event.item_id || "");
-          const key = itemToCallId.get(itemId) || itemId;
-          if (!key) continue;
-          const existing = toolCalls.get(key) || { id: key, name: "", arguments: "" };
-          existing.arguments += String(event.delta || "");
-          toolCalls.set(key, existing);
-          continue;
-        }
-        if (event.type === "response.output_item.done" && event.item?.type === "function_call") {
-          const itemId = String(event.item?.id || "");
-          const callId = String(event.item?.call_id || "");
-          if (itemId && callId) itemToCallId.set(itemId, callId);
-          const key = callId || itemId;
-          if (!key) continue;
-          const existing = toolCalls.get(key) || { id: key, name: "", arguments: "" };
-          if (event.item?.name) existing.name = String(event.item.name);
-          if (event.item?.arguments) existing.arguments = String(event.item.arguments);
-          existing.id = callId || existing.id;
-          toolCalls.set(key, existing);
-          continue;
-        }
-        if (event.type === "error" || event.type === "response.error") {
-          const message = event.error?.message || event.message || "OpenAI responses error";
-          throw new Error(String(message));
-        }
+    if (event.type === "response.completed") {
+      const responseId = event.response?.id || event.id;
+      if (responseId && onResponseId) onResponseId(String(responseId));
+      continue;
+    }
+    if (event.type === "response.output_text.delta") {
+      const delta = typeof event.delta === "string" ? event.delta : typeof event.text === "string" ? event.text : "";
+      if (delta) {
+        emittedText = true;
+        yield { choices: [{ delta: { content: delta } }] };
       }
+      continue;
     }
-  } finally {
-    try {
-      reader.releaseLock();
-    } catch {
-    }
-  }
-
-  if (buffer.trim()) {
-    const event = flushLine(buffer);
-    if (event && event !== "DONE" && typeof event === "object") {
-      if (event.type === "response.output_text.delta") {
-        const delta = typeof event.delta === "string" ? event.delta : typeof event.text === "string" ? event.text : "";
-        if (delta) {
-          yield { choices: [{ delta: { content: delta } }] };
-        }
+    if (event.type === "response.output_text.done") {
+      const text = typeof event.text === "string" ? event.text : typeof event.delta === "string" ? event.delta : "";
+      if (text && !emittedText) {
+        emittedText = true;
+        yield { choices: [{ delta: { content: text } }] };
       }
+      continue;
+    }
+    if (event.type === "response.output_item.added" && event.item?.type === "function_call") {
+      const itemId = String(event.item?.id || "");
+      const callId = String(event.item?.call_id || "");
+      if (itemId && callId) itemToCallId.set(itemId, callId);
+      const key = callId || itemId;
+      if (!key) continue;
+      if (!toolCalls.has(key)) {
+        toolCalls.set(key, { id: callId || itemId, name: String(event.item?.name || ""), arguments: String(event.item?.arguments || "") });
+      }
+      continue;
+    }
+    if (event.type === "response.function_call_arguments.delta") {
+      const itemId = String(event.item_id || "");
+      const key = itemToCallId.get(itemId) || itemId;
+      if (!key) continue;
+      const existing = toolCalls.get(key) || { id: key, name: "", arguments: "" };
+      existing.arguments += String(event.delta || "");
+      toolCalls.set(key, existing);
+      continue;
+    }
+    if (event.type === "response.output_item.done" && event.item?.type === "function_call") {
+      const itemId = String(event.item?.id || "");
+      const callId = String(event.item?.call_id || "");
+      if (itemId && callId) itemToCallId.set(itemId, callId);
+      const key = callId || itemId;
+      if (!key) continue;
+      const existing = toolCalls.get(key) || { id: key, name: "", arguments: "" };
+      if (event.item?.name) existing.name = String(event.item.name);
+      if (event.item?.arguments) existing.arguments = String(event.item.arguments);
+      existing.id = callId || existing.id;
+      toolCalls.set(key, existing);
+      continue;
+    }
+    if (event.type === "error" || event.type === "response.error" || event.type === "response.failed") {
+      throw new Error(extractResponsesEventErrorMessage(event));
     }
   }
 
@@ -398,6 +692,51 @@ async function* streamToOpenAIChunks(response: Response, onResponseId?: (id: str
   }
 }
 
+// SSE path: read `response.body` lines, parse each `data:` line into an event
+// OBJECT, and surface a `"DONE"` sentinel. This is the transport-specific
+// "raw bytes -> event" adapter; the WebSocket path has its own.
+async function* responsesSseEvents(response: Response): AsyncIterable<any> {
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() || "";
+      for (const line of lines) {
+        const event = parseResponsesSseLine(line);
+        if (event === RESPONSES_DONE) return;
+        if (event === undefined) continue;
+        yield event;
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock();
+    } catch {
+    }
+  }
+
+  if (buffer.trim()) {
+    const event = parseResponsesSseLine(buffer);
+    if (event && event !== RESPONSES_DONE) yield event;
+  }
+}
+
+async function* streamToOpenAIChunks(response: Response, onResponseId?: (id: string) => void): AsyncIterable<any> {
+  if (!response.body) {
+    const payload = await response.json().catch(() => null);
+    if (payload) {
+      yield payload;
+    }
+    return;
+  }
+  yield* responsesEventsToChunks(responsesSseEvents(response), onResponseId);
+}
+
 export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
   readonly type = "codex" as const;
   private apiKey: string;
@@ -413,9 +752,31 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
   }
 
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
-    const { model, messages, tools, extraBody, signal } = options;
+    const { model, messages, tools, extraBody, signal, sessionKey } = options;
     const { input, messageItems, toolItems, toolOutputItems } = buildInput(messages);
-    const allowPreviousResponseId = process.env.MINIMAX_RESPONSES_USE_PREVIOUS_ID === "1";
+
+    // Transport selection (auto / websocket / http_sse). Resolved up-front because
+    // previous_response_id is ONLY valid over WebSocket — the proxy returns 400
+    // for it over HTTP SSE (decision D3). `auto` -> websocket only when the
+    // connection is marked WS-capable.
+    const providerOptions = this.providerOptions;
+    const supportsWebsockets =
+      providerOptions.supports_websockets === true || providerOptions.supports_websockets === "true";
+    const websocketUrlOption =
+      typeof providerOptions.websocket_url === "string" ? providerOptions.websocket_url : "";
+    const transportMode = resolveResponsesTransportMode({
+      transportMode: typeof providerOptions.transport_mode === "string" ? providerOptions.transport_mode : "auto",
+      supportsWebsockets,
+      websocketUrl: websocketUrlOption,
+    });
+    const isWebsocketTransport = transportMode === "websocket";
+
+    // Gate: previous_response_id continuity is enabled on the WebSocket transport
+    // (the env var stays as an additional explicit override). It is NEVER enabled
+    // over HTTP SSE so the SSE body can never carry previous_response_id.
+    const allowPreviousResponseId =
+      isWebsocketTransport || process.env.MINIMAX_RESPONSES_USE_PREVIOUS_ID === "1";
+
     const instructions = buildInstructions("");
     const toolSpecs = Array.isArray(tools)
       ? tools.map((tool) => ({
@@ -423,7 +784,7 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
           name: tool.function.name,
           description: tool.function.description,
           strict: false,
-          parameters: tool.function.parameters || {},
+          parameters: stripOpenAICompatibleUnsupportedSchemaKeys(tool.function.parameters || {}),
         }))
       : [];
 
@@ -433,9 +794,17 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       stream: true,
     };
 
-    const previousResponseId = allowPreviousResponseId ? this.lastResponseId : undefined;
+    // Read the stored previous_response_id for this session (module-level map,
+    // bridges per-call new adapter instances). Only consulted when continuity is
+    // allowed (WS / env override) — so HTTP SSE never resolves a previous id.
+    const previousResponseId = allowPreviousResponseId
+      ? getStoredPreviousResponseId(sessionKey) ?? this.lastResponseId
+      : undefined;
 
     if (previousResponseId && toolOutputItems.length) {
+      // Chain turn: send previous_response_id + store:true + the INCREMENTAL input
+      // (the trailing tool round only). The server keeps the prior response (incl.
+      // reasoning) so the model maintains chain-of-thought across tool rounds.
       body.previous_response_id = previousResponseId;
       body.input = toolItems.length ? [...toolItems, ...toolOutputItems] : toolOutputItems;
       body.tools = toolSpecs;
@@ -476,7 +845,12 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       };
     }
 
-    const providerOptions = this.providerOptions;
+    // Continuity requires the server to persist each response (store:true) so the
+    // next previous_response_id can reference it. Re-assert AFTER extra-body merge,
+    // which could otherwise clobber store back to false.
+    if (allowPreviousResponseId) {
+      body.store = true;
+    }
     const url = buildResponsesUrl((providerOptions.baseURL as string | undefined) || this.baseUrl);
     const apiKey = (providerOptions.apiKey as string | undefined) || this.apiKey;
     if (!apiKey) {
@@ -538,35 +912,111 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       });
     };
 
-    const res = await doFetch(body);
+    const onResponseId = (id: string) => {
+      this.lastResponseId = id;
+      // Persist by session so the NEXT turn (a new adapter instance) can reuse it
+      // as previous_response_id. Only meaningful when continuity is allowed and a
+      // session key is present; a missing key is a no-op (no cross-session leak).
+      if (allowPreviousResponseId) {
+        storePreviousResponseId(sessionKey, id);
+      }
+    };
 
-    if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
-      const errorSummary = summarizeProviderErrorBody(errorText);
-      appendCodexLog({
-        event: "response_error",
-        status: res.status,
-        status_text: res.statusText,
-        error_text: errorText.slice(0, 2000),
-        error_summary: errorSummary,
-        use_previous_response_id: Boolean(previousResponseId && toolOutputItems.length),
-        previous_response_id: previousResponseId,
-      });
-      throw new ProviderExecutionError(
-        `OpenAI responses fetch error ${res.status}${res.statusText ? ` ${res.statusText}` : ""}: ${
-          errorSummary || res.statusText
-        }`,
-        {
-          statusCode: res.status,
-          providerErrorCode: `http_${res.status}`,
-        },
-      );
+    // HTTP SSE never carries previous_response_id (proxy returns 400; decision
+    // D3). The default SSE path already builds a clean body (continuity is gated
+    // off over SSE). But if WS was chosen (continuity allowed) and then FELL BACK
+    // to SSE, `body` may hold the WS continuity shape — sanitize it so the SSE
+    // request matches today's behavior: drop previous_response_id, reset store to
+    // false, and restore the FULL input (SSE is stateless; the incremental
+    // tool-only chain input would be a truncated request).
+    const httpSseBody = isWebsocketTransport
+      ? (() => {
+          const clean: Record<string, unknown> = { ...body };
+          delete clean.previous_response_id;
+          clean.store = false;
+          clean.input =
+            toolItems.length || toolOutputItems.length
+              ? [...messageItems, ...toolItems, ...toolOutputItems]
+              : input;
+          return clean;
+        })()
+      : body;
+
+    // HTTP SSE transport — the existing, default path. Behavior must be
+    // identical to today when no WebSocket markers are present.
+    const openHttpSseStream = async (): Promise<LlmStreamResult> => {
+      const res = await doFetch(httpSseBody);
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => "");
+        const errorSummary = summarizeProviderErrorBody(errorText);
+        appendCodexLog({
+          event: "response_error",
+          status: res.status,
+          status_text: res.statusText,
+          error_text: errorText.slice(0, 2000),
+          error_summary: errorSummary,
+          use_previous_response_id: Boolean(previousResponseId && toolOutputItems.length),
+          previous_response_id: previousResponseId,
+        });
+        throw new ProviderExecutionError(
+          `OpenAI responses fetch error ${res.status}${res.statusText ? ` ${res.statusText}` : ""}: ${
+            errorSummary || res.statusText
+          }`,
+          {
+            statusCode: res.status,
+            providerErrorCode: `http_${res.status}`,
+          },
+        );
+      }
+
+      return {
+        stream: streamToOpenAIChunks(res, onResponseId),
+      };
+    };
+
+    // Transport was resolved up-front (so the previous_response_id gate could see
+    // it). HTTP SSE is the default path; only websocket attempts the WS transport.
+    if (!isWebsocketTransport) {
+      return openHttpSseStream();
     }
 
-    return {
-      stream: streamToOpenAIChunks(res, (id) => {
-        this.lastResponseId = id;
-      }),
-    };
+    // WebSocket transport. On any connect/transport failure, fall back to HTTP
+    // SSE so behavior never regresses (decision D4).
+    const webSocketFactory =
+      (typeof providerOptions.webSocketFactory === "function"
+        ? (providerOptions.webSocketFactory as ResponsesWebSocketFactory)
+        : undefined) ?? defaultWebSocketFactory;
+    const connectTimeoutRaw =
+      typeof providerOptions.websocket_connect_timeout_seconds === "number"
+        ? providerOptions.websocket_connect_timeout_seconds
+        : Number(providerOptions.websocket_connect_timeout_seconds);
+    const connectTimeoutMs =
+      Number.isFinite(connectTimeoutRaw) && connectTimeoutRaw > 0
+        ? connectTimeoutRaw * 1000
+        : DEFAULT_WEBSOCKET_CONNECT_TIMEOUT_MS;
+    const wsUrl = buildResponsesWebsocketUrl(url, websocketUrlOption);
+    const wsHeaders = normalizeWebsocketHeaders(headers);
+
+    try {
+      const events = await openResponsesWebsocketEvents({
+        url: wsUrl,
+        headers: wsHeaders,
+        body,
+        factory: webSocketFactory,
+        connectTimeoutMs,
+        signal,
+      });
+      return {
+        stream: responsesEventsToChunks(events, onResponseId),
+      };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      appendCodexLog({ event: "websocket_fallback_to_http_sse", url: wsUrl, reason });
+      if (process.env.MINIMAX_DEBUG === "1") {
+        console.log("[codex] websocket transport failed, falling back to HTTP SSE:", reason);
+      }
+      return openHttpSseStream();
+    }
   }
 }

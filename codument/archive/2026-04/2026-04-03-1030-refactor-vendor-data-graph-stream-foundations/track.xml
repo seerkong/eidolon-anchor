@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-vendor-data-graph-stream-foundations" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 vendor/depa-data-graph 成为 timeline、append-only event log 与 projection primitive 的正式来源，并推动 symbiont、core、terminal 的通用 stream foundations 收口到 vendor。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-02T13:05:57Z</CreatedAt>
+    <UpdatedAt>2026-04-03T10:30:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-vendor-data-graph-stream-foundations" name="refactor-vendor-data-graph-stream-foundations" version="1">
+    <Description>沉淀 vendor data-graph stream foundations</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>固化 proposal、spec、design、plan 与 analysis，使该 track 可以直接进入实现。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="收紧 proposal.md 的范围与交付物" status="DONE" order="0" priority="P0">
+            <Description>将 track 目标从泛化的“补齐 stream foundations”收紧为 vendor primitive、symbiont convergence、core/terminal cutover 三层，并明确不做事项。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">proposal 已明确交付结果、影响范围和不做事项</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">proposal 已能独立解释为何此 track 先于 composer/profile 装配执行</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="收紧 spec.md 的可验证 requirement" status="DONE" order="1" priority="P0">
+            <Description>把 vendor primitive 边界、symbiont convergence、core/terminal cutover 和 AI-specific 留在上层的约束写成可执行 requirement。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">spec 已覆盖 vendor timeline/log/projection primitive 的正式 requirement</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">spec 已覆盖项目侧 cutover 与 focused test gate</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="补齐 design.md、plan.xml、metadata 与 analysis" status="DONE" order="2" priority="P0">
+            <Description>补齐技术设计、分 phase 执行计划、metadata.json 和 analysis 外部记忆，使 track 从“想法”进入“可执行状态”。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">design 已锁定迁移顺序、边界和风险</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">plan.xml 已把后续实现拆到 vendor、symbiont、core/terminal 和验证 phase</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Vendor Timeline / Log / Projection Foundations" status="DONE" order="1">
+        <Description>在 vendor/depa-data-graph 中建立正式的 ordered timeline、fanout、append-only event log 与 reducer/projection primitive。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="红：建立 vendor timeline/log/projection focused tests" status="DONE" order="0" priority="P0">
+            <Description>先为 ordered timeline、fanout、append-only event log 与 reducer/projection 建立 focused tests，锁定顺序、广播、派生快照与 cleanup 语义。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">tests 能锁定 ordered append 与多 consumer fanout 的顺序语义</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">tests 能锁定 event log replay、reducer projection 与 dispose/cleanup 行为</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="绿：实现 ordered timeline 与 tee/fanout primitive" status="DONE" order="1" priority="P0">
+            <Description>在 vendor stream 模块中实现正式的 ordered timeline 与 tee/fanout primitive，并导出稳定的 typed surface。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">vendor 已存在可复用的 ordered timeline primitive</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">vendor 已存在可复用的 tee/fanout builder 或等价 primitive</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="绿：实现 append-only event log 与 reducer/projection primitive" status="DONE" order="2" priority="P0">
+            <Description>在 vendor 中补齐 append-only event log 与 reducer/projection primitive，使项目侧无需再手工维护 `latest_* + seq + consumer` 模式。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">vendor 已存在 append-only event log primitive</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">vendor 已存在 reducer/projection builder，可稳定派生投影视图</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.4" name="导出 vendor 正式 surface 并补文档" status="DONE" order="3" priority="P1">
+            <Description>更新 vendor export surface、必要文档和示例，明确 timeline/log/projection 属于正式公共能力，而不是仅存在于项目私有实现里。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.4-AC1" checked="true">`vendor/depa-data-graph` 的公共导出面已暴露新 primitive</cdt:Criterion>
+              <cdt:Criterion id="T2.4-AC2" checked="true">vendor 文档或示例已说明 timeline/log/projection 的基本使用方式</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Symbiont Ingress Convergence" status="DONE" order="2">
+        <Description>让 symbiont 中的低层 ingress/timeline helper 收口到 vendor foundations，并保持 AI-specific 语义不回流到 vendor。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="红：建立 symbiont ingress compatibility tests" status="DONE" order="0" priority="P0">
+            <Description>为 `OutputStream`、`TeeOutputStream`、`IngressStreams`、`IngressStreamRuntime` 现有行为建立 focused tests，锁定迁移前兼容语义。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">tests 能锁定 timeline 收到事件的顺序和 fanout 结果</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">tests 能锁定迁移后 `IngressStreamRuntime.ingressStreams` 的兼容 surface</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="绿：将 symbiont low-level stream helper 收口为 vendor facade" status="DONE" order="1" priority="P0">
+            <Description>将 `symbiont-contract/src/stream/stream.ts` 收口为 vendor primitive 上的薄封装，或在不需要兼容 facade 时直接删除重复实现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">`OutputStream` / `TeeOutputStream` 不再自行实现独立的长期通用机制</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">如保留旧名称，其底层已明确由 vendor foundation 支撑</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="绿：重构 IngressStreams 与 IngressStreamRuntime 到 vendor foundations" status="DONE" order="2" priority="P0">
+            <Description>让 ingress timeline、control/think/content/tool fanout 全部建立在 vendor primitive 之上，并移除对平行 helper 的正式依赖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.3-AC1" checked="true">`IngressStreams` / `IngressStreamRuntime` 已由 vendor primitive 构建</cdt:Criterion>
+              <cdt:Criterion id="T3.3-AC2" checked="true">symbiont 低层 stream runtime 不再是与 vendor 平行生长的正式通用来源</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.4" name="锁定 AI-specific 语义仍留在 symbiont/core" status="DONE" order="3" priority="P1">
+            <Description>补 focused tests 或静态断言，确保 lexical/syntactic/semantic、LLM delta、transcript naming 等 AI-specific 语义没有被错误挪入 vendor。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.4-AC1" checked="true">vendor 新增 surface 不暴露 AI-specific 领域词汇或契约</cdt:Criterion>
+              <cdt:Criterion id="T3.4-AC2" checked="true">AI-specific stage/transcript 语义仍明确留在 symbiont/core 层</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Core / Organ / Terminal Event Foundation Cutover" status="DONE" order="3">
+        <Description>让 core、organ、terminal 的通用 append-only event dispatch 与 projection 基座收口到 vendor foundations。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="红：建立 AgentEventGraph 与 terminal projection regression tests" status="DONE" order="0" priority="P0">
+            <Description>为 `AgentEventGraph`、semantic runtime bridge 与 terminal projection 建立 focused tests，锁定 append-only 事件日志、listener 通知与 projection 结果语义。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">tests 能锁定 `AgentEventGraph` 的 append、complete、error 与订阅行为</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">tests 能锁定 terminal projection 在 cutover 前后的可见结果一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="绿：将 AgentEventGraph 收口到 vendor event log / projection primitive" status="DONE" order="1" priority="P0">
+            <Description>重构 `AgentEventGraph`，移除手工 `latest_event + event_seq + consumer` 模式，使其底层通用 event log / projection 语义来自 vendor foundation。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">`AgentEventGraph` 不再长期依赖手工 seq signal 模拟 append-only event log</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">core 层通用事件日志语义已建立在 vendor primitive 之上</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="绿：将 organ/terminal projection runtime 收口到 vendor foundations" status="DONE" order="2" priority="P0">
+            <Description>重构 `organ-logic` 与 terminal 的通用 event/projection runtime，让 semantic bridge、TUI/Textual 相关通用投影逻辑优先依赖 vendor primitive。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">terminal projection runtime 不再长期依赖项目私有的通用 append-only/projection helper</cdt:Criterion>
+              <cdt:Criterion id="T4.3-AC2" checked="true">organ/terminal 的通用 projection 机制已与 vendor primitive 对齐</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.4" name="删除或降级双轨通用 helper" status="DONE" order="3" priority="P1">
+            <Description>在 vendor、symbiont、core/terminal cutover 完成后，扫描并删除剩余的平行通用 helper，或明确将其降级为过渡 facade。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.4-AC1" checked="true">不存在第二套长期正式通用 stream/timeline/projection 基座</cdt:Criterion>
+              <cdt:Criterion id="T4.4-AC2" checked="true">残留 facade 若继续存在，文档和实现都明确其为过渡层</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Verification And Closeout" status="DONE" order="4">
+        <Description>完成 focused tests、文档回写与 strict validation，锁定该 track 的单源结果。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="运行 vendor / symbiont / core / terminal focused tests" status="DONE" order="0" priority="P0">
+            <Description>运行受影响层的 focused tests，确认 vendor primitive、adapter 兼容语义与 cutover 后的 projection 结果全部通过。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">vendor timeline/log/projection focused tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">symbiont、core、terminal focused tests 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="回写 track 状态资产并执行 strict validation" status="DONE" order="1" priority="P0">
+            <Description>更新 analysis、proposal/spec/design/plan 的完成状态，并执行 `codument validate refactor-vendor-data-graph-stream-foundations --strict`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.2-AC1" checked="true">track 文档与 analysis 状态已与实际实现一致</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC2" checked="true">strict validation 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.3" name="修复 symbiont 单包 tsconfig 的 workspace path typecheck 边界" status="DONE" order="2" priority="P1">
+            <Description>调整 `cell/packages/symbiont-contract` 与 `cell/packages/symbiont-logic` 的单包 tsconfig，使 `bun x tsc -p ... --noEmit` 不再因 `rootDir` 与 workspace path alias 命中 vendor/cell 外部源码而报 TS6059。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.3-AC1" checked="true">`bun x tsc -p cell/packages/symbiont-contract/tsconfig.json --noEmit` 通过</cdt:Criterion>
+              <cdt:Criterion id="T5.3-AC2" checked="true">`bun x tsc -p cell/packages/symbiont-logic/tsconfig.json --noEmit` 通过，且不需要回退本 track 的 vendor/symbiont 收口结果</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.4" name="回写 tsconfig 边界修复结果并重跑 strict validation" status="DONE" order="3" priority="P1">
+            <Description>更新 analysis 与计划状态，记录 tsconfig 修复的适用边界，并重新执行 `codument validate refactor-vendor-data-graph-stream-foundations --strict`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.4-AC1" checked="true">analysis 已记录单包 typecheck 修复的验证命令与结果</cdt:Criterion>
+              <cdt:Criterion id="T5.4-AC2" checked="true">strict validation 重新通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:HumanConfirm/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P6" name="Residual Projection And Facade Gap Closure" status="DONE" order="5">
+        <Description>收口 gap report 中暴露的 residual 偏差：共享状态 projection 的 vendor primitive 接入，以及 symbiont facade 的过渡层显式化。</Description>
+        <SubNodes>
+          <Task id="T6.1" name="回写 projection cutover 的边界与新增修正任务" status="DONE" order="0" priority="P0">
+            <Description>根据 gap report 更新 spec/design/plan，明确本 track 优先收口共享状态 projection 到 vendor `ReducerProjection`，而 presentation listener 仍作为 vendor event foundation 上层 adapter。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.1-AC1" checked="true">spec/design 已明确区分共享状态 projection 与 presentation listener 的边界</cdt:Criterion>
+              <cdt:Criterion id="T6.1-AC2" checked="true">plan.xml 已新增 residual gap closure tasks，且状态与真实执行顺序一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.2" name="将共享状态 projection 收口到 vendor ReducerProjection" status="DONE" order="1" priority="P0">
+            <Description>把 `MessageHistoryGraph` 与至少一个 terminal 共享状态 projection 改为 vendor `ReducerProjection` 驱动，并补 focused regression 约束该 cutover。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.2-AC1" checked="true">`MessageHistoryGraph` 的正式状态派生逻辑已建立在 vendor projection primitive 之上</cdt:Criterion>
+              <cdt:Criterion id="T6.2-AC2" checked="true">terminal 至少一条共享状态 projection 路径已建立在 vendor projection primitive 之上</cdt:Criterion>
+              <cdt:Criterion id="T6.2-AC3" checked="true">focused tests 已锁定新的 projection cutover，不再只验证 dispatch cutover</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.3" name="显式标注 symbiont facade 为过渡层" status="DONE" order="2" priority="P1">
+            <Description>为 `symbiont-contract/src/stream/stream.ts` 及相关文档补充 compatibility / transition 标注，明确 vendor import surface 才是正式长期来源。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.3-AC1" checked="true">代码或就近文档已明确 `OutputStream` / `TeeOutputStream` 属于 compatibility facade</cdt:Criterion>
+              <cdt:Criterion id="T6.3-AC2" checked="true">track 文档已说明 facade 的存在理由与长期收口方向</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.4" name="重跑验证并回写 gap closure 结果" status="DONE" order="3" priority="P0">
+            <Description>运行新增与受影响的 focused tests、strict validation，并将 gap closure 的结果回写到 analysis/plan 状态。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.4-AC1" checked="true">新增 projection cutover tests 与既有 focused tests 全部通过</cdt:Criterion>
+              <cdt:Criterion id="T6.4-AC2" checked="true">analysis、metadata 与 plan 状态已回写为与实现一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

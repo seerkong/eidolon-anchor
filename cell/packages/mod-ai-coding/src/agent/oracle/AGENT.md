@@ -15,7 +15,6 @@ tools:
   - glob
   - grep
   - bash
-  - batch
   - webfetch
   - websearch
 model_role: default

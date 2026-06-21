@@ -2,6 +2,7 @@ import type {
   ActorConversationLaneData,
   ActorRuntimeLaneData,
   ActorSurfaceCancelRequestData,
+  ActorSurfaceSetModelConfigRequestData,
   ActorSurfaceBackendIdentityData,
   ActorSurfaceLaneStatus,
   ActorSurfaceProjectionData,
@@ -10,10 +11,11 @@ import type {
   QuestionnaireSurfaceItemData,
 } from "@cell/ai-core-contract/runtime/ActorSurface";
 import type { ActorIdentity, AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor";
-import type { QuestionnaireRequestPayload } from "@cell/ai-core-contract/runtime/Questionnaire";
+import type { QuestionnaireRow } from "@cell/ai-core-contract/runtime/Questionnaire";
 import { createActor, type AiAgentActor } from "./actor";
 import type { AiAgentVm, VmHolonRecord, VmMemberRosterEntry } from "./runtime";
 import { ensureVmSessionState, getControlActor } from "./runtime";
+import { answerQuestionnaireRow, questionnaireRowFromPendingActorRequest } from "./QuestionnaireRows";
 
 export type BuildActorSurfaceProjectionOptions = {
   selectedLaneId?: string;
@@ -25,6 +27,7 @@ export type ActorSurfaceFacade = {
   selectActorSurfaceTarget: (target: ActorSurfaceTargetSelectorData) => ActorSurfaceProjectionData;
   sendActorHumanMessage: (target: ActorSurfaceTargetSelectorData, text: string) => ActorSurfaceProjectionData;
   cancelActorTurn: (request: ActorSurfaceCancelRequestData) => ActorSurfaceProjectionData;
+  setActorModelConfig: (request: ActorSurfaceSetModelConfigRequestData) => ActorSurfaceProjectionData;
   submitQuestionnaireResponse: (
     questionnaireId: string,
     responseText: string,
@@ -99,7 +102,7 @@ function actorDisplayName(actor: AiAgentActor): string {
     ?? actor.key;
 }
 
-function actorTranscriptSessionId(actor: AiAgentActor): string | undefined {
+function actorWorkSessionId(actor: AiAgentActor): string | undefined {
   return actor.workContext?.sessionId;
 }
 
@@ -194,6 +197,7 @@ function buildPrimaryLane(
     actorKey: actor?.key,
     initialized: Boolean(actor),
     status: actor ? actorRuntimeStatus(actor) : "unknown",
+    metadata: actor?.workContext ? { workContext: actor.workContext } : undefined,
   };
 }
 
@@ -211,6 +215,7 @@ function buildMemberLane(member: VmMemberRosterEntry, actor?: AiAgentActor): Act
       lifecycleState: member.lifecycleState,
       createdAt: member.createdAt,
       lastActiveAt: member.lastActiveAt,
+      workContext: actor?.workContext,
     },
   };
 }
@@ -230,6 +235,7 @@ function buildHolonLane(holon: VmHolonRecord, actor?: AiAgentActor): ActorConver
       watchState: holon.watchState,
       createdAt: holon.createdAt,
       updatedAt: holon.updatedAt,
+      workContext: actor?.workContext,
     },
   };
 }
@@ -244,7 +250,7 @@ function buildActorLane(actor: AiAgentActor): ActorRuntimeLaneData {
     displayName: actorDisplayName(actor),
     identity: actor.identity,
     transcriptKey: {
-      sessionId: actorTranscriptSessionId(actor),
+      sessionId: actorWorkSessionId(actor),
       actorId: actor.id,
       actorKey: actor.key,
     },
@@ -255,6 +261,7 @@ function buildActorLane(actor: AiAgentActor): ActorRuntimeLaneData {
       parentKey: actor.parentKey,
       detachedTask: actor.detachedTask,
       watchState: actor.watchState,
+      workContext: actor.workContext,
     },
   };
 }
@@ -279,50 +286,71 @@ function controlEntryForQuestionnaire(
     .find((entry) => entry.questionnaireId === questionnaireId);
 }
 
-function normalizeQuestionnaireId(request: QuestionnaireRequestPayload, fallbackId: string): string {
-  return request.questionnaireId || fallbackId;
-}
-
-function buildQuestionnaireSurfaceForActor(
+function buildTransientQuestionnaireRowsForActor(
   actor: AiAgentActor,
+  durableRows: Record<string, QuestionnaireRow>,
   answeredQuestionnaires: Record<string, QuestionnaireSurfaceItemData>,
-): QuestionnaireSurfaceItemData[] {
-  const sessionId = actorTranscriptSessionId(actor);
+): QuestionnaireRow[] {
   return Object.entries(actor.pendingQuestionnaires ?? {})
     .filter(([fallbackId, request]) => {
-      const questionnaireId = normalizeQuestionnaireId(request, fallbackId);
-      return !answeredQuestionnaires[questionnaireId];
+      const questionnaireId = request.questionnaireId || fallbackId;
+      return !durableRows[questionnaireId] && !answeredQuestionnaires[questionnaireId];
     })
     .map(([fallbackId, request]) => {
-      const questionnaireId = normalizeQuestionnaireId(request, fallbackId);
+      const questionnaireId = request.questionnaireId || fallbackId;
       const controlEntry = controlEntryForQuestionnaire(actor, questionnaireId);
-      return {
-        questionnaireId,
-        sessionId,
-        ownerActorId: actor.id,
-        ownerActorKey: actor.key,
-        ownerFiberId: actorFiberId(actor),
-        toolCallId: request.toolCallId ?? controlEntry?.toolCallId ?? "",
-        request,
-        suspendPolicy: request.suspendPolicy ?? controlEntry?.suspendPolicy ?? "pause_all",
-        lifecycleState: "pending",
-      };
+      return questionnaireRowFromPendingActorRequest({
+        actor,
+        request: {
+          ...request,
+          toolCallId: request.toolCallId ?? controlEntry?.toolCallId ?? "",
+          suspendPolicy: request.suspendPolicy ?? controlEntry?.suspendPolicy ?? "pause_all",
+        },
+        fallbackId,
+        existing: durableRows[request.questionnaireId || fallbackId],
+      });
     });
+}
+
+function questionnaireRowToSurfaceItem(row: QuestionnaireRow): QuestionnaireSurfaceItemData {
+  return {
+    questionnaireId: row.questionnaireId,
+    sessionId: row.sessionId,
+    ownerActorId: row.ownerActorId,
+    ownerActorKey: row.ownerActorKey,
+    ownerFiberId: row.ownerFiberId,
+    toolCallId: row.toolCallId,
+    request: row.request,
+    result: row.result,
+    suspendPolicy: row.suspendPolicy,
+    lifecycleState: row.status,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+    metadata: row.metadata,
+  };
 }
 
 function refreshRuntimeGlobalQuestionnaireIndex(vm: AiAgentVm): QuestionnaireSurfaceItemData[] {
   const sessionState = ensureVmSessionState(vm);
+  const durableRows = { ...(sessionState.questionnaires ?? {}) };
+  const projectionRows: Record<string, QuestionnaireRow> = { ...durableRows };
+  for (const actor of Object.values(vm.actors ?? {})) {
+    for (const row of buildTransientQuestionnaireRowsForActor(actor, durableRows, sessionState.actorSurface.answeredQuestionnaires)) {
+      projectionRows[row.questionnaireId] = row;
+    }
+  }
   const pending = Object.fromEntries(
-    Object.values(vm.actors ?? {})
-      .flatMap((actor) => buildQuestionnaireSurfaceForActor(actor, sessionState.actorSurface.answeredQuestionnaires))
-      .map((item) => [item.questionnaireId, {
-        ...sessionState.actorSurface.pendingQuestionnaires[item.questionnaireId],
-        ...item,
-        lifecycleState: "pending" as const,
-        updatedAt: Date.now(),
-      }]),
+    Object.values(projectionRows)
+      .filter((row) => row.status === "pending")
+      .map((row) => [row.questionnaireId, questionnaireRowToSurfaceItem(row)]),
+  );
+  const answered = Object.fromEntries(
+    Object.values(projectionRows)
+      .filter((row) => row.status === "answered")
+      .map((row) => [row.questionnaireId, questionnaireRowToSurfaceItem(row)]),
   );
   sessionState.actorSurface.pendingQuestionnaires = pending;
+  sessionState.actorSurface.answeredQuestionnaires = answered;
   return Object.values(pending);
 }
 
@@ -417,6 +445,29 @@ export function createActorSurfaceFacade(vm: AiAgentVm, options: ActorSurfaceFac
       }
       return buildActorSurfaceProjection(vm);
     },
+    setActorModelConfig: (request) => {
+      const actor = ensureActorForSurfaceTarget(vm, request);
+      const now = options.now?.() ?? Date.now();
+      emitActorSurfaceMailbox(options, {
+        actor,
+        signalKind: "mailbox_enqueue",
+        mailbox: {
+          kind: "control",
+          payload: {
+            kind: "set_active_model_config",
+            modelConfig: request.modelConfig,
+            modelRef: request.modelRef,
+            source: request.source,
+            requestedBy: request.requestedBy,
+            requestedAt: now,
+          },
+        },
+        idempotencyKey: `${actorFiberId(actor)}:set_active_model_config:${request.modelRef ?? request.modelConfig.provider ?? ""}/${request.modelConfig.model ?? ""}:${now}`,
+        createdAt: now,
+      });
+      persistSelectedTarget({ actorId: actor.id, laneId: resolveLaneIdForActor(vm, actor) });
+      return buildActorSurfaceProjection(vm);
+    },
     submitQuestionnaireResponse: (questionnaireId, responseText) => {
       return submitQuestionnaireResponseById(vm, questionnaireId, responseText, options);
     },
@@ -467,7 +518,7 @@ function submitQuestionnaireResponseById(
   ));
 
   delete sessionState.actorSurface.pendingQuestionnaires[normalizedId];
-  sessionState.actorSurface.answeredQuestionnaires[normalizedId] = {
+  const answered = {
     ...pending,
     result: {
       questionnaireId: normalizedId,
@@ -479,6 +530,30 @@ function submitQuestionnaireResponseById(
     lifecycleState: "answered",
     updatedAt: now,
   };
+  sessionState.actorSurface.answeredQuestionnaires[normalizedId] = answered;
+  const answeredRow = answerQuestionnaireRow({
+    vm,
+    questionnaireId: normalizedId,
+    result: answered.result,
+    now,
+  });
+  if (!answeredRow) {
+    ensureVmSessionState(vm).questionnaires[normalizedId] = {
+      questionnaireId: answered.questionnaireId,
+      sessionId: answered.sessionId,
+      ownerActorId: answered.ownerActorId,
+      ownerActorKey: answered.ownerActorKey,
+      ownerFiberId: answered.ownerFiberId,
+      toolCallId: answered.toolCallId,
+      request: answered.request,
+      result: answered.result,
+      suspendPolicy: answered.suspendPolicy,
+      status: "answered",
+      createdAt: answered.createdAt ?? now,
+      updatedAt: now,
+      metadata: answered.metadata,
+    };
+  }
 
   return { status: "submitted", projection: buildActorSurfaceProjection(vm) };
 }

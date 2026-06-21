@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-holon-legacy-manager-and-assign-aliases" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 OrganizationManager 的默认内部 helper 和 assign core module 全部回到 holon/governance 命名。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-09T09:39:18Z</CreatedAt>
+    <UpdatedAt>2026-04-09T09:57:14Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-holon-legacy-manager-and-assign-aliases" name="refactor-aiagent-holon-legacy-manager-and-assign-aliases" version="1">
+    <Description>清理 holon legacy manager helper 与 assign alias module</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>锁定 legacy manager helper 与 assign alias cleanup 边界。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 proposal/spec/plan" status="DONE" order="0" priority="P0">
+            <Description>明确本轮只清理 OrganizationManager legacy helper 与 assign alias module。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Manager Cleanup" status="DONE" order="1">
+        <Description>将内部组织 helper 收口为 governance-first 路径。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="重构 OrganizationManager 内部 helper" status="DONE" order="0" priority="P0">
+            <Description>以 autonomous/leader_led 为主轴重构 get/resolve/list helper，并移除未使用 legacy public method。</Description>
+          </Task>
+          <Task id="T2.2" name="切换内部调用方到新 helper" status="DONE" order="1" priority="P0">
+            <Description>同步 AutonomousHolonTaskRunner、assign core 与 holon tooling 的调用路径。</Description>
+          </Task>
+          <Task id="T2.3" name="删除 assign alias module" status="DONE" order="2" priority="P1">
+            <Description>移除 `_collectiveAssignCore.ts` 与 `_formationAssignCore.ts`。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Tests And Closure" status="DONE" order="2">
+        <Description>同步 tests、报告与 strict validation。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新 focused tests 与报告" status="DONE" order="0" priority="P0">
+            <Description>同步组织工具/runner 相关 tests 与 theater 报告的当前剩余面。</Description>
+          </Task>
+          <Task id="T3.2" name="执行 strict validation 与 focused regression" status="DONE" order="1" priority="P0">
+            <Description>运行相关 tests 与 `codument validate refactor-aiagent-holon-legacy-manager-and-assign-aliases --strict`。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

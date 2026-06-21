@@ -4,8 +4,10 @@
 // users can scan many sessions at once without scrolling.
 import { InputRenderable, RGBA, ScrollBoxRenderable, TextAttributes } from "@opentui/core"
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid"
-import type { Session } from "@terminal/core/AIAgent"
+import type { Session, SessionUpgradeDryRunResult } from "@terminal/core/AIAgent"
 import { useDialog } from "../../../../ui/dialog/context"
+import { DialogAlert } from "../../../../ui/dialog/alert"
+import { DialogConfirm } from "../../../../ui/dialog/confirm"
 import { useRoute } from "../../route/route-context"
 import { useSync } from "../../state/sync-context"
 import { createEffect, createMemo, createResource, createSignal, For, on, onMount, Show } from "solid-js"
@@ -34,6 +36,7 @@ type SessionOption = {
   updated: string
   deleting: boolean
   working: boolean
+  upgrading: boolean
 }
 
 function compactPreview(text: string | undefined, fallback: string, limit: number) {
@@ -52,6 +55,19 @@ function moveIndex(current: number, direction: number, total: number) {
   return next
 }
 
+function formatUpgradeBlockers(result: SessionUpgradeDryRunResult) {
+  if (result.blockers.length === 0) return result.classification
+  return result.blockers
+    .slice(0, 3)
+    .map((blocker) => {
+      const reason = typeof blocker.reason === "string" ? blocker.reason : "unknown"
+      const headId = typeof blocker.headId === "string" ? `:${blocker.headId}` : ""
+      const effectId = typeof blocker.effectId === "string" ? `:${blocker.effectId}` : ""
+      return `${reason}${headId}${effectId}`
+    })
+    .join(", ")
+}
+
 export function DialogSessionList() {
   const dialog = useDialog()
   const sync = useSync()
@@ -65,6 +81,7 @@ export function DialogSessionList() {
   const [selected, setSelected] = createSignal(0)
   const [filter, setFilter] = createSignal("")
   const [search, setSearch] = createDebouncedSignal("", 150)
+  const [upgradingSessionID, setUpgradingSessionID] = createSignal<string | null>(null)
 
   const [searchResults] = createResource(search, async (query) => {
     if (!query) return undefined
@@ -97,7 +114,8 @@ export function DialogSessionList() {
           created: Locale.todayTimeOrDateTime(x.time.created),
           updated: Locale.todayTimeOrDateTime(x.time.updated),
           deleting: false,
-          working: status?.type === "busy",
+          working: status?.type === "busy" || upgradingSessionID() === x.id,
+          upgrading: upgradingSessionID() === x.id,
         }
       }),
   )
@@ -118,8 +136,64 @@ export function DialogSessionList() {
     queueMicrotask(scrollToSelected)
   }
 
-  function selectOption(option = active()) {
+  function confirmUpgrade(option: SessionOption, result: SessionUpgradeDryRunResult) {
+    return new Promise<boolean>((resolve) => {
+      dialog.replace(
+        () => (
+          <DialogConfirm
+            title="升级旧会话"
+            message={`会话 ${option.id} 缺少 runtime-control checkpoint。升级后将写入不可降级恢复标记，然后加载会话。Heads: ${Object.keys(result.plannedHeads).length}`}
+            confirmLabel="[升级并加载]"
+            cancelLabel="[取消]"
+            onConfirm={() => resolve(true)}
+            onCancel={() => resolve(false)}
+          />
+        ),
+        () => resolve(false),
+      )
+    })
+  }
+
+  async function ensureSessionUpgradeReady(option: SessionOption) {
+    setUpgradingSessionID(option.id)
+    try {
+      const dryRun = await sdk.client.session.upgradeDryRun({ sessionID: option.id })
+      const result = dryRun.data
+      if (!result) {
+        await DialogAlert.show(dialog, "无法检查会话", "升级检查没有返回结果。")
+        return false
+      }
+      if (result.upgraded || (result.hasCheckpoint && result.classification === "clean")) {
+        return true
+      }
+      if (!result.canUpgrade) {
+        await DialogAlert.show(dialog, "无法升级会话", formatUpgradeBlockers(result))
+        return false
+      }
+
+      const confirmed = await confirmUpgrade(option, result)
+      if (!confirmed) {
+        dialog.replace(() => <DialogSessionList />)
+        return false
+      }
+
+      const applied = await sdk.client.session.upgradeApply({ sessionID: option.id })
+      if (applied.data?.status === "applied" || applied.data?.status === "already_upgraded") {
+        return true
+      }
+      await DialogAlert.show(dialog, "无法升级会话", applied.data ? formatUpgradeBlockers(applied.data.dryRun) : "升级没有返回结果。")
+      return false
+    } catch (error) {
+      await DialogAlert.show(dialog, "无法升级会话", error instanceof Error ? error.message : String(error))
+      return false
+    } finally {
+      setUpgradingSessionID(null)
+    }
+  }
+
+  async function selectOption(option = active()) {
     if (!option) return
+    if (!(await ensureSessionUpgradeReady(option))) return
     route.navigate({
       type: "session",
       sessionID: option.id,
@@ -213,7 +287,7 @@ export function DialogSessionList() {
     }
     if (event.name === "return" || event.name === "linefeed" || event.name === "kpenter") {
       event.preventDefault()
-      selectOption()
+      void selectOption()
       return
     }
     if (event.ctrl && event.name === "d") {
@@ -334,7 +408,7 @@ export function DialogSessionList() {
                           attributes={TextAttributes.BOLD}
                           onMouseUp={(evt) => {
                             evt.stopPropagation()
-                            selectOption(option)
+                            void selectOption(option)
                           }}
                         >
                           [加载]
@@ -371,7 +445,7 @@ export function DialogSessionList() {
                         </text>
                       </box>
                     </box>
-                    <box flexDirection="row" height={1} onMouseUp={() => selectOption(option)}>
+                    <box flexDirection="row" height={1} onMouseUp={() => void selectOption(option)}>
                       <text flexGrow={1} fg={rowSecondary(isActive())} overflow="hidden">
                         {option.input}
                       </text>
@@ -379,7 +453,7 @@ export function DialogSessionList() {
                         <text fg={rowSecondary(isActive())} overflow="hidden">{option.created}</text>
                       </box>
                     </box>
-                    <box flexDirection="row" height={1} onMouseUp={() => selectOption(option)}>
+                    <box flexDirection="row" height={1} onMouseUp={() => void selectOption(option)}>
                       <text flexGrow={1} fg={rowSecondary(isActive())} overflow="hidden">
                         {option.output}
                       </text>

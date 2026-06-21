@@ -2,6 +2,7 @@ import { createActor, type AiAgentActor } from "@cell/ai-core-logic/runtime/acto
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { ensureVmRuntimeContext, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime"
 import { createAiAgentOrchestratorDriverWithCooperative } from "../OrchestratorDriver"
+import { seedConversationDomainFromActorSeedMessages } from "../exec/AiAgentExecutor"
 import {
   DETACHED_ACTOR_KINDS,
   DETACHED_ACTOR_STATUSES,
@@ -11,6 +12,8 @@ import {
 import { normalizeDelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode"
 import { resolveDelegateLane } from "../lane/AiAgentLane"
 import { resolveDelegateWorkload } from "../lane/AiAgentWorkload"
+import { getActorWorkContext } from "../runtime/ContextControlPlane"
+import { TASK_PHASES } from "@cell/ai-core-contract/runtime/ContextControl"
 
 function makeTaskId(): string {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -46,6 +49,7 @@ export async function spawnChildExecutionActor(
     params.detachedActorKind === DETACHED_ACTOR_KINDS.bash
     || params.detachedActorKind === DETACHED_ACTOR_KINDS.toolCall
 
+  const parentWorkContext = getActorWorkContext(parentActor)
   const actor = createActor({
     key: `${parentActor.key}:${params.agentType}:${Date.now()}`,
     type: normalizeDelegateRunMode(params.mode) === "detached" ? "detached" : "delegate",
@@ -70,11 +74,24 @@ export async function spawnChildExecutionActor(
       buildToolset: parentActor.callbacks.buildToolset,
       processStream: parentActor.callbacks.processStream,
     },
+    workContext: {
+      ...parentWorkContext,
+      taskPhase: TASK_PHASES.normal,
+      workModeSource: "parent_delegate",
+      taskPhaseSource: "delegate_start",
+      workModeUpdatedAt: parentWorkContext.workModeUpdatedAt,
+      taskPhaseUpdatedAt: new Date().toISOString(),
+      lastTrigger: "delegate_start",
+    },
   })
   vm.actors[actor.key] = actor
   if (!vm.actorRuntime.has(actor.key)) {
     vm.actorRuntime.register(actor.key, actor)
   }
+  // Seed prompt into the conversation domains through the semantic injection
+  // chain so the child's first provider materialization carries it (the raw
+  // seed array is only the compatibility mirror).
+  seedConversationDomainFromActorSeedMessages({ vm, actor, seedMessages: actor.messages })
   let cleanupMode: "immediate" | "orchestrator_managed" | "retain" = "immediate"
   try {
     const mode = normalizeDelegateRunMode(params.mode)

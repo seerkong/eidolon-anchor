@@ -162,10 +162,10 @@ describe("Stage 3 cooperative questionnaire resume", () => {
     await advanceUntil({
       driver,
       fiberId,
-      predicate: () => messages.some((m) => m?.role === "tool" && m?.tool_call_id === "tc-1"),
+      predicate: () => actor.messages.some((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-1"),
     });
 
-    const toolMsg = messages.find((m) => m?.role === "tool" && m?.tool_call_id === "tc-1");
+    const toolMsg = actor.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-1");
     expect(toolMsg).toBeTruthy();
     expect(String(toolMsg.content)).toContain("\"status\":\"ok\"");
   });

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-holon-remove-runtime-event-aliases" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 runtime event API 与 core-contract payload export 不再继续暴露 collective alias。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-09T10:26:24Z</CreatedAt>
+    <UpdatedAt>2026-04-09T10:31:32Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-holon-remove-runtime-event-aliases" name="refactor-aiagent-holon-remove-runtime-event-aliases" version="1">
+    <Description>移除 holon runtime event 与 core-contract 的 collective alias</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>锁定 runtime event/core-contract alias removal 边界。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 proposal/spec/plan" status="DONE" order="0" priority="P0">
+            <Description>明确本轮只删除 collective event alias 与 Collective.ts contract alias。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Alias Removal" status="DONE" order="1">
+        <Description>移除 runtime event 与 contract alias。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="删除 core-contract Collective alias" status="DONE" order="0" priority="P0">
+            <Description>让 `core-contract` 直接导出 `AutonomousHolon.ts`，删除 `Collective.ts`。</Description>
+          </Task>
+          <Task id="T2.2" name="删除 AgentEventGraph collective event alias" status="DONE" order="1" priority="P0">
+            <Description>移除 `emitCollectiveClaim/emitCollectiveIdleExit`。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Tests And Closure" status="DONE" order="2">
+        <Description>同步 tests、报告与 strict validation。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新 focused tests 与报告" status="DONE" order="0" priority="P0">
+            <Description>同步 agent_event_graph/layout tests 与 theater 报告中的当前剩余面。</Description>
+          </Task>
+          <Task id="T3.2" name="执行 strict validation 与 focused regression" status="DONE" order="1" priority="P0">
+            <Description>运行相关 tests 与 `codument validate refactor-aiagent-holon-remove-runtime-event-aliases --strict`。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

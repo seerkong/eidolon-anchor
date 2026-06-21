@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="aiagent-tasktree-tools" version="1">
+  <!-- unmapped: # AIAgent TaskTree 工具链规范 -->
+  <!-- unmapped: ## 概述 -->
+  <!-- unmapped: 该能力规范定义 AIAgent 的 TaskTree 工具链当前真相，包括任务树写入/读取契约、子代理工具命名、工具 schema 来源约束，以及 terminal minimal 的最小对齐要求。 -->
+  <requirement id="tasktreewrite">
+    <statement>系统 MUST 使用 `TaskTreeWrite` 作为任务树状态更新入口，支持 `replace_root`、`expand`、`update_status` 三类操作。</statement>
+    <!-- migrated title: TaskTreeWrite 作为唯一任务树写入工具 -->
+    <suite name="tasktreewrite">
+      <case id="replace-root" name="使用 replace_root 初始化任务树">
+        <given>当前会话存在 AIAgent actor</given>
+        <when>调用 `TaskTreeWrite` 且 `op=replace_root`</when>
+        <then>任务树根节点子任务被替换为输入任务集合</then>
+        <then>返回可读的任务树渲染结果</then>
+      </case>
+      <case id="in-progress-expand" name="仅允许 in_progress 任务执行 expand">
+        <given>某任务状态不是 `in_progress`</given>
+        <when>调用 `TaskTreeWrite` 且 `op=expand`</when>
+        <then>系统拒绝扩展并返回可识别错误</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="tasktreeread-json">
+    <statement>系统 MUST 提供 `TaskTreeRead` 工具，并返回完整 `TaskTree` JSON（包含 `root` 与 `nextId`）。</statement>
+    <!-- migrated title: TaskTreeRead 返回完整任务树 JSON -->
+    <suite name="tasktreeread-json">
+      <case id="case-3" name="读取完整结构">
+        <given>会话内已存在任务树状态</given>
+        <when>调用 `TaskTreeRead`</when>
+        <then>返回值包含完整 JSON 结构</then>
+        <then>返回内容包含 `root` 字段与 `nextId` 字段</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="runsubagent">
+    <statement>系统 MUST 以 `RunSubAgent` 作为子代理调用工具名，旧名 `RunSubTask` 不再作为标准入口。</statement>
+    <!-- migrated title: 子代理工具命名统一为 RunSubAgent -->
+    <suite name="runsubagent">
+      <case id="case-4" name="使用新工具名调用子代理">
+        <given>已注册可用 agent_type</given>
+        <when>调用 `RunSubAgent`</when>
+        <then>系统按输入参数创建子代理任务</then>
+        <then>工具调用链路不依赖 `RunSubTask` 名称</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="tooldefinitions-schema">
+    <statement>系统 MUST 在 `ToolDefinitions` 中基于 builtin tool defs 组装 schema，避免重复手写 schema 定义导致漂移。</statement>
+    <!-- migrated title: ToolDefinitions 以工具目录 schema 为单一来源 -->
+    <suite name="tooldefinitions-schema">
+      <case id="case-5" name="组装工具清单时不依赖重复硬编码">
+        <given>已存在工具目录下的 ToolDef schema</given>
+        <when>构建 base tools 与动态工具描述</when>
+        <then>使用工具目录 schema 作为来源</then>
+        <then>不再维护重复的同名手写 schema</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="requirement-5">
+    <statement>terminal 侧 SHALL 只完成 minimal 运行与基础映射对齐，不要求完整 TUI 深度体验优化。</statement>
+    <!-- migrated title: 终端侧最小对齐 -->
+    <suite name="requirement-5">
+      <case id="minimal" name="minimal 提示词与工具名一致">
+        <given>启动 terminal minimal</given>
+        <when>查看系统提示词与工具映射</when>
+        <then>使用 `TaskTreeWrite`、`TaskTreeRead`、`RunSubAgent` 新命名</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="requirement-6">
+    <statement>本能力规范 SHALL 仅描述已完成改动，不额外扩展新特性。</statement>
+    <!-- migrated title: 变更追踪以已实现状态为准 -->
+    <suite name="requirement-6">
+      <case id="case-7" name="规范收敛为已落地行为">
+        <given>代码已存在相关实现</given>
+        <when>审查该能力规范</when>
+        <then>内容聚焦于现状行为与契约</then>
+        <then>不新增与目标无关功能</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

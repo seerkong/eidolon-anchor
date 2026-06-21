@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="define-platform-logic-evidence-gate" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>把 platform-logic 的引入条件从口头原则推进为正式治理规则。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T13:05:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T14:44:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_define-platform-logic-evidence-gate" name="define-platform-logic-evidence-gate" version="1">
+    <Description>定义 platform-logic 引入的证据门槛</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Evidence Freeze" status="DONE" order="0">
+        <Description>冻结 platform-logic 引入所需的证据门槛。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 platform-logic 证据标准" status="DONE" order="0" priority="P0">
+            <Description>明确哪些跨领域复用事实足以触发 `platform-logic` 引入。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">证据门槛明确</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">禁止空泛抽象被正式记录</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Governance Cutover" status="DONE" order="1">
+        <Description>让后续平台扩展以 evidence gate 为准。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="记录候选能力与当前宿主保留规则" status="DONE" order="0" priority="P1">
+            <Description>明确当前哪些候选能力仍保留在现有宿主，等待后续证据成立再评估。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">候选能力清单明确</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">不提前引入 platform-logic</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

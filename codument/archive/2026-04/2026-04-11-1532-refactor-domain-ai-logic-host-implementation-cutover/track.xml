@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-domain-ai-logic-host-implementation-cutover" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 domain-ai-logic 从显式宿主 + re-export 收口，推进为第一批真实 AI runtime glue 实现宿主。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T15:05:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T15:32:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-domain-ai-logic-host-implementation-cutover" name="refactor-domain-ai-logic-host-implementation-cutover" version="1">
+    <Description>推进 domain-ai-logic 成为第一批真实实现宿主</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Ownership Freeze" status="DONE" order="0">
+        <Description>冻结第一批迁移到 domain-ai-logic 的正式实现边界。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义第一批 domain-ai-logic 实现 ownership 表" status="DONE" order="0" priority="P0">
+            <Description>明确哪些 host-facing AI runtime glue 迁入 domain-ai-logic，哪些仍留在 core-logic / organ-logic。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">第一批迁移清单明确</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">未把 platform primitive 误迁入 AI host</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Implementation Cutover" status="DONE" order="1">
+        <Description>让 domain-ai-logic 承接第一批真实实现。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="迁移第一批 host-facing glue 到 domain-ai-logic" status="DONE" order="0" priority="P0">
+            <Description>把 shell runtime facade、runtime coordinator glue、host-facing orchestration bridge 的第一批正式实现放入 domain-ai-logic。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">domain-ai-logic 出现非转发实现</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">formal consumer host 保持不变</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Focused Verification" status="DONE" order="2">
+        <Description>验证真实宿主 cutover 不回归。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="补充并运行 domain-ai host ownership guards" status="DONE" order="0" priority="P0">
+            <Description>通过 focused tests 锁定 domain-ai-logic 不再只是 forwarding shell，且现有 consumer adoption 稳定。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">domain-ai host ownership 成立</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

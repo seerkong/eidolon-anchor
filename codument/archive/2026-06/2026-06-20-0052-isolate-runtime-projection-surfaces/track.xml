@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="isolate-runtime-projection-surfaces" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>把 surface 读侧软耦合硬化为类型化只读 projection-read 边界：TUI hydration / pending-questions 改接 projection-read port（消费 backplane 单源）、session 销毁经 domain 能力中介、固化 surface 只读不变量、补跨 surface domain 等价测试。</Goal>
+    <Description>runtime-evolution mission Track-7（Surface 扩展面，表现层侧事实边界收口）。G-surface-readonly 复评：push-projection 侧已达标，残留全在读/拉取侧。承接 backplane 决策 3 推迟的 TUI 读取器改接。不改 domain truth owner / executor prompt build / @opentui 渲染库。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-16T02:28:16Z</CreatedAt>
+    <UpdatedAt>2026-06-19T16:52:30Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input"  name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior"        domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_isolate-runtime-projection-surfaces" name="isolate-runtime-projection-surfaces" version="1">
+    <Description>表现层投影隔离：只读 projection-read 契约 + TUI hydration 改接 + 销毁经 domain 能力 + 不变量/guard + 跨 surface 等价。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="Typed Read-Only ConversationProjectionReadPort" status="DONE" order="0">
+        <Description>在 ai-core-contract 定义只读 ConversationProjectionReadPort（仅只读视图方法，无写/销毁面）；实现委托 backplane RuntimeRecoveryReadPort / PersistenceReadPort 单源读取，不复制 loader、不混源。不动 surface。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests for projection-read port contract + readonly shape" status="DONE" order="0" priority="P0">
+            <Description>TDD 红：契约存在且只读（无写/改/销毁方法）；实现对单源缺源以硬失败语义呈现、不混源；conformance 断言 port 委托 backplane 单源 read（不复制 loader）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">projection-read 契约/只读/单源委托测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Define ConversationProjectionReadPort + single-source-backed impl" status="DONE" order="1" priority="P0">
+            <Description>定义只读契约 + 实现（委托 backplane read port）；从 ai-core-contract barrel 导出；避免对 surface/organ-logic 的环依赖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">T1.1 全绿；契约只读、实现单源委托，0 新增失败</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Rewire TUI Hydration + Pending-Questions Onto Read Port" status="DONE" order="1">
+        <Description>TuiRuntimeClient 的 conversation hydration 去自建 repository / raw loader，改用注入的 ConversationProjectionReadPort；pending-questions 改经类型化 projection-read，不再直读 questionnaires.xnl。组装注入在 @terminal/organ TerminalRuntime。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add failing tests: hydration via port, no self-built repo bypass" status="DONE" order="0" priority="P0">
+            <Description>源级/行为断言：TUI hydration 经 projection-read port 单源重建、不在 surface 自建 conversation/persistence repository；pending-questions 经 projection-read，不直读原始文件。先红。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">改接/去自建-repo 测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Rewire hydration + pending-questions; inject port (default-in-factory)" status="DONE" order="1" priority="P0">
+            <Description>hydration + pending-questions 改调注入的 port；createTuiRuntimeClient 经 option + 默认 createLocalFileConversationProjectionReadPort() 注入（生产由默认覆盖，未改 TerminalRuntime）；保持可见 hydration 语义等价。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">T2.1 全绿；surface 无自建 repo 绕过单源；既有失败基线不增（cell 14 / organ 14 / tui 29，0 净新增）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Surface Session Destroy Via Domain Capability" status="DONE" order="2">
+        <Description>surface session.delete 改经 domain-owned 删除能力中介，surface 不再直接 rm session 真源目录（修 005 规则五）；保留 surface 自有 sidecar 清理。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add failing test: session delete routes through domain capability" status="DONE" order="0" priority="P0">
+            <Description>源级/行为断言：surface 删除经 domain-owned 删除能力，不直接对 session 真源目录执行 fs rm。先红。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">销毁中介测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Route session.delete through domain-owned delete capability" status="DONE" order="1" priority="P0">
+            <Description>session.delete 改调 domain 删除能力；surface 不再 rm 真源目录；用户可见删除语义不变。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">T3.1 全绿；surface 不直接销毁上游真源；既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="Readonly Invariant Guard + Cross-Surface Equivalence" status="DONE" order="3">
+        <Description>扩展 surface-entry-boundary 守卫覆盖 TuiRuntimeClient（不止 entry）：无 domain 写 API / 无自建 repo / 无 loop gate；新增 same-live-loop/different-surface domain 等价测试。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Add cross-surface domain-equivalence test (red/coverage)" status="DONE" order="0" priority="P0">
+            <Description>同一 profile/输入，分别经 TUI 与 CLI/headless，断言 domain 真源（可见 history、tool 结果配对、turn 结果）等价、差异仅限呈现。实现：cross-surface-domain-equivalence.test.ts，注入含配对 tool 结果的 canonical projection，断言 TUI surface 忠实物化（完整/配对/有序）+ 两次独立 surface 读逐字节一致。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">跨 surface 等价测试就位（先红或直接覆盖）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Broaden boundary guard to TuiRuntimeClient; equivalence green" status="DONE" order="1" priority="P0">
+            <Description>boundary guard 扩展覆盖 TuiRuntimeClient（无自建 repo / 无 raw questionnaires 读 / 无直接 rm 真源目录）；等价测试全绿；既有 surface 不变量保持。guard 套件 21 pass / 0 fail。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">T4.1 全绿；guard 覆盖 TuiRuntimeClient；既有失败基线不增（cell14/organ14/organ-support1/tui29，0 净新增）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P5" name="Closure" status="DONE" order="4">
+        <Description>全量回归（cell + terminal 按名比对基线，0 新增失败）；spec capability 覆盖核对；findings.md 写最终基线。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="Final sweep and full regression" status="DONE" order="0" priority="P0">
+            <Description>cell + terminal 全套回归，按名比对基线确认 0 新增失败；runtime-projection-surfaces 全部 case 有可执行覆盖；findings.md 追加实施结果与最终基线。结果：cell14/organ14/organ-support1/tui29 全部 0 净新增；7 个 case 全有可执行覆盖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">失败集合为基线子集；spec 全部 case 有可执行覆盖；findings.md 已更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+</Track>

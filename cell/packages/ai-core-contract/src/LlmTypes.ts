@@ -25,6 +25,14 @@ export type LlmGenerateOptions = {
   tools: ToolSchema[];
   extraBody?: any;
   signal?: AbortSignal;
+  /**
+   * Stable session/actor identity for this turn. Used by the openai-responses
+   * WebSocket transport to key `previous_response_id` reasoning continuity so a
+   * captured response id is reused across the per-call new adapter instances of
+   * one session (and never leaks across sessions). Absent -> continuity is
+   * disabled (full input each turn).
+   */
+  sessionKey?: string;
 };
 
 export type LlmStreamResult = {

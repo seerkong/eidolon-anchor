@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-thread-goal-runtime">
+  <upsert selector="behavior://aiagent-thread-goal-runtime/requirements/usage-and-idle-continuation/suite/idle-continuation-hook/case/wake-mailbox-preempts-goal-continuation">
+    <requirement id="wake-mailbox-preempts-goal-continuation">
+    <given>an active goal and pending actor mailbox work in `control`, `toolResult`, `asyncCompletion`, `childDone`, `memberCoordination`, `humanInput`, `memberChatInbox`, or `heartbeat`</given>
+    <when>the `actor.idle.before` goal continuation hook evaluates continuation</when>
+    <then>the hook SHALL skip continuation</then>
+    <then>existing mailbox work SHALL retain actor mailbox priority over goal heartbeat continuation</then>
+    </requirement>
+  </upsert>
+</behavior-patch>

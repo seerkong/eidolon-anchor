@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-subwave-import-cutover-phase1-internal-consumers" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>完成内部消费者对新 support 宿主包的第一批 import cutover，并为旧 support 包建立回流保护。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T08:05:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T08:20:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-subwave-import-cutover-phase1-internal-consumers" name="refactor-platform-kernel-subwave-import-cutover-phase1-internal-consumers" version="1">
+    <Description>平台微内核后续 sub-wave：import cutover phase1 internal consumers</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Setup" status="DONE" order="0">
+        <Description>建立 phase1 import cutover 的规范与计划。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="创建 cutover phase1 track 文档" status="DONE" order="0" priority="P0">
+            <Description>创建 proposal/spec/design/plan 与 analysis 基础文件。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">track 文档完整且自包含</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">phase1 范围与非目标明确</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Internal Consumer Cutover" status="DONE" order="1">
+        <Description>将仓内真实内部消费者切到新 support 宿主。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="替换内部 direct imports" status="DONE" order="0" priority="P0">
+            <Description>把 `cell/packages/organ-logic` 与 `terminal/packages/organ` 中直接 import `@cell/organ-support` 的消费者切到 `@cell/domain-ai-support`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">phase1 范围内旧 support import 已清零</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">行为测试未回归</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Regression Guard" status="DONE" order="2">
+        <Description>建立 focused protection，防止旧 support import 回流。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="补 migration guard 并验证" status="DONE" order="0" priority="P0">
+            <Description>增加 focused test 约束旧 support import 只能留在 compatibility package 内。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused guard 可阻止旧 support import 回流</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">codument validate 与相关测试通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

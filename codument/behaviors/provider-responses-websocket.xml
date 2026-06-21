@@ -1,0 +1,47 @@
+<behaviors capability="provider-responses-websocket" version="1">
+  <requirement id="websocket-transport">
+    <statement>openai-responses adapter SHALL 支持 Responses WebSocket v2 transport：连接 `wss://.../responses`（由 `/responses` HTTP URL 派生 scheme，或显式 websocket_url），带鉴权头（剥离 WS 控制头、保留 Authorization 等），把请求 body 作为一条 JSON 消息发出，并把收到的每条 WS 消息解析为与 SSE 同形状的 event，复用既有 event→chunk 解析。transport 选择 SHALL 支持 auto / websocket / http_sse；`auto` 在 provider 标记可用 WS（supports_websockets 或 websocket_url）时用 WS，否则 http_sse。WS 连接/传输失败 SHALL 回退 HTTP SSE，SHALL NOT 破坏现有 SSE 行为。</statement>
+    <suite id="ws-transport" name="Responses WebSocket transport">
+      <case id="ws-url-derived">
+        <given>HTTP responses base url（https://host/v1/responses）</given>
+        <when>构造 WS url</when>
+        <then>SHALL 得到 wss://host/v1/responses（http→ws）；显式 websocket_url 时优先用之</then>
+      </case>
+      <case id="ws-events-parsed-like-sse">
+        <given>WS 收到与 SSE 同形状的 event 消息（response.created / output_item.* / function_call_arguments.* / completed）</given>
+        <when>adapter 解析 WS 流</when>
+        <then>SHALL 产出与 SSE 路径一致的 chunk（content / tool_calls），事件解析逻辑共用</then>
+      </case>
+      <case id="ws-failure-falls-back-to-sse">
+        <given>provider 未标记 WS 能力，或 WS 连接失败</given>
+        <when>选择/建立 transport</when>
+        <then>SHALL 用 HTTP SSE（不报错、不回归现有行为）</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="previous-response-id-continuity">
+    <statement>在 WS transport 下，openai-responses adapter SHALL 支持 `previous_response_id` 续传：把每次响应的 response id 按 **session/actor** 持久化（跨 per-call adapter 实例复用，不依赖单实例字段），下一次同 session 的请求 SHALL 带 `previous_response_id`=上次 id、`store: true`、且 input 只发增量（新 tool 输出），使推理模型经服务端保留推理链（reasoning continuity）。SHALL NOT 在 HTTP SSE 下发 previous_response_id（代理会 400）。无前序 id（首轮）SHALL 发完整 input。</statement>
+    <suite id="continuity" name="previous_response_id reasoning continuity">
+      <case id="response-id-persisted-by-session">
+        <given>一次 WS 响应返回 response id</given>
+        <when>同 session 的下一次请求构造</when>
+        <then>SHALL 复用该 response id 作 previous_response_id（即便 adapter 实例是新建的）</then>
+      </case>
+      <case id="chain-sends-incremental-input">
+        <given>有 previous_response_id 且本轮续 tool 调用</given>
+        <when>构造请求</when>
+        <then>body SHALL 含 previous_response_id + store:true + 仅增量 input（新 tool 输出），SHALL NOT 重发完整历史</then>
+      </case>
+      <case id="sse-never-sends-previous-response-id">
+        <given>transport 为 HTTP SSE</given>
+        <when>构造请求</when>
+        <then>SHALL NOT 带 previous_response_id（避免代理 400）</then>
+      </case>
+      <case id="converges-on-real-session">
+        <given>真实 codex/gpt-5.5 session（原 repeat-read 不收口）</given>
+        <when>启用 WS + previous_response_id 续传后重跑 turn</when>
+        <then>模型 SHALL 保留推理链并收口（产出 output_text、停止重读同一文件）</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

@@ -126,6 +126,12 @@ describe("actor surface projection", () => {
       initialized: true,
       kind: "primary",
       status: "waiting_for_human",
+      metadata: {
+        workContext: expect.objectContaining({
+          workMode: "build",
+          taskPhase: "normal",
+        }),
+      },
     });
 
     const bobLane = projection.conversationLanes.find((lane) => lane.laneId === "lane:member:bob");

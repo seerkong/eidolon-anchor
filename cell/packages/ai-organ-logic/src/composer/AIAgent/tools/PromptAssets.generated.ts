@@ -13,8 +13,6 @@ import ApplyPatch_Tool_brief_xnl from "./ApplyPatch/Tool.brief.xnl" with { type:
 import ApplyPatch_Tool_detail_xnl from "./ApplyPatch/Tool.detail.xnl" with { type: "text" }
 import Bash_Tool_brief_xnl from "./Bash/Tool.brief.xnl" with { type: "text" }
 import Bash_Tool_detail_xnl from "./Bash/Tool.detail.xnl" with { type: "text" }
-import Batch_Tool_brief_xnl from "./Batch/Tool.brief.xnl" with { type: "text" }
-import Batch_Tool_detail_xnl from "./Batch/Tool.detail.xnl" with { type: "text" }
 import CoordinationStatus_Tool_brief_xnl from "./CoordinationStatus/Tool.brief.xnl" with { type: "text" }
 import CoordinationStatus_Tool_detail_xnl from "./CoordinationStatus/Tool.detail.xnl" with { type: "text" }
 import DetachedActorList_Tool_brief_xnl from "./DetachedActorList/Tool.brief.xnl" with { type: "text" }
@@ -100,10 +98,6 @@ export const toolPromptAssets = {
   "Bash": {
     "Tool.brief.xnl": Bash_Tool_brief_xnl,
     "Tool.detail.xnl": Bash_Tool_detail_xnl,
-  },
-  "Batch": {
-    "Tool.brief.xnl": Batch_Tool_brief_xnl,
-    "Tool.detail.xnl": Batch_Tool_detail_xnl,
   },
   "CoordinationStatus": {
     "Tool.brief.xnl": CoordinationStatus_Tool_brief_xnl,

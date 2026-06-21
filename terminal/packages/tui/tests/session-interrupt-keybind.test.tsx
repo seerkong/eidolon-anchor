@@ -31,6 +31,11 @@ async function renderSettled(setup: Awaited<ReturnType<typeof testRender>>, pass
   }
 }
 
+function captureText(setup: Awaited<ReturnType<typeof testRender>>) {
+  const frame = setup.captureSpans()
+  return frame.lines.map((line) => line.spans.map((span) => span.text).join("")).join("\n")
+}
+
 function deferred<T>() {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((innerResolve) => {
@@ -177,6 +182,37 @@ describe("session interrupt keybind", () => {
     } finally {
       __setRuntimeBridgeFactoryForTest(null)
       await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it("replaces the runtime preparing label once the session is busy", async () => {
+    const runtime = createTuiRuntimeClient({ mode: "mock" })
+    const created = await runtime.client.session.create({ sessionID: "ses_running_status" } as any)
+    const sessionID = created.data?.id ?? "ses_running_status"
+    const originalPrompt = runtime.client.session.prompt.bind(runtime.client.session)
+    runtime.client.session.prompt = (async () => {
+      runtime.event.emit({ type: "session.status", properties: { sessionID, status: { type: "busy" } } } as any)
+      return new Promise(() => {})
+    }) as typeof runtime.client.session.prompt
+
+    const setup = await testRender(() => renderHarness(runtime, process.cwd(), sessionID), {
+      width: 120,
+      height: 36,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 8)
+      await setup.mockInput.typeText("busy turn")
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 8)
+
+      const text = captureText(setup)
+      expect(text).not.toContain("正在准备运行环境...")
+      expect(text).toContain("正在处理...")
+    } finally {
+      runtime.client.session.prompt = originalPrompt
+      setup.renderer.destroy()
     }
   })
 })

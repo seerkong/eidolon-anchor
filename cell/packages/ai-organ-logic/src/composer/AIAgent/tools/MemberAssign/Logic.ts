@@ -29,7 +29,7 @@ export const memberAssignCoreLogic: StdInnerLogic<
     return JSON.stringify({ ok: false, error: "member_not_found", target: targetQuery })
   }
   const raw = await actorAssignCoreLogic(runtime as any, {
-    target: member.actor.key,
+    target: member.name,
     mode: input?.mode,
     content: input?.content,
   } as any, {} as any)

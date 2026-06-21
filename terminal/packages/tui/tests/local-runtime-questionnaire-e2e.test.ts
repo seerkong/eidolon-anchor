@@ -21,10 +21,9 @@ function createTempProject() {
       {
         providers: [
           {
-            name: "openai",
-            baseURL: "https://api.openai.com/v1",
-            apiKey: "test-key",
-            models: [{ name: "gpt-4o-mini", context: 128000, output: 8192 }],
+            id: "openai",
+            options: { baseURL: "https://api.openai.com/v1", apiKey: "test-key" },
+            models: [{ id: "gpt-4o-mini", limits: { context: 128000, output: 8192 } }],
           },
         ],
       },
@@ -33,7 +32,7 @@ function createTempProject() {
     ),
   )
   fs.writeFileSync(
-    path.join(homeDir, ".eidolon", "agent-preset.json"),
+    path.join(homeDir, ".eidolon", "agent-present.json"),
     JSON.stringify(
       {
         preset: "default",

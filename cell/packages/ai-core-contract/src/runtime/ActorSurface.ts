@@ -1,4 +1,4 @@
-import type { ActorIdentity, ActorType } from "./AiAgentActor";
+import type { ActorIdentity, ActorModelConfig, ActorType } from "./AiAgentActor";
 import type { ActorHolonGovernanceKind } from "../coordination";
 import type {
   QuestionnaireRequestPayload,
@@ -56,7 +56,7 @@ export type ActorConversationLaneData = {
   metadata?: Record<string, unknown>;
 };
 
-export type ActorTranscriptKeyData = {
+export type ActorHistoryKeyData = {
   sessionId?: string;
   actorId: string;
   actorKey: string;
@@ -68,7 +68,7 @@ export type ActorRuntimeLaneData = {
   actorType: ActorType;
   displayName: string;
   identity?: ActorIdentity;
-  transcriptKey: ActorTranscriptKeyData;
+  transcriptKey: ActorHistoryKeyData;
   runtimeStatus: ActorSurfaceLaneStatus;
   activeTurnId?: string;
   cancellable: boolean;
@@ -126,6 +126,13 @@ export type ActorSurfaceRuntimeStateData = {
 export type ActorSurfaceCancelRequestData = {
   actorId: string;
   turnId?: string;
+};
+
+export type ActorSurfaceSetModelConfigRequestData = ActorSurfaceTargetSelectorData & {
+  modelConfig: ActorModelConfig;
+  modelRef?: string;
+  source?: string;
+  requestedBy?: string;
 };
 
 export type QuestionnaireSurfaceSubmitStatus =

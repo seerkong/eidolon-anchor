@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-wave3-shell-runtime-adoption" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>将 shell/runtime entry 收口到 assembly result 与 formal capability descriptors，并保持 terminal/tui/headless 主路径连续可运行。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T05:24:58Z</CreatedAt>
+    <UpdatedAt>2026-04-11T05:35:57Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-wave3-shell-runtime-adoption" name="refactor-platform-kernel-wave3-shell-runtime-adoption" version="1">
+    <Description>实施平台微内核 Wave 3 的 shell/runtime adoption</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Formal Descriptor Cutover" status="DONE" order="0">
+        <Description>为 shell 层建立正式 runtime catalog/config descriptor，并切掉 TUI catalog 的 hidden truth source。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="为 runtime assembly 增加 formal runtime catalog descriptor" status="DONE" order="0" priority="P0">
+            <Description>在 AI runtime assembly contract/result 中加入 shell 可消费的 runtime catalog/config descriptor。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">descriptor contract 在 formal assembly result 中可见</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">descriptor 默认实现不要求 shell 直接 import support loader</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="让 TuiRuntimeCatalog 消费 formal descriptor 与 assembly baseline" status="DONE" order="1" priority="P0">
+            <Description>切换 local-runtime catalog 的 provider/preset/default model/agents 来源到 formal assembly result。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">TuiRuntimeCatalog 不再直接 import domain support config loader</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">local-runtime agent/config baseline 来自 assembly result 或显式 fallback</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Focused Verification" status="DONE" order="1">
+        <Description>通过 focused verification 锁定 shell adoption 边界与主路径连续可运行。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="补齐 TUI local-runtime adoption focused tests" status="DONE" order="0" priority="P0">
+            <Description>补充 formal descriptor consumption、agent baseline 与 fallback 语义测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">tests 保护 local-runtime catalog 不再依赖 hidden config truth</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">tests 保护 agents/config 来自 formal assembly baseline</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="验证 terminal/tui/headless 主路径仍可运行" status="DONE" order="1" priority="P0">
+            <Description>确认 Wave 3 结束时 terminal/tui/headless 主路径未被 shell adoption cutover 打断。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">terminal/headless 主路径测试通过</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">tui local-runtime 与 semantic smoke tests 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

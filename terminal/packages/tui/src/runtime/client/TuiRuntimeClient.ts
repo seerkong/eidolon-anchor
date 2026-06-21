@@ -1,5 +1,5 @@
 import { createEmitter } from "@solid-primitives/event-bus"
-import { mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises"
 import { join as joinPath } from "node:path"
 import type {
   Event,
@@ -13,23 +13,27 @@ import type {
   QuestionRequest,
   McpStatus,
   RuntimeUsage,
+  SessionUpgradeApplyResult,
+  SessionUpgradeDryRunResult,
   ToolPart,
   TuiRuntimeSdk,
   UserInputHistoryEntry,
 } from "@terminal/core/AIAgent"
+import {
+  applyFileStoreAiRuntimeSessionUpgrade,
+  deleteFileStoreAiRuntimeSession,
+  dryRunFileStoreAiRuntimeSessionUpgrade,
+} from "@cell/ai-runtime-control-composer"
 import type { ChatMessage } from "@shared/composer"
 import type {
   ActorSurfaceProjectionData,
   QuestionnaireSurfaceItemData,
 } from "@cell/ai-core-contract/runtime/ActorSurface"
 import {
-  bootstrapConversationHistoryFromMessages,
-  loadConversationActorRawState,
-  loadConversationHistoryMessages,
-  loadConversationSessionRawState,
-  LocalFileActorTranscriptStore,
-  LocalFileConversationPersistenceRepositoryFactory,
+  committedHistoryRefsToTranscriptRecords,
+  createLocalFileConversationProjectionReadPort,
 } from "@cell/ai-support"
+import type { ConversationProjectionReadPort } from "@cell/ai-core-contract/runtime/ConversationProjectionReadPort"
 import { buildQuestionnaireProtocolQuestion, questionnaireOptionCode } from "@cell/ai-core-contract/runtime/QuestionnaireProtocol"
 import { getMockRuntimeBridge } from "../mock/MockRuntime"
 import {
@@ -40,7 +44,7 @@ import {
   type RuntimeBridgeNotification,
   type TuiRuntimeBridge,
 } from "../bridge/TuiRuntime"
-import { COMMAND_ID, SLASH_COMMANDS } from "../../commands/catalog"
+import { COMMAND_ID, resolveTuiBuiltinSlashCommand } from "../../commands/catalog"
 import { isDefaultSessionTitle, parseModelRef, makeMessageId, makePartId, makeSessionKey } from "@terminal/core/AIAgent"
 import {
   createRuntimeCatalog,
@@ -54,18 +58,6 @@ import {
   traceStreamDiagnosticSession,
   traceStreamEvent,
 } from "../../support/util/stream-diagnostics"
-
-function resolveBuiltinSlashCommand(rawInput: string): string | null {
-  const normalized = rawInput.trim().toLowerCase()
-  for (const item of SLASH_COMMANDS) {
-    if (item.source === "prompt") continue
-    const names = [item.slash, ...(item.aliases ?? [])]
-    if (names.some((name) => name.toLowerCase() === normalized)) {
-      return item.command
-    }
-  }
-  return null
-}
 
 type RuntimeBridgeFactory = (sessionID?: string) => Promise<TuiRuntimeBridge | null>
 
@@ -289,7 +281,7 @@ async function loadRuntimeConversationState(
   }
 }
 
-function buildSessionPreviewFromChatMessages(messages: ChatMessage[]): Session["preview"] | undefined {
+function buildSessionPreviewFromChatMessages(messages: readonly ChatMessage[]): Session["preview"] | undefined {
   const initialUserMessage =
     messages
       .find((message) => message.role === "user" && previewTextFromChatMessage(message))
@@ -563,10 +555,22 @@ function makeEventEmitter() {
   }
 }
 
-export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; directory?: string }): TuiRuntimeSdk {
+export function createTuiRuntimeClient(options?: {
+  mode?: RuntimeClientMode
+  directory?: string
+  conversationProjectionReadPort?: ConversationProjectionReadPort
+}): TuiRuntimeSdk {
   const eventEmitter = makeEventEmitter()
   const mode = options?.mode ?? "mock"
   const directory = options?.directory ?? process.cwd()
+  // P2 (isolate-runtime-projection-surfaces): hydration + pending-questions read
+  // through this typed, read-only projection port instead of a surface-built
+  // conversation repository or a raw runtime_state questionnaires read. Defaults
+  // to the single-source local-file impl so every existing no-arg /
+  // {mode,directory} caller keeps working; production threads its own through
+  // TerminalRuntime.
+  const conversationProjectionReadPort =
+    options?.conversationProjectionReadPort ?? createLocalFileConversationProjectionReadPort()
   configureTuiStreamDiagnostics({ workDir: directory })
   const catalog = createRuntimeCatalog(mode, directory)
 
@@ -716,6 +720,21 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
     }
   }
 
+  function mockSessionUpgradeDryRun(): SessionUpgradeDryRunResult {
+    return {
+      status: "dry_run",
+      mode: "file-store",
+      upgraded: true,
+      hasCheckpoint: true,
+      classification: "clean",
+      blockers: [],
+      canUpgrade: false,
+      plannedHeads: {},
+      upgrade: null,
+      checkpointMarker: "mock",
+    }
+  }
+
   async function emitEvent(event: Event) {
     traceStreamEvent("runtime.emit", event)
     eventEmitter.emit(clone(event))
@@ -795,41 +814,21 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
   async function loadPendingQuestionsFromSnapshot(sessionID: string): Promise<QuestionRequest[]> {
     if (mode !== "local-runtime") return []
 
-    const sessionDir = joinPath(directory, ".eidolon", "sessions", sessionID, "runtime_state")
-    const manifest = await readJson(joinPath(sessionDir, "manifest.json"))
-    if (!isRecord(manifest)) return []
-
-    const actorFiles = isRecord(manifest.actorFiles) ? manifest.actorFiles : null
-    if (!actorFiles) return []
-
-    const requests: QuestionRequest[] = []
-    for (const actorFileValue of Object.values(actorFiles)) {
-      const actorFile = typeof actorFileValue === "string" ? String(actorFileValue) : ""
-      if (!actorFile) continue
-
-      const actorState = await readJson(joinPath(sessionDir, actorFile.replace(/actor\.json$/, "state.json")))
-      const actorMailboxes = await readJson(joinPath(sessionDir, actorFile.replace(/actor\.json$/, "mailboxes.json")))
-      if (!isRecord(actorState) || !isRecord(actorMailboxes)) continue
-
-      const pendingQuestionnaires = isRecord(actorState.pendingQuestionnaires) ? actorState.pendingQuestionnaires : {}
-      const mailboxes = isRecord(actorMailboxes.mailboxes) ? actorMailboxes.mailboxes : {}
-      const controlQueue = Array.isArray(mailboxes.control) ? mailboxes.control : []
-
-      const pendingIDs = new Set(
-        controlQueue
-          .filter((entry) => isRecord(entry) && entry.kind === "questionnaire_pending")
-          .map((entry) => (typeof entry.questionnaireId === "string" ? entry.questionnaireId.trim() : ""))
-          .filter(Boolean),
-      )
-
-      for (const questionnaireId of pendingIDs) {
-        const payload = pendingQuestionnaires[questionnaireId]
-        const request = buildQuestionRequestFromRecord(sessionID, payload)
-        if (request) requests.push(request)
-      }
-    }
-
-    return requests
+    // Typed projection-read (behavior-delta `pending-questions-through-port`):
+    // the port owns the single runtime_state pending-questions source and already
+    // returns only the `status === "pending"` rows, so the surface never
+    // raw-reads / re-filters the file.
+    const sessionDir = getSessionDir(sessionID)
+    const projection = await conversationProjectionReadPort.loadPendingQuestionsProjection({ sessionDir })
+    return projection.rows
+      .map((row) => buildQuestionRequestFromRecord(sessionID, {
+        ...row.request,
+        questionnaireId: row.questionnaireId,
+        toolCallId: row.toolCallId,
+        suspendPolicy: row.suspendPolicy,
+        actorId: row.ownerActorId,
+        actorKey: row.ownerActorKey,
+      }))
       .filter((request): request is QuestionRequest => !!request)
   }
 
@@ -858,15 +857,6 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
     for (const filePath of candidates) {
       const entry = await stat(filePath).catch(() => null)
       if (entry?.isFile() && entry.size > 0) return true
-    }
-
-    const actorsDir = joinPath(sessionDir, "actors")
-    const actorDirs = await readdir(actorsDir, { withFileTypes: true }).catch(() => [])
-    for (const actorDir of actorDirs) {
-      if (!actorDir.isDirectory()) continue
-      const transcriptPath = joinPath(actorsDir, actorDir.name, "transcript.txt")
-      const transcript = await stat(transcriptPath).catch(() => null)
-      if (transcript?.isFile() && transcript.size > 0) return true
     }
 
     return false
@@ -935,9 +925,15 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
     }
 
     const sessionDir = getSessionDir(sessionID)
-    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
     const sessionStats = await stat(sessionDir).catch(() => null)
-    const sessionIndex = await repository.loadSessionIndex().catch(() => null)
+    // Projection-read port (behavior-delta `tui-hydration-through-port`): the
+    // session-index snapshot + visible history come through the typed read port,
+    // not a surface-built repository. `.sessionIndex` is the same snapshot the
+    // surface used to read via `repository.loadSessionIndex()`.
+    const sessionRawState = await conversationProjectionReadPort
+      .loadSessionProjection({ sessionDir })
+      .catch(() => null)
+    const sessionIndex = sessionRawState?.sessionIndex ?? null
     const tuiMetadata = await loadTuiSessionMetadata(sessionID)
     if (tuiMetadata.deleted) return null
     const controlActor = await loadPersistedControlActor(sessionDir)
@@ -948,27 +944,15 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
       || controlActor?.actorKey
       || null
 
-    let historyMessages: ChatMessage[] = []
+    let historyMessages: ReadonlyArray<ChatMessage> = []
     if (activeActorKey) {
-      const loaded = await loadConversationHistoryMessages({
+      const loaded = await conversationProjectionReadPort.loadHistoryProjection({
         sessionDir,
         actorKey: activeActorKey,
-        repository,
-      }).catch(() => ({ source: "empty", messages: [] as ChatMessage[] }))
+      }).catch(() => ({ source: "empty" as const, messages: [] as ChatMessage[] }))
 
       if (loaded.source === "conversation" && loaded.messages.length > 0) {
         historyMessages = loaded.messages
-      } else if (controlActor && controlActor.actorKey === activeActorKey) {
-        const transcriptLoaded = await LocalFileActorTranscriptStore.loadMessages({
-          sessionDir,
-          actor: {
-            agentKey: controlActor.actorKey,
-            actorId: controlActor.actorId,
-            actorType: controlActor.actorType,
-            identity: controlActor.identity,
-          },
-        }).catch(() => ({ messages: [] as ChatMessage[] }))
-        historyMessages = transcriptLoaded.messages
       }
     }
 
@@ -1103,8 +1087,9 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
     }
 
     const sessionDir = getSessionDir(state.info.id)
-    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
-    const sessionRawState = await loadConversationSessionRawState({ sessionDir, repository })
+    // Projection-read port (behavior-delta `tui-hydration-through-port`): the
+    // surface no longer builds its own conversation repository.
+    const sessionRawState = await conversationProjectionReadPort.loadSessionProjection({ sessionDir })
     const controlActor = await loadPersistedControlActor(sessionDir)
     const activeActorKey =
       sessionRawState.activeActorKey
@@ -1117,37 +1102,13 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
       return
     }
 
-    let loaded = await loadConversationHistoryMessages({
+    // Single recovery source (spec recovery-one-way-handoff): conversation
+    // files only — the legacy transcript fallback that backfilled the
+    // conversation persistence from a message array was removed.
+    const loaded = await conversationProjectionReadPort.loadHistoryProjection({
       sessionDir,
       actorKey: activeActorKey,
-      repository,
     })
-    if (loaded.source !== "conversation" && controlActor && controlActor.actorKey === activeActorKey) {
-      const transcriptLoaded = await LocalFileActorTranscriptStore.loadMessages({
-        sessionDir,
-        actor: {
-          agentKey: controlActor.actorKey,
-          actorId: controlActor.actorId,
-          actorType: controlActor.actorType,
-          identity: controlActor.identity,
-        },
-      })
-      if (transcriptLoaded.messages.length > 0) {
-        await bootstrapConversationHistoryFromMessages({
-          sessionId: state.info.id,
-          actorKey: controlActor.actorKey,
-          actorId: controlActor.actorId,
-          messages: transcriptLoaded.messages,
-          transcriptPath: transcriptLoaded.path,
-          repository,
-        })
-        loaded = await loadConversationHistoryMessages({
-          sessionDir,
-          actorKey: activeActorKey,
-          repository,
-        })
-      }
-    }
     if (loaded.source !== "conversation" || loaded.messages.length === 0) {
       state.historyHydrated = true
       return
@@ -1170,8 +1131,12 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
   async function hydrateUserInputHistoryFromPersistence(state: SessionState) {
     if (mode !== "local-runtime") return
     const sessionDir = getSessionDir(state.info.id)
-    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
-    const sessionRawState = await loadConversationSessionRawState({ sessionDir, repository }).catch(() => null)
+    // Projection-read port (behavior-delta `tui-hydration-through-port`): session
+    // + actor raw state come through the typed read port, not a surface-built
+    // repository.
+    const sessionRawState = await conversationProjectionReadPort
+      .loadSessionProjection({ sessionDir })
+      .catch(() => null)
     const controlActor = await loadPersistedControlActor(sessionDir)
     const activeActorKey =
       sessionRawState?.activeActorKey
@@ -1180,27 +1145,32 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
       ?? null
     if (!activeActorKey) return
 
-    const rawState = await loadConversationActorRawState({
+    const rawState = await conversationProjectionReadPort.loadActorProjection({
       sessionDir,
       actorKey: activeActorKey,
-      repository,
     }).catch(() => null)
     if (!rawState) return
 
     const entries = rawState.visibleHistoryGenerations.flatMap((generation) =>
-      generation.messages.flatMap((message) =>
-        (message.sourceRecords ?? [])
+      generation.messages.flatMap((message) => {
+        // New-format history records no longer persist transcript-shaped
+        // `sourceRecords`, so derive the equivalent records from the committed
+        // message when the legacy attribute is absent.
+        const records = message.sourceRecords && message.sourceRecords.length > 0
+          ? message.sourceRecords
+          : committedHistoryRefsToTranscriptRecords([message])
+        return records
           .filter((record) => record.stream === "user_input")
           .map((record) => ({
             text: normalizeUserInputText(record.payload),
             createdAt: record.endAt ?? record.startAt ?? message.committedAt,
-          })),
-      ),
+          }))
+      }),
     )
     replaceUserInputHistory(state, entries)
   }
 
-  async function syncSessionMessagesFromActorTranscript(
+  async function syncSessionMessagesFromActorConversation(
     state: SessionState,
     runtime: TuiRuntimeBridge,
     target?: { actorId?: string; laneId?: string },
@@ -1652,6 +1622,34 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
     async get({ sessionID }: { sessionID?: string } = {}) {
       return { data: await loadBestSessionInfo(sessionID) }
     },
+    async upgradeDryRun({ sessionID }: { sessionID?: string } = {}) {
+      const resolvedSessionID = resolveSessionID(sessionID)
+      if (mode !== "local-runtime") {
+        return { data: mockSessionUpgradeDryRun() }
+      }
+      return {
+        data: await dryRunFileStoreAiRuntimeSessionUpgrade({
+          sessionDir: getSessionDir(resolvedSessionID),
+        }) as SessionUpgradeDryRunResult,
+      }
+    },
+    async upgradeApply({ sessionID }: { sessionID?: string } = {}) {
+      const resolvedSessionID = resolveSessionID(sessionID)
+      if (mode !== "local-runtime") {
+        return {
+          data: {
+            status: "already_upgraded",
+            mode: "file-store",
+            dryRun: mockSessionUpgradeDryRun(),
+          } satisfies SessionUpgradeApplyResult,
+        }
+      }
+      return {
+        data: await applyFileStoreAiRuntimeSessionUpgrade({
+          sessionDir: getSessionDir(resolvedSessionID),
+        }) as SessionUpgradeApplyResult,
+      }
+    },
     async messages({ sessionID }: { sessionID?: string } = {}) {
       const state = ensureSessionState(sessionID)
       await hydrateSessionHistoryFromPersistence(state)
@@ -1793,7 +1791,11 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
         sessionOrder.splice(index, 1)
       }
       if (mode === "local-runtime") {
-        await rm(getSessionDir(state.info.id), { recursive: true, force: true })
+        // P3 (isolate-runtime-projection-surfaces): the surface SHALL NOT directly
+        // rm the session truth dir (005 Rule 5). Destruction of the domain-owned
+        // session storage root is delegated to the domain delete capability, which
+        // owns the recursive removal (incl. the surface sidecar living inside it).
+        await deleteFileStoreAiRuntimeSession({ sessionDir: getSessionDir(state.info.id) })
       }
       await emitEvent({ type: "session.deleted", properties: { info: state.info } } as Event)
       return { data: true }
@@ -2178,6 +2180,7 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
             }
           })()
         })
+        await runtime.setActorActiveModel?.({}, selectedModel)
         finalText = await runtime.turn(promptContent, {
           onControl: async (control) => {
             if (control.cmd !== "NewMessage") return
@@ -2268,7 +2271,7 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
       modelID?: string
     }) {
       const rawInput = `/${command}${rawArgs ? ` ${rawArgs}` : ""}`
-      const builtinCommand = resolveBuiltinSlashCommand(rawInput)
+      const builtinCommand = resolveTuiBuiltinSlashCommand(rawInput)
       if (builtinCommand) {
         await emitEvent({ type: "tui.command.execute", properties: { command: builtinCommand } } as Event)
         return { data: true }
@@ -2584,6 +2587,7 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
             }
           })()
         })
+        await runtime.setActorActiveModel?.({}, selectedModel)
         finalText = await runtime.turn(rawInput, {
           onControl: async (control) => {
             if (control.cmd !== "NewMessage") return
@@ -2689,7 +2693,7 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
         const result = await runtime.submitQuestionnaireResponse(requestID, text)
         if (result.status === "submitted") {
           pendingQuestionsByID.delete(requestID)
-          await syncSessionMessagesFromActorTranscript(state, runtime, {
+          await syncSessionMessagesFromActorConversation(state, runtime, {
             actorId: typeof pending.request.actorId === "string" ? pending.request.actorId : undefined,
           })
           await emitEvent({
@@ -2795,9 +2799,12 @@ export function createTuiRuntimeClient(options?: { mode?: RuntimeClientMode; dir
       await syncPendingQuestionsFromActorSurface(state, projection)
       return { data: projection as ActorSurfaceProjectionData | null }
     },
-    async send({ sessionID, laneID, actorID, text }: { sessionID?: string; laneID?: string; actorID?: string; text: string }) {
+    async send({ sessionID, laneID, actorID, text, model }: { sessionID?: string; laneID?: string; actorID?: string; text: string; model?: RuntimeModel }) {
       const state = ensureSessionState(sessionID)
       const runtime = await ensureSessionRuntime(state)
+      if (model) {
+        await runtime.setActorActiveModel?.({ laneId: laneID, actorId: actorID }, model)
+      }
       const projection = await runtime.sendActorHumanMessage?.({ laneId: laneID, actorId: actorID }, text) ?? null
       await syncPendingQuestionsFromActorSurface(state, projection)
       return { data: projection as ActorSurfaceProjectionData | null }

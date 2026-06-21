@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-tui-module-structure" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>重组 terminal/packages/tui 目录结构，收集疑似未启用功能，最终移除 TUI-local import alias 和兼容残留。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-24T11:22:50Z</CreatedAt>
+    <UpdatedAt>2026-05-24T13:35:04Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-tui-module-structure" name="refactor-tui-module-structure" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="Inventory and Safety Baseline" status="DONE" order="0">
+        <SubNodes>
+          <Task id="T1.1" name="Create feature and unused-code inventory" status="DONE" order="0" priority="P0">
+            <Description>Collect potentially unused or inactive code paths in the TUI package, including LSP, support utilities, compatibility exports, and dead entry points.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Track-local inventory exists and lists each candidate with references and keep/remove recommendation.</cdt:Criterion>
+              <cdt:Criterion checked="true">LSP-related code is explicitly evaluated.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Capture structural baseline checks" status="DONE" order="1" priority="P0">
+            <Description>Record current file counts, alias usages, package entry exports, and existing test commands before moving files.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Baseline alias and deep-path scan is recorded.</cdt:Criterion>
+              <cdt:Criterion checked="true">Relevant TUI tests or smoke checks are identified.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Entry Runtime and Support Reorganization" status="DONE" order="1">
+        <SubNodes>
+          <Task id="T2.1" name="Move startup entry files into entry area" status="DONE" order="0" priority="P0">
+            <Description>Move index, cli bridge, thread command, preload, and TuiA1 main startup code into the new entry structure while preserving exports and package scripts.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Existing CLI/dev startup behavior remains available.</cdt:Criterion>
+              <cdt:Criterion checked="true">Package exports and scripts point to the new entry locations.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Separate runtime adapter from UI code" status="DONE" order="1" priority="P0">
+            <Description>Reorganize runtime facade files under runtime subareas and ensure runtime code does not import UI components.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Runtime files are grouped by client/catalog/bridge/mock responsibility.</cdt:Criterion>
+              <cdt:Criterion checked="true">No runtime-to-UI dependency is introduced.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="Repair direct package source imports" status="DONE" order="2" priority="P1">
+            <Description>Replace direct imports from sibling package source paths with package exports or update exports where necessary.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">No TUI source imports `../../organ-support/src` directly.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="UI Provider and TuiA1 Feature Reorganization" status="DONE" order="2">
+        <SubNodes>
+          <Task id="T3.1" name="Move reusable UI primitives and dialogs" status="DONE" order="0" priority="P0">
+            <Description>Consolidate reusable dialog, toast, selection, primitive, and prompt components under the reusable UI area.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Reusable UI code does not import TuiA1 app implementation.</cdt:Criterion>
+              <cdt:Criterion checked="true">Existing dialog behavior remains covered by tests or smoke checks.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Move providers to generic or app-owned areas" status="DONE" order="1" priority="P0">
+            <Description>Separate generic providers from TuiA1 state-dependent providers and eliminate generic-to-app reverse dependencies.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Top-level providers do not import `app/tui_a1` internals.</cdt:Criterion>
+              <cdt:Criterion checked="true">TuiA1-specific sync/local/route providers live under app ownership.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="Replace vague materials directories" status="DONE" order="2" priority="P0">
+            <Description>Move `materials` directories into explicit feature, provider, state, route, or logic directories.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">No source path under TUI uses a `materials` directory for active code.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="TuiA1 Root Split and Behavior Preservation" status="DONE" order="3">
+        <SubNodes>
+          <Task id="T4.1" name="Split TuiA1 root orchestration file" status="DONE" order="0" priority="P0">
+            <Description>Extract app root, view/layout, runtime effects, and dialog wiring from the current large TuiA1 root file.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">TuiA1 root file is focused on composition rather than mixed feature logic.</cdt:Criterion>
+              <cdt:Criterion checked="true">Streaming, composer, session list, message list, and system dialogs continue to work.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Add or adjust targeted regression tests" status="DONE" order="1" priority="P0">
+            <Description>Add or update tests that protect startup, provider wiring, dialog wiring, and stream/message rendering paths affected by file moves.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Tests fail if key wiring paths are broken.</cdt:Criterion>
+              <cdt:Criterion checked="true">TUI package test command passes.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Alias Compatibility and Unused Feature Cleanup" status="DONE" order="4">
+        <SubNodes>
+          <Task id="T5.1" name="Remove TUI-local import aliases" status="DONE" order="0" priority="P0">
+            <Description>Replace TUI-local alias imports with final non-alias imports and update TypeScript path configuration accordingly.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">No `@tui/` imports remain in `terminal/packages/tui/src`.</cdt:Criterion>
+              <cdt:Criterion checked="true">No `@/` imports remain in `terminal/packages/tui/src`.</cdt:Criterion>
+              <cdt:Criterion checked="true">TUI-local alias config is removed or no longer applicable to source imports.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="Remove migration-only compatibility code" status="DONE" order="1" priority="P0">
+            <Description>Remove temporary re-export files, old path barrels, empty directories, and compatibility code created only for the migration.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">No migration-only compatibility shims remain.</cdt:Criterion>
+              <cdt:Criterion checked="true">Old directory names do not remain as empty shells.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.3" name="Apply unused-feature decisions" status="DONE" order="2" priority="P1">
+            <Description>Keep, relocate, or delete inventory candidates based on recorded evidence and decisions.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Each inventory item has a final decision and outcome.</cdt:Criterion>
+              <cdt:Criterion checked="true">Removed items have validation evidence that behavior was not regressed.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P6" name="Final Verification" status="DONE" order="5">
+        <SubNodes>
+          <Task id="T6.1" name="Run final structural scans and tests" status="DONE" order="0" priority="P0">
+            <Description>Run final tests, import alias scans, direct package source import scans, and file tree review.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">TUI tests pass.</cdt:Criterion>
+              <cdt:Criterion checked="true">Alias scan passes with zero TUI-local alias imports.</cdt:Criterion>
+              <cdt:Criterion checked="true">Direct sibling package source import scan passes.</cdt:Criterion>
+              <cdt:Criterion checked="true">Feature inventory is closed with decisions.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

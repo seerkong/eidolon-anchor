@@ -3,6 +3,7 @@ import type {
   DomainRuntimeAssemblyContext,
   DomainRuntimeAssemblyResult,
   DomainRuntimeAssemblyState,
+  RuntimeHookDefinition,
 } from "@cell/ai-core-contract";
 import type {
   RuntimeAssemblyContext as PlatformRuntimeAssemblyContext,
@@ -19,7 +20,9 @@ export type RuntimeAssemblyState = PlatformRuntimeAssemblyState & DomainRuntimeA
   agentConfigs: Readonly<Record<string, AgentConfig>>;
 };
 
-export type RuntimeExtension = PlatformRuntimeExtension<RuntimeAssemblyState, RuntimeAssemblyContext>;
+export type RuntimeExtension = PlatformRuntimeExtension<RuntimeAssemblyState, RuntimeAssemblyContext> & {
+  hooks?: readonly RuntimeHookDefinition[];
+};
 
 export type RuntimeProfile = PlatformRuntimeProfile<RuntimeAssemblyState, RuntimeAssemblyContext>;
 
@@ -35,6 +38,17 @@ export type {
   RuntimeCatalogConfigBundle,
   RuntimeCatalogDescriptor,
   RuntimeDirectSlashCommand,
+  RuntimeHookAction,
+  RuntimeHookDefinition,
+  RuntimeHookDispatchReport,
+  RuntimeHookDispatchStepReport,
+  RuntimeHookEffect,
+  RuntimeHookExecution,
+  RuntimeHookInvocationContext,
+  RuntimeHookMatcher,
+  RuntimeHookMode,
+  RuntimeHookResult,
+  RuntimeHookStepStatus,
   RuntimeModelConfigResolverParams,
   RuntimePersistenceDescriptor,
   RuntimePromptSlashCommand,

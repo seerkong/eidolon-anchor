@@ -15,7 +15,13 @@ import { useArgs } from "../../../providers/args"
 import { useRuntimeClient } from "../../../providers/runtime-client"
 import { RGBA } from "@opentui/core"
 import { useTuiA1State } from "./state-context"
-import type { TuiA1Selection } from "../data"
+import {
+  resolveTuiEffectiveModel,
+  selectionModelCandidate,
+  type TuiA1Selection,
+  type TuiModelCandidate,
+  type TuiModelRef,
+} from "../data"
 
 const DELEGATE_MODE = "delegate"
 
@@ -28,16 +34,17 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     const { stateGraph } = useTuiA1State()
     const selection = useGraphSignal<TuiA1Selection, undefined>(stateGraph.graph, "selection")
 
-    function isModelValid(model: { providerID: string; modelID: string }) {
+    function isModelValid(model: TuiModelRef) {
       const provider = sync.data.provider.find((x) => x.id === model.providerID)
       return !!provider?.models[model.modelID]
     }
 
-    function getFirstValidModel(...modelFns: (() => { providerID: string; modelID: string } | undefined)[]) {
-      for (const modelFn of modelFns) {
-        const model = modelFn()
-        if (!model) continue
-        if (isModelValid(model)) return model
+    function toValidCandidate(source: TuiModelCandidate["source"], model?: TuiModelRef): TuiModelCandidate | undefined {
+      if (!model || !isModelValid(model)) return undefined
+      return {
+        source,
+        providerID: model.providerID,
+        modelID: model.modelID,
       }
     }
 
@@ -108,6 +115,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           providerID: string
           modelID: string
         }[]
+        explicit?: {
+          providerID: string
+          modelID: string
+        }
         variant: Record<string, string | undefined>
       }>({
         ready: false,
@@ -147,50 +158,55 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       })
 
       const args = useArgs()
-      const fallbackModel = createMemo(() => {
+      const cliModel = createMemo(() => {
         if (args.model) {
           const parsed = parseModelRef(args.model)
-          if (parsed && isModelValid(parsed)) {
-            return parsed
-          }
+          return toValidCandidate("cli-arg", parsed)
         }
+      })
 
+      const runtimeConfigModel = createMemo(() => {
         if (sync.data.config.model) {
           const parsed = parseModelRef(sync.data.config.model)
-          if (parsed && isModelValid(parsed)) {
-            return parsed
-          }
+          return toValidCandidate("runtime-config", parsed)
         }
+      })
 
+      const recentModel = createMemo(() => {
         for (const item of modelStore.recent) {
           if (isModelValid(item)) {
-            return item
+            return toValidCandidate("recent", item)
           }
         }
+      })
 
+      const providerDefaultModel = createMemo(() => {
         const provider = sync.data.provider[0]
         if (!provider) return undefined
         const defaultModel = sync.data.provider_default[provider.id]
         const firstModel = Object.values(provider.models)[0]
         const modelID = defaultModel ?? firstModel?.id
         if (!modelID) return undefined
-        return {
+        return toValidCandidate("provider-default", {
           providerID: provider.id,
           modelID,
-        }
+        })
       })
 
       const currentModel = createMemo(() => {
         const selected = selection()
-        if (isModelValid(selected)) return selected
         const a = agent.current()
-        return (
-          getFirstValidModel(
-            () => modelStore.model[a.name],
-            () => a.model,
-            fallbackModel,
-          ) ?? undefined
-        )
+        const selectedCandidate = selectionModelCandidate(selected)
+        return resolveTuiEffectiveModel([
+          toValidCandidate("user-explicit", modelStore.explicit),
+          selectedCandidate,
+          cliModel(),
+          toValidCandidate("agent-memory", modelStore.model[a.name]),
+          toValidCandidate("agent-default", a.model),
+          runtimeConfigModel(),
+          recentModel(),
+          providerDefaultModel(),
+        ])
       })
 
       return {
@@ -229,7 +245,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           if (next >= recent.length) next = 0
           const val = recent[next]
           if (!val) return
-          setModelStore("model", agent.current().name, { ...val })
+          setModelStore("explicit", { ...val })
+          stateGraph.mergeSelection({ ...val, modelSource: "user-explicit" })
         },
         cycleFavorite(direction: 1 | -1) {
           const favorites = modelStore.favorite.filter((item) => isModelValid(item))
@@ -255,7 +272,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           }
           const next = favorites[index]
           if (!next) return
+          setModelStore("explicit", { ...next })
           setModelStore("model", agent.current().name, { ...next })
+          stateGraph.mergeSelection({ ...next, modelSource: "user-explicit" })
           const uniq = uniqueBy([next, ...modelStore.recent], (x) => `${x.providerID}/${x.modelID}`)
           if (uniq.length > 10) uniq.pop()
           setModelStore(
@@ -264,7 +283,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           )
           save()
         },
-        set(model: { providerID: string; modelID: string }, options?: { recent?: boolean }) {
+        set(model: TuiModelRef, options?: { recent?: boolean }) {
           batch(() => {
             if (!isModelValid(model)) {
               toast.show({
@@ -274,10 +293,15 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
               })
               return
             }
+            setModelStore("explicit", { ...model })
             setModelStore("model", agent.current().name, model)
             const selected = selection()
-            if (selected.providerID !== model.providerID || selected.modelID !== model.modelID) {
-              stateGraph.mergeSelection(model)
+            if (
+              selected.providerID !== model.providerID ||
+              selected.modelID !== model.modelID ||
+              selected.modelSource !== "user-explicit"
+            ) {
+              stateGraph.mergeSelection({ ...model, modelSource: "user-explicit" })
             }
             if (options?.recent) {
               const uniq = uniqueBy([model, ...modelStore.recent], (x) => `${x.providerID}/${x.modelID}`)
@@ -290,7 +314,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             }
           })
         },
-        toggleFavorite(model: { providerID: string; modelID: string }) {
+        toggleFavorite(model: TuiModelRef) {
           batch(() => {
             if (!isModelValid(model)) {
               toast.show({
@@ -388,25 +412,6 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       },
     }
 
-    // Automatically update model when agent changes
-    createEffect(() => {
-      const value = agent.current()
-      if (value.model) {
-        if (isModelValid(value.model)) {
-          model.set({
-            providerID: value.model.providerID,
-            modelID: value.model.modelID,
-          })
-        } else {
-          toast.show({
-            variant: "warning",
-            message: `Agent ${value.name}'s configured model ${value.model.providerID}/${value.model.modelID} is not valid`,
-            duration: 3000,
-          })
-        }
-      }
-    })
-
     createEffect(() => {
       const selected = selection()
       const allAgents = agent.list()
@@ -420,8 +425,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       const current = model.current()
       if (!current) return
       const selected = selection()
-      if (selected.providerID === current.providerID && selected.modelID === current.modelID) return
-      stateGraph.mergeSelection(current)
+      if (
+        selected.providerID === current.providerID &&
+        selected.modelID === current.modelID &&
+        selected.modelSource === current.source
+      ) {
+        return
+      }
+      stateGraph.mergeSelection({
+        providerID: current.providerID,
+        modelID: current.modelID,
+        modelSource: current.source,
+      })
     })
 
     const result = {

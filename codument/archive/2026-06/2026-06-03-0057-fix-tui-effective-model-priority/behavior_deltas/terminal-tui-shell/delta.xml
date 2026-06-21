@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="terminal-tui-shell">
+  <upsert selector="behavior://terminal-tui-shell/requirements/effective-model-priority">
+    <requirement id="effective-model-priority">
+    <statement>系统 SHALL 在 terminal TUI 中以 source-aware 方式解析并展示当前有效模型，避免人工选择、启动参数、agent 默认、runtime 历史和配置默认之间互相拍平覆盖。</statement>
+    <suite id="priority-resolution" name="有效模型优先级">
+      <case id="manual-dialog-selection-wins">
+        <given>用户在 TUI 模型 dialog 中人工选择 provider/model</given>
+        <when>agent 默认模型同步、runtime 历史投影或 recent model 随后产生不同模型候选</when>
+        <then>系统 SHALL 保持人工选择作为当前有效模型</then>
+        <then>系统 SHALL 在状态条展示该人工选择后的 provider/model</then>
+      </case>
+      <case id="cli-model-wins-over-config">
+        <given>启动参数指定了 provider/model，且配置默认或 recent model 指向另一个模型</given>
+        <when>TUI 初始化当前会话选择状态</when>
+        <then>系统 SHALL 使用启动参数模型作为有效模型</then>
+        <then>该模型 SHALL 低于后续人工 dialog 选择的优先级</then>
+      </case>
+      <case id="agent-memory-wins-over-agent-default">
+        <given>当前 agent 具有用户记忆中的 provider/model 覆盖值，且 agent definition 也声明默认模型</given>
+        <when>系统解析当前有效模型</when>
+        <then>系统 SHALL 优先使用 agent 用户记忆中的模型覆盖值</then>
+        <then>agent definition 默认模型 SHALL 只在缺少更高优先级来源时生效</then>
+      </case>
+      <case id="priority-order-is-stable">
+        <given>多个模型来源同时存在</given>
+        <when>系统解析当前有效模型</when>
+        <then>系统 SHALL 按 user-explicit、cli-arg、agent-memory、agent-default、runtime-config、recent、provider-default 的顺序选择第一个有效模型</then>
+      </case>
+    </suite>
+    <suite id="projection-and-display" name="投影与展示">
+      <case id="runtime-history-does-not-overwrite-explicit-source">
+        <given>runtime 历史消息中包含 provider/model 信息</given>
+        <when>当前 selection 已有更高优先级来源</when>
+        <then>系统 SHALL 只记录或使用 runtime 历史作为低优先级候选</then>
+        <then>系统 SHALL NOT 用 runtime 历史覆盖更高优先级的有效模型</then>
+      </case>
+      <case id="status-line-shows-effective-model">
+        <given>当前 TUI 有多个模型候选来源</given>
+        <when>composer/input 底部状态条渲染 provider/model</when>
+        <then>系统 SHALL 展示 effective model resolver 的输出</then>
+        <then>系统 SHALL NOT 直接展示未解析的拍平 selection 值</then>
+      </case>
+      <case id="agent-switch-recomputes-without-model-only-overwrite-loop">
+        <given>用户切换当前 agent</given>
+        <when>系统根据新 agent 重新计算有效模型</when>
+        <then>系统 SHALL 响应 agent identity 变化重新解析候选模型</then>
+        <then>系统 SHALL NOT 因 provider/model-only 变化误触发 agent 默认模型覆盖人工选择</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

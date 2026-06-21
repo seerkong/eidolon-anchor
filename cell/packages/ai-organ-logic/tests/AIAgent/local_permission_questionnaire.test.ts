@@ -188,7 +188,7 @@ describe("local permission questionnaire integration", () => {
     });
 
     const second = await aiAgentLoopStreaming({ vm, actor, messages: first.messages });
-    const toolMsg = second.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "tc-read-1");
+    const toolMsg = second.messages.find((message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-read-1");
     expect(toolMsg).toBeTruthy();
     expect(String(toolMsg.content)).toContain("1: secret");
   });
@@ -269,10 +269,10 @@ describe("local permission questionnaire integration", () => {
       messages,
       fiberId,
       stateRef,
-      predicate: () => messages.some((message) => message?.role === "tool" && message?.tool_call_id === "tc-read-2"),
+      predicate: () => actor.messages.some((message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-read-2"),
     });
 
-    const toolMsg = messages.find((message) => message?.role === "tool" && message?.tool_call_id === "tc-read-2");
+    const toolMsg = actor.messages.find((message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-read-2");
     expect(toolMsg).toBeTruthy();
     expect(String((toolMsg as any).content)).toContain("1: secret");
   });
@@ -350,10 +350,10 @@ describe("local permission questionnaire integration", () => {
       messages,
       fiberId,
       stateRef,
-      predicate: () => messages.some((message) => message?.role === "tool" && message?.tool_call_id === "tc-read-surface"),
+      predicate: () => actor.messages.some((message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-read-surface"),
     });
 
-    const toolMsg = messages.find((message) => message?.role === "tool" && message?.tool_call_id === "tc-read-surface");
+    const toolMsg = actor.messages.find((message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-read-surface");
     expect(toolMsg).toBeTruthy();
     expect(String((toolMsg as any).content)).toContain("1: secret");
   });
@@ -420,7 +420,7 @@ describe("local permission questionnaire integration", () => {
     });
 
     const second = await aiAgentLoopStreaming({ vm, actor, messages: first.messages });
-    const toolMsg = second.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "tc-ls-1");
+    const toolMsg = second.messages.find((message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-ls-1");
     expect(toolMsg).toBeTruthy();
     expect(String(toolMsg.content)).toContain(path.basename(externalFile));
 
@@ -513,10 +513,10 @@ describe("local permission questionnaire integration", () => {
       messages,
       fiberId,
       stateRef,
-      predicate: () => messages.some((message) => message?.role === "tool" && message?.tool_call_id === "tc-write-1"),
+      predicate: () => actor.messages.some((message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-write-1"),
     });
 
-    const toolMsg = messages.find((message) => message?.role === "tool" && message?.tool_call_id === "tc-write-1");
+    const toolMsg = actor.messages.find((message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-write-1");
     expect(toolMsg).toBeTruthy();
     expect(String((toolMsg as any).content)).toBe("Wrote file successfully.");
     expect(fs.readFileSync(externalFile, "utf-8")).toBe("created by grant");

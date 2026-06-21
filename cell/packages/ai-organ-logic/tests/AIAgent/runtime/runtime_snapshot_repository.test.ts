@@ -3,6 +3,7 @@ import { WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl"
 import fs from "fs"
 import os from "os"
 import path from "path"
+import { parseXnl } from "xnl-core"
 
 import {
   AI_AGENT_PLAN_APPROVAL_COORDINATION_KINDS,
@@ -54,15 +55,16 @@ describe("Runtime snapshot repository", () => {
     })
 
     actor.send("control", { kind: "cancel_requested" })
-    actor.send("coordination", { from: "main", text: "env", ts: 2 } as any)
+    actor.send("memberCoordination", { from: "main", text: "env", ts: 2 } as any)
     actor.send("humanInput", "first")
     actor.send("humanInput", "second")
-    actor.send("memberInbox", { from: "main", text: "ping", ts: 1 })
+    actor.send("memberChatInbox", { from: "main", text: "ping", ts: 1 })
     actor.send("toolResult", { toolCallId: "tc-1", content: "done" })
-    actor.send("aiGenerated", { foo: "bar" } as any)
+    actor.send("asyncCompletion", { foo: "bar" } as any)
 
     const snapshot = serializeActor(actor)
     expect("schemaVersion" in snapshot).toBe(false)
+    expect("pendingQuestionnaires" in snapshot).toBe(false)
     const restored = hydrateActor(snapshot)
 
     expect(restored.key).toBe(actor.key)
@@ -71,14 +73,15 @@ describe("Runtime snapshot repository", () => {
     expect(restored.planApproval?.requestId).toBe("req-1")
     expect(restored.shutdownCoordination?.requestId).toBe("req-2")
     expect(restored.peekMailbox("humanInput")).toEqual(["first", "second"])
-    expect(restored.peekMailbox("coordination")).toEqual([{ from: "main", text: "env", ts: 2 }])
-    expect(restored.peekMailbox("memberInbox")).toEqual([{ from: "main", text: "ping", ts: 1 }])
+    expect(restored.peekMailbox("memberCoordination")).toEqual([{ from: "main", text: "env", ts: 2 }])
+    expect(restored.peekMailbox("memberChatInbox")).toEqual([{ from: "main", text: "ping", ts: 1 }])
     expect(restored.peekMailbox("toolResult")).toEqual([{ toolCallId: "tc-1", content: "done" }])
     expect(restored.peekMailbox("control")).toEqual([{ kind: "cancel_requested" }])
-    expect(restored.peekMailbox("aiGenerated")).toEqual([{ foo: "bar" }])
-    expect(snapshot.workContext?.workMode).toBe(WORK_MODES.general_execution)
+    expect(restored.peekMailbox("asyncCompletion")).toEqual([{ foo: "bar" }])
+    expect(restored.pendingQuestionnaires).toEqual({})
+    expect(snapshot.workContext?.workMode).toBe(WORK_MODES.build)
     expect(snapshot.continuationBaseline?.baselineEpoch).toBe(0)
-    expect(restored.workContext.workMode).toBe(WORK_MODES.general_execution)
+    expect(restored.workContext.workMode).toBe(WORK_MODES.build)
     expect(restored.continuationBaseline.baselineEpoch).toBe(0)
     expect(restored.recovery?.snapshotVersion).toBe(snapshot.version)
   })
@@ -102,6 +105,29 @@ describe("Runtime snapshot repository", () => {
         [root.key]: serializeActor(root),
         [worker.key]: actorSnapshot,
       },
+      questionnaires: [{
+        questionnaireId: "q1",
+        toolCallId: "tc-1",
+        request: {
+          questionnaireId: "q1",
+          toolCallId: "tc-1",
+          kind: "freeform",
+          suspendPolicy: "pause_all",
+          questions: [{ id: "q", prompt: "why", type: "text" }],
+        },
+        result: {
+          questionnaireId: "q1",
+          toolCallId: "tc-1",
+          rawText: "yes",
+          status: "ok",
+          answers: { q: "yes" },
+        },
+        suspendPolicy: "pause_all",
+        status: "answered",
+        createdAt: 1,
+        updatedAt: 1,
+        metadata: { source: "test" },
+      } as any],
       fibers: {},
     })
 
@@ -110,6 +136,49 @@ describe("Runtime snapshot repository", () => {
     expect("schemaVersion" in (manifest as any)).toBe(false)
     expect(typeof manifest?.vmFile).toBe("string")
     expect(Object.keys(manifest?.actorFiles ?? {})).toContain(root.key)
+    const loaded = await repository.loadSnapshot()
+    expect(loaded?.questionnaires.map((row) => row.questionnaireId)).toEqual(["q1"])
+    const questionnaireXnl = fs.readFileSync(path.join(rootDir, "questionnaires.xnl"), "utf8").trim()
+    expect(questionnaireXnl.startsWith("<QuestionnaireRow")).toBe(true)
+    expect(questionnaireXnl).not.toContain("<Questionnaires")
+    expect(questionnaireXnl).not.toContain("<root")
+    const questionnaireDoc = parseXnl(questionnaireXnl)
+    const row = questionnaireDoc.nodes[0] as any
+    expect(row.tag).toBe("QuestionnaireRow")
+    expect(row.body.map((node: any) => node.tag)).toEqual(["Request", "Result", "Metadata"])
+    expect(row.body[0]).toEqual(expect.objectContaining({
+      kind: "DataElement",
+      tag: "Request",
+      metadata: expect.objectContaining({
+        kind: "freeform",
+        questionCount: 1,
+      }),
+    }))
+    expect(row.body[1]).toEqual(expect.objectContaining({
+      kind: "DataElement",
+      tag: "Result",
+      metadata: expect.objectContaining({
+        status: "ok",
+      }),
+    }))
+    expect(row.body[1].body[0]).toEqual(expect.objectContaining({
+      kind: "TextElement",
+      tag: "RawText",
+      text: "yes",
+    }))
+    expect(row.body[2]).toEqual(expect.objectContaining({
+      kind: "DataElement",
+      tag: "Metadata",
+      attributes: { source: "test" },
+    }))
+    const rootActorPath = repository.actorPath(serializeActor(root))
+    const rootActorMeta = JSON.parse(fs.readFileSync(rootActorPath, "utf8"))
+    const rootState = JSON.parse(fs.readFileSync(path.join(path.dirname(rootActorPath), "state.json"), "utf8"))
+    const rootMailboxes = JSON.parse(fs.readFileSync(path.join(path.dirname(rootActorPath), "mailboxes.json"), "utf8"))
+    expect("messages" in rootActorMeta).toBe(false)
+    expect("pendingQuestionnaires" in rootState).toBe(false)
+    expect("messages" in rootState).toBe(false)
+    expect("messages" in rootMailboxes).toBe(false)
     const restored = hydrateActor(actorSnapshot)
     expect(typeof restored.recovery?.snapshotVersion).toBe("number")
     expect(restored.recovery?.snapshotVersion).toBe(actorSnapshot.version)

@@ -1,0 +1,51 @@
+<behaviors capability="complete-runtime-evolution-migration" version="1">
+  <requirement id="legacy-write-path-removed">
+    <statement>旧的平行 persistence/conversation/transcript/effect writer 路径 SHALL 被删除，不保留 compat shim。具体：已 no-op 的 MessageHistoryEffects 端口（LocalFileMessageHistoryEffects + 其 port hop 与 executor 调用点）SHALL 被移除。upgrade 必需的 legacy 迁移 reader 与脏数据拒绝守卫 SHALL NOT 被当作 shim 删除（它们是迁移机制，保留）。</statement>
+    <suite id="no-shim" name="No compat shim retained">
+      <case id="message-history-effects-removed">
+        <given>历史写副作用端口已是 no-op</given>
+        <when>检查 live 执行路径与端口接线</when>
+        <then>LocalFileMessageHistoryEffects 及其 MessageHistoryEffects 端口跳板 SHALL 不再存在于 live 执行路径</then>
+        <then>executor SHALL NOT 再调用该 no-op 端口（appendMessage / backupHistory）</then>
+      </case>
+      <case id="migration-readers-retained">
+        <given>session upgrade 依赖 legacy 文件 reader</given>
+        <when>检查迁移 reader 与脏数据拒绝守卫</when>
+        <then>upgrade 必需的 legacy 迁移 reader 与 transcript-only 拒绝守卫 SHALL 保留（它们不是 compat shim）</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="session-upgrade-clean">
+    <statement>旧格式 session SHALL 可经 dry-run / apply 升级到新 profile / data-subgraph（owned-checkpoint / XNL）结构，且升级后校验结果 SHALL 为 clean；脏数据 SHALL NOT 被当作正常输入静默接受。</statement>
+    <suite id="upgrade" name="Session upgrade clean">
+      <case id="dry-run-then-apply-clean">
+        <given>一个旧格式 session 的持久化产物（真实形态 fixture）</given>
+        <when>对其执行 session upgrade dry-run 再 apply</when>
+        <then>dry-run SHALL 识别其为可升级（upgraded）</then>
+        <then>apply 后 checkpoint 前缀分类 SHALL 为 clean</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="incident-acceptance-harness">
+    <statement>本 track SHALL 提供一个重现真实事故形态的 conformance resource（最小化/脱敏 fixture，不含原始真实 session 数据），并经一个 CLI / TUI / headless 聚焦验收 harness：升级该事故 session、恢复并继续一个 turn，断言事故根因不复现且跨表现产生等价 domain 行为。</statement>
+    <suite id="acceptance" name="Incident acceptance across surfaces">
+      <case id="incident-recovers-and-continues">
+        <given>真实事故形态的 session conformance resource</given>
+        <when>经 harness 升级 → 恢复 → 继续一个 turn</when>
+        <then>恢复后下一轮 provider context SHALL 含完整配对工具结果，SHALL NOT 触发对同一文件的重复读取</then>
+        <then>同一事故 loop 在 CLI / TUI / headless 下 SHALL 产生等价 domain 真源（差异仅限表现）</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="migration-regression-coverage">
+    <statement>事故根因的四个维度 SHALL 各有可执行回归守护：repeat-read-file、pending-effect、history-lag、TUI/CLI-divergence。已存在的覆盖 SHALL 被显式映射；缺失维度 SHALL 补命名回归。</statement>
+    <suite id="regression" name="Migration regression coverage">
+      <case id="four-incident-dimensions-covered">
+        <given>事故根因四维</given>
+        <when>核对可执行回归覆盖</when>
+        <then>repeat-read-file 与 TUI/CLI-divergence SHALL 由既有测试覆盖并被显式映射</then>
+        <then>pending-effect 与 history-lag SHALL 各有命名可执行回归（既有 conformance 映射或新增）</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

@@ -23,7 +23,9 @@ const DEFAULT_MCP_REQUEST_TIMEOUT_MS = 30_000;
 const MAX_MCP_REQUEST_TIMEOUT_MS = 5 * 60_000;
 const MCP_CALL_OPTIONS_KEY = "_eidolon";
 
-function hasExplicitRequestTimeout(options?: { timeoutMs?: number }): boolean {
+type McpRequestOptions = { timeoutMs?: number; signal?: AbortSignal };
+
+function hasExplicitRequestTimeout(options?: McpRequestOptions): boolean {
   return typeof options?.timeoutMs === "number" && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0;
 }
 
@@ -37,11 +39,66 @@ function timeoutMessage(timeoutMs: number): string {
   return `Request timeout after ${timeoutMs}ms`;
 }
 
+function abortMessage(): string {
+  return "Request aborted";
+}
+
 function shouldUseRequestTimeout(
   method: string,
-  options?: { timeoutMs?: number },
+  options?: McpRequestOptions,
 ): boolean {
   return method !== "tools/call" || hasExplicitRequestTimeout(options);
+}
+
+async function withTimeoutAndAbort<T>(
+  promise: Promise<T>,
+  options: {
+    timeoutMs?: number;
+    signal?: AbortSignal;
+    onTimeout?: () => void;
+    onAbort?: () => void;
+  } = {},
+): Promise<T> {
+  const timeoutMs = options.timeoutMs;
+  const useTimeout = typeof timeoutMs === "number" && Number.isFinite(timeoutMs) && timeoutMs > 0;
+  if (!useTimeout && !options.signal) {
+    return await promise;
+  }
+  if (options.signal?.aborted) {
+    options.onAbort?.();
+    throw new Error(abortMessage());
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let abortListener: (() => void) | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        if (useTimeout) {
+          timer = setTimeout(() => {
+            try {
+              options.onTimeout?.();
+            } finally {
+              reject(new Error(timeoutMessage(timeoutMs)));
+            }
+          }, timeoutMs);
+        }
+        if (options.signal) {
+          abortListener = () => {
+            try {
+              options.onAbort?.();
+            } finally {
+              reject(new Error(abortMessage()));
+            }
+          };
+          options.signal.addEventListener("abort", abortListener, { once: true });
+        }
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (abortListener) options.signal?.removeEventListener("abort", abortListener);
+  }
 }
 
 async function withTimeout<T>(
@@ -49,38 +106,30 @@ async function withTimeout<T>(
   timeoutMs: number,
   onTimeout?: () => void,
 ): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<T>((_, reject) => {
-        timer = setTimeout(() => {
-          try {
-            onTimeout?.();
-          } finally {
-            reject(new Error(timeoutMessage(timeoutMs)));
-          }
-        }, timeoutMs);
-      }),
-    ]);
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
+  return await withTimeoutAndAbort(promise, { timeoutMs, onTimeout });
 }
 
 async function fetchWithTimeout(
   input: string | URL,
   init: RequestInit,
   timeoutMs?: number,
+  signal?: AbortSignal,
 ): Promise<Response> {
-  if (!timeoutMs || timeoutMs <= 0) {
+  if ((!timeoutMs || timeoutMs <= 0) && !signal) {
     return await fetch(input, init);
   }
+  if (signal?.aborted) {
+    throw new Error(abortMessage());
+  }
   const controller = new AbortController();
-  return await withTimeout(
+  return await withTimeoutAndAbort(
     fetch(input, { ...init, signal: controller.signal }),
-    timeoutMs,
-    () => controller.abort(),
+    {
+      timeoutMs,
+      signal,
+      onTimeout: () => controller.abort(),
+      onAbort: () => controller.abort(),
+    },
   );
 }
 
@@ -192,7 +241,7 @@ export function parseJsonrpcResponse(data: any): [any, string | null] {
 
 export interface MCPTransport {
   connect(): Promise<boolean>;
-  sendRequest(method: string, params?: any, options?: { timeoutMs?: number }): Promise<[any, string | null]>;
+  sendRequest(method: string, params?: any, options?: McpRequestOptions): Promise<[any, string | null]>;
   close(): void;
 }
 
@@ -208,6 +257,8 @@ export class StdioTransport implements MCPTransport {
     {
       resolve: (response: any) => void;
       timer?: ReturnType<typeof setTimeout>;
+      abortListener?: () => void;
+      signal?: AbortSignal;
     }
   >();
 
@@ -233,6 +284,7 @@ export class StdioTransport implements MCPTransport {
             const pending = this.pending.get(json.id)!;
             this.pending.delete(json.id);
             if (pending.timer) clearTimeout(pending.timer);
+            if (pending.abortListener) pending.signal?.removeEventListener("abort", pending.abortListener);
             pending.resolve(json);
           } else {
             debugLog(`Unmatched JSON-RPC message: ${JSON.stringify(json)}`);
@@ -264,23 +316,51 @@ export class StdioTransport implements MCPTransport {
     this._write({ jsonrpc: "2.0", method, params });
   }
 
+  private sendCancellationNotification(requestId: string, reason: string) {
+    try {
+      this.sendNotification("notifications/cancelled", { requestId, reason });
+    } catch (error) {
+      debugLog(`Failed to send cancellation notification: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   private _write(message: any) {
     const line = JSON.stringify(message) + "\n";
     debugLog(`STDIN: ${line.trim()}`);
     this.proc.stdin.write(line);
   }
 
-  async sendRequest(method: string, params?: any, options?: { timeoutMs?: number }): Promise<[any, string | null]> {
+  async sendRequest(method: string, params?: any, options?: McpRequestOptions): Promise<[any, string | null]> {
     const req = createJsonrpcRequest(method, params);
+    if (options?.signal?.aborted) {
+      return parseJsonrpcResponse({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: abortMessage() } });
+    }
     const useTimeout = shouldUseRequestTimeout(method, options);
     const timeoutMs = normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs);
     const responsePromise = new Promise<any>((resolve) => {
-      const pending: { resolve: (response: any) => void; timer?: ReturnType<typeof setTimeout> } = { resolve };
+      const pending: {
+        resolve: (response: any) => void;
+        timer?: ReturnType<typeof setTimeout>;
+        abortListener?: () => void;
+        signal?: AbortSignal;
+      } = { resolve, signal: options?.signal };
       if (useTimeout) {
         pending.timer = setTimeout(() => {
           this.pending.delete(req.id);
+          if (pending.abortListener) pending.signal?.removeEventListener("abort", pending.abortListener);
+          if (method !== "initialize") this.sendCancellationNotification(req.id, timeoutMessage(timeoutMs));
           resolve({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: timeoutMessage(timeoutMs) } });
         }, timeoutMs);
+      }
+      if (options?.signal) {
+        pending.abortListener = () => {
+          this.pending.delete(req.id);
+          if (pending.timer) clearTimeout(pending.timer);
+          if (pending.abortListener) pending.signal?.removeEventListener("abort", pending.abortListener);
+          if (method !== "initialize") this.sendCancellationNotification(req.id, abortMessage());
+          resolve({ jsonrpc: "2.0", id: req.id, error: { code: -32000, message: abortMessage() } });
+        };
+        options.signal.addEventListener("abort", pending.abortListener, { once: true });
       }
       this.pending.set(req.id, pending);
     });
@@ -291,6 +371,7 @@ export class StdioTransport implements MCPTransport {
   close() {
     for (const [id, pending] of this.pending.entries()) {
       if (pending.timer) clearTimeout(pending.timer);
+      if (pending.abortListener) pending.signal?.removeEventListener("abort", pending.abortListener);
       pending.resolve({ jsonrpc: "2.0", id, error: { code: -32000, message: "Transport closed" } });
     }
     this.pending.clear();
@@ -344,11 +425,28 @@ export class StreamableHTTPTransport implements MCPTransport {
     );
   }
 
-  async sendRequest(method: string, params?: any, options?: { timeoutMs?: number }): Promise<[any, string | null]> {
+  private sendCancellationNotification(requestId: string, reason: string) {
+    void this.sendNotification("notifications/cancelled", { requestId, reason }).catch((error) => {
+      debugLog(`Failed to send cancellation notification: ${error instanceof Error ? error.message : String(error)}`);
+    });
+  }
+
+  private requestErrorMessage(method: string, requestId: string, error: unknown): string {
+    const message = error instanceof Error ? error.message : String(error);
+    if (method !== "initialize" && (message === abortMessage() || message.startsWith("Request timeout after "))) {
+      this.sendCancellationNotification(requestId, message);
+    }
+    return message;
+  }
+
+  private requestError(method: string, requestId: string, error: unknown): [null, string] {
+    const message = this.requestErrorMessage(method, requestId, error);
+    return [null, message];
+  }
+
+  async sendRequest(method: string, params?: any, options?: McpRequestOptions): Promise<[any, string | null]> {
     const useTimeout = shouldUseRequestTimeout(method, options);
-    const timeoutMs = useTimeout
-      ? normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs)
-      : normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs);
+    const timeoutMs = normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs);
     const req = createJsonrpcRequest(method, params);
     const headers = new Headers(this.headers);
     headers.set("Content-Type", "application/json");
@@ -360,27 +458,32 @@ export class StreamableHTTPTransport implements MCPTransport {
         this.url,
         { method: "POST", headers, body: JSON.stringify(req) },
         useTimeout ? timeoutMs : undefined,
+        options?.signal,
       );
     } catch (error) {
-      return [null, error instanceof Error ? error.message : String(error)];
+      return this.requestError(method, req.id, error);
     }
     if (resp.headers.has("Mcp-Session-Id")) this.sessionId = resp.headers.get("Mcp-Session-Id");
     if (!resp.ok) {
       const bodyPromise = resp.text();
       const text = useTimeout
-        ? await withTimeout(bodyPromise, timeoutMs).catch((error) =>
-            error instanceof Error ? error.message : String(error)
+        ? await withTimeoutAndAbort(bodyPromise, { timeoutMs, signal: options?.signal }).catch((error) =>
+            this.requestErrorMessage(method, req.id, error)
           )
-        : await bodyPromise.catch((error) => error instanceof Error ? error.message : String(error));
+        : await withTimeoutAndAbort(bodyPromise, { signal: options?.signal }).catch((error) =>
+            this.requestErrorMessage(method, req.id, error)
+          );
       return [null, `HTTP ${resp.status}: ${text}`];
     }
     const contentType = resp.headers.get("content-type") || "";
     if (contentType.includes("text/event-stream")) {
       let text: string;
       try {
-        text = useTimeout ? await withTimeout(resp.text(), timeoutMs) : await resp.text();
+        text = useTimeout
+          ? await withTimeoutAndAbort(resp.text(), { timeoutMs, signal: options?.signal })
+          : await withTimeoutAndAbort(resp.text(), { signal: options?.signal });
       } catch (error) {
-        return [null, error instanceof Error ? error.message : String(error)];
+        return this.requestError(method, req.id, error);
       }
       for (const line of text.split("\n")) {
         if (line.startsWith("data:")) {
@@ -392,9 +495,11 @@ export class StreamableHTTPTransport implements MCPTransport {
     }
     let json: any;
     try {
-      json = useTimeout ? await withTimeout(resp.json(), timeoutMs) : await resp.json();
+      json = useTimeout
+        ? await withTimeoutAndAbort(resp.json(), { timeoutMs, signal: options?.signal })
+        : await withTimeoutAndAbort(resp.json(), { signal: options?.signal });
     } catch (error) {
-      return [null, error instanceof Error ? error.message : String(error)];
+      return this.requestError(method, req.id, error);
     }
     return parseJsonrpcResponse(json);
   }
@@ -430,27 +535,31 @@ export class SSETransport implements MCPTransport {
     }
   }
 
-  async sendRequest(method: string, params?: any, options?: { timeoutMs?: number }): Promise<[any, string | null]> {
+  async sendRequest(method: string, params?: any, options?: McpRequestOptions): Promise<[any, string | null]> {
     const useTimeout = shouldUseRequestTimeout(method, options);
-    const timeoutMs = useTimeout
-      ? normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs)
-      : normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs);
+    const timeoutMs = normalizeRequestTimeoutMs(options?.timeoutMs, this.requestTimeoutMs);
     try {
       if (method === "tools/list") {
-        const resp = await withTimeout(
-          this.client.request({ method, params }, ListToolsResultSchema),
-          timeoutMs,
+        const resp = await withTimeoutAndAbort(
+          this.client.request({ method, params }, ListToolsResultSchema, { signal: options?.signal, timeout: timeoutMs }),
+          { timeoutMs, signal: options?.signal },
         );
         return [resp, null];
       }
       if (method === "tools/call") {
-        const request = this.client.request({ method, params }, CallToolResultSchema);
-        const resp = useTimeout ? await withTimeout(request, timeoutMs) : await request;
+        const request = this.client.request(
+          { method, params },
+          CallToolResultSchema,
+          { signal: options?.signal, timeout: useTimeout ? timeoutMs : undefined },
+        );
+        const resp = useTimeout
+          ? await withTimeoutAndAbort(request, { timeoutMs, signal: options?.signal })
+          : await withTimeoutAndAbort(request, { signal: options?.signal });
         return [resp, null];
       }
-      const resp = await withTimeout(
-        this.client.request({ method, params }, undefined as any),
-        timeoutMs,
+      const resp = await withTimeoutAndAbort(
+        this.client.request({ method, params }, undefined as any, { signal: options?.signal, timeout: timeoutMs }),
+        { timeoutMs, signal: options?.signal },
       );
       return parseJsonrpcResponse(resp as any);
     } catch (e: any) {
@@ -516,7 +625,7 @@ export class MCPClient {
     }
   }
 
-  async callTool(toolName: string, args: any, options?: { timeoutMs?: number }) {
+  async callTool(toolName: string, args: any, options?: McpRequestOptions) {
     if (!this.connected || !this.transport) return "Error: Not connected";
     infoLog(`Calling tool: ${toolName} with args: ${JSON.stringify(args)}`);
     const [result, error] = await this.transport.sendRequest("tools/call", { name: toolName, arguments: args }, options);
@@ -563,13 +672,14 @@ export class MCPManager {
     }));
   }
 
-  async callTool(fullName: string, argumentsObj: any, options?: { timeoutMs?: number }) {
+  async callTool(fullName: string, argumentsObj: any, options?: McpRequestOptions) {
     const tool = this.tools.find((t) => t.fullName === fullName);
     if (!tool) return `Error: Tool not found: ${fullName}`;
     if (!this.clients[tool.serverName]) return `Error: Server not connected: ${tool.serverName}`;
     const extracted = extractMcpCallOptions(argumentsObj);
     return this.clients[tool.serverName].callTool(tool.name, extracted.args, {
       timeoutMs: options?.timeoutMs ?? extracted.timeoutMs,
+      signal: options?.signal,
     });
   }
 

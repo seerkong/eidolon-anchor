@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-domain-ai-host-consumer-cutover" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 `@cell/domain-ai-contract` / `@cell/domain-ai-logic` 成为 AI-specific contract/logic 的默认消费入口。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T13:05:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T13:28:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-domain-ai-host-consumer-cutover" name="refactor-domain-ai-host-consumer-cutover" version="1">
+    <Description>将 domain-ai 显式宿主推进为默认消费入口</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Consumer Ownership Freeze" status="DONE" order="0">
+        <Description>冻结哪些 consumer 应优先切到 domain-ai host。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 consumer cutover ownership 表" status="DONE" order="0" priority="P0">
+            <Description>明确哪些 composer/mod/shell/test 调用方应切到 `domain-ai-*`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">cutover 范围明确</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">不引入第二真相源</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Consumer Cutover" status="DONE" order="1">
+        <Description>完成第一批默认消费入口切换。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="切换 domain-ai contract/logic consumer" status="DONE" order="0" priority="P0">
+            <Description>调整 composer/mod/shell/test 入口优先消费 `@cell/domain-ai-contract` / `@cell/domain-ai-logic`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">第一批 consumer 已切换</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">历史入口未形成回流</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Focused Verification" status="DONE" order="2">
+        <Description>验证默认消费入口与 ownership 不回归。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="运行 domain-ai host focused tests" status="DONE" order="0" priority="P0">
+            <Description>覆盖 package surface、runtime composer、shell adoption 等关键面。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">domain-ai host 成为默认入口</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

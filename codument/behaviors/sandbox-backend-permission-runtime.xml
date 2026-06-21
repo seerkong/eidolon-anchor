@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="sandbox-backend-permission-runtime" version="1">
+  <!-- unmapped: ## Requirements -->
+  <requirement id="sandbox-backend-runtime-abstraction">
+    <statement>The system SHALL provide a platform-neutral sandbox backend runtime for command execution across macOS, Linux, and Windows.</statement>
+    <!-- migrated title: Sandbox Backend Runtime Abstraction -->
+    <suite name="sandbox-backend-runtime-abstraction">
+      <case id="platform-specific-backend-selection" name="Platform-specific backend selection">
+        <given>a Bash tool execution with runtime metadata containing `sandbox_permissions`</given>
+        <when>the runtime resolves backend selection</when>
+        <then>macOS SHALL select the Seatbelt backend for `read-only` or `workspace-write`</then>
+        <then>Linux SHALL select the Linux sandbox backend for `read-only` or `workspace-write`</then>
+        <then>Windows SHALL select the Windows sandbox backend for `read-only` or `workspace-write`</then>
+        <then>`danger-full-access` SHALL select the unsandboxed backend on every platform.</then>
+      </case>
+      <case id="bash-execution-uses-backend-selection" name="Bash execution uses backend selection">
+        <given>a Bash tool execution with runtime metadata containing sandbox permissions</given>
+        <when>the command is executed</when>
+        <then>the tool SHALL delegate process execution to the sandbox backend runtime</then>
+        <then>SHALL preserve existing local permission authorization before executing the command.</then>
+      </case>
+      <case id="existing-permission-chain-is-preserved" name="Existing permission chain is preserved">
+        <given>a Bash tool execution requires local permission authorization</given>
+        <when>the command is executed through any sandbox backend</when>
+        <then>the tool SHALL call local permission authorization before resolving or invoking the sandbox backend</then>
+        <then>SHALL keep existing dangerous command guards.</then>
+      </case>
+      <case id="writable-roots-are-resolved-consistently" name="Writable roots are resolved consistently">
+        <given>`workspace-write` mode and runtime metadata with additional writable roots or workspace-access grants</given>
+        <when>backend selection is resolved</when>
+        <then>the selected platform backend SHALL receive a normalized unique list of writable roots</then>
+        <then>read-only mode SHALL receive no writable roots.</then>
+      </case>
+      <case id="workspace-access-grants-extend-sandbox-writable-roots" name="Workspace access grants extend sandbox writable roots">
+        <given>`workspace-access.json` grants write access to a directory outside the workspace for the current workspace</given>
+        <given>the platform is macOS with `sandbox_mode` set to `workspace-write`</given>
+        <when>a Bash command is executed through the sandbox backend</when>
+        <then>the macOS Seatbelt writable roots SHALL include the granted directory</then>
+        <then>SHALL continue to protect workspace metadata directories from generic writes.</then>
+      </case>
+      <case id="dangerous-mode-remains-unsandboxed" name="Dangerous mode remains unsandboxed">
+        <given>runtime metadata has `sandbox_mode` set to `danger-full-access`</given>
+        <when>a Bash command is executed</when>
+        <then>the runtime SHALL execute without wrapping the command in a sandbox backend</then>
+        <then>SHALL retain existing dangerous command guards.</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="macos-seatbelt-backend">
+    <statement>The system SHALL provide a macOS Seatbelt backend that wraps shell commands with `/usr/bin/sandbox-exec`.</statement>
+    <!-- migrated title: macOS Seatbelt Backend -->
+    <suite name="macos-seatbelt-backend">
+      <case id="workspace-write-restricts-writes-to-allowed-roots" name="workspace-write restricts writes to allowed roots">
+        <given>the platform is macOS and `sandbox_mode` is `workspace-write`</given>
+        <given>the workspace root and additional writable roots are known</given>
+        <when>a Bash command is executed</when>
+        <then>the command SHALL run under a Seatbelt policy that permits writes only under those writable roots</then>
+        <then>SHALL protect workspace metadata directories from generic writes.</then>
+      </case>
+      <case id="read-only-blocks-writes" name="read-only blocks writes">
+        <given>the platform is macOS and `sandbox_mode` is `read-only`</given>
+        <when>a Bash command attempts filesystem writes</when>
+        <then>the Seatbelt policy SHALL deny those writes.</then>
+      </case>
+      <case id="network-follows-runtime-metadata" name="network follows runtime metadata">
+        <given>the platform is macOS and `network_access` is disabled</given>
+        <when>a Bash command is executed through the sandbox backend</when>
+        <then>the generated Seatbelt policy SHALL omit broad outbound and inbound network permissions.</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="linux-sandbox-backend">
+    <statement>The system SHALL provide a Linux backend modeled on Codex's bubblewrap plus seccomp sandbox design.</statement>
+    <!-- migrated title: Linux Sandbox Backend -->
+    <suite name="linux-sandbox-backend">
+      <case id="linux-read-only-blocks-writes" name="Linux read-only blocks writes">
+        <given>the platform is Linux and `sandbox_mode` is `read-only`</given>
+        <when>Bash execution attempts filesystem writes</when>
+        <then>the Linux backend SHALL run the command in a read-only filesystem view</then>
+        <then>the write attempt SHALL fail without modifying the target path.</then>
+      </case>
+      <case id="linux-workspace-write-permits-only-writable-roots" name="Linux workspace-write permits only writable roots">
+        <given>the platform is Linux and `sandbox_mode` is `workspace-write`</given>
+        <given>workspace and additional writable roots are known</given>
+        <when>Bash execution writes inside an allowed writable root</when>
+        <then>the write SHALL succeed</then>
+        <when>Bash execution writes outside the writable roots</when>
+        <then>the write SHALL fail.</then>
+      </case>
+      <case id="linux-protected-metadata-remains-protected" name="Linux protected metadata remains protected">
+        <given>a writable root contains protected metadata directories</given>
+        <when>a sandboxed Linux command attempts to write protected metadata paths</when>
+        <then>the backend SHALL deny or mask those writes.</then>
+      </case>
+      <case id="linux-network-policy-is-enforced-or-explicitly-rejected" name="Linux network policy is enforced or explicitly rejected">
+        <given>the platform is Linux and `network_access` is `disabled`</given>
+        <when>Bash execution attempts network access</when>
+        <then>the backend SHALL isolate or block network access</then>
+        <then>if the required namespace or helper capability is unavailable, execution SHALL fail with a clear sandbox setup error.</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="windows-sandbox-backend">
+    <statement>The system SHALL provide a Windows backend modeled on Codex's elevated restricted-token and ACL sandbox design.</statement>
+    <!-- migrated title: Windows Sandbox Backend -->
+    <suite name="windows-sandbox-backend">
+      <case id="windows-read-only-uses-restricted-identity" name="Windows read-only uses restricted identity">
+        <given>the platform is Windows and `sandbox_mode` is `read-only`</given>
+        <when>Bash execution runs a command</when>
+        <then>the Windows backend SHALL run it under a restricted sandbox identity or token</then>
+        <then>filesystem writes outside required runtime scratch locations SHALL fail.</then>
+      </case>
+      <case id="windows-workspace-write-uses-capability-scoped-writable-roots" name="Windows workspace-write uses capability-scoped writable roots">
+        <given>the platform is Windows and `sandbox_mode` is `workspace-write`</given>
+        <given>writable roots are known</given>
+        <when>Bash execution writes inside an allowed writable root</when>
+        <then>the write SHALL succeed</then>
+        <when>Bash execution writes outside allowed writable roots</when>
+        <then>the write SHALL fail.</then>
+      </case>
+      <case id="windows-setup-state-is-explicit" name="Windows setup state is explicit">
+        <given>Windows sandbox setup is required before command execution</given>
+        <when>the setup has not completed or required privileges are unavailable</when>
+        <then>the runtime SHALL return an actionable setup error</then>
+        <then>SHALL NOT silently downgrade to unsandboxed execution.</then>
+      </case>
+      <case id="windows-network-policy-is-enforced-or-explicitly-rejected" name="Windows network policy is enforced or explicitly rejected">
+        <given>the platform is Windows and `network_access` is `disabled`</given>
+        <when>Bash execution requests a sandboxed command</when>
+        <then>the backend SHALL apply the configured Windows network restriction</then>
+        <then>if network filtering is unavailable, execution SHALL fail with a clear degraded-state message rather than allowing unrestricted network access.</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="cross-platform-compatibility">
+    <statement>The system SHALL preserve explicit fallback behavior without silently weakening requested sandbox permissions.</statement>
+    <!-- migrated title: Cross-Platform Compatibility -->
+    <suite name="cross-platform-compatibility">
+      <case id="unsupported-backend-reports-a-degraded-or-unsupported-state" name="Unsupported backend reports a degraded or unsupported state">
+        <given>the host platform requests `read-only` or `workspace-write`</given>
+        <given>the required platform backend dependency is unavailable</given>
+        <when>Bash execution attempts to run</when>
+        <then>the runtime SHALL return a clear error or degraded-state message</then>
+        <then>SHALL NOT silently run the command unsandboxed.</then>
+      </case>
+      <case id="macos-behavior-remains-unchanged" name="macOS behavior remains unchanged">
+        <given>the platform is macOS</given>
+        <when>a command is executed under `read-only`, `workspace-write`, or `danger-full-access`</when>
+        <then>existing Seatbelt and unsandboxed behavior SHALL continue to pass current sandbox backend tests.</then>
+        <!-- unmapped: ## Acceptance Criteria -->
+        <!-- unmapped: - Bash command execution is routed through a reusable sandbox backend runtime. -->
+        <!-- unmapped: - macOS Seatbelt command arguments are generated from sandbox mode, network access, workspace root, and additional writable roots. -->
+        <!-- unmapped: - macOS Seatbelt writable roots include current workspace write grants from `workspace-access.json`. -->
+        <!-- unmapped: - Linux and Windows backend names are added to sandbox backend selection. -->
+        <!-- unmapped: - `read-only` and `workspace-write` on Linux and Windows no longer use `unsandboxed` as the normal path. -->
+        <!-- unmapped: - Linux backend command construction follows bubblewrap/seccomp helper semantics and is unit-tested. -->
+        <!-- unmapped: - Windows backend command construction/setup checks follow elevated restricted-token/ACL semantics and is unit-tested. -->
+        <!-- unmapped: - Bash sync and streaming execution can route through Linux and Windows backends. -->
+        <!-- unmapped: - Unit tests cover policy generation, backend selection, dangerous fallback, command construction, and Bash integration. -->
+        <!-- unmapped: - Existing local permission exec mode tests continue to pass. -->
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

@@ -87,12 +87,16 @@ describe("session abort runtime wiring", () => {
       expect(signal).toBeTruthy()
       expect(settled).toBe(false)
 
-      await runtime!.abort()
+      const abortResult = await Promise.race([
+        runtime!.abort().then(() => "resolved"),
+        new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 500)),
+      ])
       const turnResult = await Promise.race([
         turn,
         new Promise<string>((resolve) => setTimeout(() => resolve("timeout"), 500)),
       ])
 
+      expect(abortResult).toBe("resolved")
       expect(aborted).toBe(true)
       expect(turnResult).toBe("resolved")
       expect(settled).toBe(true)

@@ -5,6 +5,8 @@ import path from "path";
 
 import {
   flattenModelConfig,
+  isModelRefResolvable,
+  isPersistedModelStillResolvable,
   normalizeAdapterName,
   parseProviderCatalogRaw,
   resolveActorModelConfig,
@@ -12,7 +14,7 @@ import {
 import { loadAgentPresetConfig, loadLLMProviderConfig } from "@cell/ai-support";
 import {
   isAgentPresetConfig,
-  isLLMProviderConfig,
+  isLlmProviderCatalogRawConfig,
 } from "@cell/ai-organ-contract/llm/ProviderConfig";
 
 const originalHome = process.env.HOME;
@@ -53,17 +55,16 @@ describe("llm config loader", () => {
 
   it("resolves DeepSeek model capabilities from explicit provider configs", () => {
     expect(normalizeAdapterName("deepseek")).toBe("deepseek");
-    const catalog = {
+    const catalog = parseProviderCatalogRaw({
       providers: [
         {
-          name: "deepseek",
+          id: "deepseek",
           adapter: "deepseek",
-          baseURL: "https://api.deepseek.com/v1",
-          apiKey: "k-deepseek",
-          models: [{ name: "deepseek-reasoner", context: 128000, output: 8192 }],
+          options: { baseURL: "https://api.deepseek.com/v1", apiKey: "k-deepseek" },
+          models: [{ id: "deepseek-reasoner", limits: { context: 128000, output: 8192 } }],
         },
       ],
-    };
+    });
 
     const flattened = flattenModelConfig("deepseek/deepseek-reasoner", catalog);
     expect(flattened).toEqual(
@@ -118,24 +119,26 @@ describe("llm config loader", () => {
     expect(flattened?.capabilities?.cachePolicy?.compactionThresholdTokens).toBe(560000);
   });
 
-  it("validates LLMProviderConfig shape", () => {
+  it("validates llm-provider.json raw config shape", () => {
     const good = {
       providers: [
         {
-          name: "openai",
+          id: "openai",
           adapter: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192, reasoning: { effort: "high" } }],
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 }, reasoning: { effort: "high" } }],
         },
       ],
     };
     const bad = {
-      providers: [{ name: "openai", models: [] }],
+      providers: [{ id: "openai", options: {}, models: [] }],
     };
 
-    expect(isLLMProviderConfig(good)).toBe(true);
-    expect(isLLMProviderConfig(bad)).toBe(false);
+    expect(isLlmProviderCatalogRawConfig(good)).toBe(true);
+    expect(isLlmProviderCatalogRawConfig(bad)).toBe(true);
+    expect(isLlmProviderCatalogRawConfig({
+      providers: [{ name: "openai", options: {}, models: [] }],
+    })).toBe(false);
   });
 
   it("validates AgentPresetConfig shape", () => {
@@ -169,11 +172,10 @@ describe("llm config loader", () => {
     writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
-          name: "openai",
+          id: "openai",
           adapter: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k-openai",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192, reasoning: { effort: "high" } }],
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 }, reasoning: { effort: "high" } }],
         },
       ],
     });
@@ -221,13 +223,13 @@ describe("llm config loader", () => {
     expect(logs.some((line) => line.startsWith("error:"))).toBe(true);
   });
 
-  it("loads valid agent-preset.json", () => {
+  it("loads valid agent-present.json", () => {
     const workdir = makeTempWorkdir();
     const homeDir = makeTempHomeDir();
     cleanupDirs.push(workdir);
     cleanupDirs.push(homeDir);
     setTestHome(homeDir);
-    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-present.json"), {
       default_preset: "default",
       presets: {
         default: {
@@ -241,7 +243,7 @@ describe("llm config loader", () => {
     expect(loaded?.preset).toBe("default");
   });
 
-  it("returns null when agent-preset.json is missing", () => {
+  it("returns null when agent-present.json is missing", () => {
     const workdir = makeTempWorkdir();
     const homeDir = makeTempHomeDir();
     cleanupDirs.push(workdir);
@@ -253,17 +255,16 @@ describe("llm config loader", () => {
   });
 
   it("flattens provider/model into runtime model config", () => {
-    const providerConfig = {
+    const providerConfig = parseProviderCatalogRaw({
       providers: [
         {
-          name: "openai",
+          id: "openai",
           adapter: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k-openai",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192, reasoning: { effort: "high" } }],
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 }, reasoning: { effort: "high" } }],
         },
       ],
-    };
+    });
 
     const flat = flattenModelConfig("openai/gpt-4o", providerConfig);
     expect(flat).toEqual({
@@ -275,21 +276,25 @@ describe("llm config loader", () => {
       inputLimit: 128000,
       outputLimit: 8192,
       reasoningEffort: "high",
+      capabilities: undefined,
+      options: {
+        baseURL: "https://api.openai.com/v1",
+        apiKey: "k-openai",
+      },
     });
   });
 
   it("keeps model names with slashes when flattening runtime model config", () => {
-    const providerConfig = {
+    const providerConfig = parseProviderCatalogRaw({
       providers: [
         {
-          name: "codeflicker",
+          id: "codeflicker",
           adapter: "codex",
-          baseURL: "http://127.0.0.1:8018/v1",
-          apiKey: "dummy",
-          models: [{ name: "wanqing/gpt-5.4", context: 128000, output: 8192, reasoning: { effort: "high" } }],
+          options: { baseURL: "http://127.0.0.1:8018/v1", apiKey: "dummy" },
+          models: [{ id: "wanqing/gpt-5.4", limits: { context: 128000, output: 8192 }, reasoning: { effort: "high" } }],
         },
       ],
-    };
+    });
 
     const flat = flattenModelConfig("codeflicker/wanqing/gpt-5.4", providerConfig);
     expect(flat).toEqual({
@@ -301,20 +306,24 @@ describe("llm config loader", () => {
       inputLimit: 128000,
       outputLimit: 8192,
       reasoningEffort: "high",
+      capabilities: undefined,
+      options: {
+        baseURL: "http://127.0.0.1:8018/v1",
+        apiKey: "dummy",
+      },
     });
   });
 
   it("returns null and logs error when provider is missing", () => {
-    const providerConfig = {
+    const providerConfig = parseProviderCatalogRaw({
       providers: [
         {
-          name: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k-openai",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192 }],
+          id: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
         },
       ],
-    };
+    });
     const logs: string[] = [];
 
     const flat = flattenModelConfig("unknown/model", providerConfig, (level, message) => {
@@ -326,16 +335,15 @@ describe("llm config loader", () => {
   });
 
   it("uses provider info with zero limits when model is missing", () => {
-    const providerConfig = {
+    const providerConfig = parseProviderCatalogRaw({
       providers: [
         {
-          name: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k-openai",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192 }],
+          id: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
         },
       ],
-    };
+    });
     const logs: string[] = [];
 
     const flat = flattenModelConfig("openai/unknown", providerConfig, (level, message) => {
@@ -351,8 +359,42 @@ describe("llm config loader", () => {
       inputLimit: 0,
       outputLimit: 0,
       reasoningEffort: undefined,
+      capabilities: undefined,
+      options: {
+        baseURL: "https://api.openai.com/v1",
+        apiKey: "k-openai",
+      },
     });
     expect(logs.some((line) => line.startsWith("warn:"))).toBe(true);
+  });
+
+  it("rejects legacy llm-provider.json provider and model fields", () => {
+    expect(() =>
+      parseProviderCatalogRaw({
+        providers: [
+          {
+            name: "deepseek",
+            adapter: "deepseek",
+            baseURL: "https://api.deepseek.com/v1",
+            apiKey: "k-deepseek",
+            models: [{ name: "deepseek-v4-pro", context: 600000, output: 300000 }],
+          },
+        ],
+      }),
+    ).toThrow("$.providers[0].id is required");
+
+    expect(() =>
+      parseProviderCatalogRaw({
+        providers: [
+          {
+            id: "deepseek",
+            adapter: "deepseek",
+            options: { baseURL: "https://api.deepseek.com/v1", apiKey: "k-deepseek" },
+            models: [{ id: "deepseek-v4-pro", context: 600000, output: 300000 }],
+          },
+        ],
+      }),
+    ).toThrow("$.providers[0].models[0].limits is required");
   });
 
   it("resolves actor model config from active preset", () => {
@@ -364,15 +406,14 @@ describe("llm config loader", () => {
     writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
-          name: "openai",
+          id: "openai",
           adapter: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k-openai",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192, reasoning: { effort: "high" } }],
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 }, reasoning: { effort: "high" } }],
         },
       ],
     });
-    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-present.json"), {
       default_preset: "default",
       presets: {
         default: {
@@ -407,15 +448,14 @@ describe("llm config loader", () => {
     writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
-          name: "openai",
+          id: "openai",
           adapter: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k-openai",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192, reasoning: { effort: "high" } }],
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 }, reasoning: { effort: "high" } }],
         },
       ],
     });
-    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-present.json"), {
       default_preset: "default",
       presets: {
         default: {
@@ -446,15 +486,14 @@ describe("llm config loader", () => {
     writeJson(path.join(homeDir, ".eidolon", "llm-provider.json"), {
       providers: [
         {
-          name: "openai",
+          id: "openai",
           adapter: "openai",
-          baseURL: "https://api.openai.com/v1",
-          apiKey: "k-openai",
-          models: [{ name: "gpt-4o", context: 128000, output: 8192, reasoning: { effort: "high" } }],
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 }, reasoning: { effort: "high" } }],
         },
       ],
     });
-    writeJson(path.join(homeDir, ".eidolon", "agent-preset.json"), {
+    writeJson(path.join(homeDir, ".eidolon", "agent-present.json"), {
       default_preset: "default",
       presets: {
         default: {
@@ -481,17 +520,130 @@ describe("llm config loader", () => {
     expect(resolved.reasoningEffort).toBe("high");
   });
 
-  it("keeps fallback adapter when provider config omits adapter", () => {
-    const providerConfig = {
+  it("resolves explicit model refs without requiring a preset config", () => {
+    const providerConfig = parseProviderCatalogRaw({
       providers: [
         {
-          name: "codeflicker",
-          baseURL: "http://127.0.0.1:8018/v1",
-          apiKey: "dummy",
-          models: [{ name: "wanqing/gpt-5.4", context: 128000, output: 8192 }],
+          id: "fhl_mom",
+          adapter: "deepseek",
+          options: { baseURL: "https://api.fhl.example/v1", apiKey: "k-fhl" },
+          models: [{ id: "deepseek-v4-pro", limits: { context: 600000, output: 300000 } }],
         },
       ],
-    };
+    });
+
+    const resolved = resolveActorModelConfig({
+      agentKey: "main",
+      modelRef: "fhl_mom/deepseek-v4-pro",
+      fallbackModelConfig: { model: "fallback", provider: "xixixixi-cloud", adapter: "deepseek" },
+      providerConfig,
+      presetConfig: null,
+    });
+
+    expect(resolved.provider).toBe("fhl_mom");
+    expect(resolved.adapter).toBe("deepseek");
+    expect(resolved.model).toBe("deepseek-v4-pro");
+    expect(resolved.baseUrl).toBe("https://api.fhl.example/v1");
+    expect(resolved.apiKey).toBe("k-fhl");
+    expect(resolved.inputLimit).toBe(600000);
+    expect(resolved.outputLimit).toBe(300000);
+  });
+
+  it("resolves explicit model refs from id-only provider config", () => {
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "fhl_mom",
+          adapter: "openai-responses",
+          options: {
+            baseURL: "https://www.fhl.mom",
+            apiKey: "k-fhl",
+          },
+          models: [
+            {
+              id: "gpt-5.5",
+              limits: { context: 400000, output: 128000 },
+              options: {
+                serviceTier: "priority",
+                store: false,
+                reasoningEffort: "high",
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const resolved = resolveActorModelConfig({
+      agentKey: "main",
+      modelRef: "fhl_mom/gpt-5.5",
+      strictModelRef: true,
+      fallbackModelConfig: { model: "fallback", provider: "xixixixi-cloud", adapter: "deepseek" },
+      providerConfig,
+      presetConfig: null,
+    });
+
+    expect(resolved.provider).toBe("fhl_mom");
+    expect(resolved.adapter).toBe("codex");
+    expect(resolved.model).toBe("gpt-5.5");
+    expect(resolved.baseUrl).toBe("https://www.fhl.mom");
+    expect(resolved.apiKey).toBe("k-fhl");
+    expect(resolved.inputLimit).toBe(400000);
+    expect(resolved.outputLimit).toBe(128000);
+    expect(resolved.options).toEqual({
+      baseURL: "https://www.fhl.mom",
+      apiKey: "k-fhl",
+      serviceTier: "priority",
+      store: false,
+      reasoningEffort: "high",
+    });
+  });
+
+  it("throws instead of falling back for invalid explicit model refs in strict mode", () => {
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "fhl_mom",
+          adapter: "openai",
+          options: { baseURL: "https://www.fhl.mom", apiKey: "k-fhl" },
+          models: [{ id: "gpt-5.5", limits: { context: 400000, output: 128000 } }],
+        },
+      ],
+    });
+
+    expect(() =>
+      resolveActorModelConfig({
+        agentKey: "main",
+        modelRef: "fhl_mon/gpt-5.5",
+        strictModelRef: true,
+        fallbackModelConfig: { model: "fallback", provider: "xixixixi-cloud", adapter: "deepseek" },
+        providerConfig,
+        presetConfig: null,
+      }),
+    ).toThrow("Provider not found: fhl_mon");
+
+    expect(() =>
+      resolveActorModelConfig({
+        agentKey: "main",
+        modelRef: "fhl_mom/gpt-unknown",
+        strictModelRef: true,
+        fallbackModelConfig: { model: "fallback", provider: "xixixixi-cloud", adapter: "deepseek" },
+        providerConfig,
+        presetConfig: null,
+      }),
+    ).toThrow("Model not found under provider: fhl_mom/gpt-unknown");
+  });
+
+  it("keeps fallback adapter when provider config omits adapter", () => {
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "codeflicker",
+          options: { baseURL: "http://127.0.0.1:8018/v1", apiKey: "dummy" },
+          models: [{ id: "wanqing/gpt-5.4", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
     const presetConfig = {
       preset: "default",
       presets: {
@@ -511,6 +663,169 @@ describe("llm config loader", () => {
     expect(resolved.provider).toBe("codeflicker");
     expect(resolved.adapter).toBe("openai");
     expect(resolved.model).toBe("wanqing/gpt-5.4");
+  });
+
+  // --- P1 (a): recovery-model-config-validation ---
+  // A persisted actor modelConfig may select a model/provider that no longer
+  // exists in the current providers config. The runtime must detect this and
+  // fall back to the default preset; it must preserve a still-resolvable model.
+
+  it("isModelRefResolvable reports a known provider/model as resolvable", () => {
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "openai",
+          adapter: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
+
+    expect(isModelRefResolvable("openai/gpt-4o", providerConfig)).toBe(true);
+  });
+
+  it("isModelRefResolvable reports an unknown provider as unresolvable", () => {
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "openai",
+          adapter: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
+
+    expect(isModelRefResolvable("removed-provider/gpt-4o", providerConfig)).toBe(false);
+  });
+
+  it("isModelRefResolvable reports provider-present-but-model-removed as unresolvable (flatten synth trap)", () => {
+    // flattenModelConfig synthesizes a zeroed config when the provider exists
+    // but the model was removed, so staleness cannot be detected by null-checking
+    // the flattened result. The predicate must check model membership directly.
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "openai",
+          adapter: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
+
+    // Guard: confirm the trap is real — flatten returns a (synthesized) non-null config.
+    expect(flattenModelConfig("openai/removed-model", providerConfig)).not.toBeNull();
+    // But the predicate must report it as unresolvable.
+    expect(isModelRefResolvable("openai/removed-model", providerConfig)).toBe(false);
+  });
+
+  it("isModelRefResolvable handles model names containing slashes", () => {
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "codeflicker",
+          adapter: "codex",
+          options: { baseURL: "http://127.0.0.1:8018/v1", apiKey: "dummy" },
+          models: [{ id: "wanqing/gpt-5.4", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
+
+    expect(isModelRefResolvable("codeflicker/wanqing/gpt-5.4", providerConfig)).toBe(true);
+    expect(isModelRefResolvable("codeflicker/wanqing/removed", providerConfig)).toBe(false);
+  });
+
+  it("isPersistedModelStillResolvable preserves a still-resolvable persisted model", () => {
+    // case: valid-persisted-model-preserved
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "openai",
+          adapter: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
+
+    const persisted = {
+      provider: "openai",
+      model: "gpt-4o",
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "k-openai",
+    };
+
+    expect(isPersistedModelStillResolvable(persisted, providerConfig)).toBe(true);
+  });
+
+  it("isPersistedModelStillResolvable rejects a persisted model whose provider was removed", () => {
+    // case: stale-model-falls-back-to-default (provider removed)
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "openai",
+          adapter: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
+
+    const persisted = {
+      provider: "legacy-cloud",
+      model: "deepseek-v4-pro",
+      baseUrl: "https://legacy.example/v1",
+      apiKey: "k-legacy",
+    };
+
+    expect(isPersistedModelStillResolvable(persisted, providerConfig)).toBe(false);
+  });
+
+  it("isPersistedModelStillResolvable rejects a persisted model removed from an existing provider (synth trap)", () => {
+    // case: stale-model-falls-back-to-default (provider present, model removed)
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "openai",
+          adapter: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
+
+    const persisted = {
+      provider: "openai",
+      model: "gpt-3.5-removed",
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "k-openai",
+    };
+
+    expect(isPersistedModelStillResolvable(persisted, providerConfig)).toBe(false);
+  });
+
+  it("isPersistedModelStillResolvable returns false when provider config is unavailable", () => {
+    const persisted = { provider: "openai", model: "gpt-4o" };
+    expect(isPersistedModelStillResolvable(persisted, null)).toBe(false);
+  });
+
+  it("isPersistedModelStillResolvable returns false for an empty/partial persisted model", () => {
+    const providerConfig = parseProviderCatalogRaw({
+      providers: [
+        {
+          id: "openai",
+          adapter: "openai",
+          options: { baseURL: "https://api.openai.com/v1", apiKey: "k-openai" },
+          models: [{ id: "gpt-4o", limits: { context: 128000, output: 8192 } }],
+        },
+      ],
+    });
+
+    expect(isPersistedModelStillResolvable({ provider: "openai" }, providerConfig)).toBe(false);
+    expect(isPersistedModelStillResolvable({ model: "gpt-4o" }, providerConfig)).toBe(false);
+    expect(isPersistedModelStillResolvable({}, providerConfig)).toBe(false);
   });
 
   it("falls back to actor model config when config files are missing", () => {

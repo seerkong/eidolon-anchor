@@ -13,7 +13,7 @@ import type { TuiA1Selection } from "../src/app/tui_a1/data"
 import { TuiA1StateProvider, useTuiA1State } from "../src/app/tui_a1/state/state-context"
 import type { Route } from "../src/app/tui_a1/route/route"
 import { RouteProvider } from "../src/app/tui_a1/route/route-context"
-import { LocalProvider } from "../src/app/tui_a1/state/local-context"
+import { LocalProvider, useLocal } from "../src/app/tui_a1/state/local-context"
 import { SyncProvider } from "../src/app/tui_a1/state/sync-context"
 import { DialogAgent } from "../src/app/tui_a1/system/agent/agent-dialog"
 import { DialogProvider as DialogConnectProvider } from "../src/app/tui_a1/system/provider/provider-dialog"
@@ -21,6 +21,8 @@ import { DialogSessionList } from "../src/app/tui_a1/system/session/session-list
 import { DialogStatus } from "../src/app/tui_a1/system/status/status-dialog"
 import { DialogProvider, useDialog } from "../src/ui/dialog/context"
 import { Toast, ToastProvider } from "../src/ui/toast/toast"
+import { createTuiRuntimeClient } from "../src/runtime/client/TuiRuntimeClient"
+import type { TuiRuntimeSdk } from "@terminal/core/AIAgent"
 
 const tick = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms))
 const mockSelection: TuiA1Selection = {
@@ -89,6 +91,16 @@ function OpenDialogOnMount(props: { render: () => JSX.Element }) {
   return <box width="100%" height="100%" />
 }
 
+function SetModelOnMount(props: { providerID: string; modelID: string }) {
+  const local = useLocal()
+
+  onMount(() => {
+    local.model.set({ providerID: props.providerID, modelID: props.modelID }, { recent: true })
+  })
+
+  return <box width="100%" height="100%" />
+}
+
 function GraphDebug() {
   const { stateGraph } = useTuiA1State()
   const route = useGraphSignal<Route, undefined>(stateGraph.graph, "route")
@@ -100,14 +112,15 @@ function GraphDebug() {
         const currentRoute = route()
         return (
           (currentRoute.type === "session" ? `route:session:${currentRoute.sessionID}` : "route:home") +
-          ` selection:${selection().agent}:${selection().providerID}/${selection().modelID}`
+          ` selection:${selection().agent}:${selection().providerID}/${selection().modelID}` +
+          ` source:${selection().modelSource ?? "none"}`
         )
       })()}
     </text>
   )
 }
 
-function renderSurfaceHarness(dialogRender: () => JSX.Element, options?: { sessionID?: string; selection?: TuiA1Selection }) {
+function renderSurfaceHarness(dialogRender: () => JSX.Element, options?: { sessionID?: string; selection?: TuiA1Selection; client?: TuiRuntimeSdk }) {
   const sessionID = options?.sessionID ?? "ses_1"
   const selection = options?.selection ?? mockSelection
 
@@ -115,7 +128,7 @@ function renderSurfaceHarness(dialogRender: () => JSX.Element, options?: { sessi
     <ArgsProvider continue={true} sessionID={sessionID}>
       <ExitProvider onExit={async () => {}}>
         <KVProvider>
-          <RuntimeClientProvider url="mock">
+          <RuntimeClientProvider url="mock" client={options?.client}>
             <ToastProvider>
               <SyncProvider>
                 <ThemeProvider mode="dark">
@@ -232,6 +245,25 @@ describe("tui_a1 system surfaces", () => {
     }
   })
 
+  it("marks explicit model selections as user-explicit even when the model id is unchanged", async () => {
+    const setup = await testRender(
+      () => renderSurfaceHarness(() => <SetModelOnMount providerID="eidolon" modelID="shell-default" />),
+      {
+        width: 120,
+        height: 40,
+        kittyKeyboard: true,
+      },
+    )
+
+    try {
+      await renderSettled(setup, 6)
+
+      expect(captureText(setup)).toContain("selection:build:eidolon/shell-default source:user-explicit")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
   it("shows the current agent first in the selector list", async () => {
     const setup = await testRender(
       () =>
@@ -306,6 +338,86 @@ describe("tui_a1 system surfaces", () => {
 
       const text = captureText(setup)
       expect(text).toContain("route:session:ses_1")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("confirms and applies runtime-control upgrade before loading an old session", async () => {
+    const runtime = createTuiRuntimeClient({ mode: "mock" })
+    const calls: string[] = []
+    const client: TuiRuntimeSdk = {
+      ...runtime,
+      client: {
+        ...runtime.client,
+        session: {
+          ...runtime.client.session,
+          upgradeDryRun: async ({ sessionID } = {}) => {
+            calls.push(`dry-run:${sessionID}`)
+            return {
+              data: {
+                status: "dry_run",
+                mode: "file-store",
+                upgraded: false,
+                hasCheckpoint: false,
+                classification: "pending",
+                blockers: [{ reason: "missing_commit_marker" }],
+                canUpgrade: true,
+                plannedHeads: { runtime_snapshot: 3 },
+                upgrade: null,
+                checkpointMarker: null,
+              },
+            }
+          },
+          upgradeApply: async ({ sessionID } = {}) => {
+            calls.push(`apply:${sessionID}`)
+            return {
+              data: {
+                status: "applied",
+                mode: "file-store",
+                dryRun: {
+                  status: "dry_run",
+                  mode: "file-store",
+                  upgraded: false,
+                  hasCheckpoint: false,
+                  classification: "pending",
+                  blockers: [{ reason: "missing_commit_marker" }],
+                  canUpgrade: true,
+                  plannedHeads: { runtime_snapshot: 3 },
+                  upgrade: null,
+                  checkpointMarker: null,
+                },
+                verification: {
+                  classification: "clean",
+                  blockers: [],
+                },
+              },
+            }
+          },
+        },
+      },
+    }
+    const setup = await testRender(() => renderSurfaceHarness(() => <HomeSessionSurface />, { client }), {
+      width: 120,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 8)
+      await clickSpanOnLine(setup, "Mock Session", "[加载]")
+      await renderSettled(setup, 4)
+
+      expect(captureText(setup)).toContain("升级旧会话")
+
+      setup.mockInput.pressArrow("left")
+      await renderSettled(setup, 1)
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 8)
+
+      const text = captureText(setup)
+      expect(text).toContain("route:session:ses_1")
+      expect(calls).toEqual(["dry-run:ses_1", "apply:ses_1"])
     } finally {
       setup.renderer.destroy()
     }

@@ -18,7 +18,9 @@ import {
   defaultTuiA1Selection,
   formatTuiA1Selection,
   inferSelectionFromRuntimeMessages,
+  resolveTuiEffectiveModel,
   runtimeMessagesToTuiA1Messages,
+  selectionModelCandidate,
   type TuiA1Message,
   type TuiA1Selection,
 } from "./data"
@@ -123,7 +125,7 @@ export type TuiA1GraphEvent =
       partsByMessage: Record<string, Part[]>
     }
   | {
-      type: "runtime-hydrate-actor-transcript"
+      type: "runtime-hydrate-actor-history"
       sessionID: string
       transcriptKey: string
       messages: Message[]
@@ -211,6 +213,7 @@ function cloneSelection(selection: TuiA1Selection): TuiA1Selection {
     agent: selection.agent,
     providerID: selection.providerID,
     modelID: selection.modelID,
+    modelSource: selection.modelSource ?? defaultTuiA1Selection.modelSource,
   }
 }
 
@@ -280,7 +283,12 @@ function boundUserInputHistory(entries: UserInputHistoryEntry[] | undefined): Us
 }
 
 function isSameSelection(left: TuiA1Selection, right: TuiA1Selection): boolean {
-  return left.agent === right.agent && left.providerID === right.providerID && left.modelID === right.modelID
+  return (
+    left.agent === right.agent &&
+    left.providerID === right.providerID &&
+    left.modelID === right.modelID &&
+    left.modelSource === right.modelSource
+  )
 }
 
 function isSameMessage(left: Message, right: Message): boolean {
@@ -617,7 +625,25 @@ function buildQuestionHistoryMessage(
 function applyRuntimeProjection(state: TuiA1ProjectionSnapshot): TuiA1ProjectionSnapshot {
   const startedAt = streamDiagnosticNow()
   const runtimeMessages = sortedRuntimeMessages(state.runtimeMessages)
-  const selection = inferSelectionFromRuntimeMessages(runtimeMessages) ?? state.selection
+  const inferredSelection = inferSelectionFromRuntimeMessages(runtimeMessages)
+  const effectiveModel = resolveTuiEffectiveModel([
+    selectionModelCandidate(state.selection),
+    inferredSelection
+      ? {
+          source: "runtime-config",
+          providerID: inferredSelection.providerID,
+          modelID: inferredSelection.modelID,
+        }
+      : undefined,
+  ])
+  const selection = effectiveModel
+    ? {
+        ...state.selection,
+        providerID: effectiveModel.providerID,
+        modelID: effectiveModel.modelID,
+        modelSource: effectiveModel.source,
+      }
+    : state.selection
   const projectedMessages = runtimeMessagesToTuiA1Messages(runtimeMessages, state.runtimeParts)
   const historyMessages = historyMessagesForSnapshot(state)
   const mergedMessages =
@@ -841,6 +867,7 @@ function reduceTuiA1GraphState(
         agent: event.selection.agent ?? state.selection.agent,
         providerID: event.selection.providerID ?? state.selection.providerID,
         modelID: event.selection.modelID ?? state.selection.modelID,
+        modelSource: event.selection.modelSource ?? state.selection.modelSource,
       }
       if (isSameSelection(state.selection, nextSelection)) return state
       const next = {
@@ -940,7 +967,7 @@ function reduceTuiA1GraphState(
           }),
         )
       }
-    case "runtime-hydrate-actor-transcript":
+    case "runtime-hydrate-actor-history":
       {
         const hydratedQuestionnaire = hydrateQuestionnaireStateFromRuntimeSession(
           event.sessionID,
@@ -1258,14 +1285,14 @@ export class TuiA1StateGraph {
     })
   }
 
-  hydrateActorTranscript(options: {
+  hydrateActorHistory(options: {
     sessionID: string
     transcriptKey: string
     messages: Message[]
     partsByMessage: Record<string, Part[]>
   }): void {
     this.dispatch({
-      type: "runtime-hydrate-actor-transcript",
+      type: "runtime-hydrate-actor-history",
       sessionID: options.sessionID,
       transcriptKey: options.transcriptKey,
       messages: options.messages,

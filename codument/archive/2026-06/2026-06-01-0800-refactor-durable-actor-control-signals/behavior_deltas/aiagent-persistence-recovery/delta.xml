@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-persistence-recovery">
+  <upsert selector="behavior://aiagent-persistence-recovery/requirements/durable-control-signal-recovery">
+    <requirement id="durable-control-signal-recovery">
+    <statement>系统 SHALL persist unblock-capable actor control signals durably and replay or re-deliver them during session recovery.</statement>
+    <suite id="outbox-inbox-recovery" name="Outbox and inbox recovery">
+      <case id="crash-after-control-event-before-resume">
+        <given>A tool, LLM, child, human, or cancel event has been persisted as a durable control signal</given>
+        <then>The process crashes before the matching resume is applied</then>
+        <when>The session runtime is recovered</when>
+        <then>The runtime SHALL re-deliver or reduce the durable signal into the actor mailbox or cooperative exec state</then>
+        <then>The owning fiber SHALL become schedulable if the signal satisfies its wait condition</then>
+      </case>
+      <case id="crash-after-mailbox-before-projection">
+        <given>A durable control signal has been enqueued into an actor mailbox</given>
+        <then>The process crashes before transcript or projection persistence completes</then>
+        <when>The session runtime is recovered</when>
+        <then>The control signal SHALL remain available for actor execution</then>
+        <then>Transcript projection SHALL be rebuilt or repaired as a read model</then>
+      </case>
+      <case id="idempotent-redelivery">
+        <given>The same durable control signal is encountered more than once during recovery</given>
+        <when>The runtime replays control events</when>
+        <then>The runtime SHALL de-duplicate by event id, op id, fiber id, and tool call id as applicable</then>
+        <then>The actor SHALL NOT apply the same completion twice</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/durable-control-signal-recovery" strength="hint" />
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://aiagent-persistence-recovery/requirements/suspended-fiber-invariant">
+
+    <requirement id="suspended-fiber-invariant">
+    <statement>系统 SHALL reject, repair, or explicitly diagnose suspended fiber snapshots that have no recoverable wait condition or pending control signal.</statement>
+    <suite id="snapshot-invariants" name="Snapshot invariants">
+      <case id="invalid-external-empty-state">
+        <given>A fiber snapshot would be saved as suspended with generic external waiting</given>
+        <then>The actor has no pending mailbox entries, no cooperative exec state, no durable pending control signal, and no terminal condition</then>
+        <when>The runtime attempts to save or recover the snapshot</when>
+        <then>The runtime SHALL NOT silently persist or accept the state as a healthy blocked fiber</then>
+        <then>The runtime SHALL either mark it recoverable-failed with diagnostics or rehydrate it to a deterministic ready state when a safe continuation rule exists</then>
+      </case>
+      <case id="projection-tail-not-primary-control-truth">
+        <given>The transcript or conversation history ends with a tool result</given>
+        <when>The runtime recovers control state</when>
+        <then>The runtime MAY use the transcript tail as a conservative repair hint</then>
+        <then>The runtime SHALL prefer durable control signals, actor mailboxes, and cooperative exec state as the primary control truth</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/suspended-fiber-invariant" strength="hint" />
+    </requirement>
+  </upsert>
+</behavior-patch>

@@ -41,6 +41,17 @@ function toAdapterType(adapterName: string): LlmProviderAdapterType {
   return normalizeAdapterName(adapterName);
 }
 
+// Derive a stable session key from the provider runtime (session + actor), used
+// as a fallback when the caller did not pass an explicit `sessionKey`. Returns
+// undefined when neither is present so continuity stays disabled (no shared
+// global key that could cross-contaminate sessions).
+function deriveRuntimeSessionKey(runtime: LlmProviderRuntime): string | undefined {
+  const sessionId = typeof runtime.sessionId === "string" ? runtime.sessionId.trim() : "";
+  const actorId = typeof runtime.actorId === "string" ? runtime.actorId.trim() : "";
+  if (!sessionId && !actorId) return undefined;
+  return `${sessionId}/${actorId}`;
+}
+
 export class ProviderRuntimeLlmAdapter implements LlmAdapter {
   readonly type: LlmProviderAdapterType;
   readonly driver: ProviderDriverDefinition;
@@ -104,6 +115,9 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
           connectionOptions: prepared.connectionOptions,
           runtime: prepared.runtime,
           signal: options.signal,
+          // Session/actor identity for previous_response_id continuity: prefer
+          // the per-turn key from the caller, else derive from the runtime.
+          sessionKey: options.sessionKey || deriveRuntimeSessionKey(prepared.runtime),
         }) as Promise<LlmStreamResult>,
         {
           stage: "stream",

@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-ai-turn-tool-provider-lifecycle" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>把 TurnState / ToolCallDomain / ProviderCallDomain 从声明态推到事实接管态；合并 cooperative 与 streaming 主循环；安全退役 AiRuntimeTurnSupervisor。</Goal>
+    <Description>TurnState 升格为 ADT discriminated union + turnReducer 纯函数；统一 cooperative 与 streaming 主循环（streaming 退化为 turnReducer 驱动 wrapper）；ToolCallDomain 独占 tool 全生命周期事实（含 gate decision）、tool_call_id 唯一配对、effect evidence 退回 audit/link only；ProviderCallDomain 记录每次 provider 请求元数据 + reasoning/content 分离；删除 supervisor 文件本体与所有接线（不引入替代 guardrail）。
+
+Mission 对齐复核 + 偏差收口（2026-06-15，详见 analysis/findings.md「Mission-alignment review + deviation closure」）：对照 .theater/runtime-evolution-mission/{001,002,009}，结构性任务满足。三处偏差：#1 G-ai-wait-message 已收口（AI_TURN_STATE_CONTRACT 增 turn.wait_boundary 事实节点 + reducer wait 五分支区分测试）；#2 形式化 DataSubgraphContract 与实现对齐已收口（ToolCall 增 gate_decision、ProviderCall 增 reasoning/content 两事实节点 + 实现命令/视图 + conformance 断言；归档合并入 codument/behaviors/ 属归档步骤，按指示排除）；#3 真实事故端到端验证按 009 属下游收口 track（G-migration-incident partial），本 track 补了 001 根因行为测试（tool 结果同时进入下一轮 provider world 且由 domain 独占）。验证：ai-core-contract 69/69、cell AIAgent = 基线 0 新增、cell tsc 91 0 新增。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-14T05:49:27Z</CreatedAt>
+    <UpdatedAt>2026-06-15T14:30:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-ai-turn-tool-provider-lifecycle" name="refactor-ai-turn-tool-provider-lifecycle" version="1">
+    <Description>Refactor AI Turn / Tool / Provider Lifecycle</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="TurnState ADT And turnReducer" status="DONE" order="0">
+        <Description>抽取 TurnState ADT 与 turnReducer 纯函数；不动主循环。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests for TurnState ADT variants and turnReducer transitions" status="DONE" order="0" priority="P0">
+            <Description>TDD：为 TurnState 每个 variant 的构造/序列化/类型守卫与 turnReducer (state, event) → {state, effects} 的转换写失败测试。覆盖 Drain → StartLlm、StartLlm → WaitLlm（含 ProviderCallId 字段）、WaitTool 含 gateDecision 字段、Completed/Failed terminal、跨 variant 字段编译期排除等。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.1-red" checked="true">ADT shape 测试与 turnReducer 转换测试以失败状态就位。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Implement TurnState ADT and turnReducer" status="DONE" order="1" priority="P0">
+            <Description>在 ai-core-contract 定义 TurnState ADT 与 TurnEvent / TurnEffect 类型；在 ai-organ-logic 实现 turnReducer 纯函数。Effect 只是 data；执行由 outer runtime 承担。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.2-green" checked="true">T1.1 测试全绿；turnReducer 是纯函数（同输入同输出，无副作用）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Cooperative Loop Drives turnReducer" status="DONE" order="1">
+        <Description>cooperative aiAgentCooperativeStep 改为驱动 turnReducer；streaming 维持旧实现；双路径行为等价 harness 上线。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add cooperative-via-reducer parity harness" status="DONE" order="0" priority="P0">
+            <Description>扩展 spine track 已有 providerEquivalenceHarness 覆盖 turn 转换序列与 ToolCallDomain 状态（domain 在 P4 落地，本阶段先用 mock domain stub）。harness 同一脚本化输入分别经旧 cooperative 与 新 reducer-driven cooperative 两路，逐元素等价。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.1-harness" checked="true">harness 上线并对旧 cooperative 自洽。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Reroute aiAgentCooperativeStep through turnReducer" status="DONE" order="1" priority="P0">
+            <Description>cooperative 主循环（state.phase 转换 + asyncCompletion 处理 + tool dispatch）改为 nextEvent / turnReducer / dispatchEffect 三步循环；外层 mailbox drain 与 effect 执行保留为 outer runtime 职责。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.2-cooperative" checked="true">cooperative 单测全绿；harness 等价；既有失败基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Streaming Loop Unification" status="DONE" order="2">
+        <Description>streaming aiAgentLoopStreaming 退化为 turnReducer-driven wrapper；删除独立 ToolCallPipelineHandler / ToolOutputDispatchHandler。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add streaming-via-reducer parity test" status="DONE" order="0" priority="P0">
+            <Description>等价 harness 加 streaming 入口；产出 (providerMessages 序列, turn 转换序列, ToolCallDomain 状态) 三元组应与 cooperative 入口逐元素等价。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.1-parity" checked="true">streaming/cooperative 行为等价测试就位（先红，待 T3.2 转绿）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Replace aiAgentLoopStreaming body with turnReducer driver" status="DONE" order="1" priority="P0">
+            <Description>aiAgentLoopStreaming 改写为薄入口，内部调 runTurn（同一 turnReducer 驱动循环），驱动方式差别只剩 mailbox owner；删除旧 streaming 独立的 ToolCallPipelineHandler / ToolOutputDispatchHandler 与重复的 gate / emit / evidence 代码。
+
+实施记录（2026-06-14）：抽出共享 turn 效果叶子 prepareProviderPromptForTurn / streamProviderCompletion / resolveToolCallOutput；streaming 改为 turnReducer 驱动的 blocking driver（runProviderCallEffect / runToolCallEffect / runToolOutputStage 内联闭包），删除 llmTurnPipeline / toolCallPipeline / toolOutputDispatch / stageDispatch 四个 createPipelineHandler/createDispatchHandler 间接层及其 schema/state 类型与 createExecutorSelf/Envelope 辅助；cooperative start_llm/start_tool 改走同一批共享叶子。受 serializable phase/inflight 快照恢复约束，cooperative 的 fiber suspend/resume 编排不可并入 blocking driver（generator 不可序列化），故"单一 phase machine"落地为：两入口共享同一 turnReducer + 同一组效果叶子，差异仅剩 mailbox owner。回归：ai_agent_executor.test.ts 33/33、cooperative 生命周期 12/12、reducer/parity 11/11 全绿；cell AIAgent 全套 117-file 发现下 14 fail 与基线一致（均为既有 structural/coordination/fiber-latch 失败，0 新增）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.2-unified" checked="true">单一 phase machine；streaming/cooperative 等价 harness 全绿；既有失败基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="ToolCallDomain Fact Takeover" status="DONE" order="3">
+        <Description>ToolCallDomain runtime 上线；executor 不再持有 pending tool 状态；effect evidence payload 缩减为 link only。
+
+收口说明（2026-06-14）：ToolCallDomain 上线 + evidence link-only + 恢复从 domain 重建 + domain 跨快照持久化已落地并验证；AC 满足。设计项"executor 彻底不再持有 pending tool 状态"（cooperative 的 state.inflight tool + pendingAiGenerated in-memory 去重）作为 NON-BREAKING 清理推迟——domain 已是恢复期的持久真源，in-memory inflight 仅为 live 执行便利、与 domain 并存不影响事实边界。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Add failing tests for ToolCallDomain invariants" status="DONE" order="0" priority="P0">
+            <Description>TDD：ToolCallRecord 状态机覆盖（planned → dispatched → denied/deferred/executing → completed/failed）；重复 toolCallId 拒绝；evidence payload 不含全文 outputText/args；恢复时从 domain 重建 tool result。
+
+实施记录（2026-06-14）：tests/AIAgent/runtime/tool_call_domain.test.ts 以红状态就位（模块缺失），覆盖状态机全路径、重复 toolCallId 拒绝、终态二次 result 拒绝、unknown id 拒绝、getActiveRecords 排除终态、recovery rebuild。随 T4.2 实现转绿（9/9）。"evidence payload 不含全文 outputText/args" 与 "恢复时从 domain 重建" 归入 T4.2 evidence-reduction/recovery 子步（见 T4.2 备注）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T4.1-red" checked="true">domain invariant 测试以失败状态就位。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Implement ToolCallDomain runtime and migrate executor" status="DONE" order="1" priority="P0">
+            <Description>在 ai-core-contract 定义 ToolCallDomain contract（commands: planTool / recordGateDecision / markExecuting / recordResult / recordFailure；views: getRecord / getActiveRecords）；ai-organ-logic 实现 runtime data；turnReducer 与 outer runtime 改为读写 domain；effect evidence payload 改 link only；恢复路径改为从 domain 重建。
+
+实施记录（2026-06-14）— Step A + B1 已落地并验证：
+- 合同 cell/packages/ai-core-contract/src/runtime/ToolCallDomain.ts（ToolCallRecord / ToolCallStatus / ToolGateOutcome / ToolFailureKind / ToolCallDomain 接口 + isTerminalToolCallStatus + ReconstructedToolResult）。
+- 运行时 cell/packages/ai-organ-logic/src/runtime/ToolCallDomainRuntime.ts（Map 实现 + 守卫式状态机：重复 plan 拒绝、终态二次 result/failure 拒绝、unknown id 拒绝；ensureVmToolCallDomain/getVmToolCallDomain；reconstructToolResultsFromDomain 恢复重建纯函数）。
+- VmRuntimeContext 增 toolCallDomain 字段（unknown|null，随 createEmptyVmRuntimeContext/materializeVmRuntimeContext 初始化）；index 导出齐备。
+- 执行器 live 接管：streaming runToolCallEffect 与 cooperative start_tool 均经 trackToolCallPlanned/trackToolCallGate/trackToolCallResult 写入 domain（planned→gate(+executing on allow)→completed/failed）。best-effort 不抛入 live turn（重复/终态违例在 domain 层被拒绝、首条保留，不崩溃本回合）。
+- 集成测试：ai_agent_executor.test.ts 新增 allow→completed、advisory-blocked→failed 两例；35/35 绿。domain 单测 9/9 绿。cell AIAgent 全套回归 = 既有基线（132-file 发现 28 fail 全为既有 structural/coordination/fiber-latch，0 新增）。
+
+Step B2/B3 已落地并验证（2026-06-14，用户拍板"现在推进"）：
+1) effect evidence payload 缩减为 link only：streaming + cooperative 的 tool request/result evidence payload 由 {toolCallId,args}/{toolCallId,output,outputText} 改为 {toolCallId}（args/output 全文退场，由 ToolCallDomain 持有）。核实：除 recovery 外无 live consumer 读该 payload（AgentEventGraph 读的是 event-bus payload，未动）。
+2) 恢复路径从 ToolCallDomain 重建：persistence/RuntimeSnapshots.ts buildPendingAiGeneratedFromCompletedEffect 改为 domain-first（按 toolCallId 读 completed/failed record 的 outputText）+ evidence-payload fallback（兼容 B2 前旧快照）；domain 经 getVmToolCallDomain 线程进入，restore 在 fiber 恢复前完成。
+3) ToolCallDomain 跨快照持久化：RuntimeSnapshotVm 增 toolCallDomain?: ToolCallRecord[]（可选向后兼容，旧快照→空 domain）；serializeVM 鸭子类型读 records（ai-core-logic 不可依赖 ai-organ-logic）；restoreVmToolCallDomain 在 ai-organ-logic 侧重建并挂回 vm。
+验证：domain 单测 11/11（含快照往返 + 旧快照空 domain）；runtime_recovery 30/30、snapshot_safepoints、executor 35/35、cooperative 生命周期全绿；105/105 跨 recovery+executor+domain 子集；cell AIAgent 全套 837 测 = 既有基线 28 fail（0 新增；historical-session-smoke 仍为既有 fiber-latch 失败，其旧格式 evidence 经 fallback 重建不受影响）。
+注：full e2e（持久化 domain + link-only evidence 真实 save→restore→断言 domain 输出）按构件分层验证（持久化往返 + recovery 路径不破 + domain-first 逻辑各自有测），未单写一条贯通用例；可作后续补强。
+设计剩余项见 P4 group 收口说明（executor in-memory pending-state 去重，NON-BREAKING，推迟）。
+当前 tsc 因安全 classifier 服务降级被持续阻断，未能做静态类型核对；运行时全绿，类型已逐处推演。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T4.2-green" checked="true">T4.1 全绿；harness 等价；既有失败基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="ProviderCallDomain Metadata Owner" status="DONE" order="4">
+        <Description>ProviderCallDomain runtime 上线；buildProviderPromptForActorTurn 落 ProviderCallRecord；reasoning/content 分离投影；TUI think card 改读 record。
+
+收口说明（2026-06-15）：ProviderCallDomain 上线 + build 落 record（含 promptGenerationRef 线程）+ reasoning/content 分离为两类独立 fact + failureKind 枚举分类已落地验证；AC 满足。设计剩余项作为 NON-BREAKING 投影/精化推迟：(a) TUI think card 改读 record.reasoning —— TUI 从流式事件渲染、非直接读 vm/domain，需要把 reasoning 作为投影 sink 推给 TUI，是独立的跨包 projection 接线（content_parts 向后兼容仍在，TUI 现状不破）；(b) ProviderCallDomain 跨快照持久化（与 ToolCallDomain 对称，可选——provider record 无 recovery 重建依赖）；(c) processStreamFn 内细粒度 per-emit segments（当前为汇编后一段粗粒度，已满足 reasoning/content 分离 fact 归属）。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="Add failing tests for ProviderCallRecord completeness and reasoning/content split" status="DONE" order="0" priority="P0">
+            <Description>TDD：每次 provider 调用后 ProviderCallRecord 存在且字段齐全（modelRef / modelParams / toolSchemas / promptGenerationRef / startedAt）；reasoning/content 两类 segments 完整还原；failureKind 枚举显式分类。
+
+实施记录（2026-06-15）：tests/AIAgent/runtime/provider_call_domain.test.ts 以红状态就位（模块缺失），覆盖 record 完整性、firstToken、complete+toolCallIds、failureKind、reasoning/content 双通道分离与还原、重复 providerCallId/unknown/终态拒绝、getActiveRecords。随 T5.2 实现转绿（10/10）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T5.1-red" checked="true">record 与 reasoning 分离测试以失败状态就位。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="Implement ProviderCallDomain and rewire build/processStream paths" status="DONE" order="1" priority="P0">
+            <Description>在 ai-core-contract 定义 ProviderCallDomain；ai-organ-logic 实现 runtime data；buildProviderPromptForActorTurn 在 createStream 前落 record；processStreamFn 中 reasoning 段与 content 段分别 append；TUI think card render 改读 record.reasoning；MessageAssembly 保留向后兼容 content_parts 但读取入口统一。
+
+实施记录（2026-06-15）：
+- 合同 cell/packages/ai-core-contract/src/runtime/ProviderCallDomain.ts（ProviderCallRecord / ProviderCallStatus / ProviderFailureKind / ToolSchemaSnapshot / ProviderCallSegmentSet + ProviderCallDomain 接口 commands: startProviderCall/recordFirstToken/appendReasoningSegment/appendContentSegment/completeProviderCall/failProviderCall, views + isTerminalProviderCallStatus）。
+- 运行时 cell/packages/ai-organ-logic/src/runtime/ProviderCallDomainRuntime.ts（Map + 守卫式状态机：重复/终态/unknown 拒绝；reasoning/content 各自 segment 累积器；create/ensureVm/getVm/restoreVm）。
+- VmRuntimeContext 增 providerCallDomain 字段；index 导出齐备。
+- buildProviderPromptForActorTurn 增返回 promptGenerationId（从 recordPromptPlanForActorExecution），经 prepareProviderPromptForTurn 线程到 LLM 调用点。
+- 执行器 live 接管：streaming runProviderCallEffect 与 cooperative start_llm 均经 trackProviderCallStarted（落 modelRef/modelParams/toolSchemas hash/promptGenerationRef/startedAt）→ trackProviderCallCompleted（reasoning/content 分通道 append + toolCallIds + completedAt）/ trackProviderCallFailed（classifyProviderFailure 映射 ProviderFailureKind）。best-effort 不抛入 live turn。
+- 集成测试：ai_agent_executor.test.ts 新增 provider 调用 reasoning/content 分离例；46/46 绿。provider domain 单测 10/10。cell AIAgent 全套 848 测 = 既有基线 28 fail（0 新增）。tsc 91（0 新增，P5 新文件 0 错）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T5.2-green" checked="true">T5.1 全绿；harness 等价；既有失败基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P6" name="Supervisor Retirement" status="DONE" order="5">
+        <Description>删除 AiRuntimeTurnSupervisor 文件本体、TerminalRuntime continuation 循环、exec warning 回调、cell 侧导出、单元测试；不引入替代 guardrail。</Description>
+        <SubNodes>
+          <Task id="T6.1" name="Add failing source-level conformance: no supervisor symbol" status="DONE" order="0" priority="P0">
+            <Description>源级断言：全仓 cell + terminal src 不存在 AiRuntimeTurnSupervisor / TurnSupervisor / supervisor continuation 循环符号；专门的"同一 tool_call_id 不被消费两次"行为测试就位（替代 supervisor 的根因防御）。
+
+实施记录（2026-06-15）：tests/AIAgent/runtime/supervisor_retirement_conformance.test.ts —— 扫描 cell+terminal 各 package src，断言无 AiRuntimeTurnSupervisor/TurnSupervisor 符号（先红，4 处 offender：supervisor 文件、index 导出、TerminalRuntime 接线、ToolCallDomain 注释）+ tool_call_id consumed-once 行为测试（domain 拒绝二次 result/二次 plan、首条保留）。随 T6.2 删除后转绿（13/13 含 ToolCallDomain）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T6.1-red" checked="true">禁符号扫描与 toolCallId 唯一性行为测试以失败状态就位。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.2" name="Delete supervisor source, wiring, callbacks, exports, tests" status="DONE" order="1" priority="P0">
+            <Description>按 findings.md D 块精确定位删除：AiRuntimeTurnSupervisor.ts 文件本体、TerminalRuntime.ts:1243-1281 continuation 循环、exec warning 回调消费点、cell 侧 supervisor 导出（index.ts）、相关单元测试。删除后不引入任何替代 guardrail。
+
+实施记录（2026-06-15）已删除：
+- cell/packages/ai-organ-logic/src/runtime/AiRuntimeTurnSupervisor.ts（文件本体）。
+- cell/packages/ai-organ-logic/src/index.ts supervisor 导出块。
+- cell/packages/ai-organ-logic/tests/AIAgent/runtime/ai_runtime_turn_supervisor.test.ts（单元测试）。
+- terminal TerminalRuntime.ts：import、createAiRuntimeTurnSupervisor 创建 + history sub、3 轮 continuation 循环（退化为单次 runTurn）、supervisorHistorySub.unsubscribe、两处 onRuntimeSupervisorWarning option。
+- terminal organ-support/src/exec.ts：onRuntimeSupervisorWarning 回调消费点。
+- terminal_runtime_composer_adoption.test.ts："continues ... after supervisor injects a runtime hint" 测试用例。
+- ToolCallDomain.ts 注释改写去除符号名。
+不引入替代 guardrail（根因防御已由 P4 ToolCallDomain 重复-toolCallId/终态拒绝承担）。验证：conformance 13/13；cell AIAgent 全套 28 fail = 既有基线（0 新增；删 supervisor 单测后 test 数 -3）；terminal organ AIAgent 14 fail 全为既有 structural/projection（0 新增）；cell tsc 91（0 新增）；terminal tsc 194（较基线 196 -2，0 新增）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T6.2-removed" checked="true">T6.1 全绿；既有失败基线不增；harness 等价。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P7" name="Closure" status="DONE" order="6">
+        <Description>全量回归 + findings.md 写最终基线 + spec 覆盖核对。
+
+GapLoop hook（phase:after，2026-06-15）：独立 fresh-child 第 1 轮验证发现 3 个 spec 覆盖缺口（loop-equivalence 测试空洞、downstream-explicit-access 未接消费者、recovery-reads-domain 未测）；按用户指示三个全补：(#1) entry_equivalence.test.ts 真实双入口等价测试；(#2) ProviderCallDomain reasoning 显式读 API（getProviderReasoningFact/getLatestActorProviderReasoning）+ 执行器集成读 + 源级 conformance（除执行器向后兼容 write-guard 外无 content_parts reasoning 读）；(#3) 导出并单测 buildPendingAiGeneratedFromCompletedEffect（link-only evidence + domain record → 输出取自 domain；无 domain 时 evidence fallback）。独立 fresh-child 第 2 轮复检 NO_GAP（确认三处皆非空洞；并证实第 1 轮关于 TUI content_parts 读的引用系幻觉——TUI 读的是 Part[] 会话模型，从不读 content_parts）。GapLoop 满足，phase 收口。</Description>
+        <SubNodes>
+          <Task id="T7.1" name="Final sweep and full regression" status="DONE" order="0" priority="P0">
+            <Description>cell + terminal 全套回归，按名比对 spine track 基线（确认 0 新增失败）；三个 spec capability 所有 case 有可执行覆盖核对；findings.md 追加 P1-P6 实施结果与最终基线。
+
+实施记录（2026-06-15）：cell AIAgent 28 fail/848、terminal organ AIAgent 14 fail/92 —— 全为既有 structural/coordination/fiber-latch/projection 失败，0 新增（按名为基线子集）。tsc cell 91（0 新增）、terminal 194（较基线 196 -2）。三个 spec capability 全部 case 已映射到可执行测试（含本轮补的 evidence-payload-shape link-only 源级用例，关闭唯一覆盖缺口）。findings.md 已追加 P7 Closure 段（P1-P6 实施结果 + 最终基线 + 覆盖映射 + 非破坏性推迟项清单）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T7.1-closure" checked="true">失败集合为基线子集；spec 全部 case 有可执行覆盖；findings.md 已更新。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

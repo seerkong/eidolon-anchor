@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-fiber-orchestration">
+  <upsert selector="behavior://aiagent-fiber-orchestration/requirements/runtime-control-barrier-consumers">
+    <requirement id="runtime-control-barrier-consumers">
+    <statement>系统 SHALL let runtime coordination consumers use AI runtime control barrier APIs instead of duplicating mailbox and cooperative-state classification.</statement>
+    <suite id="coordinator-save-before-progress" name="Coordinator Save Before Progress">
+      <case id="coordinator-uses-runtime-control-barrier">
+        <given>The runtime coordinator is about to save a snapshot after queued work</given>
+        <when>It decides whether foreground progress is needed first</when>
+        <then>The coordinator SHALL inspect the AI runtime control barrier</then>
+        <then>The coordinator SHALL NOT import safepoint implementation from persistence code</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

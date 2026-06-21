@@ -14,7 +14,7 @@
     "@cell/symbiont-logic": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "depa-data-graph-core": "^0.1.0",
-    "depa-actor": "^0.1.1",
+    "depa-actor": "file:/Users/kongweixian/infra-dev/depa-actor",
     "depa-processor": "^0.1.0",
     "@shared/composer": "workspace:*"
   }

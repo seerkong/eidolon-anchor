@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-wave2-profile-layering" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>建立 platform-only -&gt; ai-kernel -&gt; ai-coding 的正式 profile layering，并保持当前 AI runtime 主路径连续可运行。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T05:06:36Z</CreatedAt>
+    <UpdatedAt>2026-04-11T05:15:20Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-wave2-profile-layering" name="refactor-platform-kernel-wave2-profile-layering" version="1">
+    <Description>实施平台微内核 Wave 2 的 profile layering</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Profile Truth Source" status="DONE" order="0">
+        <Description>在 `@cell/mod-profiles` 中建立正式的三层 profile truth source。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义三层 profile 结构" status="DONE" order="0" priority="P0">
+            <Description>建立 `platform-only`、`ai-kernel`、`ai-coding` 的正式 layering 与兼容别名。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">三层 profile 顺序在单一 truth source 中定义</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">兼容别名不形成第二真相源</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="将默认 coding runtime 收口到 ai-coding 正式入口" status="DONE" order="1" priority="P0">
+            <Description>更新主运行入口到 `ai-coding` 正式装配函数，但保持兼容路径可用。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">TerminalRuntime 显式消费 ai-coding 装配入口</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">headless 路径不因本波次中断</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Focused Verification" status="DONE" order="1">
+        <Description>通过 focused verification 锁定 layering 顺序、能力缺失语义与主路径连续运行。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="补齐 profile layering focused tests" status="DONE" order="0" priority="P0">
+            <Description>补充 profile order、capability absence 与兼容别名的 focused tests。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">自动化覆盖 platform-only / ai-kernel / ai-coding 的 layering 语义</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">缺失 capability 通过行为断言锁定，而非源码 grep</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="验证 terminal/tui/headless 主路径仍可运行" status="DONE" order="1" priority="P0">
+            <Description>确认 Wave 2 结束时 terminal/tui/headless 主路径仍然连续可运行。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">terminal adoption tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">tui/headless smoke tests 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

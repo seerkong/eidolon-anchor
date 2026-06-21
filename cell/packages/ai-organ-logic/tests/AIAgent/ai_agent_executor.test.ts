@@ -4,12 +4,15 @@ import os from "os";
 import path from "path";
 
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
+import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry";
 import type { ToolDef } from "@cell/ai-core-contract/types";
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { createVM, ensureVmRxData } from "@cell/ai-core-logic/runtime/runtime";
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
+import { createMockProcessStream } from "./__test_support__/mockProcessStream";
 import { LocalFileConversationPersistenceRepositoryFactory } from "@cell/ai-support";
+import { readRuntimeControlEffectEvidence } from "@cell/ai-file-store-logic";
 import {
   __setCompressionDepsForTest,
   __setLoopHooksForTest,
@@ -18,6 +21,12 @@ import {
   resolveProviderToolSchemaPolicy,
   resolveProviderToolsetForActor,
 } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
+import { getVmToolCallDomain } from "@cell/ai-organ-logic/runtime/ToolCallDomainRuntime";
+import { getVmProviderCallDomain, getLatestActorProviderReasoning } from "@cell/ai-organ-logic/runtime/ProviderCallDomainRuntime";
+import { buildSetTaskPhaseToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/SetTaskPhase";
+import { buildRunDelegateActorToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/RunDelegateActor";
+import { appendLiveHistoryMessageToConversationDomainRuntime } from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime";
+import { createWriteBehindPersistenceWritePort } from "@cell/ai-organ-logic/persistence/WriteBehindPersistencePort";
 
 const mockAdapter = {
   type: "openai" as const,
@@ -142,28 +151,37 @@ function makeTempSessionDir(): string {
 function createTestRuntime(params: {
   actor: ReturnType<typeof createActor>;
   toolRegistry: ToolFuncRegistry;
-  processStream: () => Promise<any>;
+  agentRegistry?: AgentRegistry;
+  processStream: (runtime?: { vm: any; actor: any }) => Promise<any>;
   bus?: AgentEventGraph;
   options?: { stopAfterFirstTool?: boolean; stopAfterTools?: string[]; exitAfterToolResult?: boolean };
-  outerCtx?: { workDir?: string; metadata?: Record<string, unknown> };
+  outerCtx?: {
+    workDir?: string;
+    metadata?: Record<string, unknown>;
+    persistenceWritePort?: unknown;
+    conversationPersistenceRepositoryFactory?: unknown;
+  };
   effects?: {
-    messageHistory?: {
-      appendMessage: (event: any) => void;
-      backupHistory?: (params: { agentKey: string; agentActorId: string }) => Promise<void>;
-    };
     log?: (level: "info" | "warn" | "error" | "debug", message: string, context?: Record<string, unknown>) => void;
   };
 }) {
+  // P8 single-writer pipeline: every test runtime gets a bus by default so
+  // the resident MessageHistoryGraph can commit. Tests that want to inspect
+  // semantic events can still pass their own bus.
+  const bus = params.bus ?? new AgentEventGraph();
+  const userProcessStream = params.processStream;
   params.actor.callbacks = {
     ...params.actor.callbacks,
     buildToolset: () => [],
-    processStream: async () => params.processStream(),
+    processStream: createMockProcessStream(async (vm: any, actor: any) =>
+      userProcessStream({ vm, actor }),
+    ),
   };
   return createVM({
     controlActorKey: params.actor.key,
     actors: { [params.actor.key]: params.actor },
-    registries: { toolRegistry: params.toolRegistry },
-    eventBus: params.bus,
+    registries: { toolRegistry: params.toolRegistry, agentRegistry: params.agentRegistry },
+    eventBus: bus,
     options: params.options,
     outerCtx: params.outerCtx,
     effects: params.effects,
@@ -193,8 +211,8 @@ describe("ai_agent_loop_streaming", () => {
     });
     actor.workContext = {
       ...actor.workContext,
-      workMode: WORK_MODES.docs_then_code,
-      taskPhase: TASK_PHASES.context_build,
+      workMode: WORK_MODES.plan,
+      taskPhase: TASK_PHASES.normal,
     };
     const tools = [
       { function: { name: "write" } },
@@ -211,12 +229,12 @@ describe("ai_agent_loop_streaming", () => {
     ]);
   });
 
-  it("allows non-prefix-cache models to adopt work-mode tool schema trimming", () => {
+  it("allows non-prefix-cache models to adopt plan-mode tool schema trimming", () => {
     const actor = createActor({ key: "main", modelConfig: { model: "mock-model" } });
     actor.workContext = {
       ...actor.workContext,
-      workMode: WORK_MODES.docs_then_code,
-      taskPhase: TASK_PHASES.context_build,
+      workMode: WORK_MODES.plan,
+      taskPhase: TASK_PHASES.normal,
     };
     const tools = [
       { function: { name: "write" } },
@@ -228,8 +246,324 @@ describe("ai_agent_loop_streaming", () => {
     expect(resolveProviderToolSchemaPolicy(actor)).toBe("dynamic_work_mode_surface");
     expect(resolveProviderToolsetForActor(actor, tools).map((tool) => tool.function.name)).toEqual([
       "read",
+      "bash",
       "grep",
     ]);
+  });
+
+  it("blocks write tools at execution time in plan mode", async () => {
+    const actor = createTestActor();
+    actor.workContext = {
+      ...actor.workContext,
+      workMode: WORK_MODES.plan,
+      taskPhase: TASK_PHASES.normal,
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(makeStaticTool("write", "WROTE"));
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      options: { stopAfterFirstTool: true },
+      processStream: async () => ({
+        role: "assistant",
+        tool_calls: [{ id: "tc-write", function: { name: "write", arguments: "{}" } }],
+      }),
+    });
+
+    const result = await aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [],
+    });
+
+    const toolMessage = result.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "tc-write");
+    expect(result.stopReason).toBe("stop_after_tool");
+    expect(String(toolMessage?.content ?? "")).toStartWith("Error:");
+    expect(String(toolMessage?.content ?? "")).toContain("blocked in plan mode");
+  });
+
+  it("records the tool lifecycle into the ToolCallDomain (allow path → completed)", async () => {
+    const actor = createTestActor();
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(makeStaticTool("read_file", "FILE BODY"));
+    let turn = 0;
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      options: { stopAfterFirstTool: true },
+      processStream: async () => {
+        turn += 1;
+        return turn === 1
+          ? { role: "assistant", tool_calls: [{ id: "tc-read", function: { name: "read_file", arguments: "{}" } }] }
+          : { role: "assistant", content: "done" };
+      },
+    });
+
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    const record = getVmToolCallDomain(vm)?.getRecord("tc-read");
+    expect(record).toBeDefined();
+    expect(record?.status).toBe("completed");
+    expect(record?.gateOutcome).toBe("allow");
+    expect(record?.funcName).toBe("read_file");
+    expect(record?.outputText).toBe("FILE BODY");
+  });
+
+  it("after a tool round the result is paired into the conversation AND owned by the domain (root-cause: a consistent next-turn world)", async () => {
+    // Mission 001 hypothesis: repeated file reads in live sessions are a SYMPTOM
+    // of the model's next-turn "world" being inconsistent. With the fact
+    // boundaries fixed, after a tool runs the paired tool result is both (a)
+    // committed to the conversation the next provider prompt materializes from,
+    // and (b) owned by the ToolCallDomain as the single source of truth — so the
+    // model sees the result and has no reason to re-read. (The full real-TUI
+    // incident-replay harness is mission-scoped to the downstream closure track.)
+    const actor = createTestActor();
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(makeStaticTool("read_file", "FILE BODY"));
+    let turn = 0;
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      processStream: async () => {
+        turn += 1;
+        return turn === 1
+          ? { role: "assistant", content: null, tool_calls: [{ id: "tc-read", function: { name: "read_file", arguments: "{}" } }] }
+          : { role: "assistant", content: "answer" };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [{ role: "user", content: "read it" } as any] });
+
+    // (a) the paired tool result is in the model's next-turn world (conversation).
+    const toolMessage = result.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-read");
+    expect(String(toolMessage?.content ?? "")).toBe("FILE BODY");
+    // (b) the ToolCallDomain owns the completed result as the single source of truth.
+    const record = getVmToolCallDomain(vm)?.getRecord("tc-read");
+    expect(record?.status).toBe("completed");
+    expect(record?.outputText).toBe("FILE BODY");
+  });
+
+  it("records the provider call into the ProviderCallDomain with reasoning/content split", async () => {
+    const actor = createTestActor();
+    const toolRegistry = new ToolFuncRegistry();
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      processStream: async () => ({
+        role: "assistant",
+        content: "final answer",
+        reasoning_content: "step-by-step thoughts",
+      }),
+    });
+
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    const records = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
+    expect(records).toHaveLength(1);
+    const record = records[0];
+    expect(record.status).toBe("completed");
+    expect(record.modelRef).toBe(actor.modelConfig.model);
+    expect(record.reasoning?.text).toBe("step-by-step thoughts");
+    expect(record.content?.text).toBe("final answer");
+    // Reasoning and content are distinct owned facts.
+    expect(record.reasoning?.text).not.toBe(record.content?.text);
+    expect(record.completedAt).toBeGreaterThanOrEqual(record.startedAt);
+
+    // Spec downstream-explicit-access: a downstream consumer reads the reasoning
+    // fact via the explicit ProviderCallDomain accessor — not via
+    // content_parts.find(type==="reasoning").
+    expect(getLatestActorProviderReasoning(vm, actor.key)?.text).toBe("step-by-step thoughts");
+  });
+
+  it("records a work-mode-blocked tool as a failed ToolCallDomain record (allow gate, error output)", async () => {
+    const actor = createTestActor();
+    actor.workContext = {
+      ...actor.workContext,
+      workMode: WORK_MODES.plan,
+      taskPhase: TASK_PHASES.normal,
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(makeStaticTool("write", "WROTE"));
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      options: { stopAfterFirstTool: true },
+      processStream: async () => ({
+        role: "assistant",
+        tool_calls: [{ id: "tc-blocked", function: { name: "write", arguments: "{}" } }],
+      }),
+    });
+
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    // Plan-mode blocking is a work-mode advisory (the gate stays "allow"); the
+    // tool reaches execution and returns an Error, so the domain records a
+    // failure with an explicit failure kind.
+    const record = getVmToolCallDomain(vm)?.getRecord("tc-blocked");
+    expect(record?.status).toBe("failed");
+    expect(record?.gateOutcome).toBe("allow");
+    expect(record?.failureKind).toBe("tool_error");
+    expect(String(record?.outputText ?? "")).toStartWith("Error:");
+  });
+
+  it("blocks destructive detached bash commands at execution time in plan mode", async () => {
+    const actor = createTestActor();
+    actor.workContext = {
+      ...actor.workContext,
+      workMode: WORK_MODES.plan,
+      taskPhase: TASK_PHASES.normal,
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(makeStaticTool("RunDetachedBash", "RAN"));
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      options: { stopAfterFirstTool: true },
+      processStream: async () => ({
+        role: "assistant",
+        tool_calls: [{
+          id: "tc-detached-bash",
+          function: { name: "RunDetachedBash", arguments: JSON.stringify({ command: "rm -rf tmp/out" }) },
+        }],
+      }),
+    });
+
+    const result = await aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [],
+    });
+
+    const toolMessage = result.messages.find((message: any) =>
+      message?.role === "tool" && message?.tool_call_id === "tc-detached-bash"
+    );
+    expect(result.stopReason).toBe("stop_after_tool");
+    expect(String(toolMessage?.content ?? "")).toStartWith("Error:");
+    expect(String(toolMessage?.content ?? "")).toContain("destructive shell command is blocked in plan mode");
+  });
+
+  it("keeps plan mode write blocking across delegated child actors", async () => {
+    const actor = createTestActor();
+    actor.workContext = {
+      ...actor.workContext,
+      workMode: WORK_MODES.plan,
+      taskPhase: TASK_PHASES.normal,
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(buildRunDelegateActorToolDef());
+    let writeCalls = 0;
+    toolRegistry.register({
+      ...makeStaticTool("write", "WROTE"),
+      run: async () => {
+        writeCalls += 1;
+        return "WROTE";
+      },
+    });
+    const agentRegistry = new AgentRegistry({
+      code: { name: "code", description: "code agent", tools: ["write"], prompt: ["you are code"] },
+    } as any);
+    const childTurns = new Map<string, number>();
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      agentRegistry,
+      options: { stopAfterFirstTool: true },
+      processStream: async (runtime) => {
+        if (runtime?.actor?.key === "main") {
+          return {
+            role: "assistant",
+            tool_calls: [{
+              id: "tc-delegate",
+              function: {
+                name: "RunDelegateActor",
+                arguments: JSON.stringify({
+                  description: "delegate write",
+                  prompt: "write a file",
+                  agent_type: "code",
+                }),
+              },
+            }],
+          };
+        }
+
+        const actorKey = String(runtime?.actor?.key ?? "child");
+        const nextTurn = (childTurns.get(actorKey) ?? 0) + 1;
+        childTurns.set(actorKey, nextTurn);
+        if (nextTurn > 1) return { role: "assistant", content: "child done" };
+        return {
+          role: "assistant",
+          tool_calls: [{ id: "tc-child-write", function: { name: "write", arguments: "{}" } }],
+        };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [],
+    });
+
+    const toolMessage = result.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "tc-delegate");
+    expect(result.stopReason).toBe("stop_after_tool");
+    expect(childTurns.size).toBeGreaterThan(0);
+    expect(String(toolMessage?.content ?? "")).not.toContain("WROTE");
+    expect(writeCalls).toBe(0);
+  });
+
+  it("lets the model set answer task phase without changing work mode", async () => {
+    const actor = createTestActor();
+    actor.workContext = {
+      ...actor.workContext,
+      workMode: WORK_MODES.plan,
+      taskPhase: TASK_PHASES.normal,
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(buildSetTaskPhaseToolDef());
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      options: { stopAfterFirstTool: true },
+      processStream: async () => ({
+        role: "assistant",
+        tool_calls: [{
+          id: "tc-phase",
+          function: { name: "SetTaskPhase", arguments: JSON.stringify({ phase: "answer", reason: "ready" }) },
+        }],
+      }),
+    });
+
+    const result = await aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [],
+    });
+
+    expect(result.stopReason).toBe("stop_after_tool");
+    expect(actor.workContext.workMode).toBe(WORK_MODES.plan);
+    expect(actor.workContext.taskPhase).toBe(TASK_PHASES.answer);
+    expect(actor.workContext.taskPhaseSource).toBe("tool_call");
+  });
+
+  it("lets the task phase tool set normal explicitly", async () => {
+    const actor = createTestActor();
+    actor.workContext = {
+      ...actor.workContext,
+      workMode: WORK_MODES.plan,
+      taskPhase: TASK_PHASES.answer,
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(buildSetTaskPhaseToolDef());
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      processStream: async () => ({ role: "assistant", content: "unused" }),
+    });
+
+    const output = await ToolFuncRegistry.call(toolRegistry, "SetTaskPhase", vm, actor, { phase: "normal" });
+
+    expect(String(output)).toContain("\"taskPhase\":\"normal\"");
+    expect(actor.workContext.workMode).toBe(WORK_MODES.plan);
+    expect(actor.workContext.taskPhase).toBe(TASK_PHASES.normal);
   });
 
   it("records provider-ready prompt token estimates in the vm usage signal", async () => {
@@ -326,7 +660,18 @@ describe("ai_agent_loop_streaming", () => {
     });
 
     expect(result.stopReason).toBe("no_tool_calls");
-    expect(events).toEqual(["semantic_turn_start", "semantic_turn_end"]);
+    // P8 single-writer pipeline: the assistant turn is replayed as a full
+    // semantic envelope (content_start/end + turn_end) so the resident
+    // MessageHistoryGraph can commit. The two turn boundaries remain; the
+    // content envelope is new and expected.
+    expect(events).toEqual([
+      "semantic_turn_start",
+      "semantic_content_start",
+      "semantic_content_delta",
+      "semantic_content_end",
+      "semantic_turn_end",
+      "semantic_turn_end",
+    ]);
   });
 
   it("emits tool events and returns questionnaire_wait when tool asks for questionnaire", async () => {
@@ -370,12 +715,84 @@ describe("ai_agent_loop_streaming", () => {
     });
 
     expect(result.stopReason).toBe("questionnaire_wait");
+    // P8 single-writer pipeline: the assistant turn envelope is replayed
+    // (content_start/end + tool_call_planned), then the executor emits the
+    // tool_call_start + questionnaire_request + final turn_end.
     expect(events).toEqual([
       "semantic_turn_start",
+      "semantic_content_start",
+      "semantic_content_end",
+      "semantic_tool_call_planned",
       "semantic_tool_call_start",
       "semantic_questionnaire_request",
       "semantic_turn_end",
     ]);
+  });
+
+  it("persists runtime-control lifecycle evidence for provider, tool, and questionnaire wait", async () => {
+    const sessionDir = makeTempSessionDir();
+    const actor = createTestActor();
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(makeQuestionnaireTool());
+
+    // P3 (refactor-persistent-session-backplane): the effect-evidence WAL append
+    // is now write-behind through an explicitly-injected port. Inject a real
+    // write-behind port and flush it after the turn to observe the durable WAL.
+    const persistenceWritePort = createWriteBehindPersistenceWritePort();
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      outerCtx: { metadata: { sessionDir }, persistenceWritePort },
+      processStream: async () => ({
+        role: "assistant",
+        tool_calls: [
+          {
+            id: "tc-runtime-control",
+            function: {
+              name: "Questionnaire",
+              arguments: JSON.stringify({
+                questionnaireId: "q-runtime-control",
+                kind: "approval",
+                suspendPolicy: "pause_all",
+                questions: [{ id: "q1", prompt: "Proceed?", type: "yes_no" }],
+              }),
+            },
+          },
+        ],
+      }),
+    });
+
+    try {
+      const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+      expect(result.stopReason).toBe("questionnaire_wait");
+
+      await persistenceWritePort.flush();
+      const evidence = await readRuntimeControlEffectEvidence(sessionDir);
+      expect(evidence).toContainEqual(expect.objectContaining({
+        kind: "request",
+        effectKind: "provider_completion",
+      }));
+      expect(evidence).toContainEqual(expect.objectContaining({
+        kind: "result",
+        effectKind: "provider_completion",
+      }));
+      expect(evidence).toContainEqual(expect.objectContaining({
+        kind: "request",
+        effectKind: "questionnaire",
+        handlerKey: "Questionnaire",
+      }));
+      expect(evidence).toContainEqual(expect.objectContaining({
+        kind: "waiting",
+        effectKind: "questionnaire",
+        waitReason: "human_approval",
+      }));
+      expect(evidence).not.toContainEqual(expect.objectContaining({
+        kind: "result",
+        effectKind: "questionnaire",
+      }));
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
   });
 
   it("returns stop_agent when tool requests agent stop", async () => {
@@ -606,8 +1023,10 @@ describe("ai_agent_loop_streaming", () => {
     });
 
     expect(result.stopReason).toBe("no_tool_calls");
-    expect(result.messages).toContainEqual({ role: "user", content: "hello from queue" });
-    const toolMsgs = result.messages.filter((m: any) => m?.role === "tool" && m?.tool_call_id === "tc-wait-1");
+    expect(
+      result.messages.some((m: any) => m?.role === "user" && m?.content === "hello from queue"),
+    ).toBe(true);
+    const toolMsgs = result.messages.filter((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-wait-1");
     expect(toolMsgs.length).toBeGreaterThan(0);
 
     const parsedMsg = toolMsgs.find((m: any) => typeof m?.content === "string" && String(m.content).trim().startsWith("{"));
@@ -699,44 +1118,11 @@ describe("ai_agent_loop_streaming", () => {
     expect(lastReq.questionnaire_request.question).toBeTruthy();
   });
 
-  it("pipes bus events into message history effect when configured", async () => {
-    const bus = new AgentEventGraph();
-    const actor = createTestActor();
-    const toolRegistry = new ToolFuncRegistry();
-    const historyEvents: Array<{ stream: string; payload: string }> = [];
-
-    actor.send("humanInput", "persist me");
-
-    const vm = createTestRuntime({
-      actor,
-      toolRegistry,
-      bus,
-      effects: {
-        messageHistory: {
-          appendMessage: (event) => historyEvents.push({ stream: event.stream, payload: event.payload }),
-        },
-      },
-      processStream: async () => ({ role: "assistant", content: "ok" }),
-    });
-
-    await aiAgentLoopStreaming({
-      vm,
-      actor,
-      messages: [],
-    });
-
-    expect(historyEvents.some((ev) => ev.stream === "user_input" && ev.payload === "persist me")).toBe(true);
-    expect(historyEvents.some((ev) => ev.stream === "turn_start")).toBe(false);
-    expect(historyEvents.some((ev) => ev.stream === "turn_end")).toBe(false);
-  });
-
   it("skips compression when inputLimit is 0", async () => {
     const actor = createTestActor();
     actor.modelConfig.inputLimit = 0;
     const toolRegistry = new ToolFuncRegistry();
 
-    const backupCalls: Array<{ agentKey: string; agentActorId: string; actorType?: string }> = [];
-    const appendCalls: any[] = [];
     let ratioCalled = false;
     let compressCalled = false;
 
@@ -754,14 +1140,6 @@ describe("ai_agent_loop_streaming", () => {
     const vm = createTestRuntime({
       actor,
       toolRegistry,
-      effects: {
-        messageHistory: {
-          appendMessage: (event) => appendCalls.push(event),
-          backupHistory: async (params) => {
-            backupCalls.push(params);
-          },
-        },
-      },
       processStream: async () => ({ role: "assistant", content: "hi" }),
     });
 
@@ -770,8 +1148,6 @@ describe("ai_agent_loop_streaming", () => {
     expect(result.stopReason).toBe("no_tool_calls");
     expect(ratioCalled).toBe(false);
     expect(compressCalled).toBe(false);
-    expect(backupCalls.length).toBe(0);
-    expect(appendCalls.length).toBe(0);
   });
 
   it("does not trigger compression when ratio is below threshold", async () => {
@@ -779,7 +1155,6 @@ describe("ai_agent_loop_streaming", () => {
     actor.modelConfig.inputLimit = 100;
     const toolRegistry = new ToolFuncRegistry();
 
-    const backupCalls: Array<{ agentKey: string; agentActorId: string; actorType?: string }> = [];
     let compressCalled = false;
 
     __setCompressionDepsForTest({
@@ -793,21 +1168,12 @@ describe("ai_agent_loop_streaming", () => {
     const vm = createTestRuntime({
       actor,
       toolRegistry,
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async (params) => {
-            backupCalls.push(params);
-          },
-        },
-      },
       processStream: async () => ({ role: "assistant", content: "hi" }),
     });
 
     const result = await aiAgentLoopStreaming({ vm, actor, messages: [{ role: "user", content: "seed" }] });
 
     expect(result.stopReason).toBe("no_tool_calls");
-    expect(backupCalls.length).toBe(0);
     expect(compressCalled).toBe(false);
   });
 
@@ -835,21 +1201,130 @@ describe("ai_agent_loop_streaming", () => {
     const vm = createTestRuntime({
       actor,
       toolRegistry,
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async () => {},
-        },
-      },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
 
     const originalMessages = [{ role: "user", content: "seed" }];
     await aiAgentLoopStreaming({ vm, actor, messages: originalMessages });
 
-    expect(compressedInput).toBe(originalMessages);
+    // P7: the summarization input is the domain visible projection, not the
+    // seed array; both gate evaluation and summarization read domain views.
+    expect(compressedInput).not.toBe(originalMessages);
+    expect(
+      (compressedInput ?? []).some((message: any) => String(message?.content ?? "").includes("seed")),
+    ).toBe(true);
     expect(ratioMessages).not.toBe(originalMessages);
     expect(ratioMessages?.some((message: any) => String(message?.content ?? "").includes("<runtime_work_context>"))).toBe(true);
+  });
+
+  it("cheap-compacts older tool results before provider prompt without losing delivered-result evidence", async () => {
+    const sessionDir = makeTempSessionDir();
+    let providerMessages: any[] = [];
+    const actor = createTestActor({
+      type: "openai" as const,
+      async createStream(options?: any) {
+        providerMessages = options?.messages ?? [];
+        async function* stream() {
+          yield { ok: true };
+        }
+        return { stream: stream() };
+      },
+    });
+    const toolRegistry = new ToolFuncRegistry();
+    const oldToolOutput = "1: build script line\n".repeat(500);
+    const messages: any[] = [
+      { role: "user", content: "continue build release fix" },
+    ];
+    for (let index = 0; index < 8; index += 1) {
+      const toolCallId = `tc-read-${index}`;
+      messages.push(
+        { role: "assistant", content: "", tool_calls: [{ id: toolCallId, type: "function", function: { name: "read", arguments: `{"filePath":"scripts/build_tui_release.sh","offset":${index + 1},"limit":170}` } }] },
+        { role: "tool", tool_call_id: toolCallId, content: `${oldToolOutput}${index}` },
+      );
+    }
+    messages.push(
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-read-recent", type: "function", function: { name: "read", arguments: "{\"filePath\":\"scripts/build_tui_release.sh\",\"offset\":170,\"limit\":170}" } }] },
+      { role: "tool", tool_call_id: "tc-read-recent", content: "recent tool result" },
+    );
+    const originalMessagesLength = JSON.stringify(messages).length;
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      outerCtx: {
+        workDir: process.cwd(),
+        metadata: { sessionDir, sessionId: "cheap-compaction-provider-prompt" },
+      },
+      processStream: async () => ({ role: "assistant", content: "done" }),
+    });
+
+    try {
+      const result = await aiAgentLoopStreaming({ vm, actor, messages });
+
+      expect(result.stopReason).toBe("no_tool_calls");
+      const serializedPrompt = JSON.stringify(providerMessages);
+      expect(serializedPrompt).toContain("delivered_and_compacted");
+      expect(serializedPrompt).toContain("Do not repeat the same tool call solely because");
+      expect(serializedPrompt).toContain("1: build script line");
+      expect(serializedPrompt).toContain("recent tool result");
+      expect(serializedPrompt.length).toBeLessThan(originalMessagesLength);
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps internal compression streams out of the foreground stream sink", async () => {
+    let createStreamCalls = 0;
+    let foregroundStreamCalls = 0;
+    const actor = createTestActor({
+      type: "openai" as const,
+      async createStream() {
+        createStreamCalls += 1;
+        async function* stream() {
+          yield {
+            choices: [
+              {
+                delta: {
+                  content: "<state_snapshot><overall_goal>compressed</overall_goal></state_snapshot>",
+                },
+              },
+            ],
+          };
+        }
+        return { stream: stream() };
+      },
+    });
+    actor.modelConfig.inputLimit = 4000;
+    const toolRegistry = new ToolFuncRegistry();
+
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 0.9,
+    });
+
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      processStream: async () => {
+        foregroundStreamCalls += 1;
+        return { role: "assistant", content: "final" };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({
+      vm,
+      actor,
+      messages: [
+        { role: "user", content: "old context ".repeat(200) },
+        { role: "assistant", content: "old answer ".repeat(200) },
+        { role: "user", content: "middle context ".repeat(200) },
+        { role: "assistant", content: "middle answer ".repeat(200) },
+        { role: "user", content: "recent context ".repeat(20) },
+        { role: "user", content: "continue" },
+      ],
+    });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(createStreamCalls).toBe(2);
+    expect(foregroundStreamCalls).toBe(1);
   });
 
   it("compresses dense bundle-like tool output before the provider request exceeds the model limit", async () => {
@@ -892,12 +1367,6 @@ describe("ai_agent_loop_streaming", () => {
     const vm = createTestRuntime({
       actor,
       toolRegistry,
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async () => {},
-        },
-      },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
 
@@ -940,12 +1409,6 @@ describe("ai_agent_loop_streaming", () => {
     const vm = createTestRuntime({
       actor,
       toolRegistry,
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async () => {},
-        },
-      },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
 
@@ -999,12 +1462,6 @@ describe("ai_agent_loop_streaming", () => {
     const vm = createTestRuntime({
       actor,
       toolRegistry,
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async () => {},
-        },
-      },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
 
@@ -1024,13 +1481,11 @@ describe("ai_agent_loop_streaming", () => {
     expect(JSON.stringify(requestedMessages[1])).toContain("reactive");
   });
 
-  it("backs up and compresses without rewriting transcript evidence when threshold is reached", async () => {
+  it("compresses without rewriting transcript evidence when threshold is reached", async () => {
     const actor = createTestActor();
     actor.modelConfig.inputLimit = 100;
     const toolRegistry = new ToolFuncRegistry();
 
-    const backupCalls: Array<{ agentKey: string; agentActorId: string; actorType?: string }> = [];
-    const appendCalls: any[] = [];
     const compressedSeed = [
       { role: "user", content: "compressed user" },
       { role: "assistant", content: "compressed assistant" },
@@ -1046,14 +1501,6 @@ describe("ai_agent_loop_streaming", () => {
     const vm = createTestRuntime({
       actor,
       toolRegistry,
-      effects: {
-        messageHistory: {
-          appendMessage: (event) => appendCalls.push(event),
-          backupHistory: async (params) => {
-            backupCalls.push(params);
-          },
-        },
-      },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
 
@@ -1064,9 +1511,11 @@ describe("ai_agent_loop_streaming", () => {
     });
 
     expect(result.stopReason).toBe("no_tool_calls");
-    expect(backupCalls).toEqual([{ agentKey: actor.key, agentActorId: actor.id, actorType: actor.type }]);
-    expect(result.messages.slice(0, 4)).toEqual(compressedSeed);
-    expect(appendCalls).toEqual([]);
+    // P7: result.messages is the read-only domain projection; compare the
+    // normalized role/content shape rather than raw object identity.
+    expect(
+      result.messages.slice(0, 4).map((message: any) => [String(message.role), String(message.content)]),
+    ).toEqual(compressedSeed.map((message: any) => [String(message.role), String(message.content)]));
   });
 
   it("persists prompt/history/session conversation state when compression rewrites the active context", async () => {
@@ -1090,16 +1539,11 @@ describe("ai_agent_loop_streaming", () => {
       toolRegistry,
       outerCtx: {
         workDir: sessionDir,
-        metadata: {
-          sessionDir,
-          conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
-        },
-      },
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async () => {},
-        },
+        metadata: { sessionDir },
+        // P3 (refactor-persistent-session-backplane / `explicit-injection`):
+        // the conversation-persistence factory is now an explicit typed field,
+        // no longer stashed in the untyped `metadata` bag.
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
       },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
@@ -1142,7 +1586,6 @@ describe("ai_agent_loop_streaming", () => {
     actor.modelConfig.inputLimit = 1000;
     const toolRegistry = new ToolFuncRegistry();
     let compressCalled = false;
-    let backupCalled = false;
 
     __setCompressionDepsForTest({
       estimateUsageRatio: () => 0.1,
@@ -1155,27 +1598,26 @@ describe("ai_agent_loop_streaming", () => {
     const vm = createTestRuntime({
       actor,
       toolRegistry,
-      effects: {
-        messageHistory: {
-          appendMessage: () => {},
-          backupHistory: async () => {
-            backupCalled = true;
-          },
-        },
-      },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
 
-    const messages = [{ role: "user", content: "short" }];
-    const result = await forceCompressActorHistory({ vm, actor, messages });
+    // P7: compaction reads the domain projection — seed the domain, not an array.
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: "short" } as any,
+    });
+    const result = await forceCompressActorHistory({ vm, actor });
 
     expect(result).toEqual({ ok: true, tokensBefore: expect.any(Number), messagesAfter: 1, compacted: false });
     expect(compressCalled).toBe(false);
-    expect(backupCalled).toBe(false);
-    expect(messages).toEqual([{ role: "user", content: "short" }]);
+    expect(
+      actor.messages.map((message: any) => [String(message.role), String(message.content)]),
+    ).toEqual([["user", "short"]]);
   });
 
-  it("injects runtime hints through memberInbox without treating them as semantic user input", async () => {
+  it("routes memberChatInbox hints into the semantic stream tagged as a system-source user input (P8 single-writer pipeline)", async () => {
     const bus = new AgentEventGraph();
     const actor = createTestActor();
     const toolRegistry = new ToolFuncRegistry();
@@ -1186,10 +1628,17 @@ describe("ai_agent_loop_streaming", () => {
       processStream: async () => ({ role: "assistant", content: "ok" }),
     });
 
-    const events: string[] = [];
-    bus.addConsumer((event) => events.push(event.event_type));
+    const userInputEvents: { text: string; source: string }[] = [];
+    bus.addConsumer((event) => {
+      if (event.event_type !== "semantic_user_input") return;
+      const semantic = event as { text?: string; input_source?: string };
+      userInputEvents.push({
+        text: String(semantic.text ?? ""),
+        source: String(semantic.input_source ?? ""),
+      });
+    });
 
-    actor.mailboxes.memberInbox.push({
+    actor.mailboxes.memberChatInbox.push({
       from: "",
       text: "Runtime hint:\nYou already confirmed src/demo.py. Patch it now instead of rereading.",
       ts: Date.now(),
@@ -1203,14 +1652,25 @@ describe("ai_agent_loop_streaming", () => {
     });
 
     expect(result.stopReason).toBe("no_tool_calls");
-    expect(result.messages).toContainEqual({
-      role: "user",
-      content: "Runtime hint:\nYou already confirmed src/demo.py. Patch it now instead of rereading.",
-    });
-    expect(result.messages).toContainEqual({
-      role: "user",
-      content: "fix the bug",
-    });
-    expect(events.filter((event) => event === "semantic_user_input")).toEqual(["semantic_user_input"]);
+    // P8 decisions 6+8: ALL conversation inputs enter as semantic events;
+    // non-streaming sources are tagged with `input_source: "system"`, real
+    // user input retains `input_source: "tui"`. There is exactly one event
+    // per input — the legacy "hint is invisible to the semantic stream"
+    // contract was reversed by decision 6.
+    expect(userInputEvents).toEqual([
+      {
+        text: "Runtime hint:\nYou already confirmed src/demo.py. Patch it now instead of rereading.",
+        source: "system",
+      },
+      { text: "fix the bug", source: "tui" },
+    ]);
+    expect(
+      result.messages.some(
+        (m: any) => m?.role === "user" && m?.content === "Runtime hint:\nYou already confirmed src/demo.py. Patch it now instead of rereading.",
+      ),
+    ).toBe(true);
+    expect(
+      result.messages.some((m: any) => m?.role === "user" && m?.content === "fix the bug"),
+    ).toBe(true);
   });
 });

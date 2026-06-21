@@ -1,0 +1,28 @@
+<!--
+  config/operation-hooks.xml —— 命令生命周期 hook（无独立 track.xml 的操作）。
+  与 track.xml 的 <Hooks> 同语法（统一 <Hook on>），只是宿主是命令生命周期点而非节点。
+  typed check 用 cdt: 命名空间，配置直接写在节点上：
+    AttractorCheck use="<profile>"（指 config/attractor-profiles.xml 的 profile；fresh-subagent 由 std 提示词约定）
+    ArtifactSync   use="<artifact>"（归档后按 track 的 output MaterialBundle 同步）
+-->
+<OperationHooks version="1" xmlns:cdt="urn:codument:v1">
+
+  <Operation name="track">
+    <Hooks>
+      <Hook on="track:after-design"><cdt:AttractorCheck use="coding"/></Hook>
+    </Hooks>
+  </Operation>
+
+  <Operation name="archive">
+    <Hooks>
+      <Hook on="archive:after"><cdt:ArtifactSync use="docs"/></Hook>
+    </Hooks>
+  </Operation>
+
+  <Operation name="revise-track">
+    <Hooks>
+      <Hook on="revise:before"><cdt:AttractorCheck use="coding"/></Hook>
+    </Hooks>
+  </Operation>
+
+</OperationHooks>

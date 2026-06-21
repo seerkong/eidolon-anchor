@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="runtime-control-engine" version="1">
+  <requirement id="command-interpreter">
+    <statement>系统 SHALL 提供一个可恢复的 runtime control engine，将控制操作表示为持久化的 command 数据，复用 depa-actor@0.2.0 的 CommandDequeGroup/stack/dispatcher 原语进行本地解释执行，并产生状态投影、effect request 和 commit intent。</statement>
+    <suite id="deterministic-reduction" name="确定性解释">
+      <case id="same-input-same-output">
+        <given>相同的 control state 和相同的 command sequence</given>
+        <when>engine 执行 command reduction</when>
+        <then>engine SHALL 产生相同的 next state、projection patch、effect request 和 commit intent</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="local-command-worklist">
+    <statement>系统 SHALL 使用 depa-actor@0.2.0 CommandDequeGroup 表达 actor-local 内部 command worklist；command item 不应携带 lane 或 priority，调度元数据 SHALL 位于 deque/group 层。</statement>
+    <suite id="selector-policy" name="选择策略">
+      <case id="safepoint-aware-selection">
+        <given>commit deque 中存在 pending commit command 且 runtime 尚未到达 safepoint</given>
+        <when>engine selector 选择下一条 command</when>
+        <then>selector SHALL 跳过该 commit command 并选择其他可消费 command 或返回无可消费 command</then>
+      </case>
+      <case id="explicit-selection-mutation">
+        <given>selector 已选出下一条 command</given>
+        <when>engine 只执行 selectNext</when>
+        <then>command group state SHALL NOT 被修改</then>
+        <then>engine SHALL 只在 popSelected 或 takeNext 阶段消费 command</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="safepoint-cohort">
+    <statement>系统 SHALL 使用 safepoint 管理多个 durable heads 的写入；未达到 safepoint 的变更 SHALL 保留在内存缓冲或待提交 intent 中，不得把 runtime 保存成不可恢复状态。</statement>
+    <suite id="multi-head-commit" name="多 head 一致性提交">
+      <case id="commit-only-at-safepoint">
+        <given>snapshot、mailbox、conversation、event log 或 diagnostics 中任一 head 尚未满足 safepoint policy</given>
+        <when>engine 准备执行持久化写入</when>
+        <then>engine SHALL 延迟相关 durable heads 的 cohort commit</then>
+      </case>
+      <case id="recover-after-crash">
+        <given>进程在 effect request 和 durable cohort commit 之间崩溃</given>
+        <when>engine 从持久化 heads 恢复</when>
+        <then>engine SHALL 根据 evidence 和 commit marker 明确分类该 effect 的恢复状态</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="effect-lifecycle">
+    <statement>系统 SHALL 将副作用建模为 effect request/result 生命周期，并支持长时间等待、权限拦截、重试、取消和恢复分类。</statement>
+    <suite id="long-running-effect" name="长耗时 effect">
+      <case id="wait-without-invalid-snapshot">
+        <given>effect handler 因权限拦截或外部等待长时间未返回</given>
+        <when>engine 需要保存 runtime 状态</when>
+        <then>engine SHALL 保存可恢复的 waiting state 或延迟不安全 head 的提交</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="platform-logic-evidence-gate" version="1">
+  <requirement id="platform-logic-introduction-must-be-evidence-gated">
+    <statement>系统应当为 `platform-logic` 的引入设置明确证据门槛，而不是因为目标结构中存在该层就提前实现空平台逻辑包。</statement>
+    <!-- migrated title: Platform Logic Introduction Must Be Evidence-Gated -->
+    <suite name="platform-logic-introduction-must-be-evidence-gated">
+      <case id="no-platform-logic-without-cross-domain-evidence" name="No platform-logic without cross-domain evidence">
+        <given>当前只有 AI 领域真实落在平台微内核之上</given>
+        <when>团队评估是否引入 `platform-logic`</when>
+        <then>必须先具备明确跨领域复用证据或第二领域需求</then>
+        <then>不应为了未来可能复用而提前抽象</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="evidence-gate-must-preserve-current-ownership-boundaries">
+    <statement>系统应当确保 platform-logic 的证据门槛不会把 AI 语义错误上移到平台层。</statement>
+    <!-- migrated title: Evidence Gate Must Preserve Current Ownership Boundaries -->
+    <suite name="evidence-gate-must-preserve-current-ownership-boundaries">
+      <case id="candidate-capability-remains-in-current-host-until-evidence-is-sufficient" name="Candidate capability remains in current host until evidence is sufficient">
+        <given>某个能力仍主要服务于 AI domain</given>
+        <when>尚未满足 platform-logic 证据门槛</when>
+        <then>它应继续留在当前宿主</then>
+        <then>不应为追求结构完整而被提前上收到平台层</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

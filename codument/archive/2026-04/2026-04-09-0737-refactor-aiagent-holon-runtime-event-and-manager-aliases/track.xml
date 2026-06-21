@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-holon-runtime-event-and-manager-aliases" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 holon-first helper 成为 OrganizationManager 的真实实现入口，并把 autonomous runtime event wording 切到 holon 语义。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-09T07:37:43Z</CreatedAt>
+    <UpdatedAt>2026-04-09T07:37:43Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-holon-runtime-event-and-manager-aliases" name="refactor-aiagent-holon-runtime-event-and-manager-aliases" version="1">
+    <Description>将 holon runtime 的 manager helper 与 collective event wording 继续收口</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>固化 manager helper 与 runtime event wording 的收口边界。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 proposal/spec/design/plan" status="DONE" order="0" priority="P0">
+            <Description>明确本轮只处理 manager helper 主实现与 autonomous event wording。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Manager And Event Refactor" status="DONE" order="1">
+        <Description>收口 OrganizationManager helper 与 runtime event wording。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="收口 OrganizationManager helper 主实现" status="DONE" order="0" priority="P0">
+            <Description>让 holon-first helper 成为主实现，旧 collective/formation helper 退为包装。</Description>
+          </Task>
+          <Task id="T2.2" name="收口 autonomous runtime event naming" status="DONE" order="1" priority="P0">
+            <Description>新增 holon-first runtime event API，并让 runner/executor 切换到新命名。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Tests And Validation" status="DONE" order="2">
+        <Description>同步 focused tests、报告和 strict validation。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新 focused tests 与 theater 报告" status="DONE" order="0" priority="P0">
+            <Description>同步 event wording 与 manager helper 主实现状态。</Description>
+          </Task>
+          <Task id="T3.2" name="执行 strict validation 与 focused regression" status="DONE" order="1" priority="P0">
+            <Description>运行相关 tests 与 `codument validate refactor-aiagent-holon-runtime-event-and-manager-aliases --strict`。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

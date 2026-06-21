@@ -46,6 +46,48 @@ describe("OpenAI Responses input item builders", () => {
     ]);
   });
 
+  it("replays committed canonical toolCalls with input as responses function calls", () => {
+    const result = buildOpenAIResponsesInputItems([
+      { role: "user", content: "inspect release script" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          {
+            id: "call_3eKsFa9uybjwUjsVIXaZ6EFD",
+            name: "bash",
+            input: {
+              command: "sed -n '240,340p' scripts/build_tui_release.sh",
+              workdir: ".",
+              timeoutSeconds: 30,
+            },
+          },
+        ],
+      },
+      {
+        role: "tool",
+        toolCallId: "call_3eKsFa9uybjwUjsVIXaZ6EFD",
+        content: "script tail",
+      },
+    ]);
+
+    expect(result.toolItems).toEqual([
+      {
+        type: "function_call",
+        call_id: "call_3eKsFa9uybjwUjsVIXaZ6EFD",
+        name: "bash",
+        arguments: "{\"command\":\"sed -n '240,340p' scripts/build_tui_release.sh\",\"workdir\":\".\",\"timeoutSeconds\":30}",
+      },
+    ]);
+    expect(result.toolOutputItems).toEqual([
+      {
+        type: "function_call_output",
+        call_id: "call_3eKsFa9uybjwUjsVIXaZ6EFD",
+        output: "script tail",
+      },
+    ]);
+  });
+
   it("supports assistant replay payloads", () => {
     const result = buildOpenAIResponsesInputItemsWithAssistantReplay(
       [{ role: "user", content: "continue" }],
@@ -67,6 +109,25 @@ describe("OpenAI Responses input item builders", () => {
       name: "bash",
       arguments: "{\"command\":\"pwd\"}",
     });
+  });
+
+  it("supports assistant replay payloads with canonical input", () => {
+    const result = buildOpenAIResponsesInputItemsWithAssistantReplay(
+      [{ role: "user", content: "continue" }],
+      {
+        toolCalls: [
+          {
+            id: "call_2",
+            name: "bash",
+            input: { command: "pwd" },
+          },
+        ],
+      },
+    );
+
+    expect(result.assistantReplayItems).toEqual([
+      { type: "function_call", call_id: "call_2", name: "bash", arguments: "{\"command\":\"pwd\"}" },
+    ]);
   });
 
   it("builds a complete responses request body for tool follow-up stateful chain", () => {

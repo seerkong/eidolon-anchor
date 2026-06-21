@@ -7,6 +7,7 @@ import { composeToolRegistry } from "@cell/ai-organ-logic/composer/AIAgent/ToolF
 import { AgentEventGraph, AgentRegistry, createActor, createVM } from "@cell/ai-core-logic"
 import { ensureVmRuntimeContext } from "@cell/ai-core-logic/runtime/runtime"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
+import { messagesToTranscriptRecords } from "@cell/ai-core-logic/runtime/TranscriptRecords"
 import type { ToolDef } from "@cell/ai-core-contract/types"
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl"
 import {
@@ -15,18 +16,32 @@ import {
   createAiAgentOrchestratorDriverWithCooperative,
   getMemberManager,
 } from "@cell/ai-organ-logic"
+import { appendLiveHistoryMessageToConversationDomainRuntime } from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime"
 import { aiAgentCooperativeStep, aiAgentLoopStreaming } from "@cell/ai-organ-logic/exec/AiAgentExecutor"
+import { createMockProcessStream } from "../__test_support__/mockProcessStream"
 import { createAutonomousHolonController } from "@cell/ai-organ-logic/organization/AutonomousHolonController"
 import { getDetachedActorRegistry } from "@cell/ai-organ-logic/detached/DetachedActorRegistry"
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine"
 import { recoverAiAgentRuntime, saveAiAgentRuntimeSnapshot } from "@cell/ai-organ-logic/persistence/RuntimeSnapshots"
 import {
   applyConversationCompaction,
-  LocalFileActorTranscriptStore,
   LocalFileConversationPersistenceRepositoryFactory,
   LocalFileRuntimeDerivedIndexesStore,
   LocalFileRuntimeSnapshotRepositoryFactory,
 } from "@cell/ai-support"
+import {
+  appendRuntimeControlEffectEvidence,
+  appendXnlRecord,
+  readRuntimeControlCohortCommitFile,
+  readRuntimeControlEffectEvidence,
+  readRuntimeControlEffectEvidenceSequence,
+  readRuntimeControlSessionUpgradeFile,
+  readRealSessionDurableHeads,
+  writeRuntimeControlCohortCommitFile,
+  writeRuntimeControlSessionUpgradeFile,
+} from "@cell/ai-file-store-logic"
+import { rebuildEffectsFromLifecycleEvidence } from "@cell/ai-runtime-control-logic"
+import { applyFileStoreAiRuntimeSessionUpgrade } from "@cell/ai-runtime-control-composer"
 
 function makeTempSessionDir(): string {
   const dir = path.join(os.tmpdir(), `eidolon-runtime-recovery-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
@@ -35,7 +50,6 @@ function makeTempSessionDir(): string {
 }
 
 configureRuntimePersistenceSupport({
-  actorTranscriptStore: LocalFileActorTranscriptStore,
   snapshotRepositoryFactory: LocalFileRuntimeSnapshotRepositoryFactory,
   derivedIndexesStore: LocalFileRuntimeDerivedIndexesStore,
   conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
@@ -59,7 +73,295 @@ async function flushMicrotasks(): Promise<void> {
   }
 }
 
+async function rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir: string): Promise<void> {
+  const heads = await readRealSessionDurableHeads(sessionDir)
+  const current = await readRuntimeControlCohortCommitFile({ sessionDir, cohortId: "checkpoint" })
+  const checkpointHeadIds = current ? Object.keys(current.headSequences) : Object.keys(heads)
+  await writeRuntimeControlCohortCommitFile({
+    sessionDir,
+    cohortId: "checkpoint",
+    headSequences: Object.fromEntries(
+      checkpointHeadIds.map((headId) => [headId, heads[headId]?.committedSequence ?? 0]),
+    ),
+    effectEvidenceSequence: await readRuntimeControlEffectEvidenceSequence(sessionDir),
+  })
+  const checkpoint = await readRuntimeControlCohortCommitFile({ sessionDir, cohortId: "checkpoint" })
+  const upgrade = await readRuntimeControlSessionUpgradeFile({ sessionDir })
+  if (checkpoint && upgrade) {
+    await writeRuntimeControlSessionUpgradeFile({
+      sessionDir,
+      checkpointCohortId: checkpoint.cohortId,
+      checkpointMarker: checkpoint.marker,
+      previousCheckpointMarker: upgrade.checkpointMarker,
+      headSequences: checkpoint.headSequences,
+      effectEvidenceSequence: checkpoint.effectEvidenceSequence,
+    })
+  }
+}
+
+async function upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir: string): Promise<void> {
+  const result = await applyFileStoreAiRuntimeSessionUpgrade({ sessionDir })
+  expect(result.status === "applied" || result.status === "already_upgraded").toBe(true)
+}
+
+async function readLatestHistoryGenerationFromXnl(sessionDir: string, generationId: string): Promise<any | null> {
+  const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+  return await repository.loadHistoryGeneration(generationId)
+}
+
 describe("runtime recovery bootstrap", () => {
+  it("loads an upgraded clean session through the production owned gate", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-owned-clean"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "hello" }] as any[],
+    })
+    const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })
+
+      expect(recovered).toBeTruthy()
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("keeps an upgraded session recoverable after a later checkpoint save", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-owned-post-save"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "hello" }] as any[],
+    })
+    const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      const initialUpgrade = await readRuntimeControlSessionUpgradeFile({ sessionDir })
+
+      // P7: actor.messages is read-only; new conversation content lands via
+      // the domain write channel.
+      appendLiveHistoryMessageToConversationDomainRuntime({
+        vm,
+        actorKey: actor.key,
+        actorId: actor.id,
+        message: { role: "user", content: "after upgrade save" } as any,
+      })
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+
+      const checkpoint = await readRuntimeControlCohortCommitFile({ sessionDir, cohortId: "checkpoint" })
+      const refreshedUpgrade = await readRuntimeControlSessionUpgradeFile({ sessionDir })
+      expect(checkpoint?.marker).toBeTruthy()
+      expect(refreshedUpgrade?.checkpointMarker).toBe(checkpoint?.marker)
+      expect(refreshedUpgrade?.previousCheckpointMarker).toBe(initialUpgrade?.checkpointMarker)
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })
+
+      expect(recovered).toBeTruthy()
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("requires explicit session upgrade before production recovery", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-owned-upgrade-required"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "hello" }] as any[],
+    })
+    const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      fs.rmSync(path.join(sessionDir, "runtime-control", "upgrade.json"), { force: true })
+
+      await expect(recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })).rejects.toThrow("runtime_control_session_upgrade_required")
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("does not allow shadow recovery mode to bypass the production owned gate", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-owned-shadow-bypass"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "hello" }] as any[],
+    })
+    const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      fs.rmSync(path.join(sessionDir, "runtime-control", "upgrade.json"), { force: true })
+
+      await expect(recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        runtimeControlMode: "shadow",
+        llmClient: adapter,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      } as any)).rejects.toThrow("runtime_control_session_upgrade_required")
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("rejects recovery when persisted runtime-control effect evidence has an orphaned result", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-orphaned-effect-evidence"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "hello" }] as any[],
+    })
+    const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "result",
+          effectKind: "bash",
+          effectId: "orphaned-tool-result",
+          handlerKey: "bash",
+          resultId: "result-without-request",
+        },
+      })
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+
+      await expect(recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })).rejects.toThrow("dirty_runtime_control_recovery:orphaned")
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("rejects recovery when runtime-control commit marker disagrees with session heads", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-dirty-runtime-control"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "hello" }] as any[],
+    })
+    const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      const markerPath = path.join(sessionDir, "runtime-control", "cohorts", "checkpoint.commit.json")
+      const marker = JSON.parse(fs.readFileSync(markerPath, "utf8"))
+      marker.headSequences.conversation = marker.headSequences.conversation + 1
+      fs.writeFileSync(markerPath, `${JSON.stringify(marker, null, 2)}\n`, "utf8")
+
+      await expect(recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })).rejects.toThrow("dirty_runtime_control_recovery")
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("revives a failed fiber that still has recovered mailbox work", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-recovery-failed-human-input"
@@ -70,7 +372,7 @@ describe("runtime recovery bootstrap", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "continued" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
       },
     })
     const vm = createVM({
@@ -93,6 +395,7 @@ describe("runtime recovery bootstrap", () => {
     actor.send("humanInput", "继续")
     await flushMicrotasks()
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recovered = await recoverAiAgentRuntime({
       sessionDir,
@@ -101,7 +404,7 @@ describe("runtime recovery bootstrap", () => {
       registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "continued" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
       },
     })
 
@@ -111,7 +414,7 @@ describe("runtime recovery bootstrap", () => {
     expect(state?.lastError).toBeUndefined()
   })
 
-  it("resumes a recovered pending aiGenerated tool result from a legacy snapshot", async () => {
+  it("resumes a recovered pending asyncCompletion tool result from a snapshot", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-recovery-pending-ai-generated"
     const adapter = makeMockAdapter()
@@ -132,7 +435,7 @@ describe("runtime recovery bootstrap", () => {
       ],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "continued" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
       },
     })
 
@@ -153,44 +456,61 @@ describe("runtime recovery bootstrap", () => {
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
     })
     const opId = `tool:${mainFiberId}:245`
-    ;(driver.inspectRuntime().fibers[mainFiberId] as any).execState = {
-      phase: "wait_tool",
-      turn: 1,
-      tools: [],
-      toolCalls: [toolCall],
-      toolIndex: 0,
-      nextOpSeq: 246,
-      pendingToolResults: [],
-      pendingAiGenerated: [],
-      inflight: {
-        kind: "tool",
-        opId,
-        funcName: "RecoveredTool",
-        toolCallId: "call_recovered_tool",
-        args: { path: "demo" },
-      },
-      messageHistoryAttached: false,
-    }
-    root.send("aiGenerated", {
-      kind: "tool_done",
-      opId,
-      funcName: "RecoveredTool",
-      toolCallId: "call_recovered_tool",
-      args: { path: "demo" },
-      output: "---",
-      outputText: "---",
-    } as any)
-    driver.suspendFiber(mainFiberId, Date.now(), "tool_result")
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
 
     const manifestPath = path.join(sessionDir, "runtime_state", "manifest.json")
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"))
+    const actorPath = path.join(sessionDir, "runtime_state", manifest.actorFiles[root.key])
+    const mailboxesPath = path.join(path.dirname(actorPath), "mailboxes.json")
+    const mailboxesSnapshot = JSON.parse(fs.readFileSync(mailboxesPath, "utf-8"))
+    mailboxesSnapshot.mailboxes = {
+      ...(mailboxesSnapshot.mailboxes ?? {}),
+      asyncCompletion: [
+        {
+          kind: "tool_done",
+          opId,
+          funcName: "RecoveredTool",
+          toolCallId: "call_recovered_tool",
+          args: { path: "demo" },
+          output: "---",
+          outputText: "---",
+        },
+      ],
+    }
+    fs.writeFileSync(mailboxesPath, `${JSON.stringify(mailboxesSnapshot, null, 2)}\n`)
     const fiberPath = path.join(sessionDir, "runtime_state", manifest.fiberFiles[mainFiberId])
     const fiberSnapshot = JSON.parse(fs.readFileSync(fiberPath, "utf-8"))
+    fiberSnapshot.status = "suspended"
+    fiberSnapshot.waitingReason = "wait_tool_result"
+    fiberSnapshot.lastYieldAt = Date.now()
+    fiberSnapshot.metadata = {
+      ...(fiberSnapshot.metadata ?? {}),
+      waitingReason: "wait_tool_result",
+      cooperativeExecState: {
+        phase: "wait_tool",
+        turn: 1,
+        tools: [],
+        toolCalls: [toolCall],
+        toolIndex: 0,
+        nextOpSeq: 246,
+        pendingToolResults: [],
+        pendingAiGenerated: [],
+        inflight: {
+          kind: "tool",
+          opId,
+          funcName: "RecoveredTool",
+          toolCallId: "call_recovered_tool",
+          args: { path: "demo" },
+        },
+        messageHistoryAttached: false,
+      },
+    }
     expect(fiberSnapshot.metadata.cooperativeExecState?.phase).toBe("wait_tool")
     delete fiberSnapshot.metadata.cooperativeExecState
     fs.writeFileSync(fiberPath, `${JSON.stringify(fiberSnapshot, null, 2)}\n`)
+    await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recovered = await recoverAiAgentRuntime({
       sessionDir,
@@ -204,7 +524,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "continued" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
       },
     })
 
@@ -212,9 +532,164 @@ describe("runtime recovery bootstrap", () => {
     expect(recovered!.driver.getState().fibers[mainFiberId]?.status).toBe("ready")
 
     await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 20, maxWallMs: 2000 })
-    expect(recovered!.controlActor.peekMailbox("aiGenerated")).toEqual([])
+    expect(recovered!.controlActor.peekMailbox("asyncCompletion")).toEqual([])
     expect(recovered!.controlActor.messages.some((message: any) => message?.role === "tool" && message?.content === "---")).toBe(true)
     expect(recovered!.controlActor.messages.some((message: any) => message?.role === "assistant" && message?.content === "continued")).toBe(true)
+  })
+
+  it("replays a completed provider effect into a recovered wait_llm state", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-provider-effect-completed"
+    const adapter = makeMockAdapter()
+    let processStreamCalls = 0
+    const toolCall = {
+      id: "call_effect_recovered_tool",
+      type: "function",
+      function: { name: "RecoveredTool", arguments: "{\"path\":\"demo\"}" },
+    }
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      recovery: { restoredFromSnapshot: true },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "continue after late provider result" } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => {
+          processStreamCalls += 1
+          return { role: "assistant", content: "unexpected new provider call" }
+        },
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    const fiberId = `${root.key}:${root.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor: root, messages: root.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    const opId = `llm:${fiberId}:57`
+
+    await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    const manifestPath = path.join(sessionDir, "runtime_state", "manifest.json")
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"))
+    const fiberPath = path.join(sessionDir, "runtime_state", manifest.fiberFiles[fiberId])
+    const fiberSnapshot = JSON.parse(fs.readFileSync(fiberPath, "utf-8"))
+    fiberSnapshot.status = "suspended"
+    fiberSnapshot.waitingReason = "wait_llm_result"
+    fiberSnapshot.lastYieldAt = Date.now()
+    fiberSnapshot.metadata = {
+      ...(fiberSnapshot.metadata ?? {}),
+      waitingReason: "wait_llm_result",
+      cooperativeExecState: {
+      phase: "wait_llm",
+      turn: 30,
+      tools: [],
+      toolCalls: [],
+      toolIndex: 0,
+      nextOpSeq: 58,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      inflight: {
+        kind: "llm",
+        opId,
+        turn: 30,
+        tools: [],
+      },
+      messageHistoryAttached: false,
+      },
+    }
+    fs.writeFileSync(fiberPath, `${JSON.stringify(fiberSnapshot, null, 2)}\n`)
+    await appendRuntimeControlEffectEvidence({
+      sessionDir,
+      event: {
+        kind: "request",
+        effectKind: "provider_completion",
+        effectId: opId,
+        handlerKey: "llm:codex",
+        idempotencyKey: `${fiberId}:${opId}:provider_completion`,
+        sourceCommandId: opId,
+        payload: { actorKey: "main", actorId: root.id, model: "mock", turn: 30 },
+      },
+    })
+    await appendRuntimeControlEffectEvidence({
+      sessionDir,
+      event: {
+        kind: "waiting",
+        effectKind: "provider_completion",
+        effectId: opId,
+        handlerKey: "llm:codex",
+        idempotencyKey: `${fiberId}:${opId}:provider_completion`,
+        waitReason: "wait_llm_result",
+      },
+    })
+    await appendRuntimeControlEffectEvidence({
+      sessionDir,
+      event: {
+        kind: "result",
+        effectKind: "provider_completion",
+        effectId: opId,
+        handlerKey: "llm:codex",
+        resultId: `${opId}:llm_done`,
+        payload: { role: "assistant", content: null, tool_calls: [toolCall] },
+      },
+    })
+    await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+
+    const recovered = await recoverAiAgentRuntime({
+      sessionDir,
+      sessionId,
+      llmClient: adapter as any,
+      registries: {
+        toolRegistry: composeToolRegistry({ includeInternalOnly: true }),
+      } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+      actorCallbacks: {
+        buildToolset: () => [],
+        processStream: async () => {
+          processStreamCalls += 1
+          return { role: "assistant", content: "unexpected new provider call" }
+        },
+      },
+    })
+
+    expect(recovered).toBeTruthy()
+    expect(recovered!.driver.getState().fibers[fiberId]?.status).toBe("ready")
+
+    await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 1, maxWallMs: 2000 })
+
+    // The replay itself never re-calls the provider.
+    expect(processStreamCalls).toBe(0)
+
+    // P7 domain timing: the replayed assistant (with planned tool calls)
+    // commits to the History domain when its paired tool result lands —
+    // tick on so the recovered tool round settles, then assert the committed
+    // pair on the read-only projection.
+    await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 20, maxWallMs: 4000 })
+    expect(
+      recovered!.controlActor.messages.some(
+        (message: any) =>
+          message?.role === "assistant"
+          && ((message?.tool_calls ?? message?.toolCalls ?? [])[0]?.id === "call_effect_recovered_tool"),
+      ),
+    ).toBe(true)
+    expect(
+      recovered!.controlActor.messages.some(
+        (message: any) => message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "call_effect_recovered_tool",
+      ),
+    ).toBe(true)
   })
 
   it("turns an interrupted recovered inflight tool into an error tool result", async () => {
@@ -238,7 +713,7 @@ describe("runtime recovery bootstrap", () => {
       ],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "continued after interruption" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued after interruption" })),
       },
     })
     const vm = createVM({
@@ -254,27 +729,39 @@ describe("runtime recovery bootstrap", () => {
       fibers: [{ fiberId, vm, actor: root, messages: root.messages, basePriority: 1 }],
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
     })
-    ;(driver.inspectRuntime().fibers[fiberId] as any).execState = {
-      phase: "wait_tool",
-      turn: 1,
-      tools: [],
-      toolCalls: [toolCall],
-      toolIndex: 0,
-      nextOpSeq: 835,
-      pendingToolResults: [],
-      pendingAiGenerated: [],
-      inflight: {
-        kind: "tool",
-        opId: `tool:${fiberId}:834`,
-        funcName: "SlowTool",
-        toolCallId: "call_interrupted_tool",
-        args: { path: "demo" },
-      },
-      messageHistoryAttached: false,
-    }
-    driver.suspendFiber(fiberId, Date.now(), "tool_result")
-
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    const manifestPath = path.join(sessionDir, "runtime_state", "manifest.json")
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"))
+    const fiberPath = path.join(sessionDir, "runtime_state", manifest.fiberFiles[fiberId])
+    const fiberSnapshot = JSON.parse(fs.readFileSync(fiberPath, "utf-8"))
+    fiberSnapshot.status = "suspended"
+    fiberSnapshot.waitingReason = "wait_tool_result"
+    fiberSnapshot.lastYieldAt = Date.now()
+    fiberSnapshot.metadata = {
+      ...(fiberSnapshot.metadata ?? {}),
+      waitingReason: "wait_tool_result",
+      cooperativeExecState: {
+        phase: "wait_tool",
+        turn: 1,
+        tools: [],
+        toolCalls: [toolCall],
+        toolIndex: 0,
+        nextOpSeq: 835,
+        pendingToolResults: [],
+        pendingAiGenerated: [],
+        inflight: {
+          kind: "tool",
+          opId: `tool:${fiberId}:834`,
+          funcName: "SlowTool",
+          toolCallId: "call_interrupted_tool",
+          args: { path: "demo" },
+        },
+        messageHistoryAttached: false,
+      },
+    }
+    fs.writeFileSync(fiberPath, `${JSON.stringify(fiberSnapshot, null, 2)}\n`)
+    await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recovered = await recoverAiAgentRuntime({
       sessionDir,
@@ -286,7 +773,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "continued after interruption" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued after interruption" })),
       },
     })
 
@@ -298,6 +785,442 @@ describe("runtime recovery bootstrap", () => {
     const toolMessage = recovered!.controlActor.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "call_interrupted_tool")
     expect(toolMessage?.content).toContain("interrupted tool call")
     expect(recovered!.controlActor.messages.some((message: any) => message?.role === "assistant" && message?.content === "continued after interruption")).toBe(true)
+  })
+
+  it("allows a checkpointed pending tool effect when it belongs to recovered inflight and closes the evidence", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-owned-pending-tool-effect"
+    const adapter = makeMockAdapter()
+    const toolCall = {
+      id: "call_checkpoint_pending_tool",
+      type: "function",
+      function: { name: "bash", arguments: "{\"command\":\"sleep 10\"}" },
+    }
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      recovery: { restoredFromSnapshot: true },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "run pending tool" } as any,
+        { role: "assistant", content: "", tool_calls: [toolCall] } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued after pending tool" })),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    const fiberId = `${root.key}:${root.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor: root, messages: root.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    const opId = `tool:${fiberId}:78`
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      const manifestPath = path.join(sessionDir, "runtime_state", "manifest.json")
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"))
+      const fiberPath = path.join(sessionDir, "runtime_state", manifest.fiberFiles[fiberId])
+      const fiberSnapshot = JSON.parse(fs.readFileSync(fiberPath, "utf-8"))
+      fiberSnapshot.status = "suspended"
+      fiberSnapshot.waitingReason = "wait_tool_result"
+      fiberSnapshot.metadata = {
+        ...(fiberSnapshot.metadata ?? {}),
+        waitingReason: "wait_tool_result",
+        cooperativeExecState: {
+          phase: "wait_tool",
+          turn: 4,
+          tools: [],
+          toolCalls: [toolCall],
+          toolIndex: 0,
+          nextOpSeq: 79,
+          pendingToolResults: [],
+          pendingAiGenerated: [],
+          inflight: {
+            kind: "tool",
+            opId,
+            funcName: "bash",
+            toolCallId: "call_checkpoint_pending_tool",
+            args: { command: "sleep 10" },
+          },
+          messageHistoryAttached: false,
+        },
+      }
+      fs.writeFileSync(fiberPath, `${JSON.stringify(fiberSnapshot, null, 2)}\n`)
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "bash",
+          effectId: opId,
+          handlerKey: "bash",
+          idempotencyKey: `${fiberId}:${opId}:tool`,
+          sourceCommandId: opId,
+          payload: { toolCallId: "call_checkpoint_pending_tool", args: { command: "sleep 10" } },
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "waiting",
+          effectKind: "bash",
+          effectId: opId,
+          handlerKey: "bash",
+          idempotencyKey: `${fiberId}:${opId}:tool`,
+          waitReason: "wait_tool_result",
+        },
+      })
+      await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter as any,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        callbacks: {
+          buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+        },
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued after pending tool" })),
+        },
+      })
+
+      expect(recovered).toBeTruthy()
+      expect(recovered!.driver.getState().fibers[fiberId]?.status).toBe("ready")
+      const effects = rebuildEffectsFromLifecycleEvidence(await readRuntimeControlEffectEvidence(sessionDir))
+      expect(effects[opId]?.status).toBe("failed")
+
+      await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 20, maxWallMs: 2000 })
+
+      const toolMessage = recovered!.controlActor.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "call_checkpoint_pending_tool")
+      expect(toolMessage?.content).toContain("interrupted tool call")
+      expect(recovered!.controlActor.messages.some((message: any) => message?.role === "assistant" && message?.content === "continued after pending tool")).toBe(true)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("does not reject recovery when effect WAL tail advances beyond the checkpoint", async () => {
+    // Historical session 20260604001602__01KT74AEF400CGVZ5X318GJM8Y:
+    // runtime_state/fiber still waited on LLM op 105, but effects.jsonl proved
+    // LLM 105 completed, tool 106 completed, and the runtime had already issued
+    // LLM 107. The corrected design treats effects.jsonl as runtime-control WAL:
+    // recovery classifies the checkpoint-covered prefix, while tail evidence
+    // after the checkpoint WAL sequence is replay/diagnostic input and must not poison the
+    // checkpoint by direct comparison with the older snapshot inflight.
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-evidence-ahead-of-snapshot"
+    const adapter = makeMockAdapter()
+    const toolCall = {
+      id: "call_evidence_ahead_read",
+      type: "function",
+      function: { name: "read", arguments: "{\"path\":\"scripts/build_tui_release.sh\"}" },
+    }
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      recovery: { restoredFromSnapshot: true },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "continue" } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "unexpected provider call" })),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    const fiberId = `${root.key}:${root.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor: root, messages: root.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    const llm105 = `llm:${fiberId}:105`
+    const tool106 = `tool:${fiberId}:106`
+    const llm107 = `llm:${fiberId}:107`
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      const manifestPath = path.join(sessionDir, "runtime_state", "manifest.json")
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"))
+      const fiberPath = path.join(sessionDir, "runtime_state", manifest.fiberFiles[fiberId])
+      const fiberSnapshot = JSON.parse(fs.readFileSync(fiberPath, "utf-8"))
+      fiberSnapshot.status = "suspended"
+      fiberSnapshot.waitingReason = "wait_llm_result"
+      fiberSnapshot.metadata = {
+        ...(fiberSnapshot.metadata ?? {}),
+        waitingReason: "wait_llm_result",
+        cooperativeExecState: {
+          phase: "wait_llm",
+          turn: 55,
+          tools: [],
+          toolCalls: [],
+          toolIndex: 0,
+          nextOpSeq: 106,
+          pendingToolResults: [],
+          pendingAiGenerated: [],
+          inflight: {
+            kind: "llm",
+            opId: llm105,
+            turn: 55,
+            tools: [],
+          },
+          messageHistoryAttached: false,
+        },
+      }
+      fs.writeFileSync(fiberPath, `${JSON.stringify(fiberSnapshot, null, 2)}\n`)
+      await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "provider_completion",
+          effectId: llm105,
+          handlerKey: "llm:codex",
+          idempotencyKey: `${fiberId}:${llm105}:provider_completion`,
+          sourceCommandId: llm105,
+          payload: { actorKey: "main", actorId: root.id, model: "mock", turn: 55 },
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "waiting",
+          effectKind: "provider_completion",
+          effectId: llm105,
+          handlerKey: "llm:codex",
+          idempotencyKey: `${fiberId}:${llm105}:provider_completion`,
+          waitReason: "wait_llm_result",
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "result",
+          effectKind: "provider_completion",
+          effectId: llm105,
+          handlerKey: "llm:codex",
+          resultId: `${llm105}:llm_done`,
+          payload: { role: "assistant", content: null, tool_calls: [toolCall] },
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "tool_call",
+          effectId: tool106,
+          handlerKey: "read",
+          idempotencyKey: `${fiberId}:${tool106}:tool`,
+          sourceCommandId: tool106,
+          payload: { toolCallId: "call_evidence_ahead_read", args: { path: "scripts/build_tui_release.sh" } },
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "waiting",
+          effectKind: "tool_call",
+          effectId: tool106,
+          handlerKey: "read",
+          idempotencyKey: `${fiberId}:${tool106}:tool`,
+          waitReason: "wait_tool_result",
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "result",
+          effectKind: "tool_call",
+          effectId: tool106,
+          handlerKey: "read",
+          resultId: `${tool106}:tool_done`,
+          payload: { toolCallId: "call_evidence_ahead_read", outputText: "#!/usr/bin/env bash\n" },
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "provider_completion",
+          effectId: llm107,
+          handlerKey: "llm:codex",
+          idempotencyKey: `${fiberId}:${llm107}:provider_completion`,
+          sourceCommandId: llm107,
+          payload: { actorKey: "main", actorId: root.id, model: "mock", turn: 56 },
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "waiting",
+          effectKind: "provider_completion",
+          effectId: llm107,
+          handlerKey: "llm:codex",
+          idempotencyKey: `${fiberId}:${llm107}:provider_completion`,
+          waitReason: "wait_llm_result",
+        },
+      })
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter as any,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        callbacks: {
+          buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+        },
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "unexpected provider call" })),
+        },
+      })
+      expect(recovered).toBeTruthy()
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("infers checkpoint WAL prefix for an upgraded session that was written before sequence metadata existed", async () => {
+    // Regression from session 20260604001602__01KT74AEF400CGVZ5X318GJM8Y:
+    // an intermediate migration produced checkpoint/upgrade files without
+    // effectEvidenceSequence. The runtime_checkpoint result still marks the
+    // checkpoint WAL boundary; pending LLM evidence appended after that boundary
+    // must not make recovery throw dirty_runtime_control_recovery:pending.
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-missing-effect-sequence"
+    const adapter = makeMockAdapter()
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      recovery: { restoredFromSnapshot: true },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "continue" } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    const fiberId = `${root.key}:${root.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor: root, messages: root.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "runtime_checkpoint",
+          effectId: "runtime-checkpoint-before-sequence",
+          handlerKey: "runtime_concrete_checkpoint_write",
+          idempotencyKey: "checkpoint:before-sequence",
+          sourceCommandId: "runtime-checkpoint-command-before-sequence",
+        },
+      })
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "result",
+          effectKind: "runtime_checkpoint",
+          effectId: "runtime-checkpoint-before-sequence",
+          handlerKey: "runtime_concrete_checkpoint_write",
+          resultId: "runtime-checkpoint-before-sequence:written",
+          payload: { manifestVersion: 3 },
+        },
+      })
+      const heads = await readRealSessionDurableHeads(sessionDir)
+      const checkpoint = await writeRuntimeControlCohortCommitFile({
+        sessionDir,
+        cohortId: "checkpoint",
+        headSequences: {
+          runtime_snapshot: heads.runtime_snapshot.committedSequence,
+          conversation: heads.conversation.committedSequence,
+          mailbox: heads.mailbox.committedSequence,
+          control_signals: heads.control_signals.committedSequence,
+        },
+      })
+      await writeRuntimeControlSessionUpgradeFile({
+        sessionDir,
+        checkpointCohortId: checkpoint.cohortId,
+        checkpointMarker: checkpoint.marker,
+        headSequences: checkpoint.headSequences,
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "provider_completion",
+          effectId: `llm:${fiberId}:107`,
+          handlerKey: "llm:codex",
+          idempotencyKey: `${fiberId}:107`,
+          sourceCommandId: `llm:${fiberId}:107`,
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "waiting",
+          effectKind: "provider_completion",
+          effectId: `llm:${fiberId}:107`,
+          handlerKey: "llm:codex",
+          idempotencyKey: `${fiberId}:107`,
+          waitReason: "wait_llm_result",
+        },
+      })
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter as any,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        callbacks: {
+          buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+        },
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })
+      expect(recovered).toBeTruthy()
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
   })
 
   it("continues a recovered drain state when history already ends with a tool result", async () => {
@@ -319,7 +1242,7 @@ describe("runtime recovery bootstrap", () => {
       ],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "continued after recovered tool" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued after recovered tool" })),
       },
     })
     const vm = createVM({
@@ -375,7 +1298,7 @@ describe("runtime recovery bootstrap", () => {
       ],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "continued after recovered user" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued after recovered user" })),
       },
     })
     const vm = createVM({
@@ -416,6 +1339,92 @@ describe("runtime recovery bootstrap", () => {
     expect(savedState.phase).toBe("start_llm")
   })
 
+  it("drains new interactive mailbox work before a recovered start_llm continuation", async () => {
+    let llmCalls = 0
+    const adapter = {
+      type: "openai" as const,
+      async createStream() {
+        llmCalls += 1
+        async function* stream() {
+          yield { ok: true }
+        }
+        return { stream: stream() }
+      },
+    }
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      recovery: { restoredFromSnapshot: true },
+      messages: [
+        { role: "system", content: "system" } as any,
+        { role: "user", content: "old task" } as any,
+      ],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "should not run before mailbox drain" }),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    const fiberId = `${root.key}:${root.id}`
+    root.send("humanInput", "new prompt")
+    let savedState: any = {
+      phase: "start_llm",
+      turn: 1,
+      tools: [],
+      toolCalls: [],
+      toolIndex: 0,
+      nextOpSeq: 12,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      inflight: undefined,
+      messageHistoryAttached: false,
+    }
+
+    const firstOutcome = await aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: root,
+      messages: root.messages,
+      state: savedState,
+      setState: (state) => {
+        savedState = state
+      },
+      resumeFiber: () => {},
+    })
+
+    expect(firstOutcome).toEqual({ kind: "yield" })
+    expect(savedState.phase).toBe("drain")
+    expect(llmCalls).toBe(0)
+
+    const secondOutcome = await aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: root,
+      messages: root.messages,
+      state: savedState,
+      setState: (state) => {
+        savedState = state
+      },
+      resumeFiber: () => {},
+    })
+
+    expect(secondOutcome).toEqual({ kind: "yield" })
+    expect(savedState.phase).toBe("compress")
+    expect(root.peekMailbox("humanInput")).toEqual([])
+    expect(
+      root.messages.some((message: any) => message?.role === "user" && message?.content === "new prompt"),
+    ).toBe(true)
+    expect(llmCalls).toBe(0)
+  })
+
   it("restores session state and projects recovered status to tools", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-recovery"
@@ -430,7 +1439,7 @@ describe("runtime recovery bootstrap", () => {
       messages: [{ role: "system", content: "system" } as any],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
     root.send("humanInput", "persist me")
@@ -491,7 +1500,7 @@ describe("runtime recovery bootstrap", () => {
       messages: [{ role: "user", content: "run detached" } as any],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
     vm.actors[detachedActor.key] = detachedActor
@@ -537,7 +1546,15 @@ describe("runtime recovery bootstrap", () => {
     collectiveController.start({ idleTimeoutMs: 999, tickIntervalMs: 77 })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
+    driver.suspendFiber(mainFiberId, Date.now(), "external")
+    for (const member of [worker, collectiveWorker]) {
+      const actor = vm.actors[member.actorKey]
+      if (actor) {
+        driver.suspendFiber(`${actor.key}:${actor.id}`, Date.now(), "external")
+      }
+    }
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     expect(fs.existsSync(path.join(sessionDir, "runtime_state", "indexes", "memberRoster.json"))).toBe(true)
     expect(fs.existsSync(path.join(sessionDir, "runtime_state", "indexes", "detachedActors.json"))).toBe(true)
@@ -561,7 +1578,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -577,12 +1594,14 @@ describe("runtime recovery bootstrap", () => {
     expect(recovered?.recoveryReport.sessionId).toBe(sessionId)
     expect(Array.isArray(recovered?.recoveryReport.corruptions)).toBe(true)
     expect(recovered?.vm.recovery?.report?.sessionId).toBe(sessionId)
-    expect(recovered?.vm.recovery?.report?.actorTranscriptSources?.main?.source).toBe("transcript")
+    // Transcript removal: the recovery report no longer carries per-actor
+    // transcript source attribution.
+    expect((recovered?.vm.recovery?.report as any)?.actorTranscriptSources).toBeUndefined()
 
     const recoveredWorker = recovered?.vm.actors[worker.actorKey]
     expect(recoveredWorker?.type).toBe("delegate")
     expect(recoveredWorker?.identity?.kind).toBe("member")
-    expect(recoveredWorker?.peekMailbox("memberInbox")).toEqual([{ from: "main", text: "queued ping", ts: expect.any(Number) } as any])
+    expect(recoveredWorker?.peekMailbox("memberChatInbox")).toEqual([{ from: "main", text: "queued ping", ts: expect.any(Number) } as any])
 
     const preRunView = getMemberManager().getMemberView({ vm: recovered!.vm, query: worker.memberId })
     expect(preRunView?.lastAssistantText).toBeNull()
@@ -615,7 +1634,7 @@ describe("runtime recovery bootstrap", () => {
     expect(getMemberManager().listMembers({ vm: recovered!.vm }).some((entry) => entry.memberId === collectiveWorker.memberId)).toBe(true)
   })
 
-  it("bootstraps conversation persistence from transcript-backed recovery when conversation files are absent", async () => {
+  it("rejects upgrading a transcript-only session instead of bootstrapping conversation persistence from the transcript", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-conversation-bootstrap"
     const adapter = makeMockAdapter()
@@ -630,7 +1649,7 @@ describe("runtime recovery bootstrap", () => {
       ],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -648,35 +1667,40 @@ describe("runtime recovery bootstrap", () => {
     })
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    // Residual legacy transcript file (the format is removed; runtime code no
+    // longer knows this path — recreate it literally for the regression).
+    const transcriptXnlPath = path.join(sessionDir, "actors", `primary__${root.id}`, "transcript.xnl")
+    for (const record of messagesToTranscriptRecords(root.messages as any)) {
+      await appendXnlRecord({
+        filePath: transcriptXnlPath,
+        tag: "actor-transcript-record",
+        metadata: { stream: record.stream },
+        body: [{
+          kind: "text",
+          tag: "record",
+          metadata: {
+            stream: record.stream,
+            ...(record.marker ? { legacyMarker: record.marker } : {}),
+          },
+          text: record.payload,
+        }],
+      })
+    }
 
-    expect(fs.existsSync(path.join(sessionDir, "conversation", "history.index.json"))).toBe(false)
+    // Transcript removal (spec transcript-complete-removal, case
+    // transcript-only-session-rejected): this session's only conversation
+    // evidence is the legacy transcript, so the upgrade is rejected with an
+    // explicit error — it is never silently converted into conversation files.
+    await expect(applyFileStoreAiRuntimeSessionUpgrade({ sessionDir })).rejects.toThrow(
+      "runtime_control_session_upgrade_rejected_transcript_only_session",
+    )
 
-    const recovered = await recoverAiAgentRuntime({
-      sessionDir,
-      sessionId,
-      llmClient: adapter as any,
-      registries: {
-        toolRegistry: composeToolRegistry({ includeInternalOnly: true }),
-        agentRegistry: new AgentRegistry({ code: { name: "code", description: "test", tools: "*", prompt: ["you are code"] } } as any),
-      },
-      callbacks: {
-        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
-      },
-    })
-
-    expect(recovered).toBeTruthy()
     const historyIndexPath = path.join(sessionDir, "conversation", "history.index.json")
     const sessionIndexPath = path.join(sessionDir, "conversation", "session.index.json")
-    const generationPath = path.join(sessionDir, "conversation", "history-generations", "main__active.json")
-    expect(fs.existsSync(historyIndexPath)).toBe(true)
-    expect(fs.existsSync(sessionIndexPath)).toBe(true)
-    expect(fs.existsSync(generationPath)).toBe(true)
-
-    const historyIndex = JSON.parse(fs.readFileSync(historyIndexPath, "utf-8"))
-    const generation = JSON.parse(fs.readFileSync(generationPath, "utf-8"))
-    expect(historyIndex.heads.main.activeGenerationId).toBe("main__active")
-    expect(generation.messageCount).toBeGreaterThan(0)
-    expect(Array.isArray(generation.messages)).toBe(true)
+    const generationPath = path.join(sessionDir, "conversation", "history.xnl")
+    expect(fs.existsSync(historyIndexPath)).toBe(false)
+    expect(fs.existsSync(sessionIndexPath)).toBe(false)
+    expect(fs.existsSync(generationPath)).toBe(false)
   })
 
   it("prefers conversation heads over stale transcript content during recovery", async () => {
@@ -694,7 +1718,7 @@ describe("runtime recovery bootstrap", () => {
       ],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -728,6 +1752,8 @@ describe("runtime recovery bootstrap", () => {
       acknowledgedSummary: "Understood.",
       repository,
     })
+    await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recovered = await recoverAiAgentRuntime({
       sessionDir,
@@ -741,7 +1767,7 @@ describe("runtime recovery bootstrap", () => {
     expect(recovered).toBeTruthy()
     expect(recovered?.controlActor.messages.some((message: any) => String(message?.content ?? "").includes("conversation truth"))).toBe(true)
     expect(recovered?.controlActor.messages.some((message: any) => String(message?.content ?? "").includes("old transcript output"))).toBe(false)
-    expect(recovered?.vm.recovery?.report?.actorTranscriptSources?.main?.source).toBe("conversation")
+    expect((recovered?.vm.recovery?.report as any)?.actorTranscriptSources).toBeUndefined()
   })
 
   it("restores context-control state and keeps continue flow runtime-first after compaction-backed recovery", async () => {
@@ -759,7 +1785,7 @@ describe("runtime recovery bootstrap", () => {
       ],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
     root.workContext = {
@@ -844,6 +1870,8 @@ describe("runtime recovery bootstrap", () => {
       },
       repository,
     })
+    await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recovered = await recoverAiAgentRuntime({
       sessionDir,
@@ -854,7 +1882,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -864,8 +1892,8 @@ describe("runtime recovery bootstrap", () => {
       vm: recovered!.vm,
       actorKey: "main",
     })
-    expect(contextControl.workContext?.workMode).toBe(WORK_MODES.localized_repair)
-    expect(contextControl.workContext?.taskPhase).toBe(TASK_PHASES.verification)
+    expect(contextControl.workContext?.workMode).toBe(WORK_MODES.build)
+    expect(contextControl.workContext?.taskPhase).toBe(TASK_PHASES.normal)
     expect(contextControl.continuationBaseline?.baselineEpoch).toBe(3)
     expect(contextControl.continuationBaseline?.lastResetReason).toBe("compaction:auto:verification")
     expect(recovered?.controlActor.messages.some((message: any) => String(message?.content ?? "").includes("context control summary"))).toBe(true)
@@ -880,15 +1908,15 @@ describe("runtime recovery bootstrap", () => {
     })
 
     expect(result.stopReason).toBe("no_tool_calls")
-    expect(recovered!.controlActor.workContext.workMode).toBe(WORK_MODES.localized_repair)
-    expect(recovered!.controlActor.workContext.workModeSource).toBe("inherited")
-    expect(recovered!.controlActor.workContext.taskPhase).toBe(TASK_PHASES.verification)
+    expect(recovered!.controlActor.workContext.workMode).toBe(WORK_MODES.build)
+    expect(recovered!.controlActor.workContext.workModeSource).toBe("recovered_normalized")
+    expect(recovered!.controlActor.workContext.taskPhase).toBe(TASK_PHASES.normal)
 
     const runtimePromptState = (recovered!.vm.runtimeContext.conversationDomainRuntime as any)
       ?.promptStateSignal.get()?.["session-context-control-recovery::main"]
     expect(runtimePromptState?.activePromptGenerationId).toBeTruthy()
-    expect(runtimePromptState?.generations.at(-1)?.metadata?.workContext?.workMode).toBe(WORK_MODES.localized_repair)
-    expect(runtimePromptState?.generations.at(-1)?.metadata?.promptPlan?.workContext?.taskPhase).toBe(TASK_PHASES.verification)
+    expect(runtimePromptState?.generations.at(-1)?.metadata?.workContext?.workMode).toBe(WORK_MODES.build)
+    expect(runtimePromptState?.generations.at(-1)?.metadata?.promptPlan?.workContext?.taskPhase).toBe(TASK_PHASES.normal)
   })
 
   it("routes recovered plan reviews back to the original member owner instead of the current control actor", async () => {
@@ -904,7 +1932,7 @@ describe("runtime recovery bootstrap", () => {
       messages: [{ role: "system", content: "system" } as any],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -954,6 +1982,7 @@ describe("runtime recovery bootstrap", () => {
     expect(worker.actor.planApproval?.status).toBe("pending")
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     members.__resetForTest?.()
     coordinationEngine.__resetForTest?.()
@@ -973,7 +2002,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1017,7 +2046,7 @@ describe("runtime recovery bootstrap", () => {
       messages: [{ role: "system", content: "system" } as any],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1051,6 +2080,7 @@ describe("runtime recovery bootstrap", () => {
     coordinationEngine.ingestMemberInbox(vm, { from: "ghost-worker", text: request.text, ts: Date.now() })
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     coordinationEngine.__resetForTest?.()
 
@@ -1069,7 +2099,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1119,7 +2149,7 @@ describe("runtime recovery bootstrap", () => {
       messages: [{ role: "system", content: "system" } as any],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1166,7 +2196,7 @@ describe("runtime recovery bootstrap", () => {
       messages: [{ role: "user", content: "run detached" } as any],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
     vm.actors[detachedActor.key] = detachedActor
@@ -1214,6 +2244,7 @@ describe("runtime recovery bootstrap", () => {
     runtimeContext2.driver = driver
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
     fs.rmSync(path.join(sessionDir, "runtime_state", "indexes"), { recursive: true, force: true })
 
     members.__resetForTest?.()
@@ -1234,7 +2265,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1275,7 +2306,7 @@ describe("runtime recovery bootstrap", () => {
         messages: [{ role: "system", content: "system" } as any],
         callbacks: {
           buildToolset: () => [],
-          processStream: async () => ({ role: "assistant", content: "ok" }),
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
         },
       })
 
@@ -1334,6 +2365,7 @@ describe("runtime recovery bootstrap", () => {
       runtimeContext.driver = driver
 
       await saveAiAgentRuntimeSnapshot({ sessionDir: params.sessionDir, sessionId: params.sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(params.sessionDir)
       return { requestId: outbound.request_id, worker, collectiveWorker }
     }
 
@@ -1372,7 +2404,7 @@ describe("runtime recovery bootstrap", () => {
         },
         actorCallbacks: {
           buildToolset: () => [],
-          processStream: async () => ({ role: "assistant", content: "ok" }),
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
         },
       })
     }
@@ -1416,7 +2448,7 @@ describe("runtime recovery bootstrap", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1445,6 +2477,7 @@ describe("runtime recovery bootstrap", () => {
     ])
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
     fs.rmSync(path.join(sessionDir, "runtime_state", "indexes"), { recursive: true, force: true })
 
     const recoveredToolRegistry = composeToolRegistry({ includeInternalOnly: true })
@@ -1459,7 +2492,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1473,6 +2506,47 @@ describe("runtime recovery bootstrap", () => {
     expect(cancelled).toMatchObject({ ok: true, status: "cancelled" })
   })
 
+  it("does not treat ingress and diagnostics journal sinks as checkpoint recovery blockers", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-journal-sink-boundary"
+    const adapter = makeMockAdapter()
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [{ role: "user", content: "hello" }] as any[],
+    })
+    const vm = createVM({ controlActorKey: actor.key, actors: { [actor.key]: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      fs.mkdirSync(path.join(sessionDir, "logs"), { recursive: true })
+      fs.appendFileSync(path.join(sessionDir, "logs", "ingress.xnl"), "<IngressEvent late=\"true\">late ingress</IngressEvent>\n", "utf8")
+      fs.appendFileSync(path.join(sessionDir, "logs", "diagnostics.xnl"), "<DiagnosticEvent late=\"true\">late diagnostic</DiagnosticEvent>\n", "utf8")
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter as any,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })
+
+      expect(recovered).toBeTruthy()
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("does not revive terminal detached work from stale indexes when VM snapshot is authoritative", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-stale-detached-index"
@@ -1483,7 +2557,7 @@ describe("runtime recovery bootstrap", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1523,6 +2597,8 @@ describe("runtime recovery bootstrap", () => {
       endedAt: 2,
     })
     fs.writeFileSync(staleIndexPath, `${JSON.stringify(staleIndex, null, 2)}\n`, "utf8")
+    await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recoveredToolRegistry = composeToolRegistry({ includeInternalOnly: true })
     const recovered = await recoverAiAgentRuntime({
@@ -1536,7 +2612,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1561,11 +2637,11 @@ describe("runtime recovery bootstrap", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (_vm, actor) => (
+        processStream: createMockProcessStream(async (_vm, actor) => (
           actor.identity?.kind === "member"
             ? { role: "assistant", content: `${actor.identity.name} done` }
             : { role: "assistant", content: "ok" }
-        ),
+        )),
       },
     })
 
@@ -1612,6 +2688,8 @@ describe("runtime recovery bootstrap", () => {
       taskOwnership: [{ taskId: dispatched.task_id, ownerActorKey: "member:stale-owner" }],
     }
     fs.writeFileSync(vmPath, `${JSON.stringify(vmSnapshot, null, 2)}\n`, "utf8")
+    await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recoveredToolRegistry = composeToolRegistry({ includeInternalOnly: true })
     const recovered = await recoverAiAgentRuntime({
@@ -1625,7 +2703,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1738,14 +2816,22 @@ describe("runtime recovery bootstrap", () => {
 
     actor.send("humanInput", "start")
     driver.resumeFiber(fiberId, Date.now())
-    await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 80, maxWallMs: 2000 })
-    await flushMicrotasks()
-
-    const waitingBeforeSave = driver.getState().fibers[fiberId]
+    // The pending questionnaire control keeps re-waking the fiber inside
+    // tickUntilForegroundSettled, so the post-settle status is a race; poll
+    // deterministically for the human_answer suspension instead.
+    let waitingBeforeSave = driver.getState().fibers[fiberId]
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 4, maxWallMs: 150 })
+      await flushMicrotasks()
+      waitingBeforeSave = driver.getState().fibers[fiberId]
+      if (waitingBeforeSave?.status === "suspended" && waitingBeforeSave?.waitingReason === "human_answer") break
+    }
     expect(waitingBeforeSave?.waitingReason).toBe("human_answer")
     expect(actor.pendingQuestionnaires["q-tc-1"]).toBeTruthy()
 
     await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+    expect(fs.readFileSync(path.join(sessionDir, "runtime_state", "questionnaires.xnl"), "utf8")).toContain("q-tc-1")
 
     const recovered = await recoverAiAgentRuntime({
       sessionDir,
@@ -1775,10 +2861,15 @@ describe("runtime recovery bootstrap", () => {
 
     recovered!.controlActor.send("toolResult", { toolCallId: "tc-1", questionnaireId: "q-tc-1", content: "hello" })
     recovered!.driver.resumeFiber(fiberId, Date.now())
-    await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 80, maxWallMs: 2000 })
-    await flushMicrotasks()
+    let toolMsgProbe: any = undefined
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 4, maxWallMs: 150 })
+      await flushMicrotasks()
+      toolMsgProbe = recovered!.controlActor.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "tc-1")
+      if (toolMsgProbe) break
+    }
 
-    const toolMsg = recovered!.controlActor.messages.find((message: any) => message?.role === "tool" && message?.tool_call_id === "tc-1")
+    const toolMsg = toolMsgProbe
     expect(toolMsg).toBeTruthy()
     expect(String(toolMsg!.content)).toContain("\"status\":\"ok\"")
   })
@@ -1794,7 +2885,7 @@ describe("runtime recovery bootstrap", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 
@@ -1849,6 +2940,7 @@ describe("runtime recovery bootstrap", () => {
       vm,
       driver,
     })
+    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recoveredToolRegistry = composeToolRegistry({ includeInternalOnly: true })
     const recovered = await recoverAiAgentRuntime({
@@ -1861,7 +2953,7 @@ describe("runtime recovery bootstrap", () => {
       },
       actorCallbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     })
 

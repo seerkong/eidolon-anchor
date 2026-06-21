@@ -47,3 +47,21 @@ export type QuestionnaireResultPayload = {
   answers: Record<string, unknown>;
   errors?: string[];
 };
+
+export type QuestionnaireRowStatus = "pending" | "answered" | "cancelled" | "expired";
+
+export type QuestionnaireRow = {
+  questionnaireId: string;
+  sessionId?: string;
+  ownerActorId?: string;
+  ownerActorKey?: string;
+  ownerFiberId?: string;
+  toolCallId: string;
+  request: QuestionnaireRequestPayload;
+  result?: QuestionnaireResultPayload;
+  suspendPolicy: QuestionnaireSuspendPolicy;
+  status: QuestionnaireRowStatus;
+  createdAt?: number;
+  updatedAt?: number;
+  metadata?: Record<string, unknown>;
+};

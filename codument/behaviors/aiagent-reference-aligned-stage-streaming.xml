@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="aiagent-reference-aligned-stage-streaming" version="1">
+  <!-- unmapped: # AIAgent 参考对齐阶段化流式能力规范 -->
+  <!-- unmapped: ## 概述 -->
+  <!-- unmapped: 本能力规范定义 AIAgent 当前正式的阶段化流式真相：系统基于 `DataGraph` 建立与参考项目对齐的 lexical / syntactic / semantic 三层事件体系，并以 semantic-first 方式统一 runtime、terminal bridge、message history 与终端投影消费面。 -->
+  <requirement id="requirement-1">
+    <statement>系统应当（SHALL）在本项目中完整新建与参考项目完全对齐的 lexical、syntactic、semantic 三层事件契约。</statement>
+    <!-- migrated title: 新链路事件契约必须完全对齐参考项目 -->
+    <suite name="requirement-1">
+      <case id="lexical-syntactic-semantic" name="lexical/syntactic/semantic 定义完全对齐">
+        <given>参考项目中已有 lexical、syntactic、semantic 三层事件定义</given>
+        <when>在本项目中创建新事件契约</when>
+        <then>事件名称、字段名称、构造语义必须与参考项目完全对齐</then>
+        <then>不得以保留当前压缩版旧事件面作为正式主契约替代</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="datagraph">
+    <statement>系统应当（SHALL）保留本项目 `DataGraph` 作为阶段执行和投影内核，而非回退到参考项目的 Rx / stream object 模型。</statement>
+    <!-- migrated title: 阶段流水线继续基于 DataGraph -->
+    <suite name="datagraph">
+      <case id="datagraph" name="新阶段流水线使用 DataGraph 建模">
+        <given>参考项目的阶段模型更成熟，但执行承载方式不同</given>
+        <when>在本项目中实现 lexical -&gt; syntactic -&gt; semantic 流水线</when>
+        <then>各阶段应以 `DataGraph` 的 signal、consumer、batch、projection 机制建模</then>
+        <then>不得将主执行模型退回为 Rx/stream object 驱动</then>
+      </case>
+      <case id="live-runtime-canonical-replay-stage-kernel" name="live runtime 与 canonical replay 共享同一套 stage kernel">
+        <given>runtime 主链路从 provider ingress 增量接收流式输入</given>
+        <when>live/runtime 路径把输入接入阶段流水线</when>
+        <then>它必须先适配为 lexical events</then>
+        <then>再喂给与 canonical replay 共享的 stage-based `DataGraph` 内核</then>
+        <then>不得在 `LiveLLMStagePipeline` 内长期保留独立的 syntactic / semantic parser 实现</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="runtime-terminal-semantic-canonical-source">
+    <statement>系统应当（SHALL）让 runtime bus、terminal bridge 与上层消费共同使用同一条 semantic canonical event 链路，而不是并行从 ingress 重建多份 semantic 事件。</statement>
+    <!-- migrated title: runtime 与 terminal 共享单一 semantic canonical source -->
+    <suite name="runtime-terminal-semantic-canonical-source">
+      <case id="terminal-canonical-semantic-source" name="terminal 只消费 canonical semantic source">
+        <given>runtime 已经从 ingress 构建出 semantic canonical events</given>
+        <when>terminal、notification bridge 或其他上层消费入口订阅流式事件</when>
+        <then>它们必须消费同一条 canonical semantic event 链路</then>
+        <then>不得再为 direct terminal output 额外并行重跑一套独立 semantic 生成路径</then>
+      </case>
+      <case id="direct-slash-canonical-semantic-history" name="direct slash 可见输出也进入 canonical semantic/history 链路">
+        <given>terminal runtime 支持 `/actor`、`/member`、`/holon` 等 direct slash 命令</given>
+        <when>这些命令产生命令执行结果并向用户显示</when>
+        <then>结果必须经由 runtime semantic bus 发出并再由 terminal projection 消费</then>
+        <then>不得只在 terminal bridge 内部直接构造可见内容而绕过 event bus / history</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="requirement-4">
+    <statement>系统应当（SHALL）在迁移完成后的正式真相中，保持 lexical、syntactic、semantic、TUI projection、Textual projection、TuiCard/TuiText projection 的完整测试闭环。</statement>
+    <!-- migrated title: 新链路必须具备完整测试闭环 -->
+    <suite name="requirement-4">
+      <case id="fixtures" name="新链路通过完整 fixtures 和测试">
+        <given>新链路已经完成事件契约、DataGraph 和消费图实现</given>
+        <when>执行正式验证</when>
+        <then>lexical、syntactic、semantic、TUI projection、Textual projection、TuiCard/TuiText projection 测试必须全部通过</then>
+        <then>`default`、`chunked-markers`、`quote-chunked`、`content-unquote`、`toolcall-delta`、`toolcall-multiple`、`toolcall-alt-format`、`tui-turn-events`、`questionnaire`、`plan-approval`、`shutdown`、`background-result` 等场景必须形成稳定 fixtures</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="tui-textual">
+    <statement>系统应当（SHALL）同时为 TUI 与 Textual 提供正式消费图和独立测试面。</statement>
+    <!-- migrated title: 新链路包含 TUI 和 Textual 两种正式消费图 -->
+    <suite name="tui-textual">
+      <case id="case-7" name="两种终端消费图都可独立重放">
+        <given>新 semantic / projection graph 已经生成规范事件</given>
+        <when>TUI 和 Textual 两种终端消费图处理这些事件</when>
+        <then>两者都必须具备独立 projector、fixtures 和测试</then>
+        <then>两者都必须能稳定重放 actor 切换、streaming、tool result、questionnaire、plan approval、shutdown 等关键场景</then>
+      </case>
+      <case id="tui-textual" name="TUI 与 Textual 都具备正式运行时入口">
+        <given>terminal runtime 已切到 semantic-first 新链路</given>
+        <when>不同终端入口选择 TUI 或 Textual 投影</when>
+        <then>两者都必须通过正式 runtime bridge 接到对应 projection</then>
+        <then>不得只有测试内部 graph 能消费 Textual，而正式 runtime 入口无法选择</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

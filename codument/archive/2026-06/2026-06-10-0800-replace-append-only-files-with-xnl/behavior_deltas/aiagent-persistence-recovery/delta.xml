@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-persistence-recovery">
+  <upsert selector="behavior://aiagent-persistence-recovery/requirements/append-only-xnl-storage">
+    <requirement id="append-only-xnl-storage">
+    <statement>系统 SHALL store every append-only session record stream as parser-valid top-level XNL records appended with filesystem append operations, and SHALL keep replace-written state files bounded.</statement>
+    <suite id="classification" name="XNL file classification">
+      <case id="shared-xnl-helpers">
+        <given>The implementation writes or reads runtime XNL persistence records covered by this requirement</given>
+        <when>The implementation serializes, appends, or reads those records</when>
+        <then>The implementation SHALL use shared project-level XNL formatter, append helper, and read helper where practical</then>
+        <then>The formatter SHALL follow xnl-core-compatible AST and syntax rules</then>
+        <then>The append helper SHALL write one complete top-level record plus newline per append</then>
+        <then>The read helper SHALL be built on XNL-provided parser/helper functions rather than reimplementing an XNL parser</then>
+        <then>The read helper SHALL parse multi-root append streams and reject root-wrapper growing history for append-only streams</then>
+      </case>
+      <case id="append-only-classification">
+        <given>A session file records historical facts, audit facts, replay facts, diagnostics, message history, prompt materialization history, orchestration events, or runtime-control evidence</given>
+        <when>The component persists the fact to an XNL file</when>
+        <then>The component SHALL append one complete top-level XNL element per record</then>
+        <then>The component SHALL NOT rewrite a growing root wrapper, JSON array, JSONL stream, or plain text transcript as the authoritative append-only format</then>
+      </case>
+      <case id="attribute-unique-child-body-shape">
+        <given>An append-only XNL record has exactly one event subject, payload, payload reference, or structured result</given>
+        <when>The record is serialized</when>
+        <then>A pure key-value subject SHALL be represented in the top-level node's custom attribute block</then>
+        <then>A single subject that has its own tag, metadata, attributes, or text marker semantics SHALL be represented as a named child node in `()`</then>
+        <then>The writer SHALL use `[]` body only when the record has multiple peer child nodes, ordered blocks, or mixed text/data children</then>
+      </case>
+      <case id="replace-state-classification">
+        <given>A session file stores bounded current state such as a manifest, index, head, cursor, checkpoint marker, or projection metadata</given>
+        <when>The component persists that state</when>
+        <then>The component MAY use replace-written JSON or replace-written XNL only if the file does not contain historical record bodies</then>
+        <then>The file SHALL remain bounded by current state rather than growing with session event count</then>
+      </case>
+      <case id="replace-xnl-review">
+        <given>An XNL file is currently written by full replacement</given>
+        <when>The file's rows represent lifecycle history or recovery/audit evidence rather than bounded current state</when>
+        <then>The implementation SHALL convert it to an append-only XNL stream or split historical facts into a dedicated append-only XNL stream</then>
+      </case>
+    </suite>
+    <suite id="required-session-streams" name="Required append-only session streams">
+      <case id="conversation-history-xnl">
+        <given>The runtime persists actor conversation history records</given>
+        <when>The record is saved</when>
+        <then>The record SHALL be appended to `conversation/history.xnl` as a top-level XNL record</then>
+        <then>`conversation/history-generations/*.json` SHALL NOT be used as the authoritative format for new or upgraded sessions</then>
+      </case>
+      <case id="prompt-generation-xnl">
+        <given>The runtime persists prompt materialization records that are retained for recovery, audit, or debugging</given>
+        <when>The record is saved</when>
+        <then>The record SHALL be appended to `conversation/prompts.xnl` as a top-level XNL record</then>
+        <then>Prompt caches that are rebuildable SHALL be explicitly non-authoritative</then>
+      </case>
+      <case id="remove-actor-transcript-xnl">
+        <given>The runtime persists actor-originated conversation history</given>
+        <when>The record is saved in a new or upgraded session</when>
+        <then>The actor source SHALL be represented in `conversation/history.xnl` generation and message metadata</then>
+        <then>The runtime SHALL NOT create or append to `actors/&lt;actor-dir&gt;/transcript.xnl` as an independent history file</then>
+        <then>`transcript.txt` and legacy `transcript.xnl` files SHALL NOT be used as recovery or append-only history sources for new or upgraded sessions</then>
+      </case>
+      <case id="runtime-control-effects-xnl">
+        <given>The runtime-control engine records effect lifecycle evidence</given>
+        <when>The evidence is persisted</when>
+        <then>The evidence SHALL be appended to `runtime-control/effects.xnl` as a top-level XNL record with monotonic sequence metadata</then>
+        <then>`runtime-control/effects.jsonl` SHALL NOT be used for new or upgraded sessions</then>
+      </case>
+      <case id="orchestration-history-xnl">
+        <given>The runtime records orchestration history</given>
+        <when>The event is persisted</when>
+        <then>The event SHALL be appended to `logs/orchestration_history.xnl` as a top-level XNL record</then>
+        <then>`logs/orchestration_history.jsonl` SHALL NOT be used for new or upgraded sessions</then>
+      </case>
+      <case id="runtime-ingress-diagnostics-xnl">
+        <given>The runtime records ingress or diagnostic event facts</given>
+        <when>The event is persisted</when>
+        <then>The event SHALL be appended to `logs/ingress.xnl` or `logs/diagnostics.xnl` as a top-level XNL record</then>
+        <then>Any head JSON for those logs SHALL contain only bounded cursor, count, id, timestamp, or sequence state</then>
+      </case>
+    </suite>
+    <suite id="history-message-format" name="History message XNL format">
+      <case id="message-first-layer">
+        <given>The runtime writes a record to `conversation/history.xnl`</given>
+        <when>The record is serialized</when>
+        <then>The top-level XNL node SHALL represent one message, not a generation wrapper</then>
+        <then>The message metadata SHALL include actor source fields such as `actorKey` and `actorId`</then>
+      </case>
+      <case id="message-blocks-second-layer">
+        <given>A history message contains multiple blocks</given>
+        <when>The message is serialized</when>
+        <then>The message body SHALL contain the block nodes in order</then>
+        <then>`Think` and `Content` blocks SHALL be XNL text nodes without a `mime` metadata field</then>
+        <then>`Think` and `Content` text markers SHALL be generated ULIDs</then>
+        <then>Non-text blocks such as tool calls, tool results, artifact refs, and questionnaire refs SHALL be XNL data nodes</then>
+      </case>
+      <case id="no-transcript-source-record-blobs">
+        <given>A history message is persisted to `conversation/history.xnl`, including runtime commits, compaction writes, legacy history-generation migration, and transcript-only legacy session bootstrap</given>
+        <when>The `HistoryMessage` record is serialized</when>
+        <then>The writer SHALL NOT persist legacy transcript-shaped `sourceRecords` payload blobs or `transcriptPath` fields in `HistoryMessage` attributes</then>
+        <then>The message text SHALL live only in the block children rather than being duplicated as attribute payload strings</then>
+        <then>Readers MAY keep accepting `sourceRecords` attributes from records written before this rule for tool-call-id recovery and user-input history compatibility</then>
+      </case>
+      <case id="compact-open-tag-format">
+        <given>The history writer serializes message and block nodes</given>
+        <when>It writes XNL text</when>
+        <then>The formatter SHALL keep the node name, metadata fields, and attribute block on the same opening line when an attribute block exists</then>
+        <then>The formatter SHALL be based on xnl-core compatible syntax or AST rules rather than ad hoc XML string concatenation</then>
+      </case>
+    </suite>
+    <suite id="prompt-generation-format" name="Prompt generation XNL format">
+      <case id="prompt-generation-first-layer">
+        <given>The runtime writes a record to `conversation/prompts.xnl`</given>
+        <when>The prompt generation is serialized</when>
+        <then>The top-level XNL node SHALL represent one `PromptGeneration` record</then>
+        <then>The prompt generation metadata SHALL include `id`, `sessionId`, `actorKey`, `actorId`, `reason`, `sealed`, `createdAt`, and `updatedAt` when available</then>
+      </case>
+      <case id="prompt-generation-second-layer">
+        <given>A prompt generation has basis refs, transforms, and materialized context</given>
+        <when>The prompt generation is serialized</when>
+        <then>The body SHALL contain structured second-layer nodes such as `Basis`, `BasisRef`, `Transform`, and `MaterializedContext`</then>
+        <then>`MaterializedContext` SHALL be an XNL text node with a generated ULID marker</then>
+        <then>`Basis`, `BasisRef`, and `Transform` SHALL be XNL data nodes</then>
+      </case>
+      <case id="prompt-authority-classification">
+        <given>A prompt materialization is persisted</given>
+        <when>The record is written to `conversation/prompts.xnl`</when>
+        <then>The record SHALL explicitly state whether it is recoverable audit truth or a rebuildable non-authoritative cache</then>
+        <then>Rebuildable prompt caches SHALL NOT be used as recovery fact sources</then>
+      </case>
+    </suite>
+    <suite id="runtime-effect-event-format" name="Runtime effect event XNL format">
+      <case id="effect-event-first-layer">
+        <given>The runtime-control engine writes a record to `runtime-control/effects.xnl`</given>
+        <when>The lifecycle evidence is serialized</when>
+        <then>The top-level XNL node SHALL represent one `RuntimeEffectEvent` lifecycle event</then>
+        <then>The top-level metadata SHALL include `sequence`, `kind`, `effectKind`, `effectId`, and `handlerKey`</then>
+        <then>The implementation SHALL NOT wrap the full lifecycle event object in a generic nested `event` data node</then>
+      </case>
+      <case id="effect-event-second-layer">
+        <given>An effect lifecycle event has kind `request`, `waiting`, `result`, or `failed`</given>
+        <when>The event is serialized</when>
+        <then>The event-specific subject SHALL be stored as a named child node in `()`, such as `Request`, `Wait`, `Result`, or `Error`</then>
+        <then>The writer SHALL NOT use a `[]` body solely to wrap a single event-specific subject</then>
+        <then>Small structured subjects SHALL be expanded directly into the event-specific child node attributes rather than wrapped as `{ payload = ... }` by default</then>
+        <then>The writer MAY use a `payload` field only when that field has a real sibling at the same level and the schema documents the sibling semantics</then>
+        <then>Large payloads, text bodies, provider outputs, or tool outputs SHALL be stored as artifact refs, digests, or bounded summaries rather than top-level metadata</then>
+      </case>
+    </suite>
+    <suite id="ingress-event-format" name="Ingress event XNL format">
+      <case id="ingress-typed-top-level">
+        <given>The runtime writes a record to `logs/ingress.xnl`</given>
+        <when>The ingress event is serialized</when>
+        <then>The top-level XNL node SHALL represent the ingress category directly rather than a generic `IngressEvent` wrapper</then>
+        <then>The writer SHALL NOT use `IngressEvent` containing `Data` containing `{ payload = ... }` for new records</then>
+      </case>
+      <case id="ingress-text-readable">
+        <given>An ingress event contains think or content text</given>
+        <when>The event is serialized</when>
+        <then>The event SHALL be written as a typed XNL text node such as `Think` or `Content`</then>
+        <then>The human-readable text SHALL be the text node body, not JSON inside a payload field</then>
+      </case>
+      <case id="ingress-structured-events">
+        <given>An ingress event contains tool, control, or other structured data</given>
+        <when>The event is serialized</when>
+        <then>The event SHALL use a typed top-level data node with metadata and direct attributes when the subject is a pure key-value structure</then>
+        <then>The event MAY use `()` only when a single child subject has its own tag, metadata, attributes, or text-marker semantics</then>
+      </case>
+    </suite>
+    <suite id="orchestration-event-format" name="Orchestration event XNL format">
+      <case id="orchestration-event-first-layer">
+        <given>The runtime writes a record to `logs/orchestration_history.xnl`</given>
+        <when>The orchestration event is serialized</when>
+        <then>The top-level XNL node SHALL represent one `OrchestrationEvent`</then>
+        <then>The top-level metadata SHALL include `version`, `sequence`, `observedAt`, `stream`, and `kind`</then>
+        <then>The implementation SHALL NOT wrap the full event object in a generic nested `event` data node</then>
+      </case>
+      <case id="orchestration-event-payload-shape">
+        <given>An orchestration event has one payload subject</given>
+        <when>The event is serialized</when>
+        <then>Small structured payloads SHALL be stored as a `Payload` child node in `()`</then>
+        <then>Large hook reports, long text, or complex diagnostic objects SHALL be stored as `PayloadRef` child nodes in `()` with artifact refs, digests, or bounded summaries</then>
+      </case>
+    </suite>
+    <suite id="questionnaire-table-boundary" name="Questionnaire table boundary">
+      <case id="questionnaire-current-state-table">
+        <given>`runtime_state/questionnaires.xnl` stores only current questionnaire rows for recovery of pending or answered questionnaire state</given>
+        <when>The runtime writes a snapshot</when>
+        <then>The file MAY remain a replace-written bounded XNL table of `QuestionnaireRow` nodes</then>
+        <then>The implementation SHALL prove that the table does not grow as an audit log of questionnaire lifecycle events</then>
+        <then>`QuestionnaireRow` SHALL use `[]` for multiple typed children such as `Request`, `Result`, and `Metadata`</then>
+      </case>
+      <case id="questionnaire-history-split">
+        <given>The runtime needs questionnaire lifecycle audit or replay history</given>
+        <when>The lifecycle facts are persisted</when>
+        <then>The facts SHALL be stored in a dedicated append-only XNL stream rather than hidden inside the replace-written questionnaire state table</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-persistence-recovery/append-only-xnl-storage" strength="hint" />
+    </requirement>
+  </upsert>
+</behavior-patch>

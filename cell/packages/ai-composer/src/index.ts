@@ -3,13 +3,18 @@ import type {
   RuntimeAssemblyContext as PlatformRuntimeAssemblyContext,
   RuntimeAssemblyResult as PlatformRuntimeAssemblyResult,
   RuntimeAssemblyState as PlatformRuntimeAssemblyState,
+  RuntimeBindingDescriptor,
   RuntimeBootstrapOptions,
+  RuntimeEntryType,
+  RuntimeExtensionKind,
   RuntimeProfile as PlatformRuntimeProfile,
+  RuntimeStorageCapabilityFlags,
 } from "@cell/platform-contract/composer";
 import type {
   RuntimeAssemblyContext,
   RuntimeAssemblyResult,
   RuntimeAssemblyState,
+  RuntimeExtension,
   RuntimeProfile,
 } from "./ai-contract";
 
@@ -22,6 +27,12 @@ export type {
   RuntimePolicyMap,
   RuntimeProfile,
 } from "./contract";
+export type {
+  RuntimeBindingDescriptor,
+  RuntimeEntryType,
+  RuntimeExtensionKind,
+  RuntimeStorageCapabilityFlags,
+} from "@cell/platform-contract/composer";
 
 function buildSystemPrompt(sections: string[]): string {
   return sections.filter((section) => section.trim()).join("\n\n");
@@ -39,6 +50,22 @@ function reduceProfile<
     (current, extension) => extension.apply(current, context),
     initialState,
   );
+}
+
+function reduceRuntimeProfile(
+  profile: RuntimeProfile,
+  context: RuntimeAssemblyContext,
+  initialState: RuntimeAssemblyState,
+): RuntimeAssemblyState {
+  return profile.extensions.reduce((current, extension) => {
+    const runtimeExtension = extension as RuntimeExtension;
+    const next = extension.apply(current, context);
+    if (!runtimeExtension.hooks?.length) return next;
+    return {
+      ...next,
+      hookDefinitions: [...next.hookDefinitions, ...runtimeExtension.hooks],
+    };
+  }, initialState);
 }
 
 function createPlatformInitialState(): PlatformRuntimeAssemblyState {
@@ -72,6 +99,7 @@ function createInitialState(context: RuntimeAssemblyContext): RuntimeAssemblySta
     slashCommands: [],
     slashCommandSurfaces: [],
     slashRuntimeFactory: null,
+    hookDefinitions: [],
   };
 }
 
@@ -87,12 +115,66 @@ function finalizeAllTools(state: RuntimeAssemblyState, context: RuntimeAssemblyC
   return state.tooling ? state.tooling.buildAllTools(state, context) : [];
 }
 
+function groupExtensionIdsByKind(profile: RuntimeProfile): Record<RuntimeExtensionKind, string[]> {
+  const groups: Record<RuntimeExtensionKind, string[]> = {
+    platform: [],
+    domain_kernel: [],
+    app_overlay: [],
+  };
+  for (const extension of profile.extensions) {
+    groups[extension.kind ?? "platform"].push(extension.id);
+  }
+  return groups;
+}
+
+export function buildRuntimeBindingDescriptor(params: {
+  profile: RuntimeProfile;
+  context: RuntimeAssemblyContext;
+  entryType: RuntimeEntryType;
+  storage: RuntimeStorageCapabilityFlags;
+  surfaceCapabilities?: readonly string[];
+}): RuntimeBindingDescriptor {
+  const state = reduceRuntimeProfile(params.profile, params.context, createInitialState(params.context));
+  const modules = groupExtensionIdsByKind(params.profile);
+  return {
+    profileId: params.profile.id,
+    entryType: params.entryType,
+    enabledCapabilities: [...state.capabilityIds],
+    storage: { ...params.storage },
+    platformModules: modules.platform,
+    domainKernelModules: modules.domain_kernel,
+    appOverlays: modules.app_overlay,
+    surfaceCapabilities: [...(params.surfaceCapabilities ?? [])],
+  };
+}
+
+/**
+ * Two descriptors are compatible when the profile-derived composition and the
+ * storage flags match. Entry type and surface capabilities are allowed to
+ * differ: the same runtime may be driven by CLI, TUI, or headless surfaces.
+ */
+export function areRuntimeBindingDescriptorsCompatible(
+  left: RuntimeBindingDescriptor,
+  right: RuntimeBindingDescriptor,
+): boolean {
+  const project = (descriptor: RuntimeBindingDescriptor) =>
+    JSON.stringify({
+      profileId: descriptor.profileId,
+      enabledCapabilities: descriptor.enabledCapabilities,
+      storage: descriptor.storage,
+      platformModules: descriptor.platformModules,
+      domainKernelModules: descriptor.domainKernelModules,
+      appOverlays: descriptor.appOverlays,
+    });
+  return project(left) === project(right);
+}
+
 export function assembleRuntimeProfile(
   profile: RuntimeProfile,
   context: RuntimeAssemblyContext,
   options?: RuntimeBootstrapOptions,
 ): RuntimeAssemblyResult {
-  const state = reduceProfile(profile, context, createInitialState(context));
+  const state = reduceRuntimeProfile(profile, context, createInitialState(context));
   const allTools = finalizeAllTools(state, context);
   const platformResult = finalizePlatformAssemblyResult(profile.id, state);
 
@@ -113,5 +195,6 @@ export function assembleRuntimeProfile(
     slashCommandSurfaces: state.slashCommandSurfaces,
     createSlashRuntime: (commands) =>
       state.slashRuntimeFactory ? state.slashRuntimeFactory(commands ?? state.slashCommands) : null,
+    hookDefinitions: state.hookDefinitions,
   };
 }

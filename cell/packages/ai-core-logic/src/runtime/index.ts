@@ -11,5 +11,5 @@ export * from "./DurableControlSignals";
 export * from "./rxData";
 export * from "./snapshot";
 export * from "./ToolFuncRegistry";
-export * from "./ActorTranscript";
+export * from "./TranscriptRecords";
 export * from "./ActorSurface";

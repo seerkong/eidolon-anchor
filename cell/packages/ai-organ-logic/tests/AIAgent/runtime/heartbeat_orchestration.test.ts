@@ -30,7 +30,7 @@ describe("heartbeat actor orchestration", () => {
 
     await tickDueHeartbeatSchedules(vm, { now: "2026-05-26T18:01:00.000Z" });
 
-    const wake = actor.peekMailbox("heartbeatWake")[0];
+    const wake = actor.peekMailbox("heartbeat")[0];
     expect(wake?.name).toBe("check-build");
 
     const messages: any[] = [];
@@ -44,11 +44,14 @@ describe("heartbeat actor orchestration", () => {
     });
 
     expect(result.kind).toBe("yield");
-    expect(actor.peekMailbox("heartbeatWake")).toEqual([]);
-    expect(messages.at(-1)?.role).toBe("user");
-    expect(messages.at(-1)?.content).toContain("Heartbeat wake: check-build");
-    expect(messages.at(-1)?.content).toContain("Check build.log once");
-    expect(messages.at(-1)?.content).toContain("\"logFile\":\"build.log\"");
+    expect(actor.peekMailbox("heartbeat")).toEqual([]);
+    // P7: drained heartbeat wakes land in the conversation domains; observe
+    // the read-only actor projection.
+    const lastMessage: any = actor.messages.at(-1);
+    expect(lastMessage?.role).toBe("user");
+    expect(String(lastMessage?.content ?? "")).toContain("Heartbeat wake: check-build");
+    expect(String(lastMessage?.content ?? "")).toContain("Check build.log once");
+    expect(String(lastMessage?.content ?? "")).toContain("\"logFile\":\"build.log\"");
   });
 
   it("coalesces a due interval when the same schedule already has a pending wake", async () => {
@@ -75,7 +78,7 @@ describe("heartbeat actor orchestration", () => {
         message: "Check deploy",
       },
     });
-    actor.send("heartbeatWake", {
+    actor.send("heartbeat", {
       scheduleId: schedule.scheduleId,
       kind: "interval",
       name: "watch-deploy",
@@ -88,7 +91,7 @@ describe("heartbeat actor orchestration", () => {
 
     await tickDueHeartbeatSchedules(vm, { now: "2026-05-26T18:01:00.000Z" });
 
-    expect(actor.peekMailbox("heartbeatWake").length).toBe(1);
+    expect(actor.peekMailbox("heartbeat").length).toBe(1);
     expect(listHeartbeatSchedules(vm)[0]?.fireCount).toBe(0);
     expect(listHeartbeatSchedules(vm)[0]?.nextFireAt).toBe("2026-05-26T18:02:00.000Z");
     expect(logs[0]?.message).toContain("coalesced");
@@ -119,7 +122,7 @@ describe("heartbeat actor orchestration", () => {
     now = Date.parse("2026-05-26T18:01:00.000Z");
     await new Promise((resolve) => setTimeout(resolve, 20));
 
-    expect(actor.peekMailbox("heartbeatWake")).toEqual([]);
+    expect(actor.peekMailbox("heartbeat")).toEqual([]);
     expect(worker.isDisposed()).toBe(true);
   });
 });

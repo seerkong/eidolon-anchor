@@ -4,9 +4,9 @@
   "type": "module",
   "scripts": {
     "dev:backend:elysia": "cd backend && bun run dev",
-    "dev:backend:koa": "cd backend && pnpm run dev:koa",
+    "dev:backend:koa": "cd backend && bun run dev:koa",
     "build:backend:elysia": "cd backend && bun run build",
-    "build:backend:koa": "cd backend && pnpm run build:koa",
+    "build:backend:koa": "cd backend && bun run build:koa",
     "dev:frontend:vue": "cd frontend && bun run dev:vue",
     "dev:frontend:react": "cd frontend && bun run dev:react",
     "dev:frontend:bastard": "cd frontend/packages/bastard && bun run dev",
@@ -46,8 +46,8 @@
     "install:all:bun": "bun run scripts/install-all.ts",
     "install:all:nodejs": "node scripts/install-all-nodejs.cjs",
     "uninstall:all": "bun run scripts/uninstall-all.ts",
-    "dev:web:vue-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:vue\" \"pnpm run dev:backend:koa\"",
-    "dev:web:react-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:react\" \"pnpm run dev:backend:koa\""
+    "dev:web:vue-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:vue\" \"bun run dev:backend:koa\"",
+    "dev:web:react-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:react\" \"bun run dev:backend:koa\""
   },
   "devDependencies": {
     "@happy-dom/global-registrator": "^20.4.0",
@@ -56,6 +56,7 @@
   "workspaces": [
     "cell",
     "cell/packages/*",
+    "vendor/*",
     "shared",
     "shared/packages/*",
     "backend",

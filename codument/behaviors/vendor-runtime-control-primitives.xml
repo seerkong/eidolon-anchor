@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="vendor-runtime-control-primitives" version="1">
+  <requirement id="vendor-substrate">
+    <statement>runtime control engine SHALL 优先复用 vendor 原语：使用本地 link 的 depa-actor@0.2.0 承载 actor loop、priority mailbox、selective receive、fiber scheduling、CommandDequeGroup、stack/frame、instruction dispatch 和 command group reducer helpers；使用 depa-processor 承载标准化 effect handler dispatch。</statement>
+    <suite id="no-duplicate-substrate" name="不重复构造底层原语">
+      <case id="reuse-actor-scheduler">
+        <given>engine 需要调度 command、tick、resume、cancel、effect-result、commit 或 maintenance work</given>
+        <when>实现控制循环</when>
+        <then>engine SHALL 基于 depa-actor@0.2.0 的 actor/fiber/mailbox 和 CommandDequeGroup 能力实现，而不是自建平行 scheduler 或 command worklist</then>
+      </case>
+      <case id="reuse-local-execution-kernel">
+        <given>engine 需要 actor-local command worklist、stack/frame 或 instruction dispatch</given>
+        <when>实现 runtime control engine 的本地解释执行层</when>
+        <then>engine SHALL reuse depa-actor@0.2.0 CommandDequeGroup、CommandDeque、InstructionStack、OperandStack、dispatchInstructions 和 group reducer helpers</then>
+      </case>
+      <case id="reuse-processor-dispatch">
+        <given>engine 需要调用外部副作用 handler</given>
+        <when>effect request 需要路由到实现</when>
+        <then>engine SHALL 基于 depa-processor 的标准组件或 dispatch 协议实现 handler selection</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="generic-extension-boundary">
+    <statement>vendor 层新增能力 SHALL 保持领域无关；在 depa-actor@0.2.0 已提供 local execution kernel 后，新增控制能力应聚焦 effect lifecycle、durable cohort、safepoint、recovery、processor adapter 和 conformance harness 等通用控制概念。</statement>
+    <suite id="domain-neutrality" name="领域无关">
+      <case id="no-ai-terms">
+        <given>新增 vendor control primitive 类型、函数、文件或文档</given>
+        <when>审查命名和职责</when>
+        <then>vendor 层 SHALL NOT 使用 AI runtime 领域术语表达通用控制能力</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

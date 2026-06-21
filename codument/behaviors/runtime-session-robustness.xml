@@ -1,0 +1,55 @@
+<behaviors capability="runtime-session-robustness" version="1">
+  <requirement id="recovery-model-config-validation">
+    <statement>恢复一个 session 时，若其持久化的 actor modelConfig 选定的 model/provider 在当前配置（providers + presets）中**不可解析**（provider 被移除，或 provider 在但 model 已删），运行时 SHALL 回退到默认 preset 的 model，SHALL NOT 复用已失效的持久化 model/endpoint。持久化 model 仍可解析时 SHALL 原样保留。</statement>
+    <suite id="model-validation" name="Persisted model validation on recovery">
+      <case id="stale-model-falls-back-to-default">
+        <given>恢复出的 actor 持久化 modelConfig 的 model/provider 在当前配置中不存在</given>
+        <when>运行时解析该 turn 的 model</when>
+        <then>SHALL 解析为默认 preset 的 model（不复用失效持久化配置）</then>
+      </case>
+      <case id="valid-persisted-model-preserved">
+        <given>恢复出的 actor 持久化 model 在当前配置中仍可解析</given>
+        <when>运行时解析该 turn 的 model</when>
+        <then>SHALL 保留该持久化 model，SHALL NOT 覆盖为默认</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="observability-journal-hygiene">
+    <statement>orchestration 观测 journal 的每次 append SHALL 为 O(1)（SHALL NOT 每次 append 全量读解析整个文件取序号）；journal SHALL 受体积上限/轮转约束（默认上限 + 保留近 N 段），SHALL NOT 无界增长；高频 idle no-op 事件 SHALL 可丢弃/采样。不破坏 observability 契约——有意义事件仍被记录。</statement>
+    <suite id="journal-hygiene" name="Observability journal hygiene">
+      <case id="append-is-constant-time">
+        <given>orchestration journal 已较大</given>
+        <when>追加一个事件</when>
+        <then>append SHALL NOT 全量读+解析整个 journal 文件取序号（用内存序号计数器）</then>
+      </case>
+      <case id="journal-is-bounded">
+        <given>journal 体积达到配置上限</given>
+        <when>继续追加</when>
+        <then>SHALL 轮转（保留近 N 段），journal SHALL NOT 无界增长到数百 MB</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="timed-out-turn-progress-persisted">
+    <statement>当一个 turn 在 mandatory_continuation 状态下超时（unsettled）时，运行时 SHALL 提供一个 seal 机制以持久化该 turn 已完成的 conversation 进度（已 commit 进 conversation domain 的完成工具对/消息），SHALL NOT 因此快照「不安全的工具执行中」状态（只 seal 已完成部分）。**当前已交付 = seal 机制（coordinator 可注入回调 + 独立 flush 函数），经直接注入单测证明；生产侧默认 NOT 启用该 seal**——见下「DEFERRED」说明。注：此项不解决单轮内 repeat-read（那是独立问题）。</statement>
+    <suite id="timeout-progress" name="Timed-out turn persists completed progress">
+      <case id="completed-progress-sealed-on-timeout">
+        <given>一个 turn 完成了若干工具对（已进内存 conversation domain）后在 mandatory_continuation 超时，且 seal 回调被注入到 coordinator（机制单测路径）</given>
+        <when>turn 返回 unsettled</when>
+        <then>已完成的 conversation 进度 SHALL 被 seal 进持久化 history</then>
+        <then>SHALL NOT 快照不安全的 in-flight 工具执行（VM/ToolCallDomain in-flight 不动）</then>
+      </case>
+      <case id="timeout-seal-no-recovery-regression">
+        <given>一个 session 先 settle 落过快照（manifest 在盘），随后某轮在 mandatory_continuation 超时；生产配置（coordinator 默认 no-op，未注入 seal 回调）</given>
+        <when>该 session 被后续 continuation 恢复</when>
+        <then>磁盘 conversation history SHALL 与最后一次 settled checkpoint 字节一致（生产超时路径不 seal、不推进 conversation 头）</then>
+        <then>恢复 SHALL 干净成功回到最后 settled 快照，SHALL NOT 因超时被判 dirty/不可恢复（即本 track 不回归既有恢复行为）</then>
+      </case>
+      <case id="continuation-resumes-not-restarts" status="deferred-followup">
+        <given>【DEFERRED 后续 track】上述 seal 在生产被启用后已落盘完成进度</given>
+        <when>后续 continuation 恢复该 session</when>
+        <then>（目标，尚未交付）恢复的 model-visible history SHALL 含已完成进度（接力），SHALL NOT 回到超时前的光秃状态从头重来；恢复 SHALL 容忍 conversation 领先于 VM snapshot 且不损坏（缺源仍按单源语义）</then>
+        <then>当前边界（pinned by test）：恢复门把 conversation 领先 checkpoint 判 head_commit_sequence_mismatch→dirty 并 throw。后续 track 须令 conversation head forward-only 容忍（actual≥expected）并同时启用生产 seal wiring，二者一起上；红线 = 把 pin 测试的 rejects.toThrow(&quot;dirty&quot;) 翻为 recovered.messages 含完成进度（length&gt;1）。</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

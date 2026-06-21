@@ -1,0 +1,68 @@
+<capability id="tool-call-domain-lifecycle" version="1">
+  <requirement id="single-owner">
+    <statement>tool call 的全生命周期事实 SHALL 由 ToolCallDomain 单独拥有；其它模块（executor 隐式 state、cooperative pendingAiGenerated、runtime-control effect evidence）SHALL NOT 持有事实真相，只能持有派生信号或 audit 副本。</statement>
+    <suite id="ownership" name="Lifecycle ownership">
+      <case id="lifecycle-events-owned">
+        <given>一次 tool call 从 LLM 产出 tool_calls 到最终 tool_result 进入 History 域</given>
+        <when>追溯每个生命周期事实（planned / dispatched / gate decision / executed-or-skipped / result / failed）</when>
+        <then>SHALL 在 ToolCallDomain 找到唯一权威记录</then>
+        <then>runtime-control evidence SHALL 仅包含 request_id 与对 ToolCallDomain 的引用，不重复持有 outputText 或 args 全文</then>
+      </case>
+      <case id="executor-state-derived">
+        <given>cooperative 主循环需要判断 inflight tool 是否完成</given>
+        <when>读取信号</when>
+        <then>SHALL 从 ToolCallDomain 读取（domain 提供 derived view）</then>
+        <then>SHALL NOT 通过 executor 私有 pending 数组比对</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="pairing-by-tool-call-id">
+    <statement>tool_call 与 tool_result 的配对 SHALL 通过 LLM 提供的 tool_call_id 作为透明唯一标识完成；不依赖数组位置、消息排列或其它隐式约定；ToolCallDomain SHALL 拒绝出现两次相同 tool_call_id 的 result 提交。</statement>
+    <suite id="pairing" name="Tool call pairing">
+      <case id="opaque-id-pairing">
+        <given>LLM 产出 N 个 tool_calls 各带不同 tool_call_id</given>
+        <when>tool result 陆续到达</when>
+        <then>SHALL 仅依据 tool_call_id 匹配回所属 tool_call</then>
+        <then>SHALL NOT 依据数组下标或时间序</then>
+      </case>
+      <case id="no-duplicate-result">
+        <given>同一 tool_call_id 已有 result（含 deny/defer 的合成 result）</given>
+        <when>第二次 result 试图提交</when>
+        <then>SHALL 被 ToolCallDomain 拒绝并标记为协议违例</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="gate-decision-as-fact">
+    <statement>ToolExecutionGateDecision（allow / deny / defer）的结果 SHALL 作为 ToolCallDomain 的一等公民事实存储；下游的 stopAfterTools 判断、conversation history 写入、effect evidence 记录 SHALL 通过读取该事实做决策，而非由 executor 局部计算后传递。</statement>
+    <suite id="gate-fact" name="Gate decision as fact">
+      <case id="decision-stored-in-domain">
+        <given>start_tool 触发 evaluateToolExecutionGates</given>
+        <when>评估完成</when>
+        <then>ToolCallDomain SHALL 持久保存该决策（含 kind, reason, waitingFor 若有）</then>
+        <then>SHALL NOT 仅作为 tool_done event 的瞬时字段传递</then>
+      </case>
+      <case id="downstream-reads-domain">
+        <given>stopAfterTools 判断、emit semantic_tool_call_result、appendRuntimeControlLifecycleEvidence 等下游操作</given>
+        <when>需要确认 tool 是否实际运行</when>
+        <then>SHALL 通过 ToolCallDomain 读取 gate decision</then>
+        <then>SHALL NOT 通过字符串 outputText 匹配或私有标志位推断</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="evidence-as-audit-only">
+    <statement>runtime-control effect evidence 在 tool 生命周期中 SHALL 仅承担 audit / 恢复辅助角色：记录 request_id、handler key、对应 ToolCallDomain 事实的引用即可；SHALL NOT 复制 outputText 或 args 全文，SHALL NOT 作为下次 turn 判断 tool 是否完成的依据。</statement>
+    <suite id="evidence-boundary" name="Evidence boundary">
+      <case id="evidence-payload-shape">
+        <given>appendRuntimeControlLifecycleEvidenceFromVm 被调用记录 tool result</given>
+        <when>检查 payload</when>
+        <then>SHALL 包含 effectId / handlerKey / 对应 ToolCallDomain entry 引用</then>
+        <then>SHALL NOT 包含全文 outputText 与 args（仅可保留尺寸/校验和等审计元数据）</then>
+      </case>
+      <case id="recovery-reads-domain">
+        <given>session 恢复后重建运行时</given>
+        <when>判断 tool 是否完成</when>
+        <then>SHALL 从 ToolCallDomain 读取，不从 effect evidence 重建 tool result 内容</then>
+      </case>
+    </suite>
+  </requirement>
+</capability>

@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-agent-heartbeat-scheduler" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>实现类似 setTimeout / setInterval 的非阻塞 agent heartbeat 调度机制，支持创建、列表查询、取消、唤醒、恢复与可观测性。</Goal>
+    <Description>在本项目中添加与源 commit heartbeat track 同等的非阻塞 timeout/interval 调度能力，要求创建时提供名称和详细描述，并支持 list 与 cancel API。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-26T17:46:08Z</CreatedAt>
+    <UpdatedAt>2026-05-27T15:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-agent-heartbeat-scheduler" name="add-agent-heartbeat-scheduler" version="1">
+    <Description>添加 Agent Heartbeat Scheduler</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="合同、快照与红线测试" status="DONE" order="0">
+        <Description>定义 heartbeat contract、mailbox/wake schema、snapshot shape 与第一批失败测试。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 heartbeat contract 红线测试" status="DONE" order="0" priority="P0">
+            <Description>先添加测试覆盖 schedule 数据模型、create/list/cancel 输入输出、必填 name/description、非法 delay/interval、status union 与 wake payload shape。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">测试在实现前能暴露缺失的 heartbeat contract。</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">测试覆盖 timeout 与 interval 的共享字段和差异字段。</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">测试明确 name/description 为必填。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="实现 heartbeat contract 与导出面" status="DONE" order="1" priority="P0">
+            <Description>在 ai-core-contract 中新增 heartbeat 类型、schedule status、wake payload、API input/output 和错误类型，并通过 package surface 导出。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">contract 类型可被 ai-core-logic 与 ai-organ-logic 引用。</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">timeout/interval/list/cancel schema 与 spec 一致。</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC3" checked="true">类型不引入 organ 或 terminal 层依赖。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="扩展 actor mailbox 与 snapshot 默认值" status="DONE" order="2" priority="P0">
+            <Description>为 heartbeat wake 增加 mailbox queue 或等价 control subtype，并更新 actor constructor、mailbox priority、snapshot serialization/recovery 默认值。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">新 wake item 携带 scheduleId、kind、name、description、message、payload 与 fireCount。</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">旧 snapshot 缺少 heartbeat 字段时可恢复为空队列。</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC3" checked="true">wake 优先级低于 control/childDone 且高于普通 humanInput。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Scheduler core 与状态存储" status="DONE" order="1">
+        <Description>实现 session-scoped scheduler runtime/store、create/list/cancel、tick/fire 与安全限制。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="编写 scheduler core 单元测试" status="DONE" order="0" priority="P0">
+            <Description>先覆盖 create_timeout、create_interval、list、cancel、状态转换、配额、范围校验、max_fires 与 fire 去重。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">缺少 name/description 的创建测试失败路径通过。</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">timeout 单次触发与 completed 状态测试通过。</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC3" checked="true">interval 多次触发、max_fires 与 cancel 后不再触发测试通过。</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC4" checked="true">重复 tick 不重复投递同一次 fire。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="实现 scheduler store 与 create/list/cancel ops" status="DONE" order="1" priority="P0">
+            <Description>实现绑定 VM/session 的 heartbeat runtime store，提供创建、列表查询、取消、active quota、时间范围校验与终态过滤。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">schedule 创建后可从当前 VM/session 查询。</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">默认 list 不返回 terminal 项，显式参数可返回历史项。</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC3" checked="true">cancel 不影响其他调度项且 not found 有明确错误。</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC4" checked="true">同进程多 session 不串读 schedule。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="实现 tick/fire 状态机与去重" status="DONE" order="2" priority="P0">
+            <Description>实现到期扫描、fire token/version 去重、timeout completed、interval nextFireAt 更新、max_fires 停止与失败策略。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">timeout 成功投递后只触发一次。</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">interval fire_count 与 nextFireAt 更新稳定。</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC3" checked="true">失败投递记录状态并按策略 retry/defer/stop。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Actor orchestration 与工具集成" status="DONE" order="2">
+        <Description>把 scheduler 触发接入 actor mailbox/fiber orchestration 主链，并暴露受控工具。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="编写 actor/orchestrator 集成测试" status="DONE" order="0" priority="P0">
+            <Description>先覆盖到期 wake 进入 actor mailbox、目标 actor 忙时 defer/coalesce、orchestrator tick 推进新 turn、scheduler 不直接调用模型。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">到期 wake 通过 mailbox/fiber path 处理。</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">busy actor 不被同一 schedule 并发唤醒。</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC3" checked="true">测试能证明 scheduler 未直接调用 LLM adapter。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="接入 mailbox delivery 与 orchestrator tick" status="DONE" order="1" priority="P0">
+            <Description>把 scheduler fire 结果投递给目标 actor，并在 terminal/runtime bootstrap 或 turn 后 tick 路径中推进 due schedules。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">scheduler 到期事件能唤醒目标 actor 的新 turn。</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">wake 输入中保留 name/description/message/payload。</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC3" checked="true">runtime dispose 后 worker/timer 不泄漏到其他 session。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="注册 heartbeat built-in tools" status="DONE" order="2" priority="P0">
+            <Description>实现 create_timeout、create_interval、list_schedules、cancel_schedule 工具定义、工具函数、tool registry 接入和 executor 防御性校验。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.3-AC1" checked="true">允许上下文可见 create/list/cancel 工具。</cdt:Criterion>
+              <cdt:Criterion id="T3.3-AC2" checked="true">不允许上下文隐藏 create 工具。</cdt:Criterion>
+              <cdt:Criterion id="T3.3-AC3" checked="true">stale tool call 被 executor 拒绝并产生 diagnostics。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="恢复、可观测性、文档与验证" status="DONE" order="3">
+        <Description>补齐持久化恢复、observability diagnostics、terminal smoke、文档和最终严格验证。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="实现持久化恢复与 missed-fire 策略" status="DONE" order="0" priority="P0">
+            <Description>将 scheduler state 纳入 session-scoped durable state，恢复 pending timeout 与 active interval，并对过期项应用保守 missed-fire 策略。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">未过期 timeout 可恢复。</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">active interval 恢复 future fire，不无限补发 missed ticks。</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC3" checked="true">terminal schedule 历史可按参数查询。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="添加 scheduler observability 与 diagnostics" status="DONE" order="1" priority="P0">
+            <Description>为 create/fire/defer/coalesce/cancel/complete/expire/fail/recover 写入 observability facts 或 runtime diagnostics，并隔离 sink 失败。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">创建记录包含 schedule_id、kind、name、owner/target 与 next_fire_at。</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">触发失败记录失败原因和下一步状态。</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC3" checked="true">observability sink 失败不影响 scheduler 状态转换。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="补齐 terminal/headless 集成测试" status="DONE" order="2" priority="P0">
+            <Description>覆盖 terminal runtime bootstrap、turn 后 scheduler tick、session isolation、dispose cleanup、工具调用路径与回归 smoke。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">terminal/headless runtime 可创建、查询、取消 schedule。</cdt:Criterion>
+              <cdt:Criterion id="T4.3-AC2" checked="true">到期 wake 不依赖新的用户输入才能被推进。</cdt:Criterion>
+              <cdt:Criterion id="T4.3-AC3" checked="true">既有关键 terminal/TUI smoke 仍通过。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.4" name="更新文档并执行验证" status="DONE" order="3" priority="P1">
+            <Description>新增 heartbeat 使用说明，并运行相关 package 测试、类型检查和 codument validate。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.4-AC1" checked="true">文档说明 LLM 不 sleep，runtime 负责未来唤醒。</cdt:Criterion>
+              <cdt:Criterion id="T4.4-AC2" checked="true">文档包含 name/description 示例、list/cancel 与 runaway interval 成本提示。</cdt:Criterion>
+              <cdt:Criterion id="T4.4-AC3" checked="true">相关测试、类型检查与 `codument validate add-agent-heartbeat-scheduler --strict` 通过。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

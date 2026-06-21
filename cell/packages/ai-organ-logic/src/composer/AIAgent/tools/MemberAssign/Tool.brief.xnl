@@ -1,1 +1,1 @@
-<tool><name>MemberAssign</name><description>Assign work to a member actor.</description></tool>
+<tool><name>MemberAssign</name><description>Assign work to a persistent member actor by member id or member name. Subagent is a delegate alias, not a member alias.</description></tool>

@@ -15,7 +15,6 @@ tools:
   - glob
   - grep
   - bash
-  - batch
   - edit
   - multiedit
   - write

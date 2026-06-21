@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="vendor-actor-control-primitives" version="1">
+  <requirement id="vendor-actor-control-package">
+    <statement>系统 SHALL provide a business-neutral `depa-actor-control` vendor package under the project root `vendor/` directory.</statement>
+    <suite id="package-boundary" name="Package Boundary">
+      <case id="no-ai-domain-semantics">
+        <given>The vendor package defines actor control primitives</given>
+        <when>A maintainer reviews exported types and tests</when>
+        <then>The package SHALL NOT contain AI, LLM, tool-call, questionnaire, member, delegate, or holon domain names</then>
+        <then>The package SHALL depend only on business-neutral dependencies</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/vendor-actor-control-primitives/package-boundary" strength="hint" />
+  </requirement>
+  <requirement id="control-operation">
+    <statement>系统 SHALL model actor control operations as data with target identity, causality, idempotency, and expected barrier metadata.</statement>
+    <suite id="operation-shape" name="Operation Shape">
+      <case id="operation-is-data">
+        <given>A control operation targets an actor or fiber</given>
+        <when>The operation is created</when>
+        <then>The operation SHALL be represented as serializable data</then>
+        <then>The operation SHALL NOT directly invoke an actor implementation</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="mailbox-work-classification">
+    <statement>系统 SHALL classify pending mailbox work using business-neutral work classes.</statement>
+    <suite id="classification" name="Classification">
+      <case id="stable-work-classes">
+        <given>A mailbox entry is inspected by a domain classifier</given>
+        <when>The classifier returns a work class</when>
+        <then>The work class SHALL be one of recoverable input, mandatory completion, interrupt, control marker, low priority continuation, timer wake, or an explicitly named extension</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="control-barrier">
+    <statement>系统 SHALL provide control barrier result types that describe whether an actor control boundary may advance.</statement>
+    <suite id="barrier-result" name="Barrier Result">
+      <case id="blocked-barrier-is-bounded">
+        <given>A barrier is blocked</given>
+        <when>The barrier result is returned to a caller</when>
+        <then>The blocker list SHALL include bounded metadata such as participant id, work class, phase, and reason</then>
+        <then>The blocker list SHALL NOT require large payloads to explain the block</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="durable-head-cohort">
+    <statement>系统 SHALL model durable head cohorts as groups of recovery truth heads that advance only after a matching control barrier is safe.</statement>
+    <suite id="cohort-advance" name="Cohort Advance">
+      <case id="no-partial-head-advance">
+        <given>A durable head cohort contains multiple heads</given>
+        <when>The associated barrier is not safe</when>
+        <then>The cohort SHALL NOT advance any recoverable head as the latest truth</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

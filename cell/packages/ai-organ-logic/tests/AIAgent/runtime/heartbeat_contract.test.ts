@@ -138,9 +138,7 @@ describe("heartbeat runtime contract", () => {
   });
 
   it("defines heartbeat wake mailbox payload and durable snapshot defaults", () => {
-    expect(AI_AGENT_MAILBOXES.control).toBeLessThan(AI_AGENT_MAILBOXES.heartbeatWake);
-    expect(AI_AGENT_MAILBOXES.childDone).toBeLessThan(AI_AGENT_MAILBOXES.heartbeatWake);
-    expect(AI_AGENT_MAILBOXES.heartbeatWake).toBeLessThan(AI_AGENT_MAILBOXES.humanInput);
+    expect(AI_AGENT_MAILBOXES.memberChatInbox).toBeLessThan(AI_AGENT_MAILBOXES.heartbeat);
 
     const actor = createActor({ key: "main", id: "actor-main" });
     const wake = createHeartbeatWakePayload({
@@ -153,11 +151,11 @@ describe("heartbeat runtime contract", () => {
       fireCount: 1,
       firedAt: "2026-05-26T18:01:00.000Z",
     });
-    actor.send("heartbeatWake", wake);
+    actor.send("heartbeat", wake);
 
     const snapshot = serializeActor(actor);
-    expect(snapshot.mailboxes.heartbeatWake).toEqual([wake]);
-    expect(hydrateActor({ ...snapshot, mailboxes: { ...snapshot.mailboxes, heartbeatWake: undefined as any } }).peekMailbox("heartbeatWake")).toEqual([]);
-    expect(hydrateActor(snapshot).peekMailbox("heartbeatWake")).toEqual([wake]);
+    expect(snapshot.mailboxes.heartbeat).toEqual([wake]);
+    expect(hydrateActor({ ...snapshot, mailboxes: { ...snapshot.mailboxes, heartbeat: undefined as any } }).peekMailbox("heartbeat")).toEqual([]);
+    expect(hydrateActor(snapshot).peekMailbox("heartbeat")).toEqual([wake]);
   });
 });

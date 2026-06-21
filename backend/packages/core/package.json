@@ -10,7 +10,7 @@
     "test": "bun test"
   },
   "dependencies": {
-    "depa-actor": "^0.1.1",
+    "depa-actor": "file:/Users/kongweixian/infra-dev/depa-actor",
     "@shared/composer": "workspace:*",
     "@backend/organ": "workspace:*",
     "@cell/ai-core-logic": "workspace:*",

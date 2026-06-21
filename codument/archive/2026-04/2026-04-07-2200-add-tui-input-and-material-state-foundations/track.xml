@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-tui-input-and-material-state-foundations" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>为 prototype TUI 建立可持续的结构化 composer、graph 化 shared state 与 file picker/frecency 输入底座</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-06T16:02:18Z</CreatedAt>
+    <UpdatedAt>2026-04-07T22:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-tui-input-and-material-state-foundations" name="add-tui-input-and-material-state-foundations" version="1">
+    <Description>接入 TUI 输入与共享状态基础设施</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Contract Freeze" status="DONE" order="0">
+        <Description>冻结结构化 composer、graph state 和 file picker 的职责边界</Description>
+        <SubNodes>
+          <Task id="T1.1" name="冻结结构化 composer 输入合同" status="DONE" order="0" priority="P0">
+            <Description>明确 slash、mention、file、image、paste、prompt history 和 extmark 在 prototype composer 中的职责边界，以及纯文本 fallback 的共存规则。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">已明确哪些输入必须产生 structured prompt part，哪些继续按 plain text 处理</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">已明确 extmark 和 prompt history 的恢复边界，不再依赖隐式约定</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="冻结 graph state 与 adapter 分层规则" status="DONE" order="1" priority="P0">
+            <Description>明确 route/current selection/material current state 进入 graph，而 sync bootstrap、本地偏好和持久化文件仍保留为外围 adapter。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">已明确进入 graph 的当前态范围</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">已明确 local-context、sync-context、route-context 的剩余职责</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="冻结 file picker 与 frecency 接口" status="DONE" order="2" priority="P0">
+            <Description>明确文件候选发现、frecency 排序、选中后插入 structured file part 与更新 frecency 的最小闭环。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">已明确 file picker 的输入输出契约</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">已明确 frecency 在排序和选中回写中的职责</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Graph Foundations" status="DONE" order="1">
+        <Description>建立 current selection/material state 的 graph 真相，并把 bridge contexts 降级为 adapter</Description>
+        <SubNodes>
+          <Task id="T2.1" name="为当前 selection 与 route 建立 graph snapshot" status="DONE" order="0" priority="P0">
+            <Description>在现有 prototype graph 上增加 route、agent、provider/model 等 current state 投影，供 composer 与 system surfaces 共同消费。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">存在统一 graph-backed current state 供 view 读取</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">现有 prototype selection 渲染不因 graph 扩展而退化</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="收敛 materials current state 的读取路径" status="DONE" order="1" priority="P0">
+            <Description>让 materials/system surfaces 读取 graph 当前态，而不是继续以 sync/local/route 各自为真相。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">至少一条 system/material surface 读取 graph current state</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">sync-context 与 local-context 保留 bootstrap/adapter 职责而非长期真相</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="保留本地偏好 adapter 并固定同步边界" status="DONE" order="2" priority="P0">
+            <Description>确保 recent/favorite/theme mode 等本地偏好不被粗暴搬入 graph，同时图上的当前态能与这些偏好稳定同步。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">本地偏好文件继续可用</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">当前态和偏好之间不存在双写漂移</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Structured Composer Integration" status="DONE" order="2">
+        <Description>把 prompt part、extmark 和 prompt history 接回 prototype composer 主链</Description>
+        <SubNodes>
+          <Task id="T3.1" name="恢复 prompt part 与 extmark 主链" status="DONE" order="0" priority="P0">
+            <Description>让 composer 能持有 structured prompt parts，并通过 extmark 恢复虚拟文本占位与 range 同步。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">file/agent/text 类 prompt part 可在输入区显示虚拟占位</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">编辑后 extmark 与 prompt part range 保持同步</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="恢复 structured prompt history" status="DONE" order="1" priority="P0">
+            <Description>提交后持久化完整 prompt info，并支持按历史恢复输入时一并恢复结构化 parts 与 extmarks。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">历史输入可恢复 structured parts</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">历史恢复后提交链不退化为纯文本</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="接入 slash/mention/file/image structured input" status="DONE" order="2" priority="P0">
+            <Description>为 prototype composer 接入最小可用的 slash、mention、file、image 输入能力，并与 plain text 提交共存。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.3-AC1" checked="true">slash 和 mention 可以进入 structured prompt part 主链</cdt:Criterion>
+              <cdt:Criterion id="T3.3-AC2" checked="true">file/image 注入与纯文本输入共存，不破坏当前 submit 流程</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="File Picker And Frecency" status="DONE" order="3">
+        <Description>落地最小可用 file picker，并将选中的文件注入为 structured prompt part</Description>
+        <SubNodes>
+          <Task id="T4.1" name="实现 workspace file picker surface" status="DONE" order="0" priority="P0">
+            <Description>提供一个可搜索的 workspace file picker，用于从 prototype composer 中选择文件。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">用户可从 composer 触发 file picker 并查看候选文件</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">picker 可通过键盘完成筛选与选择</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="将 frecency 接入候选排序与选中回写" status="DONE" order="1" priority="P0">
+            <Description>候选文件按 frecency 排序，文件被选中后更新其使用记录。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">高频最近文件优先展示</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">选中文件后 frecency 记录被更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="将选中文件插入为 structured file part" status="DONE" order="2" priority="P0">
+            <Description>picker 选中的文件被插入为 structured file part，并正确更新 extmarks、prompt history 与提交链。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">选中文件后输入区出现结构化 file placeholder</cdt:Criterion>
+              <cdt:Criterion id="T4.3-AC2" checked="true">file part 能被历史恢复并参与后续提交</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Verification" status="DONE" order="4">
+        <Description>通过自动化测试和手工点验确认 graph/composer/file picker 底座可持续使用</Description>
+        <SubNodes>
+          <Task id="T5.1" name="补 graph/composer/file picker focused tests" status="DONE" order="0" priority="P0">
+            <Description>新增或更新测试，覆盖 graph current state、structured prompt history、extmark 恢复、file picker 和 frecency 排序。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">存在 graph current state 与 adapter 边界的 focused tests</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">存在 structured composer / file picker / frecency 的 focused tests</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="运行 terminal TUI 测试并手工点验输入闭环" status="DONE" order="1" priority="P0">
+            <Description>执行 terminal TUI 测试，并手工点验 slash、mention、file picker、history restore 与普通文本提交流程。前五轮 gap-loop 已分别补齐 file picker 选中后的 frecency 回写、prompt history 游标对当前 draft 的保存/恢复、graph-backed route/selection adapter 的响应式订阅、提交后重置 prompt history live draft 以恢复后续历史遍历，以及 direct typed @mention 在 submit 时进入 structured prompt part 主链；focused tests 已通过，但完整 `bun test terminal/packages/tui/tests` 仍受既有 `@opentui/solid` `jsxDEV` 装载错误影响。根据用户明确指示，本 track 以风险接受方式标记完成并归档，未完成的手工点验作为已知残余风险保留在归档记录中。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC2" checked="true">手工点验覆盖 structured input、history restore、file picker 和 plain text fallback（按用户明确指示以风险接受方式完成归档）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

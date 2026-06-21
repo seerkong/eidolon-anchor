@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="runtime-projection-surfaces" version="1">
+
+  <upsert selector="behavior://runtime-projection-surfaces/requirements/surface-readonly-projection">
+    <requirement id="surface-readonly-projection">
+      <statement>runtime surfaces（TUI、actor surface、observability、derived index、CLI/headless 表现层）SHALL 只作为只读 projection / write-only sink 存在：SHALL NOT 写入、修改或销毁 domain truth（conversation/history、ToolCallDomain、ProviderCallDomain、TurnState、session 真源），SHALL NOT gate 或反向影响 live AI loop（surface 的 status/session 处理 SHALL NOT gate turn 继续；surface transcript / visible history SHALL NOT 成为 provider context 输入）。对应 gate G-surface-readonly / 005 规则五。</statement>
+      <suite id="readonly-invariant" name="Surface read-only invariant">
+        <case id="no-surface-domain-writes">
+          <given>terminal surface 包（tui/organ/cli/organ-support）</given>
+          <when>边界守卫扫描 surface 源（含 TuiRuntimeClient 等真正读取/重建处，不止 entry 文件）</when>
+          <then>SHALL NOT 直接构造 domain 写入器或调用 domain-truth 写 API（writeHistory/Prompt/SessionIndex、applyConversationCompaction、emit*DomainEvent、Conversation/ToolCall/ProviderCall domain 写入）</then>
+          <then>surface 自有 sink（tui-session.json、CLI 输出/trace、observability journal）不受此约束</then>
+        </case>
+        <case id="no-surface-loop-gate">
+          <given>live AI loop 的 provider prompt 构建</given>
+          <when>检查 provider context 物化输入</when>
+          <then>provider prompt SHALL 仅来自 vm/domain 物化（promptSource=domain_materialization），SHALL NOT 接受 surface transcript / visible history</then>
+          <then>turn 是否继续 SHALL NOT 由 surface status/session 状态决定</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://runtime-projection-surfaces/requirements/conversation-projection-read-port">
+    <requirement id="conversation-projection-read-port">
+      <statement>surface 的 hydration 方向读取（重建可见会话状态）SHALL 经由一个类型化、只读的 projection-read port 完成，该 port 消费单一来源真源（与 persistence backplane 的单源 read 一致），SHALL NOT 由 surface 自建 repository 直读或复制单源 loader 逻辑而绕过单源/缺源硬失败。pending-questions 等 runtime_state 读取 SHALL 同样经类型化 projection-read，SHALL NOT 直接读原始文件。</statement>
+      <suite id="projection-read" name="Typed projection-read port">
+        <case id="tui-hydration-through-port">
+          <given>TUI 启动 hydration 需要重建可见会话状态</given>
+          <when>surface 读取会话真源</when>
+          <then>SHALL 经 ConversationProjectionReadPort（只读，单源）获取视图，SHALL NOT 在 surface 内自建 conversation/persistence repository 绕过单源读取</then>
+          <then>声明的来源不可加载时 SHALL 以单源硬失败的语义呈现，SHALL NOT 降级混源</then>
+        </case>
+        <case id="pending-questions-through-port">
+          <given>surface 需要展示 pending questionnaires</given>
+          <when>surface 读取 pending-questions 状态</when>
+          <then>SHALL 经类型化 projection-read 视图获取，SHALL NOT 直接读 runtime_state/questionnaires.xnl 原始文件</then>
+        </case>
+        <case id="read-port-is-readonly">
+          <given>ConversationProjectionReadPort 契约</given>
+          <when>检查其能力面</when>
+          <then>SHALL 只暴露只读视图方法，SHALL NOT 暴露任何写入/修改/销毁 domain truth 的方法</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://runtime-projection-surfaces/requirements/surface-destroy-via-domain-capability">
+    <requirement id="surface-destroy-via-domain-capability">
+      <statement>surface 发起的 session 销毁（删除）SHALL 经由 domain-owned 的删除能力中介完成，surface SHALL NOT 直接对 session 真源目录/文件执行文件系统删除（rm）。对应 005 规则五（projection 不能反写/销毁上游真源）。</statement>
+      <suite id="destroy-mediation" name="Destroy via domain capability">
+        <case id="session-delete-routes-through-capability">
+          <given>用户在 surface 触发删除一个 session</given>
+          <when>surface 处理删除</when>
+          <then>SHALL 调用 domain-owned 删除能力，由其负责销毁 session 真源</then>
+          <then>surface SHALL NOT 直接 rm session 真源目录（含 conversation 文件）</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://runtime-projection-surfaces/requirements/cross-surface-domain-equivalence">
+    <requirement id="cross-surface-domain-equivalence">
+      <statement>同一条 live AI loop 在不同 surface（TUI / CLI / headless）下 SHALL 产生等价的 domain 行为与模型可见 history；surface 选择 SHALL NOT 改变 domain 结果。SHALL 提供同一 live loop、不同 surface 的 domain 等价测试作为分歧回归守护。</statement>
+      <suite id="surface-equivalence" name="Cross-surface equivalence">
+        <case id="same-loop-different-surface-equivalent">
+          <given>同一 profile/同一 live loop 输入</given>
+          <when>分别经 TUI 与 CLI/headless surface 运行</when>
+          <then>domain 真源（可见 history、tool 结果配对、turn 结果）SHALL 等价，差异仅限 surface 自有呈现</then>
+          <then>SHALL NOT 出现某 surface 改变 domain 结果或单独触达 domain truth 的情况</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+</behavior-patch>

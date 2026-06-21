@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="cell-runtime-composer-and-mod-profiles" version="1">
+  <requirement id="runtime-assembly-lifecycle-hooks">
+    <statement>系统 SHALL 让现有 module extension/manifest 支持 first-class lifecycle hook 字段，并将 hook definitions 作为 runtime assembly result 的正式组成部分暴露；assembly 层 SHALL NOT 拥有 hook dispatcher。</statement>
+    <suite id="hook-assembly" name="Lifecycle hook assembly">
+      <case id="extension-contributes-hooks">
+        <given>某个 runtime extension 需要贡献 lifecycle hook</given>
+        <when>composer 组装 runtime profile</when>
+        <then>assembly state SHALL 从该 extension 或 module manifest 的 `hooks` 字段收集 hook descriptors</then>
+        <then>assembly result SHALL 暴露最终 lifecycle hook descriptors</then>
+      </case>
+      <case id="assembly-does-not-own-dispatcher">
+        <given>runtime profile 包含 AI kernel baseline</given>
+        <when>composer 完成 runtime assembly</when>
+        <then>assembly result SHALL 暴露 hook descriptors 而不是 lifecycle hook dispatcher</then>
+        <then>`ai-organ-logic` SHALL own lifecycle hook producer and dispatcher runtime behavior</then>
+      </case>
+      <case id="overlay-order-is-preserved">
+        <given>多个 profile overlay 都贡献 lifecycle hook</given>
+        <when>composer 按 profile 叠加顺序 reduce extensions</when>
+        <then>最终 hook list SHALL 保留可确定的 extension 贡献顺序</then>
+        <then>`ai-organ-logic` dispatcher SHALL 再按 hook point、phase、priority、extension id、name 形成执行顺序</then>
+      </case>
+      <case id="no-parallel-hook-registry">
+        <given>mod-ai-kernel、mod-ai-coding 或第三方 mod 需要声明 hook</given>
+        <when>它们参与 runtime profile assembly</when>
+        <then>它们 SHALL 通过现有 module extension/manifest 的 `hooks` 字段声明 hook</then>
+        <then>系统 SHALL NOT 要求它们调用另一条 hook 注册 API</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

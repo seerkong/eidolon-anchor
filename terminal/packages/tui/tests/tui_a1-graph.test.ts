@@ -1,6 +1,12 @@
 import { describe, expect, it } from "bun:test"
 import type { Message, Part, PermissionRequest, QuestionRequest } from "@terminal/core/AIAgent"
-import { defaultTuiA1Selection, type TuiA1Message, type TuiA1Selection } from "../src/app/tui_a1/data"
+import {
+  defaultTuiA1Selection,
+  resolveTuiEffectiveModel,
+  type TuiA1Message,
+  type TuiA1Selection,
+  type TuiModelCandidate,
+} from "../src/app/tui_a1/data"
 import { TuiA1StateGraph, type TuiA1QuestionnaireCenter } from "../src/app/tui_a1/graph"
 import type { PromptInfo } from "../src/app/tui_a1/features/composer/model/prompt-info"
 import type { Route } from "../src/app/tui_a1/route/route"
@@ -134,6 +140,30 @@ function createQuestionRequest(id: string): QuestionRequest {
 }
 
 describe("TuiA1StateGraph", () => {
+  it("resolves effective model by source priority", () => {
+    const candidates: TuiModelCandidate[] = [
+      { source: "provider-default", providerID: "openai", modelID: "gpt-5.4" },
+      { source: "recent", providerID: "deepseek", modelID: "deepseek-chat" },
+      { source: "runtime-config", providerID: "openai", modelID: "gpt-4o" },
+      { source: "agent-default", providerID: "anthropic", modelID: "claude-sonnet-4" },
+      { source: "agent-memory", providerID: "deepseek", modelID: "deepseek-reasoner" },
+      { source: "cli-arg", providerID: "google", modelID: "gemini-2.5-pro" },
+      { source: "user-explicit", providerID: "xai", modelID: "grok-code-fast" },
+    ]
+
+    expect(resolveTuiEffectiveModel(candidates)).toEqual({
+      source: "user-explicit",
+      providerID: "xai",
+      modelID: "grok-code-fast",
+    })
+
+    expect(resolveTuiEffectiveModel(candidates.filter((candidate) => candidate.source !== "user-explicit"))).toEqual({
+      source: "cli-arg",
+      providerID: "google",
+      modelID: "gemini-2.5-pro",
+    })
+  })
+
   it("updates local simulated messages through graph projection", () => {
     const graph = new TuiA1StateGraph({
       initialMessages: [],
@@ -209,6 +239,7 @@ describe("TuiA1StateGraph", () => {
       agent: "build",
       providerID: "anthropic",
       modelID: "claude-sonnet-4",
+      modelSource: "runtime-config",
     })
 
     const assist = createRuntimeAssistantMessage("msg-assist", {
@@ -235,6 +266,53 @@ describe("TuiA1StateGraph", () => {
       streaming: false,
     })
     expect(graph.graph.get<boolean>("busy")).toBe(false)
+
+    graph.dispose()
+  })
+
+  it("preserves explicit local model selection across later runtime projections", () => {
+    const graph = new TuiA1StateGraph({
+      initialMessages: [],
+      selection: defaultTuiA1Selection,
+    })
+
+    const first = createRuntimeAssistantMessage("msg-old", {
+      agent: "build",
+      providerID: "openai",
+      modelID: "gpt-5.4",
+      time: { created: 1, completed: 2 },
+    })
+
+    graph.hydrateRuntimeSession({
+      sessionID: "ses_1",
+      busy: false,
+      messages: [first],
+      partsByMessage: {
+        [first.id]: [createTextPart(first.id, "part-old", "old")],
+      },
+    })
+
+    graph.mergeSelection({
+      providerID: "deepseek",
+      modelID: "deepseek-v4-pro",
+      modelSource: "user-explicit",
+    })
+
+    const next = createRuntimeAssistantMessage("msg-next", {
+      agent: "build",
+      providerID: "openai",
+      modelID: "gpt-5.4",
+      time: { created: 3, completed: 4 },
+    })
+    graph.applyRuntimeMessageUpdated(next)
+    graph.applyRuntimePartUpdated(createTextPart(next.id, "part-next", "next"))
+
+    expect(graph.graph.get<TuiA1Selection>("selection")).toMatchObject({
+      agent: "build",
+      providerID: "deepseek",
+      modelID: "deepseek-v4-pro",
+      modelSource: "user-explicit",
+    })
 
     graph.dispose()
   })

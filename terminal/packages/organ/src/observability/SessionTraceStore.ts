@@ -2,12 +2,12 @@
  * SessionTraceStore — xnl append-only trace persistence.
  *
  * Each TraceRecord is serialized as a single XNL DataElement node,
- * one line per record. Text-heavy fields use ULID-prefixed textMarkers
+ * one line per record. Text-heavy fields use ULID textMarkers
  * (must start with letter for valid xnl identifier).
  */
 
 import fs from "node:fs";
-import { parseXnl, XNL } from "xnl-core";
+import { parseXnl, stringifyLineBlock } from "xnl-core";
 import { makeUlid } from "@cell/symbiont-logic";
 import type { DataElementNode, TextElementNode, XnlNode } from "xnl-core";
 import type { TraceRecord } from "./TraceMiddleware";
@@ -33,13 +33,15 @@ export type SessionTraceStore = {
 // can start with a digit. Prepend "m" to guarantee validity.
 
 function marker(): string {
-  return "m" + makeUlid();
+  return makeUlid();
 }
 
 // ── XNL conversion ──────────────────────────
 
 function recordToNode(r: TraceRecord): DataElementNode {
   const metadata: Record<string, XnlNode> = {
+    version: 1,
+    traceKind: "graph",
     id: r.id,
     seq: r.seq,
     ts: r.ts,
@@ -64,12 +66,27 @@ function recordToNode(r: TraceRecord): DataElementNode {
     } as TextElementNode);
   }
 
+  if (body.length === 1 && isTextElement(body[0])) {
+    return {
+      kind: "DataElement",
+      tag: "TraceEntry",
+      metadata,
+      extend: {
+        order: [body[0].tag],
+        children: { [body[0].tag]: body[0] },
+      },
+    };
+  }
   return { kind: "DataElement", tag: "TraceEntry", metadata, body: body.length ? body : undefined };
 }
 
 function nodeToRecord(node: DataElementNode): TraceRecord {
   let valueSnapshot: unknown;
-  for (const child of node.body ?? []) {
+  const children = [
+    ...(node.extend?.order ?? []).map((tag) => node.extend?.children?.[tag]).filter(Boolean) as XnlNode[],
+    ...(node.body ?? []),
+  ];
+  for (const child of children) {
     if (isTextElement(child) && child.tag === "Value") {
       const raw = child.text ?? "";
       try { valueSnapshot = JSON.parse(raw); } catch { valueSnapshot = raw; }
@@ -112,12 +129,12 @@ export function createSessionTraceStore(
   const size = () => records.length;
 
   const exportXnl = (): string => {
-    return records.map((r) => XNL.stringify(recordToNode(r))).join("\n") + (records.length > 0 ? "\n" : "");
+    return records.map((r) => stringifyLineBlock(recordToNode(r))).join("\n") + (records.length > 0 ? "\n" : "");
   };
 
   const flushToFile = async () => {
     if (disposed || pending.length === 0 || options.mode !== "file" || !options.filePath) return;
-    const chunk = pending.map((r) => XNL.stringify(recordToNode(r))).join("\n") + "\n";
+    const chunk = pending.map((r) => stringifyLineBlock(recordToNode(r))).join("\n") + "\n";
     pending = [];
     await fs.promises.mkdir(new URL(".", `file://${options.filePath}`).pathname, { recursive: true }).catch(() => {});
     await fs.promises.appendFile(options.filePath, chunk, "utf-8");

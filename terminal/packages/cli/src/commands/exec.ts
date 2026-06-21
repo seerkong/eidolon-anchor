@@ -13,6 +13,7 @@ import {
 export type ExecArgs = {
   cwd?: string
   prompt?: string
+  session?: string
   model?: string
   profile?: string
   fullAuto?: boolean
@@ -79,6 +80,11 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           alias: ["m"],
           type: "string",
           describe: "model override",
+        })
+        .option("session", {
+          alias: ["s"],
+          type: "string",
+          describe: "session id to continue",
         })
         .option("profile", {
           alias: ["p"],
@@ -167,6 +173,7 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
         const result = await deps.runHeadlessExec({
           workDir,
           input,
+          sessionKey: args.session,
           model: args.model,
           profile: args.profile,
           timeoutSeconds: args.timeout,

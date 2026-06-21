@@ -1,5 +1,6 @@
 import type { QuestionnaireRequestPayload } from "@cell/ai-core-contract/runtime/Questionnaire";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
+import { upsertPendingQuestionnaireRow } from "@cell/ai-core-logic";
 import type { ToolFuncRegistryData } from "@cell/ai-core-contract/runtime/RuntimeRegistries";
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
 import type { AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
@@ -296,6 +297,7 @@ function queueLocalPermissionQuestionnaire(
   const existing = runtime.actor.pendingQuestionnaires[questionnaireId];
   if (!existing) {
     runtime.actor.pendingQuestionnaires[questionnaireId] = request;
+    upsertPendingQuestionnaireRow({ vm: runtime.vm as any, actor: runtime.actor as any, request });
     runtime.actor.send("control", {
       kind: "questionnaire_pending",
       toolCallId,

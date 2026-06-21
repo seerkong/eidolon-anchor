@@ -1,0 +1,361 @@
+{
+  "recordedAt": "2026-06-11T17:16:47.935Z",
+  "source": "legacy raw-array assembly recorded immediately before its deletion in T4.3 (track refactor-ai-semantic-conversation-spine)",
+  "scenarios": {
+    "multi_turn_text": [
+      {
+        "label": "turn:1",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness primary agent."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Hello there. Please introduce yourself."
+          }
+        ]
+      },
+      {
+        "label": "turn:2",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness primary agent."
+          },
+          {
+            "role": "user",
+            "content": "Hello there. Please introduce yourself."
+          },
+          {
+            "role": "assistant",
+            "content": "Hi, I am the harness agent."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Summarize what this session is about."
+          }
+        ]
+      },
+      {
+        "label": "final",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness primary agent."
+          },
+          {
+            "role": "user",
+            "content": "Hello there. Please introduce yourself."
+          },
+          {
+            "role": "assistant",
+            "content": "Hi, I am the harness agent."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Summarize what this session is about."
+          },
+          {
+            "role": "assistant",
+            "content": "This session verifies provider message assembly equivalence."
+          }
+        ]
+      }
+    ],
+    "tool_round": [
+      {
+        "label": "turn:1",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness tool-using agent."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Read the project README and report its title."
+          }
+        ]
+      },
+      {
+        "label": "turn:2",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness tool-using agent."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Read the project README and report its title."
+          },
+          {
+            "role": "assistant",
+            "content": "Let me read the README first.",
+            "tool_calls": [
+              {
+                "id": "tc-readme-1",
+                "type": "function",
+                "function": {
+                  "name": "read_file",
+                  "arguments": "{\"path\":\"README.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "# Eidolon Anchor\nA runtime workbench.",
+            "tool_call_id": "tc-readme-1"
+          }
+        ]
+      },
+      {
+        "label": "final",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness tool-using agent."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Read the project README and report its title."
+          },
+          {
+            "role": "assistant",
+            "content": "Let me read the README first.",
+            "tool_calls": [
+              {
+                "id": "tc-readme-1",
+                "type": "function",
+                "function": {
+                  "name": "read_file",
+                  "arguments": "{\"path\":\"README.md\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "content": "# Eidolon Anchor\nA runtime workbench.",
+            "tool_call_id": "tc-readme-1"
+          },
+          {
+            "role": "assistant",
+            "content": "The README title is `Eidolon Anchor`."
+          }
+        ]
+      }
+    ],
+    "work_context_overlay": [
+      {
+        "label": "turn:1",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness planning agent."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: plan\ntask_phase: normal\ninstruction: plan mode is read-only; do not modify files or run destructive commands.\n<tool_guidance>\nprefer: read, grep, glob, ls, bash\navoid_until_needed: write, edit, multiedit, apply_patch\n</tool_guidance>\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Plan the conversation spine refactor."
+          }
+        ]
+      },
+      {
+        "label": "turn:2",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness planning agent."
+          },
+          {
+            "role": "user",
+            "content": "Plan the conversation spine refactor."
+          },
+          {
+            "role": "assistant",
+            "content": "Here is the read-only plan: inspect, contract, switch."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Now execute step one."
+          }
+        ]
+      },
+      {
+        "label": "final",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness planning agent."
+          },
+          {
+            "role": "user",
+            "content": "Plan the conversation spine refactor."
+          },
+          {
+            "role": "assistant",
+            "content": "Here is the read-only plan: inspect, contract, switch."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Now execute step one."
+          },
+          {
+            "role": "assistant",
+            "content": "Executing step one of the plan."
+          }
+        ]
+      }
+    ],
+    "compaction_follow_up": [
+      {
+        "label": "turn:1",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness long-session agent."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Investigate the duplicate-message incident."
+          }
+        ]
+      },
+      {
+        "label": "turn:2",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness long-session agent."
+          },
+          {
+            "role": "user",
+            "content": "Investigate the duplicate-message incident."
+          },
+          {
+            "role": "assistant",
+            "content": "I inspected the executor drain path and found candidate causes."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Keep digging into the history rebuild."
+          }
+        ]
+      },
+      {
+        "label": "turn:3",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness long-session agent."
+          },
+          {
+            "role": "user",
+            "content": "Summary: the incident stems from dual truth between array and domains."
+          },
+          {
+            "role": "assistant",
+            "content": "Acknowledged. Continuing from the compacted context."
+          },
+          {
+            "role": "user",
+            "content": "Keep digging into the history rebuild."
+          },
+          {
+            "role": "assistant",
+            "content": "The rebuild path reads both the array and the domain ledger."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Given the compacted context, what is next?"
+          }
+        ]
+      },
+      {
+        "label": "final",
+        "providerMessages": [
+          {
+            "role": "system",
+            "content": "You are the equivalence harness long-session agent."
+          },
+          {
+            "role": "user",
+            "content": "Summary: the incident stems from dual truth between array and domains."
+          },
+          {
+            "role": "assistant",
+            "content": "Acknowledged. Continuing from the compacted context."
+          },
+          {
+            "role": "user",
+            "content": "Keep digging into the history rebuild."
+          },
+          {
+            "role": "assistant",
+            "content": "The rebuild path reads both the array and the domain ledger."
+          },
+          {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
+            "role": "user",
+            "content": "Given the compacted context, what is next?"
+          },
+          {
+            "role": "assistant",
+            "content": "Next: route provider builds through the domain materialization."
+          }
+        ]
+      }
+    ]
+  }
+}

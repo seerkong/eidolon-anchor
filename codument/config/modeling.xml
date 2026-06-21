@@ -1,0 +1,22 @@
+<!--
+  config/modeling.xml —— 领域建模 registry 能力开关 + merge 策略（XML，vfs 标准；仿 attractor-profiles.xml）。
+  默认 disabled：无此文件或 enabled="false" 时，track / implement / archive / lint 全部跳过 modeling，行为不变。
+  启用后：track 产出 modeling_delta、archive 做节点级 3-way 合并进 codument/modeling/、modeling lint 给分形拆分建议。
+  规范见 codument/std/spec/modeling-registry.md、modeling-delta.md、modeling-node-schema.md。
+-->
+<Modeling version="1" enabled="false">
+
+  <!-- registry 工作树根（宿主 git 版本化；不持久化平行 vcs 仓库） -->
+  <Registry dir="vfs://@/codument/modeling/"/>
+
+  <!-- 分形拆分 lint 阈值（codument modeling lint）；超阈即建议拆同名文件夹 -->
+  <Lint maxLines="400" maxNodes="8"/>
+
+  <!-- 归档 3-way 合并的冲突策略：默认保守（human=报告并暂停，不静默覆盖）；可改 ours|theirs|base -->
+  <MergePolicy>
+    <Conflict type="same-field" resolve="human"/>
+    <Conflict type="delete-modify" resolve="human"/>
+    <Conflict type="add-add" resolve="human"/>
+  </MergePolicy>
+
+</Modeling>

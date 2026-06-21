@@ -1,7 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { buildActorTranscriptDirName } from "@cell/ai-core-contract/runtime/ActorTranscript";
+import { buildActorDirName } from "@cell/ai-core-contract/runtime/ActorDirectory";
 import type { RuntimeSnapshotRepositoryFactory } from "@cell/ai-core-contract/runtime/RuntimeSnapshotStore";
 import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
@@ -16,9 +16,14 @@ import {
   type RuntimeSnapshotPersistedState,
   type RuntimeSnapshotVm,
 } from "@cell/ai-core-logic/runtime/snapshot";
+import {
+  parseQuestionnaireRowsXnl,
+  serializeQuestionnaireRowsXnl,
+} from "./QuestionnaireXnlStore";
 
 const MANIFEST_FILE = "manifest.json";
 const VM_FILE = "vm.json";
+const QUESTIONNAIRES_FILE = "questionnaires.xnl";
 const ACTORS_DIR = path.posix.join("..", "actors");
 const FIBERS_DIR = "fibers";
 const INDEXES_DIR = "indexes";
@@ -34,7 +39,7 @@ function encodeFileSegment(value: string): string {
 }
 
 function buildActorFile(actor: Pick<RuntimeSnapshotActor, "key" | "id" | "type" | "identity">): string {
-  return path.posix.join(ACTORS_DIR, buildActorTranscriptDirName({
+  return path.posix.join(ACTORS_DIR, buildActorDirName({
     agentKey: actor.key,
     actorId: actor.id,
     actorType: actor.type,
@@ -66,6 +71,18 @@ async function writeJsonAtomically(filePath: string, value: unknown): Promise<vo
   await ensureParentDir(filePath);
   const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   const data = `${JSON.stringify(value, null, 2)}\n`;
+  try {
+    await writeFile(tempPath, data, "utf8");
+    await rename(tempPath, filePath);
+  } catch (error) {
+    await rm(tempPath, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+async function writeTextAtomically(filePath: string, data: string): Promise<void> {
+  await ensureParentDir(filePath);
+  const tempPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
   try {
     await writeFile(tempPath, data, "utf8");
     await rename(tempPath, filePath);
@@ -178,6 +195,10 @@ export class LocalFileRuntimeSnapshotRepository {
     return toAbsolute(this.rootDir, VM_FILE);
   }
 
+  get questionnairesPath(): string {
+    return toAbsolute(this.rootDir, QUESTIONNAIRES_FILE);
+  }
+
   actorPath(actor: Pick<RuntimeSnapshotActor, "key" | "id" | "type" | "identity">): string {
     return toAbsolute(this.rootDir, buildActorFile(actor));
   }
@@ -214,6 +235,18 @@ export class LocalFileRuntimeSnapshotRepository {
     }
   }
 
+  async writeQuestionnaires(rows: RuntimeSnapshotPersistedState["questionnaires"] = []): Promise<void> {
+    await writeTextAtomically(this.questionnairesPath, serializeQuestionnaireRowsXnl(rows));
+  }
+
+  async readQuestionnaires(): Promise<RuntimeSnapshotLoadResult["questionnaires"]> {
+    try {
+      return parseQuestionnaireRowsXnl(await readFile(this.questionnairesPath, "utf8"));
+    } catch {
+      return [];
+    }
+  }
+
   private splitActorSnapshot(actor: RuntimeSnapshotActor): {
     actorMeta: Record<string, unknown>;
     actorState: Record<string, unknown>;
@@ -238,7 +271,6 @@ export class LocalFileRuntimeSnapshotRepository {
         shutdownCoordination: actor.shutdownCoordination,
         taskTree: actor.taskTree,
         toolCallStreamState: actor.toolCallStreamState,
-        pendingQuestionnaires: actor.pendingQuestionnaires,
         lastMemberResultNotifiedAt: actor.lastMemberResultNotifiedAt,
         detachedTask: actor.detachedTask,
         holonState: actor.holonState,
@@ -295,15 +327,15 @@ export class LocalFileRuntimeSnapshotRepository {
       taskTree: stateJson.taskTree,
       mailboxes: mailboxesJson.mailboxes ?? {
         control: [],
-        childDone: [],
-        coordination: [],
-        memberInbox: [],
-        humanInput: [],
         toolResult: [],
-        aiGenerated: [],
+        asyncCompletion: [],
+        childDone: [],
+        memberCoordination: [],
+        humanInput: [],
+        memberChatInbox: [],
+        heartbeat: [],
       },
       toolCallStreamState: stateJson.toolCallStreamState ?? { toolCalls: [] },
-      pendingQuestionnaires: stateJson.pendingQuestionnaires ?? {},
       lastMemberResultNotifiedAt: stateJson.lastMemberResultNotifiedAt,
       detachedTask: stateJson.detachedTask,
       holonState: stateJson.holonState,
@@ -378,6 +410,7 @@ export class LocalFileRuntimeSnapshotRepository {
     }
 
     await this.writeVm(input.vm);
+    await this.writeQuestionnaires(input.questionnaires ?? []);
 
     const manifest: RuntimeSnapshotManifest = {
       version: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
@@ -410,6 +443,7 @@ export class LocalFileRuntimeSnapshotRepository {
       return null;
     }
     assertCurrentSnapshotVersion(vm.version, manifest.vmFile);
+    const questionnaires = await this.readQuestionnaires();
 
     const indexes = {} as Partial<RuntimeSnapshotIndexes>;
     for (const relativeFile of manifest.indexFiles) {
@@ -445,6 +479,7 @@ export class LocalFileRuntimeSnapshotRepository {
       manifest,
       vm,
       actors,
+      questionnaires,
       fibers,
       indexes,
       corruptions,

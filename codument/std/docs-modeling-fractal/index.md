@@ -1,609 +1,156 @@
 # Modeling 分形标准
 
-## 目的
+> 本标准定义 `docs/modeling/` 的写作方式。它**不是一棵要照抄的固定目录树**，而是一条**递归规则**：同一套"知识节点"规则在每一层复用，每个业务领域用它**长出自己的目录结构**。
+>
+> 共享内容（节点不变量、frontmatter、根布局、同名文件夹演化、迁移台账、track 同步）见 [model-driven-docs.md](../../attractors/model-driven-docs.md)。本文件只讲 **modeling 侧特有**的约定，不重复共享部分。
 
-本标准定义 `docs/modeling/` 的目录结构与写作规则。
+## 1. 一句话心法
 
-所有 modeling plane 必须结构同构：
+modeling 树 = 递归的「知识节点」。**不变的是递归规则，可变的是每个领域选的类目词汇。**
+
+- **不变**（所有领域、所有层级都一样）：`plane → context → 类目 → 叶子`；每层 `index.md` 只做导航；一处真源、其余引用；派生处用 `derived_from` 指回来源。
+- **可变**（每个领域自己定）：有哪些 plane；每个 context 内部按哪些「类目」切分真源（`objects`？`routes`？`datasets`？`scenes`？）。
+
+> ⚠️ 不要把本文示例里的 `objects / policies / workflows` 当成强制目录名——那只是"软件 domain 平面"的**一种**类目选择，不是分形的一部分。
+
+## 2. Plane 层
+
+路径：`docs/modeling/<plane>/`
+
+- **`domain`（唯一必需 plane）**：canonical 业务本体，不依赖任何 derived plane。
+- **derived plane（可选、项目按领域命名）**：把 domain 概念投影到某个建模视角。命名贴合领域，例如 `backend`、`surface`、`runtime`、`api`、`storage`、`pipeline`、`agent`、`tool`、`integration`……
+- derived plane 必须在文档 `derived_from` 指回它投影的 domain 真源；**不得复制成第二份真源**。
+
+plane 根固定三件：
 
 ```text
-docs/modeling/<modeling-plane>/
-  index.md
-  glossary.md
-  contexts/
-    index.md
-    <context>/
-      index.md
-      code-map.md
-      objects/
-        index.md
-        <object>/
-          data.md
-          behavior.md
-      policies/
-        index.md
-        <policy>.md
-      workflows/
-        index.md
-        <workflow>.md
+docs/modeling/<plane>/
+  index.md          # 只导航：列本 plane 的 contexts，声明 canonical / derived
+  glossary.md       # 本 plane 术语；domain 术语是 canonical，derived 术语指回 domain term
+  contexts/index.md # context 入口表
 ```
 
-`domain` 是必需 plane，表示 canonical ontology。其他 modeling plane 由项目自定义，表示 derived modeling plane，例如 `runtime`、`command`、`api`、`storage`、`pipeline`、`agent`、`tool`、`integration`。
+## 3. Context 层 —— 类目由领域决定（本标准核心）
 
-## Plane 语义
+context 是 plane 内的边界单元：`docs/modeling/<plane>/contexts/<context>/`
 
-`docs/modeling/domain/`：
+每个 context **固定只有两件事**：
 
-- 拥有 canonical business/conceptual ontology。
-- 定义 domain objects、behaviors、policies、workflows、vocabulary。
-- 不依赖 derived plane。
+```text
+index.md      # 边界（Boundary / Not Owned Here）+ 导航到各类目
+code-map.md   # 把本 context 的建模知识连到源码 / 测试
+```
 
-`docs/modeling/<derived-plane>/`：
+**其余子目录是「类目」，由该 plane 的建模视角决定，不是固定三件套。**
 
-- 将 domain concepts 投影到某个具体建模视角。
-- 可表示 command model、runtime model、storage model、API model、pipeline model、agent/tool model 或其他项目自定义模型。
-- 基于 domain truth 派生时，必须通过 `derived_from` 引用来源。
-- 不得复制 canonical domain truth 形成第二份真源。
+> 类目 = "这个 context 的真源天然按什么维度切分"。给 AI 的规则只有一条：
+>
+> **选 3–6 个正交、稳定、领域自然的类目作为 context 第一层子目录；每个类目下再放叶子 `.md`，太大再升级同名文件夹。**
 
-## `docs/modeling/index.md`
+### 三个真实示例（证明类目随领域而变，不固定 web）
 
-用途：
+```text
+# domain 平面（DDD 本体）—— 概念真源
+contexts/<ctx>/{ objects/  policies/  workflows/ }
+                  对象       跨对象规则   多步流程
 
-- 说明 modeling system。
-- 列出 modeling planes。
-- 声明所有 modeling planes 使用同一套分形语法。
+# backend 平面（后端投影）—— 服务端真源
+contexts/<ctx>/{ routes  dto_maps  errors  contracts  storage  read-models  sync-flows }
 
-模板：
+# surface 平面（前端投影）—— 前端真源
+contexts/<ctx>/{ routes  actions  ui-state  read-models  sync-flows }
+```
+
+换一个**非软件 / 非 web** 领域，类目会完全不同：
+
+```text
+数据管道领域：  sources/   transforms/  sinks/      schedules/
+游戏领域：      entities/  systems/     scenes/     rules/
+ML 领域：       datasets/  features/    models/     experiments/
+```
+
+→ 关键动作：**先问"本领域这个 context 的真源天然分成哪几类"，再建目录**；不要硬套别人的类目名。
+
+### Context `index.md`（小模板）
 
 ```markdown
 ---
-knowledge_system: modeling
-knowledge_plane: index
-doc_role: guide
-status: active
-last_verified: YYYY-MM-DD
----
-
-# Modeling
-
-| Plane | Role | When to Read |
-|-------|------|--------------|
-| domain | Canonical ontology | Need concepts, objects, policies, workflows |
-| runtime | Runtime projection | Need execution model |
-```
-
-规则：
-
-- 不在此文件写 context 详情。
-- 只有 modeling plane 新增、删除、改名或重分类时才更新。
-
-## Modeling Plane `index.md`
-
-路径：
-
-```text
-docs/modeling/<plane>/index.md
-```
-
-用途：
-
-- 定义该 plane 的职责。
-- 说明该 plane 是 canonical 还是 derived。
-- 链接到 `glossary.md` 与 `contexts/index.md`。
-
-模板：
-
-```markdown
----
-knowledge_system: modeling
-knowledge_plane: <plane>
-doc_role: guide
-status: active
-last_verified: YYYY-MM-DD
----
-
-# <Plane> Modeling
-
-## Role
-
-This plane owns...
-
-## Relation To Other Planes
-
-- Canonical source:
-- Derived consumers:
-
-| Document | Purpose | When to Read |
-|----------|---------|--------------|
-| glossary.md | Plane terminology | Terms are ambiguous |
-| contexts/index.md | Context entry | Need context-level truth |
-```
-
-规则：
-
-- `domain` 必须说明自己是 canonical。
-- derived plane 必须说明自己代表什么投影，以及 canonical source 在哪里。
-- 不在这里嵌入所有 context 详情。
-
-## Modeling Plane `glossary.md`
-
-路径：
-
-```text
-docs/modeling/<plane>/glossary.md
-```
-
-用途：
-
-- 定义该 plane 使用的术语。
-- 消除别名、旧名、近义词歧义。
-- 将术语链接到 context 与 canonical docs。
-
-模板：
-
-```markdown
----
-knowledge_system: modeling
-knowledge_plane: <plane>
-doc_role: canonical
-status: active
-last_verified: YYYY-MM-DD
----
-
-# <Plane> Glossary
-
-## <Term>
-
-Definition.
-
-- Context:
-- Aliases:
-- Not the same as:
-- Canonical docs:
-```
-
-规则：
-
-- `domain` 中的 glossary term 是 canonical。
-- derived plane 中的 glossary term 如果派生自 domain term，应指回 domain term。
-- 术语必须精确，不要把 glossary 写成完整设计文档。
-
-## Modeling Plane `contexts/index.md`
-
-路径：
-
-```text
-docs/modeling/<plane>/contexts/index.md
-```
-
-用途：
-
-- 列出该 modeling plane 中的 contexts。
-- 说明每个 context 在该 plane 中的职责。
-- 展示与其他 modeling plane 的对齐关系。
-
-模板：
-
-```markdown
----
-knowledge_system: modeling
-knowledge_plane: <plane>
-doc_role: guide
-status: active
-last_verified: YYYY-MM-DD
----
-
-# <Plane> Contexts
-
-| Context | Responsibility In This Plane | Related Domain Context | When to Read |
-|---------|------------------------------|------------------------|--------------|
-| <context> | ... | docs/modeling/domain/contexts/<context>/ | ... |
-```
-
-规则：
-
-- context 名称通常应跨 plane 对齐。
-- 如果 derived plane 暂时没有某个 domain context 的投影，可以省略，也可以建立薄 context 并明确说明当前没有独立投影。
-- 不要为了对称伪造不存在的 derived concepts。
-- 不要在这里复制 object/policy/workflow 内容。
-
-## Modeling Context Directory
-
-路径：
-
-```text
-docs/modeling/<plane>/contexts/<context>/
-```
-
-必需结构：
-
-```text
-index.md
-code-map.md
-objects/
-  index.md
-policies/
-  index.md
-workflows/
-  index.md
-```
-
-用途：
-
-- context 是 modeling plane 的主要边界。
-- context 拥有该 plane 中的 objects、policies、workflows、code map。
-
-### Context `index.md`
-
-模板：
-
-```markdown
----
-knowledge_system: modeling
 knowledge_plane: <plane>
 doc_role: guide
 status: active
 context: <context>
-derived_from:
-  - docs/modeling/domain/contexts/<context>/index.md
+derived_from: docs/modeling/domain/contexts/<context>/index.md   # 仅 derived plane
 last_verified: YYYY-MM-DD
 ---
 
 # <Context> Context
 
+> 目录职责 · holds: <本 context 的真源边界> · excludes: <去哪> · tier: stable · ⬆from: track design 稳定后 · ⬇to: 代码/测试
+
 ## Boundary
+本 context 拥有……
 
-This context owns...
+## Not Owned Here   # 与相邻 context 易混时必写
+- ……
 
-## Not Owned Here
-
-- ...
-
-## Plane Role
-
-In this modeling plane, this context represents...
-
-## Objects
-
-| Object | Purpose | When to Read |
-|--------|---------|--------------|
-
-## Policies
-
-| Policy | Purpose | When to Read |
-|--------|---------|--------------|
-
-## Workflows
-
-| Workflow | Purpose | When to Read |
-|----------|---------|--------------|
+| 类目 | 职责 | 何时阅读 |
+|------|------|----------|
+| <category>/index.md | …… | …… |
 
 ## Code Map
-
 - code-map.md
 ```
 
-规则：
+规则：domain context 省略 `derived_from`；derived context 与 domain context 对齐时填**单一**父来源。`Boundary` 必写。index 只导航 + 说边界，不承载真源。**每个文件夹的 `index.md` 顶部带「目录职责」块**（标准类目用一行精简型，自定义类目用完整型）——格式与补齐见 [folder-manifest.md](@codument/std/spec/folder-manifest.md)。
 
-- `domain` context 省略 `derived_from`。
-- derived plane context 与 domain context 对齐时，应填写 `derived_from`。
-- `Boundary` 必须写。
-- 相邻 context 容易混淆时，必须写 `Not Owned Here`。
-- index 负责导航和边界说明，不承载全部真源。
+### 叶子文件
 
-## Modeling `objects/`
-
-路径：
-
-```text
-docs/modeling/<plane>/contexts/<context>/objects/
-```
-
-用途：
-
-- object 是该 plane 中有名字的概念单元。
-- 在 `domain` 中，它们是 domain objects。
-- 在 derived plane 中，它们是 projection objects，例如 command objects、runtime objects、storage aggregates、API resources、pipeline entities、tool models、integration resources。
-
-`objects/index.md` 模板：
+- domain 的 `objects/` 习惯把每个 object 拆成 `data.md`（结构语义）+ `behavior.md`（行为语义）；其他类目通常单文件，太大再升级同名文件夹。
+- 每个叶子**讲语义，不机械罗列字段**。
 
 ```markdown
----
-knowledge_system: modeling
-knowledge_plane: <plane>
-doc_role: guide
-status: active
-context: <context>
-last_verified: YYYY-MM-DD
----
-
-# <Context> Objects
-
-| Object | Data | Behavior | Source |
-|--------|------|----------|--------|
-| <object> | <object>/data.md | <object>/behavior.md | ... |
-```
-
-规则：
-
-- 每个 object 都应有 `data.md` 和 `behavior.md`。
-- 当 object 目录只有 `data.md` 与 `behavior.md` 时，object 级 `index.md` 可省略。
-- 不要把字段或行为真源写进 `objects/index.md`。
-
-## Object `data.md`
-
-路径：
-
-```text
-docs/modeling/<plane>/contexts/<context>/objects/<object>/data.md
-```
-
-用途：
-
-- 定义 plane object 的结构与关系语义。
-- 解释意义，而不是只复制字段、类型、表结构或 DTO。
-
-模板：
-
-```markdown
----
-knowledge_system: modeling
-knowledge_plane: <plane>
-doc_role: canonical
-status: active
-context: <context>
-derived_from:
-  - docs/modeling/domain/contexts/<context>/objects/<source-object>/data.md
-last_verified: YYYY-MM-DD
----
-
-# <Object> Data
-
-## Identity And Boundary
-
-What this object is. What it is not.
-
-## Structure
-
-Object-level structure and field groups.
-
-## Field Semantics
-
-### Identity Fields
-
-- `id`: ...
-
-### Ownership Fields
-
-- ...
-
-### State Fields
-
-- ...
-
-### Configuration Fields
-
-- ...
-
-### Audit Fields
-
-- ...
-
-## Relationships
-
-How this object relates to other objects or contexts.
-
-## States
-
-Allowed stable states and their meaning.
-
-## Invariants
-
-Rules that must always hold.
-
-## Compatibility And Aliases
-
-Legacy fields, aliases, deprecated names, migration notes.
-```
-
-规则：
-
-- domain object 使用 `doc_role: canonical`，并省略 `derived_from`。
-- derived plane object 如果基于 domain object，必须填写 `derived_from`。
-- 字段按语义分组，不按存储顺序机械罗列。
-- 必须解释 identity、ownership、lifecycle、status、redundancy、synchronization、compatibility。
-- 如果某字段只是实现细节且没有建模意义，应明确说明。
-
-Bad：
-
-```markdown
+# Bad
 - status: string
 - owner_id: number
+
+# Good
+- `status`：生命周期标记。`draft` 可编辑；`published` 对外可见。
+- `owner_id`：归属边界，用于访问校验与唯一性范围。
 ```
 
-Good：
+## 4. 叶子写作要点（按类目选自然小节，不强制统一模板）
 
-```markdown
-- `status`: lifecycle marker. `draft` means editable; `published` means externally visible.
-- `owner_id`: ownership boundary used for access checks and uniqueness scope.
-```
+不同类目用不同小节即可——下面是**小节清单**，不是目录：
 
-## Object `behavior.md`
+| 真源类型 | 建议小节 |
+|----------|----------|
+| 结构型（object/data/storage） | Identity & Boundary · Structure · Field Semantics（按语义分组）· Relationships · States · Invariants · Compatibility |
+| 行为型（behavior/workflow/sync-flow） | Trigger / Messages · Preconditions & Guards · State Transitions · Side Effects · Failure Semantics · Idempotency & Concurrency |
+| 规则型（policy/rule） | Rule · Scope · Rationale · Enforcement Points · Exceptions · Failure Semantics |
 
-路径：
+跨 object 的 guard 放 policy 类目；单 object 消息链接到该 object 的 behavior。derived 叶子引用 canonical，只描述投影差异，不重写正文。
 
-```text
-docs/modeling/<plane>/contexts/<context>/objects/<object>/behavior.md
-```
+## 5. Frontmatter（用受控精简 schema）
 
-用途：
+字段集与含义在 [model-driven-docs.md](../../attractors/model-driven-docs.md) 统一定义。modeling 侧附加约定：
 
-- 定义 plane object 的行为与消息语义。
+- `context:` 必填。
+- `derived_from:` **只写一个**最近的 canonical 父来源（一行）。**不要堆十几行来源清单**——长来源关系写正文或 `code-map.md`。
+- 代码路径**不进** frontmatter，写 `code-map.md` 或正文。
 
-模板：
+## 6. 在你自己的领域长出一个新 modeling plane（生成式步骤）
 
-```markdown
----
-knowledge_system: modeling
-knowledge_plane: <plane>
-doc_role: canonical
-status: active
-context: <context>
-derived_from:
-  - docs/modeling/domain/contexts/<context>/objects/<source-object>/behavior.md
-last_verified: YYYY-MM-DD
----
+1. **定性**：它是 canonical（只有 `domain`）还是 derived？derived 就确定它投影自哪些 domain 真源。
+2. **列 context**：通常与 domain context 对齐、同名；没有投影的可省略，不要为对称伪造。
+3. **定类目**：对每个 context 问"真源天然分成哪几类"→ 选 3–6 个正交类目（这一步就是把领域知识落成目录）。
+4. **起骨架**：建 `index.md`(导航) + `code-map.md` + 各类目目录；叶子先用单文件。**每个类目目录给其 `index.md` 写「目录职责」块**（自定义类目必填，见 [folder-manifest.md](@codument/std/spec/folder-manifest.md)）。
+5. **连真源**：derived 文档填 `derived_from`（单一父），不复制 canonical。
 
-# <Object> Behavior
+## 7. 反模式
 
-## External Messages
-
-Messages or operations visible outside the object/context/plane.
-
-## Internal Command / Query / Mutation
-
-Internal command, query, mutation, calculation, reconstruction semantics.
-
-## Preconditions And Guards
-
-Required conditions before behavior may execute.
-
-## State Transitions
-
-How behavior changes state.
-
-## Side Effects
-
-Effects on other objects, contexts, derived models, events, storage, versions.
-
-## Failure Semantics
-
-Invalid inputs, missing prerequisites, conflict handling, diagnostics.
-
-## Idempotency And Concurrency
-
-Repeat calls, conflict detection, locking, ordering, consistency.
-```
-
-规则：
-
-- domain object behavior 是 canonical。
-- derived plane object behavior 是投影行为，应引用 canonical source。
-- actor/message 思想体现在这里，不体现在目录名。
-- 不要把 behavior 降级为 API endpoint 实现说明。
-
-## Modeling `policies/`
-
-路径：
-
-```text
-docs/modeling/<plane>/contexts/<context>/policies/
-```
-
-用途：
-
-- policy 是某个 modeling plane 中跨 object 或跨 behavior 的规则。
-- `domain` 中的 policy 是 canonical。
-- derived plane 中的 policy 描述投影层约束，并在派生自 domain policy 时引用来源。
-
-Policy 文件章节：
-
-```markdown
-# <Policy Name>
-
-## Rule
-
-## Scope
-
-## Rationale
-
-## Enforcement Points
-
-## Exceptions
-
-## Failure Semantics
-```
-
-规则：
-
-- domain policy 通常省略 `derived_from`。
-- derived policy 不应完整重写 domain policy 正文；应引用并说明投影差异。
-- 跨 object guard 放在 policy，不要强行塞入单个 object，除非它只影响该 object。
-
-## Modeling `workflows/`
-
-路径：
-
-```text
-docs/modeling/<plane>/contexts/<context>/workflows/
-```
-
-用途：
-
-- workflow 是某个 modeling plane 中的多步骤过程。
-- `domain` 中的 workflow 表达 canonical lifecycle 或业务流程。
-- derived plane 中的 workflow 表达投影流程，例如 command execution、runtime state transitions、storage update flows、pipeline stages、agent/tool interaction flows。
-
-Workflow 文件章节：
-
-```markdown
-# <Workflow Name>
-
-## Trigger
-
-## Participants
-
-## Preconditions
-
-## Steps
-
-## State Changes
-
-## Side Effects
-
-## Failure And Recovery
-
-## Postconditions
-```
-
-规则：
-
-- domain workflow 保持 domain-level。
-- derived workflow 保持 plane-level。
-- 单 object 消息链接到 object behavior。
-- guard 与治理规则链接到 policies。
-
-## Modeling `code-map.md`
-
-路径：
-
-```text
-docs/modeling/<plane>/contexts/<context>/code-map.md
-```
-
-用途：
-
-- 连接 modeling docs 与源码/测试。
-- 帮助 AI 从建模知识继续进入实现。
-
-章节：
-
-```markdown
-# <Context> Code Map
-
-## Source Roots
-
-## Key Entry Points
-
-## Tests
-
-## Generated Or External Sources
-
-## Notes For AI
-```
-
-规则：
-
-- 代码路径写正文，不写 modeling frontmatter。
-- 不在 code map 中复制 modeling rules。
-- source roots、entrypoints、tests 移动时必须更新。
+- ❌ context 第一层把"主题"和"类目"混在一起 → 第一层只放类目，类目下再放主题/叶子。
+- ❌ 复制 canonical domain 真源形成第二份真源 → derived 引用 + 只写投影差异。
+- ❌ 为了和 domain 对称，伪造该 plane 并不存在的 derived 概念。
+- ❌ `index.md` 承载真源 → index 只导航与边界。
+- ❌ `derived_from` 堆成长清单 → 单一父来源；其余关系写正文。
+- ❌ 硬把别的领域的 `objects/policies/workflows` 套到不适配的 plane → 类目由本领域真源结构决定。

@@ -95,10 +95,13 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
       })
       await new Promise((resolve) => setTimeout(resolve, 0))
 
+      const sessionID = turns[0]?.sessionID
+      expect(sessionID).toMatch(/^\d{14}__/)
+      expect(sessionID).not.toBe("ses_1")
       const asked = events.find((event) => event.type === "question.asked") as Event<"question.asked"> | undefined
       expect(asked?.properties).toMatchObject({
         id: "q_req_1",
-        sessionID: "ses_1",
+        sessionID,
         title: "Approval needed",
         intro: "Pick an answer",
         questions: [
@@ -122,17 +125,17 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
       unsub()
 
       expect(turns).toEqual([
-        { sessionID: "ses_1", input: "need questionnaire" },
-        { sessionID: "ses_1", input: "Q1: A" },
+        { sessionID, input: "need questionnaire" },
+        { sessionID, input: "Q1: A" },
       ])
 
       const replied = events.find((event) => event.type === "question.replied") as Event<"question.replied"> | undefined
       expect(replied?.properties).toMatchObject({
-        sessionID: "ses_1",
+        sessionID,
         requestID: "q_req_1",
       })
 
-      const messages = await sdk.client.session.messages({ sessionID: "ses_1" })
+      const messages = await sdk.client.session.messages({ sessionID })
       const textParts = (messages.data ?? []).flatMap((entry) =>
         (entry.parts ?? []).flatMap((part) => (part.type === "text" ? [part.text] : [])),
       )
@@ -218,11 +221,14 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
       unsub()
 
-      expect(turns).toEqual([{ sessionID: "ses_1", input: "need delegate approval" }])
+      const sessionID = turns[0]?.sessionID
+      expect(sessionID).toMatch(/^\d{14}__/)
+      expect(sessionID).not.toBe("ses_1")
+      expect(turns).toEqual([{ sessionID, input: "need delegate approval" }])
       expect(submitted).toEqual([{ questionnaireId: "q_delegate", text: "Q1: A" }])
       const replied = events.find((event) => event.type === "question.replied") as Event<"question.replied"> | undefined
       expect(replied?.properties).toMatchObject({
-        sessionID: "ses_1",
+        sessionID,
         requestID: "q_delegate",
       })
     } finally {
@@ -423,10 +429,13 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
       })
       await new Promise((resolve) => setTimeout(resolve, 0))
 
+      const sessionID = turns[0]?.sessionID
+      expect(sessionID).toMatch(/^\d{14}__/)
+      expect(sessionID).not.toBe("ses_1")
       expect(turns).toEqual([
-        { sessionID: "ses_1", input: "need travel intake" },
+        { sessionID, input: "need travel intake" },
         {
-          sessionID: "ses_1",
+          sessionID,
           input: "Q1: A\nQ2: D quiet beaches and nature",
         },
       ])

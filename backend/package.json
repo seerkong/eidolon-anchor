@@ -10,9 +10,9 @@
     "dev": "cd packages/elysia && bun run dev",
     "start": "cd packages/elysia && bun run start",
     "build": "cd packages/elysia && bun run build",
-    "dev:koa": "cd packages/koa && pnpm run dev",
-    "start:koa": "cd packages/koa && pnpm run start",
-    "build:koa": "cd packages/koa && pnpm run build",
+    "dev:koa": "cd packages/koa && bun run dev",
+    "start:koa": "cd packages/koa && bun run start",
+    "build:koa": "cd packages/koa && bun run build",
     "test": "cd packages/core && bun run test && cd ../composer && bun run test"
   },
   "devDependencies": {

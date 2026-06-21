@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { buildRuntimeSemanticBase } from "@cell/ai-core-logic/stream/runtime/SemanticRuntimeSupport";
 import {
   MessageHistoryGraph,
+  type AnomalyEvent,
   type CommittedHistoryMessageEvent,
   type MessageHistoryEvent,
 } from "@cell/ai-core-logic/stream/MessageHistoryGraph";
@@ -225,6 +226,332 @@ describe("MessageHistoryGraph transcript fixtures", () => {
       startAt: 200,
       endAt: 200,
     });
+  });
+
+  it("deduplicates planned and started tool calls in committed assistant messages", () => {
+    const graph = new MessageHistoryGraph();
+    const committed: CommittedHistoryMessageEvent[] = [];
+
+    graph.onCommittedMessage((event) => committed.push(event));
+
+    const base = createSemanticBuilder()("main", "actor-1");
+    const semantic = (event_type: SemanticEvent["event_type"], emittedAt: number, extra: Record<string, unknown> = {}) => ({
+      ...base,
+      ...extra,
+      trace: {
+        ...base.trace,
+        emitted_at: emittedAt,
+      },
+      event_type,
+    }) as SemanticEvent;
+    const tool_call = {
+      tool_call_id: "tc-dup",
+      tool_name: "read_file",
+      arguments_text: "{\"path\":\"README.md\"}",
+      protocol: "openai",
+      call_kind: "json_function",
+      raw_payload_text: "",
+    };
+
+    graph.consumeSemanticEvent(semantic("semantic_tool_call_planned", 100, { tool_call }));
+    graph.consumeSemanticEvent(semantic("semantic_tool_call_start", 110, { tool_call }));
+    graph.consumeSemanticEvent(semantic("semantic_tool_call_result", 120, {
+      tool_call,
+      output_text: "done",
+      is_error: false,
+    }));
+    graph.complete();
+
+    expect(committed[0]?.message.toolCalls).toEqual([
+      { id: "tc-dup", name: "read_file", input: { path: "README.md" } },
+    ]);
+    expect(committed[1]?.message).toMatchObject({
+      role: "tool",
+      toolCallId: "tc-dup",
+      content: "done",
+    });
+  });
+});
+
+describe("MessageHistoryGraph orphaned tool-result anomaly", () => {
+  const semanticFactory = () => {
+    const base = createSemanticBuilder()("main", "actor-1");
+    return (event_type: SemanticEvent["event_type"], emittedAt: number, extra: Record<string, unknown> = {}) =>
+      ({
+        ...base,
+        ...extra,
+        trace: {
+          ...base.trace,
+          emitted_at: emittedAt,
+        },
+        event_type,
+      }) as SemanticEvent;
+  };
+
+  const toolCall = (tool_call_id: string) => ({
+    tool_call_id,
+    tool_name: "read_file",
+    arguments_text: "{\"path\":\"README.md\"}",
+    protocol: "openai",
+    call_kind: "json_function",
+    raw_payload_text: "",
+  });
+
+  it("warns on a tool result whose tool_call_id was never seen (orphaned)", () => {
+    const graph = new MessageHistoryGraph();
+    const anomalies: AnomalyEvent[] = [];
+    graph.onAnomaly((event) => anomalies.push(event));
+
+    const semantic = semanticFactory();
+    // Consume some events but NEVER an assistant tool-call for tc-orphan.
+    graph.consumeSemanticEvent(semantic("semantic_content_start", 100));
+    graph.consumeSemanticEvent(semantic("semantic_content_delta", 110, { text: "hi" }));
+    graph.consumeSemanticEvent(semantic("semantic_content_end", 120));
+    graph.consumeSemanticEvent(
+      semantic("semantic_tool_call_result", 170, {
+        tool_call: toolCall("tc-orphan"),
+        output_text: "done",
+        is_error: false,
+      }),
+    );
+    graph.complete();
+
+    expect(anomalies).toHaveLength(1);
+    expect(anomalies[0]).toMatchObject({
+      kind: "anomaly",
+      reason: "orphaned_tool_result",
+      toolCallId: "tc-orphan",
+      agentKey: "main",
+      agentActorId: "actor-1",
+    });
+  });
+
+  it("does not warn when the tool result is paired with a seen assistant tool-call", () => {
+    const graph = new MessageHistoryGraph();
+    const anomalies: AnomalyEvent[] = [];
+    graph.onAnomaly((event) => anomalies.push(event));
+
+    const semantic = semanticFactory();
+    graph.consumeSemanticEvent(semantic("semantic_tool_call_start", 110, { tool_call: toolCall("tc-paired") }));
+    graph.consumeSemanticEvent(
+      semantic("semantic_tool_call_result", 170, {
+        tool_call: toolCall("tc-paired"),
+        output_text: "done",
+        is_error: false,
+      }),
+    );
+    graph.complete();
+
+    expect(anomalies).toHaveLength(0);
+  });
+
+  it("does not warn when the tool result is paired via semantic_tool_call_planned", () => {
+    const graph = new MessageHistoryGraph();
+    const anomalies: AnomalyEvent[] = [];
+    graph.onAnomaly((event) => anomalies.push(event));
+
+    const semantic = semanticFactory();
+    graph.consumeSemanticEvent(semantic("semantic_tool_call_planned", 110, { tool_call: toolCall("tc-planned") }));
+    graph.consumeSemanticEvent(
+      semantic("semantic_tool_call_result", 170, {
+        tool_call: toolCall("tc-planned"),
+        output_text: "done",
+        is_error: false,
+      }),
+    );
+    graph.complete();
+
+    expect(anomalies).toHaveLength(0);
+  });
+
+  it("commits the orphaned tool message unchanged and does not throw when the anomaly fires", () => {
+    // Committed-message set must be byte-identical to the pre-anomaly behavior:
+    // run the SAME event sequence on two graphs, one observing anomalies and one
+    // not, and assert the committed batches are equal (observability-only).
+    const semanticA = semanticFactory();
+    const semanticB = semanticFactory();
+
+    const runOrphanSequence = (
+      semantic: ReturnType<typeof semanticFactory>,
+      onAnomaly: ((event: AnomalyEvent) => void) | null,
+    ): CommittedHistoryMessageEvent[] => {
+      const graph = new MessageHistoryGraph();
+      const committed: CommittedHistoryMessageEvent[] = [];
+      graph.onCommittedMessage((event) => committed.push(event));
+      if (onAnomaly) graph.onAnomaly(onAnomaly);
+
+      expect(() => {
+        graph.consumeSemanticEvent(semantic("semantic_content_start", 100));
+        graph.consumeSemanticEvent(semantic("semantic_content_delta", 110, { text: "hi" }));
+        graph.consumeSemanticEvent(semantic("semantic_content_end", 120));
+        graph.consumeSemanticEvent(
+          semantic("semantic_tool_call_result", 170, {
+            tool_call: toolCall("tc-orphan"),
+            output_text: "done",
+            is_error: false,
+          }),
+        );
+        graph.complete();
+      }).not.toThrow();
+
+      return committed;
+    };
+
+    const anomalies: AnomalyEvent[] = [];
+    const withAnomaly = runOrphanSequence(semanticA, (event) => anomalies.push(event));
+    const withoutAnomaly = runOrphanSequence(semanticB, null);
+
+    // The anomaly fired (precondition for this assertion).
+    expect(anomalies).toHaveLength(1);
+
+    // The committed-message set is unchanged vs not observing the anomaly.
+    expect(withAnomaly.map((event) => event.message)).toEqual(
+      withoutAnomaly.map((event) => event.message),
+    );
+    // And the orphaned tool message is still committed exactly as today.
+    const toolMessage = withAnomaly.find((event) => event.message.role === "tool");
+    expect(toolMessage?.message).toMatchObject({
+      role: "tool",
+      content: "done",
+      toolCallId: "tc-orphan",
+    });
+  });
+});
+
+describe("MessageHistoryGraph hollow assistant-commit anomaly", () => {
+  const semanticFactory = () => {
+    const base = createSemanticBuilder()("main", "actor-1");
+    return (event_type: SemanticEvent["event_type"], emittedAt: number, extra: Record<string, unknown> = {}) =>
+      ({
+        ...base,
+        ...extra,
+        trace: {
+          ...base.trace,
+          emitted_at: emittedAt,
+        },
+        event_type,
+      }) as SemanticEvent;
+  };
+
+  const toolCall = (tool_call_id: string) => ({
+    tool_call_id,
+    tool_name: "read_file",
+    arguments_text: "{\"path\":\"README.md\"}",
+    protocol: "openai",
+    call_kind: "json_function",
+    raw_payload_text: "",
+  });
+
+  it("warns when flushCommittedAssistant flushes a hollow pending (no content/reasoning/tool calls)", () => {
+    const graph = new MessageHistoryGraph();
+    const anomalies: AnomalyEvent[] = [];
+    graph.onAnomaly((event) => anomalies.push(event));
+
+    const semantic = semanticFactory();
+    // think_start/think_end create an EMPTY pending assistant (no reasoning text,
+    // no content, no tool calls). user_input then forces flushCommittedAssistant.
+    graph.consumeSemanticEvent(semantic("semantic_think_start", 100));
+    graph.consumeSemanticEvent(semantic("semantic_think_end", 110));
+    graph.consumeSemanticEvent(semantic("semantic_user_input", 200, { text: "hi", input_source: "tui" }));
+    graph.complete();
+
+    const hollow = anomalies.filter((event) => event.reason === "hollow_assistant_commit");
+    expect(hollow).toHaveLength(1);
+    expect(hollow[0]).toMatchObject({
+      kind: "anomaly",
+      reason: "hollow_assistant_commit",
+      agentKey: "main",
+      agentActorId: "actor-1",
+    });
+    expect(hollow[0]?.toolCallId).toBeUndefined();
+  });
+
+  it("does not warn when the flushed pending has content (non-hollow)", () => {
+    const graph = new MessageHistoryGraph();
+    const anomalies: AnomalyEvent[] = [];
+    graph.onAnomaly((event) => anomalies.push(event));
+
+    const semantic = semanticFactory();
+    graph.consumeSemanticEvent(semantic("semantic_content_start", 100));
+    graph.consumeSemanticEvent(semantic("semantic_content_delta", 110, { text: "answer" }));
+    graph.consumeSemanticEvent(semantic("semantic_content_end", 120));
+    graph.consumeSemanticEvent(semantic("semantic_user_input", 200, { text: "hi", input_source: "tui" }));
+    graph.complete();
+
+    expect(anomalies.filter((event) => event.reason === "hollow_assistant_commit")).toHaveLength(0);
+  });
+
+  it("does not warn when the flushed pending has at least one tool call (non-hollow)", () => {
+    const graph = new MessageHistoryGraph();
+    const anomalies: AnomalyEvent[] = [];
+    graph.onAnomaly((event) => anomalies.push(event));
+
+    const semantic = semanticFactory();
+    graph.consumeSemanticEvent(semantic("semantic_tool_call_start", 110, { tool_call: toolCall("tc-1") }));
+    graph.consumeSemanticEvent(semantic("semantic_user_input", 200, { text: "hi", input_source: "tui" }));
+    graph.complete();
+
+    expect(anomalies.filter((event) => event.reason === "hollow_assistant_commit")).toHaveLength(0);
+  });
+
+  it("does not warn when the flushed pending has reasoning only (non-hollow)", () => {
+    const graph = new MessageHistoryGraph();
+    const anomalies: AnomalyEvent[] = [];
+    graph.onAnomaly((event) => anomalies.push(event));
+
+    const semantic = semanticFactory();
+    // think_delta pushes text into pendingAssistant.reasoning (no content, no
+    // tool calls). user_input then forces flushCommittedAssistant. A pending
+    // with reasoning text only is NON-hollow and must NOT warn.
+    graph.consumeSemanticEvent(semantic("semantic_think_start", 100));
+    graph.consumeSemanticEvent(semantic("semantic_think_delta", 110, { text: "reasoning" }));
+    graph.consumeSemanticEvent(semantic("semantic_think_end", 120));
+    graph.consumeSemanticEvent(semantic("semantic_user_input", 200, { text: "hi", input_source: "tui" }));
+    graph.complete();
+
+    expect(anomalies.filter((event) => event.reason === "hollow_assistant_commit")).toHaveLength(0);
+  });
+
+  it("commits the hollow flush unchanged and does not throw when the anomaly fires", () => {
+    // Observability-only: the committed-message set must be identical whether or
+    // not the anomaly is observed. Today a hollow pending commits NOTHING (the
+    // assembled message is null) — that must remain true.
+    const semanticA = semanticFactory();
+    const semanticB = semanticFactory();
+
+    const runHollowSequence = (
+      semantic: ReturnType<typeof semanticFactory>,
+      onAnomaly: ((event: AnomalyEvent) => void) | null,
+    ): CommittedHistoryMessageEvent[] => {
+      const graph = new MessageHistoryGraph();
+      const committed: CommittedHistoryMessageEvent[] = [];
+      graph.onCommittedMessage((event) => committed.push(event));
+      if (onAnomaly) graph.onAnomaly(onAnomaly);
+
+      expect(() => {
+        graph.consumeSemanticEvent(semantic("semantic_think_start", 100));
+        graph.consumeSemanticEvent(semantic("semantic_think_end", 110));
+        graph.consumeSemanticEvent(semantic("semantic_user_input", 200, { text: "hi", input_source: "tui" }));
+        graph.complete();
+      }).not.toThrow();
+
+      return committed;
+    };
+
+    const anomalies: AnomalyEvent[] = [];
+    const withAnomaly = runHollowSequence(semanticA, (event) => anomalies.push(event));
+    const withoutAnomaly = runHollowSequence(semanticB, null);
+
+    // The hollow anomaly fired (precondition for this assertion).
+    expect(anomalies.filter((event) => event.reason === "hollow_assistant_commit")).toHaveLength(1);
+
+    // The committed-message set is unchanged vs not observing the anomaly: a
+    // hollow pending commits no assistant message; only the user message lands.
+    expect(withAnomaly.map((event) => event.message)).toEqual(
+      withoutAnomaly.map((event) => event.message),
+    );
+    expect(withAnomaly.some((event) => event.message.role === "assistant")).toBe(false);
+    expect(withAnomaly.map((event) => event.message.role)).toEqual(["user"]);
   });
 });
 

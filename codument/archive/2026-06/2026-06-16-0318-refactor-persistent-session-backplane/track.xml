@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-persistent-session-backplane" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>把 session 持久化/恢复从 executor 逻辑包抽出为专用 persistence 包，建立 live→write / recovery→read 单向端口，去除热路径内联 I/O 与隐式能力传递；建 005 事故 recovery replay harness。</Goal>
+    <Description>runtime-evolution mission W3/P1（存储侧事实边界收口）。完整拆包 + 单向端口；DataSubgraphContract fact-grade 对齐；storage 不 gate live loop 固化为不变量；memory-only 完成 turn；005 真实事故 recovery replay 验证根因修复。surface 读取器改接留给 isolate-runtime-projection-surfaces。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-15T16:00:00Z</CreatedAt>
+    <UpdatedAt>2026-06-15T19:18:21Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input"  name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior"        domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_refactor-persistent-session-backplane" name="refactor-persistent-session-backplane" version="1">
+    <Description>持久化会话背板：单向端口 + 专用包 + 去内联 I/O + 单源恢复 + 事故 replay。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="Persistence Ports And Fact-Grade Contract" status="DONE" order="0">
+        <Description>定义 PersistenceWritePort / PersistenceReadPort 契约；对齐 DataSubgraphContract 的 checkpoint_snapshot / append_only_journal(effect_wal) / derived_projection_cache fact-grade 与 Not-Owned-Here。不动实现。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests for persistence port contracts + fact-grade alignment" status="DONE" order="0" priority="P0">
+            <Description>TDD 红：write port 为 write-behind/非阻塞/失败非致命、storage-off 为 no-op；read port 每事实单源、缺源硬失败；conformance 断言 effect_wal=append_only_journal 且不被 checkpoint 管理、checkpoint 仅拥 durable subset。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">端口契约与 fact-grade 测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Define ports + align AiRuntimeDataSubgraphs fact grades" status="DONE" order="1" priority="P0">
+            <Description>在 ai-core-contract 定义 PersistenceWritePort / PersistenceReadPort 契约；对齐 AiRuntimeDataSubgraphs 的 checkpoint/journal/index fact-grade 与 Not-Owned-Here。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">T1.1 全绿；契约 conformance 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Dedicated Persistence Package" status="DONE" order="1">
+        <Description>新建专用 persistence 包；把 RuntimeSnapshots.ts 的 snapshot writer / recovery reader / derived-index I/O / conversation-persistence 适配迁入，行为等价。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add move-equivalence baseline harness for snapshot/recovery" status="DONE" order="0" priority="P0">
+            <Description>对 save→restore 路径建迁移等价基线（按名比对既有 recovery/snapshot 测试），保证迁包前后 0 新增失败。捕获基线：runtime/ 套件 256 pass / 3 fail（均在 baseline-fails.txt）；并在 ai-persistence-logic/tests 加 writer↔reader round-trip 等价探针。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">迁移等价基线就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Create persistence package + move writer/reader/index I/O" status="DONE" order="1" priority="P0">
+            <Description>新建 @cell/ai-persistence-logic 包；按 pure-I/O vs runtime-orchestration 切缝，迁入 snapshot/derived-index/conversation 持久化路由 I/O + hasRuntimeSnapshot + RuntimePersistenceSupport 注入表；ai-organ-logic 依赖该包并保留 RuntimeSnapshots.ts 稳定 re-export。迁包后 runtime/ 与消费方套件按名与基线完全一致（0 新增失败、0 倒退）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">迁包后 recovery/snapshot 套件等价、0 新增失败</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Executor De-inlines I/O via Injected Write Port" status="DONE" order="2">
+        <Description>executor 热路径去内联 persistConversationCompaction / effect-evidence WAL，改走注入的 write-behind write port；移除 vm.outerCtx.metadata 隐式持久化能力传递，改显式注入。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add failing tests: no inline persistence I/O on the hot path + explicit injection" status="DONE" order="0" priority="P0">
+            <Description>源级/行为断言：live 执行路径不直接构造 repository/快照写入/evidence 文件写入；持久化能力经显式注入而非 outerCtx.metadata。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">去内联/显式注入测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Route compaction + evidence through write port; inject explicitly" status="DONE" order="1" priority="P0">
+            <Description>compaction/evidence 改调 write port（write-behind，失败非致命）；runtime 组装显式注入端口；memory-only 走 in-memory 端口实现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">T3.1 全绿；memory-only loop 完成 turn；既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="Single-Source Recovery + Incident Replay Harness" status="DONE" order="3">
+        <Description>recovery read port 单源化复核（缺源硬失败、不混源；evidence 仅顺序兜底）；建 005 真实事故 recovery replay harness。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Add 005 incident recovery replay harness (red)" status="DONE" order="0" priority="P0">
+            <Description>用 005 事故持久化产物或最小化等价 fixture：recovery → 续 turn，断言下一轮 provider context 含完整配对工具结果、不重复读同一文件。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">事故 replay harness 就位（先红或直接覆盖）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Enforce single-source recovery through read port; harness green" status="DONE" order="1" priority="P0">
+            <Description>recovery 经 read port 单源重建；harness 全绿；既有 recovery 套件等价。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">T4.1 全绿；单源恢复不混源；既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P5" name="Closure" status="DONE" order="4">
+        <Description>全量回归（cell + terminal 按名比对基线，0 新增失败）；spec capability 覆盖核对；findings.md 写最终基线。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="Final sweep and full regression" status="DONE" order="0" priority="P0">
+            <Description>cell + terminal 全套回归，按名比对基线确认 0 新增失败；persistent-session-backplane 全部 case 有可执行覆盖；findings.md 追加实施结果与最终基线。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">失败集合为基线子集；spec 全部 case 有可执行覆盖；findings.md 已更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+</Track>

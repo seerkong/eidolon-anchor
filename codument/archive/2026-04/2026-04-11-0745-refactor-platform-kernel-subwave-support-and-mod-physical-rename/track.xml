@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-subwave-support-and-mod-physical-rename" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>为 platform-support / domain-ai-support / mod-ai-kernel / mod-ai-coding 的物理迁移建立正式方案与增量实施计划。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T06:58:59Z</CreatedAt>
+    <UpdatedAt>2026-04-11T07:45:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-subwave-support-and-mod-physical-rename" name="refactor-platform-kernel-subwave-support-and-mod-physical-rename" version="1">
+    <Description>平台微内核后续 sub-wave：support 与 mod 物理 rename</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Support Split Freeze" status="DONE" order="0">
+        <Description>冻结 support 层的 platform / AI ownership 与目标包结构。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="产出 support split ownership table" status="DONE" order="0" priority="P0">
+            <Description>梳理 `organ-support` 内各实现的 platform-support / domain-ai-support 归属。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">support split ownership 覆盖当前主要 runtime support 实现</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">不会把 AI config/history/snapshot 误提升到平台 support</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Mod Rename Freeze" status="DONE" order="1">
+        <Description>冻结 `mod-sys-kernel` / `mod-sys-coding` 的物理 rename 方向与兼容策略。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="定义 mod rename map 与兼容策略" status="DONE" order="0" priority="P0">
+            <Description>明确 `mod-ai-kernel` / `mod-ai-coding` 的目标包结构与兼容过渡方式。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">mod rename map 明确</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">兼容策略不形成新的真相源</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Incremental Cutover Plan" status="DONE" order="2">
+        <Description>将 support split 与 mod rename 转换为可执行的增量实施顺序与验证基线。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="制定增量 cutover 步骤与 focused verification baseline" status="DONE" order="0" priority="P0">
+            <Description>明确每一轮物理迁移的顺序、兼容层、验证方式与回归保护面。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">cutover 步骤明确且可分批执行</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">terminal/tui/headless 连续可运行性被保护</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

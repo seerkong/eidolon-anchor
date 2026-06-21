@@ -30,10 +30,6 @@ function runtimeTextPart(messageID: string, created: number) {
   }
 }
 
-function graphLogSize(graph: TuiA1StateGraph): number {
-  return (graph as unknown as { log: { size: () => number } }).log.size()
-}
-
 describe("TuiA1StateGraph noop updates", () => {
   it("keeps the snapshot stable for identical selection merges", () => {
     const graph = new TuiA1StateGraph({
@@ -79,20 +75,20 @@ describe("TuiA1StateGraph noop updates", () => {
     expect(graph.snapshot()).toBe(afterFirst)
   })
 
-  it("does not append no-op updates to the internal event log", () => {
+  it("does not replace the snapshot for no-op updates", () => {
     const graph = new TuiA1StateGraph({
       initialMessages: [],
       selection: defaultTuiA1Selection,
     })
 
-    const initialSize = graphLogSize(graph)
+    const initial = graph.snapshot()
     graph.mergeSelection({
       agent: defaultTuiA1Selection.agent,
       providerID: defaultTuiA1Selection.providerID,
       modelID: defaultTuiA1Selection.modelID,
     })
 
-    expect(graphLogSize(graph)).toBe(initialSize)
+    expect(graph.snapshot()).toBe(initial)
   })
 
   it("bounds runtime message and part projection caches", () => {

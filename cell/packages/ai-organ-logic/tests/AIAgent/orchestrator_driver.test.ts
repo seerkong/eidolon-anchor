@@ -64,6 +64,106 @@ describe("AiAgentOrchestratorDriver", () => {
     expect(Object.keys(fiberIndex?.snapshot() ?? {})).toContain(fiberId);
   });
 
+  it("schedules a ready fiber when a wake mailbox signal is emitted", async () => {
+    const main = createActor({ key: "main" });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main },
+    });
+    const fiberId = `${main.key}:${main.id}`;
+    let invocations = 0;
+
+    // P7: actor.messages is a read-only projection; this scripted runStep
+    // collects drained inputs into its own working array.
+    const drainedInputs: any[] = [];
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor: main, messages: drainedInputs, basePriority: 1 }],
+      runStep: async (ctx) => {
+        invocations += 1;
+        for (const payload of ctx.actor.drainMailbox("humanInput")) {
+          drainedInputs.push({ role: "user", content: String(payload) } as any);
+        }
+        return { kind: "suspend", reason: "idle_external" };
+      },
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+
+    driver.emitFiberSignal({
+      fiberId,
+      signalKind: "mailbox_enqueue",
+      mailbox: { kind: "humanInput", payload: "continue" },
+      idempotencyKey: `${fiberId}:humanInput:test-ready`,
+      createdAt: 1,
+    });
+
+    await driver.tickUntilForegroundSettled({ now: 2, maxTicks: 10, maxWallMs: 500 });
+    await flushMicrotasks();
+
+    expect(invocations).toBe(1);
+    expect(main.peekMailbox("humanInput")).toEqual([]);
+    expect(drainedInputs).toContainEqual(expect.objectContaining({ role: "user", content: "continue" }));
+    expect(driver.getState().fibers[fiberId].status).toBe("suspended");
+  });
+
+  it("waits for registered foreground async completion before foreground settle returns", async () => {
+    const main = createActor({ key: "main" });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main },
+    });
+    const fiberId = `${main.key}:${main.id}`;
+    let invocations = 0;
+    let taskStarted = false;
+
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{
+        fiberId,
+        vm,
+        actor: main,
+        messages: main.messages,
+        basePriority: 1,
+        execState: { phase: "wait_llm", inflight: { kind: "llm", opId: "llm:late" } },
+      } as any],
+      runStep: async (ctx, helpers) => {
+        invocations += 1;
+        if (ctx.actor.peekMailbox("asyncCompletion").length === 0) {
+          if (!taskStarted) {
+            taskStarted = true;
+            ensureVmRuntimeContext(ctx.vm).currentOrchestrator?.registerBackgroundTask?.(
+              new Promise<void>((resolve) => {
+                setTimeout(() => {
+                  helpers.emitFiberSignal({
+                    fiberId,
+                    signalKind: "async_completed",
+                    mailbox: { kind: "asyncCompletion", payload: { kind: "llm_done", opId: "llm:late" } as any },
+                    opId: "llm:late",
+                    idempotencyKey: `${fiberId}:llm:late:asyncCompletion`,
+                  });
+                  resolve();
+                }, 30);
+              }),
+            );
+          }
+          return { kind: "suspend", reason: "wait_llm_result" };
+        }
+        ctx.actor.drainMailbox("asyncCompletion");
+        ctx.execState = { phase: "drain" };
+        return { kind: "suspend", reason: "idle_external" };
+      },
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+
+    const startedAt = Date.now();
+    await driver.tickUntilForegroundSettled({ now: 1, maxTicks: 10, maxWallMs: 500 });
+    const elapsed = Date.now() - startedAt;
+
+    expect(invocations).toBe(2);
+    expect(elapsed).toBeGreaterThanOrEqual(25);
+    expect(main.peekMailbox("asyncCompletion")).toEqual([]);
+    expect(driver.getState().fibers[fiberId].status).toBe("suspended");
+    expect(driver.inspectRuntime().fibers[fiberId]?.execState?.phase).toBe("drain");
+  });
+
   it("persists per-fiber human suspend policy", async () => {
     const mockAdapter = {
       type: "openai" as const,

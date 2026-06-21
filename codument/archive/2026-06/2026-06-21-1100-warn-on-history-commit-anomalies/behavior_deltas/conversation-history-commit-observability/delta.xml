@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="conversation-history-commit-observability" version="1">
+
+  <upsert selector="behavior://conversation-history-commit-observability/requirements/orphaned-tool-result-warned">
+    <requirement id="orphaned-tool-result-warned">
+      <statement>当对话历史单写者（resident MessageHistoryGraph）消费到一个 `semantic_tool_call_result`，而其 `tool_call_id` 在本 generation 已见的 assistant 工具调用（来自 `semantic_tool_call_start`/`semantic_tool_call_planned` 及 pending/已提交 assistant 的 toolCalls）中**找不到配对**时，运行时 SHALL 产生一条**非致命、可观测**的告警（结构化、含 `tool_call_id` 与 agent 标识），使该"孤儿工具结果"异常能被立即定位。SHALL NOT 因此抛错或中断 turn；SHALL NOT 改变实际被提交的消息内容（仍按现状提交）；SHALL NOT 新增第二个/兜底写者。告警 SHALL 经事件/可观测通道外溢（reducer 保持纯），由宿主记录，SHALL NOT 被静默吞掉。</statement>
+      <suite id="orphaned-tool-result" name="Orphaned tool result is warned, not swallowed">
+        <case id="warns-on-orphaned-result">
+          <given>单写者已消费某些事件，但从未见过 tool_call_id=X 的 assistant 工具调用</given>
+          <when>它消费到 `semantic_tool_call_result(tool_call_id=X)`</when>
+          <then>SHALL 产生一条可观测的告警，标识 X 为无配对 assistant 工具调用的孤儿结果</then>
+          <then>SHALL NOT 抛错、SHALL NOT 改变被提交的消息、SHALL NOT 新增写者</then>
+        </case>
+        <case id="no-warn-on-paired-result">
+          <given>单写者已见 tool_call_id=X 的 assistant 工具调用（start/planned 或 pending 中存在）</given>
+          <when>它消费到 `semantic_tool_call_result(tool_call_id=X)`</when>
+          <then>SHALL NOT 产生孤儿告警（正常配对路径无噪声）</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://conversation-history-commit-observability/requirements/hollow-assistant-commit-warned">
+    <requirement id="hollow-assistant-commit-warned">
+      <statement>当单写者 `flushCommittedAssistant` 即将提交一个 pending assistant，而该 pending 的 content、reasoning、toolCalls **全为空**（空壳）时，运行时 SHALL 产生一条**非致命、可观测**的告警（结构化、含 agent 标识），使该"空壳 assistant 提交"异常能被立即定位。SHALL NOT 因此抛错或中断 turn；SHALL NOT 改变既有提交行为（空壳是否仍提交保持现状）；SHALL NOT 新增第二个/兜底写者。告警 SHALL 经事件/可观测通道外溢，由宿主记录，SHALL NOT 被静默吞掉。</statement>
+      <suite id="hollow-assistant-commit" name="Hollow assistant commit is warned, not swallowed">
+        <case id="warns-on-hollow-commit">
+          <given>pending assistant 的 content/reasoning/toolCalls 全为空</given>
+          <when>`flushCommittedAssistant` 被触发（如 `semantic_tool_call_result` 或 turn 边界）</when>
+          <then>SHALL 产生一条可观测的告警，标识这是一次空壳 assistant 提交</then>
+          <then>SHALL NOT 抛错、SHALL NOT 改变既有提交行为、SHALL NOT 新增写者</then>
+        </case>
+        <case id="no-warn-on-non-hollow-commit">
+          <given>pending assistant 含文本内容或 ≥1 个工具调用</given>
+          <when>`flushCommittedAssistant` 被触发</when>
+          <then>SHALL NOT 产生空壳告警（正常提交无噪声）</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://conversation-history-commit-observability/requirements/single-writer-preserved">
+    <requirement id="single-writer-preserved">
+      <statement>本能力 SHALL 仅增强可观测性，SHALL NOT 破坏"唯一水源"架构：SHALL NOT 引入任何兜底/冗余的对话历史写者，SHALL NOT 改变活跃路径 executor 追加仍仅在 `replayedFromEffectEvidence` 下进行的现状，SHALL NOT 改变实际被提交的对话消息集合。告警逻辑 SHALL 不在纯 reducer 内制造副作用（经事件/可观测通道外溢）。</statement>
+      <suite id="architecture-invariant" name="Single-source architecture preserved">
+        <case id="no-fallback-writer-added">
+          <given>本能力实现完成</given>
+          <when>审视活跃 turn 的对话历史写入路径</when>
+          <then>写者数量 SHALL 仍为一个（resident MessageHistoryGraph）；executor 活路径追加门控 SHALL 不变；被提交的消息集合 SHALL 与未加告警时一致</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+</behavior-patch>

@@ -20,8 +20,8 @@ import {
   recordPromptRequestToConversationDomainRuntime,
 } from "../conversation/ConversationDomainRuntime";
 
-const DEFAULT_WORK_MODE: WorkMode = WORK_MODES.general_execution;
-const DEFAULT_TASK_PHASE: TaskPhase = TASK_PHASES.implementation;
+const DEFAULT_WORK_MODE: WorkMode = WORK_MODES.build;
+const DEFAULT_TASK_PHASE: TaskPhase = TASK_PHASES.normal;
 const PROMPT_PLAN_VERSION = 1;
 
 function normalizeStableHashValue(value: unknown): unknown {
@@ -68,228 +68,7 @@ function buildPromptPlanCacheProfile(params: {
   };
 }
 
-const LONG_RUNNING_HINTS = [
-  "roadmap",
-  "migration",
-  "repo-wide",
-  "repository-wide",
-  "multi-step",
-  "multi phase",
-  "multi-phase",
-  "milestone",
-  "workflow",
-  "delegate",
-  "delegation",
-  "parallel",
-  "teammate",
-  "coordination",
-  "迁移",
-  "全仓",
-  "多步骤",
-  "多阶段",
-  "里程碑",
-  "工作流",
-  "委派",
-  "并行",
-  "协作",
-];
-
-const CODING_LOCAL_HINTS = [
-  "fix",
-  "bug",
-  "patch",
-  "failing test",
-  "assertion",
-  "stack trace",
-  "single-file",
-  "single file",
-  "localized",
-  "small edit",
-  "targeted",
-  "lint",
-  "typecheck",
-  "error",
-  "regression",
-  "修复",
-  "补丁",
-  "报错",
-  "失败测试",
-  "断言",
-  "单文件",
-  "局部",
-  "定向",
-  "回归",
-  "类型检查",
-];
-
-const CODING_HINTS = [
-  "code",
-  "coding",
-  "bug",
-  "fix",
-  "patch",
-  "refactor",
-  "test",
-  "tests",
-  "debug",
-  "implement",
-  "implementation",
-  "script",
-  "readme",
-  "release",
-  "migration",
-  "deploy",
-  "deployment",
-  "rollback",
-  "sdk",
-  "api",
-  "cli",
-  "repo",
-  "parser",
-  "代码",
-  "编程",
-  "修复",
-  "补丁",
-  "重构",
-  "测试",
-  "脚本",
-  "发布",
-  "迁移",
-  "部署",
-  "回滚",
-];
-
-const EXTERNAL_RESEARCH_HINTS = [
-  "research",
-  "survey",
-  "latest",
-  "current facts",
-  "verify sources",
-  "primary source",
-  "multi-source",
-  "internet",
-  "web",
-  "news",
-  "调研",
-  "最新",
-  "当前事实",
-  "核实来源",
-  "一手来源",
-  "多来源",
-  "互联网",
-  "网页",
-  "新闻",
-];
-
-const WORKSPACE_BOUNDED_HINTS = [
-  "repo",
-  "repository",
-  "workspace",
-  "workdir",
-  "codebase",
-  "code",
-  "frontend",
-  "backend",
-  "docs/",
-  "commit",
-  "diff",
-  "local file",
-  "仓库",
-  "工作区",
-  "代码库",
-  "代码",
-  "前端",
-  "后端",
-  "提交",
-  "本地文件",
-];
-
-const LOOKUP_HINTS = [
-  "what",
-  "why",
-  "how",
-  "which",
-  "look up",
-  "find",
-  "查一下",
-  "看看",
-  "解释",
-  "说明",
-  "是什么",
-  "为什么",
-  "如何",
-];
-
-const DOCS_THEN_CODE_DISCOVERY_HINTS = [
-  "read docs",
-  "read the docs",
-  "read documentation",
-  "review docs",
-  "understand the project",
-  "understand the codebase",
-  "understand the architecture",
-  "docs/",
-  "documentation",
-  "先读 docs",
-  "先看 docs",
-  "阅读 docs",
-  "阅读文档",
-  "先了解",
-  "了解项目",
-  "了解代码",
-  "了解结构",
-  "项目结构",
-  "代码结构",
-];
-
-const DOCS_THEN_CODE_ACTION_HINTS = [
-  "then refactor",
-  "before refactor",
-  "then rewrite",
-  "refactor after reading",
-  "align with the architecture",
-  "fit the current architecture",
-  "align with coding conventions",
-  "rewrite to match",
-  "refactor",
-  "rewrite existing implementation",
-  "重构",
-  "改造",
-  "按设计风格",
-  "统一规范",
-  "符合架构",
-  "对齐架构",
-  "按现有架构",
-  "按规范改造",
-];
-
-const INSPECTION_ONLY_HINTS = [
-  "inspection only",
-  "analysis only",
-  "read-only analysis",
-  "audit only",
-  "review only",
-  "只做分析",
-  "只做阅读",
-  "只读分析",
-  "仅分析",
-  "仅审查",
-];
-
-const WEAK_CONTINUE_INPUTS = new Set([
-  "continue",
-  "please continue",
-  "go on",
-  "carry on",
-  "继续",
-  "请继续",
-  "继续处理",
-  "继续吧",
-  "接着来",
-  "继续一下",
-]);
-
-const PROGRESS_TOOL_NAMES = new Set(["write", "edit"]);
+const TASK_PHASE_CONTROL_TOOL_NAME = "SetTaskPhase";
 
 function defaultWorkContext(actor: AiAgentActor): ActorWorkContextData {
   const epoch = new Date(0).toISOString();
@@ -323,75 +102,6 @@ function latestUserText(messages: Array<{ role?: string; content?: unknown }>): 
     if (text) return text;
   }
   return "";
-}
-
-function containsAny(text: string, hints: string[]): boolean {
-  return hints.some((hint) => text.includes(hint));
-}
-
-function isWeakContinueInput(text: string): boolean {
-  const normalized = text.trim().toLowerCase().replace(/\s+/g, " ");
-  return WEAK_CONTINUE_INPUTS.has(normalized);
-}
-
-function isExplicitExternalResearchRequest(text: string): boolean {
-  return containsAny(text, EXTERNAL_RESEARCH_HINTS) && !containsAny(text, WORKSPACE_BOUNDED_HINTS);
-}
-
-function isDocsThenCodeRequest(text: string): boolean {
-  return containsAny(text, DOCS_THEN_CODE_DISCOVERY_HINTS) && containsAny(text, DOCS_THEN_CODE_ACTION_HINTS);
-}
-
-function deriveWorkMode(taskInput: string): WorkMode {
-  const combined = taskInput.trim().toLowerCase();
-  if (!combined) return DEFAULT_WORK_MODE;
-  if (containsAny(combined, LONG_RUNNING_HINTS)) return WORK_MODES.long_running_coordination;
-  if (isDocsThenCodeRequest(combined)) return WORK_MODES.docs_then_code;
-  if (containsAny(combined, CODING_LOCAL_HINTS)) return WORK_MODES.localized_repair;
-  if (containsAny(combined, CODING_HINTS) && combined.length < 800) return WORK_MODES.small_edit;
-  if (isExplicitExternalResearchRequest(combined)) return WORK_MODES.external_research;
-  if (containsAny(combined, LOOKUP_HINTS) || combined.length < 220) return WORK_MODES.direct_lookup;
-  if (combined.length < 800) return WORK_MODES.focused_assignment;
-  return DEFAULT_WORK_MODE;
-}
-
-function inferTaskPhase(taskInput: string, workMode: WorkMode, defaultPhase: TaskPhase): TaskPhase {
-  const normalized = taskInput.trim().toLowerCase();
-  if (!normalized) {
-    return workMode === WORK_MODES.docs_then_code ? TASK_PHASES.context_build : defaultPhase;
-  }
-  if (containsAny(normalized, INSPECTION_ONLY_HINTS)) return TASK_PHASES.inspection_only;
-  if (workMode === WORK_MODES.docs_then_code || isDocsThenCodeRequest(normalized)) {
-    return TASK_PHASES.context_build_then_code;
-  }
-  return defaultPhase || DEFAULT_TASK_PHASE;
-}
-
-function classifyBashCommand(command: string): "progress" | "verification" | "neutral" {
-  const normalized = command.trim().toLowerCase();
-  if (!normalized) return "neutral";
-  if (
-    /(^|\s)(pytest|bun test|vitest|pnpm test|npm test|cargo test|go test|ruff|mypy|tsc|lint|typecheck|check|verify)(\s|$)/.test(normalized)
-  ) {
-    return "verification";
-  }
-  if (
-    /(>|>>|\btee\b|\bmv\b|\bcp\b|\brm\b|\bmkdir\b|\bgit apply\b|\bsed -i\b|\bperl -pi\b|\btouch\b)/.test(normalized)
-  ) {
-    return "progress";
-  }
-  return "neutral";
-}
-
-function classifyToolProgression(toolName: string, args: unknown): "progress" | "verification" | "neutral" {
-  if (PROGRESS_TOOL_NAMES.has(toolName)) return "progress";
-  if (toolName === "bash" || toolName === "DetachedBash") {
-    const command = typeof (args as { command?: unknown } | null)?.command === "string"
-      ? String((args as { command?: string }).command)
-      : "";
-    return classifyBashCommand(command);
-  }
-  return "neutral";
 }
 
 function readRecentText(messages: Array<{ role?: string; content?: unknown }>): string {
@@ -438,8 +148,117 @@ function insertLateStatusOverlay(messages: ChatMessage[], overlay: string | null
   return next;
 }
 
+function normalizeSystemPromptText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function collectSystemPromptsForActorExecution(actor: AiAgentActor, messages: ChatMessage[]): string[] {
+  const prompts: string[] = [];
+  const seen = new Set<string>();
+  const add = (value: unknown) => {
+    const prompt = normalizeSystemPromptText(value);
+    if (!prompt || seen.has(prompt)) return;
+    seen.add(prompt);
+    prompts.push(prompt);
+  };
+
+  for (const prompt of actor.systemPrompts ?? []) add(prompt);
+  for (const message of messages) {
+    if (String(message?.role ?? "") === "system") add(message?.content);
+  }
+  return prompts;
+}
+
+function materializeActorSystemPrompts(actor: AiAgentActor, messages: ChatMessage[]): ChatMessage[] {
+  const existing = new Set(
+    messages
+      .filter((message) => String(message?.role ?? "") === "system")
+      .map((message) => normalizeSystemPromptText(message?.content))
+      .filter(Boolean),
+  );
+  const missing = (actor.systemPrompts ?? [])
+    .map((prompt) => normalizeSystemPromptText(prompt))
+    .filter((prompt) => prompt && !existing.has(prompt));
+  if (missing.length === 0) return [...messages];
+  return [
+    ...missing.map((prompt) => ({ role: "system", content: prompt } as ChatMessage)),
+    ...messages,
+  ];
+}
+
 export function getActorWorkContext(actor: AiAgentActor): ActorWorkContextData {
-  return actor.workContext ?? defaultWorkContext(actor);
+  const current = actor.workContext ?? defaultWorkContext(actor);
+  const normalized: ActorWorkContextData = {
+    ...current,
+    workMode: normalizeWorkMode(current.workMode),
+    taskPhase: normalizeTaskPhase(current.taskPhase),
+    actorKey: actor.key,
+    actorId: actor.id,
+  };
+  if (
+    !actor.workContext
+    || actor.workContext.workMode !== normalized.workMode
+    || actor.workContext.taskPhase !== normalized.taskPhase
+    || actor.workContext.actorKey !== normalized.actorKey
+    || actor.workContext.actorId !== normalized.actorId
+  ) {
+    actor.workContext = normalized;
+  }
+  return normalized;
+}
+
+export function normalizeWorkMode(value: unknown): WorkMode {
+  return value === WORK_MODES.plan ? WORK_MODES.plan : WORK_MODES.build;
+}
+
+export function normalizeTaskPhase(value: unknown): TaskPhase {
+  return value === TASK_PHASES.answer ? TASK_PHASES.answer : TASK_PHASES.normal;
+}
+
+export function setActorWorkMode(params: {
+  actor: AiAgentActor;
+  workMode: unknown;
+  source?: string;
+  occurredAt?: string;
+  trigger?: string;
+}): ActorWorkContextData {
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const current = getActorWorkContext(params.actor);
+  const workMode = normalizeWorkMode(params.workMode);
+  const next: ActorWorkContextData = {
+    ...current,
+    workMode,
+    workModeSource: params.source ?? "manual",
+    workModeUpdatedAt: workMode === current.workMode ? current.workModeUpdatedAt : occurredAt,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    lastTrigger: params.trigger ?? "work_mode_command",
+  };
+  params.actor.workContext = next;
+  return next;
+}
+
+export function setActorTaskPhase(params: {
+  actor: AiAgentActor;
+  taskPhase: unknown;
+  source?: string;
+  occurredAt?: string;
+  trigger?: string;
+}): ActorWorkContextData {
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const current = getActorWorkContext(params.actor);
+  const taskPhase = normalizeTaskPhase(params.taskPhase);
+  const next: ActorWorkContextData = {
+    ...current,
+    taskPhase,
+    taskPhaseSource: params.source ?? "tool_call",
+    taskPhaseUpdatedAt: taskPhase === current.taskPhase ? current.taskPhaseUpdatedAt : occurredAt,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    lastTrigger: params.trigger ?? "task_phase_tool",
+  };
+  params.actor.workContext = next;
+  return next;
 }
 
 export function getActorContinuationBaseline(actor: AiAgentActor): ContinuationBaselineData {
@@ -472,38 +291,14 @@ export function resolveTurnWorkContextForActor(params: {
   const occurredAt = params.occurredAt ?? new Date().toISOString();
   const current = getActorWorkContext(params.actor);
   const taskInput = latestUserText(params.messages);
-
-  let workMode: WorkMode = current.workMode || DEFAULT_WORK_MODE;
-  let workModeSource = current.workModeSource || "retained";
-  if (taskInput) {
-    if (isWeakContinueInput(taskInput) && current.workMode) {
-      workMode = current.workMode;
-      workModeSource = "inherited";
-    } else {
-      const derived = deriveWorkMode(taskInput);
-      workMode = derived;
-      workModeSource = derived === current.workMode ? (current.workModeSource || "retained") : "derived";
-    }
-  }
-
-  let phaseDefault: TaskPhase = current.taskPhase || DEFAULT_TASK_PHASE;
-  if (workMode !== current.workMode) {
-    phaseDefault = DEFAULT_TASK_PHASE;
-  }
-  let taskPhase = inferTaskPhase(taskInput, workMode, phaseDefault);
-  if (
-    current.taskPhase
-    && workMode === current.workMode
-    && taskPhase === DEFAULT_TASK_PHASE
-  ) {
-    taskPhase = current.taskPhase;
-  }
+  const workMode = normalizeWorkMode(current.workMode);
+  const taskPhase = taskInput ? TASK_PHASES.normal : normalizeTaskPhase(current.taskPhase);
   const next: ActorWorkContextData = {
     ...current,
     workMode,
     taskPhase,
-    workModeSource,
-    taskPhaseSource: taskInput ? "input_inferred" : "retained",
+    workModeSource: current.workModeSource || "retained",
+    taskPhaseSource: taskInput && current.taskPhase !== TASK_PHASES.normal ? "turn_reset" : (current.taskPhaseSource || "retained"),
     workModeUpdatedAt: workMode === current.workMode ? current.workModeUpdatedAt : occurredAt,
     taskPhaseUpdatedAt: taskPhase === current.taskPhase ? current.taskPhaseUpdatedAt : occurredAt,
     actorKey: params.actor.key,
@@ -523,18 +318,16 @@ export function advanceActorWorkContextAfterTool(params: {
 }): ActorWorkContextData {
   const occurredAt = params.occurredAt ?? new Date().toISOString();
   const current = getActorWorkContext(params.actor);
-  const progression = classifyToolProgression(params.toolName, params.args);
-  let taskPhase: TaskPhase = current.taskPhase || DEFAULT_TASK_PHASE;
+  const toolName = String(params.toolName ?? "");
+  let taskPhase: TaskPhase = normalizeTaskPhase(current.taskPhase);
   let taskPhaseSource = current.taskPhaseSource || "retained";
-  if (progression === "progress") {
-    taskPhase = TASK_PHASES.implementation;
-    taskPhaseSource = "tool_progression";
-  } else if (progression === "verification") {
-    taskPhase = TASK_PHASES.verification;
-    taskPhaseSource = "tool_verification";
+  if (taskPhase === TASK_PHASES.answer && toolName !== TASK_PHASE_CONTROL_TOOL_NAME) {
+    taskPhase = TASK_PHASES.normal;
+    taskPhaseSource = "tool_after_answer";
   }
   const next: ActorWorkContextData = {
     ...current,
+    workMode: normalizeWorkMode(current.workMode),
     taskPhase,
     taskPhaseSource,
     taskPhaseUpdatedAt: taskPhase === current.taskPhase ? current.taskPhaseUpdatedAt : occurredAt,
@@ -554,11 +347,11 @@ export function buildPromptRoutingDecision(params: {
     source: "runtime_context_control_plane",
     selectedCandidateIds,
     rationale:
-      workContext.workMode === WORK_MODES.docs_then_code
-        ? "Bound prompt assembly to docs-then-code context while keeping execution path explicit."
-        : workContext.taskPhase === TASK_PHASES.verification
-          ? "Bias prompt assembly toward verification continuity and targeted checks."
-          : "Bias prompt assembly toward direct execution with the currently loaded tool surface.",
+      workContext.taskPhase === TASK_PHASES.answer
+        ? "Bias prompt assembly toward a concise final answer unless more information is strictly required."
+        : workContext.workMode === WORK_MODES.plan
+          ? "Bias prompt assembly toward read-only planning and verification."
+          : "Bias prompt assembly toward concrete build execution with the currently loaded tool surface.",
     metadata: {
       workMode: workContext.workMode,
       taskPhase: workContext.taskPhase,
@@ -574,10 +367,7 @@ export function buildPromptPlanForActorExecution(params: {
   selectedModel?: string | null;
 }): PromptPlanData {
   const workContext = getActorWorkContext(params.actor);
-  const systemPrompts = params.messages
-    .filter((message) => String(message.role ?? "") === "system")
-    .map((message) => String(message.content ?? ""))
-    .filter(Boolean);
+  const systemPrompts = collectSystemPromptsForActorExecution(params.actor, params.messages);
   const toolNames = params.tools
     .map((tool) => String(tool?.function?.name ?? tool?.name ?? ""))
     .filter(Boolean);
@@ -618,36 +408,18 @@ export type WorkModeToolGuidance = {
 };
 
 export function resolveWorkModeToolGuidance(workContext: ActorWorkContextData): WorkModeToolGuidance {
-  if (
-    workContext.taskPhase === TASK_PHASES.context_build
-    || workContext.taskPhase === TASK_PHASES.context_build_then_code
-    || workContext.taskPhase === TASK_PHASES.inspection_only
-  ) {
+  const workMode = normalizeWorkMode(workContext.workMode);
+  const taskPhase = normalizeTaskPhase(workContext.taskPhase);
+  if (workMode === WORK_MODES.plan) {
     return {
-      prefer: ["read", "grep", "glob", "ls"],
-      avoidUntilNeeded: ["write", "edit", "multiedit", "apply_patch", "bash"],
-    };
-  }
-  if (workContext.taskPhase === TASK_PHASES.verification) {
-    return {
-      prefer: ["bash", "read", "grep"],
+      prefer: ["read", "grep", "glob", "ls", "bash"],
       avoidUntilNeeded: ["write", "edit", "multiedit", "apply_patch"],
     };
   }
-  if (workContext.workMode === WORK_MODES.external_research) {
+  if (taskPhase === TASK_PHASES.answer) {
     return {
-      prefer: ["websearch", "webfetch", "read"],
+      prefer: ["read", "grep"],
       avoidUntilNeeded: ["write", "edit", "multiedit", "apply_patch"],
-    };
-  }
-  if (
-    workContext.workMode === WORK_MODES.localized_repair
-    || workContext.workMode === WORK_MODES.small_edit
-    || workContext.workMode === WORK_MODES.focused_assignment
-  ) {
-    return {
-      prefer: ["read", "grep", "edit", "apply_patch", "bash"],
-      avoidUntilNeeded: [],
     };
   }
   return {
@@ -657,19 +429,21 @@ export function resolveWorkModeToolGuidance(workContext: ActorWorkContextData): 
 }
 
 export function buildWorkContextOverlayText(workContext: ActorWorkContextData): string {
+  const workMode = normalizeWorkMode(workContext.workMode);
+  const taskPhase = normalizeTaskPhase(workContext.taskPhase);
   const lines = [
     "<runtime_work_context>",
-    `work_mode: ${String(workContext.workMode || DEFAULT_WORK_MODE)}`,
-    `task_phase: ${String(workContext.taskPhase || DEFAULT_TASK_PHASE)}`,
+    `work_mode: ${workMode}`,
+    `task_phase: ${taskPhase}`,
   ];
-  if (workContext.taskPhase === TASK_PHASES.context_build || workContext.taskPhase === TASK_PHASES.context_build_then_code) {
-    lines.push("instruction: keep context build bounded and move into concrete execution once the target seam is clear.");
-  } else if (workContext.taskPhase === TASK_PHASES.verification) {
-    lines.push("instruction: keep verification target, failure reason, and command/result continuity explicit.");
+  if (taskPhase === TASK_PHASES.answer) {
+    lines.push("instruction: answer phase means provide the final answer unless more information is strictly required.");
+  } else if (workMode === WORK_MODES.plan) {
+    lines.push("instruction: plan mode is read-only; do not modify files or run destructive commands.");
   } else {
-    lines.push("instruction: prefer the shortest concrete execution path over broad scouting.");
+    lines.push("instruction: build mode means execute the requested change using the normal tool policy.");
   }
-  const toolGuidance = resolveWorkModeToolGuidance(workContext);
+  const toolGuidance = resolveWorkModeToolGuidance({ ...workContext, workMode, taskPhase });
   if (toolGuidance.prefer.length || toolGuidance.avoidUntilNeeded.length) {
     lines.push("<tool_guidance>");
     if (toolGuidance.prefer.length) lines.push(`prefer: ${toolGuidance.prefer.join(", ")}`);
@@ -693,11 +467,50 @@ export function materializeExecutionMessagesWithWorkContext(params: {
 } {
   const promptPlan = buildPromptPlanForActorExecution(params);
   const workContextOverlay = buildWorkContextOverlayText(promptPlan.workContext);
+  const rootedMessages = materializeActorSystemPrompts(params.actor, params.messages);
   return {
     promptPlan,
-    executionMessages: insertLateStatusOverlay(params.messages, workContextOverlay),
+    executionMessages: insertLateStatusOverlay(rootedMessages, workContextOverlay),
     workContextOverlay,
   };
+}
+
+/**
+ * Estimation-only completion of a domain-materialized prompt (track
+ * refactor-ai-semantic-conversation-spine, T4.3): builds that do not record a
+ * prompt generation (compaction ratio gates) may run before the actor has any
+ * active prompt generation, in which case the materialization carries no
+ * Stage-1 system prompts and no work-context overlay yet. Complete the
+ * estimate purely so the gate evaluates the provider-READY prompt: root the
+ * plan's system prompts and insert the overlay unless already present. The
+ * input is the domain materialization — never a raw message array.
+ */
+export function completeEstimationPromptMaterialization(params: {
+  promptPlan: PromptPlanData;
+  messages: ChatMessage[];
+}): ChatMessage[] {
+  let next = [...params.messages];
+  const existingSystem = new Set(
+    next
+      .filter((message) => String(message?.role ?? "") === "system")
+      .map((message) => normalizeSystemPromptText(message?.content))
+      .filter(Boolean),
+  );
+  const missing = (params.promptPlan.systemPrompts ?? [])
+    .map((prompt) => normalizeSystemPromptText(prompt))
+    .filter((prompt) => prompt && !existingSystem.has(prompt));
+  if (missing.length > 0) {
+    next = [...missing.map((prompt) => ({ role: "system", content: prompt } as ChatMessage)), ...next];
+  }
+  const hasOverlay = next.some(
+    (message) =>
+      String(message?.role ?? "") === "system"
+      && String(message?.content ?? "").includes("<runtime_work_context>"),
+  );
+  if (!hasOverlay) {
+    next = insertLateStatusOverlay(next, buildWorkContextOverlayText(params.promptPlan.workContext));
+  }
+  return next;
 }
 
 export function recordPromptPlanForActorExecution(params: {
@@ -736,6 +549,7 @@ export function recordPromptPlanForActorExecution(params: {
     reason: "request_build",
     basisHistoryGenerationIds:
       actorRawState?.historyHeadGenerationId ? [actorRawState.historyHeadGenerationId] : [],
+    systemPrompts: promptPlan.systemPrompts,
     metadata: {
       workContext: promptPlan.workContext,
       promptPlan,
@@ -799,48 +613,36 @@ export function buildCompactionPolicyContextForActor(params: {
 export function decideCompactionPolicy(
   context: CompactionPolicyContextData,
 ): CompactionPolicyDecisionData {
-  const workMode = context.workMode || DEFAULT_WORK_MODE;
-  const taskPhase = context.taskPhase || DEFAULT_TASK_PHASE;
-  if (taskPhase === TASK_PHASES.context_build || taskPhase === TASK_PHASES.context_build_then_code) {
+  const workMode = normalizeWorkMode(context.workMode);
+  const taskPhase = normalizeTaskPhase(context.taskPhase);
+  if (workMode === WORK_MODES.plan) {
     return {
       policy: "work_context_gate",
       decision: context.tokenPressure >= 1 ? "rewrite" : "skip",
-      reason: "bounded_context_build",
+      reason: "plan",
       workMode,
       taskPhase,
       protectedCategories: ["discovery_evidence", "coordination_state"],
       rewrittenCategories: ["low_signal_chatter"],
-      skipReason: context.tokenPressure >= 1 ? null : "protected_context_build",
+      skipReason: context.tokenPressure >= 1 ? null : "protected_plan_mode",
     };
   }
-  if (taskPhase === TASK_PHASES.verification) {
+  if (taskPhase === TASK_PHASES.answer) {
     return {
       policy: "work_context_gate",
-      decision: context.mode === "micro" ? "summarize" : "rewrite",
-      reason: "verification",
+      decision: "summarize",
+      reason: "answer",
       workMode,
       taskPhase,
-      protectedCategories: ["verification_evidence", "patch_rationale", "coordination_state"],
+      protectedCategories: ["patch_rationale", "coordination_state"],
       rewrittenCategories: ["low_signal_chatter", "discovery_evidence"],
-      skipReason: null,
-    };
-  }
-  if (taskPhase === TASK_PHASES.inspection_only) {
-    return {
-      policy: "work_context_gate",
-      decision: context.mode === "micro" ? "summarize" : "rewrite",
-      reason: "inspection_only",
-      workMode,
-      taskPhase,
-      protectedCategories: ["discovery_evidence", "coordination_state"],
-      rewrittenCategories: ["low_signal_chatter"],
       skipReason: null,
     };
   }
   return {
     policy: "work_context_gate",
     decision: context.mode === "micro" ? "summarize" : "rewrite",
-    reason: "implementation",
+    reason: "normal",
     workMode,
     taskPhase,
     protectedCategories: context.hasRecentVerificationTarget

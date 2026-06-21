@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-vm-snapshot-control-signal-boundaries" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>Refactor VM snapshot and durable control signal boundaries so vm.json stores only bounded durable control state and no duplicated LLM/tool history payloads.</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-01T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-06-01T09:45:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-vm-snapshot-control-signal-boundaries" name="refactor-vm-snapshot-control-signal-boundaries" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="Contract and failing guard tests" status="NOT_STARTED" order="0">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Implement bounded control signal persistence" status="NOT_STARTED" order="1">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Recovery, migration, and verification" status="NOT_STARTED" order="2">
+        <SubNodes>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Questionnaire table snapshot boundary" status="NOT_STARTED" order="3">
+        <SubNodes>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

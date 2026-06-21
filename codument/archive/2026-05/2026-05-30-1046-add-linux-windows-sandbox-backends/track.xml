@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-linux-windows-sandbox-backends" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>阅读 Codex Windows Elevated sandbox 与 Linux sandbox 的实现原理，参考本项目 macOS sandbox 扩展机制，实现 Windows 和 Linux sandbox backend。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-30T06:34:46Z</CreatedAt>
+    <UpdatedAt>2026-05-30T10:46:26Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-linux-windows-sandbox-backends" name="add-linux-windows-sandbox-backends" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="Contract and failing tests" status="DONE" order="0">
+        <Description>用测试锁定 Linux/Windows backend 的 selection、分派和安全失败语义。</Description>
+        <SubNodes>
+          <TaskGroup id="T1.1" name="Add backend selection failing tests" status="DONE" order="0" priority="P0">
+            <Description>覆盖 Linux/Windows read-only 和 workspace-write 不再选择 unsandboxed，danger-full-access 仍选择 unsandboxed。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Linux read-only/workspace-write selection 期望 `linux-bwrap`。</cdt:Criterion>
+              <cdt:Criterion checked="true">Windows read-only/workspace-write selection 期望 Windows backend。</cdt:Criterion>
+              <cdt:Criterion checked="true">所有平台 danger-full-access 仍选择 `unsandboxed`。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T1.1.1" name="Write selection tests" status="DONE" order="0">
+              </Task>
+              <Task id="T1.1.2" name="Run tests and confirm red" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T1.2" name="Add platform command planner failing tests" status="DONE" order="1" priority="P0">
+            <Description>覆盖 Linux command args、Windows setup/readiness planner、dependency missing fail-closed、network disabled fail-closed。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Linux command planner 测试体现 helper/bwrap 风格参数。</cdt:Criterion>
+              <cdt:Criterion checked="true">Windows planner 测试体现 setup/readiness 和 capability scoped writable roots。</cdt:Criterion>
+              <cdt:Criterion checked="true">缺失依赖或 setup 未完成不会降级为 unsandboxed。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T1.2.1" name="Write Linux planner tests" status="DONE" order="0">
+              </Task>
+              <Task id="T1.2.2" name="Write Windows planner tests" status="DONE" order="1">
+              </Task>
+              <Task id="T1.2.3" name="Run tests and confirm red" status="DONE" order="2">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Backend runtime extension" status="DONE" order="1">
+        <Description>扩展 shared sandbox backend runtime，使 Bash sync/streaming execution 能按 Linux/Windows backend 分派。</Description>
+        <SubNodes>
+          <TaskGroup id="T2.1" name="Extend backend selection types" status="DONE" order="0" priority="P0">
+            <Description>新增 Linux/Windows backend names，保持 selection shape 和 writable roots 解析一致。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">`SandboxBackendName` 包含 Linux 和 Windows backend。</cdt:Criterion>
+              <cdt:Criterion checked="true">selection 包含统一 normalized writable roots。</cdt:Criterion>
+              <cdt:Criterion checked="true">macOS selection 测试保持通过。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.1.1" name="Update type definitions" status="DONE" order="0">
+              </Task>
+              <Task id="T2.1.2" name="Update selection logic" status="DONE" order="1">
+              </Task>
+              <Task id="T2.1.3" name="Run focused selection tests" status="DONE" order="2">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T2.2" name="Refactor execution dispatcher" status="DONE" order="1" priority="P0">
+            <Description>将 sync/streaming Bash execution 分派到 backend modules，同时保持测试注入能力。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">macOS 分派仍调用 Seatbelt command builder。</cdt:Criterion>
+              <cdt:Criterion checked="true">Linux/Windows 分派调用对应 backend module。</cdt:Criterion>
+              <cdt:Criterion checked="true">unsupported backend path 返回明确错误。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.2.1" name="Extract shared spawn spec builder if needed" status="DONE" order="0">
+              </Task>
+              <Task id="T2.2.2" name="Wire sync execution dispatcher" status="DONE" order="1">
+              </Task>
+              <Task id="T2.2.3" name="Wire streaming execution dispatcher" status="DONE" order="2">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Linux backend" status="DONE" order="2">
+        <Description>实现 Linux sandbox backend 的 dependency detection、command construction 和 execution semantics。</Description>
+        <SubNodes>
+          <TaskGroup id="T3.1" name="Implement Linux sandbox module" status="DONE" order="0" priority="P0">
+            <Description>新增 Linux backend module，封装 helper/bwrap 风格 args、writable roots、protected metadata 和 network disabled 语义。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Linux planner 生成包含 sandbox policy cwd、command cwd、permission/profile 或等价 metadata 的参数。</cdt:Criterion>
+              <cdt:Criterion checked="true">workspace-write 包含 writable roots 和 protected metadata handling。</cdt:Criterion>
+              <cdt:Criterion checked="true">dependency/namespace 不可用时 fail closed。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T3.1.1" name="Implement dependency detection" status="DONE" order="0">
+              </Task>
+              <Task id="T3.1.2" name="Implement command builder" status="DONE" order="1">
+              </Task>
+              <Task id="T3.1.3" name="Implement execution adapter" status="DONE" order="2">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T3.2" name="Add Linux backend tests" status="DONE" order="1" priority="P0">
+            <Description>补充 Linux unit tests 和 platform-gated smoke tests。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">非 Linux 环境可运行 planner/selection/unit tests。</cdt:Criterion>
+              <cdt:Criterion checked="true">Linux 环境可用时 smoke 覆盖 read-only deny 和 workspace-write allow/deny；非 Linux 环境记录未运行原因。</cdt:Criterion>
+              <cdt:Criterion checked="true">network disabled 无法实际限制时返回明确错误。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T3.2.1" name="Run Linux planner tests" status="DONE" order="0">
+              </Task>
+              <Task id="T3.2.2" name="Run platform-gated smoke where available" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Windows backend" status="DONE" order="3">
+        <Description>实现 Windows sandbox backend 的 setup/readiness、restricted execution planning 和 error semantics。</Description>
+        <SubNodes>
+          <TaskGroup id="T4.1" name="Implement Windows sandbox module" status="DONE" order="0" priority="P0">
+            <Description>新增 Windows backend module，封装 elevated setup readiness、capability scoped roots、runner adapter 和 fail-closed behavior。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">Windows planner 表达 read-only capability 与 workspace-write writable-root capabilities。</cdt:Criterion>
+              <cdt:Criterion checked="true">setup 未完成或权限不足时返回 actionable error。</cdt:Criterion>
+              <cdt:Criterion checked="true">network disabled 能力不可用时 fail closed。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T4.1.1" name="Implement setup readiness contract" status="DONE" order="0">
+              </Task>
+              <Task id="T4.1.2" name="Implement command runner adapter" status="DONE" order="1">
+              </Task>
+              <Task id="T4.1.3" name="Implement Windows error mapping" status="DONE" order="2">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T4.2" name="Add Windows backend tests" status="DONE" order="1" priority="P0">
+            <Description>补充 Windows unit tests 和 platform-gated smoke tests。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">非 Windows 环境可运行 planner/selection/unit tests。</cdt:Criterion>
+              <cdt:Criterion checked="true">Windows 环境可用时 smoke 覆盖 setup readiness、read-only deny、workspace-write allow/deny；非 Windows 环境记录未运行原因。</cdt:Criterion>
+              <cdt:Criterion checked="true">Bash delegation 能路由到 Windows backend。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T4.2.1" name="Run Windows planner tests" status="DONE" order="0">
+              </Task>
+              <Task id="T4.2.2" name="Run platform-gated smoke where available" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Validation and documentation" status="DONE" order="4">
+        <Description>验证跨平台 sandbox backend contract，并更新规范状态所需证据。</Description>
+        <SubNodes>
+          <TaskGroup id="T5.1" name="Run focused automated validation" status="DONE" order="0" priority="P0">
+            <Description>运行 sandbox backend、Bash integration 和 local permission 相关聚焦测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">sandbox backend runtime tests pass。</cdt:Criterion>
+              <cdt:Criterion checked="true">Bash integration tests pass。</cdt:Criterion>
+              <cdt:Criterion checked="true">local permission exec mode tests pass。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T5.1.1" name="Run focused test commands" status="DONE" order="0">
+              </Task>
+              <Task id="T5.1.2" name="Record unavailable platform smoke tests" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <TaskGroup id="T5.2" name="Update track evidence" status="DONE" order="1" priority="P1">
+            <Description>根据实现结果更新 analysis、decisions 和 plan validation evidence。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion checked="true">pending decisions 已回写最终结论或保留明确阻塞说明。</cdt:Criterion>
+              <cdt:Criterion checked="true">plan validation 记录通过的测试与跳过原因。</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T5.2.1" name="Update decisions if needed" status="DONE" order="0">
+              </Task>
+              <Task id="T5.2.2" name="Update validation evidence" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

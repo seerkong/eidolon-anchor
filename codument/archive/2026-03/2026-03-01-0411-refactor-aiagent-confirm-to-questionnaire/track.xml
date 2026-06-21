@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-confirm-to-questionnaire" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Goal>用结构化 QuestionnaireRequest/QuestionnaireResult 取代 Confirm 机制，并在终端文本交互中支持澄清/审批/问答/表单，并通过 LLM 解析用户回答为结构化答案</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-03-01T04:11:47Z</CreatedAt>
+    <UpdatedAt>2026-03-01T04:11:47Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-confirm-to-questionnaire" name="refactor-aiagent-confirm-to-questionnaire" version="1">
+    <Description>AIAgent Confirm 重构为 Questionnaire tool</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="规范与设计" status="DONE" order="0">
+        <Description>固化需求增量与关键技术决策，明确影响范围</Description>
+        <cdt:Gate>
+          <cdt:Criterion>spec/proposal/design 三件套一致且可执行</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="编写 spec.md" status="DONE" order="0" priority="P0">
+            <Description>输出 Questionnare 的需求增量（ADDED/REMOVED Requirements）与验收标准。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">spec.md 使用 ADDED/REMOVED Requirements 且每个 Requirement 至少包含一个 Scenario</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="编写 proposal.md" status="DONE" order="1" priority="P0">
+            <Description>说明动机、目标/非目标、变更列表与影响范围。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">proposal.md 明确 Hard replace Confirm-&gt;Questionnaire，并标注 BREAKING</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="编写 design.md" status="DONE" order="2" priority="P1">
+            <Description>记录跨模块链路、关键决策、风险/权衡与迁移计划。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">design.md 覆盖事件模型、执行器改造、TUI 格式化、LLM 解析与等待策略</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="底层事件与历史重构" status="DONE" order="1">
+        <Description>在 core AIAgent 事件流中引入 Questionnaire 结构化事件，并移除 Confirm</Description>
+        <cdt:Gate>
+          <cdt:Criterion>core event types/graph/history 全部编译通过且测试覆盖</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <TaskGroup id="T2.1" name="新增 Questionnaire 事件类型" status="DONE" order="0" priority="P0">
+            <Description>在 StreamEvents 中新增 QuestionnaireRequest/QuestionnaireResult，并从 BizEvent 联合类型移除 Confirm。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">StreamEvents.ts 定义结构化 QuestionnaireRequest/QuestionnaireResult</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">ConfirmRequest/ConfirmResult 不再出现在 BizEvent</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T2.1.1" name="编写失败测试：StreamEvents 构造与联合类型" status="DONE" order="0">
+              </Task>
+              <Task id="T2.1.2" name="实现事件类型与 makeBiz* 工厂" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <Task id="T2.2" name="更新 AgentEventGraph emit API" status="DONE" order="1" priority="P0">
+            <Description>提供 emitQuestionnaireRequest/emitQuestionnaireResult，并移除 emitConfirm*。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">AgentEventGraph 提供 Questionnaire emit API</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">Confirm emit API 被删除或不再使用</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="更新 MessageHistoryGraph 映射" status="DONE" order="2" priority="P0">
+            <Description>将 QuestionnaireRequest/Result 写入消息历史流（结构化 payload）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">toHistoryEvent 支持 questionnaire_request / questionnaire_result</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">confirm_request / confirm_result 不再生成</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="执行器等待与控制消息迁移" status="DONE" order="2">
+        <Description>将 confirm_wait/confirm_pending 迁移为 questionnaire_wait/questionnaire_pending，并发出 QuestionnaireRequest</Description>
+        <cdt:Gate>
+          <cdt:Criterion>执行器在等待用户输入时进入 questionnaire_wait 且产生结构化 QuestionnaireRequest</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="actor mailbox control 重构" status="DONE" order="0" priority="P0">
+            <Description>将 AiAgentMailboxSchema.control 从 confirm_pending 迁移为 questionnaire_pending，并携带 toolCallId/questionnaireId/suspendPolicy。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">actor.ts 中 control schema 变更完成且编译通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <TaskGroup id="T3.2" name="执行器 stopReason 迁移" status="DONE" order="1" priority="P0">
+            <Description>将 confirm_wait 替换为 questionnaire_wait，且在等待时发出 QuestionnaireRequest。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">AiAgentExecutor 产生 questionnaire_wait</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">等待时 emitQuestionnaireRequest 被调用</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T3.2.1" name="编写失败测试：工具触发 questionnaire_wait" status="DONE" order="0">
+              </Task>
+              <Task id="T3.2.2" name="实现 tool output 分流与事件发出" status="DONE" order="1">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="TUI 问卷展示与输入路由" status="DONE" order="3">
+        <Description>将 QuestionnaireRequest 格式化为文本，并将用户回答导入解析链路</Description>
+        <cdt:Gate>
+          <cdt:Criterion>QuestionnaireRequest 在终端可读且用户回答可进入解析链路</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T4.1" name="TuiEventGraph 格式化 QuestionnaireRequest" status="DONE" order="0" priority="P0">
+            <Description>在 terminal organ 的 TuiEventGraph 中新增 questionnaire segment，输出格式化问卷文本。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">QuestionnaireRequest 显示标题/说明/题号/选项提示</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">现有 TUI transcript fixtures 测试通过/已更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="terminal/minimal 输入路由迁移" status="DONE" order="1" priority="P0">
+            <Description>将 confirm_pending 分支迁移为 questionnaire_pending：用户输入进入问卷回答解析链路，而非直接作为普通 humanInput。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">minimal app 在 questionnaire_pending 时走问卷回答路径</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="terminal/tui 输入路由迁移（如适用）" status="DONE" order="2" priority="P1">
+            <Description>若 terminal/tui 有同等 control pending 路由，需同步迁移。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">tui runtime 对 questionnaire_pending 行为一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="LLM 解析与再问卷闭环" status="DONE" order="4">
+        <Description>实现 parseQuestionnaireAnswer，并在 invalid 时发起澄清问卷</Description>
+        <cdt:Gate>
+          <cdt:Criterion>问卷请求-回答-解析-继续 或 invalid-再问卷 的闭环可测试通过</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <TaskGroup id="T5.1" name="实现 parseQuestionnaireAnswer" status="DONE" order="0" priority="P0">
+            <Description>在 backend organ 新增 questionnaire 目录与解析函数，输出结构化 answers/status/errors。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">parseQuestionnaireAnswer 通过一次 LLM 调用返回可解析 JSON</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">解析失败返回 status=invalid 且包含 errors</cdt:Criterion>
+            </cdt:Acceptance>
+            <SubNodes>
+              <Task id="T5.1.1" name="编写提示词与输出约束" status="DONE" order="0">
+              </Task>
+              <Task id="T5.1.2" name="编写单元测试：成功/失败/缺失字段" status="DONE" order="1">
+              </Task>
+              <Task id="T5.1.3" name="实现函数与依赖注入（llmAdapter/model）" status="DONE" order="2">
+              </Task>
+            </SubNodes>
+          </TaskGroup>
+          <Task id="T5.2" name="接入执行器：回答解析与事件发出" status="DONE" order="1" priority="P0">
+            <Description>在收到用户问卷回答后，调用 parseQuestionnaireAnswer，并 emit QuestionnaireResult；invalid 时 emit 新的澄清 QuestionnaireRequest。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.2-AC1" checked="true">QuestionnaireResult(status=ok) 可被写入历史并供下一轮使用</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC2" checked="true">invalid 时自动产生新的澄清问卷请求</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P6" name="等待策略与多 actor 行为验证" status="DONE" order="5">
+        <Description>验证 pause_all/continue_others 在主/子 actor 场景下的语义</Description>
+        <cdt:Gate>
+          <cdt:Criterion>两种等待策略均有可执行测试与稳定断言</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T6.1" name="梳理并实现等待策略落点" status="DONE" order="0" priority="P0">
+            <Description>明确在当前 AIAgent runtime 中如何实现 pause_all/continue_others（调度门控优先），并落地最小实现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.1-AC1" checked="true">pause_all 时其他 actor 不推进</cdt:Criterion>
+              <cdt:Criterion id="T6.1-AC2" checked="true">continue_others 时其他 actor 可推进</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.2" name="新增集成测试：主 actor spawn sub actor + 人机等待" status="DONE" order="1" priority="P0">
+            <Description>增加测试用例覆盖：sub actor 等待澄清/审批/回答挂起，恢复后继续；并分别覆盖 pause_all 与 continue_others。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.2-AC1" checked="true">pause_all 场景测试通过</cdt:Criterion>
+              <cdt:Criterion id="T6.2-AC2" checked="true">continue_others 场景测试通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P7" name="清理、覆盖率与验证" status="DONE" order="6">
+        <Description>移除 Confirm 残留，补齐文档与严格校验</Description>
+        <cdt:Gate>
+          <cdt:Criterion>strict 校验通过且实现可归档</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T7.1" name="删除 Confirm 残留与更新引用" status="DONE" order="0" priority="P0">
+            <Description>删除 ConfirmRequest/ConfirmResult/confirm_wait/confirm_pending 的残留代码与测试，并更新引用。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T7.1-AC1" checked="true">仓库中不再出现 ConfirmRequest/ConfirmResult/confirm_wait 的业务引用</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.2" name="运行测试与覆盖率" status="DONE" order="1" priority="P0">
+            <Description>运行相关包的 bun test 与覆盖率，确保新增代码覆盖率 &gt;80%。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T7.2-AC1" checked="true">相关测试全绿</cdt:Criterion>
+              <cdt:Criterion id="T7.2-AC2" checked="true">新增代码覆盖率 &gt;80%</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.3" name="执行 codument strict 校验并更新 tracks.md" status="DONE" order="2" priority="P1">
+            <Description>运行 codument validate strict 并在 tracks.md 登记 track 状态。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T7.3-AC1" checked="true">codument validate refactor-aiagent-confirm-to-questionnaire --strict 通过</cdt:Criterion>
+              <cdt:Criterion id="T7.3-AC2" checked="true">tracks.md 出现本 track 条目</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

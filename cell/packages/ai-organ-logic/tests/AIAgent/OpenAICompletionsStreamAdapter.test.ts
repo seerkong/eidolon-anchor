@@ -105,4 +105,30 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
     expect(events.filter((ev) => ev.event === "think").length).toBe(0);
     expect(events.filter((ev) => ev.event === "content").map((ev) => ev.data)).toEqual(["我是你的AI助手"]);
   });
+
+  it("closes the visible stream lifecycle when the provider stream throws", async () => {
+    const timeline = new OutputStream();
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline });
+    const events: Array<{ event: string; data: string }> = [];
+    timeline.onData((ev) => events.push(ev));
+
+    async function* stream() {
+      yield {
+        choices: [
+          {
+            delta: {
+              content: "partial",
+            },
+          },
+        ],
+      };
+      throw new Error("provider stream aborted");
+    }
+
+    await expect(adapter.processStream(stream())).rejects.toThrow("provider stream aborted");
+    expect(events.filter((ev) => ev.event === "control").map((ev) => JSON.parse(ev.data).event)).toEqual([
+      "StreamStart",
+      "StreamEnd",
+    ]);
+  });
 });

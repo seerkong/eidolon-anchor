@@ -257,21 +257,23 @@ engine
 
 ---
 
-### 消息优于命令 [message-over-command]
+### 同步命令与异步消息边界 [command-message-boundary]
 
-**核心描述：** 通过异步消息传递实现松耦合，而非同步命令调用。
+**核心描述：** 同步调用应 command 化，异步协作应 message 化。命令用于一个组件/actor 内部的同步 reducer 输入或显式能力调用；消息用于跨 actor、跨异步边界、需要排队/调度/恢复的协作。
 
 **具体体现：**
-- Actor 模型：每个 actor 有自己的消息队列
-- Depa 协议：外部依赖通过 manifest 声明，通过协议而非硬编码交互
-- 持久化控制信号：`create_timeout`/`create_interval` 提供 durable 的调度能力
-- Actor surface lanes：member/holon/actor/mcp 分层接口
-- TerminalStreamEvents：UI 与 runtime 通过事件流通信
+- 同步 command：组件内部 reducer 输入、同一 runtime 调用栈内的显式能力调用、可立即返回结果的纯逻辑执行。
+- 异步 message：跨 actor 协作、mailbox 调度、需要等待 provider/tool/human 的流程、需要恢复/重放/优先级处理的控制信号。
+- Actor 模型：每个 actor 有自己的消息队列，跨 actor 不直接调用内部方法。
+- Depa 协议：外部依赖通过 manifest 声明，通过协议而非硬编码交互。
+- 持久化控制信号：`create_timeout`/`create_interval` 提供 durable 的调度能力。
+- Actor surface lanes：member/holon/actor/mcp 分层接口。
+- TerminalStreamEvents：UI 与 runtime 通过事件流通信。
 
 **为什么是 attractor：**
-- 消息传递允许自然演进
-- 违反此 attractor 的系统产生隐式耦合
-- 松耦合使得局部变更不会级联扩散
+- command 让同步逻辑显式、可测试、可归约，避免把所有同步流程伪装成异步消息。
+- message 让异步边界天然具备排队、调度、恢复与解耦能力。
+- 混淆两者会让系统同时产生命令式隐式耦合和无意义的异步复杂度。
 
 ---
 

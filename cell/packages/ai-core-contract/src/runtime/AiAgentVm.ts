@@ -1,4 +1,4 @@
-import type { ActorType, AiAgentActorContract, AiAgentMailboxSchema } from "./AiAgentActor";
+import type { AiAgentActorContract, AiAgentMailboxSchema } from "./AiAgentActor";
 import type { AiRuntimeOuterCtx } from "./AiRuntimeOuterCtx";
 import type { McpManagerLike } from "./McpManagerLike";
 import type { AiRuntimeRegistries } from "./RuntimeRegistries";
@@ -6,6 +6,7 @@ import type { ObservabilityRecord } from "./Observability";
 import type { ActorSurfaceRuntimeStateData } from "./ActorSurface";
 import type { DurableControlSignalData, DurableControlSignalStore } from "./DurableControlSignal";
 import type { HeartbeatSchedulerRuntimeState } from "./Heartbeat";
+import type { QuestionnaireRow } from "./Questionnaire";
 import type { SemanticEvent } from "../stream/semantic";
 import type { UsageData } from "../stream/common";
 
@@ -32,28 +33,16 @@ export type RuntimeOptions = {
   exitAfterToolResult?: boolean;
   stopAfterFirstTool?: boolean;
   stopAfterTools?: string[];
+  storage?: RuntimeStorageOptions;
+};
+
+export type RuntimeStorageOptions = {
+  logs?: boolean;
+  files?: boolean;
 };
 
 export type RuntimeEffects = {
   log?: (level: "info" | "warn" | "error" | "debug", message: string, context?: Record<string, unknown>) => void;
-  messageHistory?: {
-    appendMessage: (event: {
-      stream: string;
-      payload: string;
-      agentKey: string;
-      agentActorId: string;
-      actorType?: ActorType;
-      agentName?: string;
-      memberName?: string;
-    }) => void;
-    backupHistory?: (params: {
-      agentKey: string;
-      agentActorId: string;
-      actorType?: ActorType;
-      agentName?: string;
-      memberName?: string;
-    }) => Promise<void>;
-  };
   orchestrationHistory?: {
     appendEvent: (event: {
       stream: string;
@@ -69,18 +58,25 @@ export type VmRecoveryState = {
   snapshotVersion?: number;
   restoredAt?: number;
   report?: VmRecoveryReport;
+  /**
+   * One-way recovery handoff switch point (spec recovery-one-way-handoff):
+   * set exactly once when the conversation files have been hydrated into the
+   * in-memory three domains. After this marker the conversation files have
+   * exited the live path — all live reads come from the in-memory domains.
+   */
+  conversationHydration?: VmConversationHydrationMarker;
 };
 
-export type VmRecoveryReportActorTranscriptSource = {
-  source: "conversation" | "transcript" | "empty";
-  path?: string;
+export type VmConversationHydrationMarker = {
+  completed: boolean;
+  source: "conversation_files";
+  hydratedAt: number;
 };
 
 export type VmRecoveryReport = {
   sessionId?: string;
   restoredAt: number;
   corruptions: Array<{ path: string; reason: string }>;
-  actorTranscriptSources: Record<string, VmRecoveryReportActorTranscriptSource>;
 };
 
 export type VmMemberRosterEntry = {
@@ -162,6 +158,7 @@ export type VmSessionState = {
   memberRoster: Record<string, VmMemberRosterEntry>;
   holons: Record<string, VmHolonRecord>;
   detachedActors: Record<string, VmDetachedActorRecord>;
+  questionnaires: Record<string, QuestionnaireRow>;
   actorSurface: ActorSurfaceRuntimeStateData;
   controlSignals: DurableControlSignalStore;
   threadGoal: VmThreadGoalRecord | null;
@@ -194,6 +191,10 @@ export type VmRuntimeContext = {
   deferredMemberResumes: VmDeferredResume[];
   interactiveTurnActive: boolean;
   conversationDomainRuntime: unknown | null;
+  /** Per-vm ToolCallDomain runtime data (held opaquely; concrete runtime in ai-organ-logic). */
+  toolCallDomain: unknown | null;
+  /** Per-vm ProviderCallDomain runtime data (held opaquely; concrete runtime in ai-organ-logic). */
+  providerCallDomain: unknown | null;
   heartbeatScheduler: HeartbeatSchedulerRuntimeState | null;
   threadGoalRuntime: VmThreadGoalRuntimeState;
   autonomousHolonTaskSignals: CompletionSignalRegistryLike<string, { status: string; resultText: string | null }>;

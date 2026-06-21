@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="warn-on-history-commit-anomalies" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>在对话历史单写者（MessageHistoryGraph）的不变量边界加两处"失败即出声"的告警——孤儿工具结果、空壳提交——使单写者异常即时暴露、快速定位。保留唯一水源、不加兜底写者、不改提交内容、不抛错。</Goal>
+    <Description>起因：codex adapter 丢工具调用（已修 f12e72c）暴露单写者静默吞异常的脆弱。唯一水源=正确设计保留；缺陷是失败时静默。经既有事件通道外溢结构化 anomaly 告警，宿主记录；reducer 保持纯；仅增可观测性。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-21T03:00:00Z</CreatedAt>
+    <UpdatedAt>2026-06-21T03:00:00Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input"  name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior"        domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_warn-on-history-commit-anomalies" name="warn-on-history-commit-anomalies" version="1">
+    <Description>单写者不变量边界的两处告警：孤儿工具结果 + 空壳提交（经事件通道外溢、宿主记录、不破坏唯一水源）。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="Orphaned Tool-Result Warning (+ anomaly event channel)" status="DONE" order="0">
+        <Description>建结构化 anomaly 事件外溢通道（经既有 listener，reducer 保持纯）；reducer 维护已见 tool_call_id 集合；semantic_tool_call_result 的 id 无配对→外溢 orphaned_tool_result 告警；宿主侧记录。仍按现状提交、不抛错、不加写者。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests: orphan warns; paired no-warn; no behavior change" status="DONE" order="0" priority="P0">
+            <Description>红：未见 id 的 tool_call_result→产出可观测孤儿告警；已见 id→无告警；告警时被提交消息集合不变、不抛错、写者仍一个。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">孤儿告警测试（含正常配对反例 + 不改提交/不抛错断言）以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Implement anomaly channel + orphan detection + host record" status="DONE" order="1" priority="P0">
+            <Description>新增 anomaly 事件类型经既有 emit/listener 外溢；reducer 已见-id 集合判孤儿；宿主邻近 committed-listener 处 console.warn 记录。T1.1 全绿；既有失败基线不增。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">T1.1 全绿；孤儿即告警、配对静默、提交集合不变、reducer 纯，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Hollow Assistant-Commit Warning" status="DONE" order="1">
+        <Description>flushCommittedAssistant 提交前：pending 的 content/reasoning/toolCalls 全空→外溢 hollow_assistant_commit 告警（复用 P1 通道）；既有提交行为保持不变、不抛错、不加写者。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add failing tests: hollow warns; non-hollow no-warn" status="DONE" order="0" priority="P0">
+            <Description>红：空壳 pending 提交→产出可观测空壳告警；含文本或工具调用的 pending→无告警；告警不改既有提交行为、不抛错。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">空壳告警测试（含非空壳反例）以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Implement hollow detection (reuse channel)" status="DONE" order="1" priority="P0">
+            <Description>flushCommittedAssistant 提交前检测空壳→外溢告警（复用 anomaly 通道）；既有提交行为不变。T2.1 全绿；既有失败基线不增。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">T2.1 全绿；空壳即告警、非空壳静默、既有提交行为不变，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Closure" status="DONE" order="2">
+        <Description>全量回归（cell + 触及包，按名比对基线 0 net-new）；单写者不变量复核（无新写者、executor 门控不变、提交集合不变）；spec case 覆盖核对；findings 终态。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Final sweep + single-writer invariant recheck" status="DONE" order="0" priority="P0">
+            <Description>cell 全套回归按名比对基线确认 0 net-new；复核 single-writer-preserved（无兜底写者、活路径门控不变、被提交消息集合等价）；orphaned/hollow 全部 case 有可执行覆盖；findings.md 追加实施结果与最终基线。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">cell 1102p/14f 与基线按名一致（0 net-new）；单写者不变量复核通过（diff 仅 3 文件、executor 仅加 onAnomaly 日志、门控/提交不变）；6 个 spec case 有可执行覆盖；findings.md 已更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+</Track>

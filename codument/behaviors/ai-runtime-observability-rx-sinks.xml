@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="ai-runtime-observability-rx-sinks" version="1">
+  <requirement id="xnl-file-sink-record-streams">
+    <statement>系统 SHALL persist observability XNL file sinks according to the same append-only versus replace-state classification used by session persistence.</statement>
+    <suite id="trace-xnl" name="Trace XNL sinks">
+      <case id="session-trace-xnl-append-only">
+        <given>An observability trace sink writes records to `sessions/&amp;lt;sessionId&amp;gt;/trace.xnl` or a caller-provided `trace.xnl` path</given>
+        <when>A trace record is flushed</when>
+        <then>The sink SHALL append one complete top-level `TraceEntry` XNL trace record per event</then>
+        <then>The sink SHALL NOT rewrite a growing root wrapper for trace history</then>
+        <then>`TraceEntry` SHALL include `traceKind` metadata to distinguish observability trace from graph trace when both producers share the tag</then>
+        <then>Single typed children such as `Payload`, `Error`, or `Value` SHALL use `()`; multiple typed children SHALL use `[]`</then>
+      </case>
+    </suite>
+    <suite id="scene-xnl" name="Scene XNL sinks">
+      <case id="scene-store-location">
+        <given>A SceneStore persists replay or observability XNL files in a project workspace</given>
+        <when>The store resolves its root directory</when>
+        <then>The files SHALL be placed under `.eidolon/scenes/&amp;lt;sessionId&amp;gt;/`</then>
+        <then>The store SHALL NOT create workspace-root `scenes/` data directories as normal project output</then>
+      </case>
+      <case id="scene-events-xnl-append-only">
+        <given>A scene store records turn or scene events</given>
+        <when>An event is persisted to `.eidolon/scenes/&amp;lt;sessionId&amp;gt;/events.xnl`</when>
+        <then>The event SHALL be appended as one complete top-level `SceneMessage` XNL element</then>
+        <then>`SceneMessage` SHALL include `version`, `sequence`, `id`, `sessionId`, and `role` metadata</then>
+        <then>Ordered `TextPart` and `ToolCall` children SHALL use `[]` even when a message currently has one text part</then>
+      </case>
+      <case id="scene-manifest-xnl-replace-state">
+        <given>A scene store persists `.eidolon/scenes/&amp;lt;sessionId&amp;gt;/manifest.xnl`</given>
+        <when>The manifest is saved</when>
+        <then>The manifest MAY be replace-written as a `SceneManifest` because it is bounded scene state rather than event history</then>
+        <then>The manifest SHALL NOT contain the growing event log</then>
+        <then>`SceneManifest` SHALL contain typed children such as `SystemPrompt` and `ToolDefs` using `[]`</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/ai-runtime-observability-rx-sinks/xnl-file-sink-record-streams" strength="hint" />
+  </requirement>
+</behaviors>

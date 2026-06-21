@@ -61,7 +61,7 @@ import { buildRuntimePromptParts } from "./features/composer/model/prompt-parts"
 import type { PromptInfo } from "./features/composer/model/prompt-info"
 import type { Route } from "./route/route"
 import { useToast } from "../../ui/toast/toast"
-import { SLASH_COMMANDS } from "../../commands/catalog"
+import { resolveTuiBuiltinSlashCommand, SLASH_COMMANDS } from "../../commands/catalog"
 export type TuiA1ScrollMode = "mouse" | "alternate"
 
 export type TuiA1ViewProps = {
@@ -163,6 +163,7 @@ function formatCompactNumber(value: number): string {
 
 function formatTurnDuration(ms?: number): string {
   if (ms == null || ms < 0) return "--"
+  if (ms < 1000) return "<1s"
   const totalSeconds = Math.floor(ms / 1000)
   if (totalSeconds < 60) return `${totalSeconds}s`
   const hours = Math.floor(totalSeconds / 3600)
@@ -207,6 +208,13 @@ function summarizeBackendIdentity(lane: ActorConversationLaneData): string {
   if (identity.kind === "holon") return [identity.name, identity.governance].filter(Boolean).join(" · ")
   if (identity.kind === "actor_definition") return identity.actorDefinitionName ?? identity.name ?? "actor definition"
   return identity.name ?? identity.agentName ?? identity.kind
+}
+
+function summarizeWorkContext(metadata?: Record<string, unknown>): string {
+  const workContext = metadata?.workContext as { workMode?: unknown; taskPhase?: unknown } | undefined
+  const workMode = typeof workContext?.workMode === "string" ? workContext.workMode : ""
+  const taskPhase = typeof workContext?.taskPhase === "string" ? workContext.taskPhase : ""
+  return workMode ? `mode: ${[workMode, taskPhase].filter(Boolean).join("/")}` : ""
 }
 
 function actorStatusText(status: string): string {
@@ -578,6 +586,9 @@ function QuestionnaireDetail(props: {
 }
 
 export function TuiA1View(props: TuiA1ViewProps) {
+  const RUNTIME_PREPARING_STATUS_MESSAGE = "正在准备运行环境..."
+  const RUNTIME_RUNNING_STATUS_MESSAGE = "正在处理..."
+  const ACTOR_RUNNING_STATUS_MESSAGE = "正在等待 Actor 回复..."
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
   const dialog = safeUseDialog()
@@ -637,6 +648,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
   let disposed = false
   let pendingScrollToBottom = false
   let pendingForcedScrollToBottom = false
+  let actorRoundInFlight = false
   let lastSessionInterruptAt = 0
   let sessionInterruptInFlight = false
 
@@ -702,7 +714,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
   )
   const startRoundTimer = (startedAt = Date.now()) => {
     setActiveRoundStartedAt(startedAt)
-    setNow(startedAt)
+    setNow(Date.now())
   }
   const finishRoundTimer = (completedAt = Date.now()) => {
     const startedAt = activeRoundStartedAt()
@@ -718,6 +730,49 @@ export function TuiA1View(props: TuiA1ViewProps) {
     const center = questionnaireCenter()
     return `问卷 ${center.doneCount}/${center.pendingCount}`
   })
+
+  const showRuntimePreparingStatus = () => {
+    setRuntimeStatusLabel(RUNTIME_PREPARING_STATUS_MESSAGE)
+  }
+
+  const showRuntimeRunningStatus = () => {
+    setRuntimeStatusLabel(RUNTIME_RUNNING_STATUS_MESSAGE)
+  }
+
+  const clearLocalRuntimeStatus = () => {
+    const current = runtimeStatusLabel()
+    if (
+      current === RUNTIME_PREPARING_STATUS_MESSAGE
+      || current === RUNTIME_RUNNING_STATUS_MESSAGE
+      || current === ACTOR_RUNNING_STATUS_MESSAGE
+    ) {
+      setRuntimeStatusLabel(undefined)
+    }
+  }
+
+  const actorSurfaceHasActiveTurn = (surface: ActorSurfaceProjectionData | null | undefined) => {
+    if (!surface) return false
+    return surface.actorLanes.some((lane) =>
+      lane.runtimeStatus === "running"
+      || lane.runtimeStatus === "waiting_for_human"
+      || lane.runtimeStatus === "cancel_requested"
+      || Boolean(lane.activeTurnId),
+    )
+  }
+
+  const updateActorRoundFromSurface = (surface: ActorSurfaceProjectionData | null | undefined) => {
+    if (!actorRoundInFlight) return
+    if (actorSurfaceHasActiveTurn(surface)) {
+      stateGraph.setBusy(true)
+      setRuntimeStatusLabel(ACTOR_RUNNING_STATUS_MESSAGE)
+      return
+    }
+
+    actorRoundInFlight = false
+    stateGraph.setBusy(false)
+    clearLocalRuntimeStatus()
+    finishRoundTimer()
+  }
   const selectedActorTargetLabel = createMemo(() => {
     const surface = actorSurface()
     if (!surface) return "目标:Primary"
@@ -900,10 +955,14 @@ export function TuiA1View(props: TuiA1ViewProps) {
         partsByMessage: Object.fromEntries((messagesResult.data ?? []).map((item) => [item.info.id, item.parts ?? []])),
       })
       const statusMessage = statusResult.data?.[sessionID]?.message
-      setRuntimeStatusLabel(typeof statusMessage === "string" && statusMessage.trim() ? statusMessage : undefined)
+      const normalizedStatusMessage = typeof statusMessage === "string" ? statusMessage.trim() : ""
+      setRuntimeStatusLabel(normalizedStatusMessage || undefined)
       stateGraph.setUserInputHistory(sessionID, userInputsResult.data ?? [])
       maybeScrollToBottom(true)
-      void refreshActorSurface()
+      if (!normalizedStatusMessage) showRuntimePreparingStatus()
+      void refreshActorSurface().finally(() => {
+        if (!actorRoundInFlight) clearLocalRuntimeStatus()
+      })
     } finally {
       if (!disposed && loadToken === sessionLoadToken) {
         setSessionLoadLabel(undefined)
@@ -915,11 +974,14 @@ export function TuiA1View(props: TuiA1ViewProps) {
     if (disposed) return
     if (!props.runtime?.client.actor?.surface) {
       stateGraph.setActorSurface(null)
+      updateActorRoundFromSurface(null)
       return
     }
     const state = await props.runtime.client.actor.surface({ sessionID: sessionID() }).catch(() => ({ data: null }))
     if (disposed) return
-    stateGraph.setActorSurface(state.data ?? null)
+    const surface = state.data ?? null
+    stateGraph.setActorSurface(surface)
+    updateActorRoundFromSurface(surface)
   }
 
   type ActorListTarget = {
@@ -929,7 +991,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
     turnID?: string
   }
 
-  const actorTranscriptViewKey = (surface: ActorSurfaceProjectionData, target: ActorListTarget): string => {
+  const actorHistoryViewKey = (surface: ActorSurfaceProjectionData, target: ActorListTarget): string => {
     const hasExplicitLane = target.laneID !== undefined
     const hasExplicitActor = target.actorID !== undefined
     const actorID = hasExplicitActor ? target.actorID : hasExplicitLane ? undefined : surface.selectedTarget.actorId
@@ -953,7 +1015,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
     return `session:${sessionID() ?? "__unsessioned__"}`
   }
 
-  const loadActorTranscript = async (
+  const loadActorHistory = async (
     target: ActorListTarget,
     surface: ActorSurfaceProjectionData | null | undefined = actorSurface(),
   ): Promise<boolean> => {
@@ -969,9 +1031,9 @@ export function TuiA1View(props: TuiA1ViewProps) {
       return null
     })
     if (!result) return false
-    stateGraph.hydrateActorTranscript({
+    stateGraph.hydrateActorHistory({
       sessionID: activeSessionID,
-      transcriptKey: actorTranscriptViewKey(surface, target),
+      transcriptKey: actorHistoryViewKey(surface, target),
       messages: (result.data ?? []).map((item) => item.info),
       partsByMessage: Object.fromEntries((result.data ?? []).map((item) => [item.info.id, item.parts ?? []])),
     })
@@ -991,7 +1053,11 @@ export function TuiA1View(props: TuiA1ViewProps) {
           const status = event.properties?.status as { type?: string; message?: unknown } | undefined
           const nextBusy = status?.type === "busy"
           const message = typeof status?.message === "string" ? status.message.trim() : ""
-          setRuntimeStatusLabel(message || undefined)
+          if (message || !nextBusy) {
+            setRuntimeStatusLabel(message || undefined)
+          } else if (runtimeStatusLabel() === RUNTIME_PREPARING_STATUS_MESSAGE) {
+            showRuntimeRunningStatus()
+          }
           stateGraph.setBusy(nextBusy)
           if (!nextBusy) finishRoundTimer()
           break
@@ -1089,6 +1155,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
       agent: !props.selectionOverride?.agent && firstAgent ? firstAgent : undefined,
       providerID: !props.selectionOverride?.model && configuredModel ? configuredModel.providerID : undefined,
       modelID: !props.selectionOverride?.model && configuredModel ? configuredModel.modelID : undefined,
+      modelSource: !props.selectionOverride?.model && configuredModel ? "runtime-config" : undefined,
     })
 
     const resolvedSessionID = await (async () => {
@@ -1122,10 +1189,11 @@ export function TuiA1View(props: TuiA1ViewProps) {
 
     if (props.runtime) {
       if (promptInfo.parts.length <= 1) {
-        const normalizedSlash = prompt.toLowerCase()
-        if (normalizedSlash === "/session" || normalizedSlash === "/resume" || normalizedSlash === "/continue") {
+        const builtinCommand = resolveTuiBuiltinSlashCommand(prompt)
+        if (builtinCommand) {
           clear?.()
-          await props.runtime.client.tui.openSessions()
+          await props.runtime.client.tui.executeCommand({ command: builtinCommand })
+          focusComposer()
           return
         }
       }
@@ -1150,6 +1218,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
       clear?.()
       startRoundTimer(roundStartedAt)
       stateGraph.setBusy(true)
+      showRuntimePreparingStatus()
       maybeScrollToBottom(true)
 
       if (prompt.startsWith("/") && promptInfo.parts.length <= 1) {
@@ -1169,26 +1238,34 @@ export function TuiA1View(props: TuiA1ViewProps) {
         const target = selectedActorTarget()
         const targetLane = target.laneId
         const targetActor = targetLane && targetLane !== "lane:primary" ? undefined : target.actorId
+        actorRoundInFlight = true
         void props.runtime.client.actor
           .send({
             sessionID: activeSessionID,
             laneID: targetLane,
             actorID: targetActor,
             text: prompt,
+            model: selectedModel,
           })
           .then(async (result) => {
             const selectedSurface = result.data ?? actorSurface()
             stateGraph.setActorSurface(selectedSurface ?? null)
+            updateActorRoundFromSurface(selectedSurface)
             const selectedTarget = selectedSurface?.selectedTarget
-            const hydrated = await loadActorTranscript({
+            const hydrated = await loadActorHistory({
               laneID: selectedTarget?.laneId ?? targetLane,
               actorID: selectedTarget?.actorId ?? targetActor,
             }, selectedSurface)
             if (!hydrated) await loadRuntimeSession(activeSessionID)
           })
-          .catch(toast.error)
+          .catch((error) => {
+            actorRoundInFlight = false
+            toast.error(error)
+          })
           .finally(() => {
+            if (actorRoundInFlight) return
             stateGraph.setBusy(false)
+            clearLocalRuntimeStatus()
             finishRoundTimer()
           })
         return
@@ -1335,7 +1412,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
           actorID: target.actorID,
         }).catch(() => null)
         stateGraph.setActorSurface(selected?.data ?? actorSurface())
-        await loadActorTranscript(target, selected?.data ?? actorSurface())
+        await loadActorHistory(target, selected?.data ?? actorSurface())
       }
       dialog.clear()
       focusComposer()
@@ -1351,7 +1428,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
         return null
       })
       stateGraph.setActorSurface(selected?.data ?? actorSurface())
-      await loadActorTranscript(target, selected?.data ?? actorSurface())
+      await loadActorHistory(target, selected?.data ?? actorSurface())
       toast.show({ message: "已请求取消 Actor", variant: "info" })
     }
     const sendDraftToTarget = async (target: ActorListTarget) => {
@@ -1383,7 +1460,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
       focusComposer()
       const selectedSurface = selected?.data ?? actorSurface()
       const selectedTarget = selectedSurface?.selectedTarget
-      const hydrated = await loadActorTranscript({
+      const hydrated = await loadActorHistory({
         laneID: selectedTarget?.laneId ?? target.laneID,
         actorID: selectedTarget?.actorId ?? target.actorID,
       }, selectedSurface)
@@ -1394,7 +1471,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
       ...surface.conversationLanes.map((lane) => ({
         title: lane.displayName,
         value: { laneID: lane.laneId, actorID: lane.actorId },
-        description: `${actorStatusText(lane.status)} · ${summarizeBackendIdentity(lane)}`,
+        description: [actorStatusText(lane.status), summarizeBackendIdentity(lane), summarizeWorkContext(lane.metadata)].filter(Boolean).join(" · "),
         meta: lane.initialized ? "已初始化" : "未初始化",
         detail: [summarizeBackendIdentity(lane), lane.actorId ?? lane.actorKey ?? lane.laneId].filter(Boolean).join(" · "),
         footer: surface.selectedTarget.laneId === lane.laneId ? "当前" : undefined,
@@ -1411,7 +1488,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
           cancellable: actorLane.cancellable,
           turnID: actorLane.activeTurnId,
         },
-        description: `${actorStatusText(actorLane.runtimeStatus)} · ${actorLane.cancellable ? "可取消" : "不可取消"}`,
+        description: [actorStatusText(actorLane.runtimeStatus), actorLane.cancellable ? "可取消" : "不可取消", summarizeWorkContext(actorLane.metadata)].filter(Boolean).join(" · "),
         meta: actorLane.actorKey,
         detail: actorLane.transcriptKey.actorKey,
         footer: surface.selectedTarget.actorId === actorLane.actorId ? "当前" : undefined,

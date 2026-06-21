@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-runtime-data-subgraph-contracts" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Define executable runtime DataSubgraphContract and fact-grade boundaries before control/persistence rewrites.</Goal>
+    <Description>建立 runtime 数据子图契约、事实等级和首批 AI runtime data component owner，为后续控制面、conversation spine、lifecycle、persistence 和 surface tracks 提供硬边界。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-10T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-06-10T16:30:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-runtime-data-subgraph-contracts" name="add-runtime-data-subgraph-contracts" version="1">
+    <Description>Add Runtime Data Subgraph Contracts</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Contract Shape And Fact Grades" status="DONE" order="0">
+        <Description>定义 DataSubgraphContract shape 和 runtime fact grade。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests for contract shape" status="DONE" order="0" priority="P0">
+            <Description>新增 contract shape 和 fact grade 的失败测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.1-tests-red" checked="true">测试能覆盖 owned facts、derived nodes、write commands、read views、not-owned-here。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Implement runtime data subgraph contract types" status="DONE" order="1" priority="P0">
+            <Description>实现 DataSubgraphContract、FactGrade 和 helper 类型。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.2-types" checked="true">类型可被后续 AI domain components 复用。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Core Data Components" status="DONE" order="1">
+        <Description>定义首批 runtime data components。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Declare core AI runtime data components" status="DONE" order="0" priority="P0">
+            <Description>声明 ActorRuntime、AiTurnState、History、LLM Context、Session、ToolCall、ProviderCall、RuntimeControl、CheckpointSnapshot（最小 owner contract）、SurfaceProjection contract。LLM Context contract 必须对齐现有 conversation prompt domain 的 generation/basis/transform/overlay 概念。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.1-components" checked="true">每个 component 都有 owner、read/write boundary 和 Not Owned Here。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Add not-owned-here assertions" status="DONE" order="1" priority="P0">
+            <Description>补充禁止 journal/checkpoint/projection/surface 成为 live truth 的断言。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.2-negative" checked="true">负向测试覆盖 snapshot、journal、surface 三类误用。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Conformance Cases" status="DONE" order="2">
+        <Description>固化历史问题对应的 contract conformance cases。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add provider context and tool result conformance cases" status="DONE" order="0" priority="P0">
+            <Description>验证 effect evidence 不等于 provider-visible tool result，provider context 不读 journal/checkpoint。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.1-context-tool" checked="true">conformance cases 覆盖 Provider Context 与 Tool Result Truth。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Add formal history and surface projection conformance cases" status="DONE" order="1" priority="P1">
+            <Description>验证 checkpoint snapshot 不拥有 Formal History，surface projection 不写 domain truth。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.2-history-surface" checked="true">conformance cases 覆盖 Formal History 与 SurfaceProjection。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

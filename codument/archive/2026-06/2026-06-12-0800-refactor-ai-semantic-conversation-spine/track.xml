@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-ai-semantic-conversation-spine" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Make the Conversation three domains the single in-memory truth with a three-stage provider materialization, one-way recovery handoff, and complete transcript removal.</Goal>
+    <Description>三域升格为会话期内存唯一真源：所有会话输入以 semantic 事件入流（唯一写入者为消费流的 Reducer/MessageAssembly）、providerMessages 改为三阶段 materialize 纯投影、恢复单向交接、conversation runtime 全量 capsule 化、transcript 彻底删除（含 upgrade 读取）。流式 pipeline 不动，提交边界形式化为 MessageAssembly。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-12T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-06-12T00:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-ai-semantic-conversation-spine" name="refactor-ai-semantic-conversation-spine" version="1">
+    <Description>Refactor AI Semantic Conversation Spine</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Stage And Conversation Contracts" status="DONE" order="0">
+        <Description>stage 三组件契约与 conversation 三 derivation 契约落地。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests for stage and conversation contracts" status="DONE" order="0" priority="P0">
+            <Description>为 ingress/lexical-syntactic/semantic 三组件的 DataSubgraphContract（registry 10→13）与 ConversationReducer/MessageAssembly/Materialization 三个 derivation contract 写失败测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.1-red" checked="true">测试覆盖 stage owner 边界与三个 derivation 方法集/断言。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Implement stage and conversation contracts" status="DONE" order="1" priority="P0">
+            <Description>在 ai-core-contract 实现 stage 组件声明与三个 derivation contract 类型（复用 platform derivation 机制）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.2-green" checked="true">契约测试全绿；registry 无所有权冲突。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Conversation Capsule" status="DONE" order="1">
+        <Description>conversation runtime 全量 capsule 化（行为保持，真源未切换）。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add failing capsule structure tests for conversation" status="DONE" order="0" priority="P0">
+            <Description>conversationCapsule 结构 conformance 失败测试（稳定入口、adapter 枚举布线、internals 隔离、类型留 contract、derivation 纯度）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.1-red" checked="true">结构 conformance 以失败状态就位。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Restructure ConversationDomainRuntime into conversationCapsule" status="DONE" order="1" priority="P0">
+            <Description>ai-organ-logic 侧实现移入 capsule（facade 兼容出口；归约/投影提升为 ConversationReducerDerivation/MaterializationDerivation 实现）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.2-capsule" checked="true">结构 conformance 全绿；失败基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="Convert LocalConversationRuntime into persistence adapters" status="DONE" order="2" priority="P0">
+            <Description>ai-support 持久化实现注册为 capsule 的 loader/writer adapter（枚举 id，组装层布线）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.3-adapters" checked="true">持久化经 adapter 路径等价工作；失败基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Message Assembly Boundary" status="DONE" order="2">
+        <Description>MessageAssembly 成为 assistant 消息唯一提交边界。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Formalize MessageAssemblyDerivation from MessageHistoryGraph" status="DONE" order="0" priority="P0">
+            <Description>MessageHistoryGraph 归并语义提升为 derivation 实现（TDD：先失败测试覆盖 think/content/tool 归并不变量），提交即写 History 域。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.1-assembly" checked="true">归并不变量测试全绿；semantic→committed 单一边界 conformance 就位。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Truth Switch" status="DONE" order="3">
+        <Description>真源切换：写入收口、materialize 投影、等价闸门、删除旧路径。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Add shadow equivalence harness" status="DONE" order="0" priority="P0">
+            <Description>影子对比测试：同一脚本化输入序列驱动新旧两条组装路径，providerMessages 逐消息等价断言（覆盖 overlay 位置、压缩时机、工具回合）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T4.1-harness" checked="true">等价 harness 就位并对当前旧路径自洽。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Route inputs through semantic events and provider build through materialize" status="DONE" order="1" priority="P0">
+            <Description>drain 推送改为发射 semantic 事件入流（语义级注入）；三域写入只发生在消费流的 Reducer/MessageAssembly；compress 走域 compaction，域命令是唯一真相落点；buildProviderPromptForActorTurn 输入改 MaterializationDerivation 产物。本任务交付时 actor.messages 以"成对同步可写镜像"中间态保留（含 prompt-plan 系统通道快照读数组、compress 镜像重写）——该中间态经用户裁定无效（decisions.md 决策 7），其按"只读 facade getter、任何写入路径删除"原始目标的收口由 P7 承担。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T4.2-switch" checked="true">等价闸门通过；spec single-in-memory-truth 全部 case 有可执行覆盖且全绿。</cdt:Criterion>
+              <cdt:Criterion id="AC-T4.2-preserved" checked="true">既有失败基线不增（cell + terminal 全套对照）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="Delete the legacy assembly path" status="DONE" order="2" priority="P0">
+            <Description>等价闸门通过后删除旧组装路径与数组写入残留。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T4.3-removed" checked="true">旧路径删除后全部套件与等价 harness 仍绿。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Recovery Handoff And Transcript Removal" status="DONE" order="4">
+        <Description>恢复单向交接 + transcript 彻底删除。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="Make recovery a one-way handoff" status="DONE" order="0" priority="P0">
+            <Description>唯一恢复源（会话文件）；一次性水合三域；切换点显式化；删除 bootstrap 反灌与双源选择。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T5.1-handoff" checked="true">recovery-one-way-handoff 全部 spec case 有可执行覆盖且全绿。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="Remove transcript completely" status="DONE" order="1" priority="P0">
+            <Description>删除 ActorTranscript contract、LocalFileActorTranscriptStore、写入效应、recovery report 字段、session-upgrade 与 file-store 的 legacy transcript 读取、相关测试 fixtures；transcript-only session 显式拒绝。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T5.2-removed" checked="true">全仓无 transcript 运行时符号；拒绝路径有测试；失败基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P6" name="Closure" status="DONE" order="5">
+        <Description>声明映射收口与全量回归基线对照（镜像中间态下的收口；最终收口移至 P7）。</Description>
+        <SubNodes>
+          <Task id="T6.1" name="Final sweep and full regression" status="DONE" order="0" priority="P0">
+            <Description>boundary declarations/conformance 映射与最终布局一致；spec 两个 capability 全部 case 覆盖核对；cell+terminal 全量回归与基线对照，结果记入 analysis。（本任务在镜像中间态下完成；P7 收口后由 T7.7 重做最终回归。）</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T6.1-closure" checked="true">映射一致；全量失败集合为基线子集；等价 harness 长期保留为回归资产。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P7" name="Mirror Elimination" status="DONE" order="6">
+        <Description>按决策 7 收口：actor.messages 降级为 History 域投影的只读 facade getter，任何写入路径删除，不存在任何从该视图进入 provider 组装的路径。</Description>
+        <SubNodes>
+          <Task id="T7.1" name="Add domain visible-messages read API" status="DONE" order="0" priority="P0">
+            <Description>capsule coreLogic 暴露 getConversationVisibleMessages(vm, actorKey)：History 域 active tail 的 committed 消息只读投影；域写入 bump revision，按 revision 缓存冻结数组（域写之间引用稳定）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T7.1-api" checked="true">投影内容与域 tail 一致；引用在域写之间稳定；返回数组冻结。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.2" name="Record mirror parity gate before removal" status="DONE" order="1" priority="P0">
+            <Description>在等价 harness 的脚本场景上断言"域投影 == 旧镜像内容"逐消息相等（含 tool_calls 与 anthropic content_parts shape 保真）。镜像删除前必须全绿。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T7.2-parity" checked="true">全部场景下投影与镜像逐消息相等。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.3" name="Eliminate system-channel mirror read from prompt build" status="DONE" order="2" priority="P0">
+            <Description>buildProviderPromptForActorTurn 删除 messages 入参；系统提示从 actor.systemPrompts + identity reinjection 直接计算（仍经域命令记入 Context 域 Stage-1 后物化）；镜像对 provider 的最后进入路径归零。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T7.3-nochannel" checked="true">prompt build 不再读取消息数组；等价闸门与 parity 持续绿。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.4" name="Make compression fully domain-resident" status="DONE" order="3" priority="P0">
+            <Description>三条 compress 路径（auto/reactive/manual）汇总输入改读域 history tail 物化；压缩结果只走域 compaction 命令；删除全部数组原地重写（含 cheap compaction 镜像侧 pipeline）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T7.4-domain" checked="true">compress 不读不写消息数组；compaction 行为测试与等价闸门绿。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.5" name="Delete mirror writes" status="DONE" order="4" priority="P0">
+            <Description>三个 append helper 删 mirror push；恢复链删 splice 反向投影；种子只走 semantic 注入（createActor 不再以消息数组为种子来源）。每步过 parity 与等价闸门。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T7.5-nowrites" checked="true">executor/恢复链/种子路径零数组写入；基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.6" name="Flip actor.messages to read-only projection getter" status="DONE" order="5" priority="P0">
+            <Description>actor.messages 改为绑定注入的只读冻结投影 getter（contract 类型 readonly，tsc 枚举残余写入者）；fiber record/loop 签名移除可变 messages 工作数组；全部读取点（fiber/delegate/恢复推断/organization/runtime-control/terminal compact 等）迁移到域视图。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T7.6-getter" checked="true">getter 生效且引用稳定；全部消费者经域视图取数；基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.7" name="Mirror-eliminated conformance and final regression" status="DONE" order="6" priority="P0">
+            <Description>源级禁写扫描（全仓 src 无 .messages 突变调用）；冻结写入抛错负向测试；spec case mirror-eliminated 可执行覆盖；既有"系统通道受限例外"钉死测试反转为"路径不存在"；cell+terminal 全量回归与基线按名对照；findings.md 更新最终基线。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T7.7-conformance" checked="true">禁写扫描与负向测试绿；spec 全部 case 有可执行覆盖；失败集合为基线子集。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P8" name="Single-Writer Pipeline" status="DONE" order="7">
+        <Description>按决策 8（方案 X）收口：vm.eventBus 是 semantic 事件的唯一传输，MessageHistoryGraph 是 vm 上唯一的 commit 入口，inject 旁路与三个 fence 标记全部消失。</Description>
+        <SubNodes>
+          <Task id="T8.1" name="Complete eventBus emit entries for non-streaming channels" status="DONE" order="0" priority="P0">
+            <Description>为 childDone / member chat / member coordination / heartbeat / 种子（delegate spawn）/ effect 回放 在 vm.eventBus 上提供合法 semantic 事件 emit 入口；复用既有 emitUserInput / emitToolCallResult 处理用户/工具结果序列，为复合序列（content_start + content_delta + content_end + tool_call_planned + turn_end）提供薄 emit 包装。emit 路径必须发出 inject 现已发出的全部事件类型，序列形状与归约结果不变。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T8.1-emit-entries" checked="true">六个非流式通道在 eventBus 上都有可调的 emit 入口；emit 出去的事件序列与 inject 当前构造的事件序列字段相等。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T8.2" name="Make MessageHistoryGraph persistently attached" status="DONE" order="1" priority="P0">
+            <Description>attachMessageHistory 从"isHistoryTrackedActor gate + executor 三处 attach 入口"改为"conversation runtime 初始化时常驻 attach"。graph 内部按 agentKey 分桶不变；persistence 副作用（appendMessage、recordConversationTranscriptEvidence）按 isHistoryTrackedActor gate，保留既有持久化语义。无 eventBus 时显式失败（不允许写域路径在缺失总线时静默走 inject 旁路）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T8.2-resident" checked="true">graph 在 vm 启动时常驻；attach 不再以 actor 类型作为决策；persistence 副作用 gate 行为不变；缺失 eventBus 抛显式错误。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T8.3" name="Migrate channels to emit, risk-ascending" status="DONE" order="2" priority="P0">
+            <Description>逐通道迁移（每步过 parity golden + 等价闸门 + 全量基线对照）：heartbeat → member chat → member coordination → childDone → 种子 → effect 回放 → 最后 user input/tool result（这两个 emit 已存在，删除 append helper 内的 inject 兜底分支）。每个通道的迁移点：appendConversation*Message 调用替换为 vm.eventBus.emit*（直接调或经 T8.1 包装）；删除该通道的 deliveredViaSemanticStream / emittedOnSemanticStream / committedViaSemanticStream 参数传递。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T8.3-migrated" checked="true">七个通道全部走 eventBus；每步 parity + 等价闸门绿；失败基线不增。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T8.4" name="Delete inject implementation and fence machinery" status="DONE" order="3" priority="P0">
+            <Description>删除 injectSemanticEventsIntoConversationDomain、getConversationSemanticInjectionMap、ConversationSemanticInjectionState 类型、runtimeContext.conversationSemanticInjection 字段；删除 adjustConversationCommitGraphAttachment / isConversationCommitGraphAttached / conversationCommitGraphAttachCount；删除三个 boolean 标记参数；appendConversation*Message 三个助手要么删除（调用点直接调 emit）要么保留为 pure-emit 薄包装（决策点：保留与否取决于读得是否清楚，不影响 spec 语义）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T8.4-removed" checked="true">inject 函数与 fence 状态/标记全删；类型检查通过；运行时无引用残留。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T8.5" name="Single-writer conformance and final regression" status="DONE" order="4" priority="P0">
+            <Description>源级断言：全仓 cell+terminal src 中 appendLiveHistoryMessageToConversationDomainRuntime 调用点只有 MessageHistoryGraph onCommittedMessage 旁路一处（白名单源文件名）；新增 spec case writes-via-eventbus-only：commit 必须前置一个 eventBus emit（行为级覆盖）。cell+terminal 全量回归 + provider 等价闸门 + parity golden + recovery handoff 全套对照。findings.md 追加 P8 实施结果与最终基线。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T8.5-singlewriter" checked="true">源级断言绿；新 spec case 有可执行覆盖且绿；失败集合为 HEAD 基线子集（按名比对）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

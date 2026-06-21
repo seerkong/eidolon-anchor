@@ -1,0 +1,166 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="replace-apply-patch-tool" version="1">
+  <!-- unmapped: # Spec: Replace ApplyPatch Tool -->
+  <!-- unmapped: ## Overview -->
+  <!-- unmapped: The ApplyPatch tool is the project-local patch-first editing surface for AI coding agents. It provides a structured patch DSL, safe hunk matching, staged writes, path/permission governance, structured metadata, freshness/context refresh integration, and prompt guidance. -->
+  <!-- unmapped: ## Requirements -->
+  <requirement id="applypatch-shall-support-the-structured-patch-dsl">
+    <statement>The tool SHALL accept a complete patch document with `*** Begin Patch` and `*** End Patch` markers and SHALL support these operations:
+- `*** Add File: path`
+- `*** Update File: path`
+- `*** Delete File: path`
+- `*** Move to: new/path` under update operations</statement>
+    <!-- migrated title: ApplyPatch shall support the structured patch DSL -->
+    <suite name="applypatch-shall-support-the-structured-patch-dsl">
+      <case id="apply-an-update-patch" name="Apply an update patch">
+        <!-- unmapped: - GIVEN an existing text file -->
+        <!-- unmapped: - WHEN the caller submits an update patch with one or more hunks -->
+        <!-- unmapped: - THEN the tool SHALL update the file according to the patch -->
+        <!-- unmapped: - AND return a successful structured result. -->
+      </case>
+      <case id="reject-malformed-patch-envelope" name="Reject malformed patch envelope">
+        <!-- unmapped: - GIVEN a patch missing the begin or end marker -->
+        <!-- unmapped: - WHEN the caller invokes ApplyPatch -->
+        <!-- unmapped: - THEN the tool SHALL fail without mutating files -->
+        <!-- unmapped: - AND return a diagnostic explaining the malformed patch. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="update-hunks-shall-support-real-named-anchors">
+    <statement>The tool SHALL parse `@@` hunk headers as anchors. A hunk MAY contain one or more consecutive `@@ ...` anchor lines before its body. Non-empty anchor text SHALL be used to locate the hunk's search region in order.</statement>
+    <!-- migrated title: Update hunks shall support real named anchors -->
+    <suite name="update-hunks-shall-support-real-named-anchors">
+      <case id="use-a-function-anchor" name="Use a function anchor">
+        <!-- unmapped: - GIVEN a file containing multiple similar blocks -->
+        <!-- unmapped: - WHEN a patch hunk starts with `@@ functionName` or another meaningful anchor -->
+        <!-- unmapped: - THEN the tool SHALL search for the anchor before applying the hunk -->
+        <!-- unmapped: - AND SHALL avoid applying the hunk to an unrelated earlier block. -->
+      </case>
+      <case id="multiple-anchors-narrow-the-search-region" name="Multiple anchors narrow the search region">
+        <!-- unmapped: - GIVEN a file containing nested or repeated sections -->
+        <!-- unmapped: - WHEN a hunk contains multiple consecutive anchors -->
+        <!-- unmapped: - THEN the tool SHALL resolve the anchors in order -->
+        <!-- unmapped: - AND use the final resolved anchor position as the preferred application region. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="hunk-matching-shall-be-safe-and-resilient">
+    <statement>The tool SHALL attempt hunk matching in a controlled order:
+1. exact line sequence matching
+2. anchored exact matching when anchors are present
+3. normalized matching that ignores trailing whitespace differences
+4. fuzzy whitespace-collapsed matching
+If normalized or fuzzy matching finds multiple candidate locations, the tool SHALL fail closed instead of guessing.</statement>
+    <!-- migrated title: Hunk matching shall be safe and resilient -->
+    <suite name="hunk-matching-shall-be-safe-and-resilient">
+      <case id="match-despite-trailing-whitespace-drift" name="Match despite trailing whitespace drift">
+        <!-- unmapped: - GIVEN a target file whose only difference from the patch old lines is trailing whitespace -->
+        <!-- unmapped: - WHEN the patch is applied -->
+        <!-- unmapped: - THEN the tool MAY apply the patch using normalized matching -->
+        <!-- unmapped: - AND the result SHALL report the match mode used. -->
+      </case>
+      <case id="reject-ambiguous-fuzzy-match" name="Reject ambiguous fuzzy match">
+        <!-- unmapped: - GIVEN a patch hunk whose normalized or fuzzy old lines match multiple locations -->
+        <!-- unmapped: - WHEN the patch is applied -->
+        <!-- unmapped: - THEN the tool SHALL fail without mutating files -->
+        <!-- unmapped: - AND report that the hunk matched multiple candidate locations. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="file-writes-shall-be-staged-and-guarded">
+    <statement>The tool SHALL validate all operations before committing filesystem changes where practical. It SHALL guard against unsafe file operations:
+- Add file SHALL fail if the target file already exists.
+- Delete file SHALL fail if the target is missing or a directory.
+- Update file SHALL fail if the source is missing or a directory.
+- Move SHALL fail if the destination already exists.
+- A single patch SHALL fail if it touches the same resolved path multiple times.</statement>
+    <!-- migrated title: File writes shall be staged and guarded -->
+    <suite name="file-writes-shall-be-staged-and-guarded">
+      <case id="add-existing-file-is-rejected" name="Add existing file is rejected">
+        <!-- unmapped: - GIVEN an existing file path -->
+        <!-- unmapped: - WHEN a patch declares `*** Add File:` for that path -->
+        <!-- unmapped: - THEN the tool SHALL fail without overwriting the file. -->
+      </case>
+      <case id="move-onto-existing-file-is-rejected" name="Move onto existing file is rejected">
+        <!-- unmapped: - GIVEN a move destination that already exists -->
+        <!-- unmapped: - WHEN a patch attempts to move another file to that destination -->
+        <!-- unmapped: - THEN the tool SHALL fail without overwriting the destination. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="path-resolution-and-permissions-shall-follow-this-project-s-governance">
+    <statement>The implementation SHALL preserve this project's accepted path semantics and local permission flow. Relative paths, absolute paths, home-relative paths, and traversal-like inputs SHALL be resolved by existing path helpers and SHALL go through existing permission/workspace access gates before mutation.</statement>
+    <!-- migrated title: Path resolution and permissions shall follow this project's governance -->
+    <suite name="path-resolution-and-permissions-shall-follow-this-project-s-governance">
+      <case id="permission-denied-blocks-mutation" name="Permission denied blocks mutation">
+        <!-- unmapped: - GIVEN a patch that touches a path outside the currently authorized scope -->
+        <!-- unmapped: - WHEN permission is denied -->
+        <!-- unmapped: - THEN the tool SHALL return the permission error -->
+        <!-- unmapped: - AND SHALL NOT mutate any touched path. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="output-shall-preserve-diff-compatibility-and-add-structured-metadata">
+    <statement>On success, the tool SHALL keep the current unified diff output compatibility and SHALL add structured metadata where applicable:
+- `ok`
+- `touched_files`
+- `touched_files_absolute`
+- `added_count`
+- `updated_count`
+- `deleted_count`
+- `moved_count`
+- `match_modes_used`
+- `context_refresh_hint` when files changed
+- any invalidated read-cache entries if the project supports such tracking
+On failure, the tool SHALL return structured error data with actionable diagnostics.</statement>
+    <!-- migrated title: Output shall preserve diff compatibility and add structured metadata -->
+    <suite name="output-shall-preserve-diff-compatibility-and-add-structured-metadata">
+      <case id="successful-update-returns-diff-and-metadata" name="Successful update returns diff and metadata">
+        <!-- unmapped: - GIVEN a valid update patch -->
+        <!-- unmapped: - WHEN the patch is applied -->
+        <!-- unmapped: - THEN the output SHALL include a unified diff -->
+        <!-- unmapped: - AND SHALL include touched files, counts, and match modes used. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="failure-diagnostics-shall-guide-recovery">
+    <statement>When hunk application fails, the tool SHALL report enough information for an agent to recover:
+- hunk label / anchor label
+- expected old snippet summary
+- nearest current line when available
+- reason for failure
+- retry hint recommending fresh read and smaller/named-anchor hunks</statement>
+    <!-- migrated title: Failure diagnostics shall guide recovery -->
+    <suite name="failure-diagnostics-shall-guide-recovery">
+      <case id="stale-hunk-fails-with-useful-detail" name="Stale hunk fails with useful detail">
+        <!-- unmapped: - GIVEN a hunk based on stale file content -->
+        <!-- unmapped: - WHEN the old snippet no longer matches -->
+        <!-- unmapped: - THEN the tool SHALL fail without mutation -->
+        <!-- unmapped: - AND the error SHALL include expected snippet and nearest current line if available. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="applypatch-shall-integrate-with-freshness-context-refresh-when-available">
+    <statement>The tool SHALL check available read freshness/cache mechanisms before writing and SHALL invalidate affected file context after writing. If the project does not already provide a compatible read cache, the implementation SHALL provide the smallest project-appropriate adapter or explicitly document the boundary while still returning a context refresh hint for touched files.</statement>
+    <!-- migrated title: ApplyPatch shall integrate with freshness/context refresh when available -->
+    <suite name="applypatch-shall-integrate-with-freshness-context-refresh-when-available">
+      <case id="earlier-read-context-becomes-stale-after-patch" name="Earlier read context becomes stale after patch">
+        <!-- unmapped: - GIVEN files changed by ApplyPatch -->
+        <!-- unmapped: - WHEN the tool returns success -->
+        <!-- unmapped: - THEN the output SHALL tell the agent that earlier read context for touched files is stale -->
+        <!-- unmapped: - AND future patches should be based on a fresh read. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="prompt-tool-descriptions-shall-instruct-patch-first-editing">
+    <statement>The ApplyPatch tool detail and relevant coding-agent prompt guidance SHALL instruct agents to prefer ApplyPatch for normal text edits, use small hunks, prefer named anchors, reread after failures, and avoid shell-simulated editing for ordinary text changes.</statement>
+    <!-- migrated title: Prompt/tool descriptions shall instruct patch-first editing -->
+    <suite name="prompt-tool-descriptions-shall-instruct-patch-first-editing">
+      <case id="tool-detail-documents-named-anchor-usage" name="Tool detail documents named anchor usage">
+        <!-- unmapped: - WHEN an agent sees the ApplyPatch tool detail -->
+        <!-- unmapped: - THEN it SHALL see examples or guidance for `@@ def foo` / `@@ class Bar` style anchors -->
+        <!-- unmapped: - AND fallback guidance after failed patch attempts. -->
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

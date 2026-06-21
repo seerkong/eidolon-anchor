@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-tui-research-tool-cards" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Goal>让 prototype TUI 为 webfetch、codesearch、websearch 启用 dedicated cards，同时保持 coding cards 与 generic fallback 不回归</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-05T16:01:16Z</CreatedAt>
+    <UpdatedAt>2026-04-06T01:20:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-tui-research-tool-cards" name="add-tui-research-tool-cards" version="1">
+    <Description>接入 TUI research 工具卡片</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Discovery And Routing Freeze" status="DONE" order="0">
+        <Description>冻结 research cards 的接入边界，避免误伤 coding 主链</Description>
+        <SubNodes>
+          <Task id="T1.1" name="冻结 research/coding/fallback 三类路由边界" status="DONE" order="0" priority="P0">
+            <Description>明确 research cards 的工具范围、与 coding allowlist 的关系，以及 unsupported tool fallback 规则。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">明确 `webfetch`、`codesearch`、`websearch` 为 research 类 dedicated cards</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">明确 unsupported tools 继续走 `GenericTool`</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Research Card Routing" status="DONE" order="1">
+        <Description>启用 research cards，同时不重做既有 structured tool part 主链</Description>
+        <SubNodes>
+          <Task id="T2.1" name="扩展 dedicated tool 路由以支持 research cards" status="DONE" order="0" priority="P0">
+            <Description>调整 registry 路由，使 `webfetch`、`codesearch`、`websearch` 命中其专用卡片，而不是 `GenericTool`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">三类 research tools 命中 dedicated cards</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">实现不需要重做 runtime `ToolPart` projection</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="确保 coding cards 与 unsupported fallback 无回归" status="DONE" order="1" priority="P0">
+            <Description>在路由逻辑更新后，继续保证 coding cards 与 generic fallback 的既有行为不被破坏。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">`edit`、`write`、`patch` 等 coding tools 仍命中原 dedicated cards</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">unknown tool 仍命中 `GenericTool`</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Verification" status="DONE" order="2">
+        <Description>通过测试与手工点验验证 research card 接入结果</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新兼容性测试断言" status="DONE" order="0" priority="P0">
+            <Description>把 research tools 从 fallback 断言切换为 dedicated card 断言，并保留 coding/fallback 回归检查。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">research tools 的 dedicated card 选择逻辑有自动化测试</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">coding tools 与 unknown tool 的回归断言仍保留</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="运行 terminal TUI 测试并做手工点验" status="DONE" order="1" priority="P0">
+            <Description>执行 terminal TUI 测试，并手工检查 research cards 的界面语义是否生效。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">手工点验覆盖三类 research tools 与一类 fallback/coding 回归场景</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Real Runtime Activation Verification" status="DONE" order="3">
+        <Description>确认 research cards 不只是 registry 命中，而且在真实 runtime tool part 主链贯通后真正生效</Description>
+        <SubNodes>
+          <Task id="T4.1" name="验证 research cards 依赖的 runtime `ToolPart` 已真实到达 TUI" status="DONE" order="0" priority="P0">
+            <Description>在 coding tool part 真正接通 runtime bridge 后，确认 webfetch、codesearch、websearch 不再只是在 router 层可选，而是能被真实消息区命中。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">research tools 在真实 runtime session 中命中 dedicated cards，而不是 assistant 文本或 generic fallback</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">research card 的关键信息至少能展示 URL/query，并在可得时展示结果数量</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

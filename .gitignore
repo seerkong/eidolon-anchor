@@ -1,3 +1,4 @@
+.agents/
 .claude
 .codex
 .sparrow
@@ -6,21 +7,22 @@ bunfig.toml
 **/bunfig.toml
 !bunfig.toml
 .gemini
+.github
 .eidolon
 .serena
 .theater
 .opencode
 .envrc
-.codument-local/
 data.sqlite
 bun.lock
 testdata/
 tui-debug.log
 .tmp/
-codument/tracks/*/analysis/
-codument/tracks/*/reports/
-codument/archive/*/analysis/
-codument/archive/*/reports/
+.codument-local/
+codument/tracks/**/analysis/
+codument/tracks/**/reports/
+codument/archive/**/analysis/
+codument/archive/**/reports/
 
 # Logs
 logs

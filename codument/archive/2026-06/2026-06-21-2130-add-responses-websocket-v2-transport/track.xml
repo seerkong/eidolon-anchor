@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-responses-websocket-v2-transport" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>给 openai-responses adapter 实现 Responses WebSocket v2 transport + 按 session 持久化 previous_response_id 续传，使 codex/gpt-5.5 推理模型跨工具轮经服务端保留推理链、收口（修 repeat-read 真因）。只动 responses 路径、WS 失败回退 SSE、HTTP SSE 绝不发 previous_response_id。以真机收口为验收。</Goal>
+    <Description>真因+代理实证：HTTP-SSE adapter 丢 reasoning；代理 `previous_response_id only supported on Responses WebSocket v2`；两次 PoC（stateless/stateful-over-SSE）证伪。先重构事件解析器（零行为）再加 WS；response_id 按 session 持久化。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-21T13:30:00Z</CreatedAt>
+    <UpdatedAt>2026-06-21T13:30:00Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input"  name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior"        domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_add-responses-websocket-v2-transport" name="add-responses-websocket-v2-transport" version="1">
+    <Description>WS transport（含解析器重构 + 选择 + 回退）→ previous_response_id 续传 → 真机验证。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="Transport-agnostic event parser + WebSocket transport + selection/fallback" status="DONE" order="0">
+        <Description>抽出 transport-agnostic 的 event→chunk 解析（零行为，SSE 单测护住）；新增 WS 传输（Bun new WebSocket(url,{headers}) + send body JSON + 收事件→喂解析器）；URL 派生 https→wss；transport 选择 auto/websocket/http_sse；WS 失败回退 SSE。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing tests: ws-url derived; ws events→chunks == sse; uncapable/failure falls back to sse; sse parser unchanged" status="DONE" order="0" priority="P0">
+            <Description>红：/responses https→wss；同形状 event 经 WS 与 SSE 产同 chunk；provider 未标记 WS 能力或 WS 失败→走 SSE；既有 SSE 解析 chunk 不变（重构零回归）。新测 openai_responses_ws_transport.test.ts（13 cases）先红（三新符号 import not found），实现后全绿。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">WS transport + 解析器重构 + 回退测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Implement parser refactor + WS transport + transport selection + fallback" status="DONE" order="1" priority="P0">
+            <Description>实现 transport-agnostic 解析器 responsesEventsToChunks + responsesSseEvents 拆分、buildResponsesWebsocketUrl(https→wss)、normalizeWebsocketHeaders、openResponsesWebsocketEvents（Bun WebSocket + send body + 收事件→喂解析器，注入 webSocketFactory 缝）、resolveResponsesTransportMode 选择、createStream WS 失败 catch→回退 SSE；driver 透传 transport opts。T1.1 13/13 绿；既有适配器/SSE 护栏 30/30 绿；full cell 0 net-new（基线 13/14 子集）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">T1.1 全绿；WS 产同 chunk、未标记/失败回退 SSE、SSE 行为不变，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Session-keyed previous_response_id continuity (WS only)" status="DONE" order="1">
+        <Description>response_id 按 session/actor 持久化（跨 per-call adapter 实例，修 OpenAIResponsesDriver new-per-call 丢失）；WS 且有 previous id 且有 tool 输出→ body.previous_response_id + store:true + 增量 input；HTTP SSE 绝不发 previous_response_id；首轮发完整 input；取不到 session key 则禁用续传。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add failing tests: response_id persisted by session across instances; chain incremental+store; sse never sends previous_response_id" status="DONE" order="0" priority="P0">
+            <Description>红：新建 adapter 实例仍复用同 session 的 response_id；chain 发 previous_response_id+store+增量 input；SSE 不带 previous_response_id；无 session key→不续传不串。新测 openai_responses_ws_continuity.test.ts（6 cases）先红（import `__resetResponsesContinuationStoreForTests` not found），实现后 6/6 绿。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">previous_response_id 续传测试以失败状态就位（红：未导出符号 + sessionKey 未透传）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Implement session-keyed response_id persistence + chain request building" status="DONE" order="1" priority="P0">
+            <Description>实现 session-keyed 持久化（adapter 模块级 Map&lt;sessionKey,id&gt;）+ WS chain 构造（previous_response_id/store/增量）+ SSE 守卫（transport 早解析、allowPreviousResponseId 仅 WS、SSE 永不带；WS→SSE 回退时清洗 body）+ sessionKey 透传（LlmGenerateOptions→ProviderRuntimeAdapter→OpenAIResponsesDriver→adapter；executor 由 vm.metadata.sessionId+actor.key 派生）。T2.1 6/6 绿；adapter/SSE 护栏 30/30 + 13/13 绿；full cell 14 fail = 基线子集 0 net-new。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">T2.1 全绿；response_id 跨实例按 session 复用、chain 增量+store、SSE 不发 previous_response_id，既有失败基线不增（0 net-new）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="Config propagation to the LIVE codex path + store re-assert (real-machine activation)" status="DONE" order="2" priority="P0">
+            <Description>真机定位：单测绿但真机 WS 不激活。两处真因修复：(1) **store 被 extraBody 覆盖**——持久化 modelConfig.options.store=false 经 Object.assign(body,extra) 把 chain 的 store 改回 false（服务端不留 response→previous_response_id 失效）；在 extra 合并后重申 `if (allowPreviousResponseId) body.store=true`。(2) **transport_mode 到不了 live codex adapter**——live 路径 ShellRuntimeSupport `extractProviderOptions("codex")`+actor overrides，恢复会话复用持久化 modelConfig（早于 WS 配置）。新增 `refreshProviderTransportMarkers(modelConfig, workdir)`（ModelConfigOps）：按会话**真实 provider 名**（非 adapter 首个匹配——子代理曾误取 kuaishou）从当前 catalog gap-fill 4 个 transport 标记进 modelConfig.options（只补缺、不覆盖持久化 per-session 选项）；接到 TerminalRuntime 恢复 actor adapter 创建处 `refreshActorAdapterForModelConfig`（持久化 codex/gpt-5.5/fhl_mom 那一处，非默认 deepseek 那一处）。删掉子代理误加的按-adapter plugin fallback（codex.ts 回 HEAD）。新测 codex_ws_transport_propagation 5/5（含 by-name 选 provider 守卫）。真机实证：恢复会话仅靠 fhl_mom.options.transport_mode=websocket（无 FORCE、无持久化补丁）→ use_prev=True、0 fallback、WS 激活。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">真机恢复会话仅靠 provider 配置即激活 WS（use_prev=True/0 fallback/store=true）；按 provider 名解析（多 openai-responses provider 不误取）；fresh 经 flattenModelConfig 自动获得；0 net-new</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Closure + real-session convergence verification" status="DONE" order="2">
+        <Description>全量回归（cell 按名比对基线 0 net-new）；spec case 覆盖；真机验证：fhl_mom 开 WS、重置真实 codex/gpt-5.5 session→重跑 turn→断言收口。findings 终态。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Final sweep + real-session convergence" status="DONE" order="0" priority="P0">
+            <Description>cell 全套回归 1127 pass/14 fail，14 fail 按名 = 基线（comm -23 空，0 net-new）；transport/continuity/propagation case 37/37 可执行覆盖。真机验证（同会话同 300s A/B 钉死真因）：**SSE 基线 rc=1、61 请求、紧致 repeat-read 死循环（build_tui[1-180]→[180-380]→重复）、无收口；WS+previous_response_id+store=true rc=0、31 请求、12KB 终答、收口**。WS 续传把"死循环"变"规划+顺序推进"（TaskTreeWrite 规划、顺序读文件），消除病态重读。收口时长有跑间方差（cv5 31 请求收口/cv8 51 请求仍推进，受 find 超时拖累），但 SSE 必死循环、WS 能收口的因果成立。productionized 路径真机实证：恢复会话仅靠 fhl_mom.options.transport_mode=websocket 即 use_prev=True/0 fallback。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">失败集合按名 = 基线（0 net-new）；37/37 case 覆盖；真机 A/B 证实 WS+续传收口（rc=0/12KB/停止重读）而 SSE 死循环；findings.md 已更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+</Track>

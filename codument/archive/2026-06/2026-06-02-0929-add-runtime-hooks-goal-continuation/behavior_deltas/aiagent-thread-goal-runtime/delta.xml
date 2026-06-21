@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-thread-goal-runtime">
+  <upsert selector="behavior://aiagent-thread-goal-runtime/requirements/usage-and-idle-continuation">
+    <requirement id="usage-and-idle-continuation">
+    <statement>The system SHALL account token and elapsed-time usage for active goals across turn lifecycle events, SHALL update budget-related statuses when needed, and SHALL automatically continue an active goal through the runtime lifecycle hook mechanism when the session becomes idle and no higher-priority user input is pending.</statement>
+    <suite id="idle-continuation-hook" name="Hook based idle continuation">
+      <case id="continue-active-goal-through-runtime-idle-hook">
+        <given>an active goal and no active turn or pending higher-priority mailbox message</given>
+        <when>the organ runtime produces an `actor.idle.before` hook invocation</when>
+        <then>the goal continuation hook SHALL return a mailbox enqueue effect for the continuation prompt</then>
+        <then>the effect SHALL enqueue a `heartbeat` mailbox message for the owning actor/fiber</then>
+      </case>
+      <case id="human-input-preempts-goal-continuation">
+        <given>an active goal and pending human input or control mailbox message</given>
+        <when>the `actor.idle.before` goal hook evaluates goal continuation</when>
+        <then>the hook SHALL skip continuation</then>
+        <then>the pending human input or control message SHALL retain priority over goal continuation</then>
+      </case>
+      <case id="background-pump-is-not-primary-goal-driver">
+        <given>the runtime background watchdog ticks while a goal is active</given>
+        <when>the runtime needs to check for idle continuation</when>
+        <then>the watchdog MAY produce a lifecycle idle invocation</then>
+        <then>the watchdog SHALL NOT call goal continuation logic directly</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

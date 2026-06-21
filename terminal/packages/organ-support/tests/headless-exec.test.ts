@@ -29,10 +29,10 @@ function makeTempHomeDir(): string {
       {
         providers: [
           {
-            name: "openai",
-            baseURL: "https://api.deepseek.com",
-            apiKey: "test-key",
-            models: [{ name: "deepseek-reasoner", context: 128000, output: 8192 }],
+            id: "openai",
+            adapter: "openai",
+            options: { baseURL: "https://api.deepseek.com", apiKey: "test-key" },
+            models: [{ id: "deepseek-reasoner", limits: { context: 128000, output: 8192 } }],
           },
         ],
       },
@@ -41,7 +41,7 @@ function makeTempHomeDir(): string {
     ),
   )
   fs.writeFileSync(
-    path.join(dir, ".eidolon", "agent-preset.json"),
+    path.join(dir, ".eidolon", "agent-present.json"),
     JSON.stringify(
       {
         preset: "default",
@@ -198,5 +198,141 @@ describe("headless exec", () => {
     expect(result.visibleOutput).toContain("Error: provider quota exceeded")
     expect(visibleChunks.join("")).toContain("Error: provider quota exceeded")
     expect(result.finalMessage).toBeNull()
+  })
+
+  it("does not report completion when the runtime turn times out before a safepoint", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+    fs.writeFileSync(path.join(activeWorkdir, "package.json"), JSON.stringify({ name: "loop-fixture" }), "utf-8")
+
+    let streamCount = 0
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream() {
+        streamCount += 1
+        const toolCallId = `tc-repeat-read-${streamCount}`
+        async function* stream() {
+          yield {
+            choices: [
+              {
+                delta: {
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: toolCallId,
+                      type: "function",
+                      function: {
+                        name: "read",
+                        arguments: JSON.stringify({ filePath: "package.json" }),
+                      },
+                    },
+                  ],
+                },
+              },
+            ],
+          } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    const outputLastMessagePath = path.join(activeWorkdir, "artifacts", "last-message.txt")
+    const outputTracePath = path.join(activeWorkdir, "artifacts", "exec-trace.jsonl")
+
+    const result = await runHeadlessExec({
+      workDir: activeWorkdir,
+      input: "keep reading",
+      sessionKey: "headless-unsettled-turn",
+      mcp: false,
+      timeoutSeconds: 0.05,
+      outputLastMessagePath,
+      outputTracePath,
+    })
+
+    expect(result.status).toBe("failed")
+    expect(result.failureSummary).toMatch(/runtime_turn_unsettled|runtime_turn_completed_without_final_output|Timeout after/)
+    expect(result.finalMessage).toBeNull()
+    expect(fs.existsSync(outputLastMessagePath)).toBe(false)
+    const traceLines = fs
+      .readFileSync(outputTracePath, "utf-8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+    expect(traceLines.at(-1)).toMatchObject({
+      type: "session_end",
+      status: "failed",
+      finalMessageChars: 0,
+    })
+  })
+
+  it("injects runtime hints during repeated bash file inspections in the same turn", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+    fs.mkdirSync(path.join(activeWorkdir, "scripts"), { recursive: true })
+    fs.writeFileSync(path.join(activeWorkdir, "scripts", "build_tui_release.sh"), "echo build\n", "utf-8")
+
+    let streamCount = 0
+    let promptSawRuntimeHint = false
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream(options: { messages?: Array<{ role?: string; content?: string }> }) {
+        streamCount += 1
+        promptSawRuntimeHint ||= (options.messages ?? []).some((message) =>
+          String(message?.content ?? "").includes("Runtime hint:")
+          && String(message?.content ?? "").includes("repeatedly inspected scripts/build_tui_release.sh"),
+        )
+        const toolCallId = `tc-repeat-sed-${streamCount}`
+        async function* stream() {
+          if (!promptSawRuntimeHint && streamCount <= 6) {
+            yield {
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: toolCallId,
+                        type: "function",
+                        function: {
+                          name: "bash",
+                          arguments: JSON.stringify({
+                            command: "sed -n '1,240p' scripts/build_tui_release.sh",
+                            workdir: ".",
+                          }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            } as any
+            return
+          }
+          yield { choices: [{ delta: { content: promptSawRuntimeHint ? "hint seen" : "missing hint" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    const diagnosticLines: string[] = []
+    const result = await runHeadlessExec({
+      workDir: activeWorkdir,
+      input: "keep inspecting",
+      mcp: false,
+      timeoutSeconds: 5,
+      onDiagnosticLine: async (line) => {
+        diagnosticLines.push(line)
+      },
+    })
+
+    expect(result.status).toBe("completed")
+    expect(result.finalMessage).toBe("hint seen")
+    expect(result.warnings).toContain(
+      "repeated shell inspections without code changes for scripts/build_tui_release.sh; stop rereading and either patch, answer, or change strategy",
+    )
+    expect(diagnosticLines.join("")).toContain("repeated shell inspections without code changes")
+    expect(promptSawRuntimeHint).toBe(true)
   })
 })

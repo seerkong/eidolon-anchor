@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="polish-tui-status-and-guidance-surface" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Goal>将 prototype 中分散的底栏状态、busy beacon、status dialog、help/tips 收敛为一致可信的状态与指引 surface</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-05T19:06:45Z</CreatedAt>
+    <UpdatedAt>2026-04-06T05:54:36Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_polish-tui-status-and-guidance-surface" name="polish-tui-status-and-guidance-surface" version="1">
+    <Description>打磨 TUI 状态与指引界面</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Responsibility Freeze" status="DONE" order="0">
+        <Description>冻结底栏、status dialog、help、tips 的职责边界</Description>
+        <SubNodes>
+          <Task id="T1.1" name="冻结状态与指引职责边界" status="DONE" order="0" priority="P0">
+            <Description>明确底栏做轻量状态摘要加正式焦点切换入口，status dialog 做系统事实面，help/tips 做可选指导与发现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">底栏、status、help、tips 的职责边界明确</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">tips/help 审核标准已写清楚</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">已写明 polish 不得破坏 history/composer 焦点切换与历史滚动恢复</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Status Surface Polish" status="DONE" order="1">
+        <Description>统一底栏状态表达与 status dialog 语言</Description>
+        <SubNodes>
+          <Task id="T2.1" name="打磨底栏 busy beacon 与状态文案" status="DONE" order="0" priority="P0">
+            <Description>让底栏的忙碌状态表达与实际 runtime 状态更一致，并尽量与通用 busy beacon 语义对齐，同时保留 `History` / `Composer` 的正式焦点切换行为；selection summary 迁入 composer 标题区，底栏中部改为 token usage、turn count 与 turn elapsed 指标。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">底栏 busy/idle 等文案不再与实际状态脱节</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">busy beacon 与状态语义更一致</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC3" checked="true">底栏 polish 后，点击 `History` / `Composer` 仍能驱动真实交互目标切换</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC4" checked="true">当前 agent/provider/model 展示已迁入 composer 标题区，底栏中部改为紧凑指标</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="整理 status dialog 的信息层次" status="DONE" order="1" priority="P0">
+            <Description>让 status dialog 成为更清晰的系统事实面，而不是与底栏和 help 重复噪音。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">status dialog 信息层次清晰</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">与底栏形成互补而非重复</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Guidance Surface Polish" status="DONE" order="2">
+        <Description>整理 help 与 tips，使其只反映当前 prototype 真实能力</Description>
+        <SubNodes>
+          <Task id="T3.1" name="审核并整理 help/tips 文案" status="DONE" order="0" priority="P0">
+            <Description>清理过时、误导或当前 prototype 无法兑现的提示，只保留真实可用能力。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">help/tips 不再继续暴露旧 shell 幻觉</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">保留的关键提示与当前 prototype 能力一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="决定 tips 的接入或保留策略" status="DONE" order="1" priority="P0">
+            <Description>明确 tips 是否接入 prototype 主链，以及以何种轻量方式出现，避免喧宾夺主。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">tips 的接入策略明确且可验证</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">提示层不会干扰消息区与输入区主流程</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Verification" status="REFUSED" order="3">
+        <Description>通过自动化测试和手工点验验证状态与指引 surface</Description>
+        <SubNodes>
+          <Task id="T4.1" name="补状态与指引相关自动化测试" status="DONE" order="0" priority="P0">
+            <Description>新增或更新测试，覆盖状态入口、关键帮助文案、过时文案清理、selection summary 向 composer 迁移，以及底栏 polish 不破坏既有焦点/滚动行为。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">存在覆盖状态/帮助入口和关键文案的自动化测试</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">存在覆盖旧 shell 误导文案清理的自动化测试</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC3" checked="true">存在覆盖底栏按钮仍可切换 history/composer 焦点语义的自动化测试</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC4" checked="true">存在覆盖 composer 标题区与底栏指标文案迁移的自动化测试</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="运行 terminal TUI 测试并手工点验" status="REFUSED" order="1" priority="P0">
+            <Description>执行 terminal TUI 测试，并手工检查底栏、status、help、tips 在 idle/busy 等状态下的整体体验，同时确认不破坏历史滚动与焦点切换。当前已通过聚焦自动化测试与 `bun run test:terminal:tui` 全量回归；剩余阻塞是交互式手工点验尚未记录。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="false">手工点验覆盖 idle/busy 底栏、status dialog、help、tips 以及底栏焦点切换后的历史滚动</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

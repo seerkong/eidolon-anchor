@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-semantic-conversation-spine">
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/single-in-memory-truth">
+    <requirement id="single-in-memory-truth">
+    <statement>会话运行期间，Conversation 三域（History、LLM Context、Session）SHALL 是唯一可写的内存事实真源；providerMessages SHALL 由三阶段 materialize（Session 选择、History active tail、Context 变换/overlay）从三域纯投影产出；SHALL NOT 存在与三域平行演化的 provider 消息数组真相；actor.messages SHALL 是 History 域的只读投影视图，SHALL NOT 可写。</statement>
+    <suite id="truth" name="Single in-memory truth">
+      <case id="provider-context-from-materialize-only">
+        <given>一轮对话需要构造 provider 请求</given>
+        <when>系统组装消息列表</when>
+        <then>消息列表 SHALL 来自 MaterializationDerivation 对三域状态的投影</then>
+        <then>SHALL NOT 从裸消息数组、文件、journal 或 snapshot 取数</then>
+      </case>
+      <case id="writes-via-semantic-events">
+        <given>用户输入、工具结果或 childDone 结果需要进入对话历史</given>
+        <when>消息进入系统</when>
+        <then>输入 SHALL 以 semantic 事件进入规范事件流（语义级注入，不经 lexical/syntactic）</then>
+        <then>三域写入 SHALL 只发生在消费该流的 Reducer/MessageAssembly，SHALL NOT 直接 push 任何旁路数组或绕过流直写域</then>
+      </case>
+      <case id="compaction-in-domain">
+        <given>上下文需要压缩</given>
+        <when>压缩执行</when>
+        <then>SHALL 通过域 compaction 命令产生 compact generation 与 summary transform</then>
+        <then>SHALL NOT 原地重写消息数组</then>
+      </case>
+      <case id="equivalence-gate">
+        <given>真源切换实施中，新旧两条组装路径并存</given>
+        <when>以同一脚本化输入序列驱动两条路径</when>
+        <then>两者产出的 providerMessages SHALL 逐消息等价</then>
+        <then>等价闸门通过后旧路径 SHALL 被删除</then>
+      </case>
+      <case id="mirror-eliminated">
+        <given>真源切换与镜像收口完成后检查 actor 表面</given>
+        <when>访问 actor.messages 或检查其写入与消费路径</when>
+        <then>actor.messages SHALL 是 History 域 active tail 的只读冻结投影（facade getter）</then>
+        <then>SHALL NOT 存在任何对该视图的写入路径；SHALL NOT 存在从该视图进入 provider 组装的路径（含 prompt-plan 系统通道）；系统提示来源 SHALL 为 actor.systemPrompts 经域命令入 Context 域</then>
+      </case>
+      <case id="writes-via-eventbus-only">
+        <given>三域写入入口被收口（P8 single-writer pipeline）</given>
+        <when>检查全仓源码与运行时</when>
+        <then>appendLiveHistoryMessageToConversationDomainRuntime 的调用点 SHALL 只存在于 MessageHistoryGraph 的 onCommittedMessage 旁路</then>
+        <then>SHALL NOT 存在 injectSemanticEventsIntoConversationDomain、deliveredViaSemanticStream、emittedOnSemanticStream、committedViaSemanticStream、conversationCommitGraphAttachCount 等旁路与 fence 符号</then>
+        <then>任何 commit SHALL 由一个前置的 vm.eventBus emit 触发</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/single-writer-pipeline">
+
+    <requirement id="single-writer-pipeline">
+    <statement>vm.eventBus SHALL 是 semantic 事件在 vm 上的唯一传输；MessageHistoryGraph SHALL 是 vm 上唯一的 commit 入口（消费 eventBus 并写 History 域）；graph SHALL 在 conversation runtime 初始化时常驻 attach，SHALL NOT 以 actor 类型作为 attach 决策依据；非流式来源（childDone、member chat、member coordination、heartbeat、种子、effect 回放）SHALL 通过在 eventBus 上发出合法 semantic 事件序列进入域，SHALL NOT 经任何 inject 旁路直接写域。</statement>
+    <suite id="single-writer" name="Single-writer pipeline">
+      <case id="graph-resident-attach">
+        <given>conversation runtime 初始化完成</given>
+        <when>检查 MessageHistoryGraph 的 attach 状态</when>
+        <then>graph SHALL 处于 attach 状态且其生命周期与 vm 一致</then>
+        <then>SHALL NOT 以 isHistoryTrackedActor 或类似判断 gate attach 决策</then>
+      </case>
+      <case id="non-streaming-via-eventbus">
+        <given>一个非流式来源的事件（childDone / member chat / coordination / heartbeat / 种子 / effect 回放）需要进入域</given>
+        <when>该事件被派发</when>
+        <then>SHALL 以 vm.eventBus emit 出合法 semantic 事件序列</then>
+        <then>SHALL NOT 直接调用 messageAssemblyDerivation 或 appendLiveHistoryMessageToConversationDomainRuntime</then>
+      </case>
+      <case id="persistence-side-effect-gate-preserved">
+        <given>graph 常驻 attach 后，detached / delegate actor 的事件也经过 graph</given>
+        <when>graph 处理这些事件</when>
+        <then>commit 写域 SHALL 对所有 actor 类型一致生效</then>
+        <then>history persistence 副作用（appendMessage、transcript evidence）SHALL 仍按既有 actor 类型 gate（与写域路径解耦）</then>
+      </case>
+      <case id="eventbus-required">
+        <given>conversation runtime 在缺失 vm.eventBus 的环境中尝试初始化</given>
+        <when>初始化执行</when>
+        <then>SHALL 抛出显式错误并指明缺失原因</then>
+        <then>SHALL NOT 静默走任何 inject 旁路</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/stage-pipeline-contracts">
+
+    <requirement id="stage-pipeline-contracts">
+    <statement>流式加工 pipeline（ingress、lexical、syntactic、semantic）SHALL 保持现有 stage 逻辑不变并获得 DataSubgraphContract；MessageAssembly SHALL 是 semantic 事件到 committed 消息的唯一提交边界；TUI 与观测 SHALL 只读订阅 semantic 流。</statement>
+    <suite id="pipeline" name="Stage pipeline contracts">
+      <case id="stage-components-declared">
+        <given>runtime data subgraph registry 构建完成</given>
+        <when>查询 stage 组件</when>
+        <then>ingress_stage、lexical_syntactic_stage、semantic_event SHALL 各有 owner 边界与 Not Owned Here</then>
+      </case>
+      <case id="message-assembly-single-commit-boundary">
+        <given>semantic 流产出 assistant 消息内容</given>
+        <when>消息提交进入 History 域</when>
+        <then>提交 SHALL 只经 MessageAssemblyDerivation 的归并产物</then>
+        <then>SHALL NOT 存在第二个 assistant 消息写入路径</then>
+      </case>
+      <case id="observability-two-levels">
+        <given>一个可观测性或 TUI 关注点需要取数</given>
+        <when>选择衍生来源</when>
+        <then>流式输出类关注（delta、tool 卡片、actor 消息）SHALL 从 semantic 事件流衍生</then>
+        <then>committed/世代级关注（正式历史、压缩、heads）SHALL 从 MessageAssembly 产物或 History 域衍生，SHALL NOT 混用层级</then>
+      </case>
+      <case id="projector-not-reads-parser-state">
+        <given>semantic 层之外的 projector 需要展示流式内容</given>
+        <when>projector 取数</when>
+        <then>SHALL 订阅 semantic 事件流</then>
+        <then>SHALL NOT 直读 lexical/syntactic parser state</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/recovery-one-way-handoff">
+
+    <requirement id="recovery-one-way-handoff">
+    <statement>恢复 SHALL 是显式阶段的单向交接：唯一恢复源为会话文件；一次性水合内存三域；到达切换点后文件 SHALL 退出 live 路径；SHALL NOT 将内存消息反灌三域，SHALL NOT 在 live 运行中回读会话文件，双源 SHALL NOT 同时生效。</statement>
+    <suite id="recovery" name="One-way recovery handoff">
+      <case id="hydrate-once-then-memory-only">
+        <given>session 从会话文件完成三域水合并到达切换点</given>
+        <when>live 循环继续运行</when>
+        <then>所有读取 SHALL 来自内存三域</then>
+        <then>任何 live 路径读会话文件 SHALL 视为违例</then>
+      </case>
+      <case id="no-bootstrap-backfill">
+        <given>恢复完成后内存中存在消息状态</given>
+        <when>检查三域写入来源</when>
+        <then>SHALL NOT 存在从消息数组向三域的 bootstrap 反灌路径</then>
+      </case>
+      <case id="single-recovery-source">
+        <given>会话文件与其他持久化产物同时存在</given>
+        <when>选择恢复来源</when>
+        <then>恢复 SHALL 只读会话文件</then>
+        <then>SHALL NOT 存在任何 fallback 来源</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/transcript-complete-removal">
+
+    <requirement id="transcript-complete-removal">
+    <statement>actor transcript SHALL 被彻底删除：store、contract、写入效应、恢复 fallback、recovery report 来源字段以及 session-upgrade 内的 legacy transcript 读取；SHALL NOT 保留任何演进兼容遗留；仅含 transcript 的旧 session 在升级或恢复时 SHALL 返回显式拒绝错误。</statement>
+    <suite id="removal" name="Transcript complete removal">
+      <case id="no-transcript-symbols">
+        <given>本 track 完成后检查运行时与工具源码</given>
+        <when>全仓搜索 transcript 符号</when>
+        <then>ActorTranscript contract、LocalFileActorTranscriptStore、transcript 写入与读取调用 SHALL 不存在</then>
+      </case>
+      <case id="transcript-only-session-rejected">
+        <given>一个旧 session 只有 legacy transcript 没有会话文件</given>
+        <when>尝试升级或恢复</when>
+        <then>系统 SHALL 返回显式拒绝错误并说明原因</then>
+        <then>SHALL NOT 静默转换或部分恢复</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/conversation-capsule">
+
+    <requirement id="conversation-capsule">
+    <statement>Conversation runtime SHALL 全量 capsule 化：conversationCapsule 含 coreLogic、adapterRegistry、adapters、internals；持久化实现 SHALL 作为按枚举 id 注册的 adapter；三个 derivation contract（ConversationReducer、MessageAssembly、Materialization）SHALL 在 contract 包声明并运行时断言；capsule SHALL NOT 定义 contract 同名类型。</statement>
+    <suite id="capsule" name="Conversation capsule">
+      <case id="capsule-structure-holds">
+        <given>conversationCapsule 完成重构</given>
+        <when>运行结构 conformance</when>
+        <then>coreLogic 稳定入口、adapter 枚举布线、internals 隔离、类型留在 contract SHALL 全部成立</then>
+      </case>
+      <case id="derivations-asserted-and-pure">
+        <given>三个 conversation derivation 实现被注入</given>
+        <when>断言与源码纯度检查</when>
+        <then>缺方法 SHALL 报方法名；实现 SHALL 无直接 IO</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

@@ -81,8 +81,8 @@ describe("heartbeat scheduler recovery", () => {
     expect(listHeartbeatSchedules(vm).map((s) => s.scheduleId)).toEqual([interval.scheduleId]);
     expect(listHeartbeatSchedules(vm)[0]?.fireCount).toBe(1);
     expect(listHeartbeatSchedules(vm)[0]?.nextFireAt).toBe("2026-05-26T18:06:00.000Z");
-    expect(actor.peekMailbox("heartbeatWake")[0]?.scheduleId).toBe(interval.scheduleId);
-    expect(actor.peekMailbox("heartbeatWake")[0]?.fireCount).toBe(1);
+    expect(actor.peekMailbox("heartbeat")[0]?.scheduleId).toBe(interval.scheduleId);
+    expect(actor.peekMailbox("heartbeat")[0]?.fireCount).toBe(1);
     expect(recoveredFires).toEqual([interval.scheduleId]);
     expect(listHeartbeatSchedules(vm, { status: "terminal" })[0]?.scheduleId).toBe(timeout.scheduleId);
     expect(listHeartbeatSchedules(vm, { status: "terminal" })[0]?.status).toBe("expired");

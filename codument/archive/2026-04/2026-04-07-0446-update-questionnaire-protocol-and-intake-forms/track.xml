@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="update-questionnaire-protocol-and-intake-forms" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 questionnaire 在 text view 与 TUI 中都具备稳定的编号协议、自由填写分支、可解析的文本回答格式，以及更合理的推荐类 intake 表单</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-06T11:17:39Z</CreatedAt>
+    <UpdatedAt>2026-04-07T04:46:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_update-questionnaire-protocol-and-intake-forms" name="update-questionnaire-protocol-and-intake-forms" version="1">
+    <Description>更新问卷协议与 intake 表单体验</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Protocol Contract" status="DONE" order="0">
+        <Description>冻结问卷展示协议、文本回答协议与自由填写分支规则</Description>
+        <SubNodes>
+          <Task id="T1.1" name="冻结问卷展示协议" status="DONE" order="0" priority="P0">
+            <Description>将问卷文本展示对齐到 `ask-multi-question-free`，明确 `Q1/Q2`、`A/B/C` 与最后一个自由填写选项。</Description>
+          </Task>
+          <Task id="T1.2" name="冻结文本回答协议" status="DONE" order="1" priority="P0">
+            <Description>明确支持 `q1: a ; q2: b` 与 `q3: D balabala` 这类回答格式，并定义大小写与分隔符规则。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Projection And Parser" status="DONE" order="1">
+        <Description>修复多题问卷在投影与解析链路中的压扁和歧义</Description>
+        <SubNodes>
+          <Task id="T2.1" name="保留完整 questions 结构贯穿 semantic/history/runtime client" status="DONE" order="0" priority="P0">
+            <Description>去除“只保留首题”的压扁逻辑，确保题目数量、类型、选项和顺序完整保留。</Description>
+          </Task>
+          <Task id="T2.2" name="为 parser 增加协议化快速路径" status="DONE" order="1" priority="P0">
+            <Description>让 parser 先识别题号+字母格式，再回退到 LLM 解析。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Recommendation Intake Strategy" status="DONE" order="2">
+        <Description>让推荐类场景优先生成结构化 intake 表单</Description>
+        <SubNodes>
+          <Task id="T3.1" name="定义 recommendation intake 生成策略" status="DONE" order="0" priority="P0">
+            <Description>为推荐/规划/决策类场景增加优先使用 2-4 个高信息量问题的结构化问卷策略。</Description>
+          </Task>
+          <Task id="T3.2" name="落地 travel recommendation exemplar" status="DONE" order="1" priority="P0">
+            <Description>确保旅行推荐首轮 questionnaire 不再退化为单个自由文本问题。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Verification" status="DONE" order="3">
+        <Description>通过自动化与手工点验确认协议、解析和推荐类 intake 一致可用</Description>
+        <SubNodes>
+          <Task id="T4.1" name="补齐问卷协议与 parser focused tests" status="DONE" order="0" priority="P0">
+            <Description>覆盖多题投影、字母编号、自由填写选项与协议化文本回答解析。</Description>
+          </Task>
+          <Task id="T4.2" name="运行 terminal TUI 测试并手工点验 travel intake" status="DONE" order="1" priority="P0">
+            <Description>验证 text view / TUI 问卷展示、文本回答格式，以及旅行推荐首轮 intake 质量。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

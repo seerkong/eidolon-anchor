@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-remaining-actorization-and-coordination" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Goal>将 detached、collective、formation、coordination 的业务真相源收回真正的 actor/fiber 模型，并把 runtime bridge 降级为桥接层。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-03-30T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-03-31T23:59:59Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-remaining-actorization-and-coordination" name="refactor-aiagent-remaining-actorization-and-coordination" version="1">
+    <Description>收口 AIAgent 剩余 actor ownership 并将 protocol 正名为 coordination</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>固化本次收口的 spec / proposal / design / plan 边界。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 proposal.md" status="DONE" order="0" priority="P0">
+            <Description>将 actor 化残留报告重写为自包含 proposal，明确目标、非目标、breaking change 与影响范围。</Description>
+          </Task>
+          <Task id="T1.2" name="编写 spec.md" status="DONE" order="1" priority="P0">
+            <Description>将 detached、collective、formation、coordination、runtime bridge 的目标真相写成可验证 requirement。</Description>
+          </Task>
+          <Task id="T1.3" name="编写 design.md 与 plan.xml" status="DONE" order="2" priority="P0">
+            <Description>固化 actor ownership 边界、coordination 命名迁移策略、formation 路由与回流模型，以及分阶段实施计划。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Coordination Foundation" status="DONE" order="1">
+        <Description>完成 protocol -&gt; coordination 正式命名迁移，并引入 per-actor coordination mailbox。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="重命名 protocol 正式命名为 coordination" status="DONE" order="0" priority="P0">
+            <Description>将目录、文件、类型、tool 名、字段、文档、测试与事件文案中的正式 `protocol` 命名切换为 `coordination`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">`ProtocolEngine`、`ProtocolStatus`、`protocolRecords`、`src/protocol/` 等正式命名已切换为 coordination 对应名称</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">旧 `protocol` 不再作为正式公开命名保留</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="引入 per-actor coordination mailbox 与状态推进" status="DONE" order="1" priority="P0">
+            <Description>为业务 actor 增加 `coordination` mailbox，将 plan approval / shutdown 等 request-review-done 状态推进从 tool 层收回 actor mailbox 与 actor state。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">系统不引入独立 coordination actor，而是每个 actor 持有自己的 coordination mailbox</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">tool 层不再同步推进 coordination 主状态机</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="移除 coordination session store 主状态源" status="DONE" order="2" priority="P0">
+            <Description>让 `CoordinationEngine`、tool status 查询与 request tool 返回值优先基于 actor mailbox / actor state 工作，`coordinationRecords` 降级为派生索引或恢复缓存。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">`CoordinationEngine` 不再把 `vm.sessionState.coordinationRecords` 当作实时主状态源</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">`CoordinationStatus` / `ShutdownStatus` / 相关 tool 返回值优先从 actor-owned truth 组装结果</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.4" name="移除 coordinationRecords 实时状态源与恢复回灌路径" status="DONE" order="3" priority="P0">
+            <Description>将 `coordinationRecords` 从 VM 正式 sessionState 主结构中降级为派生索引或兼容缓存，移除 `CoordinationEngine` / snapshot / recovery 对它的实时读写和恢复主路径依赖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.4-AC1" checked="true">`CoordinationEngine` 不再维护实时 `vm.sessionState.coordinationRecords` record store</cdt:Criterion>
+              <cdt:Criterion id="T2.4-AC2" checked="true">snapshot / recovery 优先基于 actor-owned coordination state 与 mailbox，而不是 session store 回灌</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.5" name="完成公开 schema 中 protocol 字段的正式 coordination 命名迁移" status="DONE" order="4" priority="P0">
+            <Description>将 coordination envelope、status tool 返回值、runtime bridge payload、持久化索引等公开/正式 schema 中的 `protocol` 字段切换为 coordination 正式命名，并仅在必要处保留显式兼容层。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.5-AC1" checked="true">正式 tool surface 与 runtime bridge 不再以 `protocol` 作为当前正式字段名</cdt:Criterion>
+              <cdt:Criterion id="T2.5-AC2" checked="true">旧 `protocol` 若保留仅作为显式兼容字段，不再作为正式真相源字段</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.6" name="清理 runtime bridge 与事件面的 protocol 旧命名残留" status="DONE" order="5" priority="P1">
+            <Description>将 semantic event、runtime bridge、terminal/tui test helper 中残留的 `protocol` 主命名切换为 `coordination`，旧命名仅在必要处保留显式 deprecated alias。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.6-AC1" checked="true">runtime bridge / semantic event 的主 API 不再以 `protocol` 作为当前正式命名</cdt:Criterion>
+              <cdt:Criterion id="T2.6-AC2" checked="true">若保留旧 helper 或字段，仅作为显式兼容 alias，而不是主 surface</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.7" name="将 protocol 兼容层降级为内部解析兼容并迁移公开 helper/test surface" status="DONE" order="6" priority="P0">
+            <Description>移除 `CoordinationEngine.makeOutbound()`、terminal/tui runtime test helper 等公开 surface 对 `protocol` 形态的并列支持；若仍需兼容，只保留输入解析层的显式 legacy fallback，并将受影响测试统一迁移到 `coordination` 正式命名。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.7-AC1" checked="true">公开 helper、test bridge 与 focused tests 不再把 `protocol` 当作当前正式参数或断言字段</cdt:Criterion>
+              <cdt:Criterion id="T2.7-AC2" checked="true">旧 `protocol` 若仍保留，仅存在于显式 legacy parse fallback，而不是公开写路径</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.8" name="清理 focused tests 文件路径中的 protocol 旧命名" status="DONE" order="7" priority="P1">
+            <Description>将仍保留 `protocol` 命名的 focused test 文件路径重命名为 `coordination` 正式命名，并同步更新测试标题与引用，避免文件系统层继续扩散旧术语。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.8-AC1" checked="true">focused tests 文件路径不再以 `protocol` 作为当前正式命名</cdt:Criterion>
+              <cdt:Criterion id="T2.8-AC2" checked="true">重命名后相关测试与引用路径仍可正常执行</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Actor Ownership Closure" status="DONE" order="2">
+        <Description>完成 detached、collective、formation 的真正 actor ownership 收口。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="实现真正的 detached actor 语义" status="DONE" order="0" priority="P0">
+            <Description>让 detached/background 执行体实际创建为 `actor.type = detached`，并将运行态与终态收回 actor 自身。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">detached/background 运行体不再只是 delegate actor + detached lane/workload</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">detached registry 退化为索引，不再是真相源</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="实现 collective actor ownership" status="DONE" order="1" priority="P0">
+            <Description>移除 controller/task-runner/polling 作为 collective 主实现，让 collective actor 自己持有 task board、ownership、成员分发与完成归并。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">`collectiveTaskOwnership` 收回 collective actor 状态</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">collective final 不再通过 tool polling + 手工补完成实现</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="实现 formation 路由与回流 actor" status="DONE" order="2" priority="P0">
+            <Description>让 formation 拥有自己的 mailbox/fiber/state，并负责 leader 路由与结果回流，而不是继续作为 leader proxy。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.3-AC1" checked="true">formation actor 自己持有 leader 指针、成员表、watch 状态与回流关联</cdt:Criterion>
+              <cdt:Criterion id="T3.3-AC2" checked="true">leader 的总结与阶段事件先回 formation actor，再回路由给发起者</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.4" name="移除 collective/formation 多真相源" status="DONE" order="3" priority="P0">
+            <Description>让 collective task board、task ownership、formation membership/leader/watch state 以 actor 自身状态为主源；`OrganizationManager` 与 VM 全局 ownership 仅保留 factory/index/projection 角色。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.4-AC1" checked="true">`collectiveTaskOwnership` 不再作为运行时正式真相源参与分配、查询与恢复</cdt:Criterion>
+              <cdt:Criterion id="T3.4-AC2" checked="true">`OrganizationManager` 不再通过 session record 反向覆盖 collective/formation actor 核心状态</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.5" name="移除 collective task board 对 control taskTree 的运行时耦合" status="DONE" order="4" priority="P0">
+            <Description>让 collective actor 自己分配 taskId、维护容量与状态推进，control actor `taskTree` 仅保留派生展示/投影角色，不再参与 collective 正式运行时决策。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.5-AC1" checked="true">collective assign / final fallback 不再依赖 control actor `taskTree` 作为正式任务板</cdt:Criterion>
+              <cdt:Criterion id="T3.5-AC2" checked="true">control actor `taskTree` 若保留，仅作为 actor-owned collective task state 的派生投影</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.6" name="收口 child execution helper 命名并修正 detached actor 生命周期" status="DONE" order="5" priority="P0">
+            <Description>将 `runDelegateActor` 重命名为 `spawnChildExecutionActor`，明确其是通用 child-execution actor factory；同时修正 detached child actor 的清理时机，使 detached actor 在运行态与终态期间持续保留 actor-owned truth，而不是在 spawn 后立即退回 registry/index 路径。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.6-AC1" checked="true">child execution helper 名称与 `control / delegate / detached` 语义边界保持一致，不再误导为“只创建 delegate actor”</cdt:Criterion>
+              <cdt:Criterion id="T3.6-AC2" checked="true">detached child actor 在运行态与终态期间继续保留在 `vm.actors` / actor runtime 中，`DetachedActorRegistry` 仅作为索引/镜像</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.7" name="补齐 formation streamed route-and-return 阶段事件闭环" status="DONE" order="6" priority="P1">
+            <Description>为 formation route 增加最小必要的阶段事件 envelope / route state，使 leader 接收 routed work 后能先把阶段事件送回 formation actor，再由 formation actor 以 actor-owned route state 归档并在 stream 模式下回路由给 initiator。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.7-AC1" checked="true">formation route state 能记录最小必要的阶段事件推进信息，而不再只有最终 `resultText`</cdt:Criterion>
+              <cdt:Criterion id="T3.7-AC2" checked="true">leader 接收 formation routed work 后，会先把阶段事件送回 formation actor；formation actor 在 stream 模式下再基于 route 关联完成回流</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Query Persistence Bridge Cleanup" status="DONE" order="3">
+        <Description>让查询、恢复和终端桥接与新的 actor ownership 对齐。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="更新 status/query/tool surface 到 actor-owned truth" status="DONE" order="0" priority="P0">
+            <Description>让 ActorStatus / CollectiveStatus / FormationStatus / CoordinationStatus 等查询路径优先读取 actor 自身，而不是 manager/registry/helper 旁路。</Description>
+          </Task>
+          <Task id="T4.2" name="更新 snapshot / recovery / index layout" status="DONE" order="1" priority="P0">
+            <Description>调整 detached、collective、formation、coordination 的 snapshot/recovery/index schema，使 actor-owned state 成为恢复主源。</Description>
+          </Task>
+          <Task id="T4.3" name="清理 TerminalRuntime 的业务 pump 责任" status="DONE" order="2" priority="P1">
+            <Description>将 TerminalRuntime 降级为 I/O bridge 与 orchestrator bridge，移除其对 collective/background 业务推进的依赖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">business progression 回到 actor/fiber，自主推进而不是依赖 runtime 外挂 pump</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.4" name="移除 final polling 与 collective controller 推进链路" status="DONE" order="3" priority="P0">
+            <Description>让 collective/formation final 等待依赖 actor completion signal，而不是 tool helper 轮询 tick；同时移除 `RuntimeCollectiveController` / `CollectiveTaskRunner` 对 runtime background loop 的正式推进职责。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.4-AC1" checked="true">collective / formation final 不再在 tool helper 中循环调用 `tickUntil*Settled` 等待完成</cdt:Criterion>
+              <cdt:Criterion id="T4.4-AC2" checked="true">runtime background loop 不再优先走 `RuntimeCollectiveController.shouldAutoTick()`</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.5" name="将 collective controller 从生产 runtime / snapshot / recovery 契约中降级" status="DONE" order="4" priority="P1">
+            <Description>让 `RuntimeCollectiveController` / `CollectiveTaskRunner` 退出 `TerminalRuntime`、runtimeContext、snapshot 与 recovery 的正式生产契约；如仍需保留，仅作为测试辅助或显式 legacy 兼容层存在。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.5-AC1" checked="true">`TerminalRuntime` 与 runtimeContext 不再把 collective controller 作为正式生产运行时组件注入</cdt:Criterion>
+              <cdt:Criterion id="T4.5-AC2" checked="true">snapshot / recovery 不再依赖 collective controller 状态作为当前正式恢复面</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.6" name="将 final settle 收口为 completion-signal await 路径" status="DONE" order="5" priority="P1">
+            <Description>去掉 collective / formation final helper 对 `driver.tickUntilBlocked()` 的主动推进耦合，让 helper 只等待 orchestrator/actor completion signal。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.6-AC1" checked="true">collective / formation final helper 不再显式推进 driver tick 才能完成等待</cdt:Criterion>
+              <cdt:Criterion id="T4.6-AC2" checked="true">final settle 改由 completion binding / awaitable signal 驱动</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.7" name="移除 legacy collective controller 与 ownership 的正式 runtime/snapshot 契约" status="DONE" order="6" priority="P0">
+            <Description>从 `VmRuntimeContext`、`VmSessionState`、snapshot/hydrate、save/recovery contract 中移除 `collectiveController` 与 `collectiveTaskOwnership` 的正式字段；如仍需兼容，仅隔离到显式 legacy path 或测试夹具。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.7-AC1" checked="true">生产 runtime / snapshot / recovery 正式契约不再包含 `collectiveController` 与 `collectiveTaskOwnership` 主字段</cdt:Criterion>
+              <cdt:Criterion id="T4.7-AC2" checked="true">legacy collective controller 若保留，仅作为测试辅助或显式兼容层，而不是正式 runtime helper</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.8" name="将 legacy collective controller 从正式包导出面降级" status="DONE" order="7" priority="P1">
+            <Description>移除 `@cell/organ-logic` 顶层入口对 `createRuntimeCollectiveController` 的正式导出；如测试仍需使用，改为显式 legacy / direct path 引入，避免继续污染正式 package surface。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.8-AC1" checked="true">顶层正式 package export 不再暴露 legacy collective controller</cdt:Criterion>
+              <cdt:Criterion id="T4.8-AC2" checked="true">现有测试调用方改为显式 direct path / legacy path，而不是继续依赖正式入口</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.9" name="修复 recovery 后 plan review 的 owner 路由连续性" status="DONE" order="8" priority="P1">
+            <Description>让 `PlanReview` 在 snapshot recovery 后优先基于 actor-owned coordination owner 或待处理 mailbox 定位 request 所属 actor/member，而不是继续仅依赖 `coordinationRecords` cache 中的 `last_from` 投递 review。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.9-AC1" checked="true">recovery 后的 `PlanReview` 能把 review 正确送回持有该 request 的 member/actor，而不是回退到当前调用者 actor</cdt:Criterion>
+              <cdt:Criterion id="T4.9-AC2" checked="true">`PlanReview` 的 owner 解析优先读取 actor-owned truth 或待处理 mailbox，不再把已裁剪的 coordination cache metadata 当成唯一路由依据</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.10" name="修复 PlanReview 在 owner 丢失异常路径上的错误 fallback" status="DONE" order="9" priority="P1">
+            <Description>当 `PlanReview` 只能从 coordination cache 读到 request、但无法解析 owner actor/member 时，显式失败而不是把 review 投回当前调用者 actor，避免继续保留 tool 层错误兜底。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.10-AC1" checked="true">`PlanReview` 在 owner 无法解析时返回显式错误，而不是把 review 投递到当前调用者 actor</cdt:Criterion>
+              <cdt:Criterion id="T4.10-AC2" checked="true">`PlanReview` 只允许向 actor-owned owner、待处理 mailbox owner 或可严格映射到现存 actor 的 legacy owner 投递 review</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Verification" status="DONE" order="4">
+        <Description>通过 focused tests、fixtures 与 strict validation 锁定新边界。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="补 detached / collective / formation / coordination focused tests" status="DONE" order="0" priority="P0">
+            <Description>新增或更新测试，覆盖 detached actor type、collective completion loop、formation leader route-and-return、coordination mailbox 状态推进。</Description>
+          </Task>
+          <Task id="T5.2" name="执行 strict validation 与回归验证" status="DONE" order="1" priority="P0">
+            <Description>运行 `codument validate --strict`、相关 typecheck 与受影响测试，确认 architecture 收口完成。</Description>
+          </Task>
+          <Task id="T5.3" name="执行 corrective focused tests 与 strict validation" status="DONE" order="2" priority="P0">
+            <Description>围绕 T2.3 / T3.4 / T4.4 复跑 focused tests、snapshot/recovery 验证与 `codument validate --strict`，确认 corrective wave 已收口。</Description>
+          </Task>
+          <Task id="T5.4" name="执行 report-2 corrective focused tests 与 strict validation" status="DONE" order="3" priority="P0">
+            <Description>围绕 T2.4 / T2.5 / T4.5 / T4.6 复跑 focused tests、runtime recovery 验证与 `codument validate --strict`，确认 report-2 corrective wave 收口。</Description>
+          </Task>
+          <Task id="T5.5" name="执行 report-3 corrective focused tests 与 strict validation" status="DONE" order="4" priority="P0">
+            <Description>围绕 T2.6 / T3.5 / T4.7 复跑 focused tests、runtime recovery 验证与 `codument validate --strict`，确认 report-3 corrective wave 收口。</Description>
+          </Task>
+          <Task id="T5.6" name="执行 report-4 corrective focused tests 与命名回归验证" status="DONE" order="5" priority="P0">
+            <Description>围绕 T2.7 / T4.8 复跑 coordination naming、runtime recovery、organization tools 与 orchestration history focused tests，确认旧 `protocol` surface 与 legacy collective controller public export 已完成降级。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.6-AC1" checked="true">report-4 对应 focused tests 全部通过，不再出现 `payload.protocol` 旧断言失败</cdt:Criterion>
+              <cdt:Criterion id="T5.6-AC2" checked="true">验证结果与 `plan.xml` 的完成状态一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.7" name="执行 report-5 corrective focused tests 与 detached actor 生命周期验证" status="DONE" order="6" priority="P0">
+            <Description>围绕 T2.8 / T3.6 复跑 detached actor、organization、runtime recovery、orchestration history focused tests，并补充断言 detached child actor 在正式 spawn 路径中保持 actor-owned truth 可见。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.7-AC1" checked="true">report-5 对应 focused tests 全部通过，且 detached actor 行为不再只依赖 task registry 查询</cdt:Criterion>
+              <cdt:Criterion id="T5.7-AC2" checked="true">验证结果与 `plan.xml` / `reports/track-impl-gap-report-5.md` 的 corrective 结论一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.8" name="执行 report-6 corrective focused tests 与 formation stage-event 回流验证" status="DONE" order="7" priority="P1">
+            <Description>围绕 T3.7 复跑 organization、runtime recovery、orchestration history、coordination 与 detached focused tests，并补充断言 formation route 的阶段事件已进入 actor-owned route state，避免 streamed route-and-return 再次退化成 final-only。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.8-AC1" checked="true">report-6 对应 focused tests 全部通过，formation route state 已包含阶段事件推进信息</cdt:Criterion>
+              <cdt:Criterion id="T5.8-AC2" checked="true">验证结果与 `reports/track-impl-gap-report-6.md` 的 corrective 结论一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.9" name="执行 report-7 corrective focused tests 与 recovery 后 plan review 回路验证" status="DONE" order="8" priority="P1">
+            <Description>围绕 T4.9 补充并复跑 runtime recovery / plan approval focused tests，确认 member 在 snapshot recovery 后仍能收到正确的 `plan_review` 并解除 gating。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.9-AC1" checked="true">新增 focused test 覆盖 recovery 后 control 发起 `PlanReview`，review 会路由回原 member/actor</cdt:Criterion>
+              <cdt:Criterion id="T5.9-AC2" checked="true">report-7 对应 focused tests 全部通过，验证结果与 `reports/track-impl-gap-report-7.md` 的 corrective 结论一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.10" name="执行 report-8 corrective focused tests 与 owner-lost fail-fast 验证" status="DONE" order="9" priority="P1">
+            <Description>围绕 T4.10 补充并复跑 runtime recovery / coordination focused tests，确认 request 仅存在于 coordination cache、但 owner 已无法解析时，`PlanReview` 会显式失败而不是假成功。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.10-AC1" checked="true">新增 focused test 覆盖 request 可见但 owner 不可解析时 `PlanReview` fail fast</cdt:Criterion>
+              <cdt:Criterion id="T5.10-AC2" checked="true">report-8 对应 focused tests 全部通过，验证结果与 `reports/track-impl-gap-report-8.md` 的 corrective 结论一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

@@ -72,6 +72,8 @@ describe("exec command", () => {
       "/tmp/shared",
       "-m",
       "gpt-5",
+      "--session",
+      "session-123",
       "-p",
       "bench",
       "-c",
@@ -93,6 +95,7 @@ describe("exec command", () => {
       {
         workDir: "/resolved/workspace",
         input: "stdin prompt",
+        sessionKey: "session-123",
         model: "gpt-5",
         profile: "bench",
         timeoutSeconds: 42,

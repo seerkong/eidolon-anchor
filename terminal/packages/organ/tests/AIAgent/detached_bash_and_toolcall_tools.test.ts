@@ -134,7 +134,7 @@ describe("s08 detached tools", () => {
     await driver.tickUntilForegroundSettled({ now, maxTicks: 50, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const toolMsg = messages.find((m) => m?.role === "tool" && m?.tool_call_id === "tc-detached-bash-1");
+    const toolMsg = main.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-detached-bash-1");
     expect(toolMsg).toBeTruthy();
     const started = JSON.parse(String((toolMsg as any)?.content ?? ""));
     expect(typeof started?.task_id).toBe("string");
@@ -255,7 +255,7 @@ describe("s08 detached tools", () => {
     await driver.tickUntilForegroundSettled({ now, maxTicks: 50, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const toolMsg = messages.find((m) => m?.role === "tool" && m?.tool_call_id === "tc-detached-tool-1");
+    const toolMsg = main.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-detached-tool-1");
     expect(toolMsg).toBeTruthy();
     const started = JSON.parse(String((toolMsg as any)?.content ?? ""));
     expect(typeof started?.task_id).toBe("string");

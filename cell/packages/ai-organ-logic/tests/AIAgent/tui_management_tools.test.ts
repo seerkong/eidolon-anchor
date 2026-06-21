@@ -14,6 +14,9 @@ import { createAiAgentOrchestratorDriverWithCooperative, getMemberManager } from
 import { createAutonomousHolonController } from "@cell/ai-organ-logic/organization/AutonomousHolonController"
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine"
 import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager"
+import { buildMemberAssignToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/MemberAssign"
+import { buildMemberCreateToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/MemberCreate"
+import { buildRunDelegateActorToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/RunDelegateActor"
 
 function makeMockAdapter() {
   return {
@@ -34,6 +37,19 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("TUI management tools", () => {
+  it("describes RunDelegateActor as the temporary subagent tool and members as persistent actors", () => {
+    const delegateDescription = buildRunDelegateActorToolDef().schema.function.description
+    const memberCreateDescription = buildMemberCreateToolDef().schema.function.description
+    const memberAssignDescription = buildMemberAssignToolDef().schema.function.description
+
+    expect(delegateDescription).toContain("subagent")
+    expect(delegateDescription).toContain("temporary")
+    expect(memberCreateDescription).toContain("persistent")
+    expect(memberCreateDescription).toContain("subagent is a delegate alias")
+    expect(memberAssignDescription).toContain("member id or member name")
+    expect(memberAssignDescription).toContain("subagent is a delegate alias")
+  })
+
   it("supports member create/list/assign through tools", async () => {
     const adapter = makeMockAdapter()
     const recorded: any[] = []
@@ -144,6 +160,62 @@ describe("TUI management tools", () => {
     expect(sent.ok).toBe(true)
     expect(sent.member_id).toBeTruthy()
     expect(sent.member_id).toBe(spawned.memberId ?? spawned.member_id)
+  })
+
+  it("does not resolve members by temporary actor key", async () => {
+    const adapter = makeMockAdapter()
+    const control = createActor({
+      key: "control",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "ok" }),
+      },
+    })
+
+    const toolRegistry = composeToolRegistry({ includeInternalOnly: true })
+    const vm = createVM({
+      controlActorKey: control.key,
+      actors: { [control.key]: control },
+      eventBus: new AgentEventGraph(),
+      registries: {
+        toolRegistry,
+        agentRegistry: new AgentRegistry({ code: { name: "code", description: "test", tools: "*", prompt: ["you are code"] } } as any),
+      },
+    })
+
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId: `${control.key}:${control.id}`, vm, actor: control, messages: [{ role: "user", content: "hi" }], basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    const members = getMemberManager()
+    members.__resetForTest?.()
+    createAutonomousHolonController({ driver, vm, controlActor: control, members })
+    ensureVmRuntimeContext(vm).driver = driver
+
+    const spawned = JSON.parse(String(await toolRegistry.call("MemberCreate", vm, control, {
+      name: "Alice",
+      agent_type: "code",
+      prompt: "you are alice",
+    })))
+    expect(String(spawned.actor_key)).toMatch(/^member:Alice:/)
+
+    const memberAssigned = JSON.parse(String(await toolRegistry.call("MemberAssign", vm, control, {
+      target: spawned.actor_key,
+      mode: "final",
+      content: "ping",
+    })))
+    expect(memberAssigned.ok).toBe(false)
+    expect(memberAssigned.error).toBe("member_not_found")
+
+    const actorAssigned = JSON.parse(String(await toolRegistry.call("ActorAssign", vm, control, {
+      target: spawned.actor_key,
+      mode: "final",
+      content: "ping",
+    })))
+    expect(actorAssigned.ok).toBe(false)
+    expect(actorAssigned.error).toBe("member_not_found")
   })
 
   it("emits a control-visible member completion quote after MemberAssign work finishes", async () => {
@@ -520,7 +592,7 @@ describe("TUI management tools", () => {
       kind: AI_AGENT_COORDINATION_KINDS.planRequest,
       payload: { plan: "pending mailbox" },
     })
-    worker.actor.send("coordination", {
+    worker.actor.send("memberCoordination", {
       from: control.key,
       text: outbound.text,
       ts: Date.now(),

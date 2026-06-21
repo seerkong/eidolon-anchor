@@ -1,4 +1,4 @@
-可以通过 RunDelegateActor 工具使用内置和用户配置的 delegate agent。
+可以通过 RunDelegateActor 工具使用内置和用户配置的 delegate agent。在 AI 领域语境中，subagent/子代理就是 delegate；用户要求使用 subagent 时，应使用 RunDelegateActor。
 
 可用 delegate agent：
 {agent_list}
@@ -13,4 +13,5 @@
 - code：没有更合适专家时，用作通用 coding delegate。
 
 不要为很小的直接修改委派；如果解释任务比自己动手更慢，也不要委派；如果下一步依赖你当前的即时上下文，也不要委派。
+不要用 member 代替 delegate/subagent：member 是持久化的会话/team actor；subagent/子代理是 delegate 的别名，不是 member 的别名。
 验证时优先使用 targeted test、typecheck/build/lint、项目提供的检查命令，或运行环境中可用的诊断类工具/MCP。

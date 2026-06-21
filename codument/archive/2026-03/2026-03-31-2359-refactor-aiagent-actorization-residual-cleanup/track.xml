@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-actorization-residual-cleanup" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>进一步收口 coordination 兼容缓存、organization projection fallback 与术语漂移，让 actor-owned truth 边界更严格一致。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-03-31T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-03-31T23:59:59Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-actorization-residual-cleanup" name="refactor-aiagent-actorization-residual-cleanup" version="1">
+    <Description>收口 AIAgent actorization 残余兼容层与术语漂移</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>固化 residual cleanup 的 spec / proposal / design / plan 边界。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写 proposal.md" status="DONE" order="0" priority="P0">
+            <Description>将 actorization follow-up 中的 residual cleanup 目标收敛为自包含 proposal。</Description>
+          </Task>
+          <Task id="T1.2" name="编写 spec.md" status="DONE" order="1" priority="P0">
+            <Description>把 coordination fallback、organization actor query 与术语同步写成可验证 requirement。</Description>
+          </Task>
+          <Task id="T1.3" name="编写 design.md 与 plan.xml" status="DONE" order="2" priority="P0">
+            <Description>固化 cleanup 策略、兼容边界、风险与执行计划。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Coordination Truth Cleanup" status="DONE" order="1">
+        <Description>让 coordination legacy store 退出默认 live truth 判定路径。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="收口 CoordinationEngine store-only fallback 语义" status="DONE" order="0" priority="P0">
+            <Description>将 legacy store 明确降级为诊断/兼容缓存，不再把 store-only record 当作默认 actor-owned live truth。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">没有 actor owner、也没有 pending mailbox 的 request，不再被默认解释为 live coordination state</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">如仍保留 store-only record，可见输出会显式表明其 degraded/unowned 语义</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="收口 recovery 后 coordination index 回灌语义" status="DONE" order="1" priority="P0">
+            <Description>调整 recovery 与 status query，让 derived index 回灌只作为兼容诊断输入，而不是 live truth fallback。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">recovery 后 coordination 可见性优先来自 actor-owned state 或 pending mailbox</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">focused tests 能区分 live truth 与 degraded cache 路径</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Organization Query Cleanup" status="DONE" order="2">
+        <Description>让 collective / formation 的正式 query/status 路径优先暴露真实 actor。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="收口 organization actor 解析路径" status="DONE" order="0" priority="P0">
+            <Description>调整 `_resolveActorTarget` 与相关工具，使 manager 已确保 actor 存在后优先返回真实 organization actor。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">正式 query/status/watch 路径默认命中真实 collective / formation actor，而不是 `type:null` synthetic subject</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">synthetic projection 只保留在显式 degraded/兼容路径</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="收口 ActorStatus 与 typed wrapper 的 organization 输出" status="DONE" order="1" priority="P1">
+            <Description>让 ActorStatus / CollectiveStatus / FormationStatus 优先基于 actor-owned state 计算 task summary、watch state 与 identity。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">organization status 输出不再依赖 control taskTree projection 作为默认 summary 来源</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">focused tests 能明确断言 organization query 命中真实 actor</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Docs And Prompt Alignment" status="DONE" order="3">
+        <Description>同步 vendor 文档与 runtime prompt 到当前正式术语。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="更新 vendor actor 指南" status="DONE" order="0" priority="P1">
+            <Description>补齐 `coordination` mailbox 与当前正式 assign surface，消除 vendor 文档中的术语遗漏。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">vendor 指南已明确包含 coordination mailbox</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">assign surface 表述与当前正式实现一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="更新 runtime prompt 与帮助文案" status="DONE" order="1" priority="P1">
+            <Description>同步 runtime prompt 与帮助文案，使其与当前正式 assign surface 对齐，并保留 `assign:r` 作为显式 final 写法。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">runtime prompt 与帮助文案对 `assign`、`assign:r`、`assign:n`、`assign:s` 的展示与正式 surface 一致</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">受影响 tests / fixtures 已同步更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="回写 track 文档中的 assign:r 正式边界" status="DONE" order="2" priority="P1">
+            <Description>修正 proposal/spec/design 中把 `assign:r` 误写为待删除旧写法的描述，明确其为正式显式 final 写法。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">track 文档明确 `assign:r` 是正式命令面的一部分</cdt:Criterion>
+              <cdt:Criterion id="T4.3-AC2" checked="true">track 文档不再把保留 `assign:r` 视为偏差</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Verification" status="DONE" order="4">
+        <Description>通过 focused tests 与 strict validation 锁定 residual cleanup。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="补充 coordination 与 organization residual cleanup focused tests" status="DONE" order="0" priority="P0">
+            <Description>为 store-only coordination、organization actor query、prompt/doc 对齐补 focused tests 与断言。</Description>
+          </Task>
+          <Task id="T5.2" name="执行 strict validation 与回归验证" status="DONE" order="1" priority="P0">
+            <Description>运行 `codument validate --strict` 与受影响 focused tests，确认 residual cleanup 收口。</Description>
+          </Task>
+          <Task id="T5.3" name="补充 assign:r 术语对齐 focused tests" status="DONE" order="2" priority="P1">
+            <Description>为 runtime prompt、slash help / parser 对 `assign:r` 的正式可见性补 focused tests，避免后续再次误收口。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

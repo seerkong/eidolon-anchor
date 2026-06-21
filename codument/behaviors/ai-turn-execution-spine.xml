@@ -1,0 +1,85 @@
+<capability id="ai-turn-execution-spine" version="1">
+  <requirement id="turn-state-adt">
+    <statement>AI turn 的运行时状态 SHALL 由一个 discriminated union ADT（TurnState）显式表达，每个 variant 自带该阶段必要的字段；SHALL NOT 通过 phase 字符串 + 平行 inflight union + 多个 pending 数组的隐式组合表达运行时状态。</statement>
+    <suite id="turn-state-shape" name="TurnState ADT shape">
+      <case id="variants-cover-runtime-phases">
+        <given>cooperative 或 streaming 主循环处于任意运行时刻</given>
+        <when>读取当前 turn state</when>
+        <then>state SHALL 落入 TurnState ADT 的恰好一个 variant（drain / wait_llm / wait_tool / wait_questionnaire_parse / wait_compress / wait_human / completed / failed 等）</then>
+        <then>该 variant 自带本阶段所有必要字段（如 wait_tool 自带 opId、toolCallId、gateOutcome）</then>
+      </case>
+      <case id="no-cross-variant-fields">
+        <given>TurnState variant 已确定</given>
+        <when>外部代码访问运行时状态</when>
+        <then>SHALL NOT 出现&quot;phase 是 wait_llm 但 inflight 是 tool&quot;这类跨 variant 不一致</then>
+        <then>类型系统 SHALL 在编译期防止此类组合</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="turn-wait-boundary">
+    <statement>turn 的等待边界（provider 等待 / tool 等待 / human 等待 / questionnaire 等待 / compress 等待）SHALL 作为彼此区分的 owned 事实存在（TurnState ADT 的独立 wait variant + ai_turn_state 数据子图的 turn.wait_boundary 事实节点），各自携带其边界字段；SHALL NOT 退化为单一无差别的&quot;waiting&quot;标志。对应 mission gate G-ai-wait-message。</statement>
+    <suite id="wait-boundary-facts" name="Wait boundaries as distinct owned facts">
+      <case id="wait-kinds-are-distinct">
+        <given>turn 进入某个等待</given>
+        <when>读取 turn state</when>
+        <then>provider / tool / human / questionnaire / compress 五类等待 SHALL 映射到五个不同的 TurnState variant（wait_llm / wait_tool / wait_human / wait_questionnaire_parse / wait_compress）</then>
+        <then>每个 wait variant SHALL 携带其边界字段（wait_llm 带 providerCallId、wait_tool 带 toolCallId+gateDecision、wait_human 带 reason、wait_questionnaire_parse 带 questionnaireId、wait_compress 带 compression reason）</then>
+      </case>
+      <case id="wait-boundary-is-owned-fact">
+        <given>ai_turn_state 数据子图契约</given>
+        <when>检查 owned fact nodes</when>
+        <then>SHALL 声明 turn.wait_boundary 为 ai_turn_state 的 owned authoritative_fact，并提供 turn.wait_view 读取视图</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="unified-main-loop">
+    <statement>aiAgentLoopStreaming 与 aiAgentCooperativeStep 当前的两套主循环 SHALL 合并为单一 phase machine；streaming 入口 SHALL 退化为 cooperative phase machine 的薄包装（驱动方式不同但 phase 转换规则相同）；ToolExecutionGateDecision 评估、tool 任务派发、eventBus emit、runtime-control evidence 记录 SHALL 共用同一实现，不再两份。</statement>
+    <suite id="loop-unification" name="Main loop unification">
+      <case id="single-phase-machine">
+        <given>检查 ai-organ-logic exec 主循环源码</given>
+        <when>枚举 phase 转换实现</when>
+        <then>SHALL 只有一份 phase 转换实现（cooperative phase machine）</then>
+        <then>aiAgentLoopStreaming SHALL 在内部驱动同一 phase machine 直到 completed/failed，不复制 phase 转换逻辑</then>
+      </case>
+      <case id="shared-tool-dispatch">
+        <given>tool dispatch（gate 评估 + 任务派发 + emit + evidence）需要执行</given>
+        <when>检查实现</when>
+        <then>SHALL 由同一组函数承担（每条职责一处定义）</then>
+        <then>SHALL NOT 在 streaming 与 cooperative 两套代码路径上分别维护</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="supervisor-retired">
+    <statement>AiRuntimeTurnSupervisor SHALL 在本能力中被完全移除：文件本体、TerminalRuntime 中的 continuation hint 注入、exec warning 回调、cell 侧导出、单元测试 SHALL 一并删除。其原本试图缓解的&quot;重复读文件&quot;风险 SHALL 由本 track 的 TurnState ADT、ToolCallDomain 事实链与 ProviderCallDomain 元数据从根因消除，而非通过新的 guardrail 替换。</statement>
+    <suite id="retire-supervisor" name="Supervisor retirement">
+      <case id="no-supervisor-source">
+        <given>本 track 完成后</given>
+        <when>检查 cell/packages/ai-organ-logic 与 terminal/packages/organ 源码树</when>
+        <then>SHALL 不存在 AiRuntimeTurnSupervisor 类、函数或类型</then>
+        <then>SHALL 不存在 TerminalRuntime supervisor continuation 循环（原 1243-1281 区间）</then>
+        <then>SHALL 不存在 exec surface 对 supervisor warning 回调的消费点</then>
+      </case>
+      <case id="no-replacement-guardrail">
+        <given>supervisor 已删除</given>
+        <when>审查本 track 引入的 lifecycle 改造</when>
+        <then>SHALL NOT 引入任何&quot;deny 第 N+1 次重复 tool&quot;或类似 hint-based guardrail</then>
+        <then>&quot;重复读文件&quot;等行为 SHALL 仅靠 TurnState + ToolCallDomain + ProviderCallDomain 的真源唯一性来防止</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="conformance-tests">
+    <statement>本能力 SHALL 提供 TurnState ADT 形态一致性测试、统一主循环行为等价测试（cooperative 与 streaming 入口产出相同的 providerMessages 与 turn 转换序列）、以及 supervisor 移除后既有功能不回归的测试。</statement>
+    <suite id="tests" name="Conformance tests">
+      <case id="adt-shape-test">
+        <given>TurnState ADT 已定义</given>
+        <when>对每个 variant 构造、转换、序列化进行单元测试</when>
+        <then>SHALL 保证 variant 完整覆盖运行时所有可达状态</then>
+      </case>
+      <case id="loop-equivalence-test">
+        <given>同一脚本化输入序列分别经 streaming 入口与 cooperative 入口</given>
+        <when>对比产出的 providerMessages 与 turn 转换序列</when>
+        <then>SHALL 逐元素等价</then>
+      </case>
+    </suite>
+  </requirement>
+</capability>

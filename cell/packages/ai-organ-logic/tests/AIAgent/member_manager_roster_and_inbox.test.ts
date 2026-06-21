@@ -9,6 +9,7 @@ import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-l
 
 import { getMemberManager } from "@cell/ai-organ-logic/organization/MemberManager";
 import { BUILTIN_MEMBER_ROLES } from "@cell/ai-organ-contract/organization/MemberRole";
+import { createMockProcessStream } from "./__test_support__/mockProcessStream";
 
 function makeRecordingAdapter(record: (options: any) => void) {
   return {
@@ -42,7 +43,7 @@ describe("Members: session-scoped roster + inbox drain", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "control ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "control ok" })),
       },
     });
 
@@ -132,7 +133,7 @@ describe("Members: session-scoped roster + inbox drain", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "control ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "control ok" })),
       },
     });
 
@@ -187,7 +188,7 @@ describe("Members: session-scoped roster + inbox drain", () => {
       key: "control",
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "control ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "control ok" })),
       },
     });
 
@@ -241,7 +242,7 @@ describe("Members: session-scoped roster + inbox drain", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "control ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "control ok" })),
       },
     });
 
@@ -287,8 +288,8 @@ describe("Members: session-scoped roster + inbox drain", () => {
 
     members.broadcast({ vm, from: "control", text: "broadcast: hello" });
 
-    expect(a.actor.hasPending("memberInbox" as any)).toBe(true);
-    expect(b.actor.hasPending("memberInbox" as any)).toBe(true);
+    expect(a.actor.hasPending("memberChatInbox" as any)).toBe(true);
+    expect(b.actor.hasPending("memberChatInbox" as any)).toBe(true);
 
     await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 });
     await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 });

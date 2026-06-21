@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-runtime-profile-capability-boundary" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Unify CLI/TUI/headless runtime composition through profile, capability registry, and runtime binding.</Goal>
+    <Description>建立 runtime profile/capability/runtime binding 边界，使 product surface 只选择 profile，不手工拼默认 AI 业务语义。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-10T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-06-11T02:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-runtime-profile-capability-boundary" name="refactor-runtime-profile-capability-boundary" version="1">
+    <Description>Refactor Runtime Profile Capability Boundary</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Profile And Binding Contract" status="DONE" order="0">
+        <Description>定义 profile/capability/runtime binding descriptor contract。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing binding descriptor tests" status="DONE" order="0" priority="P0">
+            <Description>新增 CLI/TUI/headless binding descriptor 一致性失败测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.1-tests-red" checked="true">测试能表达同 profile 下三入口 descriptor 兼容。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Define runtime profile and capability contracts" status="DONE" order="1" priority="P0">
+            <Description>定义 runtime profile、capability registry、runtime binding descriptor 类型。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T1.2-contracts" checked="true">contracts 覆盖 profile id、capabilities、storage flags、entry type、modules、overlays、surface capabilities。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Shared Composition Path" status="DONE" order="1">
+        <Description>收敛 CLI/TUI/headless 入口组合路径。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Implement shared runtime binding builder" status="DONE" order="0" priority="P0">
+            <Description>实现共享 binding builder，入口只选择 profile 并提供 surface adapter。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.1-builder" checked="true">CLI/TUI/headless 共用 binding builder。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Route terminal entries through shared composition" status="DONE" order="1" priority="P0">
+            <Description>将 terminal entry 的 runtime 创建接入共享 composition path。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T2.2-entry" checked="true">entry 不再私有拼 provider/tool/conversation 默认语义。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Storage Capabilities And Surface Boundary" status="DONE" order="2">
+        <Description>将 logs/files 与 upgrade 等能力显式化，并验证 surface 不写 domain truth。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add storage capability flags to profile binding" status="DONE" order="0" priority="P0">
+            <Description>把 logs/files 能力纳入 profile binding descriptor，并覆盖 memory-only 行为。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.1-storage" checked="true">关闭 logs/files 时普通对话不依赖 session 文件写入。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Add surface no-domain-write conformance tests" status="DONE" order="1" priority="P1">
+            <Description>验证 TUI/CLI/headless 不直接写 domain truth。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-T3.2-surface" checked="true">surface 不直接创建 provider/tool/conversation/history owner。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

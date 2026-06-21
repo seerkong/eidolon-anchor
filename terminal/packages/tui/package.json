@@ -33,6 +33,7 @@
     "zod": "^3.23.8",
     "@solid-primitives/scheduled": "^1.4.0",
     "@shared/composer": "workspace:*",
+    "@cell/ai-runtime-control-composer": "workspace:*",
     "@terminal/core": "workspace:*",
     "@terminal/organ": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",

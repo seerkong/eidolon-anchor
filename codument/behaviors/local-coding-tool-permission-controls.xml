@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="local-coding-tool-permission-controls" version="1">
+  <requirement id="home-scoped-local-permission-config">
+    <statement>系统应当（SHALL）从 home 级 `.eidolon` 目录加载本地权限配置，而不是依赖 workspace 内可被运行时修改的权限真相文件。</statement>
+    <!-- migrated title: Home-Scoped Local Permission Config -->
+    <suite name="home-scoped-local-permission-config">
+      <case id="load-local-permission-rules-from-home-config" name="Load local permission rules from home config">
+        <given>用户在 `~/.eidolon/permissions.json` 中声明了权限规则</given>
+        <when>runtime 执行 `bash` 或文件工具</when>
+        <then>系统从该 home 级配置读取规则</then>
+        <then>不要求 workspace 内存在权限配置文件</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="configurable-allow-deny-ask-for-coding-tools">
+    <statement>系统应当（SHALL）继续让 `bash`、`read`、`write`、`edit`、`multiedit`、`ls`、`glob`、`grep` 共享统一的本地权限求值语义，并允许 `exec` 兼容命令通过正式 profile 将 `ask` 转换为自动放行，而不是进入交互式审批等待。</statement>
+    <!-- migrated title: Configurable Allow Deny Ask For Coding Tools -->
+    <suite name="configurable-allow-deny-ask-for-coding-tools">
+      <case id="deny-a-bash-segment-by-pattern" name="Deny a bash segment by pattern">
+        <given>`permissions.json` 将某条 `bash` pattern 配置为 `deny`</given>
+        <when>agent 调用包含该 segment 的 `bash`</when>
+        <then>工具调用被拒绝</then>
+        <then>不执行对应 shell 命令</then>
+      </case>
+      <case id="ask-before-reading-a-guarded-file" name="Ask before reading a guarded file">
+        <given>`permissions.json` 将某条 `read` pattern 配置为 `ask`</given>
+        <when>agent 通过 `read`、`ls`、`glob` 或 `grep` 访问命中的目标路径或目录</when>
+        <then>runtime 发起 approval questionnaire</then>
+        <then>当前执行进入 `questionnaire_wait`</then>
+      </case>
+      <case id="full-auto-auto-approves-guarded-in-workspace-tool-calls" name="Full-auto auto-approves guarded in-workspace tool calls">
+        <given>调用方以 `exec --full-auto -C &lt;workspace&gt;` 启动 headless exec</given>
+        <when>本地 coding 工具命中原本会进入 `ask` 的权限规则</when>
+        <then>系统在 workspace 与显式额外可写目录边界内自动放行这些调用</then>
+        <then>不进入 questionnaire 阻塞链路</then>
+      </case>
+      <case id="dangerous-bypass-disables-approvals-and-workspace-sandbox-checks" name="Dangerous bypass disables approvals and workspace sandbox checks">
+        <given>调用方以 `exec --dangerously-bypass-approvals-and-sandbox` 启动命令</given>
+        <when>headless exec 运行并触发本地工具调用</when>
+        <then>系统跳过审批等待</then>
+        <then>以危险模式运行，不再受 workspace-write 边界限制</then>
+        <then>该模式仍被明确标记为危险行为</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="workspace-external-paths-require-explicit-access-map">
+    <statement>系统应当（SHALL）要求 workspace 外路径先命中 `~/.eidolon/workspace-access.json` 中按 workspace 声明的外部目录白名单；未命中时直接拒绝，命中后按授予的 `read/write` 能力执行。</statement>
+    <!-- migrated title: Workspace-External Paths Require Explicit Access Map -->
+    <suite name="workspace-external-paths-require-explicit-access-map">
+      <case id="deny-external-path-when-workspace-access-entry-is-missing" name="Deny external path when workspace access entry is missing">
+        <given>目标文件位于当前 `workDir` 之外</given>
+        <given>`workspace-access.json` 未为当前 workspace 声明该外部目录权限</given>
+        <when>agent 调用 `read`、`ls`、`glob`、`grep`、`write`、`edit` 或 `multiedit`</when>
+        <then>系统直接拒绝访问</then>
+        <then>不把这类缺失白名单访问静默视为允许</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="workspace-access-can-be-granted-through-questionnaire-writeback">
+    <statement>系统应当（SHALL）在 workspace 外目录尚未授权时，通过正式 questionnaire 提供目录授权选项，并在用户批准后把结果写回 `~/.eidolon/workspace-access.json`，随后自动重放原始工具调用。</statement>
+    <!-- migrated title: Workspace Access Can Be Granted Through Questionnaire Writeback -->
+    <suite name="workspace-access-can-be-granted-through-questionnaire-writeback">
+      <case id="external-read-offers-read-only-or-read-write-grant" name="External read offers read-only or read-write grant">
+        <given>agent 通过 `read`、`ls`、`glob` 或 `grep` 访问 workspace 外目录</given>
+        <given>当前 workspace 尚未对白名单声明该目录</given>
+        <when>系统拦截本次访问</when>
+        <then>系统发起 questionnaire</then>
+        <then>问卷至少提供"授权只读""授权读写""拒绝授权"选项</then>
+      </case>
+      <case id="approved-external-read-persists-grant-and-retries" name="Approved external read persists grant and retries">
+        <given>外部目录访问触发了目录授权 questionnaire</given>
+        <when>用户批准合适的授权选项</when>
+        <then>系统将授权结果写入 `workspace-access.json`</then>
+        <then>自动重放原始工具调用</then>
+        <then>本次调用按新白名单成功执行</then>
+      </case>
+      <case id="allow-external-write-when-workspace-access-entry-grants-write" name="Allow external write when workspace access entry grants write">
+        <given>`workspace-access.json` 为当前 workspace 声明了某个外部目录的 `write` 权限</given>
+        <when>agent 调用 `write`、`edit` 或 `multiedit`</when>
+        <then>系统允许本次写入</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="bash-permission-parsing-is-segment-based">
+    <statement>系统应当（SHALL）对 shell 输入按可执行 segment 进行解析和判权，而不是只对整条原始命令字符串做模糊匹配。</statement>
+    <!-- migrated title: Bash Permission Parsing Is Segment-Based -->
+    <suite name="bash-permission-parsing-is-segment-based">
+      <case id="mixed-bash-command-is-denied-when-any-segment-is-denied" name="Mixed bash command is denied when any segment is denied">
+        <given>一条 `bash` 输入包含多个由 `&amp;&amp;`、`||`、`;`、`|` 或 `&amp;` 分隔的 segment</given>
+        <given>其中任一 segment 命中 `deny`</given>
+        <when>系统执行该 `bash`</when>
+        <then>整次调用失败</then>
+        <then>不继续执行命令</then>
+      </case>
+      <case id="unsupported-shell-syntax-fails-closed" name="Unsupported shell syntax fails closed">
+        <given>`bash` 输入包含当前 parser 无法可靠建模的 shell 结构</given>
+        <when>系统尝试为本地权限求值解析该输入</when>
+        <then>系统以 fail-closed 方式拒绝执行</then>
+        <then>不回退到宽松放行</then>
+        <!-- unmapped: ## MODIFIED Requirements -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="file-tool-access-follows-runtime-permission-boundary">
+    <statement>系统 MUST 让 `read`、`write`、`edit`、`multiedit`、`ls`、`glob`、`grep` 的可访问路径由当前 runtime 权限决定，而不是默认无限制访问任意绝对路径。</statement>
+    <!-- migrated title: File Tool Access Follows Runtime Permission Boundary -->
+    <suite name="file-tool-access-follows-runtime-permission-boundary">
+      <case id="absolute-path-is-no-longer-implicitly-allowed" name="Absolute path is no longer implicitly allowed">
+        <given>agent 传入一个位于 `workDir` 外的绝对路径</given>
+        <when>文件工具执行该请求</when>
+        <then>系统先评估 workspace 外目录白名单</then>
+        <then>只有命中允许条件时才继续访问</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="home-path-notation-is-normalized-before-permission-evaluation">
+    <statement>系统应当（SHALL）在本地权限求值与工具执行前，先把 `~/...` 解析为真实 home 路径，而不是将其当作 workspace 相对路径。</statement>
+    <!-- migrated title: Home Path Notation Is Normalized Before Permission Evaluation -->
+    <suite name="home-path-notation-is-normalized-before-permission-evaluation">
+      <case id="ls-on-home-path-is-evaluated-against-actual-absolute-path" name="Ls on home path is evaluated against actual absolute path">
+        <given>agent 调用 `ls` 并传入 `~/tmp/demo5`</given>
+        <when>系统做路径解析与权限判断</when>
+        <then>`~/tmp/demo5` 被解析为真实 home 目录下的绝对路径</then>
+        <then>不会被错误拼接成 `&lt;workDir&gt;/~/tmp/demo5`</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

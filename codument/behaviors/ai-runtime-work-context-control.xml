@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="ai-runtime-work-context-control" version="1">
+  <requirement id="manual-work-mode">
+    <statement>系统 SHALL expose AI runtime work mode as a user-controlled state with exactly `build` and `plan` values.</statement>
+    <suite id="slash-command" name="Manual work mode slash command">
+      <case id="default-build">
+        <given>A new or migrated AI runtime actor has no explicit manual work mode state</given>
+        <when>The actor work context is initialized</when>
+        <then>The system SHALL set work mode to `build`</then>
+      </case>
+      <case id="set-build-plan">
+        <given>The user enters `/work-mode plan` or `/work-mode build`</given>
+        <when>The runtime consumes the input</when>
+        <then>The system SHALL update actor work mode to the requested value</then>
+        <then>The command SHALL NOT be appended as semantic LLM conversation history</then>
+        <then>The command SHALL NOT trigger a provider completion request</then>
+      </case>
+      <case id="plan-is-permission-boundary">
+        <given>The current work mode is `plan`</given>
+        <when>The model attempts a file write, patch, edit, or destructive shell command</when>
+        <then>The system SHALL block or route the operation through the explicit permission policy before execution</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="model-task-phase">
+    <statement>系统 SHALL expose AI runtime task phase as a model-declared state with exactly `normal` and `answer` values.</statement>
+    <suite id="task-phase-tool" name="Task phase control tool">
+      <case id="default-normal">
+        <given>A new user turn starts</given>
+        <when>The runtime prepares actor work context</when>
+        <then>The system SHALL set task phase to `normal` unless a task phase tool call changes it</then>
+      </case>
+      <case id="model-sets-answer">
+        <given>The model is ready to stop tool-driven work and produce a final answer</given>
+        <when>The model calls the task phase control tool with `phase=answer`</when>
+        <then>The system SHALL set actor task phase to `answer`</then>
+        <then>The tool SHALL NOT change work mode</then>
+      </case>
+      <case id="tool-after-answer-resets-normal">
+        <given>The current task phase is `answer`</given>
+        <when>The model calls a normal non-control tool</when>
+        <then>The system SHALL reset task phase to `normal` for that continued tool-driven work</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="remove-legacy-inference">
+    <statement>系统 SHALL remove legacy automatic work mode and task phase inference paths that conflict with explicit runtime control.</statement>
+    <suite id="legacy-removal" name="Legacy inference removal">
+      <case id="old-enums-removed">
+        <given>Runtime work context data is serialized, recovered, or migrated</given>
+        <when>Old work mode or task phase values are encountered</when>
+        <then>The system SHALL normalize them to `build` and `normal`</then>
+        <then>The system SHALL NOT expose old enum values to prompt planning or runtime policy</then>
+      </case>
+      <case id="no-call-count-switching">
+        <given>The model repeatedly calls tools, reads files, runs checks, or continues a turn</given>
+        <when>The runtime updates work context</when>
+        <then>The system SHALL NOT switch work mode or task phase based on call counts, repeated tool counts, or iteration counts</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="cache-stable-overlay">
+    <statement>系统 SHALL keep work mode and task phase prompt guidance compact and outside stable provider prefix content.</statement>
+    <suite id="prompt-cache" name="Prompt cache stability">
+      <case id="deepseek-stable-prefix">
+        <given>A DeepSeek-family model uses provider-managed prefix cache</given>
+        <when>Work mode or task phase changes</when>
+        <then>The system SHALL NOT include those dynamic values in the stable prefix hash</then>
+        <then>The system SHALL materialize only a compact late runtime overlay for work mode and task phase</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

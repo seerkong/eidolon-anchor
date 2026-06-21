@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="runtime-profile-capability-boundary" version="1">
+  <requirement id="single-profile-composition-entry">
+    <statement>系统 SHALL 通过单一 profile composition path 创建 CLI、TUI 和 headless runtime。</statement>
+    <suite id="entry-composition" name="Entry composition">
+      <case id="same-profile-same-binding">
+        <given>CLI、TUI 和 headless 使用同一个 runtime profile</given>
+        <when>系统创建 runtime binding descriptor</when>
+        <then>三个入口 SHALL 生成兼容的 profile、capability 和 storage binding 描述</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="surface-entry-no-domain-truth">
+    <statement>Product surface SHALL NOT 直接定义 AI domain truth、provider/tool/conversation 默认语义或 domain fact writer。</statement>
+    <suite id="surface-boundary" name="Surface boundary">
+      <case id="surface-selects-profile-only">
+        <given>一个 product surface entry 需要启动 AI runtime</given>
+        <when>entry 初始化 runtime</when>
+        <then>entry SHALL 只选择 profile 并提供 surface adapter</then>
+        <then>entry SHALL NOT 私有创建 provider、tool、conversation 或 history owner</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="runtime-storage-capability-flags">
+    <statement>Runtime storage capabilities SHALL 显式表达 logs/files 开关，关闭持久化文件写入不得阻止 memory-only AI loop。</statement>
+    <suite id="storage-capability" name="Storage capability">
+      <case id="memory-only-loop">
+        <given>runtime profile 禁用 logs 和 files storage capabilities</given>
+        <when>用户发起普通对话</when>
+        <then>AI loop SHALL 可以在 memory-only profile 下完成</then>
+        <then>系统 SHALL NOT 因 session 文件写入关闭而停止主流程</then>
+      </case>
+      <case id="shared-upgrade-capability">
+        <given>TUI session picker 加载需要升级的旧 session</given>
+        <when>用户确认升级</when>
+        <then>TUI SHALL 调用共享 upgrade capability</then>
+        <then>TUI SHALL NOT 实现私有 session migration 语义</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

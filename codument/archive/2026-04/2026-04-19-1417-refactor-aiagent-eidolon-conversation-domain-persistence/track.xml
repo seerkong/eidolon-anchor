@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-aiagent-eidolon-conversation-domain-persistence" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Goal>将参考项目的 history/prompt/session 数据驱动模型迁移到本项目，并以 `.eidolon` 文件系统正式落地消息历史、压缩和历史 session 加载。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-19T03:54:15Z</CreatedAt>
+    <UpdatedAt>2026-04-19T14:17:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-aiagent-eidolon-conversation-domain-persistence" name="refactor-aiagent-eidolon-conversation-domain-persistence" version="1">
+    <Description>重构 AIAgent `.eidolon` Conversation Domain Persistence</Description>
+    <SubNodes>
+      <TaskGroup id="P0" name="冻结范围与暂缓项" status="DONE" order="0">
+        <Description>先锁定必做项和延后项，避免 track 在 runtime 主链、UI surface 与未来能力之间失焦。</Description>
+        <SubNodes>
+          <Task id="T0.1" name="冻结必做范围" status="DONE" order="0" priority="P0">
+            <Description>确认本次必须交付 `.eidolon` 本地持久化版的消息历史、压缩、历史 session 加载，并把这三项从可选范围中剥离。</Description>
+          </Task>
+          <Task id="T0.2" name="确认延后机制决策" status="DONE" order="1" priority="P0">
+            <Description>根据 `decisions.md` 确认 rollback/fork、context asset、micro compact、branch/explain surface 的本轮深度。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P1" name="定义 conversation domain 与 `.eidolon` 布局" status="DONE" order="1">
+        <Description>先把三域 contract、事件集合和 `.eidolon` 正式权威布局说清楚，避免后续实现继续混用 transcript、snapshot 与压缩副作用。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 history / prompt / session 三域 contract" status="DONE" order="0" priority="P0">
+            <Description>在 `ai-organ-contract` 或相邻 contract 层定义 history generation/head/lineage、prompt generation/head/transform、session head/lineage，以及 local repository/store interface 的正式数据结构。</Description>
+          </Task>
+          <Task id="T1.2" name="定义 conversation domain 事件集合" status="DONE" order="1" priority="P0">
+            <Description>定义 history、prompt、session 三域事件，并明确它们位于 semantic 之上的 conversation domain graph family。</Description>
+          </Task>
+          <Task id="T1.3" name="冻结 `.eidolon` conversation persistence 布局" status="DONE" order="2" priority="P0">
+            <Description>确定 `conversation/history.index.json`、`prompt.index.json`、`session.index.json`、`artifact-refs.index.json` 以及 generation 文件布局。</Description>
+          </Task>
+          <Task id="T1.4" name="冻结 package ownership" status="DONE" order="3" priority="P0">
+            <Description>明确 `ai-organ-contract` 持有 persistence contract，`ai-organ-logic` 持有 orchestration/recovery，`ai-support` 持有 `.eidolon` 本地文件副作用实现。</Description>
+          </Task>
+          <Task id="T1.5" name="定义 transcript / snapshot / logs 的降级职责" status="DONE" order="4" priority="P1">
+            <Description>明确 `actors/*/transcript.txt`、`runtime_state/*` 与 `logs/orchestration_history.txt` 的兼容职责，禁止它们继续充当唯一 conversation truth。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="建立 history 主链与 `.eidolon` message persistence" status="DONE" order="2">
+        <Description>让 committed messages 进入正式 history domain，并把 `.eidolon` 中的 history generation/head 持久化建立起来。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="建立 history domain log 与 reducer projection" status="DONE" order="0" priority="P0">
+            <Description>将 semantic commit boundary 接入 history domain，并生成可恢复的 history raw state。</Description>
+          </Task>
+          <Task id="T2.2" name="在 ai-support 中实现 history generation `.eidolon` 持久化" status="DONE" order="1" priority="P0">
+            <Description>在 `ai-support` 中为 history head、generation manifest、sealed predecessors 与 active tail 建立本地文件 store/repository。</Description>
+          </Task>
+          <Task id="T2.3" name="接入现有 transcript 作为 evidence / bootstrap" status="DONE" order="2" priority="P0">
+            <Description>保留 `LocalFileActorTranscriptStore`，并通过 `ai-support` 中的本地 support backend 把 transcript 降级为原始消息证据与迁移输入，而不是唯一正式历史。</Description>
+          </Task>
+          <Task id="T2.4" name="在 ai-organ-logic 中接入 history persistence orchestration" status="DONE" order="3" priority="P0">
+            <Description>让 `ai-organ-logic` 调用 `ai-support` 的 history repositories，并完成 reducer -&gt; persistence -&gt; recovery 的 orchestration 接线。</Description>
+          </Task>
+          <Task id="T2.5" name="补消息历史 focused tests" status="DONE" order="4" priority="P0">
+            <Description>覆盖 committed message -&gt; history domain -&gt; `.eidolon` persistence -&gt; recover 的主链回归。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="重构 compaction 为 history + prompt 双域语义" status="DONE" order="3">
+        <Description>把现有 `/compact` 与 `ContextCompressor` 从直接改写 messages，迁移为正式的 history compaction 和 prompt truth 更新。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="实现 history compaction 语义" status="DONE" order="0" priority="P0">
+            <Description>让 compaction 触发 generation seal、new active generation 与 history head move。</Description>
+          </Task>
+          <Task id="T3.2" name="在 ai-support 中实现 prompt head 与 compaction summary 持久化" status="DONE" order="1" priority="P0">
+            <Description>把 `state_snapshot` summary 迁移为 prompt generation / transform，并通过 `ai-support` 写入 `.eidolon` prompt persistence。</Description>
+          </Task>
+          <Task id="T3.3" name="建立 artifact refs 边界" status="DONE" order="2" priority="P1">
+            <Description>若需要保留 compaction source material 或诊断产物，通过 `ai-support` 独立写入 `artifact-refs.index.json`，不再承担正式 history truth。</Description>
+          </Task>
+          <Task id="T3.4" name="在 ai-organ-logic 中接入 compaction persistence orchestration" status="DONE" order="3" priority="P0">
+            <Description>让 `ai-organ-logic` 编排 history compaction、prompt head move 与 artifact refs 写入，但不正式拥有本地文件副作用实现。</Description>
+          </Task>
+          <Task id="T3.5" name="补 compaction focused tests" status="DONE" order="4" priority="P0">
+            <Description>覆盖 `/compact` 后 history head、prompt head、generation persistence 与兼容投影行为。</Description>
+          </Task>
+          <Task id="T3.6" name="按决策接入 micro compact" status="DONE" order="5" priority="P2">
+            <Description>仅在 `decisions.md` 选择实现时，增加 micro compact 的 prompt transform runtime；默认先不做。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="切换历史 session 加载与恢复入口" status="DONE" order="4">
+        <Description>让本地历史 session 的打开、恢复和浏览优先从 conversation persistence 读取，而不是继续从 snapshot/transcript 拼装。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="让 runtime recovery 优先读取 conversation heads" status="DONE" order="0" priority="P0">
+            <Description>更新 `recoverAiAgentRuntime(...)` 及相关 loader，使其通过 `ai-support` 提供的 local repositories 优先读取 `conversation/session.index.json`、history head 与 prompt head。</Description>
+          </Task>
+          <Task id="T4.2" name="让 session list/load 读取 `.eidolon` conversation persistence" status="DONE" order="1" priority="P0">
+            <Description>更新 TUI/headless session 加载路径，使历史 session 可从新的 generation/head 持久化恢复历史与上下文。</Description>
+          </Task>
+          <Task id="T4.2a" name="让 TUI `/resume` 打开 session surface 并恢复会话" status="DONE" order="2" priority="P0">
+            <Description>让 `/resume`、`/continue`、`/session` 在 TUI 中直接触发可滚动 session list surface，支持上下选择并按 Enter 恢复目标 session；若当前处于 home，则不得先隐式创建空 session。session list 的每个条目还需显示 create/update 时间、初始用户问题和最新消息预览三行摘要。</Description>
+          </Task>
+          <Task id="T4.3" name="实现 transcript/snapshot 兼容迁移入口" status="DONE" order="3" priority="P0">
+            <Description>在旧 session 没有 `conversation/*` 时，通过 `ai-support` 的 migration/bootstrap helpers 从 transcript/snapshot 保守 bootstrap 一次并回写 conversation persistence。</Description>
+          </Task>
+          <Task id="T4.4" name="补历史 session load focused tests" status="DONE" order="4" priority="P0">
+            <Description>覆盖已压缩 session、旧 session bootstrap、历史 session list/load 与 active heads 恢复。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="补齐延后能力定义与消费面收口" status="DONE" order="5">
+        <Description>对非本轮必做机制建立清晰定义，并在必要时补充最小消费面，但不让它们阻塞 `.eidolon` 主链落地。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="为 rollback / fork 预留正式 contract 与 storage slot" status="DONE" order="0" priority="P1">
+            <Description>不论本轮是否实现 runtime API，都为 rollback / fork 预留 history lineage 语义与持久化槽位。</Description>
+          </Task>
+          <Task id="T5.2" name="按决策接入 context asset 首版" status="DONE" order="1" priority="P2">
+            <Description>根据 `decisions.md` 选择是只落定义，还是接入 workspace / MCP asset registry 与 prompt attach transform。</Description>
+          </Task>
+          <Task id="T5.3" name="按决策提供 branch / explain 调试消费面" status="DONE" order="2" priority="P2">
+            <Description>根据 `decisions.md` 选择是否提供 debug helper 或 headless surface；默认不直接做 TUI/Web 正式表面。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P6" name="修正相对参考设计的数据流偏差" status="DONE" order="6">
+        <Description>把已经落地的 `.eidolon` conversation persistence 从“结构对齐”推进到“主链数据流对齐”，修正 prompt truth、compaction truth split 与 runtime consumption 的剩余偏差。</Description>
+        <SubNodes>
+          <Task id="T6.1" name="把偏差审查结论写回 Codument 文档" status="DONE" order="0" priority="P0">
+            <Description>更新 `spec.md`、`design.md` 与必要分析文档，明确当前实现相对参考设计仍缺少 conversation domain stream family runtime consumption、prompt truth runtime consumption、summary/history 彻底拆分与 committed-message history model。</Description>
+          </Task>
+          <Task id="T6.2" name="修正 full compaction 的 history/prompt 分界" status="DONE" order="1" priority="P0">
+            <Description>让 full compaction 不再把 `state_snapshot + ack` 写入 formal history generation；history 仅保留 active tail 的真实 committed messages，summary 仅进入 prompt generation / artifact refs。</Description>
+          </Task>
+          <Task id="T6.3" name="让 recovery/runtime 优先消费 prompt head + active tail" status="DONE" order="2" priority="P0">
+            <Description>恢复与后续模型输入重建不再只读取 history generation 并回填 `actor.messages`，而是通过 conversation loaders 按 prompt head + active history tail 组装 runtime prompt view。</Description>
+          </Task>
+          <Task id="T6.4" name="让 session history 视图读取 visible history 而不是 runtime prompt view" status="DONE" order="3" priority="P0">
+            <Description>为 TUI/headless 历史浏览提供 visible history loader，使它读取 predecessor + active tail 的正式 history，而不是误用 prompt 视图。</Description>
+          </Task>
+          <Task id="T6.5" name="将 history generation payload 升级为 committed-message 模型" status="DONE" order="4" priority="P0">
+            <Description>history persistence 不再只保存 transcript-style stream/payload 记录，而是保存可直接消费的 committed message DTO，并为每条 committed message 持久化 `startAt` / `endAt`；旧数据保留兼容 fallback。</Description>
+          </Task>
+          <Task id="T6.6" name="让 conversation projection 进入正式 orchestration 路径" status="DONE" order="5" priority="P1">
+            <Description>至少在 compaction/recovery/load 等主链通过 conversation projection helper 统一派生 heads / lineages / session bindings，避免 projection 仅停留在离线测试 helper。</Description>
+          </Task>
+          <Task id="T6.7" name="补偏差修正 focused tests" status="DONE" order="6" priority="P0">
+            <Description>覆盖 summary 不进入 history、recovery 使用 prompt head、TUI 读取 visible history、legacy history fallback 与 conversation projection 被主链消费的回归。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P7" name="统一 raw state 消费面与 prompt transform 解释" status="DONE" order="7">
+        <Description>把 history/prompt/session 的正式消费面进一步统一到同一份 conversation raw state，并为 prompt 域补齐通用 transform interpreter 与 session raw state 最小运行时接线。</Description>
+        <SubNodes>
+          <Task id="T7.1" name="把 P7 偏差与目标写回 Codument 文档" status="DONE" order="0" priority="P0">
+            <Description>更新 `plan.xml`、`design.md` 与 `spec.md`，明确 P7 针对 shared raw state consumption、generic prompt transform interpretation 与 minimal session raw state routing 的修正目标。</Description>
+          </Task>
+          <Task id="T7.2" name="实现 conversation raw state loader" status="DONE" order="1" priority="P0">
+            <Description>在 `ai-support` 中增加统一的 conversation raw state/session raw state loader，一次性解析 history/prompt/session indexes、active actor binding、active prompt/history generation 与 visible generations。</Description>
+          </Task>
+          <Task id="T7.3" name="让 runtime/history 视图从 shared raw state 派生" status="DONE" order="2" priority="P0">
+            <Description>重构 runtime prompt view 与 visible history view loader，使它们都从同一份 conversation raw state 派生，而不是继续各自独立读取和手写拼装 persistence truth。</Description>
+          </Task>
+          <Task id="T7.4" name="实现通用 prompt transform interpreter" status="DONE" order="3" priority="P0">
+            <Description>为 prompt runtime materialization 建立独立 transform interpreter，至少为 `history_compaction_summary`、`micro_compact`、`context_asset_attach`、`context_asset_extract_text`、`context_asset_select_fragment`、`context_asset_bind_summary` 与 `overlay` 提供稳定解释入口与 fallback。</Description>
+          </Task>
+          <Task id="T7.5" name="把 session raw state 接到最小运行时消费面" status="DONE" order="4" priority="P1">
+            <Description>让 TUI/headless 等 active actor/head 解析优先消费 session raw state，减少 session domain 仍停留在 index slot 而不被正式消费的偏差。</Description>
+          </Task>
+          <Task id="T7.6" name="补 P7 focused tests 与验证" status="DONE" order="5" priority="P0">
+            <Description>覆盖 shared raw state 派生 runtime/history views、generic prompt transform interpretation、session raw state 路由与 codument strict validation。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P8" name="闭合 runtime conversation domain 主链" status="DONE" order="8">
+        <Description>把 conversation runtime 从辅助容器推进为正式主链，使 recovery、live history append、compaction 与 session raw state 都汇入同一份 runtime conversation truth。</Description>
+        <SubNodes>
+          <Task id="T8.1" name="把 P8 强制差距写回 Codument 文档" status="DONE" order="0" priority="P0">
+            <Description>更新 `spec.md`、`design.md` 与计划，明确 runtime conversation domain 注入、live history append、compaction event sync 与 session raw state 补齐已从“偏差项”升级为本轮必做项。</Description>
+          </Task>
+          <Task id="T8.2" name="恢复时把 persisted conversation raw state 注入 runtime domain" status="DONE" order="1" priority="P0">
+            <Description>更新 `recoverAiAgentRuntime(...)`，在 hydrate VM 后创建/取得 `ConversationDomainRuntime`，读取 session/actor raw state 并注入 runtime signals。</Description>
+          </Task>
+          <Task id="T8.3" name="让 live message assembly 持续推进 runtime history truth" status="DONE" order="2" priority="P0">
+            <Description>在 `MessageHistoryGraph` 消费链上把 transcript record batch 转换为 committed messages，并实时 append 到 conversation runtime，而不是只写 transcript 或等待 reload。</Description>
+          </Task>
+          <Task id="T8.4" name="让 compaction 同步领域事件与 runtime raw state" status="DONE" order="3" priority="P0">
+            <Description>在 compaction 完成 `.eidolon` 写入后，追加 history/prompt/session 领域事件，并重新同步 actor/session raw state 到 runtime conversation domain。</Description>
+          </Task>
+          <Task id="T8.5" name="补齐 session raw state 与 runtime signal 槽位" status="DONE" order="4" priority="P1">
+            <Description>让 `ConversationSessionRawState` 正式包含 `contextAssets` 与 `activeSelection`，并让 runtime session signal 能承接 selection / binding / asset 事件更新。</Description>
+          </Task>
+          <Task id="T8.6" name="补 P8 focused tests 与验证" status="DONE" order="5" priority="P0">
+            <Description>运行恢复、执行器、conversation raw state、message history effects 与 TUI session load 的聚焦测试，并完成 codument strict validation。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P9" name="补齐 runtime-native conversation family" status="DONE" order="9">
+        <Description>把 conversation runtime 从“可用容器”进一步推进为正式 runtime family，补上 stream API、message assembly state 与最小 prompt/session runtime ops。</Description>
+        <SubNodes>
+          <Task id="T9.1" name="把 P9 偏差写回 Codument 文档" status="DONE" order="0" priority="P0">
+            <Description>更新 `spec.md`、`design.md` 与计划，明确 stream family API、runtime message assembly state、prompt runtime ops 与 session lifecycle runtime 入口属于本轮必做项。</Description>
+          </Task>
+          <Task id="T9.2" name="为 conversation runtime 补 stream subscribe tee 与 persist hook" status="DONE" order="1" priority="P0">
+            <Description>让 `ConversationDomainRuntime` 提供 history/prompt/session subscribe、tee stream 与 runtime-level persist hook，而不再只暴露 event arrays。</Description>
+          </Task>
+          <Task id="T9.3" name="把 message assembly state 纳入 runtime conversation domain" status="DONE" order="2" priority="P0">
+            <Description>在 runtime 中增加 actor 级 message assembly state，承载 transcript record batch、reduced committed messages 与已推进 history 的边界。</Description>
+          </Task>
+          <Task id="T9.4" name="补最小 prompt runtime ops" status="DONE" order="3" priority="P0">
+            <Description>增加 prompt request、prompt overlay、context block register 与 detach-all 的正式 runtime ops，使 prompt truth 可直接在 runtime domain 内演化。</Description>
+          </Task>
+          <Task id="T9.5" name="补最小 session lifecycle runtime 入口" status="DONE" order="4" priority="P1">
+            <Description>为 session fork/close 等 lifecycle 保留正式 runtime 入口，并继续让 selection / binding / asset 作为 session runtime state 的正式组成部分。</Description>
+          </Task>
+          <Task id="T9.6" name="补 P9 focused tests 与验证" status="DONE" order="5" priority="P0">
+            <Description>增加 conversation runtime focused tests，覆盖 subscribe/tee、persist hook、message assembly state 与 prompt context block lifecycle，并完成相关回归与 codument strict validation。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P10" name="补厚主链事件并切 runtime-first 消费" status="DONE" order="10">
+        <Description>让厚事件成为正式主链首选，并把主要上层消费面切到 runtime-first, persistence-fallback 的读取策略。</Description>
+        <SubNodes>
+          <Task id="T10.1" name="把 P10 偏差写回 Codument 文档" status="DONE" order="0" priority="P0">
+            <Description>更新 `spec.md`、`design.md` 与计划，明确“事件对象仍偏薄”和“消费面尚未全面 runtime-first”已升级为本轮必做项。</Description>
+          </Task>
+          <Task id="T10.2" name="让主链事件优先携带正式对象" status="DONE" order="1" priority="P0">
+            <Description>补充并接通 history/prompt/session 主链事件中的 generation/head/transform/session/binding/selection/lineage object，使 reducer 与 runtime 更新优先消费厚事件。</Description>
+          </Task>
+          <Task id="T10.3" name="为 runtime conversation raw state 提供上层读取入口" status="DONE" order="2" priority="P0">
+            <Description>增加从 VM/runtime bridge 读取 session/actor raw state 与 runtime/history views 的正式 helper，为上层 runtime-first 消费提供统一入口。</Description>
+          </Task>
+          <Task id="T10.4" name="把 TUI 历史加载切到 runtime-first" status="DONE" order="3" priority="P0">
+            <Description>在 runtime bridge 可用且有 conversation raw state 时，TUI 历史加载优先读取 runtime truth，仅在 runtime 不可用时回退 persistence-first loader。</Description>
+          </Task>
+          <Task id="T10.5" name="补 P10 focused tests 与验证" status="DONE" order="4" priority="P0">
+            <Description>增加厚事件与 runtime-first consumer 的 focused tests，并完成相关回归与 codument strict validation。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P11" name="收口 runtime-native 主链剩余偏差" status="DONE" order="11">
+        <Description>把当前分支相对参考设计仍然存在的 3 个核心差距收口到主链闭合：主要消费面全面 runtime-first、主链事件进一步补厚、live ingress 切到正式 message assembly state。</Description>
+        <SubNodes>
+          <Task id="T11.1" name="把 P11 核心剩余差距写回 Codument 文档" status="DONE" order="0" priority="P0">
+            <Description>更新 `design.md` 与计划，明确“主要消费面尚未全面 runtime-first”“主链事件仍未完全厚对象化”“live ingress 仍依赖 transcript reducer”已升级为 P11 必做项。</Description>
+          </Task>
+          <Task id="T11.2" name="让主要消费面默认走 runtime-first 入口" status="DONE" order="1" priority="P0">
+            <Description>继续把 TUI/headless/runtime prompt/history/session 相关主要消费面统一到 runtime raw state / runtime views 入口，仅在 runtime 不可用、无状态或离线场景下才回退 `.eidolon` repository-first loader。</Description>
+          </Task>
+          <Task id="T11.3" name="继续补厚主链 history/prompt/session 事件" status="DONE" order="2" priority="P0">
+            <Description>让 history/prompt/session 主链事件优先携带 generation/head/transform/session/binding/selection/lineage/asset 等正式对象，减少 reducer 与 runtime 对现场推断和默认补值的依赖。</Description>
+          </Task>
+          <Task id="T11.4" name="将 live ingress 重构为正式 message assembly state 主桥接" status="DONE" order="3" priority="P0">
+            <Description>把 live committed history append 从 `TranscriptRecord -&gt; reduceTranscriptToMessages(...) -&gt; length diff` 的桥接方式升级为独立的 message assembly state 主链；transcript reducer 退回 bootstrap / compatibility / audit helper。</Description>
+          </Task>
+          <Task id="T11.5" name="补 P11 focused tests 与验证" status="DONE" order="4" priority="P0">
+            <Description>增加针对 runtime-first default、厚事件驱动 reducer/runtime、message assembly state ingress 的 focused tests，并完成相关回归与 `codument validate --strict`。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

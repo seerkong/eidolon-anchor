@@ -6,6 +6,7 @@ import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { aiAgentCooperativeStep } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
 import { createAiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver";
 import { getMemberManager } from "@cell/ai-organ-logic/organization/MemberManager";
+import { createMockProcessStream } from "./__test_support__/mockProcessStream";
 
 async function flushMicrotasks(): Promise<void> {
   for (let i = 0; i < 10; i++) {
@@ -32,7 +33,7 @@ describe("Stage 3 cooperative cancel", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     });
     actor.send("control", { kind: "cancel_requested" });
@@ -81,7 +82,7 @@ describe("Stage 3 cooperative cancel", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     });
     const vm = createVM({
@@ -137,7 +138,7 @@ describe("Stage 3 cooperative cancel", () => {
       messages: [{ role: "user", content: "cancel this turn" } as any],
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "should not run" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "should not run" })),
       },
     });
     const vm = createVM({
@@ -203,7 +204,7 @@ describe("Stage 3 cooperative cancel", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     });
     const vm = createVM({
@@ -266,7 +267,7 @@ describe("Stage 3 cooperative cancel", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     });
     actor.send("control", { kind: "cancel_requested" });
@@ -316,7 +317,7 @@ describe("Stage 3 cooperative cancel", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     });
     actor.send("control", { kind: "shutdown_requested" });

@@ -54,7 +54,7 @@ function findActorOwnedTarget(runtime: PlanReviewInnerRuntime, requestId: string
 function findPendingMailboxTarget(runtime: PlanReviewInnerRuntime, requestId: string): PlanReviewTarget | null {
   const engine = getCoordinationEngine()
   for (const actor of Object.values(runtime.vm.actors)) {
-    for (const mailboxTag of ["coordination", "memberInbox"] as const) {
+    for (const mailboxTag of ["memberCoordination", "memberChatInbox"] as const) {
       for (const pending of actor.peekMailbox(mailboxTag) as Array<{ text?: string }>) {
         const env = engine.parseEnvelopeText(String(pending?.text ?? ""))
         if (!env || env.request_id !== requestId || env.coordination !== AI_AGENT_COORDINATION_NAMES.planApproval) {
@@ -115,10 +115,10 @@ export const planReviewCoreLogic: StdInnerLogic<PlanReviewInnerRuntime, PlanRevi
       fiberId: `${target.actor.key}:${target.actor.id}`,
       signalKind: "mailbox_enqueue",
       mailbox: {
-        kind: "coordination",
+        kind: "memberCoordination",
         payload: { from: runtime.actor.key, text: outbound.text, ts: now } as any,
       },
-      idempotencyKey: `${target.actor.key}:${target.actor.id}:coordination:${requestId}:${now}`,
+      idempotencyKey: `${target.actor.key}:${target.actor.id}:memberCoordination:${requestId}:${now}`,
       createdAt: now,
     })
   }

@@ -1,8 +1,6 @@
 import type { AgentConfig } from "@cell/ai-core-contract/runtime/AgentConfig";
 import type { AgentPresetConfig, LLMProviderConfig } from "@cell/ai-organ-contract/llm/ProviderConfig";
-import type { ActorTranscriptStore } from "@cell/ai-core-contract/runtime/ActorTranscript";
 import type {
-  MessageHistoryEffects,
   OrchestrationHistoryEffects,
   RuntimeHistorySupportParams,
 } from "@cell/ai-core-contract/runtime/HistoryEffects";
@@ -93,6 +91,144 @@ export type RuntimeRegistries = {
   skillRegistry: SkillRegistryData;
 };
 
+export type RuntimeHookMode = "observe" | "transform" | "decision" | "around";
+
+export type RuntimeHookAction = "continue" | "replace" | "deny" | "ask" | "retry" | "stop";
+
+export type RuntimeHookStepStatus =
+  | "matched"
+  | "skipped"
+  | "failed"
+  | "timed_out"
+  | "reentrant_skipped"
+  | "budget_exhausted";
+
+export type RuntimeHookMatcher = {
+  actorIds?: readonly string[];
+  actorNames?: readonly string[];
+  actorKinds?: readonly string[];
+  toolNames?: readonly string[];
+  providerIds?: readonly string[];
+  shellTypes?: readonly string[];
+  commandNames?: readonly string[];
+  extensionIds?: readonly string[];
+  subjectPaths?: readonly string[];
+  pathGlobs?: readonly string[];
+  riskLevels?: readonly string[];
+  tags?: readonly string[];
+};
+
+export type RuntimeHookInvocationContext = {
+  point: string;
+  sessionId?: string;
+  actorId?: string;
+  actorName?: string;
+  actorKind?: string;
+  toolName?: string;
+  providerId?: string;
+  shellType?: string;
+  commandName?: string;
+  extensionId?: string;
+  subjectPath?: string;
+  riskLevel?: string;
+  traceId?: string;
+  tags?: readonly string[];
+  payload?: unknown;
+};
+
+export type RuntimeHookMailboxEnqueueEffect = {
+  type: "mailbox_enqueue";
+  fiberId?: string;
+  actorId?: string;
+  actorName?: string;
+  mailbox: string;
+  payload: unknown;
+};
+
+export type RuntimeHookResumeFiberEffect = {
+  type: "resume_fiber";
+  fiberId?: string;
+  actorId?: string;
+  actorName?: string;
+  reason?: string;
+};
+
+export type RuntimeHookEmitDiagnosticEffect = {
+  type: "emit_diagnostic";
+  eventType?: string;
+  payload: unknown;
+};
+
+export type RuntimeHookRequestSnapshotEffect = {
+  type: "request_snapshot";
+  reason?: string;
+};
+
+export type RuntimeHookEffect =
+  | RuntimeHookMailboxEnqueueEffect
+  | RuntimeHookResumeFiberEffect
+  | RuntimeHookEmitDiagnosticEffect
+  | RuntimeHookRequestSnapshotEffect;
+
+export type RuntimeHookResult = {
+  action: RuntimeHookAction;
+  payload?: unknown;
+  output?: unknown;
+  message?: string;
+  metadata?: Record<string, unknown>;
+  effects?: readonly RuntimeHookEffect[];
+};
+
+export type RuntimeHookComponentExecution = {
+  style: "component";
+  componentId: string;
+  config?: unknown;
+};
+
+export type RuntimeHookExecution = RuntimeHookComponentExecution;
+
+export type RuntimeHookDefinition = {
+  name: string;
+  description?: string;
+  point: string;
+  mode: RuntimeHookMode;
+  extensionId: string;
+  enabled?: boolean;
+  priority?: number;
+  timeoutMs?: number;
+  failOpen?: boolean;
+  matcher?: RuntimeHookMatcher;
+  execution: RuntimeHookExecution;
+};
+
+export type RuntimeHookDispatchStepReport = {
+  hookName: string;
+  extensionId: string;
+  point: string;
+  mode: RuntimeHookMode;
+  status: RuntimeHookStepStatus;
+  action?: RuntimeHookAction;
+  elapsedMs?: number;
+  message?: string;
+  error?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type RuntimeHookDispatchReport = {
+  eventType: "hook_dispatch_report";
+  point: string;
+  sessionId?: string;
+  actorId?: string;
+  actorName?: string;
+  traceId?: string;
+  finalAction: RuntimeHookAction;
+  elapsedMs: number;
+  steps: readonly RuntimeHookDispatchStepReport[];
+  payload?: unknown;
+  output?: unknown;
+  effects?: readonly RuntimeHookEffect[];
+};
+
 export type RuntimeToolingDescriptor = {
   buildAllTools: (state: DomainRuntimeAssemblyState, context: DomainRuntimeAssemblyContext) => ToolSchema[];
   buildToolset: (
@@ -127,13 +263,14 @@ export type RuntimeAgentLoader = {
 export type RuntimeModelConfigResolverParams = {
   workDir: string;
   agentKey: string;
+  modelRef?: string;
   fallbackModelConfig: ActorModelConfig;
   fallbackOverrideKeys?: (keyof ActorModelConfig)[];
+  strictModelRef?: boolean;
   logger?: RuntimeLogFn;
 };
 
 export type RuntimePersistenceDescriptor = {
-  actorTranscriptStore: ActorTranscriptStore;
   snapshotRepositoryFactory: RuntimeSnapshotRepositoryFactory<
     RuntimeSnapshotPersistedState,
     RuntimeSnapshotManifest,
@@ -146,7 +283,6 @@ export type RuntimePersistenceDescriptor = {
 export type RuntimeSupportDescriptor = {
   createAgentLoader: (agentsDir: string) => RuntimeAgentLoader;
   resolveActorModelConfig: (params: RuntimeModelConfigResolverParams) => ActorModelConfig;
-  createMessageHistoryEffects: (params: RuntimeHistorySupportParams) => MessageHistoryEffects;
   createOrchestrationHistoryEffects: (
     params: RuntimeHistorySupportParams,
   ) => OrchestrationHistoryEffects;
@@ -163,6 +299,7 @@ export type DomainRuntimeAssemblyState = {
   slashCommands: RuntimeSlashCommandDescriptor[];
   slashCommandSurfaces: string[];
   slashRuntimeFactory: RuntimeSlashRuntimeFactory | null;
+  hookDefinitions: RuntimeHookDefinition[];
 };
 
 export type DomainRuntimeAssemblyResult = {
@@ -175,4 +312,5 @@ export type DomainRuntimeAssemblyResult = {
   slashCommands: RuntimeSlashCommandDescriptor[];
   slashCommandSurfaces: string[];
   createSlashRuntime: (commands?: RuntimeSlashCommandDescriptor[]) => RuntimeSlashRuntime | null;
+  hookDefinitions: RuntimeHookDefinition[];
 };

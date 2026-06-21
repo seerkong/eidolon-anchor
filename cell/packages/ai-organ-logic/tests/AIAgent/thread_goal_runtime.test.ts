@@ -3,8 +3,12 @@ import { AgentEventGraph, createActor, createVM, ensureVmRuntimeContext, hydrate
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { composeToolRegistry } from "@cell/ai-organ-logic/composer/AIAgent/ToolFuncComposer"
 import { aiAgentCooperativeStep } from "@cell/ai-organ-logic/exec/AiAgentExecutor"
+import { createAiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver"
+import { maybeStartThreadGoalContinuation } from "@cell/ai-organ-logic/goals/ThreadGoalRuntime"
+import { createMockProcessStream } from "./__test_support__/mockProcessStream"
 import {
   accountThreadGoalUsage,
+  buildGoalContinuationPrompt,
   getThreadGoal,
   setThreadGoal,
   updateThreadGoalStatus,
@@ -202,7 +206,7 @@ describe("thread goal runtime", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "goal progress completed" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "goal progress completed" })),
       },
     })
     const vm = createVM({
@@ -236,5 +240,107 @@ describe("thread goal runtime", () => {
 
     expect(getThreadGoal(vm)?.tokensUsed).toBeGreaterThan(0)
   })
-})
 
+  it("injects goal continuation as runtime internal context instead of human input", () => {
+    const actor = createActor({ key: "main" })
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      outerCtx: { metadata: { sessionId: "persisted-goal-continuation-test" } },
+    })
+    const created = setThreadGoal({ vm, objective: "continue safely" })
+    expect(created.ok).toBe(true)
+
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor, messages: [], basePriority: 1 }],
+      runStep: async () => ({ kind: "suspend", reason: "idle_external" }),
+    })
+    driver.suspendFiber(fiberId, 1, "idle_external")
+
+    const started = maybeStartThreadGoalContinuation({ vm, driver, now: 2, mainFiberId: fiberId })
+    expect(started).toBe(true)
+    expect(actor.peekMailbox("humanInput")).toEqual([])
+    expect(actor.peekMailbox("heartbeat")).toEqual([
+      {
+        heartbeatKind: "runtime_internal_context",
+        source: "goal",
+        text: buildGoalContinuationPrompt(getThreadGoal(vm)!),
+      },
+    ])
+    expect((actor.peekMailbox("heartbeat")[0] as any).text).toContain("<runtime_internal_context source=\"goal\">")
+    expect((actor.peekMailbox("heartbeat")[0] as any).text).not.toContain("<codex_internal_context")
+  })
+
+  it("keeps real user input and pending goal continuation in separate priority queues", () => {
+    const actor = createActor({ key: "main" })
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      outerCtx: { metadata: { sessionId: "persisted-goal-preempt-test" } },
+    })
+    setThreadGoal({ vm, objective: "continue safely" })
+
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor, messages: [], basePriority: 1 }],
+      runStep: async () => ({ kind: "suspend", reason: "idle_external" }),
+    })
+    driver.suspendFiber(fiberId, 1, "idle_external")
+    expect(maybeStartThreadGoalContinuation({ vm, driver, now: 2, mainFiberId: fiberId })).toBe(true)
+    expect(ensureVmRuntimeContext(vm).threadGoalRuntime.continuationInFlight).toBe(true)
+
+    driver.emitFiberSignal({
+      fiberId,
+      signalKind: "mailbox_enqueue",
+      mailbox: { kind: "humanInput", payload: "请取消当前的goal" },
+      idempotencyKey: `${fiberId}:humanInput:test`,
+      createdAt: 3,
+    })
+
+    expect(actor.peekMailbox("heartbeat")).toEqual([
+      {
+        heartbeatKind: "runtime_internal_context",
+        source: "goal",
+        text: buildGoalContinuationPrompt(getThreadGoal(vm)!),
+      },
+    ])
+    expect(actor.peekMailbox("humanInput")).toEqual(["请取消当前的goal"])
+    expect(ensureVmRuntimeContext(vm).threadGoalRuntime.continuationInFlight).toBe(true)
+  })
+
+  it("does not enqueue heartbeat continuation while wake mailbox work is pending", () => {
+    const pendingByMailbox = {
+      control: { kind: "cancel_requested" },
+      toolResult: { toolCallId: "call-1", content: "tool result" },
+      asyncCompletion: { kind: "llm_done", opId: "llm:1", msg: { role: "assistant", content: "done" } },
+      childDone: { childActorKey: "child", outputText: "done" },
+      memberCoordination: { from: "member", text: "<coordination />", ts: 1 },
+      humanInput: "user first",
+      memberChatInbox: { from: "member", text: "member first", ts: 1 },
+      heartbeat: { heartbeatKind: "runtime_internal_context", source: "test", text: "wake" },
+    } as const
+
+    for (const [mailbox, payload] of Object.entries(pendingByMailbox)) {
+      const actor = createActor({ key: "main", id: `actor-${mailbox}` })
+      const vm = createVM({
+        controlActorKey: "main",
+        actors: { main: actor },
+        outerCtx: { metadata: { sessionId: `pending-${mailbox}` } },
+      })
+      setThreadGoal({ vm, objective: "continue safely" })
+      actor.send(mailbox as any, payload as any)
+
+      const fiberId = `${actor.key}:${actor.id}`
+      const driver = createAiAgentOrchestratorDriver({
+        fibers: [{ fiberId, vm, actor, messages: [], basePriority: 1 }],
+        runStep: async () => ({ kind: "suspend", reason: "idle_external" }),
+      })
+      driver.suspendFiber(fiberId, 1, "idle_external")
+
+      expect(maybeStartThreadGoalContinuation({ vm, driver, now: 2, mainFiberId: fiberId })).toBe(false)
+      expect(ensureVmRuntimeContext(vm).threadGoalRuntime.continuationInFlight).toBe(false)
+      expect(actor.peekMailbox("heartbeat").filter((entry: any) => entry?.source === "goal")).toEqual([])
+    }
+  })
+})

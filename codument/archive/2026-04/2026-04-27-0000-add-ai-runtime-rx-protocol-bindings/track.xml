@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-ai-runtime-rx-protocol-bindings" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>从 public RxData 派生协议输出数据面并保证绑定先于执行</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-26T14:17:03Z</CreatedAt>
+    <UpdatedAt>2026-04-27T00:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-ai-runtime-rx-protocol-bindings" name="add-ai-runtime-rx-protocol-bindings" version="1">
+    <Description>建立 AI runtime 场景协议 RxData 绑定</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="协议 frame 目标与测试" status="DONE" order="0">
+        <Description>基于已落地 public RxData 固定首个 semantic protocol frame binding 并用测试定义输出行为</Description>
+        <SubNodes>
+          <Task id="T1.1" name="固定首个 semantic protocol frame binding" status="DONE" order="0" priority="P0">
+            <Description>按 decisions.md 固定首个目标为 ai-organ-logic/src/stream 附近的 shared semantic protocol frame binding，而不是具体 TUI/web/OpenAI route。</Description>
+          </Task>
+          <Task id="T1.2" name="编写绑定时序测试" status="DONE" order="1" priority="P0">
+            <Description>确认 binding factory 在 actor 执行前调用 ensureVmRxData(vm)，并且首个 semantic event 不丢失。</Description>
+          </Task>
+          <Task id="T1.3" name="编写 public-only 边界测试" status="DONE" order="2" priority="P0">
+            <Description>确认协议 binding 只读取 publicRxData，不直接订阅 eventBus，不写 private stream/signal。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="实现协议 RxData binding" status="DONE" order="1">
+        <Description>实现 public RxData 到 semantic protocol frame 数据面的转换</Description>
+        <SubNodes>
+          <Task id="T2.1" name="定义 protocol frame 与 binding 类型" status="DONE" order="0" priority="P0">
+            <Description>在 contract 层定义 semantic protocol frame、source stream、usage/trace summary signal projection 与 binding 类型。</Description>
+          </Task>
+          <Task id="T2.2" name="实现 semantic protocol binding factory" status="DONE" order="1" priority="P0">
+            <Description>从 ensureVmRxData(vm).publicRxData 创建 protocol frame stream 与 cleanup，禁止读取 privateRxData。</Description>
+          </Task>
+          <Task id="T2.3" name="接入首个 shared stream adapter seam" status="DONE" order="2" priority="P0">
+            <Description>在 ai-organ-logic/src/stream 附近并行接入 shared semantic protocol binding，保留现有 OutputStream/messageHistory 路径。</Description>
+          </Task>
+          <Task id="T2.4" name="投影 domain streams 与 signal" status="DONE" order="3" priority="P1">
+            <Description>将 history/prompt/session domain stream、usage 和 traceSummary 以只读 protocol frame/signal 暴露，不写 semantic stream。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="兼容验证" status="DONE" order="2">
+        <Description>确认新旧输出行为兼容且 stream/signal 边界正确</Description>
+        <SubNodes>
+          <Task id="T3.1" name="运行协议 binding 定向测试" status="DONE" order="0" priority="P0">
+            <Description>验证 content/tool/error/domain/usage/trace summary 输出。</Description>
+          </Task>
+          <Task id="T3.2" name="验证 signal 与 semantic stream 分离" status="DONE" order="1" priority="P1">
+            <Description>usage 和 traceSummary 来自 readonly signal，不进入 semantic stream。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

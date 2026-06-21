@@ -225,11 +225,38 @@ describe("context_compressor", () => {
     expect(result.stats.persistedToolResults).toBe(1);
     expect(result.stats.microCompactedToolResults).toBeGreaterThanOrEqual(1);
     const compactedBig = String(result.messages[1]?.content ?? "");
-    expect(compactedBig).toContain("Earlier tool result compacted");
+    expect(compactedBig).toContain("<compacted-tool-result");
+    expect(compactedBig).toContain("delivered_and_compacted");
+    expect(compactedBig).toContain("Do not repeat the same tool call solely because");
     expect(compactedBig).toContain("Full output persisted at:");
-    const persistedPath = compactedBig.match(/Full output persisted at:\s*([^\]]+?)(?:\. Re-run|\n|$)/)?.[1]?.trim();
+    const persistedPath = compactedBig.match(/Full output persisted at:\s*([^\n]+)/)?.[1]?.trim();
     expect(persistedPath).toBeTruthy();
     expect(fs.readFileSync(String(persistedPath), "utf8")).toBe(largeOutput);
     expect(String(result.messages.at(-1)?.content ?? "")).toBe("recent result");
+  });
+
+  it("keeps a preview for older compacted tool results instead of instructing a rerun", () => {
+    const oldOutput = "READ_OUTPUT_LINE\n".repeat(200);
+    const messages = [
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-read-old", type: "function", function: { name: "read", arguments: "{\"filePath\":\"scripts/build_tui_release.sh\",\"offset\":1,\"limit\":170}" } }] },
+      { role: "tool", tool_call_id: "tc-read-old", content: oldOutput },
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-read-recent", type: "function", function: { name: "read", arguments: "{\"filePath\":\"scripts/build_tui_release.sh\",\"offset\":170,\"limit\":170}" } }] },
+      { role: "tool", tool_call_id: "tc-read-recent", content: "recent output" },
+    ];
+
+    const result = applyCheapCompactionPipeline(messages, {
+      toolResultBudgetBytes: 1_000_000,
+      microKeepRecentToolResults: 1,
+      microMinContentChars: 100,
+      microPreviewChars: 80,
+    });
+
+    expect(result.changed).toBe(true);
+    const compacted = String(result.messages[1]?.content ?? "");
+    expect(compacted).toContain("<compacted-tool-result");
+    expect(compacted).toContain("delivered_and_compacted");
+    expect(compacted).toContain("READ_OUTPUT_LINE");
+    expect(compacted).not.toContain("Re-run the tool");
+    expect(String(result.messages[3]?.content ?? "")).toBe("recent output");
   });
 });

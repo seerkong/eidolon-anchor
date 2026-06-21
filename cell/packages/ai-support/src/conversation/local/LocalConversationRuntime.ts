@@ -17,7 +17,7 @@ import {
 import {
   messagesToTranscriptRecords,
   reduceTranscriptToMessages,
-} from "@cell/ai-core-logic/runtime/ActorTranscript";
+} from "@cell/ai-core-logic/runtime/TranscriptRecords";
 import type { TranscriptRecord } from "@cell/symbiont-logic/stream/StreamTranscript";
 import { getLocalHistoryGenerationPath } from "./LocalConversationPaths";
 
@@ -100,11 +100,30 @@ export function fromCommittedConversationMessage(message: ConversationCommittedM
     : undefined;
 
   const toolCallId = normalizeCommittedToolCallId(message);
+  const role = (message.role as ChatMessage["role"]) ?? "assistant";
+  const content = String(message.content ?? "");
+
+  // Deterministic content_parts reconstruction for assistant messages: the
+  // committed codec stores reasoning/content as plain fields, while adapter
+  // consumers (anthropic family) read structured parts. Rebuilt here so the
+  // read-only conversation projection carries the same enriched shape the
+  // executor used to attach in-place.
+  const contentParts: Array<Record<string, unknown>> = [];
+  if (role === "assistant") {
+    if (typeof message.reasoningContent === "string" && message.reasoningContent) {
+      contentParts.push({ type: "reasoning", text: message.reasoningContent });
+    }
+    if (content) {
+      contentParts.push({ type: "text", text: content });
+    }
+  }
+
   return {
-    role: (message.role as ChatMessage["role"]) ?? "assistant",
+    role,
     name: message.name,
-    content: String(message.content ?? ""),
+    content,
     reasoning_content: message.reasoningContent,
+    ...(contentParts.length > 0 ? { content_parts: contentParts } : {}),
     ...(typeof message.startAt === "number" ? { startAt: message.startAt } : {}),
     ...(typeof message.endAt === "number" ? { endAt: message.endAt } : {}),
     ...(toolCallId ? { toolCallId, tool_call_id: toolCallId } : {}),
@@ -159,7 +178,6 @@ export function chatMessagesToCommittedHistoryRefs(params: {
   actorKey: string;
   actorId: string;
   recordIdPrefix: string;
-  transcriptPath?: string | null;
 }): ActorCommittedMessageRef[] {
   return params.messages.map((message, index) => ({
     recordId: makeRecordId(params.recordIdPrefix, index),
@@ -178,7 +196,6 @@ export function chatMessagesToCommittedHistoryRefs(params: {
       ...(typeof record.startAt === "number" ? { startAt: record.startAt } : {}),
       ...(typeof record.endAt === "number" ? { endAt: record.endAt } : {}),
     })),
-    transcriptPath: params.transcriptPath ?? null,
   }));
 }
 
@@ -486,14 +503,75 @@ export function materializeConversationVisibleHistory(rawState: ConversationActo
   return rawState.visibleHistoryGenerations.flatMap((generation) => committedHistoryRefsToMessages(generation.messages));
 }
 
+/**
+ * Conversation-visible messages: the prompt-transform prelude (compaction
+ * summary/ack, context-asset entries) plus the active history tail — WITHOUT
+ * the Stage-1 system prompts and without late-status overlays, which belong
+ * to the provider materialization only. This is the read-only view semantics
+ * of `actor.messages` after the mirror elimination (spec case
+ * single-in-memory-truth/mirror-eliminated).
+ */
+export function materializeConversationVisibleMessages(rawState: ConversationActorRawState): ChatMessage[] {
+  const activeTailMessages = rawState.activeHistoryGeneration
+    ? committedHistoryRefsToMessages(rawState.activeHistoryGeneration.messages)
+    : [];
+  return [
+    ...materializePromptTransformPrelude({ rawState }),
+    ...activeTailMessages,
+  ];
+}
+
+function readPromptGenerationSystemPrompts(rawState: ConversationActorRawState): string[] {
+  const metadata = (rawState.promptGeneration?.metadata ?? {}) as Record<string, unknown>;
+  const direct = metadata.systemPrompts;
+  const fromPlan = (metadata.promptPlan as Record<string, unknown> | undefined)?.systemPrompts;
+  const source = Array.isArray(direct) ? direct : Array.isArray(fromPlan) ? fromPlan : [];
+  const prompts: string[] = [];
+  const seen = new Set<string>();
+  for (const value of source) {
+    const prompt = typeof value === "string" ? value.trim() : "";
+    if (!prompt || seen.has(prompt)) continue;
+    seen.add(prompt);
+    prompts.push(prompt);
+  }
+  return prompts;
+}
+
+/**
+ * Stage 1 of the provider-context materialization: root the actor system
+ * prompts recorded on the active prompt generation (Session/Context-domain
+ * input, snapshotted at prompt-request time) ahead of everything else. The
+ * verbatim semantics mirror the legacy materializeActorSystemPrompts: only
+ * prompts not already present as system messages are prepended, in order.
+ */
+function materializeSystemPromptStage(
+  rawState: ConversationActorRawState,
+  messages: ChatMessage[],
+): ChatMessage[] {
+  const prompts = readPromptGenerationSystemPrompts(rawState);
+  if (prompts.length === 0) return messages;
+  const existing = new Set(
+    messages
+      .filter((message) => String(message?.role ?? "") === "system")
+      .map((message) => String(message?.content ?? "").trim())
+      .filter(Boolean),
+  );
+  const missing = prompts.filter((prompt) => !existing.has(prompt));
+  if (missing.length === 0) return messages;
+  return [
+    ...missing.map((prompt) => ({ role: "system", content: prompt } as ChatMessage)),
+    ...messages,
+  ];
+}
+
 export function materializeConversationRuntimePrompt(rawState: ConversationActorRawState): ChatMessage[] {
   const activeTailMessages = rawState.activeHistoryGeneration
     ? committedHistoryRefsToMessages(rawState.activeHistoryGeneration.messages)
     : [];
-  let materialized = [
+  let materialized = materializeSystemPromptStage(rawState, [
     ...materializePromptTransformPrelude({ rawState }),
     ...activeTailMessages,
-  ];
+  ]);
   for (const overlay of materializePromptTransformLateStatusOverlays({ rawState })) {
     materialized = insertLateStatusOverlay(materialized, overlay);
   }
@@ -661,7 +739,6 @@ export async function applyConversationCompaction(params: {
       actorKey: params.actorKey,
       actorId: params.actorId,
       recordIdPrefix: historyGenerationId,
-      transcriptPath: null,
     }),
     createdAt: nowIso,
     updatedAt: nowIso,

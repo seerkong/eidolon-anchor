@@ -6,22 +6,27 @@ import type {
   RuntimeExtension,
   RuntimeProfile,
 } from "@cell/ai-composer/ai-contract";
-import { applyModAiCoding } from "@cell/mod-ai-coding";
-import { applyModAiKernel } from "@cell/mod-ai-kernel";
+import { applyModAiCoding, createCodingHookDefinitions } from "@cell/mod-ai-coding";
+import { applyModAiKernel, createKernelHookDefinitions } from "@cell/mod-ai-kernel";
 import { applyModPlatformKernel } from "@cell/mod-platform-kernel";
 
 export const modPlatformKernelExtension: RuntimeExtension = {
   id: "mod-platform-kernel",
+  kind: "platform",
   apply: applyModPlatformKernel,
 };
 
 export const modAiKernelExtension: RuntimeExtension = {
   id: "mod-ai-kernel",
+  kind: "domain_kernel",
+  hooks: createKernelHookDefinitions(),
   apply: applyModAiKernel,
 };
 
 export const modAiCodingExtension: RuntimeExtension = {
   id: "mod-ai-coding",
+  kind: "app_overlay",
+  hooks: createCodingHookDefinitions(),
   apply: applyModAiCoding,
 };
 
@@ -51,6 +56,22 @@ export const aiCodingRuntimeProfile: RuntimeProfile = extendRuntimeProfile(
 
 export const modSysKernelExtension = modAiKernelExtension;
 export const modSysCodingExtension = modAiCodingExtension;
+
+export const runtimeProfilesById: Readonly<Record<string, RuntimeProfile>> = {
+  [platformOnlyRuntimeProfile.id]: platformOnlyRuntimeProfile,
+  [aiKernelRuntimeProfile.id]: aiKernelRuntimeProfile,
+  [aiCodingRuntimeProfile.id]: aiCodingRuntimeProfile,
+};
+
+export function resolveRuntimeProfileById(profileId: string): RuntimeProfile {
+  const profile = runtimeProfilesById[profileId];
+  if (!profile) {
+    throw new Error(
+      `unknown runtime profile id: ${profileId} (available: ${Object.keys(runtimeProfilesById).join(", ")})`,
+    );
+  }
+  return profile;
+}
 
 export function assemblePlatformOnlyRuntimeProfile(
   context: RuntimeAssemblyContext,

@@ -117,7 +117,7 @@ describe("s08 detached actor tasks: registry + completion injection", () => {
     await flushMicrotasks();
 
     // Tool output should contain a machine-parseable task_id for detached work.
-    const toolMsg = messages.find((m) => m?.role === "tool" && m?.tool_call_id === "tc-detached-1");
+    const toolMsg = main.messages.find((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-detached-1");
     expect(toolMsg).toBeTruthy();
     const parsed = safeJsonParse(String((toolMsg as any)?.content ?? ""));
     expect(typeof parsed?.task_id).toBe("string");
@@ -143,8 +143,8 @@ describe("s08 detached actor tasks: registry + completion injection", () => {
     await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 50, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const idxChild = messages.findIndex((m) => m?.role === "assistant" && String(m?.content ?? "").includes("Delegate actor"));
-    const idxUser = messages.findIndex((m) => m?.role === "user" && m?.content === "next");
+    const idxChild = main.messages.findIndex((m: any) => m?.role === "assistant" && String(m?.content ?? "").includes("Delegate actor"));
+    const idxUser = main.messages.findIndex((m: any) => m?.role === "user" && m?.content === "next");
     expect(idxChild).toBeGreaterThanOrEqual(0);
     expect(idxUser).toBeGreaterThanOrEqual(0);
     expect(idxChild).toBeLessThan(idxUser);

@@ -1,0 +1,16 @@
+{
+  "name": "@cell/ai-runtime-control-support",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "description": "AI runtime control side-effect support implementations.",
+  "dependencies": {
+    "@cell/ai-file-store-logic": "workspace:*",
+    "@cell/ai-runtime-control-contract": "workspace:*"
+  }
+}

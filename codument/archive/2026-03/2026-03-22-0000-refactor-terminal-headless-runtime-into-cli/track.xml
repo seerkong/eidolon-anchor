@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-terminal-headless-runtime-into-cli" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 cli 承担无头 terminal 入口，并将公共 runtime 逻辑下沉到非 tui 包</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-03-22</CreatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-terminal-headless-runtime-into-cli" name="refactor-terminal-headless-runtime-into-cli" version="1">
+    <Description>将 terminal 无头运行链路从 tui 拆分到 cli</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="公共逻辑抽取" status="NOT_STARTED" order="0">
+        <Description>将项目根解析与 session runtime 公共能力从 tui 中拆出</Description>
+        <SubNodes>
+          <Task id="T1.1" name="抽取项目根解析 helper" status="NOT_STARTED" order="0">
+          </Task>
+          <Task id="T1.2" name="将 headless runtime 初始化与 turn 执行能力迁移到非 tui 包" status="NOT_STARTED" order="1">
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="cli 接入" status="NOT_STARTED" order="1">
+        <Description>在 cli 包中实现无头入口</Description>
+        <SubNodes>
+          <Task id="T2.1" name="新增无头 run 命令" status="NOT_STARTED" order="0">
+          </Task>
+          <Task id="T2.2" name="让 tui 的 -T 路径复用共享 helper" status="NOT_STARTED" order="1">
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="验证" status="NOT_STARTED" order="2">
+        <Description>用测试覆盖核心拆分点</Description>
+        <SubNodes>
+          <Task id="T3.1" name="补充项目根解析测试" status="NOT_STARTED" order="0">
+          </Task>
+          <Task id="T3.2" name="补充无头 runtime / cli 测试" status="NOT_STARTED" order="1">
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

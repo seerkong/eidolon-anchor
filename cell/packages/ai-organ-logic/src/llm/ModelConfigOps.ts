@@ -31,7 +31,132 @@ export type LlmActorModelConfig = {
 
 export const LLM_CONFIG_DIR_NAME = ".eidolon";
 export const PROVIDER_CONFIG_FILE_NAME = "llm-provider.json";
-export const PRESENT_CONFIG_FILE_NAME = "agent-preset.json";
+export const PRESENT_CONFIG_FILE_NAME = "agent-present.json";
+
+type JsonSchema =
+  | { type: "object"; required?: string[]; properties?: Record<string, JsonSchema>; additionalProperties?: boolean | JsonSchema }
+  | { type: "array"; items: JsonSchema }
+  | { type: "string" | "number" | "boolean" }
+  | { enum: readonly unknown[] }
+  | { anyOf: readonly JsonSchema[] }
+  | { type: "any" };
+
+export const LLM_PROVIDER_JSON_SCHEMA = {
+  type: "object",
+  required: ["providers"],
+  properties: {
+    providers: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "options", "models"],
+        properties: {
+          id: { type: "string" },
+          adapter: { type: "string" },
+          options: { type: "object", additionalProperties: true },
+          models: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["id", "limits"],
+              properties: {
+                id: { type: "string" },
+                adapter: { type: "string" },
+                limits: {
+                  type: "object",
+                  required: ["context", "output"],
+                  properties: {
+                    context: { type: "number" },
+                    output: { type: "number" },
+                  },
+                },
+                reasoning: {
+                  type: "object",
+                  properties: {
+                    effort: { enum: ["low", "medium", "high", "xhigh"] },
+                  },
+                },
+                options: { type: "object", additionalProperties: true },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const satisfies JsonSchema;
+
+export const AGENT_PRESENT_JSON_SCHEMA = {
+  type: "object",
+  required: ["presets"],
+  properties: {
+    default_preset: { type: "string" },
+    defaultPreset: { type: "string" },
+    "default-preset": { type: "string" },
+    preset: { type: "string" },
+    presets: {
+      type: "object",
+      additionalProperties: {
+        anyOf: [
+          {
+            type: "object",
+            required: ["primary"],
+            properties: {
+              primary: {
+                type: "object",
+                required: ["model"],
+                properties: { model: { type: "string" } },
+              },
+            },
+          },
+          {
+            type: "object",
+            required: ["main"],
+            properties: {
+              main: {
+                type: "object",
+                required: ["model"],
+                properties: { model: { type: "string" } },
+              },
+            },
+          },
+          {
+            type: "object",
+            required: ["default"],
+            properties: {
+              default: {
+                type: "object",
+                required: ["model"],
+                properties: { model: { type: "string" } },
+              },
+            },
+          },
+        ],
+      },
+    },
+    fallback: {
+      type: "object",
+      properties: {
+        enabled: { type: "boolean" },
+        timeoutMs: { type: "number" },
+        timeout_ms: { type: "number" },
+        chains: {
+          type: "object",
+          properties: {
+            primary: {
+              type: "array",
+              items: {
+                type: "object",
+                required: ["model"],
+                properties: { model: { type: "string" } },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+} as const satisfies JsonSchema;
 
 function resolveHomeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || os.homedir();
@@ -46,6 +171,57 @@ function toSnakeCase(value: string): string {
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function schemaTypeName(value: unknown): string {
+  if (Array.isArray(value)) return "array";
+  if (value === null) return "null";
+  return typeof value;
+}
+
+function validateJsonSchema(value: unknown, schema: JsonSchema, pathLabel: string): string[] {
+  if ("anyOf" in schema) {
+    const nested = schema.anyOf.map((item) => validateJsonSchema(value, item, pathLabel));
+    if (nested.some((errors) => errors.length === 0)) return [];
+    return [`${pathLabel} must match one of the allowed schemas: ${nested.flat().join("; ")}`];
+  }
+  if ("enum" in schema) {
+    return schema.enum.includes(value) ? [] : [`${pathLabel} must be one of ${schema.enum.map(String).join(", ")}`];
+  }
+  if (schema.type === "any") return [];
+  if (schema.type === "array") {
+    if (!Array.isArray(value)) return [`${pathLabel} must be an array, got ${schemaTypeName(value)}`];
+    return value.flatMap((item, index) => validateJsonSchema(item, schema.items, `${pathLabel}[${index}]`));
+  }
+  if (schema.type === "object") {
+    if (!isObject(value)) return [`${pathLabel} must be an object, got ${schemaTypeName(value)}`];
+    const errors: string[] = [];
+    for (const key of schema.required ?? []) {
+      if (!(key in value)) errors.push(`${pathLabel}.${key} is required`);
+    }
+    for (const [key, item] of Object.entries(value)) {
+      const propertySchema = schema.properties?.[key] ?? (
+        typeof schema.additionalProperties === "object" ? schema.additionalProperties : undefined
+      );
+      if (!propertySchema) {
+        if (schema.additionalProperties === false) errors.push(`${pathLabel}.${key} is not allowed`);
+        continue;
+      }
+      errors.push(...validateJsonSchema(item, propertySchema, `${pathLabel}.${key}`));
+    }
+    return errors;
+  }
+  if (typeof value !== schema.type || (schema.type === "number" && !Number.isFinite(value))) {
+    return [`${pathLabel} must be a ${schema.type}, got ${schemaTypeName(value)}`];
+  }
+  return [];
+}
+
+function assertJsonSchema(value: unknown, schema: JsonSchema, filePath: string, schemaName: string): void {
+  const errors = validateJsonSchema(value, schema, "$");
+  if (errors.length > 0) {
+    throw new Error(`${filePath} does not match ${schemaName} JSON schema:\n${errors.map((item) => `- ${item}`).join("\n")}`);
+  }
 }
 
 function normalizeConfigPath(configPath: string | undefined): string | undefined {
@@ -94,46 +270,28 @@ function optionalObject(value: unknown, filePath: string, context: string): Reco
   return { ...value };
 }
 
-function optionalNumber(value: unknown, filePath: string, context: string): number | undefined {
-  if (value === undefined || value === null) return undefined;
+function requiredObject(value: unknown, filePath: string, context: string): Record<string, unknown> {
+  if (!isObject(value)) throw new Error(`'${context}' must be an object in ${filePath}`);
+  return { ...value };
+}
+
+function requiredNumber(value: unknown, filePath: string, context: string): number {
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new Error(`'${context}' must be a finite number in ${filePath}`);
   }
   return value;
 }
 
-function optionalNestedNumber(
-  obj: Record<string, unknown>,
-  keys: readonly string[],
-  filePath: string,
-  context: string,
-): number | undefined {
-  for (const key of keys) {
-    const value = optionalNumber(obj[key], filePath, `${context}.${key}`);
-    if (value !== undefined) return value;
+function rejectRawProviderLegacyKeys(obj: Record<string, unknown>, filePath: string, context: string): void {
+  for (const key of ["name", "baseURL", "base_url", "apiKey", "api_key"]) {
+    if (key in obj) throw new Error(`'${context}.${key}' is not supported in ${filePath}; use '${context}.id/options'`);
   }
-  return undefined;
 }
 
-function resolveModelLimit(
-  modelItem: Record<string, unknown>,
-  filePath: string,
-  modelContext: string,
-  key: "context" | "output",
-): number {
-  const topLevelKeys = key === "context"
-    ? ["context", "input", "inputContext", "input_context", "maxInputTokens", "max_input_tokens"]
-    : ["output", "outputContext", "output_context", "maxOutputTokens", "max_output_tokens"];
-  const topLevel = optionalNestedNumber(modelItem, topLevelKeys, filePath, modelContext);
-  if (topLevel !== undefined) return topLevel;
-
-  for (const nestedKey of ["limits", "limit"]) {
-    const limits = optionalObject(modelItem[nestedKey], filePath, `${modelContext}.${nestedKey}`);
-    const nested = optionalNestedNumber(limits, topLevelKeys, filePath, `${modelContext}.${nestedKey}`);
-    if (nested !== undefined) return nested;
+function rejectRawModelLegacyKeys(obj: Record<string, unknown>, filePath: string, context: string): void {
+  for (const key of ["name", "context", "input", "inputContext", "input_context", "maxInputTokens", "max_input_tokens", "output", "outputContext", "output_context", "maxOutputTokens", "max_output_tokens", "limit"]) {
+    if (key in obj) throw new Error(`'${context}.${key}' is not supported in ${filePath}; use '${context}.id/limits'`);
   }
-
-  return 0;
 }
 
 export function normalizeModelOptions(options: Record<string, unknown> = {}): Record<string, unknown> {
@@ -155,6 +313,115 @@ export function normalizeModelOptions(options: Record<string, unknown> = {}): Re
 
 export function extractConnectionOptions(options: Record<string, unknown> | undefined): Record<string, unknown> {
   return extractProviderConnectionOptions(options);
+}
+
+/**
+ * Resolve the provider-connection-level options (transport markers, apiKey,
+ * baseURL, headers, etc.) for the provider that the local config selects for a
+ * given adapter type, returning them snake-normalized.
+ *
+ * This is the seam that lets the Responses WebSocket v2 transport markers
+ * (`transport_mode` / `supports_websockets` / `websocket_url` /
+ * `websocket_connect_timeout_seconds`) configured on a provider entry in
+ * `llm-provider.json` reach the codex adapter's `providerOptions` even when the
+ * runtime takes the plugin `config()` path (no resolvable model-ref override).
+ *
+ * Provider selection mirrors the runtime: it prefers the provider named by the
+ * active preset's primary model (when that provider's adapter matches
+ * `adapterType`), and otherwise falls back to the first catalog provider whose
+ * adapter matches. Returns `{}` when no config is present or no matching
+ * provider exists, so absent markers leave behavior unchanged (http_sse).
+ */
+export function resolveProviderConnectionDefaults(
+  adapterType: "openai" | "anthropic" | "codex" | "claude" | "deepseek",
+  workdir?: string,
+): Record<string, unknown> {
+  let catalog: LlmProviderCatalogConfig;
+  try {
+    // Mirror the runtime config loader: prefer the project `.eidolon` catalog,
+    // then fall back to the home `.eidolon` catalog.
+    const projectCatalog = workdir
+      ? path.join(workdir, LLM_CONFIG_DIR_NAME, PROVIDER_CONFIG_FILE_NAME)
+      : undefined;
+    const catalogPath = projectCatalog && fs.existsSync(projectCatalog) ? projectCatalog : undefined;
+    catalog = loadProviderCatalog(catalogPath);
+  } catch {
+    return {};
+  }
+  const matches = (adapter: string | undefined): boolean => {
+    if (!adapter) return false;
+    try {
+      return normalizeAdapterName(adapter) === adapterType;
+    } catch {
+      return false;
+    }
+  };
+
+  let provider: LlmProviderConfig | undefined;
+  // Prefer the provider that the active preset's primary model selects.
+  try {
+    const present = loadPresentConfig({ workdir });
+    const presetName = String(present.defaultPreset || "").trim();
+    const primaryModel = present.presets[presetName]?.primary.model || "";
+    const separatorIndex = primaryModel.indexOf("/");
+    if (separatorIndex > 0) {
+      const providerName = primaryModel.slice(0, separatorIndex);
+      const candidate = catalog.providers.find((entry) => entry.name === providerName);
+      if (candidate && matches(candidate.adapter)) provider = candidate;
+    }
+  } catch {
+    // present config is optional; fall through to first matching provider
+  }
+  // Fallback: first catalog provider whose adapter matches the adapter type.
+  provider ??= catalog.providers.find((entry) => matches(entry.adapter));
+  if (!provider) return {};
+
+  const options = { ...(provider.options ?? {}) };
+  return extractProviderConnectionOptions(options);
+}
+
+const CODEX_TRANSPORT_MARKER_KEYS = [
+  "transport_mode",
+  "supports_websockets",
+  "websocket_url",
+  "websocket_connect_timeout_seconds",
+] as const;
+
+/**
+ * Gap-fill Responses WebSocket transport markers onto a (possibly recovered)
+ * model config from the CURRENT provider catalog, keyed by the session's actual
+ * provider NAME — NOT by adapter, because a catalog can hold several
+ * `openai-responses` providers and only the session's own provider's markers are
+ * correct. Only the transport markers are copied, and only when absent, so a
+ * recovered session whose persisted modelConfig predates the WS config picks up
+ * `transport_mode` etc. while every other persisted per-session option (apiKey,
+ * store, serviceTier, …) is left untouched. Provider has no markers -> no-op
+ * (http_sse unchanged). Mutates `modelConfig.options` in place.
+ */
+export function refreshProviderTransportMarkers(
+  modelConfig: { provider?: string; adapter?: string; options?: Record<string, unknown> } | null | undefined,
+  workdir?: string,
+): void {
+  if (!modelConfig || !modelConfig.provider || !modelConfig.options) return;
+  if (tryNormalizeAdapterName(modelConfig.adapter) !== "codex") return;
+  let catalog: LlmProviderCatalogConfig;
+  try {
+    const projectCatalog = workdir
+      ? path.join(workdir, LLM_CONFIG_DIR_NAME, PROVIDER_CONFIG_FILE_NAME)
+      : undefined;
+    const catalogPath = projectCatalog && fs.existsSync(projectCatalog) ? projectCatalog : undefined;
+    catalog = loadProviderCatalog(catalogPath);
+  } catch {
+    return;
+  }
+  const provider = catalog.providers.find((entry) => entry.name === modelConfig.provider);
+  if (!provider) return;
+  const connection = extractProviderConnectionOptions(provider.options ?? {});
+  for (const key of CODEX_TRANSPORT_MARKER_KEYS) {
+    if (connection[key] != null && modelConfig.options[key] === undefined) {
+      modelConfig.options[key] = connection[key];
+    }
+  }
 }
 
 export function normalizeAdapterName(value: string): "openai" | "anthropic" | "codex" | "claude" | "deepseek" {
@@ -185,34 +452,33 @@ export function defaultPresentConfigPath(workdir?: string): string {
 }
 
 export function parseProviderCatalogRaw(raw: Record<string, unknown>, filePath = "<memory>"): LlmProviderCatalogConfig {
+  assertJsonSchema(raw, LLM_PROVIDER_JSON_SCHEMA, filePath, "llm-provider.json");
   if (!Array.isArray(raw.providers)) throw new Error(`'providers' must be a list in ${filePath}`);
   const providers: LlmProviderConfig[] = raw.providers.map((item, index) => {
     const context = `providers[${index}]`;
     if (!isObject(item)) throw new Error(`'${context}' must be an object in ${filePath}`);
+    rejectRawProviderLegacyKeys(item, filePath, context);
     if (!Array.isArray(item.models)) throw new Error(`'${context}.models' must be a list in ${filePath}`);
-    const providerOptions = optionalObject(item.options, filePath, `${context}.options`);
-    const providerBaseURL = optionalString(item.baseURL ?? item.base_url, filePath, `${context}.baseURL`) ?? "";
-    const providerApiKey = optionalString(item.apiKey ?? item.api_key, filePath, `${context}.apiKey`) ?? "";
-    if (providerBaseURL) providerOptions.baseURL ??= providerBaseURL;
-    if (providerApiKey) providerOptions.apiKey ??= providerApiKey;
+    const providerOptions = requiredObject(item.options, filePath, `${context}.options`);
     const models: LlmProviderModelConfig[] = item.models.map((modelItem, modelIndex) => {
       const modelContext = `${context}.models[${modelIndex}]`;
       if (!isObject(modelItem)) throw new Error(`'${modelContext}' must be an object in ${filePath}`);
-      const name = optionalString(modelItem.id, filePath, `${modelContext}.id`) ?? requiredString(modelItem, "name", filePath, modelContext);
+      rejectRawModelLegacyKeys(modelItem, filePath, modelContext);
+      const limits = requiredObject(modelItem.limits, filePath, `${modelContext}.limits`);
       return {
-        name,
+        name: requiredString(modelItem, "id", filePath, modelContext),
         adapter: optionalString(modelItem.adapter, filePath, `${modelContext}.adapter`),
-        context: resolveModelLimit(modelItem, filePath, modelContext, "context"),
-        output: resolveModelLimit(modelItem, filePath, modelContext, "output"),
+        context: requiredNumber(limits.context, filePath, `${modelContext}.limits.context`),
+        output: requiredNumber(limits.output, filePath, `${modelContext}.limits.output`),
         reasoning: isObject(modelItem.reasoning) ? { effort: modelItem.reasoning.effort as any } : undefined,
         options: optionalObject(modelItem.options, filePath, `${modelContext}.options`),
       };
     });
     return {
-      name: optionalString(item.id, filePath, `${context}.id`) ?? requiredString(item, "name", filePath, context),
+      name: requiredString(item, "id", filePath, context),
       adapter: optionalString(item.adapter, filePath, `${context}.adapter`),
-      baseURL: providerBaseURL,
-      apiKey: providerApiKey,
+      baseURL: "",
+      apiKey: "",
       options: providerOptions,
       models,
     };
@@ -229,12 +495,15 @@ export function loadProviderCatalog(configPath?: string): LlmProviderCatalogConf
 }
 
 export function parsePresentConfigRaw(raw: Record<string, unknown>, filePath = "<memory>", presetOverride?: string): LlmPresentConfig {
-  const defaultPreset = presetOverride || optionalString(raw.default_preset ?? raw.defaultPreset, filePath, "default_preset") || "default";
+  assertJsonSchema(raw, AGENT_PRESENT_JSON_SCHEMA, filePath, "agent-present.json");
+  const defaultPreset = presetOverride
+    || optionalString(raw.default_preset ?? raw.defaultPreset ?? raw["default-preset"] ?? raw.preset, filePath, "default_preset")
+    || "default";
   const presetsRaw = optionalObject(raw.presets, filePath, "presets");
   const presets: LlmPresentConfig["presets"] = {};
   for (const [presetName, presetValue] of Object.entries(presetsRaw)) {
     if (!isObject(presetValue)) throw new Error(`'presets.${presetName}' must be an object in ${filePath}`);
-    const primaryRaw = optionalObject(presetValue.primary, filePath, `presets.${presetName}.primary`);
+    const primaryRaw = optionalObject(presetValue.primary ?? presetValue.main ?? presetValue.default, filePath, `presets.${presetName}.primary`);
     presets[presetName] = { primary: { model: optionalString(primaryRaw.model, filePath, `presets.${presetName}.primary.model`) || "" } };
   }
   const fallbackRaw = optionalObject(raw.fallback, filePath, "fallback");
@@ -315,6 +584,7 @@ export function flattenModelConfig(
     outputLimit: model?.output ?? 0,
     reasoningEffort: capabilities?.reasoningEffort ?? model?.reasoning?.effort,
     capabilities,
+    options,
   };
 }
 
@@ -353,21 +623,103 @@ export function resolvePresetModelRef(presetConfig: AgentPresetConfig, agentKey:
   return agentPreset.model;
 }
 
+function assertKnownModelRef(modelRef: string, providerConfig: LLMProviderConfig): void {
+  const modelString = String(modelRef || "").trim();
+  const separatorIndex = modelString.indexOf("/");
+  if (separatorIndex <= 0 || separatorIndex >= modelString.length - 1) {
+    throw new Error(`Invalid model reference format: ${modelRef}`);
+  }
+  const providerName = modelString.slice(0, separatorIndex);
+  const modelName = modelString.slice(separatorIndex + 1);
+  const provider = providerConfig.providers.find((entry) => entry.name === providerName);
+  if (!provider) {
+    throw new Error(`Provider not found: ${providerName}`);
+  }
+  if (!provider.models.some((entry) => entry.name === modelName)) {
+    throw new Error(`Model not found under provider: ${modelRef}`);
+  }
+}
+
+/**
+ * Boolean membership check mirroring {@link assertKnownModelRef}: returns true
+ * iff `modelRef` (a `provider/model` ref) names a provider that exists in the
+ * current catalog AND a model that exists under that provider.
+ *
+ * NOTE: this intentionally does NOT use {@link flattenModelConfig}, which
+ * synthesizes a zeroed config when the provider exists but the model was removed
+ * — so staleness cannot be detected by null-checking the flattened result. The
+ * membership check below inspects `provider.models` directly to avoid that trap.
+ */
+export function isModelRefResolvable(modelRef: string, providerConfig: LLMProviderConfig): boolean {
+  const modelString = String(modelRef || "").trim();
+  const separatorIndex = modelString.indexOf("/");
+  if (separatorIndex <= 0 || separatorIndex >= modelString.length - 1) {
+    return false;
+  }
+  const providerName = modelString.slice(0, separatorIndex);
+  const modelName = modelString.slice(separatorIndex + 1);
+  const provider = providerConfig.providers.find((entry) => entry.name === providerName);
+  if (!provider) {
+    return false;
+  }
+  return provider.models.some((entry) => entry.name === modelName);
+}
+
+/**
+ * Recovery-time predicate (requirement `recovery-model-config-validation`):
+ * returns true iff a persisted actor modelConfig still selects a resolvable
+ * model in the CURRENT providers catalog — i.e. its `provider` exists AND its
+ * `model` exists under that provider. Returns false when the catalog is
+ * unavailable or either field is missing, so callers fall back to the default
+ * preset. A still-resolvable persisted model returns true and is preserved.
+ */
+export function isPersistedModelStillResolvable(
+  modelConfig: Pick<LlmActorModelConfig, "provider" | "model"> | null | undefined,
+  providerConfig: LLMProviderConfig | null | undefined,
+): boolean {
+  if (!providerConfig || !modelConfig) {
+    return false;
+  }
+  const providerName = String(modelConfig.provider || "").trim();
+  const modelName = String(modelConfig.model || "").trim();
+  if (!providerName || !modelName) {
+    return false;
+  }
+  return isModelRefResolvable(`${providerName}/${modelName}`, providerConfig);
+}
+
 export function resolveActorModelConfig(params: {
   agentKey: string;
+  modelRef?: string;
   presetConfig?: AgentPresetConfig | null;
   providerConfig?: LLMProviderConfig | null;
   fallback?: LlmActorModelConfig;
   fallbackModelConfig?: LlmActorModelConfig;
   fallbackOverrideKeys?: (keyof LlmActorModelConfig)[];
+  strictModelRef?: boolean;
   logger?: RuntimeLogFn;
 }): LlmActorModelConfig {
   const fallback = params.fallback ?? params.fallbackModelConfig ?? {};
-  if (!params.presetConfig || !params.providerConfig) return fallback;
-  const modelRef = resolvePresetModelRef(params.presetConfig, params.agentKey, params.logger);
+  if (!params.providerConfig) {
+    if (params.strictModelRef && params.modelRef) {
+      throw new Error("LLM provider config unavailable for explicit model selection");
+    }
+    return fallback;
+  }
+  const modelRef = params.modelRef ?? (
+    params.presetConfig ? resolvePresetModelRef(params.presetConfig, params.agentKey, params.logger) : null
+  );
   if (!modelRef) return fallback;
+  if (params.strictModelRef) {
+    assertKnownModelRef(modelRef, params.providerConfig);
+  }
   const flattened = flattenModelConfig(modelRef, params.providerConfig, params.logger);
-  if (!flattened) return fallback;
+  if (!flattened) {
+    if (params.strictModelRef) {
+      throw new Error(`Failed to resolve explicit model selection: ${modelRef}`);
+    }
+    return fallback;
+  }
   const resolved: LlmActorModelConfig = {
     ...fallback,
     provider: flattened.provider,
@@ -381,6 +733,7 @@ export function resolveActorModelConfig(params: {
     maxOutputTokens: flattened.outputLimit,
     reasoningEffort: flattened.reasoningEffort,
     capabilities: flattened.capabilities,
+    options: flattened.options,
   };
   for (const key of params.fallbackOverrideKeys ?? []) {
     if (fallback[key] !== undefined) {

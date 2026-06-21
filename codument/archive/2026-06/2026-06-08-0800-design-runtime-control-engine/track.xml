@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="design-runtime-control-engine" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>设计一个基于 depa-actor@0.2.0 与 depa-processor 的可恢复编排控制引擎，并在替换当前 AI runtime 前完成独立验证计划。</Goal>
+    <Description>基于 vendor 原语设计真正的 runtime control engine，复用 depa-actor@0.2.0 local execution kernel，用 effect lifecycle、safepoint 和 durable cohort 管理复杂 runtime 编排。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-05T15:38:23Z</CreatedAt>
+    <UpdatedAt>2026-06-08T00:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_design-runtime-control-engine" name="design-runtime-control-engine" version="1">
+    <Description>设计 Runtime Control Engine</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Vendor 能力边界分析" status="DONE" order="0">
+        <Description>确认 depa-actor@0.2.0 与 depa-processor 能直接支撑什么，以及还缺哪些通用能力。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="确认 depa-actor local execution substrate" status="DONE" order="0" priority="P0">
+            <Description>确认本地 link 的 depa-actor@0.2.0 已提供 actor loop、priority mailbox、selective receive、fiber orchestration、CommandDequeGroup、stack/frame、dispatcher 和 group reducer helpers。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">明确 depa-actor@0.2.0 local execution kernel 可直接作为 control engine substrate</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">明确 engine 不重复实现 command deque/worklist、stack/frame 和 dispatcher</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">明确 depa-actor@0.2.0 仍不负责 durable effect lifecycle、safepoint cohort 和 recovery classification</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="分析 depa-processor 副作用扩展能力" status="DONE" order="1" priority="P0">
+            <Description>梳理标准组件、manifest、dispatch、CtrlFlow/BehaviorTree handler extension 与 effect handler registry 的关系。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">明确 depa-processor 在 effect dispatch 中的角色</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">明确 effect lifecycle 与 recovery contract 的缺口</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="控制引擎设计" status="DONE" order="1">
+        <Description>定义 vendor-first 的可恢复命令解释器设计。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="设计命令和 effect 数据模型" status="DONE" order="0" priority="P0">
+            <Description>定义 control command、CommandDequeGroup state mapping、effect request/result、projection patch、commit intent、durable head descriptor 的数据结构。</Description>
+          </Task>
+          <Task id="T2.2" name="设计 safepoint 与 durable cohort" status="DONE" order="1" priority="P0">
+            <Description>定义何时可以写入 durable heads、何时必须缓冲，以及崩溃恢复时如何分类不一致状态。</Description>
+          </Task>
+          <Task id="T2.3" name="设计 actor 和 processor 组合方式" status="DONE" order="2" priority="P1">
+            <Description>说明 control engine actor 如何使用 depa-actor@0.2.0 mailbox、CommandDequeGroup selector、stack/dispatcher 和 group reducer helpers，effect handler 如何通过 depa-processor 分发。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="验证和采用计划" status="DONE" order="2">
+        <Description>制定先测试引擎、再替换 AI runtime 的路线。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="制定 conformance harness" status="DONE" order="0" priority="P0">
+            <Description>设计 fake clock、fake storage、CommandDequeGroup selector、fake processor handler 和 crash injection 的测试夹具。</Description>
+          </Task>
+          <Task id="T3.2" name="制定 AI runtime 采用边界" status="DONE" order="1" priority="P0">
+            <Description>定义 AI 领域 wrapper 如何把 mailbox、conversation、snapshot、tool/effect result、diagnostics 映射到 vendor engine command group、effect lifecycle 和 durable heads。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P4" name="细粒度 Checkpoint 调度" status="DONE" order="3">
+        <Description>把 checkpoint 变成 runtime control engine 内部 command，避免长 interactive turn 内部产生大量消息但无法 checkpoint。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="扩展 checkpoint command contract" status="DONE" order="0" priority="P0">
+            <Description>在 AI runtime control contract 中加入 safepoint_evaluate command 和 safepoint queue，使 checkpoint 评估成为数据命令。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">command kind 列表包含 safepoint_evaluate</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">command queue 列表包含 safepoint 且优先级高于 commit</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="实现 command 内部 safepoint 调度" status="DONE" order="1" priority="P0">
+            <Description>durable_head_buffer 执行后自动排入相关 cohort 的 safepoint_evaluate；评估通过后排入 cohort_commit，commit 仍由 selector gated。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">durable head buffer 后不需要外部手动 enqueue cohort_commit 即可提交完整 cohort</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">未满足所有 heads 时不会提交 cohort</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC3" checked="true">重复 safepoint_evaluate 不产生阻塞队列的重复 commit</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="固化长 turn checkpoint conformance case" status="DONE" order="2" priority="P0">
+            <Description>用 conformance/composer 测试模拟外层 interactive turn 尚未返回，但多个 durable head buffer 已在 command stream 内触发 checkpoint。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">测试覆盖长 turn 内部自动 checkpoint</cdt:Criterion>
+              <cdt:Criterion id="T4.3-AC2" checked="true">测试覆盖不完整 heads 时 checkpoint 延后</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

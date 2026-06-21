@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-tui-questionnaire-history-center" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Goal>通过状态栏入口与 modal history/detail surface 提供 questionnaire 历史查看能力，同时保持主消息历史稳定</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-06T15:10:00Z</CreatedAt>
+    <UpdatedAt>2026-04-06T18:18:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-tui-questionnaire-history-center" name="add-tui-questionnaire-history-center" version="1">
+    <Description>添加 TUI 问卷历史中心</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Contract And Interaction" status="DONE" order="0">
+        <Description>冻结 footer 入口、history modal 和 detail modal 的交互契约</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 footer questionnaire 计数与文案规则" status="DONE" order="0" priority="P0">
+            <Description>明确 done/pending 计数、紧凑文案与高亮条件。</Description>
+          </Task>
+          <Task id="T1.2" name="定义 history/detail modal 的交互层级" status="DONE" order="1" priority="P0">
+            <Description>明确 history 列表、详情查看、返回路径和主消息历史不变的约束。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="State And Projection" status="DONE" order="1">
+        <Description>建立 questionnaire history 聚合状态，并为 footer 和 modal 提供统一数据源</Description>
+        <SubNodes>
+          <Task id="T2.1" name="建立 questionnaire history 聚合视图模型" status="DONE" order="0" priority="P0">
+            <Description>从现有 questionnaire 历史与 continue-session runtime tool record 中投影出 done/pending 统计、摘要与详情数据。</Description>
+          </Task>
+          <Task id="T2.2" name="建立 modal 导航状态" status="DONE" order="1" priority="P0">
+            <Description>支持关闭、打开列表、打开详情和返回列表的状态切换。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="UI Surfaces" status="DONE" order="2">
+        <Description>落地 footer 入口、history modal 和 detail modal，并与现有 TUI 交互融合</Description>
+        <SubNodes>
+          <Task id="T3.1" name="实现 footer questionnaire 按钮" status="DONE" order="0" priority="P0">
+            <Description>在底部状态栏增加 questionnaire 聚合入口和待处理提示。</Description>
+          </Task>
+          <Task id="T3.2" name="实现 questionnaire history 列表弹窗" status="DONE" order="1" priority="P0">
+            <Description>展示摘要列表、排序规则和待处理优先级。</Description>
+          </Task>
+          <Task id="T3.3" name="实现 questionnaire detail 详情弹窗" status="DONE" order="2" priority="P0">
+            <Description>展示完整题目、选项、用户回答和结构化结果，并支持通过返回键与 esc 回到 history 列表。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Verification" status="DONE" order="3">
+        <Description>验证状态栏、弹窗和主消息历史稳定性</Description>
+        <SubNodes>
+          <Task id="T4.1" name="补齐 footer/modal focused tests" status="DONE" order="0" priority="P0">
+            <Description>覆盖 footer questionnaire 计数、history 列表、详情弹窗、返回路径（含 esc 分层返回）与 continue-session rehydration。</Description>
+          </Task>
+          <Task id="T4.2" name="验证长问卷后的主视图可见性" status="DONE" order="1" priority="P0">
+            <Description>通过 focused render test 验证默认主视图仅保留 questionnaire 摘要入口而不展开细节，同时问卷后的 assistant 输出继续保持可见。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

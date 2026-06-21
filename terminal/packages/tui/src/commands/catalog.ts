@@ -230,3 +230,15 @@ export const SLASH_COMMANDS: SlashCommandDef[] = [
     command: COMMAND_ID.AppExit,
   },
 ]
+
+export function resolveTuiBuiltinSlashCommand(rawInput: string): CommandID | null {
+  const normalized = rawInput.trim().toLowerCase()
+  for (const item of SLASH_COMMANDS) {
+    if (item.source === "prompt") continue
+    const names = [item.slash, ...(item.aliases ?? [])]
+    if (names.some((name) => name.toLowerCase() === normalized)) {
+      return item.command
+    }
+  }
+  return null
+}

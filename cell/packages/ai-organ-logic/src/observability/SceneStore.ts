@@ -1,12 +1,12 @@
 /**
  * SceneStore — file-based scene persistence using xnl-core.
  *
- * Layout: {rootDir}/scenes/{sessionId}/manifest.xnl + events.xnl
+ * Layout: {rootDir}/.eidolon/scenes/{sessionId}/manifest.xnl + events.xnl
  */
 
 import { existsSync, promises as fsp } from "node:fs";
 import path from "node:path";
-import { parseXnl, XNL } from "xnl-core";
+import { parseXnl, stringifyLineBlock } from "xnl-core";
 import type { DataElementNode, XnlNode } from "xnl-core";
 import {
   manifestToNode,
@@ -21,7 +21,7 @@ export class SceneStore {
   constructor(private rootDir: string) {}
 
   private sceneDir(sessionId: string): string {
-    return path.join(this.rootDir, "scenes", sessionId);
+    return path.join(this.rootDir, ".eidolon", "scenes", sessionId);
   }
 
   private manifestPath(sessionId: string): string {
@@ -35,7 +35,7 @@ export class SceneStore {
   async saveManifest(sessionId: string, manifest: SceneManifest): Promise<void> {
     const dir = this.sceneDir(sessionId);
     await fsp.mkdir(dir, { recursive: true });
-    const content = XNL.stringify(manifestToNode(manifest), { pretty: true, indent: 2 });
+    const content = stringifyLineBlock(manifestToNode(manifest)) + "\n";
     await fsp.writeFile(this.manifestPath(sessionId), content, "utf8");
   }
 
@@ -49,11 +49,12 @@ export class SceneStore {
 
   async appendEvent(sessionId: string, node: XnlNode): Promise<void> {
     await fsp.mkdir(this.sceneDir(sessionId), { recursive: true });
-    await fsp.appendFile(this.eventsPath(sessionId), XNL.stringify(node) + "\n", "utf8");
+    await fsp.appendFile(this.eventsPath(sessionId), stringifyLineBlock(node) + "\n", "utf8");
   }
 
   async appendMessage(sessionId: string, msg: SceneMessage): Promise<void> {
-    await this.appendEvent(sessionId, messageToNode(msg));
+    const sequence = msg.sequence ?? (await this.loadEvents(sessionId)).length;
+    await this.appendEvent(sessionId, messageToNode({ ...msg, sessionId, sequence }));
   }
 
   async loadEvents(sessionId: string): Promise<XnlNode[]> {
@@ -65,7 +66,7 @@ export class SceneStore {
   async loadMessages(sessionId: string): Promise<SceneMessage[]> {
     return (await this.loadEvents(sessionId))
       .filter(isDataElement)
-      .filter((n) => n.tag === "Message")
+      .filter((n) => n.tag === "SceneMessage" || n.tag === "Message")
       .map(nodeToMessage);
   }
 
@@ -75,7 +76,7 @@ export class SceneStore {
   }
 
   async listSessions(): Promise<string[]> {
-    const dir = path.join(this.rootDir, "scenes");
+    const dir = path.join(this.rootDir, ".eidolon", "scenes");
     if (!existsSync(dir)) return [];
     const entries = await fsp.readdir(dir, { withFileTypes: true });
     return entries.filter((e) => e.isDirectory()).map((e) => e.name);

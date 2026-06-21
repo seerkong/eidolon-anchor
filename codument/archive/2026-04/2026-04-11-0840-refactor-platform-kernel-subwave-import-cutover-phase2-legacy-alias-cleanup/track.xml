@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-platform-kernel-subwave-import-cutover-phase2-legacy-alias-cleanup" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>删除工作区旧 support/mod path alias，并建立 focused guard 防止 legacy alias 回流。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T08:32:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T08:40:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-platform-kernel-subwave-import-cutover-phase2-legacy-alias-cleanup" name="refactor-platform-kernel-subwave-import-cutover-phase2-legacy-alias-cleanup" version="1">
+    <Description>平台微内核后续 sub-wave：import cutover phase2 legacy alias cleanup</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Setup" status="DONE" order="0">
+        <Description>建立 phase2 的规范与计划。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="创建 phase2 track 文档" status="DONE" order="0" priority="P0">
+            <Description>创建 proposal/spec/design/plan 与 analysis 文件。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">track 文档完整</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">phase2 范围明确锚定在 legacy alias cleanup</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Alias Cleanup" status="DONE" order="1">
+        <Description>从工作区开发路径解析层移除旧 alias。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="删除 legacy path alias" status="DONE" order="0" priority="P0">
+            <Description>移除各工作区 `tsconfig.json` 中对 `@cell/organ-support` / `@cell/mod-sys-*` 的 path 映射。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">旧 alias 已从工作区 tsconfig 清除</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">新 alias 仍可正常工作</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Regression Guard" status="DONE" order="2">
+        <Description>防止 legacy alias 回流。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="补 alias guard 并验证" status="DONE" order="0" priority="P0">
+            <Description>增加 focused test，约束旧 package 名称不得回流到工作区 tsconfig path alias。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused guard 可检测 legacy alias 回流</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">相关测试与 codument validate 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

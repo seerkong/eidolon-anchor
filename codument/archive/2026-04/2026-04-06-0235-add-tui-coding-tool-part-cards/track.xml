@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-tui-coding-tool-part-cards" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>in_progress</Status>
+    <Goal>让新的 prototype TUI 在真实 session 中使用结构化 coding tool part cards，而不是摘要 tool 卡片</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-05T15:13:24Z</CreatedAt>
+    <UpdatedAt>2026-04-06T02:35:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-tui-coding-tool-part-cards" name="add-tui-coding-tool-part-cards" version="1">
+    <Description>接入 TUI coding 工具专用消息卡片</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Discovery And Contract Freeze" status="DONE" order="0">
+        <Description>冻结 runtime tool part 到 prototype 渲染链的边界与首批范围</Description>
+        <SubNodes>
+          <Task id="T1.1" name="冻结当前 projection 与 renderer 边界" status="DONE" order="0" priority="P0">
+            <Description>确认 runtime message、runtime part、PrototypeMessage 和 MessageCards 之间的真实边界，避免在实现阶段重复摸索。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">明确记录当前 `runtimeMessagesToPrototypeMessages(...)` 会丢失真实 `ToolPart`</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">明确记录 `MessageCards` 仍使用摘要 `ToolCard`，尚未接入 registry</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="冻结首批 dedicated card 范围与 fallback 规则" status="DONE" order="1" priority="P0">
+            <Description>明确本 track 首批仅接入 coding 工具，并定义 unsupported tool 的 fallback 行为。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">首批工具范围仅包含 `bash`、`edit`、`write`、`read`、`grep`、`glob`、`list`、`patch`</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">未命中 allowlist 的工具继续使用 `GenericTool`</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Projection Refactor" status="DONE" order="1">
+        <Description>让 graph 投影结果保留 structured coding tool parts，并形成稳定的渲染 item</Description>
+        <SubNodes>
+          <Task id="T2.1" name="定义 card-ready timeline item 形态" status="DONE" order="0" priority="P0">
+            <Description>将 prototype 渲染输入从“每条 message 一卡”扩展为可表达 assistant 文本与 tool part 的 timeline item。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">assistant 文本与 tool part 可以同时存在于同一条 runtime message 的渲染结果中</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">每个 `ToolPart` 保留稳定 identity，并直接携带 `tool`、`input`、`output`、`metadata`、`part`</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="改造 runtime 投影保留 tool part 顺序与更新" status="DONE" order="1" priority="P0">
+            <Description>让 projection 在处理 `message.part.updated` 时输出按 part 顺序排列的 assistant text/tool items，并正确反映 pending/completed/error 更新。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">同一 assistant message 内的文本与 tool part 顺序可预测</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">同一个 tool call 的状态更新不会导致 item identity 漂移</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Rendering Integration" status="DONE" order="2">
+        <Description>将新的消息区渲染主链接入 coding tool card registry，并保留兜底</Description>
+        <SubNodes>
+          <Task id="T3.1" name="接入首批 coding 工具的 registry-driven 渲染" status="DONE" order="0" priority="P0">
+            <Description>让消息区对 coding 工具使用 dedicated card，而不再使用摘要型 `ToolCard`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">`bash`、`edit`、`write`、`read`、`grep`、`glob`、`list`、`patch` 走 dedicated card</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">prototype session 中可直接消费真实 runtime `ToolPart`</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="保留 unsupported tool 的 generic fallback" status="DONE" order="1" priority="P0">
+            <Description>让未覆盖工具仍可见，并避免新旧卡片并存造成双重渲染或缺失渲染。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">unsupported tool 继续显示 `GenericTool`</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">不存在“既不走 dedicated 也不走 fallback”的工具黑洞</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Verification" status="DONE" order="3">
+        <Description>用测试和 gap-loop 验证投影、渲染路由和 fallback 行为</Description>
+        <SubNodes>
+          <Task id="T4.1" name="补 projection、renderer 和 fallback 测试" status="DONE" order="0" priority="P0">
+            <Description>新增或更新测试，覆盖 timeline item 投影、dedicated card 路由和 unsupported tool fallback。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">测试覆盖 assistant 文本与多个 tool part 的顺序</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">测试覆盖 dedicated card 与 fallback card 的选择逻辑</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="运行 terminal TUI 测试并记录结果" status="DONE" order="1" priority="P0">
+            <Description>执行 terminal TUI 相关测试，确认该 track 的改造不破坏现有 prototype message card 能力。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">测试结果和剩余风险被记录到 track 进展文档</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Runtime Tool Part Delivery Repair" status="DONE" order="4">
+        <Description>补齐真实 runtime 到 prototype 的 structured tool part 输送链，避免 dedicated card 只停留在 renderer 侧</Description>
+        <SubNodes>
+          <Task id="T5.1" name="让 runtime bridge 暴露结构化 tool history 事件" status="DONE" order="0" priority="P0">
+            <Description>修复当前 bridge 仅输出 toolcall/result 文本片段的问题，使 TUI client 能拿到带 tool name、call id、arguments 和 result 的结构化事件。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">真实 runtime turn 中的 tool call 不再只能以纯文本 category/chunk 形式暴露</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">client 能从 bridge 获取创建/更新 `ToolPart` 所需的 call id、tool 名称和输入输出信息</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="将结构化 tool history 投影为 prototype runtime `ToolPart`" status="DONE" order="1" priority="P0">
+            <Description>在 TuiRuntimeClient 中消费结构化 tool history，生成真实 assistant message + tool part，而不是继续显示 toolcall/result 文本消息。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.2-AC1" checked="true">编辑文件时可在 prototype timeline 中看到真实 `edit`/`bash` 等 tool part，而不是仅 assistant 文本</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC2" checked="true">tool part 的 pending/completed/error 更新保持同一 identity</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.3" name="补充真实 runtime 主链回归测试" status="DONE" order="2" priority="P0">
+            <Description>新增测试覆盖 bridge 结构化 tool 事件到 prototype tool part 的完整链路，防止再次只测 registry 不测 runtime 输送。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.3-AC1" checked="true">自动化测试能断言 runtime client 产出 `ToolPart`，而不是 toolcall/result 文本</cdt:Criterion>
+              <cdt:Criterion id="T5.3-AC2" checked="true">回归测试保留原有 assistant text/new message 行为检查</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.4" name="收紧文本文件编辑的 tool 选择提示词" status="DONE" order="3" priority="P0">
+            <Description>将“普通文本文件优先使用 edit/write tool，不要用 bash 直接修改”的规则写入默认 runtime system prompt，并补测试固定。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.4-AC1" checked="true">system prompt 明确要求文本文件编辑优先使用 `edit` / `write`，读取优先使用 `read`</cdt:Criterion>
+              <cdt:Criterion id="T5.4-AC2" checked="true">自动化测试覆盖这条 tool 选择规则，防止回退为 bash 改文件</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.5" name="补齐 prototype 真实入口的 provider 装配" status="DONE" order="4" priority="P0">
+            <Description>修复真实 prototypeTui 入口缺少 Theme/Sync/Keybind/Route/Local 等 provider 的问题，避免 tool cards 在真实界面触发时崩溃。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.5-AC1" checked="true">真实 TUI 入口渲染 dedicated tool cards 时不再出现 `ThemeProvider is not defined` 等上下文错误</cdt:Criterion>
+              <cdt:Criterion id="T5.5-AC2" checked="true">自动化测试覆盖真实 provider 树下的 tool card 渲染</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.6" name="放宽文件工具到权限允许的目录并固定 `~/` 语义" status="DONE" order="5" priority="P0">
+            <Description>修复文件工具路径语义与重复暴露问题：保留更完整的 `read`/`write`/`edit`，删除重复且较弱的 `read_file`/`write_file`/`edit_file`，并支持权限允许的绝对路径与 `~/` home 路径，避免模型因“工作区外”误判回退到 bash。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.6-AC1" checked="true">仅保留 `read`/`write`/`edit` 这一套更完整的文件工具，并支持工作区外的绝对路径</cdt:Criterion>
+              <cdt:Criterion id="T5.6-AC2" checked="true">system prompt 明确 `~/...` 是 home 路径，且 `read`/`write`/`edit` 可用于当前权限允许的目录</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

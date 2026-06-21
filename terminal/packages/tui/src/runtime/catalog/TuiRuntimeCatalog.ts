@@ -367,118 +367,40 @@ function createRuntimeCatalogAssembly(directory: string): RuntimeCatalogAssembly
   })
 }
 
-function resolveLocalRuntimeCatalogFallback(_directory: string): RuntimeCatalog {
-  const providerID = "openai"
-  const modelID = process.env.OPENAI_MODEL || "gpt-4o"
-  const providers: Provider[] = [
-    {
-      id: providerID,
-      name: providerID,
-      source: "api" as const,
-      env: [],
-      options: {},
-      models: {
-        [modelID]: makeProviderModel(
-          providerID,
-          modelID,
-          process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-          128000,
-          8192,
-        ),
-      },
-    },
-  ]
-  const defaultModel = { providerID, modelID }
-
-  return {
-    sessionTitle: "Local Session",
-    defaultModel,
-    providers,
-    providerList: {
-      all: providers.map((provider) => ({
-        id: provider.id,
-        name: provider.name,
-        env: [],
-        api: Object.values(provider.models)[0]?.api?.url ?? "",
-        npm: "@cell/ai-organ-logic",
-        models: Object.fromEntries(
-          Object.values(provider.models).map((model) => {
-            const limit = model.limit ?? { context: 0, output: 0 }
-            return [model.id, makeProviderListModel(model.id, limit.context ?? 0, limit.output ?? 0)]
-          }),
-        ),
-      })),
-      default: {
-        [providerID]: modelID,
-      },
-      connected: [providerID],
-    },
-    providerAuthMethods: {
-      [providerID]: [
-        {
-          type: "api",
-          label: "API key",
-        },
-      ],
-    },
-    config: {
-      ...mockConfig,
-      model: `${providerID}/${modelID}`,
-    },
-    agents: buildDefaultAgents(defaultModel),
-  }
-}
-
 function resolveLocalRuntimeCatalog(directory: string): RuntimeCatalog {
   const assembly = createRuntimeCatalogAssembly(directory)
   const configBundle = assembly.runtimeCatalog?.loadConfigBundle(directory)
   if (!configBundle) {
-    return resolveLocalRuntimeCatalogFallback(directory)
+    throw new Error("Local runtime catalog unavailable: runtime profile did not provide a config bundle")
   }
 
   const { providerConfig, presetConfig } = configBundle
   const configuredProviders = providerConfig?.providers ?? []
+  if (configuredProviders.length === 0) {
+    throw new Error("LLM provider catalog unavailable: configure .eidolon/llm-provider.json or ~/.eidolon/llm-provider.json")
+  }
 
-  const providers =
-    configuredProviders.length > 0
-      ? configuredProviders.map((provider) => ({
-          id: provider.name,
-          name: provider.name,
-          source: "api" as const,
-          env: [],
-          options: {},
-          models: Object.fromEntries(
-            provider.models.map((model) => [
-              model.name,
-              makeProviderModel(provider.name, model.name, provider.baseURL ?? "", model.context ?? 0, model.output ?? 0),
-            ]),
-          ),
-        }))
-      : [
-          {
-            id: "openai",
-            name: "openai",
-            source: "api" as const,
-            env: [],
-            options: {},
-            models: {
-              [process.env.OPENAI_MODEL || "gpt-4o"]: makeProviderModel(
-                "openai",
-                process.env.OPENAI_MODEL || "gpt-4o",
-                process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-                128000,
-                8192,
-              ),
-            },
-          },
-        ]
+  const providers = configuredProviders.map((provider) => ({
+    id: provider.name,
+    name: provider.name,
+    source: "api" as const,
+    env: [],
+    options: {},
+    models: Object.fromEntries(
+      provider.models.map((model) => [
+        model.name,
+        makeProviderModel(provider.name, model.name, provider.baseURL ?? "", model.context ?? 0, model.output ?? 0),
+      ]),
+    ),
+  }))
 
   const defaultModel =
     parseModelRef(presetConfig ? resolvePresetModelRef(presetConfig, "main") : "")
     ?? (() => {
       const provider = providers[0]
       const modelID = Object.keys(provider?.models ?? {})[0]
-      return provider && modelID ? { providerID: provider.id, modelID } : defaultRuntimeModel
+      if (provider && modelID) return { providerID: provider.id, modelID }
+      throw new Error("LLM provider catalog contains no models")
     })()
 
   const providerList: ProviderListResponse = {

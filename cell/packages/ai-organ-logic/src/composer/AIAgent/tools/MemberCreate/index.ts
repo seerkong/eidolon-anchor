@@ -17,7 +17,7 @@ export function buildMemberCreateToolDef(): ToolDef<MemberCreateOuterInput, Memb
       type: "function" as const,
       function: {
         name: "MemberCreate",
-        description: "Create a member actor in the current session.",
+        description: "Create a persistent member actor in the current session. Members are durable team/session actors looked up by member id or name; subagent is a delegate alias, not a member alias.",
         parameters: {
           type: "object",
           properties: {

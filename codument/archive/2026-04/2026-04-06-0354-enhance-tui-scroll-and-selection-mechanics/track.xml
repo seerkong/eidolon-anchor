@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="enhance-tui-scroll-and-selection-mechanics" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>在现有 prototype scroll 主链上增强滚动稳定性、边界导航、选择态与流式更新之间的协调</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-05T19:06:45Z</CreatedAt>
+    <UpdatedAt>2026-04-06T03:54:02Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_enhance-tui-scroll-and-selection-mechanics" name="enhance-tui-scroll-and-selection-mechanics" version="1">
+    <Description>增强 TUI 滚动与选择机制</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Rule Freeze" status="DONE" order="0">
+        <Description>冻结滚动、自动跟底和选择态协调规则</Description>
+        <SubNodes>
+          <Task id="T1.1" name="冻结自动跟底与手动浏览切换规则" status="DONE" order="0" priority="P0">
+            <Description>明确何时自动跟底、何时尊重用户手动浏览，以及何时恢复自动跟随。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">手动浏览期间不会被无条件强制跳底</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">用户明确回到底部后可恢复自动跟底</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Scroll Behavior Hardening" status="DONE" order="1">
+        <Description>在现有 scroll helpers 和 PrototypeView 接线中增强交互稳定性</Description>
+        <SubNodes>
+          <Task id="T2.1" name="增强边界导航与手动浏览逻辑" status="DONE" order="0" priority="P0">
+            <Description>在不重做主链的前提下，增强 PageUp/PageDown/Home/End 与手动历史浏览表现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">PageUp/PageDown/Home/End 表现稳定</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">手动浏览不会因流式更新被频繁打断</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="协调选择态与滚动副作用" status="DONE" order="1" priority="P0">
+            <Description>在选择文本或其他交互过程中，避免滚动和点击副作用破坏选择体验。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">选择存在时不会因无关副作用被明显打断</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">基础 wheel/arrow scroll 行为无回归</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="修正历史区焦点恢复与可视反馈" status="DONE" order="2" priority="P0">
+            <Description>允许历史区在 composer 保留草稿时重新获得活跃焦点并滚动，补齐触摸板 / 滚轮 / 键盘一致性，并将 bottom bar 焦点切换正式化。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">composer 有内容时，点击历史区后仍可继续滚动历史</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">输入区与历史区能通过颜色变化区分当前焦点</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC3" checked="true">bottom bar `History` / `Composer` 与区域真实焦点保持一致</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Verification" status="DONE" order="2">
+        <Description>通过自动化测试和手工点验验证滚动与选择机制</Description>
+        <SubNodes>
+          <Task id="T3.1" name="补滚动相关自动化测试" status="DONE" order="0" priority="P0">
+            <Description>新增或更新测试，覆盖边界跳转、手动浏览期间的流式更新和选择态相关场景。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">存在 PageUp/PageDown/Home/End 的自动化测试</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">存在手动浏览与流式更新协调的自动化测试</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="运行 terminal TUI 测试并手工点验" status="DONE" order="1" priority="P0">
+            <Description>执行 terminal TUI 测试，并手工验证滚动、选择、边界跳转、触摸板与 bottom bar 焦点切换表现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">至少运行一次 terminal TUI 相关测试命令</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">手工点验覆盖 wheel、touchpad、arrow、page、edge、selection 和焦点切换场景</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-aiagent-thread-goals" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>实现与 Codex 同等级的 thread goal 能力：/goal 用户入口、goal tools、持久化状态、自动计费、idle continuation、complete/blocked 审计和状态同步。</Goal>
+    <Description>为本项目补齐与 Codex 同等级的 thread goal 能力：/goal 入口、goal tools、持久化状态、自动计费与 idle continuation、complete/blocked 审计和用户可见状态同步。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-29T18:19:43Z</CreatedAt>
+    <UpdatedAt>2026-05-30T03:18:20Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-aiagent-thread-goals" name="add-aiagent-thread-goals" version="1">
+    <Description>为 AIAgent 添加 thread goal runtime</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Goal model and persistence" status="DONE" order="0">
+        <Description>建立 thread goal 数据模型、存储边界和最小可验证测试。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Define goal schema and storage contract" status="DONE" order="0" priority="P0">
+            <Description>Define the persisted goal shape, statuses, budget/usage fields, and thread-scoped repository contract.</Description>
+          </Task>
+          <Task id="T1.2" name="Implement goal persistence and state transitions" status="DONE" order="1" priority="P0">
+            <Description>Implement storage, retrieval, replace/update/clear flows, and persisted-thread guardrails.</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Slash command and tool surface" status="DONE" order="1">
+        <Description>提供 `/goal` 用户入口以及 get/create/update goal 模型工具。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add slash and tool contract tests" status="DONE" order="0" priority="P0">
+            <Description>Cover `/goal` parse forms, replacement confirmation, and goal tool schema/permission expectations.</Description>
+          </Task>
+          <Task id="T2.2" name="Implement goal command and tool handlers" status="DONE" order="1" priority="P0">
+            <Description>Wire `/goal` actions and register model-callable goal tools in the builtin tool set.</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Runtime accounting and auto continuation" status="DONE" order="2">
+        <Description>把 goal 连接到 turn 生命周期、usage accounting、budget limit 和 idle continuation。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add runtime accounting and continuation tests" status="DONE" order="0" priority="P0">
+            <Description>Cover turn start/finish, tool completion, abort, budget exhaustion, and idle continuation behavior.</Description>
+          </Task>
+          <Task id="T3.2" name="Implement goal runtime hooks and hidden prompts" status="DONE" order="1" priority="P0">
+            <Description>Compute usage deltas, maintain runtime goal state, and inject continuation / budget prompts when required.</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Status propagation and final verification" status="DONE" order="3">
+        <Description>让 goal 状态对用户可见，并完成最终验证与 gap-loop 收口。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Add state propagation and audit tests" status="DONE" order="0" priority="P1">
+            <Description>Cover goal update events, UI/status visibility, and strict complete/blocked audit outcomes.</Description>
+          </Task>
+          <Task id="T4.2" name="Wire status surface and run targeted verification" status="DONE" order="1" priority="P1">
+            <Description>Connect the goal state to user-visible surfaces and run targeted verification for the new capability.</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

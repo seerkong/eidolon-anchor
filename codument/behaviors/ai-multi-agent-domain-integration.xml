@@ -1,0 +1,50 @@
+<behaviors capability="ai-multi-agent-domain-integration" version="1">
+  <requirement id="member-holon-data-components">
+    <statement>member / holon / detached-actor（delegate/subagent）的运行时状态 SHALL 由一个 MemberHolonDataComponents DataSubgraphContract 治理：member roster、holon governance、detached tasks 各自有声明的单一 owner 与 owned fact nodes；该 contract SHALL 经 Not-Owned-Here 显式声明它**不**拥有 conversation / history / LLM-context / turn 真源。member/holon/detached 状态的写入 SHALL 经该 contract 的 writeCommands（单写），SHALL NOT 由多个 ad-hoc 写入点直接改运行时状态。对应 gate G-control-depa-actor。</statement>
+    <suite id="contract-shape" name="MemberHolon data components contract">
+      <case id="contract-declares-owned-and-not-owned">
+        <given>MemberHolonDataComponents DataSubgraphContract</given>
+        <when>检查其 fact 治理</when>
+        <then>SHALL 声明 member roster / holon governance / detached tasks 的 owned fact nodes 与单一 owner</then>
+        <then>SHALL 在 Not-Owned-Here 显式列出 History / LlmContext / ToolCall / TurnState 的 owned facts（这些不归 member/holon 拥有）</then>
+      </case>
+      <case id="state-writes-through-write-commands">
+        <given>member roster / holon governance / detached tasks 状态变更</given>
+        <when>运行时改写该状态</when>
+        <then>SHALL 经 contract 声明的 writeCommands（单写 owner），SHALL NOT 由多个 ad-hoc 直写点绕过 contract</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="extension-not-conversation-owner">
+    <statement>member / holon / delegate / subagent 作为 AI domain extension，SHALL NOT 写入或拥有 conversation / history / LLM-context 真源；它们对 Conversation / LLM Context 的读取与贡献 SHALL 经 domain protocol（声明的 readViews 与 spine 单写语义管线），SHALL NOT 直达 conversation domain 内部写入器或运行时内部状态。对应 005「delegate/subagent 不成为 conversation truth owner」「member/holon 经 domain protocol 接入」。</statement>
+    <suite id="domain-protocol-access" name="Extension accesses conversation via domain protocol">
+      <case id="no-extension-conversation-writes">
+        <given>member/holon/delegate/subagent 代码路径</given>
+        <when>边界检查其对 conversation/history/llm-context 的访问</when>
+        <then>SHALL NOT 调用 conversation domain 写入器（appendLiveHistory… / recordPromptRequest… / writeHistory/Prompt/SessionIndex / applyConversationCompaction / ConversationDomainRuntime 写）</then>
+        <then>对 Conversation/LLM Context 的贡献 SHALL 经 spine 单写语义管线注入，读取 SHALL 经声明的 readViews</then>
+      </case>
+      <case id="member-holon-protocol-read">
+        <given>member/holon 需要读取 Conversation / LLM Context</given>
+        <when>访问这些真源</when>
+        <then>SHALL 经 domain-protocol readViews（只读视图），SHALL NOT 直达 runtime 内部</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="delegate-completion-mailbox-injection">
+    <statement>delegate / subagent 的完成结果 SHALL 经 actor mailbox 注入回父 actor，注入唤醒等级 SHALL 遵循已确立的 wake-class 分流：sync_wait（同步等待）完成走高优先 mandatory_completion，detached（后台）完成走 low_priority_continuation（不打断主循环）。完成注入 SHALL NOT 由 delegate/subagent 直接写父 actor 的 conversation truth。对应 gate G-ai-turn-state / G-ai-tool-result。</statement>
+    <suite id="mailbox-injection" name="Delegate/subagent completion via mailbox">
+      <case id="completion-enqueues-via-mailbox">
+        <given>delegate/subagent 完成</given>
+        <when>把完成结果交回父 actor</when>
+        <then>SHALL 经 mailbox enqueue 完成事件（childDone / semantic_background_result），SHALL NOT 直接写父 actor conversation/history 真源</then>
+      </case>
+      <case id="wake-class-split-pinned">
+        <given>完成的等待类型</given>
+        <when>决定注入唤醒等级</when>
+        <then>sync_wait 完成 SHALL 用 mandatory_completion（高优先）</then>
+        <then>detached 完成 SHALL 用 low_priority_continuation（低优先，不打断主循环）</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

@@ -38,7 +38,6 @@ export type ActorCommittedMessageRef = {
   committedAt: number;
   message: ConversationCommittedMessageData;
   sourceRecords?: ConversationTranscriptSourceRecord[];
-  transcriptPath?: string | null;
 };
 
 export type ActorHistoryGenerationData = {

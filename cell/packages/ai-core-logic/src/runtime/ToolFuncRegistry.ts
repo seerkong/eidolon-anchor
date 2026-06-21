@@ -92,7 +92,7 @@ export class ToolFuncRegistry extends ToolFuncRegistryData {
 
       if (matched) {
         const coreLogic = async (_runtime: any, input: unknown, _config: Record<string, unknown>) => {
-          return await mcpManager.callTool(name, input);
+          return await mcpManager.callTool(name, input, { signal: meta?.signal });
         };
 
         return await runByFuncStyleAdapter(

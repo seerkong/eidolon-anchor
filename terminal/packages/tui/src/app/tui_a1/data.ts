@@ -2,16 +2,41 @@ import type { Message, Part, ToolPart } from "@terminal/core/AIAgent"
 
 export type TuiA1ToolState = "running" | "done"
 
-export type TuiA1Selection = {
-  agent: string
+export const tuiModelSourcePriority = [
+  "user-explicit",
+  "cli-arg",
+  "agent-memory",
+  "agent-default",
+  "runtime-config",
+  "recent",
+  "provider-default",
+] as const
+
+export type TuiModelSource = (typeof tuiModelSourcePriority)[number]
+
+export type TuiModelRef = {
   providerID: string
   modelID: string
 }
 
+export type TuiModelCandidate = TuiModelRef & {
+  source: TuiModelSource
+}
+
+export type TuiEffectiveModel = TuiModelCandidate
+
+export type TuiA1Selection = {
+  agent: string
+  providerID: string
+  modelID: string
+  modelSource?: TuiModelSource
+}
+
 export const defaultTuiA1Selection: TuiA1Selection = {
   agent: "build",
-  providerID: "openai",
-  modelID: "gpt-5.4",
+  providerID: "",
+  modelID: "",
+  modelSource: undefined,
 }
 
 type TuiA1TextMessage = {
@@ -81,6 +106,31 @@ export function formatTuiA1Selection(selection: TuiA1Selection): string {
   return `${formatTuiA1AgentName(selection.agent)} · ${selection.providerID}/${selection.modelID}`
 }
 
+export function resolveTuiEffectiveModel(candidates: Array<TuiModelCandidate | undefined>): TuiEffectiveModel | undefined {
+  for (const source of tuiModelSourcePriority) {
+    const candidate = candidates.find((item) => item?.source === source)
+    if (!candidate) continue
+    if (!candidate.providerID || !candidate.modelID) continue
+    return {
+      source: candidate.source,
+      providerID: candidate.providerID,
+      modelID: candidate.modelID,
+    }
+  }
+  return undefined
+}
+
+export function selectionModelCandidate(selection: TuiA1Selection): TuiModelCandidate | undefined {
+  if (!selection.providerID || !selection.modelID) return undefined
+  const source = selection.modelSource
+  if (!source) return undefined
+  return {
+    source,
+    providerID: selection.providerID,
+    modelID: selection.modelID,
+  }
+}
+
 export function attachSelectionToMessages(
   messages: TuiA1Message[],
   selection: TuiA1Selection,
@@ -128,10 +178,12 @@ function asRecord(value: unknown): Record<string, any> {
 
 function runtimeMessageSelection(message: Message): TuiA1Selection | undefined {
   if (message.role === "assistant") {
+    if (!message.providerID || !message.modelID) return undefined
     return {
       agent: message.agent ?? defaultTuiA1Selection.agent,
-      providerID: message.providerID ?? defaultTuiA1Selection.providerID,
-      modelID: message.modelID ?? defaultTuiA1Selection.modelID,
+      providerID: message.providerID,
+      modelID: message.modelID,
+      modelSource: "runtime-config",
     }
   }
 
@@ -140,6 +192,7 @@ function runtimeMessageSelection(message: Message): TuiA1Selection | undefined {
       agent: message.agent ?? defaultTuiA1Selection.agent,
       providerID: message.model.providerID,
       modelID: message.model.modelID,
+      modelSource: "runtime-config",
     }
   }
 

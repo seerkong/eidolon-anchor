@@ -14,6 +14,11 @@ import { queueLeaderLedHolonAssign } from "../_leaderLedHolonAssignCore"
 import { getLatestAssistantText, parseFormalAssignMode, requireNonEmptyContent, setTargetWatchState } from "../_formalTooling"
 import type { ActorAssignInnerConfig, ActorAssignInnerInput, ActorAssignInnerOutput, ActorAssignInnerRuntime } from "./InnerTypes"
 
+function countAssistantMessages(actor: { messages?: any[] } | null | undefined): number {
+  const messages = Array.isArray(actor?.messages) ? actor.messages : []
+  return messages.filter((msg) => msg?.role === "assistant").length
+}
+
 function stripTypePrefix(value: string): string {
   const idx = value.indexOf(":")
   return idx < 0 ? value : value.slice(idx + 1)
@@ -37,7 +42,9 @@ export const actorAssignCoreLogic: StdInnerLogic<
   if (!mode) return JSON.stringify({ ok: false, error: "invalid_assign_mode", target: targetQuery })
   if (!content) return JSON.stringify({ ok: false, error: "empty_content", target: targetQuery })
   const targetRef = stripTypePrefix(targetQuery)
-  const targetActor = resolveActorTarget(runtime.vm, targetQuery)
+  const { members } = getControlRuntimeContext(runtime.vm, runtime.actor)
+  const memberByQuery = members.resolveMember(targetQuery)
+  const targetActor = resolveActorTarget(runtime.vm, targetQuery) ?? memberByQuery?.actor ?? null
   if (!targetActor) {
     const organizations = getOrganizationManager()
     const holon = organizations.resolveHolon(runtime.vm, targetRef)
@@ -63,9 +70,12 @@ export const actorAssignCoreLogic: StdInnerLogic<
   }
 
   if (targetActor.identity?.kind === "member") {
-    const { members } = getControlRuntimeContext(runtime.vm, runtime.actor)
+    const member = memberByQuery
+    if (!member || member.actor.key !== targetActor.key) {
+      return JSON.stringify({ ok: false, error: "member_not_found", target: targetQuery })
+    }
     members.sendMessage({
-      to: targetActor.identity.memberId,
+      to: member.memberId,
       from: runtime.actor.identity?.kind === "member" ? runtime.actor.identity.name : runtime.actor.key,
       text: content,
     })
@@ -85,7 +95,27 @@ export const actorAssignCoreLogic: StdInnerLogic<
     }
     if (mode === "final") {
       const { driver } = getControlRuntimeContext(runtime.vm, runtime.actor)
-      await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
+      const assistantCountBefore = countAssistantMessages(targetActor)
+      try {
+        await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
+      } catch (error) {
+        return JSON.stringify({
+          ok: true,
+          target: targetQuery,
+          target_type: "member",
+          actor_key: targetActor.key,
+          actor_id: targetActor.id,
+          actor_type: targetActor.type,
+          reply_mode: "final",
+          accepted: true,
+          completion_status: "timeout",
+          result_text: null,
+          error: error instanceof Error ? error.message : String(error),
+          watch_state: (targetActor as any).watchState ?? "unwatched",
+        })
+      }
+      const assistantCountAfter = countAssistantMessages(targetActor)
+      const resultText = assistantCountAfter > assistantCountBefore ? getLatestAssistantText(targetActor) : null
       return JSON.stringify({
         ok: true,
         target: targetQuery,
@@ -94,8 +124,9 @@ export const actorAssignCoreLogic: StdInnerLogic<
         actor_id: targetActor.id,
         actor_type: targetActor.type,
         reply_mode: "final",
-        completion_status: "settled",
-        result_text: getLatestAssistantText(targetActor),
+        accepted: true,
+        completion_status: resultText ? "settled" : "pending",
+        result_text: resultText,
         watch_state: (targetActor as any).watchState ?? "unwatched",
       })
     }

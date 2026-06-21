@@ -25,10 +25,10 @@ function makeTempHomeDir(): string {
       {
         providers: [
           {
-            name: "openai",
-            baseURL: "https://api.deepseek.com",
-            apiKey: "test-key",
-            models: [{ name: "deepseek-reasoner", context: 128000, output: 8192 }],
+            id: "openai",
+            adapter: "openai",
+            options: { baseURL: "https://api.deepseek.com", apiKey: "test-key" },
+            models: [{ id: "deepseek-reasoner", limits: { context: 128000, output: 8192 } }],
           },
         ],
       },
@@ -37,7 +37,7 @@ function makeTempHomeDir(): string {
     ),
   )
   fs.writeFileSync(
-    path.join(dir, ".eidolon", "agent-preset.json"),
+    path.join(dir, ".eidolon", "agent-present.json"),
     JSON.stringify(
       {
         preset: "default",

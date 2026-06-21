@@ -12,9 +12,11 @@
   "dependencies": {
     "@cell/ai-core-contract": "workspace:*",
     "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-file-store-logic": "workspace:*",
     "@cell/ai-organ-contract": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
-    "@cell/ai-organ-logic": "workspace:*"
+    "@cell/ai-organ-logic": "workspace:*",
+    "xnl-core": "^0.1.4"
   }
 }

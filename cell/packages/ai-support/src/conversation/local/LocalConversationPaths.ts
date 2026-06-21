@@ -10,6 +10,8 @@ export type LocalConversationPaths = {
   promptIndexPath: string;
   sessionIndexPath: string;
   artifactRefsPath: string;
+  historyXnlPath: string;
+  promptsXnlPath: string;
   historyGenerationsDir: string;
   promptGenerationsDir: string;
 };
@@ -22,6 +24,8 @@ export function getLocalConversationPaths(sessionDir: string): LocalConversation
     promptIndexPath: path.join(rootDir, "prompt.index.json"),
     sessionIndexPath: path.join(rootDir, "session.index.json"),
     artifactRefsPath: path.join(rootDir, "artifact-refs.index.json"),
+    historyXnlPath: path.join(rootDir, "history.xnl"),
+    promptsXnlPath: path.join(rootDir, "prompts.xnl"),
     historyGenerationsDir: path.join(rootDir, "history-generations"),
     promptGenerationsDir: path.join(rootDir, "prompt-generations"),
   };

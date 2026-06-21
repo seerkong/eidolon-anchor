@@ -1,5 +1,5 @@
 import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
-import { getOrganizationManager } from "@cell/ai-organ-logic/organization/OrganizationManager"
+import { getOrganizationManager, writeHolonGovernance } from "@cell/ai-organ-logic/organization/OrganizationManager"
 import { buildAutonomousHolonEnvelope } from "@cell/ai-organ-logic/organization/autonomousHolonEnvelope"
 import { getDriver } from "./_controlRuntime"
 import { setTargetWatchState } from "./_formalTooling"
@@ -122,7 +122,7 @@ export async function queueAutonomousHolonAssign(params: {
   const taskId = makeAutonomousHolonTaskId(existingTasks)
 
   const now = Date.now()
-  holonActor.holonState = {
+  writeHolonGovernance(holonActor, {
     governance: "autonomous",
     holonId: autonomousHolon.holonId,
     name: holonActor.holonState?.governance === "autonomous" ? holonActor.holonState.name : autonomousHolon.name,
@@ -142,7 +142,7 @@ export async function queueAutonomousHolonAssign(params: {
         updatedAt: now,
       },
     },
-  }
+  })
 
   const mailboxPayload = {
     from: params.runtime.actor.identity?.kind === "member" ? params.runtime.actor.identity.name : params.runtime.actor.key,
@@ -160,8 +160,8 @@ export async function queueAutonomousHolonAssign(params: {
   driver.emitFiberSignal({
     fiberId: `${holonActor.key}:${holonActor.id}`,
     signalKind: "mailbox_enqueue",
-    mailbox: { kind: "memberInbox", payload: mailboxPayload },
-    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberInbox:${taskId}`,
+    mailbox: { kind: "memberChatInbox", payload: mailboxPayload },
+    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberChatInbox:${taskId}`,
     createdAt: mailboxPayload.ts,
   })
 

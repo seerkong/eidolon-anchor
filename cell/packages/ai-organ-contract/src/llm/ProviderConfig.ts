@@ -28,6 +28,28 @@ export type LlmProviderCatalogConfig = {
   providers: LlmProviderConfig[];
 };
 
+export type LlmProviderModelRawConfig = {
+  id: string;
+  adapter?: string;
+  limits: {
+    context: number;
+    output: number;
+  };
+  reasoning?: ProviderModelReasoningConfig;
+  options?: Record<string, unknown>;
+};
+
+export type LlmProviderRawConfig = {
+  id: string;
+  adapter?: string;
+  options: Record<string, unknown>;
+  models: LlmProviderModelRawConfig[];
+};
+
+export type LlmProviderCatalogRawConfig = {
+  providers: LlmProviderRawConfig[];
+};
+
 export type LlmPresentPrimaryConfig = {
   model: string;
 };
@@ -99,6 +121,7 @@ export type FlattenedModelConfig = {
   outputLimit: number;
   reasoningEffort?: ProviderModelReasoningConfig["effort"];
   capabilities?: LlmModelCapabilities;
+  options?: Record<string, unknown>;
 };
 
 export function isLlmAdapterType(value: unknown): value is LlmProviderAdapterType {
@@ -151,6 +174,40 @@ export function isLLMProviderConfig(value: unknown): value is LLMProviderConfig 
   return value.providers.every((provider) => isProviderConfig(provider));
 }
 
+export function isLlmProviderModelRawConfig(value: unknown): value is LlmProviderModelRawConfig {
+  if (!isObject(value)) return false;
+  const limits = value.limits;
+  return (
+    typeof value.id === "string" &&
+    (value.adapter === undefined || typeof value.adapter === "string") &&
+    isObject(limits) &&
+    typeof limits.context === "number" &&
+    Number.isFinite(limits.context) &&
+    typeof limits.output === "number" &&
+    Number.isFinite(limits.output) &&
+    isStringRecord(value.options) &&
+    (value.reasoning === undefined ||
+      (isObject(value.reasoning) &&
+        (value.reasoning.effort === undefined || isReasoningEffort(value.reasoning.effort))))
+  );
+}
+
+export function isLlmProviderRawConfig(value: unknown): value is LlmProviderRawConfig {
+  if (!isObject(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    (value.adapter === undefined || typeof value.adapter === "string") &&
+    isObject(value.options) &&
+    Array.isArray(value.models) &&
+    value.models.every((model) => isLlmProviderModelRawConfig(model))
+  );
+}
+
+export function isLlmProviderCatalogRawConfig(value: unknown): value is LlmProviderCatalogRawConfig {
+  if (!isObject(value) || !Array.isArray(value.providers)) return false;
+  return value.providers.every((provider) => isLlmProviderRawConfig(provider));
+}
+
 export function isAgentModelPreset(value: unknown): value is AgentModelPreset {
   return isObject(value) && typeof value.model === "string";
 }
@@ -161,4 +218,3 @@ export function isAgentPresetConfig(value: unknown): value is AgentPresetConfig 
     (preset) => isObject(preset) && Object.values(preset).every((entry) => isAgentModelPreset(entry)),
   );
 }
-

@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-ai-multi-agent-domain-integration" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>把 member/holon/delegate/subagent 作为 AI domain extension 正式接入主干：声明 MemberHolonDataComponents DataSubgraphContract（单写 owner + Not-Owned-Here），把 ad-hoc 状态所有权收口到 writeCommands，把 Conversation/LLM-Context 访问路由经 domain-protocol readViews，pin delegate/subagent 完成 mailbox 注入的 wake-class 分流。</Goal>
+    <Description>runtime-evolution mission Track-8（W3，AI extension 面）。scoping audit：多 agent 域已不写 conversation truth、完成经 mailbox+spine 单写管线，但所有权/访问/分流 ad-hoc 未受 data-subgraph 模型治理。决策 1=含机制调整（路由经显式 contract 面）；决策 2=pin 既有 sync/detached wake-class 分流。不 rewrite mailbox 机制核心、不创建临时 member id 兼容、不让 delegate 拥有 conversation truth。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-20T16:55:00Z</CreatedAt>
+    <UpdatedAt>2026-06-20T19:47:35Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input"  name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior"        domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_refactor-ai-multi-agent-domain-integration" name="refactor-ai-multi-agent-domain-integration" version="1">
+    <Description>多 agent 域集成：MemberHolon DataSubgraphContract + 状态所有权收口 + 访问经 domain protocol + 完成 mailbox 注入分流 conformance。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="MemberHolon DataSubgraphContract + Not-Owned-Here" status="DONE" order="0">
+        <Description>在 AiRuntimeDataSubgraphs 声明 MemberHolonDataComponents contract（member roster / holon governance / detached tasks owned facts + 单一 owner + writeCommands/readViews）；Not-Owned-Here 显式列 History/LlmContext/ToolCall/TurnState；注册并扩展 data-components / not-owned-here conformance。不动实现写点。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add failing conformance for MemberHolon contract + Not-Owned-Here" status="DONE" order="0" priority="P0">
+            <Description>TDD 红：conformance 断言新 contract 声明 roster/holon/detached owned facts + 单一 owner；Not-Owned-Here 含 History/LlmContext/ToolCall/TurnState owned facts；已注册进 data-subgraph 注册表。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">contract/Not-Owned-Here conformance 以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Define + register MemberHolonDataComponents contract" status="DONE" order="1" priority="P0">
+            <Description>定义 contract（owned facts/owner/writeCommands/readViews/Not-Owned-Here）并注册；T1.1 转绿；既有 data-subgraph 套件等价。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">T1.1 全绿；contract 注册、Not-Owned-Here 正确，0 新增失败</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Consolidate State Ownership Onto Write Commands" status="DONE" order="1">
+        <Description>把 member roster / holon governance / detached tasks 的 ad-hoc 直写点收口到 contract 声明的单写 writeCommands；调用方改 command；运行时行为等价。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add failing tests: state writes go through single-writer commands" status="DONE" order="0" priority="P0">
+            <Description>源级断言：roster/holon/detached 状态变更经 contract writeCommands 单写，无多个 ad-hoc 直写点绕过。先红。落地 member_holon_single_writer_conformance.test.ts：(a) roster 只在 MemberManager 写、(b) detached 只在 DetachedActorRegistry 写均已绿（已是单写），(c) actor.holonState 直写初始红（10 个分散点）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">单写收口测试以失败状态就位</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Route MemberManager/holon/DetachedActorRegistry writes through commands" status="DONE" order="1" priority="P0">
+            <Description>引入 holon 单写 writeHolonGovernance(actor, next)（OrganizationManager.ts，= member_holon.update_holon_governance command），把全部 10 个 actor.holonState 直写点路由经它（7 OrganizationManager + AutonomousHolonTaskRunner + 两个 assign-core）；roster/detached 本就单写仅 pin；行为等价（同一赋值仅 funnel）；cell/organ 14/14 基线按名比对 0 新增；改动文件 0 net-new tsc。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">T2.1 全绿；单写收口、行为等价，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Member/Holon Access Conversation Via Domain Protocol" status="DONE" order="2">
+        <Description>member/holon 对 Conversation/LLM-Context 的读取改经声明 readViews；贡献仍经 spine 单写注入；编码「extension 不写 conversation truth、经 domain protocol 访问」为规则 + conformance。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add failing tests: extension accesses conversation via readViews, no direct writes" status="DONE" order="0" priority="P0">
+            <Description>边界/行为断言：member/holon/delegate/subagent 路径不调 conversation 写入器；读经声明 readViews/治理 turn 流，不在 extension 内私读 domain。落地 extension_not_conversation_owner_conformance.test.ts（3 例，源级扫描 organization/+detached/+holon assign-cores）。invariant 本就成立，直接覆盖 pin。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">domain-protocol-access 规则测试就位（invariant 已成立，pin 通过）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Encode rule; extension reads governed (no direct domain access)" status="DONE" order="1" priority="P0">
+            <Description>复核确认 extension 域无直达 conversation/llm-context 直写/直读可路由（决策 1=B 机制调整已在 P2 兑现）；规则编码为可执行边界 conformance；行为等价、0 源改动；ai-organ-logic 14 基线 0 净新增。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">T3.1 全绿；无 extension 直写/直读 truth，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="Delegate/Subagent Completion Mailbox Injection Conformance" status="DONE" order="3">
+        <Description>pin delegate/subagent 完成经 mailbox 注入 + wake-class 分流（sync_wait→mandatory_completion、detached→low_priority_continuation）；若有非 conforming 完成路径则路由经 mailbox 契约。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Add conformance: completion via mailbox + wake-class split (red/coverage)" status="DONE" order="0" priority="P0">
+            <Description>断言完成 enqueue childDone，sync_wait→mandatory_completion、detached→low_priority_continuation，且不调 conversation writer。落地 delegate_completion_mailbox_injection_conformance.test.ts（6 例：行为级真 classifier 分流 + 源级 mailbox 注入/无写）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">mailbox 注入 + wake-class 分流 conformance 就位（直接覆盖）</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Ensure completion paths conform; pin split green" status="DONE" order="1" priority="P0">
+            <Description>复核确认完成经 mailbox 注入并遵循分流（机制已对齐，无偏差需路由）；conformance 全绿（6 pass）；决策 2 pin 既有 sync/detached 分流；ai-runtime-control-logic 0 净新增。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">T4.1 全绿；完成全经 mailbox、分流正确，既有失败基线不增</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P5" name="Closure" status="DONE" order="4">
+        <Description>全量回归（cell + terminal 按名比对基线，0 新增失败）；spec capability 覆盖核对；findings.md 写最终基线。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="Final sweep and full regression" status="DONE" order="0" priority="P0">
+            <Description>cell + terminal 全套回归，按名比对基线确认 0 新增失败；ai-multi-agent-domain-integration 全部 case 有可执行覆盖；findings.md 追加实施结果与最终基线。结果：cell14/organ14/organ-support1/tui29 全部 0 净新增；6 个 case 全有可执行覆盖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">失败集合为基线子集；spec 全部 case 有可执行覆盖；findings.md 已更新</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+</Track>

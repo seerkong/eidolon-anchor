@@ -193,4 +193,11 @@ export type ProviderDriverRequestParams = {
 
 export type ProviderDriverStreamParams = ProviderDriverRequestParams & {
   signal?: AbortSignal;
+  /**
+   * Stable session/actor identity for this turn (threaded from
+   * `LlmGenerateOptions.sessionKey`, falling back to `runtime.sessionId`/
+   * `actorId`). The openai-responses WebSocket transport keys
+   * `previous_response_id` continuity on it.
+   */
+  sessionKey?: string;
 };

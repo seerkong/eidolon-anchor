@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-shell-runtime-facade-phase2" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 shell/runtime entry 优先消费更窄的 domain runtime facade port，而不是继续直接拼接 AI orchestration internals。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-11T13:05:00Z</CreatedAt>
+    <UpdatedAt>2026-04-11T14:18:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-shell-runtime-facade-phase2" name="refactor-shell-runtime-facade-phase2" version="1">
+    <Description>推进 shell runtime facade phase2</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Facade Ownership Freeze" status="DONE" order="0">
+        <Description>冻结哪些 shell 责任应下沉为更窄 facade port。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 shell facade ownership 表" status="DONE" order="0" priority="P0">
+            <Description>明确哪些 AI glue 仍留在 shell，哪些应转为 domain facade port。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">ownership 表明确</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">shell 不形成第二真相源</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Facade Cutover" status="DONE" order="1">
+        <Description>完成第一轮更窄 facade port cutover。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="引入并消费更窄的 domain runtime facade" status="DONE" order="0" priority="P0">
+            <Description>让 terminal/tui/headless 入口优先消费新的 domain runtime facade port。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">shell 直接依赖减少</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">adoption 行为保持稳定</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Focused Verification" status="DONE" order="2">
+        <Description>验证 shell facade 收紧后主路径不回归。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="运行 shell runtime facade focused tests" status="DONE" order="0" priority="P0">
+            <Description>覆盖 terminal/tui/headless adoption 与 capability-port ownership。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">focused tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">shell 更接近 platform-neutral bridge</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

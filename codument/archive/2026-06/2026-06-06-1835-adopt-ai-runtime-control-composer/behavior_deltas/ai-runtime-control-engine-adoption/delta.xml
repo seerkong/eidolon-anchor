@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-runtime-control-engine-adoption">
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/real-session-head-adapters">
+    <requirement id="real-session-head-adapters">
+    <statement>系统 SHALL map real AI session persistence sources into ai-runtime-control-composer durable heads before the composer can replace old runtime persistence.</statement>
+    <suite id="head-mapping" name="真实 session head 映射">
+      <case id="snapshot-conversation-transcript-mailbox-logs">
+        <given>A session contains runtime snapshot, conversation files, actor transcript, mailbox state, ingress logs, and diagnostics logs</given>
+        <when>The runtime control composer prepares a checkpoint cohort</when>
+        <then>The system SHALL represent each source as a named durable head with sequence and buffered state</then>
+        <then>The system SHALL commit those heads only through a cohort commit marker</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/effect-lifecycle-adapters">
+
+    <requirement id="effect-lifecycle-adapters">
+    <statement>系统 SHALL route real tool, MCP, bash, permission, questionnaire, and provider completion lifecycles through composer effect request/result commands before replacing old orchestration.</statement>
+    <suite id="effect-pairing" name="副作用配对">
+      <case id="tool-output-paired">
+        <given>A tool output, async completion, or permission result arrives</given>
+        <when>The composer records the event</when>
+        <then>The system SHALL require a matching effect request or classify the result as orphaned or dirty</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/recovery-classification">
+
+    <requirement id="recovery-classification">
+    <statement>系统 SHALL classify real session directories using composer recovery rules and SHALL NOT silently resume dirty state.</statement>
+    <suite id="historical-incidents" name="历史现场回归">
+      <case id="dirty-session-rejected">
+        <given>A historical session has unpaired tool messages, duplicate human input, stale removed-tool calls, or inconsistent durable heads</given>
+        <when>The runtime loads the session through composer recovery</when>
+        <then>The system SHALL classify the session as orphaned or dirty unless a valid repair produces a clean cohort</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/gap-until-replaceable">
+
+    <requirement id="gap-until-replaceable">
+    <statement>系统 SHALL run repeated replacement-readiness gap scans after implementation and SHALL extend this track until no remaining blocker prevents using ai-runtime-control-composer as the runtime persistence/control engine.</statement>
+    <suite id="readiness-loop" name="替换就绪扫描">
+      <case id="no-gap-before-replacement">
+        <given>The planned implementation tasks are complete</given>
+        <when>A fresh gap scan compares composer adoption against old runtime responsibilities</when>
+        <then>The track SHALL record every remaining blocker as new tasks</then>
+        <then>The track SHALL NOT be considered complete until the scan reports no replacement blocker</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/concrete-writer-ownership">
+
+    <requirement id="concrete-writer-ownership">
+    <statement>系统 SHALL drive concrete AI runtime file writes through ai-runtime-control-composer before claiming full replacement of the old runtime persistence writer path.</statement>
+    <suite id="composer-concrete-checkpoint" name="Composer concrete checkpoint 写入">
+      <case id="composer-drives-concrete-files">
+        <given>A runtime reaches a snapshot safepoint and has VM, actor, fiber, conversation, transcript, derived index, and manifest data ready to persist</given>
+        <when>The runtime saves the checkpoint</when>
+        <then>The system SHALL enqueue a composer concrete checkpoint write effect instead of directly calling each concrete writer from RuntimeSnapshots</then>
+        <then>The composer SHALL execute the concrete writer support, read real session heads, buffer durable heads, and commit the checkpoint cohort in that order</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/control-engine-consistency-owner">
+
+    <requirement id="control-engine-consistency-owner">
+    <statement>系统 SHALL treat ai-runtime-control as the owner of runtime consistency boundaries, with old concrete writers invoked only as support effects or explicitly classified projection/journal sinks.</statement>
+    <suite id="control-owner-boundaries" name="Control engine 一致性边界">
+      <case id="checkpoint-has-no-pre-composer-write">
+        <given>A runtime reaches a snapshot safepoint</given>
+        <when>The runtime saves a checkpoint</when>
+        <then>The system SHALL NOT write conversation, transcript, snapshot, manifest, or checkpoint-owned derived files before submitting the checkpoint to ai-runtime-control-composer</then>
+      </case>
+      <case id="effect-evidence-through-control-facade">
+        <given>A provider, tool, permission, questionnaire, or async completion lifecycle event is observed</given>
+        <when>The runtime records the lifecycle event</when>
+        <then>The system SHALL submit the event through a runtime-control composer facade rather than directly writing runtime-control files from executor code</then>
+      </case>
+      <case id="recovery-gate-before-support-load">
+        <given>A session directory exists on disk</given>
+        <when>The runtime attempts to recover the session</when>
+        <then>The system SHALL run the runtime-control recovery gate before reading old snapshot repository data as support detail</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/irreversible-session-upgrade">
+
+    <requirement id="irreversible-session-upgrade">
+    <statement>系统 SHALL provide an explicit irreversible session-file upgrade path before enabling owned-mode runtime recovery for old sessions.</statement>
+    <suite id="session-upgrade" name="Session 文件升级">
+      <case id="upgrade-writes-owned-checkpoint">
+        <given>An old session has valid runtime files but no runtime-control owned checkpoint</given>
+        <when>The migration runs the session upgrade</when>
+        <then>The system SHALL read real session heads, buffer those heads, commit the checkpoint cohort, and write an irreversible upgrade manifest</then>
+      </case>
+      <case id="dirty-existing-checkpoint-rejected">
+        <given>A session already has a runtime-control checkpoint marker but current heads or effect evidence classify as dirty or orphaned</given>
+        <when>The migration attempts to upgrade the session</when>
+        <then>The system SHALL reject the upgrade rather than overwriting the dirty state with a new marker</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/session-upgrade-cli-entry">
+
+    <requirement id="session-upgrade-cli-entry">
+    <statement>系统 SHALL provide a single-session migration entry that can dry-run upgrade readiness without writes and apply an irreversible owned checkpoint only when explicitly requested.</statement>
+    <suite id="session-upgrade-entry" name="Session upgrade dry-run/apply 入口">
+      <case id="dry-run-is-read-only">
+        <given>An operator runs session upgrade without --apply</given>
+        <when>The CLI inspects the session directory</when>
+        <then>The system SHALL read upgrade marker, checkpoint marker, real heads, and effect evidence</then>
+        <then>The system SHALL output JSON classification, blockers, canUpgrade, and plannedHeads without writing files</then>
+      </case>
+      <case id="apply-reuses-dry-run">
+        <given>An operator runs session upgrade with --apply</given>
+        <when>The session is already upgraded, dirty, orphaned, or otherwise blocked by effect evidence</when>
+        <then>The system SHALL return already_upgraded or rejected rather than writing a replacement checkpoint marker</then>
+      </case>
+      <case id="apply-commits-clean-session">
+        <given>An old session has no blocking evidence other than a missing checkpoint marker</given>
+        <when>The operator runs session upgrade with --apply</when>
+        <then>The system SHALL commit a checkpoint cohort, write the irreversible upgrade manifest, and verify recovery classification is clean</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/tui-session-upgrade-entry">
+
+    <requirement id="tui-session-upgrade-entry">
+    <statement>系统 SHALL let users upgrade an old session from the TUI session picker before recovery, using the same runtime-control session-upgrade dry-run/apply semantics as the CLI.</statement>
+    <suite id="tui-session-upgrade" name="TUI session upgrade 入口">
+      <case id="confirm-before-apply">
+        <given>A user opens the TUI session list and selects an old session that has no runtime-control checkpoint marker</given>
+        <when>The dry-run result has canUpgrade=true</when>
+        <then>The TUI SHALL ask the user to confirm the irreversible upgrade before applying it</then>
+        <then>The TUI SHALL call the same session-upgrade apply facade after confirmation</then>
+      </case>
+      <case id="blocked-session-not-loaded">
+        <given>The selected session dry-run returns dirty, orphaned, or other blocking evidence</given>
+        <when>The user attempts to load the session from TUI</when>
+        <then>The TUI SHALL show the blockers and SHALL NOT navigate into the session route</then>
+      </case>
+      <case id="upgraded-session-loads-directly">
+        <given>The selected session is already upgraded and has a clean checkpoint</given>
+        <when>The user loads the session from TUI</when>
+        <then>The TUI SHALL load the session without asking for another upgrade confirmation</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

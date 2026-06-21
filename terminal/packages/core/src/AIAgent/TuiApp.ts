@@ -496,6 +496,30 @@ export type SessionShellInput = {
   modelID?: string
 }
 
+export type SessionUpgradeDryRunResult = {
+  status: "dry_run"
+  mode: "file-store"
+  upgraded: boolean
+  hasCheckpoint: boolean
+  classification: string
+  blockers: Array<Record<string, unknown>>
+  canUpgrade: boolean
+  plannedHeads: Record<string, number>
+  upgrade: Record<string, unknown> | null
+  checkpointMarker: string | null
+}
+
+export type SessionUpgradeApplyResult = {
+  status: "applied" | "already_upgraded" | "rejected"
+  mode: "file-store"
+  dryRun: SessionUpgradeDryRunResult
+  result?: Record<string, unknown>
+  verification?: {
+    classification: string
+    blockers: Array<Record<string, unknown>>
+  }
+}
+
 export type TuiRuntimeClient = {
   session: {
     list(input?: Record<string, unknown>, options?: Record<string, unknown>): ClientResult<Session[]>
@@ -518,6 +542,8 @@ export type TuiRuntimeClient = {
     prompt(input: SessionPromptInput, options?: Record<string, unknown>): ClientResult<MessageWithParts>
     command(input: SessionCommandInput, options?: Record<string, unknown>): ClientResult<unknown>
     shell(input: SessionShellInput, options?: Record<string, unknown>): ClientResult<unknown>
+    upgradeDryRun(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<SessionUpgradeDryRunResult>
+    upgradeApply(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<SessionUpgradeApplyResult>
   }
   permission: {
     reply(input: { requestID: string; reply: string; message?: string }, options?: Record<string, unknown>): ClientResult<unknown>

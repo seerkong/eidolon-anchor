@@ -11,7 +11,6 @@ const fixedPaths = [
   "desktop/node_modules",
   "shared/node_modules",
   "terminal/node_modules",
-  "pnpm-lock.yaml",
   "bun.lock",
   "terminal/bun.lock",
 ];

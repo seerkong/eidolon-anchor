@@ -81,12 +81,13 @@ export class OpenAICompletionsNodejsFetchStreamAdapter {
 
   async processStream(stream: AsyncIterable<any>) {
     await this.send("control", JSON.stringify({ event: "StreamStart" }));
-    for await (const chunk of stream as any) {
-      await this.processChunk(chunk);
-    }
-    if (Object.keys(this.toolCalls).length) {
-      for (const [, tc] of Object.entries(this.toolCalls)) {
-        const tool_call = {
+    try {
+      for await (const chunk of stream as any) {
+        await this.processChunk(chunk);
+      }
+      if (Object.keys(this.toolCalls).length) {
+        for (const [, tc] of Object.entries(this.toolCalls)) {
+          const tool_call = {
             id: tc.id,
             type: tc.type,
             function: {
@@ -94,11 +95,13 @@ export class OpenAICompletionsNodejsFetchStreamAdapter {
               arguments: tc.functionArguments,
             },
           };
-        await this.send("tool", JSON.stringify(tool_call));
+          await this.send("tool", JSON.stringify(tool_call));
+        }
       }
+      return this.buildMessage();
+    } finally {
+      await this.send("control", JSON.stringify({ event: "StreamEnd" }));
     }
-    await this.send("control", JSON.stringify({ event: "StreamEnd" }));
-    return this.buildMessage();
   }
 
   private async processChunk(chunk: any) {

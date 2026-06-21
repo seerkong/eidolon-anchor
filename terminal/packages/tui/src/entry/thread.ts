@@ -140,6 +140,7 @@ export const thread = cmd({
       timeoutSeconds: args.timeout,
       debug: args.debug,
       mcp: args.mcp,
+      entryType: "tui",
       metadata: buildTuiThreadRuntimeMetadata(cwd, args),
     })
 

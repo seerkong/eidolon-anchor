@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import fs from "fs"
 import os from "os"
 import path from "path"
+import { parseXnl } from "xnl-core"
 import { __setLlmAdapterFactoryForTest, configureTuiRuntime, getTuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
 
 function makeTempWorkdir(): string {
@@ -9,6 +10,22 @@ function makeTempWorkdir(): string {
   fs.mkdirSync(path.join(dir, ".eidolon", "agents"), { recursive: true })
   fs.mkdirSync(path.join(dir, ".eidolon", "mcp"), { recursive: true })
   return dir
+}
+
+async function readTranscriptXnl(filePath: string): Promise<{ streams: string[]; text: string }> {
+  const doc = parseXnl(fs.readFileSync(filePath, "utf8"))
+  const records = (doc.nodes ?? [])
+    .filter((record: any) => record?.kind === "DataElement" && record?.tag === "actor-transcript-record")
+  const streams: string[] = []
+  const textParts: string[] = []
+  for (const record of records as any[]) {
+    for (const item of record.body ?? []) {
+      if (item?.kind !== "TextElement" || item?.tag !== "record") continue
+      streams.push(String(item.metadata?.stream ?? record.metadata.stream ?? ""))
+      textParts.push(String(item.text ?? ""))
+    }
+  }
+  return { streams, text: textParts.join("\n") }
 }
 
 describe("TuiRuntime mirrored think suppression", () => {
@@ -94,12 +111,12 @@ describe("TuiRuntime mirrored think suppression", () => {
       const actorsDir = path.join(sessionsDir, sessionDirs[0]!, "actors")
       const actorDirs = fs.readdirSync(actorsDir)
       expect(actorDirs.length).toBeGreaterThan(0)
-      const historyPath = path.join(actorsDir, actorDirs[0]!, "transcript.txt")
-      const historyText = fs.readFileSync(historyPath, "utf-8")
+      const historyPath = path.join(actorsDir, actorDirs[0]!, "transcript.xnl")
+      const history = await readTranscriptXnl(historyPath)
 
-      expect(historyText.includes("#think")).toBe(false)
-      expect(historyText.includes("#content")).toBe(true)
-      expect(historyText.match(/我是你的AI助手/g)?.length ?? 0).toBe(1)
+      expect(history.streams.includes("think")).toBe(false)
+      expect(history.streams.includes("content")).toBe(true)
+      expect(history.text.match(/我是你的AI助手/g)?.length ?? 0).toBe(1)
     } finally {
       __setLlmAdapterFactoryForTest(null)
     }

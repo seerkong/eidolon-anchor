@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-runtime-control-engine-landing">
+  <upsert selector="behavior://ai-runtime-control-engine-landing/requirements/owned-mode-recovery-gate">
+    <requirement id="owned-mode-recovery-gate">
+    <statement>系统 SHALL require an owned runtime-control checkpoint before recovering an AI runtime session in production load or resume paths.</statement>
+    <suite id="owned-recovery" name="Owned recovery gate">
+      <case id="upgraded-clean-session-loads">
+        <given>A session contains runtime-control upgrade metadata, a checkpoint commit marker, matching real durable heads, and clean effect evidence</given>
+        <when>The runtime loads or resumes the session</when>
+        <then>The system SHALL pass the recovery gate and continue VM recovery</then>
+      </case>
+      <case id="old-session-rejected">
+        <given>A materialized old session has no runtime-control upgrade metadata or checkpoint marker</given>
+        <when>The runtime attempts production load or resume without running session-upgrade</when>
+        <then>The system SHALL reject recovery with an explicit upgrade-required error</then>
+      </case>
+      <case id="dirty-session-rejected">
+        <given>A session has mismatched heads, orphaned tool output, dirty effect evidence, or removed handler evidence</given>
+        <when>The runtime attempts load or resume</when>
+        <then>The system SHALL reject recovery and expose recovery blockers</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-landing/requirements/engine-owned-checkpoint-save">
+
+    <requirement id="engine-owned-checkpoint-save">
+    <statement>系统 SHALL make the runtime-control engine the owner of AI runtime checkpoint save consistency.</statement>
+    <suite id="checkpoint-save" name="Engine-owned checkpoint save">
+      <case id="concrete-writes-are-support-effects">
+        <given>The runtime reaches a snapshot safepoint</given>
+        <when>The runtime saves checkpoint data</when>
+        <then>The system SHALL submit a runtime-control checkpoint command/effect</then>
+        <then>The system SHALL run concrete conversation, transcript, snapshot, and manifest writes only as support effects</then>
+        <then>The system SHALL commit the checkpoint cohort only after real heads match the written files</then>
+      </case>
+      <case id="non-safepoint-does-not-commit">
+        <given>The runtime has mandatory mailbox work, half-started tool call, or unpaired completion work</given>
+        <when>A checkpoint save is requested</when>
+        <then>The system SHALL NOT write a new authoritative checkpoint commit marker</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-landing/requirements/effect-lifecycle-owned-by-engine">
+
+    <requirement id="effect-lifecycle-owned-by-engine">
+    <statement>系统 SHALL route runtime effect lifecycle evidence through the runtime-control engine facade and SHALL NOT let executor or support code directly own evidence persistence.</statement>
+    <suite id="effect-lifecycle" name="Effect lifecycle ownership">
+      <case id="effect-request-result-paired">
+        <given>A provider, tool, MCP, bash, permission, questionnaire, or async completion event occurs</given>
+        <when>The runtime records the event</when>
+        <then>The system SHALL record request/result/waiting evidence through the runtime-control facade</then>
+        <then>Recovery SHALL classify unpaired result evidence as orphaned or dirty</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://ai-runtime-control-engine-landing/requirements/projection-journal-boundary">
+
+    <requirement id="projection-journal-boundary">
+    <statement>系统 SHALL keep rebuildable projections and append-only journal sinks outside the authoritative checkpoint cohort unless a future spec explicitly changes their role.</statement>
+    <suite id="projection-journal" name="Projection and journal boundary">
+      <case id="derived-indexes-are-cache">
+        <given>Derived indexes are missing, stale, or partially written</given>
+        <when>The runtime recovers from a clean owned checkpoint</when>
+        <then>The system SHALL treat derived indexes as projection cache and rebuild or refresh them without failing recovery</then>
+      </case>
+      <case id="logs-are-journal-sinks">
+        <given>Ingress or diagnostics XNL logs contain entries beyond or outside a checkpoint</given>
+        <when>The runtime evaluates checkpoint consistency</when>
+        <then>The system SHALL NOT block checkpoint recovery solely because journal sink event counts differ</then>
+        <then>Session upgrade SHALL preserve existing journal sink files without converting them into checkpoint-owned records</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

@@ -6,18 +6,22 @@ import {
   type RuntimeSnapshotActor,
 } from "./types";
 
+function readMailboxArray(mailboxes: any, key: string): any[] {
+  return Array.isArray(mailboxes?.[key]) ? structuredClone(mailboxes[key]) : [];
+}
+
 const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotActor>({
   serialize: (actor) => {
     const nowIso = new Date().toISOString();
     const mailboxes = {
       control: actor.peekMailbox("control"),
-      childDone: actor.peekMailbox("childDone"),
-      coordination: actor.peekMailbox("coordination"),
-      memberInbox: actor.peekMailbox("memberInbox"),
-      heartbeatWake: actor.peekMailbox("heartbeatWake"),
-      humanInput: actor.peekMailbox("humanInput"),
       toolResult: actor.peekMailbox("toolResult"),
-      aiGenerated: actor.peekMailbox("aiGenerated"),
+      asyncCompletion: actor.peekMailbox("asyncCompletion"),
+      childDone: actor.peekMailbox("childDone"),
+      memberCoordination: actor.peekMailbox("memberCoordination"),
+      humanInput: actor.peekMailbox("humanInput"),
+      memberChatInbox: actor.peekMailbox("memberChatInbox"),
+      heartbeat: actor.peekMailbox("heartbeat"),
     };
 
     return {
@@ -48,7 +52,6 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
       toolCallStreamState: {
         toolCalls: structuredClone(actor.toolCallStreamState.toolCalls),
       },
-      pendingQuestionnaires: structuredClone(actor.pendingQuestionnaires),
       workContext: structuredClone(actor.workContext),
       continuationBaseline: structuredClone(actor.continuationBaseline),
       lastMemberResultNotifiedAt: actor.lastMemberResultNotifiedAt,
@@ -106,19 +109,18 @@ function hydrateActorFromSnapshot(
     },
     taskTree: structuredClone(snapshot.taskTree),
     mailboxes: {
-      control: structuredClone(snapshot.mailboxes.control),
-      childDone: structuredClone(snapshot.mailboxes.childDone),
-      coordination: structuredClone(snapshot.mailboxes.coordination),
-      memberInbox: structuredClone(snapshot.mailboxes.memberInbox),
-      heartbeatWake: structuredClone(snapshot.mailboxes.heartbeatWake ?? []),
-      humanInput: structuredClone(snapshot.mailboxes.humanInput),
-      toolResult: structuredClone(snapshot.mailboxes.toolResult),
-      aiGenerated: structuredClone(snapshot.mailboxes.aiGenerated),
+      control: readMailboxArray(snapshot.mailboxes, "control"),
+      toolResult: readMailboxArray(snapshot.mailboxes, "toolResult"),
+      asyncCompletion: readMailboxArray(snapshot.mailboxes, "asyncCompletion"),
+      childDone: readMailboxArray(snapshot.mailboxes, "childDone"),
+      memberCoordination: readMailboxArray(snapshot.mailboxes, "memberCoordination"),
+      humanInput: readMailboxArray(snapshot.mailboxes, "humanInput"),
+      memberChatInbox: readMailboxArray(snapshot.mailboxes, "memberChatInbox"),
+      heartbeat: readMailboxArray(snapshot.mailboxes, "heartbeat"),
     },
     toolCallStreamState: {
       toolCalls: structuredClone(snapshot.toolCallStreamState.toolCalls),
     },
-    pendingQuestionnaires: structuredClone(snapshot.pendingQuestionnaires),
     workContext: snapshot.workContext ? structuredClone(snapshot.workContext) : undefined,
     continuationBaseline: snapshot.continuationBaseline ? structuredClone(snapshot.continuationBaseline) : undefined,
     lastMemberResultNotifiedAt: snapshot.lastMemberResultNotifiedAt ?? null,

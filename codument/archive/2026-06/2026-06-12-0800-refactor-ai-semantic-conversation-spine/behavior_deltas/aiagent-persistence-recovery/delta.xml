@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-persistence-recovery">
+  <upsert selector="behavior://aiagent-persistence-recovery/requirements/conversation-single-recovery-source">
+    <requirement id="conversation-single-recovery-source">
+    <statement>对话恢复 SHALL 以会话文件（history、prompts、session.index）为唯一来源；SHALL NOT 读取 actor transcript（该形态已删除）；transcript-only 旧 session SHALL 被显式拒绝而非静默降级。</statement>
+    <suite id="single-source" name="Single recovery source">
+      <case id="no-transcript-fallback">
+        <given>恢复流程选择对话来源</given>
+        <when>会话文件缺失或不完整</when>
+        <then>恢复 SHALL 失败并返回显式错误</then>
+        <then>SHALL NOT 回退到 transcript 或其它部分事实源</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

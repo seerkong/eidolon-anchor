@@ -4,6 +4,7 @@ import { createActor } from "@cell/ai-core-logic/runtime/actor"
 import { createVM } from "@cell/ai-core-logic/runtime/runtime"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver"
+import { createMockProcessStream } from "./__test_support__/mockProcessStream"
 
 describe("cooperative no rerun after no_tool_calls", () => {
   it("does not start a second llm turn for the same human input after the first turn settles", async () => {
@@ -25,7 +26,7 @@ describe("cooperative no rerun after no_tool_calls", () => {
       modelConfig: { model: "mock-model" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "hello" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "hello" })),
       },
     })
 
@@ -48,11 +49,11 @@ describe("cooperative no rerun after no_tool_calls", () => {
     await driver.tickUntilForegroundSettled({ now, maxTicks: 80, maxWallMs: 2000 })
 
     expect(llmCalls).toBe(1)
-    expect(messages.filter((message) => message?.role === "assistant").length).toBe(1)
+    expect(actor.messages.filter((message: any) => message?.role === "assistant").length).toBe(1)
 
     await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 80, maxWallMs: 2000 })
 
     expect(llmCalls).toBe(1)
-    expect(messages.filter((message) => message?.role === "assistant").length).toBe(1)
+    expect(actor.messages.filter((message: any) => message?.role === "assistant").length).toBe(1)
   })
 })

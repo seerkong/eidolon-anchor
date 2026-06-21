@@ -45,7 +45,7 @@ describe("TuiRuntime message history dedup", () => {
       const actorsDir = path.join(sessionsDir, sessionDirs[0]!, "actors")
       const actorDirs = fs.readdirSync(actorsDir)
       expect(actorDirs.length).toBeGreaterThan(0)
-      const historyPath = path.join(actorsDir, actorDirs[0]!, "transcript.txt")
+      const historyPath = path.join(actorsDir, actorDirs[0]!, "transcript.xnl")
       const historyText = fs.readFileSync(historyPath, "utf-8")
 
       expect(historyText.match(/Great/g)?.length ?? 0).toBe(1)

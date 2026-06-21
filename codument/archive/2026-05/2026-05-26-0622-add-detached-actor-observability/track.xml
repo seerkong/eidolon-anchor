@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-detached-actor-observability" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Description>Add scoped running-time observability and terminal result queries for detached bash and detached delegate actor tasks.</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-05-26T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-05-26T06:22:48Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-detached-actor-observability" name="add-detached-actor-observability" version="1">
+    <SubNodes>
+      <TaskGroup id="P1" name="Observability Model And Query Contracts" status="DONE" order="0">
+        <Description>Define bounded detached log/message/result data model and query tool contracts.</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add observability model tests" status="DONE" order="0" priority="P0">
+            <Description>Write failing tests for per-task ring buffer sequencing, source filtering, byte/entry limits, and dropped metadata.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">Tests cover stdout/stderr filtering and monotonic sequence cursors.</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">Tests cover rolling discard metadata when retention limits are exceeded.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Implement detached observability store" status="DONE" order="1" priority="P0">
+            <Description>Add in-runtime structures and helpers for detached log chunks, message entries, result snapshots, and bounded retention.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">Detached observability helpers append and query by task id.</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">Overflow behavior preserves newest entries and reports dropped metadata.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="Add query tool contract tests" status="DONE" order="2" priority="P0">
+            <Description>Write failing tests for DetachedActorLogs, DetachedActorMessages, and DetachedActorResult tool schemas and empty/not-found behavior.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">Query tools validate missing and unknown task ids.</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">Query tools support source, role, kind, range, and limit parameters.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.4" name="Implement query tools" status="DONE" order="3" priority="P0">
+            <Description>Add tools for detached logs, detached messages, and detached terminal results while preserving DetachedActorStatus compatibility.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.4-AC1" checked="true">DetachedActorLogs returns scoped log chunks and cursor metadata.</cdt:Criterion>
+              <cdt:Criterion id="T1.4-AC2" checked="true">DetachedActorMessages returns scoped message entries and cursor metadata.</cdt:Criterion>
+              <cdt:Criterion id="T1.4-AC3" checked="true">DetachedActorResult returns terminal state and not-terminal responses.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Streaming Detached Bash" status="DONE" order="1">
+        <Description>Make RunDetachedBash observable while running through streaming stdout/stderr capture.</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add streaming bash tests" status="DONE" order="0" priority="P0">
+            <Description>Write failing tests showing RunDetachedBash stdout/stderr can be queried while the command is still running and after it exits.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">Running RunDetachedBash exposes stdout tail before completion.</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">Running RunDetachedBash exposes stderr tail separately before completion.</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC3" checked="true">Completed RunDetachedBash result includes terminal status and bounded stdout/stderr tail.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Implement streaming sandboxed bash backend" status="DONE" order="1" priority="P0">
+            <Description>Add a streaming process backend that shares permission and sandbox selection semantics with existing bash execution.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">Streaming backend appends stdout and stderr chunks with source metadata.</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">Timeout, process error, exit code, and signal are reflected in task result.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="Wire RunDetachedBash to streaming execution" status="DONE" order="2" priority="P0">
+            <Description>Route RunDetachedBash through the streaming backend while keeping task id creation and background scheduling behavior stable.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">RunDetachedBash still returns a parseable task id immediately.</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">RunDetachedBash logs are queryable by source while running.</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC3" checked="true">Existing detached bash tests continue to pass or are updated to the new observability contract.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Detached Delegate Messages And Results" status="DONE" order="2">
+        <Description>Expose recent messages and terminal results for RunDelegateActor detached tasks.</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Add delegate message observability tests" status="DONE" order="0" priority="P0">
+            <Description>Write failing tests for querying assistant messages, tool call starts, tool results, errors, range cursors, and retention metadata from detached delegate actors.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">Tests cover role-filtered assistant message queries.</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">Tests cover kind-filtered tool event queries.</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC3" checked="true">Tests verify system prompts and hidden reasoning are not exposed.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Capture delegate actor entries" status="DONE" order="1" priority="P0">
+            <Description>Add executor/orchestrator taps that append message and tool event entries to the detached observability store for child fibers.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">Assistant output, tool call start, tool result, failure, cancellation, and completion entries are captured.</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">Entries are associated with the correct task id and child actor/fiber identifiers.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="Implement delegate result queries" status="DONE" order="2" priority="P0">
+            <Description>Return terminal status, final assistant result, and optional bounded message tail for completed detached delegate actors.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.3-AC1" checked="true">Completed delegate result includes final assistant text.</cdt:Criterion>
+              <cdt:Criterion id="T3.3-AC2" checked="true">Non-terminal delegate result reports current status unless partial results are requested.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Compatibility And Verification" status="DONE" order="3">
+        <Description>Preserve existing detached status, background result events, and recovery semantics while validating the new observability path.</Description>
+        <SubNodes>
+          <Task id="T4.1" name="Add compatibility regression tests" status="DONE" order="0" priority="P0">
+            <Description>Verify DetachedActorStatus, DetachedActorList, semantic background result events, and existing detached task completion behavior remain compatible.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">Existing status/list JSON shape remains compatible.</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">Background result events still emit terminal results.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="Run focused test suites" status="DONE" order="1" priority="P0">
+            <Description>Run the smallest relevant Bun test targets for detached bash, detached status, orchestration, sandbox backend, and terminal projection behavior.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">Focused detached actor and sandbox tests pass.</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">No regression is introduced in terminal background result projection tests.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.3" name="Document implementation notes" status="DONE" order="2" priority="P1">
+            <Description>Update track analysis notes with final defaults, caveats, and any deferred durability work.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.3-AC1" checked="true">Track analysis documents default retention limits and known tradeoffs.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

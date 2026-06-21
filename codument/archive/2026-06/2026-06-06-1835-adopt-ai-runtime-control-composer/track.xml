@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="adopt-ai-runtime-control-composer" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 ai-runtime-control-composer 成为 AI runtime 持久化与控制一致性边界 owner，并将旧 writer 收敛为 support effect、projection 或 journal sink。</Goal>
+    <Description>补齐 ai-runtime-control-composer 真正替换旧 runtime 持久化与控制编排所缺的真实 adapter、recovery、effect lifecycle、concrete writer ownership 和持续 gap 扫描。</Description>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-06-06T01:53:15Z</CreatedAt>
+    <UpdatedAt>2026-06-06T10:35:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_adopt-ai-runtime-control-composer" name="adopt-ai-runtime-control-composer" version="1">
+    <Description>落地 ai-runtime-control-composer 替换路径</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="真实 session head 与 effect contract" status="DONE" order="0">
+        <SubNodes>
+          <Task id="T1.1" name="补充真实 durable head contract" status="DONE" order="0" priority="P0">
+            <Description>定义 snapshot、conversation、transcript、mailbox、control signal、ingress、diagnostics 的 head descriptor、sequence 和 cohort metadata。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-head-contract-tests" checked="true">contract 测试覆盖真实 head descriptor 数据结构</cdt:Criterion>
+              <cdt:Criterion id="AC-no-side-effects-in-contract" checked="true">contract 仍只声明数据和副作用边界，不引入文件 IO 实现</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="补充真实 effect lifecycle contract" status="DONE" order="1" priority="P0">
+            <Description>定义 tool/MCP/bash/permission/questionnaire/provider completion 的 request/result/wait/recovery 数据结构。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-effect-contract-tests" checked="true">contract 测试覆盖 effect lifecycle 类型和 dirty/orphaned 分类输入</cdt:Criterion>
+              <cdt:Criterion id="AC-explicit-idempotency" checked="true">effect request 明确包含 effect id 与 idempotency key</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="真实 file-store support 与 scanner" status="DONE" order="1">
+        <SubNodes>
+          <Task id="T2.1" name="实现真实 session head file-store adapter" status="DONE" order="0" priority="P0">
+            <Description>在 ai-file-store-logic / ai-runtime-control-support 中实现真实 session 文件到 durable head 的读写和 sequence 推导。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-file-store-head-tests" checked="true">file-store 测试覆盖真实 session 文件 head buffer 和 commit marker</cdt:Criterion>
+              <cdt:Criterion id="AC-old-files-preserved" checked="true">shadow 阶段不破坏旧 runtime 文件格式</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="实现 recovery scanner" status="DONE" order="1" priority="P0">
+            <Description>扫描旧文件与 runtime-control 文件，产出 clean/pending/retryable/orphaned/dirty 分类和诊断。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-scanner-tests" checked="true">scanner 测试覆盖 clean、orphaned、dirty、pending</cdt:Criterion>
+              <cdt:Criterion id="AC-no-silent-dirty" checked="true">dirty session 不被静默标记为 clean</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="runtime shadow adoption" status="DONE" order="2">
+        <SubNodes>
+          <Task id="T3.1" name="RuntimeSnapshots shadow 写入 composer cohort" status="DONE" order="0" priority="P0">
+            <Description>在旧 snapshot save path 中同步生成 composer durable head buffer 和 cohort marker，旧文件仍为 source of truth。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-shadow-save-tests" checked="true">保存 snapshot 时写入 runtime-control head 和 marker</cdt:Criterion>
+              <cdt:Criterion id="AC-non-safepoint-no-marker" checked="true">非 safepoint 时不写入 commit marker</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="coordinator 与 effect lifecycle command emission" status="DONE" order="1" priority="P0">
+            <Description>将关键 tool/MCP/bash/permission/questionnaire/provider completion 事件发为 composer effect request/result command。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-real-effect-tests" checked="true">真实 effect lifecycle 测试覆盖 request/result 配对</cdt:Criterion>
+              <cdt:Criterion id="AC-late-completion-priority" checked="true">late completion 进入 effectResult 队列并优先消费</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="load recovery gate 与历史 replay" status="DONE" order="3">
+        <SubNodes>
+          <Task id="T4.1" name="接入 load/resume recovery classifier" status="DONE" order="0" priority="P0">
+            <Description>在 session load/resume path 使用 composer scanner 分类并阻止 dirty resume。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-load-dirty-rejected" checked="true">dirty session load/resume 被拒绝或要求显式修复</cdt:Criterion>
+              <cdt:Criterion id="AC-clean-session-loads" checked="true">clean session 仍可正常恢复</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="历史 incident replay 测试" status="DONE" order="1" priority="P0">
+            <Description>用真实 session fixture/replay 覆盖 unpaired tool output、duplicate humanInput、removed handler、multi-head mismatch、late completion stop。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-incident-replay-tests" checked="true">历史问题均有真实 replay 测试</cdt:Criterion>
+              <cdt:Criterion id="AC-no-loop-regression" checked="true">重复工具循环类脏 tail 不会被静默恢复</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="替换就绪 gap loop" status="DONE" order="4">
+        <SubNodes>
+          <Task id="T5.1" name="扫描 composer 替换旧实现剩余 gap" status="DONE" order="0" priority="P0">
+            <Description>对照旧 RuntimeSnapshots、coordinator、orchestrator、conversation/transcript/mailbox/logs 职责清单，扫描 composer adoption 是否仍有 blocker。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-gap-report-written" checked="true">gap 报告写入 track reports 或 analysis</cdt:Criterion>
+              <cdt:Criterion id="AC-new-gaps-added-to-plan" checked="true">发现的新 blocker 已追加为本 track 任务</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="完成新增 gap 并重复扫描直到无 blocker" status="DONE" order="1" priority="P0">
+            <Description>实现 T5.1 发现的新增任务，并重复扫描，直到明确可用 composer 替换旧 runtime 实现。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-no-replacement-blocker" checked="true">最终扫描确认没有替换 blocker</cdt:Criterion>
+              <cdt:Criterion id="AC-replacement-ready-stated" checked="true">track 文档明确说明 composer 可替换范围和剩余非 blocker 风险</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.3" name="持久化 composer effect evidence" status="DONE" order="2" priority="P0">
+            <Description>为 effect request/result/wait/failed 生命周期添加 file-store evidence head，并让 recovery scanner 读取该 evidence 作为 effects 输入。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-effect-evidence-files" checked="true">effect lifecycle events 写入 runtime-control evidence 文件</cdt:Criterion>
+              <cdt:Criterion id="AC-effect-evidence-recovery" checked="true">recovery scanner 从 evidence 文件重建 effects 并分类 orphaned/pending/dirty</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.4" name="将 executor/orchestrator 真实副作用接入 composer lifecycle" status="DONE" order="3" priority="P0">
+            <Description>在 AiAgentExecutor、OrchestratorDriver 及 tool/MCP/bash/permission/questionnaire/provider completion 路径发出 composer lifecycle events。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-tool-lifecycle-wired" checked="true">tool/MCP/bash request/result 均有 composer lifecycle evidence</cdt:Criterion>
+              <cdt:Criterion id="AC-wait-lifecycle-wired" checked="true">permission/questionnaire/async completion wait 状态有 composer lifecycle evidence</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.5" name="实现 composer-owned checkpoint gate" status="DONE" order="4" priority="P0">
+            <Description>在显式 gate 下让 runtime save/load 依赖 composer-owned cohort commit 作为 checkpoint/evidence 一致性门禁，而不是仅 shadow 写 runtime-control metadata。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-composer-owned-save" checked="true">gate 开启时 runtime save 必须在 safepoint 后通过 composer checkpoint command 生成 authoritative commit marker；旧 concrete repository writers 在过渡期仍可负责写入具体 runtime 文件</cdt:Criterion>
+              <cdt:Criterion id="AC-composer-owned-load" checked="true">gate 开启时 load/resume 必须验证 composer commit marker</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.6" name="实现 ingress diagnostics replay scanner" status="DONE" order="5" priority="P1">
+            <Description>将 ingress.xnl 和 diagnostics.xnl 从 sequence-only head 扩展为可 replay 的 evidence 输入，用于恢复诊断和 gap 分析。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-ingress-replay" checked="true">scanner 可读取 ingress evidence 并参与 recovery report</cdt:Criterion>
+              <cdt:Criterion id="AC-diagnostics-replay" checked="true">scanner 可读取 diagnostics evidence 并参与 recovery report</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P6" name="concrete writer ownership" status="DONE" order="5">
+        <SubNodes>
+          <Task id="T6.1" name="定义 composer concrete checkpoint write API" status="DONE" order="0" priority="P0">
+            <Description>在 contract/composer 层定义 runtime concrete checkpoint write payload/result，并提供 file-store composer API 驱动具体 runtime 文件写入后再提交 checkpoint cohort。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-concrete-write-effect-contract" checked="true">concrete checkpoint write 通过显式 effect handler 与 payload 表达，不由 RuntimeSnapshots 主流程直接调用多个 writer</cdt:Criterion>
+              <cdt:Criterion id="AC-concrete-write-composer-tests" checked="true">composer 测试覆盖 concrete write effect 先执行、real heads 后 buffer、cohort 最后 commit</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.2" name="迁移 RuntimeSnapshots save 到 composer concrete writer" status="DONE" order="1" priority="P0">
+            <Description>将 actor transcript 初始化、conversation flush、runtime snapshot、derived indexes、manifest 写入收敛为 composer concrete checkpoint effect handler，由 composer 驱动执行并提交 checkpoint marker。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-runtime-snapshots-single-composer-call" checked="true">saveAiAgentRuntimeSnapshot safepoint 后只调用 composer concrete checkpoint API，不再散落直接调用旧 concrete writers</cdt:Criterion>
+              <cdt:Criterion id="AC-existing-recovery-tests-pass" checked="true">runtime recovery、snapshot safepoint、executor evidence 相关测试继续通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.3" name="复扫 concrete writer 替换 gap" status="DONE" order="2" priority="P0">
+            <Description>扫描 RuntimeSnapshots、conversation repository、transcript、derived index writer 是否仍有主流程 ownership gap；更新 readiness report。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-no-concrete-writer-blocker" checked="true">报告确认具体文件写入由 composer checkpoint effect 驱动，旧 writer 仅作为 support 实现存在</cdt:Criterion>
+              <cdt:Criterion id="AC-gap-report-concrete-writer" checked="true">reports 中记录 concrete writer ownership 复扫结果</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P7" name="control engine alignment" status="DONE" order="6">
+        <SubNodes>
+          <Task id="T7.1" name="记录 control engine 对齐设计" status="DONE" order="0" priority="P0">
+            <Description>将 runtime-control 引擎作为一致性 owner、旧 writer 作为 support effect、projection/journal 分域管理的设计写入 track，并记录当前偏差。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-control-engine-design-recorded" checked="true">design.md 说明 command/effect/head/cohort 的一致性边界，不把 composer 简化为直接替代每个 writer</cdt:Criterion>
+              <cdt:Criterion id="AC-gap-report-recorded" checked="true">reports 中记录 P6 后仍存在的 writer/evidence/recovery/projection/journal gap</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.2" name="消除 RuntimeSnapshots checkpoint 前旁路写入" status="DONE" order="1" priority="P0">
+            <Description>移除 safepoint 后、composer checkpoint 前的直接 conversation flush，保证 checkpoint concrete writes 只由 composer 驱动。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-no-pre-composer-conversation-flush" checked="true">saveAiAgentRuntimeSnapshot 在调用 runFileStoreAiRuntimeConcreteCheckpoint 前不直接写 conversation persistence</cdt:Criterion>
+              <cdt:Criterion id="AC-snapshot-tests-pass" checked="true">runtime snapshot safepoint 与 recovery 测试通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.3" name="将 concrete checkpoint handler support 化" status="DONE" order="2" priority="P0">
+            <Description>在 ai-runtime-control-support 中提供 file-store concrete checkpoint effect handler 构造，composer 组装 handler，不在 composer 内部手写旧 writer 编排。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-support-handler-api" checked="true">support 导出 runtime_concrete_checkpoint_write handler key 和 handler factory</cdt:Criterion>
+              <cdt:Criterion id="AC-composer-uses-support-handler" checked="true">composer concrete checkpoint API 使用 support handler factory 构造 effect handler</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.4" name="将 effect evidence 写入入口移到 composer facade" status="DONE" order="3" priority="P0">
+            <Description>Executor 不再直接 import ai-file-store-logic 写 effect evidence，而是调用 composer/control facade 记录 lifecycle evidence。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-executor-no-file-store-evidence-import" checked="true">AiAgentExecutor 不再直接调用 appendRuntimeControlEffectEvidence</cdt:Criterion>
+              <cdt:Criterion id="AC-effect-evidence-tests-pass" checked="true">executor effect lifecycle evidence 测试通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.5" name="前置 recovery control gate 并归类 projection/journal" status="DONE" order="4" priority="P0">
+            <Description>在 load path 先执行 runtime-control recovery gate，再读取旧 snapshot support；同时明确 recovery derived indexes 是 projection refresh，ingress/diagnostics 是 journal sink。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-recovery-gate-before-load" checked="true">recoverAiAgentRuntime 在 repository.loadSnapshot 前执行 runtime-control gate</cdt:Criterion>
+              <cdt:Criterion id="AC-projection-journal-documented" checked="true">design/report 明确 projection refresh 与 journal sink 的一致性策略和后续迁移边界</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P8" name="irreversible session upgrade" status="DONE" order="7">
+        <SubNodes>
+          <Task id="T8.1" name="定义不可降级升级记录" status="DONE" order="0" priority="P0">
+            <Description>在 file-store 层定义 runtime-control/upgrade.json，记录升级策略、checkpoint marker、head sequences 和升级时间。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-upgrade-marker-api" checked="true">file-store 提供 upgrade marker read/write API</cdt:Criterion>
+              <cdt:Criterion id="AC-upgrade-marker-tests" checked="true">file-store 测试覆盖不可降级升级记录</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T8.2" name="实现 session 升级为 owned checkpoint" status="DONE" order="1" priority="P0">
+            <Description>在 composer 中提供 session 文件升级 API，读取真实 heads，提交 checkpoint cohort，写入不可降级 upgrade marker，并拒绝 dirty/orphaned 既有 checkpoint。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-upgrade-owned-checkpoint" checked="true">composer 升级 API 为旧 session 写入 checkpoint marker 和 upgrade marker</cdt:Criterion>
+              <cdt:Criterion id="AC-upgrade-composer-tests" checked="true">composer integration 测试覆盖升级到 owned checkpoint</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P9" name="session upgrade CLI entry" status="DONE" order="8">
+        <SubNodes>
+          <Task id="T9.1" name="实现 composer dry-run/apply facade" status="DONE" order="0" priority="P0">
+            <Description>在 ai-runtime-control-composer 中提供只读 dry-run 分类 API 和先 dry-run 后写入的 apply API，输出 upgrade readiness、blockers、planned heads 和 verification。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-dry-run-no-writes" checked="true">dry-run 只读取 upgrade marker、checkpoint marker、real heads 和 effect evidence，不写入 runtime-control 文件</cdt:Criterion>
+              <cdt:Criterion id="AC-apply-prechecks-dry-run" checked="true">apply 必须复用 dry-run 分类，dirty/orphaned/pending evidence 不可被覆盖成新 checkpoint marker</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T9.2" name="新增 session-upgrade CLI" status="DONE" order="1" priority="P0">
+            <Description>在 terminal CLI 中新增 session-upgrade 命令，支持 --session-dir、--dry-run、--apply，默认 dry-run，并以 JSON 输出结果。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-cli-dry-run-default" checked="true">未提供 --apply 时 CLI 执行 dry-run 并输出 JSON</cdt:Criterion>
+              <cdt:Criterion id="AC-cli-apply-explicit" checked="true">只有显式 --apply 才执行不可降级升级写入</cdt:Criterion>
+              <cdt:Criterion id="AC-cli-mutual-exclusive" checked="true">--dry-run 与 --apply 同时出现时返回 usage error</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T9.3" name="验证单 session upgrade 入口" status="DONE" order="2" priority="P0">
+            <Description>补充 composer integration tests 和 CLI command tests，覆盖旧 session 可升级、orphaned evidence 拒绝和 already upgraded 输出。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-composer-upgrade-tests" checked="true">composer 测试覆盖 dry-run/apply/rejected/already-upgraded</cdt:Criterion>
+              <cdt:Criterion id="AC-cli-upgrade-tests" checked="true">CLI 测试覆盖 dry-run 默认、apply 和互斥参数错误</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P10" name="tui session upgrade prompt" status="DONE" order="9">
+        <SubNodes>
+          <Task id="T10.1" name="扩展 TUI runtime session upgrade SDK" status="DONE" order="0" priority="P0">
+            <Description>在 TUI runtime client contract 中暴露 session upgrade dry-run/apply API，并在 local-runtime 中复用 composer facade。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-tui-sdk-upgrade-api" checked="true">TUI SDK 提供 upgradeDryRun 和 upgradeApply，不要求 UI 拼接 sessionDir</cdt:Criterion>
+              <cdt:Criterion id="AC-local-runtime-composer-upgrade" checked="true">local-runtime 的 upgradeApply 调用同一套 composer session-upgrade 实现</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T10.2" name="TUI 加载旧 session 前确认升级" status="DONE" order="1" priority="P0">
+            <Description>在 session list 点击加载或回车加载时先 dry-run；旧 session 可升级时弹出确认，确认后 apply，再导航恢复。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-tui-confirm-before-upgrade" checked="true">缺 checkpoint 且 canUpgrade=true 时 TUI 弹出升级确认</cdt:Criterion>
+              <cdt:Criterion id="AC-tui-blocks-dirty-upgrade" checked="true">dry-run 不可升级时 TUI 显示 blockers，不进入 session route</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T10.3" name="验证 TUI 升级交互" status="DONE" order="2" priority="P0">
+            <Description>补充 TUI system surface 测试，覆盖点击加载、确认升级、调用 apply、导航到 session。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-tui-upgrade-surface-test" checked="true">TUI 测试覆盖升级确认并调用 upgradeApply 后加载 session</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P11" name="runtime effect pending recovery protocol" status="DONE" order="10">
+        <SubNodes>
+          <Task id="T11.1" name="记录 effect evidence 与 checkpoint safepoint 分域" status="DONE" order="0" priority="P0">
+            <Description>明确 runtime-control/effects.jsonl 是 append-only effect lifecycle evidence log；checkpoint recovery 必须结合 persisted cooperative inflight 判定 pending effect，而不是把所有 pending 都当作不可加载脏状态。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-effect-evidence-domain-documented" checked="true">design.md 明确 effect evidence log 与 checkpoint cohort 的分域，以及 pending effect 的两类恢复语义</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T11.2" name="在 composer 中建模 checkpointed pending inflight recovery" status="DONE" order="1" priority="P0">
+            <Description>在 ai-runtime-control-composer 中提供 pending effect 与 recovered inflight 的配对判定，并提供 interrupted inflight failed evidence 构造函数。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-composer-pending-recovery-api" checked="true">composer 导出 decideAiRuntimePendingEffectsRecovery 与 buildAiRuntimeInterruptedInflightFailedEvidence</cdt:Criterion>
+              <cdt:Criterion id="AC-composer-pending-recovery-test" checked="true">composer integration test 复现 checkpoint clean 但 bash effect 只有 request/waiting 的历史现场，并验证 matched inflight 可恢复、unmatched pending 不可恢复、failed evidence 闭合后 recovery clean</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T11.3" name="RuntimeSnapshots 调用 composer pending recovery protocol" status="DONE" order="2" priority="P0">
+            <Description>load/recovery gate 允许与 persisted inflight 对齐的 pending effect，并在恢复中断 tool/LLM 时通过 composer 构造 failed evidence 闭合 effect，再向 actor 注入恢复 completion。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-runtime-uses-composer-pending-recovery" checked="true">RuntimeSnapshots 不再私有维护 pending effect 配对与 failed evidence 构造逻辑，而是调用 composer API</cdt:Criterion>
+              <cdt:Criterion id="AC-real-session-smoke-covers-pending-tool" checked="true">真实历史 session smoke 复制现场验证 pending bash effect 可恢复并闭合，不污染原始 session</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P12" name="effect WAL checkpoint logical cursor" status="DONE" order="11">
+        <SubNodes>
+          <Task id="T12.1" name="修正 effect evidence WAL 设计" status="DONE" order="0" priority="P0">
+            <Description>明确 effects.jsonl 是 runtime-control WAL，不是普通 diagnostics log；checkpoint recovery 只按 checkpoint 记录的 WAL prefix 分类，tail 留给 replay/diagnostics。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-effect-wal-design-recorded" checked="true">design.md 记录 checkpoint logical cursor + WAL prefix recovery 规则</cdt:Criterion>
+              <cdt:Criterion id="AC-drift-guard-rejected" checked="true">design.md 明确删除 writer-window drift guard 止血逻辑</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T12.2" name="checkpoint/upgrade 记录 effect WAL sequence" status="DONE" order="1" priority="P0">
+            <Description>在 checkpoint commit 与 upgrade marker 中记录 effect WAL logical sequence，作为本 checkpoint 覆盖到的 runtime-control WAL 边界。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-checkpoint-effect-sequence" checked="true">checkpoint commit file 包含 effectEvidenceSequence</cdt:Criterion>
+              <cdt:Criterion id="AC-upgrade-effect-sequence" checked="true">upgrade.json 包含 effectEvidenceSequence</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T12.3" name="recovery gate 使用 WAL prefix" status="DONE" order="2" priority="P0">
+            <Description>恢复 gate 只读取 checkpoint sequence 覆盖的 effect evidence prefix 进行 clean/pending/orphaned/dirty 分类，checkpoint 后 tail 不阻塞恢复。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-recovery-prefix-only" checked="true">checkpoint 后追加 pending effect 不会反向污染 checkpoint recovery</cdt:Criterion>
+              <cdt:Criterion id="AC-prefix-dirty-still-blocks" checked="true">checkpoint prefix 内 orphaned/dirty evidence 仍会阻止恢复</cdt:Criterion>
+              <cdt:Criterion id="AC-missing-sequence-inferred" checked="true">已有 owned checkpoint 缺 effectEvidenceSequence 时，从 runtime_checkpoint result evidence 推断 checkpoint WAL prefix，不回退为全量 WAL</cdt:Criterion>
+              <cdt:Criterion id="AC-no-byte-offset-prefix" checked="true">WAL prefix/tail 按事件 sequence 过滤，多字节 evidence 不参与定位语义</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T12.4" name="删除 drift guard 止血逻辑" status="DONE" order="3" priority="P0">
+            <Description>移除 runtime_checkpoint_effect_evidence_drift guard 和对应测试，替换为 WAL logical cursor/prefix 测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-no-drift-guard" checked="true">composer checkpoint 不因 writer 窗口 WAL tail 追加而直接抛 drift</cdt:Criterion>
+              <cdt:Criterion id="AC-sequence-tests-pass" checked="true">composer 与 runtime recovery sequence 测试通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T12.5" name="扫描并移除持久化 byte sequence 语义" status="DONE" order="4" priority="P0">
+            <Description>扫描 runtime-control 相关持久化，state 文件只能全量读写，append-only log 只能按事件 sequence 定位，不再使用文件大小或 byte offset 作为 domain sequence。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-effect-log-envelope" checked="true">effects.jsonl append 记录使用 {sequence,event} envelope</cdt:Criterion>
+              <cdt:Criterion id="AC-runtime-reader-requires-envelope" checked="true">runtime reader 不接受旧 raw event JSONL 作为合法运行态输入</cdt:Criterion>
+              <cdt:Criterion id="AC-log-heads-use-event-count" checked="true">ingress/diagnostics head sequence 使用事件数，不使用 file size</cdt:Criterion>
+              <cdt:Criterion id="AC-no-runtime-control-offset-api" checked="true">runtime-control file-store API 不再导出 effectEvidenceOffset/readPrefixByOffset 一类 byte 定位 API</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T12.6" name="串行化 runtime-control WAL sequence 分配" status="DONE" order="5" priority="P0">
+            <Description>修复 effects.jsonl 并发 append 时通过读最大 sequence 推导下一个 sequence 导致重复 sequence 的根因，按 session WAL 串行分配逻辑事件序列。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="AC-concurrent-effect-append-unique-sequence" checked="true">测试覆盖同一 session 并发 append 不产生重复 sequence</cdt:Criterion>
+              <cdt:Criterion id="AC-wal-sequence-not-byte-position" checked="true">WAL sequence 仍是 envelope 逻辑事件序列，不引入 byte-position 语义</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

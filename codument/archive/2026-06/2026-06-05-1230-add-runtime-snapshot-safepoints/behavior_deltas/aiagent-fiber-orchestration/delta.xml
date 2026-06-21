@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-fiber-orchestration">
+  <upsert selector="behavior://aiagent-fiber-orchestration/requirements/mandatory-continuation-settling">
+    <requirement id="mandatory-continuation-settling">
+    <statement>系统 SHALL treat protocol-critical cooperative continuations as mandatory work that must be consumed before a foreground or all-lane settle operation reports a snapshot-safe boundary.</statement>
+    <suite id="foreground-settle-boundary" name="Foreground settle boundary">
+      <case id="start-tool-is-mandatory-continuation">
+        <given>A foreground fiber is `ready` with cooperative exec state `start_tool`</given>
+        <then>The actor history has an assistant tool call awaiting runtime tool startup</then>
+        <when>The foreground scheduler settles the runtime for snapshot or turn completion</when>
+        <then>The scheduler SHALL continue executing `agent_step` work until `start_tool` creates durable tool operation state or reaches a typed wait</then>
+        <then>The scheduler SHALL NOT report a snapshot-safe settled state while the `start_tool` continuation remains unconsumed</then>
+      </case>
+      <case id="settled-distinguishes-idle-from-unsafe-ready">
+        <given>No fiber is currently running</given>
+        <then>A ready fiber still has mandatory continuation work</then>
+        <when>The runtime evaluates whether the foreground lane is settled</when>
+        <then>The runtime SHALL classify the lane as not settled for snapshot purposes</then>
+        <then>The runtime SHALL either schedule the continuation or surface a diagnostic if progress is impossible</then>
+      </case>
+    </suite>
+    <suite id="mailbox-drain-observability" name="Mailbox drain observability">
+      <case id="fiber-result-drained-before-safepoint">
+        <given>A fiber actor has returned `yield` and posted `fiber_result` to the orchestrator mailbox</given>
+        <when>The scheduler checks for a snapshot-safe boundary</when>
+        <then>The runtime SHALL ensure queued orchestrator results that affect scheduling have been delivered or are represented as recoverable durable work</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-fiber-orchestration/mandatory-continuation-settling" strength="hint" />
+    </requirement>
+  </upsert>
+</behavior-patch>

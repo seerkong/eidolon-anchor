@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="aiagent-fiber-orchestration">
+  <upsert selector="behavior://aiagent-fiber-orchestration/requirements/durable-control-signal-scheduling">
+    <requirement id="durable-control-signal-scheduling">
+    <statement>系统 SHALL make durable control signals the source of truth for fiber wake, resume, and interrupt scheduling while keeping signal payloads bounded and separate from message history.</statement>
+    <suite id="mailbox-enqueue-scheduling" name="Mailbox enqueue scheduling">
+      <case id="wake-signal-uses-bounded-payload">
+        <given>A wake message such as LLM done, tool done, child done, human input, or heartbeat arrives</given>
+        <when>The runtime persists the durable control signal</when>
+        <then>The signal SHALL include scheduling metadata sufficient for wake/resume recovery</then>
+        <then>The signal SHALL NOT duplicate unbounded mailbox payloads that are owned by actor mailbox, transcript, conversation, or artifact persistence</then>
+      </case>
+      <case id="pending-signal-redelivery-with-payload-ref">
+        <given>A signal is pending when the process exits</given>
+        <when>The runtime recovers the session</when>
+        <then>The runtime SHALL redeliver the intended mailbox message using the actor mailbox snapshot or payload reference</then>
+        <then>The fiber SHALL continue without transcript-tail inference</then>
+      </case>
+    </suite>
+    <knowledge-hint target="docs" href="knowledge://docs/aiagent-fiber-orchestration/durable-control-signal-scheduling" strength="hint" />
+    </requirement>
+  </upsert>
+</behavior-patch>

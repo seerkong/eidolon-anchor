@@ -1,0 +1,23 @@
+{
+  "profiles": {
+    "default": {
+      "description": "Default project direction check",
+      "attractors": [
+        "codument/attractors/project.md",
+        "codument/attractors/product.md"
+      ]
+    },
+    "docs": {
+      "description": "Docs knowledge artifact generation",
+      "attractors": [
+        "codument/attractors/docs-knowledge.md"
+      ]
+    },
+    "memory": {
+      "description": "Project memory artifact generation",
+      "attractors": [
+        "codument/attractors/project-memory.md"
+      ]
+    }
+  }
+}

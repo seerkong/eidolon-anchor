@@ -89,6 +89,72 @@ describe("TuiRuntime semantic terminal smoke", () => {
     }
   })
 
+  it("queues user input immediately while a turn is still running", async () => {
+    const sessionKey = `semantic-terminal-busy-input-${Date.now()}`
+    const workdir = makeTempWorkdir()
+    configureTuiRuntime({
+      workDir: workdir,
+      adapter: "openai",
+      model: "gpt-4o-mini",
+      debug: false,
+      mcp: false,
+    })
+
+    let resolveFirstYielded = () => {}
+    const firstYielded = new Promise<void>((resolve) => {
+      resolveFirstYielded = resolve
+    })
+    let releaseFirst = () => {}
+    const firstReleased = new Promise<void>((resolve) => {
+      releaseFirst = resolve
+    })
+    const userMessagesByCall: string[][] = []
+
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream(options: { messages?: Array<{ role?: string; content?: unknown }> }) {
+        userMessagesByCall.push(
+          (options.messages ?? [])
+            .filter((message) => message.role === "user")
+            .map((message) => String(message.content ?? "")),
+        )
+        const callIndex = userMessagesByCall.length
+        async function* stream() {
+          if (callIndex === 1) {
+            resolveFirstYielded()
+            yield { choices: [{ delta: { content: "first" } }] } as any
+            await firstReleased
+            yield { choices: [{ delta: { content: " done" } }] } as any
+            return
+          }
+          yield { choices: [{ delta: { content: "queued reply" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    try {
+      const runtime = await getTuiRuntimeBridge(sessionKey)
+      expect(runtime).toBeTruthy()
+
+      const turnPromise = runtime!.turn("first input")
+      await firstYielded
+
+      const queuedResult = await runtime!.turn("queued while busy")
+      expect(queuedResult).toBe("")
+      expect(userMessagesByCall).toHaveLength(1)
+
+      releaseFirst()
+      const output = await turnPromise
+      expect(output).toContain("first done")
+      expect(output).toContain("queued reply")
+      expect(userMessagesByCall).toHaveLength(2)
+      expect(userMessagesByCall[1]).toContain("queued while busy")
+    } finally {
+      await disposeTuiRuntimeBridge(sessionKey)
+    }
+  })
+
   it("streams controls and chunks through the semantic terminal path", async () => {
     const sessionKey = `semantic-terminal-${Date.now()}`
     const workdir = makeTempWorkdir()

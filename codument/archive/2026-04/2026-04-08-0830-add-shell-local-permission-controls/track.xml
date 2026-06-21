@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-shell-local-permission-controls" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 bash 与文件工具通过 home 级配置获得统一的 allow/deny/ask 权限控制，并对 workspace 外路径做显式白名单约束</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-08T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-04-08T08:30:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-shell-local-permission-controls" name="add-shell-local-permission-controls" version="1">
+    <Description>为 AI coding 工具增加本地权限控制</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Permission Contract" status="DONE" order="0">
+        <Description>冻结本地权限配置格式、求值语义和外部目录白名单边界</Description>
+        <SubNodes>
+          <Task id="T1.1" name="定义 home 级配置文件与 schema" status="DONE" order="0" priority="P0">
+            <Description>确定 `~/.eidolon/permissions.json` 与 `~/.eidolon/workspace-access.json` 的结构和默认语义。</Description>
+          </Task>
+          <Task id="T1.2" name="定义 bash 和文件权限类别映射" status="DONE" order="1" priority="P0">
+            <Description>冻结 `bash/read/edit` 权限类别，以及 `write/multiedit` 映射到 `edit` 的规则。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Permission Runtime" status="DONE" order="1">
+        <Description>实现本地权限配置加载、求值和文件路径守卫</Description>
+        <SubNodes>
+          <Task id="T2.1" name="实现配置加载与规则归一化" status="DONE" order="0" priority="P0">
+            <Description>实现默认规则、目录覆盖、workspace 外目录白名单与 wildcard 求值。</Description>
+          </Task>
+          <Task id="T2.2" name="实现 bash segment parser 与决策聚合" status="DONE" order="1" priority="P0">
+            <Description>对常见 shell operator 做 segment 级解析，并输出 allow/deny/ask 结果。</Description>
+          </Task>
+          <Task id="T2.3" name="实现文件路径最终 fail-closed 守卫" status="DONE" order="2" priority="P0">
+            <Description>把 workspace 内外路径分类、白名单检查和读写能力映射集中到可复用 helper。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Executor And Tool Wiring" status="DONE" order="2">
+        <Description>将 ask/deny/allow 接入执行器和 coding 工具</Description>
+        <SubNodes>
+          <Task id="T3.1" name="在 executor 中把 ask 转为 questionnaire" status="DONE" order="0" priority="P0">
+            <Description>让 streaming 与 cooperative 两条执行路径都能进入正式 approval wait。</Description>
+          </Task>
+          <Task id="T3.2" name="为 bash/read/write/edit/multiedit 接入权限 helper" status="DONE" order="1" priority="P0">
+            <Description>在工具层和文件层双重接入权限判断，避免未来调用链绕过。</Description>
+          </Task>
+          <Task id="T3.3" name="为 ls/glob/grep 接入读权限与 home 路径归一化" status="DONE" order="2" priority="P0">
+            <Description>让目录列举与搜索类工具共享 `read` 判权，并在判权前先解析 `~/...`。</Description>
+          </Task>
+          <Task id="T3.4" name="实现 workspace 外目录授权问卷与白名单写回" status="DONE" order="3" priority="P0">
+            <Description>让外部目录未授权访问进入 questionnaire，批准后把授权写回 `workspace-access.json` 并自动重放工具调用。</Description>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Verification" status="DONE" order="3">
+        <Description>用 focused tests 固定权限配置、审批与 fail-closed 行为</Description>
+        <SubNodes>
+          <Task id="T4.1" name="补齐权限配置与文件访问测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖默认规则、目录覆盖、workspace 外目录授权、deny 与 ask。</Description>
+          </Task>
+          <Task id="T4.2" name="补齐 executor 问卷化审批测试" status="DONE" order="1" priority="P0">
+            <Description>验证 ask 场景进入 questionnaire_wait 且不提前执行副作用。</Description>
+          </Task>
+          <Task id="T4.3" name="补齐 ls/glob/grep 与 home 路径回归测试" status="DONE" order="2" priority="P0">
+            <Description>覆盖 `~/...` 解析、未授权目录拒绝，以及读类工具共享 `read` gate。</Description>
+          </Task>
+          <Task id="T4.4" name="补齐 workspace access grant 闭环测试" status="DONE" order="3" priority="P0">
+            <Description>覆盖外部目录问卷授权、白名单写回和自动重放原始工具调用。</Description>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

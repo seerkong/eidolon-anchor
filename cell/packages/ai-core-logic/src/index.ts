@@ -1,6 +1,7 @@
 export * from "@cell/ai-core-contract";
 export * from "./runtime";
 export * from "./runtime/ActorSurface";
+export * from "./runtime/QuestionnaireRows";
 export type {
   AiAgentVm,
   AiAgentVmActorsRuntime,

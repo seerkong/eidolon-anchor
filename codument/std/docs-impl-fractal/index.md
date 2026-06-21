@@ -1,470 +1,107 @@
 # Implementation 分形标准
 
-## 目的
+> 本标准定义 `docs/impl/` 的写作方式。它与 [docs-modeling-fractal](../docs-modeling-fractal/index.md) **用同一条递归规则**，区别只在「类目词汇」。
+>
+> 共享内容（节点不变量、frontmatter、根布局、同名文件夹演化、迁移台账、track 同步）见 [model-driven-docs.md](../../attractors/model-driven-docs.md)。本文件只讲 **impl 侧特有**的约定。
 
-本标准定义 `docs/impl/` 的目录结构与写作规则。
+## 1. 一句话心法
 
-所有 implementation plane 必须结构同构，包括 `global`：
+impl 树同样是递归的「知识节点」。**不变的是递归规则，可变的是每个 plane 选的类目词汇。**
 
-```text
-docs/impl/<implementation-plane>/
-  index.md
-  overview/
-  howto/
-  rules/
-  examples/
-  reference/
-  troubleshooting/
-```
+- **不变**：`plane → 类目 → 主题 → 叶子`；每层 `index.md` 只导航；一处真源、其余引用；本体不在这里，引用 `docs/modeling/`。
+- **可变**：有哪些 implementation plane；每个 plane 第一层用哪些类目。
 
-必需 implementation plane：
+> impl 与 modeling 的唯一区别：modeling 装"业务真源"，impl 装"如何实现与维护"。两边都允许不同领域长出不同目录，不写死前后端。
 
-- `global`：跨 plane 的实现与维护知识。
+## 2. Plane 层
 
-可选 implementation plane 由项目自定义，例如 `commands`、`runtime`、`storage`、`pipelines`、`agents`、`tools`、`operations`、`control-plane`、`data-plane`。
+路径：`docs/impl/<plane>/`（所有实现知识都在 `docs/impl/` 下，不散到根层）
 
-## `docs/impl/index.md`
+- **`global`（推荐）**：跨 plane 的实现 / 维护知识（架构、框架约定、运维方法）。
+- **其他 plane（项目按领域命名）**：`backend`、`surface`、`runtime`、`storage`、`pipelines`、`agents`、`tools`、`operations`、`control-plane`、`data-plane`……
+- **本体不放这里**：domain ontology 属于 `docs/modeling/`；impl 用链接引用，不复制。
 
-用途：
+每个 plane / 类目目录的 `index.md` 顶部带「目录职责」块（标准类目一行精简型，自定义类目完整型）——见 [folder-manifest.md](@codument/std/spec/folder-manifest.md)。
 
-- 说明 implementation knowledge system。
-- 列出 implementation planes。
-- 声明所有 implementation planes 使用同一套 category grammar。
+## 3. 类目层 —— 类目在前、主题在后
 
-模板：
-
-```markdown
----
-knowledge_system: impl
-knowledge_plane: index
-doc_role: guide
-status: active
-last_verified: YYYY-MM-DD
----
-
-# Implementation Knowledge
-
-| Plane | Role | When to Read |
-|-------|------|--------------|
-| global | Cross-plane implementation knowledge | Architecture, framework, maintenance |
-| runtime | Runtime implementation knowledge | Execution, state, workers |
-```
-
-规则：
-
-- 不在这里写所有实现细节。
-- 只有 implementation plane 变化时才更新。
-
-## Implementation Plane `index.md`
-
-路径：
+plane 第一层放**类目**，类目下放**主题**，主题下放叶子：
 
 ```text
-docs/impl/<plane>/index.md
+docs/impl/<plane>/<category>/<topic>/<leaf>.md
 ```
 
-用途：
+### 推荐默认类目（强烈建议作为起点）
 
-- 定义 implementation plane。
-- 链接到六个标准 category folders。
-- 说明什么属于这里，什么不属于这里。
+对**大多数可维护系统**通用，先用这六类，缺哪类就不建：
 
-模板：
+| 类目 | 装什么 | 何时读 |
+|------|--------|--------|
+| overview | 心智模型、架构、组成 | 需要建立方向感 |
+| howto | 可重复的维护操作（加接口、迁移、发布……） | 要动手改/维护 |
+| rules | 实现约束、约定、护栏 | 要避免越界 |
+| examples | worked example / 样例 | 要一个具体参照 |
+| reference | code map、API/schema/配置表、映射 | 要查表 |
+| troubleshooting | 故障模式、诊断、修复 | 要排障 |
 
-```markdown
----
-knowledge_system: impl
-knowledge_plane: <plane>
-doc_role: guide
-status: active
-last_verified: YYYY-MM-DD
----
+### 这只是默认，不是法律
 
-# <Plane> Implementation Knowledge
-
-## Boundary
-
-This implementation plane owns...
-
-## Not Owned Here
-
-- ...
-
-| Category | Purpose | When to Read |
-|----------|---------|--------------|
-| overview | Mental models and architecture | Need orientation |
-| howto | Repeatable operations | Need to change or maintain |
-| rules | Constraints and conventions | Need to avoid violations |
-| examples | Worked examples | Need a concrete reference |
-| reference | Maps and stable references | Need lookup data |
-| troubleshooting | Failures and diagnosis | Need to debug |
-```
-
-规则：
-
-- `global` 负责跨 plane 实现关注点。
-- 其他 plane 负责各自 plane-specific implementation concerns。
-- domain ontology 不属于这里，应链接到 `docs/modeling/`。
-
-## `overview/`
-
-路径：
+如果你的领域维护工作**不这样分解**，就在 plane 第一层换成你自己的类目集。**不变量是「类目在前、主题在后 + 每个类目语义单一」，不是这六个名字。** 例如：
 
 ```text
-docs/impl/<plane>/overview/
+数据平台运维：  runbooks/  pipelines/  slas/  incidents/  dashboards/
+硬件 / 固件：    bringup/   drivers/   timing/  rma/        bench/
 ```
 
-用途：
+## 4. 叶子写作要点（按类目选自然小节）
 
-- 建立心智模型。
-- 解释该 plane 的架构、主要组成、概念方向。
+每个类目的叶子用对应小节即可，不强制统一模板：
 
-适合存放：
+| 类目 | 建议小节 |
+|------|----------|
+| overview | Purpose · Mental Model · Main Components · Boundaries · Related Modeling/Impl Docs |
+| howto | When To Use · Preconditions · Steps · Verification · Rollback/Recovery · Related Rules |
+| rules | Rule · Applies To · Rationale · Examples · Enforcement · Exceptions · Related Modeling Docs |
+| examples | Scenario · Inputs · Walkthrough · Expected Output · Notes（大块原始数据放 `_assets/` 引用） |
+| reference | Scope · Table/Map · Source Of Truth · Update Procedure（生成物说明如何重生成/校验） |
+| troubleshooting | Symptoms · Likely Causes · Diagnosis · Fix · Prevention（长期 lesson 同步 project memory） |
 
-- architecture overview
-- layer overview
-- runtime model overview
-- repository/module overview
-- major responsibility map
+跨 plane 的 overview/rule 放 `docs/impl/global/...`；过程中发现的规则沉淀到 `rules/` 并互链。
 
-Topic 文件模板：
+## 5. Frontmatter（用受控精简 schema）
 
-```markdown
----
-knowledge_system: impl
-knowledge_plane: <plane>
-doc_role: guide
-status: active
-last_verified: YYYY-MM-DD
----
+字段集与含义在 [model-driven-docs.md](../../attractors/model-driven-docs.md) 统一定义。impl 侧附加约定：
 
-# <Topic> Overview
+- impl 文档**可在正文写代码路径**；frontmatter 保持稳定、低冲突，**不堆 `code_paths` / `topics` 数组**。
+- 实现规则**不复制** modeling policy——链接到 `docs/modeling/<plane>/contexts/<ctx>/policies/...`，本文件只写 enforcement。
 
-## Purpose
+## 6. 在你自己的领域长出一个新 impl plane（生成式步骤）
 
-## Mental Model
+1. **定边界**：它覆盖哪个实现领域、不拥有什么（写进 plane `index.md` 的 Boundary / Not Owned Here）。
+2. **选类目集**：默认六类，或换成领域自定义类目集。
+3. **建骨架**：`index.md`(导航) + 各类目目录；类目→主题→叶子，叶子先单文件，太大再升级同名文件夹。**每个类目目录给其 `index.md` 写「目录职责」块**（自定义类目必填，见 [folder-manifest.md](@codument/std/spec/folder-manifest.md)）。
+4. **连真源**：规则/流程若依赖建模真源，链接到 `docs/modeling/.../{policies,workflows}/`，不复制。
 
-## Main Components
+## 7. 反模式
 
-## Boundaries
-
-## Related Modeling Docs
-
-## Related Implementation Docs
-```
-
-规则：
-
-- overview 解释系统形状。
-- 不写步骤流程；步骤流程写 `howto/`。
-- 不堆 API/schema 明细；查询型材料写 `reference/`。
-
-## `howto/`
-
-路径：
+❌ plane 第一层混用「主题」和「类目」：
 
 ```text
-docs/impl/<plane>/howto/
+docs/impl/runtime/{ architecture/  howto/  state/  rules/ }   # architecture/state 是主题不是类目
 ```
 
-用途：
-
-- 说明维护者如何执行一个可重复任务。
-
-适合存放：
-
-- add a command
-- create an endpoint
-- migrate storage
-- release a package
-- add a worker
-- update a tool integration
-- run a maintenance operation
-
-Operation 文件模板：
-
-```markdown
----
-knowledge_system: impl
-knowledge_plane: <plane>
-doc_role: howto
-status: active
-last_verified: YYYY-MM-DD
----
-
-# How To <Operation>
-
-## When To Use
-
-## Preconditions
-
-## Steps
-
-1. ...
-
-## Verification
-
-## Rollback Or Recovery
-
-## Related Modeling Docs
-
-## Related Rules
-```
-
-规则：
-
-- how-to 文档是过程型文档。
-- 写 how-to 时发现规则，应把规则放到 `rules/` 并链接。
-- 如果过程依赖 modeling workflow，应链接到 `docs/modeling/.../workflows/`。
-
-## `rules/`
-
-路径：
+✅ 类目在前、主题在后：
 
 ```text
-docs/impl/<plane>/rules/
+docs/impl/runtime/{ overview/  howto/  rules/  examples/  reference/  troubleshooting/ }
+                     └ overview/architecture/…   └ overview/state/…
 ```
 
-用途：
-
-- 保存实现约束、约定、必须遵守的规则。
-
-适合存放：
-
-- framework constraints
-- layering rules
-- dependency rules
-- naming conventions
-- performance/security constraints
-- API compatibility rules
-- deployment/runtime guardrails
-
-Rule 文件模板：
-
-```markdown
----
-knowledge_system: impl
-knowledge_plane: <plane>
-doc_role: rules
-status: active
-last_verified: YYYY-MM-DD
----
-
-# <Rule Name>
-
-## Rule
-
-## Applies To
-
-## Rationale
-
-## Examples
-
-## Enforcement
-
-## Exceptions
-
-## Related Modeling Docs
-```
-
-规则：
-
-- 不要复制 modeling policies。应链接到 `docs/modeling/.../policies/`。
-- implementation rules 解释某 plane 中的执行和落地。
-- 跨 plane rule 放到 `docs/impl/global/rules/`。
-
-## `examples/`
-
-路径：
+❌ impl 复制 canonical modeling 真源：
 
 ```text
-docs/impl/<plane>/examples/
+docs/modeling/domain/contexts/identity/policies/token-lifecycle.md   # 真源
+docs/impl/runtime/rules/token-lifecycle.md                            # 复制 → 错
 ```
 
-用途：
-
-- 保存 worked examples 与 concrete samples。
-
-适合存放：
-
-- example command
-- example endpoint
-- example pipeline
-- example integration
-- example migration
-- demo walkthrough
-
-Example 文件模板：
-
-```markdown
----
-knowledge_system: impl
-knowledge_plane: <plane>
-doc_role: example
-status: active
-last_verified: YYYY-MM-DD
----
-
-# <Example Name>
-
-## Scenario
-
-## Inputs
-
-## Walkthrough
-
-## Expected Output
-
-## Notes
-
-## Related Modeling Docs
-
-## Related Rules
-```
-
-规则：
-
-- example 只是示例，不是规则真源。
-- 不要让 example 成为唯一规则来源。
-- 如果 example 包含大量原始数据，放到 `_assets/` 并链接。
-
-## `reference/`
-
-路径：
-
-```text
-docs/impl/<plane>/reference/
-```
-
-用途：
-
-- 保存查询型材料和稳定映射。
-
-适合存放：
-
-- code maps
-- API references
-- schema references
-- configuration references
-- compatibility tables
-- command option tables
-- route maps
-- generated-output explanations
-
-Reference 文件模板：
-
-```markdown
----
-knowledge_system: impl
-knowledge_plane: <plane>
-doc_role: reference
-status: active
-last_verified: YYYY-MM-DD
----
-
-# <Reference Name>
-
-## Scope
-
-## Table Or Map
-
-## Source Of Truth
-
-## Update Procedure
-
-## Related Docs
-```
-
-规则：
-
-- reference 优化查询，不承担叙事。
-- 如果 reference 是生成物，应说明如何重新生成或验证。
-- 如果 reference 映射旧路径到新路径，优先使用根级 `docs/migration-map.md`。
-
-## `troubleshooting/`
-
-路径：
-
-```text
-docs/impl/<plane>/troubleshooting/
-```
-
-用途：
-
-- 保存故障模式、诊断、修复指导。
-
-适合存放：
-
-- common build failures
-- runtime errors
-- data corruption symptoms
-- deployment issues
-- integration failures
-- user-visible incident diagnosis
-
-Issue 文件模板：
-
-```markdown
----
-knowledge_system: impl
-knowledge_plane: <plane>
-doc_role: troubleshooting
-status: active
-last_verified: YYYY-MM-DD
----
-
-# <Issue Name>
-
-## Symptoms
-
-## Likely Causes
-
-## Diagnosis
-
-## Fix
-
-## Prevention
-
-## Related Incidents Or Memory
-
-## Related Modeling Docs
-```
-
-规则：
-
-- troubleshooting 文档必须具体、可诊断。
-- 如果问题沉淀出长期 lesson，应考虑同步 project memory。
-- 如果问题改变规则，应更新 `rules/`。
-
-## Bad Patterns
-
-Bad：implementation plane 第一层混用主题和分类。
-
-```text
-docs/impl/runtime/
-  architecture/
-  howto/
-  state/
-  rules/
-```
-
-Use：
-
-```text
-docs/impl/runtime/
-  overview/
-  howto/
-  rules/
-  examples/
-  reference/
-  troubleshooting/
-```
-
-Bad：implementation docs 复制 canonical modeling truth。
-
-```text
-docs/modeling/domain/contexts/identity/policies/token-lifecycle.md
-docs/impl/runtime/rules/token-lifecycle.md
-```
-
-implementation rule 应引用 modeling policy，并只描述 enforcement。
+✅ impl rule 引用 modeling policy，只描述本 plane 的 enforcement。

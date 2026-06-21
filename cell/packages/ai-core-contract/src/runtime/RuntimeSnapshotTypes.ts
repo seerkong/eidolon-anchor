@@ -1,6 +1,6 @@
 import type { TaskTree } from "../plan/TaskTree";
+import type { ToolCallRecord } from "./ToolCallDomain";
 import type {
-  ActorContext,
   ActorCtrlOptions,
   ActorIdentity,
   ActorModelConfig,
@@ -22,8 +22,8 @@ import type {
   ActorWorkContextData,
   ContinuationBaselineData,
 } from "./ContextControl";
-import type { DurableControlSignalStore } from "./DurableControlSignal";
-import type { QuestionnaireRequestPayload } from "./Questionnaire";
+import type { DurableControlSignalSnapshotStore } from "./DurableControlSignal";
+import type { QuestionnaireRow } from "./Questionnaire";
 import type { HeartbeatSchedule } from "./Heartbeat";
 
 export const RUNTIME_SNAPSHOT_SCHEMA_VERSION = 3;
@@ -106,7 +106,7 @@ export type RuntimeSnapshotVm = RuntimeRootSnapshotBase & {
   sessionState?: {
     holons?: VmHolonRecord[];
     detachedActors?: VmDetachedActorRecord[];
-    controlSignals?: DurableControlSignalStore;
+    controlSignals?: DurableControlSignalSnapshotStore;
     heartbeatSchedules?: HeartbeatSchedule[];
     threadGoal?: VmThreadGoalRecord | null;
   };
@@ -117,11 +117,17 @@ export type RuntimeSnapshotVm = RuntimeRootSnapshotBase & {
   };
   options?: RuntimeOptions;
   recovery?: VmRecoveryState;
+  /**
+   * P4: persisted ToolCallDomain records (the tool-call lifecycle fact set).
+   * Optional + backward-compatible — snapshots written before P4 omit it and
+   * restore to an empty domain. Recovery rebuilds an interrupted tool's result
+   * from these records (decision D3) with evidence payloads as fallback.
+   */
+  toolCallDomain?: ToolCallRecord[];
 };
 
 export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"]> & {
   systemPrompts: string[];
-  messages?: ActorContext["history"];
   identity?: ActorIdentity;
   agentName?: string;
   planApproval?: AiAgentActorContract["planApproval"];
@@ -134,7 +140,6 @@ export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"
   toolCallStreamState: {
     toolCalls: unknown[];
   };
-  pendingQuestionnaires: Record<string, QuestionnaireRequestPayload>;
   workContext?: ActorWorkContextData;
   continuationBaseline?: ContinuationBaselineData;
   lastMemberResultNotifiedAt?: number | null;
@@ -179,6 +184,7 @@ export type RuntimeSnapshotIndexes = {
 export type RuntimeSnapshotPersistedState = {
   vm: RuntimeSnapshotVm;
   actors: Record<string, RuntimeSnapshotActor>;
+  questionnaires?: QuestionnaireRow[];
   fibers?: Record<string, RuntimeSnapshotFiber>;
   indexes?: Partial<RuntimeSnapshotIndexes>;
 };
@@ -192,6 +198,7 @@ export type RuntimeSnapshotLoadResult = {
   manifest: RuntimeSnapshotManifest;
   vm: RuntimeSnapshotVm;
   actors: Record<string, RuntimeSnapshotActor>;
+  questionnaires: QuestionnaireRow[];
   fibers: Record<string, RuntimeSnapshotFiber>;
   indexes: Partial<RuntimeSnapshotIndexes>;
   corruptions: RuntimeSnapshotCorruption[];

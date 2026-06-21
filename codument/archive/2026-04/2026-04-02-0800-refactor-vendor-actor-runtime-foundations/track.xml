@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-vendor-actor-runtime-foundations" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 `vendor/depa-actor` 成为 completion signal、snapshot protocol 与 actor facet extension 的正式来源，并完成 orchestrator driver、runtime snapshot 和 actor state mounting 的第一轮真实 adoption。</Goal>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-04-02T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-04-02T08:00:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="docs" domain="doc" path="vfs://@/docs/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-vendor-actor-runtime-foundations" name="refactor-vendor-actor-runtime-foundations" version="1">
+    <Description>沉淀 vendor actor runtime foundations</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Track Freeze" status="DONE" order="0">
+        <Description>冻结本 track 的自包含文档、第一轮 adoption 边界与执行顺序，使其进入可直接执行状态。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="补齐 track 标准文件" status="DONE" order="0" priority="P0">
+            <Description>补齐 `design.md`、`metadata.json`、`analysis/*`、`plan.xml`，并将背景报告中的关键信息内化到当前 track。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">track 已具备 proposal、spec、design、plan、metadata 与 analysis 文档</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">track 文档自包含，不依赖隐藏目录作为唯一说明来源</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="冻结第一轮 adoption 范围" status="DONE" order="1" priority="P0">
+            <Description>明确第一轮只聚焦 completion signal / waiter、snapshot / recovery protocol、facet extension，以及 `OrchestratorDriver`、runtime snapshot、actor state mounting 的真实 adoption。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">design 与 plan 已明确第一轮 adoption 的真实目标文件</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">非目标中已排除 data-graph、processor、composer/profile 装配层</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Vendor Waiter Foundations" status="DONE" order="1">
+        <Description>在 `vendor/depa-actor` 中补齐 completion signal / waiter 与 child completion binding foundation。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="设计并实现 completion signal or waiter primitive" status="DONE" order="0" priority="P0">
+            <Description>在 vendor orchestration 层中新增正式的 keyed completion signal / waiter primitive，使 keyed wait 与唤醒不再依赖项目私有 waiter store。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">vendor 中存在可公开导出的 completion signal / waiter primitive</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">该 primitive 能表达 keyed wait 与 completion notify 语义</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC3" checked="true">项目侧无需依赖私有深路径导入该能力</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="实现 child completion binding foundation" status="DONE" order="1" priority="P0">
+            <Description>为 runtime wait 层增加 parent-child completion binding 或等价 helper，支撑 parent wait、detached notify 与结果回流的最小桥接能力。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">vendor 能表达 child completion routing</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">helper 不引入 AI-specific detached 或 organization 语义</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="整理 vendor 导出面与最小文档" status="DONE" order="2" priority="P1">
+            <Description>更新 `vendor/depa-actor` 的公开导出和最小说明，使 waiter foundation 成为正式公共 API。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">waiter / completion foundation 已从稳定入口导出</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">文档说明其与既有 orchestration / runtime 能力的关系</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Vendor Persistence Protocol Foundations" status="DONE" order="2">
+        <Description>在 `vendor/depa-actor` 中补齐 snapshot / codec / hydrate / recover / effect port foundation。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="设计并实现 snapshot contract and codec hook" status="DONE" order="0" priority="P0">
+            <Description>提供正式的 actor / fiber / orchestrator snapshot contract 与 codec hook，用于表达通用状态结构，而不是继续由项目侧手工定义全部基础 schema。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">vendor 中存在 snapshot contract 与 codec hook</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">snapshot contract 不直接内嵌产品业务字段</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="实现 hydrate or recover hook and persistence effect port" status="DONE" order="1" priority="P0">
+            <Description>在 vendor 中实现 hydrate / recover hook 与 persistence effect port，作为恢复 foundation，同时严格保持 side effect 分离。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">vendor 提供 hydrate / recover hook</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">vendor 提供 persistence effect port 而非 concrete save/load</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.3" name="补齐 vendor persistence API 文档与边界说明" status="DONE" order="2" priority="P1">
+            <Description>明确 snapshot / recover foundation 的用途、导入面与边界，说明 AI-specific product-state 仍保留在上层 codec 或 facet 中。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.3-AC1" checked="true">文档已明确 vendor 与 `symbiont-*` 的边界</cdt:Criterion>
+              <cdt:Criterion id="T3.3-AC2" checked="true">snapshot / recover foundation 已成为正式公开 API</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.4" name="补齐 vendor snapshot base contracts" status="DONE" order="3" priority="P0">
+            <Description>在 `vendor/depa-actor` 中补齐 actor / vm(runtime root) / fiber / manifest 的 snapshot base contracts，并让项目侧 snapshot 类型改为建立在这些 base contracts 之上，而不是继续独立维护平行基础结构。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.4-AC1" checked="true">vendor 中存在可公开导出的 snapshot base contracts</cdt:Criterion>
+              <cdt:Criterion id="T3.4-AC2" checked="true">项目侧 actor / vm / fiber / manifest snapshot 类型已建立在 vendor base contracts 之上</cdt:Criterion>
+              <cdt:Criterion id="T3.4-AC3" checked="true">AI-specific snapshot 字段仍通过项目层扩展保留在 vendor 之外</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Vendor Facet Extension Foundations" status="DONE" order="3">
+        <Description>在 `vendor/depa-actor` 中补齐 actor runtime facet / plugin extension foundation。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="设计并实现 actor facet or plugin extension point" status="DONE" order="0" priority="P0">
+            <Description>为 vendor actor runtime 增加正式的 facet / plugin extension point，使产品态挂载与索引扩展不再依赖写死在 actor shell 中的字段。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">vendor 中存在可公开导出的 facet / plugin extension point</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">扩展点能够承载外层状态或索引挂载</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="整理 actor or fiber index hook" status="DONE" order="1" priority="P1">
+            <Description>为 actor / fiber 额外索引与派生视图提供正式 hook，使产品层不必通过复制 runtime shell 来承载这些索引。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">vendor 能表达 actor / fiber index hook</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">hook 不引入 AI-specific 状态字段</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="Vendor Focused Tests" status="DONE" order="4">
+        <Description>用 vendor 侧 focused tests 锁定 actor runtime foundation 的核心行为。</Description>
+        <SubNodes>
+          <Task id="T5.1" name="增加 waiter and completion focused tests" status="DONE" order="0" priority="P0">
+            <Description>覆盖 keyed wait、completion notify、child completion binding 与 routing 行为。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">vendor tests 覆盖 waiter 的等待与唤醒行为</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">vendor tests 覆盖 child completion binding 的结果回流行为</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="增加 snapshot and facet focused tests" status="DONE" order="1" priority="P0">
+            <Description>验证 snapshot / recover protocol 的基础行为，以及 facet / plugin extension 的状态挂载语义。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.2-AC1" checked="true">vendor tests 覆盖 snapshot / hydrate / recover protocol</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC2" checked="true">vendor tests 覆盖 facet / plugin extension 挂载行为</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P6" name="Project Adoption Wave 1" status="DONE" order="5">
+        <Description>让真实仓库调用方开始建立在 vendor actor foundation 之上，而不是继续维护平行的通用机制。</Description>
+        <SubNodes>
+          <Task id="T6.1" name="收口 OrchestratorDriver waiter and completion logic" status="DONE" order="0" priority="P0">
+            <Description>将 `OrchestratorDriver` 中的等待、完成绑定与相关桥接逻辑收口到 vendor waiter / completion foundation，让项目层只保留 AI runtime bridge 语义。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.1-AC1" checked="true">`OrchestratorDriver` 已建立在 vendor waiter / completion foundation 之上</cdt:Criterion>
+              <cdt:Criterion id="T6.1-AC2" checked="true">项目层保留的仅是 AI runtime bridge 或薄封装</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.2" name="收口 runtime snapshot and recovery protocol" status="DONE" order="1" priority="P0">
+            <Description>将 runtime snapshot / recovery 的通用协议迁移到 vendor snapshot / recover foundation，移除长期存在的项目内平行基础 schema 路径。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.2-AC1" checked="true">通用 snapshot / recovery protocol 已切到 vendor foundation</cdt:Criterion>
+              <cdt:Criterion id="T6.2-AC2" checked="true">AI-specific product-state codec 或 effect adapter 仍保留在项目层</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.3" name="评估并接入 actor state mounting adoption" status="DONE" order="2" priority="P1">
+            <Description>在不迁移 AI-specific 业务语义的前提下，把至少一类 actor / vm 产品态挂载改到 vendor facet / plugin foundation，完成第一轮可证明 adoption。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.3-AC1" checked="true">至少一类产品态挂载已切到 vendor facet / plugin foundation</cdt:Criterion>
+              <cdt:Criterion id="T6.3-AC2" checked="true">collective / formation / TaskTree 等业务语义仍保留在项目层</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.4" name="清理当前工作树中的跨 track data-graph 改动" status="DONE" order="3" priority="P0">
+            <Description>将当前未提交工作树中属于 `vendor/depa-data-graph` / stream foundations 的改动从本 track 实现中拆出，恢复 actor runtime foundation 的 capability 边界。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.4-AC1" checked="true">当前 actor runtime track 的未提交实现不再混入 `vendor/depa-data-graph` foundation 交付物</cdt:Criterion>
+              <cdt:Criterion id="T6.4-AC2" checked="true">相关 stream/data-graph 改动不再作为本 track 的实现组成部分出现</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P7" name="Docs And Verification" status="DONE" order="6">
+        <Description>补齐文档与验证，使本 track 的第一轮闭环可回归、可继续扩展。</Description>
+        <SubNodes>
+          <Task id="T7.1" name="补齐迁移文档与 adoption 说明" status="DONE" order="0" priority="P1">
+            <Description>说明哪些能力进入 vendor、哪些保留在 `symbiont-*`，以及 `OrchestratorDriver`、runtime snapshot、actor state mounting 的迁移结果与后续残留。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T7.1-AC1" checked="true">文档已说明 vendor 与 `symbiont-*` 的边界</cdt:Criterion>
+              <cdt:Criterion id="T7.1-AC2" checked="true">文档已记录第一轮 adoption 覆盖范围与后续残留</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.2" name="执行 focused tests and strict validation" status="DONE" order="1" priority="P0">
+            <Description>运行 `vendor/depa-actor` focused tests、项目侧相关回归测试，以及 `codument validate refactor-vendor-actor-runtime-foundations --strict`。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T7.2-AC1" checked="true">vendor focused tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T7.2-AC2" checked="true">项目侧 adoption 回归测试通过</cdt:Criterion>
+              <cdt:Criterion id="T7.2-AC3" checked="true">strict validation 通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T7.3" name="按偏差修正后重跑验证并更新迁移说明" status="DONE" order="2" priority="P0">
+            <Description>在完成 snapshot base contract 下沉和跨 track 范围清理后，重跑 focused tests / strict validation，并更新 migration / progress 文档，使 track 状态与实际实现重新一致。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T7.3-AC1" checked="true">偏差修正后的 actor runtime foundation 相关 tests 通过</cdt:Criterion>
+              <cdt:Criterion id="T7.3-AC2" checked="true">strict validation 通过且文档已反映 residual 收敛情况</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:HumanConfirm/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+</Track>

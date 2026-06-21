@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="runtime-control-component-boundaries">
+  <upsert selector="behavior://runtime-control-component-boundaries/requirements/standard-logic-component-encapsulation">
+    <requirement id="standard-logic-component-encapsulation">
+    <statement>控制面 Logic Component SHALL 按标准组件封装表达：Outer Input、Compute Derived、Transform Runtime/Input/Config、Core Logic、Transform Output、Outer Output；Core Logic SHALL 只依赖显式注入的 runtime，SHALL NOT 直接执行文件、provider、tool、terminal 等副作用。封装 SHALL 复用 depa-processor 的标准 adapter 原语，不另建平行封装机制。</statement>
+    <suite id="encapsulation" name="Standard encapsulation">
+      <case id="core-logic-has-explicit-runtime">
+        <given>一个控制面 logic component 声明了边界</given>
+        <when>读取其 boundary declaration</when>
+        <then>系统 SHALL 能确定它的 core logic 入口、注入的 effect contracts 和 outer adapter 表面</then>
+        <then>core logic SHALL NOT 出现在 forbidden direct IO 清单中的调用</then>
+      </case>
+      <case id="reuse-vendor-adapter">
+        <given>控制面 logic 需要 outer/inner 分层</given>
+        <when>实现封装</when>
+        <then>实现 SHALL 复用 depa-processor 标准 adapter，SHALL NOT 新建平行的封装框架</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://runtime-control-component-boundaries/requirements/sync-command-async-message-boundary">
+
+    <requirement id="sync-command-async-message-boundary">
+    <statement>同步状态推进 SHALL command 化：同一 actor/component 内的 reducer 输入和可立即完成的显式能力调用 SHALL 通过公开 reducer/contract 进入。异步协作 SHALL message 化：跨 actor/fiber、provider/tool/human 等待、timeout、approval、childDone、恢复调度 SHALL 进入 mailbox 或可恢复事件时间线，SHALL NOT 通过直接函数调用绕过 owner。</statement>
+    <suite id="command-message" name="Command and message boundary">
+      <case id="sync-reducer-input-is-command">
+        <given>控制面组件需要同步推进自身状态</given>
+        <when>调用方触发状态变化</when>
+        <then>变化 SHALL 以 command 形式进入该组件公开 reducer</then>
+        <then>调用方 SHALL NOT 直接修改组件内部字段</then>
+      </case>
+      <case id="cross-actor-unblock-is-message">
+        <given>一个 actor 需要解除另一个 actor 的等待（如 childDone、tool result、human input）</given>
+        <when>发送解除信号</when>
+        <then>信号 SHALL 通过目标 actor 的 mailbox 投递</then>
+        <then>系统 SHALL NOT 在 actor 之外另建消息总线或直接调用目标内部方法</then>
+      </case>
+      <case id="boundary-classification-is-declared">
+        <given>一个控制面组件同时拥有同步 command 和异步 message 入口</given>
+        <when>读取其 boundary declaration</when>
+        <then>每个入口 SHALL 被显式分类为 sync_command 或 async_message</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://runtime-control-component-boundaries/requirements/control-plane-not-domain-truth">
+
+    <requirement id="control-plane-not-domain-truth">
+    <statement>控制面组件 SHALL 遵守 runtime_control 数据子图契约：SHALL NOT 拥有 conversation truth、LLM context truth、tool result attribution 或 turn state；snapshot writer SHALL NOT 在 persistence 层调度 fiber 或推进 AI step；coordinator SHALL 在安全边界做出推进或跳过的决定。</statement>
+    <suite id="control-plane-boundary" name="Control plane does not own domain truth">
+      <case id="snapshot-writer-does-not-schedule">
+        <given>系统在非 safepoint 时请求保存 snapshot</given>
+        <when>snapshot 流程执行</when>
+        <then>writer SHALL 只返回结构化跳过结果或持久化数据</then>
+        <then>writer SHALL NOT 调度 fiber、推进 cooperative step 或修改 turn state</then>
+      </case>
+      <case id="coordinator-decides-at-boundary">
+        <given>checkpoint 需要在 mandatory continuation 存在时处理</given>
+        <when>coordinator 评估保存时机</when>
+        <then>coordinator SHALL 在 orchestration 边界选择有限推进或跳过</then>
+      </case>
+      <case id="engine-effects-via-contract">
+        <given>runtime-control engine 需要执行带副作用的命令</given>
+        <when>命令被处理</when>
+        <then>副作用 SHALL 通过注入的 effect contract 执行并留下 effect 证据</then>
+        <then>engine core reducer SHALL NOT 直接执行 IO</then>
+      </case>
+    </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

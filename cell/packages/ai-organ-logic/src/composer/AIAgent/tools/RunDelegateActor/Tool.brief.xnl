@@ -1,5 +1,5 @@
 <tool {
   name = "RunDelegateActor"
   namespace = "SysBuiltIn"
-  description = "Spawn a delegate actor for a focused subtask."
+  description = "Spawn a temporary delegate actor for a focused subtask. In AI-agent terminology, delegate is the subagent alias."
 }>

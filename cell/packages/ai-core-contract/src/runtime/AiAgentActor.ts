@@ -19,6 +19,16 @@ import type { ChatMessage, Logger, XStream } from "@shared/composer";
 
 export type ActorType = ActorExecutionKind;
 
+export type RuntimeInternalContextHeartbeatPayload = {
+  heartbeatKind: "runtime_internal_context";
+  source: string;
+  text: string;
+};
+
+export type AiAgentHeartbeatPayload =
+  | HeartbeatWakePayload
+  | RuntimeInternalContextHeartbeatPayload;
+
 export type AiAgentMailboxSchema = {
   control:
     | {
@@ -32,6 +42,14 @@ export type AiAgentMailboxSchema = {
       }
     | {
         kind: "shutdown_requested";
+      }
+    | {
+        kind: "set_active_model_config";
+        modelConfig: ActorModelConfig;
+        modelRef?: string;
+        source?: string;
+        requestedAt?: number;
+        requestedBy?: string;
       };
   childDone: {
     childFiberId: string;
@@ -41,20 +59,20 @@ export type AiAgentMailboxSchema = {
     toolCallId?: string;
     outputText: string;
   };
-  coordination: {
-    from: string;
-    text: string;
-    ts: number;
-  };
-  memberInbox: {
-    from: string;
-    text: string;
-    ts: number;
-  };
-  heartbeatWake: HeartbeatWakePayload;
-  humanInput: string;
   toolResult: { toolCallId: string; questionnaireId?: string; content: string };
-  aiGenerated: unknown;
+  asyncCompletion: unknown;
+  memberCoordination: {
+    from: string;
+    text: string;
+    ts: number;
+  };
+  humanInput: string;
+  memberChatInbox: {
+    from: string;
+    text: string;
+    ts: number;
+  };
+  heartbeat: AiAgentHeartbeatPayload;
 };
 
 export type ActorCtrlOptions = {
@@ -76,6 +94,7 @@ export type ActorModelConfig = {
   outputLimit?: number;
   reasoningEffort?: "low" | "medium" | "high" | "xhigh";
   capabilities?: LlmModelCapabilities;
+  options?: Record<string, unknown>;
 };
 
 export type ActorContext = {
@@ -205,7 +224,15 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
   type: ActorType;
   parentKey?: string;
   systemPrompts: string[];
-  messages: ChatMessage[];
+  /**
+   * Read-only conversation view (spec ai-semantic-conversation-spine, case
+   * single-in-memory-truth/mirror-eliminated): a frozen projection of the
+   * History domain's active tail once the actor is bound to a vm's
+   * conversation domain runtime; before binding it is the frozen seed the
+   * actor was created with (the hydration input for the domain). It is NEVER
+   * writable and never an input to provider assembly.
+   */
+  readonly messages: readonly ChatMessage[];
   identity?: ActorIdentity;
   planApproval?: {
     requestId: string;
@@ -249,4 +276,10 @@ export interface AiAgentActorContract<TVm = any, TActor = any>
   peekMailbox: <TTag extends keyof AiAgentMailboxSchema>(tag: TTag) => AiAgentMailboxSchema[TTag][];
   drainMailbox: <TTag extends keyof AiAgentMailboxSchema>(tag: TTag) => AiAgentMailboxSchema[TTag][];
   send: <TTag extends keyof AiAgentMailboxSchema>(tag: TTag, payload: AiAgentMailboxSchema[TTag]) => void;
+  /**
+   * Bind the read-only `messages` projection to the conversation domain view
+   * (P7 mirror elimination). Idempotent; called by the conversation capsule
+   * when the actor is attached to a vm.
+   */
+  bindConversationProjection: (provider: () => readonly ChatMessage[]) => void;
 }

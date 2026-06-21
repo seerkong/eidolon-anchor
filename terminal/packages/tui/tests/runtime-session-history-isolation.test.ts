@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test"
 import fs from "fs"
 import os from "os"
 import path from "path"
-import { StreamTranscript } from "@cell/symbiont-logic/stream/StreamTranscript"
+import { parseXnl } from "xnl-core"
 import { __setLlmAdapterFactoryForTest, configureTuiRuntime, getTuiRuntimeBridge } from "../src/runtime/bridge/TuiRuntime"
 
 function makeTempWorkdir(): string {
@@ -10,6 +10,16 @@ function makeTempWorkdir(): string {
   fs.mkdirSync(path.join(dir, ".eidolon", "agents"), { recursive: true })
   fs.mkdirSync(path.join(dir, ".eidolon", "mcp"), { recursive: true })
   return dir
+}
+
+async function readTranscriptXnlText(filePath: string): Promise<string> {
+  const doc = parseXnl(fs.readFileSync(filePath, "utf8"))
+  return (doc.nodes ?? [])
+    .filter((record: any) => record?.kind === "DataElement" && record?.tag === "actor-transcript-record")
+    .flatMap((record: any) => (record.body ?? [])
+      .filter((item: any) => item?.kind === "TextElement" && item?.tag === "record")
+      .map((item: any) => String(item.text ?? "")))
+    .join("\n")
 }
 
 describe("TuiRuntime session history isolation", () => {
@@ -44,15 +54,15 @@ describe("TuiRuntime session history isolation", () => {
 
       const sessionsDir = path.join(workdir, ".eidolon", "sessions")
       const sessionDirs = fs.readdirSync(sessionsDir).map((name) => path.join(sessionsDir, name))
-      const histories = sessionDirs
+      const historyFiles = sessionDirs
         .flatMap((dir) => {
           const actorsDir = path.join(dir, "actors")
           if (!fs.existsSync(actorsDir)) return [] as string[]
           return fs.readdirSync(actorsDir)
-            .map((name) => path.join(actorsDir, name, "transcript.txt"))
+            .map((name) => path.join(actorsDir, name, "transcript.xnl"))
             .filter((file) => fs.existsSync(file))
         })
-        .map((file) => StreamTranscript.parse(fs.readFileSync(file, "utf-8")).records.map((record) => record.payload).join("\n"))
+      const histories = await Promise.all(historyFiles.map((file) => readTranscriptXnlText(file)))
 
       expect(histories.length).toBe(2)
       expect(histories.filter((text) => text.includes("todo app")).length).toBe(1)

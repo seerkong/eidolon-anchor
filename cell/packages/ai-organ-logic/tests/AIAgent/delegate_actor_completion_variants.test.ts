@@ -20,7 +20,13 @@ async function tickMany(driver: { tick: (now: number) => void }, n: number): Pro
 describe("OrchestratorDriver: delegate completion variants", () => {
   it("serializes assistant content in childDone outputText when possible", async () => {
     const parent = createActor({ key: "parent" });
-    const child = createActor({ key: "child", type: "delegate" as any });
+    // P7: the driver reads the child's own read-only message view, so the
+    // assistant output is seeded on the actor (as a real delegate spawn does).
+    const child = createActor({
+      key: "child",
+      type: "delegate" as any,
+      messages: [{ role: "assistant", content: { x: 1 } }] as any,
+    });
     const vm = createVM({ controlActorKey: "parent", actors: { parent, child } });
 
     const parentFiberId = `${parent.key}:${parent.id}`;

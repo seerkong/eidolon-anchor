@@ -1,8 +1,14 @@
 import { describe, expect, it } from "bun:test"
-import { COMMAND_ID, SLASH_COMMANDS } from "../src/commands/catalog"
+import { COMMAND_ID, resolveTuiBuiltinSlashCommand, SLASH_COMMANDS } from "../src/commands/catalog"
 import { createTuiRuntimeClient } from "../src/runtime/client/TuiRuntimeClient"
 
 describe("session builtin slash commands", () => {
+  it("resolves non-prompt slash commands without invoking runtime prompt flow", () => {
+    expect(resolveTuiBuiltinSlashCommand("/model")).toBe(COMMAND_ID.ModelList)
+    expect(resolveTuiBuiltinSlashCommand("/models")).toBe(COMMAND_ID.ModelList)
+    expect(resolveTuiBuiltinSlashCommand("/actor")).toBeNull()
+  })
+
   it("routes model slash aliases to the model selector command", async () => {
     const sdk = createTuiRuntimeClient()
     const executed: string[] = []

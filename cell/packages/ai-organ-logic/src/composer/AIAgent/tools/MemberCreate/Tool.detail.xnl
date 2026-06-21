@@ -6,4 +6,6 @@ export interface MemberCreateOuterInput {
 export type MemberCreateOuterOutput = string;
 export type MemberCreate = (input: MemberCreateOuterInput) => MemberCreateOuterOutput;
 
-Use this tool to create a new member actor in the current session.
+Use this tool to create a persistent member actor in the current session.
+Members are durable team/session actors and are addressed by member id or member name.
+Subagent is a delegate alias, not a member alias; use RunDelegateActor when the user asks for a subagent.

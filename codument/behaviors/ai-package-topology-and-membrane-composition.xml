@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behaviors capability="ai-package-topology-and-membrane-composition" version="1">
+  <requirement id="ai-package-topology-shall-be-renamed-and-regrouped-around-core-organ-support-composer-and-membrane-ownership">
+    <statement>系统应当将当前 AI 相关 package topology 重构为 `ai-core-*`、`ai-organ-*`、`ai-support`、`ai-composer` 与 `membrane` 的明确分层，而不是继续保留 `domain-ai-*` 与历史 ownership 混杂状态。</statement>
+    <!-- migrated title: AI package topology SHALL be renamed and regrouped around core, organ, support, composer, and membrane ownership -->
+    <suite name="ai-package-topology-shall-be-renamed-and-regrouped-around-core-organ-support-composer-and-membrane-ownership">
+      <case id="existing-domain-ai-packages-are-renamed-into-ai-core-and-ai-support-hosts" name="Existing domain-ai packages are renamed into ai-core and ai-support hosts">
+        <given>当前仓库存在 `@cell/domain-ai-contract`、`@cell/domain-ai-logic`、`@cell/domain-ai-support`</given>
+        <when>本轮 package topology 重构完成</when>
+        <then>它们必须分别由 `@cell/ai-core-contract`、`@cell/ai-core-logic`、`@cell/ai-support` 承接正式 ownership</then>
+        <then>旧 package 不得继续作为长期正式宿主</then>
+      </case>
+      <case id="ai-specific-organ-ownership-is-split-out-into-dedicated-ai-organ-packages" name="AI-specific organ ownership is split out into dedicated ai-organ packages">
+        <given>当前 `@cell/organ-contract` 与 `@cell/organ-logic` 同时承载 AI-specific 组织层契约与逻辑</given>
+        <when>本轮重构完成</when>
+        <then>必须新增 `@cell/ai-organ-contract` 与 `@cell/ai-organ-logic`</then>
+        <then>它们应分别承接 AI-specific organ data / organ logic 的正式 ownership</then>
+      </case>
+      <case id="legacy-organ-packages-are-deleted-after-source-migration" name="Legacy organ packages are deleted after source migration">
+        <given>当前 `@cell/organ-contract` 与 `@cell/organ-logic` 仍保留一部分 AI runtime 相关源码</given>
+        <when>本轮 ownership cutover 完成</when>
+        <then>这些源码必须迁入 `@cell/ai-organ-contract` 与 `@cell/ai-organ-logic`</then>
+        <then>旧 `organ-*` 包、workspace alias 与 package 注册必须被删除，而不得继续保留第二套正式源码真相</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-composer-ownership-shall-belong-to-cell-ai-composer-rather-than-ai-core-logic">
+    <statement>系统应当让 AI runtime composition contract、profile/extension reducer 与 runtime deps composition helper 的正式宿主变为 `@cell/ai-composer`，而不是继续让 composer 逻辑散落到 runtime entry 或 `ai-core-logic` 中。</statement>
+    <!-- migrated title: AI composer ownership SHALL belong to @cell/ai-composer rather than ai-core-logic -->
+    <suite name="ai-composer-ownership-shall-belong-to-cell-ai-composer-rather-than-ai-core-logic">
+      <case id="composer-is-renamed-and-aligned-with-composer-style-responsibility" name="Composer is renamed and aligned with composer-style responsibility">
+        <given>当前 `@cell/composer` 已承担 runtime assembly contract 与 profile reduction</given>
+        <when>本轮重构完成</when>
+        <then>该包必须迁移并改名为 `@cell/ai-composer`</then>
+        <then>其职责必须是组合层职责</then>
+      </case>
+      <case id="core-logic-does-not-become-the-fallback-host-for-composition-ownership" name="Core logic does not become the fallback host for composition ownership">
+        <given>`ai-core-logic` 负责 AI core runtime glue 和 host-facing helper</given>
+        <when>本轮 package ownership 被审查</when>
+        <then>`ai-core-logic` 不得成为 composer ownership 的正式宿主</then>
+        <then>runtime composition contract 不得继续私下回流到 logic 包</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-support-shall-own-environment-implementations-and-support-bundle-creation">
+    <statement>系统应当让 `@cell/ai-support` 成为 AI 宿主环境实现与 support bundle factory 的正式宿主，而不是继续让 profile/composer 组合链直接正式拥有本地文件实现。</statement>
+    <!-- migrated title: AI support SHALL own environment implementations and support-bundle creation -->
+    <suite name="ai-support-shall-own-environment-implementations-and-support-bundle-creation">
+      <case id="mod-profiles-no-longer-own-localfile-support-implementations-as-formal-runtime-backends" name="Mod profiles no longer own LocalFile support implementations as formal runtime backends">
+        <given>当前 `mod-ai-kernel` 仍直接使用 `LocalFile*` support 实现</given>
+        <when>本轮 topology 重构完成</when>
+        <then>这些本地宿主实现的正式 ownership 必须迁入 `@cell/ai-support`</then>
+        <then>`mod-ai-kernel` 不得继续作为它们的正式宿主</then>
+      </case>
+      <case id="ai-support-becomes-the-formal-host-for-runtime-support-bundle-creation" name="AI support becomes the formal host for runtime support bundle creation">
+        <given>runtime entry 需要 message history、orchestration history、snapshot repository、permission store、agent loader 等环境能力</given>
+        <when>runtime 进行正式装配</when>
+        <then>这些能力必须通过 `@cell/ai-support` 提供的正式 support 宿主获得</then>
+        <then>runtime entry 不得继续绕过 support host 直接拼接默认本地实现</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-organ-contract-shall-own-runtimedeps-and-other-ai-specific-organization-layer-contracts">
+    <statement>系统应当让 `@cell/ai-organ-contract` 成为 AI-specific 组织层依赖组合与相关 contract 的正式宿主。</statement>
+    <!-- migrated title: AI organ contract SHALL own RuntimeDeps and other AI-specific organization-layer contracts -->
+    <suite name="ai-organ-contract-shall-own-runtimedeps-and-other-ai-specific-organization-layer-contracts">
+      <case id="runtimedeps-moves-into-ai-organ-contract" name="RuntimeDeps moves into ai-organ-contract">
+        <given>runtime 需要组合 core contract、support bundle 和组织层运行时依赖</given>
+        <when>定义 `RuntimeDeps` 或等价的组织层依赖组合结构</when>
+        <then>这些 contract 必须定义在 `@cell/ai-organ-contract`</then>
+        <then>不得继续挂在错误的 core 或历史 organ ownership 下</then>
+      </case>
+      <case id="ai-specific-permission-and-persistence-contracts-are-reviewed-for-organ-ownership" name="AI-specific permission and persistence contracts are reviewed for organ ownership">
+        <given>权限配置、派生索引、组织层恢复等 contract 当前分散在历史 organ 包中</given>
+        <when>完成本轮重构</when>
+        <then>AI-specific 的组织层 contract 必须迁入 `@cell/ai-organ-contract`</then>
+        <then>非 AI-generic 的内容不应继续混在历史泛化 ownership 中</then>
+      </case>
+      <case id="legacy-organ-contract-package-is-removed-after-contract-migration" name="Legacy organ-contract package is removed after contract migration">
+        <given>`organ-contract` 中仍存在 `DelegateRunMode`、`AgentCatalogLoader`、`MemberRole`、`LocalPermissionConfig`、`RuntimeDerivedIndexes` 等源码文件</given>
+        <when>`ai-organ-contract` 成为正式宿主</when>
+        <then>上述 contract 的源码真相必须位于 `@cell/ai-organ-contract`</then>
+        <then>`@cell/organ-contract` 的目录、tsconfig alias 与 package 依赖声明必须被删除</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-organ-logic-shall-own-orchestration-organization-coordination-and-recovery-logic">
+    <statement>系统应当让 `@cell/ai-organ-logic` 承担 AI-specific orchestration / organization / coordination / permission runtime / runtime recovery 等组织层逻辑。</statement>
+    <!-- migrated title: AI organ logic SHALL own orchestration, organization, coordination, and recovery logic -->
+    <suite name="ai-organ-logic-shall-own-orchestration-organization-coordination-and-recovery-logic">
+      <case id="ai-organization-logic-moves-into-ai-organ-logic" name="AI organization logic moves into ai-organ-logic">
+        <given>当前 `organ-logic` 中存在 MemberManager、OrganizationManager、CoordinationEngine、TaskTreeManager 等 AI-specific 组织逻辑</given>
+        <when>本轮 topology 重构完成</when>
+        <then>这些逻辑必须由 `@cell/ai-organ-logic` 承接正式 ownership</then>
+        <then>不得继续长期停留在历史混合 ownership 中</then>
+      </case>
+      <case id="runtime-recovery-and-coordination-paths-are-reviewed-for-organ-logic-ownership" name="Runtime recovery and coordination paths are reviewed for organ logic ownership">
+        <given>runtime recovery、coordinator、detached actor coordination 等逻辑当前位于历史 organ host</given>
+        <when>评审新的 AI package topology</when>
+        <then>这些 AI-specific 组织层逻辑应优先归入 `@cell/ai-organ-logic`</then>
+        <then>`ai-core-logic` 不应被迫承担组织层职责</then>
+      </case>
+      <case id="ai-organ-logic-depends-on-ai-core-logic-rather-than-the-reverse" name="ai-organ-logic depends on ai-core-logic rather than the reverse">
+        <given>`ai-core-logic` 承担 AI core facade、graph 与配置解析等 core 级能力</given>
+        <when>shell runtime、LLM、MCP、runtime bootstrap 与组织层协调能力被重新分层</when>
+        <then>`@cell/ai-organ-logic` 可以依赖 `@cell/ai-core-logic`</then>
+        <then>`@cell/ai-core-logic` 不得反向依赖 `@cell/ai-organ-logic`</then>
+      </case>
+      <case id="legacy-organ-logic-package-is-removed-after-logic-migration" name="Legacy organ-logic package is removed after logic migration">
+        <given>`organ-logic` 中仍保留 delegate actor、tool composer、llm、stream、permission runtime、task tree、questionnaire 与 holon orchestration 等 AI runtime 逻辑源码</given>
+        <when>`ai-organ-logic` 成为正式宿主</when>
+        <then>这些源码必须迁入 `@cell/ai-organ-logic` 并以其为主要导入面</then>
+        <then>`@cell/organ-logic` 的目录、测试目录、tsconfig alias 与 package 依赖声明必须迁移并删除</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="ai-core-contract-and-logic-shall-own-all-ai-specific-core-data-and-behavior">
+    <statement>系统应当让 `@cell/ai-core-contract` 与 `@cell/ai-core-logic` 成为 AI core 层数据与逻辑的唯一正式宿主，而不是继续让 `core-contract` / `core-logic` 保留 AI-specific 真相源。</statement>
+    <!-- migrated title: AI core contract and logic SHALL own all AI-specific core data and behavior -->
+    <suite name="ai-core-contract-and-logic-shall-own-all-ai-specific-core-data-and-behavior">
+      <case id="ai-specific-logic-is-extracted-from-core-logic-into-ai-core-logic" name="AI-specific logic is extracted from core-logic into ai-core-logic">
+        <given>`cell/packages/core-logic` 中仍保留 AI runtime actor、VM、semantic graph、LLM stage pipeline、runtime transcript、config loader 等 AI 领域专属逻辑</given>
+        <when>本轮 core ownership cutover 完成</when>
+        <then>这些 AI-specific 逻辑必须迁入 `@cell/ai-core-logic`</then>
+        <then>若原实现把数据与方法混在同一对象中，应拆成 AI core data 与以该数据为首参数的静态逻辑函数后再迁移</then>
+      </case>
+      <case id="ai-specific-data-moves-into-ai-core-contract" name="AI-specific data moves into ai-core-contract">
+        <given>`cell/packages/core-contract` 与 `cell/packages/core-logic` 中仍保留 AI runtime actor / VM / stream / coordination / questionnaire / LLM / snapshot 等数据定义</given>
+        <when>本轮 core ownership cutover 完成</when>
+        <then>这些 AI-specific 数据定义必须迁入 `@cell/ai-core-contract`</then>
+        <then>`@cell/ai-core-logic` 只能保留逻辑实现与 facade，而不再私藏第二套数据真相</then>
+      </case>
+      <case id="legacy-ai-compatibility-layers-are-removed-from-core-packages" name="Legacy AI compatibility layers are removed from core packages">
+        <given>`@cell/core-contract` 与 `@cell/core-logic` 曾在迁移期通过 compatibility export 暴露 AI-specific surface</given>
+        <when>`ai-core-*` 成为正式宿主</when>
+        <then>`core-contract` 与 `core-logic` 下不再保留 AI 领域专属源码或 compatibility shell</then>
+        <then>仓库活动 consumer 必须切到 `@cell/ai-core-contract` / `@cell/ai-core-logic`</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="membrane-shall-become-a-higher-level-composer-facade-host">
+    <statement>系统应当让 `@cell/membrane` 成为位于 `@cell/ai-composer` 之上的更高层 facade 聚合面，以便未来继续封装更多领域 composer，而不是继续维持空壳状态。</statement>
+    <!-- migrated title: Membrane SHALL become a higher-level composer facade host -->
+    <suite name="membrane-shall-become-a-higher-level-composer-facade-host">
+      <case id="membrane-wraps-ai-composer-as-a-higher-level-runtime-composition-facade" name="Membrane wraps ai-composer as a higher-level runtime composition facade">
+        <given>`@cell/ai-composer` 提供 AI 领域 runtime composition 能力</given>
+        <when>高层 consumer 需要更产品化或更上层的 facade</when>
+        <then>`@cell/membrane` 应能封装 `@cell/ai-composer` 并暴露更高层 facade</then>
+        <then>membrane 不得继续只是无职责 re-export 壳</then>
+      </case>
+      <case id="membrane-remains-extensible-to-future-composers" name="Membrane remains extensible to future composers">
+        <given>未来仓库可能引入更多领域的 composer</given>
+        <when>设计 membrane 的正式职责</when>
+        <then>它必须允许在 AI composer 之外继续聚合更多领域 composer</then>
+        <then>不得把 membrane 设计成只服务单一当前实现的临时命名层</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="terminal-consumers-shall-depend-on-appropriate-facade-layers-rather-than-a-single-forced-entrypoint">
+    <statement>系统应当允许 `terminal/*` 按职责引用不同层级的 `cell/*` facade/contract，但必须保持明确的层级消费边界，避免无边界地直接拉取内部实现细节。</statement>
+    <!-- migrated title: Terminal consumers SHALL depend on appropriate facade layers rather than a single forced entrypoint -->
+    <suite name="terminal-consumers-shall-depend-on-appropriate-facade-layers-rather-than-a-single-forced-entrypoint">
+      <case id="terminal-is-not-forced-to-consume-membrane-as-the-only-entrypoint" name="Terminal is not forced to consume membrane as the only entrypoint">
+        <given>不同 terminal 子包对 runtime composition、runtime bridge、host glue 的抽象需求不同</given>
+        <when>评审新的 package topology</when>
+        <then>`terminal/*` 可以引用 `membrane` 或其他合适层级的 `cell/*` facade</then>
+        <then>系统不得强制规定 terminal 只能通过 membrane 访问所有能力</then>
+      </case>
+      <case id="terminal-consumers-use-layer-appropriate-facades" name="Terminal consumers use layer-appropriate facades">
+        <given>`terminal/core`、`terminal/organ`、`terminal/tui`、`terminal/cli` 的职责层级不同</given>
+        <when>它们需要消费 AI runtime 相关能力</when>
+        <then>它们应按职责消费对应层级的 facade/contract</then>
+        <then>不得越级拉取大量 composer/support/mod internals 形成新的耦合真相</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="migration-shall-preserve-compatibility-through-an-explicit-cutover-plan">
+    <statement>系统应当通过显式迁移计划完成新 package topology 的切换，而不是要求全仓一次性无保护改名。</statement>
+    <!-- migrated title: Migration SHALL preserve compatibility through an explicit cutover plan -->
+    <suite name="migration-shall-preserve-compatibility-through-an-explicit-cutover-plan">
+      <case id="only-non-organ-legacy-packages-may-keep-temporary-compatibility-shells" name="Only non-organ legacy packages may keep temporary compatibility shells">
+        <given>旧 package 名称已被多个 consumer 和测试使用</given>
+        <when>本轮 rename 和 ownership cutover 开始</when>
+        <then>除 `organ-contract` / `organ-logic` 外的旧 package 可以在迁移期保留 forwarding shell 或等价兼容层</then>
+        <then>这些兼容层必须被标记为过渡方案，而非长期正式宿主</then>
+      </case>
+      <case id="focused-tests-guard-the-new-package-topology-and-facade-ownership" name="Focused tests guard the new package topology and facade ownership">
+        <given>本轮会影响 package name、导入路径、ownership 和 facade 使用边界</given>
+        <when>实现完成</when>
+        <then>应存在 focused tests 锁定 package ownership、membrane facade、terminal adoption 与兼容层 cutover 行为</then>
+        <then>迁移后不应继续留下第二套正式 package ownership 真相源</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

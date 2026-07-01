@@ -1,6 +1,6 @@
 # TDD 套路（std/sop/tdd.md）
 
-> `codument-implement` 引用的标准执行方法论。
+> `codument-impl-track` 引用的标准执行方法论。
 
 每个功能性 Task 按"测试先行 → 实现 → 重构"循环，直到验收满足：
 

@@ -1,25 +1,27 @@
-# Implementation 分形标准
+# Implementation / Engineering 分形标准
 
-> 本标准定义 `docs/impl/` 的写作方式。它与 [docs-modeling-fractal](../docs-modeling-fractal/index.md) **用同一条递归规则**，区别只在「类目词汇」。
+> 本标准定义 legacy `docs/impl/` 的写作方式，并说明它如何迁移到新的 `codument/engineering/` XNL registry。它与 [docs-modeling-fractal](../docs-modeling-fractal/index.md) **用同一条递归规则**，区别只在「类目词汇」。
 >
-> 共享内容（节点不变量、frontmatter、根布局、同名文件夹演化、迁移台账、track 同步）见 [model-driven-docs.md](../../attractors/model-driven-docs.md)。本文件只讲 **impl 侧特有**的约定。
+> 新项目长期工程知识优先写入 `codument/engineering/`；`docs/impl/` 可作为 legacy Markdown、展示层或迁移前兼容层。engineering registry 规范见 [engineering-registry.md](../spec/engineering-registry.md)。
 
 ## 1. 一句话心法
 
-impl 树同样是递归的「知识节点」。**不变的是递归规则，可变的是每个 plane 选的类目词汇。**
+impl / engineering 树同样是递归的「知识节点」。**不变的是递归规则，可变的是每个 plane 选的类目词汇。**
 
-- **不变**：`plane → 类目 → 主题 → 叶子`；每层 `index.md` 只导航；一处真源、其余引用；本体不在这里，引用 `docs/modeling/`。
+- **不变**：`plane → 类目 → 主题 → 叶子`；每层 `index` 只导航；一处真源、其余引用；本体不在这里，引用 `codument/modeling/` 或 `modeling://...`。
 - **可变**：有哪些 implementation plane；每个 plane 第一层用哪些类目。
 
-> impl 与 modeling 的唯一区别：modeling 装"业务真源"，impl 装"如何实现与维护"。两边都允许不同领域长出不同目录，不写死前后端。
+> engineering 与 modeling 的区别：modeling 装"结构真相"，engineering 装"如何实现、维护、排障"。两边都允许不同领域长出不同目录，不写死前后端。
 
 ## 2. Plane 层
 
-路径：`docs/impl/<plane>/`（所有实现知识都在 `docs/impl/` 下，不散到根层）
+新真源路径：`codument/engineering/<plane>/`。
+
+legacy Markdown 路径：`docs/impl/<plane>/`。
 
 - **`global`（推荐）**：跨 plane 的实现 / 维护知识（架构、框架约定、运维方法）。
 - **其他 plane（项目按领域命名）**：`backend`、`surface`、`runtime`、`storage`、`pipelines`、`agents`、`tools`、`operations`、`control-plane`、`data-plane`……
-- **本体不放这里**：domain ontology 属于 `docs/modeling/`；impl 用链接引用，不复制。
+- **本体不放这里**：domain ontology 属于 `codument/modeling/`；engineering 用 `modeling://...` 引用，不复制。
 
 每个 plane / 类目目录的 `index.md` 顶部带「目录职责」块（标准类目一行精简型，自定义类目完整型）——见 [folder-manifest.md](@codument/std/spec/folder-manifest.md)。
 
@@ -28,7 +30,8 @@ impl 树同样是递归的「知识节点」。**不变的是递归规则，可�
 plane 第一层放**类目**，类目下放**主题**，主题下放叶子：
 
 ```text
-docs/impl/<plane>/<category>/<topic>/<leaf>.md
+codument/engineering/<plane>/<category>/<topic>.xnl
+docs/impl/<plane>/<category>/<topic>/<leaf>.md   # legacy / 展示层
 ```
 
 ### 推荐默认类目（强烈建议作为起点）
@@ -66,11 +69,11 @@ docs/impl/<plane>/<category>/<topic>/<leaf>.md
 | reference | Scope · Table/Map · Source Of Truth · Update Procedure（生成物说明如何重生成/校验） |
 | troubleshooting | Symptoms · Likely Causes · Diagnosis · Fix · Prevention（长期 lesson 同步 project memory） |
 
-跨 plane 的 overview/rule 放 `docs/impl/global/...`；过程中发现的规则沉淀到 `rules/` 并互链。
+跨 plane 的 overview/rule 放 `codument/engineering/global/...`；过程中发现的规则沉淀到 `rules/` 并互链。
 
 ## 5. Frontmatter（用受控精简 schema）
 
-字段集与含义在 [model-driven-docs.md](../../attractors/model-driven-docs.md) 统一定义。impl 侧附加约定：
+字段集与含义在 [model-driven-docs.md](../attractors/model-driven-docs.md) 统一定义。impl 侧附加约定：
 
 - impl 文档**可在正文写代码路径**；frontmatter 保持稳定、低冲突，**不堆 `code_paths` / `topics` 数组**。
 - 实现规则**不复制** modeling policy——链接到 `docs/modeling/<plane>/contexts/<ctx>/policies/...`，本文件只写 enforcement。

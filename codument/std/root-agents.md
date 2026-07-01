@@ -1,6 +1,6 @@
 # 根 AGENTS 受管块模板（std/root-agents.md）
 
-> `codument-init` 把下面的**受管块**写进项目根 `AGENTS.md`（已有则更新该块），让任意 AI 助手从项目根就能找到 codument 入口。`upgrade-workspace` 刷新它。它**只是指针**——真正的指南在 `@/codument/std/AGENTS.md`，不要把规则正文搬到根。
+> `codument init` 把下面的**受管块**写进项目根 `AGENTS.md`（已有则更新该块），让任意 AI 助手从项目根就能找到 codument 入口。`upgrade-workspace` 刷新它。它**只是指针**——真正的指南在 `@/codument/std/AGENTS.md`，不要把规则正文搬到根。
 
 ## 受管块内容（落进项目根 AGENTS.md）
 
@@ -24,9 +24,9 @@ These instructions are for AI assistants working in this project.
 快速路由：
 - 项目工程约束 / 代码边界 / 技术取舍：`@/codument/attractors/project.md`
 - 产品目标 / 用户价值 / 范围取舍：`@/codument/attractors/product.md`
-- 信息该落哪层 / 何时晋升 / 冲突谁赢：`@/codument/attractors/knowledge-tiers.md`
-- docs/modeling 与 docs/impl 写法 / 路由 / frontmatter：`@/codument/attractors/model-driven-docs.md`
-- 长期记忆 lessons / incidents / patterns / summaries：`@/codument/attractors/project-memory.md`
+- 信息该落哪层 / 何时晋升 / 冲突谁赢：`@/codument/std/attractors/knowledge-tiers.md`
+- docs/modeling 与 docs/impl 写法 / 路由 / frontmatter：`@/codument/std/attractors/model-driven-docs.md`
+- 长期记忆 lessons / incidents / patterns / summaries：`@/codument/std/attractors/project-memory.md`
 
 保留本受管块，'codument upgrade-workspace' 会刷新它。
 <!-- codument:end -->

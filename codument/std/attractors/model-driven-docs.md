@@ -2,7 +2,7 @@
 
 ## 目的
 
-当 `knowledgeSync.enabled=true` 时，本文件是项目知识维护的入口 attractor。
+当 docs profile 启用时，本文件是项目知识维护的入口 attractor。
 
 文档系统由两套并列的分形标准组成：
 
@@ -18,7 +18,7 @@ docs/impl/      # 实现、操作、示例、参考、排障知识
 
 本文件只保留路由规则、通用元数据、track 同步检查清单。不要把具体建模文件模板或实现平面细则塞回本文件；这些内容应维护在两份分形标准中。
 
-> **上层语义**：一条信息该落 `docs/` 还是 track/behaviors/decisions/memory、何时从 track **晋升**进 owner 文档、冲突时谁是真源——见 [attractors/knowledge-tiers.md](./knowledge-tiers.md)。每个标准文件夹"装什么"由其 `index.md` 的**目录职责块**就地声明，规范与补齐见 [std/spec/folder-manifest.md](@codument/std/spec/folder-manifest.md)。
+> **上层语义**：一条信息该落 `docs/` 还是 track/behaviors/decisions/memory、何时从 track **晋升**进 owner 文档、冲突时谁是真源——见 [knowledge-tiers.md](./knowledge-tiers.md)。每个标准文件夹"装什么"由其 `index.md` 的**目录职责块**就地声明，规范与补齐见 [std/spec/folder-manifest.md](@codument/std/spec/folder-manifest.md)。
 
 ## 真源边界
 
@@ -114,9 +114,9 @@ docs/modeling/<modeling-plane>/
       <category>/     # 类目由该 plane 的建模视角决定，不是固定三件套
 ```
 
-必需 plane：`domain`（canonical 本体）。其他 derived plane（`server`、`uiux`、`runtime`、`api`、`storage`、`pipeline`……）由项目按领域自定义。
+必需 plane：`domain`（canonical 本体）。其他 derived plane（`backend`、`surface`、`runtime`、`api`、`storage`、`pipeline`……）由项目按领域自定义。
 
-类目示例（**不是强制目录名**）：`domain` 常用 `objects/policies/workflows/`；`server` 用 `routes/storage/contracts/...`；其他领域用 `sources/transforms/sinks` 等。
+类目示例（**不是强制目录名**）：`domain` 常用 `objects/policies/workflows/`；`backend` 用 `routes/storage/contracts/...`；其他领域用 `sources/transforms/sinks` 等。
 
 如何为本领域选类目、各文件写法见 [docs-modeling-fractal/index.md](@codument/std/docs-modeling-fractal/index.md)。
 
@@ -131,7 +131,7 @@ docs/impl/<implementation-plane>/
     <topic>/<leaf>.md
 ```
 
-推荐 plane：`global`（跨 plane 实现知识）。其他 plane（`backend`、`frontend`、`runtime`、`storage`、`pipelines`、`agents`、`operations`……）由项目自定义。
+推荐 plane：`global`（跨 plane 实现知识）。其他 plane（`backend`、`surface`、`runtime`、`storage`、`pipelines`、`agents`、`operations`……）由项目自定义。
 
 推荐默认类目（**起点，非法律**）：`overview / howto / rules / examples / reference / troubleshooting`；领域不适配时可在 plane 第一层替换为自定义类目集。详见 [docs-impl-fractal/index.md](@codument/std/docs-impl-fractal/index.md)。
 
@@ -217,11 +217,11 @@ docs/_assets/
 
 ## Track Knowledge Sync
 
-当 `knowledgeSync.enabled=true` 时，每个 Codument track 都必须检查是否需要更新 docs。
+当 docs profile 启用时，每个 Codument track 都必须检查是否需要更新 docs。
 
 > **两个时机，别只在归档**：
 > - **澄清/实现期（实时）**：discuss 一旦把某概念/行为/policy/架构**澄清并稳定**，**当轮就**把它收敛进对应 owner 文档（`docs/modeling`/`docs/impl`），而不是只写进 proposal 等归档再补。这是 owner 文档保持新鲜的主路径。
-> - **归档期（兜底）**：`codument-archive` 按显式 hook 对该 track 全量复查、补齐遗漏（见 `std/sop/artifact-sync.md`）。
+> - **归档期（兜底）**：`codument-archive-track` 按显式 hook 对该 track 全量复查、补齐遗漏（见 `std/operations/artifact-sync.md`）。
 >
 > 晋升判定（落 `docs/` 还是 behaviors/decisions/memory、何时晋升）见 [knowledge-tiers.md](./knowledge-tiers.md) §4–§5。
 

@@ -35,7 +35,7 @@ codument/behaviors/
 
 1. 解析 `behavior_deltas/<cap>/delta.xml` 的 `<behavior-patch>`。
 2. 对每个 `<upsert|delete|move selector="behavior://…">` 在登记表定位并施改。
-3. 登记表内容变化后，若启用 docs 同步，按显式 hook 联动 docs（见 `std/sop/artifact-sync.md`）。
+3. 登记表内容变化后，若启用 docs 同步，按显式 hook 联动 docs（见 `std/operations/artifact-sync.md`）。
 
 ## 设计取舍
 

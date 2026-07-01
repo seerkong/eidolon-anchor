@@ -84,14 +84,22 @@
 
 该 scope 处于 gap-loop 模式时，track.xml `<Metadata>` 记录当前轮次（字段 `gap-round`，或由 `reports/` 报告序号承载）：创建/切入时为 `0`；父层**每次启动新一轮前先更新为当前 round 编号**；旧 track 缺该字段按 `0`。
 
-### 0.2.4 历史报告与首轮怀疑规则
+### 0.2.4 历史报告与首轮怀疑规则（verify-round 配置）
 
 父层决定是否收口时必须区分：
 
 1. **已有历史 gap-loop**：`reports/` 已有报告，或 `gap-round > 1`。
 2. **从未跑过 gap-loop**：`reports/` 为空或不存在，且当前是第 1 轮。
 
-对第 2 类场景：首轮 fresh 子代理返回 `NO_GAP`，父层**仍必须保持怀疑**，必须再 fresh-spawn 一轮验证。即 **首轮 + 无历史报告 + `NO_GAP` 不能直接收口。**
+对第 2 类场景（首轮 + 无历史 + `NO_GAP`），是否再 fresh-spawn 一轮「验证轮」做首轮怀疑，由 **`verify-round` 配置**决定，**不再写死强制**：
+
+- **节点属性优先**：读该 scope 所挂 `<cdt:GapLoop>` 节点的 `verify-round` 属性（取值 `true|false`）。
+- **缺省取全局默认**：节点未写 `verify-round` 时，取全局默认。**全局默认为 `false`（关）**——约定如此；如 `config/operation-hooks.xml` 的 `<Operation name="gap-loop">` 显式声明了全局开关，则以该声明覆盖此约定默认。
+- **判定**：
+  - `verify-round="true"` → 首轮 `NO_GAP` 父层**仍保持怀疑**，再 fresh-spawn 一轮（**轻量**，见 §2.5）验证轮；该验证轮再 `NO_GAP` 才收口。
+  - `verify-round="false"`（默认）→ 首轮 `NO_GAP` + 无历史**直接收口**，不跑额外验证轮。
+
+注意：本规则只控制「首轮 `NO_GAP` 后是否再追一轮验证轮」。`FIX_APPLIED` 复检**始终强制**、独立于 `verify-round`（见 §1.3 / §2.5）。
 
 ### 0.2.5 统一禁止事项
 
@@ -133,13 +141,13 @@
 读 track.xml；若该 scope 非 gap-loop 模式，先按 0.2.2 补齐
 ---- /?s3
 ---- #step ?s4
-读当前 gap-round（缺失按 0）；查 codument/tracks/<id>/reports/ 历史报告
+读当前 gap-round（缺失按 0）；查 codument/tracks/<id>/reports/ 历史报告；读该 scope <cdt:GapLoop> 的 verify-round（缺省取全局默认 false，见 0.2.4）
 ---- /?s4
 ---- #step ?s5
 gap-round = gap-round + 1，写回 track.xml <Metadata>
 ---- /?s5
----- #spawn ?run as=fresh-subagent inject="按 agent 类型注入模型/档位，如 codex→gpt-5.5、effort=high"
-只传最小上下文（track-id、phase、background、固定输入范围、输出 XML 契约）；等它返回结构化 XML
+---- #spawn ?run as=fresh-subagent inject="按 agent 类型注入模型/档位，如 codex→gpt-5.5、effort=high；若本轮为验证轮或 FIX 复检轮则切轻量模式（更低 effort，见 §2.5）并标注'增量复检'"
+只传最小上下文（track-id、phase、background、固定输入范围、输出 XML 契约）；验证轮 / FIX 复检轮额外注入「上轮 gap 报告路径 + 本轮关注的 diff/FIX 改动范围 + 轻量模式」；等它返回结构化 XML
 ---- /?run
 ---- #switch ?dispatch on="子代理返回的 status"
 ------ #case ?c_blocked when=BLOCKED
@@ -150,15 +158,15 @@ gap-round = gap-round + 1，写回 track.xml <Metadata>
 ------ /?c_blocked
 ------ #case ?c_fix when=FIX_APPLIED
 -------- #continue ?cont1
-不得停、不得收口：本轮已修复，继续下一轮复检
+不得停、不得收口：本轮已修复，下一轮 spawn 时标注「增量复检」（聚焦 FIX 改动范围、轻量模式），续轮复检
 -------- /?cont1
 ------ /?c_fix
------- #case ?c_nogap1 when="NO_GAP 且 首轮+无历史+从未跑过"
+------ #case ?c_nogap1 when="NO_GAP 且 首轮+无历史+从未跑过 且 verify-round=true"
 -------- #continue ?cont2
-首轮怀疑：不得收口，再跑一轮验证
+首轮怀疑（已配 verify-round=true）：不得收口，再跑一轮（轻量）验证轮
 -------- /?cont2
 ------ /?c_nogap1
------- #case ?c_nogap2 when="NO_GAP 且 非首轮怀疑"
+------ #case ?c_nogap2 when="NO_GAP 且（非首轮怀疑 或 verify-round=false/默认收口）"
 把该 scope 校验节点标 DONE
 -------- #return ?ok value=收口
 -------- /?ok
@@ -175,9 +183,9 @@ gap-round = gap-round + 1，写回 track.xml <Metadata>
 为强调，上面 `#switch` 的四条规则用文字复述——父层**不得**偏离：
 
 - `BLOCKED` → 标 BLOCKED，停下请求用户输入。
-- `FIX_APPLIED` → **不得停、不得视为完成**，必须 `#continue` 续轮复检。
-- `NO_GAP`（首轮 + 无历史 + 从未跑过）→ **不得收口**，`#continue` 再跑一轮验证（首轮怀疑）。
-- `NO_GAP`（非首轮怀疑）→ 才可 `#return` 收口（标该 scope 校验节点 DONE）。
+- `FIX_APPLIED` → **不得停、不得视为完成**，必须 `#continue` 续轮复检；续轮 spawn 时标注「增量复检」——聚焦 FIX 改动范围、走轻量模式（§2.5）。此复检**始终强制**，与 `verify-round` 无关。
+- `NO_GAP`（首轮 + 无历史 + 从未跑过 + `verify-round=true`）→ **不得收口**，`#continue` 再跑一轮**轻量**验证轮（首轮怀疑）。
+- `NO_GAP`（非首轮怀疑，或首轮但 `verify-round=false`/默认）→ 才可 `#return` 收口（标该 scope 校验节点 DONE）。`verify-round` 缺省取全局默认 `false`（见 0.2.4）。
 
 ### 1.4 父层对外输出限制
 
@@ -254,6 +262,17 @@ review 当前实现与未提交改动（带 --phase 则聚焦该 phase）
 ### 2.4 这一轮结束时你不能做什么
 
 返回本轮 XML 后：不得自己继续下一轮；不得假设 `FIX_APPLIED` 就代表收口；不得自行判定"首轮 `NO_GAP` 已经足够"。下一轮是否继续，**由父层编排代理决定**。
+
+### 2.5 轻量模式（验证轮 / FIX 复检轮）
+
+当父层在 spawn 你时标注本轮是**验证轮**（首轮 `NO_GAP` 后的 `verify-round` 验证）或 **FIX 复检轮**（上轮 `FIX_APPLIED` 后的强制复检），你走**轻量模式**，**不重做全量目标对比**：
+
+- **输入收窄**：只读「上轮 gap 报告（`reports/` 最新一份）的结论」+「当轮未提交 diff」。FIX 复检时**聚焦上轮 FIX 的改动范围**（哪些文件/需求被改），只确认该范围是否真正闭合、未引入新偏差；验证轮则确认「首轮 `NO_GAP` 结论在当前 diff 下仍成立」。
+- **不做的事**：不重新逐条比对 proposal / behavior_deltas / design 的全部目标，不重写完整 gap 报告（只在 `reports/` 追加一份**轻量增量复检**报告，标明本轮为验证轮 / FIX 复检轮及其聚焦范围）。
+- **更低 effort**：本轮**可用更低 reasoning effort**（父层注入档位已下调），与全量首轮区分。
+- **结论与 XML 不变**：仍按 §3.0 输出 `NO_GAP` / `FIX_APPLIED` / `BLOCKED`。轻量模式只缩输入与工作量，**不放宽** FIX 必须复检、不偷过真实偏差。
+
+非轻量模式（首轮、或全量对比轮）仍按 §2.2/§2.3 做完整目标对比，质量底线不变。
 
 ---
 

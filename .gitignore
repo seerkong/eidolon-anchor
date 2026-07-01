@@ -1,6 +1,7 @@
 .agents/
 .claude
 .codex
+.cozo-wiki
 .sparrow
 .npmrc
 bunfig.toml
@@ -142,3 +143,5 @@ frontend/packages/vue/public/**
 !frontend/packages/vue/public/.gitkeep
 frontend/packages/react/public/**
 !frontend/packages/react/public/.gitkeep
+codument/**/analysis
+codument/**/reports

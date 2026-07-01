@@ -1,6 +1,6 @@
 # Wave / DAG 调度执行（std/sop/wave-exec.md）
 
-> `codument-implement` / `codument-plan-schedule` 引用。描述 `cdt:child-mode="dag"` 的层如何调度执行。
+> `codument-impl-track` / `codument-plan-track-wave` 引用。描述 `cdt:child-mode="dag"` 的层如何调度执行。
 
 ## 派生 wave
 

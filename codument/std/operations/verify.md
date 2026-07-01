@@ -27,7 +27,7 @@
    - `codument/std/sop/workflow.md`（内置工作流规程；旧单体 `codument/std/workflow.md` 兼容读）
 
 2. **处理缺失：** 若标准工作流文件缺失，或既没有 `codument/attractors/` 也没有旧项目 `project.md`/`product.md` 组合，停止并提示：
-   > "Codument 未设置。请先使用 `codument-init` skill。"
+   > "Codument 未设置。请先运行 `codument init`。"
 
 ## 1.1 交互式问答
 
@@ -124,11 +124,11 @@ verify 的核心是**派发 fresh-subagent 实际运行**——不是父代理�
 ---- /?report
 ---- #switch ?conclude on="是否存在 FAIL"
 ------ #case ?allpass when="全部 PASS"
--------- #return ?ok value="PASS：报告可进归档（codument-archive）"
+-------- #return ?ok value="PASS：报告可进归档（codument-archive-track）"
 -------- /?ok
 ------ /?allpass
 ------ #case ?hasfail when="存在 FAIL"
--------- #return ?back value="FAIL：列差距，建议回 codument-implement 修实现 / codument-gap-loop 做目标对比修复"
+-------- #return ?back value="FAIL：列差距，建议回 codument-impl-track 修实现 / codument-gap-loop 做目标对比修复"
 -------- /?back
 ------ /?hasfail
 ---- /?conclude
@@ -168,7 +168,7 @@ Summary:
 - 通过：<n>
 - 失败：<n>
 - 结论：PASS | FAIL
-- 下一步：全 PASS → codument-archive；有 FAIL → codument-implement / codument-gap-loop
+- 下一步：全 PASS → codument-archive-track；有 FAIL → codument-impl-track / codument-gap-loop
 ```
 
 > 全 PASS 才可进归档；有 FAIL 则列差距并建议回 `implement`（补实现）或 `gap-loop`（目标对比纠偏修复）。报告/状态对照失败时不轻易判 PASS。
@@ -180,5 +180,5 @@ Summary:
 - `codument/std/spec/track-xml-spec.md`（`cdt:Acceptance`/`cdt:Gate`、phase=第一层 TaskGroup、wave=dag 层派生视图）
 - `codument/std/sop/validation.md`（裁决词汇、fresh-subagent 执行约定）
 - `codument/std/operations/gap-loop.md`（FAIL 后的目标对比修复双角色协议）
-- `codument/std/operations/implement.md`（FAIL 后补实现）
+- `codument/std/operations/impl-track.md`（FAIL 后补实现）
 - `codument/std/sop/questioning.md`（ask-* 协议）

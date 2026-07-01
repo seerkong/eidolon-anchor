@@ -1,0 +1,88 @@
+<Mission id="long-running-turn-progress-resume" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Make long-running mandatory-continuation turns pause with sealed progress and resume safely, and optionally continue headless execution to final output without weakening checkpoint transactionality.</Goal>
+    <Description>Separate full safepoint checkpoints from resumable completed-progress sealing, paused outcome semantics, and bounded headless auto-resume.</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>light</QuestionSeverity>
+    <Revision>14</Revision>
+    <CreatedAt>2026-06-29T07:58:23Z</CreatedAt>
+    <UpdatedAt>2026-06-29T14:32:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="mission">
+    <MaterialBundle role="state" name="analysis" domain="mission" path="vfs://./analysis/"/>
+    <MaterialBundle role="state" name="reports" domain="mission" path="vfs://./reports/"/>
+    <MaterialBundle role="output" name="tracks" domain="codument" path="vfs://@/codument/tracks/"/>
+  </Ports>
+  <TaskSpace id="space_long-running-turn-progress-resume" name="long-running-turn-progress-resume" version="1" cdt:child-mode="dag">
+    <Description>Long-running turn pause/resume mission.</Description>
+    <SubNodes>
+      <TaskGroup id="G1" name="Evidence inventory" status="DONE" order="0">
+        <Description>Pin current behavior, code seams, deferred mechanisms, and historical CLI evidence.</Description>
+        <SubNodes>
+          <Task id="G1-T1" name="Inventory checkpoint, seal, recovery, and CLI timeout evidence" status="DONE" order="0"/>
+          <Task id="G1-T2" name="Write implementation slicing report" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="G2" name="Runtime progress seal and recovery" status="DONE" order="1">
+        <Description>Implement production-safe completed-progress seal and recovery relay without unsafe snapshots.</Description>
+        <SubNodes>
+          <Task id="G2-T1" name="Create and execute runtime progress seal recovery track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="runtime-progress-seal-recovery"/>
+          </Task>
+          <Task id="G2-T2" name="Verify recovery resumes from sealed progress" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="G3" name="Headless paused progress protocol" status="DONE" order="2">
+        <Description>Add explicit paused_with_progress semantics to headless exec projection and output behavior.</Description>
+        <SubNodes>
+          <Task id="G3-T1" name="Create and execute headless paused progress exit track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="headless-paused-progress-exit"/>
+          </Task>
+          <Task id="G3-T2" name="Verify output-last-message and trace semantics" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="G4" name="Historical resume verification" status="DONE" order="3">
+        <Description>Replay real long-running sessions and prove pause/resume behavior end to end.</Description>
+        <SubNodes>
+          <Task id="G4-T1" name="Create and execute historical long-turn resume verification track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="historical-long-turn-resume-verification"/>
+          </Task>
+          <Task id="G4-T2" name="Write final mission verification report" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="G5" name="Headless auto-resume to final" status="DONE" order="4">
+        <Description>Add explicit bounded auto-resume so one headless exec can continue resumable pauses without appending new user input.</Description>
+        <SubNodes>
+          <Task id="G5-T1" name="Create and execute headless auto-resume track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="add-headless-auto-resume"/>
+          </Task>
+          <Task id="G5-T2" name="Verify historical session with auto-resume" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="G6" name="TUI questionnaire continuation" status="DONE" order="5">
+        <Description>Fix interactive TUI permission approval so answered questionnaires continue the unblocked long-running turn through the normal timeout/progress-seal path.</Description>
+        <SubNodes>
+          <Task id="G6-T1" name="Create and execute TUI questionnaire continuation track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="fix-tui-questionnaire-continuation"/>
+          </Task>
+          <Task id="G6-T2" name="Verify problem-session evidence after the fix" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule>
+    <Dag for="space_long-running-turn-progress-resume">
+      <Node id="G2"><After ref="G1"/></Node>
+      <Node id="G3"><After ref="G2"/></Node>
+      <Node id="G4"><After ref="G3"/></Node>
+      <Node id="G5"><After ref="G4"/></Node>
+      <Node id="G6"><After ref="G5"/></Node>
+    </Dag>
+  </Schedule>
+  <Hooks>
+    <Hook on="mission:after-node">
+      <cdt:MissionReconcile max-rounds="3" on-drift="replan-or-block"/>
+    </Hook>
+  </Hooks>
+</Mission>

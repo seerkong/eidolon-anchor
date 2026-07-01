@@ -92,7 +92,7 @@
   - **promotes_to**：下游去向层
   ```
 
-字段语义（`holds`/`excludes`/`tier`/`promotes_from`/`promotes_to`）与 tier/晋升语义对齐 `codument/attractors/knowledge-tiers.md`。
+字段语义（`holds`/`excludes`/`tier`/`promotes_from`/`promotes_to`）与 tier/晋升语义对齐 `codument/std/attractors/knowledge-tiers.md`。
 
 **补齐（backfill）**：扫描 `docs/` 下每个含 `index.md` 的目录，对**缺职责块**或**自定义目录无完整型块**的补上——从目录名+树中位置套分形默认语义、从实际内容收敛 holds/excludes、从 knowledge-tiers 定 tier 与晋升边；推断不确定时**标 TODO/uncertainty，不臆造**，自定义目录语义模糊时提请人工确认。补齐**幂等**：只补缺失，不覆盖人工已写的块（除非显式确认）。
 
@@ -143,6 +143,6 @@ Review：检查猜测/重复/过度拆分/实现与建模混写；Report：列�
 - modeling 分形规范：`codument/std/docs-modeling-fractal/index.md`
 - impl 分形规范：`codument/std/docs-impl-fractal/index.md`
 - 目录职责块格式与补齐：`codument/std/spec/folder-manifest.md`
-- 知识分层 / 晋升 / 真源优先级：`codument/attractors/knowledge-tiers.md`
+- 知识分层 / 晋升 / 真源优先级：`codument/std/attractors/knowledge-tiers.md`
 - 归档期增量 docs 同步：`codument/std/operations/artifact-sync.md`
 - 流程标记块语法：`codument/std/operations/_operation-spec.md`

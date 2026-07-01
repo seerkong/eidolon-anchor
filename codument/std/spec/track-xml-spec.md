@@ -49,7 +49,7 @@ tracks/<id>/
 - `track.xml`/`proposal`/`behavior_deltas` 必有；其余按需。
 - `analysis/` 是**迭代期外部记忆**，不是 owner 真源——稳定结论按 `knowledge-tiers.md` 晋升进 `docs/`/`behaviors/`，不滞留 analysis。
 - `analysis/findings.md` 应记录可复用的事实锚：spot-check 证据、测试/指标结果、失败归因、环境约束、机制漏洞、phase/wave 完成小结。新会话接手或续跑时优先读取它，避免只依赖对话记忆。
-- `decisions/`→`decision://`、`memory/`→`memory://`、`behavior_deltas/`→`behaviors/` 的提升时机见 `std/sop/archive.md` 与 `knowledge-tiers.md` §4–§5。
+- `decisions/`→`decision://`、`memory/`→`memory://`、`behavior_deltas/`→`behaviors/` 的提升时机见 `std/operations/archive-track.md` 与 `knowledge-tiers.md` §4–§5。
 - 子代理只接收**路径/引用**自读（见 `implement.md`），不把这些目录正文塞进编排者上下文。
 
 ---
@@ -75,6 +75,8 @@ tracks/<id>/
   <Status>in_progress</Status>          <!-- new | in_progress | completed | cancelled -->
   <Goal>为报表新增 CSV 导出</Goal>
   <Description>后端端点 + 前端按钮 + docs 同步</Description>
+  <QuestionMode>decision-tree</QuestionMode>     <!-- decision-tree -->
+  <QuestionSeverity>light</QuestionSeverity>     <!-- auto | light | normal | deep -->
   <CommitMode>manual</CommitMode>       <!-- auto | manual -->
   <CreatedAt>2026-06-14T10:00:00Z</CreatedAt>
   <UpdatedAt>2026-06-14T15:00:00Z</UpdatedAt>
@@ -82,6 +84,7 @@ tracks/<id>/
 ```
 
 - **不含** `execution_mode`（→ `<Schedule mode>`）、`validation_mode`/`validation_granularity`/`gap_loop_round`（→ `<Hooks>` 见 §6），也不含手维护的 `summary`（工具从 TaskSpace 派生）。
+- `QuestionMode` / `QuestionSeverity` 与 `CommitMode` 并列但分属不同轴：前者描述规划/澄清阶段如何问问题，后者描述实现阶段是否自动提交。`QuestionMode` 当前取 `decision-tree`；`QuestionSeverity` 当前取 `auto|light|normal|deep`，未指定按 `light` 处理。
 - 可选 `cdt:`：`<cdt:Milestones>`、`<cdt:Risks>`（旧 milestones/risks 降级；大多数 track 放 proposal.md 即可）。
 
 ---
@@ -197,7 +200,7 @@ ID 约定（沿用旧规范的可读性）：phase=`P{n}`、task=`T{phase}.{n}`�
 - **依赖完全结构化**：前驱用 `<After ref="...">` **子元素**表达，一个前驱一行——**不用空格分隔的属性字符串**（避免 id 含空格 / 解析歧义），新增一条依赖 = 加一行 `<After>`，对 AI 编辑最省力、最不易错。
 - **作用域单一**：一个 `<Dag>` 只描述**一个父节点的直接下层**之间的边；要给多个非叶节点配依赖，就写多个 `<Dag for=...>`。**不跨层、不跨父**，避免旧 `<Needs task on>` 那种全局扁平边带来的歧义。
 - 不再有全局 `mode`（执行模式是**逐层**的 `cdt:child-mode`）；不再手维护 `<waves>`/`wave=`，wave = 某 dag 层依赖的拓扑分层（派生视图，不入库）。
-- **波次调度执行细节**由 `std/sop/wave-exec.md` 和 `std/operations/implement.md` 定义；本规范只约束结构位置与格式。
+- **波次调度执行细节**由 `std/sop/wave-exec.md` 和 `std/operations/impl-track.md` 定义；本规范只约束结构位置与格式。
 
 ---
 
@@ -208,13 +211,14 @@ ID 约定（沿用旧规范的可读性）：phase=`P{n}`、task=`T{phase}.{n}`�
 | typed-child | 配置（在节点上） | 取代旧 |
 |---|---|---|
 | `<cdt:AttractorCheck use="<profile>"/>` | `use` = `attractor-profiles.xml` 的 profile 名（如 `coding`/`docs`）。执行器固定 **fresh-subagent**（由 std 提示词约定，不配置） | `<attractor-check>` |
-| `<cdt:GapLoop max-rounds="5" on-exhausted="block"/>` | `max-rounds` 上限、`on-exhausted`（`block`/…）直接写在属性上 | `validation_mode=yield-gap-loop` + `<confirm protocol="yield-gap-loop">` |
+| `<cdt:GapLoop max-rounds="5" on-exhausted="block" verify-round="false"/>` | `max-rounds` 上限、`on-exhausted`（`block`/…）、`verify-round`（见下）直接写在属性上 | `validation_mode=yield-gap-loop` + `<confirm protocol="yield-gap-loop">` |
 | `<cdt:HumanConfirm/>` | 暂无属性 | `validation_mode=yield-human-confirm` + `<confirm protocol="yield-human-confirm">` |
 
 - `on` 取值：`track:before|after`、`phase:before|after`、`task:before|after`。
 - **自包含**：check 的配置全在节点属性上；**无 `agents/` 定义注册表**。`AttractorCheck` 唯一的外部 ref 是 `use=` → `attractor-profiles.xml` 的 profile 名（决定校验对照哪些吸引子文件）；其审查方式（用 fresh-subagent）由 `std` 提示词统一约定。
 - **新建 track 默认方向审查**：每个第一层 phase（`TaskSpace` 的直接下层 `TaskGroup`）默认都应包含 `<Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>`；只有用户在创建 track 时明确选择关闭、改为终态 phase，或改用其他 profile（如 `docs`）时才覆盖。
 - **校验模式塌缩**：旧 `validation_mode`/`validation_granularity` = "在终态 phase（或每个 phase）挂哪个 typed check"。`every_phase` = 每个第一层 TaskGroup 都挂；`final_phase` = 仅最后一个挂。
+- **`<cdt:GapLoop verify-round="true|false">`**（可选，默认 `false`）：控制 gap-loop 的**首轮怀疑验证轮**——首轮返回 `NO_GAP` 且无历史报告时，`true` 才再 fresh-spawn 一轮（轻量）验证轮，`false`（默认）直接收口。属性缺省时取**全局默认 `false`**（约定；`config/operation-hooks.xml` 的 `<Operation name="gap-loop">` 可声明全局开关覆盖该约定）。节点属性覆盖全局默认（per-scope）。它**不**影响 `FIX_APPLIED` 复检——后者始终强制。创建 track 时在 §3.7 同轮确认里询问并写入各 GapLoop 节点；后续追加 phase 沿用同一设置。运行期语义见 `std/operations/gap-loop.md` §0.2.4。
 - track 级生命周期 hook（如归档前 docs 审查）也可写在 `<Track><Hooks>`；命令级（无 track 文件的操作）走 `config/operation-hooks.xml`（同语法）。
 
 ```xml
@@ -264,5 +268,5 @@ ID 约定（沿用旧规范的可读性）：phase=`P{n}`、task=`T{phase}.{n}`�
 2. `<TaskSpace>` 必需；第一层 SubNodes 至少一个 TaskGroup（phase）；id 全局唯一。
 3. `status` 属性为枚举。
 4. 每个 `<Schedule><Dag for="P">` 的 `for` 必须引用一个 `cdt:child-mode="dag"` 的节点；其 `<Node id>` 与子 `<After ref>` 只能引用该节点的**直接下层** id；该层内 DAG 无环。
-5. `<Hook on>` 取值合法；`<cdt:AttractorCheck use>` 能在 `config/attractor-profiles.xml` 解析到 profile；`<cdt:GapLoop>` 的 `max-rounds`/`on-exhausted` 合法。
+5. `<Hook on>` 取值合法；`<cdt:AttractorCheck use>` 能在 `config/attractor-profiles.xml` 解析到 profile；`<cdt:GapLoop>` 的 `max-rounds`/`on-exhausted` 合法，`verify-round`（如有）为 `true|false`。
 6. 格式良好的 XML；`cdt:` 命名空间已声明（track.xml 不需要 `config:`）。

@@ -71,6 +71,8 @@
 | `<Status>` | 必需，`new\|in_progress\|completed\|cancelled` 之一 |
 | `<Goal>` | 必需，字符串（旧 `goal`/`description`） |
 | `<CreatedAt>` / `<UpdatedAt>` | 必需，ISO 8601 |
+| `<QuestionMode>` | 可选，`decision-tree`（未指定按 `decision-tree` 处理） |
+| `<QuestionSeverity>` | 可选，`auto\|light\|normal\|deep`（未指定按 `light` 处理） |
 | `<CommitMode>` | 可选，`auto\|manual` |
 
 > 旧 metadata 的 `type`（feature/bug/chore/refactor）若保留则校验枚举；`execution_mode`/`validation_mode`/`summary` 已迁出 `<Metadata>`（分别到 `<Schedule>`/`<Hooks>`/工具派生），不应出现在 `<Metadata>`。
@@ -189,8 +191,8 @@
 
 如果存在 `codument/config/operation-hooks.xml`：
 
-- [ ] 根节点是 `<operation-hooks version="1">`（或等价 `<Hook on>` 同构语法）。
-- [ ] `<Hook on="...">` 使用已知 operation 生命周期点，例如 `track:after-design`、`archive:before`、`revise-track:before`。
+- [ ] 根节点是 `<OperationHooks version="1">`（或等价 `<Hook on>` 同构语法）。
+- [ ] `<Hook on="...">` 使用已知 operation 生命周期点，例如 `plan-track:before`、`plan-mission:before`、`archive-track:after`、`revise-track:before`。
 - [ ] hook 内嵌套的 `<cdt:AttractorCheck>`/`<cdt:ArtifactSync>`/`<cdt:GapLoop>`/`<cdt:HumanConfirm>` 遵循同一套 DSL。
 - [ ] `<cdt:AttractorCheck use="...">` 解析到 `attractor-profiles.xml` 的 profile，不使用 direct 文件属性。
 - [ ] 缺失 `operation-hooks.xml` 是合法状态，不产生错误。
@@ -247,7 +249,7 @@ Behaviors:
 
 ## 9. 独立验证子代理模式
 
-当本 skill 被旧 `codument-execute-wave` 入口作为验证子代理调用时，执行以下独立验证流程；当前标准下波次执行已并入 `codument-implement`。
+当本 skill 被旧 `codument-execute-wave` 入口作为验证子代理调用时，执行以下独立验证流程；当前标准下波次执行已并入 `codument-impl-track`。
 
 ### 9.1 触发条件
 

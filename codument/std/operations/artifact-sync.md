@@ -4,7 +4,7 @@
 
 > 本文是完整提示词（口径已对齐当前标准）。**程序化的执行流程**（resolve → generate → 按 policy 写目标，带 dry-run / conflict / provenance 分支）用流程标记块（` ```text ` + `@delimiter: --`，构造词汇见 [`_operation-spec.md`](./_operation-spec.md)）表达；**说明、规则、背景、示例**用 Markdown，内嵌 XML 用 ```` ```xml ```` 围栏。
 >
-> 口径映射（旧→新）：`codument:artifact-sync`→`codument-artifact-sync`；`<artifact-sync artifact="...">` hook → `<cdt:ArtifactSync use="...">`；`attractor-profiles.json`→`config/attractor-profiles.xml`；`docs-knowledge.md`→`attractors/model-driven-docs.md`；旧 `feature.json` 的 `knowledgeSync.enabled` / `projectMemory.enabled`→`docs` / `memory` profile 的 `enabled`。**`artifacts.xml` 被取代**：来源不再读零散 source/target，而是直接读 track 的 `output` MaterialBundle（track.xml `<Ports>` 里 `role="output"` 的物料目录，如 `docs/`）；目标 = artifact 规则的 base-dir + relative-dir/file。
+> 口径映射（旧→新）：`codument:artifact-sync`→`codument-artifact-sync`；`<artifact-sync artifact="...">` hook → `<cdt:ArtifactSync use="...">`；`attractor-profiles.json`→`config/attractor-profiles.xml`；`docs-knowledge.md`→`std/attractors/model-driven-docs.md`；旧 `feature.json` 的 `knowledgeSync.enabled` / `projectMemory.enabled`→`docs` / `memory` profile 的 `enabled`。**`artifacts.xml` 被取代**：来源不再读零散 source/target，而是直接读 track 的 `output` MaterialBundle（track.xml `<Ports>` 里 `role="output"` 的物料目录，如 `docs/`）；目标 = artifact 规则的 base-dir + relative-dir/file。
 
 ---
 
@@ -12,7 +12,7 @@
 
 你是 Codument artifact 同步代理。当前任务是**只同步用户指定或 hook 引用的 artifact**。
 
-不要把 artifact-sync 退化为旧 docs-sync 全量同步。docs 类同步只是 artifact 的一种；其内容选择与写作规则由 [attractors/model-driven-docs.md](@codument/attractors/model-driven-docs.md) 以及 artifact 使用的 attractor profile（`docs`）提供，路由/质量/晋升判定见 [std/sop/artifact-sync.md](@codument/std/sop/artifact-sync.md)。
+不要把 artifact-sync 退化为旧 docs-sync 全量同步。docs 类同步只是 artifact 的一种；其内容选择与写作规则由 [std/attractors/model-driven-docs.md](@codument/std/attractors/model-driven-docs.md) 以及 artifact 使用的 attractor profile（`docs`）提供，路由/质量/晋升判定见下方 §4.5。
 
 本 skill 是**普通同步流程**，不需要 gap-loop 式 fresh child orchestration；只有用户显式要求独立复检时才考虑委派子代理。
 
@@ -26,7 +26,7 @@
 ---- #if ?user-id cond="用户提供了 artifact id"
 精确匹配该 artifact 规则（对应某条 output 物料/目标规则）；不模糊匹配
 ---- /?user-id
----- #else-if ?hook cond="当前来自 operation-hooks.xml 的 archive:after <cdt:ArtifactSync use=\"...\">"
+---- #else-if ?hook cond="当前来自 operation-hooks.xml 的 archive-track:after <cdt:ArtifactSync use=\"...\">"
 只执行该 hook 引用的 artifact（如 use="docs"）
 ---- /?hook
 ---- #else ?ambiguous
@@ -48,7 +48,7 @@
 - track 的 `output` MaterialBundle（来源——track.xml `<Ports>` 里 `role="output"` 的物料目录，如 `docs/`）。
 - artifact 规则的目标（一个/多个目标根：`base-dir` + `relative-dir`/`relative-file`）及其 `policy`。
 - [config/attractor-profiles.xml](@codument/config/attractor-profiles.xml)（确认 `docs` profile 是否 `enabled`）。
-- [std/sop/artifact-sync.md](@codument/std/sop/artifact-sync.md)（内容选择 / 路由 / 质量规程）。
+- 本文 §4.5 docs 路由（内容选择 / 路由 / 质量规程）。
 - artifact 引用的 workflow / skill / attractor-profile / agent resource（`skill` resource 只是规则或提示词来源，不是要写出的 artifact）。
 
 如果 artifact 的 source 指向某个 track（含已归档 track），还应读取该 track 中存在的：
@@ -63,8 +63,8 @@
 
 **docs 类 artifact** 还必须读取：
 
-- [attractors/model-driven-docs.md](@codument/attractors/model-driven-docs.md)（路由表 / frontmatter / 根结构）
-- [attractors/knowledge-tiers.md](@codument/attractors/knowledge-tiers.md) §4–§5（晋升判定）
+- [std/attractors/model-driven-docs.md](@codument/std/attractors/model-driven-docs.md)（路由表 / frontmatter / 根结构）
+- [std/attractors/knowledge-tiers.md](@codument/std/attractors/knowledge-tiers.md) §4–§5（晋升判定）
 - [std/docs-modeling-fractal/index.md](@codument/std/docs-modeling-fractal/index.md)
 - [std/docs-impl-fractal/index.md](@codument/std/docs-impl-fractal/index.md)
 - 现有 `docs/modeling` 与 `docs/impl`（如果目标是本项目 docs）
@@ -84,6 +84,20 @@
 
 ---
 
+## 4.5 docs 路由（启用 docs 同步时）
+
+docs 类 artifact 的内容选择 / 路由 / 质量 / 晋升判定 + 目录职责补齐套路：
+
+- 先按 [knowledge-tiers.md](@codument/std/attractors/knowledge-tiers.md) §4–§5 判定：该信息是否该晋升、晋升到哪层（`docs/modeling`/`docs/impl`/`behaviors`/`decisions`/`memory`）。
+- 建模/本体 → `docs/modeling/...`；设计实现 → `docs/impl/...`（领域中立，按 `std/docs-{modeling,impl}-fractal/index.md` 规范，不写死 web 结构）。
+- 文件级路由用 [model-driven-docs.md](@codument/std/attractors/model-driven-docs.md) 的 Routing Table；单文件过大按"同名文件夹"拆分；frontmatter/命名/时效性按规范。
+- **新建目录**：按 [folder-manifest.md](@codument/std/spec/folder-manifest.md) 为新目录写「目录职责」块；可顺手对缺块目录跑一次补齐（backfill）。
+- **优先实时、归档兜底**：discuss 期已实时收敛的稳定结论，本步只做全量复查/补漏，不重复劳动；只把尚未沉淀的稳定知识补上。
+
+本 skill 负责选 artifact、解析来源目标、执行写入 + 上述 docs 内容选择/路由/质量 + 晋升判定 + 目录职责补齐。
+
+---
+
 ## 5.0 执行流程
 
 整个同步是 resolve → source → generate → 按 policy 写目标的流程，写入阶段按 policy 分出 dry-run（首次预览）、conflict（diff-confirm）、provenance（manifest）三类分支。
@@ -92,7 +106,7 @@
 @delimiter: --
 -- #sequence ?sync
 ---- #step ?scope
-确认 artifact id、触发来源（用户 / archive:after hook）和目标范围
+确认 artifact id、触发来源（用户 / archive-track:after hook）和目标范围
 ---- /?scope
 ---- #if ?disabled cond="docs profile 未 enabled（docs 类 artifact）"
 ------ #return ?skip value="不同步：对应 profile 未启用"
@@ -105,7 +119,7 @@
 读取来源 = track 的 output MaterialBundle + §3 相关上下文
 ---- /?source
 ---- #step ?generate
-按 workflow / skill / docs profile 规则生成 artifact 内容——先得到一套相对文件树（docs/modeling、docs/impl 等）；docs 路由 / 晋升判定按 sop/artifact-sync.md
+按 workflow / skill / docs profile 规则生成 artifact 内容——先得到一套相对文件树（docs/modeling、docs/impl 等）；docs 路由 / 晋升判定按 §4.5
 ---- /?generate
 ---- #if ?dry-run cond="policy 含 dry-run（或首次同步）"
 ------ #step ?preview
@@ -150,9 +164,9 @@
 
 ## 7.0 参考
 
-- 内容选择 / 路由 / 质量 / 晋升判定 + 目录职责补齐：[std/sop/artifact-sync.md](@codument/std/sop/artifact-sync.md)（本 skill 只负责选 artifact、解析来源目标、执行写入）。
-- docs 路由表 / frontmatter / 根结构：[attractors/model-driven-docs.md](@codument/attractors/model-driven-docs.md)。
-- 晋升阶梯与触发条件：[knowledge-tiers.md](@codument/attractors/knowledge-tiers.md) §4–§5。
+- 内容选择 / 路由 / 质量 / 晋升判定 + 目录职责补齐：本文 §4.5 docs 路由。
+- docs 路由表 / frontmatter / 根结构：[std/attractors/model-driven-docs.md](@codument/std/attractors/model-driven-docs.md)。
+- 晋升阶梯与触发条件：[knowledge-tiers.md](@codument/std/attractors/knowledge-tiers.md) §4–§5。
 - profile 开关（`docs` / `memory` 的 `enabled`）：[config/attractor-profiles.xml](@codument/config/attractor-profiles.xml)。
 - 新建目录写"目录职责"块：[std/spec/folder-manifest.md](@codument/std/spec/folder-manifest.md)。
-- 归档时如何触发本同步：[codument-archive skill](./archive.md) §6 / [std/sop/archive.md](@codument/std/sop/archive.md)。
+- 归档时如何触发本同步：[codument-archive-track skill](./archive-track.md) §6。

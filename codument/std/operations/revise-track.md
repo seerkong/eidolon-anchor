@@ -45,20 +45,18 @@
 
 ---
 
-## 3. 修订前 Hook（revise:before）
+## 3. 修订前 Hook（revise-track:before）
 
-若 `operation-hooks.xml` 中存在 `operation name="revise-track"` 的 `point="before-revise"` hook，则在修改**任何** track 文件**之前**执行它。常见配置是**方向审查**（默认 `cdt:AttractorCheck use="coding"`）：
+若 `operation-hooks.xml` 中存在 `Operation name="revise-track"` 的 `<Hook on="revise-track:before">`，则在修改**任何** track 文件**之前**执行它。常见配置是**方向审查**（默认 `cdt:AttractorCheck use="coding"`）：
 
 ```xml
-<operation name="revise-track">
-  <hook point="before-revise">
-    <cdt:AttractorCheck use="coding" when="before" status="TODO" executor="fresh-subagent">
-      <result-policy on-gap="confirm-before-fix">
-        <cdt:HumanConfirm when="after" status="TODO"/>
-      </result-policy>
-    </cdt:AttractorCheck>
-  </hook>
-</operation>
+<Operation name="revise-track">
+  <Hooks>
+    <Hook on="revise-track:before">
+      <cdt:AttractorCheck use="coding"/>
+    </Hook>
+  </Hooks>
+</Operation>
 ```
 
 **若 hook 返回 `BLOCKED`，不要修改 track 文件**——按 result-policy 处理（如等待用户确认）后再决定是否继续。
@@ -114,9 +112,9 @@
 
 ---
 
-## 6. 修订后 Hook（revise:after）
+## 6. 修订后 Hook（revise-track:after）
 
-若 `operation-hooks.xml` 中存在 `point="after-revise"` hook，修订完成后执行——可用于人工确认、吸引子复检或生成下一步建议。
+若 `operation-hooks.xml` 中存在 `<Hook on="revise-track:after">`，修订完成后执行——可用于人工确认、吸引子复检或生成下一步建议。
 
 ---
 
@@ -127,7 +125,7 @@
 - **修改过的 track 文件**（哪些 behavior_deltas / design / track.xml / analysis / decisions）；
 - **修订原因**；
 - **是否执行了 operation hook**（before / after，及结果）；
-- **推荐下一步**：继续 `codument-implement`、运行 `codument-gap-loop`、再次 `codument-revise-track`，或 `codument-archive`。
+- **推荐下一步**：继续 `codument-impl-track`、运行 `codument-gap-loop`、再次 `codument-revise-track`，或 `codument-archive-track`。
 
 ---
 

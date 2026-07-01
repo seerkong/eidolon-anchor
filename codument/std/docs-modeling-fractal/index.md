@@ -2,7 +2,7 @@
 
 > 本标准定义 `docs/modeling/` 的写作方式。它**不是一棵要照抄的固定目录树**，而是一条**递归规则**：同一套"知识节点"规则在每一层复用，每个业务领域用它**长出自己的目录结构**。
 >
-> 共享内容（节点不变量、frontmatter、根布局、同名文件夹演化、迁移台账、track 同步）见 [model-driven-docs.md](../../attractors/model-driven-docs.md)。本文件只讲 **modeling 侧特有**的约定，不重复共享部分。
+> 共享内容（节点不变量、frontmatter、根布局、同名文件夹演化、迁移台账、track 同步）见 [model-driven-docs.md](../attractors/model-driven-docs.md)。本文件只讲 **modeling 侧特有**的约定，不重复共享部分。
 
 ## 1. 一句话心法
 
@@ -132,7 +132,7 @@ last_verified: YYYY-MM-DD
 
 ## 5. Frontmatter（用受控精简 schema）
 
-字段集与含义在 [model-driven-docs.md](../../attractors/model-driven-docs.md) 统一定义。modeling 侧附加约定：
+字段集与含义在 [model-driven-docs.md](../attractors/model-driven-docs.md) 统一定义。modeling 侧附加约定：
 
 - `context:` 必填。
 - `derived_from:` **只写一个**最近的 canonical 父来源（一行）。**不要堆十几行来源清单**——长来源关系写正文或 `code-map.md`。

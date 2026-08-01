@@ -234,7 +234,7 @@ describe("message list dialog", () => {
       await renderSettled(setup, 6)
 
       const text = captureText(setup)
-      expect(text).toContain("shift+enter newline")
+      expect(text).toContain("Enter 发送 · Ctrl+J or Shift+Enter 换行")
       expect(text).not.toContain("正在加载会话...")
     } finally {
       setup.renderer.destroy()

@@ -63,7 +63,7 @@ const TIPS = [
   "The leader key is {highlight}Ctrl+X{/highlight}; combine it with the shortcuts shown in status and help surfaces",
   "Use {highlight}PageUp{/highlight}/{highlight}PageDown{/highlight} to navigate through conversation history",
   "Press {highlight}Home{/highlight} or {highlight}End{/highlight} to jump to the start or end of the visible conversation",
-  "Press {highlight}shift+enter{/highlight} to add a newline in the composer without submitting",
+  "Press {highlight}ctrl+j{/highlight} or {highlight}shift+enter{/highlight} to add a newline in the composer without submitting",
   "Click {highlight}会话{/highlight} in the bottom bar to resume an existing conversation",
   "Open {highlight}菜单{/highlight} then {highlight}使用说明{/highlight} to browse keyboard shortcuts",
   "Run {highlight}/help{/highlight} from the prompt or pick Help in the command palette to reopen the guide",

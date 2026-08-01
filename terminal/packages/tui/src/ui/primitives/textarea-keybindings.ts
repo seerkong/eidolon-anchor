@@ -60,6 +60,9 @@ function mapTextareaKeybindings(
       super: binding.super || undefined,
       action,
     })
+    if (action === "newline" && binding.ctrl && binding.name === "j") {
+      results.push({ name: "linefeed", action })
+    }
   }
 
   return results

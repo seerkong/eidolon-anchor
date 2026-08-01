@@ -8,6 +8,7 @@ import { useKeybind } from "../../../../providers/keybind"
 import { tuiA1Theme as theme } from "../../theme"
 import { useDialog } from "../../../../ui/dialog/context"
 import { DialogSelect } from "../../../../ui/dialog/select"
+import { useTextareaKeybindings } from "../../../../ui/primitives/textarea-keybindings"
 import { useLocal } from "../../state/local-context"
 import { formatAgentOptionDescription, sortAgentsByCurrent } from "../../system/agent/agent-option"
 import { movePromptHistoryCursor, usePromptHistory, type PromptHistoryState } from "./model/prompt-history"
@@ -24,12 +25,22 @@ import {
 import type { PromptInfo } from "./model/prompt-info"
 import { DialogWorkspaceFilePicker } from "./file-picker-dialog"
 
-const composerBindings: KeyBinding[] = [
+const fallbackComposerBindings: KeyBinding[] = [
   { name: "return", action: "submit" },
-  { name: "linefeed", action: "submit" },
+  { name: "linefeed", action: "newline" },
   { name: "return", shift: true, action: "newline" },
   { name: "linefeed", shift: true, action: "newline" },
+  { name: "return", ctrl: true, action: "newline" },
+  { name: "j", ctrl: true, action: "newline" },
 ]
+
+function safeUseTextareaKeybindings() {
+  try {
+    return useTextareaKeybindings()
+  } catch {
+    return () => fallbackComposerBindings
+  }
+}
 
 function safeUseDialog() {
   try {
@@ -106,6 +117,7 @@ export function Composer(props: {
   const renderer = useRenderer()
   const dialog = safeUseDialog()
   const keybind = safeUseKeybind()
+  const composerBindings = safeUseTextareaKeybindings()
   const local = safeUseLocal()
   const promptHistory = safeUsePromptHistory()
   const stateContext = useTuiA1StateOptional()
@@ -431,9 +443,7 @@ export function Composer(props: {
               ? props.blockLabel ?? "approval required before submit"
               : props.busy
                 ? "streaming local reply"
-                : `shift+enter newline · ctrl+g mention · ctrl+o file · ${
-                    keybind.print("input_clear") || "ctrl+shift+l"
-                  } clear`)}
+                : "Enter 发送 · Ctrl+J or Shift+Enter 换行")}
         </text>
       </box>
       <Show when={store.prompt.parts.length > 0}>
@@ -472,7 +482,7 @@ export function Composer(props: {
             maxHeight={4}
             initialValue={value()}
             placeholder={composerPlaceholder()}
-            keyBindings={composerBindings}
+            keyBindings={composerBindings()}
             textColor={theme.text}
             focusedTextColor={theme.text}
             placeholderColor={theme.textMuted}

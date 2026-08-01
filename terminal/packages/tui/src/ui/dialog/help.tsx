@@ -42,7 +42,7 @@ export function DialogHelp() {
           <b>Prompt and history</b>
         </text>
         <text fg={theme.textMuted}>Use /actor, /member and /holon for the current shortcut command families.</text>
-        <text fg={theme.textMuted}>Press shift+enter to insert a newline without sending the prompt, and use ctrl+shift+l to clear the current draft.</text>
+        <text fg={theme.textMuted}>Press ctrl+j or shift+enter to insert a newline without sending the prompt, and use ctrl+shift+l to clear the current draft.</text>
         <text fg={theme.textMuted}>Use PageUp / PageDown / Home / End to browse history, then click the composer to return input focus without losing draft text.</text>
       </box>
       <box paddingBottom={1} flexDirection="column" gap={1}>

@@ -1,0 +1,13 @@
+<behaviors capability="vendor-data-graph-tui-projection" version="1">
+  <requirement id="unified-computed-projection">
+    <statement>TuiA1StateGraph SHALL derive all projection signals through the unified DataGraph computed runtime and preserve projection values, updates, and TUI graph behavior.</statement>
+    <suite id="tui-projection">
+      <case id="computed-reads">
+        <given>the TUI graph has a snapshot and derived projection signals</given>
+        <when>the projections are read or snapshot state changes</when>
+        <then>their getters SHALL use runtime.graph.get and SHALL NOT use ctx.get</then>
+        <then>focused TUI graph and integration tests SHALL pass</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

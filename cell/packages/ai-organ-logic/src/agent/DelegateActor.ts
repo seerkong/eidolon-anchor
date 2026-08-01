@@ -4,11 +4,14 @@ import { ensureVmRuntimeContext, type AiAgentVm } from "@cell/ai-core-logic/runt
 import { createAiAgentOrchestratorDriverWithCooperative } from "../OrchestratorDriver"
 import { seedConversationDomainFromActorSeedMessages } from "../exec/AiAgentExecutor"
 import {
+  DEFAULT_DETACHED_DELEGATE_TASK_KEY,
   DETACHED_ACTOR_KINDS,
   DETACHED_ACTOR_STATUSES,
   type DetachedActorKind,
   getDetachedActorRegistry,
+  normalizeDetachedDelegateTaskKey,
 } from "../detached/DetachedActorRegistry"
+import type { DetachedDelegateSingleFlightScope } from "@cell/ai-core-contract/runtime/AiAgentVm"
 import { normalizeDelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode"
 import { resolveDelegateLane } from "../lane/AiAgentLane"
 import { resolveDelegateWorkload } from "../lane/AiAgentWorkload"
@@ -27,6 +30,7 @@ export async function spawnChildExecutionActor(
     prompt: string
     agentType: string
     mode?: "sync_wait" | "detached"
+    taskKey?: string
     toolCallId?: string
     detachedActorKind?: DetachedActorKind
   },
@@ -36,6 +40,34 @@ export async function spawnChildExecutionActor(
     throw new Error(`Unknown agent type '${params.agentType}'`)
   }
 
+  const mode = normalizeDelegateRunMode(params.mode)
+  const taskKind = mode === "detached"
+    ? (params.detachedActorKind ?? DETACHED_ACTOR_KINDS.delegate)
+    : DETACHED_ACTOR_KINDS.delegate
+  const singleFlightScope: DetachedDelegateSingleFlightScope | undefined =
+    mode === "detached" && taskKind === DETACHED_ACTOR_KINDS.delegate
+      ? {
+          parentActorKey: parentActor.key,
+          parentActorId: parentActor.id,
+          agentType: params.agentType,
+          taskKey: normalizeDetachedDelegateTaskKey(
+            params.taskKey ?? DEFAULT_DETACHED_DELEGATE_TASK_KEY,
+          ),
+        }
+      : undefined
+  const registry = mode === "detached" ? getDetachedActorRegistry(vm) : null
+  if (singleFlightScope && registry) {
+    const active = registry.findActiveDelegateTask(singleFlightScope)
+    if (active) {
+      return JSON.stringify({
+        task_id: active.taskId,
+        status: active.status,
+        reused: true,
+      })
+    }
+  }
+
+  const taskId = mode === "detached" ? makeTaskId() : ""
   const allowedTools = config.tools === "*" ? [] : [...config.tools]
 
   const buildSystemMessages = vm.callbacks.buildSystemMessages
@@ -51,8 +83,8 @@ export async function spawnChildExecutionActor(
 
   const parentWorkContext = getActorWorkContext(parentActor)
   const actor = createActor({
-    key: `${parentActor.key}:${params.agentType}:${Date.now()}`,
-    type: normalizeDelegateRunMode(params.mode) === "detached" ? "detached" : "delegate",
+    key: `${parentActor.key}:${params.agentType}:${taskId || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`,
+    type: mode === "detached" ? "detached" : "delegate",
     agentName: params.agentType,
     llmClient: parentActor.llmClient,
     modelConfig: parentActor.modelConfig,
@@ -94,7 +126,6 @@ export async function spawnChildExecutionActor(
   seedConversationDomainFromActorSeedMessages({ vm, actor, seedMessages: actor.messages })
   let cleanupMode: "immediate" | "orchestrator_managed" | "retain" = "immediate"
   try {
-    const mode = normalizeDelegateRunMode(params.mode)
     const orch = ensureVmRuntimeContext(vm).currentOrchestrator
 
     // If an orchestrator is active for this VM, spawn a child execution actor/fiber
@@ -103,23 +134,8 @@ export async function spawnChildExecutionActor(
       const childFiberId = `${actor.key}:${actor.id}`
       const messages = [...actor.messages]
 
-      const taskId = mode === "detached" ? makeTaskId() : ""
-      const taskKind = mode === "detached"
-        ? (params.detachedActorKind ?? DETACHED_ACTOR_KINDS.delegate)
-        : DETACHED_ACTOR_KINDS.delegate
       if (mode === "detached") {
-        actor.detachedTask = {
-          taskId,
-          kind: taskKind,
-          status: DETACHED_ACTOR_STATUSES.pending,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          toolCallId: typeof params.toolCallId === "string" ? params.toolCallId : undefined,
-          parentFiberId: orch.parentFiberId,
-          childFiberId,
-        }
-        const registry = getDetachedActorRegistry(vm)
-        registry.create({
+        registry!.create({
           taskId,
           kind: taskKind,
           status: DETACHED_ACTOR_STATUSES.pending,
@@ -128,6 +144,7 @@ export async function spawnChildExecutionActor(
           childFiberId,
           childActorKey: actor.key,
           childActorId: actor.id,
+          singleFlightScope,
         })
       }
 
@@ -159,7 +176,11 @@ export async function spawnChildExecutionActor(
         return "WAIT_FOR_CHILD_DONE"
       }
 
-      return JSON.stringify({ task_id: taskId, status: DETACHED_ACTOR_STATUSES.pending })
+      return JSON.stringify({
+        task_id: taskId,
+        status: DETACHED_ACTOR_STATUSES.pending,
+        reused: false,
+      })
     }
 
     // Run the delegate actor immediately in an isolated driver.

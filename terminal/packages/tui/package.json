@@ -17,8 +17,8 @@
     "@types/yargs": "^17.0.32"
   },
   "dependencies": {
-    "depa-data-graph-core": "^0.1.0",
-    "depa-data-graph-solid": "^0.1.0",
+    "depa-data-graph-core": "^1.0.1",
+    "depa-data-graph-solid": "^1.0.1",
     "@opentui/core": "0.1.96",
     "@opentui/solid": "0.1.96",
     "@solid-primitives/event-bus": "^0.1.0",

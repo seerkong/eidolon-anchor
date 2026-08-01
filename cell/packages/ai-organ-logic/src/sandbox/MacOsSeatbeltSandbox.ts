@@ -55,6 +55,12 @@ function defaultTempDir(): string {
   return normalizePathForSandbox(process.env.TMPDIR || os.tmpdir());
 }
 
+function writableScratchAndWorkspaceRoots(options: MacOsSeatbeltPolicyOptions, tempDir: string): string[] {
+  return options.sandboxMode === "workspace-write"
+    ? [...options.writableRoots, tempDir]
+    : [tempDir];
+}
+
 function buildWritableRootPolicy(writableRoots: string[]): { policy: string; params: Array<[string, string]> } {
   const roots = uniqueResolvedPaths(writableRoots);
   const params: Array<[string, string]> = [];
@@ -125,9 +131,7 @@ const BASE_SEATBELT_POLICY = [
 
 export function createMacOsSeatbeltPolicy(options: MacOsSeatbeltPolicyOptions): string {
   const tempDir = path.resolve(options.tempDir || defaultTempDir());
-  const writableRootPolicy = buildWritableRootPolicy(
-    options.sandboxMode === "workspace-write" ? [...options.writableRoots, tempDir] : [],
-  );
+  const writableRootPolicy = buildWritableRootPolicy(writableScratchAndWorkspaceRoots(options, tempDir));
   const networkPolicy =
     options.networkAccess === "enabled"
       ? [
@@ -154,9 +158,7 @@ export function createMacOsSeatbeltPolicy(options: MacOsSeatbeltPolicyOptions): 
 
 export function createMacOsSeatbeltCommand(options: MacOsSeatbeltCommandOptions): MacOsSeatbeltCommand {
   const tempDir = path.resolve(options.tempDir || defaultTempDir());
-  const writableRootPolicy = buildWritableRootPolicy(
-    options.sandboxMode === "workspace-write" ? [...options.writableRoots, tempDir] : [],
-  );
+  const writableRootPolicy = buildWritableRootPolicy(writableScratchAndWorkspaceRoots(options, tempDir));
   const policy = createMacOsSeatbeltPolicy({
     sandboxMode: options.sandboxMode,
     networkAccess: options.networkAccess,

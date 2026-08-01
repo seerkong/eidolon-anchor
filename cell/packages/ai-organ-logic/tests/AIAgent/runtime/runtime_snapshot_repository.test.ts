@@ -31,6 +31,12 @@ describe("Runtime snapshot repository", () => {
       type: "delegate" as any,
       parentKey: "main",
       systemPrompts: ["you are worker"],
+      profileSystemPromptProvenance: {
+        owner: "runtime_profile",
+        profileId: "ai-coding",
+        promptIndex: 0,
+        contentDigest: "worker-profile-digest",
+      },
       messages: [{ role: "user", content: "hello" } as any],
       identity: { kind: "member", memberId: "t-1", name: "Alice", role: "worker", lane: "member" } as any,
       planApproval: {
@@ -69,6 +75,7 @@ describe("Runtime snapshot repository", () => {
 
     expect(restored.key).toBe(actor.key)
     expect(restored.parentKey).toBe("main")
+    expect(restored.profileSystemPromptProvenance).toEqual(actor.profileSystemPromptProvenance)
     expect(restored.identity).toEqual(actor.identity)
     expect(restored.planApproval?.requestId).toBe("req-1")
     expect(restored.shutdownCoordination?.requestId).toBe("req-2")
@@ -91,7 +98,24 @@ describe("Runtime snapshot repository", () => {
     const repository = new LocalFileRuntimeSnapshotRepository(rootDir)
 
     const root = createActor({ key: "main", messages: [{ role: "system", content: "hi" } as any] })
-    const worker = createActor({ key: "worker", type: "delegate" as any })
+    const worker = createActor({
+      key: "worker",
+      type: "delegate" as any,
+      systemPrompts: ["worker profile"],
+      continuationBaseline: {
+        baselineEpoch: 4,
+        lastResetReason: null,
+        latestResponseId: "resp-snapshot-4",
+        contextDigest: "sha256:provider-visible-context",
+        updatedAt: "2026-07-18T12:00:00.000Z",
+      },
+      profileSystemPromptProvenance: {
+        owner: "runtime_profile",
+        profileId: "ai-coding",
+        promptIndex: 0,
+        contentDigest: "worker-profile-digest",
+      },
+    })
     const vm = createVM({ controlActorKey: root.key, actors: { [root.key]: root, [worker.key]: worker } })
 
     const vmSnapshot = serializeVM(vm)
@@ -137,6 +161,14 @@ describe("Runtime snapshot repository", () => {
     expect(typeof manifest?.vmFile).toBe("string")
     expect(Object.keys(manifest?.actorFiles ?? {})).toContain(root.key)
     const loaded = await repository.loadSnapshot()
+    expect(loaded?.actors.worker?.profileSystemPromptProvenance).toEqual(actorSnapshot.profileSystemPromptProvenance)
+    expect(loaded?.actors.worker?.continuationBaseline?.contextDigest).toBe("sha256:provider-visible-context")
+    const recoveredWorker = hydrateActor(loaded!.actors.worker!)
+    expect(recoveredWorker.continuationBaseline).toEqual(expect.objectContaining({
+      baselineEpoch: 4,
+      latestResponseId: "resp-snapshot-4",
+      contextDigest: "sha256:provider-visible-context",
+    }))
     expect(loaded?.questionnaires.map((row) => row.questionnaireId)).toEqual(["q1"])
     const questionnaireXnl = fs.readFileSync(path.join(rootDir, "questionnaires.xnl"), "utf8").trim()
     expect(questionnaireXnl.startsWith("<QuestionnaireRow")).toBe(true)

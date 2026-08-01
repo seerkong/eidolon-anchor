@@ -1,6 +1,6 @@
 {
-  "recordedAt": "2026-06-11T17:16:47.935Z",
-  "source": "legacy raw-array assembly recorded immediately before its deletion in T4.3 (track refactor-ai-semantic-conversation-spine)",
+  "recordedAt": "2026-07-18T00:00:00.000Z",
+  "source": "domain materialization fixed dynamic boundary (track harden-responses-hybrid-continuation)",
   "scenarios": {
     "multi_turn_text": [
       {
@@ -28,16 +28,16 @@
             "content": "You are the equivalence harness primary agent."
           },
           {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
             "role": "user",
             "content": "Hello there. Please introduce yourself."
           },
           {
             "role": "assistant",
             "content": "Hi, I am the harness agent."
-          },
-          {
-            "role": "system",
-            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
           },
           {
             "role": "user",
@@ -53,16 +53,16 @@
             "content": "You are the equivalence harness primary agent."
           },
           {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
             "role": "user",
             "content": "Hello there. Please introduce yourself."
           },
           {
             "role": "assistant",
             "content": "Hi, I am the harness agent."
-          },
-          {
-            "role": "system",
-            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
           },
           {
             "role": "user",
@@ -196,16 +196,16 @@
             "content": "You are the equivalence harness planning agent."
           },
           {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
             "role": "user",
             "content": "Plan the conversation spine refactor."
           },
           {
             "role": "assistant",
             "content": "Here is the read-only plan: inspect, contract, switch."
-          },
-          {
-            "role": "system",
-            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
           },
           {
             "role": "user",
@@ -221,16 +221,16 @@
             "content": "You are the equivalence harness planning agent."
           },
           {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
             "role": "user",
             "content": "Plan the conversation spine refactor."
           },
           {
             "role": "assistant",
             "content": "Here is the read-only plan: inspect, contract, switch."
-          },
-          {
-            "role": "system",
-            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
           },
           {
             "role": "user",
@@ -269,16 +269,16 @@
             "content": "You are the equivalence harness long-session agent."
           },
           {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
             "role": "user",
             "content": "Investigate the duplicate-message incident."
           },
           {
             "role": "assistant",
             "content": "I inspected the executor drain path and found candidate causes."
-          },
-          {
-            "role": "system",
-            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
           },
           {
             "role": "user",
@@ -294,6 +294,10 @@
             "content": "You are the equivalence harness long-session agent."
           },
           {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
             "role": "user",
             "content": "Summary: the incident stems from dual truth between array and domains."
           },
@@ -308,10 +312,6 @@
           {
             "role": "assistant",
             "content": "The rebuild path reads both the array and the domain ledger."
-          },
-          {
-            "role": "system",
-            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
           },
           {
             "role": "user",
@@ -327,6 +327,10 @@
             "content": "You are the equivalence harness long-session agent."
           },
           {
+            "role": "system",
+            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
+          },
+          {
             "role": "user",
             "content": "Summary: the incident stems from dual truth between array and domains."
           },
@@ -341,10 +345,6 @@
           {
             "role": "assistant",
             "content": "The rebuild path reads both the array and the domain ledger."
-          },
-          {
-            "role": "system",
-            "content": "<runtime_work_context>\nwork_mode: build\ntask_phase: normal\ninstruction: build mode means execute the requested change using the normal tool policy.\n</runtime_work_context>"
           },
           {
             "role": "user",

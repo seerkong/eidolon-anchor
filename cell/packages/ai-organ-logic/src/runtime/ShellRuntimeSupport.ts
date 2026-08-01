@@ -17,6 +17,7 @@ import {
   ProviderRuntimeLlmAdapter,
   type LlmAdapterType,
 } from "../llm"
+import type { LlmProviderRuntime } from "@cell/ai-organ-contract/llm/ProviderRuntime"
 
 export {
   extractProviderOptions,
@@ -53,6 +54,7 @@ export type RuntimeLlmAdapterFactoryOverride = null | ((
   adapterType: LlmAdapterType,
   workDir: string,
   overrides?: RuntimeAdapterOverrides,
+  runtime?: Partial<LlmProviderRuntime>,
 ) => Promise<any>)
 
 export async function createRuntimeLlmAdapter(params: {
@@ -62,9 +64,10 @@ export async function createRuntimeLlmAdapter(params: {
   useMock?: boolean
   overrides?: RuntimeAdapterOverrides
   factoryOverride?: RuntimeLlmAdapterFactoryOverride
+  runtime?: Partial<LlmProviderRuntime>
 }) {
   if (params.factoryOverride) {
-    const overridden = await params.factoryOverride(params.adapterType, params.workDir, params.overrides)
+    const overridden = await params.factoryOverride(params.adapterType, params.workDir, params.overrides, params.runtime)
     if (overridden) return overridden
   }
 
@@ -90,6 +93,7 @@ export async function createRuntimeLlmAdapter(params: {
         apiKey: providerOptions.apiKey || config.apiKey,
         baseURL: providerOptions.baseURL || config.baseUrl,
       },
+      runtime: params.runtime,
     })
   }
 
@@ -107,6 +111,7 @@ export async function createRuntimeLlmAdapter(params: {
         apiKey: providerOptions.apiKey || config.apiKey,
         baseURL: providerOptions.baseURL || config.baseUrl,
       },
+      runtime: params.runtime,
     })
   }
 
@@ -137,6 +142,7 @@ export async function createRuntimeLlmAdapter(params: {
       selectedModel,
       adapterName: "openai-responses",
       options: { ...providerOptions, apiKey, baseURL: baseUrl },
+      runtime: params.runtime,
     })
   }
 
@@ -169,6 +175,7 @@ export async function createRuntimeLlmAdapter(params: {
       selectedModel,
       adapterName: "deepseek",
       options: { ...providerOptions, apiKey, baseURL: baseUrl },
+      runtime: params.runtime,
     })
   }
 
@@ -200,6 +207,7 @@ export async function createRuntimeLlmAdapter(params: {
     selectedModel,
     adapterName: "openai-chat",
     options: { ...providerOptions, apiKey, baseURL: baseUrl },
+    runtime: params.runtime,
   })
 }
 

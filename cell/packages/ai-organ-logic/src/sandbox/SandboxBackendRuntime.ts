@@ -1,4 +1,6 @@
 import { spawn, spawnSync, type ChildProcess, type SpawnSyncReturns } from "child_process";
+import fs from "fs";
+import os from "os";
 import path from "path";
 
 import {
@@ -77,6 +79,7 @@ export type StreamingBashResult = {
   signal: NodeJS.Signals | string | null;
   error?: string;
   timedOut?: boolean;
+  aborted?: boolean;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -194,21 +197,61 @@ export function resolveSandboxBackendSelection(params: ResolveSandboxBackendSele
   };
 }
 
-function formatSpawnResult(result: SpawnSyncReturns<string>, timeoutMs?: number): string {
-  if (result.error) {
-    if ((result.error as NodeJS.ErrnoException).code === "ETIMEDOUT") {
-      return `Error: bash command timed out after ${timeoutMs ?? "unknown"}ms`;
-    }
-    return `Error: ${result.error.message}`;
+function resolveSynchronousBashResult(result: SpawnSyncReturns<string>, timeoutMs?: number): StreamingBashResult {
+  const stdout = String(result.stdout ?? "");
+  const stderr = String(result.stderr ?? "");
+  const timedOut = (result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT";
+  const error = result.error
+    ? timedOut
+      ? `bash command timed out after ${timeoutMs ?? "unknown"}ms`
+      : result.error.message
+    : undefined;
+  const outputText = error
+    ? `Error: ${error}`
+    : `${stdout}${stderr}`.trim() || "(no output)";
+  return {
+    ok: !error && result.status === 0,
+    stdout,
+    stderr,
+    outputText,
+    exitCode: typeof result.status === "number" ? result.status : null,
+    signal: result.signal ?? null,
+    ...(error ? { error } : {}),
+    ...(timedOut ? { timedOut: true } : {}),
+  };
+}
+
+function createSandboxScratchDir(): string {
+  const parent = process.env.TMPDIR || os.tmpdir();
+  const dir = fs.mkdtempSync(path.join(parent, "eidolon-sandbox-"));
+  try {
+    return fs.realpathSync.native(dir);
+  } catch {
+    return dir;
   }
-  return `${result.stdout || ""}${result.stderr || ""}`.trim() || "(no output)";
 }
 
 export function executeSandboxedBashCommand(params: ExecuteSandboxedBashCommandParams): string {
+  return executeSandboxedBashCommandResult(params).outputText;
+}
+
+export function executeSandboxedBashCommandResult(
+  params: ExecuteSandboxedBashCommandParams,
+): StreamingBashResult {
   const spawnSyncFn = params.spawnSyncFn ?? spawnSync;
   const spawnSpec = buildSpawnSpec(params);
-  if ("error" in spawnSpec) return `Error: ${spawnSpec.error}`;
-  return formatSpawnResult(
+  if ("error" in spawnSpec) {
+    return {
+      ok: false,
+      stdout: "",
+      stderr: "",
+      outputText: `Error: ${spawnSpec.error}`,
+      exitCode: null,
+      signal: null,
+      error: spawnSpec.error,
+    };
+  }
+  return resolveSynchronousBashResult(
     spawnSyncFn(spawnSpec.command, spawnSpec.args, {
       ...spawnSpec.options,
       encoding: "utf-8",
@@ -239,12 +282,14 @@ function buildSpawnSpec(
         },
       };
     case "macos-seatbelt": {
+      const tempDir = createSandboxScratchDir();
       const seatbeltCommand = createMacOsSeatbeltCommand({
         command: params.command,
         workDir: params.cwd,
         writableRoots: params.selection.writableRoots,
         sandboxMode: params.selection.sandboxMode as MacOsSeatbeltSandboxMode,
         networkAccess: params.selection.networkAccess as MacOsSeatbeltNetworkAccess,
+        tempDir,
       });
       return {
         command: seatbeltCommand.executable,
@@ -255,17 +300,21 @@ function buildSpawnSpec(
           env: {
             ...process.env,
             CODEX_SANDBOX: "seatbelt",
+            TMPDIR: tempDir,
+            TMPPREFIX: path.join(tempDir, "zsh"),
           },
         },
       };
     }
     case "linux-bwrap": {
+      const tempDir = createSandboxScratchDir();
       const linuxCommand = createLinuxSandboxCommand({
         command: params.command,
         workDir: params.cwd,
         writableRoots: params.selection.writableRoots,
         sandboxMode: params.selection.sandboxMode as LinuxSandboxMode,
         networkAccess: params.selection.networkAccess as LinuxSandboxNetworkAccess,
+        tempDir,
       });
       return {
         command: linuxCommand.executable,
@@ -276,6 +325,7 @@ function buildSpawnSpec(
           env: {
             ...process.env,
             CODEX_SANDBOX: "linux-bwrap",
+            TMPDIR: tempDir,
           },
         },
       };
@@ -412,6 +462,7 @@ export function executeStreamingSandboxedBashCommand(
         signal,
         error: aborted ? "bash command aborted" : timedOut ? `bash command timed out after ${params.timeoutMs}ms` : undefined,
         timedOut,
+        aborted,
       });
     });
   });

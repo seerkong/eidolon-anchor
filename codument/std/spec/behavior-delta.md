@@ -1,6 +1,6 @@
 # behavior delta 编写规范（std/spec/behavior-delta.md）
 
-> 口径：旧称 spec / spec_deltas，现统一为 **behavior**。每个 track 在 `tracks/<id>/behavior_deltas/<capability>/delta.xml` 声明对行为登记表（`codument/behaviors/`，见 `behavior-registry.md`）的增删改。
+> 口径：旧称 spec / spec_deltas，现统一为 **behavior**。每个 pending 或 active track 在 `tracks/{pending,active}/<id>/behavior_deltas/<capability>/delta.xml` 声明对行为登记表（`codument/behaviors/`，见 `behavior-registry.md`）的增删改。
 
 ## 形态
 

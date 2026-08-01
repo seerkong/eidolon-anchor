@@ -1,9 +1,16 @@
-import type { ProviderDriverDefinition, ProviderDriverRequestParams, ProviderDriverStreamParams } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import type {
+  ProviderDriverDefinition,
+  ProviderDriverRequestParams,
+  ProviderDriverStreamParams,
+} from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
 import { resolveDeepSeekModelCapabilities } from "../DeepSeekModelCapabilities";
 import { sanitizeProviderExtraBody } from "../ProviderOptions";
 
-function getString(options: Record<string, unknown>, ...keys: string[]): string {
+function getString(
+  options: Record<string, unknown>,
+  ...keys: string[]
+): string {
   for (const key of keys) {
     const value = options[key];
     if (typeof value === "string" && value) return value;
@@ -11,7 +18,9 @@ function getString(options: Record<string, unknown>, ...keys: string[]): string 
   return "";
 }
 
-function buildDeepSeekExtraBody(params: ProviderDriverRequestParams): Record<string, unknown> {
+function buildDeepSeekExtraBody(
+  params: ProviderDriverRequestParams,
+): Record<string, unknown> {
   const capabilities = resolveDeepSeekModelCapabilities({
     providerId: params.runtime.providerId,
     adapter: params.runtime.adapterName,
@@ -36,7 +45,13 @@ function buildDeepSeekExtraBody(params: ProviderDriverRequestParams): Record<str
 export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
   return {
     name: "deepseek-chat",
-    adapterNames: ["deepseek", "deepseek-chat", "deepseek_chat", "deep_seek", "deep-seek"],
+    adapterNames: [
+      "deepseek",
+      "deepseek-chat",
+      "deepseek_chat",
+      "deep_seek",
+      "deep-seek",
+    ],
     buildRequest(params: ProviderDriverRequestParams) {
       return {
         method: "POST",
@@ -52,12 +67,18 @@ export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
     async createStream(params: ProviderDriverStreamParams) {
       const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
-        baseUrl: getString(params.connectionOptions, "base_url", "baseurl") || "https://api.deepseek.com/v1",
+        baseUrl:
+          getString(params.connectionOptions, "base_url", "baseurl") ||
+          "https://api.deepseek.com/v1",
         providerOptions: {
           apiKey: getString(params.connectionOptions, "api_key", "apikey"),
-          baseURL: getString(params.connectionOptions, "base_url", "baseurl") || "https://api.deepseek.com/v1",
-          headers: params.connectionOptions.default_headers as Record<string, string> | undefined,
+          baseURL:
+            getString(params.connectionOptions, "base_url", "baseurl") ||
+            "https://api.deepseek.com/v1",
+          headers: params.connectionOptions.default_headers as
+            Record<string, string> | undefined,
         },
+        requestObserver: params.transportRequestObserver,
       });
       return adapter.createStream({
         model: params.model,

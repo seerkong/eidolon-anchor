@@ -18,7 +18,8 @@ export const runDelegateActorCoreLogic: StdInnerLogic<
       description: input.description,
       prompt: input.prompt,
       agentType: input.agent_type,
-      mode: (input as any)?.mode,
+      mode: input.mode,
+      taskKey: input.task_key,
       toolCallId: (runtime as any)?.toolCallId,
     })
   } catch (e: any) {

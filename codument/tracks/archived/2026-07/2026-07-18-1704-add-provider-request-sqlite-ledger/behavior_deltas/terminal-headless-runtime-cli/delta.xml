@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="terminal-headless-runtime-cli" version="1">
+  <upsert selector="behavior://terminal-headless-runtime-cli/requirements/provider-request-capture-option">
+    <requirement id="provider-request-capture-option">
+      <statement>`eidolon exec` SHALL 提供显式 provider request capture 选项，把当前 session 的完整请求现场写入独立 SQLite，而不改变 headless runtime 行为。</statement>
+      <suite id="capture-option" name="Headless request capture option">
+        <case id="capture-disabled-by-default">
+          <given>调用方未传 provider request capture 选项</given>
+          <when>系统执行 headless turn</when>
+          <then>系统 SHALL NOT 创建完整 provider request SQLite ledger</then>
+        </case>
+        <case id="capture-to-session-ledger">
+          <given>调用方传入 `--capture-provider-requests` 和一个持久化 session</given>
+          <when>系统执行或恢复该 session</when>
+          <then>系统 SHALL 把账本写入该 session 的独立 observability SQLite 文件</then>
+          <then>terminal SHALL 只绑定 capability、session path 和 support port，SHALL NOT 读取或组装 provider messages</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

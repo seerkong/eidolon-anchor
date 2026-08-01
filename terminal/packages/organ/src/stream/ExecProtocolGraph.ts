@@ -1,4 +1,4 @@
-import { AppendOnlyEventLog, createReducerProjection, type ReducerProjection } from "depa-data-graph-core";
+import { AppendOnlyEventLog, DataGraph, watch, type StopHandle, type StreamDrivenStateSignalNode } from "depa-data-graph-core";
 
 import type { MessageHistoryEvent } from "@cell/ai-core-logic/stream/MessageHistoryGraph";
 import type { TuiControl } from "@terminal/core/AIAgent/TuiStreamEvents";
@@ -6,7 +6,7 @@ import type { TuiControl } from "@terminal/core/AIAgent/TuiStreamEvents";
 type Subscription = { unsubscribe: () => void };
 
 export type ExecApprovalMode = "default" | "full-auto" | "dangerous";
-export type ExecRunStatus = "idle" | "running" | "completed" | "failed";
+export type ExecRunStatus = "idle" | "running" | "completed" | "failed" | "paused_with_progress";
 export type ExecToolStat = {
   starts: number;
   ok: number;
@@ -112,6 +112,10 @@ type ExecProtocolEvent =
   | {
       type: "failed";
       message: string;
+    }
+  | {
+      type: "paused-with-progress";
+      message: string;
     };
 
 const INITIAL_EXEC_PROTOCOL_SNAPSHOT: ExecProtocolSnapshot = {
@@ -150,25 +154,32 @@ const INITIAL_EXEC_PROTOCOL_SNAPSHOT: ExecProtocolSnapshot = {
 export class ExecProtocolGraph {
   private readonly listeners = new Set<(snapshot: ExecProtocolSnapshot) => void>();
   private readonly eventLog = new AppendOnlyEventLog<ExecProtocolEvent>();
-  private readonly projection: ReducerProjection<ExecProtocolEvent, ExecProtocolSnapshot>;
+  private readonly graph = new DataGraph(() => ({}));
+  private readonly projection: StreamDrivenStateSignalNode<ExecProtocolEvent, ExecProtocolSnapshot>;
   private readonly projectionSubscription: { unsubscribe: () => void };
   private completed = false;
 
   constructor() {
-    this.projection = createReducerProjection(this.eventLog, {
+    const source = this.graph.addSource(
+      "exec-protocol-events",
+      this.eventLog.stream().map((entry) => entry.value),
+    );
+    this.projection = this.graph.addStreamDrivenStateSignalNode({
+      id: "exec-protocol-projection",
+      input: source.ref,
       initial: INITIAL_EXEC_PROTOCOL_SNAPSHOT,
-      reducer: (state, entry) => reduceExecProtocolSnapshot(state, entry.value),
+      reducer: (state, input) => reduceExecProtocolSnapshot(state, input),
     });
 
-    this.projectionSubscription = this.projection.stream({ emitCurrent: false }).subscribe({
-      next: (snapshot) => {
-        for (const listener of [...this.listeners]) {
-          listener(snapshot);
-        }
-      },
-      error: () => {},
-      complete: () => {},
+    const projectionOutput = this.graph.createViewModelSignal("exec-protocol-projection-output", () =>
+      this.graph.get(this.projection.output),
+    );
+    const stopProjectionWatch: StopHandle = watch(projectionOutput, (snapshot) => {
+      for (const listener of [...this.listeners]) {
+        listener(snapshot);
+      }
     });
+    this.projectionSubscription = { unsubscribe: () => stopProjectionWatch() };
   }
 
   start(params: {
@@ -246,8 +257,12 @@ export class ExecProtocolGraph {
     this.append({ type: "failed", message });
   }
 
+  pauseWithProgress(message: string): void {
+    this.append({ type: "paused-with-progress", message });
+  }
+
   getSnapshot(): ExecProtocolSnapshot {
-    return this.projection.getState();
+    return this.graph.get(this.projection.output);
   }
 
   onSnapshot(handler: (snapshot: ExecProtocolSnapshot) => void): Subscription {
@@ -269,6 +284,7 @@ export class ExecProtocolGraph {
     this.completed = true;
     this.projectionSubscription.unsubscribe();
     this.projection.dispose();
+    this.graph.dispose();
     this.eventLog.dispose();
     this.listeners.clear();
   }
@@ -411,6 +427,15 @@ function reduceExecProtocolSnapshot(
         currentVisibleMessage: "",
         lastVisibleMessage: null,
         lastAssistantVisibleMessage: null,
+        lastMessageContents: null,
+        shouldWriteLastMessage: false,
+      };
+    case "paused-with-progress":
+      return {
+        ...state,
+        runStatus: "paused_with_progress",
+        failureSummary: event.message,
+        currentVisibleMessage: "",
         lastMessageContents: null,
         shouldWriteLastMessage: false,
       };

@@ -674,6 +674,64 @@ describe("ai_agent_loop_streaming", () => {
     ]);
   });
 
+  it("retries once when a provider turn returns an empty assistant response", async () => {
+    let createStreamCalls = 0;
+    let processStreamCalls = 0;
+    const requestedMessages: any[][] = [];
+    const actor = createTestActor({
+      type: "openai" as const,
+      async createStream(options?: any) {
+        createStreamCalls += 1;
+        requestedMessages.push(options?.messages ?? []);
+        async function* stream() {
+          yield { ok: true };
+        }
+        return { stream: stream() };
+      },
+    });
+    const toolRegistry = new ToolFuncRegistry();
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      processStream: async () => {
+        processStreamCalls += 1;
+        return processStreamCalls === 1
+          ? { role: "assistant", content: null }
+          : { role: "assistant", content: "recovered" };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(createStreamCalls).toBe(2);
+    expect(processStreamCalls).toBe(2);
+    expect(JSON.stringify(requestedMessages[1])).toContain("previous assistant response was empty");
+    const [record] = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
+    expect(record?.status).toBe("completed");
+  });
+
+  it("fails provider turns that repeatedly return an empty assistant response instead of reporting no_tool_calls", async () => {
+    let processStreamCalls = 0;
+    const actor = createTestActor();
+    const toolRegistry = new ToolFuncRegistry();
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      processStream: async () => {
+        processStreamCalls += 1;
+        return { role: "assistant", content: null };
+      },
+    });
+
+    await expect(aiAgentLoopStreaming({ vm, actor, messages: [] })).rejects.toThrow("empty assistant response");
+    expect(processStreamCalls).toBe(2);
+
+    const [record] = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
+    expect(record?.status).toBe("failed");
+    expect(record?.failureKind).toBe("provider_invalid_response");
+  });
+
   it("emits tool events and returns questionnaire_wait when tool asks for questionnaire", async () => {
     const bus = new AgentEventGraph();
     const actor = createTestActor();
@@ -1235,7 +1293,7 @@ describe("ai_agent_loop_streaming", () => {
     const messages: any[] = [
       { role: "user", content: "continue build release fix" },
     ];
-    for (let index = 0; index < 8; index += 1) {
+    for (let index = 0; index < 24; index += 1) {
       const toolCallId = `tc-read-${index}`;
       messages.push(
         { role: "assistant", content: "", tool_calls: [{ id: toolCallId, type: "function", function: { name: "read", arguments: `{"filePath":"scripts/build_tui_release.sh","offset":${index + 1},"limit":170}` } }] },
@@ -1423,15 +1481,80 @@ describe("ai_agent_loop_streaming", () => {
     })).rejects.toThrow("Context window preflight blocked");
   });
 
+  it("applies emergency tool-result compaction when reactive compaction remains over limit", async () => {
+    const sessionDir = makeTempSessionDir();
+    let createStreamCalls = 0;
+    let providerMessages: any[] = [];
+    const actor = createTestActor({
+      type: "openai" as const,
+      async createStream(options?: any) {
+        createStreamCalls += 1;
+        providerMessages = options?.messages ?? [];
+        async function* stream() {
+          yield { ok: true };
+        }
+        return { stream: stream() };
+      },
+    });
+    actor.modelConfig.inputLimit = 5_000;
+    const toolRegistry = new ToolFuncRegistry();
+    const largeToolOutput = "line: provider diagnostics and trace payload\n".repeat(120);
+
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 2,
+      compressHistory: async () => null,
+    });
+
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      outerCtx: {
+        workDir: process.cwd(),
+        metadata: { sessionDir, sessionId: "preflight-pressure-compaction" },
+      },
+      processStream: async () => ({ role: "assistant", content: "final" }),
+    });
+
+    try {
+      const result = await aiAgentLoopStreaming({
+        vm,
+        actor,
+        messages: [
+          { role: "user", content: "continue investigation" },
+          { role: "user", content: "large prompt seed ".repeat(200) },
+          ...Array.from({ length: 8 }, (_, index) => {
+            const toolCallId = `tc-large-${index}`;
+            return [
+              { role: "assistant", content: "", tool_calls: [{ id: toolCallId, type: "function", function: { name: "read", arguments: "{}" } }] },
+              { role: "tool", tool_call_id: toolCallId, content: `${largeToolOutput}${index}` },
+            ];
+          }).flat(),
+        ],
+      });
+
+      expect(result.stopReason).toBe("no_tool_calls");
+      expect(createStreamCalls).toBe(1);
+      const serializedPrompt = JSON.stringify(providerMessages);
+      expect(serializedPrompt).toContain("compacted-tool-result");
+      expect(serializedPrompt).toContain("delivered_and_compacted");
+      expect(serializedPrompt).toContain("tc-large-0");
+      expect(serializedPrompt).toContain("tc-large-7");
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
   it("reactively compacts and retries once when provider reports context overflow", async () => {
     let createStreamCalls = 0;
     let compressCalls = 0;
     const requestedMessages: any[][] = [];
+    const executionIdentities: Array<Record<string, string>> = [];
     const actor = createTestActor({
       type: "openai" as const,
       async createStream(options: any) {
         createStreamCalls += 1;
         requestedMessages.push(options.messages);
+        executionIdentities.push(options.executionIdentity ?? {});
         if (createStreamCalls === 1) {
           throw new Error(
             "OpenAI fetch error 400: This model's maximum context length is 1048576 tokens. Please reduce the length of the messages.",
@@ -1479,6 +1602,13 @@ describe("ai_agent_loop_streaming", () => {
     expect(createStreamCalls).toBe(2);
     expect(compressCalls).toBe(1);
     expect(JSON.stringify(requestedMessages[1])).toContain("reactive");
+    expect(executionIdentities[0].actorId).toBe(actor.id);
+    expect(executionIdentities[0].turnId).toBe("1");
+    expect(executionIdentities[0].operationId).toBe(executionIdentities[1].operationId);
+    expect(executionIdentities.map((identity) => identity.requestId)).toEqual([
+      `${executionIdentities[0].operationId}:request-1`,
+      `${executionIdentities[0].operationId}:request-2`,
+    ]);
   });
 
   it("compresses without rewriting transcript evidence when threshold is reached", async () => {

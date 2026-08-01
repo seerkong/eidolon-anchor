@@ -10,6 +10,10 @@
 
 > 节点 = **有 id、多表征、可 XNL 寻址的领域结构节点**。越靠建模内核越用 DEPA 跨领域概念（裸名 kind）；越靠 shell/展示/交互越落到命名空间领域 kind。
 
+## 1.1 XNL 属性承载约定
+
+modeling 节点的常规属性一律写进 `{}` 属性块：`kind`、`fact_grade`、`single_writer`、`depends_on`、`visibility`、`derived_from`、`behaviors` 等都属于节点语义属性，不写在 metadata。metadata 仅保留给 XNL/工具链系统级字段，例如 legacy `metadata.id` 兜底或 vfs/vcs/diff/apply/merge 的内部控制字段。现有 validator 会兼容读取历史 metadata 写法，但新建/修订 registry 与 delta 必须使用 `{}`。
+
 ## 2. kind 谱系（内核裸名 → shell 命名空间）
 
 | 层 | kind 标签 | 最小必备表征 | DEPA / 来源 |
@@ -26,9 +30,9 @@
 
 > kind 词汇的“内核裸名 vs 命名空间领域”区分 Layer-1 的 Extension kind 谱系：通用概念裸名共用，领域概念加命名空间前缀。
 
-> **shell kind 节点的写法（重要）**：表里的 `surface:route` / `backend:endpoint` / `cli:command` 等**带冒号的命名空间 kind 是 `kind` 属性的值，不是 XNL 元素标签名**。XNL 元素标签名**禁含冒号**（写进标签名会触发 XNL 语法错 `Expected metadata key`）。落到 XNL 时：元素标签用普通词（`<endpoint>` / `<route>` / `<command>`），命名空间 kind 放进 `kind` 属性。
-> - ✅ `<endpoint #orders.place_order kind="backend:endpoint">` / `<route #shop.checkout kind="surface:route">`
-> - ❌ `<backend:endpoint #orders.place_order kind="backend:endpoint">`（标签名含冒号 → XNL 语法错）
+> **shell kind 节点的写法（重要）**：表里的 `surface:route` / `backend:endpoint` / `cli:command` 等**带冒号的命名空间 kind 是 `kind` 属性块的值，不是 XNL 元素标签名**。XNL 元素标签名**禁含冒号**（写进标签名会触发 XNL 语法错 `Expected metadata key`）。落到 XNL 时：元素标签用普通词（`<endpoint>` / `<route>` / `<command>`），命名空间 kind 放进 `{}` 属性块。
+> - ✅ `<endpoint #orders.place_order { kind = "backend:endpoint" }>` / `<route #shop.checkout { kind = "surface:route" }>`
+> - ❌ `<backend:endpoint #orders.place_order { kind = "backend:endpoint" }>`（标签名含冒号 → XNL 语法错）
 > 详见 §7 Good/Bad。
 
 ### 2.1 capsule-tree 必须到文件/符号级（不止 contract/logic/support）
@@ -61,13 +65,13 @@ orders/
 | desc | `<desc ?>…</?>` | 语义 / businessDesc / 边界 |
 | types | `<types ?m>…</?m>` | TypeScript 类型 / 枚举 / 签名（Data + component IO） |
 | mermaid | `<mermaid ?m>…</?m>` | ER / state / module-relation / sequence |
-| pseudo | `<pseudo kind="ctrl\|rule\|dataflow" ?m>…</?m>` | 控制流 / 规则(datalog·switch) / 数据流 |
-| 结构 metadata | 节点属性 | `kind` `fact_grade` `single_writer` `depends_on` `visibility` `derived_from` |
+| pseudo | `<pseudo { kind = "ctrl\|rule\|dataflow" } ?m>…</?m>` | 控制流 / 规则(datalog·switch) / 数据流 |
+| 结构属性 | `{ ... }` 属性块 | `kind` `fact_grade` `single_writer` `depends_on` `visibility` `derived_from` |
 | 边界 | `<not-owned-here ?>` | 与相邻 context 易混时必写 |
 
 > **component 四块的写法（canonical）**：`component` 的 runtime / input / config / output **用裸标签** `<runtime>` / `<input>` / `<config>` / `<output>`（每块内部仍用 `types` 表征装类型/签名）——这是**推荐的 canonical 形式**。
 > - ✅ canonical：`<runtime ?r>…</?r>` / `<input ?i>…</?i>` / `<config ?c>…</?c>` / `<output ?o>…</?o>`
-> - ⚠️ 兼容：`validate` 也接受 `<types role="runtime">`（及 `role="input"`/`"config"`/`"output"`）这类 role 写法作兼容（accepted-but-discouraged），但**裸标签为推荐形式**，新建模请用裸标签。
+> - ⚠️ 兼容：`validate` 也接受 `<types { role = "runtime" }>`（及 `role = "input"`/`"config"`/`"output"`）这类 role 写法作兼容（accepted-but-discouraged），但**裸标签为推荐形式**，新建模请用裸标签。
 > 完整 Good 示例见 §7。
 
 ## 4. 事实源（DEPA，entity 必备）
@@ -89,7 +93,7 @@ orders/
 - 行为契约 → `behavior://<capability>/requirements/<id>`。
 - 与 codument 既有 `behavior://`/`decision://`/`spec://` 同族，一套心智。
 
-**解析规则：scheme 自识别**——解析器扫节点所有 metadata/attribute 值，**凡值匹配已知 VFS scheme（`modeling://` / `behavior://` / …）即视为引用并解析**，其余是字面量。不需要固定 key 白名单（scheme 本身标明“这是引用”）。
+**解析规则：scheme 自识别**——解析器扫节点属性值（canonical：`{}` attributes；legacy：历史 metadata 仍兼容），**凡值匹配已知 VFS scheme（`modeling://` / `behavior://` / …）即视为引用并解析**，其余是字面量。不需要固定 key 白名单（scheme 本身标明“这是引用”）。
 
 约定可读 key（**仅约定，不强制**，靠 scheme 解析）：
 
@@ -109,7 +113,11 @@ orders/
 
 Good（entity，最小必备齐）：
 ```xnl
-<object #resource.skill_tool kind="entity" fact_grade="authoritative_fact" single_writer="resource.store" [
+<object #resource.skill_tool {
+  kind = "entity"
+  fact_grade = "authoritative_fact"
+  single_writer = "resource.store"
+} [
   <desc ?>聚合型资源…</?>
   <types ?t>interface SkillTool { key: string; status: SkillToolStatus }
   enum SkillToolStatus { Draft="draft", Online="online" }</?t>
@@ -123,20 +131,20 @@ Good（entity，最小必备齐）：
 
 Good（component，四块裸标签 — canonical）：
 ```xnl
-<component #orders.place_order_proc kind="component" [
+<component #orders.place_order_proc { kind = "component" } [
   <desc ?>下单组件：校验库存、落账、投递通知。</?>
   <runtime ?r>type Runtime = { clock: Clock; orderStore: OrderStore }</?r>
   <input ?i>interface PlaceOrderInput { cartId: string; userId: string }</?i>
   <config ?c>interface PlaceOrderConfig { maxLines: number }</?c>
   <output ?o>interface PlaceOrderOutput { orderId: string; total: number }</?o>
-  <pseudo kind="ctrl" ?p>validate(input) -> reserve(stock) -> append(order) -> notify</?p>
+  <pseudo { kind = "ctrl" } ?p>validate(input) -> reserve(stock) -> append(order) -> notify</?p>
 ]>
 ```
 
 Good（shell kind 节点 — 普通标签 + `kind` 属性）：
 ```xnl
-<endpoint #orders.place_order kind="backend:endpoint">
-<route #shop.checkout kind="surface:route">
+<endpoint #orders.place_order { kind = "backend:endpoint" }>
+<route #shop.checkout { kind = "surface:route" }>
 ```
 
 Bad：
@@ -145,9 +153,9 @@ Bad：
 - ❌ desc/types 用 XML 转义（应用 `TextElement ?marker` 零转义）。
 - ❌ module 缺 `depends_on`/capsule-tree（无法判依赖成环 → actor 决策）。
 - ❌ 用 `surface:route` 表达本应是内核 `entity` 的领域对象（kind 选错层）。
-- ❌ shell kind 把命名空间 kind 写进**元素标签名**：`<backend:endpoint #orders.place_order kind="backend:endpoint">`（标签名含冒号 → XNL 语法错 `Expected metadata key`）。正确：标签用普通词 `<endpoint … kind="backend:endpoint">`，冒号只出现在 `kind` 属性值里。
-- ❌ component 四块写成 `<types role="runtime">…</types>`（等）当作唯一表征——虽 `validate` 兼容接受，但**非 canonical**；应写裸标签 `<runtime>`/`<input>`/`<config>`/`<output>`。
-- ❌ component 四块用 **marker 名**编码角色 `<types ?runtime>…</?runtime>`——marker 是节点的免转义 id、**不承载语义角色**，`validate` **不**接受这种写法；必须用裸标签 `<runtime>` 或（兼容）`<types role="runtime">`。
+- ❌ shell kind 把命名空间 kind 写进**元素标签名**：`<backend:endpoint #orders.place_order { kind = "backend:endpoint" }>`（标签名含冒号 → XNL 语法错 `Expected metadata key`）。正确：标签用普通词 `<endpoint … { kind = "backend:endpoint" }>`，冒号只出现在 `kind` 属性值里。
+- ❌ component 四块写成 `<types { role = "runtime" }>…</types>`（等）当作唯一表征——虽 `validate` 兼容接受，但**非 canonical**；应写裸标签 `<runtime>`/`<input>`/`<config>`/`<output>`。
+- ❌ component 四块用 **marker 名**编码角色 `<types ?runtime>…</?runtime>`——marker 是节点的免转义 id、**不承载语义角色**，`validate` **不**接受这种写法；必须用裸标签 `<runtime>` 或（兼容）`<types { role = "runtime" }>`。
 
 ## 8. modeling vs behaviors
 
@@ -160,13 +168,13 @@ Bad：
 modeling 节点的**描述性内容一律用中文**，**代码标识符保持英文**：
 
 - **中文**：`<desc>` / `<fact-source>` / `<not-owned-here>` / `<dependency-rule>` / `<invariants>` 等散文块；`<types>` 与 IO 块（`<runtime>`/`<input>`/`<config>`/`<output>`）里的**代码注释**（`// …`）；`<pseudo>` 的自然语言步骤；`<mermaid>` 的节点/迁移**标签文字**；capsule-tree 里每个文件的职责注释。
-- **英文**：TypeScript `interface`/`type`/字段名、`enum` 成员名与值、`kind` 值、`fact_grade` 枚举、metadata key、`#id` 命名空间（`<plane>.<context>.<name>`）、VFS scheme（`modeling://`/`behavior://`）；mermaid 状态名若对应 enum 值（如 `draft`/`done`）保持英文。
+- **英文**：TypeScript `interface`/`type`/字段名、`enum` 成员名与值、`kind` 值、`fact_grade` 枚举、属性 key、`#id` 命名空间（`<plane>.<context>.<name>`）、VFS scheme（`modeling://`/`behavior://`）；mermaid 状态名若对应 enum 值（如 `draft`/`done`）保持英文。
 
 > 原因：描述用中文便于团队阅读理解；代码标识符 / 枚举 / id 是**机器契约**，须英文以保证生成的 TS 可编译、与 schema 校验及跨文档引用一致。
 
 Good（注释/描述中文，标识符英文）：
 ```xnl
-<component #orders.place_order kind="component" [
+<component #orders.place_order { kind = "component" } [
   <desc ?>下单组件：校验购物车、预留库存、落账。</?>
   <runtime ?r>
   interface PlaceOrderRuntime {
@@ -174,7 +182,7 @@ Good（注释/描述中文，标识符英文）：
     inventory: InventoryMailbox  // 跨 actor 的 message 投递口
   }
   </?r>
-  <pseudo kind="ctrl" ?p>校验 input → 经 message 预留库存 → 落账 → 发布事件</?p>
+  <pseudo { kind = "ctrl" } ?p>校验 input → 经 message 预留库存 → 落账 → 发布事件</?p>
 ]>
 ```
 

@@ -1,0 +1,14 @@
+<decision #migrate-message-history-unified-data-graph.projection {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>How should MessageHistoryGraph replace its removed reducer projection?</?>
+  <answer { }
+  (
+    <raw-answer ?>Use the upstream state-node replacement.</?>
+    <decision-text ?>Use one DataGraph source over inputLog.stream and addStreamDrivenStateSignalNode, reading handle.output.</?>
+    <rationale ?>It preserves stream input with synchronous current state and graph-owned lifecycle.</?>
+    <evidence ?>Upstream migration guide and focused package-load failure.</?>
+  )>
+)>

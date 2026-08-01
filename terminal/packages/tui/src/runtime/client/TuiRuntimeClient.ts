@@ -675,6 +675,7 @@ export function createTuiRuntimeClient(options?: {
   const sessions = new Map<string, SessionState>()
   const sessionOrder: string[] = []
   const pendingQuestionsByID = new Map<string, { sessionID: string; request: QuestionRequest }>()
+  const answeredQuestionIdsBySession = new Map<string, Set<string>>()
   const mcpState: Record<string, McpStatus> =
     mode === "mock"
       ? {
@@ -745,11 +746,41 @@ export function createTuiRuntimeClient(options?: {
       if (pending.sessionID !== sessionID) continue
       pendingQuestionsByID.delete(requestID)
     }
+    answeredQuestionIdsBySession.delete(sessionID)
+  }
+
+  function markQuestionAnswered(sessionID: string, requestID: string) {
+    let answered = answeredQuestionIdsBySession.get(sessionID)
+    if (!answered) {
+      answered = new Set<string>()
+      answeredQuestionIdsBySession.set(sessionID, answered)
+    }
+    answered.add(requestID)
+  }
+
+  function isQuestionAnswered(sessionID: string, requestID: string): boolean {
+    return answeredQuestionIdsBySession.get(sessionID)?.has(requestID) === true
+  }
+
+  function omitAnsweredQuestionsFromProjection(
+    sessionID: string,
+    projection: ActorSurfaceProjectionData | null | undefined,
+  ): ActorSurfaceProjectionData | null | undefined {
+    if (!projection) return projection
+    const answered = answeredQuestionIdsBySession.get(sessionID)
+    if (!answered?.size) return projection
+    const questionnaireSurface = projection.questionnaireSurface.filter((item) => !answered.has(item.questionnaireId))
+    if (questionnaireSurface.length === projection.questionnaireSurface.length) return projection
+    return {
+      ...projection,
+      questionnaireSurface,
+    }
   }
 
   async function emitQuestionAsked(state: SessionState, event: RuntimeBridgeHistoryEvent) {
     const request = parseQuestionnaireRequestPayload(state.info.id, event)
     if (!request) return
+    if (isQuestionAnswered(state.info.id, request.id)) return
     pendingQuestionsByID.set(request.id, { sessionID: state.info.id, request })
     await emitEvent({ type: "question.asked", properties: request } as Event)
   }
@@ -762,6 +793,7 @@ export function createTuiRuntimeClient(options?: {
       if (item.lifecycleState !== "pending") continue
       const request = buildQuestionRequestFromSurfaceItem(state.info.id, item)
       if (!request) continue
+      if (isQuestionAnswered(state.info.id, request.id)) continue
       const existing = pendingQuestionsByID.get(request.id)
       pendingQuestionsByID.set(request.id, { sessionID: state.info.id, request })
       if (!existing || existing.sessionID !== state.info.id) {
@@ -777,6 +809,7 @@ export function createTuiRuntimeClient(options?: {
     if (!pending || pending.sessionID !== state.info.id) return
     if (payload.status === "ok") {
       pendingQuestionsByID.delete(payload.questionnaireId)
+      markQuestionAnswered(state.info.id, payload.questionnaireId)
       await emitEvent({
         type: "question.replied",
         properties: {
@@ -834,7 +867,9 @@ export function createTuiRuntimeClient(options?: {
 
   async function hydratePendingQuestionsFromSnapshot(state: SessionState) {
     const pending = await loadPendingQuestionsFromSnapshot(state.info.id)
+    const answered = answeredQuestionIdsBySession.get(state.info.id)
     for (const request of pending) {
+      if (answered?.has(request.id)) continue
       if (pendingQuestionsByID.has(request.id)) continue
       pendingQuestionsByID.set(request.id, { sessionID: state.info.id, request })
       await emitEvent({ type: "question.asked", properties: request } as Event)
@@ -1002,6 +1037,15 @@ export function createTuiRuntimeClient(options?: {
   }): { info: Message; parts: Part[] } {
     const createdAt = Date.now() + params.messageIndex
     const role = String(params.message?.role ?? "assistant")
+    const rawContent = String(params.message?.content ?? "")
+    const parsedToolContent = role === "tool" ? tryParseJson(rawContent) : null
+    const displayContent =
+      parsedToolContent
+      && typeof parsedToolContent === "object"
+      && typeof (parsedToolContent as Record<string, unknown>).questionnaireId === "string"
+      && typeof (parsedToolContent as Record<string, unknown>).rawText === "string"
+        ? String((parsedToolContent as Record<string, unknown>).rawText)
+        : rawContent
     if (role === "user") {
       const info: Message = {
         id: nextMessageId(),
@@ -1017,7 +1061,7 @@ export function createTuiRuntimeClient(options?: {
           sessionID: params.sessionID,
           messageID: info.id,
           type: "text",
-          text: String(params.message?.content ?? ""),
+          text: displayContent,
           synthetic: false,
           ignored: false,
         },
@@ -1055,7 +1099,7 @@ export function createTuiRuntimeClient(options?: {
       sessionID: params.sessionID,
       messageID: info.id,
       type: "text",
-      text: String(params.message?.content ?? ""),
+      text: displayContent,
       synthetic: false,
       ignored: false,
     })
@@ -2693,9 +2737,7 @@ export function createTuiRuntimeClient(options?: {
         const result = await runtime.submitQuestionnaireResponse(requestID, text)
         if (result.status === "submitted") {
           pendingQuestionsByID.delete(requestID)
-          await syncSessionMessagesFromActorConversation(state, runtime, {
-            actorId: typeof pending.request.actorId === "string" ? pending.request.actorId : undefined,
-          })
+          markQuestionAnswered(state.info.id, requestID)
           await emitEvent({
             type: "question.replied",
             properties: {
@@ -2703,6 +2745,176 @@ export function createTuiRuntimeClient(options?: {
               requestID,
             },
           } as Event)
+          if (typeof runtime.resumeTurn === "function") {
+            let assistantMessage: AssistantMessage | null = null
+            let assistantPart: TextPart | null = null
+            const toolPartsByCallID = new Map<string, { message: AssistantMessage; part: ToolPart }>()
+            const appendContinuationChunk = async (chunk: string) => {
+              if (!chunk) return
+              if (!assistantMessage || !assistantPart) {
+                assistantMessage = {
+                  id: nextMessageId(),
+                  sessionID: state.info.id,
+                  role: "assistant",
+                  time: { created: Date.now() },
+                  parentID: userMessage.id,
+                  modelID: selectedModel.modelID,
+                  providerID: selectedModel.providerID,
+                  mode: "assist",
+                  agent: "build",
+                  path: { cwd: directory, root: directory },
+                  cost: 0,
+                  tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                  finish: "stop",
+                }
+                assistantPart = {
+                  id: nextPartId(),
+                  sessionID: state.info.id,
+                  messageID: assistantMessage.id,
+                  type: "text",
+                  text: "",
+                  synthetic: false,
+                  ignored: false,
+                }
+                addSessionMessage(state, assistantMessage, [assistantPart])
+                await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
+              }
+              assistantPart = {
+                ...assistantPart,
+                text: assistantPart.text + chunk,
+              }
+              addSessionMessage(state, assistantMessage, [assistantPart])
+              await emitEvent({ type: "message.part.updated", properties: { part: assistantPart } } as Event)
+            }
+            const emitContinuationToolPartStart = async (event: RuntimeBridgeHistoryEvent) => {
+              const payload = parseToolStartPayload(event)
+              if (!payload) return
+              const key = `${event.agentActorId}:${payload.toolCallId}`
+              if (toolPartsByCallID.has(key)) return
+
+              const message: AssistantMessage = {
+                id: nextMessageId(),
+                sessionID: state.info.id,
+                role: "assistant",
+                time: { created: Date.now() },
+                parentID: userMessage.id,
+                modelID: selectedModel.modelID,
+                providerID: selectedModel.providerID,
+                mode: "assist",
+                agent: event.agentKey || "build",
+                path: { cwd: directory, root: directory },
+                cost: 0,
+                tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+                finish: "stop",
+              }
+              const part: ToolPart = {
+                id: nextPartId(),
+                sessionID: state.info.id,
+                messageID: message.id,
+                type: "tool",
+                tool: payload.toolName,
+                callID: payload.toolCallId,
+                state: {
+                  status: "pending",
+                  input: parseToolInput(payload.argumentsText),
+                },
+              }
+              addSessionMessage(state, message, [part])
+              toolPartsByCallID.set(key, { message, part })
+              await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
+              await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+            }
+            const emitContinuationToolPartResult = async (event: RuntimeBridgeHistoryEvent) => {
+              const payload = parseToolResultPayload(event)
+              if (!payload) return
+              const key = `${event.agentActorId}:${payload.toolCallId}`
+              let existing = toolPartsByCallID.get(key)
+              if (!existing) {
+                await emitContinuationToolPartStart({
+                  ...event,
+                  stream: "tool_call_start",
+                  payload: JSON.stringify({
+                    toolName: payload.toolName,
+                    toolCallId: payload.toolCallId,
+                  }),
+                })
+                existing = toolPartsByCallID.get(key)
+              }
+              if (!existing) return
+              const message: AssistantMessage = {
+                ...existing.message,
+                time: {
+                  ...existing.message.time,
+                  completed: Date.now(),
+                },
+              }
+              const part: ToolPart = {
+                ...existing.part,
+                state: {
+                  ...existing.part.state,
+                  status: payload.isError ? "error" : "completed",
+                  output: payload.result,
+                  error: payload.isError ? payload.result : undefined,
+                  metadata: buildToolMetadata(payload.toolName, payload.result),
+                },
+              }
+              addSessionMessage(state, message, [part])
+              toolPartsByCallID.set(key, { message, part })
+              await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
+              await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+            }
+            let historySub: { unsubscribe: () => void } | undefined
+            try {
+              historySub = runtime.subscribeHistoryEvents?.((event) => {
+                traceRuntimeHistoryEvent(state.info.id, event)
+                void (async () => {
+                  if (event.stream === "tool_call_start") {
+                    await emitContinuationToolPartStart(event)
+                  }
+                  if (event.stream === "tool_call_result") {
+                    await emitContinuationToolPartResult(event)
+                  }
+                  if (event.stream === "questionnaire_request") {
+                    await emitQuestionAsked(state, event)
+                  }
+                  if (event.stream === "questionnaire_result") {
+                    await emitQuestionResult(state, event)
+                  }
+                  if (event.stream === "user_input") {
+                    await appendUserInputHistory(state, event.payload, event.endAt ?? event.startAt)
+                  }
+                })()
+              })
+              const finalText = await runtime.resumeTurn({
+                onChunk: appendContinuationChunk,
+              })
+              if (!assistantPart?.text && finalText) {
+                await appendContinuationChunk(finalText)
+              }
+            } catch (error) {
+              const message = error instanceof Error ? error.message : String(error)
+              if (!message.startsWith("runtime_turn_unsettled:")) {
+                throw error
+              }
+            } finally {
+              historySub?.unsubscribe()
+            }
+            if (assistantMessage && assistantPart) {
+              assistantMessage = {
+                ...assistantMessage,
+                time: {
+                  ...assistantMessage.time,
+                  completed: Date.now(),
+                },
+              }
+              addSessionMessage(state, assistantMessage, [assistantPart])
+              await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
+              await emitEvent({ type: "message.part.updated", properties: { part: assistantPart } } as Event)
+            }
+          }
+          await syncSessionMessagesFromActorConversation(state, runtime, {
+            actorId: typeof pending.request.actorId === "string" ? pending.request.actorId : undefined,
+          })
         }
         await hydratePendingQuestionsFromSnapshot(state)
         await setSessionStatus(state, "idle")
@@ -2753,7 +2965,7 @@ export function createTuiRuntimeClient(options?: {
     async surface({ sessionID }: { sessionID?: string } = {}) {
       const state = ensureSessionState(sessionID)
       const runtime = await ensureSessionRuntime(state)
-      const projection = await runtime.getActorSurface?.()
+      const projection = omitAnsweredQuestionsFromProjection(state.info.id, await runtime.getActorSurface?.())
       await syncPendingQuestionsFromActorSurface(state, projection)
       return { data: projection ?? null as ActorSurfaceProjectionData | null }
     },

@@ -8,6 +8,7 @@ import {
 } from "depa-processor"
 import fs from "fs"
 import { authorizeLocalToolCall } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime"
+import { loadLocalTextResource } from "@cell/ai-organ-logic/runtime/LocalTextResourceLoader"
 import { resolveToolPath } from "../_shared"
 import type { ReadInnerConfig, ReadInnerInput, ReadInnerOutput, ReadInnerRuntime } from "./InnerTypes"
 
@@ -34,18 +35,23 @@ export const readCoreLogic: StdInnerLogic<ReadInnerRuntime, ReadInnerInput, Read
   if (!permission.ok) return permission.output
   const full = resolveToolPath(workdir, rawPath)
   const stat = fs.statSync(full)
-  const offset = Math.max(1, Number(input?.offset ?? 1))
+  const offset = Number(input?.offset ?? 1)
 
   if (stat.isDirectory()) {
     const entries = fs.readdirSync(full).sort()
+    const directoryOffset = Math.max(1, offset)
     const limit = Math.max(1, Number(input?.limit ?? 200))
-    return entries.slice(offset - 1, offset - 1 + limit).join("\n")
+    return entries.slice(directoryOffset - 1, directoryOffset - 1 + limit).join("\n")
   }
 
-  const lines = fs.readFileSync(full, "utf-8").split(/\r?\n/)
-  const limit = Math.max(1, Number(input?.limit ?? 2000))
-  return lines
-    .slice(offset - 1, offset - 1 + limit)
-    .map((line, idx) => `${offset + idx}: ${line}`)
-    .join("\n")
+  return loadLocalTextResource({
+    vm: runtime.vm,
+    actorKey: runtime.actor.key,
+    actorId: runtime.actor.id,
+    toolCallId: String((runtime as any).toolCallId ?? ""),
+    fullPath: full,
+    sourceText: fs.readFileSync(full, "utf-8"),
+    offset,
+    limit: Number(input?.limit ?? 2000),
+  })
 }

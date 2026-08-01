@@ -102,6 +102,13 @@ export type ActorContext = {
   systemPrompts: string[];
 };
 
+export type ProfileSystemPromptProvenance = {
+  owner: "runtime_profile";
+  profileId: string;
+  promptIndex: number;
+  contentDigest: string;
+};
+
 export type ActorToolPolicy = {
   allowedTools: string[];
   enabledToolKeys: string[];
@@ -224,6 +231,7 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
   type: ActorType;
   parentKey?: string;
   systemPrompts: string[];
+  profileSystemPromptProvenance?: ProfileSystemPromptProvenance;
   /**
    * Read-only conversation view (spec ai-semantic-conversation-spine, case
    * single-in-memory-truth/mirror-eliminated): a frozen projection of the

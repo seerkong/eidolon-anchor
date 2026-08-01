@@ -120,7 +120,7 @@ describe("local permission evaluator", () => {
     }
   });
 
-  it("requires approval for unsupported multiline bash commands", () => {
+  it("parses newline-separated bash commands through segment permissions", () => {
     configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
     const root = makeTempRoot();
     const workDir = path.join(root, "workspace");
@@ -128,18 +128,29 @@ describe("local permission evaluator", () => {
     fs.mkdirSync(workDir, { recursive: true });
     writePermissions(authorityRoot, {
       "*": "deny",
-      bash: { "git *": "allow" },
+      bash: {
+        "git *": "allow",
+        "rg *": "allow",
+      },
     });
 
-    const decision = evaluateLocalToolPermission({
+    const allowed = evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command: "git status\nrg --files" },
+      authorityRoot,
+    });
+    const denied = evaluateLocalToolPermission({
       workDir,
       toolName: "bash",
       payload: { command: "git status\nrm -rf tmp" },
       authorityRoot,
     });
-    expect(decision.action).toBe("ask");
-    expect(decision.fallbackMessage).toContain("unsupported bash syntax");
-    expect(decision.target).toBe(JSON.stringify(["git status\nrm -rf tmp"]));
+
+    expect(parseBashCommandSegments("git status\nrg --files")).toEqual(["git status", "rg --files"]);
+    expect(allowed.action).toBe("allow");
+    expect(denied.action).toBe("deny");
+    expect(denied.message).toContain("local permission denied for bash segment: rm -rf tmp");
   });
 
   it("requires approval for unsupported bash syntax instead of throwing a parser error", () => {
@@ -181,6 +192,72 @@ describe("local permission evaluator", () => {
     }).action).toBe("allow");
   });
 
+  it("allows low-risk readonly unsupported bash commands when no rule matches", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {});
+
+    const command = "cat $(ls -t logs/*.txt | head -1)";
+    const decision = evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command },
+      authorityRoot,
+    });
+
+    expect(() => parseBashCommandSegments(command)).toThrow("Unsupported shell syntax");
+    expect(decision.action).toBe("allow");
+    expect(decision.target).toBe(JSON.stringify([command]));
+  });
+
+  it("denies high-risk unsupported bash commands when no rule matches", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {});
+
+    const command = "rm -rf $(pwd)";
+    const decision = evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command },
+      authorityRoot,
+    });
+
+    expect(decision.action).toBe("deny");
+    expect(decision.message).toContain("high-risk bash command with unsupported syntax");
+  });
+
+  it("still asks for unknown unsupported bash commands", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {});
+
+    const command = "make $(cat target)";
+    const decision = evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command },
+      authorityRoot,
+    });
+
+    expect(decision.action).toBe("ask");
+    expect(decision.fallbackMessage).toContain("unsupported bash syntax");
+    expect(decision.approvalGrant).toMatchObject({
+      kind: "local_permission",
+      permissionName: "bash",
+      target: JSON.stringify([command]),
+    });
+  });
+
   it("allows supported python heredoc commands when the normalized rule matches", () => {
     configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
     const root = makeTempRoot();
@@ -201,7 +278,29 @@ describe("local permission evaluator", () => {
     }).action).toBe("allow");
   });
 
-  it("requires approval for python heredoc forms that cannot be normalized safely", () => {
+  it("normalizes python heredoc without an explicit stdin dash", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    writePermissions(authorityRoot, {
+      "*": "deny",
+      bash: { "python3 *": "allow" },
+    });
+
+    const command = "python3 << 'PYEOF'\nprint('hi')\nPYEOF";
+
+    expect(parseBashCommandSegments(command)).toEqual(["python3 -"]);
+    expect(evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command },
+      authorityRoot,
+    }).action).toBe("allow");
+  });
+
+  it("requires approval for non-python heredoc forms that cannot be normalized safely", () => {
     configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
     const root = makeTempRoot();
     const workDir = path.join(root, "workspace");
@@ -212,7 +311,7 @@ describe("local permission evaluator", () => {
       bash: { "python3 *": "allow" },
     });
 
-    const command = "python3 << 'PYEOF'\nprint('hi')\nPYEOF";
+    const command = "cat > /tmp/script.py << 'PYEOF'\nprint('hi')\nPYEOF";
     const decision = evaluateLocalToolPermission({
       workDir,
       toolName: "bash",
@@ -220,7 +319,6 @@ describe("local permission evaluator", () => {
       authorityRoot,
     });
 
-    expect(parseBashCommandSegments("python3 - <<'PYEOF'\nprint('hi')\nPYEOF")).toEqual(["python3 -"]);
     expect(() => parseBashCommandSegments(command)).toThrow("Unsupported shell syntax");
     expect(decision.action).toBe("ask");
     expect(decision.target).toBe(JSON.stringify([command]));

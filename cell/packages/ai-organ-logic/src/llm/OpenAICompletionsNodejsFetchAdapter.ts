@@ -1,13 +1,20 @@
-import type { LlmAdapter, LlmGenerateOptions, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
+import type {
+  LlmAdapter,
+  LlmGenerateOptions,
+  LlmStreamResult,
+} from "@cell/ai-core-contract/LlmTypes";
 import type { ToolSchema } from "@cell/ai-core-contract/types";
 import { normalizeOpenAIChatMessages } from "./OpenAIChatHelpers";
 import { ProviderExecutionError } from "./ProviderErrors";
 import type { ProviderOptions } from "./ProviderPlugins";
+import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import { observeProviderTransportRequest } from "./ProviderTransportObservation";
 
 type OpenAICompletionsNodejsFetchAdapterSettings = {
   apiKey: string;
   baseUrl?: string;
   providerOptions?: ProviderOptions;
+  requestObserver?: ProviderTransportRequestObserver;
 };
 
 const INTERNAL_EXTRA_BODY_KEYS = new Set(["prompt_plan", "work_context"]);
@@ -62,8 +69,7 @@ async function* streamToOpenAIChunks(response: Response): AsyncIterable<any> {
   } finally {
     try {
       reader.releaseLock();
-    } catch {
-    }
+    } catch {}
   }
 
   if (buffer.trim()) {
@@ -80,17 +86,21 @@ function toOpenAITools(tools: ToolSchema[]): ToolSchema[] | undefined {
 }
 
 function sanitizeExtraBody(extraBody: unknown): Record<string, unknown> {
-  if (!extraBody || typeof extraBody !== "object" || Array.isArray(extraBody)) return {};
+  if (!extraBody || typeof extraBody !== "object" || Array.isArray(extraBody))
+    return {};
   return Object.fromEntries(
-    Object.entries(extraBody as Record<string, unknown>)
-      .filter(([key, value]) => value !== undefined && !INTERNAL_EXTRA_BODY_KEYS.has(key)),
+    Object.entries(extraBody as Record<string, unknown>).filter(
+      ([key, value]) =>
+        value !== undefined && !INTERNAL_EXTRA_BODY_KEYS.has(key),
+    ),
   );
 }
 
 function parseOpenAIErrorCode(errorText: string): string {
   try {
     const parsed = JSON.parse(errorText);
-    const error = parsed && typeof parsed === "object" ? (parsed as any).error : null;
+    const error =
+      parsed && typeof parsed === "object" ? (parsed as any).error : null;
     return typeof error?.code === "string" ? error.code : "";
   } catch {
     return "";
@@ -102,11 +112,13 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
   private apiKey: string;
   private baseUrl?: string;
   private providerOptions: ProviderOptions;
+  private requestObserver?: ProviderTransportRequestObserver;
 
   constructor(settings: OpenAICompletionsNodejsFetchAdapterSettings) {
     this.apiKey = settings.apiKey;
     this.baseUrl = settings.baseUrl;
     this.providerOptions = settings.providerOptions ?? {};
+    this.requestObserver = settings.requestObserver;
   }
 
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
@@ -116,7 +128,11 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     const body: Record<string, unknown> = {
       model,
       messages: normalizeOpenAIChatMessages(messages, {
-        preserveReasoningContent: isDeepseekRequest(model, this.baseUrl, this.providerOptions),
+        preserveReasoningContent: isDeepseekRequest(
+          model,
+          this.baseUrl,
+          this.providerOptions,
+        ),
       }),
       stream: true,
       tools: toolset,
@@ -132,8 +148,11 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     Object.assign(body, extra);
     body.stream = true;
 
-    const url = buildCompletionsUrl((providerOptions.baseURL as string | undefined) || this.baseUrl);
-    const apiKey = (providerOptions.apiKey as string | undefined) || this.apiKey;
+    const url = buildCompletionsUrl(
+      (providerOptions.baseURL as string | undefined) || this.baseUrl,
+    );
+    const apiKey =
+      (providerOptions.apiKey as string | undefined) || this.apiKey;
     if (!apiKey) {
       throw new Error("OpenAI API key missing");
     }
@@ -149,27 +168,45 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     }
 
     const fetchFn = providerOptions.fetch || fetch;
+    const serializedBody = JSON.stringify(body);
+    observeProviderTransportRequest(this.requestObserver, {
+      transportType: "http",
+      requestBody: serializedBody,
+      url,
+      method: "POST",
+    });
     const res = await fetchFn(url, {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: serializedBody,
       signal,
     });
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
-      throw new ProviderExecutionError(`OpenAI fetch error ${res.status}: ${errorText || res.statusText}`, {
-        providerErrorCode: parseOpenAIErrorCode(errorText),
-        statusCode: res.status,
-      });
+      throw new ProviderExecutionError(
+        `OpenAI fetch error ${res.status}: ${errorText || res.statusText}`,
+        {
+          providerErrorCode: parseOpenAIErrorCode(errorText),
+          statusCode: res.status,
+        },
+      );
     }
 
     return { stream: streamToOpenAIChunks(res) };
   }
 }
 
-function isDeepseekRequest(model: unknown, baseUrl: string | undefined, providerOptions: ProviderOptions): boolean {
-  const resolvedBaseUrl = String((providerOptions.baseURL as string | undefined) || baseUrl || "").toLowerCase();
+function isDeepseekRequest(
+  model: unknown,
+  baseUrl: string | undefined,
+  providerOptions: ProviderOptions,
+): boolean {
+  const resolvedBaseUrl = String(
+    (providerOptions.baseURL as string | undefined) || baseUrl || "",
+  ).toLowerCase();
   const modelName = String(model || "").toLowerCase();
-  return resolvedBaseUrl.includes("deepseek") || modelName.startsWith("deepseek");
+  return (
+    resolvedBaseUrl.includes("deepseek") || modelName.startsWith("deepseek")
+  );
 }

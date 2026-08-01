@@ -31,6 +31,9 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
       type: actor.type,
       parentKey: actor.parentKey,
       systemPrompts: [...actor.systemPrompts],
+      profileSystemPromptProvenance: actor.profileSystemPromptProvenance
+        ? { ...actor.profileSystemPromptProvenance }
+        : undefined,
       identity: actor.identity,
       agentName: actor.agentName,
       planApproval: actor.planApproval,
@@ -90,6 +93,9 @@ function hydrateActorFromSnapshot(
     type: snapshot.type,
     parentKey: snapshot.parentKey,
     systemPrompts: [...snapshot.systemPrompts],
+    profileSystemPromptProvenance: snapshot.profileSystemPromptProvenance
+      ? { ...snapshot.profileSystemPromptProvenance }
+      : undefined,
     messages: structuredClone(params?.messages ?? []),
     identity: snapshot.identity,
     agentName: snapshot.agentName,

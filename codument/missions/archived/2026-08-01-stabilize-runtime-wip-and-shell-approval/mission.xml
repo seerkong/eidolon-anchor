@@ -1,0 +1,64 @@
+<Mission id="stabilize-runtime-wip-and-shell-approval" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Record current runtime WIP and reduce unnecessary bash permission approvals without weakening risky command gates.</Goal>
+    <Description>Bind the dirty worktree as actual state, then execute shell permission tracks for command normalization and risk-based fallback.</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <Revision>2</Revision>
+    <CreatedAt>2026-07-01T15:19:39Z</CreatedAt>
+    <UpdatedAt>2026-07-01T15:25:54Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="mission">
+    <MaterialBundle role="state" name="analysis" domain="mission" path="vfs://./analysis/"/>
+    <MaterialBundle role="state" name="reports" domain="mission" path="vfs://./reports/"/>
+    <MaterialBundle role="output" name="tracks" domain="codument" path="vfs://@/codument/tracks/"/>
+  </Ports>
+  <TaskSpace id="space_stabilize-runtime-wip-and-shell-approval" name="stabilize-runtime-wip-and-shell-approval" version="1" cdt:child-mode="dag">
+    <Description>Runtime WIP and shell approval stabilization mission.</Description>
+    <SubNodes>
+      <TaskGroup id="G1" name="Current WIP inventory" status="DONE" order="0">
+        <Description>Record existing dirty worktree and related long-running mission state before shell changes.</Description>
+        <SubNodes>
+          <Task id="G1-T1" name="Inventory current uncommitted runtime/headless/TUI changes" status="DONE" order="0"/>
+          <Task id="G1-T2" name="Link existing long-running progress mission evidence" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="G2" name="Bash command normalization" status="DONE" order="1">
+        <Description>Normalize common low-risk shell command shapes so they can use segment-level permission rules.</Description>
+        <SubNodes>
+          <Task id="G2-T1" name="Create and execute bash normalization track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="update-bash-command-normalization"/>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="G3" name="Unsupported fallback risk policy" status="DONE" order="2">
+        <Description>Handle parser-unsupported commands through deterministic risk classification instead of blanket human approval.</Description>
+        <SubNodes>
+          <Task id="G3-T1" name="Create and execute bash risk fallback track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="add-bash-risk-fallback"/>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="G4" name="Mission verification" status="DONE" order="3">
+        <Description>Verify shell permission tests and confirm existing dirty worktree remains intact.</Description>
+        <SubNodes>
+          <Task id="G4-T1" name="Run targeted permission evaluator verification" status="DONE" order="0"/>
+          <Task id="G4-T2" name="Write final mission verification report" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule>
+    <Dag for="space_stabilize-runtime-wip-and-shell-approval">
+      <Node id="G2"><After ref="G1"/></Node>
+      <Node id="G3"><After ref="G2"/></Node>
+      <Node id="G4"><After ref="G3"/></Node>
+    </Dag>
+  </Schedule>
+  <Hooks>
+    <Hook on="mission:after-node">
+      <cdt:MissionReconcile max-rounds="3" on-drift="replan-or-block"/>
+    </Hook>
+  </Hooks>
+</Mission>

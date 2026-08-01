@@ -1,8 +1,20 @@
-export type { LlmAdapter, LlmGenerateOptions, LlmStreamResult, LlmAdapterType } from "@cell/ai-core-contract/LlmTypes";
+export type {
+  LlmAdapter,
+  LlmGenerateOptions,
+  LlmStreamResult,
+  LlmAdapterType,
+} from "@cell/ai-core-contract/LlmTypes";
 export { OpenAILlmAdapter } from "./OpenaiAdapter";
 export { OpenAICompletionsNodejsFetchLlmAdapter } from "./OpenAICompletionsNodejsFetchAdapter";
-export { OpenAIResponsesNodejsFetchLlmAdapter } from "./OpenAIResponsesNodejsFetchAdapter";
-export { AnthropicNodejsFetchLlmAdapter, AnthropicStreamAdapter } from "./AnthropicNodejsFetchAdapter";
+export {
+  buildOpenAIResponsesInstructionPlan,
+  buildOpenAIResponsesInstructions,
+  OpenAIResponsesNodejsFetchLlmAdapter,
+} from "./OpenAIResponsesNodejsFetchAdapter";
+export {
+  AnthropicNodejsFetchLlmAdapter,
+  AnthropicStreamAdapter,
+} from "./AnthropicNodejsFetchAdapter";
 export { ClaudeNodejsFetchLlmAdapter } from "./ClaudeNodejsFetchAdapter";
 export {
   finalizeAnthropicContentBlocks,
@@ -51,13 +63,26 @@ export {
   RESPONSES_TOOL_CONTEXT_RECOVERY_POLICY,
   toProviderExecutionError,
 } from "./ProviderErrors";
-export type { ProviderRetryClassification, ProviderRetryDiagnostic, ProviderRetryPolicy } from "./ProviderErrors";
-export { createProviderDiagnosticsCollector, emitProviderDiagnostic } from "./ProviderDiagnostics";
-export type { ProviderDiagnosticKind, ProviderDiagnosticsCollector } from "./ProviderDiagnostics";
+export type {
+  ProviderRetryClassification,
+  ProviderRetryDiagnostic,
+  ProviderRetryPolicy,
+} from "./ProviderErrors";
+export {
+  createProviderDiagnosticsCollector,
+  emitProviderDiagnostic,
+} from "./ProviderDiagnostics";
+export type {
+  ProviderDiagnosticKind,
+  ProviderDiagnosticsCollector,
+} from "./ProviderDiagnostics";
 export { executeProviderFallbackChain } from "./ProviderFallback";
 export type { ProviderFallbackChainResult } from "./ProviderFallback";
 export { normalizeProviderResponse } from "./ProviderResponseNormalization";
-export { buildProviderDriverRegistry, getProviderDriver } from "./ProviderDriverRegistry";
+export {
+  buildProviderDriverRegistry,
+  getProviderDriver,
+} from "./ProviderDriverRegistry";
 export {
   extractProviderConnectionOptions,
   normalizeProviderModelOptions,
@@ -75,11 +100,15 @@ export {
 } from "./ProviderStreamTimeouts";
 export type { ProviderStreamTimeoutProfile } from "./ProviderStreamTimeouts";
 export {
+  assembleOpenAIResponsesInstructions,
   assistantReplayToOpenAIResponsesInputItems,
   buildOpenAIResponsesInputItems,
+  buildOpenAIResponsesFullInputItems,
+  buildOpenAIResponsesIncrementalInputItems,
   buildOpenAIResponsesInputItemsWithAssistantReplay,
   buildOpenAIResponsesRequestBody,
   buildOpenAIResponsesToolFollowUpInputItems,
+  extractOpenAIResponsesSystemTexts,
 } from "./ResponsesInputItems";
 export {
   createOpenAIResponsesContinuationState,
@@ -91,6 +120,49 @@ export type {
   OpenAIResponsesContinuationRequest,
   OpenAIResponsesContinuationState,
 } from "./ResponsesContinuation";
+export {
+  createResponsesContextDigest,
+  createResponsesMessageFingerprint,
+  createResponsesMessageFrontier,
+  createResponsesNativeWindowFingerprint,
+  createResponsesReplayCheckpoint,
+  createResponsesStablePromptCacheKey,
+  isValidResponsesReplayCheckpoint,
+  planResponsesRequest,
+} from "./ResponsesRequestPlan";
+export {
+  createResponsesProviderOutputSnapshot,
+  decideResponsesCallLineage,
+  decideResponsesNativeOutputCompleteness,
+  isValidResponsesCallLineageProof,
+  isValidResponsesNativeOutputCompletenessProof,
+  isValidResponsesProviderOutputSnapshot,
+  ResponsesRequestLineageError,
+} from "./ResponsesNativeIntegrity";
+export type {
+  ResponsesActualTransport,
+  ResponsesCallLineageDecision,
+  ResponsesCallLineageInvalidReason,
+  ResponsesCallLineageProof,
+  ResponsesCheckpointRequestKind,
+  ResponsesContinuationBaseline,
+  ResponsesMessageFingerprint,
+  ResponsesMessageFrontier,
+  ResponsesNativeItem,
+  ResponsesNativeOutputCompletenessDecision,
+  ResponsesNativeOutputCompletenessProof,
+  ResponsesNativeOutputEvidence,
+  ResponsesNativeOutputEvidenceItem,
+  ResponsesNativeWindowFingerprint,
+  ResponsesProviderOutputSnapshot,
+  ResponsesReplayCheckpoint,
+  ResponsesRequestPlan,
+  ResponsesRequestPlanInput,
+  ResponsesStablePrefix,
+  ResponsesStatefulIncrementalPlan,
+  ResponsesStatelessReplayPlan,
+  ResponsesTransportResult,
+} from "@cell/ai-organ-contract/llm/ResponsesReplay";
 export type {
   OpenAIResponsesAssistantReplayPayload,
   OpenAIResponsesInputBuildResult,
@@ -99,3 +171,16 @@ export type {
 export { loadProviderConfig, extractProviderOptions } from "./ProviderPlugins";
 export { ProviderRuntimeLlmAdapter } from "./ProviderRuntimeAdapter";
 export type { ProviderRuntimeLlmAdapterSettings } from "./ProviderRuntimeAdapter";
+export type {
+  LlmProviderRuntime,
+  ProviderRequestOutcomeObservationData,
+  ProviderRequestObservationData,
+  ProviderRequestObservationPort,
+  ProviderRequestPlanObservation,
+  ProviderRequestTransportType,
+  ProviderResponseCompletenessObservation,
+  ProviderTransportOutcomeObservationInput,
+  ProviderTransportOutcomeObserver,
+  ProviderTransportRequestObservationInput,
+  ProviderTransportRequestObserver,
+} from "@cell/ai-organ-contract/llm/ProviderRuntime";

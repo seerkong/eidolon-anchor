@@ -90,6 +90,7 @@ function defaultContinuationBaseline(): ContinuationBaselineData {
     baselineEpoch: 0,
     lastResetReason: null,
     latestResponseId: null,
+    contextDigest: null,
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -117,33 +118,21 @@ function resolveSessionId(vm: AiAgentVm): string {
   return typeof sessionId === "string" && sessionId.trim() ? sessionId : "__unsessioned__";
 }
 
-function isToolMessage(message: ChatMessage | undefined): boolean {
-  return String(message?.role ?? "") === "tool";
-}
-
-function findToolCallGroupStart(messages: ChatMessage[], index: number): number {
-  let start = Math.max(0, Math.min(index, messages.length - 1));
-  if (isToolMessage(messages[start])) {
-    while (start > 0 && isToolMessage(messages[start - 1])) start -= 1;
-    if (start > 0 && String(messages[start - 1]?.role ?? "") === "assistant") start -= 1;
-    return start;
-  }
-  return start;
-}
-
-function findLateStatusOverlayInsertIndex(messages: ChatMessage[]): number {
-  if (messages.length === 0) return 0;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (String(messages[index]?.role ?? "") === "user") return index;
-  }
-  return findToolCallGroupStart(messages, messages.length - 1);
-}
-
-function insertLateStatusOverlay(messages: ChatMessage[], overlay: string | null): ChatMessage[] {
+function insertDynamicOverlayAtConversationBoundary(
+  messages: ChatMessage[],
+  overlay: string | null,
+  stableSystemPrompts: readonly string[],
+): ChatMessage[] {
   if (!overlay) return [...messages];
   const next = [...messages];
   const overlayMessage = { role: "system", content: overlay } as ChatMessage;
-  const insertAt = findLateStatusOverlayInsertIndex(next);
+  const stable = new Set(stableSystemPrompts.map(normalizeSystemPromptText).filter(Boolean));
+  let insertAt = 0;
+  while (
+    insertAt < next.length
+    && String(next[insertAt]?.role ?? "") === "system"
+    && stable.has(normalizeSystemPromptText(next[insertAt]?.content))
+  ) insertAt += 1;
   next.splice(insertAt, 0, overlayMessage);
   return next;
 }
@@ -470,7 +459,11 @@ export function materializeExecutionMessagesWithWorkContext(params: {
   const rootedMessages = materializeActorSystemPrompts(params.actor, params.messages);
   return {
     promptPlan,
-    executionMessages: insertLateStatusOverlay(rootedMessages, workContextOverlay),
+    executionMessages: insertDynamicOverlayAtConversationBoundary(
+      rootedMessages,
+      workContextOverlay,
+      promptPlan.systemPrompts,
+    ),
     workContextOverlay,
   };
 }
@@ -508,7 +501,11 @@ export function completeEstimationPromptMaterialization(params: {
       && String(message?.content ?? "").includes("<runtime_work_context>"),
   );
   if (!hasOverlay) {
-    next = insertLateStatusOverlay(next, buildWorkContextOverlayText(params.promptPlan.workContext));
+    next = insertDynamicOverlayAtConversationBoundary(
+      next,
+      buildWorkContextOverlayText(params.promptPlan.workContext),
+      params.promptPlan.systemPrompts,
+    );
   }
   return next;
 }
@@ -664,6 +661,7 @@ export function resetActorContinuationBaseline(params: {
     baselineEpoch: Number(current.baselineEpoch ?? 0) + 1,
     lastResetReason: params.reason,
     latestResponseId: null,
+    contextDigest: null,
     updatedAt: occurredAt,
   };
   params.actor.continuationBaseline = next;

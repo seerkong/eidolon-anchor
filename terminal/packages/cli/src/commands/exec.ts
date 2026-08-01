@@ -20,6 +20,9 @@ export type ExecArgs = {
   dangerouslyBypassApprovalsAndSandbox?: boolean
   outputLastMessage?: string
   outputTrace?: string
+  autoResume?: boolean
+  maxContinuations?: number
+  captureProviderRequests?: boolean
   addDir?: string[]
   ephemeral?: boolean
   timeout?: number
@@ -110,6 +113,20 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           type: "string",
           describe: "write structured exec trace records to this file",
         })
+        .option("auto-resume", {
+          type: "boolean",
+          default: false,
+          describe: "automatically continue resumable paused_with_progress turns until final output or limit",
+        })
+        .option("max-continuations", {
+          type: "number",
+          describe: "maximum auto-resume continuations for resumable long turns",
+        })
+        .option("capture-provider-requests", {
+          type: "boolean",
+          default: false,
+          describe: "capture complete provider request attempts in the session SQLite ledger",
+        })
         .option("add-dir", {
           type: "array",
           string: true,
@@ -184,6 +201,9 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           additionalWritableRoots: (args.addDir ?? []).map((value) => String(value)),
           outputLastMessagePath: args.outputLastMessage,
           outputTracePath: args.outputTrace,
+          autoResume: args.autoResume,
+          maxContinuations: args.maxContinuations,
+          captureProviderRequests: args.captureProviderRequests,
           onVisibleChunk: (chunk) => {
             deps.processLike.stdout.write(chunk)
           },
@@ -197,6 +217,11 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
         if (result.status === "failed") {
           if (result.failureSummary) {
             deps.reportError(result.failureSummary)
+          }
+          setProcessExitCode(deps.processLike, 1)
+        } else if (result.status === "paused_with_progress") {
+          if (result.failureSummary) {
+            deps.processLike.stderr.write(`[exec] paused_with_progress ${result.failureSummary}\n`)
           }
           setProcessExitCode(deps.processLike, 1)
         }

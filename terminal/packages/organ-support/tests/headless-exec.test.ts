@@ -8,8 +8,12 @@ import {
   runHeadlessExec,
   writeExecLastMessageFile,
 } from "../src/exec"
-import { __setLlmAdapterFactoryForTest } from "../../organ/src/AIAgent/TerminalRuntime"
+import {
+  __setLlmAdapterFactoryForTest,
+  __setRuntimeAssemblyFactoryForTest,
+} from "../../organ/src/AIAgent/TerminalRuntime"
 import { __resetSessionUlidForTest } from "../../core/src/AIAgent/SessionId"
+import { assembleAiCodingRuntimeProfile } from "@cell/mod-profiles"
 
 const originalHome = process.env.HOME
 
@@ -65,6 +69,7 @@ let activeHomeDir: string | null = null
 
 afterEach(() => {
   __setLlmAdapterFactoryForTest(null)
+  __setRuntimeAssemblyFactoryForTest(null)
   __resetSessionUlidForTest()
   if (originalHome === undefined) delete process.env.HOME
   else process.env.HOME = originalHome
@@ -151,6 +156,112 @@ describe("headless exec", () => {
     })
   })
 
+  it("routes provider ledger setup diagnostics to the headless diagnostic sink and continues", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+    const sessionKey = "headless-ledger-diagnostic"
+    const sessionDir = path.join(activeWorkdir, ".eidolon", "sessions", sessionKey)
+    fs.mkdirSync(sessionDir, { recursive: true })
+    fs.writeFileSync(path.join(sessionDir, "observability"), "blocked")
+    const diagnosticLines: string[] = []
+
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream() {
+        async function* stream() {
+          yield { choices: [{ delta: { content: "still running" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    const result = await runHeadlessExec({
+      workDir: activeWorkdir,
+      sessionKey,
+      input: "hello",
+      mcp: false,
+      captureProviderRequests: true,
+      onDiagnosticLine: (line) => {
+        diagnosticLines.push(line)
+      },
+    })
+
+    expect(result.status).toBe("completed")
+    expect(result.finalMessage).toBe("still running")
+    expect(diagnosticLines).toHaveLength(1)
+    expect(diagnosticLines[0]).toContain("provider request ledger open_failed")
+    expect(diagnosticLines[0]).toContain(`session=${sessionKey}`)
+  })
+
+  it("recovers an existing manifest for the exact cwd and session instead of creating a new actor", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+
+    let providerCall = 0
+    let recoveredMessages: Array<{ role?: string; content?: unknown }> = []
+    __setRuntimeAssemblyFactoryForTest((context) => ({
+      ...assembleAiCodingRuntimeProfile(context),
+      systemPrompt: "profile prompt v1",
+    }))
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream(options: { messages?: Array<{ role?: string; content?: unknown }> }) {
+        providerCall += 1
+        if (providerCall === 2) recoveredMessages = options.messages ?? []
+        async function* stream() {
+          yield { choices: [{ delta: { content: providerCall === 1 ? "first reply" : "second reply" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    const sessionKey = "exact-cwd-session-recovery"
+    const first = await runHeadlessExec({
+      workDir: activeWorkdir,
+      sessionKey,
+      input: "first persisted input",
+      mcp: false,
+    })
+    expect(first.status).toBe("completed")
+
+    const runtimeStateDir = path.join(activeWorkdir, ".eidolon", "sessions", sessionKey, "runtime_state")
+    const manifestBefore = JSON.parse(fs.readFileSync(path.join(runtimeStateDir, "manifest.json"), "utf8"))
+    const actorMetaPath = path.join(runtimeStateDir, manifestBefore.actorFiles[manifestBefore.controlActorKey])
+    const actorBefore = JSON.parse(fs.readFileSync(actorMetaPath, "utf8"))
+    expect(actorBefore.profileSystemPromptProvenance).toEqual(expect.objectContaining({
+      owner: "runtime_profile",
+      profileId: "ai-coding",
+      promptIndex: 0,
+    }))
+
+    __setRuntimeAssemblyFactoryForTest((context) => ({
+      ...assembleAiCodingRuntimeProfile(context),
+      systemPrompt: "profile prompt v2",
+    }))
+
+    const second = await runHeadlessExec({
+      workDir: activeWorkdir,
+      sessionKey,
+      input: "second input after recovery",
+      mcp: false,
+    })
+    expect(second.status).toBe("completed")
+
+    const manifestAfter = JSON.parse(fs.readFileSync(path.join(runtimeStateDir, "manifest.json"), "utf8"))
+    const actorAfter = JSON.parse(fs.readFileSync(
+      path.join(runtimeStateDir, manifestAfter.actorFiles[manifestAfter.controlActorKey]),
+      "utf8",
+    ))
+    expect(actorAfter.id).toBe(actorBefore.id)
+    expect(actorAfter.systemPrompts).toEqual(["profile prompt v2"])
+    expect(recoveredMessages.some((message) => message.role === "system" && message.content === "profile prompt v2")).toBe(true)
+    expect(recoveredMessages.some((message) => message.role === "user" && message.content === "first persisted input")).toBe(true)
+    expect(recoveredMessages.some((message) => message.role === "assistant" && message.content === "first reply")).toBe(true)
+    expect(recoveredMessages.some((message) => message.role === "user" && message.content === "second input after recovery")).toBe(true)
+  })
+
   it("does not overwrite an existing last-message file for failed exec results", async () => {
     activeWorkdir = makeTempWorkdir()
 
@@ -200,7 +311,7 @@ describe("headless exec", () => {
     expect(result.finalMessage).toBeNull()
   })
 
-  it("does not report completion when the runtime turn times out before a safepoint", async () => {
+  it("reports paused_with_progress when the runtime turn times out before a safepoint", async () => {
     activeWorkdir = makeTempWorkdir()
     activeHomeDir = makeTempHomeDir()
     process.env.HOME = activeHomeDir
@@ -250,8 +361,8 @@ describe("headless exec", () => {
       outputTracePath,
     })
 
-    expect(result.status).toBe("failed")
-    expect(result.failureSummary).toMatch(/runtime_turn_unsettled|runtime_turn_completed_without_final_output|Timeout after/)
+    expect(result.status).toBe("paused_with_progress")
+    expect(result.failureSummary).toMatch(/runtime_turn_unsettled/)
     expect(result.finalMessage).toBeNull()
     expect(fs.existsSync(outputLastMessagePath)).toBe(false)
     const traceLines = fs
@@ -261,12 +372,94 @@ describe("headless exec", () => {
       .map((line) => JSON.parse(line))
     expect(traceLines.at(-1)).toMatchObject({
       type: "session_end",
-      status: "failed",
+      status: "paused_with_progress",
       finalMessageChars: 0,
     })
   })
 
-  it("injects runtime hints during repeated bash file inspections in the same turn", async () => {
+  it("auto-resumes paused progress without writing a new user input", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+    fs.writeFileSync(path.join(activeWorkdir, "package.json"), JSON.stringify({ name: "loop-fixture" }), "utf-8")
+
+    let streamCount = 0
+    let secondPromptUserCount = 0
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream(options: { messages?: Array<{ role?: string; content?: string }> }) {
+        streamCount += 1
+        if (streamCount === 2) {
+          secondPromptUserCount = (options.messages ?? []).filter((message) => message.role === "user").length
+        }
+        async function* stream() {
+          if (streamCount === 1) {
+            yield {
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: "tc-auto-resume-read",
+                        type: "function",
+                        function: {
+                          name: "read",
+                          arguments: JSON.stringify({ filePath: "package.json" }),
+                        },
+                      },
+                    ],
+                  },
+                },
+              ],
+            } as any
+            return
+          }
+          yield { choices: [{ delta: { content: "resumed final" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    const outputLastMessagePath = path.join(activeWorkdir, "artifacts", "last-message.txt")
+    const outputTracePath = path.join(activeWorkdir, "artifacts", "exec-trace.jsonl")
+    const diagnostics: string[] = []
+
+    const result = await runHeadlessExec({
+      workDir: activeWorkdir,
+      input: "keep reading",
+      sessionKey: "headless-auto-resume-turn",
+      mcp: false,
+      timeoutSeconds: 0.05,
+      autoResume: true,
+      maxContinuations: 2,
+      outputLastMessagePath,
+      outputTracePath,
+      onDiagnosticLine: async (line) => {
+        diagnostics.push(line)
+      },
+    })
+
+    expect(result.status).toBe("completed")
+    expect(result.finalMessage).toBe("resumed final")
+    expect(fs.readFileSync(outputLastMessagePath, "utf-8")).toBe("resumed final")
+    expect(streamCount).toBe(2)
+    expect(secondPromptUserCount).toBe(1)
+    expect(diagnostics.join("")).toContain("[exec] auto-resume continuation 1/2")
+    const traceLines = fs
+      .readFileSync(outputTracePath, "utf-8")
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+    expect(traceLines.some((line) => line.type === "continuation_start" && line.continuationIndex === 1)).toBe(true)
+    expect(traceLines.at(-1)).toMatchObject({
+      type: "session_end",
+      status: "completed",
+      finalMessageChars: "resumed final".length,
+    })
+  })
+
+  it("does not inject runtime hints during repeated bash file inspections", async () => {
     activeWorkdir = makeTempWorkdir()
     activeHomeDir = makeTempHomeDir()
     process.env.HOME = activeHomeDir
@@ -328,11 +521,11 @@ describe("headless exec", () => {
     })
 
     expect(result.status).toBe("completed")
-    expect(result.finalMessage).toBe("hint seen")
-    expect(result.warnings).toContain(
+    expect(result.finalMessage).toBe("missing hint")
+    expect(result.warnings).not.toContain(
       "repeated shell inspections without code changes for scripts/build_tui_release.sh; stop rereading and either patch, answer, or change strategy",
     )
-    expect(diagnosticLines.join("")).toContain("repeated shell inspections without code changes")
-    expect(promptSawRuntimeHint).toBe(true)
+    expect(diagnosticLines.join("")).not.toContain("repeated shell inspections without code changes")
+    expect(promptSawRuntimeHint).toBe(false)
   })
 })

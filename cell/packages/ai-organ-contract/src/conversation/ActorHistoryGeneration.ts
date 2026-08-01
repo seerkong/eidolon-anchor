@@ -13,6 +13,7 @@ export type ConversationCommittedToolCallData = {
 };
 
 export type ConversationCommittedMessageData = {
+  messageId?: string;
   role: string;
   name?: string;
   content: string;

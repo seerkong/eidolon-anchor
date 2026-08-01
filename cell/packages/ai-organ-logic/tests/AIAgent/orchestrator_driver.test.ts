@@ -164,6 +164,135 @@ describe("AiAgentOrchestratorDriver", () => {
     expect(driver.inspectRuntime().fibers[fiberId]?.execState?.phase).toBe("drain");
   });
 
+  it("does not wait for unrelated background tasks after foreground human suspension", async () => {
+    const main = createActor({ key: "main" });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main },
+    });
+    const fiberId = `${main.key}:${main.id}`;
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor: main, messages: [], basePriority: 1 }],
+      runStep: async (ctx) => {
+        ensureVmRuntimeContext(ctx.vm).currentOrchestrator?.registerBackgroundTask?.(
+          new Promise<void>(() => {}),
+        );
+        return {
+          kind: "suspend",
+          reason: "human_answer",
+          suspendPolicy: "pause_all",
+        };
+      },
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+
+    driver.resumeFiber(fiberId, Date.now());
+    const startedAt = Date.now();
+    await driver.tickUntilForegroundSettled({
+      now: Date.now(),
+      maxTicks: 10,
+      maxWallMs: 500,
+    });
+
+    expect(Date.now() - startedAt).toBeLessThan(100);
+    expect(driver.getState().fibers[fiberId]).toMatchObject({
+      status: "suspended",
+      waitingReason: "human_answer",
+      suspendPolicy: "pause_all",
+    });
+  });
+
+  it("treats a pause_all questionnaire marker as an external foreground boundary", async () => {
+    const main = createActor({ key: "main" });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main },
+    });
+    const fiberId = `${main.key}:${main.id}`;
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor: main, messages: [], basePriority: 1 }],
+      runStep: async (ctx) => {
+        ctx.actor.send("control", {
+          kind: "questionnaire_pending",
+          questionnaireId: "q-foreground-boundary",
+          toolCallId: "tc-foreground-boundary",
+          suspendPolicy: "pause_all",
+        });
+        return {
+          kind: "suspend",
+          reason: "human_answer",
+          suspendPolicy: "pause_all",
+        };
+      },
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+
+    driver.resumeFiber(fiberId, Date.now());
+    const startedAt = Date.now();
+    await driver.tickUntilForegroundSettled({
+      now: Date.now(),
+      maxTicks: 10,
+      maxWallMs: 500,
+    });
+
+    expect(Date.now() - startedAt).toBeLessThan(100);
+    expect(main.peekMailbox("control")).toContainEqual(expect.objectContaining({
+      kind: "questionnaire_pending",
+      questionnaireId: "q-foreground-boundary",
+    }));
+    expect(driver.getState().fibers[fiberId]).toMatchObject({
+      status: "suspended",
+      waitingReason: "human_answer",
+      suspendPolicy: "pause_all",
+    });
+  });
+
+  it("does not repeatedly resume a continue_others human wait for its questionnaire marker", async () => {
+    const main = createActor({ key: "main" });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main },
+    });
+    const fiberId = `${main.key}:${main.id}`;
+    let invocations = 0;
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor: main, messages: [], basePriority: 1 }],
+      runStep: async (ctx) => {
+        invocations += 1;
+        if (!ctx.actor.hasPending("control")) {
+          ctx.actor.send("control", {
+            kind: "questionnaire_pending",
+            questionnaireId: "q-continue-others",
+            toolCallId: "tc-continue-others",
+            suspendPolicy: "continue_others",
+          });
+        }
+        return {
+          kind: "suspend",
+          reason: "human_answer",
+          suspendPolicy: "continue_others",
+        };
+      },
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+
+    driver.resumeFiber(fiberId, Date.now());
+    const startedAt = Date.now();
+    await driver.tickUntilForegroundSettled({
+      now: Date.now(),
+      maxTicks: 10,
+      maxWallMs: 500,
+    });
+
+    expect(Date.now() - startedAt).toBeLessThan(100);
+    expect(invocations).toBe(1);
+    expect(driver.getState().fibers[fiberId]).toMatchObject({
+      status: "suspended",
+      waitingReason: "human_answer",
+      suspendPolicy: "continue_others",
+    });
+  });
+
   it("persists per-fiber human suspend policy", async () => {
     const mockAdapter = {
       type: "openai" as const,

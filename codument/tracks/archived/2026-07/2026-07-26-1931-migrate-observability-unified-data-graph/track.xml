@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="migrate-observability-unified-data-graph" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>迁移 Cell 与 terminal organ observability 的 unified computed-node runtime contract。</Goal>
+    <Description>以 source boundary 和 focused suites 修复 `ctx.get`，同时保持 diagnostic summary 与 lifecycle 行为。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-07-26T16:20:00Z</CreatedAt>
+    <UpdatedAt>2026-07-26T16:31:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_migrate-observability-unified-data-graph" name="migrate-observability-unified-data-graph" version="1">
+    <Description>修复 unified DataGraph computed runtime 的 observability consumer。</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Unified observability computed runtime" status="DONE" order="0">
+        <Description>先锁定旧 callback API，再迁移生产与测试，并执行两包 focused verification。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>track-owned computed callbacks 不再使用 ctx.get</cdt:Criterion>
+          <cdt:Criterion>Cell 与 terminal observability focused suites 通过</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="锁定 observability computed runtime regression" status="DONE" order="0">
+            <Description>新增 source boundary，旧生产和 fixture callback API 下应报红。</Description>
+            <cdt:Acceptance><cdt:Criterion id="T1.1-AC1" checked="true">RED regression 覆盖两个生产 DiagnosticSubgraph 和 terminal fixtures</cdt:Criterion></cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="迁移生产 diagnostic summaries" status="DONE" order="1">
+            <Description>将 Cell 与 terminal organ summary callback 迁移为 runtime.graph.get。</Description>
+            <cdt:Acceptance><cdt:Criterion id="T1.2-AC1" checked="true">两个生产 summary 保持 dependency list 且不含 ctx.get</cdt:Criterion></cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="迁移 terminal observability fixtures" status="DONE" order="2">
+            <Description>修复直接调用旧 computed callback API 的 terminal tests，并让 source boundary 接受合法的泛型 graph.get reads。</Description>
+            <cdt:Acceptance><cdt:Criterion id="T1.3-AC1" checked="true">existing fixture computations 用 runtime.graph.get 并通过</cdt:Criterion></cdt:Acceptance>
+          </Task>
+          <Task id="T1.4" name="独立验证 observability migration" status="DONE" order="3">
+            <Description>独立复跑 Cell/terminal observability suites 并审查 TUI boundary 仍未被吞并。</Description>
+            <cdt:Acceptance><cdt:Criterion id="T1.4-AC1" checked="true">focused suites 通过且 G7 TUI scope 保持独立</cdt:Criterion></cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Hooks/>
+</Track>

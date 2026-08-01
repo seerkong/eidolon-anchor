@@ -114,4 +114,5 @@ export type ReconstructedToolResult = {
   funcName: string;
   outputText: string;
   isError: boolean;
+  failureKind?: ToolFailureKind;
 };

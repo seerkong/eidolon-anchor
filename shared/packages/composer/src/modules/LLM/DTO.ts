@@ -7,6 +7,11 @@
 export type LLMRole = "user" | "assistant" | "tool" | "system";
 
 export interface ChatMessage {
+  /**
+   * Conversation-domain identity. Runtime materialization uses this to track
+   * delivery without exposing the identifier to provider request bodies.
+   */
+  messageId?: string;
   role: LLMRole;
   name?: string;
   content: string;

@@ -7,6 +7,7 @@ import { createActor, createVM } from "@cell/ai-core-logic"
 import type { AiAgentWakeMailbox } from "@cell/ai-core-logic/runtime/actor"
 import {
   appendLiveHistoryMessageToConversationDomainRuntime,
+  createRuntimeHookHandlerComponent,
   createAiAgentOrchestratorDriver,
   createAiAgentOrchestratorDriverWithCooperative,
   createAiAgentRuntimeCoordinator,
@@ -19,8 +20,10 @@ import {
 } from "@cell/ai-organ-logic/persistence/RuntimeSnapshots"
 import { evaluateAiAgentRuntimeSnapshotSafepoint } from "@cell/ai-runtime-control-logic"
 import {
+  appendRuntimeControlEffectEvidence,
   readXnlRecords,
   readRealSessionDurableHeads,
+  readRuntimeControlEffectEvidence,
   writeRuntimeControlCohortCommitFile,
 } from "@cell/ai-file-store-logic"
 import { applyFileStoreAiRuntimeSessionUpgrade } from "@cell/ai-runtime-control-composer"
@@ -469,6 +472,64 @@ describe("runtime snapshot safepoints", () => {
     }
   })
 
+  it("closes superseded runtime-control pending effects before saving a safe snapshot", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-superseded-pending-effect"
+    const actor = createActor({
+      key: "main",
+      id: "actor-main",
+      messages: [{ role: "user", content: "already settled" }] as any[],
+    })
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      outerCtx: { metadata: { sessionId, sessionDir } },
+    })
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId: `${actor.key}:${actor.id}`, vm, actor, messages: actor.messages, basePriority: 1 }],
+      runStep: async () => ({ kind: "suspend" as const, reason: "idle_external" as any }),
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    const effectId = "llm:main:actor-main:2"
+
+    try {
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "provider_completion",
+          effectId,
+          handlerKey: "llm:deepseek",
+          idempotencyKey: "stale-provider",
+          sourceCommandId: effectId,
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "waiting",
+          effectKind: "provider_completion",
+          effectId,
+          handlerKey: "llm:deepseek",
+          idempotencyKey: "stale-provider",
+          waitReason: "wait_llm_result",
+        },
+      })
+
+      const result = await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+
+      expect(result.status).toBe("saved")
+      expect(fs.existsSync(path.join(sessionDir, "runtime_state", "manifest.json"))).toBe(true)
+      expect(await readRuntimeControlEffectEvidence(sessionDir)).toContainEqual(expect.objectContaining({
+        kind: "failed",
+        effectId,
+        error: expect.stringContaining("superseded by later live progress"),
+      }))
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("does not schedule checkpoint writes or diagnostics when runtime storage files are disabled", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-coordinator-storage-files-disabled"
@@ -505,6 +566,112 @@ describe("runtime snapshot safepoints", () => {
       expect(saveCalls).toBe(0)
       expect(fs.existsSync(path.join(sessionDir, "logs", "diagnostics.xnl"))).toBe(false)
       expect(fs.existsSync(path.join(sessionDir, "runtime_state"))).toBe(false)
+    } finally {
+      coordinator.dispose()
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("background pump does not checkpoint when no background work is pending", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-background-idle-no-checkpoint"
+    const actor = createActor({
+      key: "main",
+      id: "actor-main",
+      messages: [{ role: "user", content: "idle foreground" }] as any[],
+    })
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      outerCtx: {
+        metadata: { sessionId, sessionDir },
+      },
+    })
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId: `${actor.key}:${actor.id}`, vm, actor, messages: actor.messages, basePriority: 1 }],
+      runStep: async () => ({ kind: "complete" as const }),
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    let saveCalls = 0
+    const coordinator = createAiAgentRuntimeCoordinator({
+      vm,
+      driver,
+      backgroundIntervalMs: 5,
+      saveSnapshot: async () => {
+        saveCalls += 1
+      },
+    })
+
+    try {
+      coordinator.startBackgroundPump()
+      await new Promise((resolve) => setTimeout(resolve, 40))
+
+      expect(saveCalls).toBe(0)
+    } finally {
+      coordinator.dispose()
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("background pump still runs idle hooks without checkpointing an idle tick", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-background-idle-hook-no-checkpoint"
+    const actor = createActor({
+      key: "main",
+      id: "actor-main",
+      messages: [{ role: "user", content: "idle hook" }] as any[],
+    })
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      outerCtx: {
+        metadata: { sessionId, sessionDir },
+      },
+    })
+    const fiberId = `${actor.key}:${actor.id}`
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor, messages: actor.messages, basePriority: 1 }],
+      runStep: async () => ({ kind: "suspend" as const, reason: "idle_external" as any }),
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    driver.suspendFiber(fiberId, Date.now(), "idle_external" as any, "continue_others")
+    let saveCalls = 0
+    let hookCalls = 0
+    const coordinator = createAiAgentRuntimeCoordinator({
+      vm,
+      driver,
+      backgroundIntervalMs: 5,
+      hookDefinitions: [
+        {
+          name: "idle-test",
+          extensionId: "test",
+          point: "actor.idle.before",
+          mode: "observe",
+          execution: {
+            style: "component",
+            componentId: "test.idle",
+          },
+        },
+      ],
+      hookHandlers: {
+        "test.idle": createRuntimeHookHandlerComponent({
+          coreLogic: async () => {
+            hookCalls += 1
+            return { action: "continue" }
+          },
+        }),
+      },
+      saveSnapshot: async () => {
+        saveCalls += 1
+      },
+    })
+
+    try {
+      coordinator.startBackgroundPump()
+      await new Promise((resolve) => setTimeout(resolve, 40))
+
+      expect(hookCalls).toBeGreaterThan(0)
+      expect(saveCalls).toBe(0)
     } finally {
       coordinator.dispose()
       fs.rmSync(sessionDir, { recursive: true, force: true })
@@ -938,6 +1105,85 @@ describe("runtime snapshot safepoints", () => {
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
+  })
+
+  it("returns control immediately when a questionnaire blocks on human input at a non-safepoint", async () => {
+    let tickCount = 0
+    let saveCalled = false
+    let idleHookCalled = false
+    const actor = createActor({ key: "main", messages: [] })
+    const vm = createVM({ controlActorKey: "main", actors: { main: actor } })
+    const fiberId = `${actor.key}:${actor.id}`
+    const execState = {
+      phase: "start_tool",
+      turn: 1,
+      tools: [{ type: "function", function: { name: "Questionnaire" } }],
+      toolCalls: [{ id: "questionnaire-call", name: "Questionnaire", input: {} }],
+      toolIndex: 0,
+      nextOpSeq: 2,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+    }
+    const driver = {
+      resumeFiber: () => {},
+      async tickUntilForegroundSettled() {
+        tickCount += 1
+      },
+      inspectRuntime() {
+        return {
+          fibers: {
+            [fiberId]: { fiberId, actor, execState },
+          },
+          state: {
+            fibers: {
+              [fiberId]: {
+                status: "suspended",
+                waitingReason: "human_answer",
+                suspendPolicy: "pause_all",
+              },
+            },
+          },
+          pendingResumes: [],
+        }
+      },
+    } as any
+    const coordinator = createAiAgentRuntimeCoordinator({
+      vm,
+      driver,
+      saveSnapshot: async () => {
+        saveCalled = true
+      },
+      hookDefinitions: [{
+        id: "idle-hook",
+        enabled: true,
+        point: "actor.idle.before",
+        handler: "test",
+      }] as any,
+      hookHandlers: {
+        test: {
+          run: async () => {
+            idleHookCalled = true
+          },
+        },
+      } as any,
+    })
+
+    const startedAt = Date.now()
+    const result = await coordinator.runInteractiveTurn({
+      mainFiberId: fiberId,
+      timeoutMs: 2_000,
+    })
+
+    expect(result).toEqual({
+      status: "blocked_on_human",
+      safepointSafe: false,
+      fiberId,
+      reason: "human_answer",
+    })
+    expect(Date.now() - startedAt).toBeLessThan(1_000)
+    expect(tickCount).toBeLessThanOrEqual(4)
+    expect(saveCalled).toBe(false)
+    expect(idleHookCalled).toBe(false)
   })
 
   it("coordinator keeps driving mandatory continuations until a safepoint is reached", async () => {

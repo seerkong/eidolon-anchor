@@ -50,7 +50,14 @@ describe("tasktree_manifest_variants", () => {
         { content: "second", status: "pending", activeForm: "main" },
       ],
     })
-    expect(String(replaceOut)).toContain("[>] first")
+    expect(replaceOut).toEqual(expect.objectContaining({
+      output: expect.stringContaining("Task tree updated: task_tree@sha256:"),
+      contextEffects: [expect.objectContaining({
+        kind: "mutable_provider_projection",
+        logicalKey: "task_tree",
+        content: expect.stringContaining("first"),
+      })],
+    }))
 
     const expandOut = await registry.call("TaskTreeWriteFlat", vm, actor, {
       op: "expand",

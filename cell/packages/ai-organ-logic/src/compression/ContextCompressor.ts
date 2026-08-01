@@ -21,6 +21,8 @@ type CompressHistoryParams = {
   recentKeep?: number;
   logger?: LoggerLike;
   processStream?: (stream: AsyncIterable<any>) => Promise<any>;
+  protectedToolCallIds?: ReadonlySet<string> | readonly string[];
+  protectedMessageIds?: ReadonlySet<string> | readonly string[];
 };
 
 type ToolResultRef = {
@@ -52,6 +54,7 @@ export type CheapCompactionOptions = {
   microKeepRecentToolResults?: number;
   microMinContentChars?: number;
   microPreviewChars?: number;
+  protectedToolCallIds?: ReadonlySet<string> | readonly string[];
 };
 
 function warn(logger: LoggerLike | undefined, message: string, error?: unknown): void {
@@ -104,6 +107,14 @@ function cloneMessages(messages: any[]): any[] {
   } catch {
     return JSON.parse(JSON.stringify(messages));
   }
+}
+
+function stripMessageRuntimeMetadata(messages: any[]): any[] {
+  return messages.map((message) => {
+    if (!message || typeof message !== "object") return message;
+    const { messageId: _messageId, ...providerVisible } = message;
+    return providerVisible;
+  });
 }
 
 function stringifyContent(value: unknown): string {
@@ -196,9 +207,19 @@ function extractPersistedPath(content: string): string | null {
   return match?.[1]?.trim() || null;
 }
 
+function toProtectedToolCallIds(
+  value: ReadonlySet<string> | readonly string[] | undefined,
+): ReadonlySet<string> {
+  if (value instanceof Set) return value;
+  return new Set(value ?? []);
+}
+
 export function applyToolResultBudget(
   messages: any[],
-  options: Pick<CheapCompactionOptions, "artifactDir" | "toolResultBudgetBytes" | "toolResultPersistThresholdBytes" | "toolResultPreviewChars"> = {},
+  options: Pick<
+    CheapCompactionOptions,
+    "artifactDir" | "toolResultBudgetBytes" | "toolResultPersistThresholdBytes" | "toolResultPreviewChars" | "protectedToolCallIds"
+  > = {},
 ): { changed: boolean; persisted: number } {
   const artifactDir = typeof options.artifactDir === "string" && options.artifactDir ? options.artifactDir : null;
   if (!artifactDir) {
@@ -208,6 +229,7 @@ export function applyToolResultBudget(
   const maxBytes = options.toolResultBudgetBytes ?? 200_000;
   const persistThreshold = options.toolResultPersistThresholdBytes ?? 30_000;
   const previewChars = options.toolResultPreviewChars ?? 2_000;
+  const protectedToolCallIds = toProtectedToolCallIds(options.protectedToolCallIds);
   const refs = collectToolResultRefs(messages);
   let total = refs.reduce((sum, ref) => sum + stringifyContent(ref.getContent()).length, 0);
   if (total <= maxBytes) {
@@ -220,6 +242,7 @@ export function applyToolResultBudget(
     .sort((a, b) => b.content.length - a.content.length);
   for (const item of ranked) {
     if (total <= maxBytes) break;
+    if (protectedToolCallIds.has(item.ref.toolCallId)) continue;
     if (item.content.length <= persistThreshold) continue;
     if (item.content.includes("<persisted-tool-result>")) continue;
     const replacement = persistToolResult({
@@ -238,11 +261,15 @@ export function applyToolResultBudget(
 
 export function microCompactToolResults(
   messages: any[],
-  options: Pick<CheapCompactionOptions, "microKeepRecentToolResults" | "microMinContentChars" | "microPreviewChars"> = {},
+  options: Pick<
+    CheapCompactionOptions,
+    "microKeepRecentToolResults" | "microMinContentChars" | "microPreviewChars" | "protectedToolCallIds"
+  > = {},
 ): { changed: boolean; compacted: number } {
   const keepRecent = Math.max(0, Math.floor(options.microKeepRecentToolResults ?? 3));
   const minChars = Math.max(0, Math.floor(options.microMinContentChars ?? 120));
   const previewChars = Math.max(0, Math.floor(options.microPreviewChars ?? 800));
+  const protectedToolCallIds = toProtectedToolCallIds(options.protectedToolCallIds);
   const refs = collectToolResultRefs(messages);
   if (refs.length <= keepRecent) {
     return { changed: false, compacted: 0 };
@@ -250,6 +277,7 @@ export function microCompactToolResults(
 
   let compacted = 0;
   for (const ref of refs.slice(0, refs.length - keepRecent)) {
+    if (protectedToolCallIds.has(ref.toolCallId)) continue;
     const content = stringifyContent(ref.getContent());
     if (content.length <= minChars) continue;
     const persistedPath = extractPersistedPath(content);
@@ -357,6 +385,106 @@ export function findSplitPoint(messages: any[], recentKeep = 4): number {
   return -1;
 }
 
+function toolCallIdsFromAssistantMessage(message: any): string[] {
+  if (message?.role !== "assistant") return [];
+  const ids = new Set<string>();
+  const calls = Array.isArray(message.tool_calls)
+    ? message.tool_calls
+    : Array.isArray(message.toolCalls)
+      ? message.toolCalls
+      : [];
+  for (const call of calls) {
+    const id = String(call?.id ?? "").trim();
+    if (id) ids.add(id);
+  }
+  if (Array.isArray(message.content)) {
+    for (const block of message.content) {
+      if (block?.type !== "tool_use") continue;
+      const id = String(block.id ?? block.tool_call_id ?? block.toolCallId ?? "").trim();
+      if (id) ids.add(id);
+    }
+  }
+  return [...ids];
+}
+
+function findProtectedPairStartIndex(
+  messages: any[],
+  protectedToolCallIds: ReadonlySet<string>,
+): number | null {
+  if (protectedToolCallIds.size === 0) return null;
+  const assistantIndexes = new Map<string, number>();
+  messages.forEach((message, messageIndex) => {
+    for (const toolCallId of toolCallIdsFromAssistantMessage(message)) {
+      if (!protectedToolCallIds.has(toolCallId) || assistantIndexes.has(toolCallId)) continue;
+      assistantIndexes.set(toolCallId, messageIndex);
+    }
+  });
+
+  let earliestPairStart: number | null = null;
+  for (const result of collectToolResultRefs(messages)) {
+    if (!protectedToolCallIds.has(result.toolCallId)) continue;
+    const assistantIndex = assistantIndexes.get(result.toolCallId);
+    if (assistantIndex === undefined) continue;
+    const pairStart = Math.min(assistantIndex, result.messageIndex);
+    earliestPairStart = earliestPairStart === null
+      ? pairStart
+      : Math.min(earliestPairStart, pairStart);
+  }
+  return earliestPairStart;
+}
+
+function findProtectedMessageStartIndex(
+  messages: any[],
+  protectedMessageIds: ReadonlySet<string>,
+): number | null {
+  if (protectedMessageIds.size === 0) return null;
+  let earliest: number | null = null;
+  messages.forEach((message, index) => {
+    const messageId = typeof message?.messageId === "string" ? message.messageId : "";
+    if (!messageId || !protectedMessageIds.has(messageId)) return;
+    earliest = earliest === null ? index : Math.min(earliest, index);
+  });
+  return earliest;
+}
+
+function findProtectedSplitPoint(params: {
+  messages: any[];
+  recentKeep: number;
+  protectedToolCallIds: ReadonlySet<string>;
+  protectedMessageIds: ReadonlySet<string>;
+}): { splitPoint: number; protectsPendingHistory: boolean } {
+  const naturalSplitPoint = findSplitPoint(params.messages, params.recentKeep);
+  if (naturalSplitPoint <= 0) {
+    return { splitPoint: naturalSplitPoint, protectsPendingHistory: false };
+  }
+  const protectedPairStart = findProtectedPairStartIndex(
+    params.messages,
+    params.protectedToolCallIds,
+  );
+  const protectedMessageStart = findProtectedMessageStartIndex(
+    params.messages,
+    params.protectedMessageIds,
+  );
+  const protectedStart = protectedPairStart === null
+    ? protectedMessageStart
+    : protectedMessageStart === null
+      ? protectedPairStart
+      : Math.min(protectedPairStart, protectedMessageStart);
+  if (protectedStart === null || naturalSplitPoint <= protectedStart) {
+    return {
+      splitPoint: naturalSplitPoint,
+      protectsPendingHistory: protectedStart !== null,
+    };
+  }
+
+  for (let index = protectedStart; index >= 1; index -= 1) {
+    if (params.messages[index]?.role === "user") {
+      return { splitPoint: index, protectsPendingHistory: true };
+    }
+  }
+  return { splitPoint: -1, protectsPendingHistory: true };
+}
+
 export function loadCompressionPrompt(): string {
   return compressionPrompt;
 }
@@ -410,8 +538,21 @@ export async function compressHistory(params: CompressHistoryParams): Promise<an
     return null;
   }
 
-  const splitPoint = findSplitPoint(messages, params.recentKeep ?? 4);
+  const protectedToolCallIds = toProtectedToolCallIds(params.protectedToolCallIds);
+  const protectedMessageIds = toProtectedToolCallIds(params.protectedMessageIds);
+  const {
+    splitPoint,
+    protectsPendingHistory,
+  } = findProtectedSplitPoint({
+    messages,
+    recentKeep: params.recentKeep ?? 4,
+    protectedToolCallIds,
+    protectedMessageIds,
+  });
   if (splitPoint <= 0) {
+    if (protectsPendingHistory) {
+      warn(logger, "compressHistory skipped: no safe split exists before protected pending history");
+    }
     return null;
   }
 
@@ -419,6 +560,10 @@ export async function compressHistory(params: CompressHistoryParams): Promise<an
   const recentMessages = messages.slice(splitPoint);
 
   if (oldMessages.length === 0 || recentMessages.length === 0) {
+    return null;
+  }
+  if (protectsPendingHistory && estimateTokens(recentMessages) >= inputLimit) {
+    warn(logger, "compressHistory skipped: protected pending history tail exceeds provider input limit");
     return null;
   }
 
@@ -439,7 +584,11 @@ export async function compressHistory(params: CompressHistoryParams): Promise<an
       warn(logger, "compressHistory failed: no old messages fit within compression request budget");
       return null;
     }
-    const serializedOld = JSON.stringify(oldMessagesForCompression, null, 2);
+    const serializedOld = JSON.stringify(
+      stripMessageRuntimeMetadata(oldMessagesForCompression),
+      null,
+      2,
+    );
     const { stream } = await llmAdapter.createStream({
       model,
       messages: [
@@ -481,6 +630,10 @@ export async function compressHistory(params: CompressHistoryParams): Promise<an
 
     if (compressedTokens >= originalTokens) {
       warn(logger, `compressHistory discarded: compression inflated tokens (${compressedTokens} >= ${originalTokens})`);
+      return null;
+    }
+    if (protectsPendingHistory && compressedTokens >= inputLimit) {
+      warn(logger, "compressHistory skipped: summary cannot retain protected pending history within provider input limit");
       return null;
     }
 

@@ -19,6 +19,14 @@ export type LlmModelCapabilities = {
   cachePolicy?: LlmModelCachePolicy;
 };
 
+/** Local execution correlation for one concrete LLM request; never serialized to a provider. */
+export type LlmRequestExecutionIdentity = Readonly<{
+  actorId: string;
+  turnId: string;
+  operationId: string;
+  requestId: string;
+}>;
+
 export type LlmGenerateOptions = {
   model: string;
   messages: any[];
@@ -26,18 +34,24 @@ export type LlmGenerateOptions = {
   extraBody?: any;
   signal?: AbortSignal;
   /**
-   * Stable session/actor identity for this turn. Used by the openai-responses
-   * WebSocket transport to key `previous_response_id` reasoning continuity so a
-   * captured response id is reused across the per-call new adapter instances of
-   * one session (and never leaks across sessions). Absent -> continuity is
-   * disabled (full input each turn).
+   * Stable session/actor identity for provider-specific request correlation.
+   * It must not be used as an implicit continuation-state key; Responses
+   * continuation is supplied explicitly through `providerRequestContext`.
    */
   sessionKey?: string;
+  /**
+   * Provider-specific request data passed through the provider runtime without
+   * being serialized as request body fields. Provider packages own its schema.
+   */
+  providerRequestContext?: unknown;
+  executionIdentity?: LlmRequestExecutionIdentity;
 };
 
 export type LlmStreamResult = {
   stream: AsyncIterable<any>;
   toolContext?: any;
+  /** Provider-native completion data, finalized after `stream` is consumed. */
+  providerOutput?: Promise<unknown | undefined>;
 };
 
 export interface LlmAdapter {

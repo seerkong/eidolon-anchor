@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 
 import { buildApplyPatchToolDef } from "../../src/composer/AIAgent/tools/ApplyPatch";
 import { buildBashToolDef } from "../../src/composer/AIAgent/tools/Bash";
+import { buildSkillTool } from "../../src/composer/AIAgent/ToolDefinitions";
+import { assembleAiKernelRuntimeProfile } from "../../../mod-profiles/src/index";
 
 describe("tool prompt guidance", () => {
   it("teaches bash to prefer rg for search and file tools for edits", () => {
@@ -37,5 +39,28 @@ describe("tool prompt guidance", () => {
     expect(applyPatchTool.detailPromptXnl).toContain("+`, `-`, and space-prefixed lines");
     expect(applyPatchTool.detailPromptXnl).toContain("reread the target file");
     expect(applyPatchTool.detailPromptXnl).toContain("Do not use shell-simulated editing");
+  });
+
+  it("describes generic revision and visibility reuse without an unconditional Skill repeat obligation", () => {
+    const skillTool = buildSkillTool("- demo: Demo skill");
+    const description = skillTool.function.description;
+    expect(description).toContain("resource revision");
+    expect(description).toContain("requested fragment");
+    expect(description).toContain("current context");
+    expect(description).toContain("reload");
+    expect(description).not.toContain("IMMEDIATELY");
+
+    const prompt = assembleAiKernelRuntimeProfile({
+      workDir: "/tmp/kernel-prompt",
+      skillsDescription: "SENTINEL_SKILL_DESCRIPTION",
+      loadedAgents: {},
+      delegateAgentDescriptions: "",
+    }).systemPrompt;
+    expect(prompt).toContain("resource revision");
+    expect(prompt).toContain("requested fragment");
+    expect(prompt).toContain("current provider context");
+    expect(prompt).toContain("compacted");
+    expect(prompt).not.toContain("SENTINEL_SKILL_DESCRIPTION");
+    expect(prompt).not.toContain("<skill-loaded>");
   });
 });

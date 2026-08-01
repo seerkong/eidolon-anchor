@@ -105,6 +105,13 @@ export type VmHolonRecord = {
   updatedAt: number;
 };
 
+export type DetachedDelegateSingleFlightScope = {
+  parentActorKey: string;
+  parentActorId: string;
+  agentType: string;
+  taskKey: string;
+};
+
 export type VmAutonomousHolonRecord = VmHolonRecord & {
   governance: "autonomous";
   leaderMemberId?: null;
@@ -128,6 +135,7 @@ export type VmDetachedActorRecord = {
   childActorId?: string;
   outputText?: string;
   error?: string;
+  singleFlightScope?: DetachedDelegateSingleFlightScope;
 };
 
 export type VmThreadGoalStatus =

@@ -12,6 +12,8 @@
 - **它不做什么**：不枚举每个正确实现，不替代代码/类型/测试做"当前行为"的事实源，不充当任务清单。一次违反未必立刻报错，但**持续偏离会腐蚀结构**——吸引子治的是"扰动下的稳定性"，不是"越界即错"的护栏。
 - **优先级边界**：技术结构与跨模块规则以本文件为准；单次行为语义以代码/类型/测试为准；持久化 / schema 真相以真实 model/schema 文件为准。
 - **判据不是库**：DEPA 的参照实现可以是某些 data-graph / processor / actor / 标准组件库，但判据是**维度与不变量**，不是这些库。任何语言、任何技术栈，只要满足下面的关系，就落在吸引子里。
+- **可移植使用**：本文件可作为项目的架构 owner doc，或被项目 `AGENTS.md` / 设计文档引用。设计、开发、重构与 review 都以它作结构判据；遇到业务行为、schema 或兼容性冲突时，保留本文件的方向，同时以对应事实源决定局部实现。
+- **owner 不混用**：`data owner` 是某份数据唯一的权威写入者；`owner boundary` 是它的写入与依赖边界；`owner doc` 是承载架构规则的文档。后者不拥有业务数据。
 
 ---
 
@@ -20,7 +22,8 @@
 一个 DEPA 系统收敛到这组相互定义的关系上：
 
 ```text
-output = fn(runtime, input, config)        逻辑是纯函数：依赖显式注入、副作用分离
+output = fn(runtime, input, config)        显式函数边界：依赖注入；纯计算保持纯，副作用只经注入契约
+output = fn(runtime, targets, invocation, config) 前端/ECS/批处理：寻址与操作语义分列，runtime 负责解析与调度
 runtime = 数据(大部分) + effect 契约(少部分) + actor 依赖(复杂时)   是载体，不写逻辑
 state   = fold(reducer, events)            状态是事件的投影：单一写入者、衍生不反写
 process = 数据血缘(D) 串 纯处理器(P)        标准封装；分发用注册表，不用 if/elif 长链
@@ -45,9 +48,11 @@ DEPA 的合法"词汇表"是一个封闭集。系统里每个结构都应能映�
 | **快照 snapshot** | 可丢弃可重建的中间产物（checkpoint） | Data |
 | **runtime** | 长生命周期依赖与状态的**数据载体**（D 主 + E 少 + A 时含） | D/E/A |
 | **input / config** | 单次调用的 payload / 静态枚举开关 | Effect |
-| **核心逻辑 fn** | `fn(runtime, input, config)` 的纯/async 函数，依赖全来自参数 | Effect |
+| **targets** | 一次 invocation 的稳定目标引用集合；不是直接 UI/ECS/画布对象，解析、权限和批处理归 runtime | Data / Processor |
+| **invocation** | 一次不可变操作的语义封套：`type`、可选 `kind`、`payload`、metadata；可同步产生，也可被投递 | Data / Processor |
+| **核心逻辑 fn** | `fn(runtime, input, config)` 的显式函数边界：纯计算不混 IO；需要副作用时只调用 runtime 中注入的 effect 契约，绝不自行取得具体实现 | Effect |
 | **副作用契约 effect** | "怎么产生副作用"的契约/工厂：声明在 runtime、实现在 impl | Effect |
-| **处理器 / adapter** | 把一份数据映射成另一份数据的纯函数（outer↔inner 转换、core 编排） | Processor |
+| **处理器 / adapter** | outer↔inner 转换的 adapter 是 `data→data` 纯函数；core 是同一封装链中的业务处理器，若需 IO 仅经注入的 effect 契约 | Processor |
 | **分发引擎 dispatch** | 枚举 id → handler 的可组合注册表（动态路由时用） | Processor |
 | **command / message** | 同步命令（同栈）/ 异步消息（经 mailbox） | Processor / Actor |
 | **actor + mailbox** | 单一所有权的并发/解环单元，外部经消息读写 | Actor |
@@ -70,10 +75,10 @@ DEPA 的合法"词汇表"是一个封闭集。系统里每个结构都应能映�
      logger.info("creating")                  // 隐式全局
      return db.users.create(req.body)         // 直接 IO 写在 core
    }
-✅ 依赖注入、副作用经契约、core 纯
+✅ 依赖注入、副作用只经契约（纯计算仍保持纯）
    function createUser(runtime, input, config) {     // fn(runtime,input,config)
      runtime.logger.info("creating")          // 注入的契约
-     return runtime.db.users.create(input.data)
+     return runtime.db.users.create(input.data)       // 注入的 effect 契约
    }
 ```
 
@@ -88,9 +93,26 @@ runtime 只装数据与依赖引用，**不写业务方法**。它是 Data（大
    runCheckout(runtime, cart, config) -> Receipt { ... }
 ```
 
-### I3 · 三参数归位
+### I3 · 参数归位
 长生命周期/共享/跨步骤状态 → `runtime`；单次 payload → `input`；单次静态枚举/开关 → `config`。
 破：稳定依赖（registry/client/session）偷渡进 input/config；函数对象塞进 config；config 重复 runtime 已有字段（两处真源必漂移）。
+
+交互式、目标寻址入口使用 `fn(runtime, targets, invocation, config)`：`targets` 只说明“对谁做”，`invocation` 只说明“做什么”，二者不互塞；runtime 解析 refs、做可见性/权限/批处理，config 不承载动态消息调度。`invocation` 可以被同步调用；只有跨 actor/mailbox 投递时才是 `message`。
+
+**前端简例（选中表格行后批量改角色）**：UI 只把选中项转换成稳定 `targets`，并产生 `invocation`；handler 把解析、授权和批处理交给 runtime，返回结构化结果。
+
+```ts
+async function bulkEditUsers(runtime, targets, invocation, config) {
+  return runtime.targets.authorizeResolveAndBatch({
+    targets,                                      // users://row/42，不是 DOM/行对象
+    invocation,                                      // { type: 'users.bulk-edit', payload: { patch } }
+    config,                                          // { mode: 'best-effort', maxConcurrency: 8 }
+    perform: (rows) => runtime.effects.users.applyRolePatch(rows, invocation.payload.patch),
+  });
+}
+
+// output = { applied: { updated: [...] }, rejected: [{ ref, reason }] }
+```
 
 ```text
 ❌ 稳定依赖偷渡进 input、函数对象塞 config
@@ -127,7 +149,7 @@ effect 以契约/工厂声明在 runtime，编排在 factory/bootstrap，core �
 ```
 
 ### I6 · 标准封装：数据血缘(D) 与处理器(P) 分列
-一段调用从 outer 进、回 outer 出，是**一条显式数据血缘**被**一组纯处理器**串起来——数据是名词、处理器是 `data→data` 的纯函数，**两块分开**，绝不在同一格 / 同一无差别箭头链里混（详见 §7）。
+一段调用从 outer 进、回 outer 出，是**一条显式数据血缘**被**一组处理器**串起来——转换处理器是 `data→data` 的纯函数；core 遵守 I1/I4 的注入 effect 边界。数据是名词、处理器是逻辑，**两块分开**，绝不在同一格 / 同一无差别箭头链里混（详见 §7）。
 破：把 `Outer Input → Transform → Core → Outer Output` 这种数据名词与逻辑动词混排，当成"流程图"。
 
 ### I7 · 受控分发
@@ -204,7 +226,7 @@ effect 以契约/工厂声明在 runtime，编排在 factory/bootstrap，core �
 - **违反信号**：core 读全局/单例/环境变量、现 new client、直接 IO；契约与编排糊在一起；`runtime: { everything: any }` 巨型上下文。
 
 ### Processor — 标准封装与受控分发
-- **收敛形态**：所有组件走同一条封装流程（D 血缘 + P 处理器分列，core 是"读入恰好是 (runtime,input,config)"的那个纯处理器）；动态路由用可组合分发引擎；command/message 边界清晰。
+- **收敛形态**：所有组件走同一条封装流程（D 血缘 + P 处理器分列，core 是"读入恰好是 (runtime,input,config)"的业务处理器，副作用边界遵守 I1/I4）；动态路由用可组合分发引擎；command/message 边界清晰。
 - **符合信号**：组件同构、执行路径可预测；core 不做路径解析/错误包装等框架关注点；新增路由不改已有代码。
 - **违反信号**：执行路径各异；硬编码 if/elif 分发；core 处理框架关注点；同步伪装异步或异步硬塞同步。
 
@@ -287,7 +309,7 @@ outer{runtime · input · config}  →  derived  →  inner{runtime · input · 
    →  inner output  →  outer output
 ```
 
-**处理器（P · 只有逻辑，每个纯 `data→data`）**
+**处理器（P · 只有逻辑；转换处理器为纯 `data→data`，core 的副作用边界遵守 I1）**
 
 | 处理器 | 读入（D） | 产出（D） |
 |--------|-----------|-----------|
@@ -299,13 +321,24 @@ outer{runtime · input · config}  →  derived  →  inner{runtime · input · 
 | output | outer runtime/input/config + derived + inner output | outer output |
 
 - **core_logic 无结构特殊性**：它只是"读入恰好是 (runtime,input,config) 规范三元组"的那个处理器；`output=fn(runtime,input,config)` 讲的就是 P(fn) 与 D 分离，封装流程把这套分离重复几次、串成显式血缘。
-- **outer/inner 分层**：除 core 是内层纯业务，其余处理器在外层处理框架级关注点（解析、错误包装、可观测）。
+- **outer/inner 分层**：除 core 是内层业务逻辑，其余处理器在外层处理框架级关注点（解析、错误包装、可观测）；core 若需 IO，只能调用注入的 effect 契约（I1/I4）。
 - **adapter 唯一存在理由**：outer 与 inner runtime 结构不一致时承载转换；同构强造空壳 adapter 是过度设计。
 - **压扁信号**：inner_runtime/input/config 三处理器整段缺失、outer 直接灌进一个大对象方法里现取现算——module 范围最常见的"未封装"。
 
 ### 权威参照实现（协议不走样，实现可适配）
 
 下面是标准封装的**通用、可复用参照实现**。它钉死的是**协议**——六个语义阶段都显式存在、顺序固定（`outer{runtime,input,config}` 进，逐步算出 `derived → innerRuntime → innerInput → innerConfig → innerOutput → outerOutput`），数据(D)与处理器(P)分列。这条协议是不走样的那部分；**实现形态可以按语言 / 场景 / 领域适配**（见代码后「适配与边界」）。它是一段**可复用的通用原语**——项目里已有等价实现就直接用、不要重造，也不强制非得长成这个签名。
+
+代码中的 `Std*Adapter` 是以下协议角色的示例命名；本表是其唯一语义锚点，不要求照抄 Java 泛型或接口名。六步都必须有可指认的实现；同构时可用显式 identity/null adapter，但不可静默省略阶段。
+
+| 角色 | 语义签名（输入 → 输出） | 透传 / 空值何时合法 |
+|------|-------------------------|----------------------|
+| `StdOuterComputedAdapter` | `(outerRuntime, outerInput, outerConfig) → derived` | 没有额外衍生值且后续阶段接受 `null` 时，显式返回 `null` |
+| `StdInnerRuntimeAdapter` | `(outerRuntime, outerInput, outerConfig, derived) → innerRuntime` | outer/inner runtime 同构时，显式 identity 透传 |
+| `StdInnerInputAdapter` | `(outerRuntime, outerInput, outerConfig, derived) → innerInput` | outer/inner input 同构时，显式 identity 透传 |
+| `StdInnerConfigAdapter` | `(outerRuntime, outerInput, outerConfig, derived) → innerConfig` | outer/inner config 同构时，显式 identity 透传 |
+| `StdInnerLogic` | `(innerRuntime, innerInput, innerConfig) → innerOutput` | 不可省略；副作用规则遵守 I1/I4 |
+| `StdOuterOutputAdapter` | `(outerRuntime, outerInput, outerConfig, derived, innerOutput) → outerOutput` | 形状同构时可显式 identity 透传，但仍保留输出阶段 |
 
 ```java
 public class StdRunComponentLogic {
@@ -461,6 +494,7 @@ public class StdRunComponentLogic {
 | 写带依赖的 handler/service | 能写成 `fn(runtime,input,config)` 吗？依赖都注入了吗？ | I1 · I3 · I4 |
 | 设计/扩张 runtime | 往里塞方法了吗？这依赖归 runtime 还是 input/config？ | I2 · I3 |
 | 接请求/组件执行流 | core 自己去 outer 掏字段了吗？runtime 在 core 内 new 了吗？ | I6 · §7 |
+| 处理前端 intent、选中目标或 ECS 批量操作 | 把 type/payload/refs 全塞进 input 了吗？直接传/缓存 UI/ECS 对象了吗？每个 handler 自己写权限和批循环了吗？ | I3 · I7 · I8 |
 | 加分发/路由 | 写成 if/elif 长链了吗？固定逻辑硬套分发了吗？ | I7 |
 | 管状态/决定谁写谁 | 这份数据谁是唯一写入者？投影反写上游了吗？能从事件重建吗？ | I5 · §5 |
 | 判数据真源/能否反写 | 在用快照/journal/mtime 判 live 吗？投影回写了吗？ | I5 · §5 |
@@ -472,6 +506,7 @@ public class StdRunComponentLogic {
 **常驻反射**（不用查表就该守）：
 
 - `output = fn(runtime, input, config)`：依赖全显式注入，不读全局/单例/`this`；副作用经契约、真正 IO 在 impl。
+- 前端/ECS/批处理用 `output = fn(runtime, targets, invocation, config)`：refs 是寻址，invocation 是操作语义；runtime 负责解析、权限与批处理；跨 actor 才把 invocation 投递为 message。
 - runtime 是数据载体、不写业务方法；长生命周期/共享 → runtime，单次 payload → input，静态枚举/开关 → config。
 - 一份数据一个写入者；衍生只读、不反写上游；状态尽量能从事件重建。
 - 标准封装 + 注册表分发；固定逻辑不套分发/空壳 adapter。
@@ -516,7 +551,7 @@ DEPA 的结构让测试天然好写；但测试本身也会**沿实现时序腐�
 ```
 
 - **adapter / runtime 构造要覆盖**：outer→inner 字段映射、config 传递、output 透传、runtime 构造（尤其 registry 加载与下传）都要测——封装流程最易错处。
-- **删旧前先用回归守住旧行为**：替换旧 OO/旧 wrapper 时，先用回归测试钉住旧行为，再删。
+- **删旧前先用回归守住旧行为**：替换旧 OO/旧 wrapper 时，先用回归测试钉住旧行为；再按职责把旧对象归位到 runtime 数据、纯计算 core、effect impl、adapter 或 capsule，最后删除旧壳。
 - **流程慢就建 test harness**：完整跑一遍验证很慢时，建一套专属测试工具/夹具支持未来同类问题。可测试性本身是代码质量指标——DOP + 四层分离写出来的代码天然好测。
 - **测试数据与测试代码分离**：当测试数据多、体积大时，把测试数据分离到一个**专门目录**，与测试逻辑分开——便于复用、维护与版本管理，不要把大块 fixture 内联进测试代码。具体放哪按项目约定（如 `tests/resources/` 之类），规则是"分离"，位置不强制。
 - **三级验证阶梯**：验"做了没"逐级加深——**存在性**（目标产物/函数/测试确实存在、不是空壳）→ **实质性**（它真做了该做的事、断言真行为而非占位）→ **连通性**（与上下游真接通、端到端跑得通，不是孤立通过）。只过存在性就报完成，是最常见的假完成。
@@ -561,12 +596,19 @@ DEPA 的结构让测试天然好写；但测试本身也会**沿实现时序腐�
 | **DEPA** | Data / Effect / Processor / Actor 四维 + 标准化组件协议 + 事实源边界 的架构思想 |
 | **吸引子 attractor** | 系统长期被反复拉回的稳定结构；用少数不变量隐式定义，非清单非边界 |
 | **harness** | 把轨迹持续拉回吸引子的机制：纠偏清单、扫描分析、测试/类型/审计 |
+| **owner doc / data owner** | 前者是承载架构规则的可版本化文档；后者是某份数据唯一的权威写入者，二者不可混为一谈 |
 | **runtime** | 长生命周期依赖与状态的数据载体（D 主 + E 少 + A 时含），不写业务逻辑 |
-| **fn(runtime,input,config)** | 核心逻辑的纯函数形态：依赖显式、副作用分离 |
+| **fn(runtime,input,config)** | 显式依赖的函数边界：纯计算不混 IO；需要副作用时只调用 runtime 中注入的 effect 契约 |
+| **fn(runtime,targets,invocation,config)** | 交互式、目标寻址处理边界：refs 说明目标，invocation 说明操作，runtime 解析/授权/批处理，message 仅是跨 actor 的投递形态 |
+| **invocation** | 一次不可变处理请求的语义封套：`type`、可选 `kind`、`payload` 与 metadata；可同步调用或异步投递 |
+| **targets** | 一次 invocation 的稳定目标引用集合；不等于直接对象，不能与 invocation payload 重复持有 |
+| **effect contract / impl** | contract 声明可调用的副作用能力；impl 提供具体 DB、网络、文件等实现。core 依赖前者，不直接 import 后者 |
 | **数据血缘(D) / 处理器(P)** | 封装流程里"数据名词链"与"逻辑纯函数"两块，分列、绝不同格 |
 | **事实等级 / 唯一写入者** | 数据节点在 7 级阶梯的位置 / 它唯一的权威写入者 |
 | **衍生不反写** | 投影/缓存/快照只读，要改发新事件回上游，不直接改投影 |
 | **capsule** | 单入口、internals 隐藏、对外只暴露稳定契约的模块单元 |
 | **command / message** | 同步命令（同栈）/ 异步消息（经 mailbox） |
 | **actor** | 单一所有权的解环/并发单元；环或共享可变状态时把一节点 actor 化 |
+| **selective receive** | actor 从 mailbox 中按消息类型、相关性或优先级选择下一条可处理消息的能力，不等同于任意共享内存读取 |
+| **DOP** | Data-Oriented Programming：数据与逻辑分离，runtime 保持数据载体，业务逻辑以外部函数接收显式数据与依赖 |
 | **排除集** | 已不属于合法状态空间的老结构；发现即漂移，应收敛掉 |

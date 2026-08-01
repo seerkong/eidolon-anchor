@@ -16,7 +16,11 @@ import {
   type OrchestratorState,
 } from "depa-actor";
 
-import { hasPendingAiAgentWakeMailbox, type AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
+import {
+  hasPendingAiAgentWakeMailbox,
+  listPendingAiAgentWakeMailboxes,
+  type AiAgentActor,
+} from "@cell/ai-core-logic/runtime/actor";
 import type { AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor";
 import type { DurableControlSignalData } from "@cell/ai-core-contract/runtime/DurableControlSignal";
 import { emitDurableControlSignal, markDurableControlSignalConsumed } from "@cell/ai-core-logic/runtime/DurableControlSignals";
@@ -547,9 +551,30 @@ function hasInflightAsyncWhere(runtime: AiAgentOrchestratorRuntime, predicate: (
 
 function hasPendingWakeMailboxWhere(runtime: AiAgentOrchestratorRuntime, predicate: (fiberId: string) => boolean): boolean {
   for (const [fiberId, ctx] of Object.entries(runtime.fiberIndex.snapshot())) {
-    if (predicate(fiberId) && hasPendingAiAgentWakeMailbox(ctx.actor)) return true;
+    if (predicate(fiberId) && hasRunnableWakeMailbox(runtime, fiberId, ctx)) return true;
   }
   return false;
+}
+
+function hasRunnableWakeMailbox(
+  runtime: AiAgentOrchestratorRuntime,
+  fiberId: string,
+  ctx: FiberContext,
+): boolean {
+  const record = runtime.state.fibers[fiberId];
+  if (
+    record?.status !== "suspended"
+    || !isHumanWaitReason(record.waitingReason)
+  ) {
+    return hasPendingAiAgentWakeMailbox(ctx.actor);
+  }
+
+  return listPendingAiAgentWakeMailboxes(ctx.actor).some((mailbox) => {
+    if (mailbox !== "control") return true;
+    return (ctx.actor.peekMailbox("control") as any[]).some(
+      (entry) => entry?.kind !== "questionnaire_pending",
+    );
+  });
 }
 
 function resumePendingWakeMailboxFibersWhere(
@@ -559,7 +584,7 @@ function resumePendingWakeMailboxFibersWhere(
 ): boolean {
   let resumed = false;
   for (const [fiberId, ctx] of Object.entries(runtime.fiberIndex.snapshot())) {
-    if (!predicate(fiberId) || !hasPendingAiAgentWakeMailbox(ctx.actor)) continue;
+    if (!predicate(fiberId) || !hasRunnableWakeMailbox(runtime, fiberId, ctx)) continue;
     const rec = runtime.state.fibers[fiberId];
     if (!rec) continue;
     if (rec.status === "running") continue;
@@ -1550,13 +1575,19 @@ export function createAiAgentOrchestratorDriver(params: {
             continue;
           }
 
+          // A pause_all human wait is an external interaction boundary. Its
+          // questionnaire_pending control marker describes the wait; it is not
+          // runnable mailbox work and must not keep the foreground pump alive.
+          if (hasPauseAllHumanWaitInForeground(runtime.state)) {
+            break;
+          }
+
           // Only wait on foreground inflight/running/pending resumes.
           if (
             hasInflightAsyncWhere(runtime, isFg)
             || hasPendingResumesWhere(runtime, isFg)
             || hasRunningFibersWhere(runtime.state, isFg)
             || hasPendingWakeMailboxWhere(runtime, isFg)
-            || runtime.backgroundTasks.size > 0
           ) {
             if (resumePendingWakeMailboxFibersWhere(runtime, isFg, now)) {
               continue;
@@ -1566,7 +1597,6 @@ export function createAiAgentOrchestratorDriver(params: {
               deadlineMs: start + wall,
               predicate: isFg,
             });
-            await waitForBackgroundTasks(runtime, start + wall);
             await flushMicrotasks();
             await new Promise<void>((r) => setTimeout(r, 5));
             continue;

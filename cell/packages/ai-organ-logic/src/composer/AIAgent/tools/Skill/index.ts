@@ -17,7 +17,7 @@ export function buildSkillToolDef(): ToolDef<SkillOuterInput, SkillOuterOutput, 
     function: {
       name: "Skill",
       description:
-        "Load a skill to gain specialized knowledge for a task. The skill content will be injected into the conversation.",
+        "Resolve a named skill to its local instruction resource using revision- and visibility-aware delivery.",
       parameters: {
         type: "object",
         properties: {

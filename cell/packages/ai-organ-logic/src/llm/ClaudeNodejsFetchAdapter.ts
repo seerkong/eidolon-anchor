@@ -1,19 +1,36 @@
-import type { LlmAdapter, LlmGenerateOptions, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
+import type {
+  LlmAdapter,
+  LlmGenerateOptions,
+  LlmStreamResult,
+} from "@cell/ai-core-contract/LlmTypes";
 import type { ToolSchema } from "@cell/ai-core-contract/types";
 import type { ProviderOptions } from "./ProviderPlugins";
+import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import { observeProviderTransportRequest } from "./ProviderTransportObservation";
 
 export type ClaudeNodejsFetchAdapterSettings = {
   apiKey: string;
   baseUrl?: string;
   providerOptions?: ProviderOptions;
   maxTokens?: number;
+  requestObserver?: ProviderTransportRequestObserver;
 };
 
 type ClaudeContentBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; thinking: string }
-  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; tool_use_id: string; content: { type: "text"; text: string }[]; is_error?: boolean };
+  | {
+      type: "tool_use";
+      id: string;
+      name: string;
+      input: Record<string, unknown>;
+    }
+  | {
+      type: "tool_result";
+      tool_use_id: string;
+      content: { type: "text"; text: string }[];
+      is_error?: boolean;
+    };
 
 type ToolUseState = {
   id: string;
@@ -24,12 +41,17 @@ type ToolUseState = {
 };
 
 const TOOL_PREFIX = "ext_srv_tool__";
-const DEFAULT_BETAS = "oauth-2025-04-20,interleaved-thinking-2025-05-14,claude-code-20250219";
+const DEFAULT_BETAS =
+  "oauth-2025-04-20,interleaved-thinking-2025-05-14,claude-code-20250219";
 
 function buildClaudeUrl(baseUrl?: string): string {
   const base = baseUrl || "https://api.anthropic.com";
   const trimmed = base.replace(/\/+$/, "");
-  const withVersion = trimmed.endsWith("/v1/messages") ? trimmed : trimmed.endsWith("/v1") ? `${trimmed}/messages` : `${trimmed}/v1/messages`;
+  const withVersion = trimmed.endsWith("/v1/messages")
+    ? trimmed
+    : trimmed.endsWith("/v1")
+      ? `${trimmed}/messages`
+      : `${trimmed}/v1/messages`;
   try {
     const url = new URL(withVersion);
     if (!url.searchParams.has("beta")) {
@@ -52,7 +74,9 @@ function stripToolName(name: string): string {
   return name.startsWith(TOOL_PREFIX) ? name.slice(TOOL_PREFIX.length) : name;
 }
 
-function toClaudeTools(tools: ToolSchema[]): Array<{ name: string; description?: string; input_schema: any }> {
+function toClaudeTools(
+  tools: ToolSchema[],
+): Array<{ name: string; description?: string; input_schema: any }> {
   return tools.map((tool) => ({
     name: prefixToolName(tool.function.name),
     description: tool.function.description,
@@ -78,7 +102,11 @@ function extractAssistantBlocks(msg: any): ClaudeContentBlock[] {
         blocks.push({ type: "text", text: String(part.text) });
       } else if (part.type === "reasoning" && part.text) {
         blocks.push({ type: "thinking", thinking: String(part.text) });
-      } else if (part.type === "tool-call" && part.toolCallId && part.toolName) {
+      } else if (
+        part.type === "tool-call" &&
+        part.toolCallId &&
+        part.toolName
+      ) {
         blocks.push({
           type: "tool_use",
           id: String(part.toolCallId),
@@ -126,7 +154,10 @@ function extractAssistantBlocks(msg: any): ClaudeContentBlock[] {
   return blocks;
 }
 
-function toClaudeMessages(messages: any[]): { system: string[]; claudeMessages: any[] } {
+function toClaudeMessages(messages: any[]): {
+  system: string[];
+  claudeMessages: any[];
+} {
   const system: string[] = [];
   const claudeMessages: any[] = [];
   for (const msg of messages) {
@@ -138,13 +169,19 @@ function toClaudeMessages(messages: any[]): { system: string[]; claudeMessages: 
     }
     if (msg.role === "assistant") {
       const blocks = extractAssistantBlocks(msg);
-      if (blocks.length) claudeMessages.push({ role: "assistant", content: blocks });
+      if (blocks.length)
+        claudeMessages.push({ role: "assistant", content: blocks });
       continue;
     }
     if (msg.role === "tool") {
       const toolUseId = msg.tool_call_id || msg.toolCallId || msg.tool_call_id;
       if (!toolUseId) continue;
-      const text = typeof msg.content === "string" ? msg.content : msg.content === undefined ? "" : JSON.stringify(msg.content);
+      const text =
+        typeof msg.content === "string"
+          ? msg.content
+          : msg.content === undefined
+            ? ""
+            : JSON.stringify(msg.content);
       claudeMessages.push({
         role: "user",
         content: [
@@ -172,7 +209,10 @@ function toClaudeMessages(messages: any[]): { system: string[]; claudeMessages: 
   return { system, claudeMessages };
 }
 
-function buildHeaders(apiKey: string, baseHeaders?: Record<string, string>): Record<string, string> {
+function buildHeaders(
+  apiKey: string,
+  baseHeaders?: Record<string, string>,
+): Record<string, string> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(baseHeaders || {}),
@@ -224,7 +264,13 @@ async function* streamToParts(response: Response): AsyncIterable<any> {
           inputValue: block.input,
           receivedDelta: false,
         });
-        return [{ type: "tool-input-start", id: String(block.id), toolName: stripToolName(String(block.name || "")) }];
+        return [
+          {
+            type: "tool-input-start",
+            id: String(block.id),
+            toolName: stripToolName(String(block.name || "")),
+          },
+        ];
       }
       if (block.type === "text" && block.text) {
         return [{ type: "text-delta", text: String(block.text) }];
@@ -237,11 +283,12 @@ async function* streamToParts(response: Response): AsyncIterable<any> {
         return [{ type: "text-delta", text: String(delta.text) }];
       }
       if (delta.type === "input_json_delta") {
-        const toolIndex = event.index !== undefined
-          ? Number(event.index)
-          : delta.id && toolIdMap.has(String(delta.id))
-          ? toolIdMap.get(String(delta.id))
-          : undefined;
+        const toolIndex =
+          event.index !== undefined
+            ? Number(event.index)
+            : delta.id && toolIdMap.has(String(delta.id))
+              ? toolIdMap.get(String(delta.id))
+              : undefined;
         if (toolIndex !== undefined) {
           const state = toolCalls.get(toolIndex);
           if (state) {
@@ -255,22 +302,33 @@ async function* streamToParts(response: Response): AsyncIterable<any> {
       }
     }
     if (event.type === "content_block_stop") {
-      const toolIndex = event.index !== undefined
-        ? Number(event.index)
-        : event.id && toolIdMap.has(String(event.id))
-        ? toolIdMap.get(String(event.id))
-        : undefined;
+      const toolIndex =
+        event.index !== undefined
+          ? Number(event.index)
+          : event.id && toolIdMap.has(String(event.id))
+            ? toolIdMap.get(String(event.id))
+            : undefined;
       if (toolIndex !== undefined) {
         const state = toolCalls.get(toolIndex);
         if (state && state.receivedDelta) {
           const parsed = safeParseJson(state.inputText || "{}");
-          state.inputValue = parsed && typeof parsed === "object" ? parsed : state.inputText;
+          state.inputValue =
+            parsed && typeof parsed === "object" ? parsed : state.inputText;
         }
         if (state) {
-          const input = state.inputValue ?? (state.receivedDelta ? safeParseJson(state.inputText || "{}") : state.inputValue);
+          const input =
+            state.inputValue ??
+            (state.receivedDelta
+              ? safeParseJson(state.inputText || "{}")
+              : state.inputValue);
           return [
             { type: "tool-input-end", id: state.id },
-            { type: "tool-call", toolCallId: state.id, toolName: stripToolName(state.name), input: input ?? {} },
+            {
+              type: "tool-call",
+              toolCallId: state.id,
+              toolName: stripToolName(state.name),
+              input: input ?? {},
+            },
           ];
         }
       }
@@ -316,8 +374,7 @@ async function* streamToParts(response: Response): AsyncIterable<any> {
   } finally {
     try {
       reader.releaseLock();
-    } catch {
-    }
+    } catch {}
   }
 
   if (buffer.trim()) {
@@ -334,20 +391,25 @@ export class ClaudeNodejsFetchLlmAdapter implements LlmAdapter {
   private baseUrl?: string;
   private providerOptions: ProviderOptions;
   private maxTokens: number;
+  private requestObserver?: ProviderTransportRequestObserver;
 
   constructor(settings: ClaudeNodejsFetchAdapterSettings) {
     this.apiKey = settings.apiKey;
     this.baseUrl = settings.baseUrl;
     this.providerOptions = settings.providerOptions ?? {};
     this.maxTokens = settings.maxTokens ?? 1024;
+    this.requestObserver = settings.requestObserver;
   }
 
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
     const { model, messages, tools } = options;
     const { system, claudeMessages } = toClaudeMessages(messages);
     const toolset = toClaudeTools(tools);
-    const url = buildClaudeUrl((this.providerOptions.baseURL as string | undefined) || this.baseUrl);
-    const apiKey = (this.providerOptions.apiKey as string | undefined) || this.apiKey;
+    const url = buildClaudeUrl(
+      (this.providerOptions.baseURL as string | undefined) || this.baseUrl,
+    );
+    const apiKey =
+      (this.providerOptions.apiKey as string | undefined) || this.apiKey;
     const headers = buildHeaders(apiKey, this.providerOptions.headers);
 
     const body: Record<string, unknown> = {
@@ -361,16 +423,25 @@ export class ClaudeNodejsFetchLlmAdapter implements LlmAdapter {
 
     const fetchFn = this.providerOptions.fetch || fetch;
     const signal = this.providerOptions.signal as AbortSignal | undefined;
+    const serializedBody = JSON.stringify(body);
+    observeProviderTransportRequest(this.requestObserver, {
+      transportType: "http",
+      requestBody: serializedBody,
+      url,
+      method: "POST",
+    });
     const res = await fetchFn(url, {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: serializedBody,
       signal,
     });
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new Error(`Claude fetch error ${res.status}: ${text || res.statusText}`);
+      throw new Error(
+        `Claude fetch error ${res.status}: ${text || res.statusText}`,
+      );
     }
 
     return { stream: streamToParts(res) };

@@ -94,5 +94,7 @@ export type ContinuationBaselineData = {
   baselineEpoch: number;
   lastResetReason?: string | null;
   latestResponseId?: string | null;
+  /** Digest of the non-incremental provider-visible context for latestResponseId. */
+  contextDigest?: string | null;
   updatedAt: string;
 };

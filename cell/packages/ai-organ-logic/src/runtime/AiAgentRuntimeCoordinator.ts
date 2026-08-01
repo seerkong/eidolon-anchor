@@ -1,4 +1,4 @@
-import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
+import { hasPendingAiAgentWakeMailbox, type AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
 import {
   ensureVmRuntimeContext,
   isRuntimeStorageFilesEnabled,
@@ -23,6 +23,12 @@ export type RuntimeMemberInboxPayload = {
 
 export type AiAgentRuntimeInteractiveTurnResult =
   | { status: "settled"; safepointSafe: true }
+  | {
+      status: "blocked_on_human";
+      safepointSafe: boolean;
+      fiberId: string;
+      reason: "human_clarification" | "human_approval" | "human_answer";
+    }
   | { status: "timeout_unsettled"; safepointSafe: false; reason: string };
 
 export type AiAgentRuntimeCoordinator = {
@@ -56,6 +62,46 @@ function readSnapshotPendingEffectReason(result: unknown): string | undefined {
   const pendingEffectIds = (result as Record<string, unknown>).pendingEffectIds;
   if (!Array.isArray(pendingEffectIds) || pendingEffectIds.length === 0) return undefined;
   return pendingEffectIds.map((effectId) => String(effectId)).join(",");
+}
+
+type HumanWaitBoundary = {
+  fiberId: string;
+  reason: "human_clarification" | "human_approval" | "human_answer";
+};
+
+function readHumanWaitReason(value: unknown): HumanWaitBoundary["reason"] | undefined {
+  if (
+    value === "human_clarification"
+    || value === "human_approval"
+    || value === "human_answer"
+  ) {
+    return value;
+  }
+  return undefined;
+}
+
+function findInteractiveHumanWaitBoundary(
+  inspected: ReturnType<AiAgentOrchestratorDriver["inspectRuntime"]>,
+  mainFiberId: string,
+): HumanWaitBoundary | undefined {
+  const fibers = inspected.state.fibers as Record<string, any>;
+  const mainFiber = fibers[mainFiberId];
+  const mainReason = mainFiber?.status === "suspended"
+    ? readHumanWaitReason(mainFiber.waitingReason)
+    : undefined;
+  if (mainReason) {
+    return { fiberId: mainFiberId, reason: mainReason };
+  }
+
+  for (const [fiberId, fiber] of Object.entries(fibers)) {
+    const reason = fiber?.status === "suspended"
+      ? readHumanWaitReason(fiber.waitingReason)
+      : undefined;
+    if (reason && fiber.suspendPolicy === "pause_all") {
+      return { fiberId, reason };
+    }
+  }
+  return undefined;
 }
 
 export function createAiAgentRuntimeCoordinator(params: {
@@ -131,6 +177,31 @@ export function createAiAgentRuntimeCoordinator(params: {
       params.driver.resumeFiber(fiberId, Date.now());
     }
   };
+
+  const hasPendingBackgroundWork = (): boolean => {
+    const inspected = params.driver.inspectRuntime();
+    const fibers = inspected.state.fibers as Record<string, any>;
+    const isBackground = (fiberId: string) => {
+      const lane = fibers[fiberId]?.lane;
+      return lane === "detached" || lane === "autonomous_holon";
+    };
+
+    if (inspected.pendingResumes.some(isBackground)) return true;
+
+    for (const [fiberId, fiber] of Object.entries(fibers)) {
+      if (!isBackground(fiberId)) continue;
+      if (fiber.status === "ready" || fiber.status === "running") return true;
+      const ctx = inspected.fibers[fiberId];
+      if (ctx?.actor && hasPendingAiAgentWakeMailbox(ctx.actor)) return true;
+    }
+
+    const backgroundTasks = (params.driver.actorRuntime as any)?.runtime?.backgroundTasks;
+    return backgroundTasks instanceof Set && backgroundTasks.size > 0;
+  };
+
+  const hasIdleLifecycleHooks = (): boolean => hookDefinitions.some((definition) => (
+    definition.enabled !== false && definition.point === "actor.idle.before"
+  ));
 
   const runIdleLifecycleHooks = async (mainFiberId?: string) => {
     if (!hookDefinitions.length) return;
@@ -251,13 +322,34 @@ export function createAiAgentRuntimeCoordinator(params: {
     return run;
   };
 
+  const enqueueWithoutSnapshot = <T>(fn: () => Promise<T>) => {
+    queuedTicks += 1;
+    const run = tickQueue.then(fn, fn);
+    tickQueue = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    run.then(
+      () => {
+        queuedTicks -= 1;
+      },
+      () => {
+        queuedTicks -= 1;
+      },
+    );
+    return run;
+  };
+
   const startBackgroundPump = () => {
     if (backgroundPumpInterval) return;
     backgroundPumpInterval = setInterval(() => {
       if (backgroundPumpQueuedOrRunning) return;
       if (queuedTicks > 0) return;
+      const hasBackgroundWork = hasPendingBackgroundWork();
+      if (!hasBackgroundWork && !hasIdleLifecycleHooks()) return;
       backgroundPumpQueuedOrRunning = true;
-      void enqueue(async () => {
+      const run = hasBackgroundWork ? enqueue : enqueueWithoutSnapshot;
+      void run(async () => {
         await tickAiAgentRuntimeBackground({
           vm: params.vm,
           driver: params.driver,
@@ -293,10 +385,12 @@ export function createAiAgentRuntimeCoordinator(params: {
           ? startedAt + turnParams.timeoutMs
           : Number.POSITIVE_INFINITY;
         let resumedMain = false;
+        let inspected = params.driver.inspectRuntime();
         let safepoint = evaluateAiAgentRuntimeSnapshotSafepoint({
           vm: params.vm,
-          inspected: params.driver.inspectRuntime(),
+          inspected,
         });
+        let humanWait: HumanWaitBoundary | undefined;
         while (true) {
           const now = Date.now();
           const remainingMs = deadlineMs - now;
@@ -313,13 +407,23 @@ export function createAiAgentRuntimeCoordinator(params: {
               ? Math.max(1, Math.min(remainingMs, 1000))
               : undefined,
           });
+          inspected = params.driver.inspectRuntime();
           safepoint = evaluateAiAgentRuntimeSnapshotSafepoint({
             vm: params.vm,
-            inspected: params.driver.inspectRuntime(),
+            inspected,
           });
+          humanWait = findInteractiveHumanWaitBoundary(inspected, turnParams.mainFiberId);
+          if (humanWait) break;
           if (safepoint.safe) break;
         }
-        if (!safepoint.safe) {
+        if (humanWait) {
+          result = {
+            status: "blocked_on_human",
+            safepointSafe: safepoint.safe,
+            fiberId: humanWait.fiberId,
+            reason: humanWait.reason,
+          };
+        } else if (!safepoint.safe) {
           const reason = safepoint.blockers.map((blocker) => blocker.reason).join(",");
           result = {
             status: "timeout_unsettled",
@@ -349,9 +453,11 @@ export function createAiAgentRuntimeCoordinator(params: {
     } finally {
       ensureVmRuntimeContext(params.vm).interactiveTurnActive = false;
       flushDeferredMemberResumes();
-      await enqueue(async () => {
-        await runIdleLifecycleHooks(turnParams.mainFiberId);
-      }).catch(() => {});
+      if (result.status !== "blocked_on_human" && hasIdleLifecycleHooks()) {
+        await enqueue(async () => {
+          await runIdleLifecycleHooks(turnParams.mainFiberId);
+        }).catch(() => {});
+      }
     }
     return result;
   };

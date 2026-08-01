@@ -56,6 +56,60 @@ const READ_ONLY_WORKSPACE_SAFE_BASH_COMMANDS = new Set([
   "wc",
   "which",
 ]);
+const READ_ONLY_UNSUPPORTED_BASH_COMMANDS = new Set([
+  ...READ_ONLY_WORKSPACE_SAFE_BASH_COMMANDS,
+  "[",
+  "awk",
+  "date",
+  "find",
+  "printf",
+  "sed",
+  "test",
+]);
+const HIGH_RISK_UNSUPPORTED_BASH_COMMANDS = new Set([
+  "bash",
+  "chmod",
+  "chown",
+  "chgrp",
+  "cp",
+  "curl",
+  "dd",
+  "fish",
+  "kill",
+  "mkfs",
+  "mount",
+  "mv",
+  "nc",
+  "ncat",
+  "pkill",
+  "rm",
+  "rsync",
+  "scp",
+  "sh",
+  "ssh",
+  "sudo",
+  "tee",
+  "umount",
+  "wget",
+  "zsh",
+]);
+const SHELL_KEYWORD_SIGNALS = new Set([
+  "case",
+  "do",
+  "done",
+  "elif",
+  "else",
+  "esac",
+  "fi",
+  "for",
+  "function",
+  "if",
+  "in",
+  "select",
+  "then",
+  "until",
+  "while",
+]);
 const ENV_ASSIGNMENT_RE = /^[A-Za-z_][A-Za-z0-9_]*=.*$/;
 const HEREDOC_START_RE = /<<-?\s*(?<quote>['"]?)(?<delimiter>[A-Za-z_][A-Za-z0-9_]*)\k<quote>/;
 const FD_TARGET_RE = /^(?:\d+|-)$/;
@@ -500,6 +554,18 @@ function evaluateUnsupportedBashSyntax(params: {
       target: serializedTarget,
     };
   }
+  const risk = classifyUnsupportedBashRisk(rawCommand);
+  if (decision.action === "deny" && !decision.matchedRule && risk === "low") {
+    return { action: "allow", permissionName: "bash", target: serializedTarget };
+  }
+  if (decision.action === "deny" && !decision.matchedRule && risk === "high") {
+    return {
+      action: "deny",
+      message: "local permission denied for high-risk bash command with unsupported syntax",
+      permissionName: "bash",
+      target: serializedTarget,
+    };
+  }
   if (matchesApprovalGrant(params.approvalGrant, "bash", params.workDir, serializedTarget)) {
     return { action: "allow", permissionName: "bash", target: serializedTarget };
   }
@@ -595,6 +661,18 @@ function sanitizeSupportedBashMultilineCommand(command: string): string {
   }
 
   const lines = collapsed.split(/\r\n|\n|\r/);
+  if (!lines.some((line) => HEREDOC_START_RE.test(line))) {
+    const sanitized = lines
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .join(" ; ");
+    if (!sanitized) {
+      throw new LocalPermissionConfigError("No executable bash segments found");
+    }
+    tokenizeBashInput(sanitized);
+    return sanitized;
+  }
+
   const sanitizedLines: string[] = [];
   let index = 0;
   let sawSupportedHeredoc = false;
@@ -621,11 +699,12 @@ function sanitizeSupportedBashMultilineCommand(command: string): string {
     }
 
     const prefixTokens = tokenizeBashInput(prefix);
-    if (!bashSegmentAllowsSupportedHeredoc(prefixTokens)) {
+    const normalizedPrefix = normalizeSupportedHeredocPrefix(prefixTokens);
+    if (!normalizedPrefix) {
       throw new LocalPermissionConfigError("Unsupported shell syntax for permission parsing");
     }
 
-    sanitizedLines.push(prefix);
+    sanitizedLines.push(normalizedPrefix);
     sawSupportedHeredoc = true;
     index += 1;
 
@@ -770,17 +849,23 @@ function normalizeBashSegment(tokens: BashToken[]): string {
   return collectBashCommandWords(tokens).join(" ");
 }
 
-function bashSegmentAllowsSupportedHeredoc(tokens: BashToken[]): boolean {
+function normalizeSupportedHeredocPrefix(tokens: BashToken[]): string | null {
   let commandTokens: string[];
   try {
     commandTokens = collectBashCommandWords(tokens);
   } catch {
-    return false;
+    return null;
   }
-  if (commandTokens.length < 2) return false;
+  if (commandTokens.length < 1) return null;
   const executable = path.basename(commandTokens[0]).toLowerCase();
-  if (!executable.startsWith("python")) return false;
-  return commandTokens[commandTokens.length - 1] === "-";
+  if (!executable.startsWith("python")) return null;
+  if (commandTokens.length === 1) {
+    return `${commandTokens[0]} -`;
+  }
+  if (commandTokens[commandTokens.length - 1] === "-") {
+    return commandTokens.join(" ");
+  }
+  return null;
 }
 
 function collectBashCommandWords(tokens: BashToken[]): string[] {
@@ -916,6 +1001,67 @@ function bashRedirectionTargetsProtectedPermissionConfig(
     index += 1;
   }
   return false;
+}
+
+function classifyUnsupportedBashRisk(command: string): "low" | "high" | "unknown" {
+  const executableSignals = extractUnsupportedBashExecutableSignals(command);
+  if (executableSignals.some((executable) => HIGH_RISK_UNSUPPORTED_BASH_COMMANDS.has(executable))) {
+    return "high";
+  }
+  if (unsupportedPythonInspectionIsHighRisk(command)) {
+    return "high";
+  }
+  if (unsupportedBashHasWriteRedirection(command)) {
+    return "unknown";
+  }
+  if (executableSignals.length === 0) {
+    return "unknown";
+  }
+  if (!executableSignals.every((executable) => (
+    READ_ONLY_UNSUPPORTED_BASH_COMMANDS.has(executable) ||
+    executable.startsWith("python")
+  ))) {
+    return "unknown";
+  }
+  if (executableSignals.some((executable) => executable.startsWith("python")) && !unsupportedPythonInspectionIsReadonly(command)) {
+    return "unknown";
+  }
+  return "low";
+}
+
+function extractUnsupportedBashExecutableSignals(command: string): string[] {
+  const signals: string[] = [];
+  const seen = new Set<string>();
+  const executablePattern = /(?:^|[;&|()]\s*)([A-Za-z0-9_./[\]-]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = executablePattern.exec(command)) !== null) {
+    const rawSignal = match[1];
+    const nextChar = command[match.index + match[0].length];
+    if (!rawSignal || nextChar === "=") continue;
+    const executable = path.basename(rawSignal).toLowerCase();
+    if (!executable || SHELL_KEYWORD_SIGNALS.has(executable)) continue;
+    if (!seen.has(executable)) {
+      seen.add(executable);
+      signals.push(executable);
+    }
+  }
+  return signals;
+}
+
+function unsupportedBashHasWriteRedirection(command: string): boolean {
+  const withoutDevNullFdRedirects = command.replace(/\b\d?>\s*\/dev\/null\b/g, "");
+  return /(^|[^<])>{1,2}(?![&|])/.test(withoutDevNullFdRedirects);
+}
+
+function unsupportedPythonInspectionIsHighRisk(command: string): boolean {
+  if (!/\bpython[0-9.]*\b/i.test(command)) return false;
+  return /\b(?:subprocess|shutil|socket|requests|urllib)\b|(?:os\.(?:system|remove|unlink|rmdir|mkdir|rename|replace))\b|(?:\bopen\s*\([^)]*["'][wa+x])|(?:\.write(?:_text|_bytes)?\s*\()/i.test(command);
+}
+
+function unsupportedPythonInspectionIsReadonly(command: string): boolean {
+  if (!/\bpython[0-9.]*\b/i.test(command)) return true;
+  if (unsupportedPythonInspectionIsHighRisk(command)) return false;
+  return /\b(?:print|json|sys|Path|pathlib|os\.path|read|loads?|dumps?|glob)\b/i.test(command);
 }
 
 function bashCommandIsReadOnly(command: string, args: string[]): boolean {

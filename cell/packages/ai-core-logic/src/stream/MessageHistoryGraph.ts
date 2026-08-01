@@ -1,4 +1,4 @@
-import { AppendOnlyEventLog, createReducerProjection, type ReducerProjection } from "depa-data-graph-core";
+import { AppendOnlyEventLog, DataGraph, watch, type StopHandle, type StreamDrivenStateSignalNode } from "depa-data-graph-core";
 
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
 import type { ChatMessage, ToolCall } from "@shared/composer";
@@ -345,40 +345,47 @@ export class MessageHistoryGraph {
   private readonly committedListeners = new Set<(event: CommittedHistoryMessageEvent) => void>();
   private readonly anomalyListeners = new Set<(event: AnomalyEvent) => void>();
   private readonly inputLog = new AppendOnlyEventLog<HistoryProjectionInput>();
-  private readonly projection: ReducerProjection<HistoryProjectionInput, HistoryProjectionState>;
+  private readonly graph = new DataGraph(() => ({}));
+  private readonly projection: StreamDrivenStateSignalNode<HistoryProjectionInput, HistoryProjectionState>;
   private readonly projectionSubscription: { unsubscribe: () => void };
   private disposed = false;
 
   constructor() {
-    this.projection = createReducerProjection(this.inputLog, {
-      initial: INITIAL_HISTORY_PROJECTION_STATE,
-      reducer: (state, entry) => reduceHistoryProjection(state, entry.value),
+    const source = this.graph.addSource(
+      "message-history-input",
+      this.inputLog.stream().map((entry) => entry.value),
+    );
+    this.projection = this.graph.addStreamDrivenStateSignalNode({
+      id: "message-history-projection",
+      input: source.ref,
+      initial: createInitialHistoryProjectionState(),
+      reducer: (state, input) => reduceHistoryProjection(state, input),
     });
 
-    this.projectionSubscription = this.projection.stream({ emitCurrent: false }).subscribe({
-      next: (state) => {
-        for (const event of state.lastBatch) {
-          this.emit(event);
-        }
-        for (const event of state.lastCommittedBatch) {
-          this.emitCommitted(event);
-        }
-        for (const event of state.lastAnomalyBatch) {
-          this.emitAnomaly(event);
-        }
-      },
-      error: () => {},
-      complete: () => {},
+    const projectionOutput = this.graph.createViewModelSignal("message-history-projection-output", () =>
+      this.graph.get(this.projection.output),
+    );
+    const stopProjectionWatch: StopHandle = watch(projectionOutput, (state) => {
+      for (const event of state.lastBatch) {
+        this.emit(event);
+      }
+      for (const event of state.lastCommittedBatch) {
+        this.emitCommitted(event);
+      }
+      for (const event of state.lastAnomalyBatch) {
+        this.emitAnomaly(event);
+      }
     });
+    this.projectionSubscription = { unsubscribe: () => stopProjectionWatch() };
   }
 
   consumeSemanticEvent(event: SemanticEvent): void {
-    if (this.disposed || this.projection.getState().completed) return;
+    if (this.disposed || this.getProjectionState().completed) return;
     this.inputLog.append({ kind: "semantic", event });
   }
 
   onHistoryEvent(handler: (event: MessageHistoryEvent) => void): { unsubscribe: () => void } {
-    if (this.disposed || this.projection.getState().completed) {
+    if (this.disposed || this.getProjectionState().completed) {
       return {
         unsubscribe: () => {},
       };
@@ -392,7 +399,7 @@ export class MessageHistoryGraph {
   }
 
   onCommittedMessage(handler: (event: CommittedHistoryMessageEvent) => void): { unsubscribe: () => void } {
-    if (this.disposed || this.projection.getState().completed) {
+    if (this.disposed || this.getProjectionState().completed) {
       return {
         unsubscribe: () => {},
       };
@@ -412,7 +419,7 @@ export class MessageHistoryGraph {
    * events; the host records them. Observability only — no commit-flow change.
    */
   onAnomaly(handler: (event: AnomalyEvent) => void): { unsubscribe: () => void } {
-    if (this.disposed || this.projection.getState().completed) {
+    if (this.disposed || this.getProjectionState().completed) {
       return {
         unsubscribe: () => {},
       };
@@ -426,7 +433,7 @@ export class MessageHistoryGraph {
   }
 
   complete(): void {
-    if (this.disposed || this.projection.getState().completed) return;
+    if (this.disposed || this.getProjectionState().completed) return;
     this.inputLog.append({ kind: "complete" });
   }
 
@@ -435,10 +442,15 @@ export class MessageHistoryGraph {
     this.disposed = true;
     this.projectionSubscription.unsubscribe();
     this.projection.dispose();
+    this.graph.dispose();
     this.inputLog.dispose();
     this.listeners.clear();
     this.committedListeners.clear();
     this.anomalyListeners.clear();
+  }
+
+  private getProjectionState(): HistoryProjectionState {
+    return this.graph.get(this.projection.output);
   }
 
   private emit(event: MessageHistoryEvent): void {

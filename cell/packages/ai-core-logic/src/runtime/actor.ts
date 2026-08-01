@@ -28,6 +28,7 @@ import type {
   HolonActorState,
   LeaderLedHolonRouteState,
   LeaderLedHolonState,
+  ProfileSystemPromptProvenance,
 } from "@cell/ai-core-contract/runtime/AiAgentActor";
 
 export type {
@@ -49,6 +50,7 @@ export type {
   HolonActorState,
   LeaderLedHolonRouteState,
   LeaderLedHolonState,
+  ProfileSystemPromptProvenance,
 } from "@cell/ai-core-contract/runtime/AiAgentActor";
 
 export const AI_AGENT_MAILBOXES = {
@@ -105,6 +107,7 @@ function createDefaultContinuationBaseline(): ContinuationBaselineData {
     baselineEpoch: 0,
     lastResetReason: null,
     latestResponseId: null,
+    contextDigest: null,
     updatedAt: new Date(0).toISOString(),
   };
 }
@@ -139,6 +142,7 @@ export type CreateActorParams = {
   actorId?: string;
   parentKey?: string;
   systemPrompts?: string[];
+  profileSystemPromptProvenance?: ProfileSystemPromptProvenance;
   messages?: ChatMessage[];
   identity?: ActorIdentity;
   planApproval?: AiAgentActor["planApproval"];
@@ -255,6 +259,9 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     id,
     parentKey: params.parentKey,
     systemPrompts: params.systemPrompts ?? [],
+    profileSystemPromptProvenance: params.profileSystemPromptProvenance
+      ? { ...params.profileSystemPromptProvenance }
+      : undefined,
     get messages(): readonly ChatMessage[] {
       return conversationProjection ? conversationProjection() : seedMessages;
     },

@@ -45,9 +45,19 @@ describe("real session recovery scanner", () => {
     expect(result.blockers).toEqual([])
   })
 
-  it("classifies head and commit marker mismatch as dirty", () => {
+  it("classifies forward-only conversation head advancement as clean", () => {
     const input = baseInput()
     input.heads.conversation.committedSequence = 2
+
+    const result = classifyRealSessionRecovery(input)
+
+    expect(result.classification).toBe("clean")
+    expect(result.blockers).toEqual([])
+  })
+
+  it("classifies backward conversation head mismatch as dirty", () => {
+    const input = baseInput()
+    input.heads.conversation.committedSequence = 0
 
     const result = classifyRealSessionRecovery(input)
 
@@ -55,6 +65,32 @@ describe("real session recovery scanner", () => {
     expect(result.blockers).toContainEqual(expect.objectContaining({
       reason: "head_commit_sequence_mismatch",
       headId: "conversation",
+    }))
+  })
+
+  it("classifies missing conversation head as dirty", () => {
+    const input = baseInput()
+    delete input.heads.conversation
+
+    const result = classifyRealSessionRecovery(input)
+
+    expect(result.classification).toBe("dirty")
+    expect(result.blockers).toContainEqual(expect.objectContaining({
+      reason: "head_commit_sequence_mismatch",
+      headId: "conversation",
+    }))
+  })
+
+  it("classifies non-conversation authoritative head advancement as dirty", () => {
+    const input = baseInput()
+    input.heads.runtime_snapshot.committedSequence = 2
+
+    const result = classifyRealSessionRecovery(input)
+
+    expect(result.classification).toBe("dirty")
+    expect(result.blockers).toContainEqual(expect.objectContaining({
+      reason: "head_commit_sequence_mismatch",
+      headId: "runtime_snapshot",
     }))
   })
 

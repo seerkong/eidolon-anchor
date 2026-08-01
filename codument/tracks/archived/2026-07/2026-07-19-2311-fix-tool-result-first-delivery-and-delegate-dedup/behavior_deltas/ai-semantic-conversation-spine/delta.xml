@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-semantic-conversation-spine" version="1">
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/tool-result-first-provider-delivery">
+    <requirement id="tool-result-first-provider-delivery">
+      <statement>系统 SHALL 把新提交的 assistant tool call 与 matching tool result 的首次 provider delivery 建模为可持久恢复的显式事实；在该 pair 实际进入一次成功 provider request 之前，任何 compaction 或 persistence SHALL NOT 把结果替换为声称模型已经收到正文的 wrapper；provider failure、abort 与 recovery SHALL 保持其 pending，而 History、ToolCallDomain 和稳定 prompt/cache 前缀 SHALL 保持各自既有所有权。</statement>
+      <suite id="tool-result-delivery-lifecycle" name="Tool result first provider delivery lifecycle">
+        <case id="fresh-large-result-survives-preflight-compaction">
+          <given>旧历史已超过 cheap compaction 阈值，且当前轮刚产生一个仍可装入 provider 上限的大工具结果</given>
+          <when>executor 在下一次 provider call 前应用 compaction</when>
+          <then>matching assistant tool call 与完整 tool result SHALL 保留在该 provider request</then>
+          <then>系统 SHALL NOT 生成声称该 pending 结果已被模型收到的 artifact wrapper</then>
+        </case>
+        <case id="success-confirms-only-included-pairs">
+          <given>provider request 实际包含一个或多个 pending tool call/result pair</given>
+          <when>provider completion 成功</when>
+          <then>系统 SHALL 只确认该 request 实际包含的 pending pair 为 delivered</then>
+          <then>后续 compaction MAY 按既有预算外置这些 delivered 结果</then>
+        </case>
+        <case id="failure-keeps-delivery-pending">
+          <given>包含 pending pair 的 provider call 失败、中止或未形成成功 completion</given>
+          <when>系统再次构造 provider request或从 snapshot 恢复</when>
+          <then>该 pair SHALL 仍有首次完整交付资格并继续受 compaction 保护</then>
+        </case>
+        <case id="artifact-read-converges">
+          <given>模型读取一个已持久化的大文本 artifact，read 产生新的工具结果</given>
+          <when>下一次 provider request 构造前应用 compaction</when>
+          <then>read 结果 SHALL 至少完整交付一次，且 SHALL NOT 在首次交付前再次外置为下一层 artifact</then>
+        </case>
+        <case id="legacy-history-remains-compatible">
+          <given>恢复的 legacy Conversation 含没有 delivery fact 的旧 tool result</given>
+          <when>系统应用上下文预算</when>
+          <then>旧结果 MAY 按既有 compaction 语义处理，系统 SHALL NOT 强制重投全部 legacy 历史</then>
+        </case>
+        <case id="cache-prefix-remains-stable">
+          <given>不同轮次具有不同 pending/delivered tool result 集合</given>
+          <when>系统构造 stateless provider request</when>
+          <then>delivery 动态状态 SHALL 只影响 late conversation materialization 或 runtime metadata</then>
+          <then>系统 SHALL NOT 把该状态写入稳定 system instructions 或 provider cache key</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

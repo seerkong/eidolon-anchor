@@ -4,7 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-DEFAULT_LINK_PATH="/Users/kongweixian/bin/eidolon-tui"
+DEFAULT_LINK_PATH="${HOME}/.local/bin/eidolon"
 
 usage() {
   cat <<'EOF'
@@ -14,7 +14,7 @@ Usage:
   ./scripts/build_tui_release.sh [options]
 
 Options:
-  --link-path PATH     Override the symlink/install path (default: /Users/kongweixian/bin/eidolon-tui).
+  --link-path PATH     Override the symlink/install path (default: ~/.local/bin/eidolon).
   --no-link            Only build the binary and skip the install/link step.
   --verify             Run the linked binary with --help after linking.
   --help               Show this help text.

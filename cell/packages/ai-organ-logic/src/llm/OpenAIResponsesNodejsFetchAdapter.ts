@@ -1,11 +1,43 @@
-import type { LlmAdapter, LlmGenerateOptions, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
+import type {
+  LlmAdapter,
+  LlmGenerateOptions,
+  LlmStreamResult,
+} from "@cell/ai-core-contract/LlmTypes";
 import type { ProviderOptions } from "./ProviderPlugins";
 import { ProviderExecutionError } from "./ProviderErrors";
 import { stripOpenAICompatibleUnsupportedSchemaKeys } from "./OpenAIChatHelpers";
 import { appendFileSync, mkdirSync } from "fs";
 import path from "path";
-import { randomUUID } from "crypto";
 import codexInstructionsPrompt from "./plugin/prompt/GptInstructionsV5-1.md" with { type: "text" };
+import type {
+  ProviderRequestPlanObservation,
+  ProviderTransportOutcomeObserver,
+  ProviderTransportRequestObserver,
+} from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import type {
+  ResponsesNativeItem,
+  ResponsesNativeOutputCompletenessDecision,
+  ResponsesNativeOutputEvidenceItem,
+  ResponsesActualTransport,
+  ResponsesRequestPlan,
+  ResponsesStatelessReplayPlan,
+  ResponsesTransportRequestContext,
+  ResponsesTransportResult,
+} from "@cell/ai-organ-contract/llm/ResponsesReplay";
+import { observeProviderTransportRequest } from "./ProviderTransportObservation";
+import {
+  assembleOpenAIResponsesInstructions,
+  buildOpenAIResponsesInputItems,
+} from "./ResponsesInputItems";
+import {
+  createResponsesStablePromptCacheKey,
+} from "./ResponsesRequestPlan";
+import {
+  decideResponsesCallLineage,
+  decideResponsesNativeOutputCompleteness,
+  isValidResponsesCallLineageProof,
+  ResponsesRequestLineageError,
+} from "./ResponsesNativeIntegrity";
 
 type SandboxPermissions = {
   sandboxMode: string;
@@ -17,6 +49,7 @@ type OpenAIResponsesNodejsFetchAdapterSettings = {
   apiKey: string;
   baseUrl?: string;
   providerOptions?: ProviderOptions;
+  requestObserver?: ProviderTransportRequestObserver;
 };
 
 function buildResponsesUrl(baseUrl?: string): string {
@@ -32,11 +65,15 @@ function buildResponsesUrl(baseUrl?: string): string {
 //   https://host/v1/responses -> wss://host/v1/responses   (http -> ws)
 // An explicit `websocketUrl` override wins, but is still scheme-normalized to
 // ws(s) and `/responses`-suffixed so callers may pass either form.
-export function buildResponsesWebsocketUrl(baseUrl: string, websocketUrl?: string): string {
+export function buildResponsesWebsocketUrl(
+  baseUrl: string,
+  websocketUrl?: string,
+): string {
   const override = String(websocketUrl || "").trim();
   let base = override || buildResponsesUrl(baseUrl);
   if (!base.endsWith("/responses")) base = buildResponsesUrl(base);
-  if (base.startsWith("https://")) return `wss://${base.slice("https://".length)}`;
+  if (base.startsWith("https://"))
+    return `wss://${base.slice("https://".length)}`;
   if (base.startsWith("http://")) return `ws://${base.slice("http://".length)}`;
   return base;
 }
@@ -54,7 +91,9 @@ const WEBSOCKET_DISALLOWED_HEADERS = new Set([
   "sec-websocket-accept",
 ]);
 
-function normalizeWebsocketHeaders(headers: Record<string, string>): Record<string, string> {
+function normalizeWebsocketHeaders(
+  headers: Record<string, string>,
+): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [key, value] of Object.entries(headers)) {
     const name = String(key || "").trim();
@@ -77,8 +116,13 @@ export type ResponsesTransportOptions = {
 //   auto      -> websocket when WS-capable (supports_websockets || websocket_url), else http_sse
 //   websocket -> forced websocket
 //   http_sse  -> forced http_sse
-export function resolveResponsesTransportMode(opts: ResponsesTransportOptions): ResponsesTransportMode {
-  const requested = String(opts.transportMode || "auto").trim().toLowerCase() || "auto";
+export function resolveResponsesTransportMode(
+  opts: ResponsesTransportOptions,
+): ResponsesTransportMode {
+  const requested =
+    String(opts.transportMode || "auto")
+      .trim()
+      .toLowerCase() || "auto";
   if (requested === "websocket") return "websocket";
   if (requested === "http_sse") return "http_sse";
   const websocketUrl = String(opts.websocketUrl || "").trim();
@@ -98,11 +142,20 @@ type ResponsesWebSocketLike = {
   onclose: ((ev: any) => void) | null;
 };
 
-type ResponsesWebSocketFactory = (url: string, options: { headers: Record<string, string> }) => ResponsesWebSocketLike;
+type ResponsesWebSocketFactory = (
+  url: string,
+  options: { headers: Record<string, string> },
+) => ResponsesWebSocketLike;
 
-function defaultWebSocketFactory(url: string, options: { headers: Record<string, string> }): ResponsesWebSocketLike {
+function defaultWebSocketFactory(
+  url: string,
+  options: { headers: Record<string, string> },
+): ResponsesWebSocketLike {
   // Bun supports `new WebSocket(url, { headers })` (custom-header extension).
-  return new (globalThis as any).WebSocket(url, options) as ResponsesWebSocketLike;
+  return new (globalThis as any).WebSocket(
+    url,
+    options,
+  ) as ResponsesWebSocketLike;
 }
 
 function parseWebsocketMessageData(raw: any): any | ResponsesDone | undefined {
@@ -137,14 +190,30 @@ function openResponsesWebsocketEvents(params: {
   factory: ResponsesWebSocketFactory;
   connectTimeoutMs: number;
   signal?: AbortSignal;
+  requestObserver?: ProviderTransportRequestObserver;
+  onRequestObserved?: (observer: ProviderTransportOutcomeObserver | undefined) => void;
+  requestPlanObservation: ProviderRequestPlanObservation;
 }): Promise<AsyncIterable<any>> {
-  const { url, headers, body, factory, connectTimeoutMs, signal } = params;
+  const {
+    url,
+    headers,
+    body,
+    factory,
+    connectTimeoutMs,
+    signal,
+    requestObserver,
+    onRequestObserved,
+    requestPlanObservation,
+  } = params;
 
   return new Promise<AsyncIterable<any>>((resolveOpen, rejectOpen) => {
     let opened = false;
     let settledOpen = false;
     const queue: any[] = [];
-    let waiter: ((value: IteratorResult<any>) => void) | null = null;
+    let waiter: {
+      resolve: (value: IteratorResult<any>) => void;
+      reject: (error: Error) => void;
+    } | null = null;
     let ended = false;
     let failure: Error | null = null;
     let ws: ResponsesWebSocketLike;
@@ -169,15 +238,14 @@ function openResponsesWebsocketEvents(params: {
       clearConnectTimer();
       try {
         ws?.close();
-      } catch {
-      }
+      } catch {}
       rejectOpen(error);
     };
 
     const pushEvent = (event: any) => {
       if (ended) return;
       if (waiter) {
-        const resolve = waiter;
+        const { resolve } = waiter;
         waiter = null;
         resolve({ value: event, done: false });
       } else {
@@ -188,9 +256,10 @@ function openResponsesWebsocketEvents(params: {
       if (error && !failure) failure = error;
       ended = true;
       if (waiter) {
-        const resolve = waiter;
+        const pending = waiter;
         waiter = null;
-        resolve({ value: undefined, done: true });
+        if (failure) pending.reject(failure);
+        else pending.resolve({ value: undefined, done: true });
       }
     };
 
@@ -205,16 +274,15 @@ function openResponsesWebsocketEvents(params: {
               if (failure) return Promise.reject(failure);
               return Promise.resolve({ value: undefined, done: true });
             }
-            return new Promise<IteratorResult<any>>((resolve) => {
-              waiter = resolve;
+            return new Promise<IteratorResult<any>>((resolve, reject) => {
+              waiter = { resolve, reject };
             });
           },
           return(): Promise<IteratorResult<any>> {
             ended = true;
             try {
               ws?.close();
-            } catch {
-            }
+            } catch {}
             return Promise.resolve({ value: undefined, done: true });
           },
         };
@@ -230,7 +298,10 @@ function openResponsesWebsocketEvents(params: {
 
     if (connectTimeoutMs > 0) {
       connectTimer = setTimeout(() => {
-        if (!opened) settleOpenErr(new Error("OpenAI responses websocket connect timeout"));
+        if (!opened)
+          settleOpenErr(
+            new Error("OpenAI responses websocket connect timeout"),
+          );
       }, connectTimeoutMs);
     }
 
@@ -242,12 +313,12 @@ function openResponsesWebsocketEvents(params: {
       signal.addEventListener(
         "abort",
         () => {
-          if (!opened) settleOpenErr(new Error("OpenAI responses websocket aborted"));
+          if (!opened)
+            settleOpenErr(new Error("OpenAI responses websocket aborted"));
           else finish(new Error("OpenAI responses websocket aborted"));
           try {
             ws?.close();
-          } catch {
-          }
+          } catch {}
         },
         { once: true },
       );
@@ -256,9 +327,20 @@ function openResponsesWebsocketEvents(params: {
     ws.onopen = () => {
       opened = true;
       try {
-        ws.send(JSON.stringify(body));
+        const serializedBody = JSON.stringify(body);
+        const outcomeObserver = observeProviderTransportRequest(requestObserver, {
+          transportType: "websocket",
+          requestBody: serializedBody,
+          url,
+          method: "SEND",
+          requestPlan: requestPlanObservation,
+        });
+        onRequestObserved?.(outcomeObserver);
+        ws.send(serializedBody);
       } catch (error) {
-        settleOpenErr(error instanceof Error ? error : new Error(String(error)));
+        settleOpenErr(
+          error instanceof Error ? error : new Error(String(error)),
+        );
         return;
       }
       settleOpenOk(iterable);
@@ -270,22 +352,38 @@ function openResponsesWebsocketEvents(params: {
         finish();
         try {
           ws.close();
-        } catch {
-        }
+        } catch {}
         return;
       }
       pushEvent(event);
     };
     ws.onerror = (ev: any) => {
       const error = new Error(
-        typeof ev?.message === "string" && ev.message ? ev.message : "OpenAI responses websocket error",
+        typeof ev?.message === "string" && ev.message
+          ? ev.message
+          : "OpenAI responses websocket error",
       );
       if (!opened) settleOpenErr(error);
       else finish(error);
     };
-    ws.onclose = () => {
+    ws.onclose = (ev: any) => {
+      if (ended) return;
       if (!opened) {
-        settleOpenErr(new Error("OpenAI responses websocket closed before open"));
+        settleOpenErr(
+          new Error("OpenAI responses websocket closed before open"),
+        );
+        return;
+      }
+      const code = Number(ev?.code);
+      if (Number.isFinite(code) && code !== 1000) {
+        const reason = typeof ev?.reason === "string" ? ev.reason.trim() : "";
+        finish(
+          new Error(
+            `OpenAI Responses WebSocket closed abnormally (${code})${
+              reason ? `: ${reason}` : ""
+            }`,
+          ),
+        );
         return;
       }
       finish();
@@ -318,29 +416,25 @@ function summarizeProviderErrorBody(errorText: string): string {
   try {
     const parsed = JSON.parse(text) as any;
     const message = parsed?.error?.message ?? parsed?.message ?? parsed?.error;
-    if (typeof message === "string" && message.trim()) return compactWhitespace(message);
-  } catch {
-  }
+    if (typeof message === "string" && message.trim())
+      return compactWhitespace(message);
+  } catch {}
 
   const htmlTitle = extractHtmlTitle(text);
   const summary = htmlTitle || stripHtml(text) || compactWhitespace(text);
   return summary.length > 500 ? `${summary.slice(0, 500)}...` : summary;
 }
 
-const INTERNAL_EXTRA_BODY_KEYS = ["reasoning_split", "work_context", "prompt_plan"] as const;
+const INTERNAL_EXTRA_BODY_KEYS = [
+  "reasoning_split",
+  "work_context",
+  "prompt_plan",
+] as const;
 
 function stripInternalExtraBodyFields(extra: Record<string, unknown>): void {
   for (const key of INTERNAL_EXTRA_BODY_KEYS) {
     delete extra[key];
   }
-}
-
-function normalizeText(content: unknown): string {
-  if (Array.isArray(content)) {
-    return content.map((part) => (typeof part === "string" ? part : part?.text ?? "")).join("");
-  }
-  if (content === null || content === undefined) return "";
-  return String(content);
 }
 
 function loadCodexInstructions(): string {
@@ -354,28 +448,38 @@ function buildSandboxPrompt(): string {
     approvalPolicy: process.env.APPROVAL_POLICY,
   };
   const rawPermissions = (globalThis as any).__sandbox_permissions as
-    | { sandbox_mode?: string; network_access?: string; approval_policy?: string }
+    | {
+        sandbox_mode?: string;
+        network_access?: string;
+        approval_policy?: string;
+      }
     | SandboxPermissions
     | undefined;
   const permissions: SandboxPermissions =
     rawPermissions && typeof rawPermissions === "object"
       ? {
           sandboxMode:
-            ("sandboxMode" in rawPermissions ? (rawPermissions as SandboxPermissions).sandboxMode : undefined) ||
+            ("sandboxMode" in rawPermissions
+              ? (rawPermissions as SandboxPermissions).sandboxMode
+              : undefined) ||
             ("sandbox_mode" in rawPermissions
               ? (rawPermissions as { sandbox_mode?: string }).sandbox_mode
               : undefined) ||
             envPermissions.sandboxMode ||
             "workspace-write",
           networkAccess:
-            ("networkAccess" in rawPermissions ? (rawPermissions as SandboxPermissions).networkAccess : undefined) ||
+            ("networkAccess" in rawPermissions
+              ? (rawPermissions as SandboxPermissions).networkAccess
+              : undefined) ||
             ("network_access" in rawPermissions
               ? (rawPermissions as { network_access?: string }).network_access
               : undefined) ||
             envPermissions.networkAccess ||
             "enabled",
           approvalPolicy:
-            ("approvalPolicy" in rawPermissions ? (rawPermissions as SandboxPermissions).approvalPolicy : undefined) ||
+            ("approvalPolicy" in rawPermissions
+              ? (rawPermissions as SandboxPermissions).approvalPolicy
+              : undefined) ||
             ("approval_policy" in rawPermissions
               ? (rawPermissions as { approval_policy?: string }).approval_policy
               : undefined) ||
@@ -390,51 +494,61 @@ function buildSandboxPrompt(): string {
   return `Sandbox permissions:\n- sandbox_mode: ${permissions.sandboxMode}\n- network_access: ${permissions.networkAccess}\n- approval_policy: ${permissions.approvalPolicy}`;
 }
 
-function buildInstructions(systemText: string): string {
-  const instructions = loadCodexInstructions().trim();
-  const sandboxPrompt = buildSandboxPrompt();
-  const parts = [instructions, sandboxPrompt, systemText].filter((value) => value && value.trim());
-  const merged = parts.join("\n\n");
-  if (!merged) return "";
-  return merged.replace(/\s+$/g, "");
+export function buildOpenAIResponsesInstructions(params: {
+  messages: readonly any[];
+  configuredInstructions?: unknown;
+}): string {
+  return buildOpenAIResponsesInstructionPlan(params).instructions;
 }
 
-const CODEX_LOG_PATH = path.join(process.cwd(), "logs", "codex_responses_debug.log");
+export function buildOpenAIResponsesInstructionPlan(params: {
+  messages: readonly any[];
+  configuredInstructions?: unknown;
+  stableSystemPrompts?: readonly string[];
+}): {
+  instructions: string;
+  stableInstructions: string;
+} {
+  const transportInstructions = loadCodexInstructions();
+  const sandboxInstructions = buildSandboxPrompt();
+  const stableMessages = (params.stableSystemPrompts ?? []).map((content) => ({
+    role: "system",
+    content,
+  }));
+  return {
+    instructions: assembleOpenAIResponsesInstructions({
+      transportInstructions,
+      sandboxInstructions,
+      configuredInstructions: params.configuredInstructions,
+      materializedMessages: params.messages,
+    }),
+    stableInstructions: assembleOpenAIResponsesInstructions({
+      transportInstructions,
+      sandboxInstructions,
+      configuredInstructions: params.configuredInstructions,
+      materializedMessages: stableMessages,
+    }),
+  };
+}
+
+const CODEX_LOG_PATH = path.join(
+  process.cwd(),
+  "logs",
+  "codex_responses_debug.log",
+);
 
 function appendCodexLog(entry: Record<string, unknown>) {
   try {
     mkdirSync(path.dirname(CODEX_LOG_PATH), { recursive: true });
     const payload = { ts: new Date().toISOString(), ...entry };
     appendFileSync(CODEX_LOG_PATH, `${JSON.stringify(payload)}\n`, "utf8");
-  } catch {
-  }
-}
-
-type ResponsesInputItem =
-  | { type: "message"; role: "user" | "assistant"; content: Array<{ type: "input_text" | "output_text"; text: string }> }
-  | { type: "function_call"; call_id: string; name: string; arguments: string }
-  | { type: "function_call_output"; call_id: string; output: string };
-
-type BuildInputResult = {
-  input: ResponsesInputItem[];
-  messageItems: ResponsesInputItem[];
-  toolItems: ResponsesInputItem[];
-  toolOutputItems: ResponsesInputItem[];
-};
-
-function normalizeToolOutput(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (content === null || content === undefined) return "";
-  try {
-    return JSON.stringify(content);
-  } catch {
-    return String(content);
-  }
+  } catch {}
 }
 
 function extractResponsesEventErrorMessage(event: any): string {
   const error = event?.error ?? event?.response?.error;
-  const code = typeof error?.code === "string" && error.code ? `${error.code}: ` : "";
+  const code =
+    typeof error?.code === "string" && error.code ? `${error.code}: ` : "";
   const message =
     typeof error?.message === "string" && error.message
       ? error.message
@@ -446,141 +560,9 @@ function extractResponsesEventErrorMessage(event: any): string {
   return `${code}${message}`;
 }
 
-function getToolCallId(msg: any): string {
-  if (!msg) return "";
-  const raw = msg.tool_call_id ?? msg.toolCallId ?? msg.toolCallID ?? "";
-  return typeof raw === "string" ? raw : String(raw || "");
-}
-
-function collectTrailingToolMessages(messages: any[]): any[] {
-  const trailing: any[] = [];
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (!msg || msg.role !== "tool") break;
-    trailing.push(msg);
-  }
-  trailing.reverse();
-  return trailing;
-}
-
-function normalizeToolCall(toolCall: any): { id: string; name: string; arguments: string } | null {
-  const id = toolCall?.id ? String(toolCall.id) : "";
-  const name = toolCall?.function?.name ? String(toolCall.function.name) : toolCall?.name ? String(toolCall.name) : "";
-  const rawArgs =
-    toolCall?.function?.arguments !== undefined
-      ? toolCall.function.arguments
-      : toolCall?.arguments !== undefined
-        ? toolCall.arguments
-        : toolCall?.input;
-  const args = typeof rawArgs === "string" ? rawArgs : rawArgs !== undefined ? JSON.stringify(rawArgs) : "";
-  if (!id) return null;
-  return { id, name, arguments: args };
-}
-
-function findLatestAssistantToolCalls(messages: any[]): Map<string, { name: string; arguments: string }> {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (!msg || msg.role !== "assistant") continue;
-    const toolCalls = msg.tool_calls || msg.toolCalls;
-    if (!Array.isArray(toolCalls) || toolCalls.length === 0) continue;
-    const map = new Map<string, { name: string; arguments: string }>();
-    for (const tc of toolCalls) {
-      const normalized = normalizeToolCall(tc);
-      if (normalized) map.set(normalized.id, { name: normalized.name, arguments: normalized.arguments });
-    }
-    return map;
-  }
-  return new Map();
-}
-
-function buildInput(messages: any[]): BuildInputResult {
-  const trailingToolMessages = collectTrailingToolMessages(messages);
-  const toolCallMap = findLatestAssistantToolCalls(messages);
-  const toolItems: ResponsesInputItem[] = [];
-  const toolOutputItems: ResponsesInputItem[] = [];
-  for (const msg of trailingToolMessages) {
-    const callId = getToolCallId(msg);
-    if (!callId) continue;
-    const callInfo = toolCallMap.get(callId);
-    if (callInfo?.name) {
-      toolItems.push({
-        type: "function_call",
-        call_id: callId,
-        name: callInfo.name,
-        arguments: callInfo.arguments || "",
-      });
-    }
-    toolOutputItems.push({
-      type: "function_call_output",
-      call_id: callId,
-      output: normalizeToolOutput(msg.content),
-    });
-  }
-
-  const messageItems: ResponsesInputItem[] = [];
-  const skipToolMessages = toolOutputItems.length > 0;
-
-  for (const msg of messages) {
-    if (!msg) continue;
-    if (msg.role === "system") {
-      continue;
-    }
-    if (msg.role === "tool") {
-      if (skipToolMessages) continue;
-      const content = normalizeToolOutput(msg.content ?? "");
-      if (!content.trim()) continue;
-      messageItems.push({
-        type: "message",
-        role: "user",
-        content: [{ type: "input_text", text: content }],
-      });
-      continue;
-    }
-    if (msg.role === "user" || msg.role === "assistant") {
-      const content = normalizeText(msg.content ?? "");
-      if (!content.trim()) continue;
-      messageItems.push({
-        type: "message",
-        role: msg.role,
-        content: [{ type: msg.role === "user" ? "input_text" : "output_text", text: content }],
-      });
-    }
-  }
-
-  return { input: messageItems, messageItems, toolItems, toolOutputItems };
-}
-
-
 // "DONE" sentinel ends an event stream (mirrors SSE `data: [DONE]`).
 const RESPONSES_DONE = "DONE" as const;
 type ResponsesDone = typeof RESPONSES_DONE;
-
-// Module-level previous_response_id store, keyed by session/actor (mirrors
-// sparrow `latest_assistant_response_id_by_session`). `OpenAIResponsesDriver`
-// builds a NEW adapter per call, so a per-instance field can never bridge turns
-// — this module-level map does. Continuity is server-side via previous_response_id;
-// we never replay reasoning ourselves. Only WS turns read/write it (HTTP SSE must
-// never carry previous_response_id — the proxy returns 400). An empty session key
-// disables continuity so sessions never cross-contaminate through a shared key.
-const responsesPreviousResponseIdBySession = new Map<string, string>();
-
-function getStoredPreviousResponseId(sessionKey: string | undefined): string | undefined {
-  const key = String(sessionKey || "").trim();
-  if (!key) return undefined;
-  return responsesPreviousResponseIdBySession.get(key);
-}
-
-function storePreviousResponseId(sessionKey: string | undefined, responseId: string): void {
-  const key = String(sessionKey || "").trim();
-  if (!key) return;
-  if (!responseId) return;
-  responsesPreviousResponseIdBySession.set(key, responseId);
-}
-
-// Test-only: clear the module-level continuity store between cases.
-export function __resetResponsesContinuationStoreForTests(): void {
-  responsesPreviousResponseIdBySession.clear();
-}
 
 function parseResponsesSseLine(line: string): any | ResponsesDone | undefined {
   const trimmed = line.trim();
@@ -595,6 +577,13 @@ function parseResponsesSseLine(line: string): any | ResponsesDone | undefined {
   }
 }
 
+function readResponsesEventId(event: any): string | undefined {
+  const raw = event?.response?.id ?? event?.id;
+  if (typeof raw !== "string") return undefined;
+  const id = raw.trim();
+  return id || undefined;
+}
+
 // Transport-agnostic event -> Chat-Completions chunk parser.
 //
 // Takes already-parsed Responses-API event OBJECTS (the SAME shape whether they
@@ -606,26 +595,73 @@ function parseResponsesSseLine(line: string): any | ResponsesDone | undefined {
 export async function* responsesEventsToChunks(
   events: AsyncIterable<any> | Iterable<any>,
   onResponseId?: (id: string) => void,
+  onProviderOutput?: (decision: ResponsesNativeOutputCompletenessDecision | undefined) => void,
 ): AsyncIterable<any> {
   let emittedText = false;
-  const toolCalls = new Map<string, { id: string; name: string; arguments: string }>();
+  let responseId: string | undefined;
+  let completed = false;
+  let completedOutputObserved = false;
+  let completedOutput: readonly ResponsesNativeItem[] = [];
+  let outputFinalized = false;
+  const addedItems: ResponsesNativeOutputEvidenceItem[] = [];
+  const doneItems: ResponsesNativeOutputEvidenceItem[] = [];
+  const functionCallArgumentDeltas: Array<{ itemId: string; delta: string }> = [];
+  const toolCalls = new Map<
+    string,
+    { id: string; name: string; arguments: string }
+  >();
   const itemToCallId = new Map<string, string>();
 
-  for await (const event of events as AsyncIterable<any>) {
-    if (event === RESPONSES_DONE) break;
-    if (!event || typeof event !== "object") continue;
-    if (event.type === "response.created") {
-      const responseId = event.response?.id || event.id;
-      if (responseId && onResponseId) onResponseId(String(responseId));
-      continue;
-    }
-    if (event.type === "response.completed") {
-      const responseId = event.response?.id || event.id;
-      if (responseId && onResponseId) onResponseId(String(responseId));
-      continue;
-    }
+  try {
+    for await (const event of events as AsyncIterable<any>) {
+      if (event === RESPONSES_DONE) break;
+      if (!event || typeof event !== "object") continue;
+      if (event.type === "response.created") {
+        const nextResponseId = readResponsesEventId(event);
+        if (nextResponseId) {
+          const createdResponseId = String(nextResponseId);
+          if (responseId && responseId !== createdResponseId) {
+            throw new Error(
+              `OpenAI Responses response id mismatch: ${responseId} != ${createdResponseId}`,
+            );
+          }
+          responseId = createdResponseId;
+          onResponseId?.(responseId);
+        }
+        continue;
+      }
+      if (event.type === "response.completed") {
+        const nextResponseId = readResponsesEventId(event);
+        if (!nextResponseId) {
+          throw new Error(
+            "OpenAI Responses response.completed is missing a response id",
+          );
+        }
+        const completedResponseId = String(nextResponseId);
+        if (responseId && responseId !== completedResponseId) {
+          throw new Error(
+            `OpenAI Responses response id mismatch: ${responseId} != ${completedResponseId}`,
+          );
+        }
+        responseId = completedResponseId;
+        completed = true;
+        onResponseId?.(responseId);
+        if (Array.isArray(event.response?.output)) {
+          completedOutputObserved = true;
+          completedOutput = event.response.output.filter(
+            (item: unknown): item is ResponsesNativeItem =>
+              Boolean(item) && typeof item === "object" && !Array.isArray(item),
+          );
+        }
+        continue;
+      }
     if (event.type === "response.output_text.delta") {
-      const delta = typeof event.delta === "string" ? event.delta : typeof event.text === "string" ? event.text : "";
+      const delta =
+        typeof event.delta === "string"
+          ? event.delta
+          : typeof event.text === "string"
+            ? event.text
+            : "";
       if (delta) {
         emittedText = true;
         yield { choices: [{ delta: { content: delta } }] };
@@ -633,62 +669,130 @@ export async function* responsesEventsToChunks(
       continue;
     }
     if (event.type === "response.output_text.done") {
-      const text = typeof event.text === "string" ? event.text : typeof event.delta === "string" ? event.delta : "";
+      const text =
+        typeof event.text === "string"
+          ? event.text
+          : typeof event.delta === "string"
+            ? event.delta
+            : "";
       if (text && !emittedText) {
         emittedText = true;
         yield { choices: [{ delta: { content: text } }] };
       }
       continue;
     }
-    if (event.type === "response.output_item.added" && event.item?.type === "function_call") {
+    if (
+      event.type === "response.output_item.added" &&
+      event.item && typeof event.item === "object" && !Array.isArray(event.item)
+    ) {
+      const outputIndex = Number(event.output_index);
+      addedItems.push({
+        ...(Number.isSafeInteger(outputIndex) && outputIndex >= 0 ? { outputIndex } : {}),
+        item: event.item as ResponsesNativeItem,
+      });
+    }
+    if (
+      event.type === "response.output_item.added" &&
+      event.item?.type === "function_call"
+    ) {
       const itemId = String(event.item?.id || "");
       const callId = String(event.item?.call_id || "");
       if (itemId && callId) itemToCallId.set(itemId, callId);
       const key = callId || itemId;
       if (!key) continue;
       if (!toolCalls.has(key)) {
-        toolCalls.set(key, { id: callId || itemId, name: String(event.item?.name || ""), arguments: String(event.item?.arguments || "") });
+        toolCalls.set(key, {
+          id: callId || itemId,
+          name: String(event.item?.name || ""),
+          arguments: String(event.item?.arguments || ""),
+        });
       }
       continue;
     }
     if (event.type === "response.function_call_arguments.delta") {
       const itemId = String(event.item_id || "");
+      functionCallArgumentDeltas.push({ itemId, delta: String(event.delta || "") });
       const key = itemToCallId.get(itemId) || itemId;
       if (!key) continue;
-      const existing = toolCalls.get(key) || { id: key, name: "", arguments: "" };
+      const existing = toolCalls.get(key) || {
+        id: key,
+        name: "",
+        arguments: "",
+      };
       existing.arguments += String(event.delta || "");
       toolCalls.set(key, existing);
       continue;
     }
-    if (event.type === "response.output_item.done" && event.item?.type === "function_call") {
+      if (event.type === "response.output_item.done" && event.item && typeof event.item === "object") {
+        const outputIndex = Number(event.output_index);
+        doneItems.push({
+          ...(Number.isSafeInteger(outputIndex) && outputIndex >= 0 ? { outputIndex } : {}),
+          item: event.item as ResponsesNativeItem,
+        });
+      }
+    if (
+      event.type === "response.output_item.done" &&
+      event.item?.type === "function_call"
+    ) {
       const itemId = String(event.item?.id || "");
       const callId = String(event.item?.call_id || "");
       if (itemId && callId) itemToCallId.set(itemId, callId);
       const key = callId || itemId;
       if (!key) continue;
-      const existing = toolCalls.get(key) || { id: key, name: "", arguments: "" };
+      const existing = toolCalls.get(key) || {
+        id: key,
+        name: "",
+        arguments: "",
+      };
       if (event.item?.name) existing.name = String(event.item.name);
-      if (event.item?.arguments) existing.arguments = String(event.item.arguments);
+      if (event.item?.arguments)
+        existing.arguments = String(event.item.arguments);
       existing.id = callId || existing.id;
       toolCalls.set(key, existing);
       continue;
     }
-    if (event.type === "error" || event.type === "response.error" || event.type === "response.failed") {
-      throw new Error(extractResponsesEventErrorMessage(event));
+      if (
+        event.type === "error" ||
+        event.type === "response.error" ||
+        event.type === "response.failed"
+      ) {
+        throw new Error(extractResponsesEventErrorMessage(event));
+      }
     }
-  }
 
-  if (toolCalls.size) {
-    const toolCallsPayload = Array.from(toolCalls.values()).map((tc, index) => ({
-      index,
-      id: tc.id,
-      type: "function",
-      function: {
-        name: tc.name,
-        arguments: tc.arguments,
-      },
+    if (!completed) {
+      throw new Error(
+        "OpenAI Responses stream ended before response.completed",
+      );
+    }
+
+    if (toolCalls.size) {
+      const toolCallsPayload = Array.from(toolCalls.values()).map(
+        (tc, index) => ({
+          index,
+          id: tc.id,
+          type: "function",
+          function: {
+            name: tc.name,
+            arguments: tc.arguments,
+          },
+        }),
+      );
+      yield { choices: [{ delta: { tool_calls: toolCallsPayload } }] };
+    }
+
+    onProviderOutput?.(decideResponsesNativeOutputCompleteness({
+      schemaVersion: 1,
+      kind: "responses_native_output_evidence",
+      responseId: responseId!,
+      completedOutput: { observed: completedOutputObserved, items: completedOutput },
+      addedItems,
+      doneItems,
+      functionCallArgumentDeltas,
     }));
-    yield { choices: [{ delta: { tool_calls: toolCallsPayload } }] };
+    outputFinalized = true;
+  } finally {
+    if (!outputFinalized) onProviderOutput?.(undefined);
   }
 }
 
@@ -716,8 +820,7 @@ async function* responsesSseEvents(response: Response): AsyncIterable<any> {
   } finally {
     try {
       reader.releaseLock();
-    } catch {
-    }
+    } catch {}
   }
 
   if (buffer.trim()) {
@@ -726,15 +829,258 @@ async function* responsesSseEvents(response: Response): AsyncIterable<any> {
   }
 }
 
-async function* streamToOpenAIChunks(response: Response, onResponseId?: (id: string) => void): AsyncIterable<any> {
+async function* streamToOpenAIChunks(
+  response: Response,
+  onResponseId?: (id: string) => void,
+  onProviderOutput?: (decision: ResponsesNativeOutputCompletenessDecision | undefined) => void,
+): AsyncIterable<any> {
   if (!response.body) {
-    const payload = await response.json().catch(() => null);
-    if (payload) {
-      yield payload;
-    }
-    return;
+    onProviderOutput?.(undefined);
+    throw new Error("OpenAI Responses stream ended before response.completed");
   }
-  yield* responsesEventsToChunks(responsesSseEvents(response), onResponseId);
+  yield* responsesEventsToChunks(
+    responsesSseEvents(response),
+    onResponseId,
+    onProviderOutput,
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isResponsesRequestPlan(value: unknown): value is ResponsesRequestPlan {
+  if (!isRecord(value) || !Array.isArray(value.input)) return false;
+  const proof = value.lineageProof;
+  if (!isRecord(proof)
+    || proof.schemaVersion !== 1
+    || proof.kind !== "responses_call_lineage_proof"
+    || proof.status !== "valid"
+    || !Number.isSafeInteger(proof.itemCount)
+    || (proof.itemCount as number) < 0
+    || typeof proof.lineageDigest !== "string") return false;
+  if (value.kind === "stateless_replay"
+    && !isValidResponsesCallLineageProof(proof, value.input as ResponsesNativeItem[])) return false;
+  if (value.kind === "stateful_incremental") {
+    return typeof value.previousResponseId === "string" && value.previousResponseId.length > 0;
+  }
+  return value.kind === "stateless_replay" && typeof value.promptCacheKey === "string" &&
+    value.promptCacheKey.length > 0;
+}
+
+function isResponsesStatelessReplayPlan(
+  value: unknown,
+): value is ResponsesStatelessReplayPlan {
+  return isResponsesRequestPlan(value) && value.kind === "stateless_replay";
+}
+
+function readResponsesTransportRequestContext(
+  value: unknown,
+): ResponsesTransportRequestContext | undefined {
+  if (!isRecord(value)) return undefined;
+  if (value.schemaVersion !== 1 || value.kind !== "responses_transport_request_context") {
+    return undefined;
+  }
+  if (value.instructions !== undefined && typeof value.instructions !== "string") {
+    return undefined;
+  }
+  if (!isResponsesRequestPlan(value.primary)) return undefined;
+  if (value.statelessFallback !== undefined && !isResponsesStatelessReplayPlan(value.statelessFallback)) {
+    return undefined;
+  }
+  return value as ResponsesTransportRequestContext;
+}
+
+function fullCanonicalInput(messages: any[]): readonly ResponsesNativeItem[] {
+  const input = buildOpenAIResponsesInputItems(messages);
+  if (input.toolItems.length || input.toolOutputItems.length) {
+    return [...input.messageItems, ...input.toolItems, ...input.toolOutputItems];
+  }
+  return input.input;
+}
+
+function makeLegacyStatelessPlan(params: {
+  model: string;
+  messages: any[];
+  instructions: string;
+  tools: readonly unknown[];
+  explicitPromptCacheKey?: unknown;
+}): ResponsesStatelessReplayPlan {
+  const input = fullCanonicalInput(params.messages);
+  const lineageProof = decideResponsesCallLineage(input);
+  if (lineageProof.status !== "valid") throw new ResponsesRequestLineageError(lineageProof);
+  const promptCacheKey =
+    typeof params.explicitPromptCacheKey === "string" && params.explicitPromptCacheKey
+      ? params.explicitPromptCacheKey
+      : createResponsesStablePromptCacheKey({
+          providerId: "openai-responses",
+          model: params.model,
+          instructions: params.instructions,
+          tools: params.tools,
+        });
+  return {
+    kind: "stateless_replay",
+    source: "canonical_rebuild",
+    input,
+    contextDigest: "transport-legacy-canonical-rebuild",
+    messageFrontier: {
+      schemaVersion: 1,
+      algorithm: "sha256",
+      messageCount: params.messages.length,
+      digest: "transport-legacy-canonical-rebuild",
+    },
+    promptCacheKey,
+    lineageProof,
+  };
+}
+
+function materializeResponsesBody(params: {
+  model: string;
+  plan: ResponsesRequestPlan;
+  instructions: string;
+  tools: readonly unknown[];
+  extraBody: Record<string, unknown>;
+  persistResponse: boolean;
+}): Record<string, unknown> {
+  const extra = { ...params.extraBody };
+  const extraReasoning = isRecord(extra.reasoning) ? { ...extra.reasoning } : undefined;
+  delete extra.reasoning;
+  stripInternalExtraBodyFields(extra);
+
+  const body: Record<string, unknown> = {
+    model: params.model,
+    stream: true,
+    tools: params.tools,
+    tool_choice: "auto",
+    parallel_tool_calls: false,
+    reasoning: {
+      effort: "medium",
+      summary: "auto",
+      ...extraReasoning,
+    },
+    include: ["reasoning.encrypted_content"],
+    ...extra,
+  };
+
+  // The explicit plan is authoritative over unmanaged provider body options.
+  body.input = params.plan.input;
+  delete body.previous_response_id;
+  delete body.prompt_cache_key;
+  if (params.plan.kind === "stateful_incremental") {
+    body.previous_response_id = params.plan.previousResponseId;
+    body.store = true;
+    body.instructions = params.instructions || undefined;
+  } else {
+    body.instructions = params.instructions || undefined;
+    body.prompt_cache_key = params.plan.promptCacheKey;
+    body.store = params.persistResponse;
+  }
+  return body;
+}
+
+function createProviderOutputDeferred(): {
+  promise: Promise<ResponsesTransportResult | undefined>;
+  settle: (result: ResponsesTransportResult | undefined) => void;
+} {
+  let settled = false;
+  let resolve!: (result: ResponsesTransportResult | undefined) => void;
+  const promise = new Promise<ResponsesTransportResult | undefined>((next) => {
+    resolve = next;
+  });
+  return {
+    promise,
+    settle(result) {
+      if (settled) return;
+      settled = true;
+      resolve(result);
+    },
+  };
+}
+
+function settleProviderOutputForTransport(params: {
+  settle: (result: ResponsesTransportResult | undefined) => void;
+  plan: ResponsesRequestPlan;
+  transport: ResponsesActualTransport;
+  responseStored: boolean;
+  outcomeObserver?: ProviderTransportOutcomeObserver;
+  fallbackUsed: boolean;
+  signal?: AbortSignal;
+}): (decision: ResponsesNativeOutputCompletenessDecision | undefined) => void {
+  return (decision) => {
+    if (!decision) {
+      appendTransportOutcome(params.outcomeObserver, {
+        terminalState: params.signal?.aborted ? "aborted" : "incomplete",
+        fallbackUsed: params.fallbackUsed,
+        completeness: {
+          status: "not_observed",
+          source: null,
+          reason: params.signal?.aborted ? "aborted" : "missing_final_output",
+        },
+        responseId: null,
+      });
+      params.settle(undefined);
+      return;
+    }
+    appendTransportOutcome(params.outcomeObserver, {
+      terminalState: "completed",
+      fallbackUsed: params.fallbackUsed,
+      completeness: decision.status === "complete"
+        ? {
+            status: "complete",
+            source: decision.output.completenessProof.source,
+            reason: null,
+          }
+        : {
+            status: "incomplete",
+            source: null,
+            reason: decision.reason,
+          },
+      responseId: decision.status === "complete"
+        ? decision.output.responseId ?? null
+        : null,
+    });
+    params.settle(Object.freeze({
+      schemaVersion: 1,
+      kind: "responses_transport_result",
+      plan: params.plan,
+      transport: params.transport,
+      responseStored: params.responseStored,
+      outputDecision: decision,
+    }));
+  };
+}
+
+function appendTransportOutcome(
+  observer: ProviderTransportOutcomeObserver | undefined,
+  input: Parameters<ProviderTransportOutcomeObserver["appendOutcome"]>[0],
+): void {
+  try {
+    observer?.appendOutcome(input);
+  } catch {
+    // Outcome capture is observation-only and cannot alter the provider loop.
+  }
+}
+
+function responsesRequestPlanObservation(
+  plan: ResponsesRequestPlan,
+  reasonOverride?: string,
+): ProviderRequestPlanObservation {
+  if (plan.kind === "stateful_incremental") {
+    return {
+      planKind: "stateful_incremental",
+      replaySource: null,
+      previousResponseIdDecision: "adopted",
+      previousResponseId: plan.previousResponseId,
+      previousResponseIdDecisionReason: null,
+    };
+  }
+  return {
+    planKind: "stateless_replay",
+    replaySource: plan.source,
+    previousResponseIdDecision: "rejected",
+    previousResponseId: null,
+    previousResponseIdDecisionReason: reasonOverride ?? "stateless_plan",
+  };
 }
 
 export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
@@ -742,117 +1088,82 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
   private apiKey: string;
   private baseUrl?: string;
   private providerOptions: ProviderOptions;
-  private lastResponseId?: string;
+  private requestObserver?: ProviderTransportRequestObserver;
 
   constructor(settings: OpenAIResponsesNodejsFetchAdapterSettings) {
     this.apiKey = settings.apiKey;
     this.baseUrl = settings.baseUrl;
     this.providerOptions = settings.providerOptions ?? {};
-    this.lastResponseId = undefined;
+    this.requestObserver = settings.requestObserver;
   }
 
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
-    const { model, messages, tools, extraBody, signal, sessionKey } = options;
-    const { input, messageItems, toolItems, toolOutputItems } = buildInput(messages);
-
-    // Transport selection (auto / websocket / http_sse). Resolved up-front because
-    // previous_response_id is ONLY valid over WebSocket — the proxy returns 400
-    // for it over HTTP SSE (decision D3). `auto` -> websocket only when the
-    // connection is marked WS-capable.
+    const { model, messages, tools, extraBody, signal } = options;
     const providerOptions = this.providerOptions;
     const supportsWebsockets =
-      providerOptions.supports_websockets === true || providerOptions.supports_websockets === "true";
+      providerOptions.supports_websockets === true ||
+      providerOptions.supports_websockets === "true";
     const websocketUrlOption =
-      typeof providerOptions.websocket_url === "string" ? providerOptions.websocket_url : "";
+      typeof providerOptions.websocket_url === "string"
+        ? providerOptions.websocket_url
+        : "";
     const transportMode = resolveResponsesTransportMode({
-      transportMode: typeof providerOptions.transport_mode === "string" ? providerOptions.transport_mode : "auto",
+      transportMode:
+        typeof providerOptions.transport_mode === "string"
+          ? providerOptions.transport_mode
+          : "auto",
       supportsWebsockets,
       websocketUrl: websocketUrlOption,
     });
     const isWebsocketTransport = transportMode === "websocket";
-
-    // Gate: previous_response_id continuity is enabled on the WebSocket transport
-    // (the env var stays as an additional explicit override). It is NEVER enabled
-    // over HTTP SSE so the SSE body can never carry previous_response_id.
-    const allowPreviousResponseId =
-      isWebsocketTransport || process.env.MINIMAX_RESPONSES_USE_PREVIOUS_ID === "1";
-
-    const instructions = buildInstructions("");
+    const normalizedExtraBody = isRecord(extraBody) ? extraBody : {};
+    const requestContext = readResponsesTransportRequestContext(
+      options.providerRequestContext,
+    );
+    const instructions = requestContext?.instructions ??
+      buildOpenAIResponsesInstructions({
+        messages,
+        configuredInstructions: normalizedExtraBody.instructions,
+      });
     const toolSpecs = Array.isArray(tools)
       ? tools.map((tool) => ({
           type: "function",
           name: tool.function.name,
           description: tool.function.description,
           strict: false,
-          parameters: stripOpenAICompatibleUnsupportedSchemaKeys(tool.function.parameters || {}),
+          parameters: stripOpenAICompatibleUnsupportedSchemaKeys(
+            tool.function.parameters || {},
+          ),
         }))
       : [];
-
-    const body: Record<string, unknown> = {
+    const legacyStatelessPlan = makeLegacyStatelessPlan({
       model,
-      input,
-      stream: true,
-    };
-
-    // Read the stored previous_response_id for this session (module-level map,
-    // bridges per-call new adapter instances). Only consulted when continuity is
-    // allowed (WS / env override) — so HTTP SSE never resolves a previous id.
-    const previousResponseId = allowPreviousResponseId
-      ? getStoredPreviousResponseId(sessionKey) ?? this.lastResponseId
-      : undefined;
-
-    if (previousResponseId && toolOutputItems.length) {
-      // Chain turn: send previous_response_id + store:true + the INCREMENTAL input
-      // (the trailing tool round only). The server keeps the prior response (incl.
-      // reasoning) so the model maintains chain-of-thought across tool rounds.
-      body.previous_response_id = previousResponseId;
-      body.input = toolItems.length ? [...toolItems, ...toolOutputItems] : toolOutputItems;
-      body.tools = toolSpecs;
-      body.tool_choice = "auto";
-      body.parallel_tool_calls = false;
-      if (allowPreviousResponseId) {
-        body.store = true;
-      }
-    } else {
-      body.instructions = instructions || undefined;
-      body.tools = toolSpecs;
-      body.tool_choice = "auto";
-      body.parallel_tool_calls = false;
-      body.reasoning = {
-        effort: "medium",
-        summary: "auto",
-      };
-      body.store = allowPreviousResponseId ? true : false;
-      body.include = ["reasoning.encrypted_content"];
-      body.prompt_cache_key = randomUUID();
-      if (toolItems.length || toolOutputItems.length) {
-        body.input = [...messageItems, ...toolItems, ...toolOutputItems];
-      }
-    }
-
-    const extra = extraBody && typeof extraBody === "object" ? { ...extraBody } : {};
-    const extraReasoning =
-      typeof extra.reasoning === "object" && extra.reasoning !== null
-        ? { ...(extra.reasoning as Record<string, unknown>) }
-        : undefined;
-    delete (extra as Record<string, unknown>).reasoning;
-    stripInternalExtraBodyFields(extra);
-    Object.assign(body, extra);
-    if (body.reasoning && extraReasoning && typeof body.reasoning === "object") {
-      body.reasoning = {
-        ...(body.reasoning as Record<string, unknown>),
-        ...extraReasoning,
-      };
-    }
-
-    // Continuity requires the server to persist each response (store:true) so the
-    // next previous_response_id can reference it. Re-assert AFTER extra-body merge,
-    // which could otherwise clobber store back to false.
-    if (allowPreviousResponseId) {
-      body.store = true;
-    }
-    const url = buildResponsesUrl((providerOptions.baseURL as string | undefined) || this.baseUrl);
-    const apiKey = (providerOptions.apiKey as string | undefined) || this.apiKey;
+      messages,
+      instructions,
+      tools: toolSpecs,
+      explicitPromptCacheKey: normalizedExtraBody.prompt_cache_key,
+    });
+    const primaryPlan = requestContext?.primary ?? legacyStatelessPlan;
+    const fallbackPlan = requestContext?.statelessFallback ??
+      (primaryPlan.kind === "stateless_replay" ? primaryPlan : legacyStatelessPlan);
+    const selectedPlan = isWebsocketTransport
+      ? primaryPlan
+      : primaryPlan.kind === "stateless_replay"
+        ? primaryPlan
+        : fallbackPlan;
+    const body = materializeResponsesBody({
+      model,
+      plan: selectedPlan,
+      instructions,
+      tools: toolSpecs,
+      extraBody: normalizedExtraBody,
+      persistResponse: isWebsocketTransport,
+    });
+    const url = buildResponsesUrl(
+      (providerOptions.baseURL as string | undefined) || this.baseUrl,
+    );
+    const apiKey =
+      (providerOptions.apiKey as string | undefined) || this.apiKey;
     if (!apiKey) {
       throw new Error("OpenAI API key missing");
     }
@@ -868,7 +1179,6 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       const debugPayload = {
         url,
         body,
-        has_tool_outputs: toolOutputItems.length > 0,
         previous_response_id: body.previous_response_id,
       };
       console.log("[codex] request", JSON.stringify(debugPayload, null, 2));
@@ -879,22 +1189,34 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       url,
       model,
       body_bytes: JSON.stringify(body).length,
-      instructions_length: typeof body.instructions === "string" ? body.instructions.length : 0,
+      instructions_length:
+        typeof body.instructions === "string" ? body.instructions.length : 0,
       input_text_lengths: Array.isArray(body.input)
         ? body.input.map((item) =>
-            typeof item === "object" && item && Array.isArray((item as any).content)
+            typeof item === "object" &&
+            item &&
+            Array.isArray((item as any).content)
               ? (item as any).content.reduce(
-                  (total: number, part: any) => total + (typeof part?.text === "string" ? part.text.length : 0),
+                  (total: number, part: any) =>
+                    total +
+                    (typeof part?.text === "string" ? part.text.length : 0),
                   0,
                 )
               : 0,
           )
         : [],
-      has_tool_outputs: toolOutputItems.length > 0,
-      use_previous_response_id: Boolean(previousResponseId),
-      previous_response_id: previousResponseId,
+      request_plan_kind: selectedPlan.kind,
+      use_previous_response_id: selectedPlan.kind === "stateful_incremental",
+      previous_response_id:
+        selectedPlan.kind === "stateful_incremental"
+          ? selectedPlan.previousResponseId
+          : undefined,
       input_types: Array.isArray(body.input)
-        ? body.input.map((item) => (typeof item === "object" && item ? (item as any).type || (item as any).role : typeof item))
+        ? body.input.map((item) =>
+            typeof item === "object" && item
+              ? (item as any).type || (item as any).role
+              : typeof item,
+          )
         : typeof body.input,
       tool_count: Array.isArray(body.tools) ? body.tools.length : 0,
       store: body.store,
@@ -903,49 +1225,74 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
     });
 
     const fetchFn = providerOptions.fetch || fetch;
-    const doFetch = async (payload: Record<string, unknown>) => {
-      return fetchFn(url, {
+    const doFetch = async (params: {
+      payload: Record<string, unknown>;
+      plan: ResponsesStatelessReplayPlan;
+      fallbackUsed: boolean;
+    }) => {
+      const { payload, plan, fallbackUsed } = params;
+      const serializedBody = JSON.stringify(payload);
+      const outcomeObserver = observeProviderTransportRequest(this.requestObserver, {
+        transportType: "http",
+        requestBody: serializedBody,
+        url,
         method: "POST",
-        headers,
-        body: JSON.stringify(payload),
-        signal,
+        requestPlan: {
+          planKind: plan.kind,
+          replaySource: plan.source,
+          previousResponseIdDecision: "rejected",
+          previousResponseId: primaryPlan.kind === "stateful_incremental"
+            ? primaryPlan.previousResponseId
+            : null,
+          previousResponseIdDecisionReason: fallbackUsed
+            ? "transport_fallback"
+            : primaryPlan.kind === "stateful_incremental"
+              ? "transport_unsupported"
+              : "stateless_plan",
+        },
       });
-    };
-
-    const onResponseId = (id: string) => {
-      this.lastResponseId = id;
-      // Persist by session so the NEXT turn (a new adapter instance) can reuse it
-      // as previous_response_id. Only meaningful when continuity is allowed and a
-      // session key is present; a missing key is a no-op (no cross-session leak).
-      if (allowPreviousResponseId) {
-        storePreviousResponseId(sessionKey, id);
+      try {
+        const response = await fetchFn(url, {
+          method: "POST",
+          headers,
+          body: serializedBody,
+          signal,
+        });
+        return { response, outcomeObserver };
+      } catch (error) {
+        appendTransportOutcome(outcomeObserver, {
+          terminalState: signal?.aborted ? "aborted" : "failed",
+          fallbackUsed,
+          completeness: {
+            status: "not_observed",
+            source: null,
+            reason: signal?.aborted ? "aborted" : "transport_error",
+          },
+          responseId: null,
+        });
+        throw error;
       }
     };
 
-    // HTTP SSE never carries previous_response_id (proxy returns 400; decision
-    // D3). The default SSE path already builds a clean body (continuity is gated
-    // off over SSE). But if WS was chosen (continuity allowed) and then FELL BACK
-    // to SSE, `body` may hold the WS continuity shape — sanitize it so the SSE
-    // request matches today's behavior: drop previous_response_id, reset store to
-    // false, and restore the FULL input (SSE is stateless; the incremental
-    // tool-only chain input would be a truncated request).
-    const httpSseBody = isWebsocketTransport
-      ? (() => {
-          const clean: Record<string, unknown> = { ...body };
-          delete clean.previous_response_id;
-          clean.store = false;
-          clean.input =
-            toolItems.length || toolOutputItems.length
-              ? [...messageItems, ...toolItems, ...toolOutputItems]
-              : input;
-          return clean;
-        })()
-      : body;
-
-    // HTTP SSE transport — the existing, default path. Behavior must be
-    // identical to today when no WebSocket markers are present.
-    const openHttpSseStream = async (): Promise<LlmStreamResult> => {
-      const res = await doFetch(httpSseBody);
+    const providerOutput = createProviderOutputDeferred();
+    const openHttpSseStream = async (
+      plan: ResponsesStatelessReplayPlan,
+      persistResponse = false,
+      fallbackUsed = false,
+    ): Promise<LlmStreamResult> => {
+      const httpSseBody = materializeResponsesBody({
+        model,
+        plan,
+        instructions,
+        tools: toolSpecs,
+        extraBody: normalizedExtraBody,
+        persistResponse,
+      });
+      const { response: res, outcomeObserver } = await doFetch({
+        payload: httpSseBody,
+        plan,
+        fallbackUsed,
+      });
 
       if (!res.ok) {
         const errorText = await res.text().catch(() => "");
@@ -956,8 +1303,17 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
           status_text: res.statusText,
           error_text: errorText.slice(0, 2000),
           error_summary: errorSummary,
-          use_previous_response_id: Boolean(previousResponseId && toolOutputItems.length),
-          previous_response_id: previousResponseId,
+          use_previous_response_id: false,
+        });
+        appendTransportOutcome(outcomeObserver, {
+          terminalState: "failed",
+          fallbackUsed,
+          completeness: {
+            status: "not_observed",
+            source: null,
+            reason: `http_${res.status}`,
+          },
+          responseId: null,
         });
         throw new ProviderExecutionError(
           `OpenAI responses fetch error ${res.status}${res.statusText ? ` ${res.statusText}` : ""}: ${
@@ -971,14 +1327,29 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       }
 
       return {
-        stream: streamToOpenAIChunks(res, onResponseId),
+        stream: streamToOpenAIChunks(
+          res,
+          undefined,
+          settleProviderOutputForTransport({
+            settle: providerOutput.settle,
+            plan,
+            transport: "http_sse",
+            responseStored: httpSseBody.store === true,
+            outcomeObserver,
+            fallbackUsed,
+            signal,
+          }),
+        ),
+        providerOutput: providerOutput.promise,
       };
     };
 
     // Transport was resolved up-front (so the previous_response_id gate could see
     // it). HTTP SSE is the default path; only websocket attempts the WS transport.
     if (!isWebsocketTransport) {
-      return openHttpSseStream();
+      return openHttpSseStream(
+        selectedPlan.kind === "stateless_replay" ? selectedPlan : fallbackPlan,
+      );
     }
 
     // WebSocket transport. On any connect/transport failure, fall back to HTTP
@@ -998,6 +1369,7 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
     const wsUrl = buildResponsesWebsocketUrl(url, websocketUrlOption);
     const wsHeaders = normalizeWebsocketHeaders(headers);
 
+    let websocketOutcomeObserver: ProviderTransportOutcomeObserver | undefined;
     try {
       const events = await openResponsesWebsocketEvents({
         url: wsUrl,
@@ -1006,17 +1378,56 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
         factory: webSocketFactory,
         connectTimeoutMs,
         signal,
+        requestObserver: this.requestObserver,
+        requestPlanObservation: responsesRequestPlanObservation(selectedPlan),
+        onRequestObserved: (observer) => {
+          websocketOutcomeObserver = observer;
+        },
       });
       return {
-        stream: responsesEventsToChunks(events, onResponseId),
+        stream: responsesEventsToChunks(
+          events,
+          undefined,
+          settleProviderOutputForTransport({
+            settle: providerOutput.settle,
+            plan: selectedPlan,
+            transport: "websocket",
+            responseStored: body.store === true,
+            outcomeObserver: websocketOutcomeObserver,
+            fallbackUsed: false,
+            signal,
+          }),
+        ),
+        providerOutput: providerOutput.promise,
       };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      appendCodexLog({ event: "websocket_fallback_to_http_sse", url: wsUrl, reason });
+      appendCodexLog({
+        event: "websocket_fallback_to_http_sse",
+        url: wsUrl,
+        reason,
+      });
       if (process.env.MINIMAX_DEBUG === "1") {
-        console.log("[codex] websocket transport failed, falling back to HTTP SSE:", reason);
+        console.log(
+          "[codex] websocket transport failed, falling back to HTTP SSE:",
+          reason,
+        );
       }
-      return openHttpSseStream();
+      appendTransportOutcome(websocketOutcomeObserver, {
+        terminalState: signal?.aborted ? "aborted" : "failed",
+        fallbackUsed: true,
+        completeness: {
+          status: "not_observed",
+          source: null,
+          reason: signal?.aborted ? "aborted" : "transport_error",
+        },
+        responseId: null,
+      });
+      return openHttpSseStream(
+        fallbackPlan,
+        primaryPlan.kind === "stateful_incremental",
+        true,
+      );
     }
   }
 }

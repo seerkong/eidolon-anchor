@@ -653,7 +653,7 @@ describe("AI runtime control engine composition", () => {
     }
   })
 
-  it("replays a real session multi-head mismatch as dirty", async () => {
+  it("tolerates conversation forward-only advancement but keeps non-conversation head mismatch dirty", async () => {
     const sessionDir = makeTempSessionDir()
     try {
       await writeJsonAtomically(path.join(sessionDir, "snapshot", "manifest.json"), { version: 1 })
@@ -669,6 +669,52 @@ describe("AI runtime control engine composition", () => {
         headSequences: Object.fromEntries(Object.entries(heads).map(([headId, head]) => [headId, head.committedSequence])),
       })
       await writeJsonAtomically(path.join(sessionDir, "conversation", "history.index.json"), { updatedAt: "2026-01-02T00:00:00.000Z" })
+
+      const changedHeads = await readRealSessionDurableHeads(sessionDir)
+      const marker = await readRuntimeControlCohortCommitFile({ sessionDir, cohortId: "checkpoint" })
+      const result = classifyRealSessionRecovery({
+        heads: changedHeads as any,
+        commitMarkers: { checkpoint: marker! },
+        effects: {},
+      })
+
+      expect(result.classification).toBe("clean")
+      expect(result.blockers).toEqual([])
+
+      await writeJsonAtomically(path.join(sessionDir, "snapshot", "manifest.json"), { version: 2 })
+      const changedSnapshotHeads = await readRealSessionDurableHeads(sessionDir)
+      const dirtyResult = classifyRealSessionRecovery({
+        heads: changedSnapshotHeads as any,
+        commitMarkers: { checkpoint: marker! },
+        effects: {},
+      })
+
+      expect(dirtyResult.classification).toBe("dirty")
+      expect(dirtyResult.blockers).toContainEqual(expect.objectContaining({
+        reason: "head_commit_sequence_mismatch",
+        headId: "runtime_snapshot",
+      }))
+    } finally {
+      cleanupSessionDir(sessionDir)
+    }
+  })
+
+  it("replays a real session missing conversation head as dirty", async () => {
+    const sessionDir = makeTempSessionDir()
+    try {
+      await writeJsonAtomically(path.join(sessionDir, "snapshot", "manifest.json"), { version: 1 })
+      await writeJsonAtomically(path.join(sessionDir, "conversation", "history.index.json"), { updatedAt: "2026-01-01T00:00:00.000Z" })
+      await writeJsonAtomically(path.join(sessionDir, "snapshot", "vm.json"), {
+        actors: { main: { mailboxes: { humanInput: [] } } },
+        sessionState: { controlSignals: { pending: [], consumedTombstones: {} } },
+      })
+      const heads = await readRealSessionDurableHeads(sessionDir)
+      await writeRuntimeControlCohortCommitFile({
+        sessionDir,
+        cohortId: "checkpoint",
+        headSequences: Object.fromEntries(Object.entries(heads).map(([headId, head]) => [headId, head.committedSequence])),
+      })
+      fs.rmSync(path.join(sessionDir, "conversation"), { recursive: true, force: true })
 
       const changedHeads = await readRealSessionDurableHeads(sessionDir)
       const marker = await readRuntimeControlCohortCommitFile({ sessionDir, cohortId: "checkpoint" })

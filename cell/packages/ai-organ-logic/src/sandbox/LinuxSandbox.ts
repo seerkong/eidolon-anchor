@@ -83,7 +83,7 @@ export function createLinuxSandboxCommand(options: LinuxSandboxCommandOptions): 
   const writableRoots =
     options.sandboxMode === "workspace-write"
       ? uniqueResolvedPaths([...options.writableRoots, tempDir])
-      : [];
+      : uniqueResolvedPaths([tempDir]);
 
   const args = [
     "--new-session",

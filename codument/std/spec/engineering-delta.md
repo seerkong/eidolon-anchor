@@ -9,13 +9,13 @@
 track 在下面路径写改动节点的目标态：
 
 ```text
-tracks/<id>/engineering_deltas/<plane>/<category>/<topic>.xnl
+tracks/{pending,active}/<id>/engineering_deltas/<plane>/<category>/<topic>.xnl
 ```
 
 示例：
 
 ```xnl
-<howto #backend.howto.orders.add_endpoint kind="howto" [
+<howto #backend.howto.orders.add_endpoint { kind = "howto" } [
   <desc ?>新增订单接口的标准维护步骤。</?>
   <when-to-use ?>需要新增 backend endpoint 并接入 behavior case 时使用。</?>
   <steps ?>
@@ -65,4 +65,3 @@ tracks/<id>/engineering_deltas/<plane>/<category>/<topic>.xnl
 ```
 
 `resolve` 取 `human | ours | theirs | base`。
-

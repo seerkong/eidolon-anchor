@@ -126,11 +126,9 @@ export type ShellRuntimeFacade = {
     driver: DomainRuntimeDriver
     saveSnapshot?: () => Promise<void>
     /**
-     * P3 (requirement `timed-out-turn-progress-persisted`): pure passthrough of
-     * the coordinator's optional seal callback. Production leaves it unset (the
-     * coordinator default no-op performs NO timeout seal); live wiring is
-     * deferred to the follow-up that also ships the recovery-gate forward-only
-     * relay. Retained as the injection seam so the mechanism stays callable.
+     * Seal completed conversation progress on unsettled timeout without saving
+     * unsafe VM/ToolCallDomain state. Production runtime paths pass a real
+     * callback; memory-only or test-only callers may omit it.
      */
     sealCompletedProgress?: () => Promise<void>
     hookDefinitions?: readonly RuntimeHookDefinition[]

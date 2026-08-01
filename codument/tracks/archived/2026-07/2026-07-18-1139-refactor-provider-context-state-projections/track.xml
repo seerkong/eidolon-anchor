@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-provider-context-state-projections" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让可变工具状态以当前 projection 进入 provider context，并让恢复 session 使用当前 profile prompt 后可靠续跑</Goal>
+    <Description>建立工具无关的 projection/delivery 生命周期、owner-aware profile prompt recovery，并用真实 session 验证 mission 归档收敛。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>light</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-07-18T00:00:00Z</CreatedAt>
+    <UpdatedAt>2026-07-18T08:39:52Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_refactor-provider-context-state-projections" name="refactor-provider-context-state-projections" version="1">
+    <Description>实现 provider-only 动态状态投影和 source pair delivery 生命周期。</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Projection contract 与纯物化" status="DONE" order="0">
+        <Description>先用失败测试定义 projection fact、持久化、成对消隐和 late placement，再实现 Conversation 纯投影。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>materializer 不含具体工具名分支</cdt:Criterion>
+          <cdt:Criterion>History-visible view 与持久化 History 保持不变</cdt:Criterion>
+          <cdt:Criterion>pair elision、mixed calls、revision replacement 和 recovery 测试通过</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="定义 projection fact 与 provider materialization" status="DONE" order="0" priority="P0">
+            <Description>增加通用 tool context-effect/projection contract、Session context asset persistence、provider-only tool pair elision 和 current projection late placement；按 TDD 覆盖首次未交付、已交付、混合 calls、revision 与恢复。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">projection contract 仅含 logical key/revision/source delivery，不含具体工具名称状态机</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">已交付 source call/result 在 provider view 成对消隐，History view 不变</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">同 key 只投影当前 revision，并位于最后 user 前的 late boundary</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC4" checked="true">projection fact 经 conversation persistence/recovery round-trip 保持</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="执行生命周期与 TaskTree adoption" status="DONE" order="1">
+        <Description>接入 shared executor first-delivery 生命周期和 TaskTree generic producer，验证两条执行路径与真实重复场景。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>provider 成功才确认 delivery，失败和中止不确认</cdt:Criterion>
+          <cdt:Criterion>streaming 与 cooperative 使用同一通用 helper</cdt:Criterion>
+          <cdt:Criterion>连续 TaskTree 更新只保留当前 state projection</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="接入 first-delivery 与 TaskTree producer" status="DONE" order="0" priority="P0">
+            <Description>让 shared tool leaf 注册 context effects，让 provider completion 确认 request 中的 source delivery；TaskTreeWrite 返回 compact acknowledgement 并发布当前 task-tree projection，补 streaming/cooperative 和重复写回归。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">首次 provider request 包含新 pair，成功后后续 request 消隐该 pair</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">provider failure 后 pair 仍保留</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC3" checked="true">TaskTreeWrite 结果为 compact acknowledgement，完整当前树由 projection 提供</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC4" checked="true">实现源码和测试证明 materializer/executor 没有 TaskTreeWrite、Skill、Read 名称特例</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC5" checked="true">受影响包测试与 typecheck 通过，或记录明确基线失败</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="恢复提示词协调与真实 session 验证" status="DONE" order="2">
+        <Description>增加 profile-owned prompt provenance 与保守 legacy migration，再恢复目标 session 完成 mission 归档或保存重复现场并诊断。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>恢复只刷新 profile-owned slot，并保持自定义 prompt 与 actor/runtime/conversation 状态</cdt:Criterion>
+          <cdt:Criterion>legacy 空/单 prompt 可迁移，多 prompt 无 provenance 时保守跳过并可观测</cdt:Criterion>
+          <cdt:Criterion>使用当前源码和精确 workspace/session 完成真实验证，或形成新的证据化根因与改造建议</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="实现 owner-aware profile prompt recovery" status="DONE" order="0" priority="P0">
+            <Description>先补恢复 contract/snapshot/bootstrap/CLI 测试，再加入 profile prompt slot/provenance、digest 校验、legacy 空/单条迁移和多条歧义诊断；terminal 只传 profile assembly 结果。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">owned slot 恢复为当前 profile prompt，自定义 prompts 与 actor key/id/model/work/task/mailbox/history 保持</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">prompt provenance 经 snapshot round-trip，digest/index 不匹配时不静默覆盖</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC3" checked="true">legacy 空/单 prompt 确定迁移，多 prompt 保留并产生诊断</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC4" checked="true">CLI workspace+session 测试证明存在 snapshot 时恢复而非创建</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC5" checked="true">terminal 源码不包含提示词正文或 prompt owner 推断</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="恢复真实 session 并验证 mission 归档" status="DONE" order="1" priority="P0">
+            <Description>记录目标 workspace/session 前态，使用当前源码 eidolon exec 精确恢复并继续归档 add-dotnet-llm-wiki-java-spring-semantic-parsing；验证归档结构、History/effects/prompt/projection。若仍重复，停止放大并写根因分析和改造建议。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">命令明确使用目标 workspace 与 session id，且恢复 actor/session identity 与原 TaskTree</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">执行前后 git/session/mission 状态与 provider-facing evidence 已记录，未 reset/clean 用户改动</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC3" checked="true">mission 成功归档并通过验证，或重复问题被复现后形成证据化根因与改造建议</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC4" checked="true">验证未增加 mission/tool 名称特例、调用次数、进度检测或 prompt-only 纠偏</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+</Track>

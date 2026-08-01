@@ -337,6 +337,59 @@ function readPersistedCooperativeExecState(fiberSnapshot: RuntimeSnapshotFiber):
   return normalizeCooperativeExecState(fiberSnapshot.metadata?.[COOPERATIVE_EXEC_STATE_METADATA_KEY])
 }
 
+function currentInflightOpIds(inspected: ReturnType<AiAgentOrchestratorDriver["inspectRuntime"]>): Set<string> {
+  const ids = new Set<string>()
+  for (const ctx of Object.values(inspected.fibers ?? {})) {
+    const execState = normalizeCooperativeExecState((ctx as any)?.execState)
+    const opId = typeof execState?.inflight?.opId === "string" ? execState.inflight.opId : ""
+    if (opId) ids.add(opId)
+  }
+  return ids
+}
+
+function runtimeControlPendingEffectIds(events: AiRuntimeEffectLifecycleEvent[]): string[] {
+  const effects = rebuildEffectsFromLifecycleEvidence(events)
+  return Object.values(effects)
+    .filter((effect: any) => effect.status === "requested" || effect.status === "waiting" || effect.status === "dispatching")
+    .filter((effect: any) => effect.effectKind !== "runtime_checkpoint")
+    .map((effect: any) => String(effect.effectId ?? ""))
+    .filter(Boolean)
+}
+
+function classifySupersededRuntimeEffectKind(effectId: string): {
+  effectKind: AiRuntimeEffectLifecycleEvent["effectKind"]
+  handlerKey: string
+} {
+  if (effectId.startsWith("llm:")) return { effectKind: "provider_completion", handlerKey: "llm:superseded" }
+  if (effectId.startsWith("tool:")) return { effectKind: "tool_call", handlerKey: "tool:superseded" }
+  return { effectKind: "runtime_checkpoint", handlerKey: "runtime-control:superseded" }
+}
+
+async function closeSupersededRuntimeControlPendingEffects(params: {
+  sessionDir: string
+  inspected: ReturnType<AiAgentOrchestratorDriver["inspectRuntime"]>
+}): Promise<void> {
+  const pendingEffectIds = runtimeControlPendingEffectIds(await readRuntimeControlEffectEvidence(params.sessionDir))
+  if (pendingEffectIds.length === 0) return
+  const inflightOpIds = currentInflightOpIds(params.inspected)
+  for (const effectId of pendingEffectIds) {
+    if (inflightOpIds.has(effectId)) continue
+    const classified = classifySupersededRuntimeEffectKind(effectId)
+    if (classified.effectKind === "runtime_checkpoint") continue
+    await recordAiRuntimeEffectLifecycleEvent({
+      sessionDir: params.sessionDir,
+      event: {
+        kind: "failed",
+        effectKind: classified.effectKind,
+        effectId,
+        handlerKey: classified.handlerKey,
+        error: "Error: runtime-control effect was superseded by later live progress before checkpoint",
+        retryable: false,
+      },
+    })
+  }
+}
+
 function hasPendingAiGeneratedForInflight(actor: AiAgentActor, execState: any | null): boolean {
   const opId = typeof execState?.inflight?.opId === "string" ? execState.inflight.opId : ""
   if (!opId) return false
@@ -357,8 +410,8 @@ export function buildPendingAiGeneratedFromCompletedEffect(
   if (!opId) return null
   for (let index = effectEvidence.length - 1; index >= 0; index -= 1) {
     const event = effectEvidence[index]
-    if (event?.kind !== "result" || event.effectId !== opId) continue
-    if (inflight.kind === "llm" && event.effectKind === "provider_completion") {
+    if (!event || event.effectId !== opId) continue
+    if (inflight.kind === "llm" && event.kind === "result" && event.effectKind === "provider_completion") {
       return {
         kind: "llm_done",
         opId,
@@ -369,8 +422,12 @@ export function buildPendingAiGeneratedFromCompletedEffect(
         replayedFromEffectEvidence: true,
       }
     }
-    if (inflight.kind === "tool" && (event.effectKind === "tool_call" || event.effectKind === "bash" || event.effectKind === "mcp_tool" || event.effectKind === "questionnaire")) {
-      const payload = (event.payload ?? {}) as Record<string, unknown>
+    if (
+      inflight.kind === "tool"
+      && (event.kind === "result" || event.kind === "failed")
+      && (event.effectKind === "tool_call" || event.effectKind === "bash" || event.effectKind === "mcp_tool" || event.effectKind === "questionnaire")
+    ) {
+      const payload = (event.kind === "result" ? event.payload ?? {} : {}) as Record<string, unknown>
       const toolCallId = typeof payload.toolCallId === "string" ? payload.toolCallId : inflight.toolCallId ?? ""
       // P4 / decision D3: the ToolCallDomain is the truth for the tool result;
       // the (link-only) effect evidence merely confirms the result exists. Read
@@ -379,7 +436,12 @@ export function buildPendingAiGeneratedFromCompletedEffect(
       const record = toolCallId ? toolCallDomain?.getRecord(toolCallId) : undefined
       const domainOutputText =
         record && (record.status === "completed" || record.status === "failed") ? record.outputText ?? "" : undefined
-      const outputText = domainOutputText ?? String(payload.outputText ?? payload.output ?? "")
+      const outputText = domainOutputText
+        ?? (event.kind === "failed" ? event.error : String(payload.outputText ?? payload.output ?? ""))
+      const isError = record
+        ? record.status === "failed"
+        : event.kind === "failed" || outputText.startsWith("Error:")
+      const failureKind = record?.failureKind ?? (isError ? "tool_error" : undefined)
       return {
         kind: "tool_done",
         replayedFromEffectEvidence: true,
@@ -389,6 +451,8 @@ export function buildPendingAiGeneratedFromCompletedEffect(
         args: cloneJsonValue(inflight.args) ?? {},
         output: domainOutputText ?? payload.output ?? payload.outputText ?? "",
         outputText,
+        isError,
+        ...(failureKind ? { failureKind } : {}),
       }
     }
   }
@@ -448,6 +512,8 @@ function recoverInterruptedCooperativeInflight(
             args: cloneJsonValue(inflight.args) ?? {},
             output: outputText,
             outputText,
+            isError: true,
+            failureKind: "aborted",
             // P8: never crossed the live semantic stream; the cooperative
             // output handler must re-emit on the bus for the graph to commit.
             replayedFromEffectEvidence: true,
@@ -861,6 +927,7 @@ function normalizeRecoveredContinuationBaseline(value: unknown): ContinuationBas
     baselineEpoch,
     lastResetReason: typeof value.lastResetReason === "string" ? value.lastResetReason : null,
     latestResponseId: typeof value.latestResponseId === "string" ? value.latestResponseId : null,
+    contextDigest: typeof value.contextDigest === "string" ? value.contextDigest : null,
     updatedAt: typeof value.updatedAt === "string" ? value.updatedAt : new Date(0).toISOString(),
   }
 }
@@ -899,7 +966,7 @@ function isTerminalFiberStatus(status: unknown): boolean {
 }
 
 function isTerminalDetachedActorStatus(status: unknown): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled" || status === "interrupted"
+  return status === "completed" || status === "failed" || status === "cancelled"
 }
 
 function isDetachedActorWorkload(workload: unknown): boolean {
@@ -1012,15 +1079,11 @@ async function flushConversationRuntimeToPersistence(params: {
  * but the completed tool pairs the conversation domain already holds are flushed
  * so a subsequent continuation can relay from them rather than restart bare.
  *
- * NOTE (recovery consistency, decision D2 / Step 0): after this seal,
- * `conversation/history.index.json` advances PAST the last VM-snapshot
- * checkpoint marker. The current owned-checkpoint recovery gate rejects that
- * "conversation-ahead-of-snapshot" prefix as `dirty`
- * (`head_commit_sequence_mismatch` on the `conversation` head, which is
- * `requiredForCheckpoint: true`). Teaching the gate to tolerate a forward-only
- * conversation head is a LARGE change to the recovery invariant and is split to
- * a follow-up track — see analysis/findings.md "P3" section. Until then, the
- * seal still durably preserves completed progress on disk (no data loss).
+ * NOTE (recovery consistency): after this seal, `conversation/history.index.json`
+ * may advance PAST the last VM-snapshot checkpoint marker. Runtime-control
+ * recovery explicitly tolerates that single forward-only conversation head while
+ * preserving dirty detection for missing, backward, or non-conversation head
+ * mismatches.
  */
 export async function sealCompletedConversationProgress(params: {
   sessionDir: string
@@ -1238,6 +1301,10 @@ export async function saveAiAgentRuntimeSnapshot(params: {
   if (gate.action === "skip" && gate.reason === "skipped_non_safepoint") {
     return { status: "skipped_non_safepoint", safepoint }
   }
+  await closeSupersededRuntimeControlPendingEffects({
+    sessionDir: params.sessionDir,
+    inspected,
+  })
 
   const actorSnapshots = Object.fromEntries(
     Object.values(params.vm.actors).map((actor) => {
@@ -1660,6 +1727,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
 
     const cached = cachedIndexes.detachedActors.tasks.find((entry) => entry.fiberId === fiberSnapshot.fiberId || entry.taskId === completionBinding?.taskId)
     const taskId = completionBinding?.taskId ?? cached?.taskId ?? fiberSnapshot.fiberId
+    const persisted = restoredTaskMap.get(taskId)
     const rawStatus = String(fiberSnapshot.status ?? "pending")
     const terminal = isTerminalDetachedActorStatus(rawStatus)
     restoredTaskMap.set(taskId, {
@@ -1687,6 +1755,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
       childActorId: fiberSnapshot.actorId ?? cached?.childActorId ?? undefined,
       outputText: cached?.summary ?? undefined,
       error: cached?.error ?? undefined,
+      singleFlightScope: persisted?.singleFlightScope,
     })
   }
 

@@ -1,6 +1,6 @@
 # Track XML 规范（重构后的 track 文件，取代 plan.xml）
 
-`tracks/<id>/track.xml`（根 `<Track>`）是 codument 的**任务规划 + 执行 + 任务状态**文件。它是 dynamic-workflow 三层标准的一个**领域落地**：复用 Layer 1（Imports/Ports/MaterialBundle/Extension）、Layer 2（Hook）、Layer 3（TaskSpace 任务树）；codument 领域特有的东西用 `cdt:`（`urn:codument:v1`）命名空间。
+`tracks/{pending,active}/<id>/track.xml`（根 `<Track>`）是 codument 的**任务规划 + 执行 + 任务状态**文件；归档后位于 `tracks/archived/YYYY-MM/<timestamp>-<id>/track.xml`。它是 dynamic-workflow 三层标准的一个**领域落地**：复用 Layer 1（Imports/Ports/MaterialBundle/Extension）、Layer 2（Hook）、Layer 3（TaskSpace 任务树）；codument 领域特有的东西用 `cdt:`（`urn:codument:v1`）命名空间。
 
 > 内核规范见 `../dynamic-workflow/spec/`（`kernel-pointer.md` 说明复用关系）。本文档只定义 `<Track>` 这个领域根与 codument 的 `cdt:` 概念。
 
@@ -26,30 +26,36 @@
 
 ---
 
-## 0.5 track 目录结构（`tracks/<id>/` 文件布局）
+## 0.5 track 生命周期与目录结构
 
 `track.xml` 是状态真源，但一个 track 目录还承载迭代期的工作记忆与可提升候选。完整布局：
 
 ```text
-tracks/<id>/
+tracks/
+  pending/<id>/                        规划完成、等待批准
+  active/<id>/                         已批准、可实现和归档
+  archived/YYYY-MM/<timestamp>-<id>/   已归档历史，不可变
+
+<state>/<id>/
   track.xml               ★ 状态真源（结构/调度/行为三轴）
   proposal.md             为什么 / 是什么 / 目标-非目标 / 影响
-  design.md               （可选）方案 / 决策摘要 / 风险 / 兼容 / 迁移
+  design.md               方案 / 决策摘要 / 风险 / 兼容 / 迁移
   behavior_deltas/<cap>/delta.xml   行为增量（<behavior-patch>，归档提升进 behaviors/）
   analysis/               规划/分析期的 planning-with-files 外部记忆（避免长对话丢上下文）
+    decision-tree.xnl       决策树 / frontier / assumptions（需要决策树时建）
     findings.md             直接找到的事实、约束、问题与结论
     knowledge.md            阅读后沉淀的知识上下文、术语与机制理解
-  decisions.md            决策问题/选项/用户答复/结论与理由（需要决策时建）
-  decisions/              archive-ready 的 durable 单文件决策（归档可提升 decision://）
+  decisions.xnl           决策问题/选项/用户答复/结论与理由（默认创建；旧 decisions.md 仅兼容 fallback）
+  decisions/              archive-ready 的 legacy durable 单文件决策（仅有合格内容时创建）
   memory/                 （可选）长期记忆候选，按类别分子目录（归档且 memory profile 启用时提升 memory://）
   reports/                gap-loop / verify 的结构化报告（track://reports/...，按轮累积）
 ```
 
 规则：
-- `track.xml`/`proposal`/`behavior_deltas` 必有；其余按需。
+- `track.xml`、`proposal.md`、`design.md`、`decisions.xnl` 与 `behavior_deltas` 必有；`decisions/`、`memory/`、`analysis/` 和 `reports/` 按需。
 - `analysis/` 是**迭代期外部记忆**，不是 owner 真源——稳定结论按 `knowledge-tiers.md` 晋升进 `docs/`/`behaviors/`，不滞留 analysis。
 - `analysis/findings.md` 应记录可复用的事实锚：spot-check 证据、测试/指标结果、失败归因、环境约束、机制漏洞、phase/wave 完成小结。新会话接手或续跑时优先读取它，避免只依赖对话记忆。
-- `decisions/`→`decision://`、`memory/`→`memory://`、`behavior_deltas/`→`behaviors/` 的提升时机见 `std/operations/archive-track.md` 与 `knowledge-tiers.md` §4–§5。
+- `decisions/`→`decision://`、`memory/`→`memory://`、`behavior_deltas/`→`behaviors/` 的提升时机见 `std/actions/archive-track.md` 与 `knowledge-tiers.md` §4–§5。
 - 子代理只接收**路径/引用**自读（见 `implement.md`），不把这些目录正文塞进编排者上下文。
 
 ---
@@ -162,7 +168,7 @@ tracks/<id>/
     <TaskGroup id="P3" name="docs 同步与收尾" status="TODO" order="2">
       <Description>同步 docs，终态人工确认</Description>
       <SubNodes>
-        <Task id="T3.1" name="同步 docs/modeling 与 docs/impl" status="TODO" order="0" priority="P1">
+        <Task id="T3.1" name="同步 codument/modeling 与 codument/engineering" status="TODO" order="0" priority="P1">
           <Hooks><Hook on="task:after"><cdt:AttractorCheck use="docs"/></Hook></Hooks>
         </Task>
       </SubNodes>
@@ -200,7 +206,7 @@ ID 约定（沿用旧规范的可读性）：phase=`P{n}`、task=`T{phase}.{n}`�
 - **依赖完全结构化**：前驱用 `<After ref="...">` **子元素**表达，一个前驱一行——**不用空格分隔的属性字符串**（避免 id 含空格 / 解析歧义），新增一条依赖 = 加一行 `<After>`，对 AI 编辑最省力、最不易错。
 - **作用域单一**：一个 `<Dag>` 只描述**一个父节点的直接下层**之间的边；要给多个非叶节点配依赖，就写多个 `<Dag for=...>`。**不跨层、不跨父**，避免旧 `<Needs task on>` 那种全局扁平边带来的歧义。
 - 不再有全局 `mode`（执行模式是**逐层**的 `cdt:child-mode`）；不再手维护 `<waves>`/`wave=`，wave = 某 dag 层依赖的拓扑分层（派生视图，不入库）。
-- **波次调度执行细节**由 `std/sop/wave-exec.md` 和 `std/operations/impl-track.md` 定义；本规范只约束结构位置与格式。
+- **波次调度执行细节**由 `std/methods/dag-execution.md` 和 `std/actions/impl-track.md` 定义；本规范只约束结构位置与格式。
 
 ---
 
@@ -216,10 +222,10 @@ ID 约定（沿用旧规范的可读性）：phase=`P{n}`、task=`T{phase}.{n}`�
 
 - `on` 取值：`track:before|after`、`phase:before|after`、`task:before|after`。
 - **自包含**：check 的配置全在节点属性上；**无 `agents/` 定义注册表**。`AttractorCheck` 唯一的外部 ref 是 `use=` → `attractor-profiles.xml` 的 profile 名（决定校验对照哪些吸引子文件）；其审查方式（用 fresh-subagent）由 `std` 提示词统一约定。
-- **新建 track 默认方向审查**：每个第一层 phase（`TaskSpace` 的直接下层 `TaskGroup`）默认都应包含 `<Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>`；只有用户在创建 track 时明确选择关闭、改为终态 phase，或改用其他 profile（如 `docs`）时才覆盖。
+- **方向审查按风险显式配置**：普通新 track 默认不含 `AttractorCheck`。仅架构、安全或数据一致性高风险 track 默认可在最后一个第一层 phase 配置一个 `<Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>`；docs 维护使用 `docs` profile 的显式 hook。
 - **校验模式塌缩**：旧 `validation_mode`/`validation_granularity` = "在终态 phase（或每个 phase）挂哪个 typed check"。`every_phase` = 每个第一层 TaskGroup 都挂；`final_phase` = 仅最后一个挂。
-- **`<cdt:GapLoop verify-round="true|false">`**（可选，默认 `false`）：控制 gap-loop 的**首轮怀疑验证轮**——首轮返回 `NO_GAP` 且无历史报告时，`true` 才再 fresh-spawn 一轮（轻量）验证轮，`false`（默认）直接收口。属性缺省时取**全局默认 `false`**（约定；`config/operation-hooks.xml` 的 `<Operation name="gap-loop">` 可声明全局开关覆盖该约定）。节点属性覆盖全局默认（per-scope）。它**不**影响 `FIX_APPLIED` 复检——后者始终强制。创建 track 时在 §3.7 同轮确认里询问并写入各 GapLoop 节点；后续追加 phase 沿用同一设置。运行期语义见 `std/operations/gap-loop.md` §0.2.4。
-- track 级生命周期 hook（如归档前 docs 审查）也可写在 `<Track><Hooks>`；命令级（无 track 文件的操作）走 `config/operation-hooks.xml`（同语法）。
+- **`<cdt:GapLoop verify-round="true|false">`**（可选，默认 `false`）：控制 gap-loop 的**首轮怀疑验证轮**——首轮返回 `NO_GAP` 且无历史报告时，`true` 才再 fresh-spawn 一轮（轻量）验证轮，`false`（默认）直接收口。属性缺省时取**全局默认 `false`**（约定；`config/action-hooks.xml` 的 `<Action name="gap-loop">` 可声明全局开关覆盖该约定）。节点属性覆盖全局默认（per-scope）。它**不**影响 `FIX_APPLIED` 复检——后者始终强制。创建 track 时在 §3.7 同轮确认里询问并写入各 GapLoop 节点；后续追加 phase 沿用同一设置。运行期语义见 `std/actions/gap-loop.md` §0.2.4。
+- track 级生命周期 hook（如归档前 docs 审查）也可写在 `<Track><Hooks>`；命令级（无 track 文件的操作）走 `config/action-hooks.xml`（同语法）。
 
 ```xml
 <Track …>

@@ -27,6 +27,7 @@ function parseSkillMd(skillMdPath: string): SkillEntry | null {
     description,
     body: body.trim(),
     dir: path.dirname(skillMdPath),
+    documentPath: skillMdPath,
     resources: [],
   };
 }

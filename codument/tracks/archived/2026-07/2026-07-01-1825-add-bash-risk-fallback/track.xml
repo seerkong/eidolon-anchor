@@ -1,0 +1,73 @@
+<Track id="add-bash-risk-fallback" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Reduce unsupported bash approval noise with deterministic low-risk readonly fallback.</Goal>
+    <Description>Classify parser-unsupported bash commands by risk before asking for human approval.</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-07-01T15:19:39Z</CreatedAt>
+    <UpdatedAt>2026-07-01T15:25:54Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_add-bash-risk-fallback" name="add-bash-risk-fallback" version="1">
+    <Description>Add deterministic risk fallback for parser-unsupported bash commands.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Fallback tests" status="DONE" order="0">
+        <Description>Add failing tests for low-risk readonly unsupported commands and dangerous unsupported commands.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Tests distinguish low-risk readonly, dangerous, protected-config, and unknown commands.</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="Add unsupported fallback tests" status="DONE" order="0" priority="P0">
+            <Description>Extend local permission evaluator tests with session-derived unsupported command samples.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">Readonly command substitution sample is allowed when no rule matches.</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">Dangerous unsupported command is not silently allowed.</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">Protected permission config reference remains blocked.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Fallback implementation" status="DONE" order="1">
+        <Description>Implement explicit risk classifier for unsupported bash syntax.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Unsupported high-risk commands still ask or deny.</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="Implement risk classifier" status="DONE" order="0" priority="P0">
+            <Description>Add low-risk readonly fallback below protected config checks and above generic ask.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">Low-risk readonly unsupported commands return allow.</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">Unknown unsupported commands still return ask.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Verification" status="DONE" order="2">
+        <Description>Run targeted local permission evaluator tests and update mission report.</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Run targeted test" status="DONE" order="0" priority="P0">
+            <Description>Run permission evaluator tests after fallback implementation.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">Targeted local permission evaluator tests pass.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Hooks/>
+</Track>

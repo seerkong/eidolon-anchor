@@ -110,6 +110,29 @@ describe("ExecProtocolGraph", () => {
     graph.dispose();
   });
 
+  test("marks resumable timeout as paused with progress without last-message write", () => {
+    const graph = new ExecProtocolGraph();
+
+    graph.start({
+      cwd: "/tmp/workspace",
+      prompt: "do long work",
+      mcpEnabled: true,
+      approvalMode: "default",
+    });
+    graph.applyControl({ cmd: "NewMessage", category: "assist" });
+    graph.appendChunk("partial output");
+    graph.pauseWithProgress("runtime_turn_unsettled:mandatory_continuation");
+
+    const snapshot = graph.getSnapshot();
+    expect(snapshot.runStatus).toBe("paused_with_progress");
+    expect(snapshot.failureSummary).toBe("runtime_turn_unsettled:mandatory_continuation");
+    expect(snapshot.visibleOutput).toBe("partial output");
+    expect(snapshot.lastMessageContents).toBeNull();
+    expect(snapshot.shouldWriteLastMessage).toBe(false);
+
+    graph.dispose();
+  });
+
   test("ignores non-visible categories in visible output projection", () => {
     const graph = new ExecProtocolGraph();
 

@@ -59,9 +59,9 @@ describe("DiagnosticSubgraph", () => {
     graph.addComputed(
       "diag/summary",
       [mod.nodeIds.retries, mod.nodeIds.toolStats],
-      (ctx) => ({
-        totalRetries: ctx.get<DiagnosticModule["retries"]>(mod.nodeIds.retries).length,
-        totalToolCalls: ctx.get<DiagnosticModule["toolStats"]>(mod.nodeIds.toolStats).length,
+      (runtime) => ({
+        totalRetries: runtime.graph.get<DiagnosticModule["retries"]>(mod.nodeIds.retries).length,
+        totalToolCalls: runtime.graph.get<DiagnosticModule["toolStats"]>(mod.nodeIds.toolStats).length,
       }),
     );
 

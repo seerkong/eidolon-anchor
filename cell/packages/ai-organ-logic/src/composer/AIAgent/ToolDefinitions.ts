@@ -46,7 +46,7 @@ export function buildTaskTool(agents: Readonly<Record<string, AgentConfig>>): To
 export function buildSkillTool(skillsDescription: string): ToolSchema {
   const schema = getBuiltinSchemaByName("Skill")
   schema.function.description =
-    `Load a skill to gain specialized knowledge for a task.\n\nAvailable skills:\n${skillsDescription}\n\nWhen to use:\n- IMMEDIATELY when user task matches a skill description\n- Before attempting domain-specific work (PDF, MCP, etc.)\n\nThe skill content will be injected into the conversation, giving you detailed instructions and access to resources.`
+    `Resolve a named skill to its local instruction resource.\n\nAvailable skills:\n${skillsDescription}\n\nUse when a task matches a listed skill or needs its domain-specific workflow. Delivery uses the resource revision, requested fragment, and current context visibility: unchanged visible fragments are reused, while changed resources or content no longer visible after removal or compaction reload the required fragment.`
   return schema
 }
 

@@ -146,10 +146,14 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
     }
   })
 
-  it("uses questionnaire id facade replies when the runtime bridge supports them", async () => {
+  it("uses questionnaire id facade replies and waits for runtime-side continuation", async () => {
     const turns: Array<{ sessionID: string; input: string }> = []
+    const resumed: string[] = []
     const submitted: Array<{ questionnaireId: string; text: string }> = []
+    const statuses: string[] = []
     let notifyHistory: ((event: RuntimeHistoryEvent) => void) | null = null
+    let releaseSubmit: (() => void) | null = null
+    let releaseResume: (() => void) | null = null
 
     __setRuntimeBridgeFactoryForTest(async (sessionID) => ({
       async turn(input: string) {
@@ -178,6 +182,9 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
       },
       async submitQuestionnaireResponse(questionnaireId: string, text: string) {
         submitted.push({ questionnaireId, text })
+        await new Promise<void>((resolve) => {
+          releaseSubmit = resolve
+        })
         return {
           status: "submitted",
           projection: {
@@ -187,6 +194,68 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
             selectedTarget: { laneId: "lane:primary" },
             questionnaireSurface: [],
           },
+        }
+      },
+      async resumeTurn(opts?: RuntimeTurnOptions) {
+        resumed.push(String(sessionID ?? ""))
+        await opts?.onChunk?.("continued")
+        notifyHistory?.({
+          stream: "tool_call_start",
+          payload: JSON.stringify({
+            toolName: "bash",
+            toolCallId: "call_continued",
+            arguments: JSON.stringify({ command: "echo continued" }),
+          }),
+          agentKey: "delegate",
+          agentActorId: "actor_delegate",
+        })
+        notifyHistory?.({
+          stream: "tool_call_result",
+          payload: JSON.stringify({
+            toolName: "bash",
+            toolCallId: "call_continued",
+            result: "continued tool result",
+          }),
+          agentKey: "delegate",
+          agentActorId: "actor_delegate",
+        })
+        await new Promise<void>((resolve) => {
+          releaseResume = resolve
+        })
+        return "continued"
+      },
+      async getActorSurface() {
+        return {
+          conversationLanes: [],
+          actorLanes: [],
+          selectedLaneId: "lane:primary",
+          selectedTarget: { laneId: "lane:primary" },
+          questionnaireSurface: [
+            {
+              questionnaireId: "q_delegate",
+              ownerActorId: "actor_delegate",
+              ownerActorKey: "delegate",
+              ownerFiberId: "delegate:actor_delegate",
+              toolCallId: "call_delegate",
+              suspendPolicy: "pause_all",
+              lifecycleState: "pending",
+              request: {
+                questionnaireId: "q_delegate",
+                toolCallId: "call_delegate",
+                kind: "approval",
+                title: "Delegate approval",
+                suspendPolicy: "pause_all",
+                questions: [
+                  {
+                    id: "q1",
+                    prompt: "Continue delegate?",
+                    type: "yes_no",
+                    required: true,
+                  },
+                ],
+              },
+            },
+          ],
         }
       },
       async abort() {},
@@ -207,30 +276,77 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
     try {
       const sdk = createTuiRuntimeClient()
       const events: Event[] = []
-      const unsub = sdk.event.on((event) => events.push(event))
+      const unsub = sdk.event.on((event) => {
+        events.push(event)
+        if (event.type === "session.status") {
+          statuses.push(event.properties.status.type)
+        }
+      })
 
       await sdk.client.session.prompt({
         parts: [{ id: "part-1", type: "text", text: "need delegate approval" } as Part],
       })
       await new Promise((resolve) => setTimeout(resolve, 0))
 
-      await sdk.client.question.reply({
+      const replyPromise = sdk.client.question.reply({
         requestID: "q_delegate",
         answers: [["Yes"]],
       })
       await new Promise((resolve) => setTimeout(resolve, 0))
-      unsub()
+      expect(statuses.at(-1)).toBe("busy")
+      releaseSubmit?.()
+      await new Promise((resolve) => setTimeout(resolve, 0))
 
       const sessionID = turns[0]?.sessionID
       expect(sessionID).toMatch(/^\d{14}__/)
       expect(sessionID).not.toBe("ses_1")
       expect(turns).toEqual([{ sessionID, input: "need delegate approval" }])
       expect(submitted).toEqual([{ questionnaireId: "q_delegate", text: "Q1: A" }])
+      expect(resumed).toEqual([sessionID])
+      expect(statuses.at(-1)).toBe("busy")
+      const repliedBeforeResumeFinished = events.find((event) => event.type === "question.replied") as Event<"question.replied"> | undefined
+      expect(repliedBeforeResumeFinished?.properties).toMatchObject({
+        sessionID,
+        requestID: "q_delegate",
+      })
+      let messages = await sdk.client.session.messages({ sessionID })
+      let textParts = (messages.data ?? []).flatMap((entry) =>
+        (entry.parts ?? []).flatMap((part) => (part.type === "text" ? [part.text] : [])),
+      )
+      expect(textParts).toContain("continued")
+      const toolParts = (messages.data ?? []).flatMap((entry) =>
+        (entry.parts ?? []).flatMap((part) => (part.type === "tool" ? [part] : [])),
+      )
+      expect(toolParts).toContainEqual(
+        expect.objectContaining({
+          type: "tool",
+          tool: "bash",
+          callID: "call_continued",
+          state: expect.objectContaining({
+            status: "completed",
+            output: "continued tool result",
+          }),
+        }),
+      )
+      const staleSurface = await sdk.client.actor.surface({ sessionID })
+      expect(staleSurface.data?.questionnaireSurface).toEqual([])
+
+      releaseResume?.()
+      await replyPromise
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      unsub()
+
+      expect(statuses.at(-1)).toBe("idle")
       const replied = events.find((event) => event.type === "question.replied") as Event<"question.replied"> | undefined
       expect(replied?.properties).toMatchObject({
         sessionID,
         requestID: "q_delegate",
       })
+      messages = await sdk.client.session.messages({ sessionID })
+      textParts = (messages.data ?? []).flatMap((entry) =>
+        (entry.parts ?? []).flatMap((part) => (part.type === "text" ? [part.text] : [])),
+      )
+      expect(textParts).toContain("continued")
     } finally {
       __setRuntimeBridgeFactoryForTest(null)
     }

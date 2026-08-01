@@ -95,14 +95,14 @@ export function createDiagnosticSubgraph(scope?: string): DiagnosticSubgraph {
       graph.addComputed<DiagnosticSummary>(
         ids.summary,
         [ids.modelSelection, ids.toolStats, ids.retries, ids.compactions, ids.turnTimings],
-        (ctx) => ({
-          totalToolCalls: ctx.get<ToolCallEntry[]>(ids.toolStats).length,
-          totalRetries: ctx.get<RetryEntry[]>(ids.retries).length,
-          totalCompactions: ctx.get<CompactionEntry[]>(ids.compactions).length,
-          turnCount: ctx.get<TurnTimingEntry[]>(ids.turnTimings).length,
-          modelUsed: ctx.get<ModelSelectionSignal>(ids.modelSelection)?.selectedModel ?? null,
+        (runtime) => ({
+          totalToolCalls: runtime.graph.get<ToolCallEntry[]>(ids.toolStats).length,
+          totalRetries: runtime.graph.get<RetryEntry[]>(ids.retries).length,
+          totalCompactions: runtime.graph.get<CompactionEntry[]>(ids.compactions).length,
+          turnCount: runtime.graph.get<TurnTimingEntry[]>(ids.turnTimings).length,
+          modelUsed: runtime.graph.get<ModelSelectionSignal>(ids.modelSelection)?.selectedModel ?? null,
           lastTurnPhase: (() => {
-            const t = ctx.get<TurnTimingEntry[]>(ids.turnTimings);
+            const t = runtime.graph.get<TurnTimingEntry[]>(ids.turnTimings);
             return t.length > 0 ? t[t.length - 1].phase : null;
           })(),
         }),

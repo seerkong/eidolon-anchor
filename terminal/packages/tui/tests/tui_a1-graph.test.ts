@@ -204,6 +204,9 @@ describe("TuiA1StateGraph", () => {
         providerID: "anthropic",
         modelID: "claude-sonnet-4",
       },
+      time: {
+        created: 200,
+      },
     })
     const think = createRuntimeAssistantMessage("msg-think", {
       agent: "planner",
@@ -211,7 +214,7 @@ describe("TuiA1StateGraph", () => {
       modelID: "gpt-5.4",
       mode: "think",
       time: {
-        created: Date.now(),
+        created: 100,
       },
     })
 

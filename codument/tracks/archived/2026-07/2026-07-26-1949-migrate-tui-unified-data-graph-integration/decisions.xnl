@@ -1,0 +1,14 @@
+<decision #migrate-tui-unified-data-graph-integration.runtime {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>How is the TUI projection contract migrated?</?>
+  <answer { }
+  (
+    <raw-answer ?>Use the unified computed runtime.</?>
+    <decision-text ?>Replace ctx.get with runtime.graph.get for every TuiA1StateGraph projection.</?>
+    <rationale ?>It matches the public 1.0.1 contract and prior host tracks.</?>
+    <evidence ?>Repository inventory and upstream unified foundation tests.</?>
+  )>
+)>

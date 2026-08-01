@@ -675,6 +675,18 @@ describe("cell package migration surface", () => {
     expect(aiOrganRuntimeSnapshots).not.toContain('@cell/organ-contract/persistence/RuntimeDerivedIndexes')
   })
 
+  it("wires production timeout progress sealing through shell runtime bridge", () => {
+    const shellRuntimeBootstrapPath = path.join(repoRoot, "cell", "packages", "ai-organ-logic", "src", "runtime", "ShellRuntimeBootstrap.ts")
+    const shellRuntimeBootstrap = readText(shellRuntimeBootstrapPath)
+    expect(shellRuntimeBootstrap).toContain("sealCompletedConversationProgress")
+    expect(shellRuntimeBootstrap).toContain("sealCompletedProgress")
+
+    const terminalRuntimePath = path.join(repoRoot, "terminal", "packages", "organ", "src", "AIAgent", "TerminalRuntime.ts")
+    const terminalRuntime = readText(terminalRuntimePath)
+    expect(terminalRuntime).toContain("sealCompletedProgress,")
+    expect(terminalRuntime).toContain("sealCompletedProgress,\n    hookDefinitions")
+  })
+
   it("leaves core-contract and core-logic without AI-specific source trees", () => {
     const coreContractSrc = path.join(repoRoot, "cell", "packages", "core-contract", "src")
     const coreLogicSrc = path.join(repoRoot, "cell", "packages", "core-logic", "src")

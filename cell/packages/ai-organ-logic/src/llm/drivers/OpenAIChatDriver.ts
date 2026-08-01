@@ -1,8 +1,15 @@
-import type { ProviderDriverDefinition, ProviderDriverRequestParams, ProviderDriverStreamParams } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import type {
+  ProviderDriverDefinition,
+  ProviderDriverRequestParams,
+  ProviderDriverStreamParams,
+} from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
 import { sanitizeProviderExtraBody } from "../ProviderOptions";
 
-function getString(options: Record<string, unknown>, ...keys: string[]): string {
+function getString(
+  options: Record<string, unknown>,
+  ...keys: string[]
+): string {
   for (const key of keys) {
     const value = options[key];
     if (typeof value === "string" && value) return value;
@@ -13,7 +20,13 @@ function getString(options: Record<string, unknown>, ...keys: string[]): string 
 export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
   return {
     name: "openai-chat",
-    adapterNames: ["openai-chat", "openai_chat", "openai", "openai-chat-completions", "openai_chat_completions"],
+    adapterNames: [
+      "openai-chat",
+      "openai_chat",
+      "openai",
+      "openai-chat-completions",
+      "openai_chat_completions",
+    ],
     buildRequest(params: ProviderDriverRequestParams) {
       return {
         method: "POST",
@@ -34,14 +47,19 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
         providerOptions: {
           apiKey: getString(params.connectionOptions, "api_key", "apikey"),
           baseURL: getString(params.connectionOptions, "base_url", "baseurl"),
-          headers: params.connectionOptions.default_headers as Record<string, string> | undefined,
+          headers: params.connectionOptions.default_headers as
+            Record<string, string> | undefined,
         },
+        requestObserver: params.transportRequestObserver,
       });
       return adapter.createStream({
         model: params.model,
         messages: params.messages as any[],
         tools: params.tools as any[],
-        extraBody: { ...params.requestOptions, ...sanitizeProviderExtraBody(params.extraBody) },
+        extraBody: {
+          ...params.requestOptions,
+          ...sanitizeProviderExtraBody(params.extraBody),
+        },
         signal: params.signal,
       });
     },

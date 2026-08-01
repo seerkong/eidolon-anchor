@@ -69,6 +69,75 @@ function renderHarness(runtime: ReturnType<typeof createTuiRuntimeClient>, direc
 }
 
 describe("tui stream diagnostics", () => {
+  it("does not refresh actor surface for high-frequency part updates", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "eidolon-tui-part-refresh-"))
+    const sessionID = "ses_part_refresh"
+    let actorSurfaceCalls = 0
+
+    __setRuntimeBridgeFactoryForTest(async () => ({
+      async getActorSurface() {
+        actorSurfaceCalls += 1
+        return {
+          conversationLanes: [],
+          actorLanes: [],
+          selectedLaneId: "lane:primary",
+          selectedTarget: { laneId: "lane:primary" },
+          questionnaireSurface: [],
+        }
+      },
+      async turn() {
+        return "ok"
+      },
+      async abort() {},
+      dispose() {},
+      subscribeNotifications() {
+        return { unsubscribe() {} }
+      },
+    }))
+
+    try {
+      const runtime = createTuiRuntimeClient({ mode: "local-runtime", directory })
+      const created = await runtime.client.session.create({ sessionID } as any)
+      const activeSessionID = created.data?.id ?? sessionID
+      const setup = await testRender(() => renderHarness(runtime, directory, activeSessionID), {
+        width: 120,
+        height: 36,
+        kittyKeyboard: true,
+      })
+
+      try {
+        await renderSettled(setup, 25)
+        const baseline = actorSurfaceCalls
+        expect(baseline).toBeGreaterThan(0)
+
+        for (let index = 0; index < 50; index += 1) {
+          runtime.event.emit({
+            type: "message.part.updated",
+            properties: {
+              part: {
+                id: "part-stream",
+                sessionID: activeSessionID,
+                messageID: "msg-stream",
+                type: "text",
+                text: `chunk ${index}`,
+                synthetic: false,
+                ignored: false,
+              },
+            },
+          } as any)
+        }
+
+        await renderSettled(setup, 20)
+        expect(actorSurfaceCalls).toBe(baseline)
+      } finally {
+        setup.renderer.destroy()
+      }
+    } finally {
+      __setRuntimeBridgeFactoryForTest(null)
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("captures the full runtime-provider-tuiA1 stream path", async () => {
     const previous = process.env.EIDOLON_TUI_STREAM_DIAGNOSTICS
     process.env.EIDOLON_TUI_STREAM_DIAGNOSTICS = "1"

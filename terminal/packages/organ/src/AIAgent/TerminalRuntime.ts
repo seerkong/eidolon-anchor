@@ -42,6 +42,8 @@ import {
   materializeConversationRuntimeMessagesFromVm,
   setActorWorkMode,
   type LlmAdapterType,
+  type LlmProviderRuntime,
+  type ProviderRequestObservationPort,
 } from "@cell/ai-organ-logic"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import type { ChatMessage } from "@shared/composer"
@@ -100,7 +102,6 @@ export type TuiRuntimeBridge = {
   agents?: () => Promise<Agent[]>
   slashCommands?: RuntimeSlashCommandDescriptor[]
   slashRuntime?: RuntimeSlashRuntime | null
-  injectRuntimeHint?: (text: string) => Promise<void>
   setActorActiveModel?: (target: {
     laneId?: string
     actorId?: string
@@ -113,6 +114,11 @@ export type TuiRuntimeBridge = {
       onControl?: (control: TuiControl) => void | Promise<void>
     },
   ) => Promise<string>
+  resumeTurn?: (opts?: {
+    timeoutSeconds?: number
+    onChunk?: (chunk: string) => void | Promise<void>
+    onControl?: (control: TuiControl) => void | Promise<void>
+  }) => Promise<string>
   compact: () => Promise<{ ok: boolean; message: string }>
   getActorSurface?: (options?: {
     selectedLaneId?: string
@@ -176,7 +182,24 @@ export type TuiRuntimeConfig = {
   entryType?: RuntimeCompositionEntryType
   /** Storage capability flags; defaults to persistent (logs and files enabled). */
   storage?: Partial<RuntimeCompositionStorageFlags>
+  providerRequestObservationBindingFactory?: ProviderRequestObservationBindingFactory
 }
+
+export type ProviderRequestObservationBindingContext = {
+  sessionDir: string
+  sessionId: string
+  ephemeral: boolean
+  storageFilesEnabled: boolean
+}
+
+export type ProviderRequestObservationBinding = {
+  port: ProviderRequestObservationPort
+  dispose: () => void
+}
+
+export type ProviderRequestObservationBindingFactory = (
+  context: ProviderRequestObservationBindingContext,
+) => ProviderRequestObservationBinding | null
 
 type ExecRuntimeMetadataOptions = {
   workDir: string
@@ -265,7 +288,6 @@ const DEEPSEEK_BASE_URL = process.env.DEEPSEEK_BASE_URL || ""
 const DEEPSEEK_MODEL = process.env.DEEPSEEK_MODEL || ""
 const USE_MOCK = process.env.MOCK_OPENAI === "1"
 
-const SKILLS_DESCRIPTION = "(动态加载；每轮从 .eidolon/skills 重新读取)"
 const shellRuntimeFacade = createShellRuntimeFacade()
 
 export type TerminalRuntimeBindingInput = {
@@ -302,7 +324,7 @@ export function composeTerminalRuntimeBinding(input: TerminalRuntimeBindingInput
     profile,
     context: {
       workDir: input.workDir,
-      skillsDescription: SKILLS_DESCRIPTION,
+      skillsDescription: "",
       loadedAgents: {},
       delegateAgentDescriptions: "",
     },
@@ -316,7 +338,7 @@ export function composeTerminalRuntimeBinding(input: TerminalRuntimeBindingInput
   return { profile, descriptor }
 }
 
-let llmAdapterFactoryOverride: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }) => Promise<any>) = null
+let llmAdapterFactoryOverride: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }, runtime?: Partial<LlmProviderRuntime>) => Promise<any>) = null
 let runtimeAssemblyFactoryOverride: null | RuntimeCompositionFactory = null
 
 // ProviderCollector registry — set via configureProviderCollector()
@@ -381,7 +403,7 @@ export async function drainHeartbeatFiredSchedules(params: {
   }).catch(() => {})
 }
 
-export function __setLlmAdapterFactoryForTest(factory: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }) => Promise<any>)) {
+export function __setLlmAdapterFactoryForTest(factory: null | ((adapterType: LlmAdapterType, workDir: string, overrides?: { apiKey?: string; baseUrl?: string; model?: string; options?: Record<string, unknown> }, runtime?: Partial<LlmProviderRuntime>) => Promise<any>)) {
   llmAdapterFactoryOverride = factory
 }
 
@@ -617,7 +639,7 @@ async function createRuntimeBridge(
     ?? ((context: RuntimeAssemblyContext) => assembleRuntimeCompositionProfile(runtimeBinding.profile, context))
   const bootstrapAssembly = defaultRuntimeAssemblyFactory({
     workDir: paths.WORKDIR,
-    skillsDescription: SKILLS_DESCRIPTION,
+    skillsDescription: "",
     loadedAgents: {},
     delegateAgentDescriptions: "",
   })
@@ -629,7 +651,7 @@ async function createRuntimeBridge(
   const runtimeAssemblyFactory = defaultRuntimeAssemblyFactory
   const runtimeAssembly = runtimeAssemblyFactory({
     workDir: paths.WORKDIR,
-    skillsDescription: SKILLS_DESCRIPTION,
+    skillsDescription: "",
     loadedAgents: agentLoader.getAgents(),
     delegateAgentDescriptions: agentLoader.getDescriptions(),
   })
@@ -686,6 +708,28 @@ async function createRuntimeBridge(
   if (!adapterType) {
     throw new Error("LLM adapter unavailable: configure agent-present.json with a model present in llm-provider.json")
   }
+  const sessionDir = runtimeConfig.ephemeral
+    ? fs.mkdtempSync(path.join(os.tmpdir(), `eidolon-exec-${sessionKey}-`))
+    : ensureShellRuntimeSessionDir(paths.WORKDIR, sessionKey)
+  const isEphemeralSession = runtimeConfig.ephemeral === true
+  const persistSnapshots = runtimeConfig.ephemeral !== true
+  let sessionMaterialized = isEphemeralSession || fs.existsSync(sessionDir)
+  let providerRequestObservationBinding: ProviderRequestObservationBinding | null = null
+  try {
+    providerRequestObservationBinding = runtimeConfig.providerRequestObservationBindingFactory?.({
+      sessionDir,
+      sessionId: sessionKey,
+      ephemeral: isEphemeralSession,
+      storageFilesEnabled: runtimeBinding.descriptor.storage.files,
+    }) ?? null
+  } catch {
+    providerRequestObservationBinding = null
+  }
+
+  const providerObservationRuntime = {
+    sessionId: sessionKey,
+    requestObservationPort: providerRequestObservationBinding?.port ?? null,
+  }
   const llmAdapter = await createRuntimeLlmAdapter({
     adapterType,
     workDir: paths.WORKDIR,
@@ -698,9 +742,16 @@ async function createRuntimeBridge(
       options: modelConfig.options,
     },
     factoryOverride: llmAdapterFactoryOverride,
+    runtime: providerObservationRuntime,
   })
 
   if (!llmAdapter) {
+    try {
+      providerRequestObservationBinding?.dispose()
+    } catch {}
+    if (isEphemeralSession) {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
     return null
   }
 
@@ -748,13 +799,6 @@ async function createRuntimeBridge(
     }
   }
 
-  const sessionDir = runtimeConfig.ephemeral
-    ? fs.mkdtempSync(path.join(os.tmpdir(), `eidolon-exec-${sessionKey}-`))
-    : ensureShellRuntimeSessionDir(paths.WORKDIR, sessionKey)
-  const isEphemeralSession = runtimeConfig.ephemeral === true
-  const persistSnapshots = runtimeConfig.ephemeral !== true
-  let sessionMaterialized = isEphemeralSession || fs.existsSync(sessionDir)
-
   const eventBus = new DomainRuntimeEventGraph()
   const toolRegistry = runtimeRegistries.toolRegistry
   const semanticRuntimeBridge = new SemanticTerminalRuntimeBridge()
@@ -790,6 +834,7 @@ async function createRuntimeBridge(
     driver,
     mainFiberId,
     saveSnapshot,
+    sealCompletedProgress,
     effects: {
       orchestrationHistoryEffect,
     },
@@ -798,7 +843,10 @@ async function createRuntimeBridge(
     sessionDir,
     sessionKey,
     llmClient: llmAdapter,
-    systemPrompt: runtimeAssembly.systemPrompt,
+    profileSystemPrompt: {
+      profileId: runtimeAssembly.profileId,
+      systemPrompt: runtimeAssembly.systemPrompt,
+    },
     modelConfig,
     eventBus,
     registries: runtimeRegistries,
@@ -841,11 +889,7 @@ async function createRuntimeBridge(
     vm,
     driver,
     saveSnapshot,
-    // P3: production does NOT inject `sealCompletedProgress` — the coordinator's
-    // default no-op leaves the timeout path non-sealing. Live wiring is deferred
-    // to the follow-up that ships the recovery-gate forward-only relay (enabling
-    // the seal earlier regresses settled-then-timeout recovery to `dirty`). See
-    // codument/tracks/harden-runtime-session-robustness/analysis/findings.md P3.
+    sealCompletedProgress,
     hookDefinitions: runtimeAssembly.hookDefinitions,
     hookHandlers: createDefaultRuntimeHookHandlers(),
   })
@@ -1122,6 +1166,7 @@ async function createRuntimeBridge(
           options: targetActor.modelConfig.options,
         },
         factoryOverride: llmAdapterFactoryOverride,
+        runtime: providerObservationRuntime,
       })
       if (refreshed) {
         targetActor.llmClient = refreshed
@@ -1203,18 +1248,24 @@ async function createRuntimeBridge(
     return normalizedInput
   }
 
+  type BridgeTurnOptions = {
+    timeoutSeconds?: number
+    onChunk?: (chunk: string) => void | Promise<void>
+    onControl?: (control: TuiControl) => void | Promise<void>
+  }
+
   let chain: Promise<void> = Promise.resolve()
-  const turn = (
-    input: string,
-    opts?: {
-      timeoutSeconds?: number
-      onChunk?: (chunk: string) => void | Promise<void>
-      onControl?: (control: TuiControl) => void | Promise<void>
-    },
-  ) => {
+  const runProjectedTurn = (params: {
+    input: string
+    opts?: BridgeTurnOptions
+    enqueueInput: boolean
+    allowDirectSlash: boolean
+  }) => {
     if (activeTurn) {
-      enqueueUserProvidedInput(input)
-      void persistSnapshot()
+      if (params.enqueueInput) {
+        enqueueUserProvidedInput(params.input)
+        void persistSnapshot()
+      }
       return Promise.resolve("")
     }
 
@@ -1248,11 +1299,11 @@ async function createRuntimeBridge(
       const handleProjectionEvent = (event: TuiEvent): void | Promise<void> => {
         if (turnState.cancelled) return
         if (event.kind === "control") {
-          return opts?.onControl?.(event.payload)
+          return params.opts?.onControl?.(event.payload)
         }
         const chunk = String(event.payload)
         output += chunk
-        return opts?.onChunk?.(chunk)
+        return params.opts?.onChunk?.(chunk)
       }
       const trackAsyncProjectionEvent = (promise: Promise<void>) => {
         eventChainPending = true
@@ -1280,22 +1331,26 @@ async function createRuntimeBridge(
         }
       })
       try {
-        const directOutput = await executeDirectSlashCommand(input)
-        if (directOutput !== null) {
-          activateSessionMaterialization()
-          await persistSnapshot()
-          emitRuntimeDirectSlashAssistantOutput({
-            eventBus,
-            actor: { key: actor.key, id: actor.id, type: actor.type },
-            text: directOutput,
-          })
-          await eventChain
-          if (eventChainError) throw eventChainError
-          return output
+        if (params.allowDirectSlash) {
+          const directOutput = await executeDirectSlashCommand(params.input)
+          if (directOutput !== null) {
+            activateSessionMaterialization()
+            await persistSnapshot()
+            emitRuntimeDirectSlashAssistantOutput({
+              eventBus,
+              actor: { key: actor.key, id: actor.id, type: actor.type },
+              text: directOutput,
+            })
+            await eventChain
+            if (eventChainError) throw eventChainError
+            return output
+          }
         }
-        enqueueUserProvidedInput(input)
+        if (params.enqueueInput) {
+          enqueueUserProvidedInput(params.input)
+        }
         const timeoutSeconds =
-          opts?.timeoutSeconds !== undefined ? opts.timeoutSeconds : runtimeConfig.timeoutSeconds
+          params.opts?.timeoutSeconds !== undefined ? params.opts.timeoutSeconds : runtimeConfig.timeoutSeconds
         await runTurn({ timeoutSeconds })
         await eventChain
         if (eventChainError) throw eventChainError
@@ -1317,6 +1372,31 @@ async function createRuntimeBridge(
       () => undefined,
     )
     return queued
+  }
+
+  const turn = (
+    input: string,
+    opts?: {
+      timeoutSeconds?: number
+      onChunk?: (chunk: string) => void | Promise<void>
+      onControl?: (control: TuiControl) => void | Promise<void>
+    },
+  ) => {
+    return runProjectedTurn({
+      input,
+      opts,
+      enqueueInput: true,
+      allowDirectSlash: true,
+    })
+  }
+
+  const resumeTurn = (opts?: BridgeTurnOptions) => {
+    return runProjectedTurn({
+      input: "",
+      opts,
+      enqueueInput: false,
+      allowDirectSlash: false,
+    })
   }
 
   const abort = async () => {
@@ -1521,15 +1601,10 @@ async function createRuntimeBridge(
   }
 
   const submitQuestionnaireResponse = async (questionnaireId: string, responseText: string) => {
-    const before = buildActorSurfaceProjection(vm as any)
-    const pending = before.questionnaireSurface.find((item) => item.questionnaireId === questionnaireId)
-    const result = createDurableActorSurfaceFacade().submitQuestionnaireResponse(questionnaireId, responseText)
-    if (result.status === "submitted" && pending?.ownerActorKey && pending.ownerActorId) {
-      const now = Date.now()
-      await driver.tickUntilBlocked({ now, maxTicks: 160, maxWallMs: 5_000 }).catch(() => {})
-      await persistSnapshot()
-    }
-    return result
+    // The caller immediately continues the unblocked turn through resumeTurn().
+    // Saving here would first run progressBeforeSnapshot(), which can consume
+    // that continuation before the TUI has subscribed to its output.
+    return createDurableActorSurfaceFacade().submitQuestionnaireResponse(questionnaireId, responseText)
   }
 
   const dispose = () => {
@@ -1550,6 +1625,9 @@ async function createRuntimeBridge(
     eventBus.complete()
     eventBus.dispose()
     if (mcpManager) mcpManager.closeAll()
+    try {
+      providerRequestObservationBinding?.dispose()
+    } catch {}
     if (isEphemeralSession) {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
@@ -1637,37 +1715,14 @@ async function createRuntimeBridge(
     }
   }
 
-  const injectRuntimeHint = async (text: string) => {
-    const normalized = String(text ?? "").trim()
-    if (!normalized) return
-    activateSessionMaterialization()
-    if (activeTurn) {
-      const now = Date.now()
-      actor.send("humanInput", `Runtime hint:\n${normalized}`)
-      driver.resumeFiber(mainFiberId, now)
-      return
-    }
-    await runtimeCoordinator.deliverMemberInbox({
-      actor,
-      mainFiberId,
-      payload: {
-        from: "",
-        text: `Runtime hint:\n${normalized}`,
-        ts: Date.now(),
-      },
-      foregroundMaxTicks: 20,
-      foregroundMaxWallMs: 250,
-    })
-  }
-
   return {
     bindingDescriptor: runtimeBinding.descriptor,
     agents: async () => runtimeAgents,
     slashCommands: runtimeAssembly.slashCommands,
     slashRuntime,
-    injectRuntimeHint,
     setActorActiveModel,
     turn,
+    resumeTurn,
     compact,
     getActorSurface,
     selectActorSurfaceTarget,
@@ -1746,6 +1801,7 @@ export function configureTuiRuntime(config: TuiRuntimeConfig) {
   runtimeConfig.profileId = config.profileId
   runtimeConfig.entryType = config.entryType
   runtimeConfig.storage = config.storage
+  runtimeConfig.providerRequestObservationBindingFactory = config.providerRequestObservationBindingFactory
   runtimeConfig.metadata = normalizeTerminalRuntimeMetadata(config.workDir, config.metadata)
   sessionRuntimePromises.clear()
   for (const runtimePromise of pendingRuntimes) {

@@ -1,0 +1,76 @@
+{
+  "providers": [
+    {
+      "id": "openai-responses",
+      "adapter": "openai-responses",
+      "options": {
+        "baseURL": "https://api.openai.com/v1",
+        "apiKey": "${OPENAI_API_KEY}"
+      },
+      "models": [
+        {
+          "id": "gpt-5.1",
+          "options": {
+            "serviceTier": "auto",
+            "store": false,
+            "reasoningEffort": "high"
+          },
+          "variants": {
+            "fast": {
+              "reasoningEffort": "medium"
+            }
+          },
+          "modalities": {
+            "input": ["text", "image"],
+            "output": ["text"]
+          },
+          "limits": {
+            "context": 300000,
+            "output": 128000
+          }
+        }
+      ]
+    },
+    {
+      "id": "deepseek",
+      "adapter": "deepseek",
+      "options": {
+        "baseURL": "https://api.deepseek.com/v1",
+        "apiKey": "${DEEPSEEK_API_KEY}"
+      },
+      "models": [
+        {
+          "id": "deepseek-chat",
+          "options": {},
+          "limits": {
+            "context": 128000,
+            "output": 8192
+          }
+        }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "adapter": "anthropic",
+      "options": {
+        "baseURL": "https://api.anthropic.com",
+        "apiKey": "${ANTHROPIC_API_KEY}"
+      },
+      "models": [
+        {
+          "id": "claude-sonnet-4-5",
+          "options": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 32000
+            }
+          },
+          "limits": {
+            "context": 200000,
+            "output": 64000
+          }
+        }
+      ]
+    }
+  ]
+}

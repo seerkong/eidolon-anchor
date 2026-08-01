@@ -104,14 +104,14 @@ export function createDiagnosticSubgraph(scope?: string): DiagnosticSubgraph {
           modNodeIds.compactions,
           modNodeIds.turnTimings,
         ],
-        (ctx) => ({
-          totalToolCalls: ctx.get<ToolCallEntry[]>(modNodeIds.toolStats).length,
-          totalRetries: ctx.get<RetryEntry[]>(modNodeIds.retries).length,
-          totalCompactions: ctx.get<CompactionEntry[]>(modNodeIds.compactions).length,
-          turnCount: ctx.get<TurnTimingEntry[]>(modNodeIds.turnTimings).length,
-          modelUsed: ctx.get<ModelSelectionSignal>(modNodeIds.modelSelection)?.selectedModel ?? null,
+        (runtime) => ({
+          totalToolCalls: runtime.graph.get<ToolCallEntry[]>(modNodeIds.toolStats).length,
+          totalRetries: runtime.graph.get<RetryEntry[]>(modNodeIds.retries).length,
+          totalCompactions: runtime.graph.get<CompactionEntry[]>(modNodeIds.compactions).length,
+          turnCount: runtime.graph.get<TurnTimingEntry[]>(modNodeIds.turnTimings).length,
+          modelUsed: runtime.graph.get<ModelSelectionSignal>(modNodeIds.modelSelection)?.selectedModel ?? null,
           lastTurnPhase: (() => {
-            const timings = ctx.get<TurnTimingEntry[]>(modNodeIds.turnTimings);
+            const timings = runtime.graph.get<TurnTimingEntry[]>(modNodeIds.turnTimings);
             return timings.length > 0 ? timings[timings.length - 1].phase : null;
           })(),
         }),

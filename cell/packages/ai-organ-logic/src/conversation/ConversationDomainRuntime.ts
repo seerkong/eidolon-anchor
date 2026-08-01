@@ -22,6 +22,8 @@ export {
   applyPromptTransformToConversationDomainRuntime,
   clearContextBlocksInConversationDomainRuntime,
   closeConversationSessionInConversationDomainRuntime,
+  confirmMessageDeliveriesToConversationDomainRuntime,
+  confirmToolResultDeliveriesToConversationDomainRuntime,
   createConversationDomainRuntime,
   emitConversationDomainEvent,
   ensureVmConversationDomainRuntime,
@@ -37,6 +39,8 @@ export {
   recordConversationTranscriptEvidenceInRuntime,
   recordPromptOverlayToConversationDomainRuntime,
   recordPromptRequestToConversationDomainRuntime,
+  registerPendingMessageDeliveryToConversationDomainRuntime,
+  registerPendingToolResultDeliveryToConversationDomainRuntime,
   registerContextBlockToConversationDomainRuntime,
   rewriteActiveHistoryGenerationMessagesInConversationDomainRuntime,
   setConversationDomainPersistHooks,
@@ -48,6 +52,9 @@ export {
   teeConversationHistoryStream,
   teeConversationPromptStream,
   teeConversationSessionStream,
+  upsertContextResourceFactToConversationDomainRuntime,
+  upsertProviderProjectionFactToConversationDomainRuntime,
+  upsertResponsesReplayCheckpointToConversationDomainRuntime,
   updateConversationDomainFromTranscriptRecordBatch,
 } from "../conversationCapsule/coreLogic";
 

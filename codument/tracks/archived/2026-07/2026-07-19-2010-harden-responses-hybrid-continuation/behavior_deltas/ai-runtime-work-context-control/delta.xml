@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-runtime-work-context-control" version="1">
+  <upsert selector="behavior://ai-runtime-work-context-control/requirements/cache-stable-overlay">
+    <requirement id="cache-stable-overlay">
+      <statement>系统 SHALL keep work mode、task phase 与 mutable provider projections compact and outside stable provider prefix content，并 SHALL 把它们放在 stable system prefix 与 chronological conversation history 之间的固定语义锚点；动态状态 MUST NOT 随最后一条 user/tool message 移动或追加到 provider request 尾部。</statement>
+      <suite id="prompt-cache" name="Prompt cache stability">
+        <case id="fixed-conversation-boundary">
+          <given>system prompts、动态 overlays 与多轮 chronological history 同时存在</given>
+          <when>Conversation materializer 构造 provider context</when>
+          <then>system prompts SHALL 在最前</then>
+          <then>当前 dynamic overlays SHALL 以稳定顺序紧随 stable system prefix</then>
+          <then>user/assistant/tool history SHALL 保持原 chronological 顺序并位于 overlays 之后</then>
+        </case>
+        <case id="new-user-does-not-relocate-overlay">
+          <given>动态状态 revision/content 未变化</given>
+          <when>新的 user 或 tool message 追加到 History</when>
+          <then>overlay 的语义锚点 SHALL 保持不变</then>
+          <then>既有 provider prefix SHALL 保持可做 exact-prefix replay/cache matching</then>
+        </case>
+        <case id="dynamic-revision-invalidates-continuation">
+          <given>work context 或 mutable projection revision/content 变化</given>
+          <when>系统构造下一 provider request</when>
+          <then>旧 continuation baseline SHALL 失效</then>
+          <then>新 full request SHALL 在固定锚点只包含当前 revision</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

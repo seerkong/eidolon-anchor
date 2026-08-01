@@ -11,11 +11,14 @@ import { authorizeLocalToolCall } from "@cell/ai-organ-logic/permissions/LocalPe
 import { ensureVmRuntimeContext } from "@cell/ai-core-logic/runtime/runtime"
 import { getDetachedActorObservabilityStore } from "@cell/ai-organ-logic/detached/DetachedActorObservability"
 import {
-  executeSandboxedBashCommand,
+  executeSandboxedBashCommandResult,
   executeStreamingSandboxedBashCommand,
   resolveSandboxBackendSelectionFromRuntime,
   type SpawnSyncLike,
+  type StreamingBashResult,
 } from "@cell/ai-organ-logic/sandbox"
+import type { ToolFailureKind } from "@cell/ai-core-contract/runtime/ToolCallDomain"
+import type { ToolExecutionResultEnvelope } from "@cell/ai-core-contract/types"
 import type { BashInnerConfig, BashInnerInput, BashInnerOutput, BashInnerRuntime } from "./InnerTypes"
 
 export const makeBashOuterComputed = stdMakeNullOuterComputed
@@ -28,6 +31,45 @@ function resolveTimeoutMs(timeoutSeconds: unknown): number {
   const seconds = Number(timeoutSeconds)
   if (!Number.isFinite(seconds) || seconds <= 0) return 120000
   return Math.ceil(seconds * 1000)
+}
+
+function appendProcessDiagnostic(outputText: string, diagnostic: string): string {
+  if (!diagnostic || outputText.includes(diagnostic)) return outputText
+  return `${outputText}\n\n${diagnostic}`
+}
+
+function classifyBashProcessFailure(result: StreamingBashResult): ToolFailureKind {
+  if (result.timedOut) return "timeout"
+  if (result.aborted) return "aborted"
+  if (result.error) return "exception"
+  return "tool_error"
+}
+
+function describeBashProcessFailure(result: StreamingBashResult): string {
+  if (result.timedOut) return "Process timed out."
+  if (result.aborted) return "Process was aborted."
+  if (result.exitCode !== null) return `Process exited with exit code ${result.exitCode}.`
+  if (result.signal) return `Process terminated by signal ${result.signal}.`
+  if (result.error) return `Process failed: ${result.error}`
+  return "Process failed."
+}
+
+export function mapBashProcessResultToToolExecutionResult(
+  result: StreamingBashResult,
+): ToolExecutionResultEnvelope<string> {
+  if (result.ok) {
+    return {
+      output: result.outputText,
+      contextEffects: [],
+      outcome: { status: "completed" },
+    }
+  }
+
+  return {
+    output: appendProcessDiagnostic(result.outputText, describeBashProcessFailure(result)),
+    contextEffects: [],
+    outcome: { status: "failed", failureKind: classifyBashProcessFailure(result) },
+  }
 }
 
 export const bashCoreLogic: StdInnerLogic<BashInnerRuntime, BashInnerInput, BashInnerConfig, BashInnerOutput> = async (runtime, input, _config) => {
@@ -59,13 +101,13 @@ export const bashCoreLogic: StdInnerLogic<BashInnerRuntime, BashInnerInput, Bash
       typeof _config?.spawnSyncFn === "function" ? (_config.spawnSyncFn as SpawnSyncLike) : undefined
     if (spawnSyncOverride) {
       // Test path: use synchronous spawnSync (blocks event loop, acceptable for tests)
-      return executeSandboxedBashCommand({
+      return mapBashProcessResultToToolExecutionResult(executeSandboxedBashCommandResult({
         command,
         cwd,
         timeoutMs,
         selection,
         spawnSyncFn: spawnSyncOverride,
-      })
+      }))
     }
 
     // Production path: use async spawn to avoid blocking the event loop
@@ -82,9 +124,7 @@ export const bashCoreLogic: StdInnerLogic<BashInnerRuntime, BashInnerInput, Bash
           }
         : {}),
     })
-    if (result.error) return `Error: ${result.error}`
-    if (result.timedOut) return `Error: bash command timed out after ${timeoutMs}ms`
-    return result.outputText
+    return mapBashProcessResultToToolExecutionResult(result)
   } catch (e: any) {
     return `Error: ${e.message}`
   }

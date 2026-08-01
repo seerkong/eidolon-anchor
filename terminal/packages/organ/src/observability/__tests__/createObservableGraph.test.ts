@@ -32,7 +32,7 @@ describe("createObservableGraph", () => {
     const obs = createObservableGraph({ debug: true });
     obs.graph.addSignal("x", 0);
 
-    obs.graph.addComputed("y", ["x"], (ctx) => ctx.get("x") + 1);
+    obs.graph.addComputed("y", ["x"], (runtime) => runtime.graph.get("x") + 1);
 
     expect(() => obs.graph.get("y")).not.toThrow();
     obs.dispose();

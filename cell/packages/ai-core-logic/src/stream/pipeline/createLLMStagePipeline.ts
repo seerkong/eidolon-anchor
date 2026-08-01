@@ -206,8 +206,8 @@ export class ReferenceAlignedStageDataGraph {
     this.graph.addSignal(REFERENCE_ALIGNED_STAGE_REFS.state.semanticEvents, []);
     this.graph.addSignal(REFERENCE_ALIGNED_STAGE_REFS.state.semanticSeq, 0);
 
-    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.lexicalToSyntactic, [REFERENCE_ALIGNED_STAGE_REFS.state.lexicalSeq], (ctx) => {
-      const lexical = ctx.get(REFERENCE_ALIGNED_STAGE_REFS.state.lexicalEvents);
+    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.lexicalToSyntactic, [REFERENCE_ALIGNED_STAGE_REFS.state.lexicalSeq], () => {
+      const lexical = this.graph.get(REFERENCE_ALIGNED_STAGE_REFS.state.lexicalEvents);
       const appended = lexical.slice(this.lexical.length);
       const syntactic = this.consumeAppendedLexicalEvents(appended);
       this.graph.batch(() => {
@@ -218,8 +218,8 @@ export class ReferenceAlignedStageDataGraph {
       });
     });
 
-    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.syntacticToSemantic, [REFERENCE_ALIGNED_STAGE_REFS.state.syntacticSeq], (ctx) => {
-      const syntactic = ctx.get(REFERENCE_ALIGNED_STAGE_REFS.state.syntacticEvents);
+    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.syntacticToSemantic, [REFERENCE_ALIGNED_STAGE_REFS.state.syntacticSeq], () => {
+      const syntactic = this.graph.get(REFERENCE_ALIGNED_STAGE_REFS.state.syntacticEvents);
       const appended = syntactic.slice(this.syntactic.length);
       const semantic = buildSemanticStage(appended);
       this.graph.batch(() => {
@@ -230,24 +230,24 @@ export class ReferenceAlignedStageDataGraph {
       });
     });
 
-    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.collectLexical, [REFERENCE_ALIGNED_STAGE_REFS.state.lexicalSeq], (ctx) => {
-      this.lexical = [...ctx.get(REFERENCE_ALIGNED_STAGE_REFS.state.lexicalEvents)];
+    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.collectLexical, [REFERENCE_ALIGNED_STAGE_REFS.state.lexicalSeq], () => {
+      this.lexical = [...this.graph.get(REFERENCE_ALIGNED_STAGE_REFS.state.lexicalEvents)];
       const appended = this.lexical.slice(this.lexicalDispatchCount);
       this.lexicalDispatchCount = this.lexical.length;
       for (const event of appended) {
         this.callbacks.onLexicalEvent?.(event);
       }
     });
-    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.collectSyntactic, [REFERENCE_ALIGNED_STAGE_REFS.state.syntacticSeq], (ctx) => {
-      const syntactic = ctx.get(REFERENCE_ALIGNED_STAGE_REFS.state.syntacticEvents);
+    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.collectSyntactic, [REFERENCE_ALIGNED_STAGE_REFS.state.syntacticSeq], () => {
+      const syntactic = this.graph.get(REFERENCE_ALIGNED_STAGE_REFS.state.syntacticEvents);
       const appended = syntactic.slice(this.syntactic.length);
       this.syntactic = [...syntactic];
       for (const event of appended) {
         this.callbacks.onSyntacticEvent?.(event);
       }
     });
-    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.collectSemantic, [REFERENCE_ALIGNED_STAGE_REFS.state.semanticSeq], (ctx) => {
-      const semantic = ctx.get(REFERENCE_ALIGNED_STAGE_REFS.state.semanticEvents);
+    this.graph.addConsumer(REFERENCE_ALIGNED_STAGE_REFS.internals.collectSemantic, [REFERENCE_ALIGNED_STAGE_REFS.state.semanticSeq], () => {
+      const semantic = this.graph.get(REFERENCE_ALIGNED_STAGE_REFS.state.semanticEvents);
       const appended = semantic.slice(this.semantic.length);
       this.semantic = [...semantic];
       for (const event of appended) {

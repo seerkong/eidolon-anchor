@@ -2,18 +2,28 @@
 
 > 每个 track 对 modeling 登记表（`codument/modeling/`，见 `modeling-registry.md`）的增删改，用**目标态节点 + 节点级 3-way 合并**表达，而非自建 delta 节点类型。真 VCS 是宿主 git；xnl-vfs 只当**临时合并引擎**（不持久化平行 vcs 仓库）。
 >
-> 仅当 `codument/config/modeling.xml` 的 modeling profile `enabled` 时启用。
+> modeling 默认启用：缺失配置按 enabled 处理，fresh init 模板生成 `enabled="true"`；显式 `enabled="false"` 始终优先并关闭本能力。
 >
 > XNL 语法权威见 [std/spec/xnl-format.md](./xnl-format.md)。
 
 ## 形态：目标态节点（modeling_deltas）
 
-- track 在 `tracks/<id>/modeling_deltas/<plane>/<context>.xnl` 写**改动节点的目标态**（可评审，像 `behavior_deltas/`，宿主 git 跟踪）。每个节点带稳定多级命名空间 id（`#<context>.<name>` 或 `#<plane>.<context>.<name>`）。
+- track 在 `tracks/{pending,active}/<id>/modeling_deltas/<plane>/<context>.xnl` 写**改动节点的目标态**（可评审，像 `behavior_deltas/`，宿主 git 跟踪）。每个节点带稳定多级命名空间 id（`#<context>.<name>` 或 `#<plane>.<context>.<name>`）。
 - 它是归档 3-way 合并的 **theirs** 侧；registry 工作树是 **ours** 侧；base 见下。
 
+### 生成义务（按结构变化，不按 enabled 无条件生成）
+
+- 当 track 改变对象/类型、状态机、policy、模块或组件边界、事实源/single-writer、actor 通信、component input/config/runtime/output 等结构知识时，生成或维护对应 `modeling_deltas`。
+- 仅改变普通行为实现、测试、文案或不影响上述结构真相时，不强制生成 modeling delta。
+- modeling enabled 只表示能力可用；无结构变化时不得制造空 delta，也不得因 enablement 创建空 `codument/modeling/`。
+
 ```xnl
-<!-- tracks/<id>/modeling_deltas/domain/resource.xnl -->
-<object #resource.skill_tool kind="entity" fact_grade="authoritative_fact" single_writer="resource.store" [
+<!-- tracks/active/<id>/modeling_deltas/domain/resource.xnl -->
+<object #resource.skill_tool {
+  kind = "entity"
+  fact_grade = "authoritative_fact"
+  single_writer = "resource.store"
+} [
   <desc ?>聚合型资源：可编辑/打包/恢复的文本文件集合。</?>
   <types ?ts1>
   interface SkillTool { key: string; appId: string; status: SkillToolStatus; isArchived: boolean }
@@ -42,9 +52,11 @@
 1. 物化三方：base（宿主 git 记录的 commit）+ ours（当前 `codument/modeling` 工作树）+ theirs（track 的 `modeling_deltas`），各加载为 xnl-vfs 快照（内存 / `.tmp/`，不持久化）。
 2. 节点级 3-way 合并：`xnl-vfs` `xnlFileHandler.merge(base, ours, theirs)`（底层 `xnl-core` `diffNodes`+`applyMutations`，`metadataIdMode:"identity"`，按 `#id` 命中）。
 3. 按下方**冲突解决策略**处理冲突。
-4. 合并结果写回 `codument/modeling` 工作树，由宿主 git 提交。`.tmp/` 临时产物不入库。
-5. 跑 `codument modeling lint`（分形拆分）。
-6. 模型把设计方案按类目回写 `docs/impl/`。
+4. 将合并结果物化进 transaction-owned staging，与 behavior patch、engineering merge 一起完成解析、schema 校验和冲突检测；prepare/stage 期间不得修改 live registry。
+5. 全部 registry stage 成功后执行 rollback-capable commit；任一失败恢复 live registries、保留 active track 且不创建 archive destination。只有 commit 成功后才移动 track。
+6. 首次有效 delta 可在成功 commit 时创建 `codument/modeling/`；missing/empty registry 校验只报 warning，无 delta/空文件集不创建 registry。
+7. 跑 `codument modeling lint`（分形拆分）。
+8. 模型把设计方案按类目回写 `codument/engineering/`。
 
 ## 冲突解决策略（保守默认 + 可配）
 
@@ -79,6 +91,7 @@
 - track 的 `<Ports>` 把 `modeling_deltas/`（input，`domain="modeling"`）与 `codument/modeling/`（output `name="modeling"`）显式接起来。
 - desc/types/mermaid/伪代码都是 `TextElement`，整块当 `valueAfter` 替换，不被 XML 实体污染。
 - modeling 节点引用 `behavior://…` 不复述可测 case。
+- missing/empty registry 是合法初态并产生 validate warning；非空 registry 仍必须包含 `domain` plane。
 
 ## 多文件 import（依赖）
 

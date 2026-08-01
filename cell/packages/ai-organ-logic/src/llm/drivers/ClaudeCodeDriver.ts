@@ -1,7 +1,14 @@
-import type { ProviderDriverDefinition, ProviderDriverRequestParams, ProviderDriverStreamParams } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import type {
+  ProviderDriverDefinition,
+  ProviderDriverRequestParams,
+  ProviderDriverStreamParams,
+} from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { ClaudeNodejsFetchLlmAdapter } from "../ClaudeNodejsFetchAdapter";
 
-function getString(options: Record<string, unknown>, ...keys: string[]): string {
+function getString(
+  options: Record<string, unknown>,
+  ...keys: string[]
+): string {
   for (const key of keys) {
     const value = options[key];
     if (typeof value === "string" && value) return value;
@@ -33,8 +40,10 @@ export function buildClaudeCodeProviderDriver(): ProviderDriverDefinition {
         providerOptions: {
           apiKey: getString(params.connectionOptions, "api_key", "apikey"),
           baseURL: getString(params.connectionOptions, "base_url", "baseurl"),
-          headers: params.connectionOptions.default_headers as Record<string, string> | undefined,
+          headers: params.connectionOptions.default_headers as
+            Record<string, string> | undefined,
         },
+        requestObserver: params.transportRequestObserver,
       });
       return adapter.createStream({
         model: params.model,

@@ -14,6 +14,10 @@ import {
   type ConversationDomainEvent,
   type ConversationSessionRawState,
   type LocalConversationContextAssetData,
+  type LocalConversationMessageDeliveryFact,
+  type LocalConversationProviderProjectionFact,
+  type LocalConversationToolResultDeliveryFact,
+  type ResponsesReplayCheckpoint,
 } from "@cell/ai-organ-contract";
 import {
   committedHistoryRefsToMessages,
@@ -1103,7 +1107,7 @@ export function appendLiveHistoryMessageToConversationDomainRuntime(params: {
   actorId: string;
   message: ChatMessage;
   occurredAt?: string;
-}): void {
+}): string {
   const runtime = ensureVmConversationDomainRuntime(params.vm);
   const sessionId = resolveSessionIdFromVm(params.vm);
   const key = actorRuntimeKey(sessionId, params.actorKey);
@@ -1198,6 +1202,8 @@ export function appendLiveHistoryMessageToConversationDomainRuntime(params: {
     },
     occurredAt: nextGeneration.updatedAt,
   });
+  const appended = nextGeneration.messages[nextGeneration.messages.length - 1]!;
+  return appended.message.messageId ?? appended.recordId;
 }
 
 /**
@@ -1566,6 +1572,302 @@ export function registerContextBlockToConversationDomainRuntime(params: {
       },
       appliedAt: occurredAt,
     },
+    occurredAt,
+  });
+  return assetId;
+}
+
+export function upsertContextResourceFactToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  asset: LocalConversationContextAssetData;
+  occurredAt?: string;
+}): void {
+  const occurredAt = params.occurredAt ?? params.asset.updatedAt ?? new Date().toISOString();
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_context_asset_registered",
+    sessionId: params.sessionId,
+    assetId: params.asset.assetId,
+    asset: params.asset,
+    occurredAt,
+  });
+}
+
+function toolResultDeliveryAssetId(actorKey: string): string {
+  return `tool-result-delivery:${encodeURIComponent(actorKey)}`;
+}
+
+function messageDeliveryAssetId(actorKey: string): string {
+  return `message-delivery:${encodeURIComponent(actorKey)}`;
+}
+
+export function registerPendingMessageDeliveryToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  actorKey: string;
+  messageId: string;
+  deliveryId?: string;
+  occurredAt?: string;
+}): string | null {
+  const messageId = params.messageId.trim();
+  if (!messageId) return null;
+  const deliveryId = params.deliveryId?.trim() || `message-delivery:${messageId}`;
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const assetId = messageDeliveryAssetId(params.actorKey);
+  const existing = params.runtime.sessionStateSignal.get()[params.sessionId]
+    ?.contextAssets?.find((asset) => asset.assetId === assetId);
+  const currentFact = existing?.messageDeliveryFact;
+  const deliveries = new Map(
+    (currentFact?.deliveries ?? []).map((delivery) => [delivery.deliveryId, delivery]),
+  );
+  if (deliveries.get(deliveryId)?.deliveryState === "delivered") return deliveryId;
+  deliveries.set(deliveryId, {
+    deliveryId,
+    messageId,
+    deliveryState: "pending",
+    observedAt: deliveries.get(deliveryId)?.observedAt ?? occurredAt,
+    deliveredAt: null,
+  });
+  const messageDeliveryFact: LocalConversationMessageDeliveryFact = {
+    actorKey: params.actorKey,
+    deliveries: [...deliveries.values()],
+    updatedAt: occurredAt,
+  };
+  const asset: LocalConversationContextAssetData = {
+    assetId,
+    kind: "note",
+    label: "Conversation message provider delivery",
+    source: { kind: "note", ownerId: params.actorKey },
+    messageDeliveryFact,
+    createdAt: existing?.createdAt ?? occurredAt,
+    updatedAt: occurredAt,
+  };
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_context_asset_registered",
+    sessionId: params.sessionId,
+    assetId,
+    asset,
+    occurredAt,
+  });
+  return deliveryId;
+}
+
+export function confirmMessageDeliveriesToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  actorKey: string;
+  deliveryIds: readonly string[];
+  occurredAt?: string;
+}): void {
+  if (params.deliveryIds.length === 0) return;
+  const assetId = messageDeliveryAssetId(params.actorKey);
+  const existing = params.runtime.sessionStateSignal.get()[params.sessionId]
+    ?.contextAssets?.find((asset) => asset.assetId === assetId);
+  const fact = existing?.messageDeliveryFact;
+  if (!existing || !fact || fact.actorKey !== params.actorKey) return;
+  const selected = new Set(params.deliveryIds);
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  let changed = false;
+  const deliveries = fact.deliveries.map((delivery) => {
+    if (delivery.deliveryState !== "pending" || !selected.has(delivery.deliveryId)) {
+      return delivery;
+    }
+    changed = true;
+    return {
+      ...delivery,
+      deliveryState: "delivered" as const,
+      deliveredAt: occurredAt,
+    };
+  });
+  if (!changed) return;
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_context_asset_registered",
+    sessionId: params.sessionId,
+    assetId,
+    asset: {
+      ...existing,
+      messageDeliveryFact: {
+        ...fact,
+        deliveries,
+        updatedAt: occurredAt,
+      },
+      updatedAt: occurredAt,
+    },
+    occurredAt,
+  });
+}
+
+export function registerPendingToolResultDeliveryToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  actorKey: string;
+  toolCallId: string;
+  occurredAt?: string;
+}): void {
+  const toolCallId = params.toolCallId.trim();
+  if (!toolCallId) return;
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const assetId = toolResultDeliveryAssetId(params.actorKey);
+  const existing = params.runtime.sessionStateSignal.get()[params.sessionId]
+    ?.contextAssets?.find((asset) => asset.assetId === assetId);
+  const currentFact = existing?.toolResultDeliveryFact;
+  const deliveries = new Map(
+    (currentFact?.deliveries ?? []).map((delivery) => [delivery.toolCallId, delivery]),
+  );
+  if (deliveries.get(toolCallId)?.deliveryState === "delivered") return;
+  deliveries.set(toolCallId, {
+    toolCallId,
+    deliveryState: "pending",
+    observedAt: deliveries.get(toolCallId)?.observedAt ?? occurredAt,
+    deliveredAt: null,
+  });
+  const toolResultDeliveryFact: LocalConversationToolResultDeliveryFact = {
+    actorKey: params.actorKey,
+    deliveries: [...deliveries.values()],
+    updatedAt: occurredAt,
+  };
+  const asset: LocalConversationContextAssetData = {
+    assetId,
+    kind: "note",
+    label: "Tool result provider delivery",
+    source: { kind: "note", ownerId: params.actorKey },
+    toolResultDeliveryFact,
+    createdAt: existing?.createdAt ?? occurredAt,
+    updatedAt: occurredAt,
+  };
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_context_asset_registered",
+    sessionId: params.sessionId,
+    assetId,
+    asset,
+    occurredAt,
+  });
+}
+
+export function confirmToolResultDeliveriesToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  actorKey: string;
+  toolCallIds: readonly string[];
+  occurredAt?: string;
+}): void {
+  if (params.toolCallIds.length === 0) return;
+  const assetId = toolResultDeliveryAssetId(params.actorKey);
+  const existing = params.runtime.sessionStateSignal.get()[params.sessionId]
+    ?.contextAssets?.find((asset) => asset.assetId === assetId);
+  const fact = existing?.toolResultDeliveryFact;
+  if (!existing || !fact || fact.actorKey !== params.actorKey) return;
+  const selected = new Set(params.toolCallIds);
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  let changed = false;
+  const deliveries = fact.deliveries.map((delivery) => {
+    if (delivery.deliveryState !== "pending" || !selected.has(delivery.toolCallId)) {
+      return delivery;
+    }
+    changed = true;
+    return {
+      ...delivery,
+      deliveryState: "delivered" as const,
+      deliveredAt: occurredAt,
+    };
+  });
+  if (!changed) return;
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_context_asset_registered",
+    sessionId: params.sessionId,
+    assetId,
+    asset: {
+      ...existing,
+      toolResultDeliveryFact: {
+        ...fact,
+        deliveries,
+        updatedAt: occurredAt,
+      },
+      updatedAt: occurredAt,
+    },
+    occurredAt,
+  });
+}
+
+function providerProjectionAssetId(actorKey: string, projectionKey: string): string {
+  return `provider-projection:${encodeURIComponent(actorKey)}:${encodeURIComponent(projectionKey)}`;
+}
+
+export function upsertProviderProjectionFactToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  projectionFact: LocalConversationProviderProjectionFact;
+  occurredAt?: string;
+}): string {
+  const occurredAt = params.occurredAt ?? params.projectionFact.observedAt ?? new Date().toISOString();
+  const session = params.runtime.sessionStateSignal.get()[params.sessionId];
+  const existing = session?.contextAssets?.find((asset) => (
+    asset.projectionFact?.actorKey === params.projectionFact.actorKey
+    && asset.projectionFact.projectionKey === params.projectionFact.projectionKey
+  ));
+  const sourceToolCalls = new Map<string, LocalConversationProviderProjectionFact["sourceToolCalls"][number]>();
+  for (const source of [
+    ...(existing?.projectionFact?.sourceToolCalls ?? []),
+    ...params.projectionFact.sourceToolCalls,
+  ]) {
+    const sourceKey = `${source.toolCallId}\u0000${source.projectionRevision}`;
+    if (sourceToolCalls.get(sourceKey)?.deliveryState === "delivered") continue;
+    sourceToolCalls.set(sourceKey, source);
+  }
+  const assetId = existing?.assetId
+    ?? providerProjectionAssetId(params.projectionFact.actorKey, params.projectionFact.projectionKey);
+  const asset: LocalConversationContextAssetData = {
+    assetId,
+    kind: "note",
+    label: params.projectionFact.projectionKey,
+    source: { kind: "note", ownerId: params.projectionFact.actorKey },
+    projectionFact: {
+      ...params.projectionFact,
+      sourceToolCalls: [...sourceToolCalls.values()],
+      observedAt: occurredAt,
+    },
+    createdAt: existing?.createdAt ?? occurredAt,
+    updatedAt: occurredAt,
+  };
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_context_asset_registered",
+    sessionId: params.sessionId,
+    assetId,
+    asset,
+    occurredAt,
+  });
+  return assetId;
+}
+
+function responsesReplayCheckpointAssetId(actorKey: string): string {
+  return `responses-replay:${encodeURIComponent(actorKey)}`;
+}
+
+export function upsertResponsesReplayCheckpointToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  actorKey: string;
+  checkpoint: ResponsesReplayCheckpoint;
+  occurredAt?: string;
+}): string {
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const assetId = responsesReplayCheckpointAssetId(params.actorKey);
+  const existing = params.runtime.sessionStateSignal.get()[params.sessionId]
+    ?.contextAssets?.find((asset) => asset.assetId === assetId);
+  const asset: LocalConversationContextAssetData = {
+    assetId,
+    kind: "note",
+    label: "OpenAI Responses replay checkpoint",
+    source: { kind: "note", ownerId: params.actorKey },
+    replayCheckpoint: params.checkpoint,
+    createdAt: existing?.createdAt ?? occurredAt,
+    updatedAt: occurredAt,
+  };
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_context_asset_registered",
+    sessionId: params.sessionId,
+    assetId,
+    asset,
     occurredAt,
   });
   return assetId;

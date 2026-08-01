@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-multi-agent-domain-integration" version="1">
+  <upsert selector="behavior://ai-multi-agent-domain-integration/requirements/detached-delegate-single-flight">
+    <requirement id="detached-delegate-single-flight">
+      <statement>系统 SHALL 为 detached delegate 建立由 parent actor、agent type 与可选 task_key 确定的 active single-flight scope；缺省 task_key SHALL 使用 default scope，同 scope 已存在 pending、running 或 suspended task 时 SHALL 复用其 task_id 而不是创建新 child actor；调用者 MAY 以不同显式 task_key 表达合法并行，completed、failed、cancelled 或 interrupted task SHALL 不占有 active scope，sync_wait SHALL 保持既有语义。</statement>
+      <suite id="detached-delegate-concurrency" name="Detached delegate single-flight concurrency">
+        <case id="default-scope-reuses-active-task">
+          <given>同一 parent actor 与 agent type 的 default scope 已有 pending、running 或 suspended detached task</given>
+          <when>父 actor 再次调用 detached delegate 且未提供 task_key</when>
+          <then>系统 SHALL 返回原 task_id、当前状态与 reused=true</then>
+          <then>系统 SHALL NOT 创建第二个 child actor 或重复调度工作</then>
+        </case>
+        <case id="explicit-task-key-allows-parallelism">
+          <given>同一 parent actor 需要多个同类型 delegate 执行彼此独立的工作</given>
+          <when>调用者为每项工作提供不同的显式 task_key</when>
+          <then>系统 SHALL 允许这些 scope 各自创建并运行 detached task</then>
+        </case>
+        <case id="scope-isolated-by-owner-and-agent">
+          <given>不同 parent actor、不同 agent type 或不同 task_key 发起 detached 调用</given>
+          <when>registry 查询 active single-flight scope</when>
+          <then>这些调用 SHALL NOT 错误复用彼此的 task</then>
+        </case>
+        <case id="terminal-task-releases-scope">
+          <given>single-flight scope 对应 task 完成、失败或取消</given>
+          <when>终态事件被处理一次或重复处理</when>
+          <then>scope SHALL 被幂等释放，后续同 scope 调用 MAY 创建新 task</then>
+        </case>
+        <case id="recovery-preserves-resumable-active-ownership">
+          <given>runtime snapshot 恢复出一个仍可续跑且状态为 pending、running 或 suspended 的 detached task</given>
+          <when>父 actor 在恢复后调用相同 scope</when>
+          <then>系统 SHALL 重建或保留 single-flight ownership 并复用恢复的 task</then>
+        </case>
+        <case id="recovery-releases-interrupted-ownership">
+          <given>runtime snapshot 中的 detached task 无法续跑并被恢复为 interrupted</given>
+          <when>父 actor 在恢复后调用相同 scope</when>
+          <then>系统 SHALL 保留旧 task、scope 与 interrupted 状态供审计查询</then>
+          <then>系统 SHALL 释放旧 active ownership，创建新的 detached task，并返回 reused=false</then>
+        </case>
+        <case id="sync-wait-unchanged">
+          <given>调用者使用 sync_wait delegate 模式</given>
+          <when>系统执行 delegate</when>
+          <then>既有等待、结果交付与错误语义 SHALL 保持，不受 detached default scope 限制</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://ai-multi-agent-domain-integration/requirements/asynchronous-conversation-message-first-delivery">
+    <requirement id="asynchronous-conversation-message-first-delivery">
+      <statement>系统 SHALL 把 detached completion 等异步注入父 Conversation 的 committed message 首次 provider delivery 建模为工具无关、可持久恢复的显式生命周期：History message SHALL 具有跨 compaction 稳定的 message id，Session domain fact SHALL 以独立 delivery id 持有 pending/delivered；provider materialization SHALL 收集 request 实际包含的 pending message id，并只在成功 completion 后确认对应 delivery；provider failure、abort 与 recovery SHALL 保持 pending，通用摘要压缩 SHALL 原子保留受保护 message，且 message id、delivery fact 与状态 SHALL NOT 进入 provider-visible message、稳定 instructions 或 cache key。</statement>
+      <suite id="asynchronous-message-delivery-lifecycle" name="Asynchronous Conversation message first provider delivery">
+        <case id="detached-completion-survives-failure-recovery-and-summary">
+          <given>detached childDone 向父 Conversation 提交一个约 26KB completion message，首次包含它的父 provider call 失败</given>
+          <when>系统持久化并恢复 Conversation，追加输入触发通用摘要压缩，再构造下一 provider request</when>
+          <then>Session delivery fact SHALL 保持 pending，且受保护 message 的稳定 message id 与完整正文 SHALL 跨恢复和压缩原子保留</then>
+          <then>摘要 provider request SHALL NOT 包含该 completion，系统 SHALL NOT 在首次成功交付前生成其 artifact 或 summary 替代</then>
+        </case>
+        <case id="success-confirms-only-included-asynchronous-messages">
+          <given>provider request 实际包含一个或多个 pending asynchronous message id</given>
+          <when>provider completion 成功</when>
+          <then>系统 SHALL 只确认该 request 实际包含的 delivery id 为 delivered</then>
+        </case>
+        <case id="failure-and-abort-keep-asynchronous-message-pending">
+          <given>包含 pending asynchronous message 的 provider call 失败、中止或未形成成功 completion</given>
+          <when>系统重试 provider call 或恢复 Conversation</when>
+          <then>该 message SHALL 保持 pending，并继续拥有首次完整交付资格</then>
+        </case>
+        <case id="asynchronous-delivery-metadata-remains-runtime-only">
+          <given>不同轮次具有不同 pending/delivered asynchronous message 集合</given>
+          <when>系统构造普通 provider request、摘要 provider request与稳定 cache identity</when>
+          <then>message id、delivery id、delivery fact 与状态 SHALL 只存在于 History/Session/runtime materialization metadata</then>
+          <then>这些动态事实 SHALL NOT 出现在 provider-visible messages、稳定 instructions 或 cache key</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

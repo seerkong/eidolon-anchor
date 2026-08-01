@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="vendor-data-graph-observability" version="1">
+  <upsert selector="behavior://vendor-data-graph-observability/requirements/unified-computed-runtime-contract">
+    <requirement id="unified-computed-runtime-contract">
+      <statement>Cell and terminal organ diagnostic observability SHALL use the unified DataGraph computed-node runtime contract and SHALL preserve diagnostic summary values, graph lifecycle, and trace behavior.</statement>
+      <suite id="diagnostic-summary-runtime" name="Diagnostic summary runtime">
+        <case id="computed-summary-reads-dependencies">
+          <given>diagnostic signal nodes are mounted in a DataGraph upgraded to 1.0.1</given>
+          <when>their computed summary is read after signals are updated</when>
+          <then>the computed callback SHALL read dependencies through runtime.graph.get and SHALL NOT use the removed ctx.get callback API</then>
+          <then>the summary SHALL report the current tool, retry, compaction, turn, and model values</then>
+        </case>
+        <case id="observable-graph-computed-contract">
+          <given>a terminal observable graph owns a simple computed signal</given>
+          <when>the signal is read with debug middleware enabled</when>
+          <then>the computation SHALL succeed through the unified runtime contract without breaking graph disposal or tracing</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

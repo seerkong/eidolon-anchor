@@ -82,6 +82,10 @@ describe("exec command", () => {
       "last.txt",
       "--output-trace",
       "trace.jsonl",
+      "--capture-provider-requests",
+      "--auto-resume",
+      "--max-continuations",
+      "3",
       "--timeout",
       "42",
       "--debug",
@@ -106,6 +110,9 @@ describe("exec command", () => {
         additionalWritableRoots: ["../cache", "/tmp/shared"],
         outputLastMessagePath: "last.txt",
         outputTracePath: "trace.jsonl",
+        captureProviderRequests: true,
+        autoResume: true,
+        maxContinuations: 3,
         onVisibleChunk: expect.any(Function),
         onDiagnosticLine: expect.any(Function),
       },
@@ -189,6 +196,51 @@ describe("exec command", () => {
 
     expect(calls).toHaveLength(1)
     expect(calls[0].approvalMode).toBe("dangerous")
+    expect(calls[0].captureProviderRequests).toBe(false)
+  })
+
+  test("maps paused_with_progress exec result to non-zero paused diagnostic", async () => {
+    const errors: string[] = []
+    const diagnostics: string[] = []
+    const processLike: ExecCommandProcessLike = {
+      env: { PWD: "/launch" },
+      cwd: () => "/fallback",
+      stdout: { write: () => true },
+      stderr: {
+        write: (chunk: string) => {
+          diagnostics.push(chunk)
+          return true
+        },
+      },
+      exitCode: 0,
+    }
+
+    const command = createExecCommand({
+      parseExecConfigOverride: () => ({ mcp: true }),
+      readHeadlessInput: async (prompt) => prompt,
+      resolveProjectWorkDir: () => "/resolved/workspace",
+      runHeadlessExec: async () => ({
+        status: "paused_with_progress",
+        visibleOutput: "",
+        finalMessage: null,
+        warnings: [],
+        failureSummary: "runtime_turn_unsettled:mandatory_continuation",
+      }),
+      processLike,
+      reportError: (message) => {
+        errors.push(message)
+      },
+    })
+
+    await yargs(["exec", "do work"])
+      .scriptName("terminal")
+      .command(command)
+      .exitProcess(false)
+      .parseAsync()
+
+    expect(errors).toEqual([])
+    expect(diagnostics.join("")).toContain("[exec] paused_with_progress runtime_turn_unsettled:mandatory_continuation")
+    expect(processLike.exitCode).toBe(1)
   })
 
   test("resolves approval mode precedence", () => {

@@ -64,6 +64,16 @@ function authoritativeHeadIdSet(input: RealSessionRecoveryInput): Set<string> {
   )
 }
 
+function isForwardOnlyConversationHead(params: {
+  headId: string
+  expected: number
+  actual: number | undefined
+}): boolean {
+  return params.headId === "conversation"
+    && typeof params.actual === "number"
+    && params.actual >= params.expected
+}
+
 export function classifyRealSessionRecovery(input: RealSessionRecoveryInput): RealSessionRecoveryResult {
   const blockers: RealSessionRecoveryBlocker[] = []
   const authoritativeHeads = authoritativeHeadIdSet(input)
@@ -76,6 +86,9 @@ export function classifyRealSessionRecovery(input: RealSessionRecoveryInput): Re
     for (const [headId, expected] of Object.entries(marker.headSequences)) {
       if (!authoritativeHeads.has(headId)) continue
       const actual = input.heads[headId]?.committedSequence
+      if (isForwardOnlyConversationHead({ headId, expected, actual })) {
+        continue
+      }
       if (actual !== expected) {
         blockers.push({
           reason: "head_commit_sequence_mismatch",

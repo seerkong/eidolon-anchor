@@ -4,7 +4,7 @@
  * Supports: Windows (PowerShell/MinGW), Linux, macOS
  */
 
-import { existsSync, mkdirSync, copyFileSync, symlinkSync, unlinkSync, lstatSync } from "fs";
+import { existsSync, mkdirSync, copyFileSync, cpSync, symlinkSync, unlinkSync, lstatSync } from "fs";
 import { dirname, join, resolve } from "path";
 import { homedir, platform } from "os";
 
@@ -12,6 +12,8 @@ const isWindows = platform() === "win32";
 const projectRoot = resolve(import.meta.dir, "..");
 const exeName = isWindows ? "eidolon.exe" : "eidolon";
 const sourcePath = join(projectRoot, "dist", "terminal", "tui", exeName);
+const nativePackageName = `core-${process.platform}-${process.arch}`;
+const nativeSourcePath = join(projectRoot, "dist", "terminal", "tui", "node_modules", "@opentui", nativePackageName);
 
 type CliOptions = {
   help: boolean;
@@ -32,7 +34,7 @@ function usage(): never {
   console.log(`Usage: bun run scripts/install-dist-tui.ts [options]
 
 Options:
-  --target-path PATH   Override the installed path. Defaults to EIDOLON_BIN_PATH or /Users/kongweixian/bin/eidolon-tui.
+  --target-path PATH   Override the installed path. Defaults to EIDOLON_BIN_PATH or ~/.local/bin/eidolon.
   --help               Show this help text.`);
   process.exit(0);
 }
@@ -71,11 +73,7 @@ function getDefaultTargetPath(): string {
     return process.env.EIDOLON_BIN_PATH;
   }
 
-  if (isWindows) {
-    return join(homedir(), ".local", "bin", "eidolon-tui.exe");
-  }
-
-  return "/Users/kongweixian/bin/eidolon-tui";
+  return join(homedir(), ".local", "bin", exeName);
 }
 
 function ensureDir(dir: string): void {
@@ -100,14 +98,21 @@ function install(options: CliOptions): void {
     console.error("Please run 'bun run build:terminal:tui' first.");
     process.exit(1);
   }
+  if (!existsSync(nativeSourcePath)) {
+    console.error(`Error: OpenTUI native runtime not found: ${nativeSourcePath}`);
+    console.error("Please run 'bun run build:terminal:tui' first.");
+    process.exit(1);
+  }
 
   const targetPath = resolve(expandHome(options.targetPath ?? getDefaultTargetPath()));
   const targetDir = dirname(targetPath);
+  const nativeTargetPath = join(targetDir, "node_modules", "@opentui", nativePackageName);
   const commandName = targetPath.split(/[/\\]/).pop() || exeName;
 
   console.log(`Installing eidolon TUI...`);
   console.log(`  Source: ${sourcePath}`);
   console.log(`  Target: ${targetPath}`);
+  console.log(`  Native runtime: ${nativeTargetPath}`);
 
   // Ensure target directory exists
   ensureDir(targetDir);
@@ -143,6 +148,13 @@ function install(options: CliOptions): void {
       }
     }
   }
+
+  ensureDir(dirname(nativeTargetPath));
+  cpSync(nativeSourcePath, nativeTargetPath, {
+    recursive: true,
+    force: true,
+  });
+  console.log(`  Native runtime copied successfully.`);
 
   // Check if target directory is in PATH
   const pathEnv = process.env.PATH || "";

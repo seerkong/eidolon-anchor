@@ -1,4 +1,4 @@
-import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
+import type { AiAgentOneActorRuntime, ToolExecutionResultEnvelope } from "@cell/ai-core-contract/types"
 import type { TaskNodeDraft, TaskStatus, TaskTreeWriteOp } from "@cell/ai-core-contract/plan/TaskTree"
 
 export type TaskTreeWriteMode = "tree" | "flat"
@@ -30,4 +30,4 @@ export type TaskTreeWriteOuterConfig = {
   mode?: TaskTreeWriteMode
 }
 export type TaskTreeWriteOuterDerived = null
-export type TaskTreeWriteOuterOutput = string
+export type TaskTreeWriteOuterOutput = string | ToolExecutionResultEnvelope<string>

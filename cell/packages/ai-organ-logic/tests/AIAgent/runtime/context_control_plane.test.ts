@@ -148,7 +148,7 @@ describe("context control plane", () => {
     );
   });
 
-  it("materializes work context before the latest user without splitting completed tool results", () => {
+  it("materializes work context at the fixed system/history boundary without splitting completed tool results", () => {
     const actor = createActor({ key: "main" });
     resolveTurnWorkContextForActor({
       actor,
@@ -175,15 +175,15 @@ describe("context control plane", () => {
 
     expect(executionMessages.map((message) => message.role)).toEqual([
       "system",
+      "system",
       "user",
       "assistant",
       "tool",
-      "system",
       "user",
     ]);
-    expect(String(executionMessages[4]?.content ?? "")).toContain("<runtime_work_context>");
-    expect((executionMessages[2] as any).tool_calls?.[0]?.id).toBe("tc-1");
-    expect((executionMessages[3] as any).tool_call_id).toBe("tc-1");
+    expect(String(executionMessages[1]?.content ?? "")).toContain("<runtime_work_context>");
+    expect((executionMessages[3] as any).tool_calls?.[0]?.id).toBe("tc-1");
+    expect((executionMessages[4] as any).tool_call_id).toBe("tc-1");
   });
 
   it("materializes actor system prompts when recovered history no longer contains system messages", () => {
@@ -204,7 +204,7 @@ describe("context control plane", () => {
     expect(executionMessages[0]).toEqual({ role: "system", content: "root shell prompt" });
   });
 
-  it("materializes work context before the tail tool-call group when there is no user at the tail", () => {
+  it("materializes work context before all chronological history when there is no stable system prefix", () => {
     const actor = createActor({ key: "main" });
     resolveTurnWorkContextForActor({
       actor,
@@ -229,12 +229,12 @@ describe("context control plane", () => {
     });
 
     expect(executionMessages.map((message) => message.role)).toEqual([
-      "assistant",
       "system",
+      "assistant",
       "assistant",
       "tool",
     ]);
-    expect(String(executionMessages[1]?.content ?? "")).toContain("<runtime_work_context>");
+    expect(String(executionMessages[0]?.content ?? "")).toContain("<runtime_work_context>");
     expect((executionMessages[2] as any).reasoning_content).toBe("thinking");
     expect((executionMessages[2] as any).tool_calls?.[0]?.id).toBe("tc-1");
     expect((executionMessages[3] as any).tool_call_id).toBe("tc-1");

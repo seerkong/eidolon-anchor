@@ -8,6 +8,7 @@ import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import type { ToolDef } from "@cell/ai-core-contract/types";
 import { aiAgentCooperativeStep } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
 import { createAiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver";
+import { getVmProviderCallDomain } from "@cell/ai-organ-logic/runtime/ProviderCallDomainRuntime";
 
 async function flushMicrotasks(): Promise<void> {
   for (let i = 0; i < 10; i++) {
@@ -238,5 +239,150 @@ describe("Stage 3 cooperative stepping", () => {
     await tickAndFlush(driver);
     const s3 = driver.getState();
     expect(["ready", "suspended"].includes(s3.fibers[mainFiberId].status)).toBe(true);
+  });
+
+  it("retries a cooperative provider turn once when the provider returns an empty assistant response", async () => {
+    let createStreamCalls = 0;
+    let processStreamCalls = 0;
+    const requestedMessages: any[][] = [];
+    const mockAdapter = {
+      type: "openai" as const,
+      async createStream(options?: any) {
+        createStreamCalls += 1;
+        requestedMessages.push(options?.messages ?? []);
+        async function* stream() {
+          yield { ok: true };
+        }
+        return { stream: stream() };
+      },
+    };
+
+    const toolRegistry = new ToolFuncRegistry();
+    const main = createActor({
+      key: "main",
+      llmClient: mockAdapter,
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => {
+          processStreamCalls += 1;
+          return processStreamCalls === 1
+            ? { role: "assistant", content: null }
+            : { role: "assistant", content: "recovered" };
+        },
+      },
+    });
+    const vm = createVM({ controlActorKey: "main", actors: { main }, registries: { toolRegistry } });
+    const fiberId = `${main.key}:${main.id}`;
+    const turnEnds: string[] = [];
+    vm.eventBus?.addConsumer((event: any) => {
+      if (event?.event_type === "semantic_turn_end") {
+        turnEnds.push(String(event.reason ?? ""));
+      }
+    });
+
+    let execState: any;
+    const step = async () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: main,
+      messages: [],
+      state: execState,
+      setState: (s) => {
+        execState = s;
+      },
+      resumeFiber: () => {},
+    });
+
+    main.send("humanInput", "start");
+    let waitResult: any = null;
+    for (let i = 0; i < 10; i++) {
+      const result = await step();
+      if (result.kind === "suspend" && result.reason === "wait_llm_result") {
+        waitResult = result;
+        break;
+      }
+    }
+    expect(waitResult).toMatchObject({ kind: "suspend", reason: "wait_llm_result" });
+    await flushMicrotasks();
+    const result = await step();
+
+    expect(result).toMatchObject({ kind: "suspend", reason: "idle_external" });
+    expect(createStreamCalls).toBe(2);
+    expect(processStreamCalls).toBe(2);
+    expect(JSON.stringify(requestedMessages[1])).toContain("previous assistant response was empty");
+    expect(turnEnds).toContain("no_tool_calls");
+    expect(turnEnds).not.toContain("provider_failed");
+    const [record] = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
+    expect(record?.status).toBe("completed");
+  });
+
+  it("does not finish a cooperative turn as no_tool_calls when the provider repeatedly returns an empty assistant response", async () => {
+    let processStreamCalls = 0;
+    const mockAdapter = {
+      type: "openai" as const,
+      async createStream() {
+        async function* stream() {
+          yield { ok: true };
+        }
+        return { stream: stream() };
+      },
+    };
+
+    const toolRegistry = new ToolFuncRegistry();
+    const main = createActor({
+      key: "main",
+      llmClient: mockAdapter,
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => {
+          processStreamCalls += 1;
+          return { role: "assistant", content: null };
+        },
+      },
+    });
+    const vm = createVM({ controlActorKey: "main", actors: { main }, registries: { toolRegistry } });
+    const fiberId = `${main.key}:${main.id}`;
+    const turnEnds: string[] = [];
+    vm.eventBus?.addConsumer((event: any) => {
+      if (event?.event_type === "semantic_turn_end") {
+        turnEnds.push(String(event.reason ?? ""));
+      }
+    });
+
+    let execState: any;
+    const step = async () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: main,
+      messages: [],
+      state: execState,
+      setState: (s) => {
+        execState = s;
+      },
+      resumeFiber: () => {},
+    });
+
+    main.send("humanInput", "start");
+    let waitResult: any = null;
+    for (let i = 0; i < 10; i++) {
+      const result = await step();
+      if (result.kind === "suspend" && result.reason === "wait_llm_result") {
+        waitResult = result;
+        break;
+      }
+    }
+    expect(waitResult).toMatchObject({ kind: "suspend", reason: "wait_llm_result" });
+    await flushMicrotasks();
+    const result = await step();
+
+    expect(result).toMatchObject({ kind: "suspend", reason: "idle_external" });
+    expect(processStreamCalls).toBe(2);
+    expect(turnEnds).not.toContain("no_tool_calls");
+    expect(turnEnds).toContain("provider_failed");
+    const [record] = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
+    expect(record?.status).toBe("failed");
+    expect(record?.rawError).toContain("empty assistant response");
   });
 });

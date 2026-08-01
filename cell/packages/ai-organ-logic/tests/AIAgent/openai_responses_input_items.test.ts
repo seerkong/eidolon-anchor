@@ -130,7 +130,7 @@ describe("OpenAI Responses input item builders", () => {
     ]);
   });
 
-  it("builds a complete responses request body for tool follow-up stateful chain", () => {
+  it("does not derive continuation from legacy requestOptions.previous_response_id", () => {
     const input = buildOpenAIResponsesInputItems([
       { role: "user", content: "use tool" },
       {
@@ -151,14 +151,17 @@ describe("OpenAI Responses input item builders", () => {
     expect(body).toMatchObject({
       model: "gpt-5",
       stream: true,
-      previous_response_id: "resp_1",
       prompt_cache_key: "cache",
       tool_choice: "auto",
       parallel_tool_calls: false,
     });
+    expect(body).not.toHaveProperty("previous_response_id");
     expect(body.input).toEqual([
-      { type: "function_call", call_id: "call_1", name: "read_file", arguments: "{}" },
-      { type: "function_call_output", call_id: "call_1", output: "done" },
+      {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: "use tool" }],
+      },
     ]);
   });
 

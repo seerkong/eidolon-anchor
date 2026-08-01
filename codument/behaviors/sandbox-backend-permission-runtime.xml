@@ -1,9 +1,6 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <behaviors capability="sandbox-backend-permission-runtime" version="1">
-  <!-- unmapped: ## Requirements -->
   <requirement id="sandbox-backend-runtime-abstraction">
     <statement>The system SHALL provide a platform-neutral sandbox backend runtime for command execution across macOS, Linux, and Windows.</statement>
-    <!-- migrated title: Sandbox Backend Runtime Abstraction -->
     <suite name="sandbox-backend-runtime-abstraction">
       <case id="platform-specific-backend-selection" name="Platform-specific backend selection">
         <given>a Bash tool execution with runtime metadata containing `sandbox_permissions`</given>
@@ -48,7 +45,6 @@
   </requirement>
   <requirement id="macos-seatbelt-backend">
     <statement>The system SHALL provide a macOS Seatbelt backend that wraps shell commands with `/usr/bin/sandbox-exec`.</statement>
-    <!-- migrated title: macOS Seatbelt Backend -->
     <suite name="macos-seatbelt-backend">
       <case id="workspace-write-restricts-writes-to-allowed-roots" name="workspace-write restricts writes to allowed roots">
         <given>the platform is macOS and `sandbox_mode` is `workspace-write`</given>
@@ -71,7 +67,6 @@
   </requirement>
   <requirement id="linux-sandbox-backend">
     <statement>The system SHALL provide a Linux backend modeled on Codex's bubblewrap plus seccomp sandbox design.</statement>
-    <!-- migrated title: Linux Sandbox Backend -->
     <suite name="linux-sandbox-backend">
       <case id="linux-read-only-blocks-writes" name="Linux read-only blocks writes">
         <given>the platform is Linux and `sandbox_mode` is `read-only`</given>
@@ -102,7 +97,6 @@
   </requirement>
   <requirement id="windows-sandbox-backend">
     <statement>The system SHALL provide a Windows backend modeled on Codex's elevated restricted-token and ACL sandbox design.</statement>
-    <!-- migrated title: Windows Sandbox Backend -->
     <suite name="windows-sandbox-backend">
       <case id="windows-read-only-uses-restricted-identity" name="Windows read-only uses restricted identity">
         <given>the platform is Windows and `sandbox_mode` is `read-only`</given>
@@ -134,7 +128,6 @@
   </requirement>
   <requirement id="cross-platform-compatibility">
     <statement>The system SHALL preserve explicit fallback behavior without silently weakening requested sandbox permissions.</statement>
-    <!-- migrated title: Cross-Platform Compatibility -->
     <suite name="cross-platform-compatibility">
       <case id="unsupported-backend-reports-a-degraded-or-unsupported-state" name="Unsupported backend reports a degraded or unsupported state">
         <given>the host platform requests `read-only` or `workspace-write`</given>
@@ -147,17 +140,27 @@
         <given>the platform is macOS</given>
         <when>a command is executed under `read-only`, `workspace-write`, or `danger-full-access`</when>
         <then>existing Seatbelt and unsandboxed behavior SHALL continue to pass current sandbox backend tests.</then>
-        <!-- unmapped: ## Acceptance Criteria -->
-        <!-- unmapped: - Bash command execution is routed through a reusable sandbox backend runtime. -->
-        <!-- unmapped: - macOS Seatbelt command arguments are generated from sandbox mode, network access, workspace root, and additional writable roots. -->
-        <!-- unmapped: - macOS Seatbelt writable roots include current workspace write grants from `workspace-access.json`. -->
-        <!-- unmapped: - Linux and Windows backend names are added to sandbox backend selection. -->
-        <!-- unmapped: - `read-only` and `workspace-write` on Linux and Windows no longer use `unsandboxed` as the normal path. -->
-        <!-- unmapped: - Linux backend command construction follows bubblewrap/seccomp helper semantics and is unit-tested. -->
-        <!-- unmapped: - Windows backend command construction/setup checks follow elevated restricted-token/ACL semantics and is unit-tested. -->
-        <!-- unmapped: - Bash sync and streaming execution can route through Linux and Windows backends. -->
-        <!-- unmapped: - Unit tests cover policy generation, backend selection, dangerous fallback, command construction, and Bash integration. -->
-        <!-- unmapped: - Existing local permission exec mode tests continue to pass. -->
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="process-outcome-preservation">
+    <statement>Bash command execution SHALL preserve the sandbox process outcome through the generic tool execution contract; non-zero exit, timeout, abort, signal termination, and spawn failure SHALL be explicit failed outcomes while preserving bounded stdout/stderr diagnostics for the model.</statement>
+    <suite id="bash-process-outcome" name="Bash process outcome preservation">
+      <case id="nonzero-exit-is-failure">
+        <given>a Bash command starts successfully, emits ordinary test failure text, and exits with code 1</given>
+        <when>the Bash tool returns to the agent runtime</when>
+        <then>the result SHALL retain the test output and exit-code diagnostic</then>
+        <then>the generic tool outcome SHALL be failed without an executor Bash-name branch</then>
+      </case>
+      <case id="zero-exit-is-complete">
+        <given>a Bash command exits with code 0</given>
+        <when>the Bash tool returns its result</when>
+        <then>the generic tool outcome SHALL be completed</then>
+      </case>
+      <case id="timeout-and-abort-are-classified">
+        <given>a Bash process times out or is aborted</given>
+        <when>the process outcome is mapped into the tool contract</when>
+        <then>the failed outcome SHALL use timeout or aborted failureKind respectively</then>
       </case>
     </suite>
   </requirement>

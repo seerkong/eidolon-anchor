@@ -1,4 +1,4 @@
-import type { LlmAdapter } from "@cell/ai-core-contract/LlmTypes";
+import type { LlmAdapter, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
 import {
   applyConversationCompaction,
 } from "@cell/ai-support";
@@ -11,6 +11,10 @@ import {
 import type {
   ConversationDomainEvent,
   ConversationHistoryIndexSnapshot,
+  LocalConversationProviderProjectionFact,
+  ResponsesReplayCheckpoint,
+  ResponsesTransportRequestContext,
+  ResponsesTransportResult,
   ConversationPromptIndexSnapshot,
   ConversationSessionIndexSnapshot,
 } from "@cell/ai-organ-contract";
@@ -34,7 +38,11 @@ import type {
   PromptPlanData,
 } from "@cell/ai-core-contract/runtime/ContextControl";
 import { WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
-import type { AgentLoopResult } from "@cell/ai-core-contract/types";
+import type {
+  AgentLoopResult,
+  ToolContextEffect,
+  ToolExecutionResultEnvelope,
+} from "@cell/ai-core-contract/types";
 import { applyActorModelConfigControlSignals, hasPendingAiAgentWakeMailbox, type AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
 import {
   ensureVmRuntimeContext,
@@ -68,14 +76,21 @@ import {
 } from "../conversation/ConversationDomainProjection";
 import {
   appendLiveHistoryMessageToConversationDomainRuntime,
+  confirmMessageDeliveriesToConversationDomainRuntime,
+  confirmToolResultDeliveriesToConversationDomainRuntime,
   ensureVmConversationDomainRuntime,
   emitConversationDomainEvent,
   getConversationActorRawStateFromVm,
   getConversationVisibleMessagesFromVm,
+  getVmConversationDomainRuntime,
   materializeConversationRuntimeMessagesFromVm,
   recordConversationTranscriptEvidenceInRuntime,
+  registerPendingMessageDeliveryToConversationDomainRuntime,
+  registerPendingToolResultDeliveryToConversationDomainRuntime,
   rewriteActiveHistoryGenerationMessagesInConversationDomainRuntime,
   synchronizeConversationDomainActorFromPersistence,
+  upsertProviderProjectionFactToConversationDomainRuntime,
+  upsertResponsesReplayCheckpointToConversationDomainRuntime,
 } from "../conversation/ConversationDomainRuntime";
 import {
   createInMemoryConversationPersistenceAdapter,
@@ -96,7 +111,7 @@ import {
 } from "../runtime/ContextControlPlane";
 import { turnReducer } from "../runtime/TurnReducer";
 import { ensureVmToolCallDomain, getVmToolCallDomain } from "../runtime/ToolCallDomainRuntime";
-import type { ToolGateOutcome } from "@cell/ai-core-contract/runtime/ToolCallDomain";
+import type { ToolFailureKind, ToolGateOutcome } from "@cell/ai-core-contract/runtime/ToolCallDomain";
 import { ensureVmProviderCallDomain, getVmProviderCallDomain } from "../runtime/ProviderCallDomainRuntime";
 import type { ProviderFailureKind, ToolSchemaSnapshot } from "@cell/ai-core-contract/runtime/ProviderCallDomain";
 import { getCoordinationEngine } from "../coordination/CoordinationEngine";
@@ -106,6 +121,27 @@ import { getOrganizationManager } from "../organization/OrganizationManager";
 import { normalizeOpenAIChatMessages } from "../llm/OpenAIChatHelpers";
 import { accountThreadGoalUsage, getThreadGoal } from "../goals/ThreadGoalManager";
 import { createSessionDiagnosticsXnlLog } from "../runtime/SessionRuntimeXnlLogs";
+import {
+  buildOpenAIResponsesFullInputItems,
+  buildOpenAIResponsesIncrementalInputItems,
+} from "../llm/ResponsesInputItems";
+import {
+  createResponsesContextDigest,
+  createResponsesMessageFrontier,
+  createResponsesReplayCheckpoint,
+  isValidResponsesReplayCheckpoint,
+  planResponsesRequest,
+} from "../llm/ResponsesRequestPlan";
+import { isValidResponsesProviderOutputSnapshot } from "../llm/ResponsesNativeIntegrity";
+import {
+  normalizeProviderModelOptions,
+  splitResponsesModelOptions,
+} from "../llm/ProviderOptions";
+import {
+  buildOpenAIResponsesInstructionPlan,
+  buildOpenAIResponsesInstructions,
+  resolveResponsesTransportMode,
+} from "../llm/OpenAIResponsesNodejsFetchAdapter";
 
 const isDebugEnabled = (): boolean => (globalThis as any)?.process?.env?.AI_LOOP_DEBUG === "1";
 
@@ -225,13 +261,18 @@ function appendRuntimeControlLifecycleEvidenceFromVm(
 }
 
 function prepareMessagesForLlmAdapter(llmAdapter: LlmAdapter, messages: any[]): any[] {
+  const providerVisibleMessages = messages.map((message) => {
+    if (!message || typeof message !== "object") return message;
+    const { messageId: _messageId, ...providerVisible } = message;
+    return providerVisible;
+  });
   if (llmAdapter.type === "openai") {
-    return normalizeOpenAIChatMessages(messages);
+    return normalizeOpenAIChatMessages(providerVisibleMessages);
   }
   if (llmAdapter.type === "deepseek") {
-    return normalizeOpenAIChatMessages(messages, { preserveReasoningContent: true });
+    return normalizeOpenAIChatMessages(providerVisibleMessages, { preserveReasoningContent: true });
   }
-  return messages;
+  return providerVisibleMessages;
 }
 
 function buildIdentityBlockSystemMessage(actor: AiAgentActor): { role: "system"; content: string } | null {
@@ -440,6 +481,133 @@ function buildPromptPlanSeedMessages(vm: AiAgentVm, actor: AiAgentActor): any[] 
   return [identityMsg];
 }
 
+function toolCallIdsInAssistantMessages(messages: any[]): Set<string> {
+  const ids = new Set<string>();
+  for (const message of messages) {
+    if (message?.role !== "assistant") continue;
+    const calls = Array.isArray(message.toolCalls)
+      ? message.toolCalls
+      : Array.isArray(message.tool_calls)
+        ? message.tool_calls
+        : [];
+    for (const call of calls) {
+      const id = String(call?.id ?? "").trim();
+      if (id) ids.add(id);
+    }
+  }
+  return ids;
+}
+
+function toolCallIdsInResultMessages(messages: any[]): Set<string> {
+  const ids = new Set<string>();
+  for (const message of messages) {
+    if (message?.role !== "tool") continue;
+    const id = String(message.toolCallId ?? message.tool_call_id ?? "").trim();
+    if (id) ids.add(id);
+  }
+  return ids;
+}
+
+function pendingToolResultDeliveryIds(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): string[] {
+  const rawState = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  });
+  const fact = rawState?.session.contextAssets?.find((asset) => (
+    asset.toolResultDeliveryFact?.actorKey === params.actor.key
+  ))?.toolResultDeliveryFact;
+  return (fact?.deliveries ?? [])
+    .filter((delivery) => delivery.deliveryState === "pending")
+    .map((delivery) => delivery.toolCallId)
+    .sort();
+}
+
+function pendingMessageDeliveries(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): Array<{ deliveryId: string; messageId: string }> {
+  const rawState = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  });
+  const fact = rawState?.session.contextAssets?.find((asset) => (
+    asset.messageDeliveryFact?.actorKey === params.actor.key
+  ))?.messageDeliveryFact;
+  return (fact?.deliveries ?? [])
+    .filter((delivery) => delivery.deliveryState === "pending")
+    .map((delivery) => ({
+      deliveryId: delivery.deliveryId,
+      messageId: delivery.messageId,
+    }))
+    .sort((left, right) => left.deliveryId.localeCompare(right.deliveryId));
+}
+
+function buildPendingDeliveryCompactionConstraint(
+  vm: AiAgentVm,
+  actor: AiAgentActor,
+): { protectedToolCallIds: string[]; protectedMessageIds: string[] } {
+  return {
+    protectedToolCallIds: pendingToolResultDeliveryIds({ vm, actor }),
+    protectedMessageIds: pendingMessageDeliveries({ vm, actor })
+      .map((delivery) => delivery.messageId),
+  };
+}
+
+function pendingToolResultDeliveryIdsIncludedInPrompt(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  executionMessages: any[];
+}): string[] {
+  const assistantIds = toolCallIdsInAssistantMessages(params.executionMessages);
+  const resultIds = toolCallIdsInResultMessages(params.executionMessages);
+  return pendingToolResultDeliveryIds(params)
+    .filter((toolCallId) => assistantIds.has(toolCallId) && resultIds.has(toolCallId));
+}
+
+function pendingMessageDeliveryIdsIncludedInPrompt(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  executionMessages: any[];
+}): string[] {
+  const includedMessageIds = new Set(
+    params.executionMessages
+      .map((message) => typeof message?.messageId === "string" ? message.messageId : "")
+      .filter(Boolean),
+  );
+  return pendingMessageDeliveries(params)
+    .filter((delivery) => includedMessageIds.has(delivery.messageId))
+    .map((delivery) => delivery.deliveryId);
+}
+
+function pendingProviderProjectionSourceIdsIncludedInPrompt(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  executionMessages: any[];
+}): string[] {
+  const rawState = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  if (!rawState) return [];
+  const assistantIds = toolCallIdsInAssistantMessages(params.executionMessages);
+  const resultIds = toolCallIdsInResultMessages(params.executionMessages);
+  const included = new Set<string>();
+  for (const asset of rawState.session.contextAssets ?? []) {
+    const fact = asset.projectionFact;
+    if (!fact || fact.actorKey !== params.actor.key) continue;
+    for (const source of fact.sourceToolCalls) {
+      if (
+        source.deliveryState === "pending"
+        && assistantIds.has(source.toolCallId)
+        && resultIds.has(source.toolCallId)
+      ) {
+        included.add(source.toolCallId);
+      }
+    }
+  }
+  return [...included].sort();
+}
+
 /**
  * Provider prompt build for an actor turn (track
  * refactor-ai-semantic-conversation-spine, spec cases
@@ -474,6 +642,9 @@ export function buildProviderPromptForActorTurn(params: {
   promptSource: "domain_materialization";
   /** P5: prompt-domain generation id for this build (null for estimation-only builds). */
   promptGenerationId: string | null;
+  pendingProviderProjectionSourceIds: string[];
+  pendingToolResultDeliveryIds: string[];
+  pendingMessageDeliveryIds: string[];
 } {
   ensureVmConversationDomainRuntime(params.vm);
   const sessionId = typeof (params.vm.outerCtx?.metadata as any)?.sessionId === "string"
@@ -522,6 +693,21 @@ export function buildProviderPromptForActorTurn(params: {
     providerMessages: prepareMessagesForLlmAdapter(params.llmAdapter, executionMessages),
     promptSource: "domain_materialization",
     promptGenerationId,
+    pendingProviderProjectionSourceIds: pendingProviderProjectionSourceIdsIncludedInPrompt({
+      vm: params.vm,
+      actor: params.actor,
+      executionMessages,
+    }),
+    pendingToolResultDeliveryIds: pendingToolResultDeliveryIdsIncludedInPrompt({
+      vm: params.vm,
+      actor: params.actor,
+      executionMessages,
+    }),
+    pendingMessageDeliveryIds: pendingMessageDeliveryIdsIncludedInPrompt({
+      vm: params.vm,
+      actor: params.actor,
+      executionMessages,
+    }),
   };
 }
 
@@ -586,9 +772,29 @@ function buildCheapCompactionPipelineOptions(vm: AiAgentVm, actor: AiAgentActor)
     toolResultBudgetBytes: 120_000,
     toolResultPersistThresholdBytes: 4_000,
     toolResultPreviewChars: 1_500,
-    microKeepRecentToolResults: 6,
-    microMinContentChars: 2_000,
-    microPreviewChars: 900,
+    microKeepRecentToolResults: 20,
+    microMinContentChars: 8_000,
+    microPreviewChars: 4_000,
+    ...buildPendingDeliveryCompactionConstraint(vm, actor),
+  };
+}
+
+function buildPreflightPressureCompactionPipelineOptions(vm: AiAgentVm, actor: AiAgentActor) {
+  const sessionDir = typeof (vm.outerCtx?.metadata as any)?.sessionDir === "string"
+    ? String((vm.outerCtx?.metadata as any).sessionDir)
+    : "";
+  const artifactDir = sessionDir && isRuntimeStorageFilesEnabled(vm)
+    ? `${sessionDir}/artifacts/tool-results/${actor.key}`
+    : null;
+  return {
+    artifactDir,
+    toolResultBudgetBytes: 20_000,
+    toolResultPersistThresholdBytes: 2_000,
+    toolResultPreviewChars: 500,
+    microKeepRecentToolResults: 1,
+    microMinContentChars: 1_000,
+    microPreviewChars: 300,
+    ...buildPendingDeliveryCompactionConstraint(vm, actor),
   };
 }
 
@@ -632,6 +838,38 @@ function applyCheapCompactionForActor(params: {
   });
 }
 
+function applyPreflightPressureCompactionForActor(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  reason: string;
+}): boolean {
+  if (!shouldCompressActorHistory(params.actor)) return false;
+  const pipelineOptions = buildPreflightPressureCompactionPipelineOptions(params.vm, params.actor);
+
+  let domainStats: Record<string, unknown> | null = null;
+  const domainRewrite = rewriteActiveHistoryGenerationMessagesInConversationDomainRuntime({
+    vm: params.vm,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    reason: params.reason,
+    rewrite: (messages) => {
+      const result = applyCheapCompactionPipeline(messages, pipelineOptions);
+      if (!result.changed) return null;
+      domainStats = result.stats as unknown as Record<string, unknown>;
+      return result.messages;
+    },
+  });
+
+  if (!domainRewrite.changed) return false;
+  params.vm.effects.log?.("debug", "preflight pressure compaction applied", {
+    actorKey: params.actor.key,
+    reason: params.reason,
+    domainChanged: domainRewrite.changed,
+    ...(domainStats ?? {}),
+  });
+  return true;
+}
+
 function appendDetachedMessageForFiber(
   vm: AiAgentVm,
   fiberId: string,
@@ -658,6 +896,37 @@ function assistantTextFromMessage(msg: any): string {
   } catch {
     return String(content)
   }
+}
+
+function assistantMessageHasMeaningfulPayload(msg: any): boolean {
+  if (!msg || msg.role !== "assistant") return true;
+  const toolCalls = msg?.tool_calls || msg?.toolCalls || [];
+  if (Array.isArray(toolCalls) && toolCalls.length > 0) return true;
+  const content = msg?.content;
+  if (typeof content === "string" && content.trim().length > 0) return true;
+  if (Array.isArray(content) && content.length > 0) return true;
+  if (content !== undefined && content !== null && typeof content !== "string") return true;
+  const reasoning = typeof msg?.reasoning_content === "string"
+    ? msg.reasoning_content
+    : typeof msg?.reasoningContent === "string"
+      ? msg.reasoningContent
+      : "";
+  if (reasoning.trim().length > 0) return true;
+  const contentParts = Array.isArray(msg?.content_parts) ? msg.content_parts : [];
+  return contentParts.some((part: any) => typeof part?.text === "string" && part.text.trim().length > 0);
+}
+
+const EMPTY_ASSISTANT_RESPONSE_RETRY_MESSAGE =
+  "The previous assistant response was empty. Continue from the current context and either provide the next tool call or a concise final response.";
+
+function appendEmptyAssistantResponseRetryNudge(providerMessages: any[]): any[] {
+  return [
+    ...providerMessages,
+    {
+      role: "user",
+      content: EMPTY_ASSISTANT_RESPONSE_RETRY_MESSAGE,
+    },
+  ];
 }
 
 function getMemberId(actor: AiAgentActor): string | undefined {
@@ -883,7 +1152,14 @@ async function prepareProviderPromptForTurn(params: {
   model: string;
   processStreamFn: ProcessStreamFn;
   stage: string;
-}): Promise<{ promptPlan: any; providerMessages: any[]; promptGenerationId: string | null }> {
+}): Promise<{
+  promptPlan: any;
+  providerMessages: any[];
+  promptGenerationId: string | null;
+  pendingProviderProjectionSourceIds: string[];
+  pendingToolResultDeliveryIds: string[];
+  pendingMessageDeliveryIds: string[];
+}> {
   const { vm, actor, tools, llmAdapter, model, processStreamFn, stage } = params;
   let promptBuild = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
   if ((actor.modelConfig.inputLimit ?? 0) > 0 && estimateTokens(promptBuild.providerMessages) >= (actor.modelConfig.inputLimit ?? 0)) {
@@ -901,9 +1177,33 @@ async function prepareProviderPromptForTurn(params: {
       promptBuild = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
     }
   }
-  const { promptPlan, providerMessages, promptGenerationId } = promptBuild;
+  if ((actor.modelConfig.inputLimit ?? 0) > 0 && estimateTokens(promptBuild.providerMessages) >= (actor.modelConfig.inputLimit ?? 0)) {
+    const compacted = applyPreflightPressureCompactionForActor({
+      vm,
+      actor,
+      reason: "preflight_pressure_tool_result_compaction",
+    });
+    if (compacted) {
+      promptBuild = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
+    }
+  }
+  const {
+    promptPlan,
+    providerMessages,
+    promptGenerationId,
+    pendingProviderProjectionSourceIds,
+    pendingToolResultDeliveryIds,
+    pendingMessageDeliveryIds,
+  } = promptBuild;
   assertProviderPromptWithinInputLimit({ actor, providerMessages, stage });
-  return { promptPlan, providerMessages, promptGenerationId };
+  return {
+    promptPlan,
+    providerMessages,
+    promptGenerationId,
+    pendingProviderProjectionSourceIds,
+    pendingToolResultDeliveryIds,
+    pendingMessageDeliveryIds,
+  };
 }
 
 /**
@@ -925,7 +1225,402 @@ function deriveTurnSessionKey(vm: AiAgentVm, actor: AiAgentActor): string | unde
     : "";
   const actorKey = typeof (actor as any)?.key === "string" ? String((actor as any).key).trim() : "";
   if (!sessionId && !actorKey) return undefined;
-  return `${sessionId}/${actorKey}`;
+  return `${sessionId}/${actorKey}/baseline-${getActorContinuationBaseline(actor).baselineEpoch}`;
+}
+
+function resolveConversationSessionId(vm: AiAgentVm): string {
+  const metadata = (vm.outerCtx?.metadata ?? {}) as Record<string, unknown>;
+  const sessionId = typeof metadata.sessionId === "string" ? metadata.sessionId.trim() : "";
+  if (sessionId) return sessionId;
+  const sessionDir = typeof metadata.sessionDir === "string" ? metadata.sessionDir.trim() : "";
+  return sessionDir ? sessionDir.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || "__unsessioned__" : "__unsessioned__";
+}
+
+function registerPendingToolResultDelivery(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  toolCallId: string;
+}): void {
+  if (!params.toolCallId.trim()) return;
+  registerPendingToolResultDeliveryToConversationDomainRuntime({
+    runtime: ensureVmConversationDomainRuntime(params.vm),
+    sessionId: resolveConversationSessionId(params.vm),
+    actorKey: params.actor.key,
+    toolCallId: params.toolCallId,
+  });
+}
+
+function registerPendingMessageDelivery(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  messageId: string;
+}): void {
+  if (!params.messageId.trim()) return;
+  registerPendingMessageDeliveryToConversationDomainRuntime({
+    runtime: ensureVmConversationDomainRuntime(params.vm),
+    sessionId: resolveConversationSessionId(params.vm),
+    actorKey: params.actor.key,
+    messageId: params.messageId,
+  });
+}
+
+function confirmIncludedToolResultDeliveries(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  toolCallIds: readonly string[];
+}): void {
+  const runtime = getVmConversationDomainRuntime(params.vm);
+  if (!runtime || params.toolCallIds.length === 0) return;
+  confirmToolResultDeliveriesToConversationDomainRuntime({
+    runtime,
+    sessionId: resolveConversationSessionId(params.vm),
+    actorKey: params.actor.key,
+    toolCallIds: params.toolCallIds,
+  });
+}
+
+function confirmIncludedMessageDeliveries(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  deliveryIds: readonly string[];
+}): void {
+  const runtime = getVmConversationDomainRuntime(params.vm);
+  if (!runtime || params.deliveryIds.length === 0) return;
+  confirmMessageDeliveriesToConversationDomainRuntime({
+    runtime,
+    sessionId: resolveConversationSessionId(params.vm),
+    actorKey: params.actor.key,
+    deliveryIds: params.deliveryIds,
+  });
+}
+
+function markProviderProjectionSourcesDelivered(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  sourceToolCallIds: readonly string[];
+}): void {
+  if (params.sourceToolCallIds.length === 0) return;
+  const runtime = getVmConversationDomainRuntime(params.vm);
+  const rawState = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  if (!runtime || !rawState) return;
+  const selected = new Set(params.sourceToolCallIds);
+  const occurredAt = new Date().toISOString();
+  let changed = false;
+  for (const asset of rawState.session.contextAssets ?? []) {
+    const fact = asset.projectionFact;
+    if (!fact || fact.actorKey !== params.actor.key) continue;
+    const sourceToolCalls = fact.sourceToolCalls.map((source) => {
+      if (source.deliveryState !== "pending" || !selected.has(source.toolCallId)) return source;
+      changed = true;
+      return { ...source, deliveryState: "delivered" as const, deliveredAt: occurredAt };
+    });
+    if (!sourceToolCalls.some((source, index) => source !== fact.sourceToolCalls[index])) continue;
+    upsertProviderProjectionFactToConversationDomainRuntime({
+      runtime,
+      sessionId: rawState.session.sessionId,
+      projectionFact: { ...fact, sourceToolCalls, observedAt: occurredAt },
+      occurredAt,
+    });
+  }
+  if (changed) {
+    resetActorContinuationBaseline({
+      actor: params.actor,
+      reason: "provider_projection:source_delivery",
+      occurredAt,
+    });
+  }
+}
+
+type PreparedResponsesTurn = {
+  requestContext: ResponsesTransportRequestContext;
+  checkpoint?: ResponsesReplayCheckpoint;
+  baselineEpoch: number;
+  contextDigest: string;
+  providerId: string;
+  model: string;
+  promptPlan: PromptPlanData;
+  tools: any[];
+  extraBody?: Record<string, unknown>;
+};
+
+function isResponsesAdapterName(value: unknown): boolean {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/_/g, "-");
+  return normalized === "openai-responses" || normalized === "responses" || normalized === "codex";
+}
+
+function resolveResponsesAdapterConfig(params: {
+  actor: AiAgentActor;
+  llmAdapter: LlmAdapter;
+}): {
+  providerId: string;
+  mode: "stateless_replay" | "stateful_chain";
+  transportSupportsContinuation: boolean;
+  providerBodyConfig: Record<string, unknown>;
+} | null {
+  const adapter = params.llmAdapter as LlmAdapter & {
+    runtime?: { adapterName?: unknown; providerId?: unknown };
+    options?: Record<string, unknown>;
+  };
+  const adapterName = adapter.runtime?.adapterName ?? params.actor.modelConfig.apiKind;
+  if (!isResponsesAdapterName(adapterName)) return null;
+
+  const options = adapter.options ?? params.actor.modelConfig.options ?? {};
+  const normalized = normalizeProviderModelOptions(options);
+  const split = splitResponsesModelOptions(normalized);
+  const providerBodyConfig = {
+    ...split.requestOptions,
+    ...split.extraBody,
+  };
+  delete providerBodyConfig.previous_response_id;
+  delete providerBodyConfig.prompt_cache_key;
+  return {
+    providerId: String(
+      adapter.runtime?.providerId
+      ?? params.actor.modelConfig.provider
+      ?? "openai-responses",
+    ),
+    mode: split.continuation.mode,
+    transportSupportsContinuation: resolveResponsesTransportMode({
+      transportMode: typeof normalized.transport_mode === "string"
+        ? normalized.transport_mode
+        : "auto",
+      supportsWebsockets:
+        normalized.supports_websockets === true
+        || normalized.supports_websockets === "true",
+      websocketUrl: typeof normalized.websocket_url === "string"
+        ? normalized.websocket_url
+        : undefined,
+    }) === "websocket",
+    providerBodyConfig,
+  };
+}
+
+function findActorResponsesReplayCheckpoint(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): unknown {
+  const rawState = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  });
+  return rawState?.session.contextAssets?.find((asset) => (
+    asset.replayCheckpoint?.actorId === params.actor.id
+  ))?.replayCheckpoint;
+}
+
+function prepareResponsesTurnRequest(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  llmAdapter: LlmAdapter;
+  model: string;
+  providerMessages: any[];
+  tools: any[];
+  promptPlan: PromptPlanData;
+  extraBody?: Record<string, unknown>;
+}): PreparedResponsesTurn | null {
+  const config = resolveResponsesAdapterConfig(params);
+  if (!config) return null;
+
+  const baseline = getActorContinuationBaseline(params.actor);
+  const checkpointCandidate = findActorResponsesReplayCheckpoint(params);
+  const checkpoint = isValidResponsesReplayCheckpoint(checkpointCandidate)
+    ? checkpointCandidate
+    : undefined;
+  const providerBodyConfig = {
+    ...config.providerBodyConfig,
+    ...(params.extraBody ?? {}),
+  };
+  delete providerBodyConfig.prompt_plan;
+  delete providerBodyConfig.work_context;
+  delete providerBodyConfig.reasoning_split;
+  const configuredInstructions = providerBodyConfig.instructions;
+  delete providerBodyConfig.instructions;
+  const instructionPlan = buildOpenAIResponsesInstructionPlan({
+    messages: params.providerMessages,
+    configuredInstructions,
+    stableSystemPrompts: params.promptPlan.systemPrompts,
+  });
+  const instructions = instructionPlan.instructions;
+  const contextDigest = createResponsesContextDigest({
+    providerId: config.providerId,
+    model: params.model,
+    instructions,
+    providerBodyConfig,
+    tools: params.tools,
+  });
+  const fullCanonicalInput = buildOpenAIResponsesFullInputItems(params.providerMessages);
+  const frontierCount = checkpoint?.messageFrontier.messageCount ?? params.providerMessages.length;
+  const incrementalInput = buildOpenAIResponsesIncrementalInputItems(
+    params.providerMessages.slice(
+      frontierCount >= 0 && frontierCount <= params.providerMessages.length
+        ? frontierCount
+        : 0,
+    ),
+  );
+  const stablePrefix = {
+    providerId: config.providerId,
+    model: params.model,
+    stableInstructions: instructionPlan.stableInstructions,
+    tools: params.tools,
+  };
+  const plannerInput = {
+    actorId: params.actor.id,
+    providerId: config.providerId,
+    model: params.model,
+    mode: config.mode,
+    transportSupportsContinuation: config.transportSupportsContinuation,
+    baseline: baseline.latestResponseId && baseline.contextDigest
+      ? {
+          previousResponseId: baseline.latestResponseId,
+          baselineEpoch: baseline.baselineEpoch,
+          contextDigest: baseline.contextDigest,
+        }
+      : undefined,
+    checkpoint,
+    currentEpoch: baseline.baselineEpoch,
+    currentContextDigest: contextDigest,
+    currentMessages: params.providerMessages,
+    fullCanonicalInput,
+    incrementalInput,
+    stablePrefix,
+  } as const;
+  const primary = planResponsesRequest(plannerInput);
+  const statelessFallback = primary.kind === "stateless_replay"
+    ? primary
+    : planResponsesRequest({
+        ...plannerInput,
+        mode: "stateless_replay",
+        transportSupportsContinuation: false,
+        baseline: undefined,
+      });
+  if (statelessFallback.kind !== "stateless_replay") {
+    throw new Error("Responses stateless fallback planner returned an incremental plan");
+  }
+  return {
+    requestContext: {
+      schemaVersion: 1,
+      kind: "responses_transport_request_context",
+      instructions,
+      primary,
+      statelessFallback,
+    },
+    checkpoint,
+    baselineEpoch: baseline.baselineEpoch,
+    contextDigest,
+    providerId: config.providerId,
+    model: params.model,
+    promptPlan: params.promptPlan,
+    tools: params.tools,
+    extraBody: params.extraBody,
+  };
+}
+
+function isResponsesTransportResult(value: unknown): value is ResponsesTransportResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const result = value as Partial<ResponsesTransportResult>;
+  return result.schemaVersion === 1
+    && result.kind === "responses_transport_result"
+    && (result.transport === "websocket" || result.transport === "http_sse")
+    && typeof result.responseStored === "boolean"
+    && Boolean(result.plan)
+    && Boolean(result.outputDecision)
+    && (
+      result.outputDecision?.status === "incomplete"
+      || (
+        result.outputDecision?.status === "complete"
+        && isValidResponsesProviderOutputSnapshot(result.outputDecision.output)
+      )
+    );
+}
+
+function commitResponsesTurnResult(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  prepared: PreparedResponsesTurn;
+  transportResult: unknown;
+  llmAdapter: LlmAdapter;
+}): void {
+  if (!isResponsesTransportResult(params.transportResult)) return;
+  const result = params.transportResult;
+  if (result.outputDecision.status !== "complete") return;
+  const output = result.outputDecision.output;
+  const currentBaseline = getActorContinuationBaseline(params.actor);
+  if (
+    currentBaseline.baselineEpoch !== params.prepared.baselineEpoch
+    || result.plan.contextDigest !== params.prepared.contextDigest
+  ) return;
+
+  const currentProviderMessages = prepareMessagesForLlmAdapter(
+    params.llmAdapter,
+    materializeConversationRuntimeMessagesFromVm({
+      vm: params.vm,
+      actorKey: params.actor.key,
+    }),
+  );
+  const currentConfig = resolveResponsesAdapterConfig({
+    actor: params.actor,
+    llmAdapter: params.llmAdapter,
+  });
+  const currentProviderBodyConfig = {
+    ...(currentConfig?.providerBodyConfig ?? {}),
+    ...(params.prepared.extraBody ?? {}),
+  };
+  delete currentProviderBodyConfig.prompt_plan;
+  delete currentProviderBodyConfig.work_context;
+  delete currentProviderBodyConfig.reasoning_split;
+  const currentConfiguredInstructions = currentProviderBodyConfig.instructions;
+  delete currentProviderBodyConfig.instructions;
+  const currentInstructions = buildOpenAIResponsesInstructions({
+    messages: currentProviderMessages,
+    configuredInstructions: currentConfiguredInstructions,
+  });
+  const currentDigest = createResponsesContextDigest({
+    providerId: params.prepared.providerId,
+    model: params.prepared.model,
+    instructions: currentInstructions,
+    providerBodyConfig: currentProviderBodyConfig,
+    tools: params.prepared.tools,
+  });
+  if (currentDigest !== params.prepared.contextDigest) return;
+
+  let replayCheckpoint: ResponsesReplayCheckpoint;
+  try {
+    replayCheckpoint = createResponsesReplayCheckpoint({
+      actorId: params.actor.id,
+      providerId: params.prepared.providerId,
+      model: params.prepared.model,
+      baselineEpoch: params.prepared.baselineEpoch,
+      contextDigest: params.prepared.contextDigest,
+      messageFrontier: createResponsesMessageFrontier(currentProviderMessages),
+      requestKind: result.plan.kind,
+      priorCheckpoint: result.plan.kind === "stateful_incremental"
+        ? params.prepared.checkpoint
+        : undefined,
+      requestInput: result.plan.input,
+      output,
+    });
+  } catch {
+    return;
+  }
+
+  const runtime = getVmConversationDomainRuntime(params.vm);
+  if (!runtime) return;
+  upsertResponsesReplayCheckpointToConversationDomainRuntime({
+    runtime,
+    sessionId: resolveConversationSessionId(params.vm),
+    actorKey: params.actor.key,
+    checkpoint: replayCheckpoint,
+  });
+  params.actor.continuationBaseline = {
+    ...currentBaseline,
+    latestResponseId:
+      result.responseStored && typeof output.responseId === "string" && output.responseId
+        ? output.responseId
+        : null,
+    contextDigest: params.prepared.contextDigest,
+    lastResetReason: null,
+    updatedAt: new Date().toISOString(),
+  };
 }
 
 async function streamProviderCompletion(params: {
@@ -938,32 +1633,84 @@ async function streamProviderCompletion(params: {
   extraBody?: Record<string, unknown>;
   promptPlan: any;
   providerMessages: any[];
+  pendingProviderProjectionSourceIds: string[];
+  pendingToolResultDeliveryIds: string[];
+  pendingMessageDeliveryIds: string[];
   abortController: AbortController;
   retryStage: string;
+  turnId: number;
+  operationId: string;
 }): Promise<{ msg: any }> {
   const { vm, actor, tools, llmAdapter, model, processStreamFn, extraBody, abortController, retryStage, promptPlan, providerMessages } = params;
   // Stable session/actor key for openai-responses previous_response_id continuity
   // (P2). Same derivation as the prompt-plan session id; scoped per actor so each
   // actor's reasoning chain stays isolated. Empty -> continuity disabled downstream.
   const turnSessionKey = deriveTurnSessionKey(vm, actor);
-  let stream: AsyncIterable<any>;
-  try {
+  let providerRequestOrdinal = 0;
+  const createProviderStream = async (messages: any[], plan: any): Promise<{
+    result: LlmStreamResult;
+    preparedResponses: PreparedResponsesTurn | null;
+  }> => {
+    providerRequestOrdinal += 1;
     recordEstimatedProviderPromptUsage(
       vm,
-      estimateProviderRequestPromptTokens({ providerMessages, tools }),
+      estimateProviderRequestPromptTokens({ providerMessages: messages, tools }),
     );
-    stream = (await llmAdapter.createStream({
+    const preparedResponses = prepareResponsesTurnRequest({
+      vm,
+      actor,
+      llmAdapter,
       model,
-      messages: providerMessages,
+      providerMessages: messages,
+      tools,
+      promptPlan: plan,
+      extraBody,
+    });
+    const result = await llmAdapter.createStream({
+      model,
+      messages,
       tools,
       extraBody: {
         ...(extraBody ?? {}),
-        prompt_plan: promptPlan,
+        prompt_plan: plan,
         work_context: getActorWorkContext(actor),
       },
+      providerRequestContext: preparedResponses?.requestContext,
       signal: abortController.signal,
       sessionKey: turnSessionKey,
-    })).stream;
+      executionIdentity: {
+        actorId: actor.id,
+        turnId: String(params.turnId),
+        operationId: params.operationId,
+        requestId: `${params.operationId}:request-${providerRequestOrdinal}`,
+      },
+    });
+    return { result, preparedResponses };
+  };
+
+  const runOneCompletion = async (messages: any[], plan: any): Promise<{
+    msg: any;
+    providerOutput?: Promise<unknown | undefined>;
+    preparedResponses: PreparedResponsesTurn | null;
+  }> => {
+    const created = await createProviderStream(messages, plan);
+    const msg = await processStreamFn(vm, created.result.stream, { signal: abortController.signal });
+    assembleReasoningContentParts(llmAdapter, msg);
+    return {
+      msg,
+      providerOutput: created.result.providerOutput,
+      preparedResponses: created.preparedResponses,
+    };
+  };
+
+  let completion: Awaited<ReturnType<typeof runOneCompletion>>;
+  let activeProviderMessages = providerMessages;
+  let activePromptPlan = promptPlan;
+  let activePendingProviderProjectionSourceIds = params.pendingProviderProjectionSourceIds;
+  let activePendingToolResultDeliveryIds = params.pendingToolResultDeliveryIds;
+  let activePendingMessageDeliveryIds = params.pendingMessageDeliveryIds;
+  try {
+    completion = await runOneCompletion(activeProviderMessages, activePromptPlan);
   } catch (error) {
     if (abortController.signal.aborted || !isPromptTooLongError(error)) {
       throw error;
@@ -987,26 +1734,126 @@ async function streamProviderCompletion(params: {
       providerMessages: retryPrompt.providerMessages,
       stage: retryStage,
     });
-    recordEstimatedProviderPromptUsage(
-      vm,
-      estimateProviderRequestPromptTokens({ providerMessages: retryPrompt.providerMessages, tools }),
-    );
-    stream = (await llmAdapter.createStream({
-      model,
-      messages: retryPrompt.providerMessages,
-      tools,
-      extraBody: {
-        ...(extraBody ?? {}),
-        prompt_plan: retryPrompt.promptPlan,
-        work_context: getActorWorkContext(actor),
-      },
-      signal: abortController.signal,
-      sessionKey: turnSessionKey,
-    })).stream;
+    activeProviderMessages = retryPrompt.providerMessages;
+    activePromptPlan = retryPrompt.promptPlan;
+    activePendingProviderProjectionSourceIds = retryPrompt.pendingProviderProjectionSourceIds;
+    activePendingToolResultDeliveryIds = retryPrompt.pendingToolResultDeliveryIds;
+    activePendingMessageDeliveryIds = retryPrompt.pendingMessageDeliveryIds;
+    completion = await runOneCompletion(activeProviderMessages, activePromptPlan);
   }
-  const msg = await processStreamFn(vm, stream, { signal: abortController.signal });
-  assembleReasoningContentParts(llmAdapter, msg);
-  return { msg };
+
+  if (!assistantMessageHasMeaningfulPayload(completion.msg)) {
+    if (abortController.signal.aborted) {
+      throw new Error("provider returned an empty assistant response");
+    }
+    vm.effects.log?.("warn", "provider returned empty assistant response; retrying once", {
+      actorKey: actor.key,
+      model,
+    });
+    completion = await runOneCompletion(
+      appendEmptyAssistantResponseRetryNudge(activeProviderMessages),
+      activePromptPlan,
+    );
+    if (!assistantMessageHasMeaningfulPayload(completion.msg)) {
+      throw new Error("provider returned an empty assistant response");
+    }
+  }
+  if (!abortController.signal.aborted) {
+    const transportResult = completion.providerOutput
+      ? await completion.providerOutput.catch(() => undefined)
+      : undefined;
+    if (!abortController.signal.aborted && completion.preparedResponses) {
+      commitResponsesTurnResult({
+        vm,
+        actor,
+        prepared: completion.preparedResponses,
+        transportResult,
+        llmAdapter,
+      });
+    }
+    markProviderProjectionSourcesDelivered({
+      vm,
+      actor,
+      sourceToolCallIds: activePendingProviderProjectionSourceIds,
+    });
+    confirmIncludedToolResultDeliveries({
+      vm,
+      actor,
+      toolCallIds: activePendingToolResultDeliveryIds,
+    });
+    confirmIncludedMessageDeliveries({
+      vm,
+      actor,
+      deliveryIds: activePendingMessageDeliveryIds,
+    });
+  }
+  return { msg: completion.msg };
+}
+
+function isToolExecutionResultEnvelope(value: unknown): value is ToolExecutionResultEnvelope<unknown> {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<ToolExecutionResultEnvelope<unknown>>;
+  return Object.prototype.hasOwnProperty.call(candidate, "output") && Array.isArray(candidate.contextEffects);
+}
+
+function registerToolContextEffects(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  toolCallId: string;
+  effects: readonly ToolContextEffect[];
+}): void {
+  if (!params.toolCallId || params.effects.length === 0) return;
+  const runtime = ensureVmConversationDomainRuntime(params.vm);
+  const rawState = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  const sessionId = rawState?.session.sessionId ?? resolveConversationSessionId(params.vm);
+  const occurredAt = new Date().toISOString();
+  let changed = false;
+  for (const effect of params.effects) {
+    if (effect.kind !== "mutable_provider_projection") continue;
+    const existing = rawState?.session.contextAssets?.find((asset) => (
+      asset.projectionFact?.actorKey === params.actor.key
+      && asset.projectionFact.projectionKey === effect.logicalKey
+    ))?.projectionFact;
+    const sourceAlreadyRegistered = existing?.sourceToolCalls.some((source) => (
+      source.toolCallId === params.toolCallId && source.projectionRevision === effect.revision
+    )) ?? false;
+    if (
+      !existing
+      || existing.revision !== effect.revision
+      || existing.content !== effect.content
+      || existing.placement !== effect.placement
+      || !sourceAlreadyRegistered
+    ) {
+      changed = true;
+    }
+    const projectionFact: LocalConversationProviderProjectionFact = {
+      actorKey: params.actor.key,
+      projectionKey: effect.logicalKey,
+      revision: effect.revision,
+      content: effect.content,
+      placement: effect.placement,
+      sourceToolCalls: [{
+        toolCallId: params.toolCallId,
+        projectionRevision: effect.revision,
+        deliveryState: "pending",
+        deliveredAt: null,
+      }],
+      observedAt: occurredAt,
+    };
+    upsertProviderProjectionFactToConversationDomainRuntime({
+      runtime,
+      sessionId,
+      projectionFact,
+      occurredAt,
+    });
+  }
+  if (changed) {
+    resetActorContinuationBaseline({
+      actor: params.actor,
+      reason: "provider_projection:context_effect",
+      occurredAt,
+    });
+  }
 }
 
 /**
@@ -1024,8 +1871,13 @@ async function resolveToolCallOutput(params: {
   toolCallId: string;
   gateDecision: ToolExecutionGateDecision;
   signal?: AbortSignal;
-}): Promise<{ resolvedOutput: unknown; outputText: string }> {
-  const resolvedOutput =
+}): Promise<{
+  resolvedOutput: unknown;
+  outputText: string;
+  isError: boolean;
+  failureKind?: ToolFailureKind;
+}> {
+  const toolResult =
     params.gateDecision.kind === "allow"
       ? await callToolWithWorkModeAdvisory({
           toolRegistry: params.toolRegistry,
@@ -1036,9 +1888,29 @@ async function resolveToolCallOutput(params: {
           meta: { toolCallId: params.toolCallId, ...(params.signal ? { signal: params.signal } : {}) },
         })
       : toolExecutionGateOutputText(params.gateDecision);
+  const envelope = isToolExecutionResultEnvelope(toolResult) ? toolResult : null;
+  if (envelope) {
+    registerToolContextEffects({
+      vm: params.vm,
+      actor: params.actor,
+      toolCallId: params.toolCallId,
+      effects: envelope.contextEffects,
+    });
+  }
+  const resolvedOutput = envelope ? envelope.output : toolResult;
   const outputText =
     typeof resolvedOutput === "string" ? resolvedOutput : resolvedOutput === undefined ? "" : JSON.stringify(resolvedOutput);
-  return { resolvedOutput, outputText };
+  const explicitOutcome = envelope?.outcome;
+  const isError = explicitOutcome
+    ? explicitOutcome.status === "failed"
+    : outputText.startsWith("Error:");
+  let failureKind: ToolFailureKind | undefined;
+  if (explicitOutcome?.status === "failed") {
+    failureKind = explicitOutcome.failureKind;
+  } else if (isError) {
+    failureKind = "tool_error";
+  }
+  return { resolvedOutput, outputText, isError, failureKind };
 }
 
 /**
@@ -1093,18 +1965,30 @@ function trackToolCallGate(vm: AiAgentVm, toolCallId: string, gateOutcome: ToolG
   }
 }
 
-function trackToolCallResult(vm: AiAgentVm, toolCallId: string, outputText: string, gateOutcome: ToolGateOutcome): void {
-  if (!toolCallId) return;
+function trackToolCallResult(params: {
+  vm: AiAgentVm;
+  toolCallId: string;
+  outputText: string;
+  gateOutcome: ToolGateOutcome;
+  isError: boolean;
+  failureKind?: ToolFailureKind;
+}): void {
+  if (!params.toolCallId) return;
   // Only the allow path actually executed and produces a domain result;
   // deny/defer records stay in their terminal/parked gate status.
-  if (gateOutcome !== "allow") return;
-  const domain = getVmToolCallDomain(vm);
-  if (!domain || !domain.getRecord(toolCallId)) return;
+  if (params.gateOutcome !== "allow") return;
+  const domain = getVmToolCallDomain(params.vm);
+  if (!domain || !domain.getRecord(params.toolCallId)) return;
   try {
-    if (outputText.startsWith("Error:")) {
-      domain.recordFailure({ toolCallId, failureKind: "tool_error", outputText, at: Date.now() });
+    if (params.isError) {
+      domain.recordFailure({
+        toolCallId: params.toolCallId,
+        failureKind: params.failureKind ?? "tool_error",
+        outputText: params.outputText,
+        at: Date.now(),
+      });
     } else {
-      domain.recordResult({ toolCallId, outputText, at: Date.now() });
+      domain.recordResult({ toolCallId: params.toolCallId, outputText: params.outputText, at: Date.now() });
     }
   } catch {
     // best-effort
@@ -1953,6 +2837,7 @@ async function drainActorMailboxes(
       // commits to the domain. Suppressed results are excluded from both
       // emit and the domain.
       if (eventBus && !suppress) {
+        registerPendingToolResultDelivery({ vm, actor, toolCallId });
         const resultPayload =
           typeof resolvedOutput === "string"
             ? resolvedOutput
@@ -1981,6 +2866,7 @@ async function drainActorMailboxes(
         typeof resolvedOutput === "string" ? resolvedOutput : resolvedOutput === undefined ? "" : JSON.stringify(resolvedOutput);
       const suppress = shouldSuppressToolResultMessage(localPermissionContext.toolName, outputText);
       if (eventBus && !suppress) {
+        registerPendingToolResultDelivery({ vm, actor, toolCallId });
         const resultPayload =
           typeof resolvedOutput === "string"
             ? resolvedOutput
@@ -2032,7 +2918,7 @@ function drainChildDoneIntoMessages(vm: AiAgentVm, actor: AiAgentActor): void {
       continue;
     }
 
-    appendConversationAssistantMessage({
+    const messageId = appendConversationAssistantMessage({
       vm,
       actor,
       message: {
@@ -2040,6 +2926,9 @@ function drainChildDoneIntoMessages(vm: AiAgentVm, actor: AiAgentActor): void {
         content: childActorKey ? `Delegate actor ${childActorKey} done:\n${outputText}` : `Delegate actor done:\n${outputText}`,
       },
     });
+    if (messageId) {
+      registerPendingMessageDelivery({ vm, actor, messageId });
+    }
   }
 }
 
@@ -2405,6 +3294,11 @@ function appendConversationToolResultMessage(params: {
   outputText: string;
   isError?: boolean;
 }): void {
+  registerPendingToolResultDelivery({
+    vm: params.vm,
+    actor: params.actor,
+    toolCallId: params.toolCallId,
+  });
   injectSemanticEventsIntoConversationDomain({
     vm: params.vm,
     actor: params.actor,
@@ -2438,7 +3332,13 @@ function appendConversationAssistantMessage(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
   message: any;
-}): void {
+}): string | null {
+  const rawBefore = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  });
+  const previousRef = rawBefore?.activeHistoryGeneration?.messages.at(-1);
+  const previousMessageId = previousRef?.message.messageId ?? previousRef?.recordId ?? null;
   const reasoning = typeof params.message?.reasoning_content === "string" ? params.message.reasoning_content : "";
   const content = typeof params.message?.content === "string"
     ? params.message.content
@@ -2489,6 +3389,15 @@ function appendConversationAssistantMessage(params: {
     events.push({ event_type: "semantic_turn_end", reason: "assistant_message_committed" });
   }
   injectSemanticEventsIntoConversationDomain({ vm: params.vm, actor: params.actor, events });
+  const rawAfter = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  });
+  const appendedRef = rawAfter?.activeHistoryGeneration?.messages.at(-1);
+  const appendedMessageId = appendedRef?.message.messageId ?? appendedRef?.recordId ?? null;
+  return appendedMessageId && appendedMessageId !== previousMessageId
+    ? appendedMessageId
+    : null;
 }
 
 /**
@@ -3180,6 +4089,8 @@ type ToolCallPipelineResult = {
   args: any;
   output: unknown;
   outputText: string;
+  isError: boolean;
+  failureKind?: ToolFailureKind;
   gateDecision: ToolExecutionGateDecision;
   /**
    * Gate-decision tag for the tool that produced this result.
@@ -3286,6 +4197,7 @@ async function maybeCompressMessages(params: {
       model,
       inputLimit,
       tokenBudget: Math.floor(effectiveLimit * 0.9),
+      ...buildPendingDeliveryCompactionConstraint(vm, actor),
       logger: {
         warn: (message: string, error?: unknown) =>
           vm.effects.log?.("warn", message, error === undefined ? undefined : { error }),
@@ -3367,6 +4279,7 @@ async function runReactiveCompaction(params: {
       inputLimit,
       tokenBudget: Math.floor(effectiveLimit * 0.65),
       recentKeep: 5,
+      ...buildPendingDeliveryCompactionConstraint(vm, actor),
       logger: {
         warn: (message: string, error?: unknown) =>
           vm.effects.log?.("warn", message, error === undefined ? undefined : { error }),
@@ -3467,6 +4380,7 @@ export async function forceCompressActorHistory(params: {
       model,
       inputLimit,
       tokenBudget: Math.floor(effectiveLimit * 0.9),
+      ...buildPendingDeliveryCompactionConstraint(params.vm, params.actor),
       logger: {
         warn: (message: string, error?: unknown) =>
           params.vm.effects.log?.("warn", message, error === undefined ? undefined : { error }),
@@ -3691,7 +4605,14 @@ export async function aiAgentLoopStreaming({
       sessionId,
       trigger: "turn_start",
     });
-    const { promptPlan, providerMessages, promptGenerationId } = await prepareProviderPromptForTurn({
+    const {
+      promptPlan,
+      providerMessages,
+      promptGenerationId,
+      pendingProviderProjectionSourceIds,
+      pendingToolResultDeliveryIds,
+      pendingMessageDeliveryIds,
+    } = await prepareProviderPromptForTurn({
       vm,
       actor,
       tools,
@@ -3737,8 +4658,13 @@ export async function aiAgentLoopStreaming({
         extraBody,
         promptPlan,
         providerMessages,
+        pendingProviderProjectionSourceIds,
+        pendingToolResultDeliveryIds,
+        pendingMessageDeliveryIds,
         abortController,
         retryStage: "streaming llm turn reactive retry",
+        turnId: turn,
+        operationId: effectId,
       });
       trackProviderCallCompleted(vm, effectId, msg);
       appendRuntimeControlLifecycleEvidenceFromVm(vm, {
@@ -3806,7 +4732,7 @@ export async function aiAgentLoopStreaming({
     trackToolCallPlanned({ vm, actorKey: actor.key, turnId: turn, toolCallId, funcName, args });
     const gateDecision = evaluateToolExecutionGates(vm, actor, funcName);
     trackToolCallGate(vm, toolCallId, gateDecision.kind);
-    const { resolvedOutput, outputText } = await resolveToolCallOutput({
+    const { resolvedOutput, outputText, isError, failureKind } = await resolveToolCallOutput({
       vm,
       actor,
       toolRegistry,
@@ -3815,7 +4741,7 @@ export async function aiAgentLoopStreaming({
       toolCallId,
       gateDecision,
     });
-    trackToolCallResult(vm, toolCallId, outputText, gateDecision.kind);
+    trackToolCallResult({ vm, toolCallId, outputText, gateOutcome: gateDecision.kind, isError, failureKind });
     const result: ToolCallPipelineResult = {
       funcName,
       toolCallId,
@@ -3824,9 +4750,11 @@ export async function aiAgentLoopStreaming({
       args,
       output: resolvedOutput,
       outputText,
+      isError,
+      failureKind,
       gateDecision,
       gateOutcome: gateDecision.kind,
-      resultEvidence: outputText.startsWith("Error:")
+      resultEvidence: isError
         ? {
             kind: "failed",
             effectKind,
@@ -3850,8 +4778,9 @@ export async function aiAgentLoopStreaming({
     // tool-result event from the bus. Suppressed results stay out of both the
     // bus and the domain.
     if (eventBus && !suppress) {
+      registerPendingToolResultDelivery({ vm, actor, toolCallId });
       const resultPayload = typeof resolvedOutput === "string" ? resolvedOutput : resolvedOutput === undefined ? "" : JSON.stringify(resolvedOutput);
-      eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, outputText.startsWith("Error:"));
+      eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, isError);
     }
 
     advanceActorWorkContextAfterTool({
@@ -4089,7 +5018,7 @@ export async function aiAgentLoopStreaming({
 }
 
 type CooperativeAiGeneratedEvent =
-  | { kind: "llm_done"; opId: string; msg: any }
+  | { kind: "llm_done"; opId: string; msg: any; providerError?: string; replayedFromEffectEvidence?: boolean }
   | {
       kind: "compress_done";
       opId: string;
@@ -4105,6 +5034,8 @@ type CooperativeAiGeneratedEvent =
       args: any;
       output: unknown;
       outputText: string;
+      isError?: boolean;
+      failureKind?: ToolFailureKind;
       /**
        * Gate-decision tag carried through the asyncCompletion mailbox so
        * the cooperative output handler can distinguish:
@@ -4673,6 +5604,7 @@ export async function aiAgentCooperativeStep(params: {
           typeof resolvedOutput === "string" ? resolvedOutput : resolvedOutput === undefined ? "" : JSON.stringify(resolvedOutput);
         const suppress = shouldSuppressToolResultMessage(workspaceAccessGrantContext.toolName, outputText);
         if (eventBus && !suppress) {
+          registerPendingToolResultDelivery({ vm, actor, toolCallId });
           const resultPayload =
             typeof resolvedOutput === "string"
               ? resolvedOutput
@@ -4705,6 +5637,7 @@ export async function aiAgentCooperativeStep(params: {
           typeof resolvedOutput === "string" ? resolvedOutput : resolvedOutput === undefined ? "" : JSON.stringify(resolvedOutput);
         const suppress = shouldSuppressToolResultMessage(localPermissionContext.toolName, outputText);
         if (eventBus && !suppress) {
+          registerPendingToolResultDelivery({ vm, actor, toolCallId });
           const resultPayload =
             typeof resolvedOutput === "string"
               ? resolvedOutput
@@ -4859,6 +5792,7 @@ export async function aiAgentCooperativeStep(params: {
             model,
             inputLimit,
             tokenBudget: Math.floor(effectiveLimit * 0.9),
+            ...buildPendingDeliveryCompactionConstraint(vm, actor),
             logger: {
               warn: (message: string, error?: unknown) =>
                 vm.effects.log?.("warn", message, error === undefined ? undefined : { error }),
@@ -4912,7 +5846,14 @@ export async function aiAgentCooperativeStep(params: {
       });
       const tools = resolveProviderToolsetForActor(actor, buildToolsetFn());
       // T3.2 shared turn leaf: prompt build + preflight over-limit compaction.
-      const { promptPlan, providerMessages, promptGenerationId } = await prepareProviderPromptForTurn({
+      const {
+        promptPlan,
+        providerMessages,
+        promptGenerationId,
+        pendingProviderProjectionSourceIds,
+        pendingToolResultDeliveryIds,
+        pendingMessageDeliveryIds,
+      } = await prepareProviderPromptForTurn({
         vm,
         actor,
         tools,
@@ -4977,8 +5918,13 @@ export async function aiAgentCooperativeStep(params: {
             extraBody,
             promptPlan,
             providerMessages,
+            pendingProviderProjectionSourceIds,
+            pendingToolResultDeliveryIds,
+            pendingMessageDeliveryIds,
             abortController,
             retryStage: "cooperative llm turn reactive retry",
+            turnId: turn,
+            operationId: opId,
           });
           if (abortController.signal.aborted) {
             return;
@@ -5017,6 +5963,7 @@ export async function aiAgentCooperativeStep(params: {
               kind: "llm_done",
               opId,
               msg: { role: "assistant", content: message },
+              providerError: message,
             },
           });
         } finally {
@@ -5067,15 +6014,26 @@ export async function aiAgentCooperativeStep(params: {
       state.toolCalls = Array.isArray(toolCalls) ? toolCalls : [];
       state.toolIndex = 0;
       applyCooperativeTurnEvent(state, {
-        kind: "provider_completed",
+        kind: typeof (ev as any).providerError === "string" && (ev as any).providerError
+          ? "provider_failed"
+          : "provider_completed",
         opId: inflight.opId,
-        hasToolCalls: state.toolCalls.length > 0,
+        ...(
+          typeof (ev as any).providerError === "string" && (ev as any).providerError
+            ? { error: String((ev as any).providerError) }
+            : { hasToolCalls: state.toolCalls.length > 0 }
+        ),
       });
 
       if (!state.toolCalls.length) {
         emitMemberResultToControl(vm, actor, [...actor.messages]);
         if (eventBus) {
-          eventBus.emitAgentTurnEnd(eventActor, "no_tool_calls");
+          eventBus.emitAgentTurnEnd(
+            eventActor,
+            typeof (ev as any).providerError === "string" && (ev as any).providerError
+              ? "provider_failed"
+              : "no_tool_calls",
+          );
         }
         state.phase = "drain";
         params.setState(state);
@@ -5173,7 +6131,7 @@ export async function aiAgentCooperativeStep(params: {
           // T3.2 shared turn leaf: gate-resolved tool output. The cooperative
           // driver runs it inside this async task; the streaming driver awaits
           // the same leaf inline.
-          const { resolvedOutput, outputText } = await resolveToolCallOutput({
+          const { resolvedOutput, outputText, isError, failureKind } = await resolveToolCallOutput({
             vm,
             actor,
             toolRegistry,
@@ -5184,16 +6142,17 @@ export async function aiAgentCooperativeStep(params: {
             signal: abortController.signal,
           });
           if (abortController.signal.aborted) return;
-          trackToolCallResult(vm, toolCallId, outputText, gateDecision.kind);
+          trackToolCallResult({ vm, toolCallId, outputText, gateOutcome: gateDecision.kind, isError, failureKind });
           const suppress = shouldSuppressToolResultMessage(funcName, outputText);
           if (eventBus && !suppress) {
+            registerPendingToolResultDelivery({ vm, actor, toolCallId });
             const resultPayload =
               typeof resolvedOutput === "string"
                 ? resolvedOutput
                 : resolvedOutput === undefined
                   ? ""
                   : JSON.stringify(resolvedOutput);
-            eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, outputText.startsWith("Error:"));
+            eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, isError);
           }
           emitAiGeneratedCompletion({
             opId,
@@ -5206,21 +6165,41 @@ export async function aiAgentCooperativeStep(params: {
               args,
               output: resolvedOutput,
               outputText,
+              isError,
+              failureKind,
               gateOutcome: gateDecision.kind,
             },
           });
-          appendRuntimeControlLifecycleEvidenceFromVm(vm, {
-            kind: "result",
-            effectKind: toolEffectKind,
-            effectId: opId,
-            handlerKey: funcName,
-            resultId: `${opId}:tool_done`,
-            payload: { toolCallId }, // P4/D3: link-only — output lives in ToolCallDomain
-          });
+          appendRuntimeControlLifecycleEvidenceFromVm(vm, isError
+            ? {
+                kind: "failed",
+                effectKind: toolEffectKind,
+                effectId: opId,
+                handlerKey: funcName,
+                error: outputText,
+                retryable: false,
+              }
+            : {
+                kind: "result",
+                effectKind: toolEffectKind,
+                effectId: opId,
+                handlerKey: funcName,
+                resultId: `${opId}:tool_done`,
+                payload: { toolCallId }, // P4/D3: link-only — output lives in ToolCallDomain
+              });
         } catch (error) {
           if (abortController.signal.aborted) return;
           const outputText = `Error: ${error instanceof Error ? error.message : String(error)}`;
+          trackToolCallResult({
+            vm,
+            toolCallId,
+            outputText,
+            gateOutcome: "allow",
+            isError: true,
+            failureKind: "exception",
+          });
           if (eventBus) {
+            registerPendingToolResultDelivery({ vm, actor, toolCallId });
             eventBus.emitToolCallResult(eventActor, funcName, toolCallId, outputText, true);
           }
           appendRuntimeControlLifecycleEvidenceFromVm(vm, {
@@ -5242,6 +6221,8 @@ export async function aiAgentCooperativeStep(params: {
               args,
               output: outputText,
               outputText,
+              isError: true,
+              failureKind: "exception",
               // Catch branch: the tool actually ran (the allow path) and
               // threw. Deny/defer never enter the await, so they never
               // reach this catch.
@@ -5277,11 +6258,14 @@ export async function aiAgentCooperativeStep(params: {
       applyCooperativeTurnEvent(state, { kind: "tool_completed", opId: inflight.opId });
       const { llmAdapter } = resolveLoopDeps(vm, actor);
       const outputText = String((ev as any).outputText ?? "");
+      const isError = typeof (ev as any).isError === "boolean"
+        ? (ev as any).isError
+        : outputText.startsWith("Error:");
       const funcName = String((ev as any).funcName ?? "");
       const suppress = shouldSuppressToolResultMessage(funcName, outputText);
       appendDetachedMessageForFiber(vm, fiberId, {
         role: "tool",
-        kind: outputText.startsWith("Error:") ? "error" : "tool_result",
+        kind: isError ? "error" : "tool_result",
         text: outputText,
         toolName: funcName,
         toolCallId: String((ev as any).toolCallId ?? ""),
@@ -5302,7 +6286,7 @@ export async function aiAgentCooperativeStep(params: {
           toolCallId: String((ev as any).toolCallId ?? ""),
           toolName,
           outputText,
-          isError: outputText.startsWith("Error:"),
+          isError,
         });
       }
       advanceActorWorkContextAfterTool({

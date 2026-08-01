@@ -1,0 +1,14 @@
+<decision #migrate-exec-protocol-unified-data-graph.projection {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>How is the removed terminal reducer projection replaced?</?>
+  <answer { }
+  (
+    <raw-answer ?>Use the unified state node.</?>
+    <decision-text ?>Use DataGraph.addSource(eventLog.stream()) and addStreamDrivenStateSignalNode with handle.output reads.</?>
+    <rationale ?>It matches upstream lifecycle and the completed history migration.</?>
+    <evidence ?>Upstream migration guide and current load failure.</?>
+  )>
+)>

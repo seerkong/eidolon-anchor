@@ -6,6 +6,7 @@ export type RunDelegateActorOuterInput = {
   prompt: string
   agent_type: string
   mode?: "sync_wait" | "detached"
+  task_key?: string
 }
 export type RunDelegateActorOuterConfig = Record<string, unknown>
 export type RunDelegateActorOuterDerived = null

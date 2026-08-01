@@ -17,10 +17,9 @@ import {
  * spec case single-in-memory-truth/equivalence-gate; recorded-golden form
  * since task T4.3).
  *
- * The legacy raw-array assembly was deleted in T4.3. Its output for the four
- * scripted scenarios was recorded immediately before the deletion into
- * __fixtures__/provider_equivalence_golden.json; the gate is now a long-term
- * regression asset over the production (domain) assembly:
+ * The fixture was re-recorded when the provider contract adopted a fixed
+ * stable-system/dynamic/history boundary. It is a long-term regression asset
+ * over the production (domain) assembly:
  *
  *  1. golden equivalence — the providerMessages the production build ships
  *     at every boundary must stay message-by-message equivalent to the
@@ -72,7 +71,7 @@ describe("provider equivalence gate: golden fixtures cover every scenario", () =
 
 describe("provider equivalence gate: domain materialization vs recorded golden", () => {
   for (const scenario of BUILTIN_SCENARIOS) {
-    it(`${scenario.name}: every boundary equals the recorded legacy snapshot`, () => {
+    it(`${scenario.name}: every boundary equals the recorded provider snapshot`, () => {
       const run = firstRuns.get(scenario.name)!
       const goldenBoundaries = golden.scenarios[scenario.name]!
       run.snapshots.forEach((snapshot, index) => {

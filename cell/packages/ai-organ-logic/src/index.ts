@@ -34,6 +34,10 @@ export {
   resolvePresetModelRef,
   resolvePrimaryCandidates,
   type LlmAdapterType,
+  type LlmProviderRuntime,
+  type ProviderRequestOutcomeObservationData,
+  type ProviderRequestObservationData,
+  type ProviderRequestObservationPort,
 } from "./llm";
 export { loadMcpServers, MCPManager, setDebug } from "./mcp/McpSupport";
 
@@ -50,6 +54,7 @@ export {
   appendLiveHistoryMessageToConversationDomainRuntime,
   clearContextBlocksInConversationDomainRuntime,
   closeConversationSessionInConversationDomainRuntime,
+  confirmToolResultDeliveriesToConversationDomainRuntime,
   createConversationDomainRuntime,
   ensureVmConversationDomainRuntime,
   emitConversationDomainEvent,
@@ -64,6 +69,7 @@ export {
   recordConversationTranscriptEvidenceInRuntime,
   recordPromptOverlayToConversationDomainRuntime,
   recordPromptRequestToConversationDomainRuntime,
+  registerPendingToolResultDeliveryToConversationDomainRuntime,
   registerContextBlockToConversationDomainRuntime,
   setConversationDomainPersistHooks,
   subscribeConversationHistory,
@@ -74,6 +80,9 @@ export {
   teeConversationHistoryStream,
   teeConversationPromptStream,
   teeConversationSessionStream,
+  upsertContextResourceFactToConversationDomainRuntime,
+  upsertProviderProjectionFactToConversationDomainRuntime,
+  upsertResponsesReplayCheckpointToConversationDomainRuntime,
   updateConversationDomainFromTranscriptRecordBatch,
 } from "./conversation/ConversationDomainRuntime";
 export {
@@ -211,8 +220,17 @@ export type {
 export {
   configureShellRuntimeEffects,
   createShellRuntimePaths,
+  digestProfileSystemPrompt,
   ensureShellRuntimeSessionDir,
+  reconcileProfileSystemPrompt,
   recoverOrCreateShellRuntime,
+} from "./runtime/ShellRuntimeBootstrap";
+export type {
+  ProfileSystemPromptAssembly,
+  ProfileSystemPromptRecoveryDiagnostic,
+  ProfileSystemPromptReconciliation,
+  RecoverOrCreateShellRuntimeParams,
+  RecoverOrCreateShellRuntimeResult,
 } from "./runtime/ShellRuntimeBootstrap";
 export { tickAiAgentRuntimeBackground } from "./runtime/tickAiAgentRuntimeBackground";
 export {

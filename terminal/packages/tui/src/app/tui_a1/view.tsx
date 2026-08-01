@@ -651,6 +651,9 @@ export function TuiA1View(props: TuiA1ViewProps) {
   let actorRoundInFlight = false
   let lastSessionInterruptAt = 0
   let sessionInterruptInFlight = false
+  let actorSurfaceRefreshTimer: TimerHandle | undefined
+  let actorSurfaceRefreshInFlight = false
+  let actorSurfaceRefreshPending = false
 
   const registerTimer = <T extends TimerHandle>(timer: T) => {
     timers.add(timer)
@@ -984,6 +987,29 @@ export function TuiA1View(props: TuiA1ViewProps) {
     updateActorRoundFromSurface(surface)
   }
 
+  const scheduleActorSurfaceRefresh = (delayMs = 250) => {
+    if (disposed) return
+    actorSurfaceRefreshPending = true
+    if (actorSurfaceRefreshTimer || actorSurfaceRefreshInFlight) return
+    actorSurfaceRefreshTimer = registerTimer(
+      setTimeout(() => {
+        const timer = actorSurfaceRefreshTimer
+        actorSurfaceRefreshTimer = undefined
+        if (timer) releaseTimer(timer)
+        if (!actorSurfaceRefreshPending || disposed) return
+        actorSurfaceRefreshPending = false
+        actorSurfaceRefreshInFlight = true
+        void refreshActorSurface()
+          .finally(() => {
+            actorSurfaceRefreshInFlight = false
+            if (actorSurfaceRefreshPending && !disposed) {
+              scheduleActorSurfaceRefresh(delayMs)
+            }
+          })
+      }, delayMs),
+    )
+  }
+
   type ActorListTarget = {
     laneID?: string
     actorID?: string
@@ -1047,6 +1073,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
     runtimeUnsub?.()
     runtimeUnsub = props.runtime.event.on((event: Event) => {
       if (disposed) return
+      let shouldRefreshActorSurface = false
       switch (event.type) {
         case "session.status": {
           if (event.properties?.sessionID !== sessionID()) return
@@ -1060,6 +1087,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
           }
           stateGraph.setBusy(nextBusy)
           if (!nextBusy) finishRoundTimer()
+          shouldRefreshActorSurface = actorRoundInFlight || !nextBusy
           break
         }
         case "message.updated": {
@@ -1110,34 +1138,41 @@ export function TuiA1View(props: TuiA1ViewProps) {
           const request = event.properties as PermissionRequest | undefined
           if (!request?.sessionID || !request.id) return
           stateGraph.applyPermissionAsked(request)
+          shouldRefreshActorSurface = true
           break
         }
         case "permission.replied": {
           const payload = event.properties as { sessionID?: string; requestID?: string } | undefined
           if (!payload?.sessionID || !payload.requestID) return
           stateGraph.applyPermissionReplied(payload.sessionID, payload.requestID)
+          shouldRefreshActorSurface = true
           break
         }
         case "question.asked": {
           const request = event.properties as QuestionRequest | undefined
           if (!request?.sessionID || !request.id) return
           stateGraph.applyQuestionAsked(request)
+          shouldRefreshActorSurface = true
           break
         }
         case "question.replied": {
           const payload = event.properties as { sessionID?: string; requestID?: string } | undefined
           if (!payload?.sessionID || !payload.requestID) return
           stateGraph.applyQuestionReplied(payload.sessionID, payload.requestID)
+          shouldRefreshActorSurface = true
           break
         }
         case "question.rejected": {
           const payload = event.properties as { sessionID?: string; requestID?: string } | undefined
           if (!payload?.sessionID || !payload.requestID) return
           stateGraph.applyQuestionRejected(payload.sessionID, payload.requestID)
+          shouldRefreshActorSurface = true
           break
         }
       }
-      void refreshActorSurface()
+      if (shouldRefreshActorSurface) {
+        scheduleActorSurfaceRefresh()
+      }
     })
 
     const [agentsResult, configResult] = await Promise.all([
@@ -1350,14 +1385,14 @@ export function TuiA1View(props: TuiA1ViewProps) {
   }
 
   const replyQuestion = async (request: QuestionRequest, answers: QuestionAnswer[]) => {
-    if (props.runtime) {
-      await props.runtime.client.question.reply({
-        requestID: request.id,
-        answers,
-      })
-    }
     stateGraph.recordQuestionHistory(request, answers)
     stateGraph.applyQuestionReplied(request.sessionID, request.id)
+    if (props.runtime) {
+      props.runtime.client.question.reply({
+        requestID: request.id,
+        answers,
+      }).catch(toast.error)
+    }
   }
 
   const rejectQuestion = async (request: QuestionRequest) => {

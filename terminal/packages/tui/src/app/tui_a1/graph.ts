@@ -1189,35 +1189,35 @@ export class TuiA1StateGraph {
     this.obs = createObservableGraph({})
     this.graph = this.obs.graph
     this.graph.addSignal<TuiA1ProjectionSnapshot>("snapshot", initialSnapshot)
-    this.graph.addComputed("messages", ["snapshot"], (ctx) => ctx.get<TuiA1ProjectionSnapshot>("snapshot").messages)
-    this.graph.addComputed("busy", ["snapshot"], (ctx) => ctx.get<TuiA1ProjectionSnapshot>("snapshot").busy)
-    this.graph.addComputed("composer", ["snapshot"], (ctx) => ctx.get<TuiA1ProjectionSnapshot>("snapshot").composer)
-    this.graph.addComputed("route", ["snapshot"], (ctx) => ctx.get<TuiA1ProjectionSnapshot>("snapshot").route)
-    this.graph.addComputed("selection", ["snapshot"], (ctx) => ctx.get<TuiA1ProjectionSnapshot>("snapshot").selection)
-    this.graph.addComputed("sessionID", ["snapshot"], (ctx) => ctx.get<TuiA1ProjectionSnapshot>("snapshot").sessionID)
-    this.graph.addComputed("activePermission", ["snapshot"], (ctx) =>
-      activePermissionForSnapshot(ctx.get<TuiA1ProjectionSnapshot>("snapshot")),
+    this.graph.addComputed("messages", ["snapshot"], (runtime) => runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot").messages)
+    this.graph.addComputed("busy", ["snapshot"], (runtime) => runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot").busy)
+    this.graph.addComputed("composer", ["snapshot"], (runtime) => runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot").composer)
+    this.graph.addComputed("route", ["snapshot"], (runtime) => runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot").route)
+    this.graph.addComputed("selection", ["snapshot"], (runtime) => runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot").selection)
+    this.graph.addComputed("sessionID", ["snapshot"], (runtime) => runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot").sessionID)
+    this.graph.addComputed("activePermission", ["snapshot"], (runtime) =>
+      activePermissionForSnapshot(runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot")),
     )
-    this.graph.addComputed("activeQuestion", ["snapshot"], (ctx) =>
-      activeQuestionForSnapshot(ctx.get<TuiA1ProjectionSnapshot>("snapshot")),
+    this.graph.addComputed("activeQuestion", ["snapshot"], (runtime) =>
+      activeQuestionForSnapshot(runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot")),
     )
-    this.graph.addComputed("composerBlocked", ["activePermission", "activeQuestion"], (ctx) =>
-      Boolean(ctx.get<PermissionRequest | undefined>("activePermission") || ctx.get<QuestionRequest | undefined>("activeQuestion")),
+    this.graph.addComputed("composerBlocked", ["activePermission", "activeQuestion"], (runtime) =>
+      Boolean(runtime.graph.get<PermissionRequest | undefined>("activePermission") || runtime.graph.get<QuestionRequest | undefined>("activeQuestion")),
     )
-    this.graph.addComputed("messageCount", ["messages"], (ctx) => ctx.get<TuiA1Message[]>("messages").length)
-    this.graph.addComputed("selectionLabel", ["selection"], (ctx) =>
-      formatTuiA1Selection(ctx.get<TuiA1Selection>("selection")),
+    this.graph.addComputed("messageCount", ["messages"], (runtime) => runtime.graph.get<TuiA1Message[]>("messages").length)
+    this.graph.addComputed("selectionLabel", ["selection"], (runtime) =>
+      formatTuiA1Selection(runtime.graph.get<TuiA1Selection>("selection")),
     )
-    this.graph.addComputed("questionnaireCenter", ["snapshot"], (ctx) =>
-      questionnaireCenterForSnapshot(ctx.get<TuiA1ProjectionSnapshot>("snapshot")),
+    this.graph.addComputed("questionnaireCenter", ["snapshot"], (runtime) =>
+      questionnaireCenterForSnapshot(runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot")),
     )
-    this.graph.addComputed("actorSurface", ["snapshot"], (ctx) =>
-      ctx.get<TuiA1ProjectionSnapshot>("snapshot").actorSurface,
+    this.graph.addComputed("actorSurface", ["snapshot"], (runtime) =>
+      runtime.graph.get<TuiA1ProjectionSnapshot>("snapshot").actorSurface,
     )
-    this.graph.addComputed("currentState", ["route", "selection", "sessionID"], (ctx) => ({
-      route: ctx.get<Route>("route"),
-      selection: ctx.get<TuiA1Selection>("selection"),
-      sessionID: ctx.get<string | undefined>("sessionID"),
+    this.graph.addComputed("currentState", ["route", "selection", "sessionID"], (runtime) => ({
+      route: runtime.graph.get<Route>("route"),
+      selection: runtime.graph.get<TuiA1Selection>("selection"),
+      sessionID: runtime.graph.get<string | undefined>("sessionID"),
     }))
 
   }

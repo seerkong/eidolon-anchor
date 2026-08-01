@@ -89,6 +89,166 @@ describe("context_compressor", () => {
     expect(compressed?.slice(-4).map((m) => m.content)).toEqual(["recent-1", "recent-2", "recent-3", "recent-4"]);
   });
 
+  it("keeps a protected pending assistant call and matching tool result unchanged in the tail", async () => {
+    const pendingCall = {
+      role: "assistant",
+      content: "",
+      tool_calls: [{
+        id: "tc-pending-summary",
+        type: "function",
+        function: { name: "read", arguments: "{}" },
+      }],
+    };
+    const pendingResult = {
+      role: "tool",
+      tool_call_id: "tc-pending-summary",
+      content: "PENDING_SUMMARY_RESULT_".repeat(400),
+    };
+    const messages = [
+      { role: "user", content: "old user ".repeat(500) },
+      { role: "assistant", content: "old assistant ".repeat(500) },
+      { role: "user", content: "request pending tool" },
+      pendingCall,
+      pendingResult,
+      { role: "user", content: "recovered input 1" },
+      { role: "assistant", content: "recovered status 1" },
+      { role: "user", content: "recovered input 2" },
+      { role: "assistant", content: "recovered status 2" },
+    ];
+    let compressionInput = "";
+    const llmAdapter = {
+      type: "openai" as const,
+      async createStream(options: any) {
+        compressionInput = String(options.messages?.[1]?.content ?? "");
+        async function* stream() {
+          yield {
+            type: "text-delta",
+            text: "<state_snapshot><overall_goal>protected</overall_goal></state_snapshot>",
+          };
+        }
+        return { stream: stream() };
+      },
+    };
+
+    const compressed = await compressHistory({
+      messages,
+      llmAdapter,
+      model: "mock-model",
+      inputLimit: 100_000,
+      protectedToolCallIds: new Set(["tc-pending-summary"]),
+    });
+
+    expect(compressionInput).not.toContain("tc-pending-summary");
+    expect(compressed).not.toBeNull();
+    const callIndex = compressed!.findIndex((message) => (
+      message?.role === "assistant"
+      && message.tool_calls?.some((call: any) => call.id === "tc-pending-summary")
+    ));
+    expect(callIndex).toBeGreaterThan(1);
+    expect(compressed?.[callIndex]).toBe(pendingCall);
+    expect(compressed?.[callIndex + 1]).toBe(pendingResult);
+  });
+
+  it("keeps a protected committed message atomically outside the generated summary", async () => {
+    const pendingMessage = {
+      messageId: "message-pending-summary",
+      role: "assistant",
+      content: "DETACHED_COMPLETION_".repeat(400),
+    };
+    const messages = [
+      { messageId: "old-user", role: "user", content: "old user ".repeat(500) },
+      { messageId: "old-assistant", role: "assistant", content: "old assistant ".repeat(500) },
+      { messageId: "pending-boundary", role: "user", content: "wait for detached completion" },
+      pendingMessage,
+      { messageId: "recovery-user-1", role: "user", content: "recovered input 1" },
+      { messageId: "recovery-assistant-1", role: "assistant", content: "recovered status 1" },
+      { messageId: "recovery-user-2", role: "user", content: "recovered input 2" },
+      { messageId: "recovery-assistant-2", role: "assistant", content: "recovered status 2" },
+    ];
+    let compressionInput = "";
+    const llmAdapter = {
+      type: "openai" as const,
+      async createStream(options: any) {
+        compressionInput = String(options.messages?.[1]?.content ?? "");
+        async function* stream() {
+          yield {
+            type: "text-delta",
+            text: "<state_snapshot><overall_goal>protected message</overall_goal></state_snapshot>",
+          };
+        }
+        return { stream: stream() };
+      },
+    };
+
+    const compressed = await compressHistory({
+      messages,
+      llmAdapter,
+      model: "mock-model",
+      inputLimit: 100_000,
+      protectedMessageIds: ["message-pending-summary"],
+    });
+
+    expect(compressionInput).not.toContain("DETACHED_COMPLETION_");
+    expect(compressed).not.toBeNull();
+    const pendingIndex = compressed!.findIndex((message) => (
+      message?.messageId === "message-pending-summary"
+    ));
+    expect(pendingIndex).toBeGreaterThan(1);
+    expect(compressed?.[pendingIndex]).toBe(pendingMessage);
+    expect(compressed?.[pendingIndex]?.content).toBe(pendingMessage.content);
+  });
+
+  it("skips summary generation when the protected tail cannot fit the provider input limit", async () => {
+    let createStreamCalls = 0;
+    const llmAdapter = {
+      type: "openai" as const,
+      async createStream() {
+        createStreamCalls += 1;
+        async function* stream() {
+          yield {
+            type: "text-delta",
+            text: "<state_snapshot><overall_goal>unreachable</overall_goal></state_snapshot>",
+          };
+        }
+        return { stream: stream() };
+      },
+    };
+    const messages = [
+      { role: "user", content: "old user ".repeat(500) },
+      { role: "assistant", content: "old assistant ".repeat(500) },
+      { role: "user", content: "request pending tool" },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [{
+          id: "tc-too-large",
+          type: "function",
+          function: { name: "read", arguments: "{}" },
+        }],
+      },
+      {
+        role: "tool",
+        tool_call_id: "tc-too-large",
+        content: "UNSPLITTABLE_PENDING_RESULT_".repeat(2_000),
+      },
+      { role: "user", content: "recovered input 1" },
+      { role: "assistant", content: "recovered status 1" },
+      { role: "user", content: "recovered input 2" },
+      { role: "assistant", content: "recovered status 2" },
+    ];
+
+    const compressed = await compressHistory({
+      messages,
+      llmAdapter,
+      model: "mock-model",
+      inputLimit: 1_000,
+      protectedToolCallIds: ["tc-too-large"],
+    });
+
+    expect(compressed).toBeNull();
+    expect(createStreamCalls).toBe(0);
+  });
+
   it("returns null when llm call fails", async () => {
     const loggerCalls: any[] = [];
     const llmAdapter = {
@@ -258,5 +418,61 @@ describe("context_compressor", () => {
     expect(compacted).toContain("READ_OUTPUT_LINE");
     expect(compacted).not.toContain("Re-run the tool");
     expect(String(result.messages[3]?.content ?? "")).toBe("recent output");
+  });
+
+  it("does not mutate the original tool result objects when producing compacted provider messages", () => {
+    const oldOutput = "FULL_PROVIDER_TOOL_OUTPUT\n".repeat(120);
+    const messages = [
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-original", type: "function", function: { name: "read", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "tc-original", content: oldOutput },
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-recent", type: "function", function: { name: "bash", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "tc-recent", content: "recent output" },
+    ];
+
+    const result = applyCheapCompactionPipeline(messages, {
+      toolResultBudgetBytes: 1_000_000,
+      microKeepRecentToolResults: 1,
+      microMinContentChars: 100,
+      microPreviewChars: 48,
+    });
+
+    expect(result.changed).toBe(true);
+    expect(String(result.messages[1]?.content ?? "")).toContain("<compacted-tool-result");
+    expect(messages[1]?.content).toBe(oldOutput);
+    expect(result.messages[1]).not.toBe(messages[1]);
+  });
+
+  it("protects pending tool results from persistence and micro compaction while legacy results remain compactable", () => {
+    const artifactDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-pending-tool-results-"));
+    const pendingOutput = "PENDING_FIRST_DELIVERY\n".repeat(400);
+    const legacyOutput = "LEGACY_ALREADY_DELIVERED\n".repeat(400);
+    const messages = [
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-pending", type: "function", function: { name: "read", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "tc-pending", content: pendingOutput },
+      { role: "assistant", content: "", tool_calls: [{ id: "tc-legacy", type: "function", function: { name: "read", arguments: "{}" } }] },
+      { role: "tool", tool_call_id: "tc-legacy", content: legacyOutput },
+    ];
+
+    const protectedResult = applyCheapCompactionPipeline(messages, {
+      artifactDir,
+      toolResultBudgetBytes: 100,
+      toolResultPersistThresholdBytes: 100,
+      microKeepRecentToolResults: 0,
+      microMinContentChars: 100,
+      protectedToolCallIds: new Set(["tc-pending"]),
+    });
+
+    expect(protectedResult.messages[1]?.content).toBe(pendingOutput);
+    expect(String(protectedResult.messages[3]?.content ?? "")).toContain("delivered_and_compacted");
+    expect(fs.readdirSync(artifactDir).some((name) => name.startsWith("tc-pending-"))).toBe(false);
+
+    const deliveredResult = applyCheapCompactionPipeline(messages, {
+      artifactDir,
+      toolResultBudgetBytes: 100,
+      toolResultPersistThresholdBytes: 100,
+      microKeepRecentToolResults: 0,
+      microMinContentChars: 100,
+    });
+    expect(String(deliveredResult.messages[1]?.content ?? "")).toContain("delivered_and_compacted");
   });
 });

@@ -1,0 +1,14 @@
+<decision #migrate-observability-unified-data-graph.computed-runtime {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>How will observability summaries migrate from ctx.get?</?>
+  <answer { }
+  (
+    <raw-answer ?>Use the unified runtime graph access.</?>
+    <decision-text ?>Replace each computed callback read with runtime.graph.get and retain its dependency list.</?>
+    <rationale ?>This is the 1.0.1 public contract and preserves DataGraph-owned invalidation.</?>
+    <evidence ?>Focused terminal failures and upstream unified-graph foundation tests.</?>
+  )>
+)>

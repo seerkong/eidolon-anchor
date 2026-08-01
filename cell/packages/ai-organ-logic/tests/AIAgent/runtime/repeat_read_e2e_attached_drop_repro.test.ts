@@ -280,7 +280,10 @@ async function wireRuntime(params: {
     sessionDir,
     sessionKey: params.sessionKey,
     llmClient: makeFakeStreamingLlm(params.toolTurns),
-    systemPrompt: "you are a test agent",
+    profileSystemPrompt: {
+      profileId: "test",
+      systemPrompt: "you are a test agent",
+    },
     modelConfig: { model: "mock" } as any,
     eventBus,
     registries,

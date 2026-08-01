@@ -3,6 +3,7 @@ export type SkillEntry = {
   description: string;
   body: string;
   dir: string;
+  documentPath?: string;
   resources?: string[];
 };
 

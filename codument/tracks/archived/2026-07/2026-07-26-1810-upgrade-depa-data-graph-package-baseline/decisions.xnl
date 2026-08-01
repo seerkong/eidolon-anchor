@@ -1,0 +1,14 @@
+<decision #upgrade-depa-data-graph-package-baseline.scope {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Should package resolution and source migration be implemented in the same track？</?>
+  <answer { }
+  (
+    <raw-answer ?>No.</?>
+    <decision-text ?>This track upgrades direct manifests and bun.lock, then updates only the boundary guard. Source-level unified API migration stays in the successor tracks.</?>
+    <rationale ?>The upstream release is breaking and the mission needs an observable dependency baseline before distinct behavior owners change their graph code.</?>
+    <evidence ?>The containing mission G1 baseline reports and target migration contract.</?>
+  )>
+)>

@@ -565,9 +565,75 @@ describe("TerminalRuntime composer adoption", () => {
     expect(systemPrompt).toContain(`你是位于 ${activeWorkdir} 的 coding agent。`)
     expect(systemPrompt).toContain("工作循环：")
     expect(systemPrompt).toContain("定位/复现 -> 按需规划 -> 修改 -> 验证 -> 收口")
+    expect(systemPrompt).not.toContain("动态加载；每轮从 .eidolon/skills 重新读取")
+    expect(systemPrompt).not.toContain("可用 Skill")
 
     const memberList = await runtime!.turn("/member list")
     expect(memberList).toContain("\"member_count\":0")
+  })
+
+  it("reuses one request observation binding across initial and refreshed adapters and disposes it", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+
+    const providerPath = path.join(activeHomeDir, ".eidolon", "llm-provider.json")
+    const providerConfig = JSON.parse(fs.readFileSync(providerPath, "utf-8"))
+    providerConfig.providers[0].models.push({ id: "second-model", limits: { context: 128000, output: 8192 } })
+    fs.writeFileSync(providerPath, JSON.stringify(providerConfig, null, 2))
+
+    const port = { append: () => {} }
+    const adapterPorts: unknown[] = []
+    const requestExecutionIdentities: Array<Record<string, string>> = []
+    let bindingCalls = 0
+    let disposeCalls = 0
+    __setLlmAdapterFactoryForTest(async (adapterType, _workDir, _overrides, providerRuntime) => {
+      adapterPorts.push(providerRuntime?.requestObservationPort)
+      return {
+        type: adapterType,
+        async createStream(options: { executionIdentity?: Record<string, string> }) {
+          requestExecutionIdentities.push(options.executionIdentity ?? {})
+          async function* stream() {
+            yield { choices: [{ delta: { content: "ok" } }] } as any
+          }
+          return { stream: stream() }
+        },
+      }
+    })
+
+    configureTerminalRuntime({
+      workDir: activeWorkdir,
+      mcp: false,
+      providerRequestObservationBindingFactory: (context) => {
+        bindingCalls += 1
+        expect(context.sessionId).toBe("composer-adoption")
+        expect(context.sessionDir).toContain(path.join(".eidolon", "sessions", "composer-adoption"))
+        return { port, dispose: () => { disposeCalls += 1 } }
+      },
+    })
+
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+    expect(runtime).toBeTruthy()
+    expect(bindingCalls).toBe(1)
+    expect(adapterPorts).toEqual([port])
+
+    await runtime!.turn("before refresh")
+
+    await runtime!.setActorActiveModel?.({}, { providerID: "openai", modelID: "second-model" })
+    expect(adapterPorts).toEqual([port, port])
+    await runtime!.turn("after refresh")
+
+    expect(requestExecutionIdentities).toHaveLength(2)
+    expect(requestExecutionIdentities.every((identity) => Boolean(identity.actorId))).toBe(true)
+    expect(requestExecutionIdentities.every((identity) => Boolean(identity.turnId))).toBe(true)
+    expect(requestExecutionIdentities.every((identity) => Boolean(identity.operationId))).toBe(true)
+    expect(requestExecutionIdentities.every((identity) => Boolean(identity.requestId))).toBe(true)
+    expect(new Set(requestExecutionIdentities.map((identity) => identity.requestId)).size).toBe(2)
+    expect(requestExecutionIdentities.map((identity) => identity.actorId)).not.toContain("actor")
+    expect(requestExecutionIdentities.map((identity) => identity.turnId)).not.toContain("turn")
+
+    await disposeTerminalRuntimeBridge("composer-adoption")
+    expect(disposeCalls).toBe(1)
   })
 
   it("consumes /work-mode locally without provider calls or semantic history", async () => {
@@ -762,16 +828,14 @@ describe("TerminalRuntime composer adoption", () => {
     expect(memberHelp).toContain("/member catalog")
   })
 
-  it("injects runtime hints into the next turn through the shared mailbox path", async () => {
+  it("does not expose a terminal prompt-injection capability", async () => {
     activeWorkdir = makeTempWorkdir()
     activeHomeDir = makeTempHomeDir()
     process.env.HOME = activeHomeDir
 
-    let capturedMessages: Array<{ role: string; content?: unknown }> = []
     __setLlmAdapterFactoryForTest(async (adapterType) => ({
       type: adapterType,
-      async createStream(options: { messages?: Array<{ role: string; content?: unknown }> }) {
-        capturedMessages = options.messages ?? []
+      async createStream() {
         async function* stream() {
           yield { choices: [{ delta: { content: "ok" } }] } as any
         }
@@ -786,23 +850,114 @@ describe("TerminalRuntime composer adoption", () => {
 
     const runtime = await getTerminalRuntimeBridge("composer-adoption")
     expect(runtime).toBeTruthy()
+    expect("injectRuntimeHint" in runtime!).toBe(false)
+  })
 
-    await runtime!.injectRuntimeHint?.(
-      "Use the confirmed repo-relative path `src/app.py`; do not fall back to `app.py`.",
-    )
-    const reply = await runtime!.turn("hello")
+  it("keeps provider tool results independent from TUI display projection", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
 
-    expect(reply).toContain("ok")
-    // The provider prompt is sourced from the conversation-domain
-    // materialization (track refactor-ai-semantic-conversation-spine T4.2);
-    // committed messages carry startAt/endAt timestamps, so assert on the
-    // role/content surface instead of strict object equality.
-    const userContents = capturedMessages
-      .filter((message) => message.role === "user")
-      .map((message) => String(message.content ?? ""))
-    expect(userContents).toContain(
-      "Runtime hint:\nUse the confirmed repo-relative path `src/app.py`; do not fall back to `app.py`.",
-    )
-    expect(userContents).toContain("hello")
+    const fullToolOutput = [
+      "TOOL_OUTPUT_START",
+      "A".repeat(8_000),
+      "TOOL_OUTPUT_END_SENTINEL",
+    ].join("\n")
+    const uiPreview = fullToolOutput.slice(0, 64)
+    const providerToolContents: string[] = []
+
+    __setRuntimeAssemblyFactoryForTest((context) => {
+      const assembly = assembleAiCodingRuntimeProfile(context)
+      return {
+        ...assembly,
+        createRegistries: (options) => {
+          const registries = assembly.createRegistries(options)
+          const toolRegistry = new ToolFuncRegistry()
+          toolRegistry.registerMany(registries.toolRegistry.list())
+          toolRegistry.register({
+            schema: {
+              function: {
+                name: "LongOutput",
+                description: "Return a long deterministic output for projection isolation tests.",
+                parameters: {
+                  type: "object",
+                  additionalProperties: false,
+                  properties: {},
+                },
+              },
+            },
+            run: async () => fullToolOutput,
+          } as any)
+          return {
+            ...registries,
+            toolRegistry,
+          }
+        },
+      }
+    })
+
+    let providerCalls = 0
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream(options: { messages?: Array<{ role?: string; content?: unknown }> }) {
+        providerCalls += 1
+        providerToolContents.push(
+          ...(options.messages ?? [])
+            .filter((message) => message.role === "tool")
+            .map((message) => String(message.content ?? "")),
+        )
+        async function* stream() {
+          if (providerCalls === 1) {
+            yield {
+              choices: [
+                {
+                  delta: {
+                    tool_calls: [
+                      {
+                        index: 0,
+                        id: "call-long-output",
+                        type: "function",
+                        function: { name: "LongOutput", arguments: "{}" },
+                      },
+                    ],
+                  },
+                },
+              ],
+            } as any
+            return
+          }
+          yield { choices: [{ delta: { content: "saw full tool result" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    configureTerminalRuntime({
+      workDir: activeWorkdir,
+      mcp: false,
+    })
+
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+    expect(runtime).toBeTruthy()
+
+    const observedUiPayloads: string[] = []
+    const sub = runtime!.subscribeHistoryEvents?.((event) => {
+      if (event.stream !== "tool_call_result") return
+      const payload = JSON.parse(event.payload)
+      observedUiPayloads.push(String(payload.result ?? "").slice(0, 64))
+    })
+    try {
+      const reply = await runtime!.turn("call the long output tool")
+      expect(reply).toContain("saw full tool result")
+    } finally {
+      sub?.unsubscribe()
+    }
+
+    expect(observedUiPayloads).toContain(uiPreview)
+    expect(providerToolContents.length).toBeGreaterThan(0)
+    const deliveredToolContent = providerToolContents.find((content) => content.includes("TOOL_OUTPUT_START")) ?? ""
+    expect(deliveredToolContent).toContain("TOOL_OUTPUT_END_SENTINEL")
+    expect(deliveredToolContent).not.toBe(uiPreview)
+    expect(deliveredToolContent.length).toBe(fullToolOutput.length)
   })
 })

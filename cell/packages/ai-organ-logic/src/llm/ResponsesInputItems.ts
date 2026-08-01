@@ -36,6 +36,40 @@ function normalizeText(content: unknown): string {
   return String(content);
 }
 
+export function extractOpenAIResponsesSystemTexts(
+  messages: readonly any[],
+): string[] {
+  const texts: string[] = [];
+  for (const message of messages) {
+    if (!message || message.role !== "system") continue;
+    const text = normalizeText(message.content).trim();
+    if (text) texts.push(text);
+  }
+  return texts;
+}
+
+export function assembleOpenAIResponsesInstructions(params: {
+  transportInstructions?: unknown;
+  sandboxInstructions?: unknown;
+  configuredInstructions?: unknown;
+  materializedMessages?: readonly any[];
+}): string {
+  const sections = [
+    normalizeText(params.transportInstructions).trim(),
+    normalizeText(params.sandboxInstructions).trim(),
+    normalizeText(params.configuredInstructions).trim(),
+    ...extractOpenAIResponsesSystemTexts(params.materializedMessages ?? []),
+  ];
+  const seen = new Set<string>();
+  const uniqueSections: string[] = [];
+  for (const section of sections) {
+    if (!section || seen.has(section)) continue;
+    seen.add(section);
+    uniqueSections.push(section);
+  }
+  return uniqueSections.join("\n\n");
+}
+
 function normalizeToolOutput(content: unknown): string {
   if (typeof content === "string") return content;
   if (content === null || content === undefined) return "";
@@ -100,7 +134,10 @@ export function buildOpenAIResponsesInputItems(messages: any[]): OpenAIResponses
 
   for (const message of trailingToolMessages) {
     const callId = getToolCallId(message);
-    if (!callId) continue;
+    if (!callId) {
+      toolOutputItems.push({ type: "function_call_output", call_id: "", output: normalizeToolOutput(message.content) });
+      continue;
+    }
     const callInfo = toolCallMap.get(callId);
     if (callInfo?.name) {
       toolItems.push({ type: "function_call", call_id: callId, name: callInfo.name, arguments: callInfo.arguments || "" });
@@ -138,6 +175,29 @@ export function buildOpenAIResponsesToolFollowUpInputItems(
   input: OpenAIResponsesInputBuildResult,
 ): OpenAIResponsesInputItem[] {
   return input.toolItems.length ? [...input.toolItems, ...input.toolOutputItems] : [...input.toolOutputItems];
+}
+
+/** Complete canonical Responses input, including a trailing tool-call pair. */
+export function buildOpenAIResponsesFullInputItems(
+  messages: any[],
+): OpenAIResponsesInputItem[] {
+  const built = buildOpenAIResponsesInputItems(messages);
+  if (built.toolItems.length || built.toolOutputItems.length) {
+    return [...built.messageItems, ...built.toolItems, ...built.toolOutputItems];
+  }
+  return [...built.input];
+}
+
+/**
+ * Items added after a checkpoint's canonical message frontier. Provider
+ * output already owns the corresponding function_call, so a tool follow-up
+ * contributes only function_call_output items.
+ */
+export function buildOpenAIResponsesIncrementalInputItems(
+  messagesAfterFrontier: any[],
+): OpenAIResponsesInputItem[] {
+  const built = buildOpenAIResponsesInputItems(messagesAfterFrontier);
+  return [...built.messageItems, ...built.toolOutputItems];
 }
 
 export function assistantReplayToOpenAIResponsesInputItems(
@@ -183,7 +243,12 @@ function toOpenAIResponsesTools(tools: any[]): Array<Record<string, unknown>> {
     : [];
 }
 
-const INTERNAL_EXTRA_BODY_KEYS = new Set(["reasoning_split", "work_context", "prompt_plan"]);
+const INTERNAL_EXTRA_BODY_KEYS = new Set([
+  "reasoning_split",
+  "work_context",
+  "prompt_plan",
+  "previous_response_id",
+]);
 
 function sanitizeOpenAIResponsesExtraBody(extraBody?: Record<string, unknown>): Record<string, unknown> {
   if (!extraBody || typeof extraBody !== "object") return {};
@@ -201,10 +266,9 @@ export function buildOpenAIResponsesRequestBody(params: {
   instructions?: string;
 }): Record<string, unknown> {
   const toolSpecs = toOpenAIResponsesTools(params.tools ?? []);
+  const requestOptions = { ...params.requestOptions };
+  delete requestOptions.previous_response_id;
   const extraBody = sanitizeOpenAIResponsesExtraBody(params.extraBody);
-  const previousResponseId =
-    typeof params.requestOptions?.previous_response_id === "string" ? params.requestOptions.previous_response_id : undefined;
-  const hasToolOutputs = params.input.toolOutputItems.length > 0;
   const body: Record<string, unknown> = {
     model: params.model,
     input: params.input.input,
@@ -212,13 +276,9 @@ export function buildOpenAIResponsesRequestBody(params: {
     tools: toolSpecs,
     tool_choice: "auto",
     parallel_tool_calls: false,
-    ...params.requestOptions,
+    ...requestOptions,
     ...extraBody,
   };
   if (params.instructions) body.instructions = params.instructions;
-  if (previousResponseId && hasToolOutputs) {
-    body.previous_response_id = previousResponseId;
-    body.input = buildOpenAIResponsesToolFollowUpInputItems(params.input);
-  }
   return body;
 }

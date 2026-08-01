@@ -13,6 +13,7 @@ import {
   getSessionRuntimeBridge,
 } from "@terminal/organ/AIAgent/TerminalRuntime";
 import { makeSessionKey } from "@terminal/core/AIAgent";
+import { createProviderRequestSqliteLedgerBindingFactory } from "./providerRequestSqliteLedger";
 
 export type HeadlessExecOptions = {
   workDir: string;
@@ -29,12 +30,15 @@ export type HeadlessExecOptions = {
   additionalWritableRoots?: string[];
   outputLastMessagePath?: string;
   outputTracePath?: string;
+  autoResume?: boolean;
+  maxContinuations?: number;
+  captureProviderRequests?: boolean;
   onVisibleChunk?: (chunk: string) => void | Promise<void>;
   onDiagnosticLine?: (line: string) => void | Promise<void>;
 };
 
 export type HeadlessExecResult = {
-  status: "completed" | "failed";
+  status: "completed" | "failed" | "paused_with_progress";
   visibleOutput: string;
   finalMessage: string | null;
   warnings: string[];
@@ -57,6 +61,11 @@ type ExecTraceRecord =
     }
   | {
       ts: string;
+      type: "continuation_start";
+      continuationIndex: number;
+    }
+  | {
+      ts: string;
       type: "history";
       stream: string;
       agentKey: string;
@@ -66,7 +75,7 @@ type ExecTraceRecord =
   | {
       ts: string;
       type: "session_end";
-      status: "completed" | "failed";
+      status: "completed" | "failed" | "paused_with_progress";
       failureSummary: string | null;
       warningCount: number;
       durationMs: number;
@@ -167,6 +176,23 @@ function appendExecTraceRecord(outputTracePath: string | undefined, record: Exec
 
 function isRuntimeTurnNotCheckpointSafeError(message: string): boolean {
   return message.startsWith("runtime_turn_not_checkpoint_safe:");
+}
+
+function isRuntimeTurnUnsettledError(message: string): boolean {
+  return message.startsWith("runtime_turn_unsettled:");
+}
+
+function statusFromSnapshot(snapshot: ReturnType<ExecProtocolGraph["getSnapshot"]>): HeadlessExecResult["status"] {
+  if (snapshot.runStatus === "completed") return "completed";
+  if (snapshot.runStatus === "paused_with_progress") return "paused_with_progress";
+  return "failed";
+}
+
+function resolveMaxContinuations(options: HeadlessExecOptions): number {
+  if (!options.autoResume) return 0;
+  const raw = options.maxContinuations;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return 8;
+  return Math.max(0, Math.floor(raw));
 }
 
 function formatExecDiagnosticLine(
@@ -283,6 +309,19 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
     profileId: options.profile ?? undefined,
     entryType: "cli",
     metadata,
+    providerRequestObservationBindingFactory: options.captureProviderRequests
+      ? createProviderRequestSqliteLedgerBindingFactory({
+          onDiagnostic: (event) => {
+            const line = `[exec] provider request ledger ${event.stage} session=${event.sessionId}: ${event.error}\n`;
+            try {
+              const emitted = options.onDiagnosticLine?.(line);
+              if (emitted && typeof emitted.then === "function") {
+                void emitted.catch(() => {});
+              }
+            } catch {}
+          },
+        })
+      : undefined,
   });
 
   const runtime = await getSessionRuntimeBridge(sessionKey);
@@ -312,6 +351,7 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
   }
 
   let emittedLength = 0;
+  let continuationCount = 0;
   const emitVisibleDelta = async () => {
     const snapshot = graph.getSnapshot();
     const next = snapshot.visibleOutput.slice(emittedLength);
@@ -338,15 +378,6 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
       if (toolName) {
         graph.recordToolStart(toolName);
       }
-      const snapshot = graph.getSnapshot();
-      if (snapshot.toolStats.taskTreeWriteStarts >= 6 && snapshot.toolStats.fileMutationCount <= 2) {
-        void emitProcessWarning(
-          graph,
-          emittedProcessWarnings,
-          options.onDiagnosticLine,
-          "excessive TaskTreeWrite churn relative to code changes; keep task tracking lightweight for small bugfixes",
-        );
-      }
     }
     if (event.stream === "tool_call_result" && parsedPayload && typeof parsedPayload === "object") {
       const payload = parsedPayload as Record<string, unknown>;
@@ -366,36 +397,73 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
   });
 
   try {
-    await runtime.turn(options.input, {
-      timeoutSeconds: options.timeoutSeconds,
-      onControl: async (control) => {
-        graph.applyControl(control);
-      },
-      onChunk: async (chunk) => {
-        graph.appendChunk(chunk);
-        await emitVisibleDelta();
-      },
-    });
-    const turnSnapshot = graph.getSnapshot();
-    if (!turnSnapshot.visibleOutput.trim()) {
-      graph.fail("runtime_turn_completed_without_final_output");
-    } else {
-      graph.complete();
-    }
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (isRuntimeTurnNotCheckpointSafeError(message)) {
-      await runtime.abort().catch((abortError) => {
-        const abortMessage = abortError instanceof Error ? abortError.message : String(abortError);
-        void emitProcessWarning(
-          graph,
-          emittedProcessWarnings,
-          options.onDiagnosticLine,
-          `runtime abort after unsafe turn failed: ${abortMessage}`,
-        );
+    const runOneTurn = async (kind: "initial" | "resume") => {
+      const runner = kind === "resume" && runtime.resumeTurn
+        ? runtime.resumeTurn.bind(runtime)
+        : (turnOptions: Parameters<typeof runtime.turn>[1]) => runtime.turn(options.input, turnOptions);
+      await runner({
+        timeoutSeconds: options.timeoutSeconds,
+        onControl: async (control) => {
+          graph.applyControl(control);
+        },
+        onChunk: async (chunk) => {
+          graph.appendChunk(chunk);
+          await emitVisibleDelta();
+        },
       });
+    };
+
+    const maxContinuations = resolveMaxContinuations(options);
+    while (true) {
+      const before = graph.getSnapshot();
+      const beforeHistoryCount = before.historyEvents.length;
+      const beforeVisibleChars = before.visibleOutput.length;
+      try {
+        if (continuationCount > 0) {
+          appendExecTraceRecord(options.outputTracePath, {
+            ts: new Date().toISOString(),
+            type: "continuation_start",
+            continuationIndex: continuationCount,
+          });
+          await options.onDiagnosticLine?.(`[exec] auto-resume continuation ${continuationCount}/${maxContinuations}\n`);
+        }
+        await runOneTurn(continuationCount === 0 ? "initial" : "resume");
+        const turnSnapshot = graph.getSnapshot();
+        if (!turnSnapshot.visibleOutput.trim()) {
+          graph.fail("runtime_turn_completed_without_final_output");
+        } else {
+          graph.complete();
+        }
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (isRuntimeTurnNotCheckpointSafeError(message)) {
+          await runtime.abort().catch((abortError) => {
+            const abortMessage = abortError instanceof Error ? abortError.message : String(abortError);
+            void emitProcessWarning(
+              graph,
+              emittedProcessWarnings,
+              options.onDiagnosticLine,
+              `runtime abort after unsafe turn failed: ${abortMessage}`,
+            );
+          });
+        }
+        if (!isRuntimeTurnUnsettledError(message)) {
+          graph.fail(message);
+          break;
+        }
+
+        const after = graph.getSnapshot();
+        const madeProgress =
+          after.historyEvents.length > beforeHistoryCount ||
+          after.visibleOutput.length > beforeVisibleChars;
+        if (!options.autoResume || continuationCount >= maxContinuations || !runtime.resumeTurn || !madeProgress) {
+          graph.pauseWithProgress(message);
+          break;
+        }
+        continuationCount += 1;
+      }
     }
-    graph.fail(message);
   } finally {
     historySub?.unsubscribe();
     await disposeSessionRuntimeBridge(sessionKey);
@@ -405,7 +473,7 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
   appendExecTraceRecord(options.outputTracePath, {
     ts: new Date().toISOString(),
     type: "session_end",
-    status: snapshot.runStatus === "completed" ? "completed" : "failed",
+    status: statusFromSnapshot(snapshot),
     failureSummary: snapshot.failureSummary,
     warningCount: snapshot.warnings.length + snapshot.processWarnings.length,
     durationMs: Math.max(0, Date.now() - startedAtMs),
@@ -414,7 +482,7 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
   });
   const allWarnings = [...snapshot.warnings, ...snapshot.processWarnings];
   const result: HeadlessExecResult = {
-    status: snapshot.runStatus === "completed" ? "completed" : "failed",
+    status: statusFromSnapshot(snapshot),
     visibleOutput: snapshot.visibleOutput,
     finalMessage: snapshot.lastMessageContents,
     warnings: allWarnings,

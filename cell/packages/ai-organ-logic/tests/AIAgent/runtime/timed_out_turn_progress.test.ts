@@ -172,10 +172,8 @@ function createTimedOutTurnRuntime(options: { sessionId: string; sessionDir: str
 
 describe("timed-out turn persists completed progress", () => {
   // MECHANISM (case 1): the seal callback is injected DIRECTLY into the
-  // coordinator (the production bootstrap does NOT bind it — see the no-regression
-  // case below). This proves `sealCompletedConversationProgress` flushes completed
-  // pairs WITHOUT snapshotting in-flight tool execution, independent of any live
-  // wiring. Production enablement is deferred to the follow-up (see findings.md P3).
+  // coordinator. This proves `sealCompletedConversationProgress` flushes
+  // completed pairs WITHOUT snapshotting in-flight tool execution.
   it("MECHANISM (direct injection): seals completed conversation progress on timeout without snapshotting in-flight tool execution", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-timed-out-progress-seal"
@@ -220,17 +218,7 @@ describe("timed-out turn persists completed progress", () => {
     }
   })
 
-  // FOLLOW-UP BOUNDARY (case 2, INJECTED-SEAL path — NOT production): when the
-  // seal callback IS injected directly, the completed progress is durably sealed
-  // on disk on timeout (the achievable subset), but the conversation head then
-  // advances PAST the checkpoint marker and the owned-checkpoint recovery gate
-  // classifies it `dirty` (`head_commit_sequence_mismatch` on the `conversation`
-  // head, `requiredForCheckpoint: true`). Teaching the gate a forward-only
-  // conversation head is a LARGE change split to a follow-up track. This case PINS
-  // both facts as the follow-up's executable spec. CRITICAL: this `dirty` outcome
-  // only occurs because the seal is injected HERE; production does NOT seal (see
-  // the no-regression case below), so production never reaches this `dirty` state.
-  it("FOLLOW-UP BOUNDARY (injected seal, NOT production): seals completed progress past the checkpoint, and the recovery gate currently rejects conversation-ahead-of-snapshot (documented LARGE gate-gap)", async () => {
+  it("recovers from injected sealed progress when conversation advances past the checkpoint", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-timed-out-progress-relay"
 
@@ -285,36 +273,24 @@ describe("timed-out turn persists completed progress", () => {
       const result = await coordinator.runInteractiveTurn({ mainFiberId: fiberId, timeoutMs: 1 })
       expect(result.status).toBe("timeout_unsettled")
 
-      // ACHIEVABLE SUBSET (shipped): the completed progress IS durably sealed on
-      // disk on timeout, past the turn-1 checkpoint — no data loss.
+      // The completed progress is durably sealed on disk on timeout, past the
+      // turn-1 checkpoint — no data loss and no VM snapshot of unsafe in-flight
+      // execution.
       const historyPath = path.join(sessionDir, "conversation", "history.xnl")
       const records = await readXnlRecords({ filePath: historyPath, tag: "HistoryMessage" })
       expect(JSON.stringify(records)).toContain("COMPLETED-PROGRESS: echo done output")
 
-      // DOCUMENTED GATE-GAP (the follow-up's executable spec): with the
-      // conversation head now ahead of the checkpoint marker, the owned-
-      // checkpoint recovery gate currently rejects the prefix as `dirty`. The
-      // follow-up track must teach the gate a forward-only conversation head so
-      // this becomes a clean relay-recovery instead of throwing.
-      await expect(recoverAiAgentRuntime({ sessionDir, sessionId })).rejects.toThrow(
-        "dirty_runtime_control_recovery:dirty",
-      )
+      const recovered = await recoverAiAgentRuntime({ sessionDir, sessionId })
+      expect(recovered.controlActor.messages.some((message: any) =>
+        message?.role === "tool" && message?.content === "COMPLETED-PROGRESS: echo done output",
+      )).toBe(true)
     } finally {
       coordinator.dispose()
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
   })
 
-  // NO-REGRESSION (PRODUCTION CONFIG): in the live runtime the coordinator's
-  // `sealCompletedProgress` is left at its DEFAULT no-op (production binds no seal
-  // callback — see ShellRuntimeBootstrap / TerminalRuntime). A session that
-  // settled earlier (real VM snapshot + checkpoint marker) and then times out in
-  // mandatory_continuation on a later turn must therefore NOT have its conversation
-  // head advanced past the checkpoint, and must recover cleanly to its last settled
-  // snapshot WITHOUT throwing `dirty`. This is the exact recovery shape that existed
-  // before this track — P3 must not regress it. (Compare: the FOLLOW-UP BOUNDARY
-  // case above, which DOES inject a seal and therefore DOES go `dirty`.)
-  it("NO-REGRESSION (production default, no seal callback): a settled-then-timed-out session is NOT made dirty and recovers to its last settled snapshot", async () => {
+  it("production seal callback makes a settled-then-timed-out session recover with sealed progress", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-timed-out-progress-no-seal"
 
@@ -349,38 +325,32 @@ describe("timed-out turn persists completed progress", () => {
       expect(upgrade.status === "applied" || upgrade.status === "already_upgraded").toBe(true)
     }
 
-    // Capture the conversation head as it stands at the settled checkpoint, so we
-    // can prove the production timeout path leaves it UNCHANGED (no seal advance).
     const historyPath = path.join(sessionDir, "conversation", "history.xnl")
-    const sealedHistoryBefore = fs.existsSync(historyPath) ? fs.readFileSync(historyPath, "utf8") : ""
 
     // --- Turn 2: completes more progress, then times out in mandatory_continuation
-    // under the PRODUCTION coordinator configuration: NO `sealCompletedProgress`
-    // (default no-op). The completed progress is NOT sealed; the conversation head
-    // stays at the turn-1 version. ---
+    // under the production coordinator configuration. The completed progress is
+    // sealed; the conversation head can advance beyond the turn-1 checkpoint
+    // without making recovery dirty. ---
     const { vm, driver, fiberId } = createTimedOutTurnRuntime({ sessionId, sessionDir })
     const saveSnapshot = async () =>
       await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
-    // Production wiring: no seal callback injected — the coordinator default no-ops.
-    const coordinator = createAiAgentRuntimeCoordinator({ vm, driver, saveSnapshot })
+    const sealCompletedProgress = async () =>
+      await sealCompletedConversationProgress({ sessionDir, sessionId, vm })
+    const coordinator = createAiAgentRuntimeCoordinator({ vm, driver, saveSnapshot, sealCompletedProgress })
 
     try {
       const result = await coordinator.runInteractiveTurn({ mainFiberId: fiberId, timeoutMs: 1 })
       expect(result.status).toBe("timeout_unsettled")
 
-      // (1) The production timeout path did NOT advance the sealed conversation
-      // head — no seal happened, so on-disk history is byte-identical to the
-      // settled-checkpoint state.
       const sealedHistoryAfter = fs.existsSync(historyPath) ? fs.readFileSync(historyPath, "utf8") : ""
-      expect(sealedHistoryAfter).toBe(sealedHistoryBefore)
-      expect(sealedHistoryAfter).not.toContain("COMPLETED-PROGRESS: echo done output")
+      expect(sealedHistoryAfter).toContain("COMPLETED-PROGRESS: echo done output")
 
-      // (2) THE KEY PROPERTY: the settled-then-timed-out session is NOT made
-      // `dirty` by P3 — it recovers cleanly to its last settled snapshot, exactly
-      // as it would have before this track.
       const recovered = await recoverAiAgentRuntime({ sessionDir, sessionId })
       expect(recovered.controlActor.messages.some((message: any) =>
         message?.role === "user" && message?.content === "first settled turn",
+      )).toBe(true)
+      expect(recovered.controlActor.messages.some((message: any) =>
+        message?.role === "tool" && message?.content === "COMPLETED-PROGRESS: echo done output",
       )).toBe(true)
     } finally {
       coordinator.dispose()

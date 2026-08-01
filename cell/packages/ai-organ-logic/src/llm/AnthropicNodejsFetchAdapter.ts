@@ -1,7 +1,13 @@
 import { randomUUID } from "crypto";
 import type { ToolSchema } from "@cell/ai-core-contract/types";
-import type { LlmAdapter, LlmGenerateOptions, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
+import type {
+  LlmAdapter,
+  LlmGenerateOptions,
+  LlmStreamResult,
+} from "@cell/ai-core-contract/LlmTypes";
 import type { ProviderOptions } from "./ProviderPlugins";
+import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import { observeProviderTransportRequest } from "./ProviderTransportObservation";
 
 const DEFAULT_THINKING_BUDGET = 8000;
 const DEFAULT_MAX_TOKENS = 4096;
@@ -12,13 +18,24 @@ export type AnthropicNodejsFetchAdapterSettings = {
   thinkingBudgetTokens?: number;
   maxTokens?: number;
   providerOptions?: ProviderOptions;
+  requestObserver?: ProviderTransportRequestObserver;
 };
 
 type AnthropicContentBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; thinking: string }
-  | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-  | { type: "tool_result"; tool_use_id: string; content: { type: "text"; text: string }[]; is_error?: boolean };
+  | {
+      type: "tool_use";
+      id: string;
+      name: string;
+      input: Record<string, unknown>;
+    }
+  | {
+      type: "tool_result";
+      tool_use_id: string;
+      content: { type: "text"; text: string }[];
+      is_error?: boolean;
+    };
 
 type ToolUseState = {
   id: string;
@@ -64,7 +81,9 @@ function safeParseJson(raw: string): unknown {
   }
 }
 
-function toAnthropicTools(tools: ToolSchema[]): Array<{ name: string; description?: string; input_schema: any }> {
+function toAnthropicTools(
+  tools: ToolSchema[],
+): Array<{ name: string; description?: string; input_schema: any }> {
   return tools.map((tool) => ({
     name: tool.function.name,
     description: tool.function.description,
@@ -82,7 +101,11 @@ function extractAssistantBlocks(msg: any): AnthropicContentBlock[] {
         blocks.push({ type: "text", text: String(part.text) });
       } else if (part.type === "reasoning" && part.text) {
         blocks.push({ type: "thinking", thinking: String(part.text) });
-      } else if (part.type === "tool-call" && part.toolCallId && part.toolName) {
+      } else if (
+        part.type === "tool-call" &&
+        part.toolCallId &&
+        part.toolName
+      ) {
         blocks.push({
           type: "tool_use",
           id: String(part.toolCallId),
@@ -143,7 +166,10 @@ function extractAssistantBlocks(msg: any): AnthropicContentBlock[] {
   return blocks;
 }
 
-function toAnthropicMessages(messages: any[]): { system: string[]; anthropicMessages: any[] } {
+function toAnthropicMessages(messages: any[]): {
+  system: string[];
+  anthropicMessages: any[];
+} {
   const system: string[] = [];
   const anthropicMessages: any[] = [];
 
@@ -156,7 +182,8 @@ function toAnthropicMessages(messages: any[]): { system: string[]; anthropicMess
     }
     if (msg.role === "assistant") {
       const blocks = extractAssistantBlocks(msg);
-      if (blocks.length) anthropicMessages.push({ role: "assistant", content: blocks });
+      if (blocks.length)
+        anthropicMessages.push({ role: "assistant", content: blocks });
       continue;
     }
     if (msg.role === "tool") {
@@ -184,7 +211,10 @@ function toAnthropicMessages(messages: any[]): { system: string[]; anthropicMess
       }
       const text = String(content ?? "");
       if (!text.trim()) continue;
-      anthropicMessages.push({ role: "user", content: [{ type: "text", text }] });
+      anthropicMessages.push({
+        role: "user",
+        content: [{ type: "text", text }],
+      });
     }
   }
 
@@ -194,21 +224,28 @@ function toAnthropicMessages(messages: any[]): { system: string[]; anthropicMess
 function finalizeToolInput(state: ToolUseState): Record<string, unknown> {
   if (state.receivedDelta) {
     const parsed = safeParseJson(state.inputText || "{}");
-    return (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    return (parsed && typeof parsed === "object" ? parsed : {}) as Record<
+      string,
+      unknown
+    >;
   }
   if (state.inputValue && typeof state.inputValue === "object") {
     return state.inputValue as Record<string, unknown>;
   }
   if (typeof state.inputValue === "string") {
     const parsed = safeParseJson(state.inputValue);
-    return (parsed && typeof parsed === "object" ? parsed : {}) as Record<string, unknown>;
+    return (parsed && typeof parsed === "object" ? parsed : {}) as Record<
+      string,
+      unknown
+    >;
   }
   return {};
 }
 
 function parseToolInputText(state: ToolUseState): Record<string, unknown> {
   const parsed = safeParseJson(state.inputText || "{}");
-  if (parsed && typeof parsed === "object") return parsed as Record<string, unknown>;
+  if (parsed && typeof parsed === "object")
+    return parsed as Record<string, unknown>;
   return {};
 }
 
@@ -230,7 +267,9 @@ async function* streamToParts(response: Response): AsyncIterable<any> {
   const emitToolCall = (state: ToolUseState) => {
     if (emittedToolCalls.has(state.id)) return [];
     emittedToolCalls.add(state.id);
-    const input = state.receivedDelta ? parseToolInputText(state) : finalizeToolInput(state);
+    const input = state.receivedDelta
+      ? parseToolInputText(state)
+      : finalizeToolInput(state);
     return [
       { type: "tool-input-end", id: state.id },
       { type: "tool-call", toolCallId: state.id, toolName: state.name, input },
@@ -326,8 +365,7 @@ async function* streamToParts(response: Response): AsyncIterable<any> {
   } finally {
     try {
       reader.releaseLock();
-    } catch {
-    }
+    } catch {}
   }
 
   if (buffer.trim()) {
@@ -350,13 +388,16 @@ export class AnthropicNodejsFetchLlmAdapter implements LlmAdapter {
   private thinkingBudgetTokens: number;
   private maxTokens: number;
   private providerOptions: ProviderOptions;
+  private requestObserver?: ProviderTransportRequestObserver;
 
   constructor(settings: AnthropicNodejsFetchAdapterSettings) {
     this.apiKey = settings.apiKey;
     this.baseUrl = settings.baseUrl;
-    this.thinkingBudgetTokens = settings.thinkingBudgetTokens ?? DEFAULT_THINKING_BUDGET;
+    this.thinkingBudgetTokens =
+      settings.thinkingBudgetTokens ?? DEFAULT_THINKING_BUDGET;
     this.maxTokens = settings.maxTokens ?? DEFAULT_MAX_TOKENS;
     this.providerOptions = settings.providerOptions ?? {};
+    this.requestObserver = settings.requestObserver;
   }
 
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
@@ -375,8 +416,11 @@ export class AnthropicNodejsFetchLlmAdapter implements LlmAdapter {
     };
 
     const providerOptions = this.providerOptions;
-    const url = buildAnthropicUrl((providerOptions.baseURL as string | undefined) || this.baseUrl);
-    const apiKey = (providerOptions.apiKey as string | undefined) || this.apiKey;
+    const url = buildAnthropicUrl(
+      (providerOptions.baseURL as string | undefined) || this.baseUrl,
+    );
+    const apiKey =
+      (providerOptions.apiKey as string | undefined) || this.apiKey;
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "x-api-key": apiKey,
@@ -390,21 +434,33 @@ export class AnthropicNodejsFetchLlmAdapter implements LlmAdapter {
       headers.Authorization = `Bearer ${apiKey}`;
     }
     if (process.env.MINIMAX_DEBUG === "1") {
-      console.log("[anthropic] request", JSON.stringify({ url, body }, null, 2));
+      console.log(
+        "[anthropic] request",
+        JSON.stringify({ url, body }, null, 2),
+      );
     }
 
     const fetchFn = providerOptions.fetch || fetch;
     const signal = providerOptions.signal as AbortSignal | undefined;
+    const serializedBody = JSON.stringify(body);
+    observeProviderTransportRequest(this.requestObserver, {
+      transportType: "http",
+      requestBody: serializedBody,
+      url,
+      method: "POST",
+    });
     const res = await fetchFn(url, {
       method: "POST",
       headers,
-      body: JSON.stringify(body),
+      body: serializedBody,
       signal,
     });
 
     if (!res.ok) {
       const errorText = await res.text().catch(() => "");
-      throw new Error(`Anthropic fetch error ${res.status}: ${errorText || res.statusText}`);
+      throw new Error(
+        `Anthropic fetch error ${res.status}: ${errorText || res.statusText}`,
+      );
     }
 
     return { stream: streamToParts(res) };
@@ -440,7 +496,10 @@ export class AnthropicStreamAdapter {
   }
 
   async processStream(stream: AsyncIterable<any>) {
-    await this.ingressControl.send("control", JSON.stringify({ event: "StreamStart" }));
+    await this.ingressControl.send(
+      "control",
+      JSON.stringify({ event: "StreamStart" }),
+    );
     try {
       for await (const part of stream) {
         if (process.env.MINIMAX_DEBUG === "1") {
@@ -451,10 +510,12 @@ export class AnthropicStreamAdapter {
       await this.flushToolCalls();
       return this.buildMessage();
     } finally {
-      await this.ingressControl.send("control", JSON.stringify({ event: "StreamEnd" }));
+      await this.ingressControl.send(
+        "control",
+        JSON.stringify({ event: "StreamEnd" }),
+      );
     }
   }
-
 
   getToolContext(): AnthropicToolContext {
     return {
@@ -542,7 +603,8 @@ export class AnthropicStreamAdapter {
 
   private async captureToolCall(part: any) {
     if (!part?.toolCallId || !part?.toolName) return;
-    const input = part.input ?? this.toolBuffers.get(part.toolCallId)?.input ?? {};
+    const input =
+      part.input ?? this.toolBuffers.get(part.toolCallId)?.input ?? {};
     const toolCall = {
       id: part.toolCallId,
       type: "function",
@@ -594,7 +656,11 @@ export class AnthropicStreamAdapter {
           },
         };
         if (!this.toolCalls.find((tc) => tc.id === block.id)) {
-          this.toolCalls.push({ id: block.id, name: block.name, input: block.input ?? {} });
+          this.toolCalls.push({
+            id: block.id,
+            name: block.name,
+            input: block.input ?? {},
+          });
           this.assistantContentParts.push({
             type: "tool-call",
             toolCallId: block.id,
@@ -620,7 +686,11 @@ export class AnthropicStreamAdapter {
           arguments: JSON.stringify(buffer.input ?? {}),
         },
       };
-      this.toolCalls.push({ id: buffer.id, name: buffer.name, input: buffer.input ?? {} });
+      this.toolCalls.push({
+        id: buffer.id,
+        name: buffer.name,
+        input: buffer.input ?? {},
+      });
       this.assistantContentParts.push({
         type: "tool-call",
         toolCallId: buffer.id,

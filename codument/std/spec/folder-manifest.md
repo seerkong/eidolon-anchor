@@ -2,7 +2,7 @@
 
 > 解决一个问题：分形 docs **不应强依赖一份中心规范**去说明"每个标准文件夹装什么"。每个文件夹应能在**自己**的 `index.md` 里**独立声明**职责；不同业务领域长出的自定义文件夹也能自带说明。本规范定义这套**自描述格式**，以及一个**补齐（backfill）机制**给缺失的文件夹补上声明。
 >
-> 它与 [docs-*-fractal](@codument/std/docs-modeling-fractal/index.md) 互补：分形 index 给"递归规则 + 默认类目词汇"；本规范给"每个具体文件夹**就地**钉死它装什么"。层级与晋升语义见 [std/attractors/knowledge-tiers.md](@codument/std/attractors/knowledge-tiers.md)。
+> 它与 [docs-*-fractal](@codument/std/skill/docs-modeling-fractal/index.md) 互补：分形 index 给"递归规则 + 默认类目词汇"；本规范给"每个具体文件夹**就地**钉死它装什么"。层级与晋升语义见 [std/attractors/knowledge-tiers.md](@codument/std/attractors/knowledge-tiers.md)。
 
 ## 1. 目录职责块（写在该目录的 `index.md` 里）
 
@@ -41,7 +41,7 @@
 
 ## 2. 标准文件夹 vs 自定义文件夹
 
-- **标准文件夹**（分形默认类目：modeling 的 `objects/policies/workflows`、impl 的 `overview/howto/rules/...` 等）：职责可**继承分形默认**，职责块写一行即可（甚至只写与默认的差异）。
+- **标准文件夹**（分形默认类目：modeling 的 `objects/policies/workflows`、engineering 的 `overview/howto/rules/...` 等）：职责可**继承分形默认**，职责块写一行即可（甚至只写与默认的差异）。
 - **自定义文件夹**（某业务领域自己长出来的类目，如 `sources/ transforms/ sinks/`、`runbooks/ slas/`）：分形规范**无法预知**，所以**必须**自带完整型职责块——这正是"允许在某个文件独立进行说明配置"的落点。
 
 > 规则：**任何不在分形默认词汇表内的目录，其 `index.md` 必须有职责块**；否则视为未声明，补齐机制会标记。

@@ -1,0 +1,21 @@
+<behavior-patch capability="bash-permission-approval" version="1">
+  <upsert selector="behavior://bash-permission-approval/requirements/command-normalization">
+    <requirement id="command-normalization">
+      <statement>The system SHALL normalize common low-risk shell command shapes before deciding that bash syntax requires human approval.</statement>
+      <suite id="multiline-segments" name="Multiline Command Segments">
+        <case id="readonly-newline-segments">
+          <given>A bash command contains multiple top-level lines that each parse as supported command segments</given>
+          <when>The local permission evaluator parses the command</when>
+          <then>The evaluator SHALL treat the newline as a segment boundary and apply existing per-segment rules</then>
+        </case>
+      </suite>
+      <suite id="python-heredoc" name="Python Heredoc Normalization">
+        <case id="python-stdin-heredoc">
+          <given>A bash command invokes python through stdin heredoc with or without an explicit dash argument</given>
+          <when>The heredoc prefix is otherwise supported</when>
+          <then>The evaluator SHALL normalize the command to a python stdin segment such as `python3 -`</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

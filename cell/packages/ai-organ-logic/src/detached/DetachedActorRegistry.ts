@@ -1,5 +1,10 @@
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
-import { ensureVmSessionState, type AiAgentVm, type VmDetachedActorRecord } from "@cell/ai-core-logic/runtime/runtime";
+import type { DetachedDelegateSingleFlightScope } from "@cell/ai-core-contract/runtime/AiAgentVm";
+import {
+  ensureVmSessionState,
+  type AiAgentVm,
+  type VmDetachedActorRecord,
+} from "@cell/ai-core-logic/runtime/runtime";
 
 export const DETACHED_ACTOR_KINDS = {
   delegate: "delegate",
@@ -24,6 +29,33 @@ export type DetachedActorStatus =
   (typeof DETACHED_ACTOR_STATUSES)[keyof typeof DETACHED_ACTOR_STATUSES];
 
 export type DetachedActorRecord = VmDetachedActorRecord;
+
+export const DEFAULT_DETACHED_DELEGATE_TASK_KEY = "default";
+
+export function normalizeDetachedDelegateTaskKey(taskKey: unknown): string {
+  return typeof taskKey === "string" && taskKey.trim()
+    ? taskKey.trim()
+    : DEFAULT_DETACHED_DELEGATE_TASK_KEY;
+}
+
+function isSingleFlightActiveStatus(status: DetachedActorStatus): boolean {
+  return status === DETACHED_ACTOR_STATUSES.pending
+    || status === DETACHED_ACTOR_STATUSES.running
+    || status === DETACHED_ACTOR_STATUSES.suspended;
+}
+
+function hasSingleFlightScope(
+  record: DetachedActorRecord,
+  scope: DetachedDelegateSingleFlightScope,
+): boolean {
+  const candidate = record.singleFlightScope;
+  return record.kind === DETACHED_ACTOR_KINDS.delegate
+    && isSingleFlightActiveStatus(record.status)
+    && candidate?.parentActorKey === scope.parentActorKey
+    && candidate.parentActorId === scope.parentActorId
+    && candidate.agentType === scope.agentType
+    && candidate.taskKey === scope.taskKey;
+}
 
 function toDetachedRecordFromActor(actor: AiAgentActor): DetachedActorRecord | null {
   const task = actor.detachedTask;
@@ -52,7 +84,20 @@ export class DetachedActorRegistry {
   }
 
   private cloneRecord(record: DetachedActorRecord): DetachedActorRecord {
-    return { ...record };
+    return {
+      ...record,
+      singleFlightScope: record.singleFlightScope
+        ? { ...record.singleFlightScope }
+        : undefined,
+    };
+  }
+
+  private preserveStoredSingleFlightScope(record: DetachedActorRecord): DetachedActorRecord {
+    const storedScope = this.taskStore[record.taskId]?.singleFlightScope;
+    return {
+      ...record,
+      singleFlightScope: storedScope ? { ...storedScope } : undefined,
+    };
   }
 
   private findDetachedActor(taskId: string): AiAgentActor | null {
@@ -98,11 +143,16 @@ export class DetachedActorRegistry {
     const actor = this.findDetachedActor(taskId);
     const actorRecord = actor ? toDetachedRecordFromActor(actor) : null;
     if (actorRecord) {
-      this.taskStore[taskId] = actorRecord;
-      return this.cloneRecord(actorRecord);
+      const merged = this.preserveStoredSingleFlightScope(actorRecord);
+      this.taskStore[taskId] = merged;
+      return this.cloneRecord(merged);
     }
     const record = this.taskStore[taskId];
     return record ? this.cloneRecord(record) : null;
+  }
+
+  findActiveDelegateTask(scope: DetachedDelegateSingleFlightScope): DetachedActorRecord | null {
+    return this.list().find((record) => hasSingleFlightScope(record, scope)) ?? null;
   }
 
   list(): DetachedActorRecord[] {
@@ -113,8 +163,9 @@ export class DetachedActorRegistry {
     for (const actor of Object.values(this.vm.actors)) {
       const actorRecord = toDetachedRecordFromActor(actor);
       if (!actorRecord) continue;
-      merged.set(actorRecord.taskId, actorRecord);
-      this.taskStore[actorRecord.taskId] = this.cloneRecord(actorRecord);
+      const mergedRecord = this.preserveStoredSingleFlightScope(actorRecord);
+      merged.set(actorRecord.taskId, mergedRecord);
+      this.taskStore[actorRecord.taskId] = this.cloneRecord(mergedRecord);
     }
     return Array.from(merged.values())
       .sort((a, b) => a.createdAt - b.createdAt)
@@ -137,7 +188,10 @@ export class DetachedActorRegistry {
     return this.replaceAll(records);
   }
 
-  update(taskId: string, patch: Partial<Omit<DetachedActorRecord, "taskId" | "createdAt">>): DetachedActorRecord | null {
+  update(
+    taskId: string,
+    patch: Partial<Omit<DetachedActorRecord, "taskId" | "createdAt" | "singleFlightScope">>,
+  ): DetachedActorRecord | null {
     const actor = this.findDetachedActor(taskId);
     if (actor?.detachedTask) {
       const nextTask = {
@@ -146,10 +200,11 @@ export class DetachedActorRegistry {
         updatedAt: Date.now(),
       };
       actor.detachedTask = nextTask;
-      const next = toDetachedRecordFromActor(actor);
-      if (!next) return null;
-      this.taskStore[taskId] = next;
-      return this.cloneRecord(next);
+      const actorRecord = toDetachedRecordFromActor(actor);
+      if (!actorRecord) return null;
+      const merged = this.preserveStoredSingleFlightScope(actorRecord);
+      this.taskStore[taskId] = merged;
+      return this.cloneRecord(merged);
     }
     const existing = this.taskStore[taskId];
     if (!existing) return null;

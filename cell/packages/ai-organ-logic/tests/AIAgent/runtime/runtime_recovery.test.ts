@@ -1531,6 +1531,12 @@ describe("runtime recovery bootstrap", () => {
       childActorKey: detachedActor.key,
       childActorId: detachedActor.id,
       toolCallId: "tc-detached-1",
+      singleFlightScope: {
+        parentActorKey: root.key,
+        parentActorId: root.id,
+        agentType: "code",
+        taskKey: "default",
+      },
     })
 
     const outbound = protocolEngine.makeOutbound({ coordination: "shutdown", kind: "shutdown_request", payload: { reason: "persist" } })
@@ -1624,6 +1630,49 @@ describe("runtime recovery bootstrap", () => {
     )
     expect(detachedStatus.ok).toBe(true)
     expect(detachedStatus.status).toBe("interrupted")
+    expect(recovered?.vm.sessionState.detachedActors["task-detached-1"]?.singleFlightScope).toEqual({
+      parentActorKey: root.key,
+      parentActorId: root.id,
+      agentType: "code",
+      taskKey: "default",
+    })
+
+    ensureVmRuntimeContext(recovered!.vm).currentOrchestrator = {
+      parentFiberId: mainFiberId,
+      spawnFiber: (params) => recovered!.driver.spawnFiber(params),
+    }
+    const actorCountBeforeRestart = Object.keys(recovered!.vm.actors).length
+    const fiberCountBeforeRestart = Object.keys(recovered!.driver.getState().fibers).length
+    const recoveredRestart = JSON.parse(String(await ToolFuncRegistry.call(
+      recoveredToolRegistry,
+      "RunDelegateActor",
+      recovered!.vm,
+      recovered!.controlActor,
+      {
+        description: "resume detached",
+        prompt: "reuse the recovered detached task",
+        agent_type: "code",
+        mode: "detached",
+      },
+    )))
+    expect(recoveredRestart).toMatchObject({
+      task_id: expect.any(String),
+      status: "pending",
+      reused: false,
+    })
+    expect(recoveredRestart.task_id).not.toBe("task-detached-1")
+    expect(Object.keys(recovered!.vm.actors)).toHaveLength(actorCountBeforeRestart + 1)
+    expect(Object.keys(recovered!.driver.getState().fibers)).toHaveLength(fiberCountBeforeRestart + 1)
+    expect(getDetachedActorRegistry(recovered!.vm).get("task-detached-1")).toMatchObject({
+      taskId: "task-detached-1",
+      status: "interrupted",
+      singleFlightScope: {
+        parentActorKey: root.key,
+        parentActorId: root.id,
+        agentType: "code",
+        taskKey: "default",
+      },
+    })
 
     const protocolStatus = JSON.parse(
       String(await ToolFuncRegistry.call(recoveredToolRegistry, "CoordinationStatus", recovered!.vm, recovered!.controlActor, { request_id: outbound.request_id })),

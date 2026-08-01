@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-runtime-observability-rx-sinks" version="1">
+  <upsert selector="behavior://ai-runtime-observability-rx-sinks/requirements/provider-request-sqlite-ledger">
+    <requirement id="provider-request-sqlite-ledger">
+      <statement>系统 SHALL 在显式启用时，把每次真实 provider request attempt 作为独立、append-only、可查询的 SQLite 诊断事实持久化，且该 sink SHALL NOT 参与或改变 live AI loop。</statement>
+      <suite id="attempt-capture" name="Provider request attempt capture">
+        <case id="one-row-per-real-attempt">
+          <given>provider runtime 即将执行一次真实 transport attempt，包括 retry 内的 WebSocket、HTTP 或 fallback attempt</given>
+          <when>最终 request body 已完成所有 adapter-specific 变换且即将执行 fetch 或 WebSocket send</when>
+          <then>系统 SHALL 在每个真实发送动作前持久化恰好一条 request observation</then>
+          <then>observation SHALL 保留脱敏后的 exact request body、transport type/ordinal、source provider messages/tools 以及 session/actor/turn/provider-call/provider-attempt identity</then>
+          <then>只执行 prompt build、估算或 preflight 而未调用 provider 时 SHALL NOT 写入 request observation</then>
+          <then>WebSocket 失败后发送不同 HTTP fallback body 时 SHALL 记录同一 provider attempt 下两个有序 transport observations</then>
+        </case>
+        <case id="observation-does-not-mutate-request">
+          <given>runtime 已生成将要发送的 messages、tools 和 request contract</given>
+          <when>系统复制并持久化 observation</when>
+          <then>原 provider request 的结构、顺序、字段和值 SHALL 保持不变</then>
+          <then>启用或关闭 observation SHALL 产生相同的 provider 调用次数和输入</then>
+        </case>
+      </suite>
+      <suite id="security-and-failure" name="Security and failure isolation">
+        <case id="credential-redaction">
+          <given>request 配置包含 authorization、API key、cookie、token、secret 或 connection options</given>
+          <when>系统构造 SQLite observation 副本</when>
+          <then>认证字段和 connection options SHALL NOT 以明文写入数据库</then>
+          <then>数据库文件 SHALL 仅允许当前用户读写</then>
+        </case>
+        <case id="sqlite-failure-is-fail-open">
+          <given>SQLite open、schema、lock、write 或 disk 操作失败</given>
+          <when>provider attempt 到达 observation port</when>
+          <then>系统 SHALL 产生有界诊断并继续原 provider attempt</then>
+          <then>系统 SHALL NOT 因 observation 失败而取消、重试或改变 provider 结果</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="vendor-data-graph-stream-foundations" version="1">
+  <upsert selector="behavior://vendor-data-graph-stream-foundations/requirements/message-history-unified-state-projection">
+    <requirement id="message-history-unified-state-projection">
+      <statement>MessageHistoryGraph SHALL project its append-only semantic input through the unified DataGraph stream-driven state-signal contract, without retaining removed ReducerProjection APIs, while preserving transcript, committed-message, anomaly, completion, and disposal behavior.</statement>
+      <suite id="projection-contract" name="Message history projection contract">
+        <case id="history-reducer-uses-unified-state-node">
+          <given>MessageHistoryGraph receives semantic events through its ordered input log</given>
+          <when>it reduces a transcript state and exposes listener notifications</when>
+          <then>it SHALL register the log stream as a DataGraph source and read a stream-driven state-signal handle output</then>
+          <then>it SHALL NOT import or reference ReducerProjection or createReducerProjection</then>
+        </case>
+        <case id="history-fixtures-and-lifecycle-remain-stable">
+          <given>existing history transcript fixtures and listener lifecycle tests</given>
+          <when>the unified projection receives semantic events, completion, or disposal</when>
+          <then>they SHALL preserve current emitted records and committed messages, stop after completion, and dispose graph subscriptions without disposing the independently owned input log twice</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

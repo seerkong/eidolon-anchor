@@ -30,25 +30,36 @@
     </suite>
   </requirement>
   <requirement id="timed-out-turn-progress-persisted">
-    <statement>当一个 turn 在 mandatory_continuation 状态下超时（unsettled）时，运行时 SHALL 提供一个 seal 机制以持久化该 turn 已完成的 conversation 进度（已 commit 进 conversation domain 的完成工具对/消息），SHALL NOT 因此快照「不安全的工具执行中」状态（只 seal 已完成部分）。**当前已交付 = seal 机制（coordinator 可注入回调 + 独立 flush 函数），经直接注入单测证明；生产侧默认 NOT 启用该 seal**——见下「DEFERRED」说明。注：此项不解决单轮内 repeat-read（那是独立问题）。</statement>
+    <statement>当一个 turn 在 mandatory_continuation 状态下超时（unsettled）时，运行时 SHALL seal 已完成的 conversation 进度（已 commit 进 conversation domain 的完成工具对/消息），SHALL NOT 因此快照不安全的工具执行中状态。后续 continuation 恢复该 session 时，model-visible history SHALL 包含 sealed completed progress，SHALL NOT 回到超时前的 checkpoint 从头重来。恢复门 SHALL 只容忍 conversation head 的 forward-only advancement；缺失、倒退、或非 conversation authoritative head mismatch 仍 SHALL 判 dirty。</statement>
     <suite id="timeout-progress" name="Timed-out turn persists completed progress">
       <case id="completed-progress-sealed-on-timeout">
-        <given>一个 turn 完成了若干工具对（已进内存 conversation domain）后在 mandatory_continuation 超时，且 seal 回调被注入到 coordinator（机制单测路径）</given>
-        <when>turn 返回 unsettled</when>
+        <given>一个 turn 完成了若干工具对后在 mandatory_continuation 超时</given>
+        <when>turn 返回 timeout_unsettled</when>
         <then>已完成的 conversation 进度 SHALL 被 seal 进持久化 history</then>
-        <then>SHALL NOT 快照不安全的 in-flight 工具执行（VM/ToolCallDomain in-flight 不动）</then>
+        <then>SHALL NOT 快照不安全的 in-flight VM/ToolCallDomain 状态</then>
       </case>
-      <case id="timeout-seal-no-recovery-regression">
-        <given>一个 session 先 settle 落过快照（manifest 在盘），随后某轮在 mandatory_continuation 超时；生产配置（coordinator 默认 no-op，未注入 seal 回调）</given>
-        <when>该 session 被后续 continuation 恢复</when>
-        <then>磁盘 conversation history SHALL 与最后一次 settled checkpoint 字节一致（生产超时路径不 seal、不推进 conversation 头）</then>
-        <then>恢复 SHALL 干净成功回到最后 settled 快照，SHALL NOT 因超时被判 dirty/不可恢复（即本 track 不回归既有恢复行为）</then>
-      </case>
-      <case id="continuation-resumes-not-restarts" status="deferred-followup">
-        <given>【DEFERRED 后续 track】上述 seal 在生产被启用后已落盘完成进度</given>
+      <case id="continuation-resumes-not-restarts">
+        <given>一个 session 先 settle 落过 checkpoint，随后某轮 seal 了 completed conversation progress 但未保存 VM checkpoint</given>
         <when>后续 continuation 恢复该 session</when>
-        <then>（目标，尚未交付）恢复的 model-visible history SHALL 含已完成进度（接力），SHALL NOT 回到超时前的光秃状态从头重来；恢复 SHALL 容忍 conversation 领先于 VM snapshot 且不损坏（缺源仍按单源语义）</then>
-        <then>当前边界（pinned by test）：恢复门把 conversation 领先 checkpoint 判 head_commit_sequence_mismatch→dirty 并 throw。后续 track 须令 conversation head forward-only 容忍（actual≥expected）并同时启用生产 seal wiring，二者一起上；红线 = 把 pin 测试的 rejects.toThrow(&quot;dirty&quot;) 翻为 recovered.messages 含完成进度（length&gt;1）。</then>
+        <then>恢复的 model-visible history SHALL 含 sealed completed progress</then>
+        <then>恢复 SHALL 容忍 conversation head actual 大于 checkpoint expected</then>
+      </case>
+      <case id="non-forward-mismatch-remains-dirty">
+        <given>恢复时 durable head 缺失、倒退、或非 conversation authoritative head 与 checkpoint marker 不一致</given>
+        <when>runtime-control recovery gate 分类该 session</when>
+        <then>恢复 SHALL 判 dirty 或 pending，SHALL NOT 把该 mismatch 当作 clean recovery</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="historical-long-turn-smoke">
+    <statement>系统 SHALL provide a real CLI smoke path for historical long-running inputs that verifies resumable pause semantics without requiring unsafe checkpoint snapshots.</statement>
+    <suite id="historical-smoke" name="Historical long turn smoke">
+      <case id="sparrow-session-pauses-with-progress">
+        <given>the historical Sparrow session analysis prompt is executed through source CLI with a short timeout</given>
+        <when>the turn reaches mandatory continuation before safepoint</when>
+        <then>headless result SHALL be `paused_with_progress`</then>
+        <then>trace SHALL record `session_end.status=paused_with_progress`</then>
+        <then>`--output-last-message` SHALL NOT be written</then>
       </case>
     </suite>
   </requirement>

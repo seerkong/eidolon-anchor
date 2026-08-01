@@ -1,5 +1,6 @@
 规则：
-- 当任务匹配某个 skill 描述时，立即使用 Skill 工具加载。
+- 本地文本资源按完整 content-addressed resource revision、requested fragment 与 current provider context visibility 复用；同 revision 且片段仍完整可见时使用 already-visible 引用，不重复正文。
+- 资源 revision 变化，或原 delivery 已移除、compacted、persisted 而不再完整可见时，重新加载所需 fragment。
 - 对需要探索或实现的聚焦子任务，使用 RunDelegateActor 工具；在 AI 领域语境中，subagent/子代理指的就是 delegate。
 - 只有当工作确实包含多个依赖步骤、分支决策或有意义的可恢复状态时，才使用 TaskTreeWrite；小型直接修复不要使用。
 - 需要完整 task-tree JSON 时，使用 TaskTreeRead。

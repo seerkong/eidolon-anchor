@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="upgrade-depa-data-graph-package-baseline" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>将所有直接 depa-data-graph 依赖和 lockfile 升级到 unified 1.0.1，并建立不依赖 removed API 的边界护栏。</Goal>
+    <Description>先用回归测试锁定 manifest/lock 与 current public surface，再以最小范围更新 dependency baseline。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-07-26T14:55:36Z</CreatedAt>
+    <UpdatedAt>2026-07-26T15:10:56Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_upgrade-depa-data-graph-package-baseline" name="upgrade-depa-data-graph-package-baseline" version="1">
+    <Description>以测试先行方式升级 direct dependency resolution，并将 vendor guard 收敛到 unified public surface。</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="统一依赖基线与边界护栏" status="DONE" order="0">
+        <Description>先使升级前的 boundary guard 表达目标契约，再更新 manifests 和 lockfile，并以 scoped validation 收口。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>所有直接 manifest 与 lockfile 已解析到 1.0.1</cdt:Criterion>
+          <cdt:Criterion>vendor boundary test 不再要求 removed API 或 stale topology</cdt:Criterion>
+          <cdt:Criterion>diff 未包含不属于 package baseline 的生产迁移</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="编写 unified dependency boundary 回归" status="DONE" order="0" priority="P0">
+            <Description>扩展 vendor boundary test，使其检查五个 direct manifest、lockfile 的目标 resolution、支持的 generic exports 与当前 AI source ownership；先让旧 0.1.1 基线失败。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">回归测试覆盖五个 direct manifest 与 bun.lock 的 core/Solid resolution</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">测试不再断言 ReducerProjection 或 createReducerProjection export，并使用真实 AI source paths</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="更新 package manifests 和 Bun lockfile" status="DONE" order="1" priority="P0">
+            <Description>将五个 direct manifest 的 core/Solid range 改为 ^1.0.1，并用项目原生 Bun 依赖流程将 bun.lock 解析到 1.0.1；不得引入 local shim 或 broad source migration。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">所有 direct core/Solid dependency range 为 ^1.0.1</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">bun.lock 将 core/Solid 解析到 1.0.1，且不再保留 direct 0.1.x resolution</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="验证 package baseline 并记录后续迁移暴露面" status="DONE" order="2" priority="P0">
+            <Description>运行 vendor boundary test 和 manifest/import inventory，审阅 scoped diff；记录因 removed production API 而暴露、但属于后续 track 的失败，不在本 track 越界修复。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">vendor boundary test 通过，manifest 与 lockfile inventory 符合目标 line</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">验证报告区分 package baseline 结果、后续 source migration 风险与 unrelated dirty-worktree changes</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+</Track>

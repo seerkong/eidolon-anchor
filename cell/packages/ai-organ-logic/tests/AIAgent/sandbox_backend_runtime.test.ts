@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "fs";
-import { tmpdir } from "os";
+import { homedir, tmpdir } from "os";
 import path from "path";
 
 import { bashCoreLogic } from "@cell/ai-organ-logic/composer/AIAgent/tools/Bash/Logic";
@@ -251,6 +251,22 @@ describe("sandbox backend runtime", () => {
     expect(command.policy).not.toContain("(allow network-outbound)");
   });
 
+  it("allows macOS Seatbelt read-only commands to write shell scratch files in temp", () => {
+    const command = createMacOsSeatbeltCommand({
+      shellPath: "/bin/zsh",
+      command: "python3 <<'PY'\nprint('ok')\nPY",
+      workDir: "/workspace/project",
+      writableRoots: [],
+      networkAccess: "disabled",
+      sandboxMode: "read-only",
+      tempDir: "/tmp",
+    });
+
+    expect(command.policy).toContain("WRITABLE_ROOT_0");
+    expect(command.args.some((arg) => arg.startsWith("-DWRITABLE_ROOT_0=") && arg.endsWith("/tmp"))).toBe(true);
+    expect(command.args).not.toContain("-DWRITABLE_ROOT_1=/workspace/project");
+  });
+
   it("builds Linux bubblewrap command args with read-only base and writable roots", () => {
     const command = createLinuxSandboxCommand({
       command: "printf ok",
@@ -273,6 +289,28 @@ describe("sandbox backend runtime", () => {
     expect(command.args.at(-3)).toBe("/bin/sh");
     expect(command.args.at(-2)).toBe("-lc");
     expect(command.args.at(-1)).toBe("printf ok");
+  });
+
+  it("allows Linux read-only commands to write shell scratch files in temp", () => {
+    const command = createLinuxSandboxCommand({
+      command: "python3 <<'PY'\nprint('ok')\nPY",
+      workDir: "/workspace/project",
+      writableRoots: ["/workspace/project"],
+      networkAccess: "disabled",
+      sandboxMode: "read-only",
+      tempDir: "/tmp",
+      bwrapPath: "/usr/bin/bwrap",
+      shellPath: "/bin/sh",
+    });
+
+    const bindPairs: string[] = [];
+    for (let index = 0; index < command.args.length; index += 1) {
+      if (command.args[index] === "--bind") {
+        bindPairs.push(`${command.args[index + 1]}:${command.args[index + 2]}`);
+      }
+    }
+    expect(bindPairs.some((pair) => pair === "/tmp:/tmp" || pair === "/private/tmp:/private/tmp")).toBe(true);
+    expect(bindPairs).not.toContain("/workspace/project:/workspace/project");
   });
 
   it("builds Windows elevated runner args with scoped writable roots", () => {
@@ -418,7 +456,9 @@ describe("sandbox backend runtime", () => {
 
   it("blocks workspace writes in real macOS read-only Seatbelt mode", () => {
     if (process.platform !== "darwin" || !existsSync("/usr/bin/sandbox-exec")) return;
-    const workDir = mkdtempSync(path.join(tmpdir(), "sandbox-backend-readonly-"));
+    const workDirParent = path.join(homedir(), ".eidolon-sandbox-test");
+    mkdirSync(workDirParent, { recursive: true });
+    const workDir = mkdtempSync(path.join(workDirParent, "sandbox-backend-readonly-"));
     const outPath = path.join(workDir, "blocked.txt");
     const output = executeSandboxedBashCommand({
       command: `echo blocked > ${JSON.stringify(outPath)}`,
@@ -436,6 +476,26 @@ describe("sandbox backend runtime", () => {
 
     expect(output).toContain("operation not permitted");
     expect(existsSync(outPath)).toBe(false);
+  });
+
+  it("executes heredoc commands in real macOS read-only Seatbelt mode", () => {
+    if (process.platform !== "darwin" || !existsSync("/usr/bin/sandbox-exec")) return;
+    const workDir = mkdtempSync(path.join(tmpdir(), "sandbox-backend-readonly-heredoc-"));
+    const output = executeSandboxedBashCommand({
+      command: "python3 <<'PY'\nprint('heredoc-ok')\nPY",
+      cwd: workDir,
+      timeoutMs: 120000,
+      selection: {
+        backendName: "macos-seatbelt",
+        sandboxMode: "read-only",
+        networkAccess: "disabled",
+        workDir,
+        writableRoots: [],
+        platform: "darwin",
+      },
+    });
+
+    expect(output).toBe("heredoc-ok");
   });
 
   it("keeps workspace metadata protected when writable roots overlap", () => {
@@ -493,7 +553,7 @@ describe("sandbox backend runtime", () => {
       {},
     );
 
-    expect(result).toBe("(no output)");
+    expect(result).toMatchObject({ output: "(no output)", outcome: { status: "completed" } });
     expect(readFileSync(outPath, "utf-8").trim()).toBe("granted");
   });
 
@@ -516,7 +576,7 @@ describe("sandbox backend runtime", () => {
       },
     );
 
-    expect(result).toBe("/workspace/project");
+    expect(result).toMatchObject({ output: "/workspace/project", outcome: { status: "completed" } });
     expect(calls[0]?.executable).toBe("/usr/bin/sandbox-exec");
   });
 
@@ -539,7 +599,7 @@ describe("sandbox backend runtime", () => {
       },
     );
 
-    expect(result).toBe("/workspace/project");
+    expect(result).toMatchObject({ output: "/workspace/project", outcome: { status: "completed" } });
     expect(calls[0]?.options.timeout).toBe(15000);
   });
 

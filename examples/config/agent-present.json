@@ -1,0 +1,29 @@
+{
+  "default-preset": "default",
+  "presets": {
+    "default": {
+      "primary": {
+        "model": "openai-responses/gpt-5.1"
+      }
+    },
+    "deepseek": {
+      "primary": {
+        "model": "deepseek/deepseek-chat"
+      }
+    }
+  },
+  "fallback": {
+    "enabled": false,
+    "timeoutMs": 15000,
+    "chains": {
+      "primary": [
+        {
+          "model": "openai-responses/gpt-5.1"
+        },
+        {
+          "model": "deepseek/deepseek-chat"
+        }
+      ]
+    }
+  }
+}

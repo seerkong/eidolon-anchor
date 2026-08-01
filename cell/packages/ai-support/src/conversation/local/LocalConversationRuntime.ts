@@ -10,6 +10,8 @@ import {
   type ActorPromptGenerationData,
   type ConversationArtifactRef,
   type ConversationCommittedMessageData,
+  type LocalConversationContextAssetData,
+  type LocalConversationProviderProjectionFact,
   type ConversationPersistenceRepository,
   type ConversationSessionRawState,
   type ConversationTranscriptSourceRecord,
@@ -79,6 +81,9 @@ function extractToolCallIdFromSourceRecords(records?: ConversationTranscriptSour
 export function toCommittedConversationMessage(message: ChatMessage): ConversationCommittedMessageData {
   const toolCallId = normalizeToolCallId(message);
   return {
+    ...(typeof message.messageId === "string" && message.messageId
+      ? { messageId: message.messageId }
+      : {}),
     role: message.role,
     name: message.name,
     content: String(message.content ?? ""),
@@ -119,6 +124,9 @@ export function fromCommittedConversationMessage(message: ConversationCommittedM
   }
 
   return {
+    ...(typeof message.messageId === "string" && message.messageId
+      ? { messageId: message.messageId }
+      : {}),
     role,
     name: message.name,
     content,
@@ -135,11 +143,14 @@ export function fromCommittedConversationMessage(message: ConversationCommittedM
 
 function fromCommittedHistoryRef(message: ActorCommittedMessageRef): ChatMessage {
   const restored = fromCommittedConversationMessage(message.message);
-  if (restored.role !== "tool" || normalizeToolCallId(restored)) {
-    return restored;
+  const identified = restored.messageId
+    ? restored
+    : { ...restored, messageId: message.recordId };
+  if (identified.role !== "tool" || normalizeToolCallId(identified)) {
+    return identified;
   }
   const toolCallId = extractToolCallIdFromSourceRecords(message.sourceRecords);
-  return toolCallId ? { ...restored, toolCallId, tool_call_id: toolCallId } : restored;
+  return toolCallId ? { ...identified, toolCallId, tool_call_id: toolCallId } : identified;
 }
 
 function legacyRefToTranscriptRecords(message: any): TranscriptRecord[] {
@@ -233,35 +244,153 @@ function readPromptPayloadText(payload: Record<string, unknown>, keys: string[])
   return null;
 }
 
-function isToolMessage(message: ChatMessage | undefined): boolean {
-  return String(message?.role ?? "") === "tool";
-}
-
-function findToolCallGroupStart(messages: ChatMessage[], index: number): number {
-  let start = Math.max(0, Math.min(index, messages.length - 1));
-  if (isToolMessage(messages[start])) {
-    while (start > 0 && isToolMessage(messages[start - 1])) start -= 1;
-    if (start > 0 && String(messages[start - 1]?.role ?? "") === "assistant") start -= 1;
+function insertDynamicOverlaysAtConversationBoundary(
+  rawState: ConversationActorRawState,
+  messages: ChatMessage[],
+  overlays: ChatMessage[],
+): ChatMessage[] {
+  if (overlays.length === 0) return messages;
+  const stableSystemPrompts = new Set(readPromptGenerationSystemPrompts(rawState));
+  let boundary = 0;
+  while (
+    boundary < messages.length
+    && String(messages[boundary]?.role ?? "") === "system"
+    && stableSystemPrompts.has(String(messages[boundary]?.content ?? "").trim())
+  ) {
+    boundary += 1;
   }
-  return start;
-}
-
-function findLateStatusOverlayInsertIndex(messages: ChatMessage[]): number {
-  if (messages.length === 0) return 0;
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    if (String(messages[index]?.role ?? "") === "user") return index;
-  }
-  return findToolCallGroupStart(messages, messages.length - 1);
-}
-
-function insertLateStatusOverlay(messages: ChatMessage[], overlay: ChatMessage): ChatMessage[] {
   const next = [...messages];
-  next.splice(findLateStatusOverlayInsertIndex(next), 0, overlay);
+  next.splice(boundary, 0, ...overlays);
   return next;
 }
 
 function isLateStatusOverlayPayload(payload: Record<string, unknown>): boolean {
   return payload.insertPlacement === "late_status" || payload.overlayKind === "work_context";
+}
+
+function compareProjectionAssets(
+  left: LocalConversationContextAssetData,
+  right: LocalConversationContextAssetData,
+): number {
+  const updated = String(left.updatedAt ?? left.projectionFact?.observedAt ?? "")
+    .localeCompare(String(right.updatedAt ?? right.projectionFact?.observedAt ?? ""));
+  return updated || left.assetId.localeCompare(right.assetId);
+}
+
+function currentProviderProjectionFacts(rawState: ConversationActorRawState): LocalConversationProviderProjectionFact[] {
+  const currentByKey = new Map<string, LocalConversationContextAssetData>();
+  for (const asset of rawState.session.contextAssets ?? []) {
+    const fact = asset.projectionFact;
+    if (!fact || asset.archivedAt || fact.actorKey !== rawState.actorKey) continue;
+    const current = currentByKey.get(fact.projectionKey);
+    if (!current || compareProjectionAssets(current, asset) < 0) {
+      currentByKey.set(fact.projectionKey, asset);
+    }
+  }
+  return [...currentByKey.values()]
+    .sort((left, right) => left.projectionFact!.projectionKey.localeCompare(right.projectionFact!.projectionKey))
+    .map((asset) => asset.projectionFact!);
+}
+
+function assistantToolCallIds(message: ChatMessage): Set<string> {
+  const ids = new Set<string>();
+  for (const call of message.toolCalls ?? []) {
+    if (call.id) ids.add(call.id);
+  }
+  for (const call of message.rawToolCalls ?? []) {
+    if (call.id) ids.add(call.id);
+  }
+  for (const call of message.tool_calls ?? []) {
+    if (call.id) ids.add(call.id);
+  }
+  if (typeof message.rawToolCallsStr === "string") {
+    try {
+      const calls = JSON.parse(message.rawToolCallsStr) as Array<{ id?: unknown }>;
+      if (Array.isArray(calls)) {
+        for (const call of calls) {
+          if (typeof call?.id === "string" && call.id) ids.add(call.id);
+        }
+      }
+    } catch {
+      // Keep an unparseable compatibility field unchanged.
+    }
+  }
+  return ids;
+}
+
+function filterAssistantToolCalls(message: ChatMessage, elidedIds: ReadonlySet<string>): ChatMessage | null {
+  if (message.role !== "assistant") return message;
+  const toolCalls = message.toolCalls?.filter((call) => !elidedIds.has(call.id));
+  const rawToolCalls = message.rawToolCalls?.filter((call) => !elidedIds.has(call.id));
+  const openAiToolCalls = message.tool_calls?.filter((call) => !elidedIds.has(call.id));
+  let rawToolCallsStr = message.rawToolCallsStr;
+  if (typeof rawToolCallsStr === "string") {
+    try {
+      const parsed = JSON.parse(rawToolCallsStr) as Array<{ id?: unknown }>;
+      if (Array.isArray(parsed)) {
+        rawToolCallsStr = JSON.stringify(parsed.filter((call) => (
+          typeof call?.id !== "string" || !elidedIds.has(call.id)
+        )));
+      }
+    } catch {
+      // Keep an unparseable compatibility field unchanged.
+    }
+  }
+  if (message.rawToolCalls) rawToolCallsStr = JSON.stringify(rawToolCalls);
+  const originalContentParts = (message as ChatMessage & { content_parts?: unknown[] }).content_parts;
+  const contentParts = originalContentParts?.filter((part) => {
+    if (!part || typeof part !== "object" || Array.isArray(part)) return true;
+    const record = part as Record<string, unknown>;
+    const partType = record.type;
+    const toolCallId = record.id ?? record.toolCallId ?? record.tool_call_id;
+    const isToolCallPart = partType === "tool_use" || partType === "tool_call" || partType === "function_call";
+    return !isToolCallPart || typeof toolCallId !== "string" || !elidedIds.has(toolCallId);
+  });
+  const next = {
+    ...message,
+    ...(message.toolCalls ? { toolCalls } : {}),
+    ...(message.rawToolCalls ? {
+      rawToolCalls,
+    } : {}),
+    ...(typeof rawToolCallsStr === "string" ? { rawToolCallsStr } : {}),
+    ...(message.tool_calls ? { tool_calls: openAiToolCalls } : {}),
+    ...(originalContentParts ? { content_parts: contentParts } : {}),
+  } as ChatMessage & { content_parts?: unknown[] };
+  const hasCalls = assistantToolCallIds(next).size > 0;
+  const hasContent = String(next.content ?? "").trim().length > 0
+    || String(next.reasoning_content ?? "").trim().length > 0
+    || (Array.isArray(contentParts) && contentParts.length > 0);
+  return hasCalls || hasContent ? next : null;
+}
+
+export function elideDeliveredToolCallPairsFromProviderView(
+  messages: ChatMessage[],
+  deliveredSourceToolCallIds: ReadonlySet<string>,
+): ChatMessage[] {
+  if (deliveredSourceToolCallIds.size === 0) return messages;
+
+  const assistantIds = new Set<string>();
+  const resultIds = new Set<string>();
+  for (const message of messages) {
+    if (message.role === "assistant") {
+      for (const id of assistantToolCallIds(message)) assistantIds.add(id);
+    } else if (message.role === "tool") {
+      const id = normalizeToolCallId(message);
+      if (id) resultIds.add(id);
+    }
+  }
+  const pairedIds = new Set(
+    [...deliveredSourceToolCallIds].filter((id) => assistantIds.has(id) && resultIds.has(id)),
+  );
+  if (pairedIds.size === 0) return messages;
+
+  const next: ChatMessage[] = [];
+  for (const message of messages) {
+    if (message.role === "tool" && pairedIds.has(normalizeToolCallId(message) ?? "")) continue;
+    const filtered = filterAssistantToolCalls(message, pairedIds);
+    if (filtered) next.push(filtered);
+  }
+  return next;
 }
 
 function resolveActorKey(params: {
@@ -565,17 +694,27 @@ function materializeSystemPromptStage(
 }
 
 export function materializeConversationRuntimePrompt(rawState: ConversationActorRawState): ChatMessage[] {
+  const projectionFacts = currentProviderProjectionFacts(rawState);
+  const deliveredSourceToolCallIds = new Set(
+    projectionFacts.flatMap((fact) => fact.sourceToolCalls)
+      .filter((source) => source.deliveryState === "delivered")
+      .map((source) => source.toolCallId),
+  );
   const activeTailMessages = rawState.activeHistoryGeneration
     ? committedHistoryRefsToMessages(rawState.activeHistoryGeneration.messages)
     : [];
-  let materialized = materializeSystemPromptStage(rawState, [
+  const materialized = materializeSystemPromptStage(rawState, [
     ...materializePromptTransformPrelude({ rawState }),
-    ...activeTailMessages,
+    ...elideDeliveredToolCallPairsFromProviderView(activeTailMessages, deliveredSourceToolCallIds),
   ]);
-  for (const overlay of materializePromptTransformLateStatusOverlays({ rawState })) {
-    materialized = insertLateStatusOverlay(materialized, overlay);
-  }
-  return materialized;
+  return insertDynamicOverlaysAtConversationBoundary(
+    rawState,
+    materialized,
+    [
+      ...materializePromptTransformLateStatusOverlays({ rawState }),
+      ...projectionFacts.map((fact) => ({ role: "system", content: fact.content } as ChatMessage)),
+    ],
+  );
 }
 
 function extractActiveTailMessages(params: {

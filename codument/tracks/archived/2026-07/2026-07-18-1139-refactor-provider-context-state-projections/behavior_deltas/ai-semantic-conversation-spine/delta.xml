@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-semantic-conversation-spine" version="1">
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/provider-context-state-projection">
+    <requirement id="provider-context-state-projection">
+      <statement>系统 SHALL 让工具产生的可变上下文状态通过工具无关的 projection key、revision 与 source delivery 生命周期进入 provider view；History 与 ToolCallDomain SHALL 保留完整工具事实，而 provider materialization SHALL 在 source call/result 成功交付一次且已有当前 projection 承接后按 tool_call_id 整体消隐旧配对，并且每个 logical key SHALL 只投影当前 revision。</statement>
+      <suite id="projection-lifecycle" name="Provider context projection lifecycle">
+        <case id="first-delivery-retains-pair">
+          <given>一个工具结果首次产生 mutable projection 且 source tool call 尚未被成功 provider completion 消费</given>
+          <when>系统构造下一次 provider request</when>
+          <then>provider messages SHALL 保留完整匹配的 assistant tool call 与 tool result</then>
+          <then>系统 SHALL 同时 materialize 当前 projection revision</then>
+        </case>
+        <case id="delivered-pair-elided-as-unit">
+          <given>source tool call/result 已随一次成功 provider request 完成交付，且当前 projection 仍可用</given>
+          <when>系统构造后续 provider request</when>
+          <then>系统 SHALL 按 tool_call_id 同时消隐 assistant tool call 与 matching tool result</then>
+          <then>系统 SHALL NOT 修改 History、ToolCallDomain 或审计 effect</then>
+        </case>
+        <case id="mixed-tool-call-message-preserved">
+          <given>一个 assistant message 同时包含已投影 source call 与普通 tool call</given>
+          <when>provider materializer 消隐已投影 source pair</when>
+          <then>系统 SHALL 保留其他 tool call、matching result 以及 assistant content/reasoning</then>
+          <then>provider messages SHALL NOT 产生孤儿 tool result 或无结果 tool call</then>
+        </case>
+        <case id="revision-replaces-current-projection">
+          <given>同一 actor 和 logical projection key 产生新 revision</given>
+          <when>系统构造 provider context</when>
+          <then>系统 SHALL 只 materialize 新 revision，并 SHALL NOT 累积旧 revision state message</then>
+          <then>projection SHALL 位于 cache-friendly late dynamic insertion boundary</then>
+        </case>
+        <case id="provider-failure-does-not-confirm-delivery">
+          <given>包含 undelivered source pair 的 provider call 失败或被中止</given>
+          <when>系统再次构造 provider request</when>
+          <then>该 source pair SHALL 仍被视为 undelivered 并再次完整交付</then>
+        </case>
+        <case id="tool-independent-materializer">
+          <given>不同工具 producer 发布同一种 mutable projection effect</given>
+          <when>executor 和 provider materializer 处理这些 effect</when>
+          <then>处理逻辑 SHALL 只依赖 projection contract、revision 和 tool_call_id</then>
+          <then>SHALL NOT 按 TaskTreeWrite、Skill、Read 或其他具体工具名分支</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/recovered-profile-prompt-reconciliation">
+    <requirement id="recovered-profile-prompt-reconciliation">
+      <statement>系统 SHALL 在恢复 shell control actor 时，以显式 profile-owned prompt slot/provenance 把该 slot 协调为当前 runtime profile assembly 的 system prompt，同时 SHALL 保留 actor/session/model/work/task/mailbox/History、其他 actor 以及非 profile-owned 自定义 prompt；terminal SHALL NOT 拥有提示词正文或迁移语义。</statement>
+      <suite id="owner-aware-recovery" name="Owner-aware recovered prompt reconciliation">
+        <case id="owned-profile-slot-refreshes">
+          <given>snapshot 含 profile-owned prompt slot，且 persisted digest 与 slot 内容匹配</given>
+          <when>shell runtime 使用当前 profile assembly 恢复 control actor</when>
+          <then>系统 SHALL 只把该 owned slot 替换为当前 profile prompt 并更新 provenance</then>
+          <then>其他 system prompts 与 actor/runtime/conversation 状态 SHALL 保持不变</then>
+        </case>
+        <case id="legacy-empty-or-single-migrates">
+          <given>legacy shell control actor 没有 prompt provenance，且 system prompts 为空或恰好一条</given>
+          <when>系统恢复 snapshot</when>
+          <then>空 prompt SHALL 插入当前 profile prompt；单 prompt SHALL 被认领为 legacy profile baseline 后替换</then>
+          <then>迁移后 SHALL 写入明确的 profile ownership provenance</then>
+        </case>
+        <case id="legacy-multiple-prompts-preserved">
+          <given>legacy shell control actor 没有 provenance 且包含多条 system prompts</given>
+          <when>系统恢复 snapshot</when>
+          <then>系统 SHALL 保留全部 prompt，不得猜测 owner 或覆盖内容</then>
+          <then>系统 SHALL 发出可观测诊断以提示需要显式迁移</then>
+        </case>
+        <case id="workspace-session-resumes-exact-snapshot">
+          <given>CLI 指定存在的 workspace 与 session id，snapshot schema 可恢复且 fiber 位于 idle external boundary</given>
+          <when>headless exec 启动 runtime turn</when>
+          <then>系统 SHALL 恢复该 session 的 control actor、History、TaskTree 和 mailboxes，而不是创建新 session</then>
+          <then>当前 profile-owned prompt SHALL 按上述规则协调后进入 provider context</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

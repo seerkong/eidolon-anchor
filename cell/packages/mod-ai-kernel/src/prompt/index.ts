@@ -9,7 +9,6 @@ function formatDelegateAgentDescriptions(descriptions: string): string {
 
 function renderTemplate(text: string, context: RuntimeAssemblyContext): string {
   return text
-    .replace("{skillsDescription}", context.skillsDescription)
     .replace("{delegateAgentDescriptions}", formatDelegateAgentDescriptions(context.delegateAgentDescriptions))
     .trim();
 }

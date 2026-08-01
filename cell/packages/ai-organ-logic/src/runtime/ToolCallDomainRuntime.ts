@@ -176,5 +176,6 @@ export function reconstructToolResultsFromDomain(
       funcName: record.funcName,
       outputText: record.outputText ?? "",
       isError: record.status === "failed",
+      ...(record.failureKind ? { failureKind: record.failureKind } : {}),
     }));
 }

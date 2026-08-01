@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="sandbox-backend-permission-runtime" version="1">
+  <upsert selector="behavior://sandbox-backend-permission-runtime/requirements/process-outcome-preservation">
+    <requirement id="process-outcome-preservation">
+      <statement>Bash command execution SHALL preserve the sandbox process outcome through the generic tool execution contract; non-zero exit, timeout, abort, signal termination, and spawn failure SHALL be explicit failed outcomes while preserving bounded stdout/stderr diagnostics for the model.</statement>
+      <suite id="bash-process-outcome" name="Bash process outcome preservation">
+        <case id="nonzero-exit-is-failure">
+          <given>a Bash command starts successfully, emits ordinary test failure text, and exits with code 1</given>
+          <when>the Bash tool returns to the agent runtime</when>
+          <then>the result SHALL retain the test output and exit-code diagnostic</then>
+          <then>the generic tool outcome SHALL be failed without an executor Bash-name branch</then>
+        </case>
+        <case id="zero-exit-is-complete">
+          <given>a Bash command exits with code 0</given>
+          <when>the Bash tool returns its result</when>
+          <then>the generic tool outcome SHALL be completed</then>
+        </case>
+        <case id="timeout-and-abort-are-classified">
+          <given>a Bash process times out or is aborted</given>
+          <when>the process outcome is mapped into the tool contract</when>
+          <then>the failed outcome SHALL use timeout or aborted failureKind respectively</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

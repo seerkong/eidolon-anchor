@@ -132,7 +132,13 @@ describe("ToolCallDomain recovery rebuild", () => {
     const rebuilt = reconstructToolResultsFromDomain(domain, { actorKey: "actor-1" });
     expect(rebuilt).toEqual([
       { toolCallId: "tc-r1", funcName: "read_file", outputText: "contents", isError: false },
-      { toolCallId: "tc-r2", funcName: "run_bash", outputText: "Error: nope", isError: true },
+      {
+        toolCallId: "tc-r2",
+        funcName: "run_bash",
+        outputText: "Error: nope",
+        isError: true,
+        failureKind: "tool_error",
+      },
     ]);
   });
 });

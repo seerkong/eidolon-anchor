@@ -16,8 +16,8 @@
     <Description>docs 知识方向（分层晋升 + 分形规范）</Description>
     <Attractor ref="vfs://@/codument/attractors/knowledge-tiers.md"/>
     <Attractor ref="vfs://@/codument/attractors/model-driven-docs.md"/>
-    <Attractor ref="vfs://@/codument/std/docs-modeling-fractal/index.md"/>
-    <Attractor ref="vfs://@/codument/std/docs-impl-fractal/index.md"/>
+    <Attractor ref="vfs://@/codument/std/skill/docs-modeling-fractal/index.md"/>
+    <Attractor ref="vfs://@/codument/std/skill/docs-engineering-fractal/index.md"/>
     <Attractor ref="vfs://@/codument/std/spec/folder-manifest.md"/>
   </Profile>
 

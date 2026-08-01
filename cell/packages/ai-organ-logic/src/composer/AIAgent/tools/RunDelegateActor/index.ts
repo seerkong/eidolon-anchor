@@ -31,6 +31,10 @@ export function buildRunDelegateActorToolDef(): ToolDef<
             description: { type: "string", description: "Short task description (3-5 words)" },
             prompt: { type: "string", description: "Detailed instructions for the delegate actor" },
             agent_type: { type: "string" },
+            task_key: {
+              type: "string",
+              description: "Detached only: stable single-flight slot. Use a different key only for legitimate parallel work; omitted uses the default slot. Ignored by sync_wait.",
+            },
             mode: {
               type: "string",
               enum: ["sync_wait", "detached"],

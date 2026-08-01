@@ -10,6 +10,7 @@ import type {
   AiAgentMailboxSchema,
   DetachedTaskState,
   HolonActorState,
+  ProfileSystemPromptProvenance,
 } from "./AiAgentActor";
 import type {
   RuntimeOptions,
@@ -128,6 +129,7 @@ export type RuntimeSnapshotVm = RuntimeRootSnapshotBase & {
 
 export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"]> & {
   systemPrompts: string[];
+  profileSystemPromptProvenance?: ProfileSystemPromptProvenance;
   identity?: ActorIdentity;
   agentName?: string;
   planApproval?: AiAgentActorContract["planApproval"];

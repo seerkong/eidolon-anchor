@@ -4,6 +4,7 @@ export interface RunDelegateActorOuterInput {
   prompt: string;
   agent_type: string;
   mode?: "sync_wait" | "detached";
+  task_key?: string;
 }
 
 export type RunDelegateActorOuterOutput = string;
@@ -19,6 +20,9 @@ export type RunDelegateActor = (input: RunDelegateActorOuterInput) => RunDelegat
 - `description` 必须简短且面向结果。
 - `prompt` 必须包含具体范围、约束条件和期望的输出格式。
 - `agent_type` 应与任务性质匹配（如 explorer 用于探索发现，fixer 用于执行修复）。
+- detached 模式下，同一 parent actor、`agent_type` 与 `task_key` 共享一个在途任务；省略 `task_key` 使用 default slot。
+- 只有确实需要合法并行的不同工作才应使用不同 `task_key`；重复工作必须沿用原 key 并复用返回的 `task_id`。
+- `sync_wait` 保持逐次等待语义，不使用 `task_key` 单飞。
 
 与任务树协同规则：
 - 若存在任务树状态，每次委派仅针对当前活跃分支的单个目标，不应同时委派多个分支。

@@ -1,0 +1,44 @@
+<decision #mission.upgrade-depa-data-graph-unified-api.target {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>本 mission 的升级目标是否固定为上游提交 966f26bac5a8cfebb4b3f30e7ff24f7407aee12c 对应的 1.0.1 unified DataGraph API？</?>
+  <answer { }
+  (
+    <raw-answer ?>是。</?>
+    <decision-text ?>采用该提交的 1.0.1 public API，迁移已移除的 projection/bridge surface。</?>
+    <rationale ?>用户明确指定目标提交，且上游将它标记为 breaking unified graph release。</?>
+    <evidence ?>analysis/upgrade-context.md。</?>
+  )>
+)>
+
+<decision #mission.upgrade-depa-data-graph-unified-api.projection-contract {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>本地 append-only reducer projection 的目标机制是什么？</?>
+  <answer { }
+  (
+    <raw-answer ?>使用统一 DataGraph state node。</?>
+    <decision-text ?>使用 `DataGraph.addSource(log.stream())` 加 `addStreamDrivenStateSignalNode`，由 state node 提供当前状态与订阅输出。</?>
+    <rationale ?>这是上游迁移指南和测试覆盖的正式替代物，保留一个 graph owner。</?>
+    <evidence ?>analysis/upgrade-context.md；上游 packages/core/test/timeline-log-projection.test.ts。</?>
+  )>
+)>
+
+<decision #mission.upgrade-depa-data-graph-unified-api.cell-surface-scope {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Cell 的保留 API consumer 是否只需在最后做兼容验证？</?>
+  <answer { }
+  (
+    <raw-answer ?>否，需要跟随迁移。</?>
+    <decision-text ?>将 Cell runtime/stream foundations 和 Cell observability graph 建立为独立迁移 track；message history 继续保留单独的 reducer-projection migration track。</?>
+    <rationale ?>1.0.1 统一 signal/stream identity、lifecycle 和 state-node output semantic，名称仍存在的 API 也可能需要机制调整或语义回归验证。</?>
+    <evidence ?>analysis/cell-data-graph-surface.md；用户指出 Cell 为重度依赖方。</?>
+  )>
+)>

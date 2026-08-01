@@ -1,3 +1,5 @@
+import type { ToolFailureKind } from "./runtime/ToolCallDomain";
+
 export type ToolSchema = {
   type: "function";
   function: {
@@ -5,6 +7,26 @@ export type ToolSchema = {
     description: string;
     parameters: any;
   };
+};
+
+export type MutableProviderProjectionContextEffect = {
+  kind: "mutable_provider_projection";
+  logicalKey: string;
+  revision: string;
+  content: string;
+  placement: "late";
+};
+
+export type ToolContextEffect = MutableProviderProjectionContextEffect;
+
+export type ToolExecutionOutcome =
+  | { status: "completed" }
+  | { status: "failed"; failureKind: ToolFailureKind };
+
+export type ToolExecutionResultEnvelope<TOutput = string> = {
+  output: TOutput;
+  contextEffects: ToolContextEffect[];
+  outcome?: ToolExecutionOutcome;
 };
 
 export type AiAgentOneActorRuntime<TVm = any, TActor = any> = {

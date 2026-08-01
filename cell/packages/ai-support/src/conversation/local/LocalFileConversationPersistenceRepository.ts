@@ -209,6 +209,9 @@ function historyMessageRecordToMessage(
     role,
     content: "",
   };
+  if (typeof record.metadata.messageId === "string" && record.metadata.messageId) {
+    message.messageId = record.metadata.messageId;
+  }
   if (typeof record.metadata.name === "string") message.name = record.metadata.name;
   if (typeof record.metadata.startAt === "number") message.startAt = record.metadata.startAt;
   if (typeof record.metadata.endAt === "number") message.endAt = record.metadata.endAt;
@@ -594,6 +597,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
             sessionId: generation.sessionId,
             actorKey: entry.actorKey,
             actorId: entry.actorId,
+            messageId: entry.message.messageId,
             role: entry.message.role,
             name: entry.message.name,
             startAt: entry.message.startAt,

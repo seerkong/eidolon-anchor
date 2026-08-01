@@ -4,7 +4,7 @@
   "types": "src/entry/index.ts",
   "module": "src/entry/index.ts",
   "main": "src/entry/index.ts",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "scripts": {
     "dev": "bun --preload ./src/entry/preload.ts src/entry/tui_a1-main.ts",

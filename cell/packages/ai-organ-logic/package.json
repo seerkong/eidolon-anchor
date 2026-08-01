@@ -25,6 +25,6 @@
     "depa-processor": "^0.1.1",
     "@iarna/toml": "^2.2.5",
     "@modelcontextprotocol/sdk": "^1.25.2",
-    "xnl-core": "^0.1.4"
+    "xnl-core": "^0.1.10"
   }
 }

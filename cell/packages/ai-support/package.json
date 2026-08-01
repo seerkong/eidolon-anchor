@@ -17,6 +17,6 @@
     "@cell/symbiont-logic": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@cell/ai-organ-logic": "workspace:*",
-    "xnl-core": "^0.1.4"
+    "xnl-core": "^0.1.10"
   }
 }

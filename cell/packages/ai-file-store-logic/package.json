@@ -12,6 +12,6 @@
   "dependencies": {
     "@cell/ai-runtime-control-contract": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",
-    "xnl-core": "^0.1.4"
+    "xnl-core": "^0.1.10"
   }
 }

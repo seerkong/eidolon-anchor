@@ -1234,6 +1234,11 @@ export function TuiA1View(props: TuiA1ViewProps) {
         }
       }
 
+      // `promptInfo` is an immutable submission snapshot. Clear the live
+      // composer as soon as the UI accepts it instead of waiting for the
+      // runtime promise, which represents the entire turn lifecycle.
+      clear?.()
+
       let activeSessionID = sessionID()
       if (!activeSessionID) {
         const created = await props.runtime.client.session.create({})
@@ -1284,7 +1289,6 @@ export function TuiA1View(props: TuiA1ViewProps) {
           })
           .then(async (result) => {
             if (result.error) throw result.error
-            clear?.()
             const selectedSurface = result.data ?? actorSurface()
             stateGraph.setActorSurface(selectedSurface ?? null)
             updateActorRoundFromSurface(selectedSurface)
@@ -1323,7 +1327,6 @@ export function TuiA1View(props: TuiA1ViewProps) {
         })
         .then((result) => {
           if (result.error) throw result.error
-          clear?.()
         })
         .catch((error) => {
           toast.error(error)

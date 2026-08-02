@@ -35,7 +35,7 @@
           <given>模型配置未声明 image input</given>
           <when>用户提交含图片的 prompt</when>
           <then>系统 SHALL 在 provider I/O 前返回可操作的 unsupported-modality 错误</then>
-          <then>Composer 草稿和附件 SHALL 保留，以便切换模型或删除附件后重试</then>
+          <then>Composer SHALL 在提交 immutable prompt snapshot 后立即清空 live 草稿和附件；原提交 SHALL 保留在 prompt history 中，以便切换模型或删除附件后恢复重试</then>
           <then>系统 SHALL 发布脱敏 `unsupported_modality` semantic diagnostic，且 provider network call 数 SHALL 为零</then>
         </case>
         <case id="catalog-does-not-invent-capabilities">
@@ -65,7 +65,7 @@
         <case id="unsafe-file-fails-closed">
           <given>file_reference 不可读、超限、被拒绝或是未支持的二进制 MIME</given>
           <when>resolver 尝试物化附件</when>
-          <then>系统 SHALL 在 actor/provider I/O 前失败并保留 Composer 草稿</then>
+          <then>系统 SHALL 在 actor/provider I/O 前失败；已清空的 live Composer SHALL 可从 prompt history 恢复原文本与附件 snapshot</then>
           <then>系统 MUST NOT 发送路径、占位文本或部分文件内容</then>
         </case>
         <case id="snapshot-replay-does-not-require-path">

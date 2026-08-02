@@ -208,6 +208,8 @@ describe("session interrupt keybind", () => {
       await renderSettled(setup, 8)
 
       const text = captureText(setup)
+      expect(text).not.toContain("busy turn")
+      expect(text).toContain("0 chars · 0 parts")
       expect(text).not.toContain("正在准备运行环境...")
       expect(text).toContain("正在处理...")
     } finally {

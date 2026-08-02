@@ -22,7 +22,7 @@
 3. 传播模型 modalities 并在 I/O 前门控
    - 扩展 provider raw/normalized config、JSON schema、flattened model config 与 `LlmModelCapabilities`，保留 `modalities.input/output`。
    - TUI catalog 从真实配置生成 attachment/image flags，删除“所有模型都支持 image/pdf”的硬编码。
-   - 请求 planner 在任何 provider request observation/网络 I/O 前比较输入 part 与模型 modalities。图片遇到 text-only 模型时返回稳定错误，保留 Composer 内容供用户切换模型或删除附件后重试。
+   - 请求 planner 在任何 provider request observation/网络 I/O 前比较输入 part 与模型 modalities。图片遇到 text-only 模型时返回稳定错误；live Composer 在提交 immutable snapshot 后立即清空，原文本与附件保留在 prompt history 中供用户恢复、切换模型或删除附件后重试。
    - 拒绝时发布脱敏的 `unsupported_modality` semantic diagnostic：model ref、声明 modalities、part kind、MIME、size 与内容 digest；不得包含 data URL、base64、文件正文或绝对路径。该事件与零 provider call 一起构成 send-before 证据。
 4. 在 adapter 边界生成图片 wire shape
    - OpenAI-compatible Chat Completions：user content 投影为 `[{type:"text",text}, {type:"image_url",image_url:{url}}]`；assistant/tool/system 保持各自现有约束。
@@ -49,7 +49,7 @@
 - file_reference 是 local-only；terminal support resolver 负责转成脱敏、可持久化的 text/image snapshot，provider 永不收到绝对路径。
 - unsupported modality 通过结构化、脱敏 semantic diagnostic 观测，并证明 provider I/O 为零。
 - 模型图片能力只由配置 modalities 决定，不由 provider 名称或 TUI 默认值猜测。
-- text-only 模型在发送前拒绝图片并保留草稿，不静默降级。
+- text-only 模型在发送前拒绝图片且不静默降级；live Composer 提交即清空，原 snapshot 可从 prompt history 恢复。
 - DeepSeek V4 Flash 当前保持 text-only；官方未提供可用的识图 API contract。
 - 过程决策见 `decisions.xnl`。
 

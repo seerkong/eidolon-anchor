@@ -9,6 +9,7 @@ import { RuntimeClientProvider } from "../src/providers/runtime-client"
 import { TuiA1Shell } from "../src/app/tui_a1"
 import { tuiA1Theme as theme } from "../src/app/tui_a1/theme"
 import { Clipboard } from "../src/support/util/clipboard"
+import { createTuiRuntimeClient } from "../src/runtime/client/TuiRuntimeClient"
 
 const tick = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms))
 const createdDirs: string[] = []
@@ -37,9 +38,9 @@ function captureText(setup: Awaited<ReturnType<typeof testRender>>) {
   return frame.lines.map((line) => line.spans.map((span) => span.text).join("")).join("\n")
 }
 
-function renderTuiA1(directory: string) {
+function renderTuiA1(directory: string, runtime?: ReturnType<typeof createTuiRuntimeClient>) {
   return (
-    <RuntimeClientProvider url="mock">
+    <RuntimeClientProvider url="mock" client={runtime}>
       <TuiA1Shell directory={directory} sessionID="ses_1" isAttachmentFile={existsSync} />
     </RuntimeClientProvider>
   )
@@ -198,6 +199,43 @@ describe("tuiA1 composer file picker", () => {
       expect(selectionSpan?.bg).not.toEqual(theme.panelGlow)
       expect(metricsSpan?.bg).not.toEqual(theme.panelGlow)
     } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("clears text and attachment parts before the runtime turn settles", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-submit-clear-"))
+    createdDirs.push(directory)
+    const attachmentPath = path.join(directory, "pending notes.md")
+    await writeFile(attachmentPath, "notes\n")
+
+    const runtime = createTuiRuntimeClient()
+    await runtime.client.session.create({ sessionID: "ses_1" } as any)
+    const originalPrompt = runtime.client.session.prompt.bind(runtime.client.session)
+    runtime.client.session.prompt = (() => new Promise(() => {})) as typeof runtime.client.session.prompt
+
+    const setup = await testRender(() => renderTuiA1(directory, runtime), {
+      width: 120,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 5)
+      await setup.mockInput.typeText("review ")
+      await setup.mockInput.pasteBracketedText(`"${attachmentPath}"`)
+      await renderSettled(setup, 4)
+      expect(captureText(setup)).toContain("@fs:pending notes.md")
+
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 4)
+
+      const text = captureText(setup)
+      expect(text).not.toContain("review")
+      expect(text).not.toContain("@fs:pending notes.md")
+      expect(text).toContain("0 chars · 0 parts")
+    } finally {
+      runtime.client.session.prompt = originalPrompt
       setup.renderer.destroy()
     }
   })

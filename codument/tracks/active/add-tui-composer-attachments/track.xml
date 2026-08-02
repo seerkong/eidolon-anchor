@@ -85,7 +85,7 @@
             <Description>扩展 provider config/capabilities/catalog，删除 TUI 硬编码，并在 request observation/I/O 前校验 canonical modalities、MIME 与大小；拒绝时发布脱敏 semantic diagnostic。</Description>
             <cdt:Acceptance>
               <cdt:Criterion id="T3.2-AC1" checked="true">视觉与 text-only 模型能力严格匹配配置</cdt:Criterion>
-              <cdt:Criterion id="T3.2-AC2" checked="true">unsupported image 错误稳定、可操作且不清空 Composer</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">unsupported image 错误稳定、可操作；live Composer 提交即清空且原 snapshot 可从 prompt history 恢复</cdt:Criterion>
               <cdt:Criterion id="T3.2-AC3" checked="true">unsupported_modality diagnostic 可见且脱敏，provider network call 为零</cdt:Criterion>
             </cdt:Acceptance>
           </Task>
@@ -134,7 +134,7 @@
             <Description>运行 Composer/runtime/conversation/provider tests、相关 typecheck，并在 Windows Terminal 实际拖入含空格路径和图片验证 UI/count/request。</Description>
             <cdt:Acceptance>
               <cdt:Criterion id="T5.2-AC1" checked="true">定向测试与 typecheck 通过，或基线失败有独立证据</cdt:Criterion>
-              <cdt:Criterion id="T5.2-AC2" checked="true">视觉模型收到真实图片，text-only 模型提示错误且草稿保留</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC2" checked="true">视觉模型收到真实图片，text-only 模型提示错误；提交后 live Composer 立即清空且原 snapshot 可从 prompt history 恢复</cdt:Criterion>
               <cdt:Criterion id="T5.2-AC3" checked="true">未覆盖或提交用户已有 ContextCompressor 改动</cdt:Criterion>
             </cdt:Acceptance>
           </Task>

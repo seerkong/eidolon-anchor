@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="llm-multimodal-input" version="1">
+  <upsert selector="behavior://llm-multimodal-input/requirements/structured-input-ingress">
+    <requirement id="structured-input-ingress">
+      <statement>系统 SHALL 以 provider-neutral canonical content parts 保存 text、image 与 file-reference user input，并 SHALL 从 TUI prompt、actor mailbox、Conversation materialization 到 provider request projection 保持 part 顺序、MIME、identity 和内容；任何中间层 MUST NOT 只提取文本而静默丢弃附件。</statement>
+      <suite id="runtime-flow" name="结构化输入链路">
+        <case id="tui-parts-reach-conversation">
+          <given>Composer 提交文本与一个或多个附件 part</given>
+          <when>TUI client 建立 user message 并触发 interactive turn</when>
+          <then>runtime message events、actor humanInput mailbox 与 canonical Conversation SHALL 保留有序 structured parts</then>
+        </case>
+        <case id="legacy-text-remains-compatible">
+          <given>headless、slash 或旧 session caller 提供纯 string input</given>
+          <when>runtime 规范化输入</when>
+          <then>字符串 SHALL 成为单个 text part 且既有纯文本 provider body 语义不变</then>
+        </case>
+        <case id="recovery-preserves-image-content">
+          <given>包含图片 part 的 session 被持久化并重新加载</given>
+          <when>Conversation 再次物化 provider messages</when>
+          <then>图片 MIME、data URL、filename 与相对顺序 SHALL 保持一致</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://llm-multimodal-input/requirements/model-modality-gate">
+    <requirement id="model-modality-gate">
+      <statement>系统 SHALL 从 provider catalog 的 `modalities.input/output` 解析并传播模型输入能力，并 SHALL 在 provider observation 和网络 I/O 前拒绝模型未声明支持的 content modality；系统 MUST NOT 根据 provider 名称、模型名或 TUI 默认值猜测 image 支持。</statement>
+      <suite id="capability-validation" name="模型能力门控">
+        <case id="configured-vision-model-accepts-image">
+          <given>模型配置声明 `modalities.input` 同时包含 text 与 image</given>
+          <when>用户提交受支持 MIME/大小的图片 part</when>
+          <then>请求 planner SHALL 允许该图片进入对应 provider projection</then>
+        </case>
+        <case id="text-only-model-rejects-image-before-send">
+          <given>模型配置未声明 image input</given>
+          <when>用户提交含图片的 prompt</when>
+          <then>系统 SHALL 在 provider I/O 前返回可操作的 unsupported-modality 错误</then>
+          <then>Composer 草稿和附件 SHALL 保留，以便切换模型或删除附件后重试</then>
+          <then>系统 SHALL 发布脱敏 `unsupported_modality` semantic diagnostic，且 provider network call 数 SHALL 为零</then>
+        </case>
+        <case id="catalog-does-not-invent-capabilities">
+          <given>provider catalog 中某模型只声明 text input</given>
+          <when>TUI 展示模型能力并校验附件</when>
+          <then>TUI SHALL NOT 把该模型投影为 image 或 pdf capable</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://llm-multimodal-input/requirements/local-file-materialization">
+    <requirement id="local-file-materialization">
+      <statement>`file_reference` SHALL 是 local-only ingress part；文件存在性、权限、stat/read、MIME sniff、大小限制与 snapshot 编码 SHALL 由注入式 terminal-support attachment resolver effect 执行。受支持图片 SHALL 解析为 canonical image snapshot，受支持文本 SHALL 解析为带 basename 与 source digest 的 canonical text material；绝对路径 MUST NOT 进入 provider-visible content、request observation 或日志。</statement>
+      <suite id="resolver-boundary" name="本地文件解析边界">
+        <case id="composer-uses-injected-resolver">
+          <given>Composer 由文件选择或路径 paste 建立 file_reference</given>
+          <when>系统解析附件内容</when>
+          <then>纯 tokenizer/normalizer SHALL 不访问文件系统</then>
+          <then>stat/read/MIME/encoding SHALL 通过注入式 AttachmentResolverPort 执行并可由 mock runtime 验证</then>
+        </case>
+        <case id="text-file-materializes-without-absolute-path">
+          <given>file_reference 指向允许、可读且大小合规的文本文件</given>
+          <when>resolver 生成 canonical snapshot</when>
+          <then>snapshot SHALL 包含 basename、source digest 与文本内容</then>
+          <then>provider message、observation 与日志 SHALL 不包含绝对本地路径</then>
+        </case>
+        <case id="unsafe-file-fails-closed">
+          <given>file_reference 不可读、超限、被拒绝或是未支持的二进制 MIME</given>
+          <when>resolver 尝试物化附件</when>
+          <then>系统 SHALL 在 actor/provider I/O 前失败并保留 Composer 草稿</then>
+          <then>系统 MUST NOT 发送路径、占位文本或部分文件内容</then>
+        </case>
+        <case id="snapshot-replay-does-not-require-path">
+          <given>已物化的 text/image snapshot 随 session 持久化</given>
+          <when>session 恢复并重放 provider context</when>
+          <then>重放 SHALL 使用持久化 snapshot，不依赖或暴露原始绝对路径</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://llm-multimodal-input/requirements/openai-image-projection">
+    <requirement id="openai-image-projection">
+      <statement>对显式支持 image input 的 OpenAI-compatible provider，Chat Completions adapter SHALL 把 canonical image 投影为 `image_url` content，Responses adapter SHALL 投影为 `input_image` content；两种 projection SHALL 与 full replay、incremental replay、continuation digest 和 request observation 使用同一 canonical source，并 MUST NOT 在日志中暴露完整 base64 payload。</statement>
+      <suite id="wire-projection" name="OpenAI 图片请求投影">
+        <case id="chat-completions-image-url">
+          <given>视觉模型收到有序 text 与 image canonical parts</given>
+          <when>OpenAI-compatible Chat Completions adapter 构造 user message</when>
+          <then>content SHALL 是保持原顺序的 text 与 image_url 数组</then>
+        </case>
+        <case id="responses-input-image">
+          <given>视觉模型收到有序 text 与 image canonical parts</given>
+          <when>OpenAI Responses adapter 构造 input items</when>
+          <then>user message content SHALL 是保持原顺序的 input_text 与 input_image 数组</then>
+        </case>
+        <case id="image-replay-is-stable-and-redacted">
+          <given>含图片的对话经历 stateless replay、stateful continuation 或 request observation</given>
+          <when>系统构造或记录请求</when>
+          <then>图片语义 SHALL 不丢失、不重复且参与 provider-visible context digest</then>
+          <then>日志与错误 SHALL 只记录 MIME、大小和安全摘要，不记录完整 data URL/base64</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

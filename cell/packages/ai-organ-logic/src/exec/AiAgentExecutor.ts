@@ -142,6 +142,8 @@ import {
   buildOpenAIResponsesInstructions,
   resolveResponsesTransportMode,
 } from "../llm/OpenAIResponsesNodejsFetchAdapter";
+import { normalizeInputContent, projectInputContentText, type InputContentPart } from "@shared/composer";
+import { UnsupportedModalityError, validateInputModalities } from "../llm/InputModalityValidator";
 
 const isDebugEnabled = (): boolean => (globalThis as any)?.process?.env?.AI_LOOP_DEBUG === "1";
 
@@ -798,6 +800,70 @@ function buildPreflightPressureCompactionPipelineOptions(vm: AiAgentVm, actor: A
   };
 }
 
+function relabelPendingFirstDeliveryCompactionEnvelopes(
+  messages: any[],
+  pendingToolCallIds: ReadonlySet<string>,
+): number {
+  const relabelContent = (value: unknown): { content: unknown; changed: boolean } => {
+    if (typeof value !== "string" || !value.includes("Full output persisted at:")) {
+      return { content: value, changed: false };
+    }
+    let content = value
+      .replace(
+        '<persisted-tool-result status="delivered_and_compacted">',
+        '<persisted-tool-result status="pending_first_delivery_compacted">',
+      )
+      .replace(
+        '<compacted-tool-result status="delivered_and_compacted">',
+        '<compacted-tool-result status="pending_first_delivery_compacted">',
+      );
+    if (content === value) return { content: value, changed: false };
+    content = content
+      .replace(
+        "The model already received this tool result in an earlier turn. Do not repeat the same tool call solely because the full text is compacted.",
+        "The complete tool output could not fit in one provider request. It is preserved at the path above; inspect only the relevant ranges if more detail is required.",
+      )
+      .replace(
+        "This is a compacted form of a tool result that was already delivered. Do not repeat the same tool call solely because older output was compacted.",
+        "This is a compacted first-delivery envelope. The complete tool output is preserved at the path above; inspect only the relevant ranges if more detail is required.",
+      );
+    return { content, changed: true };
+  };
+
+  let relabeled = 0;
+  for (const message of messages) {
+    if (!message || typeof message !== "object") continue;
+    if (message.role === "tool") {
+      const toolCallId = String(message.toolCallId ?? message.tool_call_id ?? "").trim();
+      if (pendingToolCallIds.has(toolCallId)) {
+        const next = relabelContent(message.content);
+        if (next.changed) {
+          message.content = next.content;
+          relabeled += 1;
+        }
+      }
+    }
+    if (!Array.isArray(message.content)) continue;
+    for (const block of message.content) {
+      if (!block || typeof block !== "object" || block.type !== "tool_result") continue;
+      const toolCallId = String(
+        block.tool_use_id
+        ?? block.toolUseId
+        ?? block.tool_call_id
+        ?? block.toolCallId
+        ?? "",
+      ).trim();
+      if (!pendingToolCallIds.has(toolCallId)) continue;
+      const next = relabelContent(block.content);
+      if (next.changed) {
+        block.content = next.content;
+        relabeled += 1;
+      }
+    }
+  }
+  return relabeled;
+}
+
 /**
  * Cheap tool-result compaction as a DOMAIN transform (track
  * refactor-ai-semantic-conversation-spine, tasks T4.3 + P7): the pipeline
@@ -862,6 +928,53 @@ function applyPreflightPressureCompactionForActor(params: {
 
   if (!domainRewrite.changed) return false;
   params.vm.effects.log?.("debug", "preflight pressure compaction applied", {
+    actorKey: params.actor.key,
+    reason: params.reason,
+    domainChanged: domainRewrite.changed,
+    ...(domainStats ?? {}),
+  });
+  return true;
+}
+
+function applyOversizedPendingToolResultCompactionForActor(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  reason: string;
+}): boolean {
+  if (!shouldCompressActorHistory(params.actor)) return false;
+  const pendingToolCallIds = new Set(pendingToolResultDeliveryIds(params));
+  if (pendingToolCallIds.size === 0) return false;
+
+  const pipelineOptions = buildPreflightPressureCompactionPipelineOptions(params.vm, params.actor);
+  if (!pipelineOptions.artifactDir) return false;
+
+  let domainStats: Record<string, unknown> | null = null;
+  const domainRewrite = rewriteActiveHistoryGenerationMessagesInConversationDomainRuntime({
+    vm: params.vm,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    reason: params.reason,
+    rewrite: (messages) => {
+      const result = applyCheapCompactionPipeline(messages, {
+        ...pipelineOptions,
+        protectedToolCallIds: [],
+      });
+      if (!result.changed) return null;
+      const pendingToolResultsSpilled = relabelPendingFirstDeliveryCompactionEnvelopes(
+        result.messages,
+        pendingToolCallIds,
+      );
+      if (pendingToolResultsSpilled === 0) return null;
+      domainStats = {
+        ...(result.stats as unknown as Record<string, unknown>),
+        pendingToolResultsSpilled,
+      };
+      return result.messages;
+    },
+  });
+
+  if (!domainRewrite.changed) return false;
+  params.vm.effects.log?.("warn", "oversized pending tool result persisted for first delivery", {
     actorKey: params.actor.key,
     reason: params.reason,
     domainChanged: domainRewrite.changed,
@@ -1187,6 +1300,17 @@ async function prepareProviderPromptForTurn(params: {
       promptBuild = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
     }
   }
+  if ((actor.modelConfig.inputLimit ?? 0) > 0 && estimateTokens(promptBuild.providerMessages) >= (actor.modelConfig.inputLimit ?? 0)) {
+    const compacted = applyOversizedPendingToolResultCompactionForActor({
+      vm,
+      actor,
+      reason: "preflight_oversized_pending_tool_result",
+    });
+    if (compacted) {
+      promptBuild = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
+    }
+  }
+  validateProviderPromptInputModalities({ vm, actor, model, messages: promptBuild.executionMessages });
   const {
     promptPlan,
     providerMessages,
@@ -1204,6 +1328,52 @@ async function prepareProviderPromptForTurn(params: {
     pendingToolResultDeliveryIds,
     pendingMessageDeliveryIds,
   };
+}
+
+function collectCanonicalProviderInputParts(messages: readonly any[]): InputContentPart[] {
+  const parts: InputContentPart[] = [];
+  for (const message of messages) {
+    const content = message?.content;
+    if (typeof content === "string") {
+      parts.push(...normalizeInputContent(content));
+      continue;
+    }
+    if (!Array.isArray(content)) continue;
+    for (const part of content) {
+      if (part?.type === "text" && typeof part.text === "string") parts.push(part);
+      if (part?.type === "image" && typeof part.mime === "string" && typeof part.dataUrl === "string") parts.push(part);
+      if (part?.type === "file_reference" && typeof part.path === "string") parts.push(part);
+    }
+  }
+  return parts;
+}
+
+/** Shared request-planner gate, before lifecycle observation and transport I/O. */
+export function validateProviderPromptInputModalities(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  model: string;
+  messages: readonly any[];
+}): void {
+  const result = validateInputModalities({
+    modelRef: params.model,
+    modalities: params.actor.modelConfig.capabilities?.modalities,
+    content: collectCanonicalProviderInputParts(params.messages),
+  });
+  if (result.ok) return;
+
+  params.vm.eventBus?.emit?.({
+    ...buildRuntimeSemanticBase({ agentKey: params.actor.key, agentActorId: params.actor.id }),
+    event_type: "semantic_error",
+    error: {
+      code: "unsupported_modality",
+      message: result.error.message,
+      retryable: false,
+      provider_status: 0,
+      detail_text: JSON.stringify(result.diagnostic),
+    },
+  });
+  throw new UnsupportedModalityError(result.diagnostic, result.error.message);
 }
 
 /**
@@ -3127,9 +3297,9 @@ function drainHumanInputIntoMessages(vm: AiAgentVm, actor: AiAgentActor): void {
   ensureVmMessageHistoryGraphAttached(vm);
   const eventActor = toEventActorRef(actor);
   for (const payload of actor.drainMailbox("humanInput")) {
-    const text = String(payload ?? "");
+    const text = projectInputContentText(payload);
     if (!text) continue;
-    eventBus?.emitUserInput(eventActor, text);
+    eventBus?.emitUserInput(eventActor, payload);
   }
 }
 

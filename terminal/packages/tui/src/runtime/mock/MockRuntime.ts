@@ -1,8 +1,9 @@
 import type { TuiControl } from "@terminal/core/AIAgent/TuiStreamEvents"
 import type { TuiRuntimeBridge } from "../bridge/TuiRuntime"
+import { projectInputContentText, type InputContent } from "@shared/composer"
 
-function resolvePromptResponse(input: string): string {
-  const text = input.trim()
+function resolvePromptResponse(input: InputContent): string {
+  const text = projectInputContentText(input).trim()
   if (!text) {
     return "我在。你可以直接描述要处理的代码任务。"
   }
@@ -47,7 +48,7 @@ export function shouldPreferMockRuntime(): boolean {
 
 const mockRuntimeBridge: TuiRuntimeBridge = {
   async turn(
-    input: string,
+    input: InputContent,
     opts?: {
       timeoutSeconds?: number
       onChunk?: (chunk: string) => void | Promise<void>

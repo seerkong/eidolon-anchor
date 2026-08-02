@@ -238,6 +238,65 @@ describe("tool result first provider delivery", () => {
     }
   });
 
+  it("spills an oversized pending first delivery to an artifact instead of failing prompt preflight", async () => {
+    const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "tool-result-delivery-oversized-"));
+    const providerRequests: any[] = [];
+    let providerTurn = 0;
+    const { actor, vm } = makeRuntime({
+      sessionDir,
+      sessionId: "tool-result-delivery-oversized",
+      providerRequests,
+      processStream: () => {
+        providerTurn += 1;
+        return providerTurn === 1
+          ? {
+              role: "assistant",
+              tool_calls: [{
+                id: "artifact-read-oversized",
+                function: { name: "ReadArtifact", arguments: "{}" },
+              }],
+            }
+          : { role: "assistant", content: "consumed oversized artifact reference" };
+      },
+    });
+    actor.modelConfig.inputLimit = 5_000;
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 2,
+      compressHistory: async () => null,
+    });
+
+    try {
+      await aiAgentLoopStreaming({
+        vm,
+        actor,
+        messages: [{ role: "user", content: "read the oversized artifact" }],
+      });
+
+      expect(providerRequests).toHaveLength(2);
+      const firstDeliveryRequest = JSON.stringify(providerRequests[1]?.messages ?? []);
+      expect(firstDeliveryRequest).not.toContain(LARGE_ARTIFACT_TEXT);
+      expect(firstDeliveryRequest).toContain("pending_first_delivery_compacted");
+      expect(firstDeliveryRequest).toContain("Full output persisted at:");
+      expect(firstDeliveryRequest).toContain("artifact-read-oversized");
+
+      const artifactFiles = artifactFilesFor(sessionDir, "artifact-read-oversized");
+      expect(artifactFiles).toHaveLength(1);
+      expect(fs.readFileSync(
+        path.join(sessionDir, "artifacts", "tool-results", "main", artifactFiles[0]!),
+        "utf8",
+      )).toBe(LARGE_ARTIFACT_TEXT);
+      expect(toolResultDeliveries(vm)).toEqual([
+        expect.objectContaining({
+          toolCallId: "artifact-read-oversized",
+          deliveryState: "delivered",
+        }),
+      ]);
+    } finally {
+      __setCompressionDepsForTest(null);
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
   it("keeps a failed provider delivery pending across conversation persistence and recovery", async () => {
     const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "tool-result-delivery-recovery-"));
     const providerRequests: any[] = [];
@@ -470,6 +529,72 @@ describe("tool result first provider delivery", () => {
       ]);
       expect(artifactFilesFor(sessionDir, "artifact-read-cooperative")).toEqual([]);
     } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps cooperative execution alive when a pending first delivery exceeds the context limit", async () => {
+    const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "tool-result-delivery-cooperative-oversized-"));
+    const providerRequests: any[] = [];
+    let providerTurn = 0;
+    const { actor, vm } = makeRuntime({
+      sessionDir,
+      sessionId: "tool-result-delivery-cooperative-oversized",
+      providerRequests,
+      processStream: () => {
+        providerTurn += 1;
+        return providerTurn === 1
+          ? {
+              role: "assistant",
+              tool_calls: [{
+                id: "artifact-read-cooperative-oversized",
+                function: { name: "ReadArtifact", arguments: "{}" },
+              }],
+            }
+          : { role: "assistant", content: "cooperative oversized result consumed" };
+      },
+    });
+    actor.modelConfig.inputLimit = 5_000;
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 2,
+      compressHistory: async () => null,
+    });
+    const fiberId = `${actor.key}:${actor.id}`;
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor, messages: [], basePriority: 1 }],
+      runStep: async (context, helpers) => aiAgentCooperativeStep({
+        fiberId: context.fiberId,
+        vm: context.vm,
+        actor: context.actor,
+        messages: context.messages,
+        state: context.execState,
+        setState: (state) => {
+          context.execState = state;
+        },
+        resumeFiber: helpers.resume,
+      }),
+    });
+    actor.send("humanInput", "read the oversized artifact cooperatively");
+
+    try {
+      for (let step = 0; step < 100; step += 1) {
+        driver.tick(Date.now());
+        await flushAsyncWork();
+        if (toolResultDeliveries(vm).some((fact) => fact.deliveryState === "delivered")) break;
+      }
+
+      expect(providerRequests).toHaveLength(2);
+      expect(JSON.stringify(providerRequests[1]?.messages ?? [])).toContain("pending_first_delivery_compacted");
+      expect(driver.getState().fibers[fiberId]?.status).not.toBe("failed");
+      expect(toolResultDeliveries(vm)).toEqual([
+        expect.objectContaining({
+          toolCallId: "artifact-read-cooperative-oversized",
+          deliveryState: "delivered",
+        }),
+      ]);
+      expect(artifactFilesFor(sessionDir, "artifact-read-cooperative-oversized")).toHaveLength(1);
+    } finally {
+      __setCompressionDepsForTest(null);
       fs.rmSync(sessionDir, { recursive: true, force: true });
     }
   });

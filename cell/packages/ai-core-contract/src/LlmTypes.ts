@@ -4,6 +4,13 @@ export type LlmAdapterType = "openai" | "anthropic" | "codex" | "claude" | "deep
 
 export type LlmModelFamily = LlmAdapterType | "unknown";
 
+export type LlmModality = "text" | "image" | "audio" | "video" | "pdf";
+
+export type LlmModelModalities = {
+  input: LlmModality[];
+  output: LlmModality[];
+};
+
 export type LlmModelCachePolicy = {
   stablePrefix: boolean;
   providerManagedPrefixCache: boolean;
@@ -13,6 +20,7 @@ export type LlmModelCachePolicy = {
 
 export type LlmModelCapabilities = {
   family: LlmModelFamily;
+  modalities?: LlmModelModalities;
   contextWindow?: number;
   outputLimit?: number;
   reasoningEffort?: "low" | "medium" | "high" | "xhigh";

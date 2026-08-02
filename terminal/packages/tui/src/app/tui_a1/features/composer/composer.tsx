@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
-import type { TextareaRenderable, KeyBinding } from "@opentui/core"
+import type { KeyBinding, PasteEvent, TextareaRenderable } from "@opentui/core"
 import { useKeyboard, useRenderer } from "@opentui/solid"
+import path from "path"
 import { createMemo, createSignal, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { Clipboard } from "../../../../support/util/clipboard"
@@ -13,14 +14,19 @@ import { useLocal } from "../../state/local-context"
 import { formatAgentOptionDescription, sortAgentsByCurrent } from "../../system/agent/agent-option"
 import { movePromptHistoryCursor, usePromptHistory, type PromptHistoryState } from "./model/prompt-history"
 import { useTuiA1StateOptional } from "../../state/state-context"
-import { clonePromptInfo, normalizePromptInfoForSubmit } from "./model/prompt-parts"
-import { restoreExtmarksFromParts, syncExtmarksWithPromptParts, type ExtmarkStore } from "./model/extmarks"
+import { clonePromptInfo, countCanonicalPromptParts, normalizePromptInfoForSubmit } from "./model/prompt-parts"
+import {
+  deleteAttachmentBlocksFromPrompt,
+  restoreExtmarksFromParts,
+  syncExtmarksWithPromptParts,
+  type ExtmarkStore,
+} from "./model/extmarks"
 import {
   buildPromptWithInsertedAgentPart,
-  buildPromptWithInsertedFilePart,
-  formatFilePartVirtualText,
-  pasteImage,
+  insertAttachmentParts,
+  parseAttachmentPathPaste,
   pasteText,
+  type AttachmentPartInput,
 } from "./model/paste"
 import type { PromptInfo } from "./model/prompt-info"
 import { DialogWorkspaceFilePicker } from "./file-picker-dialog"
@@ -108,9 +114,10 @@ export function Composer(props: {
     preventDefault: () => void
     stopPropagation: () => void
   }) => void
-  onSubmit: (value: PromptInfo, clear: () => void) => void
+  onSubmit: (value: PromptInfo, clear: () => void) => void | Promise<void>
   onReady?: (textarea: TextareaRenderable) => void
   onFocusRequest?: () => void
+  isAttachmentFile?: (candidate: string) => boolean
 }) {
   let textarea: TextareaRenderable | undefined
   let promptPartTypeId = 1
@@ -155,6 +162,7 @@ export function Composer(props: {
     if (textCount > 0) parts.push(`${textCount} paste${textCount > 1 ? "s" : ""}`)
     return parts.join(" · ")
   })
+  const canonicalPartCount = createMemo(() => countCanonicalPromptParts(store.prompt))
 
   const liveTextarea = () => {
     const current = textarea as (TextareaRenderable & { isDestroyed?: boolean }) | undefined
@@ -204,6 +212,35 @@ export function Composer(props: {
     setValue(nextPrompt.input)
     if (textarea) textarea.cursorOffset = textarea.plainText.length
     textarea?.focus()
+  }
+
+  const applyPrompt = (prompt: PromptInfo, cursorOffset: number) => {
+    const nextPrompt = clonePromptInfo(prompt)
+    setStore({
+      prompt: nextPrompt,
+      extmarkToPartIndex: new Map(),
+    })
+    stateGraph?.setComposer(nextPrompt)
+    setValue(nextPrompt.input)
+    withLiveTextarea((input) => {
+      input.setText(nextPrompt.input)
+      restoreExtmarksFromParts(input, nextPrompt.parts, 0, 0, 0, promptPartTypeId, setStore)
+      input.cursorOffset = Math.min(nextPrompt.input.length, Math.max(0, cursorOffset))
+      input.focus()
+    })
+  }
+
+  const insertAttachments = (files: AttachmentPartInput[], offset: number) => {
+    const nextPrompt = insertAttachmentParts(
+      {
+        ...clonePromptInfo(store.prompt),
+        input: currentTextareaText(),
+      },
+      files,
+      offset,
+    )
+    const insertedLength = nextPrompt.input.length - currentTextareaText().length
+    applyPrompt(nextPrompt, offset + insertedLength)
   }
 
   const clearPrompt = () => {
@@ -288,37 +325,10 @@ export function Composer(props: {
       <DialogWorkspaceFilePicker
         directory={props.directory}
         onSelect={(file) => {
-          const insertedCursorOffset =
-            insertOffset +
-            formatFilePartVirtualText({
-              path: file.absolutePath,
-              filename: file.relativePath,
-            }).length +
-            1
-          const nextPrompt = buildPromptWithInsertedFilePart(
-            {
-              ...clonePromptInfo(store.prompt),
-              input: currentTextareaText(),
-            },
-            {
-              path: file.absolutePath,
-              filename: file.relativePath,
-              mime: "text/plain",
-            },
+          insertAttachments(
+            [{ path: file.absolutePath, filename: file.relativePath, mime: "text/plain" }],
             insertOffset,
           )
-          setStore({
-            prompt: nextPrompt,
-            extmarkToPartIndex: new Map(),
-          })
-          stateGraph?.setComposer(nextPrompt)
-          setValue(nextPrompt.input)
-          withLiveTextarea((input) => {
-            input.setText(nextPrompt.input)
-            restoreExtmarksFromParts(input, nextPrompt.parts, 0, 0, 0, promptPartTypeId, setStore)
-            input.cursorOffset = Math.min(nextPrompt.input.length, insertedCursorOffset)
-            input.focus()
-          })
         }}
       />
     ))
@@ -329,16 +339,16 @@ export function Composer(props: {
     const content = await Clipboard.read()
     if (!content) return
     if (content.mime.startsWith("image/")) {
-      await pasteImage(
-        textarea,
-        {
-          content: content.data,
-          filename: "clipboard-image.png",
-          mime: content.mime,
-        },
-        undefined,
-        promptPartTypeId,
-        setStore,
+      insertAttachments(
+        [
+          {
+            path: "clipboard-image.png",
+            filename: "clipboard-image.png",
+            mime: content.mime,
+            url: `data:${content.mime};base64,${content.data}`,
+          },
+        ],
+        textarea.visualCursor.offset,
       )
     } else {
       pasteText(textarea, content.data, content.data, undefined, promptPartTypeId, setStore)
@@ -349,6 +359,27 @@ export function Composer(props: {
   useKeyboard((event) => {
     if (!focused() || !textarea || props.busy || props.blocked) return
     if (event.defaultPrevented) return
+
+    if (event.name === "backspace" || event.name === "delete") {
+      const selection = textarea.getSelection() ?? undefined
+      const originalPrompt = clonePromptInfo({ ...store.prompt, input: textarea.plainText })
+      const result = deleteAttachmentBlocksFromPrompt(originalPrompt, {
+        key: event.name,
+        cursorOffset: textarea.visualCursor.offset,
+        selection,
+      })
+      if (result.deletedPartIndexes.length) {
+        const attachmentStarts = result.deletedPartIndexes.flatMap((index) => {
+          const part = originalPrompt.parts[index]
+          return part?.type === "file" && part.source?.text ? [part.source.text.start] : []
+        })
+        const cursorOffset = Math.min(selection?.start ?? Number.POSITIVE_INFINITY, ...attachmentStarts)
+        event.preventDefault()
+        event.stopPropagation()
+        applyPrompt(result.prompt, Number.isFinite(cursorOffset) ? cursorOffset : textarea.visualCursor.offset)
+        return
+      }
+    }
 
     if ((event as { shift?: boolean }).shift && event.name === "up") {
       moveFactUserInputHistory(-1)
@@ -446,7 +477,7 @@ export function Composer(props: {
                 : "Enter 发送 · Ctrl+J or Shift+Enter 换行")}
         </text>
       </box>
-      <Show when={store.prompt.parts.length > 0}>
+      <Show when={canonicalPartCount() > 0}>
         <text fg={theme.secondary} wrapMode="char" onMouseScroll={routeHistoryScroll}>
           parts {promptPartSummary()}
         </text>
@@ -483,6 +514,26 @@ export function Composer(props: {
             initialValue={value()}
             placeholder={composerPlaceholder()}
             keyBindings={composerBindings()}
+            onPaste={(event: PasteEvent) => {
+              if (!props.isAttachmentFile) return
+              const payload = new TextDecoder().decode(event.bytes)
+              const candidates = parseAttachmentPathPaste(payload, {
+                platform: process.platform === "win32" ? "win32" : "posix",
+                isFile: props.isAttachmentFile,
+              })
+              if (!candidates) return
+              event.preventDefault()
+              event.stopPropagation()
+              insertAttachments(
+                candidates.map((candidate) => ({
+                  path: candidate,
+                  filename:
+                    process.platform === "win32" ? path.win32.basename(candidate) : path.posix.basename(candidate),
+                  mime: "text/plain",
+                })),
+                textarea?.visualCursor.offset ?? store.prompt.input.length,
+              )
+            }}
             textColor={theme.text}
             focusedTextColor={theme.text}
             placeholderColor={theme.textMuted}
@@ -498,7 +549,7 @@ export function Composer(props: {
               const prompt = buildSubmitPrompt()
               if (!prompt.input.trim()) return
               promptHistory.append(prompt)
-              props.onSubmit(prompt, clearPrompt)
+              void Promise.resolve(props.onSubmit(prompt, clearPrompt))
             }}
           />
         </box>
@@ -508,7 +559,7 @@ export function Composer(props: {
         </text>
         <box flexShrink={0}>
           <text fg={focused() ? theme.userBorder : theme.textMuted}>
-            {value().length} chars · {store.prompt.parts.length} parts
+            {value().length} chars · {canonicalPartCount()} parts
           </text>
         </box>
       </box>

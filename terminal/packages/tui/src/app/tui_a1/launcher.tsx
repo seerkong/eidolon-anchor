@@ -15,6 +15,7 @@ import { TuiA1Shell } from "./shell"
 type TuiA1Input = {
   args: Partial<Args>
   directory?: string
+  isAttachmentFile?: (candidate: string) => boolean
   onExit?: () => Promise<void>
 }
 
@@ -75,6 +76,7 @@ export async function tuiA1Tui(input: TuiA1Input) {
         continueSession={input.args.continue}
         directory={directory}
         initialPrompt={input.args.prompt}
+        isAttachmentFile={input.isAttachmentFile}
         onExit={input.onExit}
         selection={selection}
         selectionOverride={selectionOverride}

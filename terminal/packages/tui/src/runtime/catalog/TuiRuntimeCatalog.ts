@@ -6,6 +6,7 @@ import type {
   ProviderListResponse,
 } from "@terminal/core/AIAgent"
 import type { AgentConfig } from "@cell/ai-core-contract/runtime/AgentConfig"
+import type { LlmModelModalities } from "@cell/ai-core-contract/LlmTypes"
 import { parseModelRef } from "@terminal/core/AIAgent"
 import { resolvePresetModelRef } from "@cell/ai-organ-logic/llm"
 import { assembleAiCodingRuntimeProfile } from "@cell/mod-profiles"
@@ -232,25 +233,40 @@ const mockConfig: Config = {
   },
 }
 
-function buildModelCapabilities() {
+function buildModelCapabilities(modalities?: LlmModelModalities) {
+  const inputModalities = new Set(modalities?.input ?? [])
+  const outputModalities = new Set(modalities?.output ?? [])
+  const input = {
+    text: inputModalities.has("text"),
+    audio: inputModalities.has("audio"),
+    image: inputModalities.has("image"),
+    video: inputModalities.has("video"),
+    pdf: inputModalities.has("pdf"),
+  }
   return {
     temperature: true,
     reasoning: true,
-    attachment: true,
+    attachment: input.image || input.pdf,
     toolcall: true,
-    input: { text: true, audio: false, image: true, video: false, pdf: true },
-    output: { text: true, audio: false, image: false, video: false, pdf: false },
+    input,
+    output: {
+      text: outputModalities.has("text"),
+      audio: outputModalities.has("audio"),
+      image: outputModalities.has("image"),
+      video: outputModalities.has("video"),
+      pdf: outputModalities.has("pdf"),
+    },
     interleaved: false,
   }
 }
 
-function makeProviderModel(providerID: string, modelID: string, apiUrl: string, contextLimit: number, outputLimit: number) {
+function makeProviderModel(providerID: string, modelID: string, apiUrl: string, contextLimit: number, outputLimit: number, modalities?: LlmModelModalities) {
   return {
     id: modelID,
     providerID,
     api: { id: providerID, url: apiUrl, npm: "@cell/ai-organ-logic" },
     name: modelID,
-    capabilities: buildModelCapabilities(),
+    capabilities: buildModelCapabilities(modalities),
     cost: {
       input: 0,
       output: 0,
@@ -270,12 +286,12 @@ function makeProviderModel(providerID: string, modelID: string, apiUrl: string, 
   }
 }
 
-function makeProviderListModel(modelID: string, contextLimit: number, outputLimit: number) {
+function makeProviderListModel(modelID: string, contextLimit: number, outputLimit: number, attachment: boolean) {
   return {
     id: modelID,
     name: modelID,
     release_date: "2024-01-01",
-    attachment: true,
+    attachment,
     reasoning: true,
     temperature: true,
     tool_call: true,
@@ -389,7 +405,7 @@ function resolveLocalRuntimeCatalog(directory: string): RuntimeCatalog {
     models: Object.fromEntries(
       provider.models.map((model) => [
         model.name,
-        makeProviderModel(provider.name, model.name, provider.baseURL ?? "", model.context ?? 0, model.output ?? 0),
+        makeProviderModel(provider.name, model.name, provider.baseURL ?? "", model.context ?? 0, model.output ?? 0, model.modalities),
       ]),
     ),
   }))
@@ -413,7 +429,12 @@ function resolveLocalRuntimeCatalog(directory: string): RuntimeCatalog {
       models: Object.fromEntries(
         Object.values(provider.models).map((model) => {
           const limit = model.limit ?? { context: 0, output: 0 }
-          return [model.id, makeProviderListModel(model.id, limit.context ?? 0, limit.output ?? 0)]
+          return [model.id, makeProviderListModel(
+            model.id,
+            limit.context ?? 0,
+            limit.output ?? 0,
+            model.capabilities?.attachment === true,
+          )]
         }),
       ),
     })),

@@ -2,6 +2,7 @@ import type { TextareaRenderable } from "@opentui/core"
 import type { SetStoreFunction } from "solid-js/store"
 import { produce } from "solid-js/store"
 import type { PromptInfo } from "./prompt-info"
+import { clonePromptInfo, sortPromptParts } from "./prompt-parts"
 
 export type ExtmarkStore = {
   prompt: PromptInfo
@@ -22,6 +23,70 @@ function readTextSource(part: PromptPart): VirtualTextSource | undefined {
 
 function readAgentSource(part: PromptPart): VirtualTextSource | undefined {
   return (part as { source?: VirtualTextSource }).source
+}
+
+function shiftPartAfterDeletion(part: PromptPart, start: number, length: number) {
+  const source = part.type === "agent" ? readAgentSource(part) : readTextSource(part)
+  if (!source || source.start < start) return
+  source.start -= length
+  source.end -= length
+}
+
+export function deleteAttachmentBlocksFromPrompt(
+  prompt: PromptInfo,
+  edit: {
+    key: "backspace" | "delete"
+    cursorOffset: number
+    selection?: { start: number; end: number }
+  },
+): { prompt: PromptInfo; deletedPartIndexes: number[] } {
+  const selection = edit.selection
+    ? {
+        start: Math.min(edit.selection.start, edit.selection.end),
+        end: Math.max(edit.selection.start, edit.selection.end),
+      }
+    : undefined
+  const fileRanges = prompt.parts.flatMap((part, index) => {
+    if (part.type !== "file") return []
+    const source = readTextSource(part)
+    return source ? [{ ...source, index }] : []
+  })
+  const hit = fileRanges.filter((range) => {
+    if (selection && selection.start !== selection.end) {
+      return selection.start < range.end && range.start < selection.end
+    }
+    if (edit.key === "backspace") {
+      return (
+        edit.cursorOffset === range.end ||
+        (edit.cursorOffset === range.end + 1 && /^\s$/.test(prompt.input.slice(range.end, edit.cursorOffset)))
+      )
+    }
+    return edit.cursorOffset === range.start
+  })
+
+  if (!hit.length) return { prompt: clonePromptInfo(prompt), deletedPartIndexes: [] }
+
+  const deleteStart = selection
+    ? Math.min(selection.start, ...hit.map((range) => range.start))
+    : Math.min(...hit.map((range) => range.start))
+  let deleteEnd = selection
+    ? Math.max(selection.end, ...hit.map((range) => range.end))
+    : Math.max(...hit.map((range) => range.end))
+  if (!selection && edit.key === "backspace" && edit.cursorOffset === deleteEnd + 1) deleteEnd = edit.cursorOffset
+  const nextPrompt = clonePromptInfo(prompt)
+  nextPrompt.input = nextPrompt.input.slice(0, deleteStart) + nextPrompt.input.slice(deleteEnd)
+  nextPrompt.parts = sortPromptParts(
+    nextPrompt.parts.filter((part) => {
+      const source = part.type === "agent" ? readAgentSource(part) : readTextSource(part)
+      return !source || source.end <= deleteStart || source.start >= deleteEnd
+    }),
+  )
+  for (const part of nextPrompt.parts) shiftPartAfterDeletion(part, deleteEnd, deleteEnd - deleteStart)
+
+  return {
+    prompt: nextPrompt,
+    deletedPartIndexes: hit.map((range) => range.index).sort((left, right) => left - right),
+  }
 }
 
 export function restoreExtmarksFromParts(

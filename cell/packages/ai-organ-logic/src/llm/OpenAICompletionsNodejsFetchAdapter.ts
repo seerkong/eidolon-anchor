@@ -9,6 +9,7 @@ import { ProviderExecutionError } from "./ProviderErrors";
 import type { ProviderOptions } from "./ProviderPlugins";
 import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
+import { redactCanonicalImages } from "./CanonicalImageProjection";
 
 type OpenAICompletionsNodejsFetchAdapterSettings = {
   apiKey: string;
@@ -22,6 +23,12 @@ const INTERNAL_EXTRA_BODY_KEYS = new Set(["prompt_plan", "work_context"]);
 function buildCompletionsUrl(baseUrl?: string): string {
   const base = baseUrl || "https://api.openai.com/v1";
   const trimmed = base.replace(/\/+$/, "");
+  // DeepSeek's official base URL is unversioned. Its OpenAI-compatible Chat
+  // Completions route is therefore /chat/completions (the /v1 alias remains
+  // compatible when a caller explicitly configures it).
+  if (/^https:\/\/api\.deepseek\.com$/i.test(trimmed)) {
+    return `${trimmed}/chat/completions`;
+  }
   const hasVersion = /\/v\d+($|\/)/.test(trimmed);
   const withVersion = hasVersion ? trimmed : `${trimmed}/v1`;
   return `${withVersion}/chat/completions`;
@@ -164,7 +171,7 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     };
 
     if (process.env.MINIMAX_DEBUG === "1") {
-      console.log("[openai] request", JSON.stringify({ url, body }, null, 2));
+      console.log("[openai] request", JSON.stringify(redactCanonicalImages({ url, body }), null, 2));
     }
 
     const fetchFn = providerOptions.fetch || fetch;

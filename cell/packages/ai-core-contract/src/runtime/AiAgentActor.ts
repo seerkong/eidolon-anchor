@@ -15,7 +15,7 @@ import type {
 } from "./ContextControl";
 import type { QuestionnaireRequestPayload } from "./Questionnaire";
 import type { HeartbeatWakePayload } from "./Heartbeat";
-import type { ChatMessage, Logger, XStream } from "@shared/composer";
+import type { ChatMessage, InputContent, Logger, XStream } from "@shared/composer";
 
 export type ActorType = ActorExecutionKind;
 
@@ -66,7 +66,7 @@ export type AiAgentMailboxSchema = {
     text: string;
     ts: number;
   };
-  humanInput: string;
+  humanInput: InputContent;
   memberChatInbox: {
     from: string;
     text: string;

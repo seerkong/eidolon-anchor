@@ -7,6 +7,7 @@ import { configureTuiRuntime } from "../runtime/bridge/TuiRuntime"
 import { Log } from "../support/util/log"
 import { isTuiStreamDiagnosticsEnabled } from "../support/util/stream-diagnostics"
 import { restoreTuiTerminalModes } from "../support/util/terminal-restore"
+import { createLocalAttachmentResolver, isLocalAttachmentFile } from "../support/attachment-resolver"
 
 async function main() {
   const args = await yargs(hideBin(process.argv))
@@ -94,10 +95,12 @@ async function main() {
     debug: args.debug,
     mcp: args.mcp,
     entryType: "tui",
+    attachmentResolver: createLocalAttachmentResolver(),
   })
 
   await tuiA1Tui({
     directory: cwd,
+    isAttachmentFile: isLocalAttachmentFile,
     args: {
       agent: args.agent,
       continue: args.continue,

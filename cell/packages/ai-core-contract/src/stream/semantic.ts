@@ -12,6 +12,7 @@ import type {
   ToolCallData,
   TraceData,
 } from "./common";
+import type { InputContentPart } from "@shared/composer";
 
 export const SEMANTIC_EVENT_TYPES = [
   "semantic_user_input",
@@ -78,6 +79,7 @@ type SemanticEventBase<TEventType extends SemanticEventType> = {
 
 export type SemanticUserInputEvent = SemanticEventBase<"semantic_user_input"> & {
   text: string;
+  content?: InputContentPart[];
   input_source: SemanticInputSource;
 };
 

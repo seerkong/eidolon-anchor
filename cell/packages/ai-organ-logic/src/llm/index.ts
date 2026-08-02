@@ -47,6 +47,32 @@ export {
   resolveDeepSeekReasoningEffort,
 } from "./DeepSeekModelCapabilities";
 export {
+  UnsupportedModalityError,
+  validateInputModalities,
+} from "./InputModalityValidator";
+export {
+  DEFAULT_MAX_CANONICAL_IMAGE_BYTES,
+  DEFAULT_MAX_CANONICAL_IMAGE_TOTAL_BYTES,
+  OPENAI_IMAGE_MIME_TYPES,
+  projectOpenAIChatUserContent,
+  projectOpenAIResponsesUserContent,
+  redactCanonicalImages,
+  summarizeCanonicalImage,
+  validateCanonicalImage,
+} from "./CanonicalImageProjection";
+export type {
+  CanonicalImageProjectionOptions,
+  CanonicalImageSummary,
+  CanonicalImageValidationOptions,
+  OpenAIChatUserContentPart,
+  OpenAIResponsesUserContentPart,
+} from "./CanonicalImageProjection";
+export type {
+  InputModalityValidationResult,
+  UnsupportedModalityDiagnostic,
+  ValidateInputModalitiesInput,
+} from "./InputModalityValidator";
+export {
   findOpenAIReplaySafeMessagePrefix,
   normalizeOpenAIChatMessages,
   repairOpenAIChatToolCallAdjacency,

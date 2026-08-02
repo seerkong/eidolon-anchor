@@ -1,4 +1,4 @@
-import type { LlmModelCapabilities } from "@cell/ai-core-contract/LlmTypes";
+import type { LlmModelCapabilities, LlmModelModalities } from "@cell/ai-core-contract/LlmTypes";
 
 export type LlmProviderAdapterType = "openai" | "anthropic" | "codex" | "claude" | "deepseek";
 
@@ -12,6 +12,7 @@ export type LlmProviderModelConfig = {
   context?: number;
   output?: number;
   reasoning?: ProviderModelReasoningConfig;
+  modalities?: LlmModelModalities;
   options?: Record<string, unknown>;
 };
 
@@ -36,6 +37,7 @@ export type LlmProviderModelRawConfig = {
     output: number;
   };
   reasoning?: ProviderModelReasoningConfig;
+  modalities?: LlmModelModalities;
   options?: Record<string, unknown>;
 };
 
@@ -120,6 +122,7 @@ export type FlattenedModelConfig = {
   inputLimit: number;
   outputLimit: number;
   reasoningEffort?: ProviderModelReasoningConfig["effort"];
+  modalities?: LlmModelModalities;
   capabilities?: LlmModelCapabilities;
   options?: Record<string, unknown>;
 };
@@ -130,6 +133,14 @@ export function isLlmAdapterType(value: unknown): value is LlmProviderAdapterTyp
 
 export function isReasoningEffort(value: unknown): value is ProviderModelReasoningConfig["effort"] {
   return value === "low" || value === "medium" || value === "high" || value === "xhigh";
+}
+
+const LLM_MODALITIES = new Set(["text", "image", "audio", "video", "pdf"]);
+
+export function isLlmModelModalities(value: unknown): value is LlmModelModalities {
+  if (!isObject(value) || !Array.isArray(value.input) || !Array.isArray(value.output)) return false;
+  return value.input.every((item) => typeof item === "string" && LLM_MODALITIES.has(item))
+    && value.output.every((item) => typeof item === "string" && LLM_MODALITIES.has(item));
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -150,6 +161,7 @@ export function isProviderModelConfig(value: unknown): value is ProviderModelCon
     typeof value.output === "number" &&
     Number.isFinite(value.output) &&
     isStringRecord(value.options) &&
+    (value.modalities === undefined || isLlmModelModalities(value.modalities)) &&
     (value.reasoning === undefined ||
       (isObject(value.reasoning) &&
         (value.reasoning.effort === undefined || isReasoningEffort(value.reasoning.effort))))
@@ -164,6 +176,7 @@ export function isProviderConfig(value: unknown): value is ProviderConfig {
     typeof value.baseURL === "string" &&
     typeof value.apiKey === "string" &&
     isStringRecord(value.options) &&
+    (value.modalities === undefined || isLlmModelModalities(value.modalities)) &&
     Array.isArray(value.models) &&
     value.models.every((model) => isProviderModelConfig(model))
   );

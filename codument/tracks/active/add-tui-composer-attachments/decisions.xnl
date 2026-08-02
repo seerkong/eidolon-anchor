@@ -1,0 +1,95 @@
+<decisions #add-tui-composer-attachments {
+  track = "add-tui-composer-attachments"
+}
+(
+  <decision #add-tui-composer-attachments.drag-ingress {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>终端 TUI 如何实现从文件管理器拖入文件？</?>
+    <answer { }
+    (
+      <raw-answer ?>用户要求 Composer 支持拖动文件作为附件。</?>
+      <decision-text ?>把终端模拟器产生的 bracketed-paste 路径识别为附件；Ctrl+O 与剪贴板图片继续作为等价入口。</?>
+      <rationale ?>OpenTUI paste 事件携带 bytes/MIME，而鼠标 drop 仅携带坐标，无法取得 OS file payload。</?>
+      <evidence ?>OpenTUI 0.1.96 declarations and current Composer paste/file-picker implementation.</?>
+    )>
+  )>
+  <decision #add-tui-composer-attachments.capability-gate {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>图片附件如何决定能否发给当前模型？</?>
+    <answer { }
+    (
+      <raw-answer ?>配置方式对齐 examples/config/llm-provider.json。</?>
+      <decision-text ?>以模型 `modalities.input` 为唯一能力真源；未声明 image 时发送前 fail closed 并保留草稿。</?>
+      <rationale ?>能力声明比 provider/model 名称推断稳定，且可避免静默丢图。</?>
+      <evidence ?>示例配置已有 text/image modalities，而当前 runtime catalog 对所有模型硬编码 image 能力。</?>
+    )>
+  )>
+  <decision #add-tui-composer-attachments.canonical-parts {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>多模态内容应在哪一层采用 provider wire 格式？</?>
+    <answer { }
+    (
+      <raw-answer ?>参考 coding agent 的图片素材处理机制进行接口调用。</?>
+      <decision-text ?>runtime/conversation 保存 provider-neutral canonical parts，仅在 adapter 边界投影为 Chat `image_url` 或 Responses `input_image`。</?>
+      <rationale ?>同一会话可以切换 provider，canonical history 不应绑定单一 vendor schema。</?>
+      <evidence ?>现有 Chat 与 Responses builders 已是 provider request projection owners。</?>
+    )>
+  )>
+  <decision #add-tui-composer-attachments.deepseek-vision {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = false
+  }
+  (
+    <question ?>当前是否把 deepseek-v4-flash 接成视觉模型？</?>
+    <answer { }
+    (
+      <raw-answer ?>用户认为最近发布的 deepseek-v4-flash 支持识图，并要求联网核实。</?>
+      <decision-text ?>接入 V4 Flash 的最新文本/推理/工具能力，但保持 `modalities.input=["text"]`，拒绝图片。</?>
+      <rationale ?>截至 2026-08-02，DeepSeek 官方 Responses 文档明确说 image/file input 不支持并会替换为占位文本，Anthropic 兼容接口也将 image 标为 Not Supported。</?>
+      <evidence ?>DeepSeek official API docs, Models & Pricing, Responses compatibility, Anthropic compatibility and 2026-07-31 change log.</?>
+    )>
+  )>
+  <decision #add-tui-composer-attachments.file-materialization {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>普通文件引用由谁读取并如何进入模型上下文？</?>
+    <answer { }
+    (
+      <raw-answer ?>Coding AttractorCheck 要求明确 file_reference owner 与路径泄露边界。</?>
+      <decision-text ?>file_reference 仅为 local ingress；注入式 AttachmentResolverPort 在 terminal support 中读取/校验并转为 basename+digest 的 text 或 image snapshot，绝对路径不进入 provider。</?>
+      <rationale ?>把文件 effect 放在显式 runtime 边界，既保留 UI 的纯逻辑可测性，也避免 provider 与日志泄露本机路径。</?>
+      <evidence ?>Coding attractors: cohesive-boundary, explicit-runtime, contract-logic-separation and runtime-binding-pattern.</?>
+    )>
+  )>
+  <decision #add-tui-composer-attachments.rejection-observation {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>不支持的 modality 如何形成可验证证据？</?>
+    <answer { }
+    (
+      <raw-answer ?>Coding AttractorCheck 要求 fail-closed 拒绝有结构化可观测事实。</?>
+      <decision-text ?>发布脱敏 unsupported_modality semantic diagnostic，并测试 provider network call 为零。</?>
+      <rationale ?>UI 错误字符串不足以证明 planner 在 I/O 前拒绝，也不利于运行时排障。</?>
+      <evidence ?>Coding attractors: observability-before-speculation and verifiability-first.</?>
+    )>
+  )>
+)>

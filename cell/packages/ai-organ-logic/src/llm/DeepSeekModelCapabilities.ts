@@ -20,12 +20,14 @@ export function resolveDeepSeekModelCapabilities(params: {
   providerId?: string | null;
   adapter?: string | null;
   modelId: string;
+  contextWindow?: number;
   outputLimit?: number;
   reasoningEffort?: ProviderModelReasoningConfig["effort"];
 }): LlmModelCapabilities | undefined {
   if (!isDeepSeekModelRef(params.providerId, params.adapter, params.modelId)) return undefined;
   return {
     family: "deepseek",
+    contextWindow: params.contextWindow,
     outputLimit: params.outputLimit,
     reasoningEffort: resolveDeepSeekReasoningEffort(params.modelId, params.reasoningEffort),
     cachePolicy: {

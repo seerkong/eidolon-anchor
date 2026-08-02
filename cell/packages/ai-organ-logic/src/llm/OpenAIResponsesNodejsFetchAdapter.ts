@@ -25,6 +25,7 @@ import type {
   ResponsesTransportResult,
 } from "@cell/ai-organ-contract/llm/ResponsesReplay";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
+import { redactCanonicalImages } from "./CanonicalImageProjection";
 import {
   assembleOpenAIResponsesInstructions,
   buildOpenAIResponsesInputItems,
@@ -1181,7 +1182,7 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
         body,
         previous_response_id: body.previous_response_id,
       };
-      console.log("[codex] request", JSON.stringify(debugPayload, null, 2));
+      console.log("[codex] request", JSON.stringify(redactCanonicalImages(debugPayload), null, 2));
     }
 
     appendCodexLog({

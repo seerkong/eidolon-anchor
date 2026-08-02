@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-tui-composer-attachments" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 TUI Composer 的文件附件可拖入、可原子编辑并以模型能力驱动的结构化输入安全到达视觉 provider。</Goal>
+    <Description>补齐 Composer 附件交互、canonical multimodal runtime ingress、OpenAI 图片 projection 与 DeepSeek V4 Flash 的真实能力边界。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>light</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <GapRound>2</GapRound>
+    <CreatedAt>2026-08-02T02:11:28+08:00</CreatedAt>
+    <UpdatedAt>2026-08-02T05:43:52+08:00</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_add-tui-composer-attachments" name="add-tui-composer-attachments" version="1">
+    <Description>以 TDD 分阶段完成附件交互、结构化输入、能力门控、provider projection 和端到端验证。</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Composer 附件块交互" status="DONE" order="0">
+        <Description>锁定路径粘贴、统一插入、原子删除和 parts 计数行为。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>路径 paste 只有完整解析为存在文件集合时才转附件</cdt:Criterion>
+          <cdt:Criterion>Backspace/Delete 原子删除附件且 canonical parts 计数立即一致</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="编写附件入口与编辑失败测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖 Windows drive/UNC/引号、POSIX/file URI、多文件、普通文本 fallback、块首尾删除、selection 删除、计数与历史恢复。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">新增测试在缺少路径识别和原子删除实现时稳定 RED</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="实现统一附件块生命周期" status="DONE" order="1" priority="P0">
+            <Description>实现纯 paste path parser、共享 insertAttachmentParts、extmark 命中删除与单 transaction reconciliation；文件 I/O 仅通过注入式 resolver contract。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">Ctrl+O、路径 paste、剪贴板图片生成一致 file part/extmark</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">附件删除无残片且右下角 count 与 canonical parts 同步</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Canonical structured input ingress" status="DONE" order="1">
+        <Description>消除 TUI client 的附件丢弃边界，让 structured parts 进入 actor 与 Conversation。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>TUI→bridge→mailbox→Conversation 保留 part 顺序与内容</cdt:Criterion>
+          <cdt:Criterion>旧 string caller/session 保持兼容</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="定义 structured input contract 与失败测试" status="DONE" order="0" priority="P0">
+            <Description>先为 canonical content union、AttachmentResolverPort、mailbox payload、runtime event、persistence/recovery、路径脱敏和 text projection helper 建立 contract tests。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">测试能复现 extractPromptContent 丢附件和 ChatMessage string-only 限制</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="迁移 runtime 与 Conversation 链路" status="DONE" order="1" priority="P0">
+            <Description>实现 canonical text/image/file-reference parts与注入式 terminal-support resolver effect，迁移 TuiRuntimeClient、TuiRuntimeBridge、actor mailbox、conversation materialization 与文本消费者。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">user message events 与 Conversation round-trip 保留全部附件</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">slash/questionnaire/headless 的纯文本行为无回归</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC3" checked="true">普通文本/图片 snapshot 可恢复，绝对路径不进入 provider message/observation/log</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Modalities propagation 与 fail-closed gate" status="DONE" order="2">
+        <Description>让配置成为模型输入能力真源，并在任何 provider I/O 前拒绝不支持的附件。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>provider schema、flattened config、actor capability 与 TUI catalog 同源</cdt:Criterion>
+          <cdt:Criterion>text-only 模型不会收到 image wire content</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="编写 modalities 传播与拒绝测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖 config parse、catalog projection、模型切换、未知/缺失 modality、send-before refusal、unsupported_modality diagnostic、零 network call 和草稿保留。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">当前硬编码 image/pdf capability 与缺失 schema propagation 被测试捕获</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="实现模型能力传播与 planner gate" status="DONE" order="1" priority="P0">
+            <Description>扩展 provider config/capabilities/catalog，删除 TUI 硬编码，并在 request observation/I/O 前校验 canonical modalities、MIME 与大小；拒绝时发布脱敏 semantic diagnostic。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">视觉与 text-only 模型能力严格匹配配置</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">unsupported image 错误稳定、可操作且不清空 Composer</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC3" checked="true">unsupported_modality diagnostic 可见且脱敏，provider network call 为零</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="OpenAI 图片 projection" status="DONE" order="3">
+        <Description>在 Chat Completions 与 Responses adapter 边界生成合法图片请求并保护 payload。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Chat 使用 image_url，Responses 使用 input_image</cdt:Criterion>
+          <cdt:Criterion>full/incremental replay 不丢失或重复图片，日志不泄露 base64</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T4.1" name="编写 provider wire 与 replay 失败测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖混合 part 顺序、data URL、MIME/大小拒绝、Responses full/incremental input、digest 与 observation redaction。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">当前 text-only input builders 在图片 fixture 下稳定 RED</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="实现 Chat 与 Responses canonical projector" status="DONE" order="1" priority="P0">
+            <Description>共享 canonical validator/projector，将图片分别投影为 image_url/input_image，并接入 replay、digest 与脱敏 observation。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">两种 API wire JSON 与官方 schema 对齐且 part 顺序稳定</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">纯文本 provider request snapshots 保持不变</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P5" name="DeepSeek V4 Flash 与端到端验证" status="DONE" order="4">
+        <Description>更新 DeepSeek 最新模型能力，保持官方 text-only 边界，并完成跨层与实机验证。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>DeepSeek V4 Flash 文本/流式/工具/推理回归通过且图片 send-before 被拒绝</cdt:Criterion>
+          <cdt:Criterion>视觉 GPT 图片请求与 Windows 拖入路径 smoke test 通过</cdt:Criterion>
+          <cdt:Criterion>定向测试、相关 package typecheck 与严格 Codument 校验通过</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T5.1" name="更新 DeepSeek 配置与 capability 测试" status="DONE" order="0" priority="P0">
+            <Description>加入 deepseek-v4-flash 示例、官方 limits/reasoning/tool/stream contract 与 text-only modality，验证 adapter request shape 和图片拒绝。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">示例配置对齐 modalities 格式并不虚报 DeepSeek image input</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">DeepSeek 图片输入在网络 I/O 前失败，文本与工具调用保持通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="运行跨层回归与终端 smoke test" status="DONE" order="1" priority="P0">
+            <Description>运行 Composer/runtime/conversation/provider tests、相关 typecheck，并在 Windows Terminal 实际拖入含空格路径和图片验证 UI/count/request。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.2-AC1" checked="true">定向测试与 typecheck 通过，或基线失败有独立证据</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC2" checked="true">视觉模型收到真实图片，text-only 模型提示错误且草稿保留</cdt:Criterion>
+              <cdt:Criterion id="T5.2-AC3" checked="true">未覆盖或提交用户已有 ContextCompressor 改动</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block" verify-round="false"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+</Track>

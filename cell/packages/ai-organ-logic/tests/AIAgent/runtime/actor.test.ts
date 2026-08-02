@@ -71,6 +71,24 @@ describe("createActor", () => {
     expect(actor.drainMailbox("humanInput")).toEqual([]);
   });
 
+  it("preserves structured human input in the mailbox while accepting legacy strings", () => {
+    const actor = createActor({ key: "main" });
+    const structured = [
+      { type: "text" as const, text: "inspect " },
+      {
+        type: "image" as const,
+        mime: "image/png",
+        dataUrl: "data:image/png;base64,aW1hZ2U=",
+        filename: "screen.png",
+      },
+    ];
+
+    actor.send("humanInput", structured);
+    actor.send("humanInput", "legacy input");
+
+    expect(actor.drainMailbox("humanInput")).toEqual([structured, "legacy input"]);
+  });
+
   it("applies active model config control without consuming unrelated control entries", () => {
     const actor = createActor({ key: "main", modelConfig: { provider: "old", model: "old-model" } });
     actor.send("control", {

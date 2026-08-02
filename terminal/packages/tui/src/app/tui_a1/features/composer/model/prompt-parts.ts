@@ -97,6 +97,10 @@ export function sortPromptParts(parts: PromptInfo["parts"]): PromptInfo["parts"]
   })
 }
 
+export function countCanonicalPromptParts(prompt: PromptInfo): number {
+  return prompt.parts.length
+}
+
 export function normalizePromptInfoForSubmit(prompt: PromptInfo, agentNames: string[] = []): PromptInfo {
   const nextPrompt = clonePromptInfo(prompt)
   const trimmedInput = nextPrompt.input.trim()

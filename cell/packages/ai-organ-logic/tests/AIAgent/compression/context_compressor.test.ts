@@ -40,6 +40,109 @@ describe("context_compressor", () => {
     expect(findSplitPoint(messages)).toBe(-1);
   });
 
+  it("falls back to an assistant tool-call boundary during a long autonomous turn", () => {
+    const messages = [
+      { role: "user", content: "implement the task" },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [{ id: "tc-old", type: "function", function: { name: "read", arguments: "{}" } }],
+      },
+      { role: "tool", tool_call_id: "tc-old", content: "old result" },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [{ id: "tc-recent-a", type: "function", function: { name: "edit", arguments: "{}" } }],
+      },
+      { role: "tool", tool_call_id: "tc-recent-a", content: "recent result a" },
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [{ id: "tc-recent-b", type: "function", function: { name: "bash", arguments: "{}" } }],
+      },
+      { role: "tool", tool_call_id: "tc-recent-b", content: "recent result b" },
+      { role: "user", content: "请继续" },
+    ];
+
+    const split = findSplitPoint(messages, 4);
+    expect(split).toBe(3);
+    expect(messages[split]?.role).toBe("assistant");
+    expect(messages[split]?.tool_calls?.[0]?.id).toBe("tc-recent-a");
+    expect(messages.slice(split).map((message) => message.tool_call_id).filter(Boolean)).toEqual([
+      "tc-recent-a",
+      "tc-recent-b",
+    ]);
+  });
+
+  it("compacts a single-user autonomous turn while preserving a pending tool pair", async () => {
+    const pendingCall = {
+      role: "assistant",
+      content: "",
+      tool_calls: [{
+        id: "tc-pending-autonomous",
+        type: "function",
+        function: { name: "DetachedActorResult", arguments: "{}" },
+      }],
+    };
+    const pendingResult = {
+      role: "tool",
+      tool_call_id: "tc-pending-autonomous",
+      content: "pending detached result",
+    };
+    const messages = [
+      { role: "user", content: "implement the task" },
+      ...Array.from({ length: 6 }, (_, index) => [
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: [{
+            id: `tc-autonomous-${index}`,
+            type: "function",
+            function: { name: "read", arguments: "{}" },
+          }],
+        },
+        {
+          role: "tool",
+          tool_call_id: `tc-autonomous-${index}`,
+          content: `old autonomous result ${index} `.repeat(200),
+        },
+      ]).flat(),
+      pendingCall,
+      pendingResult,
+      { role: "user", content: "请继续" },
+    ];
+    let compressionCalls = 0;
+    const llmAdapter = {
+      type: "openai" as const,
+      async createStream() {
+        compressionCalls += 1;
+        async function* stream() {
+          yield {
+            type: "text-delta",
+            text: "<state_snapshot><overall_goal>continue autonomous task</overall_goal></state_snapshot>",
+          };
+        }
+        return { stream: stream() };
+      },
+    };
+
+    const compressed = await compressHistory({
+      messages,
+      llmAdapter,
+      model: "mock-model",
+      inputLimit: 10_000,
+      recentKeep: 5,
+      protectedToolCallIds: ["tc-pending-autonomous"],
+    });
+
+    expect(compressionCalls).toBe(1);
+    expect(compressed).not.toBeNull();
+    const pendingIndex = compressed!.indexOf(pendingCall);
+    expect(pendingIndex).toBeGreaterThan(1);
+    expect(compressed?.[pendingIndex + 1]).toBe(pendingResult);
+    expect(compressed?.at(-1)?.content).toBe("请继续");
+  });
+
   it("compresses successfully with mocked llm and processStream", async () => {
     const messages = [
       { role: "user", content: "A".repeat(300) },

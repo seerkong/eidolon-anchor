@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import type { ChatMessage, ToolCall } from "@shared/composer";
+import { normalizeInputContent, type ChatMessage, type InputContent, type ToolCall } from "@shared/composer";
 
 import {
   CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
@@ -86,7 +86,7 @@ export function toCommittedConversationMessage(message: ChatMessage): Conversati
       : {}),
     role: message.role,
     name: message.name,
-    content: String(message.content ?? ""),
+    content: typeof message.content === "string" ? message.content : normalizeInputContent(message.content),
     reasoningContent: message.reasoning_content,
     ...(typeof message.startAt === "number" ? { startAt: message.startAt } : {}),
     ...(typeof message.endAt === "number" ? { endAt: message.endAt } : {}),
@@ -106,7 +106,9 @@ export function fromCommittedConversationMessage(message: ConversationCommittedM
 
   const toolCallId = normalizeCommittedToolCallId(message);
   const role = (message.role as ChatMessage["role"]) ?? "assistant";
-  const content = String(message.content ?? "");
+  const content: InputContent = typeof message.content === "string"
+    ? message.content
+    : normalizeInputContent(message.content);
 
   // Deterministic content_parts reconstruction for assistant messages: the
   // committed codec stores reasoning/content as plain fields, while adapter
@@ -118,7 +120,7 @@ export function fromCommittedConversationMessage(message: ConversationCommittedM
     if (typeof message.reasoningContent === "string" && message.reasoningContent) {
       contentParts.push({ type: "reasoning", text: message.reasoningContent });
     }
-    if (content) {
+    if (typeof content === "string" && content) {
       contentParts.push({ type: "text", text: content });
     }
   }
@@ -177,7 +179,9 @@ export function committedHistoryRefsToTranscriptRecords(messages: ActorCommitted
 }
 
 export function committedHistoryRefsToMessages(messages: ActorCommittedMessageRef[]): ChatMessage[] {
-  const canUseCommitted = messages.every((message) => message?.message && typeof message.message.content === "string");
+  const canUseCommitted = messages.every((message) => message?.message && (
+    typeof message.message.content === "string" || Array.isArray(message.message.content)
+  ));
   if (canUseCommitted) {
     return messages.map((message) => fromCommittedHistoryRef(message));
   }

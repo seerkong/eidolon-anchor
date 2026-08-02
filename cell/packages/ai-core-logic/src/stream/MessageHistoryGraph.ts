@@ -790,7 +790,7 @@ export function reduceHistoryProjection(
         agentActorId,
         message: {
           role: "user",
-          content: ev.text,
+          content: ev.content ?? ev.text,
           startAt: emittedAt,
           endAt: emittedAt,
         },

@@ -69,12 +69,12 @@ export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
         baseUrl:
           getString(params.connectionOptions, "base_url", "baseurl") ||
-          "https://api.deepseek.com/v1",
+          "https://api.deepseek.com",
         providerOptions: {
           apiKey: getString(params.connectionOptions, "api_key", "apikey"),
           baseURL:
             getString(params.connectionOptions, "base_url", "baseurl") ||
-            "https://api.deepseek.com/v1",
+            "https://api.deepseek.com",
           headers: params.connectionOptions.default_headers as
             Record<string, string> | undefined,
         },

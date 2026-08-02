@@ -6,6 +6,7 @@ import { Log } from "../support/util/log"
 import { iife } from "../support/util/iife"
 import { tuiA1Tui } from "../app/tui_a1"
 import { configureTuiRuntime } from "../runtime/bridge/TuiRuntime"
+import { createLocalAttachmentResolver, isLocalAttachmentFile } from "../support/attachment-resolver"
 import { resolveProjectWorkDir } from "../support/util/project"
 import { isTuiStreamDiagnosticsEnabled } from "../support/util/stream-diagnostics"
 
@@ -141,6 +142,7 @@ export const thread = cmd({
       debug: args.debug,
       mcp: args.mcp,
       entryType: "tui",
+      attachmentResolver: createLocalAttachmentResolver(),
       metadata: buildTuiThreadRuntimeMetadata(cwd, args),
     })
 
@@ -150,6 +152,7 @@ export const thread = cmd({
 
     await tuiA1Tui({
       directory: cwd,
+      isAttachmentFile: isLocalAttachmentFile,
       args: {
         continue: args.continue,
         sessionID: args.session,

@@ -1,5 +1,12 @@
+import type { InputContentPart } from "@shared/composer";
+import { projectOpenAIResponsesUserContent } from "./CanonicalImageProjection";
+
+export type OpenAIResponsesMessageContentPart =
+  | { type: "input_text" | "output_text"; text: string }
+  | { type: "input_image"; image_url: string };
+
 export type OpenAIResponsesInputItem =
-  | { type: "message"; role: "user" | "assistant"; content: Array<{ type: "input_text" | "output_text"; text: string }> }
+  | { type: "message"; role: "user" | "assistant"; content: OpenAIResponsesMessageContentPart[] }
   | { type: "function_call"; call_id: string; name: string; arguments: string }
   | { type: "function_call_output"; call_id: string; output: string };
 
@@ -158,6 +165,12 @@ export function buildOpenAIResponsesInputItems(messages: any[]): OpenAIResponses
       continue;
     }
     if (message.role === "user" || message.role === "assistant") {
+      if (message.role === "user" && Array.isArray(message.content)) {
+        const content = projectOpenAIResponsesUserContent(message.content as InputContentPart[]);
+        if (!content.some((part) => part.type === "input_image" || part.text.trim())) continue;
+        messageItems.push({ type: "message", role: "user", content });
+        continue;
+      }
       const content = normalizeText(message.content ?? "");
       if (!content.trim()) continue;
       messageItems.push({

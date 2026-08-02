@@ -16,7 +16,7 @@ export type ConversationCommittedMessageData = {
   messageId?: string;
   role: string;
   name?: string;
-  content: string;
+  content: import("@shared/composer").InputContent;
   reasoningContent?: string;
   startAt?: number;
   endAt?: number;

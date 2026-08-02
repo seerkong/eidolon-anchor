@@ -6,6 +6,44 @@
 
 export type LLMRole = "user" | "assistant" | "tool" | "system";
 
+export type InputTextContentPart = {
+  type: "text";
+  text: string;
+  filename?: string;
+  sourceDigest?: string;
+};
+
+export type InputImageContentPart = {
+  type: "image";
+  mime: string;
+  dataUrl: string;
+  filename?: string;
+  sourceDigest?: string;
+  size?: number;
+};
+
+export type InputFileReferenceContentPart = {
+  type: "file_reference";
+  path: string;
+  filename?: string;
+  mime?: string;
+};
+
+export type InputContentPart = InputTextContentPart | InputImageContentPart | InputFileReferenceContentPart;
+export type InputContent = string | InputContentPart[];
+
+export function normalizeInputContent(content: InputContent): InputContentPart[] {
+  if (typeof content === "string") return [{ type: "text", text: content }];
+  return content.map((part) => ({ ...part }));
+}
+
+export function projectInputContentText(content: InputContent): string {
+  return normalizeInputContent(content)
+    .filter((part): part is InputTextContentPart => part.type === "text")
+    .map((part) => part.text)
+    .join("");
+}
+
 export interface ChatMessage {
   /**
    * Conversation-domain identity. Runtime materialization uses this to track
@@ -14,7 +52,7 @@ export interface ChatMessage {
   messageId?: string;
   role: LLMRole;
   name?: string;
-  content: string;
+  content: string | InputContentPart[];
   reasoning_content?: string;
   startAt?: number;
   endAt?: number;

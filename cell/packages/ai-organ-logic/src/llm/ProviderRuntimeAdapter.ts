@@ -25,6 +25,7 @@ import {
 import { getProviderDriver } from "./ProviderDriverRegistry";
 import { emitProviderDiagnostic } from "./ProviderDiagnostics";
 import { executeWithProviderRetry } from "./ProviderErrors";
+import { redactCanonicalImages } from "./CanonicalImageProjection";
 
 export type ProviderRuntimeLlmAdapterSettings = {
   providerId: string;
@@ -351,14 +352,14 @@ type ProviderTransportAttemptIdentity = ProviderAttemptIdentity & {
 function cloneAndRedactWireBody(value: unknown): unknown {
   if (typeof value === "string") {
     try {
-      const parsed = JSON.parse(value);
+      const parsed = redactCanonicalImages(JSON.parse(value));
       redactSensitiveFields(parsed, new WeakSet<object>());
       return JSON.stringify(parsed);
     } catch {
       return value;
     }
   }
-  const copied = structuredClone(value);
+  const copied = redactCanonicalImages(value);
   redactSensitiveFields(copied, new WeakSet<object>());
   return copied;
 }
@@ -368,7 +369,7 @@ function cloneAndRedactProviderObservation(value: {
   tools: unknown[];
   requestContract: Record<string, unknown>;
 }): typeof value {
-  const copied = structuredClone(value);
+  const copied = redactCanonicalImages(value);
   redactSensitiveFields(copied, new WeakSet<object>());
   return copied;
 }

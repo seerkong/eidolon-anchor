@@ -35,16 +35,28 @@
       "id": "deepseek",
       "adapter": "deepseek",
       "options": {
-        "baseURL": "https://api.deepseek.com/v1",
+        "baseURL": "https://api.deepseek.com",
         "apiKey": "${DEEPSEEK_API_KEY}"
       },
       "models": [
         {
-          "id": "deepseek-chat",
-          "options": {},
+          "id": "deepseek-v4-flash",
+          "options": {
+            "thinking": {
+              "type": "enabled"
+            },
+            "reasoningEffort": "high"
+          },
+          "reasoning": {
+            "effort": "high"
+          },
+          "modalities": {
+            "input": ["text"],
+            "output": ["text"]
+          },
           "limits": {
-            "context": 128000,
-            "output": 8192
+            "context": 1000000,
+            "output": 393216
           }
         }
       ]

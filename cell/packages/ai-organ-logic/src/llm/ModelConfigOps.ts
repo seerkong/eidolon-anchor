@@ -27,6 +27,7 @@ export type LlmActorModelConfig = {
   outputLimit?: number;
   reasoningEffort?: "low" | "medium" | "high" | "xhigh";
   capabilities?: import("@cell/ai-core-contract/LlmTypes").LlmModelCapabilities;
+  options?: Record<string, unknown>;
 };
 
 export const LLM_CONFIG_DIR_NAME = ".eidolon";
@@ -74,6 +75,14 @@ export const LLM_PROVIDER_JSON_SCHEMA = {
                   type: "object",
                   properties: {
                     effort: { enum: ["low", "medium", "high", "xhigh"] },
+                  },
+                },
+                modalities: {
+                  type: "object",
+                  required: ["input", "output"],
+                  properties: {
+                    input: { type: "array", items: { enum: ["text", "image", "audio", "video", "pdf"] } },
+                    output: { type: "array", items: { enum: ["text", "image", "audio", "video", "pdf"] } },
                   },
                 },
                 options: { type: "object", additionalProperties: true },
@@ -471,6 +480,12 @@ export function parseProviderCatalogRaw(raw: Record<string, unknown>, filePath =
         context: requiredNumber(limits.context, filePath, `${modelContext}.limits.context`),
         output: requiredNumber(limits.output, filePath, `${modelContext}.limits.output`),
         reasoning: isObject(modelItem.reasoning) ? { effort: modelItem.reasoning.effort as any } : undefined,
+        modalities: isObject(modelItem.modalities)
+          ? {
+              input: [...(modelItem.modalities.input as any[])],
+              output: [...(modelItem.modalities.output as any[])],
+            }
+          : undefined,
         options: optionalObject(modelItem.options, filePath, `${modelContext}.options`),
       };
     });
@@ -558,19 +573,25 @@ export function flattenModelConfig(
     providerId: provider.name,
     adapter,
     modelId: model?.name ?? modelName,
+    contextWindow: model?.context ?? 0,
     outputLimit: model?.output ?? 0,
     reasoningEffort: model?.reasoning?.effort,
   });
+  const modalities = model?.modalities
+    ? { input: [...model.modalities.input], output: [...model.modalities.output] }
+    : undefined;
+  const resolvedCapabilities = capabilities ?? (modalities ? { family: adapter ?? "unknown" } : undefined);
+  if (resolvedCapabilities && modalities) resolvedCapabilities.modalities = modalities;
   const inputLimit = model?.context ?? 0;
   // Derive compaction threshold from the user-configured context window
   // for models that support prefix caching.
-  if (capabilities && inputLimit > 0) {
-    capabilities.cachePolicy ??= {
+  if (resolvedCapabilities?.cachePolicy && inputLimit > 0) {
+    resolvedCapabilities.cachePolicy ??= {
       stablePrefix: true,
       providerManagedPrefixCache: true,
       preferLateCompaction: true,
     };
-    capabilities.cachePolicy.compactionThresholdTokens = Math.floor(
+    resolvedCapabilities.cachePolicy.compactionThresholdTokens = Math.floor(
       (inputLimit * 80) / 100,
     );
   }
@@ -582,8 +603,9 @@ export function flattenModelConfig(
     apiKey,
     inputLimit,
     outputLimit: model?.output ?? 0,
-    reasoningEffort: capabilities?.reasoningEffort ?? model?.reasoning?.effort,
-    capabilities,
+    reasoningEffort: resolvedCapabilities?.reasoningEffort ?? model?.reasoning?.effort,
+    modalities,
+    capabilities: resolvedCapabilities,
     options,
   };
 }

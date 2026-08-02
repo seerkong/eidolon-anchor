@@ -382,6 +382,18 @@ export function findSplitPoint(messages: any[], recentKeep = 4): number {
     }
   }
 
+  // Long autonomous turns can contain one initial user message followed by
+  // hundreds of assistant/tool pairs. Requiring another user boundary makes
+  // those sessions impossible to compact and eventually leaves the fiber
+  // permanently over the provider context limit. In that shape, retain the
+  // recent tail from a complete assistant tool-call boundary so its matching
+  // result remains available to the next provider turn.
+  for (let i = maxSplit; i >= 1; i -= 1) {
+    if (toolCallIdsFromAssistantMessage(messages[i]).length > 0) {
+      return i;
+    }
+  }
+
   return -1;
 }
 

@@ -46,7 +46,15 @@ import {
   type ProviderRequestObservationPort,
 } from "@cell/ai-organ-logic"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
-import type { ChatMessage } from "@shared/composer"
+import {
+  normalizeInputContent,
+  projectInputContentText,
+  type ChatMessage,
+  type InputContent,
+  type InputContentPart,
+  type InputFileReferenceContentPart,
+} from "@shared/composer"
+import type { AttachmentResolverPort } from "@cell/ai-core-contract"
 import {
   assembleRuntimeCompositionProfile,
   buildRuntimeCompositionBindingDescriptor,
@@ -107,7 +115,7 @@ export type TuiRuntimeBridge = {
     actorId?: string
   }, model: RuntimeActiveModelSelection) => Promise<ActorSurfaceProjectionData>
   turn: (
-    input: string,
+    input: InputContent,
     opts?: {
       timeoutSeconds?: number
       onChunk?: (chunk: string) => void | Promise<void>
@@ -183,6 +191,7 @@ export type TuiRuntimeConfig = {
   /** Storage capability flags; defaults to persistent (logs and files enabled). */
   storage?: Partial<RuntimeCompositionStorageFlags>
   providerRequestObservationBindingFactory?: ProviderRequestObservationBindingFactory
+  attachmentResolver?: AttachmentResolverPort
 }
 
 export type ProviderRequestObservationBindingContext = {
@@ -1199,9 +1208,26 @@ async function createRuntimeBridge(
     }
   }
 
-  const enqueueUserProvidedInput = (input: string): string => {
-    const expanded = slashRuntime?.resolveCommand(input) ?? null
-    const normalizedInput = expanded && expanded.kind === "prompt_expand" ? expanded.prompt : input
+  const resolveInputContent = async (input: InputContent): Promise<InputContentPart[]> => {
+    const parts = normalizeInputContent(input)
+    const resolved: InputContentPart[] = []
+    for (const part of parts) {
+      if (part.type !== "file_reference") {
+        resolved.push(part)
+        continue
+      }
+      if (!runtimeConfig.attachmentResolver) {
+        throw new Error(`attachment_resolver_unavailable:${part.filename || "attachment"}`)
+      }
+      resolved.push(await runtimeConfig.attachmentResolver.resolve(part as InputFileReferenceContentPart))
+    }
+    return resolved
+  }
+
+  const enqueueUserProvidedInput = (input: InputContent): InputContent => {
+    const inputText = projectInputContentText(input)
+    const expanded = slashRuntime?.resolveCommand(inputText) ?? null
+    const normalizedInput: InputContent = expanded && expanded.kind === "prompt_expand" ? expanded.prompt : input
     const now = Date.now()
 
     activateSessionMaterialization()
@@ -1227,7 +1253,7 @@ async function createRuntimeBridge(
             payload: {
               toolCallId: pending.toolCallId,
               questionnaireId: pending.questionnaireId,
-              content: normalizedInput,
+              content: projectInputContentText(normalizedInput),
             },
           },
           toolCallId: pending.toolCallId,
@@ -1256,15 +1282,18 @@ async function createRuntimeBridge(
 
   let chain: Promise<void> = Promise.resolve()
   const runProjectedTurn = (params: {
-    input: string
+    input: InputContent
     opts?: BridgeTurnOptions
     enqueueInput: boolean
     allowDirectSlash: boolean
   }) => {
     if (activeTurn) {
       if (params.enqueueInput) {
-        enqueueUserProvidedInput(params.input)
-        void persistSnapshot()
+        return resolveInputContent(params.input).then((resolved) => {
+          enqueueUserProvidedInput(resolved)
+          void persistSnapshot()
+          return ""
+        })
       }
       return Promise.resolve("")
     }
@@ -1332,7 +1361,7 @@ async function createRuntimeBridge(
       })
       try {
         if (params.allowDirectSlash) {
-          const directOutput = await executeDirectSlashCommand(params.input)
+          const directOutput = await executeDirectSlashCommand(projectInputContentText(params.input))
           if (directOutput !== null) {
             activateSessionMaterialization()
             await persistSnapshot()
@@ -1347,7 +1376,7 @@ async function createRuntimeBridge(
           }
         }
         if (params.enqueueInput) {
-          enqueueUserProvidedInput(params.input)
+          enqueueUserProvidedInput(await resolveInputContent(params.input))
         }
         const timeoutSeconds =
           params.opts?.timeoutSeconds !== undefined ? params.opts.timeoutSeconds : runtimeConfig.timeoutSeconds
@@ -1375,7 +1404,7 @@ async function createRuntimeBridge(
   }
 
   const turn = (
-    input: string,
+    input: InputContent,
     opts?: {
       timeoutSeconds?: number
       onChunk?: (chunk: string) => void | Promise<void>
@@ -1802,6 +1831,7 @@ export function configureTuiRuntime(config: TuiRuntimeConfig) {
   runtimeConfig.entryType = config.entryType
   runtimeConfig.storage = config.storage
   runtimeConfig.providerRequestObservationBindingFactory = config.providerRequestObservationBindingFactory
+  runtimeConfig.attachmentResolver = config.attachmentResolver
   runtimeConfig.metadata = normalizeTerminalRuntimeMetadata(config.workDir, config.metadata)
   sessionRuntimePromises.clear()
   for (const runtimePromise of pendingRuntimes) {

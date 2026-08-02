@@ -1,3 +1,5 @@
+import { projectOpenAIChatUserContent } from "./CanonicalImageProjection";
+
 const OPENAI_COMPATIBLE_SCHEMA_UNSUPPORTED_KEYS = new Set(["allOf", "anyOf", "not", "oneOf"]);
 
 function parseToolCallArguments(input: unknown): string {
@@ -176,6 +178,9 @@ export function normalizeOpenAIChatMessages(
         }
       }
       return normalized;
+    }
+    if (message.role === "user" && Array.isArray(message.content)) {
+      return { ...message, content: projectOpenAIChatUserContent(message.content) };
     }
     return { ...message };
   });

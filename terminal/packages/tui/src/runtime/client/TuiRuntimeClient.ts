@@ -24,7 +24,11 @@ import {
   deleteFileStoreAiRuntimeSession,
   dryRunFileStoreAiRuntimeSessionUpgrade,
 } from "@cell/ai-runtime-control-composer"
-import type { ChatMessage } from "@shared/composer"
+import {
+  projectInputContentText,
+  type ChatMessage,
+  type InputContentPart,
+} from "@shared/composer"
 import type {
   ActorSurfaceProjectionData,
   QuestionnaireSurfaceItemData,
@@ -105,6 +109,19 @@ function extractPromptContent(parts?: Part[]): string {
     .filter(isTextPart)
     .map((part) => part.text)
     .join("")
+}
+
+function toRuntimeInputContent(parts?: Part[]): InputContentPart[] {
+  return (parts ?? []).flatMap((part): InputContentPart[] => {
+    if (part.type === "text") return [{ type: "text", text: part.text }]
+    if (part.type !== "file") return []
+    const filename = part.filename || undefined
+    if (part.url?.startsWith("data:image/")) {
+      return [{ type: "image", mime: part.mime, dataUrl: part.url, filename }]
+    }
+    const localPath = part.source?.path
+    return localPath ? [{ type: "file_reference", path: localPath, filename, mime: part.mime }] : []
+  })
 }
 
 function normalizeUserInputText(value: unknown): string {
@@ -1888,7 +1905,8 @@ export function createTuiRuntimeClient(options?: {
       modelID?: string
     }) {
       const state = ensureSessionState(sessionID)
-      const promptContent = extractPromptContent(parts)
+      const runtimeInput = toRuntimeInputContent(parts)
+      const promptContent = projectInputContentText(runtimeInput)
       const selectedModel = resolveMessageModel({ model, providerID, modelID })
       const userMessage: Message = {
         id: messageID ?? nextMessageId(),
@@ -1902,20 +1920,29 @@ export function createTuiRuntimeClient(options?: {
         },
         variant: variant ?? "fast",
       }
-      const userPart: Part = {
-        id: nextPartId(),
+      const userParts = (parts ?? []).map((part) => ({
+        ...part,
         sessionID: state.info.id,
         messageID: userMessage.id,
-        type: "text",
-        text: promptContent,
-        synthetic: false,
-        ignored: false,
+      }))
+      if (userParts.length === 0 && promptContent) {
+        userParts.push({
+          id: nextPartId(),
+          sessionID: state.info.id,
+          messageID: userMessage.id,
+          type: "text",
+          text: promptContent,
+          synthetic: false,
+          ignored: false,
+        })
       }
-      addSessionMessage(state, userMessage, [userPart])
+      addSessionMessage(state, userMessage, userParts)
 
       await setSessionStatus(state, "busy")
       await emitEvent({ type: "message.updated", properties: { info: userMessage } } as Event)
-      await emitEvent({ type: "message.part.updated", properties: { part: userPart } } as Event)
+      for (const part of userParts) {
+        await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+      }
 
       type AssistantTurnState = {
         message: AssistantMessage
@@ -2225,7 +2252,7 @@ export function createTuiRuntimeClient(options?: {
           })()
         })
         await runtime.setActorActiveModel?.({}, selectedModel)
-        finalText = await runtime.turn(promptContent, {
+        finalText = await runtime.turn(runtimeInput.length > 0 ? runtimeInput : promptContent, {
           onControl: async (control) => {
             if (control.cmd !== "NewMessage") return
             activeCategory = control.category ?? "assist"
@@ -2260,6 +2287,11 @@ export function createTuiRuntimeClient(options?: {
           },
         })
       } catch (error) {
+        if ((error as { code?: unknown } | null)?.code === "unsupported_modality") {
+          await setSessionStatus(state, "idle")
+          await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
+          throw error
+        }
         const message = error instanceof Error ? error.message : String(error)
         finalText = `Runtime error: ${message}`
         await appendChunk(finalText)
@@ -2289,7 +2321,7 @@ export function createTuiRuntimeClient(options?: {
         if (lastTool) {
           return { data: { info: clone(lastTool.message), parts: [clone(lastTool.part)] } }
         }
-        return { data: { info: clone(userMessage), parts: [clone(userPart)] } }
+        return { data: { info: clone(userMessage), parts: clone(userParts) } }
       }
       return { data: { info: clone(lastAssistant.message), parts: [clone(lastAssistant.part)] } }
     },

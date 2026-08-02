@@ -69,6 +69,7 @@ export type TuiA1ViewProps = {
   directory: string
   initialPrompt?: string
   initialMessages?: TuiA1Message[]
+  isAttachmentFile?: (candidate: string) => boolean
   onOpenQuestionnaires?: (center: TuiA1QuestionnaireCenter) => void
   onOpenMessageList?: () => void
   onOpenSessionList?: () => void
@@ -1250,7 +1251,6 @@ export function TuiA1View(props: TuiA1ViewProps) {
       const messageID = makeMessageId()
       const roundStartedAt = Date.now()
 
-      clear?.()
       startRoundTimer(roundStartedAt)
       stateGraph.setBusy(true)
       showRuntimePreparingStatus()
@@ -1283,6 +1283,8 @@ export function TuiA1View(props: TuiA1ViewProps) {
             model: selectedModel,
           })
           .then(async (result) => {
+            if (result.error) throw result.error
+            clear?.()
             const selectedSurface = result.data ?? actorSurface()
             stateGraph.setActorSurface(selectedSurface ?? null)
             updateActorRoundFromSurface(selectedSurface)
@@ -1307,18 +1309,29 @@ export function TuiA1View(props: TuiA1ViewProps) {
       }
 
       void props.runtime.client.session.prompt({
-        sessionID: activeSessionID,
-        messageID,
-        agent,
-        model: selectedModel,
-        providerID: selectedModel.providerID,
-        modelID: selectedModel.modelID,
-        parts: buildRuntimePromptParts({
-          prompt: promptInfo,
           sessionID: activeSessionID,
           messageID,
-        }),
-      })
+          agent,
+          model: selectedModel,
+          providerID: selectedModel.providerID,
+          modelID: selectedModel.modelID,
+          parts: buildRuntimePromptParts({
+            prompt: promptInfo,
+            sessionID: activeSessionID,
+            messageID,
+          }),
+        })
+        .then((result) => {
+          if (result.error) throw result.error
+          clear?.()
+        })
+        .catch((error) => {
+          toast.error(error)
+          stateGraph.setBusy(false)
+          clearLocalRuntimeStatus()
+          finishRoundTimer()
+          focusComposer()
+        })
       return
     }
 
@@ -1914,6 +1927,7 @@ export function TuiA1View(props: TuiA1ViewProps) {
         blockLabel={composerBlockLabel()}
         directory={props.directory}
         focused={composerFocused()}
+        isAttachmentFile={props.isAttachmentFile}
         statusLabel={sessionLoadLabel() ?? runtimeStatusLabel()}
         selectionLabel={composerSelectionLabel()}
         userInputHistory={currentUserInputHistory().map((entry) => ({ input: entry.text, parts: [] }))}

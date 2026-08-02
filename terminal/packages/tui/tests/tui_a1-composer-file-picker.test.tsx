@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { afterEach, describe, expect, it } from "bun:test"
 import { testRender } from "@opentui/solid"
+import { existsSync } from "fs"
 import { mkdtemp, mkdir, rm, writeFile } from "fs/promises"
 import { tmpdir } from "os"
 import path from "path"
@@ -12,9 +13,11 @@ import { Clipboard } from "../src/support/util/clipboard"
 const tick = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms))
 const createdDirs: string[] = []
 const originalClipboardCopy = Clipboard.copy
+const originalClipboardRead = Clipboard.read
 
 afterEach(async () => {
   Clipboard.copy = originalClipboardCopy
+  Clipboard.read = originalClipboardRead
   while (createdDirs.length > 0) {
     const directory = createdDirs.pop()
     if (!directory) break
@@ -37,12 +40,75 @@ function captureText(setup: Awaited<ReturnType<typeof testRender>>) {
 function renderTuiA1(directory: string) {
   return (
     <RuntimeClientProvider url="mock">
-      <TuiA1Shell directory={directory} sessionID="ses_1" />
+      <TuiA1Shell directory={directory} sessionID="ses_1" isAttachmentFile={existsSync} />
     </RuntimeClientProvider>
   )
 }
 
 describe("tuiA1 composer file picker", () => {
+  it("turns bracketed-paste file paths into atomic attachment blocks", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-path-paste-"))
+    createdDirs.push(directory)
+    const attachmentPath = path.join(directory, "meeting notes.md")
+    await writeFile(attachmentPath, "notes\n")
+
+    const setup = await testRender(() => renderTuiA1(directory), {
+      width: 120,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 5)
+      await setup.mockInput.pasteBracketedText(`"${attachmentPath}"`)
+      await renderSettled(setup, 4)
+
+      let text = captureText(setup)
+      expect(text).toContain("@fs:meeting notes.md")
+      expect(text).toContain("parts 1 file")
+      expect(text).toContain("1 parts")
+
+      setup.mockInput.pressBackspace()
+      await renderSettled(setup, 4)
+
+      text = captureText(setup)
+      expect(text).not.toContain("@fs:meeting notes.md")
+      expect(text).not.toContain("parts 1 file")
+      expect(text).toContain("0 chars · 0 parts")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("keeps ordinary bracketed paste as text and shares the attachment shape for clipboard images", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-clipboard-"))
+    createdDirs.push(directory)
+    Clipboard.read = async () => ({ mime: "image/png", data: "aW1hZ2U=" })
+
+    const setup = await testRender(() => renderTuiA1(directory), {
+      width: 120,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 5)
+      await setup.mockInput.pasteBracketedText("ordinary pasted text")
+      await renderSettled(setup, 3)
+      expect(captureText(setup)).toContain("ordinary pasted text")
+      expect(captureText(setup)).toContain("0 parts")
+
+      setup.mockInput.pressKey("v", { ctrl: true })
+      await renderSettled(setup, 4)
+      const text = captureText(setup)
+      expect(text).toContain("@fs:clipboard-image.png")
+      expect(text).toContain("parts 1 file")
+      expect(text).toContain("1 parts")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
   it("keeps the file tree stable and inserts a visible file part into the composer", async () => {
     const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-picker-"))
     createdDirs.push(directory)

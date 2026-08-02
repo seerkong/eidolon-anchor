@@ -10,6 +10,7 @@
   },
   "description": "AI-specific organization-layer contracts aligned with ai-core and ai-support ownership.",
   "dependencies": {
-    "@cell/ai-core-contract": "workspace:*"
+    "@cell/ai-core-contract": "workspace:*",
+    "@shared/composer": "workspace:*"
   }
 }

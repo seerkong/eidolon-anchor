@@ -34,4 +34,5 @@ export * from "./runtime/ToolCallDomain";
 export * from "./runtime/ProviderCallDomain";
 export * from "./runtime/PersistencePorts";
 export * from "./runtime/ConversationProjectionReadPort";
+export * from "./runtime/AttachmentResolverPort";
 export * from "./runtimeComposer";

@@ -6,6 +6,7 @@ import type { QuestionnaireRequestPayload, QuestionnaireResultPayload } from "@c
 import type { VmThreadGoalRecord } from "@cell/ai-core-contract/runtime/AiAgentVm";
 import type { IngressSource, JsonToolCall, ParsedXmlToolCall, ToolCallType } from "@cell/ai-core-contract/stream/ingressAdapterTypes";
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
+import { normalizeInputContent, projectInputContentText, type InputContent } from "@shared/composer";
 
 import {
   buildRuntimeSemanticBase,
@@ -287,11 +288,13 @@ export class AgentEventGraph {
     });
   }
 
-  emitUserInput(actor: ActorLike, text: string): void {
+  emitUserInput(actor: ActorLike, input: InputContent): void {
+    const content = normalizeInputContent(input);
     this.emit({
       ...this.toBase(actor),
       event_type: "semantic_user_input",
-      text,
+      text: projectInputContentText(content),
+      content,
       input_source: "tui",
     });
   }

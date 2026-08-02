@@ -4,7 +4,7 @@ import os from "os"
 import path from "path"
 
 import { CONVERSATION_PERSISTENCE_SCHEMA_VERSION } from "@cell/ai-organ-contract"
-import type { ConversationPersistenceRepository } from "@cell/ai-organ-contract"
+import type { ActorHistoryGenerationData, ConversationPersistenceRepository } from "@cell/ai-organ-contract"
 import { isConversationProjectionReadPort } from "@cell/ai-core-contract"
 import {
   chatMessagesToCommittedHistoryRefs,
@@ -45,16 +45,17 @@ async function writeConversationHistoryFixture(params: {
   actorKey: string
   actorId: string
   messages: any[]
+  committedMessages?: ActorHistoryGenerationData["messages"]
   repository: ConversationPersistenceRepository
 }): Promise<void> {
   const generationId = `${params.actorKey}__active`
   const nowIso = new Date().toISOString()
-  const committedMessages = chatMessagesToCommittedHistoryRefs({
-    messages: params.messages,
-    actorKey: params.actorKey,
-    actorId: params.actorId,
-    recordIdPrefix: generationId,
-  })
+  const committedMessages = params.committedMessages ?? chatMessagesToCommittedHistoryRefs({
+      messages: params.messages,
+      actorKey: params.actorKey,
+      actorId: params.actorId,
+      recordIdPrefix: generationId,
+    })
 
   await params.repository.writeHistoryGeneration({
     version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
@@ -136,6 +137,61 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
       expect(history.source).toBe("conversation")
       const contents = history.messages.map((message: any) => String(message?.content ?? ""))
       expect(contents.some((content) => content.includes("conversation source input"))).toBe(true)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("preserves generation sequence when compacted timestamps precede ordinal live progress", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = path.basename(sessionDir)
+    const generationId = "main__active"
+    try {
+      const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+      await writeConversationHistoryFixture({
+        sessionId,
+        actorKey: "main",
+        actorId: "actor-1",
+        messages: [],
+        committedMessages: [
+          {
+            recordId: `${generationId}::30`,
+            actorKey: "main",
+            actorId: "actor-1",
+            committedAt: 1785610313793,
+            message: { role: "user", content: "last compacted user input" },
+          },
+          {
+            recordId: `${generationId}::31`,
+            actorKey: "main",
+            actorId: "actor-1",
+            committedAt: 31,
+            message: { role: "assistant", content: "persisted assistant progress" },
+          },
+          {
+            recordId: `${generationId}::32`,
+            actorKey: "main",
+            actorId: "actor-1",
+            committedAt: 32,
+            message: {
+              role: "tool",
+              content: "persisted tool progress",
+              toolCallId: "call-sequence-regression",
+            },
+          },
+        ],
+        repository,
+      })
+
+      const port = createLocalFileConversationProjectionReadPort()
+      const history = await port.loadHistoryProjection({ sessionDir, actorKey: "main" })
+
+      expect(history.source).toBe("conversation")
+      expect(history.messages.map((message) => [message.role, String(message.content ?? "")])).toEqual([
+        ["user", "last compacted user input"],
+        ["assistant", "persisted assistant progress"],
+        ["tool", "persisted tool progress"],
+      ])
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }

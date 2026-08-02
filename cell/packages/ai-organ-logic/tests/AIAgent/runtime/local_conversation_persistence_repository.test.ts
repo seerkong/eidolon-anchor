@@ -13,12 +13,111 @@ import {
   type ConversationPromptIndexSnapshot,
   type ConversationSessionIndexSnapshot,
 } from "@cell/ai-organ-contract"
+import { appendXnlRecord } from "@cell/ai-file-store-logic"
 import { LocalFileConversationPersistenceRepositoryFactory } from "@cell/ai-support"
 
 function makeTempSessionDir(): string {
   const dir = path.join(os.tmpdir(), `eidolon-conversation-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
+}
+
+type HistoryMessageRecordFixture = {
+  recordId: string
+  sequence?: number
+  committedAt: number
+  role: "user" | "assistant" | "tool"
+  content: string
+  generationUpdatedAt: string
+}
+
+async function writeHistoryMessageRecords(params: {
+  sessionDir: string
+  generationId: string
+  records: HistoryMessageRecordFixture[]
+}): Promise<void> {
+  const historyXnlPath = path.join(params.sessionDir, "conversation", "history.xnl")
+  for (const record of params.records) {
+    const body = record.role === "tool"
+      ? [{
+          kind: "data" as const,
+          tag: "ToolResult",
+          metadata: {
+            id: `${record.recordId}.b0`,
+            index: 0,
+            toolCallId: "call-regression",
+          },
+          attributes: {
+            output: { kind: "text", text: record.content },
+          },
+        }]
+      : [{
+          kind: "text" as const,
+          tag: "Content",
+          metadata: {
+            id: `${record.recordId}.b0`,
+            index: 0,
+          },
+          text: record.content,
+        }]
+    await appendXnlRecord({
+      filePath: historyXnlPath,
+      tag: "HistoryMessage",
+      metadata: {
+        version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+        id: record.recordId,
+        sessionId: "ses_replay_regression",
+        actorKey: "main",
+        actorId: "actor-main",
+        role: record.role,
+        committedAt: record.committedAt,
+        ...(record.sequence === undefined ? {} : { sequence: record.sequence }),
+        generationId: params.generationId,
+        parentGenerationId: null,
+        predecessorGenerationIds: [],
+        createdReason: "append",
+        sealed: false,
+        messageCount: params.records.length,
+        generationCreatedAt: "2026-08-01T19:00:00.000Z",
+        generationUpdatedAt: record.generationUpdatedAt,
+        blockCount: 1,
+      },
+      body,
+    })
+  }
+}
+
+async function writeMixedCommittedAtFixture(sessionDir: string, generationId: string): Promise<void> {
+  await writeHistoryMessageRecords({
+    sessionDir,
+    generationId,
+    records: [
+      {
+        recordId: `${generationId}::30`,
+        sequence: 30,
+        committedAt: 1785610313793,
+        role: "user",
+        content: "last compacted user input",
+        generationUpdatedAt: "2026-08-01T19:00:01.000Z",
+      },
+      {
+        recordId: `${generationId}::31`,
+        sequence: 31,
+        committedAt: 31,
+        role: "assistant",
+        content: "persisted assistant progress",
+        generationUpdatedAt: "2026-08-01T19:00:02.000Z",
+      },
+      {
+        recordId: `${generationId}::32`,
+        sequence: 32,
+        committedAt: 32,
+        role: "tool",
+        content: "persisted tool progress",
+        generationUpdatedAt: "2026-08-01T19:00:03.000Z",
+      },
+    ],
+  })
 }
 
 describe("Local conversation persistence repository", () => {
@@ -461,6 +560,75 @@ describe("Local conversation persistence repository", () => {
     expect((doc.nodes[0] as any).attributes).not.toHaveProperty("message")
     expect((doc.nodes[0] as any).attributes).not.toHaveProperty("generation")
     expect(await repository.loadHistoryGeneration("hist-no-blob")).toEqual(historyGeneration)
+  })
+
+  it("replays complete mixed committedAt generations by persisted sequence", async () => {
+    const sessionDir = makeTempSessionDir()
+    const generationId = "main__compact__mixed-committed-at"
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    await writeMixedCommittedAtFixture(sessionDir, generationId)
+
+    const loaded = await repository.loadHistoryGeneration(generationId)
+
+    expect(loaded?.messages.map((message) => [message.recordId, message.message.role])).toEqual([
+      [`${generationId}::30`, "user"],
+      [`${generationId}::31`, "assistant"],
+      [`${generationId}::32`, "tool"],
+    ])
+  })
+
+  it("reconstructs generation freshness from the newest generationUpdatedAt", async () => {
+    const sessionDir = makeTempSessionDir()
+    const generationId = "main__compact__freshness"
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    await writeMixedCommittedAtFixture(sessionDir, generationId)
+
+    const loaded = await repository.loadHistoryGeneration(generationId)
+
+    expect(loaded?.updatedAt).toBe("2026-08-01T19:00:03.000Z")
+  })
+
+  it("falls back generation-wide to committedAt and record id when legacy sequence metadata is incomplete", async () => {
+    const sessionDir = makeTempSessionDir()
+    const generationId = "main__legacy__incomplete-sequence"
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    await writeHistoryMessageRecords({
+      sessionDir,
+      generationId,
+      records: [
+        {
+          recordId: `${generationId}::late`,
+          sequence: 0,
+          committedAt: 20,
+          role: "assistant",
+          content: "late by committedAt",
+          generationUpdatedAt: "2026-08-01T19:00:03.000Z",
+        },
+        {
+          recordId: `${generationId}::early-b`,
+          sequence: 1,
+          committedAt: 10,
+          role: "assistant",
+          content: "tie-breaker b",
+          generationUpdatedAt: "2026-08-01T19:00:02.000Z",
+        },
+        {
+          recordId: `${generationId}::early-a`,
+          committedAt: 10,
+          role: "user",
+          content: "tie-breaker a without sequence",
+          generationUpdatedAt: "2026-08-01T19:00:01.000Z",
+        },
+      ],
+    })
+
+    const loaded = await repository.loadHistoryGeneration(generationId)
+
+    expect(loaded?.messages.map((message) => message.recordId)).toEqual([
+      `${generationId}::early-a`,
+      `${generationId}::early-b`,
+      `${generationId}::late`,
+    ])
   })
 
   it("writes prompts.xnl as prompt-generation records with semantic prompt children", async () => {

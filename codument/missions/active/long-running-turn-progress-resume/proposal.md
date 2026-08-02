@@ -28,8 +28,14 @@ The previous checkpoint mechanism was added to solve transactional session write
 - Full checkpoint writes remain restricted to safepoints.
 - Historical and synthetic tests show continuation resumes from sealed progress rather than restarting from the last old checkpoint.
 - Headless `exec --output-last-message` keeps existing last-message files intact unless a real final assistant message exists.
+- Loading a sealed-progress session from the TUI session selector restores the latest durable conversation generation, including closed assistant/tool progress after the last user input.
+- A failed in-flight continuation may remain failed, but its earlier closed conversation facts remain visible and available to a subsequent continuation.
 
 ## Why Mission, Not One Track
 
 This crosses runtime coordinator semantics, recovery gate rules, persistence/conversation sealing, terminal headless protocol projection, and historical-session verification. It also contains a known deferred behavior in `runtime-session-robustness` and may require multiple staged tracks to avoid breaking checkpoint transactionality while enabling production seal wiring.
+
+## Reopened Incident (2026-08-02)
+
+The mission was reopened after a real TUI session-selector load showed only the last user input while later assistant/tool work was present in durable session files. The new scope is limited to identifying and repairing the persistence-to-recovery-to-TUI hydration gap; it does not weaken safepoint-only full checkpoints.
 

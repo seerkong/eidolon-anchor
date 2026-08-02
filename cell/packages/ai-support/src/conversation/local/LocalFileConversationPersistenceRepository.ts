@@ -274,16 +274,35 @@ function historyMessageRecordsToGeneration(
     if (!recordId) continue;
     dedupedByRecordId.set(recordId, record);
   }
-  const dedupedRecords = [...dedupedByRecordId.values()]
-    .sort((left, right) => {
+  const dedupedRecords = [...dedupedByRecordId.values()];
+  const hasCompleteSequence = dedupedRecords.every((record) => {
+    const sequence = record.metadata.sequence;
+    return typeof sequence === "number" && Number.isInteger(sequence) && sequence >= 0;
+  });
+  dedupedRecords.sort((left, right) => {
+    if (hasCompleteSequence) {
+      const sequenceDifference = Number(left.metadata.sequence) - Number(right.metadata.sequence);
+      if (sequenceDifference !== 0) return sequenceDifference;
+    } else {
       const leftCommitted = Number(left.metadata.committedAt ?? left.metadata.sequence ?? 0);
       const rightCommitted = Number(right.metadata.committedAt ?? right.metadata.sequence ?? 0);
       if (leftCommitted !== rightCommitted) return leftCommitted - rightCommitted;
-      return String(left.metadata.id ?? "").localeCompare(String(right.metadata.id ?? ""));
-    });
+    }
+    return String(left.metadata.id ?? "").localeCompare(String(right.metadata.id ?? ""));
+  });
   if (dedupedRecords.length === 0) return null;
   const generation = dedupedRecords[0].attributes.generation as Partial<ActorHistoryGenerationData> | undefined;
   const firstMetadata = dedupedRecords[0].metadata;
+  const newestGenerationUpdatedAt = dedupedRecords.reduce<{
+    value: string;
+    epoch: number;
+  } | null>((latest, record) => {
+    const value = record.metadata.generationUpdatedAt;
+    if (typeof value !== "string") return latest;
+    const epoch = Date.parse(value);
+    if (!Number.isFinite(epoch) || (latest && epoch <= latest.epoch)) return latest;
+    return { value, epoch };
+  }, null)?.value;
   const messages = dedupedRecords
     .map((record) => historyMessageRecordToCommittedMessage(record))
     .filter((message): message is ActorHistoryGenerationData["messages"][number] => Boolean(message));
@@ -306,7 +325,7 @@ function historyMessageRecordsToGeneration(
     messageCount: messages.length,
     messages,
     createdAt: String(generation?.createdAt ?? firstMetadata.generationCreatedAt ?? zeroIso()),
-    updatedAt: String(generation?.updatedAt ?? firstMetadata.generationUpdatedAt ?? zeroIso()),
+    updatedAt: String(newestGenerationUpdatedAt ?? generation?.updatedAt ?? zeroIso()),
   };
 }
 

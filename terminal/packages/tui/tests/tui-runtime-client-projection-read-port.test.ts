@@ -138,6 +138,11 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
     const historyMessages: ChatMessage[] = [
       { role: "user", content: "hello from the port" } as ChatMessage,
       { role: "assistant", content: "hi back from the port" } as ChatMessage,
+      {
+        role: "tool",
+        content: "tool progress after the user input",
+        toolCallId: "call-port-order",
+      } as ChatMessage,
     ]
     const { port, calls } = createRecordingPort({
       history: { source: "conversation", messages: historyMessages },
@@ -158,8 +163,11 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
       .flatMap((entry: any) => (entry.parts ?? []))
       .filter((part: any) => part.type === "text")
       .map((part: any) => part.text)
-    expect(texts).toContain("hello from the port")
-    expect(texts).toContain("hi back from the port")
+    expect(texts).toEqual([
+      "hello from the port",
+      "hi back from the port",
+      "tool progress after the user input",
+    ])
   })
 
   it("behavioral: pending-questions hydration reads through the injected port", async () => {

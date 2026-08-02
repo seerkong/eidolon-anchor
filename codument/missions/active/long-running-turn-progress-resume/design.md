@@ -70,4 +70,17 @@ Every replan writes `reports/replan-XXX.md`, increments `Metadata.Revision`, and
 - Treating every timeout as resumable could mask true provider/runtime failures.
 - Persisting too much state at pause time could reintroduce the unsafe half-tool snapshot problem.
 - CLI success semantics may become ambiguous unless `paused_with_progress` is explicitly represented.
+- A session selector can restore the checkpoint VM correctly while still selecting an older conversation generation for UI projection, hiding sealed closed facts without actual data loss.
+- Treating a failed fiber snapshot as authority over the conversation domain can incorrectly roll the visible transcript back to the last checkpoint boundary.
+
+## Reopened TUI Hydration Boundary
+
+The reopened investigation distinguishes four authorities instead of treating "session restore" as one operation:
+
+1. Full runtime snapshot and fiber execution state at the last safe checkpoint.
+2. Forward-only durable conversation history/index heads sealed after that checkpoint.
+3. Recovery reconciliation that merges the checkpoint runtime with the newer conversation authority.
+4. TUI history hydration and projection after a session is selected.
+
+The repair must preserve the full-snapshot safepoint invariant. A newer valid conversation head should hydrate both provider-visible history and TUI-visible history even when the restored fiber is failed or resumable.
 

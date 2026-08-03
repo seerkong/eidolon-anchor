@@ -6,6 +6,8 @@ import { makeUlid } from "@cell/symbiont-logic"
 import { parseXnl, stringifyLineBlock, XNL } from "xnl-core"
 import type { AttributeMap, DataElementNode, TextElementNode, XnlNode } from "xnl-core"
 
+export * from "./AttachmentAssetStore"
+
 export type AiRuntimeControlFileStorePaths = {
   rootDir: string
   headsDir: string

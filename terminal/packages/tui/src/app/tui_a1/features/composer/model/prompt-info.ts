@@ -14,11 +14,14 @@ type PromptAgentPart = {
   }
 }
 
+import type { InputImageContentPart, InputTextContentPart } from "@shared/composer"
+
 type PromptFilePart = {
   type: "file"
   filename?: string
   mime: string
   url?: string
+  attachment?: InputTextContentPart | InputImageContentPart
   source?: {
     type?: string
     path?: string

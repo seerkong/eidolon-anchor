@@ -114,6 +114,9 @@ describe("DeepSeek V4 Flash official capability contract (2026-08-02)", () => {
       options: {
         baseURL: flattened.baseURL,
         apiKey: "test-key",
+        timeout: 180,
+        firstEventTimeoutSeconds: 120,
+        streamIdleTimeoutSeconds: 60,
         ...flattened.options,
       },
     })
@@ -125,6 +128,11 @@ describe("DeepSeek V4 Flash official capability contract (2026-08-02)", () => {
     })
 
     expect(prepared.connectionOptions.base_url).toBe("https://api.deepseek.com")
+    expect(prepared.requestOptions).toMatchObject({
+      timeout: 180,
+      first_event_timeout_seconds: 120,
+      stream_idle_timeout_seconds: 60,
+    })
     expect(prepared.contract).toMatchObject({
       method: "POST",
       body: {
@@ -135,6 +143,9 @@ describe("DeepSeek V4 Flash official capability contract (2026-08-02)", () => {
         reasoning_effort: "high",
       },
     })
+    expect(prepared.contract.body?.timeout).toBeUndefined()
+    expect(prepared.contract.body?.first_event_timeout_seconds).toBeUndefined()
+    expect(prepared.contract.body?.stream_idle_timeout_seconds).toBeUndefined()
   })
 
   it("rejects V4 Flash images before provider observation and network send", () => {

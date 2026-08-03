@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="runtime-session-persistence" version="1">
+  <upsert selector="behavior://runtime-session-persistence/requirements/provider-secret-redaction">
+    <requirement id="provider-secret-redaction">
+      <statement>Durable runtime snapshot SHALL 保留 actor 的 provider/model/capability 选择，但 MUST NOT 以明文保存 provider API key、authorization、token、secret 或嵌套 connection credential；恢复时脱敏占位符 MUST NOT 被当作有效凭据，真实凭据 SHALL 从当前 provider 配置重新注入。</statement>
+      <suite id="actor-snapshot-secrets" name="Actor snapshot 凭据安全">
+        <case id="actor-json-redacts-provider-key">
+          <given>actor modelConfig 与嵌套 options 含 provider API key/authorization/token</given>
+          <when>runtime 写入 actors/*/actor.json</when>
+          <then>actor.json MUST NOT 包含任一原始 secret</then>
+          <then>非敏感 provider、model、base URL、limits 与 capabilities SHALL 保持可恢复</then>
+        </case>
+        <case id="recovery-rehydrates-current-credential">
+          <given>session actor snapshot 的凭据已经脱敏且当前 provider 配置含有效凭据</given>
+          <when>runtime 恢复 actor 并创建 provider adapter</when>
+          <then>脱敏值 MUST NOT 覆盖当前配置，provider/model 选择 SHALL 保持，adapter SHALL 使用当前配置凭据</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

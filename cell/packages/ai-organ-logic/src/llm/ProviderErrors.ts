@@ -54,7 +54,15 @@ export const DEFAULT_PROVIDER_RETRY_POLICY: ProviderRetryPolicy = {
 export const FIRST_EVENT_TIMEOUT_PROVIDER_RETRY_POLICY: ProviderRetryPolicy = {
   ...DEFAULT_PROVIDER_RETRY_POLICY,
   maxRetries: 1,
+  maxTotalElapsedSeconds: 5 * 60,
   maxDelaySeconds: 15,
+};
+
+export const TRANSPORT_TIMEOUT_PROVIDER_RETRY_POLICY: ProviderRetryPolicy = {
+  ...DEFAULT_PROVIDER_RETRY_POLICY,
+  maxRetries: 1,
+  maxTotalElapsedSeconds: 10 * 60,
+  maxDelaySeconds: 5,
 };
 
 export const RESPONSES_TOOL_CONTEXT_RECOVERY_POLICY: ProviderRetryPolicy = {
@@ -156,7 +164,15 @@ export function classifyProviderRetry(error: unknown): ProviderRetryClassificati
       replaySafety: "indeterminate_after_accept",
     });
   }
-  if (error instanceof Error && (error.name === "TimeoutError" || error.name === "ConnectionError")) {
+  if (error instanceof Error && error.name === "TimeoutError") {
+    return retryable("transport_timeout_retryable", {
+      layer: "transport",
+      phase: "before_accept",
+      retryScope: "request_replay",
+      replaySafety: "safe_same_contract",
+    });
+  }
+  if (error instanceof Error && error.name === "ConnectionError") {
     return retryable("transport_error_retryable", { phase: "request_sent" });
   }
   if (RETRYABLE_PATTERNS.some((pattern) => lowered.includes(pattern))) {
@@ -167,6 +183,7 @@ export function classifyProviderRetry(error: unknown): ProviderRetryClassificati
 
 export function resolveProviderRetryPolicy(classificationReason: string): ProviderRetryPolicy {
   if (classificationReason === "first_event_timeout_retryable") return FIRST_EVENT_TIMEOUT_PROVIDER_RETRY_POLICY;
+  if (classificationReason === "transport_timeout_retryable") return TRANSPORT_TIMEOUT_PROVIDER_RETRY_POLICY;
   if (classificationReason === "responses_tool_context_recoverable") return RESPONSES_TOOL_CONTEXT_RECOVERY_POLICY;
   return DEFAULT_PROVIDER_RETRY_POLICY;
 }

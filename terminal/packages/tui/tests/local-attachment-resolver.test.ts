@@ -99,9 +99,11 @@ describe("local TUI attachment resolver", () => {
   it("is injected by both shipping TUI entry points", async () => {
     const mainSource = await Bun.file(path.resolve(import.meta.dir, "../src/entry/tui_a1-main.ts")).text()
     const threadSource = await Bun.file(path.resolve(import.meta.dir, "../src/entry/thread.ts")).text()
-    expect(mainSource).toContain("attachmentResolver: createLocalAttachmentResolver()")
+    expect(mainSource).toContain("const attachmentResolver = createLocalAttachmentResolver()")
+    expect(mainSource.match(/attachmentResolver,/g)).toHaveLength(2)
     expect(mainSource).toContain("isAttachmentFile: isLocalAttachmentFile")
-    expect(threadSource).toContain("attachmentResolver: createLocalAttachmentResolver()")
+    expect(threadSource).toContain("const attachmentResolver = createLocalAttachmentResolver()")
+    expect(threadSource.match(/attachmentResolver,/g)).toHaveLength(2)
     expect(threadSource).toContain("isAttachmentFile: isLocalAttachmentFile")
   })
 })

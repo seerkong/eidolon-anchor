@@ -59,6 +59,7 @@ export function clonePromptInfo(prompt: PromptInfo): PromptInfo {
       }
       return {
         ...part,
+        attachment: part.attachment ? { ...part.attachment } : undefined,
         source: part.source
           ? {
               ...part.source,

@@ -1,5 +1,5 @@
 export { spawnChildExecutionActor } from "./agent/DelegateActor";
-export { forceCompressActorHistory } from "./exec/AiAgentExecutor";
+export { forceCompressActorHistory, validateProviderPromptInputModalities } from "./exec/AiAgentExecutor";
 export {
   createAiAgentOrchestratorDriver,
   createAiAgentOrchestratorDriverWithCooperative,

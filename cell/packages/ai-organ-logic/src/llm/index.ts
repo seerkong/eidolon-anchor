@@ -110,8 +110,10 @@ export {
   getProviderDriver,
 } from "./ProviderDriverRegistry";
 export {
+  extractProviderTransportRequestOptions,
   extractProviderConnectionOptions,
   normalizeProviderModelOptions,
+  sanitizeProviderRequestBodyOptions,
   splitChatModelOptions,
   splitClaudeCodeModelOptions,
   splitResponsesModelOptions,

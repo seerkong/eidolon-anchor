@@ -24,12 +24,15 @@ import {
 import {
   buildPromptWithInsertedAgentPart,
   insertAttachmentParts,
+  insertPlainPromptText,
   parseAttachmentPathPaste,
   pasteText,
   type AttachmentPartInput,
 } from "./model/paste"
 import type { PromptInfo } from "./model/prompt-info"
 import { DialogWorkspaceFilePicker } from "./file-picker-dialog"
+import type { AttachmentResolverPort } from "@cell/ai-core-contract"
+import type { InputFileReferenceContentPart } from "@shared/composer"
 
 const fallbackComposerBindings: KeyBinding[] = [
   { name: "return", action: "submit" },
@@ -118,6 +121,8 @@ export function Composer(props: {
   onReady?: (textarea: TextareaRenderable) => void
   onFocusRequest?: () => void
   isAttachmentFile?: (candidate: string) => boolean
+  attachmentResolver?: AttachmentResolverPort
+  onAttachmentError?: (error: Error) => void
 }) {
   let textarea: TextareaRenderable | undefined
   let promptPartTypeId = 1
@@ -334,6 +339,73 @@ export function Composer(props: {
     ))
   }
 
+  const openPathIntentPicker = (payload: string, candidates: string[], insertOffset: number) => {
+    type PathIntent = "attachment" | "reference" | "text"
+    const applyIntent = async (intent: PathIntent) => {
+      dialog.clear()
+      props.onFocusRequest?.()
+      if (intent === "text") {
+        const nextPrompt = insertPlainPromptText(
+          { ...clonePromptInfo(store.prompt), input: currentTextareaText() },
+          payload,
+          insertOffset,
+        )
+        applyPrompt(nextPrompt, insertOffset + payload.length)
+        return
+      }
+
+      if (intent === "reference") {
+        insertAttachments(
+          candidates.map((candidate) => ({
+            path: candidate,
+            filename: process.platform === "win32" ? path.win32.basename(candidate) : path.posix.basename(candidate),
+            mime: "text/plain",
+          })),
+          insertOffset,
+        )
+        return
+      }
+
+      if (!props.attachmentResolver) {
+        throw new Error("attachment_resolver_unavailable")
+      }
+      const imported = await Promise.all(candidates.map(async (candidate): Promise<AttachmentPartInput> => {
+        const filename = process.platform === "win32" ? path.win32.basename(candidate) : path.posix.basename(candidate)
+        const reference: InputFileReferenceContentPart = {
+          type: "file_reference",
+          path: candidate,
+          filename,
+        }
+        const attachment = await props.attachmentResolver!.resolve(reference)
+        return {
+          path: filename,
+          filename,
+          mime: attachment.type === "image" ? attachment.mime : "text/plain",
+          attachment,
+        }
+      }))
+      insertAttachments(imported, insertOffset)
+    }
+
+    dialog.replace(() => (
+      <DialogSelect<PathIntent>
+        title="选择文件路径用途"
+        placeholder="附件 / 引用 / 路径文本"
+        skipFilter={true}
+        options={[
+          { title: "附件", value: "attachment", description: "按值导入本次会话" },
+          { title: "引用", value: "reference", description: "发送时读取原文件" },
+          { title: "路径文本", value: "text", description: "原样插入路径字符串" },
+        ]}
+        onSelect={(option) => {
+          void applyIntent(option.value).catch((error) => {
+            props.onAttachmentError?.(error instanceof Error ? error : new Error(String(error)))
+          })
+        }}
+      />
+    ))
+  }
+
   const pasteFromClipboard = async () => {
     if (!textarea) return
     const content = await Clipboard.read()
@@ -345,7 +417,13 @@ export function Composer(props: {
             path: "clipboard-image.png",
             filename: "clipboard-image.png",
             mime: content.mime,
-            url: `data:${content.mime};base64,${content.data}`,
+            attachment: {
+              type: "image",
+              mime: content.mime,
+              dataUrl: `data:${content.mime};base64,${content.data}`,
+              filename: "clipboard-image.png",
+              size: Buffer.from(content.data, "base64").byteLength,
+            },
           },
         ],
         textarea.visualCursor.offset,
@@ -358,7 +436,6 @@ export function Composer(props: {
 
   useKeyboard((event) => {
     if (!focused() || !textarea || props.busy || props.blocked) return
-    if (event.defaultPrevented) return
 
     if (event.name === "backspace" || event.name === "delete") {
       const selection = textarea.getSelection() ?? undefined
@@ -380,6 +457,8 @@ export function Composer(props: {
         return
       }
     }
+
+    if (event.defaultPrevented) return
 
     if ((event as { shift?: boolean }).shift && event.name === "up") {
       moveFactUserInputHistory(-1)
@@ -524,13 +603,9 @@ export function Composer(props: {
               if (!candidates) return
               event.preventDefault()
               event.stopPropagation()
-              insertAttachments(
-                candidates.map((candidate) => ({
-                  path: candidate,
-                  filename:
-                    process.platform === "win32" ? path.win32.basename(candidate) : path.posix.basename(candidate),
-                  mime: "text/plain",
-                })),
+              openPathIntentPicker(
+                payload,
+                candidates,
                 textarea?.visualCursor.offset ?? store.prompt.input.length,
               )
             }}

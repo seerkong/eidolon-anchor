@@ -758,9 +758,56 @@ export function resolveActorModelConfig(params: {
     options: flattened.options,
   };
   for (const key of params.fallbackOverrideKeys ?? []) {
+    if (key === "apiKey") continue;
+    if (key === "options") {
+      resolved.options = mergeRecoveredProviderOptions(resolved.options, fallback.options);
+      continue;
+    }
     if (fallback[key] !== undefined) {
       (resolved as Record<string, unknown>)[key] = fallback[key];
     }
   }
   return resolved;
+}
+
+function isRecoveredProviderSecretKey(key: string): boolean {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return normalized.endsWith("apikey")
+    || normalized === "authorization"
+    || normalized === "proxyauthorization"
+    || normalized === "auth"
+    || normalized === "bearer"
+    || normalized === "credential"
+    || normalized === "cookie"
+    || normalized === "password"
+    || normalized === "passwd"
+    || normalized === "privatekey"
+    || normalized.endsWith("token")
+    || normalized.endsWith("secret")
+    || normalized.endsWith("secretkey");
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeRecoveredProviderOptions(
+  current: Record<string, unknown> | undefined,
+  recovered: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  if (!recovered) return current;
+  const merged: Record<string, unknown> = { ...(current ?? {}) };
+  for (const [key, recoveredValue] of Object.entries(recovered)) {
+    if (isRecoveredProviderSecretKey(key)) continue;
+    const currentValue = merged[key];
+    if (isPlainRecord(recoveredValue)) {
+      merged[key] = mergeRecoveredProviderOptions(
+        isPlainRecord(currentValue) ? currentValue : undefined,
+        recoveredValue,
+      );
+      continue;
+    }
+    merged[key] = recoveredValue;
+  }
+  return merged;
 }

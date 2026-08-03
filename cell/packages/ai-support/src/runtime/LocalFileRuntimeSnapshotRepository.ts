@@ -27,6 +27,41 @@ const QUESTIONNAIRES_FILE = "questionnaires.xnl";
 const ACTORS_DIR = path.posix.join("..", "actors");
 const FIBERS_DIR = "fibers";
 const INDEXES_DIR = "indexes";
+const REDACTED_PROVIDER_SECRET = "[REDACTED]";
+
+function isProviderSecretKey(key: string): boolean {
+  const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return normalized.endsWith("apikey")
+    || normalized === "authorization"
+    || normalized === "proxyauthorization"
+    || normalized === "auth"
+    || normalized === "bearer"
+    || normalized === "credential"
+    || normalized === "cookie"
+    || normalized === "password"
+    || normalized === "passwd"
+    || normalized === "privatekey"
+    || normalized.endsWith("token")
+    || normalized.endsWith("secret")
+    || normalized.endsWith("secretkey");
+}
+
+function redactProviderSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactProviderSecrets);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([key, child]) => [
+    key,
+    isProviderSecretKey(key) ? REDACTED_PROVIDER_SECRET : redactProviderSecrets(child),
+  ]));
+}
+
+function removePersistedProviderSecrets(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(removePersistedProviderSecrets);
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>).flatMap(([key, child]) =>
+    isProviderSecretKey(key) ? [] : [[key, removePersistedProviderSecrets(child)]],
+  ));
+}
 
 const INDEX_FILE_NAMES: Record<RuntimeSnapshotIndexName, string> = {
   actors_by_key: "actors_by_key.json",
@@ -263,7 +298,7 @@ export class LocalFileRuntimeSnapshotRepository {
         profileSystemPromptProvenance: actor.profileSystemPromptProvenance,
         identity: actor.identity,
         toolPolicy: actor.toolPolicy,
-        modelConfig: actor.modelConfig,
+        modelConfig: redactProviderSecrets(actor.modelConfig),
         ctrlOptions: actor.ctrlOptions,
       },
       actorState: {
@@ -321,7 +356,7 @@ export class LocalFileRuntimeSnapshotRepository {
         disabledToolKeys: [],
         computedDisabledTools: [],
       },
-      modelConfig: actorJson.modelConfig ?? {},
+      modelConfig: removePersistedProviderSecrets(actorJson.modelConfig ?? {}) as RuntimeSnapshotActor["modelConfig"],
       ctrlOptions: actorJson.ctrlOptions ?? {
         stopAfterFirstTool: false,
         stopAfterTools: [],

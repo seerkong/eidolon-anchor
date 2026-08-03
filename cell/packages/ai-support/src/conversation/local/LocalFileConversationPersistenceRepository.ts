@@ -14,11 +14,14 @@ import type {
 import { CONVERSATION_PERSISTENCE_SCHEMA_VERSION } from "@cell/ai-organ-contract";
 import {
   appendXnlRecord,
+  readSessionAttachmentAsset,
   readXnlRecords,
+  writeSessionAttachmentAsset,
   type XnlAppendDataRecordBody,
   type XnlDataRecordBodyItem,
   type XnlRecordBodyItem,
 } from "@cell/ai-file-store-logic";
+import type { InputContentPart } from "@shared/composer";
 import {
   getLocalConversationPaths,
 } from "./LocalConversationPaths";
@@ -97,6 +100,171 @@ function createDefaultArtifactRefs(sessionId: string): ConversationArtifactRefsS
 
 function omitUndefined(value: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(value).filter(([, child]) => child !== undefined));
+}
+
+type DurableAttachmentPart = {
+  type: "text" | "image";
+  assetId: string;
+  kind: "text" | "image";
+  mime: string;
+  filename?: string;
+  sourceDigest?: string;
+  size: number;
+  digest: string;
+};
+
+function safeMetadataText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, maxLength);
+  return normalized || undefined;
+}
+
+function safeFilename(value: unknown): string | undefined {
+  const text = safeMetadataText(value, 255);
+  if (!text) return undefined;
+  return text.split(/[\\/]/).at(-1) || undefined;
+}
+
+function safeSourceDigest(value: unknown): string | undefined {
+  const text = safeMetadataText(value, 128);
+  return text && /^[A-Za-z0-9:_-]+$/.test(text) ? text : undefined;
+}
+
+function decodeImageDataUrl(part: Record<string, unknown>): Buffer {
+  const dataUrl = typeof part.dataUrl === "string" ? part.dataUrl : "";
+  const match = /^data:([^;,]{1,128});base64,([A-Za-z0-9+/]*={0,2})$/.exec(dataUrl);
+  if (!match || match[1] !== part.mime) {
+    throw new Error("attachment_asset_integrity_error: invalid image data URL");
+  }
+  const bytes = Buffer.from(match[2], "base64");
+  if (bytes.toString("base64").replace(/=+$/, "") !== match[2].replace(/=+$/, "")) {
+    throw new Error("attachment_asset_integrity_error: invalid image base64");
+  }
+  return bytes;
+}
+
+async function externalizeStructuredContent(
+  sessionDir: string,
+  content: InputContentPart[],
+): Promise<Record<string, unknown>[]> {
+  const durable: Record<string, unknown>[] = [];
+  for (const rawPart of content) {
+    const part = rawPart as InputContentPart & Record<string, unknown>;
+    if (part.type === "file_reference") {
+      throw new Error("attachment_asset_integrity_error: local file reference reached durable history");
+    }
+    if (part.type === "text" && !part.filename && !part.sourceDigest) {
+      durable.push({ type: "text", text: part.text });
+      continue;
+    }
+
+    const bytes = part.type === "image" ? decodeImageDataUrl(part) : Buffer.from(part.text, "utf8");
+    const asset = await writeSessionAttachmentAsset({ sessionDir, bytes });
+    durable.push(omitUndefined({
+      type: part.type,
+      assetId: asset.assetId,
+      kind: part.type,
+      mime: part.type === "image" ? safeMetadataText(part.mime, 128) : "text/plain; charset=utf-8",
+      filename: safeFilename(part.filename),
+      sourceDigest: safeSourceDigest(part.sourceDigest),
+      size: asset.size,
+      digest: asset.digest,
+    }));
+  }
+  return durable;
+}
+
+function isDurableAttachmentPart(value: unknown): value is DurableAttachmentPart {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const part = value as Partial<DurableAttachmentPart>;
+  return (part.type === "text" || part.type === "image")
+    && part.kind === part.type
+    && typeof part.assetId === "string"
+    && typeof part.digest === "string"
+    && typeof part.mime === "string"
+    && typeof part.size === "number";
+}
+
+export async function hydrateStructuredContent(
+  sessionDir: string,
+  content: unknown[],
+): Promise<InputContentPart[]> {
+  const hydrated: InputContentPart[] = [];
+  for (const rawPart of content) {
+    if (isDurableAttachmentPart(rawPart)) {
+      const bytes = await readSessionAttachmentAsset({
+        sessionDir,
+        assetId: rawPart.assetId,
+        digest: rawPart.digest,
+        size: rawPart.size,
+      });
+      if (rawPart.type === "image") {
+        hydrated.push(omitUndefined({
+          type: "image",
+          mime: rawPart.mime,
+          dataUrl: `data:${rawPart.mime};base64,${bytes.toString("base64")}`,
+          filename: safeFilename(rawPart.filename),
+          sourceDigest: safeSourceDigest(rawPart.sourceDigest),
+          size: bytes.byteLength,
+        }) as InputContentPart);
+      } else {
+        let text: string;
+        try {
+          text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+        } catch {
+          throw new Error(`attachment_asset_integrity_error: ${rawPart.assetId}`);
+        }
+        hydrated.push(omitUndefined({
+          type: "text",
+          text,
+          filename: safeFilename(rawPart.filename),
+          sourceDigest: safeSourceDigest(rawPart.sourceDigest),
+        }) as InputContentPart);
+      }
+      continue;
+    }
+    if (rawPart && typeof rawPart === "object" && !Array.isArray(rawPart)) {
+      const part = rawPart as Record<string, unknown>;
+      if (part.assetId || part.digest) {
+        throw new Error("attachment_asset_integrity_error: malformed asset reference");
+      }
+      if (part.type === "text" && typeof part.text === "string") {
+        hydrated.push(omitUndefined({
+          type: "text",
+          text: part.text,
+          filename: safeFilename(part.filename),
+          sourceDigest: safeMetadataText(part.sourceDigest, 128),
+        }) as InputContentPart);
+        continue;
+      }
+      if (part.type === "image" && typeof part.mime === "string" && typeof part.dataUrl === "string") {
+        const bytes = decodeImageDataUrl(part);
+        hydrated.push(omitUndefined({
+          type: "image",
+          mime: safeMetadataText(part.mime, 128),
+          dataUrl: part.dataUrl,
+          filename: safeFilename(part.filename),
+          sourceDigest: safeMetadataText(part.sourceDigest, 128),
+          size: bytes.byteLength,
+        }) as InputContentPart);
+        continue;
+      }
+    }
+    throw new Error("attachment_asset_integrity_error: invalid structured history part");
+  }
+  return hydrated;
+}
+
+async function hydrateHistoryGenerationAssets(
+  sessionDir: string,
+  generation: ActorHistoryGenerationData,
+): Promise<ActorHistoryGenerationData> {
+  for (const entry of generation.messages) {
+    if (Array.isArray(entry.message.content)) {
+      entry.message.content = await hydrateStructuredContent(sessionDir, entry.message.content as unknown[]);
+    }
+  }
+  return generation;
 }
 
 function readQuotedXnlFields(line: string): Record<string, string> {
@@ -217,6 +385,7 @@ function historyMessageRecordToMessage(
   if (typeof record.metadata.endAt === "number") message.endAt = record.metadata.endAt;
 
   const contentParts: string[] = [];
+  let structuredContent: ActorHistoryGenerationData["messages"][number]["message"]["content"] | undefined;
   for (const block of orderedBlocks) {
     if (block.kind === "text" && block.tag === "Think") {
       message.reasoningContent = block.text;
@@ -224,6 +393,13 @@ function historyMessageRecordToMessage(
     }
     if (block.kind === "text" && block.tag === "Content") {
       contentParts.push(block.text);
+      continue;
+    }
+    if (block.kind === "data" && block.tag === "StructuredContent") {
+      const parts = block.attributes?.parts;
+      if (Array.isArray(parts)) {
+        structuredContent = parts as ActorHistoryGenerationData["messages"][number]["message"]["content"];
+      }
       continue;
     }
     if (block.kind === "data" && block.tag === "ToolCall") {
@@ -256,7 +432,11 @@ function historyMessageRecordToMessage(
       }
     }
   }
-  if (contentParts.length > 0) message.content = contentParts.join("");
+  if (structuredContent !== undefined) {
+    message.content = structuredContent;
+  } else if (contentParts.length > 0) {
+    message.content = contentParts.join("");
+  }
   return message;
 }
 
@@ -404,9 +584,10 @@ function xnlRecordToPromptGeneration(record: XnlConversationRecord): ActorPrompt
   return generation;
 }
 
-function createHistoryMessageBlocks(
+async function createHistoryMessageBlocks(
   entry: ActorHistoryGenerationData["messages"][number],
-): XnlAppendDataRecordBody {
+  sessionDir: string,
+): Promise<XnlAppendDataRecordBody> {
   const blocks: XnlAppendDataRecordBody = [];
   const nextIndex = () => blocks.length;
   if (entry.message.reasoningContent) {
@@ -421,15 +602,29 @@ function createHistoryMessageBlocks(
     });
   }
   if (entry.message.content && entry.message.role !== "tool") {
-    blocks.push({
-      kind: "text",
-      tag: "Content",
-      metadata: {
-        id: `${entry.recordId}.b${nextIndex()}`,
-        index: nextIndex(),
-      },
-      text: entry.message.content,
-    });
+    if (typeof entry.message.content === "string") {
+      blocks.push({
+        kind: "text",
+        tag: "Content",
+        metadata: {
+          id: `${entry.recordId}.b${nextIndex()}`,
+          index: nextIndex(),
+        },
+        text: entry.message.content,
+      });
+    } else {
+      blocks.push({
+        kind: "data",
+        tag: "StructuredContent",
+        metadata: {
+          id: `${entry.recordId}.b${nextIndex()}`,
+          index: nextIndex(),
+        },
+        attributes: {
+          parts: await externalizeStructuredContent(sessionDir, entry.message.content),
+        },
+      });
+    }
   }
   for (const toolCall of entry.message.toolCalls ?? []) {
     blocks.push({
@@ -463,7 +658,7 @@ function createHistoryMessageBlocks(
       attributes: {
         output: {
           kind: "text",
-          text: entry.message.content,
+          text: typeof entry.message.content === "string" ? entry.message.content : "",
         },
       },
     });
@@ -587,7 +782,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
         new Set(messageGeneration.messages.map((message) => message.recordId)),
       );
     }
-    if (messageGeneration) return messageGeneration;
+    if (messageGeneration) return await hydrateHistoryGenerationAssets(this.sessionDir, messageGeneration);
     for (let index = records.length - 1; index >= 0; index -= 1) {
       if (records[index].tag !== HISTORY_GENERATION_RECORD_TAG) continue;
       const generation = xnlRecordToHistoryGeneration(records[index]);
@@ -606,7 +801,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
       this.knownHistoryRecordIdsByGeneration.set(generation.generationId, knownRecordIds);
       for (const [sequence, entry] of generation.messages.entries()) {
         if (knownRecordIds.has(entry.recordId)) continue;
-        const blocks = createHistoryMessageBlocks(entry);
+        const blocks = await createHistoryMessageBlocks(entry, this.sessionDir);
         await appendXnlRecord({
           filePath: paths.historyXnlPath,
           tag: HISTORY_MESSAGE_RECORD_TAG,

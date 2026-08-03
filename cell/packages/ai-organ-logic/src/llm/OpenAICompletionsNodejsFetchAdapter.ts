@@ -19,6 +19,21 @@ type OpenAICompletionsNodejsFetchAdapterSettings = {
 };
 
 const INTERNAL_EXTRA_BODY_KEYS = new Set(["prompt_plan", "work_context"]);
+const TRANSPORT_EXTRA_BODY_KEYS = new Set([
+  "timeout",
+  "first_event_timeout",
+  "first_event_timeout_seconds",
+  "stream_idle_timeout",
+  "stream_idle_timeout_seconds",
+]);
+const DEFAULT_FIRST_EVENT_TIMEOUT_SECONDS = 120;
+
+type OpenAIStreamTimeouts = {
+  requestStartedAt: number;
+  firstEventTimeoutSeconds: number;
+  totalTimeoutSeconds?: number;
+  idleTimeoutSeconds?: number;
+};
 
 function buildCompletionsUrl(baseUrl?: string): string {
   const base = baseUrl || "https://api.openai.com/v1";
@@ -34,11 +49,30 @@ function buildCompletionsUrl(baseUrl?: string): string {
   return `${withVersion}/chat/completions`;
 }
 
-async function* streamToOpenAIChunks(response: Response): AsyncIterable<any> {
+async function* streamToOpenAIChunks(
+  response: Response,
+  timeouts: OpenAIStreamTimeouts,
+  abortController: AbortController,
+  cleanupAbortLink: () => void,
+  getInternalTimeoutError: () => Error | undefined,
+  abortForTimeout: (error: Error) => void,
+): AsyncIterable<any> {
   if (!response.body) {
-    const payload = await response.json().catch(() => null);
-    if (payload) {
-      yield payload;
+    try {
+      const timeout = resolveReadTimeout(timeouts, false, Date.now());
+      const payload = await raceWithTimeout(
+        response.json().catch(() => null),
+        timeout.seconds,
+        () => timeout.error,
+        abortForTimeout,
+      );
+      if (payload) {
+        yield payload;
+      }
+    } catch (error) {
+      throw getInternalTimeoutError() ?? error;
+    } finally {
+      cleanupAbortLink();
     }
     return;
   }
@@ -46,6 +80,8 @@ async function* streamToOpenAIChunks(response: Response): AsyncIterable<any> {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let sawProviderEvent = false;
+  let lastActivityAt = timeouts.requestStartedAt;
 
   const flushLine = (line: string): any | "DONE" | undefined => {
     const trimmed = line.trim();
@@ -62,21 +98,44 @@ async function* streamToOpenAIChunks(response: Response): AsyncIterable<any> {
 
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      const timeout = resolveReadTimeout(
+        timeouts,
+        sawProviderEvent,
+        lastActivityAt,
+      );
+      const { done, value } = await raceWithTimeout(
+        reader.read(),
+        timeout.seconds,
+        () => timeout.error,
+        abortForTimeout,
+      );
       if (done) break;
+      lastActivityAt = Date.now();
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
       for (const line of lines) {
         const result = flushLine(line);
-        if (result === "DONE") return;
-        if (result) yield result;
+        if (result === "DONE") {
+          sawProviderEvent = true;
+          return;
+        }
+        if (result) {
+          sawProviderEvent = true;
+          yield result;
+        }
       }
     }
+  } catch (error) {
+    throw getInternalTimeoutError() ?? error;
   } finally {
+    if (abortController.signal.aborted) {
+      void reader.cancel(abortController.signal.reason).catch(() => {});
+    }
     try {
       reader.releaseLock();
     } catch {}
+    cleanupAbortLink();
   }
 
   if (buffer.trim()) {
@@ -98,9 +157,189 @@ function sanitizeExtraBody(extraBody: unknown): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(extraBody as Record<string, unknown>).filter(
       ([key, value]) =>
-        value !== undefined && !INTERNAL_EXTRA_BODY_KEYS.has(key),
+        value !== undefined &&
+        !INTERNAL_EXTRA_BODY_KEYS.has(key) &&
+        !TRANSPORT_EXTRA_BODY_KEYS.has(key),
     ),
   );
+}
+
+function resolveStreamTimeouts(
+  extraBody: unknown,
+  providerOptions: ProviderOptions,
+): OpenAIStreamTimeouts {
+  const requestOptions =
+    extraBody && typeof extraBody === "object" && !Array.isArray(extraBody)
+      ? (extraBody as Record<string, unknown>)
+      : {};
+  const firstEventTimeoutSeconds =
+    readPositiveNumber(
+      requestOptions,
+      "first_event_timeout_seconds",
+      "first_event_timeout",
+    ) ??
+    readPositiveNumber(
+      providerOptions,
+      "first_event_timeout_seconds",
+      "first_event_timeout",
+    ) ??
+    DEFAULT_FIRST_EVENT_TIMEOUT_SECONDS;
+  return {
+    requestStartedAt: Date.now(),
+    firstEventTimeoutSeconds,
+    totalTimeoutSeconds:
+      readPositiveNumber(requestOptions, "timeout") ??
+      readPositiveNumber(providerOptions, "timeout"),
+    idleTimeoutSeconds:
+      readPositiveNumber(
+        requestOptions,
+        "stream_idle_timeout_seconds",
+        "stream_idle_timeout",
+      ) ??
+      readPositiveNumber(
+        providerOptions,
+        "stream_idle_timeout_seconds",
+        "stream_idle_timeout",
+      ),
+  };
+}
+
+function readPositiveNumber(
+  source: Record<string, unknown>,
+  ...keys: string[]
+): number | undefined {
+  for (const key of keys) {
+    const numeric = Number(source[key]);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+  }
+  return undefined;
+}
+
+function createLinkedAbortController(signal?: AbortSignal): {
+  controller: AbortController;
+  cleanup: () => void;
+} {
+  const controller = new AbortController();
+  if (!signal) return { controller, cleanup: () => {} };
+  const forwardAbort = () => controller.abort(signal.reason);
+  if (signal.aborted) {
+    forwardAbort();
+    return { controller, cleanup: () => {} };
+  }
+  signal.addEventListener("abort", forwardAbort, { once: true });
+  return {
+    controller,
+    cleanup: () => signal.removeEventListener("abort", forwardAbort),
+  };
+}
+
+async function raceWithTimeout<T>(
+  promise: Promise<T>,
+  timeoutSeconds: number | undefined,
+  createError: () => Error,
+  abortForTimeout: (error: Error) => void,
+): Promise<T> {
+  if (
+    timeoutSeconds === undefined ||
+    !Number.isFinite(timeoutSeconds)
+  ) {
+    return promise;
+  }
+  if (timeoutSeconds <= 0) {
+    const error = createError();
+    abortForTimeout(error);
+    throw error;
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          const error = createError();
+          abortForTimeout(error);
+          reject(error);
+        }, timeoutSeconds * 1000);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+function resolveReadTimeout(
+  timeouts: OpenAIStreamTimeouts,
+  sawProviderEvent: boolean,
+  lastActivityAt: number,
+): { seconds?: number; error: Error } {
+  const now = Date.now();
+  if (!sawProviderEvent) {
+    const firstEventRemaining =
+      timeouts.firstEventTimeoutSeconds -
+      (now - timeouts.requestStartedAt) / 1000;
+    const totalRemaining =
+      timeouts.totalTimeoutSeconds === undefined
+        ? undefined
+        : timeouts.totalTimeoutSeconds -
+          (now - timeouts.requestStartedAt) / 1000;
+    const seconds = minDefined(firstEventRemaining, totalRemaining);
+    return {
+      seconds,
+      error: createFirstEventTimeoutError(
+        Math.min(
+          timeouts.firstEventTimeoutSeconds,
+          timeouts.totalTimeoutSeconds ?? Number.POSITIVE_INFINITY,
+        ),
+      ),
+    };
+  }
+
+  const idleRemaining =
+    timeouts.idleTimeoutSeconds === undefined
+      ? undefined
+      : timeouts.idleTimeoutSeconds - (now - lastActivityAt) / 1000;
+  const totalRemaining =
+    timeouts.totalTimeoutSeconds === undefined
+      ? undefined
+      : timeouts.totalTimeoutSeconds -
+        (now - timeouts.requestStartedAt) / 1000;
+  const seconds = minDefined(idleRemaining, totalRemaining);
+  const configuredTimeoutSeconds =
+    idleRemaining !== undefined &&
+    (totalRemaining === undefined || idleRemaining <= totalRemaining)
+      ? timeouts.idleTimeoutSeconds
+      : timeouts.totalTimeoutSeconds;
+  return {
+    seconds,
+    error: createStreamTimeoutError(configuredTimeoutSeconds ?? 0),
+  };
+}
+
+function minDefined(
+  left: number | undefined,
+  right: number | undefined,
+): number | undefined {
+  if (left === undefined) return right;
+  if (right === undefined) return left;
+  return Math.min(left, right);
+}
+
+function createFirstEventTimeoutError(seconds: number): Error {
+  return new Error(
+    `first event exceeded timeout after ${formatTimeoutSeconds(seconds)}s`,
+  );
+}
+
+function createStreamTimeoutError(seconds: number): Error {
+  return new Error(
+    `stream exceeded timeout after ${formatTimeoutSeconds(seconds)}s`,
+  );
+}
+
+function formatTimeoutSeconds(seconds: number): string {
+  return Number.isInteger(seconds)
+    ? String(seconds)
+    : String(Number(seconds.toFixed(3)));
 }
 
 function parseOpenAIErrorCode(errorText: string): string {
@@ -131,6 +370,13 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
     const { model, messages, tools, extraBody, signal } = options;
     const toolset = toOpenAITools(tools);
+    const timeouts = resolveStreamTimeouts(extraBody, this.providerOptions);
+    const abortLink = createLinkedAbortController(signal);
+    let internalTimeoutError: Error | undefined;
+    const abortForTimeout = (error: Error) => {
+      internalTimeoutError = error;
+      abortLink.controller.abort(error);
+    };
 
     const body: Record<string, unknown> = {
       model,
@@ -182,15 +428,48 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       url,
       method: "POST",
     });
-    const res = await fetchFn(url, {
-      method: "POST",
-      headers,
-      body: serializedBody,
-      signal,
-    });
+    let res: Response;
+    try {
+      const headerTimeoutSeconds =
+        minDefined(
+          timeouts.firstEventTimeoutSeconds,
+          timeouts.totalTimeoutSeconds,
+        ) ?? timeouts.firstEventTimeoutSeconds;
+      res = await raceWithTimeout(
+        fetchFn(url, {
+          method: "POST",
+          headers,
+          body: serializedBody,
+          signal: abortLink.controller.signal,
+        }),
+        headerTimeoutSeconds,
+        () => createFirstEventTimeoutError(headerTimeoutSeconds),
+        abortForTimeout,
+      );
+    } catch (error) {
+      abortLink.cleanup();
+      throw internalTimeoutError ?? error;
+    }
 
     if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
+      let errorText = "";
+      try {
+        const timeout = resolveReadTimeout(
+          timeouts,
+          false,
+          timeouts.requestStartedAt,
+        );
+        errorText = await raceWithTimeout(
+          res.text().catch(() => ""),
+          timeout.seconds,
+          () => timeout.error,
+          abortForTimeout,
+        );
+      } catch (error) {
+        throw internalTimeoutError ?? error;
+      } finally {
+        abortLink.cleanup();
+      }
       throw new ProviderExecutionError(
         `OpenAI fetch error ${res.status}: ${errorText || res.statusText}`,
         {
@@ -200,7 +479,16 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       );
     }
 
-    return { stream: streamToOpenAIChunks(res) };
+    return {
+      stream: streamToOpenAIChunks(
+        res,
+        timeouts,
+        abortLink.controller,
+        abortLink.cleanup,
+        () => internalTimeoutError,
+        abortForTimeout,
+      ),
+    };
   }
 }
 

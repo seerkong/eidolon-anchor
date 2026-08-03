@@ -59,6 +59,7 @@ import { Locale } from "../../support/util/locale"
 import { useTuiA1StateOptional } from "./state/state-context"
 import { buildRuntimePromptParts } from "./features/composer/model/prompt-parts"
 import type { PromptInfo } from "./features/composer/model/prompt-info"
+import type { AttachmentResolverPort } from "@cell/ai-core-contract"
 import type { Route } from "./route/route"
 import { useToast } from "../../ui/toast/toast"
 import { resolveTuiBuiltinSlashCommand, SLASH_COMMANDS } from "../../commands/catalog"
@@ -70,6 +71,8 @@ export type TuiA1ViewProps = {
   initialPrompt?: string
   initialMessages?: TuiA1Message[]
   isAttachmentFile?: (candidate: string) => boolean
+  attachmentResolver?: AttachmentResolverPort
+  onAttachmentError?: (error: Error) => void
   onOpenQuestionnaires?: (center: TuiA1QuestionnaireCenter) => void
   onOpenMessageList?: () => void
   onOpenSessionList?: () => void
@@ -1931,6 +1934,8 @@ export function TuiA1View(props: TuiA1ViewProps) {
         directory={props.directory}
         focused={composerFocused()}
         isAttachmentFile={props.isAttachmentFile}
+        attachmentResolver={props.attachmentResolver}
+        onAttachmentError={props.onAttachmentError ?? ((error) => toast.error(error))}
         statusLabel={sessionLoadLabel() ?? runtimeStatusLabel()}
         selectionLabel={composerSelectionLabel()}
         userInputHistory={currentUserInputHistory().map((entry) => ({ input: entry.text, parts: [] }))}

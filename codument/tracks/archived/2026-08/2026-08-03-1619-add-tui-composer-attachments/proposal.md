@@ -10,7 +10,7 @@ TUI Composer 已能显示文件 part、通过 Ctrl+O 选择文件，并能从剪
 
 **目标:**
 
-- 将终端拖入文件产生的路径粘贴识别为一个或多个附件，并复用当前文件 part/extmark 表示。
+- 将完整解析为存在文件集合的路径粘贴识别为意图候选，弹出“附件 / 引用 / 路径文本”三选一，并复用当前文件 part/extmark 表示。
 - 让 Backspace/Delete 命中附件块边界时一次删除整个块，并立即、准确更新右下角 parts 数量。
 - 让 structured prompt parts 经 TUI client、terminal bridge、actor mailbox、conversation materialization 一直保留到 provider adapter。
 - 解析并传播 `modalities.input/output`，仅为显式声明 image input 的模型发送图片。
@@ -27,7 +27,7 @@ TUI Composer 已能显示文件 part、通过 Ctrl+O 选择文件，并能从剪
 
 ## 变更内容（What Changes）
 
-- 增加路径粘贴解析、文件 MIME/大小校验、批量附件插入与错误反馈。
+- 增加路径粘贴候选解析、紧凑三选一、文件 MIME/大小校验、批量附件/引用插入与错误反馈。
 - 把附件的 extmark 与 structured part 作为单一原子块管理，统一插入、移动、删除、计数和恢复。
 - 引入 provider-neutral 的 canonical input content parts，并扩展 human input/runtime message contract。
 - 让 provider config schema、模型 catalog 和 runtime capabilities 保留 `modalities`。

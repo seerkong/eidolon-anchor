@@ -688,11 +688,13 @@ function createOrchestratorActor(): ActorDef<AiAgentOrchestratorRuntime, AiAgent
         }
 
         if (payload.kind === "complete") {
+          runtime.pendingResumes.delete(fiberId);
           runtime.state = reduceOrchestrator(runtime.state, { type: "complete", fiberId, now }).state;
           return;
         }
 
         if (payload.kind === "cancel") {
+          runtime.pendingResumes.delete(fiberId);
           const reason = typeof payload?.cancelReason === "string" && payload.cancelReason ? payload.cancelReason : "cancel";
           const propagate = payload?.propagateCancelToChildren !== false;
           runtime.state = reduceOrchestrator(runtime.state, {
@@ -706,6 +708,7 @@ function createOrchestratorActor(): ActorDef<AiAgentOrchestratorRuntime, AiAgent
         }
 
         if (payload.kind === "fail") {
+          runtime.pendingResumes.delete(fiberId);
           const error = typeof payload?.error === "string" ? payload.error : "unknown";
           runtime.state = reduceOrchestrator(runtime.state, { type: "fail", fiberId, now, error }).state;
           return;

@@ -3,7 +3,12 @@ import path from "node:path";
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
 import type { StreamEvent } from "@cell/symbiont-contract/stream/stream";
 import type { IngressStreams } from "@cell/symbiont-logic/stream/IngressStreams";
-import { appendXnlRecord, type XnlAppendDataRecordInput, type XnlAppendTextRecordInput } from "@cell/ai-file-store-logic";
+import {
+  appendXnlRecord,
+  writeSessionAttachmentAsset,
+  type XnlAppendDataRecordInput,
+  type XnlAppendTextRecordInput,
+} from "@cell/ai-file-store-logic";
 
 export type SessionRuntimeXnlLogBinding = {
   dispose: () => void;
@@ -100,7 +105,100 @@ function ingressEventToXnlNode(params: {
   };
 }
 
-function diagnosticEventToXnlNode(event: SemanticEvent): Omit<XnlAppendDataRecordInput, "filePath"> {
+function safeDiagnosticText(value: unknown, maxLength: number): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.replace(/[\u0000-\u001f\u007f]/g, "").slice(0, maxLength);
+  return normalized || undefined;
+}
+
+function safeDiagnosticFilename(value: unknown): string | undefined {
+  const text = safeDiagnosticText(value, 255);
+  return text?.split(/[\\/]/).at(-1) || undefined;
+}
+
+function safeDiagnosticDigest(value: unknown): string | undefined {
+  const text = safeDiagnosticText(value, 128);
+  return text && /^[A-Za-z0-9:_-]+$/.test(text) ? text : undefined;
+}
+
+function diagnosticImageBytes(part: Record<string, unknown>): Buffer | undefined {
+  const dataUrl = typeof part.dataUrl === "string" ? part.dataUrl : "";
+  const match = /^data:([^;,]{1,128});base64,([A-Za-z0-9+/]*={0,2})$/.exec(dataUrl);
+  if (!match || match[1] !== part.mime) return undefined;
+  const bytes = Buffer.from(match[2], "base64");
+  return bytes.toString("base64").replace(/=+$/, "") === match[2].replace(/=+$/, "") ? bytes : undefined;
+}
+
+async function sanitizeStructuredDiagnosticContent(
+  sessionDir: string,
+  content: unknown[],
+): Promise<Record<string, unknown>[]> {
+  const sanitized: Record<string, unknown>[] = [];
+  for (const rawPart of content) {
+    if (!rawPart || typeof rawPart !== "object" || Array.isArray(rawPart)) continue;
+    const part = rawPart as Record<string, unknown>;
+    if (part.type === "text" && typeof part.text === "string") {
+      if (!part.filename && !part.sourceDigest) {
+        sanitized.push({ type: "text", size: Buffer.byteLength(part.text, "utf8") });
+        continue;
+      }
+      const asset = await writeSessionAttachmentAsset({
+        sessionDir,
+        bytes: Buffer.from(part.text, "utf8"),
+      });
+      sanitized.push({
+        type: "text",
+        kind: "text",
+        assetId: asset.assetId,
+        digest: asset.digest,
+        size: asset.size,
+        mime: "text/plain; charset=utf-8",
+        ...(safeDiagnosticFilename(part.filename) ? { filename: safeDiagnosticFilename(part.filename) } : {}),
+        ...(safeDiagnosticDigest(part.sourceDigest)
+          ? { sourceDigest: safeDiagnosticDigest(part.sourceDigest) }
+          : {}),
+      });
+      continue;
+    }
+    if (part.type === "image") {
+      const bytes = diagnosticImageBytes(part);
+      if (!bytes) {
+        sanitized.push({ type: "image", kind: "image", status: "invalid_asset" });
+        continue;
+      }
+      const asset = await writeSessionAttachmentAsset({ sessionDir, bytes });
+      sanitized.push({
+        type: "image",
+        kind: "image",
+        assetId: asset.assetId,
+        digest: asset.digest,
+        size: asset.size,
+        ...(safeDiagnosticText(part.mime, 128) ? { mime: safeDiagnosticText(part.mime, 128) } : {}),
+        ...(safeDiagnosticFilename(part.filename) ? { filename: safeDiagnosticFilename(part.filename) } : {}),
+        ...(safeDiagnosticDigest(part.sourceDigest)
+          ? { sourceDigest: safeDiagnosticDigest(part.sourceDigest) }
+          : {}),
+      });
+      continue;
+    }
+    if (part.type === "file_reference") {
+      sanitized.push({
+        type: "file_reference",
+        kind: "reference",
+        ...(safeDiagnosticFilename(part.filename ?? part.path)
+          ? { filename: safeDiagnosticFilename(part.filename ?? part.path) }
+          : {}),
+        ...(safeDiagnosticText(part.mime, 128) ? { mime: safeDiagnosticText(part.mime, 128) } : {}),
+      });
+    }
+  }
+  return sanitized;
+}
+
+async function diagnosticEventToXnlNode(
+  event: SemanticEvent,
+  sessionDir: string,
+): Promise<Omit<XnlAppendDataRecordInput, "filePath">> {
   const trace = event.trace;
   const metadata: Record<string, unknown> = {
     eventType: event.event_type,
@@ -116,6 +214,14 @@ function diagnosticEventToXnlNode(event: SemanticEvent): Omit<XnlAppendDataRecor
   optionalMetadata(metadata, "actorName", event.actor?.actor_name);
   optionalMetadata(metadata, "actorKind", event.actor?.actor_kind);
 
+  const eventRecord = event as SemanticEvent & { content?: unknown };
+  const payload = Array.isArray(eventRecord.content)
+    ? {
+        ...event,
+        content: await sanitizeStructuredDiagnosticContent(sessionDir, eventRecord.content),
+      }
+    : event;
+
   return {
     tag: "DiagnosticEvent",
     metadata,
@@ -126,7 +232,7 @@ function diagnosticEventToXnlNode(event: SemanticEvent): Omit<XnlAppendDataRecor
           kind: "data",
           tag: "Event",
           attributes: {
-            payload: event,
+            payload,
           },
         },
       },
@@ -139,6 +245,7 @@ function createAppendQueue(): {
     filePath: string,
     node: Omit<XnlAppendDataRecordInput, "filePath"> | Omit<XnlAppendTextRecordInput, "filePath">,
   ) => void;
+  run: (action: () => Promise<void>) => void;
   flush: () => Promise<void>;
 } {
   let pending: Promise<void> = Promise.resolve();
@@ -149,6 +256,9 @@ function createAppendQueue(): {
           await appendXnlRecord({ filePath, ...node });
         })
         .catch(() => {});
+    },
+    run: (action) => {
+      pending = pending.then(action).catch(() => {});
     },
     flush: () => pending,
   };
@@ -237,7 +347,13 @@ export function createSessionDiagnosticsXnlLog(params: {
   };
   return {
     appendSemanticEvent: (event) => {
-      queue.append(diagnosticsLogPath(params.sessionDir!), diagnosticEventToXnlNode(event));
+      queue.run(async () => {
+        const sessionDir = params.sessionDir!;
+        await appendXnlRecord({
+          filePath: diagnosticsLogPath(sessionDir),
+          ...await diagnosticEventToXnlNode(event, sessionDir),
+        });
+      });
     },
     appendRuntimeCheckpointEvent: (event) => {
       appendRuntimeDiagnosticEvent(event);

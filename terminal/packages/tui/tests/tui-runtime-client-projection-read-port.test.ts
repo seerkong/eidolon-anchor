@@ -170,6 +170,67 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
     ])
   })
 
+  it("behavioral: structured history hydrates text and image parts without object coercion", async () => {
+    const { directory, sessionID } = makeMaterializedSession()
+    tmpDirs.push(directory)
+
+    const historyMessages: ChatMessage[] = [
+      {
+        role: "user",
+        content: [{ type: "text", text: "你是谁" }],
+      } as ChatMessage,
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "查看 " },
+          {
+            type: "image",
+            mime: "image/png",
+            dataUrl: "data:image/png;base64,iVBORw0KGgo=",
+            filename: "screen.png",
+            sourceDigest: "sha256:history-image",
+            size: 8,
+          },
+          { type: "text", text: " 并告诉我结果" },
+        ],
+      } as ChatMessage,
+    ]
+    const { port } = createRecordingPort({
+      history: { source: "conversation", messages: historyMessages },
+    })
+    const sdk = createTuiRuntimeClient({
+      mode: "local-runtime",
+      directory,
+      conversationProjectionReadPort: port,
+    })
+
+    const result = await sdk.client.session.messages({ sessionID })
+    const parts = (result.data ?? []).flatMap((entry) => entry.parts ?? [])
+    const texts = parts.filter((part) => part.type === "text").map((part) => part.text)
+    const files = parts.filter((part) => part.type === "file")
+
+    expect(texts).toEqual(["你是谁", "查看 ", " 并告诉我结果"])
+    expect(texts.join("")).not.toContain("[object Object]")
+    expect(files).toHaveLength(1)
+    expect(files[0]).toMatchObject({
+      type: "file",
+      filename: "screen.png",
+      mime: "image/png",
+      url: "data:image/png;base64,iVBORw0KGgo=",
+      attachment: {
+        type: "image",
+        sourceDigest: "sha256:history-image",
+        size: 8,
+      },
+    })
+
+    const sessions = await sdk.client.session.list()
+    const preview = sessions.data?.find((session) => session.id === sessionID)?.preview
+    expect(preview?.initialUserMessage).toBe("你是谁")
+    expect(preview?.latestMessage).toBe("查看 并告诉我结果")
+    expect(JSON.stringify(preview)).not.toContain("[object Object]")
+  })
+
   it("behavioral: pending-questions hydration reads through the injected port", async () => {
     const { directory, sessionID } = makeMaterializedSession()
     tmpDirs.push(directory)

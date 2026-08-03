@@ -4,7 +4,11 @@ import type {
   ProviderDriverStreamParams,
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
-import { sanitizeProviderExtraBody } from "../ProviderOptions";
+import {
+  extractProviderTransportRequestOptions,
+  sanitizeProviderExtraBody,
+  sanitizeProviderRequestBodyOptions,
+} from "../ProviderOptions";
 
 function getString(
   options: Record<string, unknown>,
@@ -28,6 +32,9 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
       "openai_chat_completions",
     ],
     buildRequest(params: ProviderDriverRequestParams) {
+      const requestBodyOptions = sanitizeProviderRequestBodyOptions(
+        params.requestOptions,
+      );
       return {
         method: "POST",
         body: {
@@ -35,7 +42,7 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
           messages: params.messages,
           tools: params.tools,
           stream: true,
-          ...params.requestOptions,
+          ...requestBodyOptions,
           ...sanitizeProviderExtraBody(params.extraBody),
         },
       };
@@ -57,7 +64,8 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
         messages: params.messages as any[],
         tools: params.tools as any[],
         extraBody: {
-          ...params.requestOptions,
+          ...sanitizeProviderRequestBodyOptions(params.requestOptions),
+          ...extractProviderTransportRequestOptions(params.requestOptions),
           ...sanitizeProviderExtraBody(params.extraBody),
         },
         signal: params.signal,

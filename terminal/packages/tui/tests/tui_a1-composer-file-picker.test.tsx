@@ -10,6 +10,7 @@ import { TuiA1Shell } from "../src/app/tui_a1"
 import { tuiA1Theme as theme } from "../src/app/tui_a1/theme"
 import { Clipboard } from "../src/support/util/clipboard"
 import { createTuiRuntimeClient } from "../src/runtime/client/TuiRuntimeClient"
+import { createLocalAttachmentResolver } from "../src/support/attachment-resolver"
 
 const tick = (ms = 20) => new Promise((resolve) => setTimeout(resolve, ms))
 const createdDirs: string[] = []
@@ -38,22 +39,39 @@ function captureText(setup: Awaited<ReturnType<typeof testRender>>) {
   return frame.lines.map((line) => line.spans.map((span) => span.text).join("")).join("\n")
 }
 
-function renderTuiA1(directory: string, runtime?: ReturnType<typeof createTuiRuntimeClient>) {
+function renderTuiA1(
+  directory: string,
+  runtime?: ReturnType<typeof createTuiRuntimeClient>,
+  attachmentResolver = createLocalAttachmentResolver(),
+  onAttachmentError?: (error: Error) => void,
+) {
   return (
     <RuntimeClientProvider url="mock" client={runtime}>
-      <TuiA1Shell directory={directory} sessionID="ses_1" isAttachmentFile={existsSync} />
+      <TuiA1Shell
+        directory={directory}
+        sessionID="ses_1"
+        isAttachmentFile={existsSync}
+        attachmentResolver={attachmentResolver}
+        onAttachmentError={onAttachmentError}
+      />
     </RuntimeClientProvider>
   )
 }
 
 describe("tuiA1 composer file picker", () => {
-  it("turns bracketed-paste file paths into atomic attachment blocks", async () => {
-    const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-path-paste-"))
+  it("shows an actionable error and keeps the composer unchanged when attachment import fails", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-import-error-"))
     createdDirs.push(directory)
-    const attachmentPath = path.join(directory, "meeting notes.md")
-    await writeFile(attachmentPath, "notes\n")
+    const attachmentPath = path.join(directory, "too-large.bin")
+    await writeFile(attachmentPath, "fixture")
+    const resolver = {
+      async resolve() {
+        throw new Error("附件过大，无法导入")
+      },
+    }
+    const errors: string[] = []
 
-    const setup = await testRender(() => renderTuiA1(directory), {
+    const setup = await testRender(() => renderTuiA1(directory, undefined, resolver, (error) => errors.push(error.message)), {
       width: 120,
       height: 40,
       kittyKeyboard: true,
@@ -63,17 +81,138 @@ describe("tuiA1 composer file picker", () => {
       await renderSettled(setup, 5)
       await setup.mockInput.pasteBracketedText(`"${attachmentPath}"`)
       await renderSettled(setup, 4)
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 6)
+
+      const text = captureText(setup)
+      expect(errors).toEqual(["附件过大，无法导入"])
+      expect(text).not.toContain("@fs:too-large.bin")
+      expect(text).toContain("0 parts")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("asks for explicit attachment intent before importing pasted text and image paths", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-path-paste-"))
+    createdDirs.push(directory)
+    const textPath = path.join(directory, "meeting notes.md")
+    const imagePath = path.join(directory, "diagram.png")
+    await writeFile(textPath, "notes\n")
+    await writeFile(imagePath, Buffer.from("89504e470d0a1a0a", "hex"))
+    const delegateResolver = createLocalAttachmentResolver()
+    let resolveCalls = 0
+    const attachmentResolver = {
+      async resolve(reference: Parameters<typeof delegateResolver.resolve>[0]) {
+        resolveCalls += 1
+        return await delegateResolver.resolve(reference)
+      },
+    }
+
+    const setup = await testRender(() => renderTuiA1(directory, undefined, attachmentResolver), {
+      width: 120,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 5)
+      await setup.mockInput.pasteBracketedText(`"${textPath}" "${imagePath}"`)
+      await renderSettled(setup, 4)
 
       let text = captureText(setup)
-      expect(text).toContain("@fs:meeting notes.md")
-      expect(text).toContain("parts 1 file")
-      expect(text).toContain("1 parts")
+      expect(text).toContain("附件")
+      expect(text).toContain("引用")
+      expect(text).toContain("路径文本")
+      expect(text).not.toContain("@fs:meeting notes.md")
+      expect(text).not.toContain("@fs:diagram.png")
+      expect(text).toContain("0 parts")
+      expect(resolveCalls).toBe(0)
 
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 6)
+
+      text = captureText(setup)
+      expect(text).toContain("@fs:meeting notes.md")
+      expect(text).toContain("@fs:diagram.png")
+      expect(text).toContain("2 parts")
+      expect(resolveCalls).toBe(2)
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("keeps a pasted existing path as raw text when path text intent is selected", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-path-text-"))
+    createdDirs.push(directory)
+    const attachmentPath = path.join(directory, "literal path.md")
+    const imagePath = path.join(directory, "literal image.png")
+    await writeFile(attachmentPath, "must not be imported\n")
+    await writeFile(imagePath, Buffer.from("89504e470d0a1a0a", "hex"))
+    const payload = `"${attachmentPath}" "${imagePath}"`
+
+    const setup = await testRender(() => renderTuiA1(directory), {
+      width: 240,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 5)
+      await setup.mockInput.pasteBracketedText(payload)
+      await renderSettled(setup, 4)
+
+      setup.mockInput.pressArrow("down")
+      setup.mockInput.pressArrow("down")
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 6)
+
+      const text = captureText(setup)
+      expect(text).toContain(payload)
+      expect(text).not.toContain("@fs:literal path.md")
+      expect(text).not.toContain("@fs:literal image.png")
+      expect(text).toContain("0 parts")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("creates local file references only after reference intent is selected", async () => {
+    const directory = await mkdtemp(path.join(tmpdir(), "eidolon-composer-reference-choice-"))
+    createdDirs.push(directory)
+    const attachmentPath = path.join(directory, "live source.md")
+    const imagePath = path.join(directory, "live image.png")
+    await writeFile(attachmentPath, "read at send time\n")
+    await writeFile(imagePath, Buffer.from("89504e470d0a1a0a", "hex"))
+
+    const setup = await testRender(() => renderTuiA1(directory), {
+      width: 120,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 5)
+      await setup.mockInput.pasteBracketedText(`"${attachmentPath}" "${imagePath}"`)
+      await renderSettled(setup, 4)
+
+      setup.mockInput.pressArrow("down")
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 6)
+
+      let text = captureText(setup)
+      expect(text).toContain("@fs:live source.md")
+      expect(text).toContain("@fs:live image.png")
+      expect(text).toContain("2 parts")
+
+      setup.mockInput.pressBackspace()
+      await renderSettled(setup, 4)
       setup.mockInput.pressBackspace()
       await renderSettled(setup, 4)
 
       text = captureText(setup)
-      expect(text).not.toContain("@fs:meeting notes.md")
+      expect(text).not.toContain("@fs:live source.md")
+      expect(text).not.toContain("@fs:live image.png")
       expect(text).not.toContain("parts 1 file")
       expect(text).toContain("0 chars · 0 parts")
     } finally {
@@ -223,8 +362,12 @@ describe("tuiA1 composer file picker", () => {
     try {
       await renderSettled(setup, 5)
       await setup.mockInput.typeText("review ")
-      await setup.mockInput.pasteBracketedText(`"${attachmentPath}"`)
-      await renderSettled(setup, 4)
+      setup.mockInput.pressKey("o", { ctrl: true })
+      await renderSettled(setup, 5)
+      await setup.mockInput.typeText("pending")
+      await renderSettled(setup, 2)
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 6)
       expect(captureText(setup)).toContain("@fs:pending notes.md")
 
       setup.mockInput.pressEnter()

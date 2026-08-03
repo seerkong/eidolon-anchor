@@ -56,6 +56,20 @@ describe("provider retry classification", () => {
     expect(classification.retryScope).toBe("stream_recover");
     expect(classification.replaySafety).toBe("safe_same_contract");
     expect(policy.maxRetries).toBe(1);
+    expect(policy.maxTotalElapsedSeconds).toBeGreaterThan(120);
+  });
+
+  it("allows one retry after a transport timeout that outlives the generic retry budget", () => {
+    const error = new DOMException("The operation timed out.", "TimeoutError");
+    const classification = classifyProviderRetry(error);
+    const policy = resolveProviderRetryPolicy(classification.classificationReason);
+
+    expect(classification.retryable).toBe(true);
+    expect(classification.classificationReason).toBe("transport_timeout_retryable");
+    expect(classification.phase).toBe("before_accept");
+    expect(classification.replaySafety).toBe("safe_same_contract");
+    expect(policy.maxRetries).toBe(1);
+    expect(policy.maxTotalElapsedSeconds).toBeGreaterThan(300);
   });
 });
 
@@ -110,5 +124,37 @@ describe("provider retry executor", () => {
     ).rejects.toThrow("invalid api key");
 
     expect(attempts).toBe(1);
+  });
+
+  it("retries a native transport timeout after a five-minute first attempt", async () => {
+    const diagnostics: any[] = [];
+    let attempts = 0;
+    let now = 0;
+
+    const result = await executeWithProviderRetry(
+      async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          now = 295;
+          throw new DOMException("The operation timed out.", "TimeoutError");
+        }
+        return "ok";
+      },
+      {
+        stage: "stream",
+        providerId: "deepseek-iqingwa",
+        selectedModel: "deepseek-v4-flash",
+        now: () => now,
+        random: () => 0.5,
+        sleep: async () => {},
+        onDiagnostic: (event) => diagnostics.push(event),
+      },
+    );
+
+    expect(result).toBe("ok");
+    expect(attempts).toBe(2);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].classificationReason).toBe("transport_timeout_retryable");
+    expect(diagnostics[0].terminationReason).toBe("retry_scheduled");
   });
 });

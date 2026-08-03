@@ -105,6 +105,26 @@ describe("AiAgentOrchestratorDriver", () => {
     expect(driver.getState().fibers[fiberId].status).toBe("suspended");
   });
 
+  it("clears a queued resume when the running fiber fails", async () => {
+    const main = createActor({ key: "main" });
+    const vm = createVM({ controlActorKey: "main", actors: { main } });
+    const fiberId = `${main.key}:${main.id}`;
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId, vm, actor: main, messages: [], basePriority: 1 }],
+      runStep: async () => ({ kind: "fail", error: "synchronous preflight failure" }),
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+
+    // This is the interactive-turn race: resume_fiber can be observed after
+    // the scheduling tick has already moved the ready fiber to running.
+    driver.resumeFiber(fiberId, 1);
+    await driver.tickUntilForegroundSettled({ now: 1, maxTicks: 10, maxWallMs: 2_000 });
+    await flushMicrotasks();
+
+    expect(driver.getState().fibers[fiberId].status).toBe("failed");
+    expect(driver.inspectRuntime().pendingResumes).toEqual([]);
+  });
+
   it("waits for registered foreground async completion before foreground settle returns", async () => {
     const main = createActor({ key: "main" });
     const vm = createVM({

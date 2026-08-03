@@ -6,6 +6,7 @@ import type {
   Session,
   Message,
   Part,
+  FilePart,
   AssistantMessage,
   Command,
   Question,
@@ -116,6 +117,25 @@ function toRuntimeInputContent(parts?: Part[]): InputContentPart[] {
     if (part.type === "text") return [{ type: "text", text: part.text }]
     if (part.type !== "file") return []
     const filename = part.filename || undefined
+    const attachment = (part as FilePart & { attachment?: InputContentPart }).attachment
+    if (attachment?.type === "text") {
+      return [{
+        type: "text",
+        text: attachment.text,
+        filename: attachment.filename,
+        sourceDigest: attachment.sourceDigest,
+      }]
+    }
+    if (attachment?.type === "image") {
+      return [{
+        type: "image",
+        mime: attachment.mime,
+        dataUrl: attachment.dataUrl,
+        filename: attachment.filename,
+        sourceDigest: attachment.sourceDigest,
+        size: attachment.size,
+      }]
+    }
     if (part.url?.startsWith("data:image/")) {
       return [{ type: "image", mime: part.mime, dataUrl: part.url, filename }]
     }
@@ -270,7 +290,11 @@ function normalizePreviewText(value: unknown): string {
 
 function previewTextFromChatMessage(message: ChatMessage | null | undefined): string {
   if (!message) return ""
-  const content = normalizePreviewText(message.content)
+  const content = normalizePreviewText(
+    Array.isArray(message.content)
+      ? projectInputContentText(message.content)
+      : message.content,
+  )
   if (content) return content
   const reasoning = normalizePreviewText(message.reasoning_content)
   if (reasoning) return reasoning
@@ -1054,7 +1078,8 @@ export function createTuiRuntimeClient(options?: {
   }): { info: Message; parts: Part[] } {
     const createdAt = Date.now() + params.messageIndex
     const role = String(params.message?.role ?? "assistant")
-    const rawContent = String(params.message?.content ?? "")
+    const messageContent = params.message?.content
+    const rawContent = typeof messageContent === "string" ? messageContent : ""
     const parsedToolContent = role === "tool" ? tryParseJson(rawContent) : null
     const displayContent =
       parsedToolContent
@@ -1063,6 +1088,60 @@ export function createTuiRuntimeClient(options?: {
       && typeof (parsedToolContent as Record<string, unknown>).rawText === "string"
         ? String((parsedToolContent as Record<string, unknown>).rawText)
         : rawContent
+    const buildContentParts = (messageID: string): Part[] => {
+      if (!Array.isArray(messageContent)) {
+        return [{
+          id: nextPartId(),
+          sessionID: params.sessionID,
+          messageID,
+          type: "text",
+          text: displayContent,
+          synthetic: false,
+          ignored: false,
+        }]
+      }
+
+      return messageContent.flatMap((contentPart: InputContentPart): Part[] => {
+        if (contentPart?.type === "text" && typeof contentPart.text === "string") {
+          return [{
+            id: nextPartId(),
+            sessionID: params.sessionID,
+            messageID,
+            type: "text",
+            text: contentPart.text,
+            synthetic: false,
+            ignored: false,
+            filename: contentPart.filename,
+            sourceDigest: contentPart.sourceDigest,
+          }]
+        }
+        if (contentPart?.type === "image" && typeof contentPart.mime === "string") {
+          return [{
+            id: nextPartId(),
+            sessionID: params.sessionID,
+            messageID,
+            type: "file",
+            filename: contentPart.filename,
+            mime: contentPart.mime,
+            url: contentPart.dataUrl,
+            attachment: { ...contentPart },
+          } as FilePart]
+        }
+        if (contentPart?.type === "file_reference" && typeof contentPart.path === "string") {
+          return [{
+            id: nextPartId(),
+            sessionID: params.sessionID,
+            messageID,
+            type: "file",
+            filename: contentPart.filename,
+            mime: contentPart.mime || "application/octet-stream",
+            source: { type: "file", path: contentPart.path },
+            attachment: { ...contentPart },
+          } as FilePart]
+        }
+        return []
+      })
+    }
     if (role === "user") {
       const info: Message = {
         id: nextMessageId(),
@@ -1072,17 +1151,7 @@ export function createTuiRuntimeClient(options?: {
         agent: "build",
         variant: "history",
       } as Message
-      const parts: Part[] = [
-        {
-          id: nextPartId(),
-          sessionID: params.sessionID,
-          messageID: info.id,
-          type: "text",
-          text: displayContent,
-          synthetic: false,
-          ignored: false,
-        },
-      ]
+      const parts = buildContentParts(info.id)
       return { info, parts }
     }
 
@@ -1111,15 +1180,7 @@ export function createTuiRuntimeClient(options?: {
         text: params.message.reasoning_content,
       })
     }
-    parts.push({
-      id: nextPartId(),
-      sessionID: params.sessionID,
-      messageID: info.id,
-      type: "text",
-      text: displayContent,
-      synthetic: false,
-      ignored: false,
-    })
+    parts.push(...buildContentParts(info.id))
     return { info, parts }
   }
 
@@ -2228,6 +2289,7 @@ export function createTuiRuntimeClient(options?: {
 
       let finalText = ""
       let sawChunk = false
+      let terminalError: unknown
       let historySub: { unsubscribe: () => void } | undefined
       try {
         const runtime = await ensureSessionRuntime(state)
@@ -2288,13 +2350,18 @@ export function createTuiRuntimeClient(options?: {
         })
       } catch (error) {
         if ((error as { code?: unknown } | null)?.code === "unsupported_modality") {
-          await setSessionStatus(state, "idle")
-          await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
-          throw error
+          terminalError = error
+          if (!currentState?.part.text) {
+            finalText = error instanceof Error ? error.message : String(error)
+            await appendChunk(finalText)
+          } else {
+            finalText = currentState.part.text
+          }
+        } else {
+          const message = error instanceof Error ? error.message : String(error)
+          finalText = `Runtime error: ${message}`
+          await appendChunk(finalText)
         }
-        const message = error instanceof Error ? error.message : String(error)
-        finalText = `Runtime error: ${message}`
-        await appendChunk(finalText)
       } finally {
         historySub?.unsubscribe()
       }
@@ -2315,6 +2382,7 @@ export function createTuiRuntimeClient(options?: {
       await hydratePendingQuestionsFromSnapshot(state)
       await setSessionStatus(state, "idle")
       await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
+      if (terminalError) throw terminalError
       const lastAssistant = finalizedStates[finalizedStates.length - 1]
       if (!lastAssistant) {
         const lastTool = Array.from(toolPartsByCallID.values()).at(-1)

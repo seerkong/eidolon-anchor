@@ -134,6 +134,7 @@ export const thread = cmd({
       return piped ? piped + "\n" + args.prompt : args.prompt
     })
 
+    const attachmentResolver = createLocalAttachmentResolver()
     configureTuiRuntime({
       workDir: cwd,
       adapter: args.adapter,
@@ -142,7 +143,7 @@ export const thread = cmd({
       debug: args.debug,
       mcp: args.mcp,
       entryType: "tui",
-      attachmentResolver: createLocalAttachmentResolver(),
+      attachmentResolver,
       metadata: buildTuiThreadRuntimeMetadata(cwd, args),
     })
 
@@ -153,6 +154,7 @@ export const thread = cmd({
     await tuiA1Tui({
       directory: cwd,
       isAttachmentFile: isLocalAttachmentFile,
+      attachmentResolver,
       args: {
         continue: args.continue,
         sessionID: args.session,

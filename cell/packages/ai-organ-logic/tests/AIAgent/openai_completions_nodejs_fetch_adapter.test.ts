@@ -115,4 +115,85 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
       { role: "assistant", content: "visible answer", reasoning_content: "answer reasoning" },
     ]);
   });
+
+  it("keeps transport timeout controls out of the request body and aborts a stalled header wait", async () => {
+    let body: Record<string, unknown> = {};
+    let fetchSignal: AbortSignal | undefined;
+    const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
+      apiKey: "test-key",
+      baseUrl: "https://api.deepseek.com/v1",
+      providerOptions: {
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body ?? "{}"));
+          fetchSignal = init?.signal ?? undefined;
+          return await new Promise<Response>((_resolve, reject) => {
+            fetchSignal?.addEventListener(
+              "abort",
+              () => reject(fetchSignal?.reason),
+              { once: true },
+            );
+          });
+        },
+      },
+    });
+
+    let error: unknown;
+    try {
+      await adapter.createStream({
+        model: "deepseek-v4-flash",
+        messages: [{ role: "user", content: "hello" }],
+        tools: [],
+        extraBody: {
+          timeout: 1,
+          first_event_timeout_seconds: 0.01,
+          stream_idle_timeout_seconds: 0.01,
+          temperature: 0.2,
+        },
+      });
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(
+      "first event exceeded timeout after 0.01s",
+    );
+    expect(fetchSignal?.aborted).toBe(true);
+    expect(body.temperature).toBe(0.2);
+    expect(body.timeout).toBeUndefined();
+    expect(body.first_event_timeout_seconds).toBeUndefined();
+    expect(body.stream_idle_timeout_seconds).toBeUndefined();
+  });
+
+  it("times out when response headers arrive but the first SSE event never does", async () => {
+    const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
+      apiKey: "test-key",
+      baseUrl: "https://api.deepseek.com/v1",
+      providerOptions: {
+        fetch: async () =>
+          new Response(new ReadableStream({ start() {} }), {
+            status: 200,
+            headers: { "Content-Type": "text/event-stream" },
+          }),
+      },
+    });
+    const result = await adapter.createStream({
+      model: "deepseek-v4-flash",
+      messages: [{ role: "user", content: "hello" }],
+      tools: [],
+      extraBody: { first_event_timeout_seconds: 0.01 },
+    });
+
+    let error: unknown;
+    try {
+      await result.stream[Symbol.asyncIterator]().next();
+    } catch (caught) {
+      error = caught;
+    }
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain(
+      "first event exceeded timeout after 0.01s",
+    );
+  });
 });

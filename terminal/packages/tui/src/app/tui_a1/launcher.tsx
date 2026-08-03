@@ -11,11 +11,13 @@ import {
 import { restoreTuiTerminalModes } from "../../support/util/terminal-restore"
 import { defaultTuiA1Selection, type TuiA1Selection } from "./data"
 import { TuiA1Shell } from "./shell"
+import type { AttachmentResolverPort } from "@cell/ai-core-contract"
 
 type TuiA1Input = {
   args: Partial<Args>
   directory?: string
   isAttachmentFile?: (candidate: string) => boolean
+  attachmentResolver?: AttachmentResolverPort
   onExit?: () => Promise<void>
 }
 
@@ -77,6 +79,7 @@ export async function tuiA1Tui(input: TuiA1Input) {
         directory={directory}
         initialPrompt={input.args.prompt}
         isAttachmentFile={input.isAttachmentFile}
+        attachmentResolver={input.attachmentResolver}
         onExit={input.onExit}
         selection={selection}
         selectionOverride={selectionOverride}

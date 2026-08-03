@@ -87,6 +87,7 @@ async function main() {
     return piped ? piped + "\n" + args.prompt : args.prompt
   })()
 
+  const attachmentResolver = createLocalAttachmentResolver()
   configureTuiRuntime({
     workDir: cwd,
     adapter: args.adapter,
@@ -95,12 +96,13 @@ async function main() {
     debug: args.debug,
     mcp: args.mcp,
     entryType: "tui",
-    attachmentResolver: createLocalAttachmentResolver(),
+    attachmentResolver,
   })
 
   await tuiA1Tui({
     directory: cwd,
     isAttachmentFile: isLocalAttachmentFile,
+    attachmentResolver,
     args: {
       agent: args.agent,
       continue: args.continue,

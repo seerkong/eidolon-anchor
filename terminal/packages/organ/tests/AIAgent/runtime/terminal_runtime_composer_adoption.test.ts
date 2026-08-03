@@ -83,6 +83,85 @@ afterEach(async () => {
 })
 
 describe("TerminalRuntime composer adoption", () => {
+  it("settles an unsupported image turn with its modality error and remains reusable", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "terminal-runtime-composer-home-"))
+    fs.mkdirSync(path.join(activeHomeDir, ".eidolon"), { recursive: true })
+    fs.writeFileSync(
+      path.join(activeHomeDir, ".eidolon", "llm-provider.json"),
+      JSON.stringify(
+        {
+          providers: [
+            {
+              id: "deepseek-test",
+              adapter: "deepseek",
+              options: { baseURL: "https://api.example.com", apiKey: "test-key" },
+              models: [
+                {
+                  id: "deepseek-v4-flash",
+                  limits: { context: 128000, output: 8192 },
+                  capabilities: { modalities: { input: ["text"], output: ["text"] } },
+                },
+              ],
+            },
+          ],
+        },
+        null,
+        2,
+      ),
+    )
+    fs.writeFileSync(
+      path.join(activeHomeDir, ".eidolon", "agent-present.json"),
+      JSON.stringify(
+        {
+          preset: "default",
+          presets: { default: { main: { model: "deepseek-test/deepseek-v4-flash" } } },
+        },
+        null,
+        2,
+      ),
+    )
+    process.env.HOME = activeHomeDir
+
+    let providerCalls = 0
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "deepseek" as const,
+      async createStream() {
+        providerCalls += 1
+        async function* stream() {
+          yield { choices: [{ delta: { content: "ok" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    configureTerminalRuntime({ workDir: activeWorkdir, mcp: false })
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+    expect(runtime).toBeTruthy()
+
+    const rejected = runtime!.turn([
+      { type: "text", text: "inspect this image" },
+      {
+        type: "image",
+        mime: "image/png",
+        dataUrl: "data:image/png;base64,iVBORw0KGgo=",
+        filename: "screen.png",
+      },
+    ])
+    await expect(Promise.race([
+      rejected,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("turn did not settle")), 3_000)),
+    ])).rejects.toMatchObject({
+      code: "unsupported_modality",
+      message: expect.stringContaining("does not support image input"),
+    })
+    expect(providerCalls).toBe(0)
+
+    const reply = await runtime!.turn("continue with text only")
+    expect(reply).toContain("ok")
+    expect(providerCalls).toBe(1)
+  })
+
   it("passes model-level reasoning effort into LLM request extraBody", async () => {
     activeWorkdir = makeTempWorkdir()
     activeHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), "terminal-runtime-composer-home-"))

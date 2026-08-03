@@ -92,4 +92,49 @@
       <evidence ?>Coding attractors: observability-before-speculation and verifiability-first.</?>
     )>
   )>
+  <decision #add-tui-composer-attachments.input-intent-boundary {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>如何同时支持附件与普通文件路径文本而不误判？</?>
+    <answer { }
+    (
+      <raw-answer ?>用户确认鼠标拖入产生的有效文件路径应弹出简短“附件 / 引用 / 路径文本”三选一，以便精确控制而不采用隐式行为。</?>
+      <decision-text ?>bracketed-paste 完整解析为存在文件集合时统一弹三选一：附件按值导入 session asset，引用保留 local file_reference，路径文本原样插入；选择前不读取文件或创建 part。Ctrl+O/@fs 与二进制剪贴板图片保持显式快捷入口。</?>
+      <rationale ?>OpenTUI/标准终端通常不能区分拖入产生的路径 bytes 与剪贴板路径 bytes；路径存在性只能识别候选，不能替代用户意图，因此由显式选择消除歧义。</?>
+      <evidence ?>OpenTUI PasteMetadata 仅含 mimeType/kind；OpenCode 官方文档以 @ 为文本文件首选入口，本地 OpenCode 源码的存在路径启发式具有同样歧义。</?>
+    )>
+  )>
+  <decision #add-tui-composer-attachments.attachment-asset-storage {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>大附件如何既可恢复又不写入 XNL 日志？</?>
+    <answer { }
+    (
+      <raw-answer ?>附件可能很大，不能作为结构化数据直接存到日志。</?>
+      <decision-text ?>attachment-derived text/image 内容写入 session-scoped content-addressed asset 文件；history/diagnostic XNL 只保存引用和有界摘要，恢复时校验并物化。</?>
+      <rationale ?>把 durable payload 与审计日志分离，可避免 XNL 膨胀，同时保留 session recovery 与 provider replay。</?>
+      <evidence ?>当前 StructuredContent 与 semantic_user_input diagnostic 会内联 text/data URL；OpenCode server 也先 materialize attachment 再进入模型输入并设独立大小边界。</?>
+    )>
+  )>
+  <decision #add-tui-composer-attachments.actor-secret-redaction {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>恢复所需 modelConfig 如何避免在 actor.json 泄露 API key？</?>
+    <answer { }
+    (
+      <raw-answer ?>用户要求修复 actor 中明文 provider API key。</?>
+      <decision-text ?>snapshot 只持久化非敏感 model selection/capability；凭据字段递归脱敏，加载时占位符归一为空，adapter 从当前 provider 配置重新注入。</?>
+      <rationale ?>provider 配置才是凭据真源，session snapshot 不应复制 secret；当前 adapter assembly 已支持以 current defaults 填充缺失 override。</?>
+      <evidence ?>LocalFileRuntimeSnapshotRepository 当前原样写 modelConfig；ShellRuntimeSupport 会从当前 provider config 合并缺失 apiKey/options。</?>
+    )>
+  )>
 )>

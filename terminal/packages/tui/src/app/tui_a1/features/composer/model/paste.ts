@@ -5,6 +5,7 @@ import { produce } from "solid-js/store"
 import type { ExtmarkStore } from "./extmarks"
 import type { PromptInfo } from "./prompt-info"
 import { clonePromptInfo, sortPromptParts } from "./prompt-parts"
+import type { InputImageContentPart, InputTextContentPart } from "@shared/composer"
 
 export type AttachmentPathPlatform = "win32" | "posix"
 
@@ -13,6 +14,7 @@ export type AttachmentPartInput = {
   filename?: string
   mime?: string
   url?: string
+  attachment?: InputTextContentPart | InputImageContentPart
 }
 
 function decodeFileUri(candidate: string, platform: AttachmentPathPlatform): string | null {
@@ -353,9 +355,10 @@ export function insertAttachmentParts(
       mime: file.mime ?? "text/plain",
       filename: file.filename ?? path.basename(file.path) ?? file.path,
       ...(file.url ? { url: file.url } : {}),
+      ...(file.attachment ? { attachment: { ...file.attachment } } : {}),
       source: {
         type: "file",
-        path: file.path,
+        path: file.attachment ? file.filename ?? path.basename(file.path) : file.path,
         text: {
           start,
           end: start + virtualText.length,
@@ -374,6 +377,20 @@ export function insertAttachmentParts(
 
   nextPrompt.parts = sortPromptParts([...nextPrompt.parts, ...additions])
 
+  return nextPrompt
+}
+
+export function insertPlainPromptText(
+  prompt: PromptInfo,
+  text: string,
+  offset = prompt.input.length,
+): PromptInfo {
+  const nextPrompt = clonePromptInfo(prompt)
+  const clampedOffset = Math.max(0, Math.min(offset, nextPrompt.input.length))
+  nextPrompt.input = nextPrompt.input.slice(0, clampedOffset) + text + nextPrompt.input.slice(clampedOffset)
+  for (const part of nextPrompt.parts) {
+    shiftPromptPartRanges(part, text.length, clampedOffset)
+  }
   return nextPrompt
 }
 

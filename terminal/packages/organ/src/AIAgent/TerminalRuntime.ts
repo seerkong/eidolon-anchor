@@ -36,6 +36,7 @@ import {
   recoverOrCreateShellRuntime,
   refreshProviderTransportMarkers,
   setDebug,
+  validateProviderPromptInputModalities,
   getConversationActorRawStateFromVm,
   getConversationSessionRawStateFromVm,
   materializeConversationHistoryMessagesFromVm,
@@ -1061,7 +1062,11 @@ async function createRuntimeBridge(
     runtimeHistoryGraph.consumeSemanticEvent(event)
     if (event.event_type === "semantic_error" && activeTurn) {
       const message = event.error.message || event.error.detail_text || "runtime error"
-      activeTurn.runtimeError = new Error(message)
+      const runtimeError = new Error(message) as Error & { code?: string }
+      if (typeof event.error.code === "string" && event.error.code) {
+        runtimeError.code = event.error.code
+      }
+      activeTurn.runtimeError = runtimeError
     }
     if (!activeTurn && routing.notifyAsync) {
       asyncSemanticRuntimeBridge.consumeSemanticEvent(event)
@@ -1224,6 +1229,17 @@ async function createRuntimeBridge(
     return resolved
   }
 
+  const resolveAndValidateInputContent = async (input: InputContent): Promise<InputContentPart[]> => {
+    const resolved = await resolveInputContent(input)
+    validateProviderPromptInputModalities({
+      vm,
+      actor,
+      model: actor.modelConfig.model,
+      messages: [{ role: "user", content: resolved }],
+    })
+    return resolved
+  }
+
   const enqueueUserProvidedInput = (input: InputContent): InputContent => {
     const inputText = projectInputContentText(input)
     const expanded = slashRuntime?.resolveCommand(inputText) ?? null
@@ -1289,7 +1305,7 @@ async function createRuntimeBridge(
   }) => {
     if (activeTurn) {
       if (params.enqueueInput) {
-        return resolveInputContent(params.input).then((resolved) => {
+        return resolveAndValidateInputContent(params.input).then((resolved) => {
           enqueueUserProvidedInput(resolved)
           void persistSnapshot()
           return ""
@@ -1376,7 +1392,7 @@ async function createRuntimeBridge(
           }
         }
         if (params.enqueueInput) {
-          enqueueUserProvidedInput(await resolveInputContent(params.input))
+          enqueueUserProvidedInput(await resolveAndValidateInputContent(params.input))
         }
         const timeoutSeconds =
           params.opts?.timeoutSeconds !== undefined ? params.opts.timeoutSeconds : runtimeConfig.timeoutSeconds

@@ -137,6 +137,7 @@ import {
   normalizeProviderModelOptions,
   splitResponsesModelOptions,
 } from "../llm/ProviderOptions";
+import { classifyProviderRetry } from "../llm/ProviderErrors";
 import {
   buildOpenAIResponsesInstructionPlan,
   buildOpenAIResponsesInstructions,
@@ -4847,6 +4848,7 @@ export async function aiAgentLoopStreaming({
       });
       return msg;
     } catch (error) {
+      const retryClassification = classifyProviderRetry(error);
       trackProviderCallFailed(vm, effectId, error, abortController.signal.aborted);
       appendRuntimeControlLifecycleEvidenceFromVm(vm, {
         kind: "failed",
@@ -4854,7 +4856,7 @@ export async function aiAgentLoopStreaming({
         effectId,
         handlerKey: `llm:${llmAdapter.type}`,
         error: error instanceof Error ? error.message : String(error),
-        retryable: false,
+        retryable: retryClassification.retryable,
       });
       throw error;
     } finally {
@@ -6117,6 +6119,7 @@ export async function aiAgentCooperativeStep(params: {
             return;
           }
           trackProviderCallFailed(vm, opId, error, false);
+          const retryClassification = classifyProviderRetry(error);
           const message = `Error: ${error instanceof Error ? error.message : String(error)}`;
           emitVisibleAssistantError(vm, actor, message);
           appendRuntimeControlLifecycleEvidenceFromVm(vm, {
@@ -6125,7 +6128,7 @@ export async function aiAgentCooperativeStep(params: {
             effectId: opId,
             handlerKey: `llm:${llmAdapter.type}`,
             error: message,
-            retryable: false,
+            retryable: retryClassification.retryable,
           });
           emitAiGeneratedCompletion({
             opId,

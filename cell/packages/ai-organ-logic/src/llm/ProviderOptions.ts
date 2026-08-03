@@ -1,6 +1,13 @@
 import type { ResponsesContinuationConfig } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 
 const INTERNAL_PROVIDER_EXTRA_BODY_KEYS = new Set(["prompt_plan", "work_context"]);
+const PROVIDER_TRANSPORT_REQUEST_OPTION_KEYS = new Set([
+  "timeout",
+  "first_event_timeout",
+  "first_event_timeout_seconds",
+  "stream_idle_timeout",
+  "stream_idle_timeout_seconds",
+]);
 
 function toSnakeCase(value: string): string {
   return value
@@ -49,6 +56,28 @@ export function sanitizeProviderExtraBody(extraBody?: Record<string, unknown>): 
   if (!extraBody || typeof extraBody !== "object" || Array.isArray(extraBody)) return {};
   return Object.fromEntries(
     Object.entries(extraBody).filter(([key, value]) => value !== undefined && !INTERNAL_PROVIDER_EXTRA_BODY_KEYS.has(key)),
+  );
+}
+
+export function sanitizeProviderRequestBodyOptions(
+  requestOptions?: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!requestOptions || typeof requestOptions !== "object" || Array.isArray(requestOptions)) return {};
+  return Object.fromEntries(
+    Object.entries(requestOptions).filter(
+      ([key, value]) => value !== undefined && !PROVIDER_TRANSPORT_REQUEST_OPTION_KEYS.has(key),
+    ),
+  );
+}
+
+export function extractProviderTransportRequestOptions(
+  requestOptions?: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!requestOptions || typeof requestOptions !== "object" || Array.isArray(requestOptions)) return {};
+  return Object.fromEntries(
+    Object.entries(requestOptions).filter(
+      ([key, value]) => value !== undefined && PROVIDER_TRANSPORT_REQUEST_OPTION_KEYS.has(key),
+    ),
   );
 }
 

@@ -2,14 +2,14 @@
 <Track id="add-tui-composer-attachments" version="1" xmlns:cdt="urn:codument:v1">
   <Metadata>
     <Status>completed</Status>
-    <Goal>让 TUI Composer 的文件附件可拖入、可原子编辑并以模型能力驱动的结构化输入安全到达视觉 provider。</Goal>
-    <Description>补齐 Composer 附件交互、canonical multimodal runtime ingress、OpenAI 图片 projection 与 DeepSeek V4 Flash 的真实能力边界。</Description>
+    <Goal>让 TUI Composer 以显式用户意图区分路径文本、文件引用与图片附件，并让附件和 provider 凭据安全持久化。</Goal>
+    <Description>补齐 Composer 附件交互、canonical multimodal runtime ingress、引用式附件持久化、actor snapshot 凭据脱敏、OpenAI 图片 projection 与 DeepSeek V4 Flash 的真实能力边界。</Description>
     <QuestionMode>decision-tree</QuestionMode>
     <QuestionSeverity>light</QuestionSeverity>
     <CommitMode>manual</CommitMode>
     <GapRound>2</GapRound>
     <CreatedAt>2026-08-02T02:11:28+08:00</CreatedAt>
-    <UpdatedAt>2026-08-02T05:43:52+08:00</UpdatedAt>
+    <UpdatedAt>2026-08-03T16:19:30+08:00</UpdatedAt>
   </Metadata>
 
   <Ports scope="track">
@@ -143,6 +143,44 @@
           <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block" verify-round="false"/></Hook>
           <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
         </Hooks>
+      </TaskGroup>
+
+      <TaskGroup id="P6" name="附件意图与安全持久化加固" status="DONE" order="5">
+        <Description>以显式三选一修复路径意图误判，并修复附件大 payload 写入日志和 actor snapshot 明文凭据问题。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>完整有效路径 paste 弹出“附件 / 引用 / 路径文本”，三种选择产生各自明确且互不混淆的语义</cdt:Criterion>
+          <cdt:Criterion>conversation 与 diagnostic XNL 只记录附件引用/摘要，内容由独立资产文件恢复</cdt:Criterion>
+          <cdt:Criterion>actor.json 不含 provider API key 明文，当前配置仍可为恢复后的 runtime 注入凭据</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T6.1" name="补充输入意图、附件日志与凭据失败测试" status="DONE" order="0" priority="P0">
+            <Description>用反例锁定存在路径只触发三选一且选择前不创建 part；覆盖附件/引用/路径文本三种结果、附件 payload 不进入 XNL 日志、actor snapshot 不出现明文 API key 且恢复可继续使用当前配置。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.1-AC1" checked="true">新增测试在现有自动路径识别、inline StructuredContent 与明文 modelConfig 下稳定 RED</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.2" name="实现显式附件意图与引用式资产持久化" status="DONE" order="1" priority="P0">
+            <Description>将存在路径自动升级替换为“附件 / 引用 / 路径文本”选择器；保留 Ctrl+O、剪贴板图片和显式 @fs 入口；附件按值写入 content-addressed asset，引用按路径延迟解析，history/diagnostic XNL 仅保留安全引用和摘要。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.2-AC1" checked="true">路径文本、文件引用、附件与图片 part 的创建渠道和 provider 语义各自明确</cdt:Criterion>
+              <cdt:Criterion id="T6.2-AC2" checked="true">session recovery 可从资产文件恢复完整内容，XNL 不含附件正文/base64/绝对路径</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.3" name="实现 actor snapshot 凭据脱敏与恢复注入" status="DONE" order="2" priority="P0">
+            <Description>在 snapshot 写盘边界递归脱敏 apiKey/api_key/authorization/token 等 provider secret；加载时不把脱敏占位符作为有效凭据，adapter 继续从当前 provider config 解析真实值。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.3-AC1" checked="true">actor.json 及嵌套 model options 不含测试 secret</cdt:Criterion>
+              <cdt:Criterion id="T6.3-AC2" checked="true">恢复后的 provider/model 选择保留且当前配置凭据可用于 adapter</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.4" name="跨层回归、构建与本地安装" status="DONE" order="3" priority="P0">
+            <Description>运行 Composer、conversation、diagnostics、snapshot、provider 聚焦测试，严格验证 track，构建并安装 terminal TUI。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.4-AC1" checked="true">定向测试、git diff check、Codument strict validation 与 TUI build 通过</cdt:Criterion>
+              <cdt:Criterion id="T6.4-AC2" checked="true">若安装目标被运行进程占用，明确报告并保留已构建产物</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
       </TaskGroup>
     </SubNodes>
   </TaskSpace>

@@ -1,0 +1,11 @@
+<type_def lang="typescript" ?>
+export interface WorkflowInspectCapabilityOuterInput {}
+
+export type WorkflowInspectCapabilityOuterOutput = string;
+
+export type WorkflowInspectCapability = (input: WorkflowInspectCapabilityOuterInput) => WorkflowInspectCapabilityOuterOutput;
+</?>
+
+<workflow ?>
+Use this tool before authoring or running AI workflow resources inside Eidolon. It reports the native capability boundary and whether the host injected workflow roots.
+</?>

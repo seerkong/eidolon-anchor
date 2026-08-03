@@ -1,0 +1,11 @@
+import type {
+  WorkflowValidateResourceRefOuterConfig,
+  WorkflowValidateResourceRefOuterInput,
+  WorkflowValidateResourceRefOuterOutput,
+  WorkflowValidateResourceRefOuterRuntime,
+} from "./OuterTypes"
+
+export type WorkflowValidateResourceRefInnerRuntime = WorkflowValidateResourceRefOuterRuntime
+export type WorkflowValidateResourceRefInnerInput = WorkflowValidateResourceRefOuterInput
+export type WorkflowValidateResourceRefInnerConfig = WorkflowValidateResourceRefOuterConfig
+export type WorkflowValidateResourceRefInnerOutput = WorkflowValidateResourceRefOuterOutput

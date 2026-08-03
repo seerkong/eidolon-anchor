@@ -19,6 +19,8 @@
       "@cell/ai-core-contract/*": ["../cell/packages/ai-core-contract/src/*"],
       "@cell/ai-core-logic": ["../cell/packages/ai-core-logic/src/index.ts"],
       "@cell/ai-core-logic/*": ["../cell/packages/ai-core-logic/src/*"],
+      "@cell/ai-workflow-contract": ["../cell/packages/ai-workflow-contract/src/index.ts"],
+      "@cell/ai-workflow-contract/*": ["../cell/packages/ai-workflow-contract/src/*"],
       "@cell/ai-support": ["../cell/packages/ai-support/src/index.ts"],
       "@cell/ai-support/*": ["../cell/packages/ai-support/src/*"],
       "@cell/ai-organ-contract": ["../cell/packages/ai-organ-contract/src/index.ts"],

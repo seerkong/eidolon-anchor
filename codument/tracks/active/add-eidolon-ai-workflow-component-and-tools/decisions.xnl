@@ -1,0 +1,29 @@
+<decision #track.add-eidolon-ai-workflow-component-and-tools.component-boundary {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Workflow native tools 是否直接实现 workflow command/query？</?>
+  <answer { }
+  (
+    <raw-answer ?>否。</?>
+    <decision-text ?>Workflow native tools 必须调用共享 workflow component/service；后续 CLI 也复用同一边界。</?>
+    <rationale ?>Mission 已确定 component-first，避免 tool 与 CLI 平行实现 workflow core。</?>
+    <evidence ?>mission decisions；design.md。</?>
+  )>
+)>
+
+<decision #track.add-eidolon-ai-workflow-component-and-tools.authoring-write-level {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>第一阶段 authoring tools 是否直接写宿主文件？</?>
+  <answer { }
+  (
+    <raw-answer ?>不直接写。</?>
+    <decision-text ?>第一阶段生成 structured bundle draft / patch evidence，并由 component 校验 refs；物理写入 adapter 留给后续 CLI/tool runtime 接入。</?>
+    <rationale ?>AI 不应成为最终文件写入 authority；先建立可复用 command/query 与结构化 evidence 更安全。</?>
+    <evidence ?>mission decisions；proposal.md；design.md。</?>
+  )>
+)>

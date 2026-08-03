@@ -1,0 +1,5 @@
+<ToolPrompt #WorkflowCreateBundle.detail>
+(
+  <usage ?>Use this when the user asks to create an AIDataWorkflow or AICtrlWorkflow resource bundle during an Eidolon conversation. Apply the returned draft only through an approved workflow write adapter or CLI command.</?>
+  <safety ?>Do not provide host absolute paths as workflow refs. The component validates bundle refs and reports diagnostics.</?>
+)>

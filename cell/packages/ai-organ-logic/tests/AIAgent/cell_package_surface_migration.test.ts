@@ -67,6 +67,7 @@ describe("cell package migration surface", () => {
       "ai-support",
       "ai-core-contract",
       "ai-core-logic",
+      "ai-workflow-contract",
       "ai-organ-contract",
       "ai-organ-logic",
       "ai-composer",
@@ -372,6 +373,11 @@ describe("cell package migration surface", () => {
       path.join(repoRoot, "cell", "packages", "ai-core-logic", "package.json"),
     )
     expect(aiCoreLogicPackageJson.dependencies?.["@cell/ai-core-contract"]).toBe("workspace:*")
+
+    const aiOrganLogicPackageJson = readJson<{ dependencies?: Record<string, string> }>(
+      path.join(repoRoot, "cell", "packages", "ai-organ-logic", "package.json"),
+    )
+    expect(aiOrganLogicPackageJson.dependencies?.["@cell/ai-workflow-contract"]).toBe("workspace:*")
   })
 
   it("limits legacy ai package names to migration guards only", () => {

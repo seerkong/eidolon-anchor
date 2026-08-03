@@ -1,0 +1,45 @@
+<behavior-patch capability="eidolon.ai-workflow-native-component" version="1">
+  <upsert selector="behavior://eidolon.ai-workflow-native-component/requirements/shared-component-authority">
+    <requirement id="shared-component-authority">
+      <statement>Eidolon AI workflow tools SHALL delegate workflow inspection, validation and authoring commands to a shared workflow component/service instead of implementing independent tool-local workflow logic.</statement>
+      <suite id="tool-service-sharing" name="Tool service sharing">
+        <case id="inspect-and-validate-use-component">
+          <given>WorkflowInspectCapability and WorkflowValidateResourceRef are registered as Eidolon native tools</given>
+          <when>the tools execute</when>
+          <then>they SHALL use the shared workflow component/service command or query boundary</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://eidolon.ai-workflow-native-component/requirements/controlled-authoring-tools">
+    <requirement id="controlled-authoring-tools">
+      <statement>Eidolon SHALL expose controlled workflow authoring tools that create or patch XNL workflow bundles through the workflow component write boundary.</statement>
+      <suite id="authoring-resource-safety" name="Authoring resource safety">
+        <case id="create-bundle-validates-resource-refs">
+          <given>a workflow create request contains bundle resource references</given>
+          <when>the workflow component prepares the bundle draft</when>
+          <then>the component SHALL validate resource refs and reject host absolute paths, traversal, naked relative paths, file refs and http refs</then>
+        </case>
+        <case id="authoring-output-is-structured">
+          <given>an AI agent asks to create or patch a workflow</given>
+          <when>the corresponding tool completes</when>
+          <then>the tool SHALL return structured JSON evidence describing files, refs and validation diagnostics</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://eidolon.ai-workflow-native-component/requirements/no-mcp-in-eidolon-integration">
+    <requirement id="no-mcp-in-eidolon-integration">
+      <statement>Eidolon AI workflow integration SHALL NOT add an MCP adapter or MCP tool surface in this track.</statement>
+      <suite id="surface-scope" name="Surface scope">
+        <case id="only-native-tools">
+          <given>workflow native component and tools are added to Eidolon</given>
+          <when>the integration surface is inspected</when>
+          <then>the added surface SHALL be Eidolon native tools only; MCP remains out of scope</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

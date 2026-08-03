@@ -1,0 +1,74 @@
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.surface-scope {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Eidolon 集成是否需要同时实现 MCP surface？</?>
+  <answer { }
+  (
+    <raw-answer ?>不需要。</?>
+    <decision-text ?>本次 Eidolon 集成只做对话内普通 AI tools 与 `eidolon workflow` CLI。MCP adapter 只属于 depa-flows 独立使用场景。</?>
+    <rationale ?>用户明确收敛范围：Eidolon 自己就是 agent runtime，不需要在本次集成里额外封装 MCP。</?>
+    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.component-first {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>`eidolon workflow` 应该独立实现，还是作为共享 component 的 CLI projection？</?>
+  <answer { }
+  (
+    <raw-answer ?>作为共享 component 的 CLI projection。</?>
+    <decision-text ?>先实现 Eidolon AI Workflow native component/service，再把它投影为对话 tools 和 CLI 命令。</?>
+    <rationale ?>避免 CLI、tool、runtime 各自实现一套 workflow 逻辑，保持 Data/Processor/Effect/Actor 边界清楚。</?>
+    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.authority-boundary {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>AI agent 是否可以直接成为 workflow 文件写入 authority？</?>
+  <answer { }
+  (
+    <raw-answer ?>不可以。</?>
+    <decision-text ?>AI 只产出 structured draft 或 patch；最终写入由 workflow component 执行 parse、validate、controlled write、validate、repair/publish。</?>
+    <rationale ?>这样对话 tool 与 CLI 都不会绕过 workflow authoring contract，也不会让普通文件写入变成业务资源 authority。</?>
+    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.runtime-reuse {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Workflow 是否创建独立 session/actor/effect persistence？</?>
+  <answer { }
+  (
+    <raw-answer ?>不创建。</?>
+    <decision-text ?>Workflow 自己只保存 workflow facts；session、actor、durable head、effect lifecycle 与恢复尽量复用 Eidolon 已有 runtime-control 体系。</?>
+    <rationale ?>用户明确要求执行 AI agent task 应由 Eidolon 现有 actor 体系承载，不应为 workflow 创建特例。</?>
+    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.resource-contract {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Workflow bundle authoring 应采用什么资源系统？</?>
+  <answer { }
+  (
+    <raw-answer ?>XNL resource bundle + `.eidolon` runtime roots。</?>
+    <decision-text ?>Authoring 使用 XNL，业务身份使用 `resource://&lt;FQN&gt;`，bundle 内部使用 `vfs://./...` / `vfs://@/...`，配置和密钥使用 `config://...` / `secret://...`；禁止 host absolute path、traversal、裸相对路径、`file://`、`http://`。</?>
+    <rationale ?>这与 depa-flows flow-dsl resource 标准和 Eidolon runtime root 注入边界一致，也避免 `.sparrow` 设计泄漏到 Eidolon。</?>
+    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+  )>
+)>

@@ -240,6 +240,16 @@ export function resolveRuntimeAuthorityRoot(workDir: string): string {
   return path.join(path.resolve(home), ".eidolon")
 }
 
+export function resolveRuntimeWorkflowRoots(workDir: string, authorityRoot: string): {
+  globalRoot: string
+  workspaceRoot: string
+} {
+  return {
+    globalRoot: path.join(path.resolve(authorityRoot), "workflows"),
+    workspaceRoot: path.join(path.resolve(workDir), ".eidolon", "workflows"),
+  }
+}
+
 export function normalizeTerminalRuntimeMetadata(
   workDir: string,
   metadata?: Record<string, unknown>,
@@ -261,6 +271,17 @@ export function normalizeTerminalRuntimeMetadata(
   normalized.local_permissions = {
     ...localPermissions,
     authority_root: authorityRoot,
+  }
+  const aiWorkflow = isPlainRecord(normalized.aiWorkflow) ? { ...normalized.aiWorkflow } : {}
+  const existingRoots = isPlainRecord(aiWorkflow.roots) ? { ...aiWorkflow.roots } : {}
+  const defaultRoots = resolveRuntimeWorkflowRoots(workDir, authorityRoot)
+  normalized.aiWorkflow = {
+    ...aiWorkflow,
+    roots: {
+      ...existingRoots,
+      globalRoot: typeof existingRoots.globalRoot === "string" ? existingRoots.globalRoot : defaultRoots.globalRoot,
+      workspaceRoot: typeof existingRoots.workspaceRoot === "string" ? existingRoots.workspaceRoot : defaultRoots.workspaceRoot,
+    },
   }
   return normalized
 }

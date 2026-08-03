@@ -1,0 +1,14 @@
+<decision #track.add-eidolon-workflow-runtime-run-tools.runtime-owner {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Workflow runtime tools 是否创建独立 workflow run store？</?>
+  <answer { }
+  (
+    <raw-answer ?>不创建。</?>
+    <decision-text ?>首版 workflow run/status/events/result/resume 复用 detached actor registry 与 observability facts。</?>
+    <rationale ?>Mission 决策要求 workflow 自己只保存 workflow facts，runtime facts 由 Eidolon actor/session/runtime-control 体系拥有。</?>
+    <evidence ?>mission decisions；design.md。</?>
+  )>
+)>

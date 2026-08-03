@@ -1,0 +1,98 @@
+<Mission id="establish-eidolon-ai-workflow-native-component-and-cli" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>在 Eidolon 中建立可由对话 tools 与 CLI 共享的 AI Workflow native component，并接入 authoring 与运行能力。</Goal>
+    <Description>将 depa-flows AI workflow 语义封装为 Eidolon native component；Eidolon 场景不做 MCP；CLI 只是同一 component 的 human-facing projection。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <Revision>9</Revision>
+    <CreatedAt>2026-08-03T10:38:51Z</CreatedAt>
+    <UpdatedAt>2026-08-03T11:34:03Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="mission">
+    <MaterialBundle role="state" name="analysis" domain="mission" path="vfs://./analysis/"/>
+    <MaterialBundle role="state" name="reports" domain="mission" path="vfs://./reports/"/>
+    <MaterialBundle role="output" name="tracks" domain="codument" path="vfs://@/codument/tracks/"/>
+  </Ports>
+
+  <cdt:ProjectRefs>
+    <cdt:ProjectRef id="host" kind="host"/>
+  </cdt:ProjectRefs>
+
+  <cdt:ActorSets default="eidolon-workflow-loop">
+    <cdt:ActorSet id="eidolon-workflow-loop">
+      <cdt:Actor role="MissionPlanner" project-ref="host"><Description>根据 Eidolon workflow component、tools、CLI 与 runtime evidence 切分 tracks，并在发现 actor/session 或 resource contract gap 时受控重规划。</Description></cdt:Actor>
+      <cdt:Actor role="MissionObserver" project-ref="host"><Description>读取 Eidolon workflow contract、ai-organ-logic、terminal CLI、runtime-control packages、tracks、archive、tests 与 mission reports 的实际态。</Description></cdt:Actor>
+      <cdt:Actor role="MissionReconciler" project-ref="host"><Description>比较共享 component 期望态与实现实际态，确认下一个 ready track 或普通分析任务；验证明确且无偏差时继续推进。</Description></cdt:Actor>
+      <cdt:Actor role="MissionApplier" project-ref="host"><Description>连续创建、执行、验证或归档 Eidolon workflow tracks；每个动作完成后用 tests、tool registry 或 CLI smoke evidence 校验，再继续 mission loop。</Description></cdt:Actor>
+    </cdt:ActorSet>
+  </cdt:ActorSets>
+
+  <TaskSpace id="space_establish-eidolon-ai-workflow-native-component-and-cli" name="establish-eidolon-ai-workflow-native-component-and-cli" version="1" cdt:child-mode="dag">
+    <Description>Eidolon AI Workflow native component, conversation tool, CLI and runtime integration mission.</Description>
+    <SubNodes>
+      <TaskGroup id="G1" name="证据盘点与设计固化" status="DONE" order="0">
+        <Description>确认既有 AI workflow contract/tools、Eidolon tool 注册、terminal CLI、actor/session/runtime-control 事实边界，并将本轮讨论固化到 mission。</Description>
+        <SubNodes>
+          <Task id="G1-T1" name="盘点现有 workflow contract、tools、CLI 与 runtime evidence" status="DONE" order="0"/>
+          <Task id="G1-T2" name="固化 component-first、no-MCP、resource-authority 和 runtime-reuse 决策" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="G2" name="Workflow component 与对话 tools 落地" status="DONE" order="1">
+        <Description>建立共享 workflow component/service，并让对话内 tools 调用该 component，而不是各自实现 workflow 逻辑。</Description>
+        <SubNodes>
+          <Task id="G2-T1" name="创建并执行 workflow component and tools track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="add-eidolon-ai-workflow-component-and-tools" project-ref="host"/>
+          </Task>
+          <Task id="G2-T2" name="验证对话 tools 共享 component/service" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="G3" name="eidolon workflow CLI authoring 落地" status="DONE" order="2">
+        <Description>增加 `eidolon workflow` CLI 命令族，使 init、validate、inspect、list、create/edit 等入口复用 workflow component/service。</Description>
+        <SubNodes>
+          <Task id="G3-T1" name="创建并执行 workflow CLI authoring commands track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="add-eidolon-workflow-cli-authoring-commands" project-ref="host"/>
+          </Task>
+          <Task id="G3-T2" name="验证 CLI 与对话 tools 共用 workflow component/service" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="G4" name="Workflow run/runtime 接入" status="DONE" order="3">
+        <Description>将 workflow run/status/events/result/resume 接入 Eidolon actor/session/runtime-control，workflow effect provider 不调用外部 CLI。</Description>
+        <SubNodes>
+          <Task id="G4-T1" name="创建并执行 workflow runtime run integration track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="add-eidolon-workflow-runtime-run-tools" project-ref="host"/>
+          </Task>
+          <Task id="G4-T2" name="验证 workflow facts 与 Eidolon runtime facts 的 authority 边界" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="VERIFY" name="总体验收与收口" status="DONE" order="4">
+        <Description>验证 mission 成功判据，确保 tools/CLI/runtime 共享 component 且没有 MCP 或平行实现泄漏。</Description>
+        <SubNodes>
+          <Task id="VERIFY-T1" name="运行 workflow contract、tools、CLI、runtime 相关测试" status="DONE" order="0"/>
+          <Task id="VERIFY-T2" name="执行 CLI smoke 与对话 tool registry 检查" status="DONE" order="1"/>
+          <Task id="VERIFY-T3" name="检查无 MCP scope 泄漏与无 parallel workflow core implementation" status="DONE" order="2"/>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule>
+    <Dag for="space_establish-eidolon-ai-workflow-native-component-and-cli">
+      <Node id="G2"><After ref="G1"/></Node>
+      <Node id="G3"><After ref="G2"/></Node>
+      <Node id="G4"><After ref="G3"/></Node>
+      <Node id="VERIFY"><After ref="G4"/></Node>
+    </Dag>
+  </Schedule>
+
+  <Hooks>
+    <Hook on="mission:after-node">
+      <cdt:MissionReconcile max-tracks="10" on-limit="checkpoint" on-drift="replan-or-block"/>
+    </Hook>
+  </Hooks>
+</Mission>

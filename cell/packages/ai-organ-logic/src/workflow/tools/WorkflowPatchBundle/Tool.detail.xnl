@@ -1,0 +1,5 @@
+<ToolPrompt #WorkflowPatchBundle.detail>
+(
+  <usage ?>Use this when the user asks to revise an existing AI workflow resource during an Eidolon conversation. Apply the plan only through a workflow write adapter or CLI command.</?>
+  <safety ?>Reject unsafe refs through the component validation result. Never treat a host absolute path as a workflow manifest ref.</?>
+)>

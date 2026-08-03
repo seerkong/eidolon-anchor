@@ -6,6 +6,7 @@ import { run } from "./commands/run"
 import { replay } from "./commands/replay"
 import { sessionUpgrade } from "./commands/session-upgrade"
 import { trace } from "./commands/trace"
+import { workflow } from "./commands/workflow"
 
 async function main() {
   await yargs(hideBin(process.argv))
@@ -15,6 +16,7 @@ async function main() {
     .command(replay)
     .command(sessionUpgrade)
     .command(trace)
+    .command(workflow)
     .command(thread)
     .demandCommand(1)
     .help()

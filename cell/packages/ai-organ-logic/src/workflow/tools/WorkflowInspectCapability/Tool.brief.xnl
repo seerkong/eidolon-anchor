@@ -1,0 +1,5 @@
+<tool {
+  name = "WorkflowInspectCapability"
+  namespace = "SysBuiltIn"
+  description = "Inspect the Eidolon-native AI workflow capability, available workflow forms, fact owner boundary and injected workflow roots."
+}>

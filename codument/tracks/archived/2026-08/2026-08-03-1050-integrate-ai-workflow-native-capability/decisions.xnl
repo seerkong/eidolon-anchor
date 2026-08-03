@@ -1,0 +1,24 @@
+<decisions #integrate-ai-workflow-native-capability {
+  version = "1"
+}
+(
+  <decision #eidolon.ai_workflow.first_slice {
+    status = "accepted"
+    priority = "P0"
+  }
+  (
+    <question ?>What is the first implementation slice for Eidolon AI workflow integration?</?>
+    <answer ?>Deliver native contract, native tool visibility/callability, effect adapter seam and profile registration path before implementing every depa-flows scheduler operation.</?>
+    <rationale ?>This makes the capability usable and testable inside Eidolon without prematurely duplicating runtime facts or overfitting scheduler internals.</?>
+  )>
+
+  <decision #eidolon.ai_workflow.tool_names {
+    status = "accepted"
+    priority = "P0"
+  }
+  (
+    <question ?>Which native tool names should be stable in the first slice?</?>
+    <answer ?>Use `WorkflowInspectCapability` and `WorkflowValidateResourceRef` for the initial native workflow tools.</?>
+    <rationale ?>These names are explicit, safe, and cover capability discovery plus authoring resource hygiene.</?>
+  )>
+)>

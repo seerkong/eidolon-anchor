@@ -1,0 +1,4 @@
+<ToolPrompt #WorkflowPatchBundle.brief>
+(
+  <summary ?>Plan a controlled patch for an AI workflow bundle. This tool validates the manifest ref and returns structured patch evidence; it does not write host files.</?>
+)>

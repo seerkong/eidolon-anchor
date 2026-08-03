@@ -1,0 +1,4 @@
+<ToolPrompt #WorkflowCreateBundle.brief>
+(
+  <summary ?>Create an AI workflow XNL bundle draft through the Eidolon workflow component. This tool returns structured draft files and validation diagnostics; it does not write host files.</?>
+)>

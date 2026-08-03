@@ -1,0 +1,49 @@
+<Track id="integrate-ai-workflow-native-capability" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Integrate the new AI workflow capability into Eidolon native contracts, tools and profile registration.</Goal>
+    <Description>Make Eidolon able to expose and call initial AI workflow native tools while preserving workflow fact authority boundaries.</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-03T07:34:43Z</CreatedAt>
+    <UpdatedAt>2026-08-03T07:50:42Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="codument" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="cell-packages" domain="source" path="vfs://@/cell/packages/"/>
+  </Ports>
+  <TaskSpace id="space_integrate-ai-workflow-native-capability" name="integrate-ai-workflow-native-capability" version="1">
+    <Description>Eidolon-side native AI workflow capability implementation.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Contract and package boundary" status="DONE" order="0">
+        <Description>Add the workflow contract package and data-subgraph boundary.</Description>
+        <SubNodes>
+          <Task id="T1.1" name="Add ai-workflow-contract package and tsconfig alias" status="DONE" order="0"/>
+          <Task id="T1.2" name="Define workflow refs, records and data-subgraph contract" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Native tools and effect seam" status="DONE" order="1">
+        <Description>Add native workflow tools under workflow-owned directories and an internal effect adapter seam.</Description>
+        <SubNodes>
+          <Task id="T2.1" name="Add workflow effects internal adapter entry" status="DONE" order="0"/>
+          <Task id="T2.2" name="Add workflow native tool bundle" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Composer, kernel and verification" status="DONE" order="2">
+        <Description>Register workflow tools through existing composer/kernel path and verify visibility/callability.</Description>
+        <SubNodes>
+          <Task id="T3.1" name="Register workflow tools in AIAgent composer path" status="DONE" order="0"/>
+          <Task id="T3.2" name="Add tests for contract, registry and resource refs" status="DONE" order="1"/>
+          <Task id="T3.3" name="Run focused validation and complete track" status="DONE" order="2"/>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule><Parallel max-concurrent="1" spot-check="true"/></Schedule>
+  <Hooks/>
+</Track>

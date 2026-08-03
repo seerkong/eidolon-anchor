@@ -13,6 +13,7 @@
     "@cell/ai-support": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",
     "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-workflow-contract": "workspace:*",
     "@cell/ai-file-store-logic": "workspace:*",
     "@cell/ai-persistence-logic": "workspace:*",
     "@cell/ai-runtime-control-composer": "workspace:*",

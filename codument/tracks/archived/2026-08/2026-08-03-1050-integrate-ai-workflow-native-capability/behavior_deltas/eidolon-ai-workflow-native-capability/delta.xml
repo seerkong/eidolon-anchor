@@ -1,0 +1,50 @@
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/native-workflow-capability">
+    <requirement id="native-workflow-capability">
+      <statement>The system SHALL expose AI workflow as an Eidolon-native capability through contract, tool, effect and profile boundaries.</statement>
+      <suite id="native-registration" name="Native registration">
+        <case id="tool-registry-visible">
+          <given>The AI kernel runtime composes built-in native tools</given>
+          <when>The tool registry and model-visible tool schemas are inspected</when>
+          <then>The system SHALL include native workflow tools without requiring MCP fallback</then>
+        </case>
+        <case id="workflow-owned-directory">
+          <given>Workflow tool implementations are added</given>
+          <when>The source layout is inspected</when>
+          <then>The implementation SHALL live under `ai-organ-logic/src/workflow/tools`, with composer code limited to bundle registration</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/workflow-fact-contract">
+    <requirement id="workflow-fact-contract">
+      <statement>The system SHALL declare workflow-owned orchestration facts without taking ownership of existing Eidolon runtime facts.</statement>
+      <suite id="fact-boundary" name="Fact boundary">
+        <case id="data-subgraph-additive">
+          <given>Eidolon runtime data-subgraph contracts are loaded</given>
+          <when>The workflow contract package is imported</when>
+          <then>The workflow data-subgraph SHALL be additive and SHALL explicitly disown actor, session, conversation, tool, provider, runtime-control, checkpoint, member, holon and detached-task facts</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/minimal-tool-operations">
+    <requirement id="minimal-tool-operations">
+      <statement>The system SHALL provide a minimal native workflow tool surface that can be called by Eidolon agents.</statement>
+      <suite id="tool-operations" name="Tool operations">
+        <case id="inspect-capability">
+          <given>An agent calls the workflow capability inspection tool</given>
+          <when>The tool runs inside an Eidolon runtime</when>
+          <then>The tool SHALL return available workflow forms, fact owner boundaries and whether workflow roots are injected</then>
+        </case>
+        <case id="validate-resource-ref">
+          <given>An agent calls the workflow resource reference validation tool</given>
+          <when>The ref uses an allowed workflow resource scheme</when>
+          <then>The tool SHALL return a structured accepted result; unsafe refs SHALL be rejected</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

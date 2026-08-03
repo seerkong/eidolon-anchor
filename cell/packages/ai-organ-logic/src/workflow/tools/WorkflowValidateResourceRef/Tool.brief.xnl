@@ -1,0 +1,5 @@
+<tool {
+  name = "WorkflowValidateResourceRef"
+  namespace = "SysBuiltIn"
+  description = "Validate an AI workflow resource reference before using it in workflow authoring or run graph operations."
+}>

@@ -1,0 +1,13 @@
+<type_def lang="typescript" ?>
+export interface WorkflowValidateResourceRefOuterInput {
+  ref: string;
+}
+
+export type WorkflowValidateResourceRefOuterOutput = string;
+
+export type WorkflowValidateResourceRef = (input: WorkflowValidateResourceRefOuterInput) => WorkflowValidateResourceRefOuterOutput;
+</?>
+
+<warning ?>
+Use this tool for workflow resource refs before creating or patching workflow resources. It accepts containment-safe logical refs and rejects host absolute paths, file/http URLs and traversal attempts.
+</?>

@@ -1,0 +1,11 @@
+import type {
+  WorkflowInspectCapabilityOuterConfig,
+  WorkflowInspectCapabilityOuterInput,
+  WorkflowInspectCapabilityOuterOutput,
+  WorkflowInspectCapabilityOuterRuntime,
+} from "./OuterTypes"
+
+export type WorkflowInspectCapabilityInnerRuntime = WorkflowInspectCapabilityOuterRuntime
+export type WorkflowInspectCapabilityInnerInput = WorkflowInspectCapabilityOuterInput
+export type WorkflowInspectCapabilityInnerConfig = WorkflowInspectCapabilityOuterConfig
+export type WorkflowInspectCapabilityInnerOutput = WorkflowInspectCapabilityOuterOutput

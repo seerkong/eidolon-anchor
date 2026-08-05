@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="refactor-chat-completions-effect-bundles" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>Compose OpenAI official Chat and DeepSeek official Chat from one pure Chat Completions core through two explicit effect bundles.</Goal>
+    <Description>Replace provider heuristics and mutable mixed-responsibility stream logic with explicit official bundles, a pure reducer, and an effect shell.</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-04T16:53:10Z</CreatedAt>
+    <UpdatedAt>2026-08-04T19:20:36Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_refactor-chat-completions-effect-bundles" name="refactor-chat-completions-effect-bundles" version="1">
+    <Description>Characterize, migrate into the AI domain, extract and explicitly compose provider-specific Chat Completions effects without changing observable provider behavior.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Behavior and architecture characterization" status="DONE" order="0">
+        <Description>Freeze provider selection, request projection, stream events and continuation behavior before refactoring.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Characterization tests cover explicit OpenAI/DeepSeek selection and current common stream semantics.</cdt:Criterion>
+          <cdt:Criterion>Tests fail for URL/model heuristic dependence or missing effect bundle contracts before production integration.</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="Add effect bundle and pure-core characterization tests" status="DONE" order="0" priority="P0">
+            <Description>Add focused tests for explicit end-to-end driver bundle selection, OpenAI isolation, DeepSeek continuation, Responses normalized-stream isolation, pure reducer determinism, event ordering and AI-domain package ownership.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">Tests require OpenAI and DeepSeek drivers to expose distinct explicit official bundles.</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">Tests freeze common content/tool-call/think event ordering and final message behavior.</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">Tests require adapter selection to remain stable when model or Base URL strings are misleading.</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC4" checked="true">Existing DeepSeek reasoning roundtrip regressions remain in the focused suite.</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC5" checked="true">Tests prove the selected driver binding reaches ingress for main/child actor and provider-switch paths without stream-side adapter-type selection.</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC6" checked="true">Package-boundary tests reject provider, reasoning and tool-call protocol ownership in symbiont-logic.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Pure Chat Completions core" status="DONE" order="1">
+        <Description>Extract deterministic stream projection and reduction into the AI domain, leaving symbiont with provider-neutral stream/runtime primitives.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Reducer tests pass without OutputStream or network dependencies.</cdt:Criterion>
+          <cdt:Criterion>The compatibility facade produces the same ingress events and assistant messages.</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="Extract pure stream reducer and effect descriptions" status="DONE" order="0" priority="P0">
+            <Description>Introduce AI-domain stream state and pure functions for chunk projection, fingerprinting, reasoning/content segmentation, tool-call reduction and message finalization; move the existing class facade/export into ai-organ-logic and migrate workspace imports without creating a symbiont reverse dependency.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">Repeated input state/chunk values produce structurally equal reducer results.</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">The reducer does not read environment state or write OutputStreams.</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC3" checked="true">Empty/mirrored reasoning, split think tags and incremental tool arguments preserve existing behavior.</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC4" checked="true">The existing class name and ai-organ-logic public export remain available; workspace symbiont deep imports are migrated.</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC5" checked="true">symbiont-logic no longer owns or exports code that interprets provider reasoning or tool-call fields.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Official effect bundle composition" status="DONE" order="2">
+        <Description>Define the provider contract and compose the common transport with explicit OpenAI and DeepSeek official implementations.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Both official drivers select their bundle explicitly.</cdt:Criterion>
+          <cdt:Criterion>No model/Base URL heuristic controls DeepSeek protocol behavior.</cdt:Criterion>
+          <cdt:Criterion>Responses API remains on its independent driver.</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="Add official effect bundle contract and implementations" status="DONE" order="0" priority="P0">
+            <Description>Add an AI-domain contract-level Chat Completions effect bundle shape and OpenAI/DeepSeek official logic implementations for endpoint, message/request projection and stream reasoning policy.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">Contract and logic ownership follow existing contract/logic package boundaries.</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">OpenAI official bundle excludes DeepSeek compatibility fields.</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC3" checked="true">DeepSeek official bundle preserves real reasoning and repairs only missing historical tool-call fields.</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC4" checked="true">Bundle implementations reuse the shared core instead of copying its state machine.</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC5" checked="true">Bundle contract and implementations introduce no ai-organ reverse dependency from symbiont packages.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="Integrate drivers and remove provider heuristics" status="DONE" order="1" priority="P0">
+            <Description>Inject the official bundles from OpenAIChatDriver and DeepSeekDriver, pass the current request's actual adapter/driver binding through executor and terminal stream callbacks into ingress, and remove isDeepseekRequest plus stream-side adapter-type inference.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">ProviderDriverRegistry selection is the only source of OpenAI-versus-DeepSeek protocol semantics.</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">Misleading model/Base URL strings do not switch the configured bundle.</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC3" checked="true">Explicit `adapter: deepseek` works with third-party compatible Base URLs.</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC4" checked="true">OpenAI Responses, Anthropic and Claude Code driver paths are unchanged.</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC5" checked="true">Normal provider runtime execution passes the exact selected driver bundle to stream reduction and never reconstructs it from llmClient.type or adapter strings.</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC6" checked="true">Mocks and legacy direct entries either inject an explicit bundle or use the documented OpenAI-only compatibility default.</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC7" checked="true">Responses native request/history/endpoint logic remains outside both Chat Completions bundles while its normalized ingress projection stays compatible.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="Cross-provider verification" status="DONE" order="3">
+        <Description>Run focused and architecture regressions, review boundaries and record migration evidence.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Focused stream, transport, driver registry, executor/terminal binding, ingress and DeepSeek continuation tests pass.</cdt:Criterion>
+          <cdt:Criterion>Strict Codument and decision validation pass.</cdt:Criterion>
+          <cdt:Criterion>Diff review confirms no session rewrite and no Responses protocol merge.</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T4.1" name="Verify provider bundle boundaries and regressions" status="DONE" order="0" priority="P0">
+            <Description>Add architecture guards, run the relevant package and terminal tests/type checks, and document objective evidence and any environment limitations.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">Focused OpenAI/DeepSeek transport and stream tests pass.</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">Provider registry, ingress semantic shape and package-boundary tests pass.</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC3" checked="true">No production URL/model heuristic remains for DeepSeek bundle selection.</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC4" checked="true">Strict track and decisions validation pass.</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC5" checked="true">No production stream path selects Chat Completions bundle semantics from adapter type or duplicates provider policy across symbiont and ai-organ.</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+</Track>

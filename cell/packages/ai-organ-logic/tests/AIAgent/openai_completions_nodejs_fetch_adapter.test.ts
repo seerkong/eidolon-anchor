@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "@cell/ai-organ-logic/llm/OpenAICompletionsNodejsFetchAdapter";
+import { deepSeekOfficialChatEffectBundle } from "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles";
 
 function sseResponse(): Response {
   return new Response("data: [DONE]\n\n", {
@@ -14,6 +15,7 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     let body: any;
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
       apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
       baseUrl: "https://api.deepseek.com/v1",
       providerOptions: {
         fetch: async (_url, init) => {
@@ -38,6 +40,7 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     let body: any;
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
       apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
       baseUrl: "https://api.deepseek.com/v1",
       providerOptions: {
         fetch: async (_url, init) => {
@@ -61,6 +64,7 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     let body: any;
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
       apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
       baseUrl: "https://api.deepseek.com/v1",
       providerOptions: {
         fetch: async (_url, init) => {
@@ -90,6 +94,7 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     let body: any;
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
       apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
       baseUrl: "https://api.deepseek.com/v1",
       providerOptions: {
         fetch: async (_url, init) => {
@@ -116,11 +121,105 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     ]);
   });
 
+  it("serializes DeepSeek reasoning and tool results for continuation", async () => {
+    let body: any;
+    const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
+      apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
+      baseUrl: "https://inferaiapi.com/v1",
+      providerOptions: {
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body ?? "{}"));
+          return sseResponse();
+        },
+      },
+    });
+    const toolCalls = [
+      {
+        id: "call_read_1",
+        type: "function",
+        function: { name: "read", arguments: JSON.stringify({ path: "README.md" }) },
+      },
+    ];
+
+    await adapter.createStream({
+      model: "deepseek-v4-flash",
+      messages: [
+        { role: "user", content: "Inspect the project" },
+        {
+          role: "assistant",
+          content: "I will inspect the README.",
+          reasoning_content: "The README is the best starting point.",
+          tool_calls: toolCalls,
+        },
+        { role: "tool", tool_call_id: "call_read_1", content: "project contents" },
+      ],
+      tools: [],
+    });
+
+    expect(body.messages).toEqual([
+      { role: "user", content: "Inspect the project" },
+      {
+        role: "assistant",
+        content: "I will inspect the README.",
+        reasoning_content: "The README is the best starting point.",
+        tool_calls: toolCalls,
+      },
+      { role: "tool", tool_call_id: "call_read_1", content: "project contents" },
+    ]);
+  });
+
+  it("repairs missing reasoning_content in serialized legacy DeepSeek tool calls", async () => {
+    let body: any;
+    const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
+      apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
+      baseUrl: "https://inferaiapi.com/v1",
+      providerOptions: {
+        fetch: async (_url, init) => {
+          body = JSON.parse(String(init?.body ?? "{}"));
+          return sseResponse();
+        },
+      },
+    });
+    const toolCalls = [
+      {
+        id: "call_legacy_1",
+        type: "function",
+        function: { name: "read", arguments: JSON.stringify({ path: "package.json" }) },
+      },
+    ];
+
+    await adapter.createStream({
+      model: "deepseek-v4-flash",
+      messages: [
+        {
+          role: "assistant",
+          content: "",
+          tool_calls: toolCalls,
+        },
+        { role: "tool", tool_call_id: "call_legacy_1", content: "package contents" },
+      ],
+      tools: [],
+    });
+
+    expect(body.messages).toEqual([
+      {
+        role: "assistant",
+        content: "",
+        reasoning_content: "",
+        tool_calls: toolCalls,
+      },
+      { role: "tool", tool_call_id: "call_legacy_1", content: "package contents" },
+    ]);
+  });
+
   it("keeps transport timeout controls out of the request body and aborts a stalled header wait", async () => {
     let body: Record<string, unknown> = {};
     let fetchSignal: AbortSignal | undefined;
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
       apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
       baseUrl: "https://api.deepseek.com/v1",
       providerOptions: {
         fetch: async (_url, init) => {
@@ -168,6 +267,7 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
   it("times out when response headers arrive but the first SSE event never does", async () => {
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
       apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
       baseUrl: "https://api.deepseek.com/v1",
       providerOptions: {
         fetch: async () =>

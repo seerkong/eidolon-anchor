@@ -130,7 +130,7 @@ describe("vendor data-graph surface boundary", () => {
     const expectedFiles = [
       "cell/packages/ai-core-contract/src/stream/semantic.ts",
       "cell/packages/ai-core-logic/src/stream/transcript/StageTranscript.ts",
-      "cell/packages/symbiont-logic/src/stream/OpenAICompletionsNodejsFetchStreamAdapter.ts",
+      "cell/packages/ai-organ-logic/src/stream/OpenAICompletionsNodejsFetchStreamAdapter.ts",
     ];
 
     for (const relativePath of expectedFiles) {

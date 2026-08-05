@@ -4,6 +4,7 @@ import type {
   ProviderDriverStreamParams,
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
+import { deepSeekOfficialChatEffectBundle } from "../ChatCompletionsEffectBundles";
 import { resolveDeepSeekModelCapabilities } from "../DeepSeekModelCapabilities";
 import {
   extractProviderTransportRequestOptions,
@@ -49,6 +50,7 @@ function buildDeepSeekExtraBody(
 export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
   return {
     name: "deepseek-chat",
+    chatCompletionsEffectBundle: deepSeekOfficialChatEffectBundle,
     adapterNames: [
       "deepseek",
       "deepseek-chat",
@@ -59,18 +61,18 @@ export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
     buildRequest(params: ProviderDriverRequestParams) {
       return {
         method: "POST",
-        body: {
+        body: deepSeekOfficialChatEffectBundle.projectRequest({
           model: params.model,
           messages: params.messages,
           tools: params.tools,
-          stream: true,
-          ...buildDeepSeekExtraBody(params),
-        },
+          extraBody: buildDeepSeekExtraBody(params),
+        }),
       };
     },
     async createStream(params: ProviderDriverStreamParams) {
       const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
+        effectBundle: deepSeekOfficialChatEffectBundle,
         baseUrl:
           getString(params.connectionOptions, "base_url", "baseurl") ||
           "https://api.deepseek.com",

@@ -1,4 +1,8 @@
-import type { LlmAdapterType, LlmModelCapabilities } from "../LlmTypes";
+import type {
+  LlmAdapterType,
+  LlmModelCapabilities,
+  LlmProcessStreamOptions,
+} from "../LlmTypes";
 import type {
   ActorExecutionKind,
   ActorHolonGovernanceKind,
@@ -222,7 +226,12 @@ export type HolonActorState =
 
 export type AiAgentActorCallbacks<TVm = any, TActor = any> = {
   buildToolset: (vm: TVm, actor: TActor) => any[];
-  processStream: (vm: TVm, actor: TActor, stream: any, options?: { signal?: AbortSignal }) => Promise<any>;
+  processStream: (
+    vm: TVm,
+    actor: TActor,
+    stream: any,
+    options?: LlmProcessStreamOptions,
+  ) => Promise<any>;
 };
 
 export interface AiAgentActorData<TVm = any, TActor = any> {

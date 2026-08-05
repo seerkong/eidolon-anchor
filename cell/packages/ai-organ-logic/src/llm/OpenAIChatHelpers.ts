@@ -157,7 +157,11 @@ export function normalizeOpenAIChatMessages(
             : typeof message.reasoningContent === "string"
               ? message.reasoningContent
               : undefined;
-        if (reasoningContent) normalized.reasoning_content = reasoningContent;
+        if (reasoningContent !== undefined) {
+          normalized.reasoning_content = reasoningContent;
+        } else if (toolCalls) {
+          normalized.reasoning_content = "";
+        }
       } else {
         delete normalized.reasoning_content;
       }

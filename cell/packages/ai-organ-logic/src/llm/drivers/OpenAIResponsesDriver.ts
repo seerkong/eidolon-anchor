@@ -3,7 +3,9 @@ import type {
   ProviderDriverRequestParams,
   ProviderDriverStreamParams,
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import type { NormalizedChatCompletionsStreamBinding } from "@cell/ai-organ-contract/llm/ChatCompletionsEffectBundle";
 import { OpenAIResponsesNodejsFetchLlmAdapter } from "../OpenAIResponsesNodejsFetchAdapter";
+import { chatCompletionsStreamCoreBinding } from "../../stream/ChatCompletionsStreamCore";
 import {
   buildOpenAIResponsesInputItems,
   buildOpenAIResponsesRequestBody,
@@ -28,9 +30,22 @@ function withoutLegacyContinuation(
   return sanitized;
 }
 
+export const openAIResponsesNormalizedStreamBinding: NormalizedChatCompletionsStreamBinding =
+  Object.freeze({
+    id: "openai-responses-normalized",
+    streamReasoningPolicy: Object.freeze({
+      reasoningContent: "ignore",
+      reasoningDetails: "ignore",
+      thinkTags: "content",
+    }),
+    streamCore: chatCompletionsStreamCoreBinding,
+  });
+
 export function buildOpenAIResponsesProviderDriver(): ProviderDriverDefinition {
   return {
     name: "openai-responses",
+    normalizedChatCompletionsStreamBinding:
+      openAIResponsesNormalizedStreamBinding,
     adapterNames: [
       "openai-responses",
       "openai_responses",

@@ -138,6 +138,49 @@ describe("OpenAI Chat driver helpers", () => {
     ]);
   });
 
+  it("adds empty reasoning_content to legacy DeepSeek assistant tool calls", () => {
+    expect(
+      normalizeOpenAIChatMessages(
+        [
+          {
+            role: "assistant",
+            content: "",
+            tool_calls: [
+              { id: "call_legacy", type: "function", function: { name: "read", arguments: "{}" } },
+            ],
+          },
+          { role: "tool", tool_call_id: "call_legacy", content: "ok" },
+        ],
+        { preserveReasoningContent: true },
+      ),
+    ).toEqual([
+      {
+        role: "assistant",
+        content: "",
+        reasoning_content: "",
+        tool_calls: [
+          { id: "call_legacy", type: "function", function: { name: "read", arguments: "{}" } },
+        ],
+      },
+      { role: "tool", tool_call_id: "call_legacy", content: "ok" },
+    ]);
+  });
+
+  it("does not add DeepSeek reasoning compatibility fields to ordinary OpenAI messages", () => {
+    const messages = [
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [
+          { id: "call_openai", type: "function", function: { name: "read", arguments: "{}" } },
+        ],
+      },
+      { role: "tool", tool_call_id: "call_openai", content: "ok" },
+    ];
+
+    expect(normalizeOpenAIChatMessages(messages)).toEqual(messages);
+  });
+
   it("deduplicates repeated assistant tool calls and keeps the concrete call payload", () => {
     expect(
       normalizeOpenAIChatMessages([

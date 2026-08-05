@@ -5,6 +5,7 @@ import path from "path"
 import {
   OpenAICompletionsNodejsFetchLlmAdapter,
 } from "@cell/ai-organ-logic/llm/OpenAICompletionsNodejsFetchAdapter"
+import { deepSeekOfficialChatEffectBundle } from "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles"
 import {
   flattenModelConfig,
   parseProviderCatalogRaw,
@@ -66,6 +67,7 @@ describe("DeepSeek V4 Flash official capability contract (2026-08-02)", () => {
     let body: Record<string, unknown> = {}
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
       apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
       baseUrl: "https://api.deepseek.com",
       providerOptions: {
         fetch: async (url, init) => {

@@ -1,6 +1,47 @@
 import { AnthropicStreamAdapter } from "@cell/ai-organ-logic/llm";
+import type {
+  LlmAdapter,
+  LlmAdapterType,
+} from "@cell/ai-core-contract/LlmTypes";
+import type {
+  ChatCompletionsEffectBundle,
+  NormalizedChatCompletionsStreamBinding,
+} from "@cell/ai-organ-contract/llm/ChatCompletionsEffectBundle";
 import { IngressStreamRuntime } from "@cell/symbiont-logic/stream/IngressStreamRuntime";
-import { OpenAICompletionsNodejsFetchStreamAdapter } from "@cell/symbiont-logic/stream/OpenAICompletionsNodejsFetchStreamAdapter";
+import { openAIOfficialChatEffectBundle } from "../llm/ChatCompletionsEffectBundles";
+import { OpenAICompletionsNodejsFetchStreamAdapter } from "./OpenAICompletionsNodejsFetchStreamAdapter";
+
+type DriverBoundLlmAdapter = LlmAdapter & {
+  chatCompletionsEffectBundle?: ChatCompletionsEffectBundle;
+  driver?: {
+    chatCompletionsEffectBundle?: ChatCompletionsEffectBundle;
+    normalizedChatCompletionsStreamBinding?: NormalizedChatCompletionsStreamBinding;
+  };
+};
+
+function resolveLlmAdapterType(
+  llmAdapter: LlmAdapter | LlmAdapterType,
+): LlmAdapterType {
+  return typeof llmAdapter === "string" ? llmAdapter : llmAdapter.type;
+}
+
+function resolveChatCompletionsEffectBundle(
+  llmAdapter: LlmAdapter | LlmAdapterType,
+): NormalizedChatCompletionsStreamBinding {
+  if (typeof llmAdapter === "object") {
+    const binding = llmAdapter as DriverBoundLlmAdapter;
+    if (binding.driver?.normalizedChatCompletionsStreamBinding) {
+      return binding.driver.normalizedChatCompletionsStreamBinding;
+    }
+    if (binding.driver?.chatCompletionsEffectBundle) {
+      return binding.driver.chatCompletionsEffectBundle;
+    }
+    if (binding.chatCompletionsEffectBundle) {
+      return binding.chatCompletionsEffectBundle;
+    }
+  }
+  return openAIOfficialChatEffectBundle;
+}
 
 async function* abortableStream<T>(stream: AsyncIterable<T>, signal?: AbortSignal): AsyncIterable<T> {
   if (!signal) {
@@ -35,9 +76,10 @@ async function* abortableStream<T>(stream: AsyncIterable<T>, signal?: AbortSigna
 export function createIngressStreamAdapter(
   stream: AsyncIterable<any>,
   runtime: IngressStreamRuntime,
-  llmAdapterType: "openai" | "anthropic" | "codex" | "claude" | "deepseek" = "openai",
+  llmAdapter: LlmAdapter | LlmAdapterType = "openai",
   options?: { signal?: AbortSignal },
 ) {
+  const llmAdapterType = resolveLlmAdapterType(llmAdapter);
   const ingressStreams = runtime.ingressStreams;
   const anthropicParams = {
     ingressControl: ingressStreams.control,
@@ -49,6 +91,7 @@ export function createIngressStreamAdapter(
     ? new AnthropicStreamAdapter(anthropicParams as any)
     : new OpenAICompletionsNodejsFetchStreamAdapter({
         timeline: (ingressStreams as any).timeline,
+        streamBinding: resolveChatCompletionsEffectBundle(llmAdapter),
       });
   const runAdapter = async () => {
     try {

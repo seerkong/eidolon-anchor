@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="provider-chat-completions" version="1">
+  <upsert selector="behavior://provider-chat-completions/requirements/official-effect-bundle-composition">
+    <requirement id="official-effect-bundle-composition">
+      <statement>The system SHALL implement OpenAI official Chat Completions and DeepSeek official Chat Completions as two explicit effect bundles composed with one shared Chat Completions core; provider selection MUST come from the configured driver and MUST NOT be inferred from model or URL strings.</statement>
+      <suite id="bundle-selection" name="Official provider effect bundle selection">
+        <case id="openai-official-selection">
+          <given>the configured provider driver is OpenAI Chat Completions</given>
+          <when>a request and stream are processed</when>
+          <then>the OpenAI official effect bundle SHALL be used</then>
+          <then>DeepSeek-only reasoning compatibility fields MUST NOT be injected</then>
+        </case>
+        <case id="deepseek-official-selection">
+          <given>the configured provider driver is DeepSeek</given>
+          <when>a request and stream are processed against an official or explicitly configured compatible endpoint</when>
+          <then>the DeepSeek official effect bundle SHALL be used independently of model and Base URL naming</then>
+          <then>DeepSeek reasoning continuation SHALL remain protocol-correct</then>
+        </case>
+        <case id="shared-stream-behavior">
+          <given>OpenAI and DeepSeek streams use Chat Completions delta framing</given>
+          <when>content and tool-call deltas are reduced</when>
+          <then>both bundles SHALL reuse the same pure stream core</then>
+          <then>content, tool-call and ingress event behavior SHALL remain compatible with the existing adapter</then>
+        </case>
+        <case id="end-to-end-driver-binding">
+          <given>a provider driver has been selected for the current request</given>
+          <when>the response stream is passed through executor, terminal runtime and ingress reduction</when>
+          <then>the same driver bundle binding SHALL control request and stream semantics</then>
+          <then>the stream path MUST NOT reselect a provider bundle from adapter type, model or Base URL strings</then>
+        </case>
+        <case id="ai-domain-ownership">
+          <given>Chat Completions reduction interprets provider reasoning and tool-call protocol fields</given>
+          <when>the shared core and official bundles are packaged</when>
+          <then>their contracts and logic SHALL reside in AI domain contract and logic packages</then>
+          <then>the symbiont layer MUST remain limited to provider-neutral stream and runtime primitives</then>
+        </case>
+        <case id="responses-isolation">
+          <given>the configured provider uses OpenAI Responses API</given>
+          <when>the provider driver is selected</when>
+          <then>the Responses driver and continuation model SHALL remain outside the Chat Completions effect bundles</then>
+          <then>any reuse of normalized ingress reduction MUST NOT invoke OpenAI Chat request, endpoint or history projection</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

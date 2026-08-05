@@ -55,7 +55,10 @@ import {
   type InputContentPart,
   type InputFileReferenceContentPart,
 } from "@shared/composer"
-import type { AttachmentResolverPort } from "@cell/ai-core-contract"
+import type {
+  AttachmentResolverPort,
+  LlmProcessStreamOptions,
+} from "@cell/ai-core-contract"
 import {
   assembleRuntimeCompositionProfile,
   buildRuntimeCompositionBindingDescriptor,
@@ -817,15 +820,11 @@ async function createRuntimeBridge(
   notificationSemanticBridgeBySession.set(sessionKey, asyncSemanticRuntimeBridge)
   const actorCallbacks = {
     buildToolset: (currentVm: DomainRuntimeVm) => runtimeAssembly.buildToolset(currentVm),
-    processStream: (currentVm: any, streamActor: any, stream: any, options?: { signal?: AbortSignal }) => {
-      const currentType = (actor.llmClient as any)?.type
-      const streamAdapterType =
-        currentType === "openai" || currentType === "anthropic" || currentType === "claude" || currentType === "codex" || currentType === "deepseek"
-          ? (currentType as LlmAdapterType)
-          : adapterType
+    processStream: (currentVm: any, streamActor: any, stream: any, options?: LlmProcessStreamOptions) => {
       return processRuntimeIngressStream({
         stream,
-        adapterType: streamAdapterType,
+        adapterType,
+        llmAdapter: options?.llmAdapter,
         eventBus,
         actorMeta: {
           agentKey: streamActor.key,

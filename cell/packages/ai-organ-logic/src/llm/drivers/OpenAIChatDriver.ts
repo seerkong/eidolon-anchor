@@ -4,6 +4,7 @@ import type {
   ProviderDriverStreamParams,
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
+import { openAIOfficialChatEffectBundle } from "../ChatCompletionsEffectBundles";
 import {
   extractProviderTransportRequestOptions,
   sanitizeProviderExtraBody,
@@ -24,6 +25,7 @@ function getString(
 export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
   return {
     name: "openai-chat",
+    chatCompletionsEffectBundle: openAIOfficialChatEffectBundle,
     adapterNames: [
       "openai-chat",
       "openai_chat",
@@ -37,20 +39,22 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
       );
       return {
         method: "POST",
-        body: {
+        body: openAIOfficialChatEffectBundle.projectRequest({
           model: params.model,
           messages: params.messages,
           tools: params.tools,
-          stream: true,
-          ...requestBodyOptions,
-          ...sanitizeProviderExtraBody(params.extraBody),
-        },
+          extraBody: {
+            ...requestBodyOptions,
+            ...sanitizeProviderExtraBody(params.extraBody),
+          },
+        }),
       };
     },
     async createStream(params: ProviderDriverStreamParams) {
       const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
         baseUrl: getString(params.connectionOptions, "base_url", "baseurl"),
+        effectBundle: openAIOfficialChatEffectBundle,
         providerOptions: {
           apiKey: getString(params.connectionOptions, "api_key", "apikey"),
           baseURL: getString(params.connectionOptions, "base_url", "baseurl"),

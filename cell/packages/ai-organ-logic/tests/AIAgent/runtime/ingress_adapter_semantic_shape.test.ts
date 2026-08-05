@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test";
 
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "@cell/ai-organ-logic/llm/OpenAICompletionsNodejsFetchAdapter";
 import { OpenAIResponsesNodejsFetchLlmAdapter } from "@cell/ai-organ-logic/llm";
+import { deepSeekOfficialChatEffectBundle, openAIOfficialChatEffectBundle } from "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles";
+import type { LlmAdapter } from "@cell/ai-core-contract/LlmTypes";
 import { processRuntimeIngressStream } from "@cell/ai-organ-logic";
 
 import { buildRuntimeSemanticBase } from "@cell/ai-core-logic/stream/runtime/SemanticRuntimeSupport";
@@ -195,7 +197,7 @@ function sseResponse(body: string): Response {
 
 // --- Build the real provider stream the executor would receive -------------
 
-async function buildProviderStream(adapterType: AdapterType, sseBody: string): Promise<AsyncIterable<any>> {
+async function buildProviderStream(adapterType: AdapterType, sseBody: string): Promise<{ stream: AsyncIterable<any>; llmAdapter: LlmAdapter }> {
   const fetchFn = async (_url: any, _init: any) => sseResponse(sseBody);
   const tools = [
     {
@@ -218,15 +220,16 @@ async function buildProviderStream(adapterType: AdapterType, sseBody: string): P
       messages: [{ role: "user", content: "read the readme" }],
       tools: tools as any,
     });
-    return stream;
+    return { stream, llmAdapter: adapter };
   }
-  // openai + deepseek both use the Chat Completions driver; deepseek is
-  // distinguished by base url / model, not by ingress adapter routing.
   const baseUrl = adapterType === "deepseek" ? "https://api.deepseek.com/v1" : "https://api.openai.com/v1";
   const model = adapterType === "deepseek" ? "deepseek-v4-pro" : "gpt-4.1";
   const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
     apiKey: "test-key",
     baseUrl,
+    effectBundle: adapterType === "deepseek"
+      ? deepSeekOfficialChatEffectBundle
+      : openAIOfficialChatEffectBundle,
     providerOptions: { fetch: fetchFn as any },
   });
   const { stream } = await adapter.createStream({
@@ -234,7 +237,7 @@ async function buildProviderStream(adapterType: AdapterType, sseBody: string): P
     messages: [{ role: "user", content: "read the readme" }],
     tools: tools as any,
   });
-  return stream;
+  return { stream, llmAdapter: adapter };
 }
 
 // --- Run the stream through the REAL processRuntimeIngressStream ------------
@@ -244,6 +247,7 @@ async function buildProviderStream(adapterType: AdapterType, sseBody: string): P
 
 async function runIngressPipeline(
   adapterType: AdapterType,
+  llmAdapter: LlmAdapter,
   stream: AsyncIterable<any>,
 ): Promise<SemanticEvent[]> {
   const events: SemanticEvent[] = [];
@@ -255,6 +259,7 @@ async function runIngressPipeline(
   await processRuntimeIngressStream({
     stream,
     adapterType,
+    llmAdapter,
     eventBus: collectingEventBus as any,
     actorMeta: { agentKey: "main", agentActorId: "actor-1" },
     storageLogsEnabled: false,
@@ -320,8 +325,8 @@ type AdapterMeasurement = {
 };
 
 async function measureAdapter(adapterType: AdapterType, sseBody: string): Promise<AdapterMeasurement> {
-  const stream = await buildProviderStream(adapterType, sseBody);
-  const events = await runIngressPipeline(adapterType, stream);
+  const { stream, llmAdapter } = await buildProviderStream(adapterType, sseBody);
+  const events = await runIngressPipeline(adapterType, llmAdapter, stream);
   const eventTypes = events.map((e) => e.event_type);
   const { assistantCommit, toolCommit } = commitThroughHistoryGraph(events);
   return {

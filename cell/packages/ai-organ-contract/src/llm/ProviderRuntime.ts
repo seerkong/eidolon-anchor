@@ -1,4 +1,8 @@
 import type { LlmProviderAdapterType } from "./ProviderConfig";
+import type {
+  ChatCompletionsEffectBundle,
+  NormalizedChatCompletionsStreamBinding,
+} from "./ChatCompletionsEffectBundle";
 import type { ProviderSceneCaptureHook } from "../observability/Observability";
 
 export type ProviderRequestObservationCaptureLayer =
@@ -318,6 +322,8 @@ export type RuntimePreparedProviderRequest = {
 export type ProviderDriverDefinition = {
   name: string;
   adapterNames: string[];
+  chatCompletionsEffectBundle?: ChatCompletionsEffectBundle;
+  normalizedChatCompletionsStreamBinding?: NormalizedChatCompletionsStreamBinding;
   createStream: (
     params: ProviderDriverStreamParams,
   ) => Promise<{

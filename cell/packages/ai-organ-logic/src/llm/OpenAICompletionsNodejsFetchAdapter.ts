@@ -4,16 +4,18 @@ import type {
   LlmStreamResult,
 } from "@cell/ai-core-contract/LlmTypes";
 import type { ToolSchema } from "@cell/ai-core-contract/types";
-import { normalizeOpenAIChatMessages } from "./OpenAIChatHelpers";
+import type { ChatCompletionsEffectBundle } from "@cell/ai-organ-contract/llm/ChatCompletionsEffectBundle";
 import { ProviderExecutionError } from "./ProviderErrors";
 import type { ProviderOptions } from "./ProviderPlugins";
 import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
+import { openAIOfficialChatEffectBundle } from "./ChatCompletionsEffectBundles";
 
 type OpenAICompletionsNodejsFetchAdapterSettings = {
   apiKey: string;
   baseUrl?: string;
+  effectBundle?: ChatCompletionsEffectBundle;
   providerOptions?: ProviderOptions;
   requestObserver?: ProviderTransportRequestObserver;
 };
@@ -34,20 +36,6 @@ type OpenAIStreamTimeouts = {
   totalTimeoutSeconds?: number;
   idleTimeoutSeconds?: number;
 };
-
-function buildCompletionsUrl(baseUrl?: string): string {
-  const base = baseUrl || "https://api.openai.com/v1";
-  const trimmed = base.replace(/\/+$/, "");
-  // DeepSeek's official base URL is unversioned. Its OpenAI-compatible Chat
-  // Completions route is therefore /chat/completions (the /v1 alias remains
-  // compatible when a caller explicitly configures it).
-  if (/^https:\/\/api\.deepseek\.com$/i.test(trimmed)) {
-    return `${trimmed}/chat/completions`;
-  }
-  const hasVersion = /\/v\d+($|\/)/.test(trimmed);
-  const withVersion = hasVersion ? trimmed : `${trimmed}/v1`;
-  return `${withVersion}/chat/completions`;
-}
 
 async function* streamToOpenAIChunks(
   response: Response,
@@ -355,6 +343,7 @@ function parseOpenAIErrorCode(errorText: string): string {
 
 export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
   readonly type = "openai" as const;
+  readonly chatCompletionsEffectBundle: ChatCompletionsEffectBundle;
   private apiKey: string;
   private baseUrl?: string;
   private providerOptions: ProviderOptions;
@@ -363,6 +352,8 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
   constructor(settings: OpenAICompletionsNodejsFetchAdapterSettings) {
     this.apiKey = settings.apiKey;
     this.baseUrl = settings.baseUrl;
+    this.chatCompletionsEffectBundle =
+      settings.effectBundle ?? openAIOfficialChatEffectBundle;
     this.providerOptions = settings.providerOptions ?? {};
     this.requestObserver = settings.requestObserver;
   }
@@ -378,30 +369,15 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       abortLink.controller.abort(error);
     };
 
-    const body: Record<string, unknown> = {
-      model,
-      messages: normalizeOpenAIChatMessages(messages, {
-        preserveReasoningContent: isDeepseekRequest(
-          model,
-          this.baseUrl,
-          this.providerOptions,
-        ),
-      }),
-      stream: true,
-      tools: toolset,
-    };
-
     const extra = sanitizeExtraBody(extraBody);
     const providerOptions = this.providerOptions;
-    const isDeepseek = isDeepseekRequest(model, this.baseUrl, providerOptions);
-
-    if (!isDeepseek && !("reasoning_split" in extra)) {
-      extra.reasoning_split = true;
-    }
-    Object.assign(body, extra);
-    body.stream = true;
-
-    const url = buildCompletionsUrl(
+    const body = this.chatCompletionsEffectBundle.projectRequest({
+      model,
+      messages,
+      tools: toolset,
+      extraBody: extra,
+    });
+    const url = this.chatCompletionsEffectBundle.resolveEndpoint(
       (providerOptions.baseURL as string | undefined) || this.baseUrl,
     );
     const apiKey =
@@ -490,18 +466,4 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       ),
     };
   }
-}
-
-function isDeepseekRequest(
-  model: unknown,
-  baseUrl: string | undefined,
-  providerOptions: ProviderOptions,
-): boolean {
-  const resolvedBaseUrl = String(
-    (providerOptions.baseURL as string | undefined) || baseUrl || "",
-  ).toLowerCase();
-  const modelName = String(model || "").toLowerCase();
-  return (
-    resolvedBaseUrl.includes("deepseek") || modelName.startsWith("deepseek")
-  );
 }

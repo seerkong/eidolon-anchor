@@ -1,5 +1,5 @@
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "@cell/ai-organ-logic/llm";
-import { OpenAICompletionsNodejsFetchStreamAdapter } from "@cell/symbiont-logic/stream/OpenAICompletionsNodejsFetchStreamAdapter";
+import { OpenAICompletionsNodejsFetchStreamAdapter } from "../../stream/OpenAICompletionsNodejsFetchStreamAdapter";
 import { IngressStreams } from "@cell/symbiont-logic/stream/IngressStreams";
 
 const API_KEY = process.env.MINIMAX_API_KEY || process.env.OPENAI_API_KEY || "";

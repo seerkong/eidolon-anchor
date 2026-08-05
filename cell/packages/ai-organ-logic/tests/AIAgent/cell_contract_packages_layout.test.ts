@@ -85,11 +85,21 @@ describe("cell contract package layout", () => {
       "cell/packages/symbiont-logic/src/stream/StreamTranscript.ts",
       "cell/packages/symbiont-logic/src/stream/StreamLogger.ts",
       "cell/packages/symbiont-logic/src/stream/IngressStreamRuntime.ts",
-      "cell/packages/symbiont-logic/src/stream/OpenAICompletionsNodejsFetchStreamAdapter.ts",
     ]
 
     for (const relativePath of expectedFiles) {
       expect(fileExists(relativePath)).toBe(true)
     }
+
+    expect(
+      fileExists(
+        "cell/packages/symbiont-logic/src/stream/OpenAICompletionsNodejsFetchStreamAdapter.ts",
+      ),
+    ).toBe(false)
+    expect(
+      fileExists(
+        "cell/packages/ai-organ-logic/src/stream/OpenAICompletionsNodejsFetchStreamAdapter.ts",
+      ),
+    ).toBe(true)
   })
 })

@@ -1,4 +1,5 @@
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic"
+import type { LlmAdapter } from "@cell/ai-core-contract/LlmTypes"
 import { buildDomainRuntimeSemanticBase, DomainRuntimeEventGraph } from "@cell/ai-core-logic"
 import type { ActorType } from "@cell/ai-core-logic/runtime/actor"
 import { IngressStreamRuntime } from "@cell/symbiont-logic/stream/IngressStreamRuntime"
@@ -18,6 +19,7 @@ import {
   type LlmAdapterType,
 } from "../llm"
 import type { LlmProviderRuntime } from "@cell/ai-organ-contract/llm/ProviderRuntime"
+import { deepSeekOfficialChatEffectBundle } from "../llm/ChatCompletionsEffectBundles"
 
 export {
   extractProviderOptions,
@@ -157,6 +159,7 @@ export async function createRuntimeLlmAdapter(params: {
       const mock = createMockOpenAI()
       return {
         type: "deepseek" as const,
+        chatCompletionsEffectBundle: deepSeekOfficialChatEffectBundle,
         async createStream(options: any) {
           const stream = await mock.chat.completions.create({
             model: options.model,
@@ -214,6 +217,7 @@ export async function createRuntimeLlmAdapter(params: {
 export async function processRuntimeIngressStream(params: {
   stream: any
   adapterType: LlmAdapterType
+  llmAdapter?: LlmAdapter
   eventBus?: DomainRuntimeEventGraph
   actorMeta?: { agentKey: string; agentActorId: string }
   sessionDir?: string
@@ -222,7 +226,7 @@ export async function processRuntimeIngressStream(params: {
   signal?: AbortSignal
 }) {
   const runtime = IngressStreamRuntime.create()
-  const [ingressStreams, runAdapter] = createIngressStreamAdapter(params.stream, runtime, params.adapterType, {
+  const [ingressStreams, runAdapter] = createIngressStreamAdapter(params.stream, runtime, params.llmAdapter ?? params.adapterType, {
     signal: params.signal,
   })
   const logSessionDir = params.storageLogsEnabled === false ? undefined : params.sessionDir

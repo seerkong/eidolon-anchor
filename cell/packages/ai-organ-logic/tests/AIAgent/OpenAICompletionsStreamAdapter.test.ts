@@ -1,12 +1,13 @@
 import { describe, expect, it } from "bun:test";
 
-import { OpenAICompletionsNodejsFetchStreamAdapter } from "@cell/symbiont-logic/stream/OpenAICompletionsNodejsFetchStreamAdapter";
+import { OpenAICompletionsNodejsFetchStreamAdapter } from "@cell/ai-organ-logic/stream/OpenAICompletionsNodejsFetchStreamAdapter";
+import { deepSeekOfficialChatEffectBundle } from "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles";
 import { OutputStream } from "@cell/symbiont-contract/stream/stream";
 
 describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
   it("captures interleaved reasoning_content into reasoning_content field", async () => {
     const timeline = new OutputStream();
-    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline });
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
     const events: Array<{ event: string; data: string }> = [];
     timeline.onData((ev) => events.push(ev));
 
@@ -39,9 +40,32 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
     expect(events.filter((ev) => ev.event === "think").map((ev) => ev.data).join("")).toBe("step-1 step-2");
   });
 
+  it("preserves an observed empty reasoning_content field for provider roundtrip", async () => {
+    const timeline = new OutputStream();
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
+
+    async function* stream() {
+      yield {
+        choices: [
+          {
+            delta: {
+              reasoning_content: "",
+              content: "answer",
+            },
+          },
+        ],
+      };
+    }
+
+    const msg = await adapter.processStream(stream());
+
+    expect(msg).toHaveProperty("reasoning_content", "");
+    expect(msg.content).toBe("answer");
+  });
+
   it("deduplicates identical consecutive chunks before entering the event graph", async () => {
     const timeline = new OutputStream();
-    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline });
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
     const events: Array<{ event: string; data: string }> = [];
     timeline.onData((ev) => events.push(ev));
 
@@ -79,9 +103,9 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
     expect(events.filter((ev) => ev.event === "content").map((ev) => ev.data)).toEqual(["Created member successfully"]);
   });
 
-  it("suppresses mirrored reasoning_content when it is identical to content in the same chunk", async () => {
+  it("preserves mirrored reasoning_content for roundtrip without duplicate think emission", async () => {
     const timeline = new OutputStream();
-    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline });
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
     const events: Array<{ event: string; data: string }> = [];
     timeline.onData((ev) => events.push(ev));
 
@@ -100,7 +124,7 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
 
     const msg = await adapter.processStream(stream());
 
-    expect(msg.reasoning_content ?? "").toBe("");
+    expect(msg.reasoning_content).toBe("我是你的AI助手");
     expect(msg.content).toBe("我是你的AI助手");
     expect(events.filter((ev) => ev.event === "think").length).toBe(0);
     expect(events.filter((ev) => ev.event === "content").map((ev) => ev.data)).toEqual(["我是你的AI助手"]);

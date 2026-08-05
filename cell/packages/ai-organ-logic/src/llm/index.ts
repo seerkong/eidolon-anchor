@@ -7,6 +7,10 @@ export type {
 export { OpenAILlmAdapter } from "./OpenaiAdapter";
 export { OpenAICompletionsNodejsFetchLlmAdapter } from "./OpenAICompletionsNodejsFetchAdapter";
 export {
+  deepSeekOfficialChatEffectBundle,
+  openAIOfficialChatEffectBundle,
+} from "./ChatCompletionsEffectBundles";
+export {
   buildOpenAIResponsesInstructionPlan,
   buildOpenAIResponsesInstructions,
   OpenAIResponsesNodejsFetchLlmAdapter,

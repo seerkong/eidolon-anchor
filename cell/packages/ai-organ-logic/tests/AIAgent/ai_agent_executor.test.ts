@@ -152,7 +152,11 @@ function createTestRuntime(params: {
   actor: ReturnType<typeof createActor>;
   toolRegistry: ToolFuncRegistry;
   agentRegistry?: AgentRegistry;
-  processStream: (runtime?: { vm: any; actor: any }) => Promise<any>;
+  processStream: (runtime?: {
+    vm: any;
+    actor: any;
+    options?: { signal?: AbortSignal; llmAdapter?: unknown };
+  }) => Promise<any>;
   bus?: AgentEventGraph;
   options?: { stopAfterFirstTool?: boolean; stopAfterTools?: string[]; exitAfterToolResult?: boolean };
   outerCtx?: {
@@ -173,8 +177,8 @@ function createTestRuntime(params: {
   params.actor.callbacks = {
     ...params.actor.callbacks,
     buildToolset: () => [],
-    processStream: createMockProcessStream(async (vm: any, actor: any) =>
-      userProcessStream({ vm, actor }),
+    processStream: createMockProcessStream(async (vm: any, actor: any, _stream: unknown, options) =>
+      userProcessStream({ vm, actor, options }),
     ),
   };
   return createVM({
@@ -192,6 +196,32 @@ describe("ai_agent_loop_streaming", () => {
   afterEach(() => {
     __setCompressionDepsForTest(null);
     __setLoopHooksForTest(null);
+  });
+
+  it("passes the exact request adapter to the actor stream callback", async () => {
+    const llmAdapter = {
+      type: "openai" as const,
+      async createStream() {
+        async function* stream() {
+          yield { choices: [{ delta: { content: "hello" } }] };
+        }
+        return { stream: stream() };
+      },
+    };
+    const actor = createTestActor(llmAdapter);
+    let callbackAdapter: unknown;
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      processStream: async (runtime) => {
+        callbackAdapter = runtime?.options?.llmAdapter;
+        return { role: "assistant", content: "hello" };
+      },
+    });
+
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(callbackAdapter).toBe(llmAdapter);
   });
 
   it("keeps the full provider tool schema stable for prefix-cache models", () => {

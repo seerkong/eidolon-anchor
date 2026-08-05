@@ -156,7 +156,11 @@ const isDebugEnabled = (): boolean => (globalThis as any)?.process?.env?.AI_LOOP
  */
 const noopPersistenceWritePort: PersistenceWritePort = createNoopPersistenceWritePort();
 
-type ProcessStreamFn = (vm: AiAgentVm, stream: any, options?: { signal?: AbortSignal }) => Promise<any>;
+type ProcessStreamFn = (
+  vm: AiAgentVm,
+  stream: any,
+  options?: { signal?: AbortSignal; llmAdapter?: LlmAdapter },
+) => Promise<any>;
 
 type CompressionDeps = {
   estimateUsageRatio: typeof estimateUsageRatio;
@@ -1865,7 +1869,10 @@ async function streamProviderCompletion(params: {
     preparedResponses: PreparedResponsesTurn | null;
   }> => {
     const created = await createProviderStream(messages, plan);
-    const msg = await processStreamFn(vm, created.result.stream, { signal: abortController.signal });
+    const msg = await processStreamFn(vm, created.result.stream, {
+      signal: abortController.signal,
+      llmAdapter,
+    });
     assembleReasoningContentParts(llmAdapter, msg);
     return {
       msg,

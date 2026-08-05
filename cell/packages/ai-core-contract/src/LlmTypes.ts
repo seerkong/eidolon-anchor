@@ -66,3 +66,8 @@ export interface LlmAdapter {
   readonly type: LlmAdapterType;
   createStream(options: LlmGenerateOptions): Promise<LlmStreamResult>;
 }
+
+export type LlmProcessStreamOptions = {
+  signal?: AbortSignal;
+  llmAdapter?: LlmAdapter;
+};

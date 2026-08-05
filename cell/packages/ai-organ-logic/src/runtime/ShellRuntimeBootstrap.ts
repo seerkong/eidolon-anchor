@@ -10,6 +10,7 @@ import type {
 } from "@cell/ai-core-contract/runtime/AiAgentActor";
 import type {
   DomainRuntimeVm,
+  LlmProcessStreamOptions,
   RuntimeRegistries,
   RuntimeSupportDescriptor,
 } from "@cell/ai-core-contract";
@@ -46,7 +47,7 @@ export type ShellRuntimeActorCallbacks = {
     _runtime: unknown,
     streamActor: { key: string; id: string },
     stream: unknown,
-    options?: { signal?: AbortSignal },
+    options?: LlmProcessStreamOptions,
   ) => Promise<unknown>;
 };
 

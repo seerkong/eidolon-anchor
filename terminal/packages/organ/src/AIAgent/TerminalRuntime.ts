@@ -84,6 +84,8 @@ import type { Agent } from "@terminal/core/AIAgent"
 import type { TuiControl, TuiEvent, TuiMessageCategory } from "@terminal/core/AIAgent/TuiStreamEvents"
 import type { ExecApprovalMode } from "../stream/ExecProtocolGraph"
 import { SemanticTerminalRuntimeBridge } from "../stream/SemanticTerminalRuntimeBridge"
+import { loadRuntimeConfigFromVfs } from "@cell/ai-support"
+import { ResourceVFSLoaderOps } from "@cell/symbiont-logic/resource/ResourceVFSLoader"
 
 export type RuntimeBridgeNotification = {
   text: string
@@ -282,6 +284,20 @@ export function normalizeTerminalRuntimeMetadata(
       globalRoot: typeof existingRoots.globalRoot === "string" ? existingRoots.globalRoot : defaultRoots.globalRoot,
       workspaceRoot: typeof existingRoots.workspaceRoot === "string" ? existingRoots.workspaceRoot : defaultRoots.workspaceRoot,
     },
+  }
+
+  // runtime-config.json: terminal constructs a ResourceVFS from the two
+  // `.eidolon` roots (workDir takes precedence over home), parses it into
+  // typed RuntimeConfig via ai-support, and injects it on metadata.runtimeConfig
+  // for the cell executor to consume. Load failures silently fall back to the
+  // embedded default config inside RuntimeConfigVfsLoader.
+  try {
+    const workRoot = path.join(path.resolve(workDir), ".eidolon")
+    const homeRoot = resolveRuntimeAuthorityRoot(workDir)
+    const vfs = ResourceVFSLoaderOps.fromEidolonRoots([homeRoot, workRoot])
+    normalized.runtimeConfig = loadRuntimeConfigFromVfs(vfs)
+  } catch {
+    // keep metadata without runtimeConfig; consumers fall back to defaults
   }
   return normalized
 }

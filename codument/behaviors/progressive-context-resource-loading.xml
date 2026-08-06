@@ -16,7 +16,7 @@
     </suite>
   </requirement>
   <requirement id="revision-and-visible-coverage">
-    <statement>系统 SHALL 仅在 resource revision 未变化、requested fragment 被 visible deliveries 完全覆盖且对应结果仍完整存在于 materialized provider context 时复用已加载内容；否则 SHALL 重新交付变化或缺失的内容。</statement>
+    <statement>系统 SHALL 仅在 resource revision 未变化、requested fragment 被 visible deliveries 完全覆盖且对应结果仍完整存在于 materialized provider context 时复用已加载内容；否则 SHALL 重新交付变化或缺失的内容。已被持久化或压缩包裹替换的 tool result，若其包裹状态为 delivered_and_compacted，则该 delivery SHALL 仍按原始投递 range 贡献 visible coverage；若为 pending_first_delivery_compacted，则该 delivery SHALL NOT 贡献 visible coverage。</statement>
     <suite id="load-decision" name="加载决策">
       <case id="same-revision-visible-range-reused">
         <given>同一 revision 的 delivery 覆盖 requested line range 且完整 tool result 仍在 provider context</given>
@@ -29,11 +29,18 @@
         <then>系统 SHALL 创建新 revision 并交付新 revision 的所需内容</then>
         <then>旧 revision coverage SHALL NOT 被当作新 revision coverage</then>
       </case>
-      <case id="compacted-delivery-reloaded">
-        <given>资源事实仍持久存在但对应 tool result 已被 compacted 或 persisted wrapper 替换，或者已从当前 materialization 移除</given>
+      <case id="compacted-delivery-reused">
+        <given>同一 revision 的 tool result 已被 compacted 或 persisted wrapper 替换，且包裹状态为 delivered_and_compacted（正文曾完整投递）</given>
+        <when>再次请求该 delivery 覆盖的原始范围</when>
+        <then>该 delivery SHALL 按原始投递 range 贡献 visible coverage</then>
+        <then>系统 SHALL 返回 already-visible 引用而不重复投递正文</then>
+        <then>引用 SHALL 携带恢复路径提示（如持久化 artifact 路径）以便模型需要原文时读取</then>
+      </case>
+      <case id="pending-first-delivery-not-visible">
+        <given>tool result 在首次投递前即被 spill 到 artifact，包裹状态为 pending_first_delivery_compacted（模型从未看过正文）</given>
         <when>再次请求该范围</when>
         <then>该 delivery SHALL NOT 贡献 visible coverage</then>
-        <then>系统 SHALL 重新交付所需正文</then>
+        <then>系统 SHALL 引导模型读取 artifact 或重新交付所需正文</then>
       </case>
       <case id="progressive-range-delivery">
         <given>同一 revision 只有 requested range 的一部分仍可见</given>
@@ -66,6 +73,28 @@
         <given>工具调用不产生可识别的文本资源事实</given>
         <when>同类工具被重复调用</when>
         <then>本能力 SHALL NOT 对其增加循环检测或调用次数限制</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="large-file-truncation-and-total-lines">
+    <statement>系统 SHALL 对 read 工具提供统一的默认读取范围语义：文件与目录默认 limit 一致（2000），offset 1 起始；超长文本资源 SHALL 截断到前 limit 行而非整文件投递；资源投递 header SHALL 报告 total-lines 元信息（文件总行数 / 目录总条目数），文件与目录 SHALL NOT 使用不同的隐式默认。</statement>
+    <suite id="truncation-and-metadata" name="截断与元信息">
+      <case id="large-file-truncated">
+        <given>目标文本文件总行数超过默认 limit（2000 行）</given>
+        <when>任一 resolver 请求该文件</when>
+        <then>系统 SHALL 只投递请求 offset 起的至多 limit 行正文</then>
+        <then>header SHALL 报告 total-lines 总行数</then>
+      </case>
+      <case id="directory-default-aligned">
+        <given>read 读取目录</given>
+        <when>返回目录条目列表</when>
+        <then>默认 limit SHALL 与文件读取一致</then>
+        <then>header SHALL 报告目录总条目数元信息</then>
+      </case>
+      <case id="total-lines-in-already-visible">
+        <given>同一 revision 的资源已经可见</given>
+        <when>返回 already-visible 引用</when>
+        <then>引用 SHALL 保留 total-lines 元信息</then>
       </case>
     </suite>
   </requirement>

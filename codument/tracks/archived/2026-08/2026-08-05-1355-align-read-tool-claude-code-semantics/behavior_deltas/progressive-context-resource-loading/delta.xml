@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="progressive-context-resource-loading" version="1">
+  <upsert selector="behavior://progressive-context-resource-loading/requirements/large-file-truncation-and-total-lines">
+    <requirement id="large-file-truncation-and-total-lines">
+      <statement>系统 SHALL 对 read 工具提供统一的默认读取范围语义：文件与目录默认 limit 一致（2000），offset 1 起始；超长文本资源 SHALL 截断到前 limit 行而非整文件投递；资源投递 header SHALL 报告 total-lines 元信息（文件总行数 / 目录总条目数），文件与目录 SHALL NOT 使用不同的隐式默认。</statement>
+      <suite id="truncation-and-metadata" name="截断与元信息">
+        <case id="large-file-truncated">
+          <given>目标文本文件总行数超过默认 limit（2000 行）</given>
+          <when>任一 resolver 请求该文件</when>
+          <then>系统 SHALL 只投递请求 offset 起的至多 limit 行正文</then>
+          <then>header SHALL 报告 total-lines 总行数</then>
+        </case>
+        <case id="directory-default-aligned">
+          <given>read 读取目录</given>
+          <when>返回目录条目列表</when>
+          <then>默认 limit SHALL 与文件读取一致</then>
+          <then>header SHALL 报告目录总条目数元信息</then>
+        </case>
+        <case id="total-lines-in-already-visible">
+          <given>同一 revision 的资源已经可见</given>
+          <when>返回 already-visible 引用</when>
+          <then>引用 SHALL 保留 total-lines 元信息</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

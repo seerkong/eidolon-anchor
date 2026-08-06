@@ -1,0 +1,37 @@
+{
+  "compact": {
+    "microCompact": {
+      "budget": {
+        "toolResultBudgetBytes": 200000,
+        "toolResultPersistThresholdBytes": 30000,
+        "toolResultPreviewChars": 2000
+      },
+      "cheap": {
+        "toolResultBudgetBytes": 120000,
+        "toolResultPersistThresholdBytes": 4000,
+        "toolResultPreviewChars": 1500,
+        "microKeepRecentToolResults": 20,
+        "microMinContentChars": 8000,
+        "microPreviewChars": 4000
+      },
+      "preflight": {
+        "toolResultBudgetBytes": 20000,
+        "toolResultPersistThresholdBytes": 2000,
+        "toolResultPreviewChars": 500,
+        "microKeepRecentToolResults": 1,
+        "microMinContentChars": 1000,
+        "microPreviewChars": 300
+      },
+      "fallback": {
+        "microKeepRecentToolResults": 3,
+        "microMinContentChars": 120,
+        "microPreviewChars": 800
+      }
+    },
+    "historyCompaction": {
+      "recentKeep": 4,
+      "safeRatio": 0.9,
+      "triggerRatio": 0.85
+    }
+  }
+}

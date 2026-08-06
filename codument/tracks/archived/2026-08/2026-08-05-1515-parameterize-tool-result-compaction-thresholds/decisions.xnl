@@ -1,0 +1,74 @@
+<decision #track.parameterize-tool-result-compaction-thresholds.wait-for-config-mechanism {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>压缩阈值参数化如何推进？</?>
+  <answer { }
+  (
+    <raw-answer ?>先建占位 track，到达即停在 human confirm，等用户提供通用配置机制方案。</?>
+    <decision-text ?>本 track 不预设实现；proposal.md 只记录已收集的隐式默认值位置/文件/传递逻辑；track.xml 唯一任务带 human confirm，mission 走到 G4 即停下。</?>
+    <rationale ?>用户明确要求先用通用机制给本项目加配置项配置文件，再实施参数化；未确认前不预设实现。</?>
+    <evidence ?>mission.track3-stop 决策；用户讨论；AiAgentExecutor.ts/ContextCompressor.ts 硬编码位置。</?>
+  )>
+)>
+
+<decision #track.parameterize-tool-result-compaction-thresholds.vfs-consumer-interface {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>cell 层 VFS 消费接口如何设计？</?>
+  <answer { }
+  (
+    <raw-answer ?>ai-support 新增 RuntimeConfigVfsLoader。</?>
+    <decision-text ?>在 ai-support 新增从 ResourceVFS 读取配置并解析 typed options 的 loader（RuntimeConfigVfsLoader）；与现有 LocalFileRuntimeConfigLoader 并存，新路径走 VFS，旧路径保留兼容。</?>
+    <rationale ?>用户确认；cell 层从 VFS 读取（不碰文件系统），terminal 构造 VFS。</?>
+    <evidence ?>用户决策；cell 包依赖关系；LocalFileRuntimeConfigLoader 现状。</?>
+  )>
+)>
+
+<decision #track.parameterize-tool-result-compaction-thresholds.default-json-location {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>bunfs 默认 json 放哪个 cell 包？</?>
+  <answer { }
+  (
+    <raw-answer ?>ai-support。VFS 没有则取默认配置。</?>
+    <decision-text ?>默认配置 json 内嵌在 ai-support；VFS 中无对应文件时，RuntimeConfigVfsLoader 用内嵌默认配置兜底。</?>
+    <rationale ?>用户确认；ai-support 是 cell 层真正读配置文件的层，默认 json 就近消费。</?>
+    <evidence ?>用户决策；ai-support 现有 ConfigLoader 位置。</?>
+  )>
+)>
+
+<decision #track.parameterize-tool-result-compaction-thresholds.vfs-scope {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>ResourceVFS 的 scope 是什么？</?>
+  <answer { }
+  (
+    <raw-answer ?>通用文件树（含 skill/agent/prompt 等），本期只做配置文件。</?>
+    <decision-text ?>symbiont 的 ResourceVFS 设计为通用文件树（对齐 sparrow 的 CONFIG_FILE_NAMES + RESOURCE_DIR_NAMES），但本 track 只实现配置文件路径（/.eidolon/*.json）。</?>
+    <rationale ?>用户确认；symbiont 是可迁移通用能力，设计上支持完整文件树，本期收敛到配置。</?>
+    <evidence ?>用户决策；sparrow ResourceVFS 设计。</?>
+  )>
+)>
+
+<decision #track.parameterize-tool-result-compaction-thresholds.circular-dependency-backlog {
+  status = "accepted"
+  priority = "P1"
+}
+(
+  <question ?>ai-support ↔ ai-organ-logic 循环依赖如何处理？</?>
+  <answer { }
+  (
+    <raw-answer ?>记入 codument backlog 后续解决。</?>
+    <decision-text ?>ai-support 依赖 ai-organ-logic，而 ai-organ-logic 依赖 ai-support 的循环依赖问题记入 codument/backlog（P1，plan-first），本 track 不解决。</?>
+    <rationale ?>用户确认；本 track 聚焦配置机制，循环依赖另立工作项。</?>
+    <evidence ?>用户决策；cell 包 package.json 依赖关系。</?>
+  )>
+)>

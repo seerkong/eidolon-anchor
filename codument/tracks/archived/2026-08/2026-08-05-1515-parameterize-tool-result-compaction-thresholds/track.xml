@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="parameterize-tool-result-compaction-thresholds" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>把 tool-result 压缩阈值从代码内隐式硬编码迁移为通用配置机制承载的可配置项。</Goal>
+    <Description>通用配置机制：symbiont 提供 ResourceVFS 类型与操作；ai-support 提供 RuntimeConfigVfsLoader（从 VFS 读取 + 内嵌默认 json 兜底）；terminal 构造 VFS（读 workDir/.eidolon + ~/.eidolon 两级）；压缩阈值参数化进 runtime-config.json（compact.microCompact 多级结构）。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-05T10:34:57Z</CreatedAt>
+    <UpdatedAt>2026-08-05T12:15:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_parameterize-tool-result-compaction-thresholds" name="parameterize-tool-result-compaction-thresholds" version="1">
+    <Description>建立通用配置机制（ResourceVFS + RuntimeConfigVfsLoader + terminal 构造 VFS），并把压缩阈值参数化进 runtime-config.json。</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="ResourceVFS 底层能力（symbiont）" status="DONE" order="0">
+        <Description>在 symbiont-contract/logic 建立可迁移的 ResourceVFS 类型与操作。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>ResourceVFS 类型与 fromDict/withFile/merge/get 操作就绪。</cdt:Criterion>
+          <cdt:Criterion>symbiont 不依赖 cell 内部包（可迁移）。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="symbiont-contract 定义 ResourceVFS 类型" status="DONE" order="0" priority="P0">
+            <Description>在 symbiont-contract 定义 ResourceVFSFile / ResourceVFS（对齐 sparrow 的 PurePosixPath → content 结构）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">ResourceVFSFile 含 path(PurePosixPath) / content / source。</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">ResourceVFS 含 files 字典。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="symbiont-logic 实现 ResourceVFSOps/ResourceVFSLoaderOps" status="DONE" order="1" priority="P0">
+            <Description>实现 fromDict / withFile / merge / get / fromFilePaths（对齐 sparrow ResourceVFSLoaderOps），VFS 路径约定用 /.eidolon/ 前缀。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">fromDict/withFile/merge/get 就绪。</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">VFS 路径约定 /.eidolon/（非 .sparrow）。</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC3" checked="true">symbiont-logic 不依赖 cell 内部包。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="RuntimeConfigVfsLoader（ai-support）" status="DONE" order="1">
+        <Description>在 ai-support 建立从 ResourceVFS 读取配置的 loader，内嵌默认 json 兜底。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>RuntimeConfigVfsLoader 从 VFS 读配置并解析 typed options。</cdt:Criterion>
+          <cdt:Criterion>VFS 无文件时用内嵌默认 json 兜底。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="内嵌默认 runtime-config.json 到 ai-support" status="DONE" order="0" priority="P0">
+            <Description>在 ai-support 内嵌默认 runtime-config.json（compact.microCompact 多级结构），用 import with type json。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">默认 json 含 compact.microCompact（budget/cheap/preflight/fallback）。</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">含 historyCompaction（recentKeep/safeRatio/triggerRatio）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="RuntimeConfigVfsLoader 从 VFS 读配置并解析 typed options" status="DONE" order="1" priority="P0">
+            <Description>实现 RuntimeConfigVfsLoader：从 ResourceVFS 的 /.eidolon/runtime-config.json 读取，解析为 typed options；VFS 无文件时用内嵌默认 json。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">从 VFS 读取并解析 typed options。</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">VFS 无文件时静默降级到内嵌默认 json。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="压缩阈值消费参数化（ai-organ-logic）" status="DONE" order="2">
+        <Description>把 AiAgentExecutor/ContextCompressor 的硬编码阈值改为从 typed options 读取。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>cheap/preflight/fallback 阈值从配置读取而非硬编码。</cdt:Criterion>
+          <cdt:Criterion>historyCompaction 的 recentKeep/ratio 从配置读取。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="AiAgentExecutor 压缩管线参数化" status="DONE" order="0" priority="P0">
+            <Description>buildCheapCompactionPipelineOptions / buildPreflightPressureCompactionPipelineOptions 从 typed options 读取阈值。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">cheap 6 参数从配置读取。</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">preflight 6 参数从配置读取。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="ContextCompressor 函数默认值参数化" status="DONE" order="1" priority="P0">
+            <Description>applyToolResultBudget/microCompactToolResults/findSplitPoint 的默认值改为从配置读取。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">budget/persist/preview 默认值从配置读取。</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">micro keepRecent/minChars/preview 默认值从配置读取。</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC3" checked="true">historyCompaction recentKeep/ratio 从配置读取。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="terminal 构造 VFS" status="DONE" order="3">
+        <Description>terminal 入口层构造 ResourceVFS（读 workDir/.eidolon + ~/.eidolon 两级），供 cell 消费。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>terminal 构造 VFS 并传给 cell 消费。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T4.1" name="terminal 构造 ResourceVFS 并接入 runtime" status="DONE" order="0" priority="P0">
+            <Description>在 terminal 入口（TerminalRuntime 等）读 workDir/.eidolon + ~/.eidolon 两级配置文件，构造 ResourceVFS，传给 cell 的 RuntimeConfigVfsLoader 消费。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">terminal 构造 VFS（两级目录）。</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">压缩配置经 VFS → RuntimeConfigVfsLoader → 压缩管线。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P5" name="验证与收口" status="DONE" order="4">
+        <Description>补充测试覆盖 VFS 加载、默认兜底、压缩阈值参数化；strict validate。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>VFS 加载 + 默认兜底 + 参数化消费测试通过。</cdt:Criterion>
+          <cdt:Criterion>strict codument 校验通过。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T5.1" name="补测试并验证配置机制" status="DONE" order="0" priority="P0">
+            <Description>新增 symbiont ResourceVFS 测试、ai-support RuntimeConfigVfsLoader 测试、压缩阈值参数化消费测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">ResourceVFS 操作测试通过。</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">RuntimeConfigVfsLoader 加载/兜底测试通过。</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC3" checked="true">压缩阈值参数化消费测试通过。</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC4" checked="true">strict track/decisions validation 通过。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+</Track>

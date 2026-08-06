@@ -2,6 +2,7 @@ export * from "./runtime/LocalFileOrchestrationHistoryEffects";
 export * from "./runtime/LocalFileRuntimeConfigLoader";
 export * from "./runtime/LocalFileRuntimeSnapshotRepository";
 export * from "./runtime/QuestionnaireXnlStore";
+export * from "./runtime/RuntimeConfigVfsLoader";
 export * from "./conversation";
 export * from "./agent/LocalFileAgentLoader";
 export * from "./skill/LocalFileSkillCatalog";

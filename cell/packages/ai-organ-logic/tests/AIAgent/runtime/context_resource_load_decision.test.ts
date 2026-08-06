@@ -116,17 +116,17 @@ describe("context resource load decisions", () => {
       revisionDigest: REVISION_A,
       materializedMessages: messages,
       toolCallRecords: records,
-    })).toEqual([range(1, 5)]);
+    }).visibleRanges).toEqual([range(1, 5)]);
 
     expect(deriveVisibleResourceCoverage({
       resourceFact: fact,
       revisionDigest: REVISION_A,
       materializedMessages: [toolMessage("delivery-1", "truncated result")],
       toolCallRecords: records,
-    })).toEqual([]);
+    }).visibleRanges).toEqual([]);
   });
 
-  it("treats compacted and persisted wrappers as invisible even when their preview contains source text", () => {
+  it("treats compacted and persisted delivered wrappers as visible over their original delivery range", () => {
     const fact = makeFact();
     const records = [
       completedRecord("delivery-1", "full result one"),
@@ -148,7 +148,136 @@ describe("context resource load decisions", () => {
       revisionDigest: REVISION_A,
       materializedMessages: messages,
       toolCallRecords: records,
-    })).toEqual([]);
+    }).visibleRanges).toEqual([range(1, 5), range(8, 10)]);
+  });
+
+  it("treats a compacted delivered wrapper as visible only over its fragment selection range, not the whole file", () => {
+    const fact = makeFact();
+    const records = [
+      completedRecord("delivery-1", "full result one"),
+      completedRecord("delivery-2", "full result two"),
+    ];
+    const messages = [
+      toolMessage(
+        "delivery-1",
+        '<compacted-tool-result status="delivered_and_compacted">\n<preview>full result one</preview>\n</compacted-tool-result>',
+      ),
+      toolMessage("delivery-2", "full result two"),
+    ];
+
+    expect(deriveVisibleResourceCoverage({
+      resourceFact: fact,
+      revisionDigest: REVISION_A,
+      materializedMessages: messages,
+      toolCallRecords: records,
+    }).visibleRanges).toEqual([range(1, 5), range(8, 10)]);
+  });
+
+  it("treats a compacted delivered wrapper as invisible when its completed record is absent", () => {
+    const fact = makeFact();
+    const records = [completedRecord("delivery-2", "full result two")];
+    const messages = [
+      toolMessage(
+        "delivery-1",
+        '<compacted-tool-result status="delivered_and_compacted">\n<preview>full result one</preview>\n</compacted-tool-result>',
+      ),
+      toolMessage("delivery-2", "full result two"),
+    ];
+
+    expect(deriveVisibleResourceCoverage({
+      resourceFact: fact,
+      revisionDigest: REVISION_A,
+      materializedMessages: messages,
+      toolCallRecords: records,
+    }).visibleRanges).toEqual([range(8, 10)]);
+  });
+
+  it("does not treat a pending_first_delivery_compacted wrapper as visible over its delivery range", () => {
+    const fact = makeFact();
+    const records = [
+      completedRecord("delivery-1", "full result one"),
+      completedRecord("delivery-2", "full result two"),
+    ];
+    const messages = [
+      // delivery-1's body was spilled to an artifact before its first delivery:
+      // the model never saw it, so its range must NOT contribute visible coverage.
+      toolMessage(
+        "delivery-1",
+        [
+          '<persisted-tool-result status="pending_first_delivery_compacted">',
+          "Tool call id: delivery-1",
+          "Full output persisted at: /artifacts/tool-results/main/delivery-1.txt",
+          "<preview>full result one</preview>",
+          "</persisted-tool-result>",
+        ].join("\n"),
+      ),
+      // Contrast: a delivered_and_compacted wrapper (body fully delivered before)
+      // still contributes visible coverage over its original delivery range.
+      toolMessage(
+        "delivery-2",
+        '<persisted-tool-result status="delivered_and_compacted">\n<preview>full result two</preview>\n</persisted-tool-result>',
+      ),
+    ];
+
+    expect(deriveVisibleResourceCoverage({
+      resourceFact: fact,
+      revisionDigest: REVISION_A,
+      materializedMessages: messages,
+      toolCallRecords: records,
+    }).visibleRanges).toEqual([range(8, 10)]);
+  });
+
+  it("does not treat a compacted-tag pending_first_delivery_compacted wrapper as visible", () => {
+    const fact = makeFact();
+    const records = [completedRecord("delivery-1", "full result one")];
+    const messages = [
+      toolMessage(
+        "delivery-1",
+        [
+          '<compacted-tool-result status="pending_first_delivery_compacted">',
+          "Full output persisted at: /artifacts/tool-results/main/delivery-1.txt",
+          "<preview>full result one</preview>",
+          "</compacted-tool-result>",
+        ].join("\n"),
+      ),
+    ];
+
+    expect(deriveVisibleResourceCoverage({
+      resourceFact: fact,
+      revisionDigest: REVISION_A,
+      materializedMessages: messages,
+      toolCallRecords: records,
+    }).visibleRanges).toEqual([]);
+  });
+
+  it("returns missing_ranges (re-delivery) when only a pending_first_delivery_compacted wrapper remains", () => {
+    const fact = makeFact();
+    const records = [completedRecord("delivery-1", "full result one")];
+    const pending = toolMessage(
+      "delivery-1",
+      [
+        '<persisted-tool-result status="pending_first_delivery_compacted">',
+        "Tool call id: delivery-1",
+        "Full output persisted at: /artifacts/tool-results/main/delivery-1.txt",
+        "<preview>full result one</preview>",
+        "</persisted-tool-result>",
+      ].join("\n"),
+    );
+
+    expect(decideContextResourceLoad({
+      resourceFact: fact,
+      currentRevisionDigest: REVISION_A,
+      requestedRanges: [range(1, 5)],
+      materializedMessages: [pending],
+      toolCallRecords: records,
+    })).toEqual({
+      kind: "missing_ranges",
+      revisionDigest: REVISION_A,
+      requestedRanges: [range(1, 5)],
+      visibleRanges: [],
+      missingRanges: [range(1, 5)],
+      recoveryPaths: [],
+    });
   });
 
   it("returns already-visible when same-revision coverage fully contains the request", () => {
@@ -167,6 +296,145 @@ describe("context resource load decisions", () => {
       requestedRanges: [range(2, 4)],
       visibleRanges: [range(1, 5)],
       missingRanges: [],
+      recoveryPaths: [],
+    });
+  });
+
+  it("returns already-visible for the original range after a delivered delivery is compacted", () => {
+    const fact = makeFact();
+    const records = [
+      completedRecord("delivery-1", "full result one"),
+      completedRecord("delivery-2", "full result two"),
+    ];
+    const compacted = toolMessage(
+      "delivery-1",
+      [
+        '<compacted-tool-result status="delivered_and_compacted">',
+        "Tool call id: delivery-1",
+        "Full output persisted at: /artifacts/tool-results/main/delivery-1.txt",
+        '<preview>full result one</preview>',
+        "</compacted-tool-result>",
+      ].join("\n"),
+    );
+
+    expect(decideContextResourceLoad({
+      resourceFact: fact,
+      currentRevisionDigest: REVISION_A,
+      requestedRanges: [range(2, 4)],
+      materializedMessages: [compacted, toolMessage("delivery-2", "full result two")],
+      toolCallRecords: records,
+    })).toEqual({
+      kind: "already_visible",
+      revisionDigest: REVISION_A,
+      requestedRanges: [range(2, 4)],
+      visibleRanges: [range(1, 5), range(8, 10)],
+      missingRanges: [],
+      recoveryPaths: ["/artifacts/tool-results/main/delivery-1.txt"],
+    });
+  });
+
+  it("collects a recovery path only for the delivered_and_compacted wrappers that carry one", () => {
+    const fact = makeFact();
+    const records = [
+      completedRecord("delivery-1", "full result one"),
+      completedRecord("delivery-2", "full result two"),
+    ];
+    const messages = [
+      // delivery-1's wrapper carries a persisted path.
+      toolMessage(
+        "delivery-1",
+        [
+          '<compacted-tool-result status="delivered_and_compacted">',
+          "Tool call id: delivery-1",
+          "Full output persisted at: /artifacts/tool-results/main/delivery-1.txt",
+          "<preview>full result one</preview>",
+          "</compacted-tool-result>",
+        ].join("\n"),
+      ),
+      // delivery-2's wrapper is a plain compacted form without any persisted path.
+      toolMessage(
+        "delivery-2",
+        [
+          '<compacted-tool-result status="delivered_and_compacted">',
+          "Tool call id: delivery-2",
+          "Original characters: 42",
+          "<preview>full result two</preview>",
+          "</compacted-tool-result>",
+        ].join("\n"),
+      ),
+    ];
+
+    expect(decideContextResourceLoad({
+      resourceFact: fact,
+      currentRevisionDigest: REVISION_A,
+      // Both requested ranges sit fully inside the two deliveries' coverage.
+      requestedRanges: [range(2, 4), range(9, 10)],
+      materializedMessages: messages,
+      toolCallRecords: records,
+    })).toEqual({
+      kind: "already_visible",
+      revisionDigest: REVISION_A,
+      requestedRanges: [range(2, 4), range(9, 10)],
+      visibleRanges: [range(1, 5), range(8, 10)],
+      missingRanges: [],
+      recoveryPaths: ["/artifacts/tool-results/main/delivery-1.txt"],
+    });
+  });
+
+  it("excludes pending_first_delivery_compacted wrappers from the recovery paths", () => {
+    const fact = makeFact();
+    const records = [completedRecord("delivery-1", "full result one")];
+    const pending = toolMessage(
+      "delivery-1",
+      [
+        '<persisted-tool-result status="pending_first_delivery_compacted">',
+        "Tool call id: delivery-1",
+        "Full output persisted at: /artifacts/tool-results/main/delivery-1.txt",
+        "<preview>full result one</preview>",
+        "</persisted-tool-result>",
+      ].join("\n"),
+    );
+
+    expect(decideContextResourceLoad({
+      resourceFact: fact,
+      currentRevisionDigest: REVISION_A,
+      requestedRanges: [range(1, 5)],
+      materializedMessages: [pending],
+      toolCallRecords: records,
+    })).toEqual({
+      kind: "missing_ranges",
+      revisionDigest: REVISION_A,
+      requestedRanges: [range(1, 5)],
+      visibleRanges: [],
+      missingRanges: [range(1, 5)],
+      recoveryPaths: [],
+    });
+  });
+
+  it("still delivers ranges outside the compacted delivery coverage", () => {
+    const fact = makeFact();
+    const records = [
+      completedRecord("delivery-1", "full result one"),
+      completedRecord("delivery-2", "full result two"),
+    ];
+    const compacted = toolMessage(
+      "delivery-1",
+      '<compacted-tool-result status="delivered_and_compacted">\n<preview>full result one</preview>\n</compacted-tool-result>',
+    );
+
+    expect(decideContextResourceLoad({
+      resourceFact: fact,
+      currentRevisionDigest: REVISION_A,
+      requestedRanges: [range(1, 10)],
+      materializedMessages: [compacted, toolMessage("delivery-2", "full result two")],
+      toolCallRecords: records,
+    })).toEqual({
+      kind: "missing_ranges",
+      revisionDigest: REVISION_A,
+      requestedRanges: [range(1, 10)],
+      visibleRanges: [range(1, 5), range(8, 10)],
+      missingRanges: [range(6, 7)],
+      recoveryPaths: [],
     });
   });
 
@@ -189,6 +457,7 @@ describe("context resource load decisions", () => {
       requestedRanges: [range(1, 10)],
       visibleRanges: [range(1, 5)],
       missingRanges: [range(6, 10)],
+      recoveryPaths: [],
     });
   });
 
@@ -208,6 +477,7 @@ describe("context resource load decisions", () => {
       requestedRanges: [range(3, 7)],
       visibleRanges: [],
       missingRanges: [range(3, 7)],
+      recoveryPaths: [],
     });
   });
 });

@@ -8,7 +8,8 @@ import {
 } from "depa-processor"
 import fs from "fs"
 import { authorizeLocalToolCall } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime"
-import { loadLocalTextResource } from "@cell/ai-organ-logic/runtime/LocalTextResourceLoader"
+import { loadLocalTextResource, escapeAttribute } from "@cell/ai-organ-logic/runtime/LocalTextResourceLoader"
+import { computeTextResourceRevision } from "@cell/ai-organ-logic/runtime/ContextResourceLoadDecision"
 import { resolveToolPath } from "../_shared"
 import type { ReadInnerConfig, ReadInnerInput, ReadInnerOutput, ReadInnerRuntime } from "./InnerTypes"
 
@@ -40,8 +41,19 @@ export const readCoreLogic: StdInnerLogic<ReadInnerRuntime, ReadInnerInput, Read
   if (stat.isDirectory()) {
     const entries = fs.readdirSync(full).sort()
     const directoryOffset = Math.max(1, offset)
-    const limit = Math.max(1, Number(input?.limit ?? 200))
-    return entries.slice(directoryOffset - 1, directoryOffset - 1 + limit).join("\n")
+    const limit = Math.max(1, Number(input?.limit ?? 2000))
+    const listing = entries.join("\n")
+    const delivered = entries.slice(directoryOffset - 1, directoryOffset - 1 + limit).join("\n")
+    const lastDeliveredLine = Math.min(entries.length, directoryOffset + limit - 1)
+    const deliveredRange =
+      entries.length === 0 || directoryOffset > entries.length
+        ? ""
+        : `${directoryOffset}-${lastDeliveredLine}`
+    return [
+      `<context-resource status="loaded" resource-id="${escapeAttribute(resolveToolPath(workdir, rawPath))}" revision="${computeTextResourceRevision(listing).digest}" total-lines="${entries.length}" requested-lines="${deliveredRange}" delivered-lines="${deliveredRange}">`,
+      delivered,
+      "</context-resource>",
+    ].filter((part) => part !== "").join("\n")
   }
 
   return loadLocalTextResource({
@@ -53,5 +65,6 @@ export const readCoreLogic: StdInnerLogic<ReadInnerRuntime, ReadInnerInput, Read
     sourceText: fs.readFileSync(full, "utf-8"),
     offset,
     limit: Number(input?.limit ?? 2000),
+    sizeBytes: stat.size,
   })
 }

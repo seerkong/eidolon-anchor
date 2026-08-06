@@ -59,6 +59,7 @@ function completeInitialDelivery() {
     sourceText: SOURCE_TEXT,
     offset: 1,
     limit: 3,
+    sizeBytes: fs.statSync(fullPath).size,
   });
   initial.toolCallDomain.recordResult({ toolCallId, outputText: output, at: 4 });
   appendLiveHistoryMessageToConversationDomainRuntime({
@@ -121,6 +122,7 @@ function reload(vm: any, fullPath: string): string {
     sourceText: SOURCE_TEXT,
     offset: 1,
     limit: 3,
+    sizeBytes: fs.statSync(fullPath).size,
   });
 }
 
@@ -131,6 +133,39 @@ describe("local text resource recovery visibility", () => {
     const output = reload(recover(initial), initial.fullPath);
 
     expect(output).toContain('<context-resource status="already-visible"');
+    expect(output).toContain('total-lines="3"');
+    expect(output).toContain(`size-bytes="${fs.statSync(initial.fullPath).size}"`);
+    expect(output).not.toContain("1: alpha");
+  });
+
+  it.each([
+    {
+      name: "compacted result whose preview still contains the body",
+      records: (initial: ReturnType<typeof completeInitialDelivery>) => initial.records,
+      actorRawState: (initial: ReturnType<typeof completeInitialDelivery>) => rewriteDeliveredResult(
+        initial.actorRawState,
+        `<compacted-tool-result status="delivered_and_compacted"><preview>${initial.output}</preview></compacted-tool-result>`,
+      ),
+    },
+    {
+      name: "persisted result whose preview still contains the body",
+      records: (initial: ReturnType<typeof completeInitialDelivery>) => initial.records,
+      actorRawState: (initial: ReturnType<typeof completeInitialDelivery>) => rewriteDeliveredResult(
+        initial.actorRawState,
+        `<persisted-tool-result status="delivered_and_compacted"><preview>${initial.output}</preview></persisted-tool-result>`,
+      ),
+    },
+  ])("reuses compacted delivered coverage after recovery when only $name remains", ({ records, actorRawState }) => {
+    const initial = completeInitialDelivery();
+    const restoredRecords = typeof records === "function" ? records(initial) : records;
+    const output = reload(recover(initial, {
+      actorRawState: actorRawState(initial),
+      records: restoredRecords,
+    }), initial.fullPath);
+
+    expect(output).toContain('<context-resource status="already-visible"');
+    expect(output).toContain('total-lines="3"');
+    expect(output).toContain(`size-bytes="${fs.statSync(initial.fullPath).size}"`);
     expect(output).not.toContain("1: alpha");
   });
 
@@ -161,22 +196,6 @@ describe("local text resource recovery visibility", () => {
       actorRawState: (initial: ReturnType<typeof completeInitialDelivery>) =>
         rewriteDeliveredResult(initial.actorRawState, null),
     },
-    {
-      name: "compacted result whose preview still contains the body",
-      records: (initial: ReturnType<typeof completeInitialDelivery>) => initial.records,
-      actorRawState: (initial: ReturnType<typeof completeInitialDelivery>) => rewriteDeliveredResult(
-        initial.actorRawState,
-        `<compacted-tool-result status="delivered_and_compacted"><preview>${initial.output}</preview></compacted-tool-result>`,
-      ),
-    },
-    {
-      name: "persisted result whose preview still contains the body",
-      records: (initial: ReturnType<typeof completeInitialDelivery>) => initial.records,
-      actorRawState: (initial: ReturnType<typeof completeInitialDelivery>) => rewriteDeliveredResult(
-        initial.actorRawState,
-        `<persisted-tool-result status="delivered_and_compacted"><preview>${initial.output}</preview></persisted-tool-result>`,
-      ),
-    },
   ])("reloads unchanged text after recovery when only $name remains", ({ records, actorRawState }) => {
     const initial = completeInitialDelivery();
     const restoredRecords = typeof records === "function" ? records(initial) : records;
@@ -186,6 +205,8 @@ describe("local text resource recovery visibility", () => {
     }), initial.fullPath);
 
     expect(output).toContain('<context-resource status="loaded"');
+    expect(output).toContain('total-lines="3"');
+    expect(output).toContain(`size-bytes="${fs.statSync(initial.fullPath).size}"`);
     expect(output).toContain("1: alpha\n2: beta\n3: gamma");
   });
 

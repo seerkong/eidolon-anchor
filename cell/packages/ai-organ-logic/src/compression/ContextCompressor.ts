@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { defaultRuntimeConfig } from "@cell/ai-support";
 import compressionPrompt from "./CompressionPrompt.md" with { type: "text" };
 import type { LlmAdapter } from "@cell/ai-core-contract/LlmTypes";
 import { estimateTokens } from "./TokenEstimator";
@@ -226,9 +227,10 @@ export function applyToolResultBudget(
     return { changed: false, persisted: 0 };
   }
 
-  const maxBytes = options.toolResultBudgetBytes ?? 200_000;
-  const persistThreshold = options.toolResultPersistThresholdBytes ?? 30_000;
-  const previewChars = options.toolResultPreviewChars ?? 2_000;
+  const defaults = defaultRuntimeConfig().compact.microCompact;
+  const maxBytes = options.toolResultBudgetBytes ?? defaults.budget.toolResultBudgetBytes;
+  const persistThreshold = options.toolResultPersistThresholdBytes ?? defaults.budget.toolResultPersistThresholdBytes;
+  const previewChars = options.toolResultPreviewChars ?? defaults.budget.toolResultPreviewChars;
   const protectedToolCallIds = toProtectedToolCallIds(options.protectedToolCallIds);
   const refs = collectToolResultRefs(messages);
   let total = refs.reduce((sum, ref) => sum + stringifyContent(ref.getContent()).length, 0);
@@ -266,9 +268,10 @@ export function microCompactToolResults(
     "microKeepRecentToolResults" | "microMinContentChars" | "microPreviewChars" | "protectedToolCallIds"
   > = {},
 ): { changed: boolean; compacted: number } {
-  const keepRecent = Math.max(0, Math.floor(options.microKeepRecentToolResults ?? 3));
-  const minChars = Math.max(0, Math.floor(options.microMinContentChars ?? 120));
-  const previewChars = Math.max(0, Math.floor(options.microPreviewChars ?? 800));
+  const defaults = defaultRuntimeConfig().compact.microCompact.fallback;
+  const keepRecent = Math.max(0, Math.floor(options.microKeepRecentToolResults ?? defaults.microKeepRecentToolResults));
+  const minChars = Math.max(0, Math.floor(options.microMinContentChars ?? defaults.microMinContentChars));
+  const previewChars = Math.max(0, Math.floor(options.microPreviewChars ?? defaults.microPreviewChars));
   const protectedToolCallIds = toProtectedToolCallIds(options.protectedToolCallIds);
   const refs = collectToolResultRefs(messages);
   if (refs.length <= keepRecent) {
@@ -361,7 +364,7 @@ async function collectStreamText(stream: AsyncIterable<any>): Promise<string> {
   return text.trim();
 }
 
-export function findSplitPoint(messages: any[], recentKeep = 4): number {
+export function findSplitPoint(messages: any[], recentKeep: number = defaultRuntimeConfig().compact.historyCompaction.recentKeep): number {
   if (!Array.isArray(messages) || messages.length === 0) {
     return -1;
   }
@@ -557,7 +560,7 @@ export async function compressHistory(params: CompressHistoryParams): Promise<an
     protectsPendingHistory,
   } = findProtectedSplitPoint({
     messages,
-    recentKeep: params.recentKeep ?? 4,
+    recentKeep: params.recentKeep ?? defaultRuntimeConfig().compact.historyCompaction.recentKeep,
     protectedToolCallIds,
     protectedMessageIds,
   });
@@ -585,7 +588,8 @@ export async function compressHistory(params: CompressHistoryParams): Promise<an
       { role: "system", content: prompt },
       { role: "user", content: "[]" },
     ]);
-    const safeInputLimit = Math.max(1, Math.floor(inputLimit * 0.9));
+    const safeRatio = defaultRuntimeConfig().compact.historyCompaction.safeRatio;
+    const safeInputLimit = Math.max(1, Math.floor(inputLimit * safeRatio));
     const tokenBudget = Math.floor(Math.min(params.tokenBudget ?? safeInputLimit, safeInputLimit) - requestOverheadTokens);
     if (tokenBudget <= 0) {
       warn(logger, "compressHistory failed: compression prompt overhead exceeds request budget");

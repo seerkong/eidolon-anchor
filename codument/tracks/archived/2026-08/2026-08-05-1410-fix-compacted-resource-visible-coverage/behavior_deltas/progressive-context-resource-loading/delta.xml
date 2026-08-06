@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="progressive-context-resource-loading" version="1">
+  <upsert selector="behavior://progressive-context-resource-loading/requirements/revision-and-visible-coverage">
+    <requirement id="revision-and-visible-coverage">
+      <statement>系统 SHALL 仅在 resource revision 未变化、requested fragment 被 visible deliveries 完全覆盖且对应结果仍完整存在于 materialized provider context 时复用已加载内容；否则 SHALL 重新交付变化或缺失的内容。已被持久化或压缩包裹替换的 tool result，若其包裹状态为 delivered_and_compacted，则该 delivery SHALL 仍按原始投递 range 贡献 visible coverage；若为 pending_first_delivery_compacted，则该 delivery SHALL NOT 贡献 visible coverage。</statement>
+      <suite id="load-decision" name="加载决策">
+        <case id="same-revision-visible-range-reused">
+          <given>同一 revision 的 delivery 覆盖 requested line range 且完整 tool result 仍在 provider context</given>
+          <when>任一 resolver 再次请求该范围</when>
+          <then>系统 SHALL 返回通用 already-visible 引用而不重复正文</then>
+        </case>
+        <case id="changed-resource-reloaded">
+          <given>canonical resource id 相同但完整内容摘要已变化</given>
+          <when>再次请求任一范围</when>
+          <then>系统 SHALL 创建新 revision 并交付新 revision 的所需内容</then>
+          <then>旧 revision coverage SHALL NOT 被当作新 revision coverage</then>
+        </case>
+        <case id="compacted-delivery-reused">
+          <given>同一 revision 的 tool result 已被 compacted 或 persisted wrapper 替换，且包裹状态为 delivered_and_compacted（正文曾完整投递）</given>
+          <when>再次请求该 delivery 覆盖的原始范围</when>
+          <then>该 delivery SHALL 按原始投递 range 贡献 visible coverage</then>
+          <then>系统 SHALL 返回 already-visible 引用而不重复投递正文</then>
+          <then>引用 SHALL 携带恢复路径提示（如持久化 artifact 路径）以便模型需要原文时读取</then>
+        </case>
+        <case id="pending-first-delivery-not-visible">
+          <given>tool result 在首次投递前即被 spill 到 artifact，包裹状态为 pending_first_delivery_compacted（模型从未看过正文）</given>
+          <when>再次请求该范围</when>
+          <then>该 delivery SHALL NOT 贡献 visible coverage</then>
+          <then>系统 SHALL 引导模型读取 artifact 或重新交付所需正文</then>
+        </case>
+        <case id="progressive-range-delivery">
+          <given>同一 revision 只有 requested range 的一部分仍可见</given>
+          <when>请求更大的 line range</when>
+          <then>系统 SHALL 仅交付未被 visible coverage 覆盖的行范围</then>
+          <then>输出 SHALL 保留稳定原始行号</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

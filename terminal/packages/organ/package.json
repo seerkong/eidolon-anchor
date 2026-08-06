@@ -18,6 +18,7 @@
   "dependencies": {
     "@cell/ai-core-contract": "workspace:*",
     "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-support": "workspace:*",
     "@cell/membrane": "workspace:*",
     "@cell/mod-profiles": "workspace:*",
     "@cell/ai-organ-logic": "workspace:*",

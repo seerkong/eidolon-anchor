@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type {
+  LocalConversationContextResourceDeliveryFact,
   LocalConversationContextResourceDigest,
   LocalConversationContextResourceFact,
   LocalConversationContextResourceFragmentSelection,
@@ -29,6 +30,9 @@ export type ContextResourceLoadDecision =
       requestedRanges: LineRange[];
       visibleRanges: LineRange[];
       missingRanges: [];
+      /** Artifact paths recorded in delivered_and_compacted wrappers, so the
+       *  model can read the original output when it needs more than the wrapper. */
+      recoveryPaths: string[];
     }
   | {
       kind: "missing_ranges";
@@ -36,6 +40,8 @@ export type ContextResourceLoadDecision =
       requestedRanges: LineRange[];
       visibleRanges: LineRange[];
       missingRanges: LineRange[];
+      /** Always empty for missing_ranges: re-delivery carries the body itself. */
+      recoveryPaths: string[];
     }
   | {
       kind: "changed_revision";
@@ -44,6 +50,7 @@ export type ContextResourceLoadDecision =
       requestedRanges: LineRange[];
       visibleRanges: [];
       missingRanges: LineRange[];
+      recoveryPaths: [];
     };
 
 export function computeTextResourceRevision(sourceText: string): LocalConversationContextResourceDigest {
@@ -107,16 +114,38 @@ function isCompactedResult(content: string): boolean {
   );
 }
 
+function isPendingFirstDeliveryResult(content: string): boolean {
+  return /<(?:compacted|persisted)-tool-result\b[^>]*\bstatus=["']pending_first_delivery_compacted["'][^>]*>/i.test(
+    content,
+  );
+}
+
+function isCompactedResultStatus(content: string): boolean {
+  return isCompactedResult(content) || isPendingFirstDeliveryResult(content);
+}
+
+/** Extracts the `Full output persisted at:` artifact path from a compacted or
+ *  persisted wrapper, or null when the wrapper carries no persisted path. */
+function recoveryPathFromContent(content: string): string | null {
+  const match = content.match(/Full output persisted at:\s*(.+)/);
+  return match?.[1]?.trim() || null;
+}
+
 function messageToolCallId(message: ChatMessage): string | undefined {
   return message.toolCallId ?? message.tool_call_id;
 }
+
+export type VisibleResourceCoverage = {
+  visibleRanges: LineRange[];
+  recoveryPaths: string[];
+};
 
 export function deriveVisibleResourceCoverage({
   resourceFact,
   revisionDigest,
   materializedMessages,
   toolCallRecords,
-}: VisibilityInput): LineRange[] {
+}: VisibilityInput): VisibleResourceCoverage {
   const completedRecords = new Map(
     toolCallRecords
       .filter((record) => record.status === "completed" && typeof record.outputText === "string")
@@ -126,11 +155,36 @@ export function deriveVisibleResourceCoverage({
     materializedMessages
       .filter(
         (message): message is ChatMessage & { content: string } =>
-          message.role === "tool" && typeof message.content === "string" && !isCompactedResult(message.content),
+          message.role === "tool" && typeof message.content === "string" && !isCompactedResultStatus(message.content),
       )
       .map((message) => [messageToolCallId(message), message.content]),
   );
+  const deliveredAndCompactedMessages = new Set(
+    materializedMessages
+      .filter(
+        (message): message is ChatMessage & { content: string } =>
+          message.role === "tool" && typeof message.content === "string" && isCompactedResult(message.content),
+      )
+      .map((message) => messageToolCallId(message))
+      .filter((toolCallId): toolCallId is string => typeof toolCallId === "string"),
+  );
   const fragments = new Map(resourceFact.fragments.map((fragment) => [fragment.fragmentId, fragment]));
+  const deliveredAndCompactedByToolCallId = new Map(
+    [...deliveredAndCompactedMessages].map((toolCallId) => [
+      toolCallId,
+      materializedMessages.find(
+        (message) => message.role === "tool" && messageToolCallId(message) === toolCallId,
+      ),
+    ]),
+  );
+
+  const recoveryPathsForDelivery = (delivery: LocalConversationContextResourceDeliveryFact): string[] => {
+    if (!deliveredAndCompactedMessages.has(delivery.toolCallId)) return [];
+    const message = deliveredAndCompactedByToolCallId.get(delivery.toolCallId);
+    if (!message || typeof message.content !== "string") return [];
+    const path = recoveryPathFromContent(message.content);
+    return path ? [path] : [];
+  };
 
   const visibleRanges = resourceFact.deliveries.flatMap((delivery) => {
     if (delivery.revisionDigest !== revisionDigest) return [];
@@ -138,12 +192,31 @@ export function deriveVisibleResourceCoverage({
     if (!fragment || fragment.revisionDigest !== revisionDigest) return [];
 
     const record = completedRecords.get(delivery.toolCallId);
+    if (!record) return [];
+
     const visibleResult = visibleResults.get(delivery.toolCallId);
-    if (!record || visibleResult === undefined || visibleResult !== record.outputText) return [];
-    return [fragment.selection];
+    if (visibleResult !== undefined) {
+      if (visibleResult !== record.outputText) return [];
+      return [fragment.selection];
+    }
+
+    // The tool result was fully delivered (its ToolCallDomain record is
+    // completed), but the current message content is a compacted/persisted
+    // wrapper for that delivery. The wrapper's status is delivered_and_compacted:
+    // the model already saw the full body, so the original delivery range (kept
+    // append-only in resource fact deliveries) remains visible.
+    if (deliveredAndCompactedMessages.has(delivery.toolCallId)) {
+      return [fragment.selection];
+    }
+
+    return [];
   });
 
-  return normalizeLineRanges(visibleRanges);
+  const recoveryPaths = resourceFact.deliveries.flatMap((delivery) =>
+    recoveryPathsForDelivery(delivery),
+  );
+
+  return { visibleRanges: normalizeLineRanges(visibleRanges), recoveryPaths };
 }
 
 export function decideContextResourceLoad({
@@ -162,10 +235,11 @@ export function decideContextResourceLoad({
       requestedRanges: normalizedRequested,
       visibleRanges: [],
       missingRanges: normalizedRequested,
+      recoveryPaths: [],
     };
   }
 
-  const visibleRanges = deriveVisibleResourceCoverage({
+  const { visibleRanges, recoveryPaths } = deriveVisibleResourceCoverage({
     resourceFact,
     revisionDigest: currentRevisionDigest,
     materializedMessages,
@@ -180,6 +254,7 @@ export function decideContextResourceLoad({
       requestedRanges: normalizedRequested,
       visibleRanges,
       missingRanges: [],
+      recoveryPaths,
     };
   }
 
@@ -189,5 +264,6 @@ export function decideContextResourceLoad({
     requestedRanges: normalizedRequested,
     visibleRanges,
     missingRanges,
+    recoveryPaths: [],
   };
 }

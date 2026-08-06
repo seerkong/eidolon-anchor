@@ -34,14 +34,24 @@ export type LocalTextResourceLoadInput = {
   sourceText: string
   offset?: number
   limit?: number
+  /** File size in bytes when the source is read from disk (Read tool); omitted for synthesized sources (Skill). */
+  sizeBytes?: number
 }
 
 function rangeText(ranges: readonly LineRange[]): string {
   return ranges.map((range) => `${range.startLine}-${range.endLine}`).join(",")
 }
 
-function escapeAttribute(value: string): string {
+export function escapeAttribute(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;")
+}
+
+function sizeAttribute(sizeBytes?: number): string {
+  return typeof sizeBytes === "number" && Number.isFinite(sizeBytes) ? ` size-bytes="${sizeBytes}"` : ""
+}
+
+function totalLines(lines: string[]): number {
+  return lines.length > 0 && lines.at(-1) === "" ? lines.length - 1 : lines.length
 }
 
 function digestText(text: string): { algorithm: "sha256"; digest: string } {
@@ -179,7 +189,7 @@ export function loadLocalTextResource(input: LocalTextResourceLoadInput): string
   const canonicalResourceId = input.canonicalResourceId ?? pathToFileURL(input.fullPath).href
   const revision = computeTextResourceRevision(input.sourceText)
   if (startLine > lines.length) {
-    return `<context-resource status="loaded" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" requested-lines="${startLine}-${endLine}" delivered-lines=""></context-resource>`
+    return `<context-resource status="loaded" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" total-lines="${totalLines(lines)}"${sizeAttribute(input.sizeBytes)} requested-lines="${startLine}-${endLine}" delivered-lines=""></context-resource>`
   }
 
   const requested: LineRange[] = [{ kind: "line_range", startLine, endLine }]
@@ -192,14 +202,17 @@ export function loadLocalTextResource(input: LocalTextResourceLoadInput): string
     requested,
   })
   if (decision?.kind === "already_visible") {
-    return `<context-resource status="already-visible" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" requested-lines="${rangeText(requested)}"></context-resource>`
+    const recoveryLine = decision.recoveryPaths.length > 0
+      ? `\nFull output persisted at: ${decision.recoveryPaths.join(", ")}`
+      : "";
+    return `<context-resource status="already-visible" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" total-lines="${totalLines(lines)}"${sizeAttribute(input.sizeBytes)} requested-lines="${rangeText(requested)}"></context-resource>${recoveryLine}`
   }
 
   const delivered = decision?.missingRanges ?? requested
   const body = selectedText(lines, delivered)
   persistDelivery({ input, canonicalResourceId, revision, ranges: delivered, lines, existing })
   return [
-    `<context-resource status="loaded" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" requested-lines="${rangeText(requested)}" delivered-lines="${rangeText(delivered)}">`,
+    `<context-resource status="loaded" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" total-lines="${totalLines(lines)}"${sizeAttribute(input.sizeBytes)} requested-lines="${rangeText(requested)}" delivered-lines="${rangeText(delivered)}">`,
     body,
     "</context-resource>",
   ].filter((part) => part !== "").join("\n")

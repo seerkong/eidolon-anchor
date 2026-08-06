@@ -1,0 +1,59 @@
+<decision #mission.improve-file-read-efficiency-and-context-reuse.read-semantics {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>read 工具应采用哪种大文件读取语义？</?>
+  <answer { }
+  (
+    <raw-answer ?>对齐 Claude Code Read 语义（选项 1），不是 Codex file_view 的强制 range。</?>
+    <decision-text ?>read 默认 limit 2000、offset 1 起始、>2000 行截断到前 2000 行、header 报 total-lines；不改成 Codex 的强制 range 参数形态。</?>
+    <rationale ?>用户明确选择 Claude Code Read 语义；本仓库 read 已是 offset/limit 形态，对齐 Claude Code 改动最小且符合行业标准。</?>
+    <evidence ?>用户讨论决策；Read/Logic.ts 现状；mission proposal/design。</?>
+  )>
+)>
+
+<decision #mission.improve-file-read-efficiency-and-context-reuse.metadata-direction-c {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>工具读取范围如何与文件大小/总行数匹配？</?>
+  <answer { }
+  (
+    <raw-answer ?>方向 C：先提供快速文件元信息（size/总行数），再决定读取范围。</?>
+    <decision-text ?>提供文件大小/总行数元信息供模型先获取，再基于文件大小决定每次读取范围；read header 报 total-lines。</?>
+    <rationale ?>模型当前对文件大小/行数一无所知，只能盲猜 limit；先给元信息是 Claude Code/Codex 系的标准做法。</?>
+    <evidence ?>用户讨论决策；mission proposal/design。</?>
+  )>
+)>
+
+<decision #mission.improve-file-read-efficiency-and-context-reuse.compacted-visible {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>已压缩/持久化引用是否算可见覆盖？</?>
+  <answer { }
+  (
+    <raw-answer ?>delivered_and_compacted 可见；pending_first_delivery_compacted 不可见。</?>
+    <decision-text ?>ContextResourceLoadDecision 识别 compacted/persisted 引用：正文已完整投递过（delivered_and_compacted）视为可见，复用 deliveries 里的原始 range；首次投递前就被 spill（pending_first_delivery_compacted）视为不可见，模型需读 artifact。</?>
+    <rationale ?>修复"重读→压缩→再重读"循环，同时不骗模型看过从未投递的正文。</?>
+    <evidence ?>用户讨论决策；ContextResourceLoadDecision.ts 现状；AiAgentExecutor.ts:818 两种状态。</?>
+  )>
+)>
+
+<decision #mission.improve-file-read-efficiency-and-context-reuse.track3-stop {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>压缩阈值参数化如何推进？</?>
+  <answer { }
+  (
+    <raw-answer ?>先建不完整占位 track，到达即停在 human confirm，等用户提供通用配置机制方案。</?>
+    <decision-text ?>Track 3 只记录已收集的隐式默认值位置/文件/传递逻辑；track.xml 唯一任务带 human confirm，mission 走到 G4 即停下。</?>
+    <rationale ?>用户明确要求：先用通用机制给本项目加配置项配置文件，再实施参数化；未确认前不预设实现。</?>
+    <evidence ?>用户讨论决策；AiAgentExecutor.ts/ContextCompressor.ts 硬编码位置。</?>
+  )>
+)>

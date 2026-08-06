@@ -1,0 +1,44 @@
+<decision #track.fix-compacted-resource-visible-coverage.status-split {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>compacted/persisted 引用应如何参与可见性判定？</?>
+  <answer { }
+  (
+    <raw-answer ?>delivered_and_compacted 可见；pending_first_delivery_compacted 不可见。</?>
+    <decision-text ?>当 message.content 是压缩/持久化引用时：status=delivered_and_compacted 表示正文已完整投递过，视为可见，覆盖 deliveries 记录的原始 range；status=pending_first_delivery_compacted 表示正文在首次投递前就被 spill，模型从未看过，不可见。</?>
+    <rationale ?>修复"重读→压缩→再重读"循环，同时不骗模型看过从未投递的正文。</?>
+    <evidence ?>mission.compacted-visible 决策；ContextResourceLoadDecision.ts 现状；AiAgentExecutor.ts:818。</?>
+  )>
+)>
+
+<decision #track.fix-compacted-resource-visible-coverage.range-granularity {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>可见性按什么粒度判定？</?>
+  <answer { }
+  (
+    <raw-answer ?>按 range 精确判定。</?>
+    <decision-text ?>compacted 摘要覆盖的是该 delivery 当时投递的 range；再次请求同一 range 时返回 already-visible，请求更大范围时仍返回 missing（新范围里有未看过的行）。不做"只要压缩过就整文件可见"。</?>
+    <rationale ?>用户采纳该建议；粗粒度会把模型没看过的内容也标记为已见，导致上下文缺口。</?>
+    <evidence ?>决策 E；ContextResourceLoadDecision.subtractLineRanges 现状。</?>
+  )>
+)>
+
+<decision #track.fix-compacted-resource-visible-coverage.recovery-path {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>already-visible 引用是否附恢复路径提示？</?>
+  <answer { }
+  (
+    <raw-answer ?>要附。</?>
+    <decision-text ?>命中 already-visible 且原始 delivery 是 compacted 时，引用中附 `Full output persisted at: <path>` 提示；模型需要原文时可去 read artifact。</?>
+    <rationale ?>用户采纳该建议；避免模型在 already-visible 下干等，提供明确的恢复路径。</?>
+    <evidence ?>决策 D；ContextCompressor 持久化格式。</?>
+  )>
+)>

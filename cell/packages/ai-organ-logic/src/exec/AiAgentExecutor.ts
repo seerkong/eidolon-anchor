@@ -1,6 +1,8 @@
 import type { LlmAdapter, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
 import {
   applyConversationCompaction,
+  defaultRuntimeConfig,
+  type RuntimeConfig,
 } from "@cell/ai-support";
 import type { AiRuntimeEffectKind, AiRuntimeEffectLifecycleEvent } from "@cell/ai-runtime-control-contract";
 import {
@@ -767,6 +769,22 @@ function recordEstimatedProviderPromptUsage(vm: AiAgentVm, promptTokens: number)
   }));
 }
 
+/**
+ * Resolve the runtime-config.json typed options for a vm.
+ *
+ * The terminal entry constructs a ResourceVFS from `workDir/.eidolon` +
+ * `~/.eidolon` and parses it into `RuntimeConfig`, which is injected on
+ * `vm.outerCtx.metadata.runtimeConfig`. When absent (e.g. tests, non-terminal
+ * hosts) the embedded default config is used.
+ */
+function resolveRuntimeConfig(vm: AiAgentVm): RuntimeConfig {
+  const injected = (vm.outerCtx?.metadata as Record<string, unknown> | undefined)?.runtimeConfig;
+  if (injected && typeof injected === "object") {
+    return injected as RuntimeConfig;
+  }
+  return defaultRuntimeConfig();
+}
+
 function buildCheapCompactionPipelineOptions(vm: AiAgentVm, actor: AiAgentActor) {
   const sessionDir = typeof (vm.outerCtx?.metadata as any)?.sessionDir === "string"
     ? String((vm.outerCtx?.metadata as any).sessionDir)
@@ -774,14 +792,15 @@ function buildCheapCompactionPipelineOptions(vm: AiAgentVm, actor: AiAgentActor)
   const artifactDir = sessionDir && isRuntimeStorageFilesEnabled(vm)
     ? `${sessionDir}/artifacts/tool-results/${actor.key}`
     : null;
+  const config = resolveRuntimeConfig(vm).compact.microCompact;
   return {
     artifactDir,
-    toolResultBudgetBytes: 120_000,
-    toolResultPersistThresholdBytes: 4_000,
-    toolResultPreviewChars: 1_500,
-    microKeepRecentToolResults: 20,
-    microMinContentChars: 8_000,
-    microPreviewChars: 4_000,
+    toolResultBudgetBytes: config.cheap.toolResultBudgetBytes,
+    toolResultPersistThresholdBytes: config.cheap.toolResultPersistThresholdBytes,
+    toolResultPreviewChars: config.cheap.toolResultPreviewChars,
+    microKeepRecentToolResults: config.cheap.microKeepRecentToolResults,
+    microMinContentChars: config.cheap.microMinContentChars,
+    microPreviewChars: config.cheap.microPreviewChars,
     ...buildPendingDeliveryCompactionConstraint(vm, actor),
   };
 }
@@ -793,14 +812,15 @@ function buildPreflightPressureCompactionPipelineOptions(vm: AiAgentVm, actor: A
   const artifactDir = sessionDir && isRuntimeStorageFilesEnabled(vm)
     ? `${sessionDir}/artifacts/tool-results/${actor.key}`
     : null;
+  const config = resolveRuntimeConfig(vm).compact.microCompact;
   return {
     artifactDir,
-    toolResultBudgetBytes: 20_000,
-    toolResultPersistThresholdBytes: 2_000,
-    toolResultPreviewChars: 500,
-    microKeepRecentToolResults: 1,
-    microMinContentChars: 1_000,
-    microPreviewChars: 300,
+    toolResultBudgetBytes: config.preflight.toolResultBudgetBytes,
+    toolResultPersistThresholdBytes: config.preflight.toolResultPersistThresholdBytes,
+    toolResultPreviewChars: config.preflight.toolResultPreviewChars,
+    microKeepRecentToolResults: config.preflight.microKeepRecentToolResults,
+    microMinContentChars: config.preflight.microMinContentChars,
+    microPreviewChars: config.preflight.microPreviewChars,
     ...buildPendingDeliveryCompactionConstraint(vm, actor),
   };
 }
@@ -4348,7 +4368,7 @@ async function maybeCompressMessages(params: {
     recordPromptPlan: false,
   });
   const ratio = compressionDeps.estimateUsageRatio(promptBuild.providerMessages, effectiveLimit);
-  if (ratio < 0.85) {
+  if (ratio < resolveRuntimeConfig(vm).compact.historyCompaction.triggerRatio) {
     return;
   }
   const tokensBefore = estimateTokens(promptBuild.providerMessages);
@@ -4374,7 +4394,7 @@ async function maybeCompressMessages(params: {
       llmAdapter,
       model,
       inputLimit,
-      tokenBudget: Math.floor(effectiveLimit * 0.9),
+      tokenBudget: Math.floor(effectiveLimit * resolveRuntimeConfig(vm).compact.historyCompaction.safeRatio),
       ...buildPendingDeliveryCompactionConstraint(vm, actor),
       logger: {
         warn: (message: string, error?: unknown) =>
@@ -4557,7 +4577,7 @@ export async function forceCompressActorHistory(params: {
       llmAdapter,
       model,
       inputLimit,
-      tokenBudget: Math.floor(effectiveLimit * 0.9),
+      tokenBudget: Math.floor(effectiveLimit * resolveRuntimeConfig(params.vm).compact.historyCompaction.safeRatio),
       ...buildPendingDeliveryCompactionConstraint(params.vm, params.actor),
       logger: {
         warn: (message: string, error?: unknown) =>
@@ -5970,7 +5990,7 @@ export async function aiAgentCooperativeStep(params: {
             llmAdapter,
             model,
             inputLimit,
-            tokenBudget: Math.floor(effectiveLimit * 0.9),
+            tokenBudget: Math.floor(effectiveLimit * resolveRuntimeConfig(vm).compact.historyCompaction.safeRatio),
             ...buildPendingDeliveryCompactionConstraint(vm, actor),
             logger: {
               warn: (message: string, error?: unknown) =>

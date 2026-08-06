@@ -77,6 +77,7 @@ describe("Skill progressive local text resource loading", () => {
 
     const first = await harness.skill("skill-1");
     expect(first).toContain('<context-resource status="loaded"');
+    expect(first).toContain('total-lines="3"');
     expect(first).toContain("# Skill: demo");
     expect(first).toContain("First instructions");
     expect(first).not.toContain("description: Demo skill");
@@ -88,6 +89,7 @@ describe("Skill progressive local text resource loading", () => {
     }
     for (const visible of repeats) {
       expect(visible).toContain('<context-resource status="already-visible"');
+      expect(visible).toContain('total-lines="3"');
       expect(visible).not.toContain("First instructions");
     }
     expect([first, ...repeats].join("\n").match(/First instructions/g)).toHaveLength(1);

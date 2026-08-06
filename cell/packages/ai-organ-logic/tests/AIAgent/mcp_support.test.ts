@@ -1,9 +1,38 @@
 import { describe, expect, it } from "bun:test"
 
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
-import { MCPManager, StdioTransport, StreamableHTTPTransport } from "../../src/mcp/McpSupport"
+import {
+  MCPManager,
+  resolveStdioSpawnCommand,
+  StdioTransport,
+  StreamableHTTPTransport,
+} from "../../src/mcp/McpSupport"
 
 describe("MCP support", () => {
+  it("resolves Windows command shims through PATH and PATHEXT", () => {
+    const existing = new Set(["C:\\Program Files\\nodejs\\npx.CMD"])
+
+    expect(resolveStdioSpawnCommand(
+      "npx",
+      {
+        Path: "C:\\missing;C:\\Program Files\\nodejs",
+        PATHEXT: ".EXE;.CMD;.BAT",
+      },
+      "win32",
+      (candidate) => existing.has(candidate),
+    )).toBe("C:\\Program Files\\nodejs\\npx.CMD")
+  })
+
+  it("leaves non-Windows stdio commands unchanged", () => {
+    expect(resolveStdioSpawnCommand("npx", { PATH: "/usr/local/bin:/usr/bin" }, "linux")).toBe("npx")
+  })
+
+  it("reports a missing stdio command as a failed connection instead of throwing", async () => {
+    const transport = new StdioTransport(`eidolon-missing-mcp-${Date.now()}`, [], {}, 20)
+
+    expect(await transport.connect()).toBe(false)
+  })
+
   it("does not time out MCP tool calls unless the model requests a timeout", async () => {
     const originalFetch = globalThis.fetch
     let resolveFetch!: (response: Response) => void

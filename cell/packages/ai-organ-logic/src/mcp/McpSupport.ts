@@ -24,6 +24,55 @@ const MAX_MCP_REQUEST_TIMEOUT_MS = 5 * 60_000;
 const MCP_CALL_OPTIONS_KEY = "_eidolon";
 
 type McpRequestOptions = { timeoutMs?: number; signal?: AbortSignal };
+type McpSpawnEnvironment = Record<string, string | undefined>;
+
+function getEnvironmentValue(env: McpSpawnEnvironment, name: string): string | undefined {
+  const direct = env[name];
+  if (typeof direct === "string") return direct;
+  const matchingKey = Object.keys(env).find((key) => key.toLowerCase() === name.toLowerCase());
+  const value = matchingKey ? env[matchingKey] : undefined;
+  return typeof value === "string" ? value : undefined;
+}
+
+/**
+ * Bun's Windows child_process implementation does not expand PATHEXT for a
+ * bare command such as `npx`. Resolve the real .exe/.cmd/.bat shim first so
+ * stdio MCP configs remain portable across interactive shells and packaged
+ * eidolon binaries.
+ */
+export function resolveStdioSpawnCommand(
+  command: string,
+  env: McpSpawnEnvironment = process.env,
+  platform: string = process.platform,
+  commandExists: (candidate: string) => boolean = fs.existsSync,
+): string {
+  if (platform !== "win32") return command;
+
+  const commandExtension = path.win32.extname(command);
+  const pathExtensions = (getEnvironmentValue(env, "PATHEXT") || ".COM;.EXE;.BAT;.CMD")
+    .split(";")
+    .map((extension) => extension.trim())
+    .filter(Boolean)
+    .map((extension) => extension.startsWith(".") ? extension : `.${extension}`);
+  const commandVariants = commandExtension
+    ? [command]
+    : [...pathExtensions.map((extension) => `${command}${extension}`), command];
+  const hasDirectory = path.win32.dirname(command) !== ".";
+  const searchDirectories = hasDirectory
+    ? [""]
+    : (getEnvironmentValue(env, "PATH") || "")
+        .split(";")
+        .map((entry) => entry.trim().replace(/^"(.*)"$/, "$1"))
+        .filter(Boolean);
+
+  for (const directory of searchDirectories) {
+    for (const variant of commandVariants) {
+      const candidate = directory ? path.win32.join(directory, variant) : variant;
+      if (commandExists(candidate)) return candidate;
+    }
+  }
+  return command;
+}
 
 function hasExplicitRequestTimeout(options?: McpRequestOptions): boolean {
   return typeof options?.timeoutMs === "number" && Number.isFinite(options.timeoutMs) && options.timeoutMs > 0;
@@ -271,7 +320,33 @@ export class StdioTransport implements MCPTransport {
 
   async connect(): Promise<boolean> {
     infoLog(`Starting process: ${this.command} ${this.args.join(" ")}`);
-    this.proc = spawn(this.command, this.args, { env: this.env, stdio: "pipe" });
+    const spawnCommand = resolveStdioSpawnCommand(this.command, this.env);
+    if (spawnCommand !== this.command) {
+      debugLog(`Resolved stdio command '${this.command}' to '${spawnCommand}'`);
+    }
+    try {
+      this.proc = spawn(spawnCommand, this.args, { env: this.env, stdio: "pipe" });
+    } catch (error) {
+      errorLog(`Failed to start MCP process '${this.command}': ${error instanceof Error ? error.message : String(error)}`);
+      return false;
+    }
+    const started = await new Promise<boolean>((resolve) => {
+      let settled = false;
+      const settle = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      this.proc.once("spawn", () => settle(true));
+      this.proc.once("error", (error: Error) => {
+        errorLog(`Failed to start MCP process '${this.command}': ${error.message}`);
+        settle(false);
+      });
+    });
+    if (!started) {
+      this.proc = null;
+      return false;
+    }
     this.proc.stdout.on("data", (d: Buffer) => {
       this.stdoutBuf += d.toString();
       let idx;
@@ -295,21 +370,28 @@ export class StdioTransport implements MCPTransport {
       }
     });
     this.proc.stderr.on("data", (d: Buffer) => debugLog(`STDERR: ${d.toString().trim()}`));
-    await new Promise((r) => setTimeout(r, 500));
-    infoLog("Sending initialize request...");
-    const [result, error] = await this.sendRequest("initialize", {
-      protocolVersion: "2025-11-25",
-      capabilities: {},
-      clientInfo: { name: "ts-mcp-client", version: "0.1.0" },
-    });
-    if (error) {
-      errorLog(`Initialize error: ${error}`);
+    try {
+      await new Promise((r) => setTimeout(r, 500));
+      infoLog("Sending initialize request...");
+      const [result, error] = await this.sendRequest("initialize", {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "ts-mcp-client", version: "0.1.0" },
+      });
+      if (error) {
+        errorLog(`Initialize error: ${error}`);
+        this.close();
+        return false;
+      }
+      infoLog(`Initialize response: ${JSON.stringify(result)}`);
+      this.sendNotification("notifications/initialized", {});
+      infoLog("Sent initialized notification");
+      return true;
+    } catch (error) {
+      errorLog(`Failed to initialize MCP process '${this.command}': ${error instanceof Error ? error.message : String(error)}`);
+      this.close();
       return false;
     }
-    infoLog(`Initialize response: ${JSON.stringify(result)}`);
-    this.sendNotification("notifications/initialized", {});
-    infoLog("Sent initialized notification");
-    return true;
   }
 
   private sendNotification(method: string, params: any) {

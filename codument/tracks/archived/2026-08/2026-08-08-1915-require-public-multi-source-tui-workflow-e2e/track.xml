@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="require-public-multi-source-tui-workflow-e2e" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>以真实 TUI 多轮对话证明 workflow 仅在执行确认后访问多个独立公网热点来源并生成动态证据报告。</Goal>
+    <Description>纠正单一本地门户 fixture，改为 Hacker News、GitHub 与 DEV Community 三域名真实网络 E2E。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-08T16:06:34Z</CreatedAt>
+    <UpdatedAt>2026-08-08T16:15:53Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="tui-tests" domain="test" path="vfs://@/terminal/packages/tui/tests/"/>
+    <MaterialBundle role="output" name="reports" domain="track" path="vfs://./reports/"/>
+  </Ports>
+  <TaskSpace id="space_require-public-multi-source-tui-workflow-e2e" name="require-public-multi-source-tui-workflow-e2e" version="1" cdt:child-mode="dag">
+    <Description>Public multi-source real TUI workflow acceptance.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="公网多来源红绿 E2E" status="DONE" order="0">
+        <Description>替换 localhost fixture，动态提取三个独立公网来源的证据。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="改造并通过真实公网多来源 journey" status="DONE" order="0" priority="P0">
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">首轮自然语言包含至少三个不同真实公网域名的完整 URL</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">执行确认前零来源访问，确认后每个域名均由 workflow child actor 的标准网络 tool 实际访问</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">最终报告包含每个实时响应中动态提取的证据且不存在 localhost fixture</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="回归构建与独立验证" status="DONE" order="1">
+        <Description>运行真实公网 E2E、workflow regressions、build 和 fresh verification。</Description>
+        <cdt:Gate><cdt:Criterion>公网多来源 journey、workflow regression、production builds 和独立验证全部通过</cdt:Criterion></cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="完成产品回归与独立复验" status="DONE" order="0" priority="P0">
+            <cdt:Acceptance><cdt:Criterion id="T2.1-AC1" checked="true">fresh verifier 无未解决 P0/P1 gap，且确认不是本地 fixture 或直接 service smoke</cdt:Criterion></cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule><Dag for="space_require-public-multi-source-tui-workflow-e2e"><Node id="P2"><After ref="P1"/></Node></Dag></Schedule>
+  <Hooks/>
+</Track>

@@ -1,4 +1,7 @@
 import { describe, expect, it } from "bun:test"
+import { mkdtemp, readFile } from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor"
 import { createVM } from "@cell/ai-core-logic/runtime/runtime"
@@ -33,11 +36,17 @@ function makeRuntime() {
 }
 
 function expectWorkflowRuntimeToolNames(names: string[]) {
+  expect(names).toContain("WorkflowCreateInstance")
+  expect(names).toContain("WorkflowCreateInstanceFromPrebuilt")
+  expect(names).toContain("WorkflowMaterialImport")
+  expect(names).toContain("WorkflowMaterialReplay")
+  expect(names).toContain("WorkflowGetFlowSummary")
   expect(names).toContain("WorkflowRun")
   expect(names).toContain("WorkflowStatus")
   expect(names).toContain("WorkflowEvents")
   expect(names).toContain("WorkflowResult")
   expect(names).toContain("WorkflowResume")
+  expect(names).toContain("WorkflowApplyGraphPatch")
 }
 
 function makeSeededWorkflowRuntime() {
@@ -98,14 +107,28 @@ describe("native AI workflow tools", () => {
 
   it("exposes workflow tools through model-visible built-in schemas", () => {
     const baseNames = BASE_TOOLS.map((tool) => tool.function.name)
+    expect(baseNames).toContain("WorkflowFulfill")
     expect(baseNames).toContain("WorkflowInspectCapability")
+    expect(baseNames).toContain("WorkflowAuthor")
+    expect(baseNames).toContain("WorkflowWorkspace")
+    expect(baseNames).toContain("WorkflowGetAuthoringContext")
+    expect(baseNames).toContain("WorkflowListAuthoringTemplates")
+    expect(baseNames).toContain("WorkflowOpenAuthoringSession")
+    expect(baseNames).toContain("WorkflowPublishAuthoringSession")
     expect(baseNames).toContain("WorkflowValidateResourceRef")
     expect(baseNames).toContain("WorkflowCreateBundle")
     expect(baseNames).toContain("WorkflowPatchBundle")
     expectWorkflowRuntimeToolNames(baseNames)
 
     const allNames = buildAllTools("", {}).map((tool) => tool.function.name)
+    expect(allNames).toContain("WorkflowFulfill")
     expect(allNames).toContain("WorkflowInspectCapability")
+    expect(allNames).toContain("WorkflowAuthor")
+    expect(allNames).toContain("WorkflowWorkspace")
+    expect(allNames).toContain("WorkflowGetAuthoringContext")
+    expect(allNames).toContain("WorkflowListAuthoringTemplates")
+    expect(allNames).toContain("WorkflowOpenAuthoringSession")
+    expect(allNames).toContain("WorkflowPublishAuthoringSession")
     expect(allNames).toContain("WorkflowValidateResourceRef")
     expect(allNames).toContain("WorkflowCreateBundle")
     expect(allNames).toContain("WorkflowPatchBundle")
@@ -114,7 +137,10 @@ describe("native AI workflow tools", () => {
 
   it("registers workflow tools in the native ToolFuncRegistry", async () => {
     const registry = composeToolRegistry({ includeInternalOnly: false })
+    expect(ToolFuncRegistry.get(registry, "WorkflowFulfill")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowInspectCapability")).toBeDefined()
+    expect(ToolFuncRegistry.get(registry, "WorkflowAuthor")).toBeDefined()
+    expect(ToolFuncRegistry.get(registry, "WorkflowWorkspace")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowValidateResourceRef")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowCreateBundle")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowPatchBundle")).toBeDefined()
@@ -123,6 +149,7 @@ describe("native AI workflow tools", () => {
     expect(ToolFuncRegistry.get(registry, "WorkflowEvents")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowResult")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowResume")).toBeDefined()
+    expect(ToolFuncRegistry.get(registry, "WorkflowApplyGraphPatch")).toBeDefined()
 
     const runtime = makeRuntime()
     const output = await ToolFuncRegistry.call(
@@ -178,6 +205,7 @@ describe("native AI workflow tools", () => {
         name: "Demo Data Workflow",
         fqn: "demo.workflow.Data",
         description: "Summarize material into a JSON result.",
+        dry_run: true,
       },
     ) as string)
 
@@ -185,9 +213,84 @@ describe("native AI workflow tools", () => {
     expect(created.form).toBe("AIDataWorkflow")
     expect(created.resourceRef).toBe("resource://demo.workflow.Data")
     expect(created.writePolicy.physicalWritePerformed).toBe(false)
-    expect(created.files.map((file: any) => file.path)).toContain("workflows/demo-data-workflow/manifest.xnl")
-    expect(created.files.some((file: any) => String(file.content).includes("<AIWorkflowAppBundle"))).toBe(true)
+    expect(created.files.map((file: any) => file.path)).toContain("demo-data-workflow/manifest.xnl")
+    expect(created.files.some((file: any) => String(file.content).includes("<AIDataWorkflow #demo.workflow.Data"))).toBe(true)
+    expect(created.canonicalProof).toEqual({
+      valid: true,
+      form: "AIDataWorkflow",
+      substrate: "EagerDataFlow",
+      definitionFqn: "demo.workflow.Data",
+      diagnostics: [],
+    })
     expect(created.diagnostics.every((diagnostic: any) => diagnostic.ok === true)).toBe(true)
+  })
+
+  it("cannot bypass proof and explicit publication through the legacy create primitive", async () => {
+    const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-tool-"))
+    const registry = composeToolRegistry({ includeInternalOnly: false })
+    const runtime = {
+      vm: {
+        outerCtx: {
+          workDir: path.dirname(workspaceRoot),
+          metadata: { aiWorkflow: { roots: { workspaceRoot } } },
+        },
+        registries: {},
+      },
+      actor: {},
+    } as any
+
+    const created = JSON.parse(await ToolFuncRegistry.call(
+      registry,
+      "WorkflowCreateBundle",
+      runtime.vm,
+      runtime.actor,
+      { form: "ai-ctrl", name: "Runtime Review", fqn: "demo.workflow.RuntimeReview" },
+    ) as string)
+
+    expect(created).toMatchObject({
+      kind: "workflow.authoringDraft",
+      status: "session_opened",
+      effectDispatched: false,
+      draft: { canonicalProof: { form: "AICtrlWorkflow", substrate: "WorkCtrlFlow" } },
+    })
+    const sessionId = created.session.sessionId
+    await expect(readFile(path.join(workspaceRoot, "runtime-review", "manifest.xnl"), "utf8")).rejects.toThrow()
+    await ToolFuncRegistry.call(registry, "WorkflowWorkspace", runtime.vm, runtime.actor, { operation: "diff", session_id: sessionId })
+    await ToolFuncRegistry.call(registry, "WorkflowValidateAuthoringSession", runtime.vm, runtime.actor, { session_id: sessionId })
+    await ToolFuncRegistry.call(registry, "WorkflowDryRunAuthoringSession", runtime.vm, runtime.actor, { session_id: sessionId })
+    const refused = JSON.parse(String(await ToolFuncRegistry.call(
+      registry,
+      "WorkflowPublishAuthoringSession",
+      runtime.vm,
+      runtime.actor,
+      { session_id: sessionId, confirmed: false },
+    )))
+    expect(refused.status).toBe("confirmation_required")
+    const published = JSON.parse(String(await ToolFuncRegistry.call(
+      registry,
+      "WorkflowPublishAuthoringSession",
+      runtime.vm,
+      runtime.actor,
+      { session_id: sessionId, confirmed: true },
+    )))
+    expect(published.status).toBe("published")
+    expect(await readFile(path.join(workspaceRoot, "runtime-review", "manifest.xnl"), "utf8"))
+      .toContain("<AICtrlWorkflow #demo.workflow.RuntimeReview")
+    await expect(ToolFuncRegistry.call(
+      registry,
+      "WorkflowWorkspace",
+      runtime.vm,
+      runtime.actor,
+      { operation: "write", path: "runtime-review/bypass.txt", content: "blocked" },
+    )).rejects.toThrow("requires session_id")
+    const publishedTree = JSON.parse(String(await ToolFuncRegistry.call(
+      registry,
+      "WorkflowWorkspace",
+      runtime.vm,
+      runtime.actor,
+      { operation: "tree" },
+    )))
+    expect(publishedTree.files.some((item: string) => item.startsWith(".authoring/"))).toBe(false)
   })
 
   it("plans workflow bundle patches through validated manifest refs", async () => {
@@ -220,7 +323,7 @@ describe("native AI workflow tools", () => {
     expect(rejected.manifestValidation.ok).toBe(false)
   })
 
-  it("rejects invalid workflow run refs before entering actor execution", async () => {
+  it("rejects the removed direct workflow-ref run bypass", async () => {
     const registry = composeToolRegistry({ includeInternalOnly: false })
     const runtime = makeRuntime()
 
@@ -236,7 +339,7 @@ describe("native AI workflow tools", () => {
     ) as string)
 
     expect(rejected.ok).toBe(false)
-    expect(rejected.error).toBe("invalid_workflow_ref")
+    expect(rejected.error).toContain("instance")
   })
 
   it("reads workflow runtime facts through detached actor status/events/result/resume tools", async () => {

@@ -7,6 +7,9 @@ export type WorkflowCreateBundleOuterInput = {
   name: string
   fqn?: string
   description?: string
+  manifest_content?: string
+  session_id?: string
+  dry_run?: boolean
 }
 export type WorkflowCreateBundleOuterConfig = Record<string, never>
 export type WorkflowCreateBundleOuterDerived = null

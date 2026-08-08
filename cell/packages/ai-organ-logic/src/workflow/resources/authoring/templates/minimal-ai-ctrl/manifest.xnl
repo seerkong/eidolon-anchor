@@ -1,0 +1,5 @@
+<AICtrlWorkflow #installed.workflow.MinimalCtrl apiVersion="depa.flows/v1" version="1.0.0" (
+  <FlowContract #installed.workflow.MinimalCtrl>
+) [
+  <Return #done>
+]>

@@ -1,0 +1,29 @@
+<decision #track.add-real-tui-workflow-human-journey-e2e.network-fixture {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>The scenario says “from a network hot-topic portal”; should normal CI depend on a mutable public portal?</?>
+  <answer { }
+  (
+    <raw-answer ?>Use a real but deterministic network portal in the automated TUI E2E.</?>
+    <decision-text ?>Use an in-process deterministic HTTP portal for the required E2E test. It is a real network boundary, while public live-provider smoke remains optional evidence rather than a blocking CI baseline.</?>
+    <rationale ?>The test must distinguish network execution from a fabricated report, but public content, availability and rate limits are not deterministic product contracts.</?>
+    <evidence ?>The user requested a network hot-topic portal proposition; existing terminal E2E tests inject deterministic providers and isolated runtime state.</?>
+  )>
+)>
+
+<decision #track.add-real-tui-workflow-human-journey-e2e.confirmation-shape {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>How is human approval represented in this conversational acceptance test?</?>
+  <answer { }
+  (
+    <raw-answer ?>Confirm publication and execution in separate natural-language TUI turns.</?>
+    <decision-text ?>Use separate ordinary-language follow-up turns for publication confirmation and execution confirmation. The adapter must emit independent `publish` and `execute` authorizations, and production gates must enforce both.</?>
+    <rationale ?>This matches the human conversation product contract and proves that publication never implies execution.</?>
+    <evidence ?>The existing workflow journey contract defines independent publication and execution authorization states.</?>
+  )>
+)>

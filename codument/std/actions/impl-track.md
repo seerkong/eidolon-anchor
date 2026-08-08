@@ -1,8 +1,8 @@
-# skill: codument-impl-track（执行任务 · 编排器）
+# skill: codument-impl-track（执行任务）
 
-**描述：** 作为编排器，按 `track.xml` 的 TaskSpace 层级 + Schedule（顺序 / DAG）推进任务：派发 fresh 子代理执行叶任务、回写 status、在生命周期点跑 `cdt:` hook、auto 模式逐任务 commit + Git Notes。
+**描述：** 按 `track.xml` 的 TaskSpace 层级 + Schedule（顺序 / DAG）推进任务：普通叶任务由当前 AI 自主选择本地或委派执行，统一验证并回写 status，在生命周期点跑 `cdt:` hook，auto 模式逐任务 commit + Git Notes。
 
-> 本文是完整执行协议（口径已对齐当前标准）。**程序化的执行流程**（遍历 phase / TaskSpace、层内顺序或 DAG 调度、并行 wave 派发、逐任务 fresh-spawn、status 回写、生命周期 hook、ACTIVE 续跑）用流程标记块（` ```text ` + `@delimiter: --`，构造词汇见 `_action-spec.md`）表达；**说明、规则、背景、示例**用 Markdown。
+> 本文是完整执行协议（口径已对齐当前标准）。**程序化的执行流程**（遍历 phase / TaskSpace、层内顺序或 DAG 调度、普通任务 local/delegated 策略选择、status 回写、生命周期 hook、ACTIVE 续跑）用流程标记块（` ```text ` + `@delimiter: --`，构造词汇见 `_action-spec.md`）表达；**说明、规则、背景、示例**用 Markdown。
 >
 > 本 skill **合并**了旧 `codument:implement` 与 `codument:execute-wave`——execute-wave 的「波次编排」折叠进来：波次（wave）不再手维护，而是某 `cdt:child-mode="dag"` 层依赖的**拓扑分层派生视图**，由本 skill 在执行时从 `<Schedule>` DAG 推导。
 >
@@ -14,12 +14,14 @@
 
 ## 0.0 角色与总纲
 
-你是 Codument 规范驱动开发框架的**编排器**。职责是按 `track.xml` 三轴（TaskSpace 结构 / Schedule 调度 / Hooks 行为）推进一个 track 的实现。核心原则：
+你是 Codument 规范驱动开发框架的 **track executor**。职责是按 `track.xml` 三轴（TaskSpace 结构 / Schedule 调度 / Hooks 行为）推进实现，并对任务完成证据负责。核心原则：
 
-- **编排器保持轻量**（~10–15% 上下文）：只读 `track.xml` + 派发，**不亲自写代码**。
-- 通过 **fresh 子代理**执行具体叶任务，每个子代理拿独立上下文窗口。
-- **只传路径与引用**（track_dir、task id、`<Description>`、`cdt:Acceptance`、input/output MaterialBundle 路径、前置产物位置），子代理**自行读取**所需文件——不把目录正文塞进编排器上下文。
-- **每个子代理产出必须独立 spot-check**：子代理自述不是结论；编排器要用命令、测试、diff 与客观证据确认后，才能把任务回写为 DONE。
+- **普通任务自主执行**：每个叶任务由当前 AI 根据任务边界、上下文连续性、文件重叠、真实并行收益与运行时能力选择 `local` 或 `delegated`；leaf/DAG 本身不意味着必须 fresh-spawn。
+- **优先保持连续性**：任务较小、顺序依赖紧密、修改同一批文件、当前上下文已经充分，或协作运行时不可用时，直接 local 执行。任务边界独立、可并行、上下文很大或用户明确要求委派时，可 delegated。
+- **状态单一写入者**：track executor 唯一拥有 `track.xml`、acceptance checkmarks、`analysis/findings.md` 与 commit；delegated worker 只返回范围内产物和证据，不回写执行状态。
+- **完成以证据为准**：local 与 delegated 都必须通过 acceptance、目标命令、行为基线和 diff 审查；delegated worker 的自述不是结论。
+- **独立性显式化**：`cdt:GapLoop`、`cdt:AttractorCheck`、`codument-verify` 和用户显式要求的独立审查继续使用 fresh context；普通实现策略不得削弱这些协议。
+- **委派只传路径与引用**：选择 delegated 时传 track_dir、task id、`<Description>`、`cdt:Acceptance`、MaterialBundle 与前置产物路径，让 worker 自行读取所需文件。
 - 波次间知识通过 wave 完成小结 + `track.xml` status 传递，**不再**写 `index.md`/`state.md`。
 - 长程事实写入 `analysis/findings.md`：phase/wave 结论、实证指标、环境约束、失败归因与机制漏洞都落盘，供续跑和后续 track 复用。
 
@@ -47,7 +49,7 @@
 
 - 需要用户选择（track 选择模糊、phase 选择）。
 - 节点配了 `cdt:HumanConfirm`（`when` 含 `before/after`）需等待人工确认。
-- 子代理执行失败、抽检失败、DAG 阻塞、门控失败等**失败处理分支**（询问重试 / 跳过 / 中止）。
+- 任务执行失败、executor verification 失败、DAG 阻塞、门控失败等**失败处理分支**（能在任务边界内安全修复则继续；需要用户取舍时询问重试 / 跳过 / 中止）。
 - step 0 续跑检测发现 `ACTIVE` 任务（继续 / 重做 / 跳过）。
 
 ### 1.3 选择 track
@@ -56,7 +58,7 @@
 @delimiter: --
 -- #sequence ?select
 ---- #step ?s1
-扫描 codument/tracks/active/ 各 track 的 track.xml <Metadata>；无有效 track 目录或 track.xml → 宣布"没有可实现的活跃 track"并停止
+扫描 codument/tracks/active/ 各 track 的 track.xml <Metadata>；若由 codument-impl-mission 调用且存在刚由 plan-track 创建的候选（mission 的 TrackLink state=candidate），先按 §1.4 激活该候选再扫描；无有效 track 目录或 track.xml → 宣布"没有可实现的活跃 track"并停止
 ---- /?s1
 ---- #if ?s2 cond="用户提供了 track 名称参数"
 ------ #sequence ?named
@@ -79,7 +81,10 @@
 -- /?select
 ```
 
-未选出任何 track 则通知用户并等待指示（`ask-single-question-free`）。
+未选出任何 track 则通知用户并等待指示（`ask-single-question-free`）；mission 语境下则向 MissionApplier 返回“无可激活 track”+ 原因，由 mission 决定重规划 / 阻塞，不默认提问。
+
+### 1.4 mission 语境候选激活
+当本 `codument-impl-track` 由 `codument-impl-mission` 调用且 mission 的 ready action 是 `cdt:TrackLink state="candidate"` 时，plan-track 刚创建的真实 track 属于 mission 执行期产物：`QuestionSeverity=auto`（或连续执行模式）下，track executor 在选择前**先把该 track 激活到 `tracks/active/<id>/`（若 plan-track 已直接落 active 则跳过），并回写 `TrackLink state="bound"` 与 bind report**，然后按 §1.3 正常选择；不等待用户批准（mission 层已代为批准）。只有显式配置了确认 gate 才停在激活点。
 
 ---
 
@@ -94,7 +99,7 @@
    - `proposal.md`、`design.md`（如存在）。
    - `behavior_deltas/**/*.xml`（行为增量；旧 track 兼容读 `spec.md`）。
    - `analysis/findings.md`、`analysis/knowledge.md`（如存在；长程事实锚，续跑时优先读）。
-   - `decisions.xnl`（如存在；包含用户拍板与执行期决策；旧 track 兼容读取 `decisions.md`）。
+   - 根 `decisions.xnl` 与递归 `decisions/**/*.xnl`（如存在；共同包含用户拍板与执行期决策；旧 track 的 Markdown 只作显式兼容读取）。
    - 方法论：`codument/std/methods/tdd.md`。
    - 调度套路：`codument/std/methods/dag-execution.md`。
 4. **识别提交模式**：从 `<Metadata><CommitMode>` 取 `auto|manual`。
@@ -104,9 +109,9 @@
 
 ## 3.0 续跑检测 / 中断恢复（step 0）
 
-`track.xml` 的任务 `status` 就是恢复点真源——**不读 `state.json` 作为恢复点**。入口先读 XML 状态：若存在 `status=ACTIVE` 的任务（上次会话中断在此），用 `ask-single-question-closed` 让用户选「继续 / 重做 / 跳过」，再进入遍历；没有 `ACTIVE` 任务就从第一个未完成 phase 起。
+`track.xml` 的任务 `status` 就是恢复点真源——**不读 `state.json` 作为恢复点**。入口先读 XML 状态：若存在 `status=ACTIVE` 的任务（上次会话中断在此），`QuestionSeverity=auto` 或由 mission 连续执行调用时**默认选「A. 继续此任务」直接续跑，不提问**；其他场景用 `ask-single-question-closed` 让用户选「继续 / 重做 / 跳过」，再进入遍历；没有 `ACTIVE` 任务就从第一个未完成 phase 起。
 
-若上次会话刚收到子代理结果但尚未完成父层 spot-check（例如 `analysis/findings.md` 或对话记录显示"待抽检 / 待复核"，或任务尚未从 ACTIVE 回写 DONE），**本轮第一件事就是独立 spot-check**，通过后再回写状态；不得直接相信上轮子代理自述继续后续任务。
+若上次会话已有 local/delegated 实现结果但尚未完成 executor verification（例如 `analysis/findings.md` 或对话记录显示"待复核"，或任务尚未从 ACTIVE 回写 DONE），**本轮第一件事就是客观复核**，通过后再回写状态；不得因实现已存在就直接继续。
 
 ```text
 @delimiter: --
@@ -140,7 +145,7 @@
 
 ---
 
-## 4.0 主执行流程：遍历 phase + 层内调度 + 派发
+## 4.0 主执行流程：遍历 phase + 层内调度 + 执行
 
 宣布将按 `tdd.md` 方法论执行 `track.xml` 中的任务。整个执行是一段**结构递归的程序**：逐 phase（第一层 TaskGroup，按 `order`）；每 phase 跑 `phase:before` hook → 调度执行其直接下层 → `phase:after` hook → 校验 `cdt:Gate`。层内调度按该层 `cdt:child-mode`：`dag` 走拓扑分层 wave 并行，否则按 `order` 顺序。非叶任务（TaskGroup）递归同理。
 
@@ -186,13 +191,13 @@
 ready = 入度为 0 且未完成的节点（当前 wave 批次）
 ---------- /?w1
 ---------- #parallel ?dispatch limit="<Schedule><Parallel max-concurrent>（缺省串行；parallel=false 则逐个）"
-对 ready 批次每个节点：叶任务 → #call dispatch-task；非叶 TaskGroup → #call schedule-level（递归）
+对 ready 批次每个节点：叶任务 → #call execute-task；非叶 TaskGroup → #call schedule-level（递归）
 ---------- /?dispatch
 ---------- #step ?w2
 等当前批次全部完成 → 回写 status（见 §6）
 ---------- /?w2
 ---------- #if ?w3 cond="<Schedule><Parallel spot-check=true>"
-父层独立 spot-check 本批次：目标指标达标、行为基线保持、diff 面符合预期、前序 wave 成果未被污染；抽检失败按 §8 停下询问
+track executor 客观复核本批次：目标指标达标、行为基线保持、diff 面符合预期、前序 wave 成果未被污染；委派自述不得代替复核，失败按 §8 处理
 ---------- /?w3
 ---------- #step ?w3b
 spot-check 通过后，auto 模式创建任务/wave 检查点；manual 模式输出"建议现在提交锁定已验证 wave"，避免后续 wave 污染
@@ -205,7 +210,7 @@ spot-check 通过后，auto 模式创建任务/wave 检查点；manual 模式输
 ---- /?dag
 ---- #default ?seq
 ------ #loop ?order for="该节点直接下层，按 order 升序"
-对每个子节点：叶任务 → #call dispatch-task；非叶 TaskGroup → #call schedule-level（递归）；逐个完成后再下一个
+对每个子节点：叶任务 → #call execute-task；非叶 TaskGroup → #call schedule-level（递归）；逐个完成后再下一个
 ------ /?order
 ---- /?seq
 -- /?mode
@@ -215,68 +220,59 @@ spot-check 通过后，auto 模式创建任务/wave 检查点；manual 模式输
 
 ---
 
-## 6.0 派发子代理执行叶任务（step 4）+ 状态回写（step 5）
+## 6.0 执行叶任务（step 4）+ 状态回写（step 5）
 
-对每个叶 `Task`，编排器 fresh-spawn 一个子代理执行；子代理完成后编排器回写状态。
+对每个叶 `Task` 调用 `execute-task`。普通任务的执行者选择是运行期判断，不写入 TaskSpace/Schedule，也不改变 acceptance。
 
-### 6.1 fresh-spawn 派发
-
-编排器**只传路径与引用**，子代理自行读取。spawn 时只注入任务边界、输入路径、输出契约和必要禁止事项；具体运行时配置由当前 agent/runtime 自行决定，Codument 标准提示词不承载这类配置。
+### 6.1 自主选择 local / delegated
 
 ```text
 @delimiter: --
--- #sequence ?dispatch-task
+-- #sequence ?execute-task
 ---- #step ?t1
-宣布任务：
-  "▶️ 任务 <id>: <task name>
-   描述: <Description>
-   验收标准: <cdt:Acceptance 各 Criterion>"
+宣布任务 id/name、Description 与 cdt:Acceptance；把 Task status 置 ACTIVE 作为恢复点
 ---- /?t1
----- #step ?t2
-把该 Task 的 status 置 ACTIVE（中断恢复点；写回 track.xml）
----- /?t2
 ---- #call ?tb target="run-hooks(on=task:before, 该 Task)"
 ---- /?tb
----- #spawn ?run as=fresh-subagent inject="注入任务边界、输入路径、输出契约和必要禁止事项"
-只传路径与引用（不传内容）：track_dir 绝对路径、task id/name、<Description>、<cdt:Acceptance> 列表、子任务（如有）、input MaterialBundle 路径（取代旧 context_files）、前置产物位置、codument/std/methods/tdd.md 路径、analysis/findings.md 路径。子代理协议见 §6.2。等其返回完成信号
+---- #step ?strategy
+当前 AI 选择 execution strategy：
+  local：任务较小或顺序紧密、会修改同一批文件、当前上下文充分、并行收益不足、协作运行时不可用
+  delegated：任务边界独立且可并行、上下文很大、适合独立调研/复现，或用户明确要求委派
+选择只需在进度/findings 中简述理由，不新增持久化 execution-mode 字段
+---- /?strategy
+---- #switch ?run on="execution strategy"
+------ #case ?local when="local"
+当前 AI 按 §6.2 执行任务
+------ /?local
+------ #case ?delegated when="delegated"
+按 §6.2 派发 bounded worker；只传路径/引用并等待其返回产物与证据
+------ /?delegated
 ---- /?run
----- #call ?sc target="parent-spot-check(该 Task)"   ← 见 §6.4；未通过不得回写 DONE
----- /?sc
----- #call ?ta target="run-hooks(on=task:after, 该 Task)"   ← 如 task:after cdt:AttractorCheck use="docs"
+---- #call ?verify target="executor-verification(该 Task, strategy)"   ← §6.4；未通过不得回写 DONE
+---- /?verify
+---- #call ?ta target="run-hooks(on=task:after, 该 Task)"
 ---- /?ta
----- #call ?wb target="writeback(该 Task)"   ← 见 §6.3
+---- #call ?wb target="writeback(该 Task)"
 ---- /?wb
--- /?dispatch-task
+-- /?execute-task
 ```
 
-### 6.2 子代理执行协议
+### 6.2 任务执行契约
 
-子代理拿到路径后**自办**：
+local 与 delegated worker 都应：
 
-```text
-@delimiter: --
--- #sequence ?subagent
----- #step ?g1
-读取 input MaterialBundle、前置产物、behavior_deltas、cdt:Acceptance、tdd.md、analysis/findings.md、decisions.xnl（如存在；旧 track 兼容 decisions.md）
----- /?g1
----- #step ?g2
-按 tdd.md 方法论执行：据 behavior delta 的 suite/case（given/when/then）与 cdt:Acceptance 写失败测试 → 最小实现通过 → 重构；重构/类型/迁移类任务先补 characterization 或等价行为基线，再改实现（非 TDD 适用场景可降级，但行为用例仍是验收依据）
----- /?g2
----- #step ?g3
-完成所有子任务；产物落到该 Task/phase 的 output MaterialBundle 目录
----- /?g3
----- #step ?g4
-逐条验证 cdt:Acceptance，勾 checked="true"
----- /?g4
----- #step ?g5
-回写 track.xml：该 Task status=DONE；若 CommitMode=auto 执行 git commit + Git Notes
----- /?g5
--- /?subagent
-```
+1. 读取 input MaterialBundle、前置产物、behavior_deltas、cdt:Acceptance、tdd.md、analysis/findings.md、根 `decisions.xnl` 与递归 `decisions/**/*.xnl`。
+2. 按 `tdd.md` 执行；重构/类型/迁移任务先建立 characterization 或等价行为基线。
+3. 只修改任务边界内源码、测试与 output MaterialBundle 产物，逐条收集 acceptance 验证证据。
+4. 禁止 `git restore` / `git checkout` / `git stash` 抹改动；不得越界修复，不污染环境配置。
 
-> 子代理提示词应包含：任务信息（id / name / `<Description>`）、验收标准、子任务（如有）、**上下文文件路径列表（请自行读取）**、前置波次产物路径、`tdd.md` 路径、完成要求（完成子任务 / 验证 AC / 置 DONE / 勾 checked）。还必须包含硬禁令：禁止 `git restore` / `git checkout` / `git stash` 抹改动（只读 git 查询允许，重命名可用 `git mv`）；完成即停，不开启超长会话；不得越界修复非本任务范围；环境命令使用项目指定版本，不随意 `export PATH` 污染后续命令。
+delegated worker 还必须遵守：
 
-> 如果当前 `codument-impl-track` 是由 `codument-impl-mission` 为某个 mission 子 track 调用的，“完成即停”只约束本 track 的 fresh 子代理或本 track 子流程。track 子流程返回后，控制权必须回到 mission 父层 `MissionApplier`；mission 父层继续读取 track 结果、更新 `mission.xml` / report、执行 action 完成判定并推进后续 ready action，不得把 track 完成当作 mission invocation 的默认停止点。
+- 只接收路径与引用，自行读取文件；完成即返回产物与证据（stop 仅限子流程边界，调用方决定是否继续）。
+- **不得修改** `track.xml`、acceptance checkmarks、`analysis/findings.md`，不得创建 task/phase commit。
+- 返回改动摘要、实际命令结果、未验证项和阻塞，不把自述当完成裁决。
+
+如果当前 `codument-impl-track` 是由 `codument-impl-mission` 为某个 mission 子 track 调用的，local/delegated worker 或本 track 子流程的“完成即停”只约束局部流程。track 子流程返回后，控制权必须回到 mission 父层 `MissionApplier`；mission 父层继续读取 track 结果、更新 `mission.xml` / report、执行 action 完成判定并推进后续 ready action，不得把 track 完成当作 mission invocation 的默认停止点。
 
 ### 6.3 状态回写（step 5）
 
@@ -299,15 +295,15 @@ auto 提交模式：完成即 git commit + Git Notes（格式见 §9），把 co
 -- /?writeback
 ```
 
-### 6.4 父层独立 spot-check（子代理后必做）
+### 6.4 Executor completion verification（所有策略必做）
 
-子代理返回后，编排器必须亲自做最小但真实的复核。**不得**因为子代理说"全绿 / 不是我改的 / 已完成"就回写 DONE。
+track executor 必须做最小但真实的复核。local 执行不需要为了形式再启动另一个代理；delegated 执行不得因为 worker 说"全绿 / 不是我改的 / 已完成"就回写 DONE。真正需要独立上下文时应由显式 GapLoop、AttractorCheck、`codument-verify` 或用户要求触发。
 
 ```text
 @delimiter: --
--- #sequence ?parent-spot-check
+-- #sequence ?executor-verification
 ---- #step ?ps1
-重读该 Task 的 cdt:Acceptance、相关 behavior case、子代理报告与 git diff；确认改动范围是否符合任务边界
+重读该 Task 的 cdt:Acceptance、相关 behavior case、执行证据与 git diff；确认改动范围是否符合任务边界
 ---- /?ps1
 ---- #step ?ps2
 运行目标指标命令与行为基线命令（项目已有测试 / lint / typecheck / smoke；若命令缺失，记录未验证原因）
@@ -316,17 +312,17 @@ auto 提交模式：完成即 git commit + Git Notes（格式见 §9），把 co
 diff 审查：确认无无关运行时改动；对声称行为不变的任务，逐项确认删除/替换语句语义等价
 ---- /?ps3
 ---- #step ?ps4
-若子代理声称"非我责任"或"先前已有"，用客观判据复核：错误性质、HEAD 对照、独立复现实验、文件修改时间或 diff 归因
+若 delegated worker 声称"非我责任"或"先前已有"，用客观判据复核：错误性质、HEAD 对照、独立复现实验、文件修改时间或 diff 归因
 ---- /?ps4
 ---- #switch ?ps5 on="spot-check 结论"
 ------ #case ?pass when="通过"
 追加 findings：命令结果、diff 结论、覆盖范围、未验证项；继续 task:after hook 与 writeback
 ------ /?pass
 ------ #case ?fail when="失败或证据不足"
-保持 Task status=ACTIVE 或标 REFUSED/BLOCKED，记录 findings，按 §8 询问重试 / 新子代理修复 / 中止；不得回写 DONE
+保持 Task status=ACTIVE 或标 REFUSED/BLOCKED，记录 findings，按 §8 选择本地修复、重新委派、请求用户决策或中止；不得回写 DONE
 ------ /?fail
 ---- /?ps5
--- /?parent-spot-check
+-- /?executor-verification
 ```
 
 ---
@@ -409,17 +405,19 @@ fresh-spawn 一个新 gap-loop 子代理（或等价 fresh child context），�
 
 ## 8.0 失败处理（step 7）
 
+> **mission 子 track 语境**：若本 `codument-impl-track` 由 `codument-impl-mission` 调用，任务失败 / 门控失败 / DAG 阻塞先尝试任务边界内自动修复；无法自动修复时，把失败类型、原因与建议写入 `analysis/findings.md`，向 MissionApplier 返回结构化 BLOCKED 结果，由 mission 决定重规划 / 换分支 / 真实阻塞，**不默认 ask-single-question-closed**。非 mission（用户直接对话）场景保留下方提问分支。
+
 ```text
 @delimiter: --
 -- #switch ?fail on="失败类型"
----- #case ?task when="子代理任务执行失败"
+---- #case ?task when="local/delegated 任务执行或完成验证失败"
 ------ #sequence ?ftask
 -------- #step ?ft1
 把该 Task 标 status=REFUSED（或 BLOCKED 语义）；立即停止该分支
 -------- /?ft1
 -------- #step ?ft2
 报告详细失败信息（失败原因 / 失败步骤 / 相关日志），用 ask-single-question-closed 询问：
-  "A. 重试此任务  B. 手动修复后继续  C. 标记 BLOCKED 并跳过  D. 中止实现"
+  "A. 在任务边界内继续修复/重试  B. 切换 local/delegated 策略  C. 标记 BLOCKED 并跳过  D. 中止实现"
 -------- /?ft2
 ------ /?ftask
 ---- /?task
@@ -522,7 +520,7 @@ track 终态 hook（如 <Track><Hooks> 的 cdt:GapLoop）执行完才算实现�
 
 track 达到 completed 后，按**显式 hook**做文档同步——**不要**只因 `docs` profile 启用就生成隐式同步步骤。
 
-- **modeling（默认启用，按结构变化触发）**：缺失 `config/modeling.xml` 时按 enabled 处理；显式 `enabled=false` 时跳过。只有实现改变对象、状态机、policy、模块边界、事实源、actor/component IO 等结构知识时，才把目标态节点写进 track 的 `modeling_deltas/<plane>/<context>.xnl`；普通 track 无结构变化时不强制生成 delta，也不创建空 registry。不要直接改 `codument/modeling/`——归档会做真实 base/ours/theirs 3-way merge，并把结果纳入 behavior/modeling/engineering 的统一 staging + rollback-capable commit。**写完 / 编辑 modeling_deltas 后自检**：运行 `codument modeling validate --deltas <track_id>`；若报 error，按报告（file/line/layer/reason）修正 modeling_deltas 再继续，直到 0 error；missing/empty registry 只报 warning，非空 registry 仍要求 domain plane。规范见 `std/spec/modeling-{registry,delta,node-schema}.md`（其 §9 语言约定：描述/注释/pseudo/mermaid 标签用中文，interface/字段/kind/枚举/#id 等标识符保持英文）。
+- **modeling（默认启用，按结构变化触发）**：缺失 `config/modeling.xml` 时按 enabled 处理；显式 `enabled=false` 时跳过。只有实现改变对象、状态机、policy、模块边界、事实源、actor/component IO 等结构知识时，才把目标态节点写进 track 的 `modeling_deltas/<plane>/<context>.xnl`；普通 track 无结构变化时不强制生成 delta，也不创建空 registry。不要直接改 `codument/modeling/`——归档会做真实 base/ours/theirs 3-way merge，并把结果纳入 behavior/modeling/engineering/decision 的统一 staging + rollback-capable commit。**写完 / 编辑 modeling_deltas 后自检**：运行 `codument modeling validate --deltas <track_id>`；若报 error，按报告（file/line/layer/reason）修正 modeling_deltas 再继续，直到 0 error；missing/empty registry 只报 warning，非空 registry 仍要求 domain plane。规范见 `std/spec/modeling-{registry,delta,node-schema}.md`（其 §9 语言约定：描述/注释/pseudo/mermaid 标签用中文，interface/字段/kind/枚举/#id 等标识符保持英文）。
 - **engineering（条件·engineering 启用）**：实现过程中若产生长期工程知识（howto/rule/reference/troubleshooting/runbook/code-map/example/overview），把目标态节点写进 track 的 `engineering_deltas/<plane>/<category>/<topic>.xnl`（不直接改 `codument/engineering/`——由归档的 3-way 合并落盘）。**写完 / 编辑 engineering_deltas 后自检**：运行 `codument engineering validate --deltas <track_id>`；若报 error，按报告修正再继续，直到 0 error。该步骤 gated on `config/engineering.xml`。
 - **artifact / knowledge sync**：仅当 `codument/config/action-hooks.xml` 为当前 action point 显式配了 `<cdt:ArtifactSync use="..."/>` 时才执行；同步时读 track 的 `output` MaterialBundle 与 hook 引用的 artifact/profile 规则。详见 `codument/std/actions/artifact-sync.md`。
 - **product/project 类 attractor 更新**：分析 `behavior_deltas/**/*.xml`，若已完成功能显著影响产品描述或架构决策，生成提议 diff 并用 `ask-single-question-closed` 请求确认，**仅在明确确认后**编辑 `codument/attractors/` 下相关文件。

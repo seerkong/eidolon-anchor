@@ -1,0 +1,62 @@
+{
+  "productContract": "Eidolon workflow run and Material lifecycle",
+  "cases": [
+    {
+      "target": "WorkflowGetType",
+      "invariant": "canonical resource identity and form",
+      "operation": "ResourceTree.Resolve + AIAgentWorkflow.GetType"
+    },
+    {
+      "target": "WorkflowCreateInstance",
+      "invariant": "content-addressed frozen definition revision and idempotency",
+      "operation": "AIAgentWorkflow.CreateInstance"
+    },
+    {
+      "target": "WorkflowCreateInstanceFromPrebuilt",
+      "invariant": "installed prebuilt resource becomes a frozen Instance without publication or execution",
+      "operation": "AIAgentWorkflow.CreateInstanceFromPrebuilt"
+    },
+    {
+      "target": "WorkflowUpdateRunVars",
+      "invariant": "input facts mutable only before start",
+      "operation": "AIAgentWorkflow.UpdateRunVars"
+    },
+    {
+      "target": "WorkflowRun",
+      "invariant": "independent execution confirmation and stable run id",
+      "operation": "AIAgentWorkflow.Start"
+    },
+    {
+      "target": "WorkflowResolve/WorkflowReject",
+      "invariant": "exact pending handle transition",
+      "operation": "AIAgentWorkflow.Resolve/Reject"
+    },
+    {
+      "target": "WorkflowMaterialImport/Inspect/Bind",
+      "invariant": "immutable exact revision, provenance and instance node-port binding",
+      "operation": "Material.Import/Inspect/Bind"
+    },
+    {
+      "target": "WorkflowMaterialExport",
+      "invariant": "workspace containment, symlink rejection and confirmation",
+      "operation": "Material.Export"
+    },
+    {
+      "target": "WorkflowMaterialReplay",
+      "invariant": "receipt exact refs, never latest binding",
+      "operation": "Material.Replay"
+    },
+    {
+      "target": "WorkflowMaterialCleanup",
+      "invariant": "confirmation and lease protection",
+      "operation": "Material.Cleanup"
+    },
+    {
+      "target": "WorkflowStatus/Resume/Result",
+      "invariant": "fresh runtime restores frozen revision and existing depa-flows/Eidolon facts",
+      "operation": "Run checkpoint recovery"
+    }
+  ],
+  "resourceFormat": "depa-flows XNL bundles",
+  "publicSurface": "native tools and eidolon workflow CLI projections"
+}

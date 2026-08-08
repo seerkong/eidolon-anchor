@@ -1,0 +1,124 @@
+<object #workflow.definition_revision {
+  kind = "entity"
+  fact_grade = "authoritative_fact"
+  single_writer = "modeling://domain/workflow/lifecycle_service"
+} [
+  <desc ?>已发布 workflow definition 的内容寻址不可变快照，是 Instance 和恢复执行的唯一资源依据。</?>
+  <types ?definition>
+  interface WorkflowDefinitionRevision {
+    revision: string
+    workflowRef: string
+    form: "AICtrlWorkflow" | "AIDataWorkflow"
+    files: Record&lt;string, string&gt;
+    createdAt: number
+  }
+  </?definition>
+  <fact-source ?>由 workflow lifecycle service 创建并单写；current publication 只参与首次实例化，不参与既有运行恢复。</?>
+]>
+
+<object #workflow.instance {
+  kind = "entity"
+  fact_grade = "authoritative_fact"
+  single_writer = "modeling://domain/workflow/lifecycle_service"
+} [
+  <desc ?>绑定精确 definition revision 的可执行实例；只在 Prepared 状态允许修改 input 与 Material binding。</?>
+  <types ?instance>
+  type WorkflowInstanceStatus = "Prepared" | "Running" | "Completed" | "Failed"
+  interface WorkflowInstance {
+    instanceId: string
+    definitionRevision: string
+    form: "AICtrlWorkflow" | "AIDataWorkflow"
+    status: WorkflowInstanceStatus
+    input: unknown
+    bindingIds: string[]
+    runIds: string[]
+  }
+  </?instance>
+  <fact-source ?>workflow lifecycle service 单写实例状态；depa-flows controller 不反写实例事实。</?>
+]>
+
+<state-machine #workflow.instance_lifecycle {
+  kind = "state-machine"
+  behaviors = [ "behavior://workflow-run-material-lifecycle/requirements/type-instance-run-and-material-acceptance" ]
+} [
+  <types ?state>type WorkflowInstanceStatus = "Prepared" | "Running" | "Completed" | "Failed"</?state>
+  <mermaid ?instance_state>
+  stateDiagram-v2
+    [*] --> Prepared: 创建并冻结 definition
+    Prepared --> Running: 已确认 start
+    Running --> Completed: 运行完成
+    Running --> Failed: 运行失败或拒绝
+  </?instance_state>
+]>
+
+<object #workflow.run_receipt {
+  kind = "entity"
+  fact_grade = "append_only_journal"
+  single_writer = "modeling://domain/workflow/lifecycle_service"
+} [
+  <desc ?>已确认 Run 的冻结清单，记录 instance、definition、input 以及精确 Material 输入输出 revision。</?>
+  <types ?receipt>
+  interface WorkflowRunReceipt {
+    runId: string
+    instanceId: string
+    definitionRevision: string
+    input: unknown
+    inputMaterials: MaterialRevisionRef[]
+    outputMaterials: MaterialRevisionRef[]
+    replayOf?: string
+  }
+  </?receipt>
+  <fact-source ?>start 时追加冻结输入，完成时追加输出；只引用 depa-flows 和 Eidolon 执行 facts，不复制其 authority。</?>
+]>
+
+<object #workflow.material_revision {
+  kind = "entity"
+  fact_grade = "authoritative_fact"
+  single_writer = "modeling://domain/workflow/lifecycle_service"
+} [
+  <desc ?>content-addressed immutable Material revision，带 manifest、provenance 与 lease。</?>
+  <types ?material>
+  interface MaterialRevisionRef { materialRef: string; revision: string }
+  interface WorkflowMaterialRevision {
+    ref: MaterialRevisionRef
+    manifest: Array&lt;{ path: string; digest: string; size: number }&gt;
+    provenance: Record&lt;string, unknown&gt;
+    leases: string[]
+  }
+  </?material>
+  <fact-source ?>workflow lifecycle service 单写 revision metadata；文件 effect 通过 containment-safe Material capability 执行。</?>
+]>
+
+<component #workflow.lifecycle_service {
+  kind = "component"
+  uses = [ "modeling://domain/workflow/definition_revision" "modeling://domain/workflow/instance" "modeling://domain/workflow/run_receipt" "modeling://domain/workflow/material_revision" ]
+  behaviors = [ "behavior://workflow-run-material-lifecycle/requirements/type-instance-run-and-material-acceptance" ]
+} [
+  <desc ?>workflow run/Material 产品协议的唯一 native 写入口；conversation tools 与 CLI 都是其投影。</?>
+  <runtime ?runtime>
+  interface WorkflowLifecycleRuntime {
+    factStore: WorkflowFactStore
+    definitionRepository: WorkflowDefinitionRepository
+    depaRuntime: WorkflowRuntimeService
+    materialAccess: WorkflowMaterialAccess
+    eidolonActorRuntime: AiAgentOneActorRuntime
+  }
+  </?runtime>
+  <input ?input>
+  type WorkflowLifecycleCommand =
+    | CreateInstanceCommand | UpdateInstanceInputCommand | StartRunCommand
+    | ResolveRunCommand | RejectRunCommand
+    | ImportMaterialCommand | BindMaterialCommand | ExportMaterialCommand
+    | ReplayRunCommand | CleanupMaterialCommand
+  </?input>
+  <config ?config>
+  interface WorkflowLifecycleConfig { globalRoot: string; workspaceRoot: string; factRoot: string }
+  </?config>
+  <output ?output>
+  type WorkflowLifecycleFact = WorkflowDefinitionRevision | WorkflowInstance | WorkflowRunReceipt | WorkflowMaterialRevision
+  </?output>
+  <pseudo { kind = "ctrl" } ?flow>
+  查询或创建冻结 definition → 准备 Instance → 预览 start → 独立确认 → 冻结 receipt → 委托 depa-flows 与 Eidolon actor 执行 → 追加 output refs → 恢复或 replay
+  </?flow>
+  <not-owned-here ?>flow 图与节点状态由 depa-flows 保存；agent/tool/human effect lifecycle 与 durable session head 由 Eidolon runtime-control 保存。</?>
+]>

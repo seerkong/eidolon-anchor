@@ -1,0 +1,5 @@
+<ToolPrompt #WorkflowAuthor.detail>
+(
+  <usage ?>Pass the complete request. The author actor follows the native lifecycle: context/template selection, isolated session VFS edits, diff, validate, dry-run, repair, then a separate publication gate.</?>
+  <safety ?>Do not ask the user for form, XNL, nodes, ports, policies, FQN or internal paths. Publication requires explicit authorization, never authorizes execution, and uses no external CLI or MCP.</?>
+)>

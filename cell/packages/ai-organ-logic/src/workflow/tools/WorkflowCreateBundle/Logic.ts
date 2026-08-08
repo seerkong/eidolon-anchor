@@ -1,5 +1,5 @@
 import type { StdInnerLogic } from "depa-processor"
-import { createWorkflowComponent } from "../../component"
+import { createWorkflowComponentForRuntime } from "../../component"
 import type {
   WorkflowCreateBundleInnerConfig,
   WorkflowCreateBundleInnerInput,
@@ -12,6 +12,27 @@ export const workflowCreateBundleCoreLogic: StdInnerLogic<
   WorkflowCreateBundleInnerInput,
   WorkflowCreateBundleInnerConfig,
   WorkflowCreateBundleInnerOutput
-> = async (_runtime, input, _config) => {
-  return JSON.stringify(createWorkflowComponent().commands.createBundleDraft(input), null, 2)
+> = async (runtime, input, _config) => {
+  const component = createWorkflowComponentForRuntime(runtime)
+  const draft = component.commands.createBundleDraft(input)
+  if (input.dry_run) return JSON.stringify(draft, null, 2)
+  const bundlePath = draft.files[0]!.path.split("/")[0]!
+  const prefix = `${bundlePath}/`
+  const session = await component.sessions.open({
+    sessionId: input.session_id,
+    form: draft.form,
+    template: draft.files.map((file) => ({
+      path: file.path.slice(prefix.length),
+      content: file.content,
+    })),
+    target: { scope: "definition", id: draft.fqn, path: bundlePath, resourceRef: draft.resourceRef },
+  })
+  const result = {
+    kind: "workflow.authoringDraft",
+    status: "session_opened",
+    draft,
+    session,
+    effectDispatched: false,
+  }
+  return JSON.stringify(result, null, 2)
 }

@@ -1,50 +1,105 @@
 import type { AnyToolDef } from "@cell/ai-core-contract/types"
+import { buildWorkflowFulfillToolDef } from "./WorkflowFulfill"
+import { buildWorkflowAuthorToolDef } from "./WorkflowAuthor"
+import { buildWorkflowAuthoringToolDefs } from "./WorkflowAuthoringTools"
 import { buildWorkflowCreateBundleToolDef } from "./WorkflowCreateBundle"
 import { buildWorkflowInspectCapabilityToolDef } from "./WorkflowInspectCapability"
 import { buildWorkflowPatchBundleToolDef } from "./WorkflowPatchBundle"
 import {
   buildWorkflowEventsToolDef,
+  buildWorkflowApplyGraphPatchToolDef,
   buildWorkflowResultToolDef,
   buildWorkflowResumeToolDef,
+  buildWorkflowResolveToolDef,
+  buildWorkflowRejectToolDef,
   buildWorkflowRunToolDef,
   buildWorkflowStatusToolDef,
 } from "./WorkflowRuntimeTools"
 import { buildWorkflowValidateResourceRefToolDef } from "./WorkflowValidateResourceRef"
+import { buildWorkflowWorkspaceToolDef } from "./WorkflowWorkspace"
+import { buildWorkflowLifecycleToolDefs } from "./WorkflowLifecycleTools"
 
 export { buildWorkflowCreateBundleToolDef } from "./WorkflowCreateBundle"
+export { buildWorkflowFulfillToolDef } from "./WorkflowFulfill"
+export { buildWorkflowAuthorToolDef } from "./WorkflowAuthor"
+export * from "./WorkflowAuthoringTools"
 export { buildWorkflowInspectCapabilityToolDef } from "./WorkflowInspectCapability"
 export { buildWorkflowPatchBundleToolDef } from "./WorkflowPatchBundle"
 export {
   buildWorkflowEventsToolDef,
+  buildWorkflowApplyGraphPatchToolDef,
   buildWorkflowResultToolDef,
   buildWorkflowResumeToolDef,
+  buildWorkflowResolveToolDef,
+  buildWorkflowRejectToolDef,
   buildWorkflowRunToolDef,
   buildWorkflowStatusToolDef,
 } from "./WorkflowRuntimeTools"
 export { buildWorkflowValidateResourceRefToolDef } from "./WorkflowValidateResourceRef"
+export { buildWorkflowWorkspaceToolDef } from "./WorkflowWorkspace"
+export { buildWorkflowLifecycleToolDefs } from "./WorkflowLifecycleTools"
 
 export const WORKFLOW_NATIVE_TOOL_NAMES = [
+  "WorkflowFulfill",
+  "WorkflowAuthor",
+  "WorkflowGetAuthoringContext",
+  "WorkflowListAuthoringTemplates",
+  "WorkflowListPrebuiltWorkflows",
+  "WorkflowListReusableAgents",
+  "WorkflowOpenAuthoringSession",
+  "WorkflowValidateAuthoringSession",
+  "WorkflowDryRunAuthoringSession",
+  "WorkflowPublishAuthoringSession",
+  "WorkflowListAuthoringSessions",
+  "WorkflowGetAuthoringSummary",
+  "WorkflowWorkspace",
   "WorkflowInspectCapability",
   "WorkflowValidateResourceRef",
   "WorkflowCreateBundle",
   "WorkflowPatchBundle",
+  "WorkflowListTypes",
+  "WorkflowGetType",
+  "WorkflowCreateInstance",
+  "WorkflowCreateInstanceFromPrebuilt",
+  "WorkflowListInstances",
+  "WorkflowListSessionFlows",
+  "WorkflowGetInstance",
+  "WorkflowUpdateRunVars",
+  "WorkflowGetFlowSummary",
+  "WorkflowMaterialImport",
+  "WorkflowMaterialInspect",
+  "WorkflowMaterialBind",
+  "WorkflowMaterialExport",
+  "WorkflowMaterialReplay",
+  "WorkflowMaterialCleanup",
   "WorkflowRun",
   "WorkflowStatus",
   "WorkflowEvents",
   "WorkflowResult",
   "WorkflowResume",
+  "WorkflowResolve",
+  "WorkflowReject",
+  "WorkflowApplyGraphPatch",
 ] as const
 
 export function buildWorkflowNativeToolDefs(): AnyToolDef[] {
   return [
+    buildWorkflowFulfillToolDef(),
+    buildWorkflowAuthorToolDef(),
+    ...buildWorkflowAuthoringToolDefs(),
+    buildWorkflowWorkspaceToolDef(),
     buildWorkflowInspectCapabilityToolDef(),
     buildWorkflowValidateResourceRefToolDef(),
     buildWorkflowCreateBundleToolDef(),
     buildWorkflowPatchBundleToolDef(),
+    ...buildWorkflowLifecycleToolDefs(),
     buildWorkflowRunToolDef(),
     buildWorkflowStatusToolDef(),
     buildWorkflowEventsToolDef(),
     buildWorkflowResultToolDef(),
     buildWorkflowResumeToolDef(),
+    buildWorkflowResolveToolDef(),
+    buildWorkflowRejectToolDef(),
+    buildWorkflowApplyGraphPatchToolDef(),
   ]
 }

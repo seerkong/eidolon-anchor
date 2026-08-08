@@ -1,0 +1,6 @@
+<AIDataWorkflow #installed.workflow.MinimalData apiVersion="depa.flows/v1" version="1.0.0" (
+  <FlowContract #installed.workflow.MinimalData { inputPorts = ["input"] outputPorts = ["result"] }>
+) [
+  <EntryNode #entry>
+  <ReturnNode #return { inputs = { result = "flow-port://#entry/input" } }>
+]>

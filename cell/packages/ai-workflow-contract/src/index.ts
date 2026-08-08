@@ -1,10 +1,25 @@
 import { createDataSubgraphContractRegistry, type DataSubgraphContract } from "@cell/platform-contract"
+import {
+  AI_CTRL_WORKFLOW_DESCRIPTOR,
+  AI_DATA_WORKFLOW_DESCRIPTOR,
+  AI_WORKFLOW_ALLOWED_RESOURCE_REF_SCHEMES,
+  type AIWorkflowKind,
+  type AIWorkflowResourceRefScheme,
+} from "ai-workflow-contract"
+import { parseAIWorkflowResourceRef } from "ai-workflow-logic"
 
-export const AI_WORKFLOW_FORMS = ["AICtrlWorkflow", "AIDataWorkflow"] as const
-export type AiWorkflowForm = (typeof AI_WORKFLOW_FORMS)[number]
+export * from "ai-workflow-contract"
+export * from "ai-ctrl-workflow-contract"
+export * from "ai-data-workflow-contract"
 
-export const AI_WORKFLOW_RESOURCE_SCHEMES = ["vfs", "resource", "config", "secret"] as const
-export type AiWorkflowResourceScheme = (typeof AI_WORKFLOW_RESOURCE_SCHEMES)[number]
+export const AI_WORKFLOW_FORMS = [
+  AI_CTRL_WORKFLOW_DESCRIPTOR.kind,
+  AI_DATA_WORKFLOW_DESCRIPTOR.kind,
+] as const
+export type AiWorkflowForm = AIWorkflowKind
+
+export const AI_WORKFLOW_RESOURCE_SCHEMES = AI_WORKFLOW_ALLOWED_RESOURCE_REF_SCHEMES
+export type AiWorkflowResourceScheme = AIWorkflowResourceRefScheme
 
 export type AiWorkflowRuntimeRef = {
   actorKey?: string
@@ -131,51 +146,20 @@ export function createAiWorkflowDataSubgraphRegistry() {
   return createDataSubgraphContractRegistry([...AI_WORKFLOW_DATA_SUBGRAPH_CONTRACTS])
 }
 
-function hasUnsafeDecodedText(value: string): boolean {
-  let decoded = value
-  try {
-    decoded = decodeURIComponent(value)
-  } catch {
-    return true
-  }
-  return decoded.includes("\\") || decoded.split(/[/?#]/).some((part) => part === "..")
-}
-
-function validateLogicalPathLike(ref: string): string | null {
-  if (!ref.trim()) return "ref is empty"
-  if (/^(\/|~\/|[a-zA-Z]:[\\/])/.test(ref)) return "host absolute paths are not workflow resource refs"
-  if (ref.includes("\\")) return "backslashes are not allowed in workflow resource refs"
-  if (hasUnsafeDecodedText(ref)) return "path traversal is not allowed in workflow resource refs"
-  return null
-}
-
 export function validateAiWorkflowResourceRef(input: unknown): AiWorkflowResourceRefValidationResult {
   const ref = typeof input === "string" ? input : ""
-  const pathIssue = validateLogicalPathLike(ref)
-  if (pathIssue) return { ok: false, ref, reason: pathIssue }
-
-  const match = /^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/(.+)$/.exec(ref)
-  if (!match) {
-    return { ok: false, ref, reason: "workflow resource refs must use a registered URI scheme" }
-  }
-
-  const scheme = match[1] as AiWorkflowResourceScheme
-  const body = match[2] ?? ""
-  if (!(AI_WORKFLOW_RESOURCE_SCHEMES as readonly string[]).includes(scheme)) {
-    return { ok: false, ref, reason: `unsupported workflow resource scheme: ${scheme}` }
-  }
-
-  if (scheme === "vfs") {
-    if (!body.startsWith("./") && !body.startsWith("@/")) {
-      return { ok: false, ref, reason: "vfs refs must be scoped to vfs://./ or vfs://@/" }
+  const parsed = parseAIWorkflowResourceRef(ref)
+  if (!parsed) {
+    return {
+      ok: false,
+      ref,
+      reason: "invalid AI workflow resource ref: expected a registered, containment-safe logical URI",
     }
   }
-
-  if (scheme === "resource" && !body.split(/[/?#]/)[0]) {
-    return { ok: false, ref, reason: "resource refs must include an authority" }
+  if (parsed.scheme === "vfs" && !parsed.target.startsWith("./") && !parsed.target.startsWith("@/")) {
+    return { ok: false, ref, reason: "vfs refs must be scoped to vfs://./ or vfs://@/" }
   }
-
-  return { ok: true, ref, scheme }
+  return { ok: true, ref: parsed.ref, scheme: parsed.scheme }
 }
 
 export function summarizeAiWorkflowContractBoundary() {

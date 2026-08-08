@@ -1,0 +1,191 @@
+[
+  {
+    "id": "natural-routing",
+    "area": "human",
+    "requiredBehavior": "ordinary-language durable-signal routing",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowExperienceCoordinator.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_human_product_experience.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  },
+  {
+    "id": "exact-business-payload",
+    "area": "authoring",
+    "requiredBehavior": "separate authoring clauses from exact business payload",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowAuthoringIntent.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "xnl"
+  },
+  {
+    "id": "stage-context",
+    "area": "authoring",
+    "requiredBehavior": "stage-bound authoring and run context",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowAuthoringCatalog.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  },
+  {
+    "id": "templates-prebuilt",
+    "area": "authoring",
+    "requiredBehavior": "installed templates, prebuilt workflows and reusable agents",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowAuthoringCatalog.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "xnl"
+  },
+  {
+    "id": "four-mount-vfs",
+    "area": "authoring",
+    "requiredBehavior": "recoverable isolated /base /refs /work /out editing session",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowAuthoringSessionStore.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "eidolon-root"
+  },
+  {
+    "id": "vfs-audit",
+    "area": "authoring",
+    "requiredBehavior": "complete VFS operations, containment and ordered audit",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowWorkspace/Logic.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_workspace.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  },
+  {
+    "id": "proof-repair",
+    "area": "authoring",
+    "requiredBehavior": "diff validate dry-run repair loop",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowAuthoringSessionStore.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "depa-flows"
+  },
+  {
+    "id": "validation-revision",
+    "area": "authoring",
+    "requiredBehavior": "edits invalidate proof and publication requires current revision",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowAuthoringSessionStore.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "xnl"
+  },
+  {
+    "id": "independent-gates",
+    "area": "lifecycle",
+    "requiredBehavior": "publication confirmation independent from execution confirmation",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowFulfill/Logic.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_human_product_experience.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  },
+  {
+    "id": "resource-tree",
+    "area": "authoring",
+    "requiredBehavior": "resource tree inspection, compile and resolve",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowDefinitionRepository.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_run_material_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "xnl"
+  },
+  {
+    "id": "type-instance-run",
+    "area": "lifecycle",
+    "requiredBehavior": "definition type, instance, session and run fact recovery",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowFactStore.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_run_material_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "eidolon-effects"
+  },
+  {
+    "id": "material-lifecycle",
+    "area": "material",
+    "requiredBehavior": "immutable import inspect bind export replay cleanup",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowMaterialService.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_run_material_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "eidolon-effects"
+  },
+  {
+    "id": "start-resolve-reject",
+    "area": "lifecycle",
+    "requiredBehavior": "confirmed start, exact wait resolve and reject",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowRuntimeTools.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_run_material_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  },
+  {
+    "id": "frozen-replay",
+    "area": "recovery",
+    "requiredBehavior": "frozen definition, input, binding and receipt replay",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowRuntimeService.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_run_material_lifecycle.test.ts",
+    "status": "closed",
+    "boundary": "eidolon-effects"
+  },
+  {
+    "id": "ctrl-runtime",
+    "area": "runtime",
+    "requiredBehavior": "durable ordered control, waits and recovery",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowRuntimeService.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/ctrl_workflow_runtime.test.ts",
+    "status": "closed",
+    "boundary": "depa-flows"
+  },
+  {
+    "id": "data-runtime",
+    "area": "runtime",
+    "requiredBehavior": "mutable DAG generation, invalidation and semantic reuse",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/runtime/AIDataWorkflowRuntimeDriver.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/data_workflow_runtime.test.ts",
+    "status": "closed",
+    "boundary": "depa-flows"
+  },
+  {
+    "id": "effect-authority",
+    "area": "architecture",
+    "requiredBehavior": "AI, tool, human and material effects",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/effects/EidolonWorkflowEffectProvider.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_architecture_boundaries.test.ts",
+    "status": "closed",
+    "boundary": "eidolon-effects"
+  },
+  {
+    "id": "canonical-architecture",
+    "area": "architecture",
+    "requiredBehavior": "canonical XNL, native roots, in-process effects and no parallel runtime authority",
+    "implementationEvidence": "cell/packages/ai-organ-logic/tests/workflow/workflow_architecture_boundaries.test.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_architecture_boundaries.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  },
+  {
+    "id": "business-scenarios",
+    "area": "human",
+    "requiredBehavior": "scenario-guided natural workflow construction",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowBusinessScenarios.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_human_product_experience.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  },
+  {
+    "id": "business-projection",
+    "area": "human",
+    "requiredBehavior": "human result hides storage and DSL internals",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowExperienceCoordinator.ts",
+    "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_human_product_experience.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  },
+  {
+    "id": "shared-conversation-cli",
+    "area": "distribution",
+    "requiredBehavior": "one installed conversation and CLI workflow capability",
+    "implementationEvidence": "terminal/packages/cli/src/commands/workflow.ts",
+    "test": "terminal/packages/cli/tests/workflow-command.test.ts",
+    "status": "closed",
+    "boundary": "native-component"
+  }
+]

@@ -12,7 +12,7 @@
 
 ## Questioning Severity
 
-plan-track / plan-mission / discuss 可显式指定 questioning severity；**未指定时默认 `light`**。
+plan-track / plan-mission / discuss 可显式指定 questioning severity；**未指定时默认 `light`**（mission 连续执行建议显式 `auto`，见 `actions/plan-mission.md`）。
 
 | severity | 适用场景 | 问答预算 | 行为 |
 |---|---|---:|---|
@@ -31,6 +31,8 @@ plan-track / plan-mission / discuss 可显式指定 questioning severity；**未
 `auto` 是显式无问答模式：**不得**因 track-id / mission-id 命名、proposal/design/track.xml/mission.xml 确认、提交模式、校验模式、方向审查范围而停下来问用户。若存在高风险假设，写入文件并选择保守默认；实现/归档阶段再用 validate、verify、gap-loop 暴露问题。
 
 注意：`severity=auto` 是“提问自主度”轴；`CommitMode=auto` 是“是否自动提交”轴，二者独立，不能互相推断。
+
+**执行期继承（mission/track 实现阶段）**：`light` / `normal` / `deep` 的问答预算**只作用于 plan / discuss 等规划期**。进入 `codument-impl-mission` / `codument-impl-track` 连续执行后，未决决策一律按 `auto` 语义处理（把假设与保守默认写入 `decisions.xnl` / `analysis/decision-tree.xnl` 后继续），除非 mission.xml / track.xml 显式配置了确认 gate（`cdt:HumanConfirm`，或显式更高 severity 且该决策无保守默认可替代）。**规划期问不完的问题不构成执行期停点**——不得因 ready frontier 存在 light 预算允许的待决问题而在实现阶段停下来问。
 
 ## Decision Tree Protocol
 

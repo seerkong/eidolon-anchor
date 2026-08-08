@@ -49,7 +49,7 @@
    - `codument/tracks/active/<track_id>/behavior_deltas/**/*.xml`；旧 track 可兼容 `codument/tracks/active/<track_id>/spec.md`
    - `codument/tracks/active/<track_id>/proposal.md`
    - `codument/tracks/active/<track_id>/design.md`（如存在）
-   - `codument/tracks/active/<track_id>/decisions.xnl` / `analysis/`（如存在，迭代期背景；旧 track 兼容 `decisions.md`）
+   - `codument/tracks/active/<track_id>/decisions.xnl`、递归 `decisions/**/*.xnl` / `analysis/`（如存在，迭代期背景；旧 track Markdown 只作显式兼容输入）
    - `codument/tracks/active/<track_id>/reports/`（已有历史报告，如存在）
 
 ---

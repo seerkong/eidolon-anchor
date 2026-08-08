@@ -1,5 +1,4 @@
 import type { AiAgentOneActorRuntime, ToolDef } from "@cell/ai-core-contract/types"
-import { spawnChildExecutionActor } from "@cell/ai-organ-logic/agent/DelegateActor"
 import {
   getDetachedActorRegistry,
   type DetachedActorRecord,
@@ -9,17 +8,14 @@ import {
   type DetachedMessageKind,
   type DetachedMessageRole,
 } from "@cell/ai-organ-logic/detached/DetachedActorObservability"
-import { createWorkflowComponent } from "../component"
+import { getWorkflowRuntimeService } from "../runtime"
 
 type ToolConfig = Record<string, unknown>
 
 type WorkflowRunInput = {
-  workflow_ref: string
-  input?: unknown
-  prompt?: string
-  agent_type?: string
-  description?: string
-  task_key?: string
+  instance_id: string
+  run_id?: string
+  confirmed?: boolean
 }
 
 type WorkflowRunIdInput = {
@@ -45,6 +41,25 @@ type WorkflowResultInput = WorkflowRunIdInput & {
   limit_bytes?: number
 }
 
+type WorkflowResumeInput = WorkflowRunIdInput & {
+  node_id?: string
+  output?: unknown
+  signal_kind?: string
+  signal_key?: string
+  resume_token?: string
+  outcome?: "Success" | "Failure" | "Cancelled"
+  payload?: unknown
+}
+
+type WorkflowGraphPatchInput = WorkflowRunIdInput & {
+  patch: {
+    patchId: string
+    reason?: string
+    operations: unknown[]
+    atMs?: number
+  }
+}
+
 const RUNTIME_ID = "eidolon.detached_actor" as const
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"])
@@ -63,53 +78,6 @@ function normalizeArray<T extends string>(value: unknown, allowed: Set<string>):
   if (!Array.isArray(value)) return undefined
   const next = value.map((item) => String(item)).filter((item) => allowed.has(item)) as T[]
   return next.length > 0 ? next : undefined
-}
-
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value)
-  if (Array.isArray(value)) return `[${value.map((item) => stableStringify(item)).join(",")}]`
-  const record = value as Record<string, unknown>
-  return `{${Object.keys(record)
-    .sort()
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-    .join(",")}}`
-}
-
-function stableHash(value: unknown): string {
-  const text = stableStringify(value)
-  let hash = 5381
-  for (let i = 0; i < text.length; i += 1) {
-    hash = ((hash << 5) + hash + text.charCodeAt(i)) >>> 0
-  }
-  return hash.toString(16)
-}
-
-function parseSpawnResult(output: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(output)
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : { output }
-  } catch {
-    return { output }
-  }
-}
-
-function buildRunPrompt(input: WorkflowRunInput): string {
-  const workflowRef = normalizeString(input.workflow_ref)
-  const instruction = normalizeString(input.prompt)
-  const runInput = input.input ?? null
-  return [
-    `Run the Eidolon AI workflow resource: ${workflowRef}`,
-    "",
-    "Runtime boundary:",
-    "- Use Eidolon native actor/session/runtime facts for execution and recovery.",
-    "- Treat the workflow resource as the authoring fact source.",
-    "- Return a concise workflow result and cite any material outputs you produce.",
-    "",
-    instruction ? `User instruction:\n${instruction}` : "User instruction: run the workflow according to its definition.",
-    "",
-    "Workflow input JSON:",
-    JSON.stringify(runInput, null, 2),
-  ].join("\n")
 }
 
 function toStatusPayload(record: DetachedActorRecord, runId: string) {
@@ -165,35 +133,18 @@ export function buildWorkflowRunToolDef(): ToolDef<WorkflowRunInput, string, Too
       type: "function",
       function: {
         name: "WorkflowRun",
-        description: "Start an Eidolon AI workflow run by delegating execution to the existing detached actor runtime.",
+        description: "Preview or explicitly confirm start of a prepared workflow Instance using frozen definition and Material facts.",
         parameters: {
           type: "object",
           properties: {
-            workflow_ref: {
+            instance_id: {
               type: "string",
-              description: "Workflow resource ref such as resource://pkg.Workflow or vfs://./workflows/demo/manifest.xnl.",
+              description: "Prepared workflow Instance id returned by WorkflowCreateInstance.",
             },
-            input: {
-              description: "Optional structured workflow input.",
-            },
-            prompt: {
-              type: "string",
-              description: "Optional extra run instruction.",
-            },
-            agent_type: {
-              type: "string",
-              description: "Eidolon agent type that should execute the workflow. Defaults to code.",
-            },
-            description: {
-              type: "string",
-              description: "Short detached actor task description.",
-            },
-            task_key: {
-              type: "string",
-              description: "Optional stable single-flight key. If omitted, the workflow ref and input determine the active-run slot.",
-            },
+            run_id: { type: "string", description: "Optional stable caller-supplied run id." },
+            confirmed: { type: "boolean", description: "Independent execution confirmation; omit for no-effect preview." },
           },
-          required: ["workflow_ref"],
+          required: ["instance_id"],
           additionalProperties: false,
         },
       },
@@ -201,56 +152,19 @@ export function buildWorkflowRunToolDef(): ToolDef<WorkflowRunInput, string, Too
     briefPromptXnl: "",
     detailPromptXnl: "",
     run: async (runtime, input) => {
-      const workflowRef = normalizeString((input as any)?.workflow_ref)
-      const validation = createWorkflowComponent().queries.validateResourceRef(workflowRef)
-      if (!validation.ok) {
-        return JSON.stringify({
-          ok: false,
-          error: "invalid_workflow_ref",
-          workflow_ref: workflowRef,
-          validation,
-        })
-      }
-
-      const agentType = normalizeString((input as any)?.agent_type) || "code"
-      const taskKey = normalizeString((input as any)?.task_key)
-        || `workflow:${workflowRef}:${stableHash({
-          input: (input as any)?.input ?? null,
-          prompt: normalizeString((input as any)?.prompt),
-        })}`
-      const description = normalizeString((input as any)?.description) || `Run workflow ${workflowRef}`
-
+      const instanceId = normalizeString((input as any)?.instance_id)
       try {
-        const output = await spawnChildExecutionActor(runtime.vm as any, runtime.actor as any, {
-          description,
-          prompt: buildRunPrompt(input),
-          agentType,
-          mode: "detached",
-          taskKey,
-          toolCallId: (runtime as any)?.toolCallId,
-        })
-        const delegate = parseSpawnResult(output)
-        const runId = normalizeString(delegate.task_id) || null
-        return JSON.stringify({
-          ok: true,
-          kind: "workflow.run",
-          runtime: RUNTIME_ID,
-          workflow_ref: workflowRef,
-          run_id: runId,
-          task_id: runId,
-          status: delegate.status ?? null,
-          reused: delegate.reused === true,
-          agent_type: agentType,
-          task_key: taskKey,
-          delegate,
-        })
+        return JSON.stringify(await getWorkflowRuntimeService(runtime as any).start({
+          instanceId,
+          runId: normalizeString((input as any)?.run_id) || undefined,
+          confirmed: (input as any)?.confirmed === true,
+        }))
       } catch (e: any) {
         return JSON.stringify({
           ok: false,
           error: String(e?.message ?? e ?? "unknown"),
-          workflow_ref: workflowRef,
-          runtime: RUNTIME_ID,
-          agent_type: agentType,
+          instance_id: instanceId,
+          runtime: "depa-flows",
         })
       }
     },
@@ -263,7 +177,7 @@ export function buildWorkflowStatusToolDef(): ToolDef<WorkflowRunIdInput, string
       type: "function",
       function: {
         name: "WorkflowStatus",
-        description: "Read workflow run status from Eidolon detached actor runtime facts.",
+        description: "Read graph status from persisted workflow facts, with legacy detached-run compatibility.",
         parameters: {
           type: "object",
           properties: {
@@ -280,6 +194,8 @@ export function buildWorkflowStatusToolDef(): ToolDef<WorkflowRunIdInput, string
     run: async (runtime, input) => {
       const runId = readRunId(input)
       if (!runId) return missingRunIdPayload()
+      const workflow = await getWorkflowRuntimeService(runtime as any).status(runId)
+      if (workflow) return JSON.stringify(workflow)
       const record = getDetachedRecord(runtime, runId)
       if (!record) return notFoundPayload(runId)
       return JSON.stringify(toStatusPayload(record, runId))
@@ -293,7 +209,7 @@ export function buildWorkflowEventsToolDef(): ToolDef<WorkflowEventsInput, strin
       type: "function",
       function: {
         name: "WorkflowEvents",
-        description: "Read workflow run message and tool events from Eidolon detached actor observability facts.",
+        description: "Read workflow domain/effect events, with legacy detached-run compatibility.",
         parameters: {
           type: "object",
           properties: {
@@ -316,6 +232,8 @@ export function buildWorkflowEventsToolDef(): ToolDef<WorkflowEventsInput, strin
     run: async (runtime, input) => {
       const runId = readRunId(input)
       if (!runId) return missingRunIdPayload()
+      const workflow = await getWorkflowRuntimeService(runtime as any).events(runId)
+      if (workflow) return JSON.stringify(workflow)
       const record = getDetachedRecord(runtime, runId)
       if (!record) return notFoundPayload(runId)
       const result = getDetachedActorObservabilityStore(runtime.vm as any).queryMessages(runId, {
@@ -345,7 +263,7 @@ export function buildWorkflowResultToolDef(): ToolDef<WorkflowResultInput, strin
       type: "function",
       function: {
         name: "WorkflowResult",
-        description: "Read a workflow run terminal result from Eidolon detached actor runtime facts.",
+        description: "Read a workflow graph terminal result, with optional partial state and legacy compatibility.",
         parameters: {
           type: "object",
           properties: {
@@ -368,6 +286,17 @@ export function buildWorkflowResultToolDef(): ToolDef<WorkflowResultInput, strin
     run: async (runtime, input) => {
       const runId = readRunId(input)
       if (!runId) return missingRunIdPayload()
+      const workflow = await getWorkflowRuntimeService(runtime as any).result(
+        runId,
+        (input as any)?.allow_partial === true,
+      )
+      if (workflow) {
+        if ((input as any)?.include_events === true && workflow.ok) {
+          const events = await getWorkflowRuntimeService(runtime as any).events(runId)
+          return JSON.stringify({ ...workflow, events })
+        }
+        return JSON.stringify(workflow)
+      }
       const record = getDetachedRecord(runtime, runId)
       if (!record) return notFoundPayload(runId)
       if (!TERMINAL_STATUSES.has(record.status) && (input as any)?.allow_partial !== true) {
@@ -411,18 +340,25 @@ export function buildWorkflowResultToolDef(): ToolDef<WorkflowResultInput, strin
   }
 }
 
-export function buildWorkflowResumeToolDef(): ToolDef<WorkflowRunIdInput, string, ToolConfig> {
+export function buildWorkflowResumeToolDef(): ToolDef<WorkflowResumeInput, string, ToolConfig> {
   return {
     schema: {
       type: "function",
       function: {
         name: "WorkflowResume",
-        description: "Inspect workflow run recovery state; scheduling remains owned by Eidolon actor/session runtime.",
+        description: "Resume a persisted waiting workflow graph using an explicit signal or its sole open wait handle.",
         parameters: {
           type: "object",
           properties: {
             run_id: { type: "string" },
             task_id: { type: "string" },
+            node_id: { type: "string", description: "Stable waiting manual node id for AIDataWorkflow." },
+            output: { description: "Manual node output record for AIDataWorkflow." },
+            signal_kind: { type: "string" },
+            signal_key: { type: "string" },
+            resume_token: { type: "string" },
+            outcome: { type: "string", enum: ["Success", "Failure", "Cancelled"] },
+            payload: {},
           },
           required: ["run_id"],
           additionalProperties: false,
@@ -434,6 +370,58 @@ export function buildWorkflowResumeToolDef(): ToolDef<WorkflowRunIdInput, string
     run: async (runtime, input) => {
       const runId = readRunId(input)
       if (!runId) return missingRunIdPayload()
+      const service = getWorkflowRuntimeService(runtime as any)
+      const current = await service.status(runId)
+      if (current) {
+        if (current.terminal) {
+          return JSON.stringify({ ...current, kind: "workflow.runResume", resumed: false })
+        }
+        if (current.form === "AIDataWorkflow") {
+          const waitingNodes = (current.nodes as Array<Record<string, any>>)
+            .filter((node) => node.nodeType === "manual" && node.result?.status === "Waiting")
+          const requestedNodeId = normalizeString((input as any)?.node_id)
+          const nodeId = requestedNodeId || (waitingNodes.length === 1 ? String(waitingNodes[0].id) : "")
+          if (!nodeId) {
+            return JSON.stringify({
+              ok: false,
+              error: waitingNodes.length > 1 ? "ambiguous_manual_node" : "missing_manual_node",
+              run_id: runId,
+              waiting_nodes: waitingNodes.map((node) => node.id),
+            })
+          }
+          try {
+            const resumed = await service.resumeDataNode(runId, nodeId, (input as any)?.output ?? (input as any)?.payload)
+            return JSON.stringify({ ...resumed, resumed: true })
+          } catch (error) {
+            return JSON.stringify({ ok: false, error: String((error as Error)?.message ?? error), run_id: runId })
+          }
+        }
+        const handles = current.open_wait_handles as Array<Record<string, unknown>>
+        const only = handles.length === 1 ? handles[0] : undefined
+        const signalKind = normalizeString((input as any)?.signal_kind) || normalizeString(only?.signalKind)
+        const signalKey = normalizeString((input as any)?.signal_key) || normalizeString(only?.signalKey)
+        const resumeToken = normalizeString((input as any)?.resume_token) || normalizeString(only?.resumeToken)
+        if (!signalKind || !signalKey || !resumeToken) {
+          return JSON.stringify({
+            ok: false,
+            error: handles.length > 1 ? "ambiguous_wait_handle" : "missing_resume_signal",
+            run_id: runId,
+            open_wait_handles: handles,
+          })
+        }
+        try {
+          const resumed = await service.resume(runId, {
+            signalKind,
+            signalKey,
+            resumeToken,
+            outcome: (input as any)?.outcome,
+            payload: (input as any)?.payload,
+          })
+          return JSON.stringify({ ...resumed, resumed: true })
+        } catch (error) {
+          return JSON.stringify({ ok: false, error: String((error as Error)?.message ?? error), run_id: runId })
+        }
+      }
       const record = getDetachedRecord(runtime, runId)
       if (!record) return notFoundPayload(runId)
       return JSON.stringify({
@@ -453,6 +441,97 @@ export function buildWorkflowResumeToolDef(): ToolDef<WorkflowRunIdInput, string
         child_actor_key: record.childActorKey ?? null,
         child_actor_id: record.childActorId ?? null,
       })
+    },
+  }
+}
+
+function buildWorkflowTerminalSignalToolDef(
+  name: "WorkflowResolve" | "WorkflowReject",
+  outcome: "Success" | "Failure",
+): ToolDef<WorkflowResumeInput, string, ToolConfig> {
+  const resume = buildWorkflowResumeToolDef()
+  return {
+    ...resume,
+    schema: {
+      type: "function",
+      function: {
+        name,
+        description: outcome === "Success"
+          ? "Resolve an exact pending workflow wait handle through the durable depa-flows/Eidolon lifecycle."
+          : "Reject an exact pending workflow wait handle through the durable depa-flows/Eidolon lifecycle.",
+        parameters: {
+          type: "object",
+          properties: {
+            run_id: { type: "string" },
+            signal_kind: { type: "string" },
+            signal_key: { type: "string" },
+            resume_token: { type: "string" },
+            payload: {},
+          },
+          required: ["run_id"],
+          additionalProperties: false,
+        },
+      },
+    },
+    run: (runtime, input, config) => resume.run(runtime, { ...input, outcome }, config),
+  }
+}
+
+export function buildWorkflowResolveToolDef(): ToolDef<WorkflowResumeInput, string, ToolConfig> {
+  return buildWorkflowTerminalSignalToolDef("WorkflowResolve", "Success")
+}
+
+export function buildWorkflowRejectToolDef(): ToolDef<WorkflowResumeInput, string, ToolConfig> {
+  return buildWorkflowTerminalSignalToolDef("WorkflowReject", "Failure")
+}
+
+export function buildWorkflowApplyGraphPatchToolDef(): ToolDef<WorkflowGraphPatchInput, string, ToolConfig> {
+  return {
+    schema: {
+      type: "function",
+      function: {
+        name: "WorkflowApplyGraphPatch",
+        description: "Apply a structurally validated canonical GraphPatch to one AIDataWorkflow run generation and advance its ready frontier.",
+        parameters: {
+          type: "object",
+          properties: {
+            run_id: { type: "string" },
+            task_id: { type: "string" },
+            patch: {
+              type: "object",
+              properties: {
+                patchId: { type: "string" },
+                reason: { type: "string" },
+                atMs: { type: "number" },
+                operations: { type: "array", items: { type: "object" } },
+              },
+              required: ["patchId", "operations"],
+              additionalProperties: false,
+            },
+          },
+          required: ["run_id", "patch"],
+          additionalProperties: false,
+        },
+      },
+    },
+    briefPromptXnl: "",
+    detailPromptXnl: "",
+    run: async (runtime, input) => {
+      const runId = readRunId(input)
+      if (!runId) return missingRunIdPayload()
+      try {
+        const patched = await getWorkflowRuntimeService(runtime as any).applyGraphPatch(
+          runId,
+          (input as any)?.patch,
+        )
+        return patched ? JSON.stringify(patched) : notFoundPayload(runId)
+      } catch (error) {
+        return JSON.stringify({
+          ok: false,
+          error: String((error as Error)?.message ?? error),
+          run_id: runId,
+        })
+      }
     },
   }
 }

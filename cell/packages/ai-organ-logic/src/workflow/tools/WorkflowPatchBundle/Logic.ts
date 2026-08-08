@@ -1,5 +1,5 @@
 import type { StdInnerLogic } from "depa-processor"
-import { createWorkflowComponent } from "../../component"
+import { createWorkflowComponentForRuntime } from "../../component"
 import type {
   WorkflowPatchBundleInnerConfig,
   WorkflowPatchBundleInnerInput,
@@ -12,6 +12,6 @@ export const workflowPatchBundleCoreLogic: StdInnerLogic<
   WorkflowPatchBundleInnerInput,
   WorkflowPatchBundleInnerConfig,
   WorkflowPatchBundleInnerOutput
-> = async (_runtime, input, _config) => {
-  return JSON.stringify(createWorkflowComponent().commands.createPatchPlan(input), null, 2)
+> = async (runtime, input, _config) => {
+  return JSON.stringify(createWorkflowComponentForRuntime(runtime).commands.createPatchPlan(input), null, 2)
 }

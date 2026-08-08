@@ -23,7 +23,7 @@
 | 领域本体 | `codument/modeling/` | canonical + derived 建模真源 | 稳定·就地改 | "当前领域本体是什么" |
 | 实现/运维 | `codument/engineering/` | 架构、howto、规则、参考、排障 | 稳定·就地改 | "实现与维护怎么做" |
 | 能力契约 | `behaviors/`（`codument/behaviors/`） | 行为登记表（行为 case、测试生成依据） | 稳定·就地改 | "系统对外承诺什么行为" |
-| 承重决策 | `decisions/`（`decision://`） | 从 track 提升的长期决策 | 稳定·追加 | "为什么这么定" |
+| 承重决策 | `decisions/**/*.xnl`（`decision://<stable-id>`） | 从 track/mission 完整 decision forest 提升的长期决策 | 稳定·节点级合并 | "为什么这么定" |
 | 长期教训 | `memory/`（`memory://`） | lessons / incidents / patterns / summaries | 稳定·追加 | "反复踩的坑 / 复用模式" |
 | 候选工作 | `backlog/` | 跨 track 的下一步候选 + 自主度 | 活的·就地改 | "下一个该做什么"（非真源） |
 | 跨 track 路线 | `missions/<id>/roadmap.md` | 一组相关 track 的阶段路线、依赖、进度证据 | 活的·就地改 | "多个 track 如何排布"（非行为真源） |
@@ -62,7 +62,7 @@ tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · b
 |---|---|
 | track → `codument/modeling`/`codument/engineering` | 需求澄清后某概念/行为/policy/workflow/架构**稳定**，将成为后续迭代依赖的基线 → 收敛进 owner 文档，**不要只留在 proposal** |
 | track → `behaviors/` | 任何对外行为新增/变更（归档必做） |
-| track → `decisions/` | 一个原本一次性的取舍变成"以后都按这个来"的承重决策 |
+| track/mission → `decisions/**/*.xnl` | 一个原本一次性的取舍变成"以后都按这个来"的承重决策；从根 `decisions.xnl` 与递归 `decisions/**/*.xnl` 同时选择完整 durable tree closure，并按 stable id 合并 |
 | track/复盘 → `memory/` | 出现可复用的教训、非显然的 incident、值得记住的 pattern |
 | `memory/` → 方法层(sop/skill/check) | **同一类问题反复出现**：先提炼为可复用 sop/prompt；若仍复发，再固化为 attractor-check profile / action-hook / validation 守卫（按项目误报容忍度调优） |
 | 任意 → `migration-map` | owner 文档路径移动/拆分/合并/被吸收 |
@@ -86,11 +86,13 @@ tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · b
 ## 6. 时效性
 
 - **稳定 owner 层**（attractors / codument/modeling / codument/engineering / behaviors / decisions）：通过对应 delta 与归档合并维护，不因内容变化就新建带日期副本；registry 元数据与节点 schema 见 model-driven-docs.md 路由。
+- **decision owner 层**：canonical 内容只在 `codument/decisions/**/*.xnl`；物理 owner file 不是 identity，`decision://<id>` 通过全局 stable-id index 解析。历史 `decision.md` 与 archive `summary.md` 是兼容输入/派生视图，不参与 merge、index 或真源冲突裁决。
 - **迭代/轨迹层**（tracks/pending、tracks/active、tracks/archived / reports）：带日期；归档后不可变。
 - **新鲜度模式**：owner 文档标 `stale|unknown` 时，进入研究/对齐优先——不直接拿可执行真相去"修"文档、也不拿陈旧文档去"改"代码，先把漂移归类记录。
 
 ## 7. 路由
 
 - registry 规范（modeling/engineering 怎么写、拆分与校验）：[model-driven-docs.md](./model-driven-docs.md) → [docs-modeling-fractal](@codument/std/skill/docs-modeling-fractal/index.md) / [docs-engineering-fractal](@codument/std/skill/docs-engineering-fractal/index.md)。
+- decision registry、递归 source、stable-id merge 与 URI：[decision-registry.md](@codument/std/spec/decision-registry.md)。
 - 每个标准文件夹"装什么"的自描述与补齐：[std/spec/folder-manifest.md](@codument/std/spec/folder-manifest.md)。
 - 晋升动作落在流程里：归档晋升见 `std/actions/archive-track.md`；docs 同步见 `std/actions/artifact-sync.md`；澄清期实时更新见 `std/protocols/questioning.md`。

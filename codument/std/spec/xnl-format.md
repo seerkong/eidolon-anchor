@@ -38,6 +38,14 @@ XNL 的 `()` 与 `[]` 也不是随意替换的“子节点容器”：
 - 带选项的新决策点必须在 `<options>` 中标记恰好一个 `recommended = true`。
 - `<answer>` 是 decision 唯一的回答反馈容器；原始回答使用 `<raw-answer>`，整理后的 `<decision-text>`、`<rationale>`、`<evidence>` 都放在 `<answer>` 下。
 
+决策 registry 的持久化边界：
+
+- track / mission 根 `decisions.xnl` 与递归 `decisions/**/*.xnl` 是同一个 logical source set；两类来源同时存在时都必须参与。
+- 长期 canonical registry 是根级与递归的 `codument/decisions/**/*.xnl` 文件集合，按 stable decision `#id` 建立全局 index。
+- serializer / archive / migration 必须保存完整 XNL AST、未知字段与 nested decision hierarchy，不得先投影为摘要 DTO 或 `decision.md` 再重建。
+- `decision://<id>` 只表达 stable identity，与 owner file、目录、archive 时间戳无关；duplicate id 必须 fail closed。
+- legacy Markdown 和 summary 只作显式兼容/迁移输入或派生视图，不参与 XNL registry merge/index。完整规则见 `std/spec/decision-registry.md`。
+
 决策树示例：
 
 ```xnl

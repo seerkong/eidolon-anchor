@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-workflow-cli-heredoc-session-continuation" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让已安装 Eidolon CLI 通过显式 heredoc 多行指令和稳定 session 完成多进程 workflow journey。</Goal>
+    <Description>增加 `/dev/stdin`/`-` 指令源与 `--session`，补齐 AIDataWorkflow authoring/run ABI 上下文，并执行安装后二进制真实公网多来源验收。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-08T16:26:02Z</CreatedAt>
+    <UpdatedAt>2026-08-08T17:36:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="cli-code" domain="code" path="vfs://@/terminal/packages/cli/"/>
+    <MaterialBundle role="output" name="reports" domain="track" path="vfs://./reports/"/>
+  </Ports>
+  <TaskSpace id="space_add-workflow-cli-heredoc-session-continuation" name="add-workflow-cli-heredoc-session-continuation" version="1" cdt:child-mode="dag">
+    <Description>Workflow CLI input adapter and installed continuation E2E.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Heredoc 与 session contract" status="DONE" order="0">
+        <SubNodes>
+          <Task id="T1.1" name="实现显式 stdin source 与 session 透传" status="DONE" order="0" priority="P0">
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">`/dev/stdin` 与 `-` 均读取完整多行正文，空输入返回 usage error</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">普通位置参数不读取 stdin 且保持兼容</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">`--session/-s` 原样映射到 runHeadlessExec.sessionKey</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="构建安装与真实 CLI journey" status="DONE" order="1">
+        <cdt:Gate><cdt:Criterion>CLI tests、production build、local install 与三进程公网 journey 均有真实证据</cdt:Criterion></cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="安装并用 heredoc 多次调用真实 CLI" status="DONE" order="0" priority="P0">
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">本地安装的 `eidolon-cli` help 显示 heredoc source 与 session contract</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">三个独立 CLI 进程使用同一 session，先草稿、再发布、最后执行并返回多来源报告</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC3" checked="true">发布调用不执行，最终调用才产生公网来源和 durable run evidence</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="收敛真实 authoring ABI 偏差并纠偏重跑" status="DONE" order="1" priority="P0">
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">authoring context 明确 `(runtime, inputs, config)`、unwrapped port value、exact output map 与发布 bundle path</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">run context 明确实例 input 必须按 FlowContract inputPorts 传入</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC3" checked="true">自然语言纠偏后重新发布执行，最终报告包含三个真实来源的非空内容</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule><Dag for="space_add-workflow-cli-heredoc-session-continuation"><Node id="P2"><After ref="P1"/></Node></Dag></Schedule>
+  <Hooks/>
+</Track>

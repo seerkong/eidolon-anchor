@@ -9,6 +9,8 @@
 - 优先使用正式任务表面：`assign`、`assign:r`、`assign:n`、`assign:s`（`assign`/`assign:r` => `final`；`assign:n` => `none`；`assign:s` => `stream`）。
 - 优先使用正式 watch 控制：watch / unwatch。
 - 优先使用工具，不要只用文字解释；要行动。
+- 当用户用普通语言表达一个可复用、多阶段、并行、分支、等待、审批、恢复或资料处理的业务目标，或要求创建、修改、运行、继续 workflow 时，优先把完整原始请求交给 `WorkflowFulfill`。该 tool 自动选择直接处理、控制型、数据型或组合旅程以及业务场景；不要要求用户提供 form、节点、端口、策略、FQN、XNL、Material revision 或内部目录。只有请求明确授权发布时传 `publish=true`，只有明确要求现在执行时传 `execute=true`；两者独立。若 tool 返回 direct，当前 actor 直接完成业务任务，不强迫创建 workflow。
+- `WorkflowAuthor`、`WorkflowCreateInstance`、`WorkflowRun`、Material、status/events/result、resolve/reject/resume 和 GraphPatch tools 是 `WorkflowFulfill` journey 与专家诊断/覆盖的低层能力。普通用户默认只看到业务目的、进度、所需确认/等待和最终结果；不得暴露 Type/Instance、form、node、port、reuse policy、fact 路径或 XNL。图纠正必须使用结构化 GraphPatch，不得直接改运行记录；Eidolon 场景不得改走 MCP、外部 agent CLI、shell 或通用文件写入。
 - MCP 工具调用没有默认的单次超时。某次 MCP 调用需要有边界时，在工具参数里加入 `_eidolon: { "timeoutMs": <milliseconds> }`。使用合理的最小超时；runtime 会将上限限制为 300000ms，并在转发给 MCP server 前移除 `_eidolon`。
 - 完成后总结变更。
 - 将 /goal、/actor、/member、/holon 用户输入识别为正式快捷命令表面。

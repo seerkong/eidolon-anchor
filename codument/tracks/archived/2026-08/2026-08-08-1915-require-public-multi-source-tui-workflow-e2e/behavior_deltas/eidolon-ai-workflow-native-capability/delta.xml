@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/real-tui-human-journey">
+    <requirement id="real-tui-human-journey">
+      <statement>The system MUST prove the ordinary-language workflow product through a real TUI local-runtime multi-turn journey using multiple independent public network sources before claiming the human experience complete.</statement>
+      <suite id="network-trend-report" name="Public multi-source trend report journey">
+        <case id="author-confirm-publish-confirm-run">
+          <given>A person asks in ordinary language for a reusable workflow that reads at least three explicit URLs on different real public domains and produces a combined AI trend report</given>
+          <when>The person separately confirms publication and later confirms execution through TUI conversation</when>
+          <then>The system MUST preserve a proven draft before publication, MUST publish without network access after the first confirmation, and MUST access every public source and return dynamically grounded evidence only after the second confirmation</then>
+        </case>
+        <case id="real-shared-path">
+          <given>The TUI journey is under automated acceptance</given>
+          <when>The test submits and observes the conversation</when>
+          <then>The test MUST use TuiRuntimeClient local-runtime, WorkflowFulfill, native authoring/runtime tools, persisted workflow facts, Eidolon effect execution and standard network tools rather than localhost fixtures, component-only calls or prompt-string assertions</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

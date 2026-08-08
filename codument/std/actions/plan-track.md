@@ -1,6 +1,6 @@
 # skill: codument-plan-track（创建变更追踪）
 
-为一个新功能 / Bug 修复 / 变更创建一条 **Track**：引导用户收集信息，生成行为增量（`behavior_deltas/<capability>/delta.xml`）、提案（`proposal.md`）、设计（`design.md`）和状态真源 `track.xml`，并把它们组织在专用的 `tracks/pending/<id>/` 目录中等待批准。
+为一个新功能 / Bug 修复 / 变更创建一条 **Track**：引导用户收集信息，生成行为增量（`behavior_deltas/<capability>/delta.xml`）、提案（`proposal.md`）、设计（`design.md`）和状态真源 `track.xml`，并把它们组织在专用的 `tracks/pending/<id>/` 目录中等待批准。由 `codument-impl-mission` 以 `QuestionSeverity=auto` 调用时，创建直接落在 `tracks/active/<id>/`（mission 层视为已批准），不进入 pending 等待（见 §3.2 调用方上下文）。
 
 > 本文以 **Markdown 为主**：何时建 track、每步问什么、产物长什么样、各种规则与示例都用 prose / 列表 / 表格 / good-bad 示例完整给出。只有**程序化的控制流**（新建 track 的固定顺序、同轮确认的写入分支）用流程标记块（` ```text ` + `@delimiter: --`，构造词汇见 `_action-spec.md`）表达；XML 片段用 ` ```xml ` 围栏内嵌（免转义）。
 >
@@ -10,7 +10,7 @@
 
 ## 0. 意图、触发与产物
 
-**意图。** 为一个新功能 / 变更建 track：收集信息 → 起草行为增量与 `track.xml` → 同轮收集提交模式 / 校验模式 / 方向审查 → 等待批准。**提案获批前不开始实现。**
+**意图。** 为一个新功能 / 变更建 track：收集信息 → 起草行为增量与 `track.xml` → 同轮收集提交模式 / 校验模式 / 方向审查 → 等待批准。**提案获批前不开始实现**——除非由 `codument-impl-mission` 以 `QuestionSeverity=auto` 调用，此时 mission 层代为批准、创建即激活（见 §3.2 调用方上下文）。
 
 **何时建 track（trigger）。** 下列情况建 track：
 
@@ -49,8 +49,8 @@
 | `behavior_deltas/<cap>/delta.xml` | ★必有 | 行为增量（`<behavior-patch>`） |
 | `design.md`（+`design/`） | ★必有 | 方案 / 决策摘要 / 风险 / 兼容 / 迁移 |
 | `analysis/{findings,knowledge}.md` | 按需 | 规划期 planning-with-files 外部记忆 |
-| `decisions.xnl` | ★必有 | 单一过程决策载体；旧 `decisions.md` 仅兼容读取 |
-| `decisions/` | 按需 | archive-ready legacy durable 单文件决策 |
+| `decisions.xnl` | ★必有 | 默认过程决策 forest 入口；旧 `decisions.md` 仅兼容读取 |
+| `decisions/**/*.xnl` | 按需 | 按 owner/topic 分片的层级 decision forest；与根文件同时参与 |
 | `memory/` | 按需 | 长期记忆候选 |
 | `reports/` | 运行期生成 | gap-loop / verify 报告 |
 
@@ -143,7 +143,7 @@
 1. **查重**：在 `codument/tracks/{pending,active,archived}/` 查重；若提议短名与任一生命周期目录中的 track 重复，停止并建议换名。
 2. **生成 Track ID**：小写英文 + 中横线的简短描述，**动词开头**（`add-`、`update-`、`remove-`、`refactor-`），如 `add-user-auth`、`fix-login-bug`。**不含日期**（日期只在归档时加）；若已被占用，追加 `-2`、`-3`。
 3. **按 severity 处理 ID 歧义**：`auto` 模式直接采用生成的 track-id，并把命名依据写入 `analysis/decision-tree.xnl`。其他模式只有在命名确实会改变范围或与现有 id 难以区分时，才把它作为一个 ready decision 加入当前拓扑 batch；不得为单独确认 id 打断其他独立问题。
-4. **建目录**：`codument/tracks/pending/<track_id>/`。规划完成但尚未获批的 track 必须留在 `pending/`；获批后才移动到 `codument/tracks/active/<track_id>/` 并交给 `impl-track`。
+4. **建目录**：`codument/tracks/pending/<track_id>/`。规划完成但尚未获批的 track 必须留在 `pending/`；获批后才移动到 `codument/tracks/active/<track_id>/` 并交给 `impl-track`。**调用方上下文（mission 连续执行）**：由 `codument-impl-mission` 以 `QuestionSeverity=auto` 调用时，直接建在 `codument/tracks/active/<track_id>/`，不进入 pending；mission 层在 impl-mission 侧回写 `TrackLink state="bound"` 并写 bind report。
 5. **建 `analysis/`（外部记忆）**：建 `analysis/findings.md` 与 `analysis/knowledge.md`。
    - **硬规则：仅缺失时创建，绝不覆盖已有内容**——目录已存在则不删不重写；文件已存在则绝不改写（哪怕你觉得不完整），不存在才按模板创建。
    - 按 planning-with-files 把关键结论写入文件作为外部记忆，**避免长对话或多轮工具调用丢失重要信息**；内容必须与本 track 相关、避免泛化；不引用 `.` 开头隐藏目录。
@@ -187,8 +187,8 @@
    |      |         |
    ```
 6. **建决策与记忆目录**（仅有合格内容时创建，已存在则跳过）：
-   - `decisions/` —— archive-ready 的 legacy durable 单文件决策（每个长期决策一个 `.md`，历史归档可提升 `decision://`）。
-   - 根级 `decisions.xnl` 无条件创建，作为唯一过程决策入口；旧 `decisions.md` 只作为 legacy fallback 读取，不再作为新建默认。
+   - `decisions/` —— 仅在 decision forest 需要按 owner/topic 分片时创建，内容使用递归 `*.xnl`；它与根 `decisions.xnl` 共同组成 source set。
+   - 根级 `decisions.xnl` 无条件创建，作为默认过程决策入口；旧 `decisions.md` / `decisions/**/*.md` 只作为显式 legacy fallback 或 migration input，不再作为新建格式。
    - `memory/` —— 记忆上下文，按类型分子目录 `lessons/`、`incidents/`、`patterns/`、`summaries/`（归档且 `memory` profile 启用时提升 `memory://`）。
 7. **写 Metadata**（在 `track.xml` 的 `<Metadata>`，§3.6 一并落盘）：
 
@@ -298,7 +298,7 @@ behavior delta 确认后："现在我将创建完整的变更提案"。按下面
 
 ### 3.5 方案与决策（design.md、decisions.xnl，默认创建）
 
-每个新 track 都创建 `design.md` 和 `decisions.xnl`。没有待决事项时，`decisions.xnl` 保持有效的空 decision forest；出现决策时在同一文件追加记录。复杂设计可再建立 `design/` 子目录。
+每个新 track 都创建 `design.md` 和 `decisions.xnl`。没有待决事项时，`decisions.xnl` 保持有效的空 decision forest；出现决策时默认写入根文件。forest 需要按 owner/topic 分片时可建立递归 `decisions/**/*.xnl`，但根文件与递归文件始终作为一个 source set 读取。复杂设计可再建立 `design/` 子目录。
 
 设计内容大时建 `design/` 子目录，根级 `design.md` 作总览引用子设计。
 
@@ -307,7 +307,7 @@ behavior delta 确认后："现在我将创建完整的变更提案"。按下面
 
 **决策记录（decisions.xnl）：**
 
-1. `codument/tracks/pending/<track_id>/decisions.xnl` 是默认存在的决策评审主入口——**无论创建 / 设计还是后续执行阶段，只要出现新决策都追加回写到该文件**，不新建分散的过程决策记录。旧 `decisions.md` 只作为 legacy fallback 读取；不要为新 track 新建根级 `decisions.md`。某决策若属未来仍需遵守的 durable 长期项目决策，在 `decisions.xnl` 上标 `durable_candidate = true`；历史 `decisions/<slug>.md` durable 单文件记录仍可供 archive 兼容提升 `decision://`。
+1. `codument/tracks/pending/<track_id>/decisions.xnl` 是默认存在的决策评审入口。普通新决策默认回写根文件；只有明确需要 owner/topic 分片时才写入递归 `decisions/**/*.xnl`。两类 XNL source 同时参与 archive/validation，不能互相压制。旧 `decisions.md` / `decisions/**/*.md` 只作为显式 legacy fallback 或 migration input；不要为新 track 创建。未来仍需遵守的长期项目决策标 `durable_candidate = true`，归档时完整 XNL tree 按 stable id 合并进 `codument/decisions/**/*.xnl`，而不是生成 canonical `decision.md`。
 2. **起草 decisions.xnl**：先梳理待决策 forest 并标 `P0`/`P1`/`P2`，把问题、候选选项、当前建议写入。嵌套 `<decision>` 表示需要先解决父问题的细化；跨分支前置条件用 `depends_on = ["decision-id"]`，不要滥用 `blocks`。模板：
    ```xnl
    <decision #track.example.decision_1 {
@@ -577,7 +577,7 @@ proposal 获批后："现在我将根据规范创建结构化实现计划（`tra
 
 ## 4. 门控（gates）
 
-- **提案获批前不开始实现**（这是 `codument-impl-track` 的前置门控）。
+- **提案获批前不开始实现**（这是 `codument-impl-track` 的前置门控）。例外：由 `codument-impl-mission` 在 `QuestionSeverity=auto` / 连续执行模式下调用时，mission 层代为批准，track 创建即激活后即可进入 `codument-impl-track`（见 §3.2 调用方上下文）。
 - 若 `codument/config/action-hooks.xml` 为 `action name="plan-track"` 显式配置了 `plan-track:before` hook，才在规划前执行；没有 hook 时直接以项目上下文继续。命令级 hook 与 track.xml 的节点级 `<Hook>` 同语法、不同宿主。
 
 ---

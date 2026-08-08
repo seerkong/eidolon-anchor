@@ -45,18 +45,19 @@ tracks/
     decision-tree.xnl       决策树 / frontier / assumptions（需要决策树时建）
     findings.md             直接找到的事实、约束、问题与结论
     knowledge.md            阅读后沉淀的知识上下文、术语与机制理解
-  decisions.xnl           决策问题/选项/用户答复/结论与理由（默认创建；旧 decisions.md 仅兼容 fallback）
-  decisions/              archive-ready 的 legacy durable 单文件决策（仅有合格内容时创建）
+  decisions.xnl           默认 decision forest 入口（默认创建；旧 decisions.md 仅兼容 fallback）
+  decisions/**/*.xnl      按 owner/topic 分片的层级化 decision forest（按需；与根文件同时参与）
   memory/                 （可选）长期记忆候选，按类别分子目录（归档且 memory profile 启用时提升 memory://）
   reports/                gap-loop / verify 的结构化报告（track://reports/...，按轮累积）
 ```
 
 规则：
-- `track.xml`、`proposal.md`、`design.md`、`decisions.xnl` 与 `behavior_deltas` 必有；`decisions/`、`memory/`、`analysis/` 和 `reports/` 按需。
+- `track.xml`、`proposal.md`、`design.md`、`decisions.xnl` 与 `behavior_deltas` 必有；层级化 `decisions/**/*.xnl`、`memory/`、`analysis/` 和 `reports/` 按需。
 - `analysis/` 是**迭代期外部记忆**，不是 owner 真源——稳定结论按 `knowledge-tiers.md` 晋升进 `docs/`/`behaviors/`，不滞留 analysis。
 - `analysis/findings.md` 应记录可复用的事实锚：spot-check 证据、测试/指标结果、失败归因、环境约束、机制漏洞、phase/wave 完成小结。新会话接手或续跑时优先读取它，避免只依赖对话记忆。
-- `decisions/`→`decision://`、`memory/`→`memory://`、`behavior_deltas/`→`behaviors/` 的提升时机见 `std/actions/archive-track.md` 与 `knowledge-tiers.md` §4–§5。
-- 子代理只接收**路径/引用**自读（见 `implement.md`），不把这些目录正文塞进编排者上下文。
+- 根 `decisions.xnl` 与递归 `decisions/**/*.xnl` 共同组成 source set；durable tree 按 stable id 提升到 canonical `codument/decisions/**/*.xnl`。物理 owner file 不参与 `decision://<id>` identity；legacy Markdown 只作显式兼容/迁移输入。详见 `std/spec/decision-registry.md`。
+- `memory/`→`memory://`、`behavior_deltas/`→`behaviors/` 的提升时机见 `std/actions/archive-track.md` 与 `knowledge-tiers.md` §4–§5。
+- 普通叶任务的 local/delegated 策略由运行期 AI 自主决定，不写进 TaskSpace/Schedule；若委派，worker 只接收**路径/引用**自读，且不拥有 `track.xml` 状态。
 
 ---
 

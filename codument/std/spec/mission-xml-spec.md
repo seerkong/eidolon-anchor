@@ -319,6 +319,8 @@ MissionObserver 观测实际态
 
 `<cdt:MissionReconcile max-tracks="10" on-limit="checkpoint"/>` 表示一次 invocation 最多连续完成 10 个 linked track 生命周期。达到上限时，写 continuation report 并返回 checkpoint；mission 仍为 `active`，后续 invocation 从状态真源续跑。它不是通用 action 计数器。
 
+`cdt:TrackLink state="candidate"` 的激活是 mission logical action 的一部分：ready action 创建真实 track 后，`QuestionSeverity=auto`（或连续执行模式）下 `MissionApplier` 立即把 track 激活到 `tracks/active/<id>/`、回写 `TrackLink state="bound"` 与 bind report，并继续循环，不等待用户批准；只有显式配置了确认 gate（如 `cdt:HumanConfirm`，或显式更高 severity 且无保守默认可替代）才停在激活点。`plan-track` 的 pending/批准语义只约束用户直接对话场景（见 `actions/plan-track.md` §3.2 调用方上下文）。
+
 ## 9. 受控重规划
 
 active mission 允许修改 `mission.xml`，但必须满足：
@@ -334,7 +336,7 @@ active mission 允许修改 `mission.xml`，但必须满足：
 - 删除 / supersede 节点。
 - 修改节点目标、验收、状态。
 - 修改 DAG 依赖。
-- 暂停等待人工介入。
+- 暂停等待人工介入（仅用于显式配置的确认 gate 或真实不可自动恢复的阻塞；不作为自主迭代的默认停点）。
 
 ## 10. 标准文件拆分
 

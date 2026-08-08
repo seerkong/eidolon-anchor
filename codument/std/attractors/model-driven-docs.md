@@ -13,6 +13,7 @@ codument/engineering/  # 工程知识真源，XNL registry
 
 - modeling：`std/spec/modeling-registry.md`、`modeling-node-schema.md`、`modeling-delta.md`。
 - engineering：`std/spec/engineering-registry.md`、`engineering-node-schema.md`、`engineering-delta.md`。
+- decisions：`std/spec/decision-registry.md`（完整 XNL tree、stable-id merge/index、`decision://`）。
 - 分形拆分与类目选择：`std/skill/docs-modeling-fractal/index.md`、`docs-engineering-fractal/index.md`。
 - 信息晋升与冲突优先级：`std/attractors/knowledge-tiers.md`。
 
@@ -22,7 +23,7 @@ codument/engineering/  # 工程知识真源，XNL registry
 - `codument/engineering/`：实现、维护、运维、参考、示例、排障和 runbook。
 - `codument/behaviors/`：可测的对外行为契约。
 - 源码、测试、schema、配置：可执行真相。
-- `codument/decisions/`：长期承重决策。
+- `codument/decisions/**/*.xnl`：长期承重决策的完整 XNL registry；Markdown summary 仅为派生/兼容视图。
 - `codument/memory/`：可复用 lessons、incidents、patterns、summaries。
 
 modeling 不复述 behavior case，engineering 不复制 modeling 本体；跨 registry 使用 `modeling://...`、`behavior://...` 等逻辑引用。
@@ -84,7 +85,7 @@ registry 元数据写在 XNL 节点属性中，不使用 Markdown frontmatter：
 | 实现规则与护栏 | `engineering_deltas/<plane>/rules.xnl` |
 | 示例、查表、排障 | 对应 `examples` / `reference` / `troubleshooting` delta |
 | 用户可见行为变化 | `behavior_deltas/<capability>/delta.xml` |
-| 承重决策 / 复用教训 | `decisions/` / `memory/` |
+| 承重决策 / 复用教训 | `decisions/**/*.xnl` / `memory/` |
 
 ## Quality Checklist
 

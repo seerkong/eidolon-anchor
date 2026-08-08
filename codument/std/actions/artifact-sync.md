@@ -57,9 +57,11 @@
 - `design.md` 与 `design/`
 - `behavior_deltas/**/*.xml`（旧 track 兼容 `spec.md`）
 - `track.xml`
-- `decisions.xnl`（旧 track 兼容 `decisions.md` 与 `decisions/*.md`）
+- 根 `decisions.xnl` 与递归 `decisions/**/*.xnl`（旧 track 的 `decisions.md` / `decisions/**/*.md` 仅作显式兼容输入）
 - `reports/*.md`
 - archive 中的 `summary.md`
+
+`summary.md` 和 legacy Markdown 只能帮助理解 provenance，不能替代 canonical `codument/decisions/**/*.xnl`，也不能作为 decision merge/index/URI resolution 的输入。
 
 **docs 类 artifact** 还必须读取：
 

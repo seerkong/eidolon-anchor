@@ -1,0 +1,61 @@
+<Track id="establish-workflow-authoring-lifecycle" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>在 Eidolon XNL native component 中完整实现 workflow authoring 产品生命周期。</Goal>
+    <Description>建立 stage context、template/prebuilt、四挂载 VFS session、audit、proof、validation revision、publication gate 和自然语言业务 payload 协议。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-08T04:55:22Z</CreatedAt>
+    <UpdatedAt>2026-08-08T09:25:58Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="source" domain="code" path="vfs://@/cell/packages/ai-organ-logic/src/workflow/"/>
+    <MaterialBundle role="output" name="tests" domain="test" path="vfs://@/cell/packages/ai-organ-logic/tests/workflow/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_establish-workflow-authoring-lifecycle" name="establish-workflow-authoring-lifecycle" version="1">
+    <Description>Establish the complete workflow authoring lifecycle with explicit Eidolon architecture boundaries.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="建立 baseline 与 contract tests" status="DONE" order="0">
+        <Description>先用完整产品场景锁定目标行为和 requirement-to-evidence mapping。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="建立 authoring coverage fixture 和失败测试" status="DONE" order="0" priority="P0">
+            <cdt:Acceptance><cdt:Criterion id="T1.1-AC1" checked="true">测试覆盖 mixed request、template selection、VFS recovery、stale validation 和 publication gate</cdt:Criterion></cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="定义建立后的 authoring session、catalog 和 proof contracts" status="DONE" order="1" priority="P0"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Authoring session 与 catalog 落地" status="DONE" order="1">
+        <Description>在共享 WorkflowComponent 中建立四挂载 session、audit、recovery、template/prebuilt catalog 和 stage context。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="实现 recoverable four-mount WorkflowAuthoringSessionStore" status="DONE" order="0" priority="P0"/>
+          <Task id="T2.2" name="实现 template/prebuilt/context catalogs 与 query/tool projection" status="DONE" order="1" priority="P0"/>
+          <Task id="T2.3" name="扩展 WorkflowWorkspace 为 session-scoped 完整 VFS operations" status="DONE" order="2" priority="P0"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="Proof、publication 与自然语言 lifecycle" status="DONE" order="2">
+        <Description>建立 revision-bound proof、独立发布门、业务 payload 分离和 session fact recovery。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="实现 diff-validate-dry-run proof 与 validation invalidation" status="DONE" order="0" priority="P0"/>
+          <Task id="T3.2" name="实现 explicit publication authorization 和原子发布" status="DONE" order="1" priority="P0"/>
+          <Task id="T3.3" name="建立 develop skill、natural-language routing 与 WorkflowAuthor coordinator" status="DONE" order="2" priority="P0"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="跨入口 acceptance 验证" status="DONE" order="3">
+        <Description>用完整产品场景验证 component、对话 tools、CLI/TUI binding 和安全边界。</Description>
+        <SubNodes>
+          <Task id="T4.1" name="运行 authoring unit、acceptance、TUI/CLI binding 和 build tests" status="DONE" order="0" priority="P0"/>
+          <Task id="T4.2" name="更新 coverage evidence 并复核无 XML/MCP/外部 agent CLI" status="DONE" order="1" priority="P0"/>
+        </SubNodes>
+        <Hooks><Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook></Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule/>
+  <Hooks/>
+</Track>

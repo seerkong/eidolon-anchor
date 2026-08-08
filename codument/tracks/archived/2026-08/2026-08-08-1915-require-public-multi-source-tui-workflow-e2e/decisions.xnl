@@ -1,0 +1,15 @@
+<decisions #require-public-multi-source-tui-workflow-e2e [
+  <decision #track.require_public_multi_source.real_sources {
+    priority = "P0"
+    status = "accepted"
+    durable_candidate = false
+  } (
+    <question ?>真实公网多来源如何与自动测试稳定性并存？</?>
+    <answer (
+      <raw-answer ?>使用多个真实域名，不能是一个网站。</?>
+      <decision-text ?>访问三个独立公网机器可读入口，并动态断言返回内容；只对模型决策使用脚本化 adapter。</?>
+      <rationale ?>这既验证真实外部网络与多来源综合，也避免外部模型随机性决定 CI 结果。</?>
+      <evidence ?>用户纠正 revision 40 的单一本地 fixture 命题；三个候选 URL 已实际返回 HTTP 200。</?>
+    )>
+  )>
+]>

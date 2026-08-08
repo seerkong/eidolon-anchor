@@ -3,6 +3,7 @@ import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { ensureVmRuntimeContext, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime"
 import { createAiAgentOrchestratorDriverWithCooperative } from "../OrchestratorDriver"
 import { seedConversationDomainFromActorSeedMessages } from "../exec/AiAgentExecutor"
+import { materializeConversationHistoryMessagesFromVm } from "../conversation/ConversationDomainRuntime"
 import {
   DEFAULT_DETACHED_DELEGATE_TASK_KEY,
   DETACHED_ACTOR_KINDS,
@@ -199,8 +200,16 @@ export async function spawnChildExecutionActor(
     driver.resumeFiber(fiberId, now)
     await driver.tickUntilBlocked({ now, maxTicks: 500 })
 
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const msg = messages[i] as any
+    // The conversation domains are the single in-memory truth. `messages` is
+    // only the immutable seed handed to the cooperative driver, so scanning it
+    // after execution loses the assistant result (notably for workflow
+    // ai.agent effects that use this immediate-driver branch).
+    const completedMessages = materializeConversationHistoryMessagesFromVm({
+      vm,
+      actorKey: actor.key,
+    })
+    for (let i = completedMessages.length - 1; i >= 0; i--) {
+      const msg = completedMessages[i] as any
       if (msg?.role === "assistant") {
         return msg.content ?? "(no content)"
       }

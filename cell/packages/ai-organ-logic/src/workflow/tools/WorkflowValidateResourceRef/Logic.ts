@@ -1,5 +1,5 @@
 import type { StdInnerLogic } from "depa-processor"
-import { createWorkflowComponent } from "../../component"
+import { createWorkflowComponentForRuntime } from "../../component"
 import type {
   WorkflowValidateResourceRefInnerConfig,
   WorkflowValidateResourceRefInnerInput,
@@ -12,6 +12,6 @@ export const workflowValidateResourceRefCoreLogic: StdInnerLogic<
   WorkflowValidateResourceRefInnerInput,
   WorkflowValidateResourceRefInnerConfig,
   WorkflowValidateResourceRefInnerOutput
-> = async (_runtime, input, _config) => {
-  return JSON.stringify(createWorkflowComponent().queries.validateResourceRef(input.ref), null, 2)
+> = async (runtime, input, _config) => {
+  return JSON.stringify(createWorkflowComponentForRuntime(runtime).queries.validateResourceRef(input.ref), null, 2)
 }

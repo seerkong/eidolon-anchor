@@ -1,0 +1,59 @@
+<decision #establish-workflow-run-lifecycle.freeze-boundary {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>运行应从 current workflow resource 还是冻结 instance revision 恢复？</?>
+  <answer { }
+  (
+    <raw-answer ?>始终使用 Instance 冻结的 definition revision。</?>
+    <decision-text ?>创建 Instance 时内容寻址保存 canonical XNL bundle snapshot；start、resume 与 replay 禁止重新解析 current publication。</?>
+    <rationale ?>这是 resource 修改后保持既有运行可定位、可重复和可恢复的必要条件。</?>
+    <evidence ?>源端 Type/Instance package fingerprint 与 checkpoint replay 生命周期。</?>
+  )>
+)>
+
+<decision #establish-workflow-run-lifecycle.confirmation {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>authoring publication confirmation 是否可以同时授权执行？</?>
+  <answer { }
+  (
+    <raw-answer ?>不可以，执行具有独立 confirmation gate。</?>
+    <decision-text ?>未经 confirmed start 只返回冻结预览，不写 Run facts、不创建 actor effect。</?>
+    <rationale ?>发布资源与消耗资源/触发外部副作用是不同 authority transition。</?>
+    <evidence ?>源端 start operation 的 confirmed 输入与无副作用 preview contract。</?>
+  )>
+)>
+
+<decision #establish-workflow-run-lifecycle.material-revision {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Material binding 与 replay 是否允许解析 latest revision？</?>
+  <answer { }
+  (
+    <raw-answer ?>不允许；binding、receipt 与 replay 都使用 exact immutable revision。</?>
+    <decision-text ?>逻辑 Material ref 只用于发现；任何执行边界必须冻结 content-addressed revision，lease 阻止仍被引用的 revision 被 cleanup。</?>
+    <rationale ?>否则 later rebind 会改变历史 run 的输入和 replay 结果。</?>
+    <evidence ?>源端 material manifest、receipt、replay 与 cleanup lease 协议。</?>
+  )>
+)>
+
+<decision #establish-workflow-run-lifecycle.fact-authority {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>workflow 是否复制 Eidolon actor/session 的执行事实？</?>
+  <answer { }
+  (
+    <raw-answer ?>不复制，只保存 workflow facts 与稳定引用。</?>
+    <decision-text ?>workflow store 单写 Type/Instance/Run descriptor/Material receipt；节点图 facts 由 depa-flows store 持有，agent/tool/human lifecycle 由 Eidolon actor/session/runtime-control 持有。</?>
+    <rationale ?>避免多个恢复 authority 和不一致 durable head。</?>
+    <evidence ?>mission 已接受的 workflow-facts-only 与 actor reuse 决策。</?>
+  )>
+)>

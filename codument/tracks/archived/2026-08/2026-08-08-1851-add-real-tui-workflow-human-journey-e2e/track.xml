@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="add-real-tui-workflow-human-journey-e2e" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>以真实 TUI 多轮对话证明自然语言 workflow 创建、独立发布确认、独立执行确认和网络报告执行链。</Goal>
+    <Description>参考 terminal 既有 local-runtime E2E harness，实现确定性热点门户 AI 趋势报告命题并修复暴露的共享链路缺口。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-08T15:33:44Z</CreatedAt>
+    <UpdatedAt>2026-08-08T15:51:57Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="tui-tests" domain="test" path="vfs://@/terminal/packages/tui/tests/"/>
+    <MaterialBundle role="output" name="workflow-runtime" domain="code" path="vfs://@/cell/packages/ai-organ-logic/src/workflow/"/>
+    <MaterialBundle role="output" name="reports" domain="track" path="vfs://./reports/"/>
+  </Ports>
+  <TaskSpace id="space_add-real-tui-workflow-human-journey-e2e" name="add-real-tui-workflow-human-journey-e2e" version="1" cdt:child-mode="dag">
+    <Description>Real TUI workflow human journey acceptance and production repair.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="真实 TUI E2E harness 与红灯" status="DONE" order="0">
+        <Description>从 TuiRuntimeClient local-runtime 提交三轮自然语言，建立网络门户和完整 journey 断言。</Description>
+        <SubNodes>
+          <Task id="T1.1" name="新增网络 AI 趋势报告 TUI E2E" status="DONE" order="0" priority="P0">
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">测试通过 TuiRuntimeClient local-runtime 提交创建、发布确认和执行确认三轮消息</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">测试使用真实确定性 HTTP 门户并断言执行确认前无网络请求</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">首轮失败证据定位真实共享链路而非绕过失败</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="共享产品链路修复" status="DONE" order="1">
+        <Description>依据红灯修复 WorkflowFulfill、跨轮恢复、确认门、effect 或结果投影中的真实偏差。</Description>
+        <SubNodes>
+          <Task id="T2.1" name="修复并通过完整人类 journey" status="DONE" order="0" priority="P0">
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">所有业务消息均从真实 TUI 入口经过 WorkflowFulfill 和 native lifecycle</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">第一次确认只发布，第二次确认才执行 depa-flows 图和 Eidolon effect</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC3" checked="true">最终报告包含门户证据且默认人类输出不泄漏内部 workflow 细节</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="回归与独立复验" status="DONE" order="2">
+        <Description>复跑 TUI E2E、workflow product suite、build 和 fresh verifier。</Description>
+        <cdt:Gate><cdt:Criterion>真实 TUI journey、workflow regressions、production builds 与独立复验全部通过</cdt:Criterion></cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="运行回归、构建与独立验证" status="DONE" order="0" priority="P0">
+            <cdt:Acceptance><cdt:Criterion id="T3.1-AC1" checked="true">fresh verifier 无未解决 P0/P1 gap</cdt:Criterion></cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule>
+    <Dag for="space_add-real-tui-workflow-human-journey-e2e">
+      <Node id="P2"><After ref="P1"/></Node>
+      <Node id="P3"><After ref="P2"/></Node>
+    </Dag>
+  </Schedule>
+  <Hooks/>
+</Track>

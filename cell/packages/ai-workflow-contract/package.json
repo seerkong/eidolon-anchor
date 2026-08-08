@@ -10,6 +10,10 @@
   },
   "description": "Eidolon-native AI workflow contracts, refs and data-subgraph boundaries.",
   "dependencies": {
-    "@cell/platform-contract": "workspace:*"
+    "@cell/platform-contract": "workspace:*",
+    "ai-ctrl-workflow-contract": "^0.1.0",
+    "ai-data-workflow-contract": "^0.1.0",
+    "ai-workflow-contract": "^0.1.0",
+    "ai-workflow-logic": "^0.1.0"
   }
 }

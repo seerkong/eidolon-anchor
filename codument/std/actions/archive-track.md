@@ -18,12 +18,12 @@
 - 不要手工 `mv` track 目录来代替 CLI 归档。
 - 仅当 CLI 不存在或执行失败，才按下文手工归档流程作为 fallback，并在最终结果中**明确说明 fallback 原因**。
 
-归档把 track 的产出落盘成持久真源。behavior、modeling、engineering registry 共享一个 **prepare → validate/conflict-detect → staging → rollback-capable commit** 事务边界；任一失败时 live registries 保持调用前状态、track 不移动，只有 commit 成功后才移动 track。
+归档把 track 的产出落盘成持久真源。behavior、modeling、engineering、decision registry 共享一个 **prepare → validate/conflict-detect → staging → rollback-capable commit** 事务边界；任一失败时 live registries 保持调用前状态、track 不移动，只有 commit 成功后才移动 track。
 
 - **behavior 提升（必做）**——把 `behavior_deltas/**` 应用到 transaction staging 中的 behavior registry，commit 成功后更新 `codument/behaviors/`。
 - **modeling / engineering 提升（条件）**——对实际存在的 delta 做真实 base/ours/theirs 三方合并并物化到同一 transaction staging；无 delta 不创建空 registry。
 - **track 归档（必做）**——把 `tracks/active/<id>/` 移进 `tracks/archived/YYYY-MM/`，`<Status>completed`。
-- **decision 提升（条件）**——有 durable decision 才升 `decision://`。
+- **decision 提升（条件）**——同时读取根 `decisions.xnl` 与递归 `decisions/**/*.xnl`，有 eligible durable tree 才把完整 XNL AST 按 stable id 合并进 `codument/decisions/**/*.xnl`。
 - **memory 提升（条件）**——`memory` profile `enabled` 且 track 显式给候选时才升 `memory://`。
 - **artifact/docs 同步（条件·显式触发）**——只有 `action-hooks.xml` 显式配了 `archive-track:after <cdt:ArtifactSync>` 且 `docs` profile `enabled` 才同步。
 
@@ -46,7 +46,7 @@
 
 ## 3.0 归档主流程（提升流水线）
 
-整个归档是一条**事务化提升流水线**——前置门 → 三类 registry prepare → validate/conflict-detect → staging → rollback-capable commit → 成功后移动 track → 条件提升（decision / memory）→ 显式 artifact 同步 → 校验。每步带条件门，门不满足就跳过该 target；不得把 track move 放到 registry commit 之前。
+整个归档是一条**事务化提升流水线**——前置门 → 四类 registry prepare → validate/conflict-detect → staging → rollback-capable commit → 成功后移动 track → 派生 summary/provenance → 条件提升 memory → 显式 artifact 同步 → 校验。每步带条件门，门不满足就跳过该 target；不得把 track move 放到 registry commit 之前。
 
 ```text
 @delimiter: --
@@ -55,7 +55,7 @@
 读 track.xml <Metadata><Status>；status=completed 才直接归档
 ---- /?precheck
 ---- #if ?notdone cond="Status 不是 completed"
-警告用户该 track 未完成，询问是否仍要归档（Protocol: ask-single-question-closed）；用户拒绝则 #exit
+警告用户该 track 未完成，询问是否仍要归档（Protocol: ask-single-question-closed）；用户拒绝则 #exit。由 codument-impl-mission 驱动归档时，未完成 track 的裁决交还 MissionApplier（记录原因与建议，不默认提问），由 mission 决定是否阻塞 / 换序；用户直接调用时才询问。
 ---- /?notdone
 ---- #if ?before cond="action-hooks.xml 为 archive-track 配了 archive-track:before（如 <cdt:AttractorCheck use=\"docs\">）"
 ------ #step ?run-before
@@ -63,13 +63,13 @@
 ------ /?run-before
 ---- /?before
 ---- #step ?prepare
-prepare 三类 registry：解析全部 behavior_deltas/**；对实际存在的 modeling_deltas/**、engineering_deltas/** 物化 base/ours/theirs 并做真实节点级 3-way merge；modeling 缺失配置时默认 enabled，显式 enabled=false 才跳过；无 delta 不创建 target
+prepare 四类 registry：解析全部 behavior_deltas/**；对实际存在的 modeling_deltas/**、engineering_deltas/** 物化 base/ours/theirs 并做真实节点级 3-way merge；同时收集根 decisions.xnl 与递归 decisions/**/*.xnl，选择 eligible durable tree closure、构建全局 stable-id index 并做保守 merge/conflict detection；modeling 缺失配置时默认 enabled，显式 enabled=false 才跳过；无 delta/source 不创建 target
 ---- /?prepare
 ---- #step ?validate-conflicts
 在任何 live 写入前完成 patch 解析、schema/结构校验与全部冲突检测；任一失败清理临时产物并返回，live registries 不变、active track 保持原路径、archive destination 不存在
 ---- /?validate-conflicts
 ---- #step ?stage
-复制每个适用 live registry（不存在则以空树开始）到 transaction-owned staging；把 behavior patch 与 modeling/engineering 合并结果全部物化到 staging
+复制每个适用 live registry（不存在则以空树开始）到 transaction-owned staging；把 behavior patch、modeling/engineering 合并结果与完整 decision XNL tree 全部物化到 staging
 ---- /?stage
 ---- #step ?commit
 为所有将替换的 target 建 backup 后提交 staged trees；任一步失败则逆序 rollback，恢复每个 target 原先的存在/不存在和字节内容，并保留 track 原路径；仅全部 commit 成功才继续
@@ -80,11 +80,9 @@ commit 成功后创建 tracks/archived/YYYY-MM/ 目录（不存在则建）；YY
 ---- #step ?move
 仅在 registry commit 成功后，把 tracks/active/<id>/ 移到 tracks/archived/YYYY-MM/YYYY-MM-DD-HHmm-<id>/（时间取 track 最后更新）；track.xml <Metadata><Status>completed
 ---- /?move
----- #if ?decision cond="track 有明确标记为 durable / 长期项目决策的单文件决策"
------- #step ?promote-decision
-把 durable 决策提升到 codument/decisions/YYYY-MM/YYYY-MM-DD-HHmm-slug/decision.md，用 decision://<slug> 作长期引用；普通过程决策只留 archive，不提升
------- /?promote-decision
----- /?decision
+---- #step ?summary
+保留 archive 中的原始 decision sources 作为 provenance；可生成 summary.md 等派生视图，但派生视图与 legacy Markdown 不参与 canonical decision merge、stable-id index 或 decision:// resolution
+---- /?summary
 ---- #if ?memory cond="memory profile enabled 且 track 显式存在 memory/{lessons,incidents,patterns,summaries}/*.md 候选"
 ------ #step ?promote-memory
 提升 memory:// 内容；不要从 proposal 或普通日志自动合成 memory
@@ -115,7 +113,7 @@ commit 成功后创建 tracks/archived/YYYY-MM/ 目录（不存在则建）；YY
 
 ## 4.0 behavior 提升逻辑（核心动作）
 
-track 完成后更新行为登记表 `codument/behaviors/`（旧称 spec registry / `codument/specs/`）是归档的**核心动作**——但所有 patch 必须先应用到 transaction staging，不能逐 patch 直接写 live registry。全部 behavior/modeling/engineering prepare 与 staging 成功后才统一 commit。详细的登记表布局与节点结构见 [std/spec/behavior-registry.md](@codument/std/spec/behavior-registry.md)。
+track 完成后更新行为登记表 `codument/behaviors/`（旧称 spec registry / `codument/specs/`）是归档的**核心动作**——但所有 patch 必须先应用到 transaction staging，不能逐 patch 直接写 live registry。全部 behavior/modeling/engineering/decision prepare 与 staging 成功后才统一 commit。详细的登记表布局与节点结构见 [std/spec/behavior-registry.md](@codument/std/spec/behavior-registry.md)。
 
 ### 4.1 应用 XML behavior patch
 
@@ -178,7 +176,7 @@ track 完成后更新行为登记表 `codument/behaviors/`（旧称 spec registr
 
 ## 5.0 条件提升（decision / memory）
 
-- **承重决策 → `decision://`**：优先读取根级 `decisions.xnl` 中 `durable_candidate = true` 且 `status = "accepted"|"resolved"` 的决策；历史 track 兼容读取 `decisions/*.md` 中明确标记为 durable / 长期项目决策的单文件决策，以及旧根级 `decisions.md`。把 durable 决策提升到 `codument/decisions/YYYY-MM/YYYY-MM-DD-HHmm-slug/decision.md`，并用 `decision://<slug>` 作长期引用；普通过程决策只保留在 archive。触发条件：一个原本一次性的取舍变成"以后都按这个来"的承重决策（见 [knowledge-tiers.md](@codument/std/attractors/knowledge-tiers.md) §5）。
+- **承重决策 → `decision://<stable-id>`**：同时读取根 `decisions.xnl` 与递归 `decisions/**/*.xnl`；任何一类存在都不得压制另一类。选择 `durable_candidate = true` 且 `status = "accepted"|"resolved"` 的完整 top-level tree closure，直接以 XNL AST 按 stable id 合并到 canonical `codument/decisions/**/*.xnl`。相同 id 等价时幂等，不等价时保守 conflict；物理 owner file 不参与 identity。历史 `decisions.md` / `decisions/**/*.md` 只作显式兼容或 migration input，summary 只作派生视图，二者均不参与 merge/index/URI resolution。普通过程决策只保留在 archive。完整规则见 [decision-registry.md](@codument/std/spec/decision-registry.md)。
 - **长期记忆 → `memory://`**：**仅当** `config/attractor-profiles.xml` 的 `memory` profile `enabled=true` **且** track 中显式存在 `memory/{lessons,incidents,patterns,summaries}/*.md` 候选时，才提升 `memory://` 内容。**不要**从 proposal 或普通日志自动合成 memory。
 
 > `docs` profile `enabled` 本身**不**代表复制 durable decision 记录，也**不**触发隐式 docs/knowledge sync；旧 `feature.json` 的 `knowledgeSync.targets` 应由 `upgrade-workspace`/`migrate` 迁移为 docs profile + artifact 规则的目标。
@@ -241,5 +239,6 @@ track 完成后更新行为登记表 `codument/behaviors/`（旧称 spec registr
 - behavior 登记表布局 / delta 应用：[std/spec/behavior-registry.md](@codument/std/spec/behavior-registry.md)。
 - 归档执行套路：本文（codument-archive-track skill 即完整归档规程；codument-archive 为旧名别名）。
 - 晋升阶梯与触发条件：[knowledge-tiers.md](@codument/std/attractors/knowledge-tiers.md) §4–§5。
+- decision registry、source discovery、merge/index/URI：[decision-registry.md](@codument/std/spec/decision-registry.md)。
 - 显式 artifact 同步：[codument-artifact-sync skill](./artifact-sync.md)（含 §4.5 docs 路由）。
 - 检查归档后 `codument validate --strict` 通过；如果系统找不到 `codument` 命令，则记录该外部 CLI validate 步骤已跳过。

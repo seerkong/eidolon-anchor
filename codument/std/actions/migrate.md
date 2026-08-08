@@ -1,8 +1,8 @@
 # skill: codument-migrate（迁移旧格式 → 当前标准）
 
-**本提示词供执行迁移的代理阅读。** 它合并了两条旧迁移流程——**旧 archive 布局迁移** 与 **旧 Markdown specs → XML 行为登记表迁移**——成一个统一的 migrate skill。
+**本提示词供执行迁移的代理阅读。** 它把**旧 archive 布局**、**旧 Markdown specs → XML 行为登记表**与**历史 Decision Registry → canonical XNL**收敛为一个统一的 migrate skill。
 
-> 本文是完整协议（口径已对齐当前标准）。**程序化的执行流程**（scan→classify→transform→verify 流水线、按条目分叉）用流程标记块（` ```text ` + `@delimiter: --`，构造词汇见 `codument/std/actions/_action-spec.md`）表达；**说明、规则、背景、示例**用 Markdown，内嵌 XML 用 ` ```xml ` 围栏。
+> 本文是统一入口协议（口径已对齐当前标准）；Decision 迁移细则按 §4 路由到 bundled reference。**程序化的执行流程**（scan→classify→transform→verify 流水线、按条目分叉）用流程标记块（` ```text ` + `@delimiter: --`，构造词汇见 `codument/std/actions/_action-spec.md`）表达；**说明、规则、背景、示例**用 Markdown，内嵌 XML 用 ` ```xml ` 围栏。
 >
 > 口径映射：`codument:migrate-archive` / `codument:migrate-specs`→统一 `codument-migrate`；`spec`→`behavior`；`spec://`→`behavior://`；`<spec-patch>`→`<behavior-patch>`；`spec_deltas/`→`behavior_deltas/`；`codument/specs/`→`codument/behaviors/`；`plan.xml`→`track.xml`；`### Requirement:` / `#### Scenario:` 等 Markdown 层级 → XML `<requirement>` / `<suite>` / `<case>`。
 
@@ -10,32 +10,35 @@
 
 ## 0. 总纲
 
-你是 Codument 迁移代理。本 skill 把**旧格式的两类工件**迁到当前标准，同时**保留证据、不静默删除、不臆造无法确定的事实**：
+你是 Codument 迁移代理。本 skill 把**旧格式的三类工件**迁到当前标准，同时**保留证据、不静默删除、不臆造无法确定的事实**：
 
 1. **旧 track 生命周期布局**：直接位于 `codument/tracks/<id>/` 的 active track → `codument/tracks/active/<id>/`；旧 `codument/archive/` 或无 bucket 的 archive → `codument/tracks/archived/YYYY-MM/YYYY-MM-DD-HHmm-<track-id>/`。
 2. **旧 Markdown specs**（`## ADDED Requirements` / `### Requirement:` / `#### Scenario:`，位于 `specs/<cap>/spec.md`）→ **XML 行为登记表** `codument/behaviors/`（见 `codument/std/spec/behavior-registry.md`），并把 track 内的差量表达为 `<behavior-patch>`（见 `codument/std/spec/behavior-delta.md`）。
+3. **历史 decisions**：legacy `decision.md` 与旧 XNL source → canonical `codument/decisions/**/*.xnl`。`decisions` / `all` 必须读取 `codument-migrate` skill 的 bundled `references/decision-migration.md`，详细 recovery、conversion、conflict 与 rollback 协议只在该 reference 中维护。
 
-两条迁移共享同一套安全纪律（§1）。本 skill 是**普通迁移流程**，不需要 gap-loop 式 fresh child orchestration；只有用户显式要求独立复检时才考虑委派子代理（见 `codument/std/actions/gap-loop.md`）。
+三条迁移共享同一套安全纪律（§1）。本 skill 是**普通迁移流程**，不需要 gap-loop 式 fresh child orchestration；只有用户显式要求独立复检时才考虑委派子代理（见 `codument/std/actions/gap-loop.md`）。
 
 **入参**（均可选）：
 
-- `what`：`archive` | `specs` | `all`（缺省 `all`，两类都迁）。
+- `what`：`archive` | `specs` | `decisions` | `all`（缺省 `all`，三类都迁）。
 - `track-id`：只迁某个 track 相关工件时指定。
 
 ---
 
-## 1. 迁移前安全纪律（两类共享）
+## 1. 迁移前安全纪律（三类共享）
 
-无论迁 archive 还是 specs，先做这些：
+无论迁 archive、specs 还是 decisions，先做这些：
 
 1. 读取 `codument/std/AGENTS.md`（如存在）与项目 workflow，确认当前规范与 CLI 能力。
 2. **先 inventory，不要直接覆盖**：列出所有候选源、推断出的目标、风险与不确定点。
 3. 创建备份 / 迁移记录：
    - 优先写入 `.tmp/codument/migrate-<timestamp>/`；
    - 或在最终报告中记录用户已有备份位置。
+   - `decisions` / `all` 必须生成可机器读取的 migration manifest，记录 source/target、hash、classification、status、validation 与 rollback evidence。
 4. 只有在**源路径与目标路径都明确**时才移动 / 转换。
-5. **不安全或无法解释的内容**复制到 legacy 区（archive → `codument/legacy/archive/...`；specs → `codument/legacy/specs/...`），**不直接删除**。
+5. **不安全或无法解释的内容**复制到 legacy 区（archive → `codument/legacy/archive/...`；specs → `codument/legacy/specs/...`）；decision source 则按 bundled reference 保留原文、archive provenance 与 backup，**不直接删除**。
 6. **不把猜测当事实**：无法确定的时间、track ID、需求边界，显式标记待确认，不伪造。
+7. 对 registry 类目标先在 staging 中完成 syntax、schema、duplicate-id、hierarchy/reference 与 semantic parity 验证，再以可 rollback 的方式替换 live target。
 
 ---
 
@@ -260,11 +263,49 @@ inventory §3.1 列出的所有 md/xml spec 源；分类：长期 registry 候�
 
 ---
 
-## 4. 验证（统一）
+## 4. Decision Registry 迁移
+
+### 4.1 权威协议与边界
+
+当 `what ∈ {decisions, all}` 时，先打开并严格遵循 `codument-migrate` skill 同级的 bundled `references/decision-migration.md`。该 reference 是 decision migration 的详细执行协议；本文只定义选择、统一安全边界、验证入口与输出契约，不复制其 recovery/conversion/conflict 细节。
+
+Decision 分支的 canonical target 是 `codument/decisions/**/*.xnl`。legacy `decision.md`、archive `summary.md` 与备份只作为 migration/provenance input，不参与 canonical merge、global stable-id index 或 `decision://` resolution。
+
+### 4.2 Decision 迁移流程
+
+```text
+@delimiter: --
+-- #sequence ?decisions-migrate
+---- #if ?d-selected cond="what ∈ {decisions, all}"
+------ #step ?d-reference
+打开并完整读取 bundled references/decision-migration.md；后续步骤以该协议为准
+------ /?d-reference
+------ #step ?d-inventory
+按 reference inventory 并分类全部 legacy records、archive XNL sources 与现有 canonical targets
+------ /?d-inventory
+------ #step ?d-safety
+在写 live registry 前建立 backup、migration manifest 与 staging baseline，并验证 source/backup hash
+------ /?d-safety
+------ #step ?d-transform
+按 classification 执行 archive recovery 或 Markdown-only fidelity conversion；missing、ambiguous、conflicting 条目 fail closed 并保留证据
+------ /?d-transform
+------ #step ?d-stage
+在 staging 中按 stable decision id 合并完整 XNL tree，完成 syntax/schema/duplicate-id/hierarchy/reference/semantic parity 验证
+------ /?d-stage
+------ #step ?d-commit
+仅在 reference 的提交条件满足时，以 rollback-capable replace 更新 live registry；提交后复验并完成 manifest/report
+------ /?d-commit
+---- /?d-selected
+-- /?decisions-migrate
+```
+
+---
+
+## 5. 验证（统一）
 
 迁移后逐项验证。**外部 CLI 不可用 / 不支持新格式时降级为本地验证，并在报告中写明能力限制——不要把降级判为失败。**
 
-### 4.1 Archive 验证
+### 5.1 Archive 验证
 
 1. 尝试 `codument validate --strict`；找不到外部 `codument` 命令时说明跳过原因。
 2. 额外做 archive 布局扫描（`codument validate --strict` **不保证**检查旧 archive 目录形态）：
@@ -273,7 +314,7 @@ inventory §3.1 列出的所有 md/xml spec 源；分类：长期 registry 候�
    - 报告**所有**剩余旧布局候选，即使本次只迁了其中一个。
 3. 检查新 archive 路径是否符合 `YYYY-MM/YYYY-MM-DD-HHmm-track-id`。
 
-### 4.2 Specs 验证
+### 5.2 Specs 验证
 
 先识别当前 CLI 是否支持 XML 登记表：
 
@@ -289,7 +330,18 @@ inventory §3.1 列出的所有 md/xml spec 源；分类：长期 registry 候�
 
 > `codument validate --strict` 可能格式化或补写 active track metadata；运行后必须检查 `git diff`，并在报告中**区分验证副作用与本次迁移修改**。
 
-### 4.3 验证流程
+### 5.3 Decisions 验证
+
+当 `what ∈ {decisions, all}` 时，按 bundled reference 完成 staging 与 live 的双重验证，并至少记录：
+
+1. `codument decisions validate <staging-or-supported-target>` 的结果；若 CLI 不支持 staging path，使用同一 registry loader 做等价本地验证并记录能力限制。
+2. live commit 后运行 `codument decisions validate codument/decisions` 与 `codument validate --strict`。
+3. 全局 stable-id 唯一性、hierarchy、`depends_on` / `activation` / `derived_from` references 与 dependency cycle 检查。
+4. archive-recoverable 条目的 source/staged/live AST 与 tree semantic parity。
+5. Markdown-only 条目的 raw content 或 immutable backup reference/hash 与 ambiguity issues 保真。
+6. 每个 inventory record 均具有 `committed`、`already-canonical`、`blocked` 或 `rolled-back` 等明确状态，不允许静默遗漏。
+
+### 5.4 验证流程
 
 ```text
 @delimiter: --
@@ -317,23 +369,34 @@ inventory §3.1 列出的所有 md/xml spec 源；分类：长期 registry 候�
 检查 git diff，区分 validate 副作用与本次迁移修改
 ------ /?v-spec-diff
 ---- /?v-spec
+---- #if ?v-decisions cond="what ∈ {decisions, all} 且本次迁了 decisions"
+------ #step ?v-decisions-stage
+按 bundled reference 验证 staging registry、stable-id index、references 与 source semantic parity
+------ /?v-decisions-stage
+------ #step ?v-decisions-live
+提交后运行 codument decisions validate codument/decisions 与 codument validate --strict；记录 CLI 降级、hash、identity status 和 rollback evidence
+------ /?v-decisions-live
+---- /?v-decisions
 ---- #step ?v-report
-汇总：迁移列表 / 跳过列表 / 冲突列表 / legacy 保留项 / 待确认问题
+汇总：迁移列表 / 跳过列表 / 冲突列表 / legacy 保留项 / 待确认问题；decision 分支同时输出 machine-readable migration manifest
 ---- /?v-report
 -- /?verify
 ```
 
 ---
 
-## 5. 输出
+## 6. 输出
 
 - **archive**：迁移后的 `codument/tracks/archived/YYYY-MM/YYYY-MM-DD-HHmm-<id>/`（内含最小修复的 `track.xml`、保留的 spec/summary/reports）。
 - **specs**：`codument/behaviors/**`（XML 登记表，单文件或同名文件夹）+ `tracks/{pending,active}/<id>/behavior_deltas/**`（`<behavior-patch>`）+ `codument/legacy/specs/**` 原文备份。
-- **报告**：迁移 / 跳过 / 冲突 / 待确认四类清单。
+- **decisions**：通过验证的 `codument/decisions/**/*.xnl` canonical registry + `.tmp/codument/migrate-<timestamp>/` 下的 inventory、backup、staging、machine-readable migration manifest 与 verification/rollback reports；legacy source 和 archive provenance 按 reference 保留。
+- **报告**：迁移 / 跳过 / 冲突 / 待确认四类清单；decision 分支还须逐条报告 classification、identity、source/target owner、semantic parity、status 与 issues。
 
 ## 引用
 
 - 行为登记表布局与节点：`codument/std/spec/behavior-registry.md`
 - behavior delta（wrapper + `behavior://`）：`codument/std/spec/behavior-delta.md`
+- Decision Registry：`codument/std/spec/decision-registry.md`
+- Decision 迁移详细协议：`codument-migrate` bundled `references/decision-migration.md`
 - 独立复检（仅用户显式要求时）：`codument/std/actions/gap-loop.md`
 - 流程标记块语法：`codument/std/actions/_action-spec.md`

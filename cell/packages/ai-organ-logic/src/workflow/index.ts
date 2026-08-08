@@ -1,3 +1,7 @@
 export * from "./component"
+export * from "./authoring"
 export * from "./effects"
+export * from "./resources"
+export * from "./runtime"
+export * from "./prompts"
 export * from "./tools"

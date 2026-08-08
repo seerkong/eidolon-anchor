@@ -1,0 +1,6 @@
+<AICtrlWorkflow #installed.workflow.DurableApproval apiVersion="depa.flows/v1" version="1.0.0" (
+  <FlowContract #installed.workflow.DurableApproval>
+) [
+  <ExternalJob #approval { signalKind = "human.approval" signalKey = "approval" }>
+  <Return #done>
+]>

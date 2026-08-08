@@ -1,0 +1,19 @@
+<decision #track.verify-eidolon-workflow-cross-surface-acceptance.terminal-native-tool-port { status = "accepted" priority = "P0" durable_candidate = false }
+(
+  <question ?>How should CLI runtime commands reach workflow behavior?</?>
+  <answer { } (
+    <raw-answer ?>Project the same native workflow tools through the terminal runtime bridge.</?>
+    <decision-text ?>Expose a generic native-tool invocation port and keep workflow semantics in the shared component and tools.</?>
+    <rationale ?>This preserves one implementation and the existing Eidolon session authority.</?>
+  )>
+)>
+
+<decision #track.verify-eidolon-workflow-cross-surface-acceptance.stable-workspace-session { status = "accepted" priority = "P0" durable_candidate = false }
+(
+  <question ?>How do separate workflow CLI processes recover the same run?</?>
+  <answer { } (
+    <raw-answer ?>Use one deterministic workspace-scoped Eidolon session.</?>
+    <decision-text ?>Derive the workflow control session key from the canonical workspace path.</?>
+    <rationale ?>Stable session identity lets run, status, result and resume share existing actor and workflow facts.</?>
+  )>
+)>

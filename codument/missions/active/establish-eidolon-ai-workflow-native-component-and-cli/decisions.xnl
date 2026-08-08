@@ -68,7 +68,112 @@
   (
     <raw-answer ?>XNL resource bundle + `.eidolon` runtime roots。</?>
     <decision-text ?>Authoring 使用 XNL，业务身份使用 `resource://&lt;FQN&gt;`，bundle 内部使用 `vfs://./...` / `vfs://@/...`，配置和密钥使用 `config://...` / `secret://...`；禁止 host absolute path、traversal、裸相对路径、`file://`、`http://`。</?>
-    <rationale ?>这与 depa-flows flow-dsl resource 标准和 Eidolon runtime root 注入边界一致，也避免 `.sparrow` 设计泄漏到 Eidolon。</?>
+    <rationale ?>这与 depa-flows flow-dsl resource 标准和 Eidolon runtime root 注入边界一致，也避免第二套资源根设计。</?>
     <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.depa-flows-authority {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Eidolon 是否可以自行近似实现 AI workflow contract、XNL validation 和 runtime semantics？</?>
+  <answer { }
+  (
+    <raw-answer ?>不可以。</?>
+    <decision-text ?>depa-flows 的 ai-workflow、ai-ctrl-workflow、ai-data-workflow、WorkCtrlFlow 与 EagerDataFlow packages 是语义 authority；Eidolon 只实现 resource、actor/effect、persistence 和 surface adapters。</?>
+    <rationale ?>当前平行近似实现没有加载或执行真实 workflow，已造成协议和产品行为漂移。</?>
+    <evidence ?>analysis/gap-review-2026-08-07.md；用户此前关于底层必须基于 depa-flows 的明确约束。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.shared-authoring-adapter {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>TUI 与 CLI 是否可以分别实现 workflow 文件写入？</?>
+  <answer { }
+  (
+    <raw-answer ?>不可以。</?>
+    <decision-text ?>TUI 与 CLI 必须绑定同一个 WorkflowComponent 和同一种 containment-safe filesystem/resource authoring adapter；写入、编辑、验证和发布 transition 由 component 统一拥有。</?>
+    <rationale ?>CLI 私有 `Bun.write` 造成 TUI 无法写入，也违反 component-first authority 边界。</?>
+    <evidence ?>analysis/gap-review-2026-08-07.md；用户 code review 反馈。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.natural-language-human-surface {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>面向用户的 workflow 使用方式是否可以要求用户直接调用低层 form/FQN/manifest tools？</?>
+  <answer { }
+  (
+    <raw-answer ?>不可以。</?>
+    <decision-text ?>TUI 对话和 `eidolon workflow create/edit` 必须接受普通自然语言需求；Eidolon 自身 actor runtime 负责选择 workflow form、生成/修改 XNL、执行 proof/repair loop，并通过 component 发布。</?>
+    <rationale ?>Eidolon 本身就是 AI agent runtime；自然语言到受控 authoring lifecycle 是产品能力，不应把内部 DSL 或低层命令外形暴露给普通用户。</?>
+    <evidence ?>analysis/gap-review-2026-08-07.md；用户 code review 反馈。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.profile-loader-authority {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>发现 depa-flows 尚未公开解析 AICtrlWorkflow / AIDataWorkflow roots 的 loader 时，应在 Eidolon 内补兼容解析，还是先补齐 authority？</?>
+  <answer { }
+  (
+    <raw-answer ?>先补齐 depa-flows authority。</?>
+    <decision-text ?>AICtrlWorkflow 与 AIDataWorkflow 的 XNL profile source loading、lowering 和结构化诊断必须由 depa-flows packages 提供；Eidolon 只消费公开 API。</?>
+    <rationale ?>在 Eidolon 内重新解析 profile root 会制造 mission 已禁止的平行 workflow core，并让 canonical examples 无法证明跨产品一致性。</?>
+    <evidence ?>受影响范围观测：AI workflow packages 只有 definition/runtime helpers，现有 substrate loaders 只接受 WorkCtrlFlow 与 EagerDataFlow roots。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.workflow-product-baseline {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Eidolon workflow 产品应只补提示词，还是先建立完整产品协议？</?>
+  <answer { }
+  (
+    <raw-answer ?>必须先建立完整产品协议，再做界面和场景增强。</?>
+    <decision-text ?>Eidolon 必须完整实现 authoring、隔离 VFS session、template/prebuilt、proof、publication、fact recovery、Material 和 run lifecycle；低层 primitives 只能作为基础设施，不能代替产品生命周期。</?>
+    <rationale ?>只补用户态提示词无法提供可恢复 session、revision-bound proof、独立授权门和 durable run facts。</?>
+    <evidence ?>用户体验纠偏；真实 TUI/CLI journey 验收要求。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.product-implementation-order {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>产品协议、目标格式与运行时集成应按什么顺序实现？</?>
+  <answer { }
+  (
+    <raw-answer ?>先锁定产品行为和 authority 边界，再实现 canonical XNL、资源根与 effect integration，最后实施体验增强。</?>
+    <decision-text ?>每项能力必须给出 requirement、implementation evidence、architecture boundary 与 executable acceptance test。目标资源从首次落盘即使用 XNL；体验增强必须位于核心 lifecycle acceptance 之后。</?>
+    <rationale ?>这样既遵守 Eidolon/depa-flows authority，也避免格式或 surface 选择改变核心产品状态机。</?>
+    <evidence ?>resource-contract、depa-flows-authority 与真实 E2E 验收决策。</?>
+  )>
+)>
+
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.real-tui-e2e {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>什么证据才能证明 TUI 内自然语言创建 workflow、人工确认后执行已经真实可用？</?>
+  <answer { }
+  (
+    <raw-answer ?>参考 terminal 既有 TUI E2E 测试，从真实 TUI 对话入口验证完整人类旅程。</?>
+    <decision-text ?>验收必须通过 TuiRuntimeClient local-runtime 提交真实多轮自然语言消息，经过 WorkflowFulfill、authoring workspace、发布门、运行门和 workflow runtime；首个命题通过网络热点门户收集 AI 应用趋势并生成报告。组件直调、prompt 字符串断言或 direct actor smoke 不能替代该证据。</?>
+    <rationale ?>此前 final acceptance 只证明了组件、注册、编译和局部真实 actor，未证明 TUI 的多轮创建、确认和执行旅程。</?>
+    <evidence ?>用户对 revision 38 completed gate 的纠偏；terminal 既有 local-runtime E2E harness。</?>
   )>
 )>

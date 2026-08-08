@@ -10,11 +10,11 @@
 | codument-discuss | `discuss.md` | 创建 track/mission 前的人机讨论与 quick/track/mission 分流 |
 | codument-plan-track | `plan-track.md` | 创建变更追踪（behavior delta + track.xml） |
 | codument-maintain-track | `maintain-track.md` | 以 `discuss-phase`、`revise` 或 `schedule` 模式维护既有 track |
-| codument-impl-track | `impl-track.md` | 按 TaskSpace + Schedule 执行任务（顺序/DAG，编排子代理） |
+| codument-impl-track | `impl-track.md` | 按 TaskSpace + Schedule 执行任务（顺序/DAG，AI 自主本地或委派） |
 | codument-gap-loop | `gap-loop.md` | 有界目标对比纠偏（fresh 子代理） |
 | codument-verify | `verify.md` | 独立验证实现是否达成目标 |
 | codument-validate | `validate.md` | 校验 track.xml / spec 结构 |
-| codument-archive-track | `archive-track.md` | 归档 track + 提升 behavior 进 `codument/behaviors/` + 可选 artifact/memory 同步 |
+| codument-archive-track | `archive-track.md` | 归档 track + transactionally 提升 behavior 与完整 XNL decision registry + 可选 artifact/memory 同步 |
 | codument-plan-mission | `plan-mission.md` | 创建长周期 mission（mission.xml + proposal.md + design.md） |
 | codument-impl-mission | `impl-mission.md` | 按 mission.xml DAG 执行 mission，支持控制论 actor loop 与受控重规划 |
 | codument-archive-mission | `archive-mission.md` | 归档 mission 到 `missions/archived/YYYY-MM-DD-<mission-id>/` |

@@ -1,6 +1,7 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { randomUUID } from "node:crypto"
 
 import {
   buildActorSurfaceProjection,
@@ -134,6 +135,7 @@ export type TuiRuntimeBridge = {
     onControl?: (control: TuiControl) => void | Promise<void>
   }) => Promise<string>
   compact: () => Promise<{ ok: boolean; message: string }>
+  callTool: (name: string, input: unknown) => Promise<unknown>
   getActorSurface?: (options?: {
     selectedLaneId?: string
     selectedActorId?: string
@@ -1575,6 +1577,26 @@ async function createRuntimeBridge(
     }
   }
 
+  const callTool = async (name: string, input: unknown): Promise<unknown> => {
+    const toolName = name.trim()
+    if (!toolName) throw new Error("Native tool name is required")
+    if (!ToolFuncRegistry.get(toolRegistry, toolName)) {
+      throw new Error(`Unknown native tool: ${toolName}`)
+    }
+    return runtimeCoordinator.enqueue(async () => {
+      const output = await ToolFuncRegistry.call(
+        toolRegistry,
+        toolName,
+        vm,
+        actor,
+        input,
+        { toolCallId: `terminal:${toolName}:${randomUUID()}` },
+      )
+      await runtimeCoordinator.saveSnapshot()
+      return output
+    })
+  }
+
   const createDurableActorSurfaceFacade = () => createActorSurfaceFacade(vm as any, {
     emitFiberSignal: (input) => {
       driver.emitFiberSignal({
@@ -1805,6 +1827,7 @@ async function createRuntimeBridge(
     turn,
     resumeTurn,
     compact,
+    callTool,
     getActorSurface,
     selectActorSurfaceTarget,
     sendActorHumanMessage,

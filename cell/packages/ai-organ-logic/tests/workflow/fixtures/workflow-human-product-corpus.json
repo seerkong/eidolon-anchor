@@ -1,0 +1,12 @@
+[
+  { "request": "把下面这段文字压缩成一句话。", "route": "direct", "scenario": "direct" },
+  { "request": "调研今年主流的本地 AI 推理方案，读取真实来源并整理成一份带引用的报告。", "route": "ai-data", "scenario": "research" },
+  { "request": "读取 workspace 里的客户访谈记录，逐份提炼后去重，输出一份忠实摘要。", "route": "ai-data", "scenario": "local-digest" },
+  { "request": "让五个不同视角分别提出营销文案，再综合成一个最终版本。", "route": "ai-data", "scenario": "fan-out-reduce" },
+  { "request": "先判断工单属于售前、售后还是故障，再交给对应专家处理。", "route": "ai-ctrl", "scenario": "routing" },
+  { "request": "先生成候选结论，让多个独立审查者逐条反驳，只保留经得住质疑的结果。", "route": "ai-data", "scenario": "adversarial-verify" },
+  { "request": "持续查找遗漏的边界问题，直到连续一轮没有新增，然后给出清单。", "route": "ai-ctrl", "scenario": "loop-until-dry" },
+  { "request": "从多个角度生成产品创意，去重评分后只留下最好的三个。", "route": "ai-data", "scenario": "generate-and-filter" },
+  { "request": "让几位专家用不同策略解决架构问题，再由裁判比较并选出最佳方案。", "route": "ai-data", "scenario": "tournament" },
+  { "request": "收集发布证据并生成风险报告，等待负责人批准；如果驳回就修改材料后重新评审。", "route": "composite", "scenario": "approval-process" }
+]

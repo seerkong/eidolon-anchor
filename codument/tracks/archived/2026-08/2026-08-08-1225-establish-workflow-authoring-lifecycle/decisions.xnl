@@ -1,0 +1,25 @@
+<decision #track.establish-workflow-authoring-lifecycle.baseline {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>本 track 的行为基线是什么？</?>
+  <answer { }
+  (
+    <decision-text ?>完整的 authoring product lifecycle 是行为 baseline；TypeScript workflow foundation 提供可复用的 store、fixture、skill 与 contract evidence。</?>
+    <rationale ?>单个 author actor 和低层 bundle primitives 不能代表完整产品生命周期。</?>
+  )>
+)>
+
+<decision #track.establish-workflow-authoring-lifecycle.target-format {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>Eidolon workflow 资源是否允许使用 XML 中间格式？</?>
+  <answer { }
+  (
+    <decision-text ?>否。资源从首次落盘即使用标准 XNL，lifecycle 通过 requirement-to-evidence acceptance tests 保持产品语义。</?>
+    <rationale ?>这满足禁止 XML authoring 的硬约束，并让实现证据可独立核验。</?>
+  )>
+)>

@@ -28,6 +28,7 @@ AI 编程助手用 Codument 做行为驱动开发的**入口与路由**。本文
 | 流程标记块（flow notation）格式 | `std/spec/flow-notation.md` |
 | 怎么写 behavior delta / behavior 登记表格式 | `std/spec/behavior-delta.md`、`std/spec/behavior-registry.md` |
 | 怎么写 engineering delta / engineering 登记表格式 | `std/spec/engineering-delta.md`、`std/spec/engineering-registry.md` |
+| 长期 decision registry、`decision://`、递归 source/merge 怎么工作 | `std/spec/decision-registry.md`、`std/spec/xnl-format.md` |
 | 具体某个 action 怎么做 | `std/actions/<name>.md`（索引见 `std/actions/README.md`） |
 | 命令级 hook、attractor profile、能力开关 | `config/action-hooks.xml`、`config/attractor-profiles.xml` |
 

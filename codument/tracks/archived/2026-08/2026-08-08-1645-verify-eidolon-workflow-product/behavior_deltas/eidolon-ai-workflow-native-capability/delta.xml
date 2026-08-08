@@ -1,0 +1,28 @@
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/workflow-product-acceptance">
+    <requirement id="workflow-product-acceptance">
+      <statement>The system MUST provide executable end-to-end evidence for the complete Eidolon workflow lifecycle across architecture, human surfaces, distribution and recovery.</statement>
+      <suite id="coverage" name="Requirement coverage">
+        <case id="matrix-closed">
+          <given>The final implementation matrix is inspected</given>
+          <when>Each required behavior is evaluated</when>
+          <then>Every row MUST identify implementation evidence, an explicit architecture boundary and executable verification with no unexplained missing or partial state</then>
+        </case>
+      </suite>
+      <suite id="distribution" name="Compiled and installed distribution">
+        <case id="shared-installed-entry">
+          <given>Production CLI and TUI artifacts are built and installed into an isolated target</given>
+          <when>Conversation and workflow CLI capabilities are inspected or exercised</when>
+          <then>Both MUST expose the same native WorkflowFulfill journey and component-backed lifecycle without MCP or an external agent CLI</then>
+        </case>
+      </suite>
+      <suite id="recovery" name="Durable recovery">
+        <case id="fresh-runtime-recovery">
+          <given>Authoring, Ctrl and Data runs have persisted facts</given>
+          <when>A fresh Eidolon runtime reads, resumes or replays them</when>
+          <then>The product MUST recover from frozen workflow facts and Eidolon-owned runtime facts without locating state by mutable graph position or host path</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

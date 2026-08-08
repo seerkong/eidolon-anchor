@@ -1,0 +1,15 @@
+<decisions #add-workflow-cli-heredoc-session-continuation [
+  <decision #track.workflow_cli_heredoc.explicit_source {
+    priority = "P0"
+    status = "accepted"
+    durable_candidate = false
+  } (
+    <question ?>Workflow CLI 如何接收 heredoc 多行指令？</?>
+    <answer (
+      <raw-answer ?>使用标准 `command - <<'EOF'` stdin 风格动态传入多行文本。</?>
+      <decision-text ?>位置参数 `/dev/stdin` 或 `-` 显式选择 stdin；单行文本继续原样使用。</?>
+      <rationale ?>显式输入源与文件型 CLI 一致，不会在普通错误调用时隐式挂起。</?>
+      <evidence ?>Eidolon exec 已使用 `-` 和共享 readHeadlessInput，可直接支持标准 shell heredoc。</?>
+    )>
+  )>
+]>

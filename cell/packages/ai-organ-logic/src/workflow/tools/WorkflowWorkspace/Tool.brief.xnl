@@ -1,0 +1,4 @@
+<ToolPrompt #WorkflowWorkspace.brief>
+(
+  <summary ?>Inspect or mutate the runtime-bound workflow workspace through containment-safe component operations.</?>
+)>

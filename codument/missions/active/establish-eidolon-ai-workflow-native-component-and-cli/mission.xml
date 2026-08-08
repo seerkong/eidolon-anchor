@@ -5,9 +5,9 @@
     <Description>将 depa-flows AI workflow 语义封装为 Eidolon native component；Eidolon 场景不做 MCP；CLI 只是同一 component 的 human-facing projection。</Description>
     <QuestionMode>decision-tree</QuestionMode>
     <QuestionSeverity>auto</QuestionSeverity>
-    <Revision>9</Revision>
+    <Revision>44</Revision>
     <CreatedAt>2026-08-03T10:38:51Z</CreatedAt>
-    <UpdatedAt>2026-08-03T11:34:03Z</UpdatedAt>
+    <UpdatedAt>2026-08-08T17:38:00Z</UpdatedAt>
   </Metadata>
 
   <Ports scope="mission">
@@ -18,6 +18,7 @@
 
   <cdt:ProjectRefs>
     <cdt:ProjectRef id="host" kind="host"/>
+    <cdt:ProjectRef id="depa-flows" kind="external"/>
   </cdt:ProjectRefs>
 
   <cdt:ActorSets default="eidolon-workflow-loop">
@@ -70,12 +71,194 @@
         </SubNodes>
       </TaskGroup>
 
-      <TaskGroup id="VERIFY" name="总体验收与收口" status="DONE" order="4">
-        <Description>验证 mission 成功判据，确保 tools/CLI/runtime 共享 component 且没有 MCP 或平行实现泄漏。</Description>
+      <TaskGroup id="VERIFY" name="首版验收与收口" status="SUPERSEDED" order="4">
+        <Description>首版验证只覆盖 registry、unit tests 与 skeleton CLI smoke；已被 2026-08-07 的真实产品偏移证据推翻。</Description>
         <SubNodes>
-          <Task id="VERIFY-T1" name="运行 workflow contract、tools、CLI、runtime 相关测试" status="DONE" order="0"/>
-          <Task id="VERIFY-T2" name="执行 CLI smoke 与对话 tool registry 检查" status="DONE" order="1"/>
-          <Task id="VERIFY-T3" name="检查无 MCP scope 泄漏与无 parallel workflow core implementation" status="DONE" order="2"/>
+          <Task id="VERIFY-T1" name="运行 workflow contract、tools、CLI、runtime 相关测试" status="SUPERSEDED" order="0"/>
+          <Task id="VERIFY-T2" name="执行 CLI smoke 与对话 tool registry 检查" status="SUPERSEDED" order="1"/>
+          <Task id="VERIFY-T3" name="检查无 MCP scope 泄漏与无 parallel workflow core implementation" status="SUPERSEDED" order="2"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="REBASELINE" name="代码评审偏移盘点与重规划" status="DONE" order="5">
+        <Description>以用户反馈、真实入口代码和参考产品为证据，撤销错误完成判定并形成新的期望态 DAG。</Description>
+        <SubNodes>
+          <Task id="REBASELINE-T1" name="盘点 TUI/CLI authoring adapter 与自然语言交互偏移" status="DONE" order="0"/>
+          <Task id="REBASELINE-T2" name="盘点 depa-flows core、真实运行和恢复偏移" status="DONE" order="1"/>
+          <Task id="REBASELINE-T3" name="写入 gap evidence、replan report 与候选 tracks" status="DONE" order="2"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="DEPA_LOADER" name="补齐 depa-flows AI workflow profile loaders" status="DONE" order="6">
+        <Description>在语义 authority 项目中为 AICtrlWorkflow 与 AIDataWorkflow XNL roots 提供公开 source loader、lowering 与结构化诊断，避免 Eidolon 自建平行解析器。</Description>
+        <SubNodes>
+          <Task id="DEPA_LOADER-T1" name="创建并执行 AI workflow profile loader track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="add-ai-workflow-profile-source-loaders" project-ref="depa-flows"/>
+          </Task>
+          <Task id="DEPA_LOADER-T2" name="验证 canonical AI profile examples 可由公开 loader 解析与 lowering" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="CORE" name="绑定 canonical depa-flows AI workflow core" status="DONE" order="7">
+        <Description>移除 Eidolon 平行近似语义，让 contract、XNL loader/validator、AICtrlWorkflow 和 AIDataWorkflow profile 直接复用 depa-flows packages。</Description>
+        <SubNodes>
+          <Task id="CORE-T1" name="创建并执行 depa-flows core binding track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="bind-eidolon-ai-workflow-to-depa-flows-core" project-ref="host"/>
+          </Task>
+          <Task id="CORE-T2" name="验证 canonical XNL bundle 能由 depa-flows loader 解析、链接与诊断" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="AUTHORING" name="共享 authoring workspace 与写入 authority" status="DONE" order="8">
+        <Description>建立隔离 workflow authoring workspace、原子写入/编辑/差异/验证/发布 transition，并让 TUI 与 CLI 注入同一个 filesystem/resource adapter。</Description>
+        <SubNodes>
+          <Task id="AUTHORING-T1" name="创建并执行 shared authoring workspace track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="establish-eidolon-workflow-authoring-workspace" project-ref="host"/>
+          </Task>
+          <Task id="AUTHORING-T2" name="验证 TUI 与 CLI 使用同一 component instance/binding 和写入边界" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="NL" name="自然语言 workflow authoring 产品" status="SUPERSEDED" order="9">
+        <Description>首版只覆盖较小的 authoring prompt surface，缺少完整 session、proof 与 publication lifecycle；由 AUTHORING_PROTOCOL 和 ENHANCE 替代。</Description>
+        <SubNodes>
+          <Task id="NL-T1" name="创建并执行 natural-language workflow authoring track" status="SUPERSEDED" order="0">
+            <cdt:TrackLink state="bound" id="add-eidolon-natural-language-workflow-authoring" project-ref="host"/>
+          </Task>
+          <Task id="NL-T2" name="验证对话请求与 workflow create/edit CLI 都能从自然语言完成 proof loop" status="SUPERSEDED" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="CTRL_RUNTIME" name="AICtrlWorkflow 真实运行接入" status="DONE" order="10">
+        <Description>通过 WorkCtrlFlow 执行控制型 AI workflow，节点 effect 由 Eidolon actor/tool/human/material adapters 承载，workflow 仅保存 workflow facts。</Description>
+        <SubNodes>
+          <Task id="CTRL_RUNTIME-T1" name="创建并执行 AICtrlWorkflow runtime track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="execute-ai-ctrl-workflow-through-eidolon-runtime" project-ref="host"/>
+          </Task>
+          <Task id="CTRL_RUNTIME-T2" name="验证等待、节点证据、状态查询和 Eidolon session recovery" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="DEPA_DATA_RUNTIME" name="补齐 depa-flows manual data node authoring policy" status="DONE" order="11" cdt:actor-set="eidolon-workflow-loop">
+        <Description>修复 canonical AIDataWorkflow loader/RunGraph 间的 manual node 表达断裂，使 XNL 可合法声明人工节点并得到 never 默认。</Description>
+        <SubNodes>
+          <Task id="DEPA_DATA_RUNTIME-T1" name="创建并执行 manual AIDataWorkflow node support track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="support-manual-ai-data-workflow-node-policy" project-ref="depa-flows"/>
+          </Task>
+          <Task id="DEPA_DATA_RUNTIME-T2" name="发布并验证 canonical manual node profile" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="DATA_RUNTIME" name="AIDataWorkflow 真实运行接入" status="DONE" order="12">
+        <Description>通过 EagerDataFlow 与 AIDataWorkflow RunGraph 执行 DAG，保留 generation、GraphPatch、传递性 invalidation、run-local semantic reuse 与 never policy。</Description>
+        <SubNodes>
+          <Task id="DATA_RUNTIME-T1" name="创建并执行 AIDataWorkflow runtime track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="execute-ai-data-workflow-through-eidolon-runtime" project-ref="host"/>
+          </Task>
+          <Task id="DATA_RUNTIME-T2" name="验证节点级状态、图修改、复用、恢复与 effect evidence" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="SURFACE_VERIFY" name="人类表面与跨入口总体验收" status="SUPERSEDED" order="13">
+        <Description>原验收只证明局部 surface，安装入口和完整 lifecycle 证据仍不充分；由 PRODUCT_ACCEPTANCE 替代。</Description>
+        <SubNodes>
+          <Task id="SURFACE_VERIFY-T1" name="创建并执行 cross-surface acceptance verification track" status="SUPERSEDED" order="0">
+            <cdt:TrackLink state="bound" id="verify-eidolon-workflow-cross-surface-acceptance" project-ref="host"/>
+          </Task>
+          <Task id="SURFACE_VERIFY-T2" name="运行 mock/real actor E2E、compiled CLI/TUI smoke 与恢复测试" status="SUPERSEDED" order="1"/>
+          <Task id="SURFACE_VERIFY-T3" name="复核无 CLI 私有写入、无外部 agent CLI、无平行 workflow core" status="SUPERSEDED" order="2"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="PRODUCT_BASELINE" name="Workflow 产品协议与覆盖基线" status="DONE" order="14">
+        <Description>定义 authoring、VFS、proof、publication、run、Material 与 recovery 的完整产品协议和 requirement-to-evidence 覆盖矩阵。</Description>
+        <SubNodes>
+          <Task id="PRODUCT_BASELINE-T1" name="定义 authoring、VFS、facts、Material 与 run lifecycle" status="DONE" order="0"/>
+          <Task id="PRODUCT_BASELINE-T2" name="固化 capability 顺序、architecture boundaries 与 acceptance gate" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="AUTHORING_PROTOCOL" name="完整 workflow authoring 产品协议" status="DONE" order="15">
+        <Description>建立自然语言路由、stage-bound context、template/prebuilt discovery、四挂载 recoverable VFS session、完整编辑审计、proof loop、validation revision、publication gate 与 authoring fact recovery。</Description>
+        <SubNodes>
+          <Task id="AUTHORING_PROTOCOL-T1" name="创建并执行 workflow authoring lifecycle track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="establish-workflow-authoring-lifecycle" project-ref="host"/>
+          </Task>
+          <Task id="AUTHORING_PROTOCOL-T2" name="验证 canonical XNL authoring lifecycle 的完整行为" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="RUN_PROTOCOL" name="完整 workflow run、facts 与 Material 产品协议" status="DONE" order="16">
+        <Description>建立 Resource Tree、Type/Instance/Session/Run facts、Material import/inspect/bind/export/replay/cleanup、独立 execution confirmation、start/resolve/reject、冻结 revision 与 replay/resume 产品生命周期。</Description>
+        <SubNodes>
+          <Task id="RUN_PROTOCOL-T1" name="创建并执行 workflow run/fact/material lifecycle track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="establish-workflow-run-lifecycle" project-ref="host"/>
+          </Task>
+          <Task id="RUN_PROTOCOL-T2" name="验证 run、等待、恢复、回放与 Material 场景" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="ARCHITECTURE_GATE" name="Workflow architecture boundary 审计" status="DONE" order="17">
+        <Description>验证 canonical XNL/depa-flows authority、Eidolon roots、actor/session/runtime-control effects 与 native component/tools/CLI 边界，禁止 XML、MCP、外部 agent CLI 和平行 flow/runtime authority。</Description>
+        <SubNodes>
+          <Task id="ARCHITECTURE_GATE-T1" name="创建并执行 Eidolon workflow architecture audit track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="verify-eidolon-workflow-architecture-boundaries" project-ref="host"/>
+          </Task>
+          <Task id="ARCHITECTURE_GATE-T2" name="确认无 XML authoring、无 MCP、无外部 agent CLI、无平行 flow/runtime authority" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="ENHANCE" name="Workflow 人类产品体验" status="DONE" order="18">
+        <Description>加入自动 direct/ctrl/data/composite 路由、业务场景知识、输入与 Material binding 推断、业务态报告、专家覆盖、混合 workflow composition、真实 E2E corpus 和统一安装入口。</Description>
+        <SubNodes>
+          <Task id="ENHANCE-T1" name="创建并执行 Eidolon workflow human product experience track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="complete-eidolon-workflow-human-product-experience" project-ref="host"/>
+          </Task>
+          <Task id="ENHANCE-T2" name="验证普通用户无需感知 workflow form、节点、端口、策略、XNL 或路径" status="DONE" order="1"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="PRODUCT_ACCEPTANCE" name="Eidolon Workflow 最终产品验收" status="DONE" order="19">
+        <Description>使用 requirement coverage matrix、真实 actor、compiled TUI/CLI 和恢复场景独立验证完整产品。</Description>
+        <SubNodes>
+          <Task id="PRODUCT_ACCEPTANCE-T1" name="创建并执行 Eidolon workflow product verification track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="verify-eidolon-workflow-product" project-ref="host"/>
+          </Task>
+          <Task id="PRODUCT_ACCEPTANCE-T2" name="运行 compiled/install smoke、conversation E2E、CLI E2E 与 durable recovery" status="DONE" order="1"/>
+          <Task id="PRODUCT_ACCEPTANCE-T3" name="逐项关闭覆盖矩阵并执行 mission completed gate" status="DONE" order="2"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="TUI_HUMAN_E2E" name="真实 TUI workflow 人类旅程验收" status="DONE" order="20">
+        <Description>通过 TUI local-runtime client、真实多轮对话和确定性网络门户，验证自然语言创建、独立发布确认、独立执行确认与报告结果。</Description>
+        <SubNodes>
+          <Task id="TUI_HUMAN_E2E-T1" name="创建并执行真实 TUI workflow journey E2E track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="add-real-tui-workflow-human-journey-e2e" project-ref="host"/>
+          </Task>
+          <Task id="TUI_HUMAN_E2E-T2" name="验证网络调研报告命题及两阶段人工授权" status="DONE" order="1"/>
+          <Task id="TUI_HUMAN_E2E-T3" name="重新执行 mission completed gate" status="DONE" order="2"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="TUI_PUBLIC_MULTI_SOURCE" name="真实公网多来源 TUI workflow 验收" status="DONE" order="21">
+        <Description>纠正单一本地门户测试命题：自然语言必须包含多个真实公网域名，并在确认执行后分别访问、综合证据和生成报告。</Description>
+        <SubNodes>
+          <Task id="TUI_PUBLIC_MULTI_SOURCE-T1" name="创建并执行真实公网多来源 TUI E2E track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="require-public-multi-source-tui-workflow-e2e" project-ref="host"/>
+          </Task>
+          <Task id="TUI_PUBLIC_MULTI_SOURCE-T2" name="验证各独立来源均被实际访问并进入报告" status="DONE" order="1"/>
+          <Task id="TUI_PUBLIC_MULTI_SOURCE-T3" name="重新执行 mission completed gate" status="DONE" order="2"/>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="CLI_HEREDOC_CONTINUATION" name="CLI heredoc 与跨进程续接验收" status="DONE" order="22">
+        <Description>让 workflow agent 以显式 `/dev/stdin` 或 `-` 输入源接收 heredoc 多行指令，并通过稳定 session 在多次已安装 CLI 调用间续接同一产品旅程。</Description>
+        <SubNodes>
+          <Task id="CLI_HEREDOC_CONTINUATION-T1" name="创建并执行 workflow CLI heredoc/session track" status="DONE" order="0">
+            <cdt:TrackLink state="bound" id="add-workflow-cli-heredoc-session-continuation" project-ref="host"/>
+          </Task>
+          <Task id="CLI_HEREDOC_CONTINUATION-T2" name="构建、本地安装并执行三次真实 CLI 调用" status="DONE" order="1"/>
+          <Task id="CLI_HEREDOC_CONTINUATION-T3" name="重新执行 mission completed gate" status="DONE" order="2"/>
         </SubNodes>
       </TaskGroup>
     </SubNodes>
@@ -87,6 +270,24 @@
       <Node id="G3"><After ref="G2"/></Node>
       <Node id="G4"><After ref="G3"/></Node>
       <Node id="VERIFY"><After ref="G4"/></Node>
+      <Node id="REBASELINE"><After ref="VERIFY"/></Node>
+      <Node id="DEPA_LOADER"><After ref="REBASELINE"/></Node>
+      <Node id="CORE"><After ref="DEPA_LOADER"/></Node>
+      <Node id="AUTHORING"><After ref="CORE"/></Node>
+      <Node id="NL"><After ref="AUTHORING"/></Node>
+      <Node id="CTRL_RUNTIME"><After ref="CORE"/></Node>
+      <Node id="DEPA_DATA_RUNTIME"><After ref="CORE"/></Node>
+      <Node id="DATA_RUNTIME"><After ref="DEPA_DATA_RUNTIME"/></Node>
+      <Node id="SURFACE_VERIFY"><After ref="NL"/><After ref="CTRL_RUNTIME"/><After ref="DATA_RUNTIME"/></Node>
+      <Node id="PRODUCT_BASELINE"><After ref="SURFACE_VERIFY"/></Node>
+      <Node id="AUTHORING_PROTOCOL"><After ref="PRODUCT_BASELINE"/></Node>
+      <Node id="RUN_PROTOCOL"><After ref="AUTHORING_PROTOCOL"/></Node>
+      <Node id="ARCHITECTURE_GATE"><After ref="RUN_PROTOCOL"/></Node>
+      <Node id="ENHANCE"><After ref="ARCHITECTURE_GATE"/></Node>
+      <Node id="PRODUCT_ACCEPTANCE"><After ref="ENHANCE"/></Node>
+      <Node id="TUI_HUMAN_E2E"><After ref="PRODUCT_ACCEPTANCE"/></Node>
+      <Node id="TUI_PUBLIC_MULTI_SOURCE"><After ref="TUI_HUMAN_E2E"/></Node>
+      <Node id="CLI_HEREDOC_CONTINUATION"><After ref="TUI_PUBLIC_MULTI_SOURCE"/></Node>
     </Dag>
   </Schedule>
 

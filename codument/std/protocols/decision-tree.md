@@ -8,9 +8,10 @@ Use `auto`, `light`, `normal`, or `deep` as defined by `questioning.md`. `auto` 
 
 ## Storage
 
-- Every new track and mission has a valid root `decisions.xnl` as its single process-decision carrier.
+- Every new track and mission has a valid root `decisions.xnl` as its default process-decision entry.
+- Large or owner-oriented forests may shard into recursive `decisions/**/*.xnl`. The root file and recursive files form one logical source set and neither suppresses the other.
 - Use `analysis/decision-tree.xnl` only when a complex frontier needs working memory; it is optional and is not a second decision source.
-- Create `decisions/` only for eligible durable legacy records. Create `memory/` only for eligible reusable memory.
+- New shards under `decisions/` use XNL. Legacy `decisions.md` and `decisions/**/*.md` are read only for explicit compatibility or migration. Create `memory/` only for eligible reusable memory.
 
 ## Decision Forest And Dependencies
 
@@ -107,4 +108,4 @@ This is breadth-first refinement across independent directions and depth-first o
 4. When the selected severity permits interaction, ask the current topological batch as one multi-question interaction.
 5. Write every accepted result back to the same records, recompute the ready set, then continue the plan or ask the next batch.
 
-The XNL shape and decision record validity rules are defined by `std/spec/xnl-format.md` and validated with `codument decisions validate`.
+The XNL shape and decision record validity rules are defined by `std/spec/xnl-format.md`; long-term merge, indexing and URI rules are defined by `std/spec/decision-registry.md`. Validate them with `codument decisions validate`.

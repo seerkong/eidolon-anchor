@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="complete-eidolon-workflow-human-product-experience" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让普通用户用一个业务目标完成 workflow 的选择、创建、推断、确认、执行与业务结果获取。</Goal>
+    <Description>增加业务场景 catalog、产品 journey coordinator、WorkflowFulfill native tool、共享 CLI agent 入口和 business-language E2E corpus。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-08T13:20:00Z</CreatedAt>
+    <UpdatedAt>2026-08-08T13:30:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="workflow-source" domain="code" path="vfs://@/cell/packages/ai-organ-logic/src/workflow/"/>
+    <MaterialBundle role="output" name="kernel-source" domain="code" path="vfs://@/cell/packages/mod-ai-kernel/"/>
+    <MaterialBundle role="output" name="cli-source" domain="code" path="vfs://@/terminal/packages/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_complete-eidolon-workflow-human-product-experience" name="complete-eidolon-workflow-human-product-experience" version="1">
+    <Description>Implement a business-language product journey above the native workflow lifecycle.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="产品契约与业务场景" status="DONE" order="0">
+        <Description>用业务 corpus 锁定路由、场景、journey 和输出隔离，再实现确定性产品 contracts。</Description>
+        <cdt:Gate><cdt:Criterion>路由与场景测试覆盖 direct、ctrl、data、composite 和至少八类业务请求</cdt:Criterion></cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="建立 business-language corpus 与失败测试" status="DONE" order="0" priority="P0"><cdt:Acceptance><cdt:Criterion id="T1.1-AC1" checked="true">corpus 不要求任何 workflow 内部字段</cdt:Criterion></cdt:Acceptance></Task>
+          <Task id="T1.2" name="实现 scenario catalog、intent router 与 journey plan" status="DONE" order="1" priority="P0"><cdt:Acceptance><cdt:Criterion id="T1.2-AC1" checked="true">route/scenario/authorization source 可测试且 direct 不强制 workflow</cdt:Criterion></cdt:Acceptance></Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="共享高层 native tool" status="DONE" order="1">
+        <Description>实现 WorkflowFulfill 和专用 coordinator actor contract，复用现有 authoring/lifecycle/runtime tools。</Description>
+        <cdt:Gate><cdt:Criterion>工具只协调现有 authority，无新 parser/store/runtime 或外部进程</cdt:Criterion></cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="实现 WorkflowFulfill 标准化 tool 与 business projection" status="DONE" order="0" priority="P0"><cdt:Acceptance><cdt:Criterion id="T2.1-AC1" checked="true">普通请求只需 request，内部产生 route/scenario/journey</cdt:Criterion><cdt:Criterion id="T2.1-AC2" checked="true">direct 返回当前 actor，workflow route 使用 Eidolon child actor</cdt:Criterion></cdt:Acceptance></Task>
+          <Task id="T2.2" name="实现 author-proof-infer-instance-run journey 协调协议" status="DONE" order="1" priority="P0"><cdt:Acceptance><cdt:Criterion id="T2.2-AC1" checked="true">发布与执行独立授权且未授权状态可恢复</cdt:Criterion><cdt:Criterion id="T2.2-AC2" checked="true">只调用既有 native workflow tools</cdt:Criterion></cdt:Acceptance></Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="对话与 CLI 产品入口" status="DONE" order="2">
+        <Description>让 kernel 与 `eidolon workflow agent` 共享 WorkflowFulfill，保留专家入口。</Description>
+        <SubNodes>
+          <Task id="T3.1" name="更新 kernel 普通业务路由与专家覆盖" status="DONE" order="0" priority="P0"><cdt:Acceptance><cdt:Criterion id="T3.1-AC1" checked="true">普通用户不需感知 form/node/port/policy/XNL/path</cdt:Criterion></cdt:Acceptance></Task>
+          <Task id="T3.2" name="增加 workflow agent CLI 并复用 native tool" status="DONE" order="1" priority="P0"><cdt:Acceptance><cdt:Criterion id="T3.2-AC1" checked="true">CLI 不实现私有 journey，不调用 MCP 或外部 agent CLI</cdt:Criterion></cdt:Acceptance></Task>
+          <Task id="T3.3" name="实现默认业务态输出与 expert debug projection" status="DONE" order="2" priority="P1"/>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="真实体验回归与构建" status="DONE" order="3">
+        <Description>验证 corpus、native registry、对话/CLI acceptance、runtime recovery 和 production builds。</Description>
+        <cdt:Gate><cdt:Criterion>focused/full workflow tests、CLI/TUI build、compiled smoke 和 strict validation 全部通过</cdt:Criterion></cdt:Gate>
+        <SubNodes>
+          <Task id="T4.1" name="执行 business corpus 与 fake/real actor journey tests" status="DONE" order="0" priority="P0"><cdt:Acceptance><cdt:Criterion id="T4.1-AC1" checked="true">至少一个跨入口 journey 走到可执行/终态且内部词汇不出现在默认输出</cdt:Criterion></cdt:Acceptance></Task>
+          <Task id="T4.2" name="执行 CLI/TUI build、compiled smoke 与 strict validate" status="DONE" order="1" priority="P0"><cdt:Acceptance><cdt:Criterion id="T4.2-AC1" checked="true">安装产物包含 workflow agent 且基础回归无退化</cdt:Criterion></cdt:Acceptance></Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+  <Schedule/>
+  <Hooks/>
+</Track>

@@ -1,0 +1,19 @@
+<decision #track.add-eidolon-natural-language-workflow-authoring.actor-boundary { status = "accepted" priority = "P0" }
+(
+  <question ?>Who owns semantic generation and who owns resource writes?</?>
+  <answer { } (
+    <raw-answer ?>Eidolon actor generates; WorkflowComponent validates and writes.</?>
+    <decision-text ?>The coordinator delegates semantic authoring to an Eidolon child actor, which may mutate resources only through native workflow tools.</?>
+    <rationale ?>This prevents both a deterministic heuristic pretending to be AI authoring and an actor bypassing resource authority.</?>
+  )>
+)>
+
+<decision #track.add-eidolon-natural-language-workflow-authoring.cli-runtime { status = "accepted" priority = "P0" }
+(
+  <question ?>How does the workflow CLI obtain AI generation?</?>
+  <answer { } (
+    <raw-answer ?>Invoke the in-process Eidolon headless runtime.</?>
+    <decision-text ?>CLI create/edit runs an Eidolon turn that routes to WorkflowAuthor; it never spawns an external agent executable.</?>
+    <rationale ?>Eidolon already is the AI runtime and should remain the only provider/session authority.</?>
+  )>
+)>

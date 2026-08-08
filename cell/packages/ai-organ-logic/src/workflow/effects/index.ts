@@ -58,3 +58,5 @@ export type AiWorkflowAgentTaskRuntimeRef = Required<Pick<AiWorkflowRuntimeRef, 
 export type AiWorkflowResourceRefGuard = {
   validateResourceRef: (ref: string) => AiWorkflowResourceRefValidationResult
 }
+
+export * from "./EidolonWorkflowEffectProvider"

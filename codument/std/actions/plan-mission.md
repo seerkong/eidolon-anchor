@@ -29,7 +29,7 @@ codument/missions/pending/<mission-id>/
   proposal.md
   design.md
   decisions.xnl
-  decisions/  # only when a durable decision has eligible content
+  decisions/**/*.xnl  # optional owner/topic shards; read with root decisions.xnl
   memory/     # only when a reusable memory has eligible content
   analysis/   # 默认不进 git
   reports/    # 默认不进 git
@@ -80,7 +80,7 @@ codument/missions/pending/<mission-id>/
 执行显式 plan-mission:before hook
 ---- /?before
 ---- #step ?context
-确认 codument 已初始化；读取 codument/attractors、codument/missions/README.md、codument/std/spec/mission-xml-spec.md；解析 questioning severity（默认 light）。
+确认 codument 已初始化；读取 codument/attractors、codument/missions/README.md、codument/std/spec/mission-xml-spec.md；解析 questioning severity（mission 建议默认 `auto`：用户未指定且目标是长时间自主迭代时用 `auto`；用户明确要求深挖 / 大量人工介入时才降级 `normal`/`deep`）。
 ---- /?context
 ---- #step ?decision-tree
 写 analysis/decision-tree.xnl：Root Questions、Severity、Dependency Graph、Topological Ready Batch、Assumptions；auto 模式不得提问。
@@ -89,7 +89,7 @@ codument/missions/pending/<mission-id>/
 根据用户目标生成 mission-id；查重 pending/active/archived；auto 模式直接采用并记录命名依据，其他模式只有命名确实影响范围或存在歧义时才将其并入当前拓扑 ready batch，不单独等待确认。
 ---- /?id
 ---- #step ?mkdir
-创建 codument/missions/pending/<mission-id>/ 以及 analysis/ reports/。`design.md` 和 `decisions.xnl` 无条件创建；只有产生合格 durable 内容时才创建 decisions/ 或 memory/。
+创建 codument/missions/pending/<mission-id>/ 以及 analysis/ reports/。`design.md` 和根 `decisions.xnl` 无条件创建；只有 forest 需要 owner/topic 分片时才创建递归 `decisions/**/*.xnl`，且始终与根文件共同参与。只有产生合格 reusable 内容时才创建 memory/。
 ---- /?mkdir
 ---- #step ?proposal
 写 proposal.md：背景、目标、非目标、成功判据、为什么需要 mission 而不是 track。

@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "capabilities": [
+    {
+      "id": "stage-context",
+      "requiredBehavior": "AIAgentWorkflow_GetAuthoringContext(definition)",
+      "supportingContract": "canonical develop/run skills",
+      "implementationEvidence": "WorkflowGetAuthoringContext",
+      "architectureBoundary": "MCP transport becomes a native standardized tool"
+    },
+    {
+      "id": "template-prebuilt-discovery",
+      "requiredBehavior": "ListAuthoringTemplates and ListPrebuiltWorkflows",
+      "supportingContract": "package skill assets and product assets",
+      "implementationEvidence": "WorkflowAuthoringCatalog and list tools",
+      "architectureBoundary": "installed packages contain canonical XNL resources"
+    },
+    {
+      "id": "four-mount-vfs",
+      "requiredBehavior": "AuthoringWorkspace /base /refs /work /out",
+      "supportingContract": "AuthoringWorkspaceStore",
+      "implementationEvidence": "WorkflowAuthoringSessionStore and WorkflowWorkspace",
+      "architectureBoundary": "session storage is rooted by the injected Eidolon workflow component"
+    },
+    {
+      "id": "proof-publication",
+      "requiredBehavior": "diff validate dry-run validation_revision confirmed publish",
+      "supportingContract": "validation and confirmation protocol skill",
+      "implementationEvidence": "session validate/dryRun/publish state machine",
+      "architectureBoundary": "canonical proof uses depa-flows XNL loaders"
+    },
+    {
+      "id": "natural-language-routing",
+      "requiredBehavior": "durable signals and exact contiguous business payload",
+      "supportingContract": "natural-language-routing and prompt scenario assets",
+      "implementationEvidence": "WorkflowAuthoringIntent and native authoring lifecycle prompt",
+      "architectureBoundary": "the in-process Eidolon actor consumes native tools"
+    },
+    {
+      "id": "separate-gates",
+      "requiredBehavior": "publication is independent from execution",
+      "supportingContract": "develop and run skills",
+      "implementationEvidence": "publish defaults false and init opens a draft session",
+      "architectureBoundary": "CLI --publish/authoring publish never invokes WorkflowRun"
+    }
+  ]
+}

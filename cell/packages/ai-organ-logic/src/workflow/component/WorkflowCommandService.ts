@@ -3,7 +3,12 @@ import {
   validateAiWorkflowResourceRef,
   type AiWorkflowForm,
   type AiWorkflowResourceRefValidationResult,
+  type AIWorkflowSubstrate,
 } from "@cell/ai-workflow-contract"
+import {
+  WorkflowResourceLoader,
+  type WorkflowResourceDiagnostic,
+} from "../resources"
 
 export type WorkflowBundleFileDraft = {
   path: string
@@ -20,6 +25,13 @@ export type WorkflowBundleDraft = {
   resourceRef: string
   files: WorkflowBundleFileDraft[]
   diagnostics: AiWorkflowResourceRefValidationResult[]
+  canonicalProof: {
+    valid: true
+    form: AiWorkflowForm
+    substrate: AIWorkflowSubstrate
+    definitionFqn: string
+    diagnostics: WorkflowResourceDiagnostic[]
+  }
   writePolicy: {
     physicalWritePerformed: false
     reason: string
@@ -31,6 +43,7 @@ export type WorkflowCreateBundleCommand = {
   name: string
   fqn?: string
   description?: string
+  manifest_content?: string
 }
 
 export type WorkflowPatchBundleCommand = {
@@ -83,120 +96,86 @@ function resourceRefForFqn(fqn: string): string {
   return `resource://${fqn}`
 }
 
-function xnlText(value: string): string {
-  return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-}
-
 function renderManifest(command: {
   form: AiWorkflowForm
-  name: string
   fqn: string
-  description: string
-  slug: string
 }): string {
+  if (command.form === "AICtrlWorkflow") {
+    return [
+      `<AICtrlWorkflow #${command.fqn} apiVersion="depa.flows/v1" version="1.0.0" (`,
+      `  <FlowContract #${command.fqn}>`,
+      `) [`,
+      `  <Return #done>`,
+      `]>`,
+      ``,
+    ].join("\n")
+  }
   return [
-    `<AIWorkflowAppBundle #${command.fqn} {`,
-    `  form = "${command.form}"`,
-    `  name = "${command.name}"`,
-    `  resource_ref = "${resourceRefForFqn(command.fqn)}"`,
-    `}>`,
-    `(`,
-    `  <description ?>${xnlText(command.description)}</?>`,
-    `  <ResourceCatalog src = "vfs://./resources/catalog.xnl" />`,
-    `  <WorkflowDefinition src = "vfs://./workflows/${command.slug}.workflow.xnl" />`,
-    `  <MaterialPorts src = "vfs://./materials/ports.xnl" />`,
-    `)`,
+    `<AIDataWorkflow #${command.fqn} apiVersion="depa.flows/v1" version="1.0.0" (`,
+    `  <FlowContract #${command.fqn} { inputPorts = ["input"] outputPorts = ["result"] }>`,
+    `) [`,
+    `  <EntryNode #entry>`,
+    `  <ReturnNode #return { inputs = { result = "flow-port://#entry/input" } }>`,
+    `]>`,
     ``,
   ].join("\n")
 }
 
-function renderCatalog(command: { fqn: string; slug: string; form: AiWorkflowForm }): string {
-  return [
-    `<ResourceCatalog #${command.fqn}.catalog { bundle = "resource://${command.fqn}" }>`,
-    `(`,
-    `  <ResourceEntry #manifest { ref = "vfs://./manifest.xnl" kind = "manifest" format = "xnl" } />`,
-    `  <ResourceEntry #workflow { ref = "vfs://./workflows/${command.slug}.workflow.xnl" kind = "${command.form}" format = "xnl" } />`,
-    `  <ResourceEntry #ports { ref = "vfs://./materials/ports.xnl" kind = "MaterialPorts" format = "xnl" } />`,
-    `  <ResourceEntry #code { ref = "vfs://./flow-code/index.ts" kind = "flow-code" format = "typescript" } />`,
-    `)`,
-    ``,
-  ].join("\n")
-}
-
-function renderWorkflowDefinition(command: {
+function renderFlowCode(command: {
   form: AiWorkflowForm
   fqn: string
   name: string
   description: string
 }): string {
-  return [
-    `<${command.form} #${command.fqn}.workflow {`,
-    `  resource_ref = "resource://${command.fqn}"`,
-    `  name = "${command.name}"`,
-    `}>`,
-    `(`,
-    `  <description ?>${xnlText(command.description)}</?>`,
-    `  <Messages />`,
-    `  <MaterialBindings />`,
-    `  <Nodes />`,
-    `)`,
-    ``,
-  ].join("\n")
-}
-
-function renderPorts(fqn: string): string {
-  return [
-    `<MaterialPorts #${fqn}.ports>`,
-    `(`,
-    `  <MaterialPort #input { direction = "input" kind = "json" required = true } />`,
-    `  <MaterialPort #result { direction = "output" kind = "json" required = false } />`,
-    `)`,
-    ``,
-  ].join("\n")
-}
-
-function renderFlowCode(command: { form: AiWorkflowForm; fqn: string }): string {
   return [
     `export const workflowResourceRef = "resource://${command.fqn}" as const`,
     `export const workflowForm = "${command.form}" as const`,
+    `export const workflowName = ${JSON.stringify(command.name)} as const`,
+    `export const workflowDescription = ${JSON.stringify(command.description)} as const`,
+    ``,
+    `export async function invokeEffect(runtime: any, input: unknown, config: Record<string, unknown> = {}) {`,
+    `  const run = runtime?.ai?.metadata?.run`,
+    `  const nodeId = String(config.nodeId ?? config.node_id ?? "effect")`,
+    `  const operation = String(config.operation ?? "ai.agent")`,
+    `  return runtime.ai.effects.invoke({`,
+    `    effectId: String(config.effectId ?? \`${'${run?.runId ?? "run"}'}:${'${run?.generation ?? 0}'}:${'${nodeId}'}\`),`,
+    `    operation,`,
+    `    input,`,
+    `    config,`,
+    `    run,`,
+    `    nodeId,`,
+    `    materialRefs: Array.isArray(config.materialRefs) ? config.materialRefs : undefined,`,
+    `  })`,
+    `}`,
+    ``,
+    `export function identity(_runtime: any, input: unknown) {`,
+    `  return input`,
+    `}`,
     ``,
   ].join("\n")
 }
 
 export class WorkflowCommandService {
+  constructor(private readonly resources = new WorkflowResourceLoader()) {}
+
   createBundleDraft(command: WorkflowCreateBundleCommand): WorkflowBundleDraft {
     const form = normalizeForm(command.form)
     const name = command.name.trim() || "workflow"
     const slug = slugifyName(name)
     const fqn = command.fqn?.trim() || defaultFqn(name)
     const description = command.description?.trim() || `${name} ${form} bundle.`
-    const bundleRootRef = `vfs://./workflows/${slug}/`
+    const bundleRootRef = `vfs://./${slug}/`
     const resourceRef = resourceRefForFqn(fqn)
     const files: WorkflowBundleFileDraft[] = [
       {
-        path: `workflows/${slug}/manifest.xnl`,
+        path: `${slug}/manifest.xnl`,
         ref: "vfs://./manifest.xnl",
-        content: renderManifest({ form, name, fqn, description, slug }),
+        content: command.manifest_content?.trim() || renderManifest({ form, fqn }),
       },
       {
-        path: `workflows/${slug}/resources/catalog.xnl`,
-        ref: "vfs://./resources/catalog.xnl",
-        content: renderCatalog({ fqn, slug, form }),
-      },
-      {
-        path: `workflows/${slug}/workflows/${slug}.workflow.xnl`,
-        ref: `vfs://./workflows/${slug}.workflow.xnl`,
-        content: renderWorkflowDefinition({ form, fqn, name, description }),
-      },
-      {
-        path: `workflows/${slug}/materials/ports.xnl`,
-        ref: "vfs://./materials/ports.xnl",
-        content: renderPorts(fqn),
-      },
-      {
-        path: `workflows/${slug}/flow-code/index.ts`,
+        path: `${slug}/flow-code/index.ts`,
         ref: "vfs://./flow-code/index.ts",
-        content: renderFlowCode({ form, fqn }),
+        content: renderFlowCode({ form, fqn, name, description }),
       },
     ]
     const diagnostics = [
@@ -204,6 +183,21 @@ export class WorkflowCommandService {
       validateAiWorkflowResourceRef(resourceRef),
       ...files.map((file) => validateAiWorkflowResourceRef(file.ref)),
     ]
+    const canonical = this.resources.load({
+      form,
+      sources: { "manifest.xnl": files[0].content },
+    })
+    if (!canonical.binding || !canonical.substrate || canonical.diagnostics.length > 0) {
+      const details = canonical.diagnostics
+        .map((diagnostic) => `${diagnostic.code}: ${diagnostic.message}`)
+        .join("; ")
+      throw new Error(`Generated ${form} draft failed canonical validation${details ? `: ${details}` : ""}`)
+    }
+    if (canonical.binding.definition.fqn !== fqn) {
+      throw new Error(
+        `Generated ${form} draft FQN mismatch: expected ${fqn}, got ${canonical.binding.definition.fqn}`,
+      )
+    }
     return {
       kind: "workflow.bundleDraft",
       form,
@@ -213,6 +207,13 @@ export class WorkflowCommandService {
       resourceRef,
       files,
       diagnostics,
+      canonicalProof: {
+        valid: true,
+        form,
+        substrate: canonical.substrate,
+        definitionFqn: canonical.binding.definition.fqn,
+        diagnostics: canonical.diagnostics,
+      },
       writePolicy: {
         physicalWritePerformed: false,
         reason: "Workflow component produced a controlled draft only; a write adapter must explicitly apply it.",
@@ -235,4 +236,5 @@ export class WorkflowCommandService {
       },
     }
   }
+
 }

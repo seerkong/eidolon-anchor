@@ -1,0 +1,5 @@
+<ToolPrompt #WorkflowFulfill.detail>
+(
+  <usage ?>Pass the person's complete business request. The tool selects direct, control, data or composite handling, chooses scenario context, and coordinates authoring, proof, input/material inference, preparation and independently confirmed execution.</?>
+  <safety ?>Do not ask the person for form, nodes, ports, policies, XNL, identifiers or paths. Publication and execution require separate explicit authorization. This tool uses native Eidolon actors and workflow tools only.</?>
+)>

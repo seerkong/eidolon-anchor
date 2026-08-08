@@ -1,0 +1,5 @@
+<ToolPrompt #WorkflowWorkspace.detail>
+(
+  <usage ?>Open a session first. Use describe/tree/read/search/diff, edit only /work or /out, then validate and dry-run through the lifecycle tools. Every mutation invalidates prior proof.</?>
+  <safety ?>Session paths are VFS paths under /base, /refs, /work or /out. /base and /refs are read-only. Never use shell or generic file tools to bypass this workspace.</?>
+)>

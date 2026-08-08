@@ -19,7 +19,7 @@
 -- /?tdd
 ```
 
-- 子代理执行单个 Task 时按此套路；产物落到该 Task/phase 的 output MaterialBundle 目录。
+- 普通 Task 无论由当前 AI 本地执行还是委派 worker，都按此套路；产物落到该 Task/phase 的 output MaterialBundle 目录。
 - 验收：`cdt:Acceptance` 勾选 + 测试通过；`codument-verify` 会独立复跑。
 - 重构、迁移、类型收紧、性能优化等**声称行为不变**的任务，先补 characterization / freeze 测试或等价的机械基线，锁住现有外部行为，再改实现；diff 审查应确认运行时语义没有无关变化。
 - 机制性防回退优先于口头约定：能用棘轮配置、公开表面冻结测试、架构断言、反例注入验红等方式守住的规则，不只写在文档里。

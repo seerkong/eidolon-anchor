@@ -1,0 +1,27 @@
+<decision #track.establish-eidolon-workflow-authoring-workspace.component-write-authority {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>哪个层拥有 workflow 物理写入？</?>
+  <answer { }
+  (
+    <raw-answer ?>WorkflowComponent authoring workspace。</?>
+    <decision-text ?>WorkflowComponent 绑定的 authoring workspace 是唯一写入 authority；CLI 和对话 tool 只投影 command。</?>
+    <rationale ?>防止 surface 绕过 canonical validation 和 containment policy。</?>
+  )>
+)>
+
+<decision #track.establish-eidolon-workflow-authoring-workspace.runtime-root-binding {
+  status = "accepted"
+  priority = "P0"
+}
+(
+  <question ?>TUI 与 CLI 如何获得相同的 workspace？</?>
+  <answer { }
+  (
+    <raw-answer ?>通过 runtime/workDir 注入 workflow root。</?>
+    <decision-text ?>二者通过同一 component factory 构造同一种 store/workspace；同一 VM 的 model tools 复用同一 component binding。</?>
+    <rationale ?>让资源事实持久化于共享 workspace，而不是某个 surface 的临时内存。</?>
+  )>
+)>

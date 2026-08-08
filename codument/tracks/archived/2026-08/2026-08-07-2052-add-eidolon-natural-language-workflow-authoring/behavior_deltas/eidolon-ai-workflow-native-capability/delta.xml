@@ -1,0 +1,24 @@
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/natural-language-authoring">
+    <requirement id="natural-language-authoring">
+      <statement>The system SHALL let humans create or edit canonical AI workflows using ordinary language through TUI and CLI, using Eidolon actors and component-backed native tools without external agent CLIs.</statement>
+      <suite id="natural-authoring" name="Natural-language authoring">
+        <case id="conversation-authoring">
+          <given>A user describes a workflow in ordinary language during an Eidolon conversation</given>
+          <when>The AI kernel routes the request</when>
+          <then>An Eidolon authoring actor SHALL select the form, generate or edit canonical XNL, run a bounded proof/repair loop and publish through WorkflowComponent</then>
+        </case>
+        <case id="cli-authoring">
+          <given>A user invokes `eidolon workflow create` or `edit` with a natural-language instruction</given>
+          <when>The command runs</when>
+          <then>The command SHALL use the in-process Eidolon runtime and the same WorkflowAuthor capability, without invoking an external AI CLI</then>
+        </case>
+        <case id="workspace-primitives-visible">
+          <given>The authoring actor needs resource facts or mutations</given>
+          <when>It inspects the native tool registry</when>
+          <then>Component-backed workspace read/tree/search/diff/validate/write/delete primitives SHALL be model-visible</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

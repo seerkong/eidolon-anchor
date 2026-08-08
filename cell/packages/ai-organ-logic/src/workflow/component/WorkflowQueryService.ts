@@ -4,6 +4,8 @@ import {
   type AiWorkflowResourceRefValidationResult,
   type AiWorkflowRootDescriptor,
 } from "@cell/ai-workflow-contract"
+import type { WorkflowAuthoringWorkspace } from "../authoring"
+import { WorkflowDefinitionRepository } from "../runtime/WorkflowDefinitionRepository"
 
 export type WorkflowCapabilityInspection = {
   capability: "ai-workflow"
@@ -44,6 +46,8 @@ export function readWorkflowRootsFromRuntime(runtime: unknown): AiWorkflowRootDe
 }
 
 export class WorkflowQueryService {
+  constructor(private readonly authoring?: WorkflowAuthoringWorkspace) {}
+
   inspectCapability(runtime: unknown): WorkflowCapabilityInspection {
     const boundary = summarizeAiWorkflowContractBoundary()
     const workflowRoots = readWorkflowRootsFromRuntime(runtime)
@@ -64,5 +68,80 @@ export class WorkflowQueryService {
 
   validateResourceRef(ref: unknown): AiWorkflowResourceRefValidationResult {
     return validateAiWorkflowResourceRef(ref)
+  }
+
+  async validateDefinition(ref: unknown): Promise<{
+    ok: boolean
+    kind: "workflow.definitionValidation"
+    ref: string
+    resourceRef: AiWorkflowResourceRefValidationResult
+    form?: string
+    substrate?: string
+    definition?: { fqn: string; manifestPath: string; bundlePath: string }
+    nodes?: { valid: true; count: number; ids: string[] }
+    materials?: { valid: true; count: number; refs: string[] }
+    diagnostics: Array<{ level: "resource" | "definition" | "node" | "material"; code: string; message: string; nodeId?: string }>
+  }> {
+    const resourceRef = this.validateResourceRef(ref)
+    const logicalRef = typeof ref === "string" ? ref : ""
+    if (!resourceRef.ok) {
+      return {
+        ok: false,
+        kind: "workflow.definitionValidation",
+        ref: logicalRef,
+        resourceRef,
+        diagnostics: [{ level: "resource", code: "invalid-resource-ref", message: resourceRef.reason }],
+      }
+    }
+    if (!this.authoring) {
+      return {
+        ok: false,
+        kind: "workflow.definitionValidation",
+        ref: logicalRef,
+        resourceRef,
+        diagnostics: [{ level: "definition", code: "workspace-unbound", message: "Workflow authoring workspace is not bound" }],
+      }
+    }
+    try {
+      const resolved = await new WorkflowDefinitionRepository(this.authoring).resolve(logicalRef)
+      const definition = resolved.binding.definition as any
+      const nodeIds = Array.isArray(definition.declarationOrder)
+        ? definition.declarationOrder.map(String)
+        : definition.nodeById && typeof definition.nodeById === "object"
+          ? Object.keys(definition.nodeById)
+          : Array.isArray(definition.nodes)
+            ? definition.nodes.map((node: any) => String(node?.id ?? node?.name ?? "")).filter(Boolean)
+            : []
+      const materialRefs = [...new Set(JSON.stringify(definition)
+        .match(/material:\/\/[^"\\\s]+/g) ?? [])]
+      return {
+        ok: true,
+        kind: "workflow.definitionValidation",
+        ref: logicalRef,
+        resourceRef,
+        form: resolved.binding.kind,
+        substrate: resolved.binding.substrate,
+        definition: {
+          fqn: resolved.binding.definition.fqn,
+          manifestPath: resolved.manifestPath,
+          bundlePath: resolved.bundlePath,
+        },
+        nodes: { valid: true, count: nodeIds.length, ids: nodeIds },
+        materials: { valid: true, count: materialRefs.length, refs: materialRefs },
+        diagnostics: [],
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        kind: "workflow.definitionValidation",
+        ref: logicalRef,
+        resourceRef,
+        diagnostics: [{
+          level: "definition",
+          code: "definition-invalid",
+          message: String((error as Error)?.message ?? error),
+        }],
+      }
+    }
   }
 }

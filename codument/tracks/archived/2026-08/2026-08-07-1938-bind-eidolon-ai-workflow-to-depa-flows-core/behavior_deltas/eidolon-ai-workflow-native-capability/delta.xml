@@ -1,0 +1,24 @@
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/canonical-core-binding">
+    <requirement id="canonical-core-binding">
+      <statement>The system SHALL consume depa-flows AI workflow contracts and profile source loaders as the authority for workflow kinds, substrates, resource refs, definition bindings and XNL diagnostics.</statement>
+      <suite id="canonical-binding" name="Canonical core binding">
+        <case id="canonical-contracts">
+          <given>Eidolon workflow contracts are imported</given>
+          <when>Workflow kinds, substrates, reuse policies or definition bindings are inspected</when>
+          <then>The values and types SHALL come from depa-flows while Eidolon-specific fact ownership remains additive</then>
+        </case>
+        <case id="canonical-source-loaders">
+          <given>Named XNL sources contain an AICtrlWorkflow or AIDataWorkflow definition</given>
+          <when>The Eidolon workflow resource loader validates the sources</when>
+          <then>The loader SHALL invoke the corresponding depa-flows profile loader and return its typed binding and structured diagnostics</then>
+        </case>
+        <case id="canonical-draft-roundtrip">
+          <given>The WorkflowCommandService creates a deterministic bundle draft</given>
+          <when>The draft XNL is loaded through the workflow resource loader</when>
+          <then>The draft SHALL produce a canonical definition binding without diagnostics</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

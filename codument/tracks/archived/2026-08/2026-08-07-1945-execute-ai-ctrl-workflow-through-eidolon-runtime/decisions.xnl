@@ -1,0 +1,9 @@
+<decision #track.execute-ai-ctrl-workflow-through-eidolon-runtime.fact-boundary { status = "accepted" priority = "P0" }
+(
+  <question ?>Which runtime facts may workflow persist?</?>
+  <answer { } (
+    <raw-answer ?>Definition ref, WorkCtrlFlow snapshot/projection and workflow event references.</?>
+    <decision-text ?>Actor, provider, tool, conversation and effect lifecycle details remain in Eidolon authorities and are referenced by IDs only.</?>
+    <rationale ?>Avoid parallel session/runtime truth.</?>
+  )>
+)>

@@ -1,5 +1,5 @@
 import type { StdInnerLogic } from "depa-processor"
-import { createWorkflowComponent } from "../../component"
+import { createWorkflowComponentForRuntime } from "../../component"
 import type {
   WorkflowInspectCapabilityInnerConfig,
   WorkflowInspectCapabilityInnerInput,
@@ -13,5 +13,5 @@ export const workflowInspectCapabilityCoreLogic: StdInnerLogic<
   WorkflowInspectCapabilityInnerConfig,
   WorkflowInspectCapabilityInnerOutput
 > = async (runtime, _input, _config) => {
-  return JSON.stringify(createWorkflowComponent().queries.inspectCapability(runtime), null, 2)
+  return JSON.stringify(createWorkflowComponentForRuntime(runtime).queries.inspectCapability(runtime), null, 2)
 }

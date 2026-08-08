@@ -1,0 +1,95 @@
+<Track id="bind-eidolon-ai-workflow-to-depa-flows-core" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 Eidolon workflow contract、XNL loader/validator 与 deterministic drafts 直接复用 depa-flows authority。</Goal>
+    <Description>移除平行核心语义，保留 Eidolon-owned facts 和 surface projections。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-07T15:55:00Z</CreatedAt>
+    <UpdatedAt>2026-08-07T16:38:00Z</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="cell-packages" domain="source" path="vfs://@/cell/packages/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_bind-eidolon-ai-workflow-to-depa-flows-core" name="bind-eidolon-ai-workflow-to-depa-flows-core" version="1">
+    <Description>Canonical depa-flows contracts and XNL loading in the Eidolon workflow component.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="Canonical contract binding" status="DONE" order="0">
+        <Description>Replace duplicated core vocabulary with canonical imports while preserving additive Eidolon facts.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Contract tests prove canonical descriptors, policies and refs</cdt:Criterion>
+          <cdt:Criterion>Eidolon data-subgraph authority tests remain green</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="Add canonical dependencies and contract adapter" status="DONE" order="0" priority="P0">
+            <Description>Add published depa-flows packages and replace local kinds/ref policy types with imports or compatibility aliases.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">depa-flows workflow descriptors, reuse defaults and definition binding types are exported through the cell contract</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">Eidolon data-subgraph ownership and runtime-ref projections remain additive and tested</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="Route resource-ref validation through canonical logic" status="DONE" order="1" priority="P0">
+            <Description>Preserve the existing JSON validation projection while delegating acceptance to depa-flows parsing.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">Allowed refs are accepted with canonical schemes</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">Unsafe and unregistered refs are rejected by canonical parsing</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Canonical resource loading and draft proof" status="DONE" order="1">
+        <Description>Add the source-only loader facade and make deterministic scaffolds round-trip through it.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Both canonical forms return typed bindings and structured diagnostics</cdt:Criterion>
+          <cdt:Criterion>Generated drafts round-trip without diagnostics</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="Add WorkflowResourceLoader canonical facade" status="DONE" order="0" priority="P0">
+            <Description>Dispatch named XNL sources to canonical AICtrlWorkflow/AIDataWorkflow loaders and normalize results for the component.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">Valid sources for both forms return the expected typed canonical binding</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">Invalid root/node/statement diagnostics retain source or node context and no binding is returned</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="Make deterministic bundle drafts canonical-loadable" status="DONE" order="1" priority="P0">
+            <Description>Update scaffolds and command evidence so both forms are loaded and proven before the draft is returned.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">AI ctrl and AI data drafts each contain a canonical profile manifest</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">Both draft manifests round-trip through WorkflowResourceLoader with no diagnostics</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="Compatibility verification" status="DONE" order="2">
+        <Description>Run affected tests/typechecks and prove no local core parser remains.</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Affected package tests and typecheck pass</cdt:Criterion>
+          <cdt:Criterion>Dependency and source scans show canonical authority</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="Run core binding verification" status="DONE" order="0" priority="P0">
+            <Description>Run contract/component/tool tests, typecheck and authority scans; record evidence for mission CORE.</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">Affected tests and typecheck pass</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">No Eidolon-private workflow XNL parser or substrate implementation is introduced</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+
+  <Schedule>
+    <Parallel max-concurrent="1" spot-check="true"/>
+  </Schedule>
+
+  <Hooks/>
+</Track>

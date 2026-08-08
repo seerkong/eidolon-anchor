@@ -1,0 +1,43 @@
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/human-product-journey">
+    <requirement id="human-product-journey">
+      <statement>The system SHALL turn an ordinary business goal into a controlled direct, AI Ctrl, AI Data or composite journey without requiring the person to understand workflow internals.</statement>
+      <suite id="routing" name="Business intent routing">
+        <case id="automatic-route">
+          <given>A person states a business goal in ordinary language</given>
+          <when>The native workflow experience coordinator evaluates it</when>
+          <then>The system SHALL choose direct handling, AI Ctrl, AI Data or composition and SHALL select the closest installed business scenario without asking for form, nodes, ports, policies, XNL or paths</then>
+        </case>
+        <case id="direct-not-forced">
+          <given>A request is a small direct task without durable orchestration signals</given>
+          <when>The coordinator routes it</when>
+          <then>The system SHALL return it to the current Eidolon agent and SHALL NOT create a workflow merely to use workflow capability</then>
+        </case>
+      </suite>
+      <suite id="journey" name="Controlled product journey">
+        <case id="author-infer-run">
+          <given>A business goal warrants a workflow</given>
+          <when>The high-level native tool fulfills it</when>
+          <then>The system SHALL coordinate scenario context, authoring proof, input and Material inference, publication, Instance creation, execution preview and confirmed execution through existing native authorities</then>
+        </case>
+        <case id="independent-gates">
+          <given>Authoring proof succeeds</given>
+          <when>publication or execution was not independently authorized</when>
+          <then>The system SHALL preserve a recoverable state at the corresponding gate and SHALL NOT infer the missing authorization</then>
+        </case>
+      </suite>
+      <suite id="human-surface" name="Human surface">
+        <case id="business-reporting">
+          <given>A normal human surface reports journey progress or completion</given>
+          <when>The result is rendered</when>
+          <then>The response SHALL describe business purpose, progress, required confirmation, waits and result without exposing form, node, port, reuse policy, XNL, FQN, fact paths or physical storage paths</then>
+        </case>
+        <case id="shared-entry">
+          <given>The same business goal is submitted through Eidolon conversation or `eidolon workflow agent`</given>
+          <when>The journey begins</when>
+          <then>Both surfaces SHALL invoke the same native high-level tool and component-backed lifecycle rather than separate workflow logic</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

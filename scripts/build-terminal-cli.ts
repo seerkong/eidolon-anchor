@@ -3,7 +3,7 @@ import path from "path"
 
 const outDir = path.resolve("dist", "terminal", "cli")
 const isWindows = process.platform === "win32"
-const binaryName = isWindows ? "eidolon.exe" : "eidolon"
+const binaryName = isWindows ? "eidolon-cli.exe" : "eidolon-cli"
 const outFile = path.join(outDir, binaryName)
 
 await mkdir(outDir, { recursive: true })

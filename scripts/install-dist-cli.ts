@@ -9,7 +9,7 @@ import { homedir, platform } from "os"
 
 const isWindows = platform() === "win32"
 const projectRoot = resolve(import.meta.dir, "..")
-const exeName = isWindows ? "eidolon.exe" : "eidolon"
+const exeName = isWindows ? "eidolon-cli.exe" : "eidolon-cli"
 const sourcePath = join(projectRoot, "dist", "terminal", "cli", exeName)
 
 type CliOptions = {

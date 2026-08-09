@@ -115,6 +115,42 @@ function createStartToolHalfStepRuntime(options: {
   return { actor, vm, driver, fiberId }
 }
 
+function createIncrementalSnapshotRuntime(options: { sessionId?: string; sessionDir?: string } = {}) {
+  const main = createActor({
+    key: "main",
+    id: "actor-main",
+    messages: [{ role: "system", content: "system" }] as any[],
+  })
+  const worker = createActor({
+    key: "worker",
+    id: "actor-worker",
+    type: "delegate" as any,
+    messages: [{ role: "system", content: "worker" }] as any[],
+  })
+  const vm = createVM({
+    controlActorKey: main.key,
+    actors: { [main.key]: main, [worker.key]: worker },
+    outerCtx: { metadata: { sessionId: options.sessionId, sessionDir: options.sessionDir } },
+  })
+  const driver = createAiAgentOrchestratorDriver({
+    fibers: [main, worker].map((actor) => ({
+      fiberId: `${actor.key}:${actor.id}`,
+      vm,
+      actor,
+      messages: actor.messages,
+      basePriority: 1,
+    })),
+    runStep: async () => ({ kind: "yield" as const }),
+    options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+  })
+  return { vm, driver, main, worker, fiberIds: { main: `${main.key}:${main.id}`, worker: `${worker.key}:${worker.id}` } }
+}
+
+function actorEntityPaths(actorPath: string, runtimeRoot: string): string[] {
+  const absoluteActorPath = path.join(runtimeRoot, actorPath)
+  return [absoluteActorPath, path.join(path.dirname(absoluteActorPath), "state.json"), path.join(path.dirname(absoluteActorPath), "mailboxes.json")]
+}
+
 const snapshotBlockingMailboxCases: Array<{
   mailboxKind: AiAgentWakeMailbox
   payload: any
@@ -858,6 +894,124 @@ describe("runtime snapshot safepoints", () => {
       })
       expect(records).toHaveLength(1)
       expect(records[0].metadata.id).toBe("main__active::0")
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("does not rewrite actor or fiber entities across unchanged real saves", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-incremental-unchanged-real-save"
+    const runtime = createIncrementalSnapshotRuntime({ sessionDir, sessionId })
+    try {
+      expect((await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm: runtime.vm, driver: runtime.driver })).status).toBe("saved")
+      const manifest = JSON.parse(fs.readFileSync(path.join(sessionDir, "runtime_state", "manifest.json"), "utf8"))
+      const runtimeRoot = path.join(sessionDir, "runtime_state")
+      const entityPaths = [
+        ...Object.values(manifest.actorFiles).flatMap((file: any) => actorEntityPaths(file, runtimeRoot)),
+        ...Object.values(manifest.fiberFiles).map((file: any) => path.join(runtimeRoot, file)),
+      ]
+      const oldTime = new Date("2001-01-01T00:00:00.000Z")
+      for (const filePath of entityPaths) fs.utimesSync(filePath, oldTime, oldTime)
+
+      expect((await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm: runtime.vm, driver: runtime.driver })).status).toBe("saved")
+      for (const filePath of entityPaths) expect(fs.statSync(filePath).mtimeMs).toBe(oldTime.getTime())
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("writes only changed actor and fiber entities while preserving complete indexes and manifest", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-incremental-partial-real-save"
+    const runtime = createIncrementalSnapshotRuntime({ sessionDir, sessionId })
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm: runtime.vm, driver: runtime.driver })
+      const runtimeRoot = path.join(sessionDir, "runtime_state")
+      const before = JSON.parse(fs.readFileSync(path.join(runtimeRoot, "manifest.json"), "utf8"))
+      const mainPaths = actorEntityPaths(before.actorFiles.main, runtimeRoot)
+      const workerPaths = actorEntityPaths(before.actorFiles.worker, runtimeRoot)
+      const mainFiberPath = path.join(runtimeRoot, before.fiberFiles[runtime.fiberIds.main])
+      const workerFiberPath = path.join(runtimeRoot, before.fiberFiles[runtime.fiberIds.worker])
+      const indexPaths = ["actors_by_key", "actors_by_id", "fibers_by_id"].map((name) => path.join(runtimeRoot, "indexes", `${name}.json`))
+      const oldTime = new Date("2001-01-01T00:00:00.000Z")
+      for (const filePath of [...mainPaths, ...workerPaths, mainFiberPath, workerFiberPath, ...indexPaths]) fs.utimesSync(filePath, oldTime, oldTime)
+
+      runtime.worker.taskTree.root.content = "changed"
+      ;((runtime.driver.inspectRuntime().state.fibers as any)[runtime.fiberIds.worker] as any).basePriority = 2
+      expect((await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm: runtime.vm, driver: runtime.driver })).status).toBe("saved")
+
+      for (const filePath of [...mainPaths, mainFiberPath]) expect(fs.statSync(filePath).mtimeMs).toBe(oldTime.getTime())
+      for (const filePath of [...workerPaths, workerFiberPath, ...indexPaths]) expect(fs.statSync(filePath).mtimeMs).toBeGreaterThan(oldTime.getTime())
+
+      const repository = LocalFileRuntimeSnapshotRepositoryFactory.createRuntimeSnapshotRepository(sessionDir)
+      const loaded = await repository.loadSnapshot()
+      expect(Object.keys(loaded?.manifest.actorFiles ?? {}).sort()).toEqual(["main", "worker"])
+      expect(Object.keys(loaded?.manifest.fiberFiles ?? {}).sort()).toEqual([runtime.fiberIds.main, runtime.fiberIds.worker].sort())
+      expect(loaded?.actors.worker?.taskTree.root.content).toBe("changed")
+      expect(loaded?.fibers[runtime.fiberIds.worker]?.metadata?.basePriority).toBe(2)
+      expect(loaded?.indexes.actors_by_key?.entries.main).toBe(before.actorFiles.main)
+      expect(loaded?.indexes.actors_by_key?.entries.worker).toBe(before.actorFiles.worker)
+
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      const recovered = await recoverAiAgentRuntime({ sessionDir, sessionId })
+      expect(recovered?.vm.actors.main?.key).toBe("main")
+      expect(recovered?.vm.actors.worker?.taskTree.root.content).toBe("changed")
+      expect(Object.keys(recovered?.driver.inspectRuntime().fibers ?? {}).sort()).toEqual([runtime.fiberIds.main, runtime.fiberIds.worker].sort())
+      expect((recovered?.driver.inspectRuntime().state.fibers as any)?.[runtime.fiberIds.worker]?.basePriority).toBe(2)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("writes a complete first snapshot when the same VM is used for a new session identity", async () => {
+    const firstSessionDir = makeTempSessionDir()
+    const secondSessionDir = makeTempSessionDir()
+    const runtime = createIncrementalSnapshotRuntime({ sessionDir: firstSessionDir, sessionId: "session-incremental-identity-a" })
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir: firstSessionDir, sessionId: "session-incremental-identity-a", vm: runtime.vm, driver: runtime.driver })
+      await saveAiAgentRuntimeSnapshot({ sessionDir: secondSessionDir, sessionId: "session-incremental-identity-b", vm: runtime.vm, driver: runtime.driver })
+      const manifest = JSON.parse(fs.readFileSync(path.join(secondSessionDir, "runtime_state", "manifest.json"), "utf8"))
+      const runtimeRoot = path.join(secondSessionDir, "runtime_state")
+      for (const file of Object.values(manifest.actorFiles) as string[]) {
+        for (const entityPath of actorEntityPaths(file, runtimeRoot)) expect(fs.existsSync(entityPath)).toBe(true)
+      }
+      for (const file of Object.values(manifest.fiberFiles) as string[]) expect(fs.existsSync(path.join(runtimeRoot, file))).toBe(true)
+      const loaded = await LocalFileRuntimeSnapshotRepositoryFactory.createRuntimeSnapshotRepository(secondSessionDir).loadSnapshot()
+      expect(Object.keys(loaded?.actors ?? {}).sort()).toEqual(["main", "worker"])
+      expect(Object.keys(loaded?.fibers ?? {}).sort()).toEqual([runtime.fiberIds.main, runtime.fiberIds.worker].sort())
+    } finally {
+      fs.rmSync(firstSessionDir, { recursive: true, force: true })
+      fs.rmSync(secondSessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("conservatively rewrites all entities on the first save of a recovered VM", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-incremental-recovered-vm"
+    const runtime = createIncrementalSnapshotRuntime({ sessionDir, sessionId })
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm: runtime.vm, driver: runtime.driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      const recovered = await recoverAiAgentRuntime({ sessionDir, sessionId })
+      expect(recovered).toBeTruthy()
+
+      const runtimeRoot = path.join(sessionDir, "runtime_state")
+      const manifest = JSON.parse(fs.readFileSync(path.join(runtimeRoot, "manifest.json"), "utf8"))
+      const entityPaths = [
+        ...Object.values(manifest.actorFiles).flatMap((file: any) => actorEntityPaths(file, runtimeRoot)),
+        ...Object.values(manifest.fiberFiles).map((file: any) => path.join(runtimeRoot, file)),
+      ]
+      const oldTime = new Date("2001-01-01T00:00:00.000Z")
+      for (const filePath of entityPaths) fs.utimesSync(filePath, oldTime, oldTime)
+
+      expect((await saveAiAgentRuntimeSnapshot({
+        sessionDir,
+        sessionId,
+        vm: recovered!.vm,
+        driver: recovered!.driver,
+      })).status).toBe("saved")
+      for (const filePath of entityPaths) expect(fs.statSync(filePath).mtimeMs).toBeGreaterThan(oldTime.getTime())
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }

@@ -11,6 +11,7 @@
   "description": "Low-level reusable engine contracts that do not depend on cell core-contract.",
   "dependencies": {
     "depa-data-graph-core": "^1.0.1",
-    "depa-actor": "^0.2.0"
+    "depa-actor": "^0.2.0",
+    "xstream": "^11.14.0"
   }
 }

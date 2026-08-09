@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="runtime-session-robustness" version="1">
+  <upsert selector="behavior://runtime-session-robustness/requirements/journal-head-accounting-and-rotation">
+    <requirement id="journal-head-accounting-and-rotation">
+      <statement>系统 SHALL 以持久化 head/计数（runtime-control/heads/）承载 ingress、diagnostics 观测日志与 effect-evidence 日志的计数与 last 信息；读取 head 或取 effect 序号 SHALL NOT 全量 readFile+parseXnl 整个日志文件；旧会话无 head 文件时 SHALL 以有界尾部窗口（从合法 XNL 节点起始行开始解析）回退。观测日志 SHALL 按大小轮转（默认 64MB/段，保留近 2 段），SHALL NOT 无界增长到数百 MB。</statement>
+      <suite id="head-accounting" name="Head accounting and rotation">
+        <case id="head-read-is-bounded">
+          <given>session 存在 ingress/diagnostics/effect-evidence 的持久化 head</given>
+          <when>读取 real session durable heads 或 effect 序号</when>
+          <then>SHALL 只读 head 文件，SHALL NOT 读取整个日志正文</then>
+        </case>
+        <case id="legacy-tail-fallback-correct">
+          <given>旧 session 无 head 文件且日志很大</given>
+          <when>读取 durable heads</when>
+          <then>SHALL 以有界尾部窗口（从合法 XNL 节点起始行起 parseXnl）得到 count 与 last 信息</then>
+        </case>
+        <case id="rotation-by-size">
+          <given>观测日志超过 64MB</given>
+          <when>继续 append</when>
+          <then>SHALL 轮转切段并保留近 2 段，head 计数跨段保持正确</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://runtime-session-robustness/requirements/long-session-memory-bound">
+    <requirement id="long-session-memory-bound">
+      <statement>长会话运行期的内存保留 SHALL 有界：ingress 时间线、语义事件图、消息历史图等过程性保留点 SHALL 按已完成回合/容量上限裁剪，进程内存 SHALL NOT 随会话运行天数无界线性增长。</statement>
+      <suite id="memory-bound" name="Bounded in-memory retention">
+        <case id="timeline-pruned">
+          <given>长会话已运行多天且产生大量 ingress/语义事件</given>
+          <when>检查 ingress 时间线与语义事件图保留</when>
+          <then>SHALL 只保留有界窗口（已结算事件可裁剪）</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

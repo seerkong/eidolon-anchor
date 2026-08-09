@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="optimize-session-runtime-performance" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>消除长会话随运行天数恶化的性能问题：P0-1 方案A（head/计数持久化，checkpoint 不再全量解析日志）、P0-2 日志按大小轮转、P1-1 保持快照频率仅增量写、P1-2 ToolCallDomain 保留+输出外部化、P1-3 内存有界。</Goal>
+    <Description>长会话（数天）变慢的根因：每次 checkpoint 调用 readRealSessionDurableHeads 会 readFile+parseXnl 整个 ingress.xnl/diagnostics.xnl（合计数百 MB、约 140 万节点），单次检查点 30~189s 且随日志线性增长；诊断/ingress 日志逐 token 无界增长（约 0.5GB/天）；vm.json 因 toolCallDomain 4008 条记录（含完整工具输出）膨胀到 9.7MB 且每次快照全量重写；进程内存 12GB+ 导致 GC 压力。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-08T04:25:29Z</CreatedAt>
+    <UpdatedAt>2026-08-08T18:35:00Z</UpdatedAt>
+    <GapRound>1</GapRound>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_optimize-session-runtime-performance" name="optimize-session-runtime-performance" version="1">
+    <Description>按 P1 复现与基准、P2 P0-1（head/计数持久化）、P3 P0-2（日志轮转）、P4 P1-2（ToolCallDomain 保留/外部化）、P5 P1-1（增量快照写）、P6 P1-3（内存有界）、P7 收口验证 顺序实施；每 phase TDD（先失败测试后实现），终态 phase 跑 GapLoop 与 AttractorCheck。</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="复现与基准（TDD 前置）" status="DONE" order="0">
+        <Description>为 P0-1/P0-2 写失败回归测试（head 读取不得全量读日志、effect 序号 append 为 O(1)、日志按大小轮转保留近 2 段），并建立 checkpoint 耗时基准脚本。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>失败测试证明当前实现会对 ingress/diagnostics/effects 全量 readFile+parseXnl。</cdt:Criterion>
+          <cdt:Criterion>基准脚本能对给定 session 输出 checkpoint 各阶段耗时。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="添加 P0-1/P0-2 失败回归测试" status="DONE" order="0" priority="P0">
+            <Description>在 ai-file-store-logic 新增测试：readRealSessionDurableHeads 在存在 head 文件时不得读取整个 ingress/diagnostics 日志；readRuntimeControlEffectEvidenceSequence 不得全量解析 effects.xnl；append 路径维护计数为 O(1)；日志超过 64MB 时切段并保留近 2 段。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">head 读取测试在无 head 文件时断言当前实现会读取整个日志（红）。</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">effect sequence 测试断言当前实现全量解析 effects.xnl（红）。</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC3" checked="true">轮转测试断言当前实现无轮转（红）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="建立 checkpoint 基准脚本" status="DONE" order="1" priority="P1">
+            <Description>提供脚本/命令，对指定 session 目录测量 readRealSessionDurableHeads、writeSnapshot、runFileStoreAiRuntimeConcreteCheckpoint 各阶段耗时，作为优化前后对比基线。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">脚本能输出各阶段耗时（ms）。</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">基线记录写入 analysis/findings.md。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P2" name="P0-1 方案A：head/计数持久化" status="DONE" order="1">
+        <Description>在 runtime-control/heads/ 维护 ingress_log/diagnostics_log/effect_evidence 的持久化 head（count/lastTag/lastObservedAt/lastSequence/segment 列表）；append 路径 O(1) 更新；readRealSessionDurableHeads 与 readRuntimeControlEffectEvidenceSequence 改为读 head；旧会话无 head 文件时回退尾部窗口（从合法 XNL 节点起始行开始 parseXnl）。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>T1.1 失败测试转绿。</cdt:Criterion>
+          <cdt:Criterion>head 读取与 effect 序号均为 O(1)，不整读日志/effects 文件。</cdt:Criterion>
+          <cdt:Criterion>旧会话（无 head 文件）回退路径正确：尾部窗口解析条数与真实记录数一致。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="定义 head 文件 schema 与读写器" status="DONE" order="0" priority="P0">
+            <Description>在 ai-file-store-logic 定义 ingress_log/diagnostics_log/effect_evidence 三类 head 的 JSON schema（count、lastTag、lastObservedAt、lastSequence、segments），实现原子读写（复用 writeJsonAtomically 模式），落点 runtime-control/heads/。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">head 读写器可原子读写三类 head。</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">缺 head 文件时读写器返回空默认值。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="append 路径 O(1) 更新 head" status="DONE" order="1" priority="P0">
+            <Description>appendXnlRecord 的 ingress/diagnostics 路径与 appendRuntimeControlEffectEvidenceEnvelope 在 append 后 O(1) 更新对应 head；effect 序号从 head 读取而非全量解析 effects.xnl。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">append 后 head 的 count/last 信息正确。</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">effect append 不触发全量读取 effects.xnl（O(1)）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.3" name="readRealSessionDurableHeads 改为读 head + 旧会话回退" status="DONE" order="2" priority="P0">
+            <Description>readRealSessionDurableHeads 的 ingress_log/diagnostics_log head 从持久化 head 解析；无 head 文件时回退：读最后 N MB，从第一个合法 XNL 节点起始行（换行后以 &lt; 开头）处 parseXnl，用单调 sequence 推算 count/last。readRuntimeControlEffectEvidenceSequence 改为读 effect_evidence head。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.3-AC1" checked="true">有 head 时函数不读取日志正文（用 spy/文件访问统计验证）。</cdt:Criterion>
+              <cdt:Criterion id="T2.3-AC2" checked="true">无 head 时回退解析结果与全量解析的 count/last 一致。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P3" name="P0-2：日志按大小轮转（64MB/段，保留近 2 段）" status="DONE" order="2">
+        <Description>ingress.xnl/diagnostics.xnl 超过 64MB 时切段（如 .1/.2），保留近 2 段并清理更旧段；head 记录段列表与累计计数，保证轮转后 count/last 仍正确。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>轮转后 head 计数与 last 信息保持正确。</cdt:Criterion>
+          <cdt:Criterion>日志不再无界增长到数百 MB。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="实现轮转切段逻辑" status="DONE" order="0" priority="P0">
+            <Description>在 append 路径检测当前段大小，超限切段并更新 head 的 segments；只保留近 2 段。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">超过 64MB 自动切段。</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">仅保留近 2 段，旧段被清理。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="轮转测试与回归" status="DONE" order="1" priority="P0">
+            <Description>补充轮转场景测试：切段、计数跨段正确、head 在重启后仍可恢复。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">切段/计数/恢复测试通过。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P4" name="P1-2：ToolCallDomain 保留策略 + 输出外部化" status="DONE" order="3">
+        <Description>ToolCallDomain 只保留活跃记录与最近 N 条终态记录；大 outputText 外部化到 artifacts/tool-results（复用 persistToolResult/attachment asset 机制），domain 仅持有引用/预览；vm.json 由此保持有界。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>vm.json 中 toolCallDomain 大小不再随历史工具调用线性增长。</cdt:Criterion>
+          <cdt:Criterion>恢复路径（reconstructToolResultsFromDomain）对已外部化记录仍能重建工具结果。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T4.1" name="实现 ToolCallDomain 保留策略" status="DONE" order="0" priority="P0">
+            <Description>在 ToolCallDomainRuntime 增加保留窗口（活跃 + 最近 N 终态），超出窗口的终态记录裁剪；阈值可配置。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">终态记录超出窗口后被裁剪。</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">活跃/进行中记录不被裁剪。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T4.2" name="大输出外部化到 artifacts" status="DONE" order="1" priority="P0">
+            <Description>outputText 超过阈值时写入 artifacts/tool-results/&lt;actor&gt;/，record 只保留引用/预览；序列化 vm.json 时输出有界。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.2-AC1" checked="true">大输出落盘为 artifact，record 仅含引用。</cdt:Criterion>
+              <cdt:Criterion id="T4.2-AC2" checked="true">恢复时可从 artifact 重建工具结果消息。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P5" name="P1-1：保持快照频率，仅增量写" status="DONE" order="4">
+        <Description>保持 enqueue 后 saveSnapshotAfterProgress 的频率不变；LocalFileRuntimeSnapshotRepository 只重写变更过的 actor/fiber 文件与派生索引，未变更文件不重写；vm.json 写入策略按 P1-2 结果决定（有界化后全量重写已足够便宜，记录理由）。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>连续两次快照间未变化的 actor/fiber 文件不被重写（以 mtime/写入计数验证）。</cdt:Criterion>
+          <cdt:Criterion>快照语义与恢复行为与之前等价。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T5.1" name="脏集跟踪与增量写" status="DONE" order="0" priority="P0">
+            <Description>saveAiAgentRuntimeSnapshot 收集本次相对上次的脏 actor/fiber，writeSnapshot 仅写脏文件；派生索引仍全量写（小文件）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.1-AC1" checked="true">未变化的 actor/fiber 文件不被重写。</cdt:Criterion>
+              <cdt:Criterion id="T5.1-AC2" checked="true">脏文件正确写入且 manifest 一致。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T5.2" name="增量写回归测试" status="DONE" order="1" priority="P1">
+            <Description>覆盖：无变化不重写、部分变化只写对应文件、恢复读到的仍是完整状态。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T5.2-AC1" checked="true">增量写测试通过。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P6" name="P1-3：内存有界" status="DONE" order="5">
+        <Description>审计并裁剪长会话进程内存的无界保留点（ingress 时间线、语义事件图、消息历史图；ToolCallDomain 由 P1-2 覆盖）；给出可验证的进程 RSS/堆占用对比；沉淀周期性重启等运维建议。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>识别并处理主要无界保留点。</cdt:Criterion>
+          <cdt:Criterion>长会话压测下进程内存不再无界线性增长（或给出有界化证据）。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T6.1" name="审计内存保留点" status="DONE" order="0" priority="P0">
+            <Description>用堆快照/计数定位 ingress timeline、semantic event graph、message history graph 等保留点，量化各点占用。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.1-AC1" checked="true">产出保留点清单与占用占比。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T6.2" name="有界化与验证" status="DONE" order="1" priority="P0">
+            <Description>对可裁剪的保留点加上限/裁剪；用长会话数据验证 RSS/堆增长曲线变平；记录运维建议到 design.md。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T6.2-AC1" checked="true">裁剪后长会话内存增长有界或显著下降。</cdt:Criterion>
+              <cdt:Criterion id="T6.2-AC2" checked="true">验证结果与运维建议写入 analysis/findings.md。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+      <TaskGroup id="P7" name="收口验证" status="DONE" order="6">
+        <Description>跑全量相关测试、strict codument validate、用真实 session 数据做优化前后基准对比；运行 GapLoop 与 AttractorCheck。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>相关单测与回归全绿。</cdt:Criterion>
+          <cdt:Criterion>strict codument validate 通过。</cdt:Criterion>
+          <cdt:Criterion>真实 session 上 checkpoint 耗时从 30~189s 降到秒级以内。</cdt:Criterion>
+          <cdt:Criterion>diff 审查确认无无关改动。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T7.1" name="全量验证与基准对比" status="DONE" order="0" priority="P0">
+            <Description>运行测试套件、strict validate、对现场 session 数据复跑基准并记录前后对比。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T7.1-AC1" checked="true">测试与 validate 通过。</cdt:Criterion>
+              <cdt:Criterion id="T7.1-AC2" checked="true">checkpoint 耗时对比记录在 analysis/findings.md。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block" verify-round="false"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+</Track>

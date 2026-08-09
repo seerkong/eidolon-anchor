@@ -31,7 +31,7 @@ describe("reference aligned live stage pipeline", () => {
     expect(stagePipelineSource).toContain("mountGraph");
     expect(stagePipelineSource).toContain("ReferenceAlignedStageDataGraph");
     expect(livePipelineSource).toContain("ReferenceAlignedStageDataGraph");
-    expect(semanticPipelineSource).toContain("AppendOnlyEventLog");
+    expect(semanticPipelineSource).toContain("BoundedEventLog");
   });
 
   test("streams many small content chunks without dropping the final safe tail", () => {

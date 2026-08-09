@@ -1,4 +1,4 @@
-import { OutputStream } from "@cell/symbiont-contract/stream/stream";
+import { OutputStream } from "@cell/symbiont-logic/stream/stream";
 import type {
   ChatCompletionsEffectBundle,
   NormalizedChatCompletionsStreamBinding,

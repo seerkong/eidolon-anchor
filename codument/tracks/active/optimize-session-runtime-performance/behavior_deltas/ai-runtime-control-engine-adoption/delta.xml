@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="ai-runtime-control-engine-adoption" version="1">
+  <upsert selector="behavior://ai-runtime-control-engine-adoption/requirements/checkpoint-head-resolution-bounded">
+    <requirement id="checkpoint-head-resolution-bounded">
+      <statement>checkpoint 组合器解析 real session heads SHALL 以有界方式完成：优先从持久化 head 文件解析 ingress_log/diagnostics_log 的 count/last，SHALL NOT 每次 checkpoint 全量读取并解析整个日志文件；读取成本 SHALL 与日志体积解耦。</statement>
+      <suite id="bounded-head-resolution" name="Bounded head resolution in checkpoint">
+        <case id="checkpoint-head-from-head-file">
+          <given>session 存在持久化 head 文件</given>
+          <when>runFileStoreAiRuntimeConcreteCheckpoint 解析 real session heads</when>
+          <then>SHALL 从 head 文件取值，SHALL NOT 全量解析日志</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

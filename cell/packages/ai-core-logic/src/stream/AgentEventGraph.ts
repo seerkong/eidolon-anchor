@@ -1,4 +1,4 @@
-import { AppendOnlyEventLog } from "depa-data-graph-core";
+import { BoundedEventLog, LIVE_EVENT_REPLAY_LIMIT } from "@cell/symbiont-logic/stream/BoundedTimeline";
 
 import type { AutonomousHolonClaimPayload, AutonomousHolonIdleExitPayload } from "@cell/ai-core-contract/runtime/AutonomousHolon";
 import type { DetachedActorKind, DetachedActorTerminalStatus } from "@cell/ai-core-contract/runtime/DetachedActor";
@@ -33,7 +33,7 @@ type SemanticEventListener = {
 };
 
 export class AgentEventGraph {
-  private readonly eventLog = new AppendOnlyEventLog<SemanticEvent>();
+  private readonly eventLog = new BoundedEventLog<SemanticEvent>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT });
   private readonly consumers = new Set<{
     subscription: Subscription;
     listener: SemanticEventListener;

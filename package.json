@@ -46,6 +46,7 @@
     "install:all:bun": "bun run scripts/install-all.ts",
     "install:all:nodejs": "node scripts/install-all-nodejs.cjs",
     "uninstall:all": "bun run scripts/uninstall-all.ts",
+    "benchmark:session-checkpoint": "bun run scripts/benchmark-session-checkpoint.ts",
     "dev:web:vue-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:vue\" \"bun run dev:backend:koa\"",
     "dev:web:react-koa": "concurrently -n frontend,backend -c blue,green \"bun run dev:frontend:react\" \"bun run dev:backend:koa\""
   },

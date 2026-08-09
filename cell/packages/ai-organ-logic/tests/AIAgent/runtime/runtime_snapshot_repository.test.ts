@@ -15,6 +15,7 @@ import {
   hydrateActor,
   serializeActor,
   serializeVM,
+  type RuntimeSnapshotIndexName,
 } from "@cell/ai-core-logic"
 import { LocalFileRuntimeSnapshotRepository } from "@cell/ai-support"
 
@@ -288,6 +289,96 @@ describe("Runtime snapshot repository", () => {
       : undefined).toBe("done")
     expect(loaded?.actors[detached.key]?.detachedTask?.taskId).toBe("bg-task-1")
     expect(loaded?.actors[detached.key]?.detachedTask?.outputText).toBe("done")
+  })
+
+  it("writes only dirty actor and fiber files while keeping the manifest complete", async () => {
+    const rootDir = path.join(makeTempSessionDir(), "runtime_state")
+    const repository = new LocalFileRuntimeSnapshotRepository(rootDir)
+
+    const root = createActor({ key: "main", messages: [{ role: "system", content: "hi" } as any] })
+    const worker = createActor({ key: "worker", type: "delegate" as any })
+    const vm = createVM({ controlActorKey: root.key, actors: { [root.key]: root, [worker.key]: worker } })
+    const initialFibers = {
+      "main:1": {
+        version: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+        fiberId: "main:1",
+        actorKey: root.key,
+        status: "ready",
+        lane: "interactive",
+      },
+      "worker:1": {
+        version: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+        fiberId: "worker:1",
+        actorKey: worker.key,
+        status: "ready",
+        lane: "background",
+      },
+    }
+    const initialActors = {
+      [root.key]: serializeActor(root),
+      [worker.key]: serializeActor(worker),
+    }
+
+    await repository.writeSnapshot({
+      vm: serializeVM(vm),
+      actors: initialActors,
+      fibers: initialFibers,
+    })
+
+    const rootActorPaths = [
+      repository.actorPath(initialActors[root.key]),
+      path.join(path.dirname(repository.actorPath(initialActors[root.key])), "state.json"),
+      path.join(path.dirname(repository.actorPath(initialActors[root.key])), "mailboxes.json"),
+    ]
+    const workerActorPaths = [
+      repository.actorPath(initialActors[worker.key]),
+      path.join(path.dirname(repository.actorPath(initialActors[worker.key])), "state.json"),
+      path.join(path.dirname(repository.actorPath(initialActors[worker.key])), "mailboxes.json"),
+    ]
+    const unchangedFiberPath = repository.fiberPath("main:1")
+    const changedFiberPath = repository.fiberPath("worker:1")
+    const indexNames: RuntimeSnapshotIndexName[] = ["actors_by_key", "actors_by_id", "fibers_by_id"]
+    const indexPaths = indexNames.map((name) => repository.indexPath(name))
+    const oldTime = new Date("2001-01-01T00:00:00.000Z")
+    for (const filePath of [...rootActorPaths, ...workerActorPaths, unchangedFiberPath, changedFiberPath, ...indexPaths]) {
+      fs.utimesSync(filePath, oldTime, oldTime)
+    }
+
+    worker.send("humanInput", "changed")
+    const nextActors = {
+      [root.key]: serializeActor(root),
+      [worker.key]: serializeActor(worker),
+    }
+    const nextFibers = {
+      ...initialFibers,
+      "worker:1": { ...initialFibers["worker:1"], status: "suspended", waitingReason: "human_answer" },
+    }
+    await repository.writeSnapshot({
+      vm: serializeVM(vm),
+      actors: nextActors,
+      fibers: nextFibers,
+      dirtyActorKeys: [worker.key],
+      dirtyFiberIds: ["worker:1"],
+    })
+
+    for (const filePath of [...rootActorPaths, unchangedFiberPath]) {
+      expect(fs.statSync(filePath).mtimeMs).toBe(oldTime.getTime())
+    }
+    for (const filePath of [...workerActorPaths, changedFiberPath, ...indexPaths]) {
+      expect(fs.statSync(filePath).mtimeMs).toBeGreaterThan(oldTime.getTime())
+    }
+
+    const manifest = await repository.readManifest()
+    expect(manifest?.actorKeys.sort()).toEqual([root.key, worker.key].sort())
+    expect(manifest?.fiberIds.sort()).toEqual(["main:1", "worker:1"])
+    expect(Object.keys(manifest?.actorFiles ?? {}).sort()).toEqual([root.key, worker.key].sort())
+    expect(Object.keys(manifest?.fiberFiles ?? {}).sort()).toEqual(["main:1", "worker:1"])
+
+    const loaded = await repository.loadSnapshot()
+    expect(loaded?.actors[root.key]?.key).toBe(root.key)
+    expect(loaded?.actors[worker.key]?.mailboxes.humanInput).toEqual(["changed"])
+    expect(loaded?.fibers["main:1"]?.status).toBe("ready")
+    expect(loaded?.fibers["worker:1"]?.status).toBe("suspended")
   })
 
   it("loads snapshot with partial actor corruption without dropping healthy records", async () => {

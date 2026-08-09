@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
+import { appendFile, mkdir, open, readFile, readdir, rename, rm, stat, writeFile } from "node:fs/promises"
 import { appendFileSync, existsSync, mkdirSync } from "node:fs"
 import path from "node:path"
 import type { AiRuntimeEffectLifecycleEvent } from "@cell/ai-runtime-control-contract"
@@ -20,6 +20,30 @@ export type RuntimeControlHeadFile = {
   sequence: number
   value: unknown
   updatedAt: string
+}
+
+export const RUNTIME_CONTROL_JOURNAL_HEAD_KINDS = [
+  "ingress_log",
+  "diagnostics_log",
+  "effect_evidence",
+] as const
+
+export type RuntimeControlJournalHeadKind = (typeof RUNTIME_CONTROL_JOURNAL_HEAD_KINDS)[number]
+
+export type RuntimeControlJournalSegment = {
+  name: string
+  count: number
+}
+
+export type RuntimeControlJournalHead<
+  Kind extends RuntimeControlJournalHeadKind = RuntimeControlJournalHeadKind,
+> = {
+  kind: Kind
+  count: number
+  lastTag: string | null
+  lastObservedAt: number | null
+  lastSequence: number | null
+  segments: RuntimeControlJournalSegment[]
 }
 
 export type RuntimeControlCohortCommitFile = {
@@ -136,6 +160,21 @@ export type FileStoreLegacyAppendOnlySessionFilesStatus = {
 
 const effectEvidenceAppendQueues = new Map<string, Promise<unknown>>()
 const xnlAppendQueues = new Map<string, Promise<unknown>>()
+const LEGACY_JOURNAL_TAIL_WINDOW_BYTES = 16 * 1024 * 1024
+const OBSERVATION_JOURNAL_SEGMENT_BYTES = 64 * 1024 * 1024
+
+const LEGACY_JOURNAL_TAGS: Record<RuntimeControlJournalHeadKind, readonly string[]> = {
+  ingress_log: [
+    "IngressEvent",
+    "ThinkDelta",
+    "ContentDelta",
+    "ToolDelta",
+    "ControlEvent",
+    "IngressDataEvent",
+  ],
+  diagnostics_log: ["DiagnosticEvent"],
+  effect_evidence: ["RuntimeEffectEvent", "runtime-control-effect"],
+}
 
 function encodeSegment(value: string): string {
   return encodeURIComponent(String(value ?? "").trim() || "unknown")
@@ -275,13 +314,202 @@ function assertXnlAppendStreamHasNoRootWrapper(doc: any, tag?: string): void {
   }
 }
 
+function observationJournalHeadTarget(filePath: string): {
+  sessionDir: string
+  kind: "ingress_log" | "diagnostics_log"
+  observedAtKey: "observedAt" | "emittedAt"
+} | null {
+  const logsDir = path.dirname(filePath)
+  if (path.basename(logsDir) !== "logs") return null
+  const fileName = path.basename(filePath)
+  if (fileName === "ingress.xnl") {
+    return {
+      sessionDir: path.dirname(logsDir),
+      kind: "ingress_log",
+      observedAtKey: "observedAt",
+    }
+  }
+  if (fileName === "diagnostics.xnl") {
+    return {
+      sessionDir: path.dirname(logsDir),
+      kind: "diagnostics_log",
+      observedAtKey: "emittedAt",
+    }
+  }
+  return null
+}
+
+function journalSequence(value: unknown): number | null {
+  return Number.isSafeInteger(value) && Number(value) >= 0 ? Number(value) : null
+}
+
+function journalObservedAt(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null
+}
+
+function observationJournalSegmentCount(
+  head: RuntimeControlJournalHead<"ingress_log" | "diagnostics_log">,
+  name: string,
+): number | null {
+  return head.segments.find((segment) => segment.name === name)?.count ?? null
+}
+
+async function observationJournalHasRotatedSegments(filePath: string): Promise<boolean> {
+  for (const suffix of [".1", ".2"]) {
+    try {
+      await stat(`${filePath}${suffix}`)
+      return true
+    } catch (error) {
+      if ((error as { code?: unknown })?.code !== "ENOENT") throw error
+    }
+  }
+  return false
+}
+
+async function advanceObservationJournalSegments(
+  head: RuntimeControlJournalHead<"ingress_log" | "diagnostics_log">,
+  filePath: string,
+): Promise<RuntimeControlJournalSegment[]> {
+  const activeName = path.basename(filePath)
+  let activeCount = observationJournalSegmentCount(head, activeName)
+  if (activeCount === null
+    && head.segments.length === 0
+    && !(await observationJournalHasRotatedSegments(filePath))) {
+    activeCount = head.count
+  }
+  const segments = [`${activeName}.2`, `${activeName}.1`]
+    .map((name) => {
+      const count = observationJournalSegmentCount(head, name)
+      return count === null ? null : { name, count }
+    })
+    .filter((segment): segment is RuntimeControlJournalSegment => segment !== null)
+  return activeCount === null
+    ? segments
+    : [...segments, { name: activeName, count: activeCount + 1 }]
+}
+
+async function renameIfPresent(source: string, destination: string): Promise<boolean> {
+  try {
+    await rename(source, destination)
+    return true
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === "ENOENT") return false
+    throw error
+  }
+}
+
+async function removeOlderObservationJournalSegments(filePath: string): Promise<void> {
+  const directory = path.dirname(filePath)
+  const prefix = `${path.basename(filePath)}.`
+  let entries: string[]
+  try {
+    entries = await readdir(directory)
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === "ENOENT") return
+    throw error
+  }
+  await Promise.all(entries.map(async (name) => {
+    if (!name.startsWith(prefix)) return
+    const suffix = name.slice(prefix.length)
+    if (!/^\d+$/.test(suffix) || Number(suffix) <= 2) return
+    await rm(path.join(directory, name), { force: true })
+  }))
+}
+
+async function rotateObservationJournalIfNeeded<Kind extends "ingress_log" | "diagnostics_log">(params: {
+  filePath: string
+  sessionDir: string
+  head: RuntimeControlJournalHead<Kind> | null
+}): Promise<RuntimeControlJournalHead<Kind> | null> {
+  let activeSize: number
+  try {
+    activeSize = (await stat(params.filePath)).size
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === "ENOENT") return params.head
+    throw error
+  }
+  if (activeSize < OBSERVATION_JOURNAL_SEGMENT_BYTES) return params.head
+
+  const activeName = path.basename(params.filePath)
+  const firstRotatedPath = `${params.filePath}.1`
+  const secondRotatedPath = `${params.filePath}.2`
+  const hadSecondRotatedSegment = await stat(secondRotatedPath)
+    .then(() => true)
+    .catch((error) => {
+      if ((error as { code?: unknown })?.code === "ENOENT") return false
+      throw error
+    })
+  await rm(secondRotatedPath, { force: true })
+  const retainedFirstSegment = await renameIfPresent(firstRotatedPath, secondRotatedPath)
+  await rename(params.filePath, firstRotatedPath)
+  await removeOlderObservationJournalSegments(params.filePath)
+
+  if (!params.head) return null
+  let currentCount = observationJournalSegmentCount(params.head, activeName)
+  if (currentCount === null
+    && params.head.segments.length === 0
+    && !retainedFirstSegment
+    && !hadSecondRotatedSegment) {
+    currentCount = params.head.count
+  }
+  const previousFirstCount = observationJournalSegmentCount(params.head, `${activeName}.1`)
+  const segments: RuntimeControlJournalSegment[] = []
+  if (retainedFirstSegment && previousFirstCount !== null) {
+    segments.push({ name: `${activeName}.2`, count: previousFirstCount })
+  }
+  if (currentCount !== null) {
+    segments.push({ name: `${activeName}.1`, count: currentCount })
+  }
+  segments.push({ name: activeName, count: 0 })
+  return await writeRuntimeControlJournalHead({
+    sessionDir: params.sessionDir,
+    head: { ...params.head, segments },
+  })
+}
+
+async function advanceObservationJournalHead<Kind extends "ingress_log" | "diagnostics_log">(
+  input: XnlAppendRecordInput,
+  target: NonNullable<ReturnType<typeof observationJournalHeadTarget>> & { kind: Kind },
+  head: RuntimeControlJournalHead<Kind> | null,
+): Promise<void> {
+  if (!head) return
+  await writeRuntimeControlJournalHead({
+    sessionDir: target.sessionDir,
+    head: {
+      ...head,
+      count: head.count + 1,
+      lastTag: input.tag,
+      lastObservedAt: journalObservedAt(input.metadata?.[target.observedAtKey]),
+      lastSequence: journalSequence(input.metadata?.sequence),
+      segments: await advanceObservationJournalSegments(head, input.filePath),
+    },
+  })
+}
+
 export async function appendXnlRecord(input: XnlAppendRecordInput): Promise<void> {
   const previous = xnlAppendQueues.get(input.filePath) ?? Promise.resolve()
   const write = previous
     .catch(() => {})
     .then(async () => {
+      const target = observationJournalHeadTarget(input.filePath)
+      let head: RuntimeControlJournalHead<"ingress_log" | "diagnostics_log"> | null = null
+      if (target) {
+        head = await initializeLegacyRuntimeControlJournalHead({
+          sessionDir: target.sessionDir,
+          kind: target.kind,
+          filePath: input.filePath,
+        })
+        head = await rotateObservationJournalIfNeeded({
+          filePath: input.filePath,
+          sessionDir: target.sessionDir,
+          head,
+        })
+      }
       await mkdir(path.dirname(input.filePath), { recursive: true })
       await appendFile(input.filePath, `${stringifyLineBlock(createXnlRecordNode(input))}\n`, "utf8")
+      if (target) {
+        await advanceObservationJournalHead(input, target, head)
+      }
     })
   xnlAppendQueues.set(input.filePath, write)
   try {
@@ -327,6 +555,20 @@ async function appendRuntimeControlEffectEvidenceEnvelope(params: {
     tag: "RuntimeEffectEvent",
     metadata: runtimeEffectEventMetadata(params.sequence, params.event),
     extend: runtimeEffectEventExtend(params.event),
+  })
+  const head = await readRuntimeControlJournalHead({
+    sessionDir: params.sessionDir,
+    kind: "effect_evidence",
+  })
+  await writeRuntimeControlJournalHead({
+    sessionDir: params.sessionDir,
+    head: {
+      ...head,
+      count: head.count + 1,
+      lastTag: "RuntimeEffectEvent",
+      lastObservedAt: null,
+      lastSequence: params.sequence,
+    },
   })
 }
 
@@ -582,6 +824,373 @@ export function getAiRuntimeControlFileStorePaths(sessionDir: string): AiRuntime
 
 export function getRuntimeControlHeadFilePath(sessionDir: string, headId: string): string {
   return path.join(getAiRuntimeControlFileStorePaths(sessionDir).headsDir, `${encodeSegment(headId)}.json`)
+}
+
+export function createEmptyRuntimeControlJournalHead<Kind extends RuntimeControlJournalHeadKind>(
+  kind: Kind,
+): RuntimeControlJournalHead<Kind> {
+  return {
+    kind,
+    count: 0,
+    lastTag: null,
+    lastObservedAt: null,
+    lastSequence: null,
+    segments: [],
+  }
+}
+
+function normalizeRuntimeControlJournalHead<Kind extends RuntimeControlJournalHeadKind>(
+  value: unknown,
+  kind: Kind,
+): RuntimeControlJournalHead<Kind> | null {
+  if (!value || typeof value !== "object") return null
+  const candidate = value as Record<string, unknown>
+  let source: Record<string, unknown>
+  if (candidate.kind === kind) {
+    source = candidate
+  } else if (candidate.headId === kind && candidate.value && typeof candidate.value === "object") {
+    const legacyValue = candidate.value as Record<string, unknown>
+    source = {
+      ...legacyValue,
+      count: legacyValue.count ?? legacyValue.eventCount ?? candidate.sequence,
+      lastObservedAt: legacyValue.lastObservedAt ?? legacyValue.lastEmittedAt,
+      lastSequence: legacyValue.lastSequence ?? (kind === "effect_evidence" ? candidate.sequence : null),
+    }
+  } else {
+    return null
+  }
+
+  const lastTag = source.lastTag ?? null
+  const lastObservedAt = source.lastObservedAt ?? null
+  const lastSequence = source.lastSequence ?? null
+  const segmentValues = source.segments ?? []
+  if (!Number.isSafeInteger(source.count) || Number(source.count) < 0) return null
+  if (lastTag !== null && typeof lastTag !== "string") return null
+  if (lastObservedAt !== null
+    && (typeof lastObservedAt !== "number" || !Number.isFinite(lastObservedAt))) return null
+  if (lastSequence !== null
+    && (!Number.isSafeInteger(lastSequence) || Number(lastSequence) < 0)) return null
+  if (!Array.isArray(segmentValues)) return null
+
+  const segments: RuntimeControlJournalSegment[] = []
+  for (const segment of segmentValues) {
+    if (!segment || typeof segment !== "object") return null
+    const entry = segment as Record<string, unknown>
+    if (typeof entry.name !== "string" || entry.name.length === 0) return null
+    if (!Number.isSafeInteger(entry.count) || Number(entry.count) < 0) return null
+    segments.push({ name: entry.name, count: Number(entry.count) })
+  }
+
+  return {
+    kind,
+    count: Number(source.count),
+    lastTag: lastTag as string | null,
+    lastObservedAt: lastObservedAt as number | null,
+    lastSequence: lastSequence as number | null,
+    segments,
+  }
+}
+
+async function readPersistedRuntimeControlJournalHead<Kind extends RuntimeControlJournalHeadKind>(params: {
+  sessionDir: string
+  kind: Kind
+}): Promise<RuntimeControlJournalHead<Kind> | null> {
+  const value = await readJsonBestEffort<unknown>(
+    getRuntimeControlHeadFilePath(params.sessionDir, params.kind),
+    null,
+  )
+  return normalizeRuntimeControlJournalHead(value, params.kind)
+}
+
+export async function writeRuntimeControlJournalHead<Kind extends RuntimeControlJournalHeadKind>(params: {
+  sessionDir: string
+  head: RuntimeControlJournalHead<Kind>
+}): Promise<RuntimeControlJournalHead<Kind>> {
+  const head = normalizeRuntimeControlJournalHead(params.head, params.head.kind)
+  if (!head) {
+    throw new Error(`invalid_runtime_control_journal_head:${params.head.kind}`)
+  }
+  await writeJsonAtomically(getRuntimeControlHeadFilePath(params.sessionDir, head.kind), head)
+  return head
+}
+
+export async function readRuntimeControlJournalHead<Kind extends RuntimeControlJournalHeadKind>(params: {
+  sessionDir: string
+  kind: Kind
+}): Promise<RuntimeControlJournalHead<Kind>> {
+  return await readPersistedRuntimeControlJournalHead(params)
+    ?? createEmptyRuntimeControlJournalHead(params.kind)
+}
+
+type BoundedJournalTail = {
+  exists: boolean
+  fileSize: number
+  startOffset: number
+  bytes: Buffer
+}
+
+async function readBoundedJournalTail(filePath: string): Promise<BoundedJournalTail | null> {
+  let handle: Awaited<ReturnType<typeof open>> | null = null
+  try {
+    handle = await open(filePath, "r")
+    const stats = await handle.stat()
+    const fileSize = stats.size
+    const length = Math.min(fileSize, LEGACY_JOURNAL_TAIL_WINDOW_BYTES)
+    const startOffset = fileSize - length
+    const bytes = Buffer.allocUnsafe(length)
+    let bytesRead = 0
+    while (bytesRead < length) {
+      const result = await handle.read(bytes, bytesRead, length - bytesRead, startOffset + bytesRead)
+      if (result.bytesRead === 0) break
+      bytesRead += result.bytesRead
+    }
+    return {
+      exists: true,
+      fileSize,
+      startOffset,
+      bytes: bytes.subarray(0, bytesRead),
+    }
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === "ENOENT") {
+      return { exists: false, fileSize: 0, startOffset: 0, bytes: Buffer.alloc(0) }
+    }
+    return null
+  } finally {
+    await handle?.close().catch(() => {})
+  }
+}
+
+function isXnlTagDelimiter(byte: number | undefined): boolean {
+  return byte === undefined
+    || byte === 0x09
+    || byte === 0x0a
+    || byte === 0x0d
+    || byte === 0x20
+    || byte === 0x28
+    || byte === 0x3e
+    || byte === 0x3f
+    || byte === 0x5b
+    || byte === 0x7b
+}
+
+function xnlDocumentContentStart(bytes: Buffer): number {
+  let offset = bytes.length >= 3
+    && bytes[0] === 0xef
+    && bytes[1] === 0xbb
+    && bytes[2] === 0xbf
+    ? 3
+    : 0
+  while (offset < bytes.length) {
+    const byte = bytes[offset]
+    if (byte !== 0x09 && byte !== 0x0a && byte !== 0x0d && byte !== 0x20) break
+    offset += 1
+  }
+  return offset
+}
+
+function legacyJournalCandidateOffsets(
+  tail: BoundedJournalTail,
+  allowedTags: readonly string[],
+): number[] {
+  const offsets: number[] = []
+  const documentStart = tail.startOffset === 0 ? xnlDocumentContentStart(tail.bytes) : -1
+  for (let offset = 0; offset < tail.bytes.length; offset += 1) {
+    if (tail.bytes[offset] !== 0x3c) continue
+    const isRangeStart = offset === 0
+    const isLineStart = offset > 0 && tail.bytes[offset - 1] === 0x0a
+    const isDocumentStart = offset === documentStart
+    if (!isRangeStart && !isLineStart && !isDocumentStart) continue
+    for (const tag of allowedTags) {
+      const encodedTag = Buffer.from(tag, "ascii")
+      const tagStart = offset + 1
+      const tagEnd = tagStart + encodedTag.length
+      if (tagEnd > tail.bytes.length) continue
+      if (!tail.bytes.subarray(tagStart, tagEnd).equals(encodedTag)) continue
+      if (!isXnlTagDelimiter(tail.bytes[tagEnd])) continue
+      offsets.push(offset)
+      break
+    }
+  }
+  return offsets
+}
+
+function parseLegacyJournalTail(
+  tail: BoundedJournalTail,
+  allowedTags: readonly string[],
+): { records: XnlStreamRecord[]; coversWholeDocument: boolean } | null {
+  if (tail.bytes.length === 0) return null
+  const allowed = new Set(allowedTags)
+  const documentStart = tail.startOffset === 0 ? xnlDocumentContentStart(tail.bytes) : -1
+  for (const offset of legacyJournalCandidateOffsets(tail, allowedTags)) {
+    try {
+      const doc = parseXnl(tail.bytes.subarray(offset).toString("utf8"))
+      const nodes = Array.isArray(doc.nodes) ? doc.nodes : []
+      if (nodes.length === 0 || !nodes.every((node: any) => (
+        (node?.kind === "DataElement" || node?.kind === "TextElement") && allowed.has(node.tag)
+      ))) continue
+      return {
+        records: nodes.map((node: any) => xnlTopLevelNodeToRecord(node)),
+        coversWholeDocument: offset === documentStart,
+      }
+    } catch {
+      // A line beginning with '<' inside a text payload is not a parseable top-level suffix.
+    }
+  }
+  return null
+}
+
+function legacyJournalRecordCount(
+  records: XnlStreamRecord[],
+  coversWholeDocument: boolean,
+): number | null {
+  if (coversWholeDocument) return records.length
+  let prefixCount: number | null = null
+  for (let index = 0; index < records.length; index += 1) {
+    const sequence = journalSequence(records[index]?.metadata?.sequence)
+    if (sequence === null || sequence === 0) continue
+    const candidatePrefixCount = sequence - index - 1
+    if (candidatePrefixCount < 0) return null
+    if (prefixCount !== null && prefixCount !== candidatePrefixCount) return null
+    prefixCount = candidatePrefixCount
+  }
+  if (prefixCount !== null) {
+    const count = prefixCount + records.length
+    return Number.isSafeInteger(count) ? count : null
+  }
+  return null
+}
+
+async function deriveLegacyRuntimeControlJournalHead<Kind extends RuntimeControlJournalHeadKind>(params: {
+  kind: Kind
+  filePath: string
+}): Promise<RuntimeControlJournalHead<Kind> | null> {
+  const tail = await readBoundedJournalTail(params.filePath)
+  if (!tail) return null
+  if (!tail.exists || tail.fileSize === 0) return createEmptyRuntimeControlJournalHead(params.kind)
+  const parsed = parseLegacyJournalTail(tail, LEGACY_JOURNAL_TAGS[params.kind])
+  if (!parsed) return null
+  const count = legacyJournalRecordCount(parsed.records, parsed.coversWholeDocument)
+  if (count === null) return null
+  const last = parsed.records.at(-1)
+  const observedAtKey = params.kind === "ingress_log" ? "observedAt" : "emittedAt"
+  return {
+    kind: params.kind,
+    count,
+    lastTag: last?.tag ?? null,
+    lastObservedAt: params.kind === "effect_evidence"
+      ? null
+      : journalObservedAt(last?.metadata?.[observedAtKey]),
+    lastSequence: journalSequence(last?.metadata?.sequence),
+    segments: [],
+  }
+}
+
+async function deriveLegacyRotatedObservationJournalHead<
+  Kind extends "ingress_log" | "diagnostics_log",
+>(params: {
+  kind: Kind
+  filePath: string
+}): Promise<RuntimeControlJournalHead<Kind> | null | undefined> {
+  const activeName = path.basename(params.filePath)
+  const candidates = [
+    { name: `${activeName}.2`, filePath: `${params.filePath}.2` },
+    { name: `${activeName}.1`, filePath: `${params.filePath}.1` },
+    { name: activeName, filePath: params.filePath },
+  ]
+  const tails = await Promise.all(candidates.map(async (candidate) => ({
+    ...candidate,
+    tail: await readBoundedJournalTail(candidate.filePath),
+  })))
+  if (!tails.slice(0, 2).some(({ tail }) => tail?.exists)) return undefined
+
+  const segments: RuntimeControlJournalSegment[] = []
+  let previousSequence: number | null = null
+  let last: XnlStreamRecord | undefined
+  for (const { name, tail } of tails) {
+    if (!tail) return null
+    if (!tail.exists) continue
+    if (tail.fileSize === 0) {
+      segments.push({ name, count: 0 })
+      continue
+    }
+    const parsed = parseLegacyJournalTail(tail, LEGACY_JOURNAL_TAGS[params.kind])
+    if (!parsed) return null
+    const sequences = parsed.records.map((record) => journalSequence(record.metadata?.sequence))
+    if (sequences.some((sequence) => sequence === null || sequence === 0)) return null
+    for (let index = 1; index < sequences.length; index += 1) {
+      if (sequences[index] !== Number(sequences[index - 1]) + 1) return null
+    }
+    const firstSequence = sequences[0] as number
+    if (previousSequence !== null) {
+      if (firstSequence <= previousSequence) return null
+      if (parsed.coversWholeDocument && firstSequence !== previousSequence + 1) return null
+    }
+    previousSequence = sequences.at(-1) as number
+    last = parsed.records.at(-1)
+    if (parsed.coversWholeDocument) {
+      segments.push({ name, count: parsed.records.length })
+    }
+  }
+  if (!last || previousSequence === null) {
+    return { ...createEmptyRuntimeControlJournalHead(params.kind), segments }
+  }
+
+  // A retained tail can prove the cumulative ordinal without proving that
+  // segment's local count. Unknown local counts stay absent from `segments`.
+  const observedAtKey = params.kind === "ingress_log" ? "observedAt" : "emittedAt"
+  return {
+    kind: params.kind,
+    count: previousSequence,
+    lastTag: last?.tag ?? null,
+    lastObservedAt: journalObservedAt(last?.metadata?.[observedAtKey]),
+    lastSequence: journalSequence(last?.metadata?.sequence),
+    segments,
+  }
+}
+
+async function initializeLegacyRuntimeControlJournalHead<Kind extends RuntimeControlJournalHeadKind>(params: {
+  sessionDir: string
+  kind: Kind
+  filePath: string
+}): Promise<RuntimeControlJournalHead<Kind> | null> {
+  const persisted = await readPersistedRuntimeControlJournalHead(params)
+  if (persisted) return persisted
+  if (params.kind === "ingress_log" || params.kind === "diagnostics_log") {
+    const rotated = await deriveLegacyRotatedObservationJournalHead({
+      kind: params.kind,
+      filePath: params.filePath,
+    })
+    if (rotated !== undefined) {
+      if (!rotated) return null
+      await writeRuntimeControlJournalHead({ sessionDir: params.sessionDir, head: rotated })
+      return rotated as RuntimeControlJournalHead<Kind>
+    }
+  }
+  const initialized = await deriveLegacyRuntimeControlJournalHead(params)
+  if (!initialized) return null
+  await writeRuntimeControlJournalHead({ sessionDir: params.sessionDir, head: initialized })
+  return initialized
+}
+
+async function readOrInitializeObservationJournalHead<Kind extends "ingress_log" | "diagnostics_log">(params: {
+  sessionDir: string
+  kind: Kind
+  filePath: string
+}): Promise<RuntimeControlJournalHead<Kind>> {
+  const persisted = await readPersistedRuntimeControlJournalHead(params)
+  if (persisted) return persisted
+  const previous = xnlAppendQueues.get(params.filePath) ?? Promise.resolve()
+  const read = previous
+    .catch(() => {})
+    .then(async () => await initializeLegacyRuntimeControlJournalHead(params))
+  xnlAppendQueues.set(params.filePath, read)
+  try {
+    return await read ?? createEmptyRuntimeControlJournalHead(params.kind)
+  } finally {
+    if (xnlAppendQueues.get(params.filePath) === read) {
+      xnlAppendQueues.delete(params.filePath)
+    }
+  }
 }
 
 export function getRuntimeControlCohortCommitFilePath(sessionDir: string, cohortId: string): string {
@@ -1204,8 +1813,18 @@ export async function readRealSessionDurableHeads(sessionDir: string): Promise<R
   const runtimeStateVm = await readJsonBestEffort<any>(path.join(sessionDir, "runtime_state", "vm.json"), null)
   const legacySnapshotVm = await readJsonBestEffort<any>(path.join(sessionDir, "snapshot", "vm.json"), null)
   const vm = runtimeStateVm ?? legacySnapshotVm
-  const ingressEvents = await readRuntimeControlIngressReplayEvents(sessionDir)
-  const diagnosticsEvents = await readRuntimeControlDiagnosticsReplayEvents(sessionDir)
+  const [ingressHead, diagnosticsHead] = await Promise.all([
+    readOrInitializeObservationJournalHead({
+      sessionDir,
+      kind: "ingress_log",
+      filePath: path.join(sessionDir, "logs", "ingress.xnl"),
+    }),
+    readOrInitializeObservationJournalHead({
+      sessionDir,
+      kind: "diagnostics_log",
+      filePath: path.join(sessionDir, "logs", "diagnostics.xnl"),
+    }),
+  ])
   const conversationSequence = typeof conversationIndex?.updatedAt === "string"
     ? Date.parse(conversationIndex.updatedAt)
     : 0
@@ -1236,22 +1855,22 @@ export async function readRealSessionDurableHeads(sessionDir: string): Promise<R
     ingress_log: {
       headId: "ingress_log",
       kind: "ingress_log",
-      committedSequence: ingressEvents.length,
+      committedSequence: ingressHead.count,
       value: {
-        eventCount: ingressEvents.length,
-        lastTag: ingressEvents.at(-1)?.tag ?? null,
-        lastObservedAt: ingressEvents.at(-1)?.metadata?.observedAt ?? null,
+        eventCount: ingressHead.count,
+        lastTag: ingressHead.lastTag,
+        lastObservedAt: ingressHead.lastObservedAt,
       },
     },
     diagnostics_log: {
       headId: "diagnostics_log",
       kind: "diagnostics_log",
-      committedSequence: diagnosticsEvents.length,
+      committedSequence: diagnosticsHead.count,
       value: {
-        eventCount: diagnosticsEvents.length,
-        lastTag: diagnosticsEvents.at(-1)?.tag ?? null,
-        lastSequence: diagnosticsEvents.at(-1)?.metadata?.sequence ?? null,
-        lastEmittedAt: diagnosticsEvents.at(-1)?.metadata?.emittedAt ?? null,
+        eventCount: diagnosticsHead.count,
+        lastTag: diagnosticsHead.lastTag,
+        lastSequence: diagnosticsHead.lastSequence,
+        lastEmittedAt: diagnosticsHead.lastObservedAt,
       },
     },
   }
@@ -1360,16 +1979,15 @@ export async function appendRuntimeControlEffectEvidence(params: {
     .catch(() => {})
     .then(async () => {
       await mkdir(path.dirname(paths.effectsFile), { recursive: true })
-      const sequence = await readRuntimeControlEffectEvidenceSequence(params.sessionDir) + 1
+      const sequence = await readRuntimeControlEffectEvidenceSequenceUnlocked(params.sessionDir) + 1
       const envelope: RuntimeControlEffectEvidenceEnvelope = {
         sequence,
         event: params.event,
       }
-      await appendXnlRecord({
-        filePath: paths.effectsFile,
-        tag: "RuntimeEffectEvent",
-        metadata: runtimeEffectEventMetadata(sequence, params.event),
-        extend: runtimeEffectEventExtend(params.event),
+      await appendRuntimeControlEffectEvidenceEnvelope({
+        sessionDir: params.sessionDir,
+        sequence,
+        event: params.event,
       })
       return envelope
     })
@@ -1388,8 +2006,35 @@ export async function readRuntimeControlEffectEvidence(sessionDir: string): Prom
 }
 
 export async function readRuntimeControlEffectEvidenceSequence(sessionDir: string): Promise<number> {
-  const envelopes = await readRuntimeControlEffectEvidenceEnvelopes(sessionDir)
-  return envelopes.reduce((max, envelope) => Math.max(max, envelope.sequence), 0)
+  const persisted = await readPersistedRuntimeControlJournalHead({
+    sessionDir,
+    kind: "effect_evidence",
+  })
+  if (persisted) return persisted.lastSequence ?? 0
+
+  const paths = getAiRuntimeControlFileStorePaths(sessionDir)
+  const previous = effectEvidenceAppendQueues.get(paths.effectsFile) ?? Promise.resolve()
+  const read = previous
+    .catch(() => {})
+    .then(async () => await readRuntimeControlEffectEvidenceSequenceUnlocked(sessionDir))
+  effectEvidenceAppendQueues.set(paths.effectsFile, read)
+  try {
+    return await read
+  } finally {
+    if (effectEvidenceAppendQueues.get(paths.effectsFile) === read) {
+      effectEvidenceAppendQueues.delete(paths.effectsFile)
+    }
+  }
+}
+
+async function readRuntimeControlEffectEvidenceSequenceUnlocked(sessionDir: string): Promise<number> {
+  const paths = getAiRuntimeControlFileStorePaths(sessionDir)
+  const head = await initializeLegacyRuntimeControlJournalHead({
+    sessionDir,
+    kind: "effect_evidence",
+    filePath: paths.effectsFile,
+  })
+  return head?.lastSequence ?? 0
 }
 
 export async function inferRuntimeControlCheckpointEffectEvidenceSequence(params: {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 
-import { OutputStream, TeeOutputStream } from "@cell/symbiont-contract/stream/stream";
+import { OutputStream, TeeOutputStream } from "@cell/symbiont-logic/stream/stream";
 import { IngressStreams } from "@cell/symbiont-logic/stream/IngressStreams";
 import { IngressStreamRuntime } from "@cell/symbiont-logic/stream/IngressStreamRuntime";
 

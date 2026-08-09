@@ -1,5 +1,6 @@
 import { describe, expect, it } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import crypto from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -273,6 +274,66 @@ describe("explicit tool execution outcomes", () => {
       isError: true,
       failureKind: "timeout",
     });
+  });
+
+  it("reconstructs a tool result from a persisted artifact reference", () => {
+    const sessionDir = mkdtempSync(path.join(tmpdir(), "tool-output-artifact-recovery-"));
+    const assetId = "artifacts/tool-results/main/tc-artifact-a1b2c3.txt";
+    const outputText = "full durable tool output\n".repeat(4_000);
+    const artifactPath = path.join(sessionDir, ...assetId.split("/"));
+    mkdirSync(path.dirname(artifactPath), { recursive: true });
+    writeFileSync(artifactPath, outputText, "utf8");
+
+    try {
+      const vm = createVM({ controlActorKey: "main", actors: {} });
+      const domain = restoreVmToolCallDomain(vm, [{
+        toolCallId: "tc-artifact",
+        actorKey: "main",
+        turnId: 1,
+        funcName: "ReadFile",
+        args: {},
+        plannedAt: 1,
+        resultAt: 2,
+        status: "completed",
+        outputTextRef: {
+          kind: "artifact_ref",
+          assetId,
+          preview: outputText.slice(0, 2_000),
+          size: Buffer.byteLength(outputText, "utf8"),
+          digest: `sha256:${crypto.createHash("sha256").update(outputText, "utf8").digest("hex")}`,
+        },
+      } as any]);
+
+      const pending = buildPendingAiGeneratedFromCompletedEffect(
+        { inflight: { kind: "tool", opId: "op-artifact", funcName: "ReadFile", toolCallId: "tc-artifact", args: {} } },
+        [{
+          kind: "result",
+          effectKind: "tool_call",
+          effectId: "op-artifact",
+          handlerKey: "ReadFile",
+          resultId: "op-artifact:result",
+          payload: { toolCallId: "tc-artifact" },
+        }],
+        domain,
+        sessionDir,
+      );
+
+      expect(reconstructToolResultsFromDomain(domain, { actorKey: "main", sessionDir } as any)).toEqual([
+        expect.objectContaining({
+          toolCallId: "tc-artifact",
+          outputText,
+          isError: false,
+        }),
+      ]);
+      expect(pending).toMatchObject({
+        kind: "tool_done",
+        output: outputText,
+        outputText,
+        isError: false,
+      });
+    } finally {
+      rmSync(sessionDir, { recursive: true, force: true });
+    }
   });
 });
 

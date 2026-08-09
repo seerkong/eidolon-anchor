@@ -10,6 +10,8 @@
   },
   "description": "Reusable low-level stream and ingress logic that remains independent from cell core-contract.",
   "dependencies": {
-    "@cell/symbiont-contract": "workspace:*"
+    "@cell/symbiont-contract": "workspace:*",
+    "depa-data-graph-core": "^1.0.1",
+    "xstream": "^11.14.0"
   }
 }

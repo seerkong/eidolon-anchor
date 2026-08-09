@@ -35,6 +35,15 @@ export type ToolGateOutcome = "allow" | "deny" | "defer";
  */
 export type ToolFailureKind = "tool_error" | "aborted" | "timeout" | "exception";
 
+export type ToolCallOutputArtifactRef = {
+  kind: "artifact_ref";
+  /** Session-relative path under artifacts/tool-results/. */
+  assetId: string;
+  preview: string;
+  size: number;
+  digest: `sha256:${string}`;
+};
+
 export type ToolCallRecord = {
   /** LLM-transparent unique id; the sole pairing key. */
   toolCallId: string;
@@ -49,6 +58,7 @@ export type ToolCallRecord = {
   executedAt?: number;
   resultAt?: number;
   outputText?: string;
+  outputTextRef?: ToolCallOutputArtifactRef;
   failureKind?: ToolFailureKind;
   status: ToolCallStatus;
 };

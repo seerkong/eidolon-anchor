@@ -297,6 +297,25 @@ describe("MessageHistoryGraph orphaned tool-result anomaly", () => {
     raw_payload_text: "",
   });
 
+  it("bounds recently seen tool-call ids", () => {
+    const graph = new MessageHistoryGraph();
+    const semantic = semanticFactory();
+
+    for (let index = 0; index < 5_000; index += 1) {
+      graph.consumeSemanticEvent(semantic("semantic_tool_call_start", index, {
+        tool_call: toolCall(`tc-${index}`),
+      }));
+    }
+
+    const state = (graph as unknown as {
+      getProjectionState: () => { seenToolCallIds: string[] };
+    }).getProjectionState();
+    expect(state.seenToolCallIds).toHaveLength(4_096);
+    expect(state.seenToolCallIds[0]).toBe("tc-904");
+    expect(state.seenToolCallIds.at(-1)).toBe("tc-4999");
+    graph.dispose();
+  });
+
   it("warns on a tool result whose tool_call_id was never seen (orphaned)", () => {
     const graph = new MessageHistoryGraph();
     const anomalies: AnomalyEvent[] = [];

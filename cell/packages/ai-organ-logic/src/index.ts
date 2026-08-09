@@ -102,11 +102,20 @@ export { configureLocalPermissionConfigStore } from "./permissions/LocalPermissi
 export { createAiAgentRuntimeCoordinator } from "./runtime/AiAgentRuntimeCoordinator";
 export { isTerminalTurnState, turnReducer } from "./runtime/TurnReducer";
 export {
+  DEFAULT_TOOL_CALL_OUTPUT_EXTERNALIZATION_THRESHOLD_BYTES,
+  DEFAULT_TOOL_CALL_OUTPUT_PREVIEW_CHARS,
+  DEFAULT_TOOL_CALL_TERMINAL_RETENTION_LIMIT,
   createToolCallDomainRuntime,
   ensureVmToolCallDomain,
   getVmToolCallDomain,
+  prepareToolCallDomainRecordsForSnapshot,
+  readToolCallRecordOutputText,
   restoreVmToolCallDomain,
   reconstructToolResultsFromDomain,
+  type PrepareToolCallDomainSnapshotOptions,
+  type PrepareToolCallDomainSnapshotResult,
+  type ToolCallRetentionPolicy,
+  type ToolCallRetentionResult,
   type ToolCallDomainRuntime,
 } from "./runtime/ToolCallDomainRuntime";
 export {

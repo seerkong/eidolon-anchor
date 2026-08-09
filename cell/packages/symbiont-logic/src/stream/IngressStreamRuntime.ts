@@ -1,5 +1,5 @@
 import { IngressStreams } from "./IngressStreams";
-import { OutputStream, TeeOutputStream } from "@cell/symbiont-contract/stream/stream";
+import { OutputStream, TeeOutputStream } from "./stream";
 
 export class IngressStreamRuntime {
   timelineStream = new OutputStream();

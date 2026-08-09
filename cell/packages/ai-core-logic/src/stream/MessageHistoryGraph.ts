@@ -1,4 +1,5 @@
-import { AppendOnlyEventLog, DataGraph, watch, type StopHandle, type StreamDrivenStateSignalNode } from "depa-data-graph-core";
+import { DataGraph, watch, type StopHandle, type StreamDrivenStateSignalNode } from "depa-data-graph-core";
+import { BoundedEventLog, LIVE_EVENT_REPLAY_LIMIT } from "@cell/symbiont-logic/stream/BoundedTimeline";
 
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
 import type { ChatMessage, ToolCall } from "@shared/composer";
@@ -191,6 +192,8 @@ export type HistoryProjectionInput =
   | { kind: "semantic"; event: SemanticEvent }
   | { kind: "complete" };
 
+export const HISTORY_SEEN_TOOL_CALL_ID_LIMIT = 4_096;
+
 export type PendingAssistantState = {
   agentKey: string;
   agentActorId: string;
@@ -207,8 +210,8 @@ export type HistoryProjectionState = {
   lastCommittedBatch: CommittedHistoryMessageEvent[];
   lastAnomalyBatch: AnomalyEvent[];
   /**
-   * tool_call_ids of every assistant tool-call seen this generation (from
-   * `semantic_tool_call_start`/`_planned` and any pending assistant toolCalls).
+   * Recent tool_call_ids seen from `semantic_tool_call_start`/`_planned` and
+   * pending assistant toolCalls. This diagnostic window is capacity-bounded.
    * A `semantic_tool_call_result` whose tool_call_id is absent here is orphaned.
    */
   seenToolCallIds: string[];
@@ -344,7 +347,7 @@ export class MessageHistoryGraph {
   private readonly listeners = new Set<(event: MessageHistoryEvent) => void>();
   private readonly committedListeners = new Set<(event: CommittedHistoryMessageEvent) => void>();
   private readonly anomalyListeners = new Set<(event: AnomalyEvent) => void>();
-  private readonly inputLog = new AppendOnlyEventLog<HistoryProjectionInput>();
+  private readonly inputLog = new BoundedEventLog<HistoryProjectionInput>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT });
   private readonly graph = new DataGraph(() => ({}));
   private readonly projection: StreamDrivenStateSignalNode<HistoryProjectionInput, HistoryProjectionState>;
   private readonly projectionSubscription: { unsubscribe: () => void };
@@ -516,11 +519,10 @@ export function reduceHistoryProjection(
     next.lastAnomalyBatch = [...next.lastAnomalyBatch, event];
   };
 
-  // Record an assistant tool-call's id so a later tool_call_result can be
-  // matched. Pure: only mutates the freshly-cloned `seenToolCallIds`.
+  // Record a recent assistant tool-call id so a later result can be matched.
   const markToolCallSeen = (toolCallId: string) => {
     if (toolCallId && !next.seenToolCallIds.includes(toolCallId)) {
-      next.seenToolCallIds = [...next.seenToolCallIds, toolCallId];
+      next.seenToolCallIds = [...next.seenToolCallIds, toolCallId].slice(-HISTORY_SEEN_TOOL_CALL_ID_LIMIT);
     }
   };
 

@@ -1,4 +1,5 @@
-import { AppendOnlyEventLog, DataGraph, watch } from "depa-data-graph-core";
+import { DataGraph, watch } from "depa-data-graph-core";
+import { BoundedEventLog, LIVE_EVENT_REPLAY_LIMIT } from "@cell/symbiont-logic/stream/BoundedTimeline";
 
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
 import type { ObservabilityRecord } from "@cell/ai-core-contract/runtime/Observability";
@@ -49,13 +50,13 @@ type RxDataRuntime = {
 
 type RxGraphState = {
   graph: DataGraph<RxDataRuntime>;
-  semanticLog: AppendOnlyEventLog<SemanticEvent>;
-  historyLog: AppendOnlyEventLog<AiAgentVmDomainRxEvent>;
-  promptLog: AppendOnlyEventLog<AiAgentVmDomainRxEvent>;
-  sessionLog: AppendOnlyEventLog<AiAgentVmDomainRxEvent>;
-  observabilityLog: AppendOnlyEventLog<ObservabilityRecord>;
-  observabilityErrorLog: AppendOnlyEventLog<ObservabilityRecord>;
-  controlSignalLog: AppendOnlyEventLog<AiAgentVmControlSignalStreamEvent>;
+  semanticLog: BoundedEventLog<SemanticEvent>;
+  historyLog: BoundedEventLog<AiAgentVmDomainRxEvent>;
+  promptLog: BoundedEventLog<AiAgentVmDomainRxEvent>;
+  sessionLog: BoundedEventLog<AiAgentVmDomainRxEvent>;
+  observabilityLog: BoundedEventLog<ObservabilityRecord>;
+  observabilityErrorLog: BoundedEventLog<ObservabilityRecord>;
+  controlSignalLog: BoundedEventLog<AiAgentVmControlSignalStreamEvent>;
 };
 
 export type EnsureVmRxDataResult = {
@@ -90,7 +91,7 @@ export function ensureVmRxData(vm: AiAgentVm): EnsureVmRxDataResult {
   });
   const publicBinding = createRxBinding();
 
-  const semanticSubscription = vm.eventBus?.addConsumer((event) => {
+  const semanticSubscription = vm.eventBus?.addConsumer((event: SemanticEvent) => {
     privateRxData.semanticEvents.append(event);
   });
   if (semanticSubscription) {
@@ -118,13 +119,13 @@ function createRxGraphState(vm: AiAgentVm): RxGraphState {
 
   return {
     graph,
-    semanticLog: new AppendOnlyEventLog<SemanticEvent>(),
-    historyLog: new AppendOnlyEventLog<AiAgentVmDomainRxEvent>(),
-    promptLog: new AppendOnlyEventLog<AiAgentVmDomainRxEvent>(),
-    sessionLog: new AppendOnlyEventLog<AiAgentVmDomainRxEvent>(),
-    observabilityLog: new AppendOnlyEventLog<ObservabilityRecord>(),
-    observabilityErrorLog: new AppendOnlyEventLog<ObservabilityRecord>(),
-    controlSignalLog: new AppendOnlyEventLog<AiAgentVmControlSignalStreamEvent>(),
+    semanticLog: new BoundedEventLog<SemanticEvent>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT }),
+    historyLog: new BoundedEventLog<AiAgentVmDomainRxEvent>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT }),
+    promptLog: new BoundedEventLog<AiAgentVmDomainRxEvent>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT }),
+    sessionLog: new BoundedEventLog<AiAgentVmDomainRxEvent>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT }),
+    observabilityLog: new BoundedEventLog<ObservabilityRecord>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT }),
+    observabilityErrorLog: new BoundedEventLog<ObservabilityRecord>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT }),
+    controlSignalLog: new BoundedEventLog<AiAgentVmControlSignalStreamEvent>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT }),
   };
 }
 
@@ -164,9 +165,9 @@ function createPublicRxData(privateRxData: AiAgentVmPrivateRxData): AiAgentVmPub
 }
 
 function createWritableLogStream<TEvent>(
-  log: AppendOnlyEventLog<TEvent>,
+  log: BoundedEventLog<TEvent>,
   afterAppend?: (event: TEvent) => void,
-): AiAgentVmWritableRxStream<TEvent> {
+): AiAgentVmWritableRxStream<TEvent> & { retainedCount: () => number } {
   return {
     append: (event) => {
       log.append(event);
@@ -180,6 +181,7 @@ function createWritableLogStream<TEvent>(
       });
       return { unsubscribe: () => subscription.unsubscribe() };
     },
+    retainedCount: () => log.size(),
   };
 }
 

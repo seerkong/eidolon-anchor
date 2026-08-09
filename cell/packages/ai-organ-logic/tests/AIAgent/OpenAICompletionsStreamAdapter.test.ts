@@ -2,7 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { OpenAICompletionsNodejsFetchStreamAdapter } from "@cell/ai-organ-logic/stream/OpenAICompletionsNodejsFetchStreamAdapter";
 import { deepSeekOfficialChatEffectBundle } from "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles";
-import { OutputStream } from "@cell/symbiont-contract/stream/stream";
+import { OutputStream } from "@cell/symbiont-logic/stream/stream";
 
 describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
   it("captures interleaved reasoning_content into reasoning_content field", async () => {

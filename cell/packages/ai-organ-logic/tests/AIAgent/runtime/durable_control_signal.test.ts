@@ -13,13 +13,18 @@ import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { hydrateVM, serializeVM } from "@cell/ai-core-logic/runtime/snapshot";
 import {
+  DEFAULT_TOOL_CALL_OUTPUT_EXTERNALIZATION_THRESHOLD_BYTES,
+  DEFAULT_TOOL_CALL_OUTPUT_PREVIEW_CHARS,
+  appendLiveHistoryMessageToConversationDomainRuntime,
   createAiAgentOrchestratorDriver,
   configureRuntimePersistenceSupport,
+  ensureVmToolCallDomain,
   recoverAiAgentRuntime,
   saveAiAgentRuntimeSnapshot,
 } from "@cell/ai-organ-logic";
 import { aiAgentCooperativeStep } from "@cell/ai-organ-logic/exec";
 import {
+  defaultRuntimeConfig,
   LocalFileConversationPersistenceRepositoryFactory,
   LocalFileRuntimeDerivedIndexesStore,
   LocalFileRuntimeSnapshotRepositoryFactory,
@@ -384,6 +389,12 @@ describe("durable control signals", () => {
     const sessionDir = makeTempSessionDir();
     const actor = createActor({ key: "main" });
     const vm = createVM({ controlActorKey: "main", actors: { main: actor } });
+    const domain = ensureVmToolCallDomain(vm);
+    for (let index = 0; index < 22; index += 1) {
+      const toolCallId = `uncommitted-${index}`;
+      domain.planTool({ toolCallId, actorKey: "main", turnId: index, funcName: "DeniedTool", args: {}, at: index });
+      domain.recordGateDecision({ toolCallId, gateOutcome: "deny", at: index + 1 });
+    }
     const driver = createSuspendedDriver({ vm, actor, fiberId: "fiber-main" });
 
     try {
@@ -393,6 +404,7 @@ describe("durable control signals", () => {
         vm,
         driver,
       })).rejects.toThrow("unrecoverable_suspended_fiber");
+      expect(domain.getAllRecords()).toHaveLength(22);
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true });
     }
@@ -413,6 +425,63 @@ describe("durable control signals", () => {
         driver,
       });
       expect(fs.existsSync(path.join(sessionDir, "runtime_state", "manifest.json"))).toBe(true);
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it("persists a bounded ToolCallDomain and externalizes large output text", async () => {
+    const sessionDir = makeTempSessionDir();
+    const actor = createActor({ key: "main" });
+    const vm = createVM({ controlActorKey: "main", actors: { main: actor } });
+    const domain = ensureVmToolCallDomain(vm);
+    const largeOutput = "large tool output line\n".repeat(2_000);
+    const budget = defaultRuntimeConfig().compact.microCompact.budget;
+    expect(DEFAULT_TOOL_CALL_OUTPUT_EXTERNALIZATION_THRESHOLD_BYTES).toBe(budget.toolResultPersistThresholdBytes);
+    expect(DEFAULT_TOOL_CALL_OUTPUT_PREVIEW_CHARS).toBe(budget.toolResultPreviewChars);
+    for (let index = 0; index < 22; index += 1) {
+      const toolCallId = `terminal-${index}`;
+      domain.planTool({ toolCallId, actorKey: "main", turnId: index, funcName: "ReadFile", args: {}, at: index * 10 });
+      domain.recordGateDecision({ toolCallId, gateOutcome: "allow", at: index * 10 + 1 });
+      domain.markExecuting({ toolCallId, at: index * 10 + 2 });
+      domain.recordResult({
+        toolCallId,
+        outputText: index === 21 ? largeOutput : `result-${index}`,
+        at: index * 10 + 3,
+      });
+    }
+    domain.planTool({ toolCallId: "active", actorKey: "main", turnId: 23, funcName: "ReadFile", args: {}, at: 300 });
+
+    const driver = createSuspendedDriver({ vm, actor, fiberId: "fiber-main" });
+    driver.suspendFiber("fiber-main", 301, "idle_external" as any);
+
+    try {
+      await saveAiAgentRuntimeSnapshot({
+        sessionDir,
+        sessionId: "bounded-tool-domain",
+        vm,
+        driver,
+      });
+
+      const vmJson = fs.readFileSync(path.join(sessionDir, "runtime_state", "vm.json"), "utf8");
+      const snapshot = JSON.parse(vmJson);
+      expect(snapshot.toolCallDomain).toHaveLength(21);
+      expect(snapshot.toolCallDomain.some((record: any) => record.toolCallId === "active")).toBe(true);
+      expect(snapshot.toolCallDomain.some((record: any) => record.toolCallId === "terminal-0")).toBe(false);
+      const largeRecord = snapshot.toolCallDomain.find((record: any) => record.toolCallId === "terminal-21");
+      expect(largeRecord.outputText).toBeUndefined();
+      expect(largeRecord.outputTextRef).toMatchObject({
+        kind: "artifact_ref",
+        preview: largeOutput.slice(0, 2_000),
+        size: Buffer.byteLength(largeOutput, "utf8"),
+      });
+      expect(largeRecord.outputTextRef.digest).toMatch(/^sha256:[a-f0-9]{64}$/);
+      expect(vmJson).not.toContain(largeOutput);
+      const artifactPath = path.join(sessionDir, ...String(largeRecord.outputTextRef.assetId).split("/"));
+      expect(fs.readFileSync(artifactPath, "utf8")).toBe(largeOutput);
+      expect(domain.getAllRecords()).toHaveLength(21);
+      expect(domain.getRecord("active")?.status).toBe("planned");
+      expect(domain.getRecord("terminal-0")).toBeUndefined();
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true });
     }
@@ -643,7 +712,21 @@ describe("durable control signals", () => {
         humanInput: ["already committed"],
       },
     });
-    const vm = createVM({ controlActorKey: "main", actors: { main: actor } });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      outerCtx: {
+        workDir: process.cwd(),
+        metadata: { sessionId: "session-1", sessionDir },
+      },
+    });
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: "already committed" } as any,
+      occurredAt: "2026-08-08T00:00:00.000Z",
+    });
     const driver = createSuspendedDriver({ vm, actor, fiberId: "fiber-main" });
     const signal = emitDurableControlSignal(vm.sessionState.controlSignals, {
       actorKey: "main",

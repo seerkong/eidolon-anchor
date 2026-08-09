@@ -8,6 +8,7 @@ import { isTerminalToolCallStatus } from "@cell/ai-core-contract/runtime/ToolCal
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
 import { serializeVM } from "@cell/ai-core-logic/runtime/snapshot/vmSnapshot";
 import {
+  DEFAULT_TOOL_CALL_TERMINAL_RETENTION_LIMIT,
   createToolCallDomainRuntime,
   ensureVmToolCallDomain,
   getVmToolCallDomain,
@@ -110,6 +111,100 @@ describe("ToolCallDomain invariants", () => {
     const activeIds = domain.getActiveRecords().map((r) => r.toolCallId);
     expect(activeIds).toContain("tc-active");
     expect(activeIds).not.toContain("tc-done");
+  });
+});
+
+describe("ToolCallDomain retention", () => {
+  function deny(
+    domain: ReturnType<typeof createToolCallDomainRuntime>,
+    toolCallId: string,
+    plannedAt: number,
+    terminalAt: number,
+  ): void {
+    plan(domain, toolCallId, plannedAt);
+    domain.recordGateDecision({ toolCallId, gateOutcome: "deny", at: terminalAt });
+  }
+
+  it("prunes terminal records beyond a configurable recent window", () => {
+    const domain = createToolCallDomainRuntime();
+    deny(domain, "terminal-oldest", 1, 10);
+    deny(domain, "terminal-middle", 2, 20);
+    deny(domain, "terminal-newest", 3, 30);
+
+    const result = domain.retain({ terminalRecordLimit: 2 });
+
+    expect(result).toEqual({
+      retainedActiveRecords: 0,
+      retainedTerminalRecords: 2,
+      prunedTerminalRecords: 1,
+      prunedToolCallIds: ["terminal-oldest"],
+    });
+    expect(domain.getAllRecords().map((record) => record.toolCallId)).toEqual([
+      "terminal-middle",
+      "terminal-newest",
+    ]);
+  });
+
+  it("never prunes planned, dispatched, deferred, or executing records", () => {
+    const domain = createToolCallDomainRuntime();
+    plan(domain, "planned", 1);
+    plan(domain, "dispatched", 2);
+    domain.recordGateDecision({ toolCallId: "dispatched", gateOutcome: "allow", at: 3 });
+    plan(domain, "deferred", 4);
+    domain.recordGateDecision({ toolCallId: "deferred", gateOutcome: "defer", at: 5 });
+    plan(domain, "executing", 6);
+    domain.recordGateDecision({ toolCallId: "executing", gateOutcome: "allow", at: 7 });
+    domain.markExecuting({ toolCallId: "executing", at: 8 });
+    deny(domain, "terminal", 9, 10);
+
+    const result = domain.retain({ terminalRecordLimit: 0 });
+
+    expect(result.retainedActiveRecords).toBe(4);
+    expect(result.retainedTerminalRecords).toBe(0);
+    expect(result.prunedToolCallIds).toEqual(["terminal"]);
+    expect(domain.getAllRecords().map((record) => record.toolCallId)).toEqual([
+      "planned",
+      "dispatched",
+      "deferred",
+      "executing",
+    ]);
+  });
+
+  it("uses a deterministic tie-breaker for terminal records with equal timestamps", () => {
+    const domain = createToolCallDomainRuntime();
+    deny(domain, "terminal-z", 1, 10);
+    deny(domain, "terminal-a", 1, 10);
+    deny(domain, "terminal-m", 1, 10);
+
+    domain.retain({ terminalRecordLimit: 2 });
+
+    expect(domain.getAllRecords().map((record) => record.toolCallId)).toEqual([
+      "terminal-a",
+      "terminal-m",
+    ]);
+  });
+
+  it("defaults to the normal microCompact recent-tool-result budget", () => {
+    const domain = createToolCallDomainRuntime();
+    for (let index = 0; index < DEFAULT_TOOL_CALL_TERMINAL_RETENTION_LIMIT + 2; index += 1) {
+      deny(domain, `terminal-${index}`, index, index);
+    }
+
+    const result = domain.retain();
+
+    expect(DEFAULT_TOOL_CALL_TERMINAL_RETENTION_LIMIT).toBe(20);
+    expect(result.retainedTerminalRecords).toBe(20);
+    expect(result.prunedTerminalRecords).toBe(2);
+  });
+
+  it("rejects retention limits that cannot define a bounded window", () => {
+    const domain = createToolCallDomainRuntime();
+
+    expect(() => domain.retain({ terminalRecordLimit: -1 })).toThrow("non-negative safe integer");
+    expect(() => domain.retain({ terminalRecordLimit: 1.5 })).toThrow("non-negative safe integer");
+    expect(() => domain.retain({ terminalRecordLimit: Number.POSITIVE_INFINITY })).toThrow(
+      "non-negative safe integer",
+    );
   });
 });
 

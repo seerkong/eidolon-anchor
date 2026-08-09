@@ -1,4 +1,4 @@
-import { AppendOnlyEventLog } from "depa-data-graph-core";
+import { BoundedEventLog, LIVE_EVENT_REPLAY_LIMIT } from "@cell/symbiont-logic/stream/BoundedTimeline";
 import type { IngressStreams } from "@cell/symbiont-logic/stream/IngressStreams";
 import { LiveLLMStagePipeline } from "@cell/ai-core-logic";
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic";
@@ -7,7 +7,7 @@ import type { AgentEventMeta } from "@cell/ai-core-contract/stream/ingressAdapte
 type Subscription = { unsubscribe: () => void };
 
 export class SemanticStreamGraph {
-  private readonly eventLog = new AppendOnlyEventLog<SemanticEvent>();
+  private readonly eventLog = new BoundedEventLog<SemanticEvent>({ retentionLimit: LIVE_EVENT_REPLAY_LIMIT });
   private readonly consumers = new Set<{
     handler: (event: SemanticEvent) => void;
     subscription: Subscription;

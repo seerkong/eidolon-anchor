@@ -1,4 +1,9 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+
 import type { AiAgentVm } from "@cell/ai-core-contract/runtime/AiAgentVm";
+import { defaultRuntimeConfig } from "@cell/ai-support";
 import type {
   MarkExecutingInput,
   PlanToolInput,
@@ -7,6 +12,7 @@ import type {
   RecordGateDecisionInput,
   RecordResultInput,
   ToolCallDomain,
+  ToolCallOutputArtifactRef,
   ToolCallRecord,
 } from "@cell/ai-core-contract/runtime/ToolCallDomain";
 import { isTerminalToolCallStatus } from "@cell/ai-core-contract/runtime/ToolCallDomain";
@@ -18,10 +24,164 @@ import { isTerminalToolCallStatus } from "@cell/ai-core-contract/runtime/ToolCal
  */
 export type ToolCallDomainRuntime = ToolCallDomain & {
   readonly records: Map<string, ToolCallRecord>;
+  retain(policy?: ToolCallRetentionPolicy): ToolCallRetentionResult;
+};
+
+export type ToolCallRetentionPolicy = {
+  terminalRecordLimit?: number;
+};
+
+export type ToolCallRetentionResult = {
+  retainedActiveRecords: number;
+  retainedTerminalRecords: number;
+  prunedTerminalRecords: number;
+  prunedToolCallIds: string[];
+};
+
+/**
+ * Matches the normal microCompact recent-tool-result budget. The field vm
+ * contained 4,008 records, so 20 is conservative while still bounding growth.
+ */
+export const DEFAULT_TOOL_CALL_TERMINAL_RETENTION_LIMIT = 20;
+
+const defaultToolResultBudget = defaultRuntimeConfig().compact.microCompact.budget;
+export const DEFAULT_TOOL_CALL_OUTPUT_EXTERNALIZATION_THRESHOLD_BYTES =
+  defaultToolResultBudget.toolResultPersistThresholdBytes;
+export const DEFAULT_TOOL_CALL_OUTPUT_PREVIEW_CHARS = defaultToolResultBudget.toolResultPreviewChars;
+
+export type PrepareToolCallDomainSnapshotOptions = {
+  sessionDir: string;
+  terminalRecordLimit?: number;
+  outputThresholdBytes?: number;
+  outputPreviewChars?: number;
+};
+
+export type PrepareToolCallDomainSnapshotResult = {
+  records: ToolCallRecord[];
+  externalizedRecords: number;
+  retention: ToolCallRetentionResult;
 };
 
 function fail(message: string): never {
   throw new Error(`ToolCallDomain: ${message}`);
+}
+
+function retentionTimestamp(record: ToolCallRecord): number {
+  const timestamp = record.resultAt ?? record.executedAt ?? record.dispatchedAt ?? record.plannedAt;
+  return Number.isFinite(timestamp) ? timestamp : Number.NEGATIVE_INFINITY;
+}
+
+function compareToolCallIds(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function sanitizeArtifactSegment(value: string): string {
+  const safe = value.replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^_+|_+$/g, "");
+  return safe.slice(0, 80) || "tool-result";
+}
+
+function sha256(content: string): string {
+  return crypto.createHash("sha256").update(content, "utf8").digest("hex");
+}
+
+function persistToolCallOutput(params: {
+  sessionDir: string;
+  record: ToolCallRecord;
+  outputText: string;
+  previewChars: number;
+}): ToolCallOutputArtifactRef {
+  const digestHex = sha256(params.outputText);
+  const actorSegment = sanitizeArtifactSegment(params.record.actorKey);
+  const fileName = `${sanitizeArtifactSegment(params.record.toolCallId)}-${digestHex.slice(0, 16)}.txt`;
+  const assetId = path.posix.join("artifacts", "tool-results", actorSegment, fileName);
+  const filePath = path.join(params.sessionDir, ...assetId.split("/"));
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  try {
+    fs.writeFileSync(filePath, params.outputText, { encoding: "utf8", flag: "wx" });
+  } catch (error) {
+    if ((error as { code?: string } | null)?.code !== "EEXIST") throw error;
+    const existing = fs.readFileSync(filePath, "utf8");
+    if (Buffer.byteLength(existing, "utf8") !== Buffer.byteLength(params.outputText, "utf8") || sha256(existing) !== digestHex) {
+      fail(`tool output artifact collision "${assetId}"`);
+    }
+  }
+  return {
+    kind: "artifact_ref",
+    assetId,
+    preview: params.outputText.slice(0, params.previewChars),
+    size: Buffer.byteLength(params.outputText, "utf8"),
+    digest: `sha256:${digestHex}`,
+  };
+}
+
+function resolveToolCallArtifactPath(sessionDir: string, ref: ToolCallOutputArtifactRef): string {
+  const normalized = path.posix.normalize(ref.assetId.replace(/\\/g, "/"));
+  if (
+    path.posix.isAbsolute(normalized)
+    || normalized === ".."
+    || normalized.startsWith("../")
+    || !normalized.startsWith("artifacts/tool-results/")
+  ) {
+    fail(`invalid tool output artifact assetId "${ref.assetId}"`);
+  }
+  return path.join(sessionDir, ...normalized.split("/"));
+}
+
+export function readToolCallRecordOutputText(
+  record: ToolCallRecord,
+  params: { sessionDir?: string } = {},
+): string {
+  if (typeof record.outputText === "string") return record.outputText;
+  const ref = record.outputTextRef;
+  if (!ref) return "";
+  if (!params.sessionDir) {
+    fail(`sessionDir is required to resolve tool output artifact "${ref.assetId}"`);
+  }
+  const outputText = fs.readFileSync(resolveToolCallArtifactPath(params.sessionDir, ref), "utf8");
+  const size = Buffer.byteLength(outputText, "utf8");
+  const digest = `sha256:${sha256(outputText)}`;
+  if (size !== ref.size || digest !== ref.digest) {
+    fail(`tool output artifact integrity mismatch "${ref.assetId}"`);
+  }
+  return outputText;
+}
+
+export function prepareToolCallDomainRecordsForSnapshot(
+  domain: ToolCallDomain,
+  options: PrepareToolCallDomainSnapshotOptions,
+): PrepareToolCallDomainSnapshotResult {
+  const outputThresholdBytes = options.outputThresholdBytes
+    ?? DEFAULT_TOOL_CALL_OUTPUT_EXTERNALIZATION_THRESHOLD_BYTES;
+  const outputPreviewChars = options.outputPreviewChars ?? DEFAULT_TOOL_CALL_OUTPUT_PREVIEW_CHARS;
+  if (!Number.isSafeInteger(outputThresholdBytes) || outputThresholdBytes < 0) {
+    fail(`outputThresholdBytes must be a non-negative safe integer (received ${outputThresholdBytes})`);
+  }
+  if (!Number.isSafeInteger(outputPreviewChars) || outputPreviewChars < 0) {
+    fail(`outputPreviewChars must be a non-negative safe integer (received ${outputPreviewChars})`);
+  }
+
+  const persisted = createToolCallDomainRuntime();
+  for (const record of domain.getAllRecords()) {
+    persisted.records.set(record.toolCallId, {
+      ...record,
+      ...(record.outputTextRef ? { outputTextRef: { ...record.outputTextRef } } : {}),
+    });
+  }
+  const retention = persisted.retain({ terminalRecordLimit: options.terminalRecordLimit });
+  let externalizedRecords = 0;
+  for (const record of persisted.records.values()) {
+    const outputText = record.outputText;
+    if (typeof outputText !== "string" || Buffer.byteLength(outputText, "utf8") <= outputThresholdBytes) continue;
+    record.outputTextRef = persistToolCallOutput({
+      sessionDir: options.sessionDir,
+      record,
+      outputText,
+      previewChars: outputPreviewChars,
+    });
+    delete record.outputText;
+    externalizedRecords += 1;
+  }
+  return { records: persisted.getAllRecords(), externalizedRecords, retention };
 }
 
 export function createToolCallDomainRuntime(): ToolCallDomainRuntime {
@@ -106,6 +266,48 @@ export function createToolCallDomainRuntime(): ToolCallDomainRuntime {
     return record;
   };
 
+  const retain = (policy: ToolCallRetentionPolicy = {}): ToolCallRetentionResult => {
+    const terminalRecordLimit = policy.terminalRecordLimit ?? DEFAULT_TOOL_CALL_TERMINAL_RETENTION_LIMIT;
+    if (!Number.isSafeInteger(terminalRecordLimit) || terminalRecordLimit < 0) {
+      fail(`terminalRecordLimit must be a non-negative safe integer (received ${terminalRecordLimit})`);
+    }
+
+    const activeRecords: ToolCallRecord[] = [];
+    const terminalRecords: ToolCallRecord[] = [];
+    for (const record of records.values()) {
+      (isTerminalToolCallStatus(record.status) ? terminalRecords : activeRecords).push(record);
+    }
+
+    const retainedTerminalIds = new Set(
+      terminalRecords
+        .slice()
+        .sort((left, right) => {
+          const terminalOrder = retentionTimestamp(right) - retentionTimestamp(left);
+          if (terminalOrder !== 0) return terminalOrder;
+          const planOrder = right.plannedAt - left.plannedAt;
+          if (planOrder !== 0) return planOrder;
+          return compareToolCallIds(left.toolCallId, right.toolCallId);
+        })
+        .slice(0, terminalRecordLimit)
+        .map((record) => record.toolCallId),
+    );
+
+    const prunedToolCallIds: string[] = [];
+    for (const record of terminalRecords) {
+      if (!retainedTerminalIds.has(record.toolCallId)) {
+        records.delete(record.toolCallId);
+        prunedToolCallIds.push(record.toolCallId);
+      }
+    }
+
+    return {
+      retainedActiveRecords: activeRecords.length,
+      retainedTerminalRecords: retainedTerminalIds.size,
+      prunedTerminalRecords: prunedToolCallIds.length,
+      prunedToolCallIds,
+    };
+  };
+
   return {
     records,
     planTool,
@@ -113,6 +315,7 @@ export function createToolCallDomainRuntime(): ToolCallDomainRuntime {
     markExecuting,
     recordResult,
     recordFailure,
+    retain,
     getRecord: (toolCallId) => records.get(toolCallId),
     getActiveRecords: () => [...records.values()].filter((record) => !isTerminalToolCallStatus(record.status)),
     getAllRecords: () => [...records.values()],
@@ -164,7 +367,7 @@ export function restoreVmToolCallDomain(
  */
 export function reconstructToolResultsFromDomain(
   domain: ToolCallDomain,
-  params: { actorKey: string },
+  params: { actorKey: string; sessionDir?: string },
 ): ReconstructedToolResult[] {
   return domain
     .getAllRecords()
@@ -174,7 +377,7 @@ export function reconstructToolResultsFromDomain(
     .map((record) => ({
       toolCallId: record.toolCallId,
       funcName: record.funcName,
-      outputText: record.outputText ?? "",
+      outputText: readToolCallRecordOutputText(record, params),
       isError: record.status === "failed",
       ...(record.failureKind ? { failureKind: record.failureKind } : {}),
     }));

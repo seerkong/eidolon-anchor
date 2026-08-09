@@ -4,20 +4,24 @@
  * Produces a DataGraph instrumented with:
  *   - ObservableGraphMiddleware (graph hooks → ObservabilityRecord)
  *   - DiagnosticPipeline (in-memory byNode/stats aggregation)
- *   - AppendOnlyEventLog + OrderedTimeline (historical replay)
+ *   - bounded trace replay + live-only diagnostic forwarding
  *   - Optional SessionTraceSink (xnl persistence via Rx bind)
  *   - Optional persist plugin
  *   - Optional debug logging
  */
 
 import {
-  AppendOnlyEventLog,
   DataGraph,
   loggerPlugin,
-  OrderedTimeline,
   persistPlugin,
   type PersistStorage,
 } from "depa-data-graph-core";
+import {
+  BoundedEventLog,
+  BoundedTimeline,
+  LIVE_EVENT_REPLAY_LIMIT,
+  OBSERVABILITY_TRACE_REPLAY_LIMIT,
+} from "@cell/symbiont-logic/stream/BoundedTimeline";
 import type { ObservabilityRecord } from "@cell/ai-core-contract/runtime/Observability";
 import type { ObservabilitySink, ObservabilityRxData } from "@cell/ai-organ-contract/observability/Observability";
 import { observableGraphMiddleware } from "./ObservableGraphMiddleware";
@@ -34,7 +38,7 @@ export type ObservableGraphOptions = {
 
 export type ObservableGraph = {
   graph: DataGraph<undefined>;
-  traceLog: AppendOnlyEventLog<ObservabilityRecord>;
+  traceLog: BoundedEventLog<ObservabilityRecord>;
   diagnosticPipeline: DiagnosticPipeline;
   flushTrace?: () => Promise<void>;
   dispose: () => void;
@@ -44,12 +48,16 @@ export function createObservableGraph(
   options: ObservableGraphOptions = {},
 ): ObservableGraph {
   const graph = new DataGraph<undefined>(() => undefined);
-  const traceLog = new AppendOnlyEventLog<ObservabilityRecord>();
-  const traceTimeline = new OrderedTimeline<ObservabilityRecord>();
+  const traceLog = new BoundedEventLog<ObservabilityRecord>({
+    retentionLimit: OBSERVABILITY_TRACE_REPLAY_LIMIT,
+  });
+  const traceTimeline = new BoundedTimeline<ObservabilityRecord>({
+    retentionLimit: LIVE_EVENT_REPLAY_LIMIT,
+  });
 
   // 1. Diagnostic pipeline — in-memory fold/sink
   const diagnosticPipeline = createDiagnosticPipeline({
-    onRecord: (r) => traceTimeline.append(r),
+    onRecord: (record) => traceTimeline.append(record as ObservabilityRecord),
   });
 
   // 2. ObservableGraphMiddleware — always registered

@@ -57,7 +57,14 @@ import {
   type AiAgentOrchestratorDriver,
 } from "../OrchestratorDriver"
 import { createSessionDiagnosticsXnlLog } from "../runtime/SessionRuntimeXnlLogs"
-import { restoreVmToolCallDomain, getVmToolCallDomain } from "../runtime/ToolCallDomainRuntime"
+import {
+  DEFAULT_TOOL_CALL_OUTPUT_EXTERNALIZATION_THRESHOLD_BYTES,
+  DEFAULT_TOOL_CALL_OUTPUT_PREVIEW_CHARS,
+  getVmToolCallDomain,
+  prepareToolCallDomainRecordsForSnapshot,
+  readToolCallRecordOutputText,
+  restoreVmToolCallDomain,
+} from "../runtime/ToolCallDomainRuntime"
 import type { ToolCallRecord } from "@cell/ai-core-contract/runtime/ToolCallDomain"
 import type { DelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode"
 import type {
@@ -125,6 +132,57 @@ type PersistedCompletionBinding = {
   toolCallId?: string
   taskId?: string
   taskKind?: DetachedActorKind
+}
+
+type RuntimeSnapshotFingerprintState = {
+  sessionDir: string
+  sessionId: string
+  actors: Record<string, string>
+  fibers: Record<string, string>
+}
+
+const runtimeSnapshotFingerprintsByVm = new WeakMap<AiAgentVm, RuntimeSnapshotFingerprintState>()
+
+function fingerprintRuntimeSnapshotActor(actor: ReturnType<typeof serializeActor>): string {
+  return JSON.stringify({ ...actor, updatedAt: undefined })
+}
+
+function collectRuntimeSnapshotWriteSelection(params: {
+  sessionDir: string
+  sessionId: string
+  vm: AiAgentVm
+  actors: Record<string, ReturnType<typeof serializeActor>>
+  fibers: Record<string, RuntimeSnapshotFiber>
+}): {
+  dirtyActorKeys: string[]
+  dirtyFiberIds: string[]
+  fingerprints: RuntimeSnapshotFingerprintState
+} {
+  const priorBaseline = runtimeSnapshotFingerprintsByVm.get(params.vm)
+  const previous = priorBaseline?.sessionDir === params.sessionDir && priorBaseline.sessionId === params.sessionId
+    ? priorBaseline
+    : undefined
+  const fingerprints: RuntimeSnapshotFingerprintState = {
+    sessionDir: params.sessionDir,
+    sessionId: params.sessionId,
+    actors: Object.fromEntries(Object.entries(params.actors).map(([actorKey, actor]) => [
+      actorKey,
+      fingerprintRuntimeSnapshotActor(actor),
+    ])),
+    fibers: Object.fromEntries(Object.entries(params.fibers).map(([fiberId, fiber]) => [
+      fiberId,
+      JSON.stringify(fiber),
+    ])),
+  }
+  return {
+    dirtyActorKeys: Object.keys(fingerprints.actors).filter(
+      (actorKey) => !previous || previous.actors[actorKey] !== fingerprints.actors[actorKey],
+    ),
+    dirtyFiberIds: Object.keys(fingerprints.fibers).filter(
+      (fiberId) => !previous || previous.fibers[fiberId] !== fingerprints.fibers[fiberId],
+    ),
+    fingerprints,
+  }
 }
 
 function failUnsupportedRuntimeSnapshot(reason: string): never {
@@ -404,6 +462,7 @@ export function buildPendingAiGeneratedFromCompletedEffect(
   execState: any | null,
   effectEvidence: AiRuntimeEffectLifecycleEvent[],
   toolCallDomain?: { getRecord(toolCallId: string): ToolCallRecord | undefined } | null,
+  sessionDir?: string,
 ): any | null {
   const inflight = execState?.inflight
   const opId = typeof inflight?.opId === "string" ? inflight.opId : ""
@@ -435,7 +494,9 @@ export function buildPendingAiGeneratedFromCompletedEffect(
       // evidence payload for snapshots written before the payload was reduced.
       const record = toolCallId ? toolCallDomain?.getRecord(toolCallId) : undefined
       const domainOutputText =
-        record && (record.status === "completed" || record.status === "failed") ? record.outputText ?? "" : undefined
+        record && (record.status === "completed" || record.status === "failed")
+          ? readToolCallRecordOutputText(record, { sessionDir })
+          : undefined
       const outputText = domainOutputText
         ?? (event.kind === "failed" ? event.error : String(payload.outputText ?? payload.output ?? ""))
       const isError = record
@@ -469,12 +530,13 @@ function recoverInterruptedCooperativeInflight(
   execState: any | null,
   effectEvidence: AiRuntimeEffectLifecycleEvent[],
   toolCallDomain?: { getRecord(toolCallId: string): ToolCallRecord | undefined } | null,
+  sessionDir?: string,
 ): RecoveredCooperativeInflight {
   if (!execState?.inflight || hasPendingAiGeneratedForInflight(actor, execState)) {
     return { execState, recoveryEvidence: [] }
   }
   const inflight = execState.inflight
-  const completed = buildPendingAiGeneratedFromCompletedEffect(execState, effectEvidence, toolCallDomain)
+  const completed = buildPendingAiGeneratedFromCompletedEffect(execState, effectEvidence, toolCallDomain, sessionDir)
   if (completed) {
     return {
       execState: {
@@ -1331,8 +1393,32 @@ export async function saveAiAgentRuntimeSnapshot(params: {
     vm: params.vm,
     fibers: fiberSnapshots,
   })
+  const snapshotWriteSelection = collectRuntimeSnapshotWriteSelection({
+    sessionDir: params.sessionDir,
+    sessionId: params.sessionId,
+    vm: params.vm,
+    actors: actorSnapshots,
+    fibers: fiberSnapshots,
+  })
 
   const vmSnapshot = serializeVM(params.vm)
+  const toolCallDomain = getVmToolCallDomain(params.vm)
+  if (toolCallDomain) {
+    const injectedBudget = (
+      (params.vm.outerCtx?.metadata as Record<string, unknown> | undefined)?.runtimeConfig as any
+    )?.compact?.microCompact?.budget
+    const outputThresholdBytes = typeof injectedBudget?.toolResultPersistThresholdBytes === "number"
+      ? injectedBudget.toolResultPersistThresholdBytes
+      : DEFAULT_TOOL_CALL_OUTPUT_EXTERNALIZATION_THRESHOLD_BYTES
+    const outputPreviewChars = typeof injectedBudget?.toolResultPreviewChars === "number"
+      ? injectedBudget.toolResultPreviewChars
+      : DEFAULT_TOOL_CALL_OUTPUT_PREVIEW_CHARS
+    vmSnapshot.toolCallDomain = prepareToolCallDomainRecordsForSnapshot(toolCallDomain, {
+      sessionDir: params.sessionDir,
+      outputThresholdBytes,
+      outputPreviewChars,
+    }).records
+  }
   const indexes = buildDerivedIndexes({
     vm: params.vm,
     driver: params.driver,
@@ -1348,12 +1434,15 @@ export async function saveAiAgentRuntimeSnapshot(params: {
         sessionId: params.sessionId,
         vm: params.vm,
       })
-      const manifest = await repository.writeSnapshot({
+      const snapshotInput = {
         vm: vmSnapshot,
         actors: actorSnapshots,
         questionnaires,
         fibers: fiberSnapshots,
-      })
+        dirtyActorKeys: snapshotWriteSelection.dirtyActorKeys,
+        dirtyFiberIds: snapshotWriteSelection.dirtyFiberIds,
+      }
+      const manifest = await repository.writeSnapshot(snapshotInput)
       await writeDerivedIndexes(params.sessionDir, indexes)
       await repository.writeManifest({
         ...manifest,
@@ -1378,6 +1467,10 @@ export async function saveAiAgentRuntimeSnapshot(params: {
       pendingEffectIds: checkpointResult.pendingEffectIds,
     }
   }
+  runtimeSnapshotFingerprintsByVm.set(params.vm, snapshotWriteSelection.fingerprints)
+  // The durable view and referenced artifacts are committed at this point.
+  // Only now may live terminal history be discarded without weakening recovery.
+  toolCallDomain?.retain()
   return { status: "saved", safepoint }
 }
 
@@ -1545,6 +1638,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
           ?? inferCooperativeExecStateFromPendingAiGenerated(actor),
         effectEvidence,
         getVmToolCallDomain(vm),
+        params.sessionDir,
       )
       recoveryEvidence.push(...recoveredInflight.recoveryEvidence)
       return {

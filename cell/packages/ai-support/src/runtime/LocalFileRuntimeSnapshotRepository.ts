@@ -29,6 +29,13 @@ const FIBERS_DIR = "fibers";
 const INDEXES_DIR = "indexes";
 const REDACTED_PROVIDER_SECRET = "[REDACTED]";
 
+export type RuntimeSnapshotWriteSelection = {
+  dirtyActorKeys?: readonly string[];
+  dirtyFiberIds?: readonly string[];
+};
+
+type RuntimeSnapshotWriteInput = RuntimeSnapshotPersistedState & RuntimeSnapshotWriteSelection;
+
 function isProviderSecretKey(key: string): boolean {
   const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
   return normalized.endsWith("apikey")
@@ -423,25 +430,31 @@ export class LocalFileRuntimeSnapshotRepository {
     }
   }
 
-  async writeSnapshot(input: RuntimeSnapshotPersistedState): Promise<RuntimeSnapshotManifest> {
+  async writeSnapshot(input: RuntimeSnapshotWriteInput): Promise<RuntimeSnapshotManifest> {
     await mkdir(this.rootDir, { recursive: true });
 
     const fibers = { ...(input.fibers ?? {}) };
     const indexes = { ...buildIndexes({ actors: input.actors, fibers }), ...(input.indexes ?? {}) };
+    const dirtyActorKeys = input.dirtyActorKeys ? new Set(input.dirtyActorKeys) : null;
+    const dirtyFiberIds = input.dirtyFiberIds ? new Set(input.dirtyFiberIds) : null;
     const nowIso = new Date().toISOString();
 
     const actorFiles: Record<string, string> = {};
     for (const [actorKey, actor] of Object.entries(input.actors)) {
       const relativeFile = buildActorFile(actor);
       actorFiles[actorKey] = relativeFile;
-      await this.writeActor(actor);
+      if (!dirtyActorKeys || dirtyActorKeys.has(actorKey)) {
+        await this.writeActor(actor);
+      }
     }
 
     const fiberFiles: Record<string, string> = {};
     for (const [fiberId, fiber] of Object.entries(fibers)) {
       const relativeFile = buildFiberFile(fiberId);
       fiberFiles[fiberId] = relativeFile;
-      await this.writeFiber(fiber);
+      if (!dirtyFiberIds || dirtyFiberIds.has(fiberId)) {
+        await this.writeFiber(fiber);
+      }
     }
 
     for (const [name, indexValue] of Object.entries(indexes) as Array<[RuntimeSnapshotIndexName, RuntimeSnapshotIndex]>) {

@@ -1,0 +1,113 @@
+<Track id="unify-tui-turn-projection-and-workspace-scope" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>统一 TUI 三入口的 typed turn 投影与 durable reconciliation，并用显式 scope intent 避免 workspace 父目录过宽授权</Goal>
+    <Description>修复 assistant/tool/context 重复或错卡，以及 workspace 文件操作误触发父级目录授权</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-13T07:47:24Z</CreatedAt>
+    <UpdatedAt>2026-08-13T08:35:00Z</UpdatedAt>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="input" name="tui-runtime" domain="code" path="vfs://@/terminal/packages/tui/"/>
+    <MaterialBundle role="input" name="local-permissions" domain="code" path="vfs://@/cell/packages/ai-organ-logic/src/permissions/"/>
+    <MaterialBundle role="output" name="implementation" domain="code" path="vfs://@/"/>
+  </Ports>
+  <TaskSpace id="space_unify-tui-turn-projection-and-workspace-scope" name="unify-tui-turn-projection-and-workspace-scope" version="1">
+    <Description>以测试先行方式统一 surface 投影、历史角色/context resource 与 workspace scope 权限</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="冻结三入口投影契约" status="DONE" order="0">
+        <Description>建立 prompt、command、questionnaire continuation 的等价行为与重复问题回归测试</Description>
+        <SubNodes>
+          <Task id="T1.1" name="编写三入口 category 与 identity 失败测试" status="DONE" order="0" priority="P0">
+            <Description>参数化同一 semantic sequence，验证隐藏类别、thinking/assistant 分流、单一 tool identity 与 continuation onControl</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">测试能复现 continuation 把 turn/tool/result 写入 assistant 的现状</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="true">测试覆盖 prompt、slash command、questionnaire continuation 三入口等价</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="实现单一 turn surface projector" status="DONE" order="1" priority="P0">
+            <Description>抽取 typed projector/state owner 并让三入口共同委托 control/chunk/history/final reconciliation，删除重复逻辑</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">三入口共享同一个 projector factory/adapter，无三份 assistant/tool state machine</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="true">Starting turn、tool args/results、done 不进入 assistant，think/assist 分类正确</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC3" checked="true">同一 actorId+toolCallId 仅一个 ToolPart，live 与 durable 可合并</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <cdt:Gate>
+          <cdt:Criterion>P1 所有任务 DONE，三入口投影测试通过</cdt:Criterion>
+        </cdt:Gate>
+      </TaskGroup>
+      <TaskGroup id="P2" name="修复历史角色与 context resource 投影" status="DONE" order="1">
+        <Description>让 durable history 保持稳定 identity，并阻止 tool/system/context 被投为 USER</Description>
+        <SubNodes>
+          <Task id="T2.1" name="编写 role、resync 与 context card 失败测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖 user/assistant/tool/system exhaustive mapping、重复 resync 稳定 id、loaded/already-visible context metadata</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">tool/system 不得成为 USER 的回归测试先失败</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">context-resource raw XML 不得成为 USER，且有折叠 context/read metadata 测试</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="实现稳定 history mapper 与 context projection" status="DONE" order="1" priority="P0">
+            <Description>用 message/tool/resource identity 增量 reconcile，tool role 重建 ToolPart，system/internal 隐藏，context metadata 进入折叠卡片</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">重复 hydrate/resync 不创建新随机 identity 或重复卡片</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">仅 user role 显示为 USER；tool 保留 toolCallId</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC3" checked="true">UI 不含 context-resource XML 解析或 provider 名称分支</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC4" checked="true">typed context metadata 经既有 conversation persistence/read port 在冷启动 hydration 后仍可恢复</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <cdt:Gate>
+          <cdt:Criterion>P2 所有任务 DONE，history/context projection 测试通过</cdt:Criterion>
+        </cdt:Gate>
+      </TaskGroup>
+      <TaskGroup id="P3" name="收紧 workspace 文件访问意图" status="DONE" order="2">
+        <Description>引入 scopeIntent 并区分 one-time/persistent grant，消除误传父目录导致的过宽授权</Description>
+        <SubNodes>
+          <Task id="T3.1" name="编写 scope intent 与 grant mode 失败测试" status="DONE" order="0" priority="P0">
+            <Description>覆盖默认 workspace 越界不问卷、explicit external 才问卷、one-time 不持久化、read-write advanced</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">父目录请求在默认 workspace intent 下返回可恢复诊断且无 approvalGrant</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC2" checked="true">explicit external 保持现有 permission authority 与 replay</cdt:Criterion>
+              <cdt:Criterion id="T3.1-AC3" checked="true">one-time read 不写 workspace-access.json</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="实现 scopeIntent 与最小权限问卷" status="DONE" order="1" priority="P0">
+            <Description>更新文件工具 schema/types/payload、permission evaluator/runtime 与 questionnaire choices</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">文件工具默认 workspace，ls/glob/grep 省略 path 使用点号语义</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">workspace intent 越界 fail closed 且不创建授权问卷</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC3" checked="true">external grant 支持 one-time read、persistent read、advanced read-write、deny</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <cdt:Gate>
+          <cdt:Criterion>P3 所有任务 DONE，permission 与 file tool tests 通过</cdt:Criterion>
+        </cdt:Gate>
+      </TaskGroup>
+      <TaskGroup id="P4" name="跨 surface 回归与方向审查" status="DONE" order="3">
+        <Description>验证没有新增 authority、provider 分支、模糊匹配或 headless 行为变化</Description>
+        <SubNodes>
+          <Task id="T4.1" name="运行目标回归与架构扫描" status="DONE" order="0" priority="P0">
+            <Description>运行 TUI、questionnaire、permission、context resource、cross-surface tests 与静态边界扫描</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">目标测试全部通过，已有 baseline failure 明确归因并在范围内修复</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">源码无 provider name 路由、context XML 正则/模糊解析或第二套 runtime/session truth</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC3" checked="true">CLI/headless domain 等价测试保持通过</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <cdt:Gate>
+          <cdt:Criterion>全部 phase/task DONE，严格校验与目标回归通过</cdt:Criterion>
+        </cdt:Gate>
+        <Hooks>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+</Track>

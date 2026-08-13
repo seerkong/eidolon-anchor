@@ -1,0 +1,63 @@
+<Track id="fix-workflow-fulfill-terminal-and-continuation" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>让 WorkflowFulfill 在 provider failure、partial output 和多轮确认场景保持唯一终态与连续业务上下文。</Goal>
+    <Description>修复 failure-after-partial-content、sync-wait competing result writer、business failure projection 和 fresh workflow actor context loss。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-09T22:03:35+03:00</CreatedAt>
+    <UpdatedAt>2026-08-09T23:22:57+03:00</UpdatedAt>
+  </Metadata>
+
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+
+  <TaskSpace id="space_fix-workflow-fulfill-terminal-and-continuation" name="fix-workflow-fulfill-terminal-and-continuation" version="1">
+    <Description>Correct terminal/message authority and deterministic context projection for WorkflowFulfill.</Description>
+    <SubNodes>
+      <TaskGroup id="P1" name="事故回归与 authority characterization" status="DONE" order="0">
+        <SubNodes>
+          <Task id="T1.1" name="复现 provider failure after partial content" status="DONE" order="0" priority="P0"/>
+          <Task id="T1.2" name="复现 sync-wait 空/局部 tool result 竞争" status="DONE" order="1" priority="P0"/>
+          <Task id="T1.3" name="复现 fresh WorkflowFulfill actor 丢失前轮业务上下文" status="DONE" order="2" priority="P0"/>
+        </SubNodes>
+        <cdt:Acceptance>
+          <cdt:Criterion id="P1-AC1" checked="true">事故证据和回归测试锁定 stale CLI、failure-after-partial 与 continuation context 缺失</cdt:Criterion>
+        </cdt:Acceptance>
+      </TaskGroup>
+      <TaskGroup id="P2" name="Terminal message 单一 authority" status="DONE" order="1">
+        <SubNodes>
+          <Task id="T2.1" name="让当前 provider failure 无条件产生 actor fail terminal" status="DONE" order="0" priority="P0"/>
+          <Task id="T2.2" name="让 childDone 成为 sync-wait 唯一 result writer" status="DONE" order="1" priority="P0"/>
+          <Task id="T2.3" name="贯通 parent/CLI structured failure projection" status="DONE" order="2" priority="P0"/>
+        </SubNodes>
+        <cdt:Acceptance>
+          <cdt:Criterion id="P2-AC1" checked="true">失败不能被历史 assistant content、WAIT marker 或空 effect result 覆盖</cdt:Criterion>
+        </cdt:Acceptance>
+      </TaskGroup>
+      <TaskGroup id="P3" name="多轮业务上下文投影" status="DONE" order="2">
+        <SubNodes>
+          <Task id="T3.1" name="从 parent Conversation Domain 派生 bounded role-ordered context" status="DONE" order="0" priority="P0"/>
+          <Task id="T3.2" name="把 context 注入 fresh workflow actor 且不继承授权" status="DONE" order="1" priority="P0"/>
+          <Task id="T3.3" name="扫描禁止自然语言 heuristic 回归" status="DONE" order="2" priority="P0"/>
+        </SubNodes>
+        <cdt:Acceptance>
+          <cdt:Criterion id="P3-AC1" checked="true">后续确认能理解原业务方案，host 只按角色/顺序/大小投影历史</cdt:Criterion>
+        </cdt:Acceptance>
+      </TaskGroup>
+      <TaskGroup id="P4" name="综合验收" status="DONE" order="3">
+        <SubNodes>
+          <Task id="T4.0" name="统一 eidolon 可执行入口并删除 eidolon-cli 分发" status="DONE" order="0" priority="P0"/>
+          <Task id="T4.1" name="运行 actor/workflow/CLI targeted regression" status="DONE" order="1" priority="P0"/>
+          <Task id="T4.2" name="构建并重放真实原事故创建与运行" status="DONE" order="2" priority="P0"/>
+        </SubNodes>
+        <cdt:Acceptance>
+          <cdt:Criterion id="P4-AC1" checked="true">单一 eidolon 程序支持 TUI 与 CLI 子命令；真实新会话可完成 create/proof/publish/run/monitor 或在真实失败时立即结构化失败</cdt:Criterion>
+        </cdt:Acceptance>
+      </TaskGroup>
+    </SubNodes>
+  </TaskSpace>
+</Track>

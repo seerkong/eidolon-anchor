@@ -223,6 +223,7 @@ export async function processRuntimeIngressStream(params: {
   sessionDir?: string
   sessionId?: string
   storageLogsEnabled?: boolean
+  reasoningRetention?: import("./SessionRuntimeXnlLogs").RawReasoningDebugRetention
   signal?: AbortSignal
 }) {
   const runtime = IngressStreamRuntime.create()
@@ -235,9 +236,11 @@ export async function processRuntimeIngressStream(params: {
     sessionId: params.sessionId,
     ingressStreams,
     actorMeta: params.actorMeta,
+    reasoningRetention: params.reasoningRetention,
   })
   const diagnosticsLog = createSessionDiagnosticsXnlLog({
     sessionDir: logSessionDir,
+    reasoningRetention: params.reasoningRetention,
   })
   const { semanticGraph, runPipeline } = createSemanticStreamPipeline(
     ingressStreams,

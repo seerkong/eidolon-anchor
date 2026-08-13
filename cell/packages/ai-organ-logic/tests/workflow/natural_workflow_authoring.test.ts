@@ -19,14 +19,13 @@ describe("natural-language workflow authoring", () => {
       form: "auto",
       publish: true,
     })
-    expect(prompt).toContain("WorkflowGetAuthoringContext")
-    expect(prompt).toContain("WorkflowListAuthoringTemplates")
-    expect(prompt).toContain("one unambiguous contiguous user-authored business span")
-    expect(prompt).toContain("/base")
-    expect(prompt).toContain("Publication is a separate authorization gate")
+    expect(prompt).toContain("WorkflowLoadStageContext")
+    expect(prompt).toContain("sys-ai-workflow")
+    expect(prompt).toContain('"publication": true')
+    expect(prompt).toContain('"execution": false')
     expect(prompt).not.toContain("<AIDataWorkflow #pkg.Flow")
     expect(prompt).toContain("收集三个数据源，并行总结后交给人工审核。")
-    expect(prompt).toContain("Never invoke shell")
+    expect(prompt).not.toContain("approval-process")
   })
 
   it("assembles an edit prompt around the existing logical resource ref", () => {
@@ -35,11 +34,9 @@ describe("natural-language workflow authoring", () => {
       request: "在汇总后增加事实核验节点，其他节点保持不变。",
       workflowRef: "resource://demo.workflow.Report",
     })
-    expect(prompt).toContain("Workflow ref: resource://demo.workflow.Report")
-    expect(prompt).toContain("WorkflowWorkspace")
-    expect(prompt).toContain("recoverable authoring session")
-    expect(prompt).toContain("WorkflowPublishAuthoringSession")
-    expect(prompt).toContain("Preserve unrelated business behavior")
+    expect(prompt).toContain('"workflowRef": "resource://demo.workflow.Report"')
+    expect(prompt).toContain('"operation": "edit"')
+    expect(prompt).toContain("WorkflowLoadStageContext")
   })
 
   it("exposes component-backed workspace primitives to the model tool registry", async () => {

@@ -4,6 +4,10 @@ import { SkillRegistry } from "@cell/ai-core-logic/runtime/SkillRegistry"
 import { loadLocalTextResource } from "@cell/ai-organ-logic/runtime/LocalTextResourceLoader"
 import path from "path"
 import { pathToFileURL } from "node:url"
+import {
+  loadSkillEntriesWithSystemAuthority,
+  resolveEidolonGlobalRootFromOuterContext,
+} from "@cell/ai-support/system-skill/SystemSkillInstaller"
 
 export const skillCoreLogic: StdInnerLogic<SkillInnerRuntime, SkillInnerInput, SkillInnerConfig, SkillInnerOutput> = async (
   runtime,
@@ -15,8 +19,10 @@ export const skillCoreLogic: StdInnerLogic<SkillInnerRuntime, SkillInnerInput, S
     return "Error: workDir not configured"
   }
 
-  const skillsDir = path.join(workDir, ".eidolon", "skills")
-  SkillRegistry.reloadFromDir(runtime.vm.registries.skillRegistry, skillsDir)
+  SkillRegistry.reload(runtime.vm.registries.skillRegistry, loadSkillEntriesWithSystemAuthority({
+    globalRoot: resolveEidolonGlobalRootFromOuterContext(runtime.vm.outerCtx),
+    workspaceRoot: workDir,
+  }))
   const skillName = String(input.skill ?? "")
   const skill = SkillRegistry.get(runtime.vm.registries.skillRegistry, skillName)
   if (!skill) {

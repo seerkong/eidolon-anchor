@@ -11,6 +11,7 @@ import type {
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
 import type {
   ActorContext,
+  ActorContextPolicy,
   ActorCtrlOptions,
   ActorIdentity,
   ActorMailboxQueues,
@@ -33,6 +34,7 @@ import type {
 
 export type {
   ActorContext,
+  ActorContextPolicy,
   ActorCtrlOptions,
   ActorIdentity,
   ActorLike,
@@ -148,6 +150,7 @@ export type CreateActorParams = {
   planApproval?: AiAgentActor["planApproval"];
   shutdownCoordination?: AiAgentActor["shutdownCoordination"];
   toolPolicy?: Partial<ActorToolPolicy>;
+  contextPolicy?: Partial<ActorContextPolicy>;
   modelConfig?: ActorModelConfig;
   llmClient?: object | null;
   stream?: XStream<any> | null;
@@ -162,6 +165,7 @@ export type CreateActorParams = {
   continuationBaseline?: ContinuationBaselineData;
   recovery?: ActorRecoveryState;
   detachedTask?: DetachedTaskState;
+  workflowProgress?: AiAgentActor["workflowProgress"];
   holonState?: HolonActorState;
   callbacks?: Partial<AiAgentActor.ActorCallbacks>;
   logger?: Logger;
@@ -229,6 +233,11 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     ...params.toolPolicy,
   };
 
+  const contextPolicy: ActorContextPolicy = {
+    historyCompaction: "auto",
+    ...params.contextPolicy,
+  };
+
   const mailboxes: ActorMailboxQueues = {
     control: [...(params.mailboxes?.control ?? [])],
     childDone: [...(params.mailboxes?.childDone ?? [])],
@@ -272,6 +281,7 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     planApproval: params.planApproval,
     shutdownCoordination: params.shutdownCoordination,
     toolPolicy,
+    contextPolicy,
     modelConfig: params.modelConfig ?? {},
     llmClient: params.llmClient ?? null,
     stream: params.stream ?? null,
@@ -297,6 +307,7 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     },
     recovery: params.recovery,
     detachedTask: params.detachedTask ? { ...params.detachedTask } : undefined,
+    workflowProgress: params.workflowProgress ? { ...params.workflowProgress } : undefined,
     holonState: params.holonState ? cloneHolonState(params.holonState) : undefined,
     watchState: "unwatched",
     hasPending: (tag) => mailboxes[tag].length > 0,

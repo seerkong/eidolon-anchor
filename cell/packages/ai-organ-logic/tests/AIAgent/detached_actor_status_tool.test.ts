@@ -5,6 +5,7 @@ import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver";
+import { createMockProcessStream } from "./__test_support__/mockProcessStream";
 
 function makeMockAdapter() {
   return {
@@ -67,7 +68,7 @@ describe("DetachedActorStatus tool", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (vm, actor) => processStream(vm, actor),
+        processStream: createMockProcessStream(processStream),
       },
     });
 
@@ -193,7 +194,7 @@ describe("DetachedActorStatus tool", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (vm, actor) => processStream(vm, actor),
+        processStream: createMockProcessStream(processStream),
       },
     });
 
@@ -263,7 +264,7 @@ describe("DetachedActorStatus tool", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "ok" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
       },
     });
     const detached = createActor({
@@ -273,7 +274,7 @@ describe("DetachedActorStatus tool", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async () => ({ role: "assistant", content: "done" }),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "done" })),
       },
       detachedTask: {
         taskId: "bg-1",

@@ -377,12 +377,270 @@ describe("Stage 3 cooperative stepping", () => {
     await flushMicrotasks();
     const result = await step();
 
-    expect(result).toMatchObject({ kind: "suspend", reason: "idle_external" });
+    expect(result).toMatchObject({
+      kind: "fail",
+      error: expect.stringContaining("empty assistant response"),
+    });
     expect(processStreamCalls).toBe(2);
     expect(turnEnds).not.toContain("no_tool_calls");
     expect(turnEnds).toContain("provider_failed");
     const [record] = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
     expect(record?.status).toBe("failed");
     expect(record?.rawError).toContain("empty assistant response");
+  });
+
+  it("fails a delegate fiber when provider failure leaves no assistant outcome", async () => {
+    const mockAdapter = {
+      type: "openai" as const,
+      async createStream() {
+        async function* stream() { yield { ok: true }; }
+        return { stream: stream() };
+      },
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    const child = createActor({
+      key: "workflow-child",
+      type: "delegate",
+      llmClient: mockAdapter,
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: null }),
+      },
+    });
+    const vm = createVM({ controlActorKey: child.key, actors: { [child.key]: child }, registries: { toolRegistry } });
+    const fiberId = `${child.key}:${child.id}`;
+    let execState: any;
+    const step = async () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: child,
+      messages: [],
+      state: execState,
+      setState: (next) => { execState = next; },
+      resumeFiber: () => {},
+    });
+
+    child.send("humanInput", "start");
+    for (let i = 0; i < 10; i++) {
+      const current = await step();
+      if (current.kind === "suspend" && current.reason === "wait_llm_result") break;
+    }
+    await flushMicrotasks();
+    expect(await step()).toMatchObject({
+      kind: "fail",
+      error: expect.stringContaining("empty assistant response"),
+    });
+  });
+
+  it("fails a delegate fiber when the current provider fails after prior assistant content", async () => {
+    const mockAdapter = {
+      type: "openai" as const,
+      async createStream() {
+        async function* stream() { yield { ok: true }; }
+        return { stream: stream() };
+      },
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    const child = createActor({
+      key: "workflow-child-with-partial",
+      type: "delegate",
+      messages: [{ role: "assistant", content: "Capability confirmed; opening the workspace now." }],
+      llmClient: mockAdapter,
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => {
+          throw new Error("invalid_tool_call_payload: invalid JSON arguments");
+        },
+      },
+    });
+    const vm = createVM({ controlActorKey: child.key, actors: { [child.key]: child }, registries: { toolRegistry } });
+    const fiberId = `${child.key}:${child.id}`;
+    let execState: any;
+    const step = async () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: child,
+      messages: [...child.messages],
+      state: execState,
+      setState: (next) => { execState = next; },
+      resumeFiber: () => {},
+    });
+
+    child.send("humanInput", "continue");
+    for (let i = 0; i < 10; i++) {
+      const current = await step();
+      if (current.kind === "suspend" && current.reason === "wait_llm_result") break;
+    }
+    await flushMicrotasks();
+
+    expect(await step()).toMatchObject({
+      kind: "fail",
+      error: expect.stringContaining("invalid_tool_call_payload"),
+    });
+  });
+
+  it("keeps provider failure terminal when a checkpoint completion loses its optional event field", async () => {
+    const child = createActor({
+      key: "workflow-child-checkpoint",
+      type: "delegate",
+      messages: [{ role: "assistant", content: "preparing workflow instance" }],
+    });
+    const toolRegistry = new ToolFuncRegistry();
+    const vm = createVM({ controlActorKey: child.key, actors: { [child.key]: child }, registries: { toolRegistry } });
+    const fiberId = `${child.key}:${child.id}`;
+    const opId = `llm:${fiberId}:11`;
+    let execState: any = {
+      phase: "wait_llm",
+      turn: 5,
+      tools: [],
+      toolCalls: [],
+      toolIndex: 0,
+      nextOpSeq: 12,
+      pendingToolResults: [],
+      pendingAiGenerated: [],
+      providerFailure: {
+        opId,
+        error: "Error: invalid_tool_call_payload: invalid JSON arguments",
+      },
+      turnState: { kind: "wait_llm", turn: 5, opId, providerCallId: opId },
+      inflight: { kind: "llm", opId, turn: 5, tools: [] },
+      messageHistoryAttached: false,
+    };
+    child.send("asyncCompletion", {
+      kind: "llm_done",
+      opId,
+      msg: { role: "assistant", content: "preparing workflow instance" },
+    } as any);
+
+    const result = await aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: child,
+      messages: [...child.messages],
+      state: execState,
+      setState: (next) => {
+        execState = next;
+      },
+      resumeFiber: () => {},
+    });
+
+    expect(result).toMatchObject({
+      kind: "fail",
+      error: expect.stringContaining("invalid_tool_call_payload"),
+    });
+  });
+
+  it("fails a workflow delegate after the configured number of no-progress turns", async () => {
+    const noProgressTool: ToolDef<any, string, Record<string, unknown>> = {
+      schema: {
+        type: "function",
+        function: { name: "NoProgressTool", description: "test", parameters: { type: "object" } },
+      },
+      briefPromptXnl: `<tool name="NoProgressTool" />`,
+      run: async () => "observed but unchanged",
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(noProgressTool as any);
+    const child = createActor({
+      key: "workflow-no-progress",
+      type: "delegate",
+      agentName: "workflow",
+      llmClient: {
+        type: "openai" as const,
+        async createStream() {
+          async function* stream() { yield { ok: true }; }
+          return { stream: stream() };
+        },
+      },
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [noProgressTool.schema],
+        processStream: async () => ({
+          role: "assistant",
+          tool_calls: [{ id: "no-progress", function: { name: "NoProgressTool", arguments: "{}" } }],
+        }),
+      },
+    });
+    const vm = createVM({
+      controlActorKey: child.key,
+      actors: { [child.key]: child },
+      registries: { toolRegistry },
+      outerCtx: { metadata: { aiWorkflow: { budget: { maxNoProgressTurns: 1 } } } },
+    });
+    const fiberId = `${child.key}:${child.id}`;
+    let execState: any;
+    const step = async () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: child,
+      messages: [],
+      state: execState,
+      setState: (next) => { execState = next; },
+      resumeFiber: () => {},
+    });
+
+    child.send("humanInput", "start");
+    let terminal: any;
+    for (let index = 0; index < 30; index += 1) {
+      terminal = await step();
+      if (terminal.kind === "fail") break;
+      await flushMicrotasks();
+    }
+    expect(terminal).toMatchObject({
+      kind: "fail",
+      error: expect.stringContaining("workflow_no_progress"),
+    });
+  });
+
+  it("fails a workflow delegate when its provider call crosses the stage deadline", async () => {
+    const toolRegistry = new ToolFuncRegistry();
+    const child = createActor({
+      key: "workflow-deadline",
+      type: "delegate",
+      agentName: "workflow",
+      llmClient: {
+        type: "openai" as const,
+        async createStream() {
+          async function* stream() { yield { ok: true }; }
+          return { stream: stream() };
+        },
+      },
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => new Promise<never>(() => {}),
+      },
+    });
+    const vm = createVM({
+      controlActorKey: child.key,
+      actors: { [child.key]: child },
+      registries: { toolRegistry },
+      outerCtx: { metadata: { aiWorkflow: { budget: { stageDeadlineMs: 5 } } } },
+    });
+    const fiberId = `${child.key}:${child.id}`;
+    let execState: any;
+    const step = async () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: child,
+      messages: [],
+      state: execState,
+      setState: (next) => { execState = next; },
+      resumeFiber: () => {},
+    });
+
+    child.send("humanInput", "start");
+    for (let index = 0; index < 10; index += 1) {
+      const current = await step();
+      if (current.kind === "suspend" && current.reason === "wait_llm_result") break;
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 10));
+    await flushMicrotasks();
+    expect(await step()).toMatchObject({
+      kind: "fail",
+      error: expect.stringContaining("workflow_stage_deadline"),
+    });
   });
 });

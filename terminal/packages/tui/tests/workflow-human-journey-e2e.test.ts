@@ -4,6 +4,7 @@ import path from "node:path"
 
 import { afterEach, describe, expect, it } from "bun:test"
 import type { Part } from "@terminal/core/AIAgent"
+import { installBundledSystemSkills } from "@cell/ai-support/system-skill/SystemSkillInstaller"
 import {
   __setLlmAdapterFactoryForTest,
   configureTuiRuntime,
@@ -48,7 +49,7 @@ const MANIFEST = [
   ``,
 ].join("\n")
 
-function createTempProject() {
+async function createTempProject() {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-tui-workflow-e2e-"))
   fs.mkdirSync(path.join(workDir, ".eidolon", "agents"), { recursive: true })
   fs.mkdirSync(path.join(workDir, ".eidolon", "mcp"), { recursive: true })
@@ -72,6 +73,7 @@ function createTempProject() {
     },
   }, null, 2))
   process.env.HOME = homeDir
+  await installBundledSystemSkills({ globalRoot: path.join(homeDir, ".eidolon") })
   return { workDir, homeDir }
 }
 
@@ -162,7 +164,7 @@ afterEach(() => {
 
 describe("TUI AI workflow human journey e2e", () => {
   it("authors, separately confirms, executes network research, and reports AI application trends", async () => {
-    const { workDir, homeDir } = createTempProject()
+    const { workDir, homeDir } = await createTempProject()
     const sessionID = `workflow-human-e2e-${Date.now()}`
     const originalRequest = [
       "请创建一个可复用流程：从以下多个真实热点来源获取 AI 应用最新发展趋势，综合交叉分析后生成中文报告：",
@@ -171,6 +173,9 @@ describe("TUI AI workflow human journey e2e", () => {
     ].join("\n")
     const fulfillCalls: Array<Record<string, unknown>> = []
     const adapterTrace: Array<Record<string, unknown>> = []
+    const stageCalls: string[] = []
+    let authoringCompletionCount = 0
+    let firstMutationCompletion: number | undefined
     const publicSourceEvidence = new Map<string, { title: string; bytes: number }>()
     let workflowResultEvidence = ""
 
@@ -238,12 +243,23 @@ describe("TUI AI workflow human journey e2e", () => {
           ].join("\n"))
         }
 
-        if (currentUser.includes("# Product journey contract")) {
-          const publicationExplicit = currentUser.includes("Publication authorization: explicit")
-          const executionExplicit = currentUser.includes("Execution authorization: explicit")
+        if (currentUser.includes('"kind": "eidolon.aiWorkflowInvocation"')) {
+          const publicationExplicit = currentUser.includes('"publication": true')
+          const executionExplicit = currentUser.includes('"execution": true')
+
+          const enterStage = (stage: string) => {
+            const toolCallId = `tc-stage-${stage}`
+            if (toolMessage(messages, toolCallId)) return undefined
+            stageCalls.push(stage)
+            return toolCall("WorkflowLoadStageContext", toolCallId, { stage })
+          }
 
           if (!publicationExplicit) {
+            authoringCompletionCount += 1
+            const coding = enterStage("coding")
+            if (coding) return coding
             if (!toolMessage(messages, "tc-create-draft")) {
+              firstMutationCompletion = authoringCompletionCount
               return toolCall("WorkflowCreateBundle", "tc-create-draft", {
                 form: "ai-ctrl",
                 name: "AI Application Trend Report",
@@ -252,59 +268,65 @@ describe("TUI AI workflow human journey e2e", () => {
                 session_id: SESSION_ID,
               })
             }
-            if (!toolMessage(messages, "tc-diff-draft")) {
-              return toolCall("WorkflowWorkspace", "tc-diff-draft", { operation: "diff", session_id: SESSION_ID })
+            const testing = enterStage("testing")
+            if (testing) return testing
+            if (!toolMessage(messages, "tc-prepare-publication")) {
+              return toolCall("WorkflowPreparePublication", "tc-prepare-publication", { session_id: SESSION_ID })
             }
-            if (!toolMessage(messages, "tc-validate-draft")) {
-              return toolCall("WorkflowValidateAuthoringSession", "tc-validate-draft", { session_id: SESSION_ID })
-            }
-            if (!toolMessage(messages, "tc-dry-run-draft")) {
-              return toolCall("WorkflowDryRunAuthoringSession", "tc-dry-run-draft", { session_id: SESSION_ID })
+            if (!toolMessage(messages, "tc-complete-ready")) {
+              const prepared = jsonToolContent(messages, "tc-prepare-publication")
+              return toolCall("WorkflowCompleteAuthoring", "tc-complete-ready", {
+                session_id: SESSION_ID,
+                expected_revision: prepared.revision,
+                stage: "testing",
+                outcome: "ready",
+              })
             }
             return textResponse("流程草稿已完成校验和静态试运行，尚未发布，也没有执行。请确认是否发布。")
           }
 
           if (!executionExplicit) {
-            if (!toolMessage(messages, "tc-authoring-summary")) {
-              return toolCall("WorkflowGetAuthoringSummary", "tc-authoring-summary", { session_id: SESSION_ID })
-            }
+            const releasing = enterStage("releasing")
+            if (releasing) return releasing
             if (!toolMessage(messages, "tc-publish")) {
               return toolCall("WorkflowPublishAuthoringSession", "tc-publish", {
                 session_id: SESSION_ID,
                 confirmed: true,
               })
             }
-            if (!toolMessage(messages, "tc-create-instance")) {
-              return toolCall("WorkflowCreateInstance", "tc-create-instance", {
-                workflow_ref: WORKFLOW_REF,
-                instance_id: INSTANCE_ID,
-                idempotency_key: "ai-trend-report-v1",
-                input: {
-                  prompt: [
-                    "PORTAL_RESEARCH_TASK",
-                    "逐一访问以下真实公网来源，只依据实际返回内容生成中文 AI 应用趋势报告：",
-                    ...PUBLIC_SOURCES.map((source) => source.url),
-                  ].join("\n"),
-                },
+            if (!toolMessage(messages, "tc-complete-published")) {
+              const publication = jsonToolContent(messages, "tc-publish")
+              return toolCall("WorkflowCompleteAuthoring", "tc-complete-published", {
+                session_id: SESSION_ID,
+                expected_revision: publication.revision,
+                stage: "releasing",
+                outcome: "published",
               })
             }
-            if (!toolMessage(messages, "tc-preview-run")) {
-              return toolCall("WorkflowRun", "tc-preview-run", {
-                instance_id: INSTANCE_ID,
-                run_id: RUN_ID,
-                confirmed: false,
-              })
-            }
-            const preview = jsonToolContent(messages, "tc-preview-run")
-            if (preview.status !== "confirmation_required") {
-              return textResponse("执行预览没有停在人工确认门。")
-            }
-            return textResponse("流程已经发布并完成执行预览，但尚未运行。请确认是否现在执行。")
+            return textResponse("流程已经发布，但尚未创建运行实例或执行。请确认是否现在执行。")
           }
 
-          if (!toolMessage(messages, "tc-list-instances")) {
-            return toolCall("WorkflowListInstances", "tc-list-instances", {})
+          const deploying = enterStage("deploying")
+          if (deploying) return deploying
+          if (!toolMessage(messages, "tc-get-type")) {
+            return toolCall("WorkflowGetType", "tc-get-type", { workflow_ref: WORKFLOW_REF })
           }
+          if (!toolMessage(messages, "tc-create-instance")) {
+            return toolCall("WorkflowCreateInstance", "tc-create-instance", {
+              workflow_ref: WORKFLOW_REF,
+              instance_id: INSTANCE_ID,
+              idempotency_key: "ai-trend-report-v1",
+              input: {
+                prompt: [
+                  "PORTAL_RESEARCH_TASK",
+                  "逐一访问以下真实公网来源，只依据实际返回内容生成中文 AI 应用趋势报告：",
+                  ...PUBLIC_SOURCES.map((source) => source.url),
+                ].join("\n"),
+              },
+            })
+          }
+          const operating = enterStage("operating")
+          if (operating) return operating
           if (!toolMessage(messages, "tc-execute-run")) {
             return toolCall("WorkflowRun", "tc-execute-run", {
               instance_id: INSTANCE_ID,
@@ -316,6 +338,8 @@ describe("TUI AI workflow human journey e2e", () => {
           if (executed.status !== "Completed") {
             return textResponse(`流程未完成：${executed.status ?? "unknown"}`)
           }
+          const monitoring = enterStage("monitoring")
+          if (monitoring) return monitoring
           if (!toolMessage(messages, "tc-read-result")) {
             return toolCall("WorkflowResult", "tc-read-result", { run_id: RUN_ID })
           }
@@ -355,6 +379,10 @@ describe("TUI AI workflow human journey e2e", () => {
       const workspaceRoot = path.join(workDir, ".eidolon", "workflows")
       const sessionPath = path.join(workspaceRoot, ".authoring", "sessions", SESSION_ID, "session.json")
       const publishedManifest = path.join(workspaceRoot, "ai-application-trend-report", "manifest.xnl")
+      if (!fs.existsSync(sessionPath)) {
+        const diagnosticMessages = await sdk.client.session.messages({ sessionID })
+        throw new Error(`Authoring session did not materialize. Fulfill calls: ${JSON.stringify(fulfillCalls)}\nAdapter trace: ${JSON.stringify(adapterTrace)}\nTranscript:\n${allTextParts(diagnosticMessages.data ?? []).join("\n")}`)
+      }
       const authored = JSON.parse(fs.readFileSync(sessionPath, "utf8"))
       expect(authored).toMatchObject({ status: "open" })
       expect(authored.diffRevision).toBe(authored.currentRevision)
@@ -362,6 +390,8 @@ describe("TUI AI workflow human journey e2e", () => {
       expect(authored.dryRunRevision).toBe(authored.currentRevision)
       expect(fs.existsSync(publishedManifest)).toBe(false)
       expect(publicSourceEvidence.size).toBe(0)
+      expect(authoringCompletionCount).toBeLessThanOrEqual(6)
+      expect(firstMutationCompletion).toBeLessThanOrEqual(4)
 
       await prompt(sdk, sessionID, "turn-publish", "我确认发布刚才的 AI 应用趋势报告流程，但不要执行。")
 
@@ -384,6 +414,10 @@ describe("TUI AI workflow human journey e2e", () => {
         expect.objectContaining({ operation: "create", publish: false, execute: false }),
         expect.objectContaining({ operation: "continue", publish: true, execute: false }),
         expect.objectContaining({ operation: "continue", publish: true, execute: true }),
+      ])
+      expect(stageCalls).toEqual([
+        "coding", "testing", "releasing",
+        "deploying", "operating", "monitoring",
       ])
 
       const messages = await sdk.client.session.messages({ sessionID })

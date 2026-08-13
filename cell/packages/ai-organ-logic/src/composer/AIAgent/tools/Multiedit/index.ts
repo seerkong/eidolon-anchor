@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeMultieditOuterComputed,
   makeMultieditInnerRuntime,
@@ -18,7 +18,7 @@ export function buildMultieditToolDef(): ToolDef<MultieditOuterInput, MultieditO
       function: {
         name: "multiedit",
         description: "Apply multiple exact-text edit operations sequentially on one file. Read the file first and copy the exact oldString snippets.",
-        parameters: { type: "object", properties: { filePath: { type: "string" }, edits: { type: "array", items: { type: "object", properties: { filePath: { type: "string" }, oldString: { type: "string" }, newString: { type: "string" }, replaceAll: { type: "boolean" } }, required: ["oldString", "newString"] } } }, required: ["filePath", "edits"] },
+        parameters: { type: "object", properties: { filePath: { type: "string" }, edits: { type: "array", items: { type: "object", properties: { filePath: { type: "string" }, oldString: { type: "string" }, newString: { type: "string" }, replaceAll: { type: "boolean" } }, required: ["oldString", "newString"] } }, scopeIntent: fileToolScopeIntentSchema() }, required: ["filePath", "edits"] },
       },
     },
     briefPromptXnl: readPromptFromDir("Multiedit", "Tool.brief.xnl"),

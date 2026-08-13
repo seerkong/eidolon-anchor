@@ -480,11 +480,15 @@ async function commitStagedPatchPlan(plan: StagedPatchPlan): Promise<void> {
   }
 }
 
-function ensurePatchPermissions(runtime: ApplyPatchInnerRuntime, ops: PatchOp[]): string | null {
+function ensurePatchPermissions(
+  runtime: ApplyPatchInnerRuntime,
+  ops: PatchOp[],
+  scopeIntent: ApplyPatchInnerInput["scopeIntent"],
+): string | null {
   for (const op of ops) {
     const targets = op.kind === "update" && op.moveTo ? [op.file.raw, op.moveTo.raw] : [op.file.raw]
     for (const filePath of targets) {
-      const permission = authorizeLocalToolCall(runtime, "apply_patch", { filePath })
+      const permission = authorizeLocalToolCall(runtime, "apply_patch", { filePath, scopeIntent })
       if (!permission.ok) {
         return permission.output
       }
@@ -512,7 +516,7 @@ export const applyPatchCoreLogic: StdInnerLogic<
 
   try {
     ops = parsePatch(patchText, workdir)
-    const permissionError = ensurePatchPermissions(runtime, ops)
+    const permissionError = ensurePatchPermissions(runtime, ops, input?.scopeIntent)
     if (permissionError) return permissionError
 
     const plan = await buildStagedPatchPlan(ops)

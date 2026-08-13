@@ -7,6 +7,7 @@ import type {
   AIWorkflowEffectProvider,
   AIWorkflowEffectRequest,
   AIWorkflowRunEvent,
+  AIWorkflowRunRef,
 } from "@cell/ai-workflow-contract"
 import { spawnChildExecutionActor } from "../../agent/DelegateActor"
 import { hashWorkflowSources, type WorkflowAuthoringStore } from "../authoring"
@@ -57,18 +58,37 @@ function sessionDir(runtime: WorkflowRuntime): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined
 }
 
+function isSameRunAuthority(actual: AIWorkflowRunRef, expected: AIWorkflowRunRef): boolean {
+  return actual === expected
+    && actual.runId === expected.runId
+    && actual.generation === expected.generation
+    && actual.parentGeneration === expected.parentGeneration
+    && actual.workflow.ref === expected.workflow.ref
+    && actual.workflow.scheme === expected.workflow.scheme
+    && actual.workflow.fqn === expected.workflow.fqn
+    && actual.workflow.revision === expected.workflow.revision
+}
+
 export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider {
   constructor(
     private readonly runtime: WorkflowRuntime,
     private readonly materials: WorkflowMaterialAccess,
     private readonly facts: WorkflowFactStore,
-    private readonly onMaterialWrite?: (
+    private readonly onMaterialWrite: ((
       request: AIWorkflowEffectRequest,
       output: { path: string; revision: string },
-    ) => Promise<void>,
+    ) => Promise<void>) | undefined,
+    private readonly resolveRunAuthority: () => AIWorkflowRunRef,
   ) {}
 
   async invoke<Input = unknown, Output = unknown>(request: AIWorkflowEffectRequest<Input>): Promise<Output> {
+    if (!request?.run || typeof request.run.runId !== "string" || !request.run.runId.trim()) {
+      throw new Error("Workflow effect request requires run.runId from the active runtime capability")
+    }
+    const activeRun = this.resolveRunAuthority()
+    if (!isSameRunAuthority(request.run, activeRun)) {
+      throw new Error("Workflow effect request run does not match active runtime run authority")
+    }
     const eventBase = {
       runId: request.run.runId,
       generation: request.run.generation,

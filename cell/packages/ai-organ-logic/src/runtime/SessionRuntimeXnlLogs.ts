@@ -15,6 +15,12 @@ export type SessionRuntimeXnlLogBinding = {
   flush: () => Promise<void>;
 };
 
+export type RawReasoningDebugRetention = {
+  mode: "debug";
+  maxCharacters: number;
+  expiresAt: number;
+};
+
 export type SessionRuntimeLogActorMeta = {
   agentKey: string;
   agentActorId: string;
@@ -63,6 +69,27 @@ function ingressLogPath(sessionDir: string): string {
 
 function diagnosticsLogPath(sessionDir: string): string {
   return path.join(sessionDir, "logs", "diagnostics.xnl");
+}
+
+function reasoningDebugLogPath(sessionDir: string): string {
+  return path.join(sessionDir, "logs", "reasoning-debug.xnl");
+}
+
+function reasoningAggregateNode(params: {
+  deltaCount: number;
+  characterCount: number;
+  rawRetained: boolean;
+  observedAt: number;
+}): Omit<XnlAppendDataRecordInput, "filePath"> {
+  return {
+    tag: "ReasoningAggregate",
+    metadata: { observedAt: params.observedAt },
+    attributes: {
+      deltaCount: params.deltaCount,
+      characterCount: params.characterCount,
+      rawRetained: params.rawRetained,
+    },
+  };
 }
 
 function ingressEventToXnlNode(params: {
@@ -269,6 +296,7 @@ export function bindIngressStreamsToSessionXnlLog(params: {
   sessionId?: string;
   ingressStreams: IngressStreams;
   actorMeta?: SessionRuntimeLogActorMeta;
+  reasoningRetention?: RawReasoningDebugRetention;
 }): SessionRuntimeXnlLogBinding {
   if (!params.sessionDir) {
     return { dispose: () => {}, flush: () => Promise.resolve() };
@@ -276,7 +304,34 @@ export function bindIngressStreamsToSessionXnlLog(params: {
 
   const queue = createAppendQueue();
   let sequence = 0;
+  let reasoningDeltaCount = 0;
+  let reasoningCharacterCount = 0;
+  let retainedReasoningCharacters = 0;
   const offData = params.ingressStreams.timeline.onData((event) => {
+    if (event.event === "think") {
+      reasoningDeltaCount += 1;
+      reasoningCharacterCount += event.data.length;
+      const retention = params.reasoningRetention;
+      const remaining = retention && retention.expiresAt > Date.now()
+        ? Math.max(0, retention.maxCharacters - retainedReasoningCharacters)
+        : 0;
+      if (retention && remaining > 0) {
+        const text = event.data.slice(0, remaining);
+        retainedReasoningCharacters += text.length;
+        queue.append(reasoningDebugLogPath(params.sessionDir!), {
+          kind: "text",
+          tag: "ThinkDelta",
+          metadata: {
+            version: 1,
+            sequence: ++sequence,
+            observedAt: Date.now(),
+            expiresAt: retention.expiresAt,
+          },
+          text,
+        });
+      }
+      return;
+    }
     queue.append(ingressLogPath(params.sessionDir!), ingressEventToXnlNode({
       event,
       sessionId: params.sessionId,
@@ -295,12 +350,25 @@ export function bindIngressStreamsToSessionXnlLog(params: {
       offData();
       offEnd();
     },
-    flush: queue.flush,
+    flush: async () => {
+      if (reasoningDeltaCount > 0) {
+        queue.append(ingressLogPath(params.sessionDir!), reasoningAggregateNode({
+          deltaCount: reasoningDeltaCount,
+          characterCount: reasoningCharacterCount,
+          rawRetained: retainedReasoningCharacters > 0,
+          observedAt: Date.now(),
+        }));
+        reasoningDeltaCount = 0;
+        reasoningCharacterCount = 0;
+      }
+      await queue.flush();
+    },
   };
 }
 
 export function createSessionDiagnosticsXnlLog(params: {
   sessionDir?: string;
+  reasoningRetention?: RawReasoningDebugRetention;
 }): {
   appendSemanticEvent: (event: SemanticEvent) => void;
   appendRuntimeCheckpointEvent: (event: RuntimeCheckpointDiagnosticEvent) => void;
@@ -316,6 +384,9 @@ export function createSessionDiagnosticsXnlLog(params: {
     };
   }
   const queue = createAppendQueue();
+  let reasoningDeltaCount = 0;
+  let reasoningCharacterCount = 0;
+  let retainedReasoningCharacters = 0;
   const appendRuntimeDiagnosticEvent = (
     event: RuntimeCheckpointDiagnosticEvent | RuntimePersistenceDiagnosticEvent,
   ) => {
@@ -347,6 +418,28 @@ export function createSessionDiagnosticsXnlLog(params: {
   };
   return {
     appendSemanticEvent: (event) => {
+      if (event.event_type === "semantic_think_delta") {
+        const text = typeof (event as SemanticEvent & { text?: unknown }).text === "string"
+          ? String((event as SemanticEvent & { text?: unknown }).text)
+          : "";
+        reasoningDeltaCount += 1;
+        reasoningCharacterCount += text.length;
+        const retention = params.reasoningRetention;
+        const remaining = retention && retention.expiresAt > Date.now()
+          ? Math.max(0, retention.maxCharacters - retainedReasoningCharacters)
+          : 0;
+        if (retention && remaining > 0) {
+          const retained = text.slice(0, remaining);
+          retainedReasoningCharacters += retained.length;
+          queue.append(reasoningDebugLogPath(params.sessionDir!), {
+            kind: "text",
+            tag: "SemanticThinkDelta",
+            metadata: { observedAt: Date.now(), expiresAt: retention.expiresAt },
+            text: retained,
+          });
+        }
+        return;
+      }
       queue.run(async () => {
         const sessionDir = params.sessionDir!;
         await appendXnlRecord({
@@ -361,6 +454,18 @@ export function createSessionDiagnosticsXnlLog(params: {
     appendRuntimePersistenceEvent: (event) => {
       appendRuntimeDiagnosticEvent(event);
     },
-    flush: queue.flush,
+    flush: async () => {
+      if (reasoningDeltaCount > 0) {
+        queue.append(diagnosticsLogPath(params.sessionDir!), reasoningAggregateNode({
+          deltaCount: reasoningDeltaCount,
+          characterCount: reasoningCharacterCount,
+          rawRetained: retainedReasoningCharacters > 0,
+          observedAt: Date.now(),
+        }));
+        reasoningDeltaCount = 0;
+        reasoningCharacterCount = 0;
+      }
+      await queue.flush();
+    },
   };
 }

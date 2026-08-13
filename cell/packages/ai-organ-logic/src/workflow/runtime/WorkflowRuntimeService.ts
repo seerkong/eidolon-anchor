@@ -91,14 +91,14 @@ function factRoot(runtime: WorkflowRuntime, workspaceRoot: string): string {
 }
 
 function runRef(descriptor: WorkflowRunDescriptor): AIWorkflowRunRef {
-  return {
-    workflow: {
+  return Object.freeze({
+    workflow: Object.freeze({
       ref: descriptor.workflowRef,
       scheme: descriptor.workflowRef.startsWith("resource://") ? "resource" : "vfs",
-    },
+    }),
     runId: descriptor.runId,
     generation: descriptor.generation,
-  }
+  })
 }
 
 export class WorkflowRuntimeService {
@@ -534,6 +534,7 @@ export class WorkflowRuntimeService {
     if (definition.binding.kind !== "AICtrlWorkflow") throw new Error("Expected AICtrlWorkflow binding")
     const component = createWorkflowComponentForRuntime(this.runtime)
     if (!component.authoring) throw new Error("Workflow authoring workspace is not bound")
+    const activeRunAuthority = runRef(descriptor)
     return createAICtrlWorkflowController({
       binding: definition.binding,
       store: this.facts,
@@ -546,8 +547,9 @@ export class WorkflowRuntimeService {
           new StoreBackedWorkflowMaterialAccess(component.authoring.store),
           this.facts,
           (request, output) => this.captureMaterialOutput(request.run.runId, request.nodeId ?? "effect", output.path),
+          () => activeRunAuthority,
         ),
-        metadata: { run: runRef(descriptor) },
+        metadata: { run: activeRunAuthority },
       },
     })
   }

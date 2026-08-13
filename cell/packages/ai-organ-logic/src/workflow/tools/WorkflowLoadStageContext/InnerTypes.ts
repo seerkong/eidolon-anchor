@@ -1,0 +1,11 @@
+import type {
+  WorkflowLoadStageContextOuterConfig,
+  WorkflowLoadStageContextOuterInput,
+  WorkflowLoadStageContextOuterOutput,
+  WorkflowLoadStageContextOuterRuntime,
+} from "./OuterTypes"
+
+export type WorkflowLoadStageContextInnerRuntime = WorkflowLoadStageContextOuterRuntime
+export type WorkflowLoadStageContextInnerInput = WorkflowLoadStageContextOuterInput
+export type WorkflowLoadStageContextInnerConfig = WorkflowLoadStageContextOuterConfig
+export type WorkflowLoadStageContextInnerOutput = WorkflowLoadStageContextOuterOutput

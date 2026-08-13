@@ -1,0 +1,140 @@
+<decision #track.establish-system-ai-workflow-skill.semantic-authority {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>谁负责从普通自然语言决定 workflow warrant、form、topology、starting fact 和工具调用？</?>
+  <answer { }
+  (
+    <raw-answer ?>由 AI Workflow 专属系统级 Skill 指导大模型处理，坚决禁止代码中的模糊匹配。</?>
+    <decision-text ?>专属 workflow actor 是自然语言 semantic authority；deterministic code 只验证和执行显式结构化命令。</?>
+    <rationale ?>模型擅长开放语义，组件擅长可验证 transition；混淆两者会产生脆弱 heuristic 和错误 route。</?>
+    <evidence ?>用户明确约束；既有 actor-boundary durable decision；事故 session 的错误 composite route。</?>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.global-location {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>AI Workflow 提示词的产品真源安装在哪里？</?>
+  <answer { }
+  (
+    <raw-answer ?>通过 eidolon global init 初始化或替换 global 目录（默认 ~/.eidolon）下的系统级 Skills。</?>
+    <decision-text ?>`eidolon global init` SHALL reconcile the product-bundled system-skill set and install the canonical AI Workflow Skill at `<global-eidolon-dir>/skills/sys-ai-workflow`。</?>
+    <rationale ?>该能力属于 Eidolon 产品而非某个 workspace，必须跨项目稳定存在。</?>
+    <evidence ?>用户明确指定的 global Skill 位置。</?>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.stage-boundary {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>编辑与运行应如何呈现为产品交互？</?>
+  <answer { }
+  (
+    <raw-answer ?>参考 KWF 分离编辑和运行两个产品交互阶段。</?>
+    <decision-text ?>同一系统 Skill 明确区分 authoring/edit stage 与 prepare/run stage；publication 与 execution 分别作为独立 gate。</?>
+    <rationale ?>编辑改变 definition，运行消费 immutable published revision，两者的事实、工具和授权不同。</?>
+    <evidence ?>用户要求；现有 publication/execution lifecycle contract。</?>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.prompt-layering {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>系统 Skill 的提示词和知识应按什么生命周期组织？</?>
+  <answer { }
+  (
+    <raw-answer ?>眼光放到完整 DevOps 生命周期；先按阶段创建父目录，flow-dsl 只在 coding 下按原结构组织，其它提示词也归入对应阶段。</?>
+    <decision-text ?>`SKILL.md` SHALL route the DevOps lifecycle stages `planning/coding/building/testing/releasing/deploying/operating/monitoring`; every stage SHALL own its system prompt and protocol, and only `coding` SHALL carry the load-bearing generation kernel and flow-dsl tree。</?>
+    <rationale ?>粗粒度 authoring/run 不能表达规划、构建、验证、发布、部署、运维、观测的不同事实、工具和提示词；按生命周期分层同时支持渐进披露。</?>
+    <evidence ?>用户明确修正；KWF 分层 prompt/generation-kernel 证据；AI Workflow 产品 transition。</?>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.flow-dsl-skeleton {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>depa-flows flow-dsl 应怎样内嵌到 AI Workflow Skill？</?>
+  <answer { }
+  (
+    <raw-answer ?>保留骨架，裁剪用不到的地方，再补充 AI Workflow 特有内容。</?>
+    <decision-text ?>The installed Skill SHALL preserve the upstream `foundation/std/spec` hierarchy under `coding/flow-dsl`, embedding a provenance-tracked L1 foundation → EagerDataFlow/WorkCtrlFlow substrate → AI workflow profile skeleton while trimming only irrelevant product details。</?>
+    <rationale ?>AI profile 的正确语义依赖 substrate 与基础公理；只复制几个示例会诱发臆造语法和事实源混淆。</?>
+    <evidence ?>depa-flows flow-dsl README、foundation、flow-core、eager/work substrate、AI profile specs and axioms。</?>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.global-init {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>未来多个系统级 Skill 应如何安装和升级？</?>
+  <answer { }
+  (
+    <raw-answer ?>统一通过 `eidolon global init` 初始化或者替换 `~/.eidolon/skills/` 中的系统级 Skill。</?>
+    <decision-text ?>`eidolon global init` SHALL stage, validate and atomically replace every product-managed `sys-*` Skill listed in `.system-skills.xnl`, preserve unmanaged user skills, and support adding system Skills in future releases without new installation commands。</?>
+    <rationale ?>系统能力需要一个可重复、可审计、可扩展的产品安装入口；直接覆盖整个 skills 目录会破坏用户资产。</?>
+    <evidence ?>用户明确指定 global init；global skills 目录同时可能存在用户 Skill。</?>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.system-identity {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>workspace 中的同名 skill 是否可以覆盖产品系统 Skill？</?>
+  <answer { }
+  (
+    <raw-answer ?>提示词应存放在 global 目录，作为产品专属系统级 skill。</?>
+    <decision-text ?>`sys-ai-workflow` SHALL be a global-only reserved identity; workspace skills MUST NOT shadow it, and missing or incompatible global installations SHALL fail explicitly。</?>
+    <rationale ?>若 workspace 可覆盖，产品语义、安全门和跨入口一致性就不再由产品拥有。</?>
+    <evidence ?>用户指定 global path；现有 workspace-only Skill loader 与多根覆盖机制。</?>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.fact-ownership {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>编辑、发布和运行各自消费与产生什么事实？</?>
+  <answer { }
+  (
+    <raw-answer ?>编辑和运行是不同产品交互，确定性代码只执行结构化 transition。</?>
+    <decision-text ?>Definition workspace revision, fresh validation proof, immutable publication, input/material binding, WorkCtrlFlow snapshot and AIDataWorkflow RunGraph SHALL remain distinct facts with distinct owners and authorization transitions。</?>
+    <rationale ?>把运行 patch、snapshot 或 confirmation 回写 definition 会制造第二真源并破坏恢复等价性。</?>
+    <evidence ?>KWF workflow-authoring lifecycle；depa-flows flow-core/work/AI workflow fact-owner specifications。</?>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.execution-authorization {
+  priority = "P0"
+  status = "accepted"
+}
+(
+  <question ?>是否激活并开始实现本 track？</?>
+  <answer { }
+  (
+    <decision-text ?>用户已通过 `codument-impl-mission` 明确授权按顺序实现新增 tracks，本 track 立即激活。</?>
+    <evidence ?>当前用户指令。</?>
+  )>
+)>

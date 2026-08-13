@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeReadOuterComputed,
   makeReadInnerRuntime,
@@ -17,8 +17,8 @@ export function buildReadToolDef(): ToolDef<ReadOuterInput, ReadOuterOutput, Rea
       type: "function" as const,
       function: {
         name: "read",
-        description: "Read a file or directory listing from an accessible path. Supports relative, absolute, and ~/ home-directory paths.",
-        parameters: { type: "object", properties: { filePath: { type: "string" }, offset: { type: "number" }, limit: { type: "number" } }, required: ["filePath"] },
+        description: "Read a file or directory. Prefer workspace-relative paths; external paths require explicit scopeIntent.",
+        parameters: { type: "object", properties: { filePath: { type: "string" }, offset: { type: "number" }, limit: { type: "number" }, scopeIntent: fileToolScopeIntentSchema() }, required: ["filePath"] },
       },
     },
     briefPromptXnl: readPromptFromDir("Read", "Tool.brief.xnl"),

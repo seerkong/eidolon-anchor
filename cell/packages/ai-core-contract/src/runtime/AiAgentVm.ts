@@ -39,6 +39,10 @@ export type RuntimeOptions = {
 export type RuntimeStorageOptions = {
   logs?: boolean;
   files?: boolean;
+  reasoningDebug?: {
+    maxCharacters: number;
+    ttlMs: number;
+  };
 };
 
 export type RuntimeEffects = {
@@ -183,6 +187,18 @@ export type VmThreadGoalRuntimeState = {
   lastContinuationAt?: number;
 };
 
+/** Ephemeral, typed presentation observations keyed by toolCallId. Domain facts remain authoritative. */
+export type ContextResourcePresentationData = {
+  status: "loaded" | "already-visible";
+  resourceId: string;
+  revision: string;
+  totalLines: number;
+  sizeBytes?: number;
+  requestedLines: string;
+  deliveredLines?: string;
+  contentText?: string;
+};
+
 export type VmDeferredResume = {
   fiberId: string;
   at: number;
@@ -203,6 +219,7 @@ export type VmRuntimeContext = {
   toolCallDomain: unknown | null;
   /** Per-vm ProviderCallDomain runtime data (held opaquely; concrete runtime in ai-organ-logic). */
   providerCallDomain: unknown | null;
+  contextResourcePresentations: Record<string, ContextResourcePresentationData>;
   heartbeatScheduler: HeartbeatSchedulerRuntimeState | null;
   threadGoalRuntime: VmThreadGoalRuntimeState;
   autonomousHolonTaskSignals: CompletionSignalRegistryLike<string, { status: string; resultText: string | null }>;

@@ -177,6 +177,12 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
               role: "tool",
               content: "persisted tool progress",
               toolCallId: "call-sequence-regression",
+              resultMetadata: {
+                contextResource: {
+                  status: "loaded",
+                  resourceId: "file:///workspace/README.md",
+                },
+              },
             },
           },
         ],
@@ -192,6 +198,12 @@ describe("LocalFileConversationProjectionReadPort: single-source reads", () => {
         ["assistant", "persisted assistant progress"],
         ["tool", "persisted tool progress"],
       ])
+      expect(history.messages[2]?.resultMetadata).toEqual({
+        contextResource: {
+          status: "loaded",
+          resourceId: "file:///workspace/README.md",
+        },
+      })
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }

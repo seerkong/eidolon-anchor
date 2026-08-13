@@ -39,7 +39,6 @@ export function buildWorkflowAuthorToolDef(): ToolDef<
               description: "Optional form hint. Defaults to semantic auto-selection.",
             },
             publish: { type: "boolean", description: "Explicit publication authorization for this invocation. Defaults to false and never authorizes execution." },
-            agent_type: { type: "string", description: "Optional Eidolon agent type. Defaults to the current actor's type, then code." },
           },
           required: ["operation", "request"],
           additionalProperties: false,

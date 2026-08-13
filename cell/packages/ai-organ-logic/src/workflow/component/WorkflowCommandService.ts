@@ -44,6 +44,7 @@ export type WorkflowCreateBundleCommand = {
   fqn?: string
   description?: string
   manifest_content?: string
+  flow_code_content?: string
 }
 
 export type WorkflowPatchBundleCommand = {
@@ -175,7 +176,7 @@ export class WorkflowCommandService {
       {
         path: `${slug}/flow-code/index.ts`,
         ref: "vfs://./flow-code/index.ts",
-        content: renderFlowCode({ form, fqn, name, description }),
+        content: command.flow_code_content?.trim() || renderFlowCode({ form, fqn, name, description }),
       },
     ]
     const diagnostics = [

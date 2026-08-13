@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeEditOuterComputed,
   makeEditInnerRuntime,
@@ -17,8 +17,8 @@ export function buildEditToolDef(): ToolDef<EditOuterInput, EditOuterOutput, Edi
       type: "function" as const,
       function: {
         name: "edit",
-        description: "Replace exact text in a file at an accessible path. Supports relative, absolute, and ~/ home-directory paths.",
-        parameters: { type: "object", properties: { filePath: { type: "string" }, oldString: { type: "string" }, newString: { type: "string" }, replaceAll: { type: "boolean" } }, required: ["filePath", "oldString", "newString"] },
+        description: "Replace exact text in a file. Prefer workspace-relative paths; external paths require explicit scopeIntent.",
+        parameters: { type: "object", properties: { filePath: { type: "string" }, oldString: { type: "string" }, newString: { type: "string" }, replaceAll: { type: "boolean" }, scopeIntent: fileToolScopeIntentSchema() }, required: ["filePath", "oldString", "newString"] },
       },
     },
     briefPromptXnl: readPromptFromDir("Edit", "Tool.brief.xnl"),

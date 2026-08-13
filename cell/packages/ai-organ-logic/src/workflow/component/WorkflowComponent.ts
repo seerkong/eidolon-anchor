@@ -3,9 +3,9 @@ import path from "node:path"
 import {
   NodeWorkflowAuthoringStore,
   WorkflowAuthoringCatalog,
-  WorkflowAuthoringCoordinator,
   WorkflowAuthoringSessionStore,
   WorkflowAuthoringWorkspace,
+  type WorkflowCandidateAcceptanceHarness,
   type WorkflowAuthoringStore,
 } from "../authoring"
 import { WorkflowResourceLoader } from "../resources"
@@ -18,7 +18,6 @@ export class WorkflowComponent {
   readonly authoring?: WorkflowAuthoringWorkspace
   readonly sessions: WorkflowAuthoringSessionStore
   readonly catalog: WorkflowAuthoringCatalog
-  readonly coordinator: WorkflowAuthoringCoordinator
 
   constructor(options?: {
     queries?: WorkflowQueryService
@@ -27,7 +26,6 @@ export class WorkflowComponent {
     authoring?: WorkflowAuthoringWorkspace
     sessions?: WorkflowAuthoringSessionStore
     catalog?: WorkflowAuthoringCatalog
-    coordinator?: WorkflowAuthoringCoordinator
   }) {
     this.authoring = options?.authoring
     const store = this.authoring?.store
@@ -36,7 +34,6 @@ export class WorkflowComponent {
     }
     this.sessions = options?.sessions ?? new WorkflowAuthoringSessionStore(store!)
     this.catalog = options?.catalog ?? new WorkflowAuthoringCatalog()
-    this.coordinator = options?.coordinator ?? new WorkflowAuthoringCoordinator(this.catalog)
     this.queries = options?.queries ?? new WorkflowQueryService(this.authoring)
     this.commands = options?.commands
       ?? new WorkflowCommandService(options?.resources ?? new WorkflowResourceLoader())
@@ -48,6 +45,7 @@ export type WorkflowComponentOptions = {
   store?: WorkflowAuthoringStore
   resources?: WorkflowResourceLoader
   catalog?: WorkflowAuthoringCatalog
+  candidateHarness?: WorkflowCandidateAcceptanceHarness
 }
 
 export type WorkflowComponentRuntimeLike = {
@@ -84,7 +82,8 @@ export function createWorkflowComponent(options: WorkflowComponentOptions = {}):
     ?? (options.workspaceRoot ? new NodeWorkflowAuthoringStore(options.workspaceRoot) : undefined)
   const effectiveStore = store ?? new NodeWorkflowAuthoringStore(path.resolve(process.cwd(), ".eidolon", "workflows"))
   const authoring = new WorkflowAuthoringWorkspace(effectiveStore, resources)
-  return new WorkflowComponent({ resources, authoring, catalog: options.catalog })
+  const sessions = new WorkflowAuthoringSessionStore(effectiveStore, resources, options.candidateHarness)
+  return new WorkflowComponent({ resources, authoring, sessions, catalog: options.catalog })
 }
 
 export function createWorkflowComponentForRuntime(
@@ -96,6 +95,7 @@ export function createWorkflowComponentForRuntime(
     && options.store === undefined
     && options.resources === undefined
     && options.catalog === undefined
+    && options.candidateHarness === undefined
   if (canReuseBinding) {
     const existing = COMPONENT_BY_VM.get(vm)
     if (existing) return existing

@@ -53,10 +53,8 @@ export type WorkflowAgentArgs = {
   requirement?: string
   session?: string
   publish?: boolean
+  execute?: boolean
   yes?: boolean
-  expert?: boolean
-  route?: "direct" | "ai-ctrl" | "ai-data" | "composite"
-  scenario?: string
   model?: string
   profile?: string
   timeout?: number
@@ -248,15 +246,12 @@ export function buildWorkflowCliAuthorPrompt(input: {
 export function buildWorkflowCliFulfillInput(input: WorkflowAgentArgs): Record<string, unknown> {
   const request = String(input.requirement ?? "").trim()
   if (!request) throw new Error("workflow agent requires an ordinary-language business goal")
-  const execute = input.yes === true
+  const execute = input.execute === true || input.yes === true
   return {
     request,
     operation: "auto",
     publish: input.publish === true || execute,
     execute,
-    ...(input.expert === true ? { expert: true } : {}),
-    ...(input.route ? { route: input.route } : {}),
-    ...(input.scenario?.trim() ? { scenario: input.scenario.trim() } : {}),
   }
 }
 
@@ -265,9 +260,8 @@ export function buildWorkflowCliAgentPrompt(input: WorkflowAgentArgs): string {
   return [
     "Fulfill the business goal below through Eidolon's native workflow product experience.",
     "Call WorkflowFulfill exactly once with the arguments below.",
-    "If it returns status=direct, perform the original business task yourself in this conversation instead of returning routing instructions.",
-    "Otherwise wait for the workflow coordinator and report only the business purpose, progress, needed confirmation or wait, and final result.",
-    "Do not expose form, nodes, ports, policy, XNL, identifiers, Material revisions, fact paths or physical paths unless expert=true.",
+    "Wait for the dedicated workflow actor and report only the business purpose, progress, needed confirmation or wait, and final result.",
+    "Do not expose form, nodes, ports, policy, XNL, identifiers, Material revisions, fact paths or physical paths in the ordinary business response.",
     "Do not use MCP, an external agent CLI, shell, generic file writes, or low-level workflow tools outside WorkflowFulfill.",
     "",
     "WorkflowFulfill arguments:",
@@ -304,6 +298,7 @@ async function runWorkflowAgent(deps: WorkflowCommandDeps, input: WorkflowAgentA
     approvalMode: "full-auto",
     autoResume: true,
     maxContinuations: 16,
+    failOnToolError: ["WorkflowFulfill"],
   })
   if (input.json) {
     writeJson(deps.processLike, {
@@ -384,10 +379,12 @@ export function createWorkflowCommand(
               describe: "Eidolon session id to continue across CLI invocations",
             })
             .option("publish", { type: "boolean", default: false, describe: "explicitly authorize publication, but not execution" })
-            .option("yes", { type: "boolean", default: false, describe: "explicitly authorize both publication and execution" })
-            .option("expert", { type: "boolean", default: false, describe: "include internal evidence in the result" })
-            .option("route", { type: "string", choices: ["direct", "ai-ctrl", "ai-data", "composite"] as const, describe: "optional expert route override" })
-            .option("scenario", { type: "string", describe: "optional expert scenario override" })),
+            .option("execute", {
+              alias: ["yes"],
+              type: "boolean",
+              default: false,
+              describe: "explicitly authorize both publication and execution",
+            })),
           handler: async (args) => {
             const agentArgs = args as WorkflowAgentArgs
             try {

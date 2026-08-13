@@ -73,6 +73,13 @@ import { buildAutonomousHolonEnvelope, parseAutonomousHolonEnvelope } from "@cel
 import { buildLeaderLedHolonEnvelope, parseLeaderLedHolonEnvelope } from "@cell/ai-organ-logic/organization/leaderLedHolonEnvelope";
 import { normalizeDelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode";
 import {
+  beginWorkflowActorTurn,
+  recordWorkflowActorToolOutcome,
+  resolveWorkflowActorBudgetConfig,
+  runWithinWorkflowStageDeadline,
+  WorkflowActorBudgetError,
+} from "../workflow/runtime/WorkflowActorProgress";
+import {
   reduceConversationDomainEvent,
   type ConversationProjectionState,
 } from "../conversation/ConversationDomainProjection";
@@ -123,6 +130,7 @@ import { getOrganizationManager } from "../organization/OrganizationManager";
 import { normalizeOpenAIChatMessages } from "../llm/OpenAIChatHelpers";
 import { accountThreadGoalUsage, getThreadGoal } from "../goals/ThreadGoalManager";
 import { createSessionDiagnosticsXnlLog } from "../runtime/SessionRuntimeXnlLogs";
+import { getContextResourcePresentation } from "../runtime/LocalTextResourceLoader";
 import {
   buildOpenAIResponsesFullInputItems,
   buildOpenAIResponsesIncrementalInputItems,
@@ -463,7 +471,7 @@ function isHistoryTrackedActor(actor: AiAgentActor): boolean {
 }
 
 function shouldCompressActorHistory(actor: AiAgentActor): boolean {
-  return actor.type === "primary" || actor.identity?.kind === "member";
+  return actor.contextPolicy.historyCompaction === "auto";
 }
 
 function resolveCompactionInputLimit(actor: AiAgentActor): number {
@@ -1888,17 +1896,23 @@ async function streamProviderCompletion(params: {
     providerOutput?: Promise<unknown | undefined>;
     preparedResponses: PreparedResponsesTurn | null;
   }> => {
-    const created = await createProviderStream(messages, plan);
-    const msg = await processStreamFn(vm, created.result.stream, {
-      signal: abortController.signal,
-      llmAdapter,
+    return runWithinWorkflowStageDeadline({
+      actor,
+      abortController,
+      run: async () => {
+        const created = await createProviderStream(messages, plan);
+        const msg = await processStreamFn(vm, created.result.stream, {
+          signal: abortController.signal,
+          llmAdapter,
+        });
+        assembleReasoningContentParts(llmAdapter, msg);
+        return {
+          msg,
+          providerOutput: created.result.providerOutput,
+          preparedResponses: created.preparedResponses,
+        };
+      },
     });
-    assembleReasoningContentParts(llmAdapter, msg);
-    return {
-      msg,
-      providerOutput: created.result.providerOutput,
-      preparedResponses: created.preparedResponses,
-    };
   };
 
   let completion: Awaited<ReturnType<typeof runOneCompletion>>;
@@ -3042,7 +3056,8 @@ async function drainActorMailboxes(
             : resolvedOutput === undefined
               ? ""
               : JSON.stringify(resolvedOutput);
-        eventBus.emitToolCallResult(eventActor, workspaceAccessGrantContext.toolName, toolCallId, resultPayload, outputText.startsWith("Error:"));
+        const contextResource = getContextResourcePresentation(vm, toolCallId);
+        eventBus.emitToolCallResult(eventActor, workspaceAccessGrantContext.toolName, toolCallId, resultPayload, outputText.startsWith("Error:"), contextResource ? { contextResource } : undefined);
       }
       continue;
     }
@@ -3071,7 +3086,8 @@ async function drainActorMailboxes(
             : resolvedOutput === undefined
               ? ""
               : JSON.stringify(resolvedOutput);
-        eventBus.emitToolCallResult(eventActor, localPermissionContext.toolName, toolCallId, resultPayload, outputText.startsWith("Error:"));
+        const contextResource = getContextResourcePresentation(vm, toolCallId);
+        eventBus.emitToolCallResult(eventActor, localPermissionContext.toolName, toolCallId, resultPayload, outputText.startsWith("Error:"), contextResource ? { contextResource } : undefined);
       }
       continue;
     }
@@ -3103,6 +3119,7 @@ function drainChildDoneIntoMessages(vm: AiAgentVm, actor: AiAgentActor): void {
   for (const payload of actor.drainMailbox("childDone")) {
     const outputText = String((payload as any)?.outputText ?? "");
     const toolCallId = typeof (payload as any)?.toolCallId === "string" ? (payload as any).toolCallId : "";
+    const toolName = typeof (payload as any)?.toolName === "string" ? (payload as any).toolName : undefined;
     const mode = normalizeDelegateRunMode((payload as any)?.mode);
     const childActorKey = String((payload as any)?.childActorKey ?? "");
 
@@ -3111,7 +3128,9 @@ function drainChildDoneIntoMessages(vm: AiAgentVm, actor: AiAgentActor): void {
         vm,
         actor,
         toolCallId,
+        toolName,
         outputText,
+        isError: (payload as any)?.status === "failed" || (payload as any)?.status === "cancelled",
       });
       continue;
     }
@@ -3492,6 +3511,7 @@ function appendConversationToolResultMessage(params: {
   outputText: string;
   isError?: boolean;
 }): void {
+  const contextResource = getContextResourcePresentation(params.vm, params.toolCallId);
   registerPendingToolResultDelivery({
     vm: params.vm,
     actor: params.actor,
@@ -3512,6 +3532,7 @@ function appendConversationToolResultMessage(params: {
           raw_payload_text: "",
         },
         output_text: params.outputText,
+        output_metadata: contextResource ? { contextResource } : undefined,
         is_error: params.isError === true,
       },
     ],
@@ -3684,6 +3705,10 @@ export function seedConversationDomainFromActorSeedMessages(params: {
           raw_payload_text: "",
         },
         output_text: content,
+        output_metadata:
+          message?.resultMetadata && typeof message.resultMetadata === "object"
+            ? { ...message.resultMetadata }
+            : undefined,
         is_error: false,
       });
     }
@@ -4639,6 +4664,7 @@ function resetCooperativeStateAfterCancel(state: AiAgentCooperativeExecState): v
   state.toolIndex = 0;
   state.pendingToolResults = [];
   state.pendingAiGenerated = [];
+  state.providerFailure = undefined;
   state.turnState = { kind: "drain", turn: state.turn };
   state.inflight = undefined;
 }
@@ -4979,13 +5005,22 @@ export async function aiAgentLoopStreaming({
     if (eventBus && !suppress) {
       registerPendingToolResultDelivery({ vm, actor, toolCallId });
       const resultPayload = typeof resolvedOutput === "string" ? resolvedOutput : resolvedOutput === undefined ? "" : JSON.stringify(resolvedOutput);
-      eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, isError);
+      const contextResource = getContextResourcePresentation(vm, toolCallId);
+      eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, isError, contextResource ? { contextResource } : undefined);
     }
 
     advanceActorWorkContextAfterTool({
       actor,
       toolName: String(funcName ?? ""),
       args,
+    });
+    recordWorkflowActorToolOutcome({
+      actor,
+      toolName: String(funcName ?? ""),
+      args,
+      outputText,
+      isError,
+      config: resolveWorkflowActorBudgetConfig(vm.outerCtx),
     });
 
     return result;
@@ -5085,6 +5120,11 @@ export async function aiAgentLoopStreaming({
       if (drainStopReason) {
         return stopWith(drainStopReason);
       }
+
+      beginWorkflowActorTurn({
+        actor,
+        config: resolveWorkflowActorBudgetConfig(vm.outerCtx),
+      });
 
       resolveTurnWorkContextForActor({
         actor,
@@ -5275,6 +5315,7 @@ export type AiAgentCooperativeExecState = {
   nextOpSeq: number;
   pendingToolResults: Array<{ toolCallId: string; questionnaireId?: string; content: string }>;
   pendingAiGenerated: CooperativeAiGeneratedEvent[];
+  providerFailure?: { opId: string; error: string };
   turnState?: TurnState;
   inflight?:
     | { kind: "compress"; opId: string }
@@ -5334,6 +5375,7 @@ function ensureCooperativeState(state: AiAgentCooperativeExecState | undefined, 
     nextOpSeq: 1,
     pendingToolResults: [],
     pendingAiGenerated: [],
+    providerFailure: undefined,
     turnState: { kind: "drain", turn: 0 },
     inflight: undefined,
     messageHistoryAttached: true,
@@ -5810,7 +5852,8 @@ export async function aiAgentCooperativeStep(params: {
               : resolvedOutput === undefined
                 ? ""
                 : JSON.stringify(resolvedOutput);
-          eventBus.emitToolCallResult(eventActor, workspaceAccessGrantContext.toolName, toolCallId, resultPayload, outputText.startsWith("Error:"));
+          const contextResource = getContextResourcePresentation(vm, toolCallId);
+          eventBus.emitToolCallResult(eventActor, workspaceAccessGrantContext.toolName, toolCallId, resultPayload, outputText.startsWith("Error:"), contextResource ? { contextResource } : undefined);
         }
 
         state.phase = "compress";
@@ -5843,7 +5886,8 @@ export async function aiAgentCooperativeStep(params: {
               : resolvedOutput === undefined
                 ? ""
                 : JSON.stringify(resolvedOutput);
-          eventBus.emitToolCallResult(eventActor, localPermissionContext.toolName, toolCallId, resultPayload, outputText.startsWith("Error:"));
+          const contextResource = getContextResourcePresentation(vm, toolCallId);
+          eventBus.emitToolCallResult(eventActor, localPermissionContext.toolName, toolCallId, resultPayload, outputText.startsWith("Error:"), contextResource ? { contextResource } : undefined);
         }
 
         state.phase = "compress";
@@ -6032,6 +6076,18 @@ export async function aiAgentCooperativeStep(params: {
         });
       }
 
+      try {
+        beginWorkflowActorTurn({
+          actor,
+          config: resolveWorkflowActorBudgetConfig(vm.outerCtx),
+        });
+      } catch (error) {
+        state.phase = "drain";
+        params.setState(state);
+        detachCooperativeHistory(state);
+        return { kind: "fail", error: error instanceof Error ? error.message : String(error) };
+      }
+
       const { llmAdapter, model, buildToolsetFn, processStreamFn, extraBody } = resolveLoopDeps(vm, actor);
       const sessionId = typeof (vm.outerCtx?.metadata as any)?.sessionId === "string"
         ? String((vm.outerCtx?.metadata as any).sessionId)
@@ -6069,6 +6125,7 @@ export async function aiAgentCooperativeStep(params: {
 
       const opId = `llm:${fiberId}:${state.nextOpSeq++}`;
       const abortController = new AbortController();
+      state.providerFailure = undefined;
       trackProviderCallStarted({ vm, actor, turnId: turn, providerCallId: opId, model, tools, promptGenerationId });
       applyCooperativeTurnEvent(state, { kind: "provider_call_started", opId, providerCallId: opId });
       state.inflight = { kind: "llm", opId, turn, tools, abortController };
@@ -6142,12 +6199,14 @@ export async function aiAgentCooperativeStep(params: {
             payload: msg,
           });
         } catch (error) {
-          if (abortController.signal.aborted) {
+          if (abortController.signal.aborted && !(error instanceof WorkflowActorBudgetError)) {
             return;
           }
           trackProviderCallFailed(vm, opId, error, false);
           const retryClassification = classifyProviderRetry(error);
           const message = `Error: ${error instanceof Error ? error.message : String(error)}`;
+          state.providerFailure = { opId, error: message };
+          params.setState(state);
           emitVisibleAssistantError(vm, actor, message);
           appendRuntimeControlLifecycleEvidenceFromVm(vm, {
             kind: "failed",
@@ -6224,6 +6283,26 @@ export async function aiAgentCooperativeStep(params: {
             : { hasToolCalls: state.toolCalls.length > 0 }
         ),
       });
+
+      const providerError = typeof (ev as any).providerError === "string"
+        ? String((ev as any).providerError)
+        : state.providerFailure?.opId === inflight.opId
+          ? state.providerFailure.error
+          : "";
+      if (state.providerFailure?.opId === inflight.opId) {
+        state.providerFailure = undefined;
+      }
+      // ProviderCallDomain is the terminal authority for a provider effect.
+      // A failed effect must fail this fiber regardless of actor classification;
+      // otherwise a recovered or specialized actor can project an earlier
+      // partial assistant message as a successful completion.
+      if (providerError) {
+        eventBus?.emitAgentTurnEnd(eventActor, "provider_failed");
+        state.phase = "drain";
+        params.setState(state);
+        detachCooperativeHistory(state);
+        return { kind: "fail", error: providerError };
+      }
 
       if (!state.toolCalls.length) {
         emitMemberResultToControl(vm, actor, [...actor.messages]);
@@ -6352,7 +6431,8 @@ export async function aiAgentCooperativeStep(params: {
                 : resolvedOutput === undefined
                   ? ""
                   : JSON.stringify(resolvedOutput);
-            eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, isError);
+            const contextResource = getContextResourcePresentation(vm, toolCallId);
+            eventBus.emitToolCallResult(eventActor, funcName, toolCallId, resultPayload, isError, contextResource ? { contextResource } : undefined);
           }
           emitAiGeneratedCompletion({
             opId,
@@ -6494,6 +6574,21 @@ export async function aiAgentCooperativeStep(params: {
         toolName: funcName,
         args: (ev as any).args,
       });
+      try {
+        recordWorkflowActorToolOutcome({
+          actor,
+          toolName: funcName,
+          args: (ev as any).args,
+          outputText,
+          isError,
+          config: resolveWorkflowActorBudgetConfig(vm.outerCtx),
+        });
+      } catch (error) {
+        state.phase = "drain";
+        params.setState(state);
+        detachCooperativeHistory(state);
+        return { kind: "fail", error: error instanceof Error ? error.message : String(error) };
+      }
       accountGoalProgress(vm, [...actor.messages]);
 
       const toolCallId = String((ev as any).toolCallId ?? "");

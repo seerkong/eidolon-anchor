@@ -102,6 +102,17 @@ describe("Runtime snapshot repository", () => {
     const worker = createActor({
       key: "worker",
       type: "delegate" as any,
+      contextPolicy: { historyCompaction: "disabled" },
+      workflowProgress: {
+        stageId: "coding",
+        stageStartedAt: 1,
+        deadlineAt: 2,
+        turnsSinceProgress: 3,
+        maxNoProgressTurns: 4,
+        proofRepairAttempts: 0,
+        maxProofRepairAttempts: 2,
+        lastProgressAt: 1,
+      },
       systemPrompts: ["worker profile"],
       continuationBaseline: {
         baselineEpoch: 4,
@@ -164,6 +175,8 @@ describe("Runtime snapshot repository", () => {
     const loaded = await repository.loadSnapshot()
     expect(loaded?.actors.worker?.profileSystemPromptProvenance).toEqual(actorSnapshot.profileSystemPromptProvenance)
     expect(loaded?.actors.worker?.continuationBaseline?.contextDigest).toBe("sha256:provider-visible-context")
+    expect(loaded?.actors.worker?.contextPolicy).toEqual({ historyCompaction: "disabled" })
+    expect(loaded?.actors.worker?.workflowProgress?.stageId).toBe("coding")
     const recoveredWorker = hydrateActor(loaded!.actors.worker!)
     expect(recoveredWorker.continuationBaseline).toEqual(expect.objectContaining({
       baselineEpoch: 4,
@@ -212,6 +225,12 @@ describe("Runtime snapshot repository", () => {
     expect("pendingQuestionnaires" in rootState).toBe(false)
     expect("messages" in rootState).toBe(false)
     expect("messages" in rootMailboxes).toBe(false)
+    const workerActorPath = repository.actorPath(actorSnapshot)
+    const legacyWorkerMeta = JSON.parse(fs.readFileSync(workerActorPath, "utf8"))
+    delete legacyWorkerMeta.contextPolicy
+    fs.writeFileSync(workerActorPath, `${JSON.stringify(legacyWorkerMeta, null, 2)}\n`, "utf8")
+    expect((await repository.loadSnapshot())?.actors.worker?.contextPolicy)
+      .toEqual({ historyCompaction: "auto" })
     const restored = hydrateActor(actorSnapshot)
     expect(typeof restored.recovery?.snapshotVersion).toBe("number")
     expect(restored.recovery?.snapshotVersion).toBe(actorSnapshot.version)

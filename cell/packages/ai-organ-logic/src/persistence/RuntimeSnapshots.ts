@@ -308,6 +308,16 @@ function normalizeCooperativeExecState(value: unknown): any | null {
         ? { ...entry, replayedFromEffectEvidence: true }
         : entry,
     ),
+    providerFailure:
+      raw.providerFailure
+      && typeof raw.providerFailure === "object"
+      && typeof (raw.providerFailure as any).opId === "string"
+      && typeof (raw.providerFailure as any).error === "string"
+        ? {
+            opId: String((raw.providerFailure as any).opId),
+            error: String((raw.providerFailure as any).error),
+          }
+        : undefined,
     inflight: normalizeCooperativeInflight(raw.inflight),
     messageHistoryAttached: false,
     messageHistoryDetach: undefined,
@@ -470,6 +480,21 @@ export function buildPendingAiGeneratedFromCompletedEffect(
   for (let index = effectEvidence.length - 1; index >= 0; index -= 1) {
     const event = effectEvidence[index]
     if (!event || event.effectId !== opId) continue
+    if (inflight.kind === "llm" && event.kind === "failed" && event.effectKind === "provider_completion") {
+      const providerError = typeof event.error === "string" && event.error
+        ? event.error
+        : `Error: provider call '${opId}' failed`
+      return {
+        kind: "llm_done",
+        opId,
+        msg: { role: "assistant", content: providerError },
+        providerError,
+        // A failed provider effect is a terminal fact just like a completed
+        // result. Recovery must replay the failure, never restart the call or
+        // promote assistant content from an earlier successful turn.
+        replayedFromEffectEvidence: true,
+      }
+    }
     if (inflight.kind === "llm" && event.kind === "result" && event.effectKind === "provider_completion") {
       return {
         kind: "llm_done",

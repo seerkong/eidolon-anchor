@@ -1,7 +1,10 @@
 import type { StdInnerLogic } from "depa-processor"
 import { spawnChildExecutionActor } from "../../../agent/DelegateActor"
-import { createWorkflowComponentForRuntime } from "../../component"
 import { assembleWorkflowAuthorPrompt } from "../../prompts"
+import {
+  readInstalledSystemSkillResource,
+  resolveEidolonGlobalRootFromOuterContext,
+} from "@cell/ai-support/system-skill/SystemSkillInstaller"
 import type {
   WorkflowAuthorInnerConfig,
   WorkflowAuthorInnerInput,
@@ -20,22 +23,14 @@ export const workflowAuthorCoreLogic: StdInnerLogic<
   if (input.operation === "edit" && !input.workflow_ref?.trim()) {
     throw new Error("WorkflowAuthor edit requires workflow_ref")
   }
-  const directive = createWorkflowComponentForRuntime(runtime).coordinator.prepare({
-    operation: input.operation,
-    request,
-    workflowRef: input.workflow_ref,
-    publish: input.publish,
+  const globalRoot = resolveEidolonGlobalRootFromOuterContext(runtime.vm.outerCtx)
+  const systemAuthority = await readInstalledSystemSkillResource({
+    globalRoot,
+    skillName: "sys-ai-workflow",
+    relativePath: "SKILL.md",
+  }).catch((error) => {
+    throw new Error(`Cannot load canonical sys-ai-workflow; run \`eidolon global init\`. ${error instanceof Error ? error.message : String(error)}`)
   })
-  if (directive.route === "direct-task") {
-    return JSON.stringify({
-      kind: "workflow.authoringDecision",
-      status: "workflow_not_warranted",
-      durableSignals: directive.intent.durableSignals,
-      businessPayload: directive.intent.businessPayload,
-      publicationAuthorized: false,
-      executionAuthorized: false,
-    }, null, 2)
-  }
   return spawnChildExecutionActor(runtime.vm as any, runtime.actor as any, {
     description: input.operation === "edit" ? "Edit an AI workflow" : "Create an AI workflow",
     prompt: assembleWorkflowAuthorPrompt({
@@ -44,9 +39,9 @@ export const workflowAuthorCoreLogic: StdInnerLogic<
       workflowRef: input.workflow_ref,
       form: input.form,
       publish: input.publish,
-      directive,
     }),
-    agentType: input.agent_type?.trim() || (runtime.actor as any)?.agentName || "code",
+    agentType: "workflow",
+    additionalSystemPrompts: [systemAuthority],
     mode: "sync_wait",
     toolCallId: (runtime as any).toolCallId,
   })

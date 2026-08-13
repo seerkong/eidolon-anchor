@@ -283,6 +283,7 @@ describe("tui_a1 tool card render", () => {
       await setup.renderOnce()
 
       const frame = setup.captureSpans()
+      const spans = frame.lines.flatMap((line) => line.spans)
       const text = frame.lines.map((line) => line.spans.map((span) => span.text).join("")).join("\n")
       expect(text).toContain("tail -6 ~/tmp/demo3/AGENTS.md | cat -n")
       expect(text).toContain("Wrote ~/tmp/demo3/AGENTS.md")
@@ -294,6 +295,9 @@ describe("tui_a1 tool card render", () => {
       expect(text).toContain('Exa Web Search "latest bun release" (3 results)')
       expect(text).not.toContain("edit_file")
       expect(text).not.toContain('bash {"command":"tail -6 ~/tmp/demo3/AGENTS.md | cat -n"}')
+      expect(spans.find((span) => span.text.includes("# Shell"))?.fg).toEqual(theme.toolBorder)
+      expect(spans.find((span) => span.text.includes("# Wrote"))?.fg).toEqual(theme.toolBorder)
+      expect(spans.find((span) => span.text.includes("← Edit"))?.fg).toEqual(theme.toolBorder)
     } finally {
       setup.renderer.destroy()
     }
@@ -349,6 +353,133 @@ describe("tui_a1 tool card render", () => {
       expect(text).toContain("line-24")
       expect(text).toContain("Click to expand")
       expect(text).not.toContain("line-80")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("bounds generic block tool titles to a percentage of the session width", async () => {
+    const longDescription =
+      "Inspect every generated ontology workspace package and retain the final operation-name.ts filename"
+    const setup = await testRender(
+      () => (
+        <sessionContext.Provider
+          value={{
+            width: 80,
+            sessionID: "ses_1",
+            directory: process.cwd(),
+            conceal: () => false,
+            activePermissionCallID: undefined,
+            showThinking: () => true,
+            showTimestamps: () => true,
+            showDetails: () => true,
+            diffWrapMode: () => "word",
+            keybindLabel: () => "",
+            navigateToSession: () => {},
+            agentColor: () => RGBA.fromHex("#5ba8ff"),
+          }}
+        >
+          <box width="100%" height="100%">
+            <MessageCards
+              messages={[
+                tool(
+                  "long-bash-title",
+                  "bash",
+                  { command: "true", description: longDescription },
+                  { output: "ok" },
+                  "ok",
+                ),
+              ] as any}
+            />
+          </box>
+        </sessionContext.Provider>
+      ),
+      { width: 80, height: 10 },
+    )
+
+    try {
+      await setup.renderOnce()
+
+      const frame = setup.captureSpans()
+      const titleLine = frame.lines.map((line) => line.spans.map((span) => span.text).join("")).find((line) => line.includes("# Inspect")) ?? ""
+      const renderedTitle = titleLine.match(/# (.*?) ─/)?.[1] ?? ""
+
+      expect(renderedTitle.length).toBeLessThanOrEqual(Math.floor(80 * 0.8))
+      expect(renderedTitle).toContain("…")
+      expect(renderedTitle).toEndWith("operation-name.ts filename")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("renders context resource headers with readable contrast and a percentage-bounded path", async () => {
+    const directory = process.cwd()
+    const longRelativePath =
+      "packages/depa-ontology/very-long-domain-segment/another-long-segment/ontology-modeling-design.md"
+    const setup = await testRender(
+      () => (
+        <sessionContext.Provider
+          value={{
+            width: 80,
+            sessionID: "ses_1",
+            directory,
+            conceal: () => false,
+            activePermissionCallID: undefined,
+            showThinking: () => true,
+            showTimestamps: () => true,
+            showDetails: () => true,
+            diffWrapMode: () => "word",
+            keybindLabel: () => "",
+            navigateToSession: () => {},
+            agentColor: () => RGBA.fromHex("#5ba8ff"),
+          }}
+        >
+          <box width="100%" height="100%">
+            <MessageCards
+              messages={[
+                tool(
+                  "context-read",
+                  "read",
+                  { filePath: longRelativePath },
+                  {
+                    contextResource: {
+                      resourceId: new URL(longRelativePath, `file://${directory}/`).href,
+                      status: "loaded",
+                      deliveredLines: "1-126",
+                      sizeBytes: 3944,
+                      revision: "e6df83352d39abcdef",
+                      contentText: "context body",
+                    },
+                  },
+                  "loaded context resource",
+                ),
+              ] as any}
+            />
+          </box>
+        </sessionContext.Provider>
+      ),
+      {
+        width: 80,
+        height: 12,
+      },
+    )
+
+    try {
+      await setup.renderOnce()
+
+      const frame = setup.captureSpans()
+      const spans = frame.lines.flatMap((line) => line.spans)
+      const lines = frame.lines.map((line) => line.spans.map((span) => span.text).join(""))
+      const text = lines.join("\n")
+      const contextTitle = spans.find((span) => span.text.includes("CONTEXT"))
+      const renderedPath = lines.find((line) => line.includes("CONTEXT"))?.match(/CONTEXT (.*?) ─/)?.[1] ?? ""
+
+      expect(contextTitle?.fg).toEqual(theme.info)
+      expect(Array.from(renderedPath).length).toBeLessThanOrEqual(Math.floor(80 * 0.6))
+      expect(text).toContain("…/ontology-modeling-design.md")
+      expect(text).not.toContain(longRelativePath)
+      expect(text).toContain("Loaded · lines 1-126 · 3944 B · e6df83352d39")
+      expect(text).toContain("context body")
     } finally {
       setup.renderer.destroy()
     }
@@ -428,6 +559,7 @@ describe("tui_a1 tool card render", () => {
       await setup.renderOnce()
 
       const frame = setup.captureSpans()
+      const spans = frame.lines.flatMap((line) => line.spans)
       const text = frame.lines.map((line) => line.spans.map((span) => span.text).join("")).join("\n")
       expect(text).toContain("Worker Task")
       expect(text).toContain("Investigate runtime approval drift")
@@ -438,6 +570,9 @@ describe("tui_a1 tool card render", () => {
       expect(text).toContain("Wire history summary")
       expect(text).not.toContain('question {"questions"')
       expect(text).not.toContain('tasktreewrite {"tasks"')
+      expect(spans.find((span) => span.text.includes("# Worker Task"))?.fg).toEqual(theme.toolBorder)
+      expect(spans.find((span) => span.text.includes("# Questions"))?.fg).toEqual(theme.toolBorder)
+      expect(spans.find((span) => span.text.includes("# Task Tree"))?.fg).toEqual(theme.toolBorder)
     } finally {
       setup.renderer.destroy()
     }

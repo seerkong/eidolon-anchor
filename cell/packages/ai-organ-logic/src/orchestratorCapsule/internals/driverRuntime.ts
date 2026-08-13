@@ -44,6 +44,8 @@ import { getCoordinationEngine } from "../../coordination/CoordinationEngine";
 import { getMemberManager } from "../../organization/MemberManager";
 import { getDetachedActorObservabilityStore } from "../../detached/DetachedActorObservability";
 import { AI_AGENT_ORCHESTRATOR_TICK_SCOPES, AI_AGENT_FIBER_RESULT_KINDS } from "./constants";
+import { materializeConversationHistoryMessagesFromVm } from "../../conversation/ConversationDomainRuntime";
+import { getVmProviderCallDomain } from "../../runtime/ProviderCallDomainRuntime";
 import {
   applyResumeFiber,
   createInitialOrchestratorState,
@@ -438,8 +440,14 @@ function findLastToolText(messages: readonly any[]): string {
   return "";
 }
 
-function resolveDetachedChildOutputText(done: { taskKind?: DetachedActorKind } | null, messages: readonly any[], isChildExecution: boolean): string {
+function resolveDetachedChildOutputText(
+  done: { taskKind?: DetachedActorKind } | null,
+  vm: AiAgentVm,
+  actor: AiAgentActor,
+  isChildExecution: boolean,
+): string {
   if (!isChildExecution) return "";
+  const messages = materializeConversationHistoryMessagesFromVm({ vm, actorKey: actor.key });
   if (done?.taskKind === DETACHED_ACTOR_KINDS.bash || done?.taskKind === DETACHED_ACTOR_KINDS.toolCall) {
     return findLastToolText(messages) || findLastAssistantText(messages);
   }
@@ -781,6 +789,30 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
 
         const isChildExecution = isDelegateFiberKind(ctx.kind) || isChildExecutionActor(ctx.actor);
         const isTransientDelegateExecution = isDelegateFiberKind(ctx.kind) || isDelegateActorType(ctx.actor);
+        if (
+          isChildExecution
+          && result.kind !== AI_AGENT_FIBER_RESULT_KINDS.fail
+          && result.kind !== AI_AGENT_FIBER_RESULT_KINDS.cancel
+        ) {
+          const cooperativeProviderFailure = ctx.execState?.providerFailure;
+          if (
+            cooperativeProviderFailure
+            && typeof cooperativeProviderFailure.error === "string"
+            && cooperativeProviderFailure.error
+          ) {
+            throw new Error(cooperativeProviderFailure.error);
+          }
+          const providerRecords = getVmProviderCallDomain(ctx.vm)?.getAllRecords() ?? [];
+          const latestProviderRecord = providerRecords
+            .filter((record) => record.actorKey === ctx.actor.key)
+            .at(-1);
+          if (latestProviderRecord?.status === "failed") {
+            throw new Error(
+              latestProviderRecord.rawError
+              || `provider_call_failed:${latestProviderRecord.failureKind ?? "provider_invalid_response"}`,
+            );
+          }
+        }
 
         if (result.kind === AI_AGENT_FIBER_RESULT_KINDS.yield) {
           self.send(runtime.orchestratorId, "fiber_result", {
@@ -808,7 +840,7 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
           const done = runtime.childDoneMap.get(fiberId);
           if (done) {
             const parentCtx = runtime.fiberIndex.get(done.parentFiberId);
-            const outputText = resolveDetachedChildOutputText(done, ctx.actor.messages, isChildExecution);
+            const outputText = resolveDetachedChildOutputText(done, ctx.vm, ctx.actor, isChildExecution);
             if (parentCtx) {
               emitChildDoneToParent({
                 runtime,
@@ -823,7 +855,9 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                 childActorId: ctx.actor.id,
                 mode: done.mode,
                 toolCallId: done.toolCallId,
+                toolName: done.toolName,
                 outputText: outputText || `Delegate actor ${ctx.actor.key} cancelled`,
+                status: "cancelled",
                 },
               });
 
@@ -926,7 +960,10 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                 childActorId: ctx.actor.id,
                 mode: done.mode,
                 toolCallId: done.toolCallId,
+                toolName: done.toolName,
                 outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+                status: "failed",
+                error,
                 },
               });
 
@@ -1017,7 +1054,64 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
           const done = runtime.childDoneMap.get(fiberId);
           if (done) {
             const parentCtx = runtime.fiberIndex.get(done.parentFiberId);
-            const outputText = resolveDetachedChildOutputText(done, ctx.actor.messages, isChildExecution);
+            const outputText = resolveDetachedChildOutputText(done, ctx.vm, ctx.actor, isChildExecution);
+            const emptySuccess = isChildExecution
+              && (!outputText.trim() || outputText === "(delegate actor returned no text)");
+            if (emptySuccess) {
+              const error = "delegate_empty_success: delegate completed without an authoritative assistant outcome";
+              if (parentCtx) {
+                emitChildDoneToParent({
+                  runtime,
+                  parentFiberId: done.parentFiberId,
+                  childFiberId: fiberId,
+                  mode: done.mode,
+                  toolCallId: done.toolCallId,
+                  terminalKind: "failed",
+                  payload: {
+                    childFiberId: fiberId,
+                    childActorKey: ctx.actor.key,
+                    childActorId: ctx.actor.id,
+                    mode: done.mode,
+                    toolCallId: done.toolCallId,
+                    toolName: done.toolName,
+                    outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+                    status: "failed",
+                    error,
+                  },
+                });
+                if (done.mode === "detached" && done.taskId && done.taskKind) {
+                  const terminalText = `Delegate actor ${ctx.actor.key} failed: ${error}`;
+                  appendDetachedActorTerminalObservation(
+                    parentCtx.vm,
+                    done.taskId,
+                    DETACHED_ACTOR_STATUSES.failed,
+                    terminalText,
+                  );
+                  getDetachedActorRegistry(parentCtx.vm).update(done.taskId, {
+                    kind: done.taskKind,
+                    status: DETACHED_ACTOR_STATUSES.failed,
+                    toolCallId: done.toolCallId,
+                    parentFiberId: done.parentFiberId,
+                    childFiberId: fiberId,
+                    childActorKey: ctx.actor.key,
+                    childActorId: ctx.actor.id,
+                    outputText: terminalText,
+                    error,
+                  });
+                }
+              }
+              if (isTransientDelegateExecution) {
+                delete ctx.vm.actors[ctx.actor.key];
+                if (ctx.vm.actorRuntime.has(ctx.actor.key)) ctx.vm.actorRuntime.unregister(ctx.actor.key);
+              }
+              self.send(runtime.orchestratorId, "fiber_result", {
+                fiberId,
+                now: Date.now(),
+                kind: AI_AGENT_FIBER_RESULT_KINDS.fail,
+                error,
+              });
+              return;
+            }
             if (parentCtx) {
               emitChildDoneToParent({
                 runtime,
@@ -1032,7 +1126,9 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
                 childActorId: ctx.actor.id,
                 mode: done.mode,
                 toolCallId: done.toolCallId,
+                toolName: done.toolName,
                 outputText,
+                status: "completed",
                 },
               });
 
@@ -1138,7 +1234,10 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
               childActorId: ctx.actor.id,
               mode: done.mode,
               toolCallId: done.toolCallId,
+              toolName: done.toolName,
               outputText: `Delegate actor ${ctx.actor.key} failed: ${error}`,
+              status: "failed",
+              error,
               },
             });
 
@@ -1253,6 +1352,7 @@ export function createAiAgentOrchestratorDriver(params: {
         parentFiberId: string;
         mode: DelegateRunMode;
         toolCallId?: string;
+        toolName?: string;
         taskId?: string;
         taskKind?: DetachedActorKind;
       }
@@ -1330,6 +1430,7 @@ export function createAiAgentOrchestratorDriver(params: {
       parentFiberId: string;
       mode: DelegateRunMode;
       toolCallId?: string;
+      toolName?: string;
       taskId?: string;
       taskKind?: DetachedActorKind;
     };
@@ -1357,6 +1458,7 @@ export function createAiAgentOrchestratorDriver(params: {
         parentFiberId: input.onDone.parentFiberId,
         mode: normalizeDelegateRunMode(input.onDone.mode),
         toolCallId: input.onDone.toolCallId,
+        toolName: input.onDone.toolName,
         taskId: input.onDone.taskId,
         taskKind: input.onDone.taskKind,
       });

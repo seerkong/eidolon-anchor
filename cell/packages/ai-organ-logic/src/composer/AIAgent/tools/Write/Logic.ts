@@ -31,6 +31,7 @@ export const writeCoreLogic: StdInnerLogic<
   const permission = authorizeLocalToolCall(runtime, "write", {
     filePath: rawPath,
     content: input?.content,
+    scopeIntent: input?.scopeIntent,
   })
   if (!permission.ok) return permission.output
   const full = resolveToolPath(workdir, rawPath)

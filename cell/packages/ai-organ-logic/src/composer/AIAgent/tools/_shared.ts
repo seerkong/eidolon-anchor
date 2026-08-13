@@ -2,6 +2,7 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { getBundledToolPrompt } from "./PromptAssets.generated"
+export { fileToolScopeIntentSchema } from "@cell/ai-organ-logic/permissions/FileToolScope"
 
 function resolveToolName(value: string): string {
   if (!value.includes("://") && !value.includes("/") && !value.includes("\\")) {

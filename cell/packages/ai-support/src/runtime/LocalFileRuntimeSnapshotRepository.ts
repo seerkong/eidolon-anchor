@@ -305,6 +305,7 @@ export class LocalFileRuntimeSnapshotRepository {
         profileSystemPromptProvenance: actor.profileSystemPromptProvenance,
         identity: actor.identity,
         toolPolicy: actor.toolPolicy,
+        contextPolicy: actor.contextPolicy,
         modelConfig: redactProviderSecrets(actor.modelConfig),
         ctrlOptions: actor.ctrlOptions,
       },
@@ -317,6 +318,7 @@ export class LocalFileRuntimeSnapshotRepository {
         continuationBaseline: actor.continuationBaseline,
         lastMemberResultNotifiedAt: actor.lastMemberResultNotifiedAt,
         detachedTask: actor.detachedTask,
+        workflowProgress: actor.workflowProgress,
         holonState: actor.holonState,
         updatedAt: actor.updatedAt,
         recovery: actor.recovery,
@@ -363,6 +365,7 @@ export class LocalFileRuntimeSnapshotRepository {
         disabledToolKeys: [],
         computedDisabledTools: [],
       },
+      contextPolicy: actorJson.contextPolicy ?? { historyCompaction: "auto" },
       modelConfig: removePersistedProviderSecrets(actorJson.modelConfig ?? {}) as RuntimeSnapshotActor["modelConfig"],
       ctrlOptions: actorJson.ctrlOptions ?? {
         stopAfterFirstTool: false,
@@ -384,6 +387,7 @@ export class LocalFileRuntimeSnapshotRepository {
       continuationBaseline: stateJson.continuationBaseline,
       lastMemberResultNotifiedAt: stateJson.lastMemberResultNotifiedAt,
       detachedTask: stateJson.detachedTask,
+      workflowProgress: stateJson.workflowProgress,
       holonState: stateJson.holonState,
       updatedAt:
         typeof stateJson.updatedAt === "string"

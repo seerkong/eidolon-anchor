@@ -41,6 +41,22 @@ export function buildWorkflowWorkspaceToolDef(): ToolDef<
             old_text: { type: "string", description: "Exact existing text for edit." },
             new_text: { type: "string", description: "Replacement text for edit." },
             patch: { type: "string", description: "Begin Patch/End Patch multi-file patch using logical VFS paths." },
+            expected_revision: { type: "string", description: "Required CAS revision for structured multi-file patch operations." },
+            operations: {
+              type: "array",
+              minItems: 1,
+              description: "Atomic full-content operations restricted to /work. Prefer this over textual patch.",
+              items: {
+                type: "object",
+                properties: {
+                  kind: { type: "string", enum: ["add", "update", "delete"] },
+                  path: { type: "string" },
+                  content: { type: "string" },
+                },
+                required: ["kind", "path"],
+                additionalProperties: false,
+              },
+            },
             form: {
               type: "string",
               enum: ["AICtrlWorkflow", "AIDataWorkflow"],

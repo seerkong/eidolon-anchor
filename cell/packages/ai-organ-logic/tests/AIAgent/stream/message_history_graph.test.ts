@@ -198,6 +198,9 @@ describe("MessageHistoryGraph transcript fixtures", () => {
           raw_payload_text: "",
         },
         output_text: "done",
+        output_metadata: {
+          contextResource: { status: "loaded", resourceId: "file:///workspace/README.md" },
+        },
         is_error: false,
       }),
     );
@@ -215,8 +218,12 @@ describe("MessageHistoryGraph transcript fixtures", () => {
     });
     expect(committed[1]?.message).toMatchObject({
       role: "tool",
+      name: "read_file",
       content: "done",
       toolCallId: "tc-1",
+      resultMetadata: {
+        contextResource: { status: "loaded", resourceId: "file:///workspace/README.md" },
+      },
       startAt: 170,
       endAt: 170,
     });

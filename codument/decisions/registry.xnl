@@ -1,0 +1,359 @@
+<decision #track.establish-system-ai-workflow-skill.semantic-authority { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKTFNTXTTXG1W6TSXVK0T37>
+  谁负责从普通自然语言决定 workflow warrant、form、topology、starting fact 和工具调用？
+  </?01KZKTFNTXTTXG1W6TSXVK0T37>
+  <answer {  } (
+    <raw-answer ?01KZKTFNTXTTXG1W6TSXVK0T38>
+    由 AI Workflow 专属系统级 Skill 指导大模型处理，坚决禁止代码中的模糊匹配。
+    </?01KZKTFNTXTTXG1W6TSXVK0T38>
+    <decision-text ?01KZKTFNTXTTXG1W6TSXVK0T39>
+    专属 workflow actor 是自然语言 semantic authority；deterministic code 只验证和执行显式结构化命令。
+    </?01KZKTFNTXTTXG1W6TSXVK0T39>
+    <rationale ?01KZKTFNTXTTXG1W6TSXVK0T3A>
+    模型擅长开放语义，组件擅长可验证 transition；混淆两者会产生脆弱 heuristic 和错误 route。
+    </?01KZKTFNTXTTXG1W6TSXVK0T3A>
+    <evidence ?01KZKTFNTXTTXG1W6TSXVK0T3B>
+    用户明确约束；既有 actor-boundary durable decision；事故 session 的错误 composite route。
+    </?01KZKTFNTXTTXG1W6TSXVK0T3B>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.global-location { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKTFNTYEV0NHYVCGK081KSA>
+  AI Workflow 提示词的产品真源安装在哪里？
+  </?01KZKTFNTYEV0NHYVCGK081KSA>
+  <answer {  } (
+    <raw-answer ?01KZKTFNTYEV0NHYVCGK081KSB>
+    通过 eidolon global init 初始化或替换 global 目录（默认 ~/.eidolon）下的系统级 Skills。
+    </?01KZKTFNTYEV0NHYVCGK081KSB>
+    <decision-text ?01KZKTFNTYEV0NHYVCGK081KSC>
+    `eidolon global init` SHALL reconcile the product-bundled system-skill set and install the canonical AI Workflow Skill at `<global-eidolon-dir>/skills/sys-ai-workflow`。
+    </?01KZKTFNTYEV0NHYVCGK081KSC>
+    <rationale ?01KZKTFNTYEV0NHYVCGK081KSD>
+    该能力属于 Eidolon 产品而非某个 workspace，必须跨项目稳定存在。
+    </?01KZKTFNTYEV0NHYVCGK081KSD>
+    <evidence ?01KZKTFNTYEV0NHYVCGK081KSE>
+    用户明确指定的 global Skill 位置。
+    </?01KZKTFNTYEV0NHYVCGK081KSE>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.stage-boundary { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKTFNTYEV0NHYVCGK081KSF>
+  编辑与运行应如何呈现为产品交互？
+  </?01KZKTFNTYEV0NHYVCGK081KSF>
+  <answer {  } (
+    <raw-answer ?01KZKTFNTYEV0NHYVCGK081KSG>
+    参考 KWF 分离编辑和运行两个产品交互阶段。
+    </?01KZKTFNTYEV0NHYVCGK081KSG>
+    <decision-text ?01KZKTFNTYEV0NHYVCGK081KSH>
+    同一系统 Skill 明确区分 authoring/edit stage 与 prepare/run stage；publication 与 execution 分别作为独立 gate。
+    </?01KZKTFNTYEV0NHYVCGK081KSH>
+    <rationale ?01KZKTFNTYEV0NHYVCGK081KSJ>
+    编辑改变 definition，运行消费 immutable published revision，两者的事实、工具和授权不同。
+    </?01KZKTFNTYEV0NHYVCGK081KSJ>
+    <evidence ?01KZKTFNTYEV0NHYVCGK081KSK>
+    用户要求；现有 publication/execution lifecycle contract。
+    </?01KZKTFNTYEV0NHYVCGK081KSK>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.prompt-layering { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKTFNTYEV0NHYVCGK081KSM>
+  系统 Skill 的提示词和知识应按什么生命周期组织？
+  </?01KZKTFNTYEV0NHYVCGK081KSM>
+  <answer {  } (
+    <raw-answer ?01KZKTFNTYEV0NHYVCGK081KSN>
+    眼光放到完整 DevOps 生命周期；先按阶段创建父目录，flow-dsl 只在 coding 下按原结构组织，其它提示词也归入对应阶段。
+    </?01KZKTFNTYEV0NHYVCGK081KSN>
+    <decision-text ?01KZKTFNTYEV0NHYVCGK081KSP>
+    `SKILL.md` SHALL route the DevOps lifecycle stages `planning/coding/building/testing/releasing/deploying/operating/monitoring`; every stage SHALL own its system prompt and protocol, and only `coding` SHALL carry the load-bearing generation kernel and flow-dsl tree。
+    </?01KZKTFNTYEV0NHYVCGK081KSP>
+    <rationale ?01KZKTFNTYEV0NHYVCGK081KSQ>
+    粗粒度 authoring/run 不能表达规划、构建、验证、发布、部署、运维、观测的不同事实、工具和提示词；按生命周期分层同时支持渐进披露。
+    </?01KZKTFNTYEV0NHYVCGK081KSQ>
+    <evidence ?01KZKTFNTYEV0NHYVCGK081KSR>
+    用户明确修正；KWF 分层 prompt/generation-kernel 证据；AI Workflow 产品 transition。
+    </?01KZKTFNTYEV0NHYVCGK081KSR>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.flow-dsl-skeleton { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKTFNTYEV0NHYVCGK081KSS>
+  depa-flows flow-dsl 应怎样内嵌到 AI Workflow Skill？
+  </?01KZKTFNTYEV0NHYVCGK081KSS>
+  <answer {  } (
+    <raw-answer ?01KZKTFNTYEV0NHYVCGK081KST>
+    保留骨架，裁剪用不到的地方，再补充 AI Workflow 特有内容。
+    </?01KZKTFNTYEV0NHYVCGK081KST>
+    <decision-text ?01KZKTFNTYEV0NHYVCGK081KSV>
+    The installed Skill SHALL preserve the upstream `foundation/std/spec` hierarchy under `coding/flow-dsl`, embedding a provenance-tracked L1 foundation → EagerDataFlow/WorkCtrlFlow substrate → AI workflow profile skeleton while trimming only irrelevant product details。
+    </?01KZKTFNTYEV0NHYVCGK081KSV>
+    <rationale ?01KZKTFNTYEV0NHYVCGK081KSW>
+    AI profile 的正确语义依赖 substrate 与基础公理；只复制几个示例会诱发臆造语法和事实源混淆。
+    </?01KZKTFNTYEV0NHYVCGK081KSW>
+    <evidence ?01KZKTFNTYEV0NHYVCGK081KSX>
+    depa-flows flow-dsl README、foundation、flow-core、eager/work substrate、AI profile specs and axioms。
+    </?01KZKTFNTYEV0NHYVCGK081KSX>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.global-init { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKTFNTYEV0NHYVCGK081KSY>
+  未来多个系统级 Skill 应如何安装和升级？
+  </?01KZKTFNTYEV0NHYVCGK081KSY>
+  <answer {  } (
+    <raw-answer ?01KZKTFNTYEV0NHYVCGK081KSZ>
+    统一通过 `eidolon global init` 初始化或者替换 `~/.eidolon/skills/` 中的系统级 Skill。
+    </?01KZKTFNTYEV0NHYVCGK081KSZ>
+    <decision-text ?01KZKTFNTYEV0NHYVCGK081KT0>
+    `eidolon global init` SHALL stage, validate and atomically replace every product-managed `sys-*` Skill listed in `.system-skills.xnl`, preserve unmanaged user skills, and support adding system Skills in future releases without new installation commands。
+    </?01KZKTFNTYEV0NHYVCGK081KT0>
+    <rationale ?01KZKTFNTYEV0NHYVCGK081KT1>
+    系统能力需要一个可重复、可审计、可扩展的产品安装入口；直接覆盖整个 skills 目录会破坏用户资产。
+    </?01KZKTFNTYEV0NHYVCGK081KT1>
+    <evidence ?01KZKTFNTYEV0NHYVCGK081KT2>
+    用户明确指定 global init；global skills 目录同时可能存在用户 Skill。
+    </?01KZKTFNTYEV0NHYVCGK081KT2>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.system-identity { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKTFNTYEV0NHYVCGK081KT3>
+  workspace 中的同名 skill 是否可以覆盖产品系统 Skill？
+  </?01KZKTFNTYEV0NHYVCGK081KT3>
+  <answer {  } (
+    <raw-answer ?01KZKTFNTYEV0NHYVCGK081KT4>
+    提示词应存放在 global 目录，作为产品专属系统级 skill。
+    </?01KZKTFNTYEV0NHYVCGK081KT4>
+    <decision-text ?01KZKTFNTYEV0NHYVCGK081KT5>
+    `sys-ai-workflow` SHALL be a global-only reserved identity; workspace skills MUST NOT shadow it, and missing or incompatible global installations SHALL fail explicitly。
+    </?01KZKTFNTYEV0NHYVCGK081KT5>
+    <rationale ?01KZKTFNTYEV0NHYVCGK081KT6>
+    若 workspace 可覆盖，产品语义、安全门和跨入口一致性就不再由产品拥有。
+    </?01KZKTFNTYEV0NHYVCGK081KT6>
+    <evidence ?01KZKTFNTYEV0NHYVCGK081KT7>
+    用户指定 global path；现有 workspace-only Skill loader 与多根覆盖机制。
+    </?01KZKTFNTYEV0NHYVCGK081KT7>
+  )>
+)>
+
+<decision #track.establish-system-ai-workflow-skill.fact-ownership { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKTFNTYEV0NHYVCGK081KT8>
+  编辑、发布和运行各自消费与产生什么事实？
+  </?01KZKTFNTYEV0NHYVCGK081KT8>
+  <answer {  } (
+    <raw-answer ?01KZKTFNTYEV0NHYVCGK081KT9>
+    编辑和运行是不同产品交互，确定性代码只执行结构化 transition。
+    </?01KZKTFNTYEV0NHYVCGK081KT9>
+    <decision-text ?01KZKTFNTYEV0NHYVCGK081KTA>
+    Definition workspace revision, fresh validation proof, immutable publication, input/material binding, WorkCtrlFlow snapshot and AIDataWorkflow RunGraph SHALL remain distinct facts with distinct owners and authorization transitions。
+    </?01KZKTFNTYEV0NHYVCGK081KTA>
+    <rationale ?01KZKTFNTYEV0NHYVCGK081KTB>
+    把运行 patch、snapshot 或 confirmation 回写 definition 会制造第二真源并破坏恢复等价性。
+    </?01KZKTFNTYEV0NHYVCGK081KTB>
+    <evidence ?01KZKTFNTYEV0NHYVCGK081KTC>
+    KWF workflow-authoring lifecycle；depa-flows flow-core/work/AI workflow fact-owner specifications。
+    </?01KZKTFNTYEV0NHYVCGK081KTC>
+  )>
+)>
+
+<decision #track.harden-ai-workflow-agent-runtime.failure-terminal { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKWFSP4D00WZ11ERKNZWFPE>
+  Provider completion 失败时 delegate 应以何种终态返回？
+  </?01KZKWFSP4D00WZ11ERKNZWFPE>
+  <answer {  } (
+    <raw-answer ?01KZKWFSP4D00WZ11ERKNZWFPF>
+    失败必须失败，不能 completed 后返回空字符串。
+    </?01KZKWFSP4D00WZ11ERKNZWFPF>
+    <decision-text ?01KZKWFSP4D00WZ11ERKNZWFPG>
+    Provider failure SHALL terminate the delegate and parent workflow tool as structured failure。
+    </?01KZKWFSP4D00WZ11ERKNZWFPG>
+    <rationale ?01KZKWFSP4D00WZ11ERKNZWFPH>
+    terminal state 是控制面 authority，不能与 effect evidence 矛盾。
+    </?01KZKWFSP4D00WZ11ERKNZWFPH>
+    <evidence ?01KZKWFSP4D00WZ11ERKNZWFPJ>
+    事故 session 与 AiAgentExecutor provider_failed 分支。
+    </?01KZKWFSP4D00WZ11ERKNZWFPJ>
+  )>
+)>
+
+<decision #track.harden-ai-workflow-agent-runtime.result-authority { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKWFSP4D00WZ11ERKNZWFPK>
+  Orchestrator 从哪里派生 child 输出？
+  </?01KZKWFSP4D00WZ11ERKNZWFPK>
+  <answer {  } (
+    <raw-answer ?01KZKWFSP4D00WZ11ERKNZWFPM>
+    Conversation Domain 是 single in-memory truth。
+    </?01KZKWFSP4D00WZ11ERKNZWFPM>
+    <decision-text ?01KZKWFSP4D00WZ11ERKNZWFPN>
+    所有 delegate completion 分支 SHALL 从 Conversation Domain materialization 派生输出，compatibility mirror 只读且不拥有结果 authority。
+    </?01KZKWFSP4D00WZ11ERKNZWFPN>
+    <rationale ?01KZKWFSP4D00WZ11ERKNZWFPP>
+    避免不同 driver 分支读取不同事实源并产生空结果。
+    </?01KZKWFSP4D00WZ11ERKNZWFPP>
+    <evidence ?01KZKWFSP4D00WZ11ERKNZWFPQ>
+    DelegateActor 注释与 driverRuntime 当前实现冲突。
+    </?01KZKWFSP4D00WZ11ERKNZWFPQ>
+  )>
+)>
+
+<decision #track.harden-ai-workflow-agent-runtime.tool-call-identity { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKWFSP4D00WZ11ERKNZWFPR>
+  并行 tool-call identity 缺失或冲突时是否允许猜测合并？
+  </?01KZKWFSP4D00WZ11ERKNZWFPR>
+  <answer {  } (
+    <raw-answer ?01KZKWFSP4D00WZ11ERKNZWFPS>
+    不允许静默拼接工具名和参数。
+    </?01KZKWFSP4D00WZ11ERKNZWFPS>
+    <decision-text ?01KZKWFSP4D00WZ11ERKNZWFPT>
+    Adapter 只能依据明确 provider contract 做 normalization；否则返回结构化 protocol failure。
+    </?01KZKWFSP4D00WZ11ERKNZWFPT>
+    <rationale ?01KZKWFSP4D00WZ11ERKNZWFPV>
+    错误工具调用比显式失败更危险且难以恢复。
+    </?01KZKWFSP4D00WZ11ERKNZWFPV>
+    <evidence ?01KZKWFSP4D00WZ11ERKNZWFPW>
+    事故中两组同名并行工具被重复拼接。
+    </?01KZKWFSP4D00WZ11ERKNZWFPW>
+  )>
+)>
+
+<decision #track.harden-ai-workflow-agent-runtime.stage-outcome { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZKWFSP4D00WZ11ERKNZWFPX>
+  怎样防止 workflow actor 在没有产物时持续探索十余分钟？
+  </?01KZKWFSP4D00WZ11ERKNZWFPX>
+  <answer {  } (
+    <raw-answer ?01KZKWFSP4D00WZ11ERKNZWFPY>
+    按 KWF 的有限产品阶段，每轮必须有结构化进展，修复循环和 provider retry 都受产品 deadline 约束。
+    </?01KZKWFSP4D00WZ11ERKNZWFPY>
+    <decision-text ?01KZKWFSP4D00WZ11ERKNZWFPZ>
+    Every workflow actor turn SHALL produce a non-empty structured stage outcome or native tool effect; proof repair SHALL be bounded and the product stage deadline SHALL cap provider retries。
+    </?01KZKWFSP4D00WZ11ERKNZWFPZ>
+    <rationale ?01KZKWFSP4D00WZ11ERKNZWFQ0>
+    provider timeout 不是用户旅程预算；只有可观测 transition 才能证明产品在前进。
+    </?01KZKWFSP4D00WZ11ERKNZWFQ0>
+    <evidence ?01KZKWFSP4D00WZ11ERKNZWFQ1>
+    事故 session 十一分钟无 workspace mutation；KWF structured scaffold/infer and bounded model E2E。
+    </?01KZKWFSP4D00WZ11ERKNZWFQ1>
+  )>
+)>
+
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.failure-authority { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZM376J89SBRFRM2JQJ91A18>
+  Provider failure 之前已有 partial assistant content 时谁拥有终态？
+  </?01KZM376J89SBRFRM2JQJ91A18>
+  <answer {  } (
+    <raw-answer ?01KZM376J89SBRFRM2JQJ91A19>
+    当前 provider failure 必须覆盖旧 partial content。
+    </?01KZM376J89SBRFRM2JQJ91A19>
+    <decision-text ?01KZM376J89SBRFRM2JQJ91A1A>
+    Provider terminal failure SHALL fail the actor; prior Conversation Domain output MAY be retained as evidence but MUST NOT reclassify the terminal state。
+    </?01KZM376J89SBRFRM2JQJ91A1A>
+    <rationale ?01KZM376J89SBRFRM2JQJ91A1B>
+    effect terminal 是当前控制事实，历史消息只是记录。
+    </?01KZM376J89SBRFRM2JQJ91A1B>
+    <evidence ?01KZM376J89SBRFRM2JQJ91A1C>
+    真实回归 sequence 68/170。
+    </?01KZM376J89SBRFRM2JQJ91A1C>
+  )>
+)>
+
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.sync-wait-single-writer { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZM376J9DYZVC71NQQ8D51YF>
+  同步 delegate tool result 由谁写入？
+  </?01KZM376J9DYZVC71NQQ8D51YF>
+  <answer {  } (
+    <raw-answer ?01KZM376J9DYZVC71NQQ8D51YG>
+    只有 childDone terminal message。
+    </?01KZM376J9DYZVC71NQQ8D51YG>
+    <decision-text ?01KZM376J9DYZVC71NQQ8D51YH>
+    The WAIT_FOR_CHILD_DONE control return SHALL NOT commit a tool result; childDone SHALL be the sole writer of the paired success/failure tool result。
+    </?01KZM376J9DYZVC71NQQ8D51YH>
+    <rationale ?01KZM376J9DYZVC71NQQ8D51YJ>
+    避免空 initial result 与 terminal result 竞争。
+    </?01KZM376J9DYZVC71NQQ8D51YJ>
+    <evidence ?01KZM376J9DYZVC71NQQ8D51YK>
+    真实 conversation history 的空 ToolResult。
+    </?01KZM376J9DYZVC71NQQ8D51YK>
+  )>
+)>
+
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.context-projection { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01KZM376J9DYZVC71NQQ8D51YM>
+  Fresh workflow actor 如何理解多轮确认？
+  </?01KZM376J9DYZVC71NQQ8D51YM>
+  <answer {  } (
+    <raw-answer ?01KZM376J9DYZVC71NQQ8D51YN>
+    注入 parent Conversation Domain 的结构化业务历史投影，不做关键词解释。
+    </?01KZM376J9DYZVC71NQQ8D51YN>
+    <decision-text ?01KZM376J9DYZVC71NQQ8D51YP>
+    WorkflowFulfill SHALL project bounded prior user/assistant conversation by role and order; explicit authorization remains solely in current structured input。
+    </?01KZM376J9DYZVC71NQQ8D51YP>
+    <rationale ?01KZM376J9DYZVC71NQQ8D51YQ>
+    补齐上下文同时保持模型语义 authority 与授权边界。
+    </?01KZM376J9DYZVC71NQQ8D51YQ>
+    <evidence ?01KZM376J9DYZVC71NQQ8D51YR>
+    重试 actor 将趋势研究误解为 approval prebuilt。
+    </?01KZM376J9DYZVC71NQQ8D51YR>
+  )>
+)>
+
+<decision #unify-tui-turn-projection-and-workspace-scope.projection-owner { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?>
+  首轮 prompt、slash command 与 questionnaire continuation 的流投影由谁负责？
+  </?>
+  <answer { } (
+    <raw-answer ?>
+    抽取一套首轮、命令执行、问卷恢复共同使用的流投影器。
+    </?>
+    <decision-text ?>
+    TuiRuntimeClient 内建立单一 turn surface projector/state owner，三条入口只保留各自 ingress/生命周期职责，共同委托 typed control、chunk、history 与 final reconciliation。
+    </?>
+    <rationale ?>
+    runtime 已提供统一结构化流；继续复制会让类别、buffer、tool identity 与恢复行为漂移。
+    </?>
+    <evidence ?>
+    continuation 当前只传 onChunk，prompt/command/continuation 分别复制 assistant/tool 投影逻辑。
+    </?>
+  )>
+)>
+
+<decision #unify-tui-turn-projection-and-workspace-scope.authority { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?>
+  live stream 与 durable history 如何消重？
+  </?>
+  <answer { } (
+    <raw-answer ?>
+    复用 Eidolon 底层通用机制，不新增 runtime/session authority。
+    </?>
+    <decision-text ?>
+    live semantic event 只做低延迟 observation；conversation 与 ToolCallDomain 保持 durable authority；surface 以 conversation message id、actorId+toolCallId、questionnaireId 和 resource id+revision+range 做 identity reconciliation。
+    </?>
+    <rationale ?>
+    以随机 surface id 全量替换会重复卡片并破坏恢复稳定性。
+    </?>
+    <evidence ?>
+    syncSessionMessagesFromActorConversation 当前清空 state 并为所有历史创建随机 id。
+    </?>
+  )>
+)>
+
+<decision #unify-tui-turn-projection-and-workspace-scope.workspace-scope { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?>
+  文件工具误请求父目录时怎样避免扩大授权？
+  </?>
+  <answer { } (
+    <raw-answer ?>
+    workspace 操作默认限制在 workspace；外部访问必须显式表达。
+    </?>
+    <decision-text ?>
+    文件工具新增 `scopeIntent=workspace|external`，默认 workspace；workspace intent 越界时返回结构化诊断且不发授权问卷，只有 external intent 才进入明确的 one-time/persistent grant 流程。
+    </?>
+    <rationale ?>
+    权限层应验证结构化意图，不能猜测路径或静默改写模型参数。
+    </?>
+    <evidence ?>
+    现场 `ls /Users/kongweixian/infra-dev` 导致对整个父目录的读写授权问卷。
+    </?>
+  )>
+)>

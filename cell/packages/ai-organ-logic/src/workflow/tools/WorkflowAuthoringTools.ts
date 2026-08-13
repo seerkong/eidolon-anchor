@@ -1,6 +1,10 @@
 import type { AiAgentOneActorRuntime, ToolDef } from "@cell/ai-core-contract/types"
 import type { AiWorkflowForm } from "@cell/ai-workflow-contract"
 import { createWorkflowComponentForRuntime } from "../component"
+import {
+  projectWorkflowAuthoringSessionPage,
+  projectWorkflowAuthoringSummary,
+} from "../authoring"
 import { WorkflowDefinitionRepository } from "../runtime"
 
 type ToolConfig = Record<string, unknown>
@@ -189,13 +193,51 @@ export function buildWorkflowPublishAuthoringSessionToolDef(): JsonTool {
   )
 }
 
+export function buildWorkflowPreparePublicationToolDef(): JsonTool {
+  return tool(
+    "WorkflowPreparePublication",
+    "Deterministically produce the complete exact-revision diff, validation, static projection, build and component-derived acceptance-disposition receipt set without publishing or running real effects.",
+    { session_id: { type: "string" } },
+    ["session_id"],
+    (runtime, input) => createWorkflowComponentForRuntime(runtime).sessions.preparePublication({
+      sessionId: text(input.session_id, "session_id"),
+    }),
+  )
+}
+
+export function buildWorkflowCompleteAuthoringToolDef(): JsonTool {
+  return tool(
+    "WorkflowCompleteAuthoring",
+    "Request a terminal authoring transition; the component generates the authoritative typed receipt from persisted session and proof facts.",
+    {
+      session_id: { type: "string" },
+      expected_revision: { type: "string" },
+      stage: { type: "string", enum: ["coding", "testing", "releasing"] },
+      outcome: { type: "string", enum: ["ready", "published", "waiting", "failed"] },
+    },
+    ["session_id", "expected_revision", "stage", "outcome"],
+    (runtime, input) => createWorkflowComponentForRuntime(runtime).sessions.createAuthoringReceipt({
+      sessionId: text(input.session_id, "session_id"),
+      expectedWorkingRevision: text(input.expected_revision, "expected_revision"),
+      stage: input.stage,
+      outcome: input.outcome,
+    }),
+  )
+}
+
 export function buildWorkflowListAuthoringSessionsToolDef(): JsonTool {
   return tool(
     "WorkflowListAuthoringSessions",
     "List recoverable workflow authoring session facts for the current injected workspace root.",
-    {},
+    {
+      limit: { type: "integer", minimum: 1, maximum: 100, default: 20 },
+      cursor: { type: "string" },
+    },
     [],
-    async (runtime) => ({ sessions: await createWorkflowComponentForRuntime(runtime).sessions.list() }),
+    async (runtime, input) => projectWorkflowAuthoringSessionPage(
+      await createWorkflowComponentForRuntime(runtime).sessions.list(),
+      { limit: input.limit, cursor: input.cursor },
+    ),
   )
 }
 
@@ -205,7 +247,9 @@ export function buildWorkflowGetAuthoringSummaryToolDef(): JsonTool {
     "Read one compact recoverable authoring session fact without guessing host paths.",
     { session_id: { type: "string" } },
     ["session_id"],
-    (runtime, input) => createWorkflowComponentForRuntime(runtime).sessions.describe(text(input.session_id, "session_id")),
+    async (runtime, input) => projectWorkflowAuthoringSummary(
+      await createWorkflowComponentForRuntime(runtime).sessions.describe(text(input.session_id, "session_id")),
+    ),
   )
 }
 
@@ -218,6 +262,8 @@ export function buildWorkflowAuthoringToolDefs(): JsonTool[] {
     buildWorkflowOpenAuthoringSessionToolDef(),
     buildWorkflowValidateAuthoringSessionToolDef(),
     buildWorkflowDryRunAuthoringSessionToolDef(),
+    buildWorkflowPreparePublicationToolDef(),
+    buildWorkflowCompleteAuthoringToolDef(),
     buildWorkflowPublishAuthoringSessionToolDef(),
     buildWorkflowListAuthoringSessionsToolDef(),
     buildWorkflowGetAuthoringSummaryToolDef(),

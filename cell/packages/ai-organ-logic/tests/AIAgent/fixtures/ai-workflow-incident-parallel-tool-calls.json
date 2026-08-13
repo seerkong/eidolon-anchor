@@ -1,0 +1,62 @@
+{
+  "provenance": {
+    "session": "20260809161202__01KZKADPX7N0JKCZC2ER2YT7Q2",
+    "provider": "deepseek-inferaichat",
+    "evidence": "runtime-control/effects.xnl sequences 107-137",
+    "observed_corruption": "WorkflowGetAuthoringSummaryWorkflowGetAuthoringSummary with two concatenated JSON argument objects"
+  },
+  "chunks": [
+    {
+      "choices": [{
+        "delta": {
+          "tool_calls": [
+            {
+              "id": "call_session_a",
+              "type": "function",
+              "function": {
+                "name": "WorkflowGetAuthoringSummary",
+                "arguments": "{\"session_id\":\"workflow-6270a17f-d621-4dd3-9fbd-82131c340a90"
+              }
+            },
+            {
+              "id": "call_session_b",
+              "type": "function",
+              "function": {
+                "name": "WorkflowGetAuthoringSummary",
+                "arguments": "{\"session_id\":\"workflow-fd0d1718-46c9-4232-b5db-ecf0bcbaaa45"
+              }
+            }
+          ]
+        }
+      }]
+    },
+    {
+      "choices": [{
+        "delta": {
+          "tool_calls": [
+            { "function": { "arguments": "\"}" } },
+            { "function": { "arguments": "\"}" } }
+          ]
+        }
+      }]
+    }
+  ],
+  "expected": [
+    {
+      "id": "call_session_a",
+      "type": "function",
+      "function": {
+        "name": "WorkflowGetAuthoringSummary",
+        "arguments": "{\"session_id\":\"workflow-6270a17f-d621-4dd3-9fbd-82131c340a90\"}"
+      }
+    },
+    {
+      "id": "call_session_b",
+      "type": "function",
+      "function": {
+        "name": "WorkflowGetAuthoringSummary",
+        "arguments": "{\"session_id\":\"workflow-fd0d1718-46c9-4232-b5db-ecf0bcbaaa45\"}"
+      }
+    }
+  ]
+}

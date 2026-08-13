@@ -430,6 +430,10 @@ function historyMessageRecordToMessage(
       } else if (typeof output === "string") {
         message.content = output;
       }
+      const resultMetadata = block.attributes?.resultMetadata;
+      if (resultMetadata && typeof resultMetadata === "object" && !Array.isArray(resultMetadata)) {
+        message.resultMetadata = { ...(resultMetadata as Record<string, unknown>) };
+      }
     }
   }
   if (structuredContent !== undefined) {
@@ -660,6 +664,9 @@ async function createHistoryMessageBlocks(
           kind: "text",
           text: typeof entry.message.content === "string" ? entry.message.content : "",
         },
+        ...(entry.message.resultMetadata
+          ? { resultMetadata: { ...entry.message.resultMetadata } }
+          : {}),
       },
     });
   }

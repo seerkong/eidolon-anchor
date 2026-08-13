@@ -8,7 +8,11 @@ import {
 } from "depa-processor"
 import fs from "fs"
 import { authorizeLocalToolCall } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime"
-import { loadLocalTextResource, escapeAttribute } from "@cell/ai-organ-logic/runtime/LocalTextResourceLoader"
+import {
+  loadLocalTextResource,
+  escapeAttribute,
+  recordContextResourcePresentation,
+} from "@cell/ai-organ-logic/runtime/LocalTextResourceLoader"
 import { computeTextResourceRevision } from "@cell/ai-organ-logic/runtime/ContextResourceLoadDecision"
 import { resolveToolPath } from "../_shared"
 import type { ReadInnerConfig, ReadInnerInput, ReadInnerOutput, ReadInnerRuntime } from "./InnerTypes"
@@ -32,6 +36,7 @@ export const readCoreLogic: StdInnerLogic<ReadInnerRuntime, ReadInnerInput, Read
     filePath: rawPath,
     offset: input?.offset,
     limit: input?.limit,
+    scopeIntent: input?.scopeIntent,
   })
   if (!permission.ok) return permission.output
   const full = resolveToolPath(workdir, rawPath)
@@ -49,6 +54,19 @@ export const readCoreLogic: StdInnerLogic<ReadInnerRuntime, ReadInnerInput, Read
       entries.length === 0 || directoryOffset > entries.length
         ? ""
         : `${directoryOffset}-${lastDeliveredLine}`
+    recordContextResourcePresentation({
+      vm: runtime.vm,
+      toolCallId: String((runtime as any).toolCallId ?? ""),
+      presentation: {
+        status: "loaded",
+        resourceId: resolveToolPath(workdir, rawPath),
+        revision: computeTextResourceRevision(listing).digest,
+        totalLines: entries.length,
+        requestedLines: deliveredRange,
+        deliveredLines: deliveredRange,
+        contentText: delivered,
+      },
+    })
     return [
       `<context-resource status="loaded" resource-id="${escapeAttribute(resolveToolPath(workdir, rawPath))}" revision="${computeTextResourceRevision(listing).digest}" total-lines="${entries.length}" requested-lines="${deliveredRange}" delivered-lines="${deliveredRange}">`,
       delivered,

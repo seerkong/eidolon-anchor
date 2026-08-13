@@ -44,6 +44,7 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
         disabledToolKeys: [...actor.toolPolicy.disabledToolKeys],
         computedDisabledTools: [...actor.toolPolicy.computedDisabledTools],
       },
+      contextPolicy: { ...actor.contextPolicy },
       modelConfig: { ...actor.modelConfig },
       ctrlOptions: {
         stopAfterFirstTool: actor.ctrlOptions.stopAfterFirstTool,
@@ -59,6 +60,7 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
       continuationBaseline: structuredClone(actor.continuationBaseline),
       lastMemberResultNotifiedAt: actor.lastMemberResultNotifiedAt,
       detachedTask: actor.detachedTask ? structuredClone(actor.detachedTask) : undefined,
+      workflowProgress: actor.workflowProgress ? structuredClone(actor.workflowProgress) : undefined,
       holonState: actor.holonState ? structuredClone(actor.holonState) : undefined,
       updatedAt: nowIso,
       recovery: actor.recovery,
@@ -107,6 +109,9 @@ function hydrateActorFromSnapshot(
       disabledToolKeys: [...snapshot.toolPolicy.disabledToolKeys],
       computedDisabledTools: [...snapshot.toolPolicy.computedDisabledTools],
     },
+    contextPolicy: snapshot.contextPolicy
+      ? { ...snapshot.contextPolicy }
+      : { historyCompaction: "auto" },
     modelConfig: { ...snapshot.modelConfig },
     ctrlOptions: {
       stopAfterFirstTool: snapshot.ctrlOptions.stopAfterFirstTool,
@@ -131,6 +136,7 @@ function hydrateActorFromSnapshot(
     continuationBaseline: snapshot.continuationBaseline ? structuredClone(snapshot.continuationBaseline) : undefined,
     lastMemberResultNotifiedAt: snapshot.lastMemberResultNotifiedAt ?? null,
     detachedTask: snapshot.detachedTask ? structuredClone(snapshot.detachedTask) : undefined,
+    workflowProgress: snapshot.workflowProgress ? structuredClone(snapshot.workflowProgress) : undefined,
     holonState: snapshot.holonState ? structuredClone(snapshot.holonState) : undefined,
     recovery: {
       restoredFromSnapshot: true,

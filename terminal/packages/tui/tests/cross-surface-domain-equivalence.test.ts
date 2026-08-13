@@ -110,8 +110,15 @@ function makeMaterializedSession(tag: string): { directory: string; sessionID: s
 function surfaceDomainTexts(messages: any[]): string[] {
   return (messages ?? [])
     .flatMap((entry: any) => entry?.parts ?? [])
-    .filter((part: any) => part?.type === "text" && typeof part.text === "string" && part.text.length > 0)
-    .map((part: any) => part.text as string)
+    .flatMap((part: any) => {
+      if (part?.type === "text" && typeof part.text === "string" && part.text.length > 0) {
+        return [part.text]
+      }
+      if (part?.type === "tool" && typeof part.state?.output === "string" && part.state.output.length > 0) {
+        return [part.state.output]
+      }
+      return []
+    })
 }
 
 async function materializeThroughTuiSurface(history: ConversationHistoryProjection, tag: string): Promise<string[]> {

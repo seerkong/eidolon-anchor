@@ -59,4 +59,35 @@
       </case>
     </suite>
   </requirement>
+  <requirement id="unified-turn-surface-projection">
+    <statement>TUI SHALL 由单一 turn surface projector 消费 typed control、chunk、history 与 completion observations；prompt、slash command 和 questionnaire continuation SHALL 复用同一投影状态机，SHALL NOT 各自维护平行的类别、buffer、tool part 或 reconciliation 逻辑。</statement>
+    <suite id="entry-equivalence" name="三入口投影等价">
+      <case id="same-semantic-sequence-same-cards">
+        <given>相同 semantic sequence 分别经 prompt、slash command 与 questionnaire continuation 到达 TUI</given>
+        <when>surface projector 处理这些 observations</when>
+        <then>三条入口 SHALL 产生类别与身份等价的可见卡片</then>
+        <then>turn/toolcall/result/done 文本 MUST NOT 出现在 assistant 卡片</then>
+        <then>think 只 SHALL 出现在 thinking 卡片，assist 只 SHALL 出现在 assistant 卡片</then>
+      </case>
+    </suite>
+    <suite id="identity-reconciliation" name="稳定身份消重">
+      <case id="live-and-durable-tool-merge">
+        <given>同一 tool call 同时由 live history observation 和 durable conversation history 提供</given>
+        <when>TUI 完成 continuation 或重新 hydration</when>
+        <then>surface SHALL 以 actorId+toolCallId 合并为一个 TOOL 卡片</then>
+        <then>durable reconciliation SHALL 更新现有 identity，MUST NOT 清空并创建随机新 identity</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="exhaustive-conversation-role-projection">
+    <statement>TUI conversation projection SHALL exhaustive-map user、assistant、tool 与 system/internal role；仅 user SHALL 投影为 USER，tool SHALL 重建为 ToolPart/card，system/internal SHALL 隐藏或进入显式 diagnostic/context surface，MUST NOT 回退为 USER。</statement>
+    <suite id="role-map" name="角色投影">
+      <case id="tool-and-system-never-user">
+        <given>durable conversation 包含 tool 与 system 消息</given>
+        <when>TUI hydrate 或 reconcile history</when>
+        <then>tool 与 system 消息 MUST NOT 出现在 USER 卡片</then>
+        <then>tool SHALL 保留 toolCallId 形成结构化 ToolPart</then>
+      </case>
+    </suite>
+  </requirement>
 </behaviors>

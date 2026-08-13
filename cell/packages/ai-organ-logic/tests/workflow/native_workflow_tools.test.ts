@@ -105,6 +105,20 @@ describe("native AI workflow tools", () => {
     )
   })
 
+  it("keeps acceptance disposition authority out of model-supplied prepare arguments", () => {
+    const prepare = buildWorkflowNativeToolDefs().find(
+      (def) => def.schema.function.name === "WorkflowPreparePublication",
+    )
+
+    expect(prepare).toBeDefined()
+    expect(prepare!.schema.function.parameters).toEqual({
+      type: "object",
+      properties: { session_id: { type: "string" } },
+      required: ["session_id"],
+      additionalProperties: false,
+    })
+  })
+
   it("exposes workflow tools through model-visible built-in schemas", () => {
     const baseNames = BASE_TOOLS.map((tool) => tool.function.name)
     expect(baseNames).toContain("WorkflowFulfill")
@@ -252,8 +266,34 @@ describe("native AI workflow tools", () => {
       status: "session_opened",
       effectDispatched: false,
       draft: { canonicalProof: { form: "AICtrlWorkflow", substrate: "WorkCtrlFlow" } },
+      persistence: {
+        authoringSessionMaterialized: true,
+        scope: "authoring_session",
+        publicationPerformed: false,
+        executionPerformed: false,
+      },
     })
+    expect(created.draft.files).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: expect.any(String), ref: expect.any(String), sizeBytes: expect.any(Number) }),
+    ]))
+    expect(created.draft.files.every((file: any) => file.content === undefined)).toBe(true)
     const sessionId = created.session.sessionId
+    const mismatch = JSON.parse(String(await ToolFuncRegistry.call(
+      registry,
+      "WorkflowWorkspace",
+      runtime.vm,
+      runtime.actor,
+      { operation: "tree", session_id: sessionId, path: "/work/manifest.xnl" },
+    )))
+    expect(mismatch).toMatchObject({
+      ok: false,
+      diagnostic: {
+        kind: "workflow.authoringVfsDiagnostic",
+        code: "operation_mismatch",
+        expected: "directory",
+        actual: "file",
+      },
+    })
     await expect(readFile(path.join(workspaceRoot, "runtime-review", "manifest.xnl"), "utf8")).rejects.toThrow()
     await ToolFuncRegistry.call(registry, "WorkflowWorkspace", runtime.vm, runtime.actor, { operation: "diff", session_id: sessionId })
     await ToolFuncRegistry.call(registry, "WorkflowValidateAuthoringSession", runtime.vm, runtime.actor, { session_id: sessionId })

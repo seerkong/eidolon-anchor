@@ -37,6 +37,7 @@ export const editCoreLogic: StdInnerLogic<
     oldString,
     newString,
     replaceAll: input?.replaceAll,
+    scopeIntent: input?.scopeIntent,
   })
   if (!permission.ok) return permission.output
   const full = resolveToolPath(workdir, rawPath)

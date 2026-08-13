@@ -28,26 +28,9 @@ export type WorkflowPrebuiltBrief = {
   description: string
 }
 
-const DEFINITION_CONTEXT = `Author workflows from ordinary business language.
+const DEFINITION_CONTEXT = "Load canonical authoring instructions with WorkflowLoadStageContext(stage=coding); this catalog only exposes installed starting facts."
 
-Decide first whether durable coordination is warranted. Separate authoring and orchestration clauses from the exact contiguous business payload; do not copy workflow protocol into the task.
-
-Select the smallest installed template or prebuilt starting fact. Open one recoverable authoring session with /base and /refs read-only, /work and /out writable. Use only WorkflowWorkspace operations inside that VFS.
-
-Canonical AIDataWorkflow authoring contract:
-- Close the XNL workflow root with \`]>\`.
-- A TransformNode or SinkNode \`src\` export is called as \`(runtime, inputs, config)\`. Never treat the first argument as inputs.
-- Each \`inputs\` property is the unwrapped upstream port value. For \`source = "flow-port://#fetch/result"\`, the function receives \`inputs.source\` equal to that result value, not \`{ result: value }\`.
-- A TransformNode must return the exact output map declared by \`outputs\`; for \`outputs = ["result"]\`, return \`{ result: value }\`.
-- FlowContract input and output port names are exact. Entry input is an exact map keyed by FlowContract inputPorts; ReturnNode inputs must match outputPorts.
-- For publication, \`target_path\` is a plain workspace-relative bundle directory such as \`ai-trend-report\`. Never pass a URI or a manifest filename as the bundle directory.
-- For repair, inspect the compact run status/result and the authored source first. Do not request full event payloads unless compact evidence is insufficient; public-source node payloads can be very large.
-
-Complete diff -> validate -> dry-run for one revision, repair in /work when needed, then present business intent and proof. publication requires independent explicit authorization and never implies execution.`
-
-const RUN_CONTEXT = `Run only an already published workflow. Recover definition, instance, run and Material facts before acting. Publication is not execution authorization. Start, resume or reject through native workflow tools and preserve frozen revisions and durable evidence.
-
-WorkflowCreateInstance input must be an exact map keyed by FlowContract inputPorts. For inputPorts = ["input"], pass { "input": value }, not an unkeyed value or an empty map. Preview before confirmed execution and report the durable run result.`
+const RUN_CONTEXT = "Load canonical runtime instructions with WorkflowLoadStageContext(stage=operating); this catalog only exposes installed runtime facts."
 
 export class WorkflowAuthoringCatalog {
   constructor(

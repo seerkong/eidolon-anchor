@@ -7,7 +7,6 @@ export type WorkflowAuthorOuterInput = {
   workflow_ref?: string
   form?: "auto" | "ai-data" | "ai-ctrl" | "AIDataWorkflow" | "AICtrlWorkflow"
   publish?: boolean
-  agent_type?: string
 }
 export type WorkflowAuthorOuterConfig = Record<string, never>
 export type WorkflowAuthorOuterDerived = null

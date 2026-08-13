@@ -1,0 +1,78 @@
+<decisions #unify-tui-turn-projection-and-workspace-scope {
+  track = "unify-tui-turn-projection-and-workspace-scope"
+}
+(
+  <decision #unify-tui-turn-projection-and-workspace-scope.projection-owner {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>首轮 prompt、slash command 与 questionnaire continuation 的流投影由谁负责？</?>
+    <answer { }
+    (
+      <raw-answer ?>抽取一套首轮、命令执行、问卷恢复共同使用的流投影器。</?>
+      <decision-text ?>TuiRuntimeClient 内建立单一 turn surface projector/state owner，三条入口只保留各自 ingress/生命周期职责，共同委托 typed control、chunk、history 与 final reconciliation。</?>
+      <rationale ?>runtime 已提供统一结构化流；继续复制会让类别、buffer、tool identity 与恢复行为漂移。</?>
+      <evidence ?>continuation 当前只传 onChunk，prompt/command/continuation 分别复制 assistant/tool 投影逻辑。</?>
+    )>
+  )>
+  <decision #unify-tui-turn-projection-and-workspace-scope.authority {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>live stream 与 durable history 如何消重？</?>
+    <answer { }
+    (
+      <raw-answer ?>复用 Eidolon 底层通用机制，不新增 runtime/session authority。</?>
+      <decision-text ?>live semantic event 只做低延迟 observation；conversation 与 ToolCallDomain 保持 durable authority；surface 以 conversation message id、actorId+toolCallId、questionnaireId 和 resource id+revision+range 做 identity reconciliation。</?>
+      <rationale ?>以随机 surface id 全量替换会重复卡片并破坏恢复稳定性。</?>
+      <evidence ?>syncSessionMessagesFromActorConversation 当前清空 state 并为所有历史创建随机 id。</?>
+    )>
+  )>
+  <decision #unify-tui-turn-projection-and-workspace-scope.context-resource {
+    status = "accepted"
+    priority = "P0"
+  }
+  (
+    <question ?>context-resource 在 TUI 如何显示？</?>
+    <answer { }
+    (
+      <raw-answer ?>不要在 USER 卡片显示 raw XML，改为折叠的 CONTEXT/read 结果。</?>
+      <decision-text ?>tool/history 边界携带结构化 context resource metadata；TUI 以 workspace-relative 摘要卡片显示，正文按需展开，already-visible 默认弱化/隐藏。</?>
+      <rationale ?>XML 是模型上下文协议，不应成为 UI 协议或由 UI 用模糊文本匹配解析。</?>
+      <evidence ?>当前 durable tool role 在 data.ts 被非 assistant 分支投为 USER。</?>
+    )>
+  )>
+  <decision #unify-tui-turn-projection-and-workspace-scope.workspace-scope {
+    status = "accepted"
+    priority = "P0"
+    durable_candidate = true
+  }
+  (
+    <question ?>文件工具误请求父目录时怎样避免扩大授权？</?>
+    <answer { }
+    (
+      <raw-answer ?>workspace 操作默认限制在 workspace；外部访问必须显式表达。</?>
+      <decision-text ?>文件工具新增 `scopeIntent=workspace|external`，默认 workspace；workspace intent 越界时返回结构化诊断且不发授权问卷，只有 external intent 才进入明确的 one-time/persistent grant 流程。</?>
+      <rationale ?>权限层应验证结构化意图，不能猜测路径或静默改写模型参数。</?>
+      <evidence ?>现场 `ls /Users/kongweixian/infra-dev` 导致对整个父目录的读写授权问卷。</?>
+    )>
+  )>
+  <decision #unify-tui-turn-projection-and-workspace-scope.execution {
+    status = "accepted"
+    priority = "P1"
+  }
+  (
+    <question ?>规划完成后如何执行与校验？</?>
+    <answer { }
+    (
+      <raw-answer ?>用户明确要求先用 codument-plan-track 创建，再用 codument-impl-track 实现。</?>
+      <decision-text ?>QuestionSeverity=auto，CommitMode=manual；终态 phase 执行 coding AttractorCheck，不配置 HumanConfirm 或 GapLoop。</?>
+      <rationale ?>用户已批准连续实施；本变更涉及投影 authority 与权限边界，需要终态方向审查。</?>
+      <evidence ?>当前请求明确给出动作顺序；modeling/engineering 均 disabled。</?>
+    )>
+  )>
+)>

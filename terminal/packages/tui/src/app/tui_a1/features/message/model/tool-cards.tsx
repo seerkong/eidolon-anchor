@@ -21,6 +21,47 @@ import {
 const syntax = generateSyntax(theme)
 const TOOL_TEXT_PREVIEW_LINES = 24
 const TOOL_TEXT_PREVIEW_CHARS = 4000
+const CONTEXT_RESOURCE_PATH_WIDTH_RATIO = 0.6
+
+function displayWidth(value: string): number {
+  let width = 0
+  for (const char of value) {
+    width += char.codePointAt(0)! > 0xff ? 2 : 1
+  }
+  return width
+}
+
+function takeTrailingDisplayWidth(value: string, maxWidth: number): string {
+  const characters = Array.from(value)
+  let result = ""
+  let width = 0
+  for (let index = characters.length - 1; index >= 0; index -= 1) {
+    const char = characters[index]!
+    const charWidth = displayWidth(char)
+    if (width + charWidth > maxWidth) break
+    result = char + result
+    width += charWidth
+  }
+  return result
+}
+
+function fitContextResourcePath(value: string, maxWidth: number): string {
+  const safeWidth = Math.max(1, Math.floor(maxWidth))
+  if (displayWidth(value) <= safeWidth) return value
+  const ellipsis = "…"
+  const ellipsisWidth = displayWidth(ellipsis)
+  if (safeWidth < ellipsisWidth) return ".".repeat(safeWidth)
+
+  const segments = value.split("/").filter(Boolean)
+  const basename = segments.at(-1) ?? value
+  const root = value.startsWith("/") || segments.length < 2 ? "" : segments[0]
+  const compact = [root, ellipsis, basename].filter(Boolean).join("/")
+  if (displayWidth(compact) <= safeWidth) return compact
+
+  const basenameOnly = `${ellipsis}/${basename}`
+  if (displayWidth(basenameOnly) <= safeWidth) return basenameOnly
+  return `${ellipsis}${takeTrailingDisplayWidth(basename, safeWidth - ellipsisWidth)}`
+}
 
 function getDelegateType(input: Record<string, unknown>): string {
   return String(input.delegate_type ?? "unknown")
@@ -180,10 +221,63 @@ function GlobCard(props: ToolCardProps<any>) {
 }
 
 function ReadCard(props: ToolCardProps<any>) {
+  const ctx = useSessionContext()
+  const resource = createMemo(() => {
+    const value = props.metadata.contextResource
+    return value && typeof value === "object" ? value as Record<string, any> : undefined
+  })
+  const resourceLabel = createMemo(() => {
+    const resourceID = String(resource()?.resourceId ?? "")
+    if (!resourceID) return normalizePath(props.input.filePath ?? "context")
+    let resolved = resourceID
+    if (resourceID.startsWith("file://")) {
+      try {
+        resolved = decodeURIComponent(new URL(resourceID).pathname)
+      } catch {}
+    }
+    if (ctx.directory && path.isAbsolute(resolved)) {
+      const relative = path.relative(ctx.directory, resolved)
+      if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) return normalizePath(relative)
+    }
+    return normalizePath(resolved)
+  })
+  const resourceTitleLabel = createMemo(() =>
+    fitContextResourcePath(resourceLabel(), Math.floor(ctx.width * CONTEXT_RESOURCE_PATH_WIDTH_RATIO)),
+  )
+  const resourceSummary = createMemo(() => {
+    const value = resource()
+    if (!value) return ""
+    const status = value.status === "already-visible" ? "Already visible" : "Loaded"
+    const range = value.deliveredLines || value.requestedLines
+    const size = typeof value.sizeBytes === "number" ? ` · ${value.sizeBytes} B` : ""
+    const revision = String(value.revision ?? "").slice(0, 12)
+    return `${status}${range ? ` · lines ${range}` : ""}${size}${revision ? ` · ${revision}` : ""}`
+  })
+  const body = useExpandableTextPreview(() => String(resource()?.contentText ?? ""))
   return (
-    <InlineTool icon="→" pending="Reading file..." complete={props.input.filePath} part={props.part}>
-      Read {normalizePath(props.input.filePath!)} {formatInput(props.input, ["filePath"])}
-    </InlineTool>
+    <Switch>
+      <Match when={resource()}>
+        <BlockTool
+          title={`CONTEXT ${resourceTitleLabel()}`}
+          part={props.part}
+          onClick={body.preview().truncated ? body.toggle : undefined}
+          borderColor={resource()?.status === "already-visible" ? theme.textMuted : theme.info}
+        >
+          <text fg={theme.textMuted}>{resourceSummary()}</text>
+          <Show when={body.preview().text}>
+            <text fg={theme.text}>{body.preview().text}</text>
+          </Show>
+          <Show when={body.preview().truncated}>
+            <text fg={theme.textMuted}>{body.preview().expanded ? "Click to collapse" : "Click to expand"}</text>
+          </Show>
+        </BlockTool>
+      </Match>
+      <Match when={true}>
+        <InlineTool icon="→" pending="Reading file..." complete={props.input.filePath} part={props.part}>
+          Read {normalizePath(props.input.filePath!)} {formatInput(props.input, ["filePath"])}
+        </InlineTool>
+      </Match>
+    </Switch>
   )
 }
 

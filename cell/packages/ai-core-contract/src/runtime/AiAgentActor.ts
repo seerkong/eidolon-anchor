@@ -61,7 +61,10 @@ export type AiAgentMailboxSchema = {
     childActorId: string;
     mode: "sync_wait" | "detached";
     toolCallId?: string;
+    toolName?: string;
     outputText: string;
+    status?: "completed" | "failed" | "cancelled";
+    error?: string;
   };
   toolResult: { toolCallId: string; questionnaireId?: string; content: string };
   asyncCompletion: unknown;
@@ -85,6 +88,19 @@ export type ActorCtrlOptions = {
   exitAfterToolResult: boolean;
 };
 
+export type WorkflowActorProgressState = {
+  stageId?: string;
+  stageStartedAt: number;
+  deadlineAt: number;
+  turnsSinceProgress: number;
+  maxNoProgressTurns: number;
+  proofRepairAttempts: number;
+  maxProofRepairAttempts: number;
+  lastProgressAt: number;
+  lastOutcome?: string;
+  lastDiagnostic?: string;
+};
+
 export type ActorModelConfig = {
   provider?: string;
   adapter?: LlmAdapterType;
@@ -104,6 +120,10 @@ export type ActorModelConfig = {
 export type ActorContext = {
   history: ChatMessage[];
   systemPrompts: string[];
+};
+
+export type ActorContextPolicy = {
+  historyCompaction: "auto" | "disabled";
 };
 
 export type ProfileSystemPromptProvenance = {
@@ -266,6 +286,7 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
     updatedAt: number;
   };
   toolPolicy: ActorToolPolicy;
+  contextPolicy: ActorContextPolicy;
   modelConfig: ActorModelConfig;
   llmClient: object | null;
   stream: XStream<any> | null;
@@ -281,6 +302,7 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
   continuationBaseline: ContinuationBaselineData;
   recovery?: ActorRecoveryState;
   detachedTask?: DetachedTaskState;
+  workflowProgress?: WorkflowActorProgressState;
   holonState?: HolonActorState;
   watchState: ActorWatchState;
   callbacks: AiAgentActorCallbacks<TVm, TActor>;

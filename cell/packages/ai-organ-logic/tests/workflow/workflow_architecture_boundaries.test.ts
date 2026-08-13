@@ -83,4 +83,54 @@ describe("Eidolon workflow architecture boundaries", () => {
     expect(WORKFLOW_NATIVE_TOOL_NAMES).toContain("WorkflowResolve")
     expect(WORKFLOW_NATIVE_TOOL_NAMES).toContain("WorkflowMaterialReplay")
   })
+
+  it("ships one eidolon executable for TUI and headless subcommands", async () => {
+    const packageJson = await source("package.json")
+    const unifiedEntry = await source("terminal/packages/cli/src/index.ts")
+    const builder = await source("scripts/build-terminal-tui.ts")
+    expect(packageJson).toContain('"build:terminal": "bun run build:terminal:tui"')
+    expect(packageJson).not.toContain("build:terminal:cli")
+    expect(packageJson).not.toContain("install:dist:tui")
+    expect(unifiedEntry).toContain('.scriptName("eidolon")')
+    expect(unifiedEntry).toContain(".command(workflow)")
+    expect(unifiedEntry).toContain(".command(globalCommand)")
+    expect(unifiedEntry).toContain('command: "$0 [project]"')
+    expect(builder).toContain('binaryName = isWindows ? "eidolon.exe" : "eidolon"')
+    expect(builder).toContain("EIDOLON_UNIFIED_ENTRY")
+  })
+
+  it("forbids deterministic natural-language workflow routing", async () => {
+    const violations: string[] = []
+    for (const filePath of await typescriptFiles(workflowRoot)) {
+      const content = await readFile(filePath, "utf8")
+      if (/\/(?:[^/\\]|\\.)*(?:批准|审批|负责人|调研|研究|并行|循环|等待|发布|执行)(?:[^/\\]|\\.)*\/[a-z]*/u.test(content)) {
+        violations.push(path.relative(repositoryRoot, filePath))
+      }
+      if (/infer(?:Scenario|Route)|durableSignals|analyzeWorkflowAuthoringIntent/.test(content)) {
+        violations.push(path.relative(repositoryRoot, filePath))
+      }
+    }
+    expect(violations).toEqual([])
+  })
+
+  it("reuses the generic actor context policy without a workflow compactor or actor-name routing", async () => {
+    const workflowViolations: string[] = []
+    for (const filePath of await typescriptFiles(workflowRoot)) {
+      const content = await readFile(filePath, "utf8")
+      if (/ContextCompressor|Workflow(?:History|Context)(?:Compressor|Compactor|Cache)/.test(content)) {
+        workflowViolations.push(path.relative(repositoryRoot, filePath))
+      }
+      if (/projectWorkflowBusinessConversation|priorConversation/.test(content)) {
+        workflowViolations.push(path.relative(repositoryRoot, filePath))
+      }
+    }
+    expect(workflowViolations).toEqual([])
+
+    const executor = await source("cell/packages/ai-organ-logic/src/exec/AiAgentExecutor.ts")
+    const eligibility = executor.match(
+      /function shouldCompressActorHistory\([^)]*\): boolean \{([\s\S]*?)\n\}/,
+    )?.[1] ?? ""
+    expect(eligibility).toContain("contextPolicy.historyCompaction")
+    expect(eligibility).not.toMatch(/primary|delegate|detached|member|agentType|workflow|tool/i)
+  })
 })

@@ -85,6 +85,7 @@ function makeRuntime(params: {
   ) => Promise<any> | any;
   compactionThresholdTokens?: number;
   compressionSummary?: string;
+  actorType?: "primary" | "delegate" | "detached";
 }) {
   const tool = makeArtifactReadTool();
   const adapter = {
@@ -111,6 +112,7 @@ function makeRuntime(params: {
   };
   const actor = createActor({
     key: "main",
+    type: params.actorType,
     llmClient: adapter,
     modelConfig: {
       model: "mock",
@@ -359,6 +361,7 @@ describe("tool result first provider delivery", () => {
         providerRequests: recoveredProviderRequests,
         compactionThresholdTokens: 80_000,
         compressionSummary: "<state_snapshot><overall_goal>recovered delivery retry</overall_goal></state_snapshot>",
+        actorType: "delegate",
         processStream: () => ({ role: "assistant", content: "recovered delivery consumed" }),
       });
       await synchronizeConversationDomainActorFromPersistence({
@@ -391,6 +394,9 @@ describe("tool result first provider delivery", () => {
       const nextProviderRequest = recoveredProviderRequests.find((request) => (
         Array.isArray(request?.tools) && request.tools.length > 0
       ));
+      expect(recoveredProviderRequests.some((request) => (
+        Array.isArray(request?.tools) && request.tools.length === 0
+      ))).toBe(true);
       const nextProviderMessages = JSON.stringify(nextProviderRequest?.messages ?? []);
       expect(nextProviderMessages).toContain("\"id\":\"artifact-read-retry\"");
       expect(nextProviderMessages).toContain(LARGE_ARTIFACT_TEXT);

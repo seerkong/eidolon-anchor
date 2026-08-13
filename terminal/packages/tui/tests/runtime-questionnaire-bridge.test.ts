@@ -14,16 +14,26 @@ type RuntimeHistoryEvent = {
   agentActorId: string
 }
 
+function runtimeInputText(input: unknown): string {
+  if (typeof input === "string") return input
+  if (!Array.isArray(input)) return ""
+  return input
+    .filter((part): part is { type: "text"; text: string } => part?.type === "text" && typeof part.text === "string")
+    .map((part) => part.text)
+    .join("")
+}
+
 describe("TuiRuntimeClient questionnaire bridge", () => {
   it("projects questionnaire requests and routes replies back into the same runtime session", async () => {
     const turns: Array<{ sessionID: string; input: string }> = []
     let notifyHistory: ((event: RuntimeHistoryEvent) => void) | null = null
 
     __setRuntimeBridgeFactoryForTest(async (sessionID) => ({
-      async turn(input: string, opts?: RuntimeTurnOptions) {
-        turns.push({ sessionID: String(sessionID ?? ""), input })
+      async turn(input: unknown, opts?: RuntimeTurnOptions) {
+        const text = runtimeInputText(input)
+        turns.push({ sessionID: String(sessionID ?? ""), input: text })
 
-        if (input === "need questionnaire") {
+        if (text === "need questionnaire") {
           notifyHistory?.({
             stream: "questionnaire_request",
             payload: JSON.stringify({
@@ -52,7 +62,7 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
           return ""
         }
 
-        if (input === "Q1: A") {
+        if (text === "Q1: A") {
           notifyHistory?.({
             stream: "questionnaire_result",
             payload: JSON.stringify({
@@ -156,8 +166,9 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
     let releaseResume: (() => void) | null = null
 
     __setRuntimeBridgeFactoryForTest(async (sessionID) => ({
-      async turn(input: string) {
-        turns.push({ sessionID: String(sessionID ?? ""), input })
+      async turn(input: unknown) {
+        const text = runtimeInputText(input)
+        turns.push({ sessionID: String(sessionID ?? ""), input: text })
         notifyHistory?.({
           stream: "questionnaire_request",
           payload: JSON.stringify({
@@ -198,7 +209,12 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
       },
       async resumeTurn(opts?: RuntimeTurnOptions) {
         resumed.push(String(sessionID ?? ""))
-        await opts?.onChunk?.("continued")
+        await opts?.onControl?.({ cmd: "NewMessage", category: "turn" })
+        await opts?.onChunk?.("Starting turn 2\n")
+        await opts?.onControl?.({ cmd: "NewMessage", category: "think" })
+        await opts?.onChunk?.("continuation thinking\n")
+        await opts?.onControl?.({ cmd: "NewMessage", category: "toolcall" })
+        await opts?.onChunk?.("bash call_continued\n")
         notifyHistory?.({
           stream: "tool_call_start",
           payload: JSON.stringify({
@@ -209,6 +225,10 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
           agentKey: "delegate",
           agentActorId: "actor_delegate",
         })
+        await opts?.onControl?.({ cmd: "NewMessage", category: "result" })
+        await opts?.onChunk?.("bash: continued tool result\n")
+        await opts?.onControl?.({ cmd: "NewMessage", category: "assist" })
+        await opts?.onChunk?.("continued")
         notifyHistory?.({
           stream: "tool_call_result",
           payload: JSON.stringify({
@@ -314,6 +334,10 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
         (entry.parts ?? []).flatMap((part) => (part.type === "text" ? [part.text] : [])),
       )
       expect(textParts).toContain("continued")
+      expect(textParts).toContain("continuation thinking\n")
+      expect(textParts.some((text) => text.includes("Starting turn 2"))).toBe(false)
+      expect(textParts.some((text) => text.includes("bash call_continued"))).toBe(false)
+      expect(textParts.some((text) => text.includes("continued tool result"))).toBe(false)
       const toolParts = (messages.data ?? []).flatMap((entry) =>
         (entry.parts ?? []).flatMap((part) => (part.type === "tool" ? [part] : [])),
       )
@@ -479,10 +503,11 @@ describe("TuiRuntimeClient questionnaire bridge", () => {
     let notifyHistory: ((event: RuntimeHistoryEvent) => void) | null = null
 
     __setRuntimeBridgeFactoryForTest(async (sessionID) => ({
-      async turn(input: string) {
-        turns.push({ sessionID: String(sessionID ?? ""), input })
+      async turn(input: unknown) {
+        const text = runtimeInputText(input)
+        turns.push({ sessionID: String(sessionID ?? ""), input: text })
 
-        if (input === "need travel intake") {
+        if (text === "need travel intake") {
           notifyHistory?.({
             stream: "questionnaire_request",
             payload: JSON.stringify({

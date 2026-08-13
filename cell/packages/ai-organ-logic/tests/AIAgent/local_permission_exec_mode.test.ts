@@ -111,7 +111,7 @@ describe("local permission exec modes", () => {
     const externalGrant = authorizeLocalToolCall(
       buildRuntime({ workDir, authorityRoot, mode: "full-auto" }),
       "read",
-      { filePath: externalFile },
+      { filePath: externalFile, scopeIntent: "external" },
     );
     expect(externalGrant.ok).toBe(false);
     if (!externalGrant.ok) {
@@ -158,7 +158,7 @@ describe("local permission exec modes", () => {
     const externalGrant = authorizeLocalToolCall(
       buildRuntime({ workDir, authorityRoot, mode: "dangerous" }),
       "write",
-      { filePath: externalFile },
+      { filePath: externalFile, scopeIntent: "external" },
     );
     expect(externalGrant).toEqual({ ok: true });
 
@@ -194,9 +194,21 @@ describe("local permission exec modes", () => {
         additionalWritableRoots: [externalDir],
       }),
       "write",
-      { filePath: externalFile },
+      { filePath: externalFile, scopeIntent: "external" },
     );
 
     expect(result).toEqual({ ok: true });
+  });
+
+  test("dangerous mode cannot reinterpret a workspace-scoped parent path as external", () => {
+    const { workDir, authorityRoot } = buildPermissionSandbox();
+    const result = authorizeLocalToolCall(
+      buildRuntime({ workDir, authorityRoot, mode: "dangerous" }),
+      "ls",
+      { path: path.dirname(workDir) },
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.output).toContain("workspace_scope_violation");
   });
 });

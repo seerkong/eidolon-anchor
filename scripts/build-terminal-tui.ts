@@ -25,6 +25,10 @@ const proc = Bun.spawn(
   ["bun", "--config=./scripts/bunfig.build.toml", "./scripts/build.ts", outFile],
   {
     cwd: path.resolve("terminal", "packages", "tui"),
+    env: {
+      ...process.env,
+      EIDOLON_UNIFIED_ENTRY: path.resolve("terminal", "packages", "cli", "src", "index.ts"),
+    },
     stdio: ["ignore", "inherit", "inherit"],
   }
 );

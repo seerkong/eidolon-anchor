@@ -24,10 +24,11 @@ export const lsCoreLogic: StdInnerLogic<LsInnerRuntime, LsInnerInput, LsInnerCon
 ) => {
   const workdir = runtime.vm.outerCtx.workDir
   if (typeof workdir !== "string" || !workdir.trim()) return "Error: workDir not configured"
-  const base = typeof input?.path === "string" && input.path.trim() ? input.path : workdir
+  const base = typeof input?.path === "string" && input.path.trim() ? input.path : "."
   const permission = authorizeLocalToolCall(runtime, "ls", {
     path: base,
     ignore: input?.ignore,
+    scopeIntent: input?.scopeIntent,
   })
   if (!permission.ok) return permission.output
   const dir = resolveToolPath(workdir, base)

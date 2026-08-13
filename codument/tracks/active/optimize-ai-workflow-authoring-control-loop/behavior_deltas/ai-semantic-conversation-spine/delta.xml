@@ -1,0 +1,30 @@
+<behavior-patch capability="ai-semantic-conversation-spine" version="1">
+  <upsert selector="behavior://ai-semantic-conversation-spine/requirements/generic-actor-context-policy">
+    <requirement id="generic-actor-context-policy">
+      <statement>Every multi-turn AI actor SHALL participate in provider-context budgeting through an actor-owned generic context policy independent of actor role, agent type, tool name or product name, while Conversation and History authorities remain unchanged.</statement>
+      <suite id="actor-policy" name="Generic actor context policy">
+        <case id="delegate-auto-compaction">
+          <given>A delegate or detached actor is configured for multiple provider turns</given>
+          <when>Its materialized provider context approaches the configured budget</when>
+          <then>The executor SHALL apply the same generic compaction and resource-delivery mechanisms used by other multi-turn actors</then>
+        </case>
+        <case id="short-lived-explicit-opt-out">
+          <given>An actor is explicitly configured as a one-tool short-lived execution</given>
+          <when>context policy is resolved</when>
+          <then>The actor MAY disable history compaction through the generic actor contract rather than an agent-name special case</then>
+        </case>
+        <case id="no-workflow-specific-compressor">
+          <given>AI Workflow actors exercise context budgeting</given>
+          <when>The runtime source and facts are inspected</when>
+          <then>They SHALL reuse Conversation materialization, ContextCompressor and generic delivery facts</then>
+          <then>The system MUST NOT create a workflow-specific history, compactor, cache or tool-name branch</then>
+        </case>
+        <case id="first-delivery-protection-preserved">
+          <given>A large tool result has not yet completed its first successful provider delivery</given>
+          <when>A delegate context budget is applied</when>
+          <then>The existing pending-first-delivery protection SHALL remain effective</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

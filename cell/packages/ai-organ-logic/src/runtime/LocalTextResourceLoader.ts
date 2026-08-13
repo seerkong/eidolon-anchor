@@ -8,6 +8,7 @@ import type {
   LocalConversationContextResourceFragmentSelection,
 } from "@cell/ai-organ-contract"
 import type { AiAgentVm } from "@cell/ai-core-logic/runtime/runtime"
+import type { ContextResourcePresentationData } from "@cell/ai-core-contract/runtime/AiAgentVm"
 
 import {
   getConversationSessionRawStateFromVm,
@@ -23,6 +24,26 @@ import {
 import { getVmToolCallDomain } from "./ToolCallDomainRuntime"
 
 type LineRange = LocalConversationContextResourceFragmentSelection
+
+export function recordContextResourcePresentation(params: {
+  vm: AiAgentVm
+  toolCallId?: string
+  presentation: ContextResourcePresentationData
+}): void {
+  const toolCallId = String(params.toolCallId ?? "").trim()
+  if (!toolCallId) return
+  const runtimeContext = (params.vm as any)?.runtimeContext
+  if (!runtimeContext) return
+  runtimeContext.contextResourcePresentations ??= {}
+  runtimeContext.contextResourcePresentations[toolCallId] = { ...params.presentation }
+}
+
+export function getContextResourcePresentation(
+  vm: AiAgentVm,
+  toolCallId: string,
+): ContextResourcePresentationData | undefined {
+  return (vm as any)?.runtimeContext?.contextResourcePresentations?.[String(toolCallId ?? "").trim()]
+}
 
 export type LocalTextResourceLoadInput = {
   vm: AiAgentVm
@@ -189,6 +210,19 @@ export function loadLocalTextResource(input: LocalTextResourceLoadInput): string
   const canonicalResourceId = input.canonicalResourceId ?? pathToFileURL(input.fullPath).href
   const revision = computeTextResourceRevision(input.sourceText)
   if (startLine > lines.length) {
+    recordContextResourcePresentation({
+      vm: input.vm,
+      toolCallId: input.toolCallId,
+      presentation: {
+        status: "loaded",
+        resourceId: canonicalResourceId,
+        revision: revision.digest,
+        totalLines: totalLines(lines),
+        sizeBytes: input.sizeBytes,
+        requestedLines: `${startLine}-${endLine}`,
+        deliveredLines: "",
+      },
+    })
     return `<context-resource status="loaded" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" total-lines="${totalLines(lines)}"${sizeAttribute(input.sizeBytes)} requested-lines="${startLine}-${endLine}" delivered-lines=""></context-resource>`
   }
 
@@ -205,12 +239,38 @@ export function loadLocalTextResource(input: LocalTextResourceLoadInput): string
     const recoveryLine = decision.recoveryPaths.length > 0
       ? `\nFull output persisted at: ${decision.recoveryPaths.join(", ")}`
       : "";
+    recordContextResourcePresentation({
+      vm: input.vm,
+      toolCallId: input.toolCallId,
+      presentation: {
+        status: "already-visible",
+        resourceId: canonicalResourceId,
+        revision: revision.digest,
+        totalLines: totalLines(lines),
+        sizeBytes: input.sizeBytes,
+        requestedLines: rangeText(requested),
+      },
+    })
     return `<context-resource status="already-visible" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" total-lines="${totalLines(lines)}"${sizeAttribute(input.sizeBytes)} requested-lines="${rangeText(requested)}"></context-resource>${recoveryLine}`
   }
 
   const delivered = decision?.missingRanges ?? requested
   const body = selectedText(lines, delivered)
   persistDelivery({ input, canonicalResourceId, revision, ranges: delivered, lines, existing })
+  recordContextResourcePresentation({
+    vm: input.vm,
+    toolCallId: input.toolCallId,
+    presentation: {
+      status: "loaded",
+      resourceId: canonicalResourceId,
+      revision: revision.digest,
+      totalLines: totalLines(lines),
+      sizeBytes: input.sizeBytes,
+      requestedLines: rangeText(requested),
+      deliveredLines: rangeText(delivered),
+      contentText: body,
+    },
+  })
   return [
     `<context-resource status="loaded" resource-id="${escapeAttribute(canonicalResourceId)}" revision="${revision.digest}" total-lines="${totalLines(lines)}"${sizeAttribute(input.sizeBytes)} requested-lines="${rangeText(requested)}" delivered-lines="${rangeText(delivered)}">`,
     body,

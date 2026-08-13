@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "bun:test";
+import workflowIncident from "./fixtures/ai-workflow-incident-parallel-tool-calls.json" with { type: "json" };
 
 const repoRoot = path.resolve(import.meta.dir, "../../../../..");
 
@@ -65,6 +66,32 @@ describe("official Chat Completions effect bundles", () => {
       "think",
       "content",
     ]);
+  });
+
+  it("keeps parallel same-name calls separate when a provider omits index", async () => {
+    const core = await import("@cell/ai-organ-logic/stream/ChatCompletionsStreamCore");
+    let state = core.createChatCompletionsStreamState();
+    for (const chunk of workflowIncident.chunks) {
+      state = core.reduceChatCompletionsChunk(state, chunk).state;
+    }
+
+    expect(workflowIncident.provenance.observed_corruption).toContain("WorkflowGetAuthoringSummaryWorkflowGetAuthoringSummary");
+    expect(core.buildChatCompletionsToolCalls(state)).toEqual(workflowIncident.expected);
+  });
+
+  it("fails closed when a no-index tool delta has ambiguous identity", async () => {
+    const core = await import("@cell/ai-organ-logic/stream/ChatCompletionsStreamCore");
+    let state = core.createChatCompletionsStreamState();
+    for (const id of ["call_a", "call_b"]) {
+      state = core.reduceChatCompletionsChunk(state, {
+        choices: [{ delta: { tool_calls: [{ id, type: "function", function: { name: "WorkflowWorkspace" } }] } }],
+      }).state;
+    }
+    state = core.reduceChatCompletionsChunk(state, {
+      choices: [{ delta: { tool_calls: [{ function: { arguments: "{}" } }] } }],
+    }).state;
+
+    expect(() => core.buildChatCompletionsAssistantMessage(state)).toThrow("ambiguous_tool_call_identity");
   });
 
   it("selects protocol behavior from the explicit bundle despite misleading strings", async () => {

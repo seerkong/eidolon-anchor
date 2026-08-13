@@ -188,7 +188,9 @@ const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
   module?: string;
   main?: string;
 };
-const entry = path.resolve(process.cwd(), packageJson.module ?? packageJson.main ?? "src/index.ts");
+const entry = process.env.EIDOLON_UNIFIED_ENTRY
+  ? path.resolve(process.env.EIDOLON_UNIFIED_ENTRY)
+  : path.resolve(process.cwd(), packageJson.module ?? packageJson.main ?? "src/index.ts");
 const tempDir = await mkdtemp(path.join(tmpdir(), "eidolon-tui-build-"));
 const bundlePath = path.join(tempDir, "bundle.mjs");
 const outfileDir = path.dirname(path.resolve(outfile));

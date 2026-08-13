@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeLsOuterComputed,
   makeLsInnerRuntime,
@@ -17,8 +17,8 @@ export function buildLsToolDef(): ToolDef<LsOuterInput, LsOuterOutput, LsOuterCo
       type: "function" as const,
       function: {
         name: "ls",
-        description: "List directory contents.",
-        parameters: { type: "object", properties: { path: { type: "string" }, ignore: { type: "array", items: { type: "string" } } } },
+        description: "List directory contents. Omit path or use '.' for the current workspace; external paths require explicit scopeIntent.",
+        parameters: { type: "object", properties: { path: { type: "string", default: "." }, ignore: { type: "array", items: { type: "string" } }, scopeIntent: fileToolScopeIntentSchema() } },
       },
     },
     briefPromptXnl: readPromptFromDir("Ls", "Tool.brief.xnl"),

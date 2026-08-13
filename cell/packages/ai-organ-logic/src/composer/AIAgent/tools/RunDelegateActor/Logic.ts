@@ -21,6 +21,7 @@ export const runDelegateActorCoreLogic: StdInnerLogic<
       mode: input.mode,
       taskKey: input.task_key,
       toolCallId: (runtime as any)?.toolCallId,
+      parentToolName: "RunDelegateActor",
     })
   } catch (e: any) {
     return `Error: ${e.message}`

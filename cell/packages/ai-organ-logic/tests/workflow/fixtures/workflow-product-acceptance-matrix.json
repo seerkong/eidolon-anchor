@@ -3,7 +3,7 @@
     "id": "natural-routing",
     "area": "human",
     "requiredBehavior": "ordinary-language durable-signal routing",
-    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowExperienceCoordinator.ts",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowFulfill/Logic.ts",
     "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_human_product_experience.test.ts",
     "status": "closed",
     "boundary": "native-component"
@@ -12,7 +12,7 @@
     "id": "exact-business-payload",
     "area": "authoring",
     "requiredBehavior": "separate authoring clauses from exact business payload",
-    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowAuthoringIntent.ts",
+    "implementationEvidence": "cell/packages/ai-support/src/system-skill/assets/sys-ai-workflow/SKILL.md",
     "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_lifecycle.test.ts",
     "status": "closed",
     "boundary": "xnl"
@@ -165,7 +165,7 @@
     "id": "business-scenarios",
     "area": "human",
     "requiredBehavior": "scenario-guided natural workflow construction",
-    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowBusinessScenarios.ts",
+    "implementationEvidence": "cell/packages/ai-support/src/system-skill/assets/sys-ai-workflow/planning/scenarios/index.md",
     "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_human_product_experience.test.ts",
     "status": "closed",
     "boundary": "native-component"
@@ -174,7 +174,7 @@
     "id": "business-projection",
     "area": "human",
     "requiredBehavior": "human result hides storage and DSL internals",
-    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowExperienceCoordinator.ts",
+    "implementationEvidence": "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowLoadStageContext/Logic.ts",
     "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_human_product_experience.test.ts",
     "status": "closed",
     "boundary": "native-component"

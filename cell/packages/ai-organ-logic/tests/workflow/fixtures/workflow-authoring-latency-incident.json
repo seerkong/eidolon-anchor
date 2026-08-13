@@ -1,0 +1,208 @@
+{
+  "schemaVersion": 1,
+  "incidentId": "2026-08-09-ai-workflow-authoring-142956ms",
+  "source": {
+    "runtimeSessionId": "20260809231058__01KZM2CS76T3HMXYFFBHMAQW5E",
+    "authoringSessionId": "workflow-0bd676d3-9cb9-47ce-9a53-07523d2562f6",
+    "actorId": "actor-1786306265425-2",
+    "model": "deepseek-v4-flash"
+  },
+  "measurement": {
+    "boundary": "workflow edit command accepted through durable publication result observed",
+    "startedAtEpochMs": 1786306258203,
+    "publishedAtEpochMs": 1786306401159,
+    "totalMs": 142956,
+    "outerDispatchMs": 7220,
+    "postPublicationReportExcluded": true
+  },
+  "milestones": [
+    {
+      "kind": "request_accepted",
+      "elapsedMs": 0
+    },
+    {
+      "kind": "authoring_actor_started",
+      "elapsedMs": 7220
+    },
+    {
+      "kind": "first_workspace_mutation",
+      "elapsedMs": 95359,
+      "completion": 5,
+      "path": "/work/flow-code/sources.ts"
+    },
+    {
+      "kind": "diff_proof_recorded",
+      "elapsedMs": 111639,
+      "completion": 7
+    },
+    {
+      "kind": "validation_proof_recorded",
+      "elapsedMs": 111666,
+      "completion": 7
+    },
+    {
+      "kind": "static_dry_run_recorded",
+      "elapsedMs": 123478,
+      "completion": 9
+    },
+    {
+      "kind": "publication_recorded",
+      "elapsedMs": 142956,
+      "completion": 12
+    }
+  ],
+  "turns": [
+    {
+      "completion": 1,
+      "stage": "coding",
+      "providerWaitMs": 5175,
+      "generationMs": 5783,
+      "toolWallMs": 80,
+      "transitions": [
+        { "tool": "WorkflowLoadStageContext", "operation": "load_stage", "target": "coding" }
+      ]
+    },
+    {
+      "completion": 2,
+      "stage": "coding",
+      "providerWaitMs": 3492,
+      "generationMs": 1697,
+      "toolWallMs": 40,
+      "transitions": [
+        { "tool": "WorkflowInspectCapability", "operation": "inspect_capability" },
+        { "tool": "WorkflowListAuthoringSessions", "operation": "list_sessions" },
+        { "tool": "WorkflowValidateResourceRef", "operation": "validate_resource_ref" }
+      ]
+    },
+    {
+      "completion": 3,
+      "stage": "coding",
+      "providerWaitMs": 3809,
+      "generationMs": 4748,
+      "toolWallMs": 52,
+      "transitions": [
+        { "tool": "WorkflowWorkspace", "operation": "read" },
+        { "tool": "WorkflowWorkspace", "operation": "read" },
+        { "tool": "WorkflowWorkspace", "operation": "read" }
+      ]
+    },
+    {
+      "completion": 4,
+      "stage": "coding",
+      "providerWaitMs": 4191,
+      "generationMs": 3300,
+      "toolWallMs": 47,
+      "transitions": [
+        { "tool": "WorkflowWorkspace", "operation": "read" },
+        { "tool": "WorkflowWorkspace", "operation": "read" },
+        { "tool": "WorkflowWorkspace", "operation": "read" }
+      ]
+    },
+    {
+      "completion": 5,
+      "stage": "coding",
+      "providerWaitMs": 4856,
+      "generationMs": 50847,
+      "toolWallMs": 21,
+      "reasoningDeltaCount": 5810,
+      "reasoningCharacterCount": 22409,
+      "transitions": [
+        {
+          "tool": "WorkflowWorkspace",
+          "operation": "write",
+          "target": "/work/flow-code/sources.ts",
+          "workspaceMutation": true
+        }
+      ]
+    },
+    {
+      "completion": 6,
+      "stage": "coding",
+      "providerWaitMs": 4938,
+      "generationMs": 4958,
+      "toolWallMs": 22,
+      "transitions": [
+        {
+          "tool": "WorkflowWorkspace",
+          "operation": "edit",
+          "target": "/work/flow-code/normalize.ts",
+          "workspaceMutation": true
+        }
+      ]
+    },
+    {
+      "completion": 7,
+      "stage": "coding",
+      "providerWaitMs": 4047,
+      "generationMs": 2285,
+      "toolWallMs": 57,
+      "transitions": [
+        { "tool": "WorkflowWorkspace", "operation": "diff", "proof": "diff" },
+        { "tool": "WorkflowWorkspace", "operation": "validate", "proof": "validation" }
+      ]
+    },
+    {
+      "completion": 8,
+      "stage": "testing",
+      "providerWaitMs": 3503,
+      "generationMs": 2970,
+      "toolWallMs": 19,
+      "transitions": [
+        { "tool": "WorkflowLoadStageContext", "operation": "load_stage", "target": "testing" }
+      ]
+    },
+    {
+      "completion": 9,
+      "stage": "testing",
+      "providerWaitMs": 3446,
+      "generationMs": 1845,
+      "toolWallMs": 28,
+      "transitions": [
+        { "tool": "WorkflowDryRunAuthoringSession", "operation": "dry_run", "proof": "static_projection" }
+      ]
+    },
+    {
+      "completion": 10,
+      "stage": "releasing",
+      "providerWaitMs": 2969,
+      "generationMs": 2837,
+      "toolWallMs": 17,
+      "transitions": [
+        { "tool": "WorkflowLoadStageContext", "operation": "load_stage", "target": "releasing" }
+      ]
+    },
+    {
+      "completion": 11,
+      "stage": "releasing",
+      "providerWaitMs": 2917,
+      "generationMs": 4192,
+      "toolWallMs": 14,
+      "transitions": [
+        { "tool": "WorkflowGetAuthoringSummary", "operation": "get_summary" }
+      ]
+    },
+    {
+      "completion": 12,
+      "stage": "releasing",
+      "providerWaitMs": 4517,
+      "generationMs": 1984,
+      "toolWallMs": 33,
+      "transitions": [
+        { "tool": "WorkflowPublishAuthoringSession", "operation": "publish", "publication": true }
+      ]
+    }
+  ],
+  "outcomes": {
+    "toolFailureCount": 0,
+    "retryCount": 0,
+    "workspaceMutationCount": 2,
+    "authoringToolTransitionCount": 19
+  },
+  "measurementNotes": [
+    "providerWaitMs measures request-to-first-streamed-event wall time",
+    "generationMs measures first-streamed-event-to-completion wall time",
+    "toolWallMs is wall time for the transition batch after a completion, so parallel tools are not summed",
+    "the publication milestone uses the durable runtime result timestamp; the authoring audit append followed two milliseconds later",
+    "the post-publication child report and parent read-only re-verification are deliberately outside this baseline"
+  ]
+}

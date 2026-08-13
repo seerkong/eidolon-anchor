@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test"
-import { mkdtemp, symlink, writeFile } from "node:fs/promises"
+import { mkdtemp, stat, symlink, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import contract from "./fixtures/workflow-authoring-contract.json" with { type: "json" }
@@ -11,7 +11,6 @@ import {
   StoreBackedWorkflowMaterialAccess,
   WorkflowAuthoringCatalog,
   WorkflowAuthoringSessionStore,
-  analyzeWorkflowAuthoringIntent,
   createWorkflowComponent,
 } from "../../src/workflow"
 import { publishWorkflowFixture } from "./support"
@@ -36,39 +35,6 @@ describe("workflow authoring lifecycle", () => {
     }
   })
 
-  it("preserves the exact business payload from a mixed authoring request", () => {
-    const request = "为“实现一个通用的记账 CLI”设计 depa dry-loop；只创建并验证流程，不要执行，并说明以后如何安装和运行。"
-    expect(analyzeWorkflowAuthoringIntent(request)).toMatchObject({
-      workflowWarranted: true,
-      businessPayload: "实现一个通用的记账 CLI",
-      businessPayloadSource: "quoted-contiguous-span",
-      publicationRequested: false,
-      publicationForbidden: true,
-      executionRequested: false,
-      executionForbidden: true,
-    })
-    expect(analyzeWorkflowAuthoringIntent("把客户反馈分类，汇总高频问题后交给产品审核。")).toMatchObject({
-      businessPayload: "把客户反馈分类，汇总高频问题后交给产品审核。",
-      businessPayloadSource: "whole-request",
-      workflowWarranted: true,
-    })
-
-    const component = createWorkflowComponent({ workspaceRoot: path.join(os.tmpdir(), "eidolon-coordinator-facts") })
-    expect(component.coordinator.prepare({ operation: "create", request, publish: true })).toMatchObject({
-      kind: "workflow.authoringDirective",
-      route: "author-workflow",
-      intent: { businessPayload: "实现一个通用的记账 CLI", businessPayloadSource: "quoted-contiguous-span" },
-      publicationAuthorized: false,
-      publicationDenialReasons: ["request-forbids-publication"],
-      executionAuthorized: false,
-    })
-    expect(component.coordinator.prepare({ operation: "create", request: "解释今天的天气" })).toMatchObject({
-      route: "direct-task",
-      publicationAuthorized: false,
-      publicationDenialReasons: expect.arrayContaining(["durable-workflow-not-warranted"]),
-    })
-  })
-
   it("discovers versioned stage context and installed XNL templates", () => {
     const catalog = new WorkflowAuthoringCatalog()
     expect(catalog.getContext("definition")).toMatchObject({
@@ -76,13 +42,8 @@ describe("workflow authoring lifecycle", () => {
       version: expect.any(String),
       effectDispatched: false,
     })
-    expect(catalog.getContext("definition").instructions).toContain("/base")
-    expect(catalog.getContext("definition").instructions).toContain("publication")
-    expect(catalog.getContext("definition").instructions).toContain("(runtime, inputs, config)")
-    expect(catalog.getContext("definition").instructions).toContain("unwrapped upstream port value")
-    expect(catalog.getContext("definition").instructions).toContain("exact output map")
-    expect(catalog.getContext("definition").instructions).toContain("workspace-relative bundle directory")
-    expect(catalog.getContext("run").instructions).toContain("exact map keyed by FlowContract inputPorts")
+    expect(catalog.getContext("definition").instructions).toContain("WorkflowLoadStageContext(stage=coding)")
+    expect(catalog.getContext("run").instructions).toContain("WorkflowLoadStageContext(stage=operating)")
     expect(catalog.listTemplates().map((item) => item.id)).toEqual([
       "minimal-ai-ctrl",
       "minimal-ai-data",
@@ -205,6 +166,37 @@ describe("workflow authoring lifecycle", () => {
       .toEqual(expect.arrayContaining(["open", "read", "write", "search", "diff"]))
   })
 
+  it("materializes empty mounts and reports operation mismatch as a stable VFS diagnostic", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-empty-mounts-"))
+    const sessions = new WorkflowAuthoringSessionStore(new NodeWorkflowAuthoringStore(root))
+    await sessions.open({ sessionId: "empty", form: "AIDataWorkflow" })
+
+    for (const mount of ["base", "refs", "work", "out"]) {
+      expect((await stat(path.join(root, ".authoring/sessions/empty", mount))).isDirectory()).toBe(true)
+      expect(await sessions.tree("empty", `/${mount}`)).toEqual([])
+    }
+
+    await sessions.write("empty", "/work/manifest.xnl", DATA_MANIFEST)
+    await expect(sessions.tree("empty", "/work/manifest.xnl")).rejects.toMatchObject({
+      diagnostic: {
+        kind: "workflow.authoringVfsDiagnostic",
+        code: "operation_mismatch",
+        operation: "tree",
+        path: "/work/manifest.xnl",
+        expected: "directory",
+        actual: "file",
+      },
+    })
+    await expect(sessions.read("empty", "/work")).rejects.toMatchObject({
+      diagnostic: {
+        code: "operation_mismatch",
+        operation: "read",
+        expected: "file",
+        actual: "directory",
+      },
+    })
+  })
+
   it("rejects host symlink escapes at the shared authoring authority", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-symlink-"))
     const outside = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-outside-"))
@@ -265,7 +257,14 @@ describe("workflow authoring lifecycle", () => {
     await component.sessions.write(session.sessionId, "/work/notes.md", "changed\n")
     expect((await component.sessions.describe(session.sessionId)).validationRevision).toBeUndefined()
     await expect(component.sessions.publish({ sessionId: session.sessionId, confirmed: true }))
-      .rejects.toThrow("current diff, validation and dry-run")
+      .rejects.toThrow('"staleProofs":["diff","validation","dry-run"]')
+
+    await component.sessions.diff(session.sessionId)
+    await component.sessions.validate(session.sessionId)
+    await component.sessions.dryRun(session.sessionId)
+    await component.sessions.validate(session.sessionId)
+    await expect(component.sessions.publish({ sessionId: session.sessionId, confirmed: true }))
+      .rejects.toThrow('"staleProofs":["dry-run"]')
 
     await component.sessions.diff(session.sessionId)
     await component.sessions.validate(session.sessionId)

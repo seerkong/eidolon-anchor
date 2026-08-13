@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeGrepOuterComputed,
   makeGrepInnerRuntime,
@@ -17,8 +17,8 @@ export function buildGrepToolDef(): ToolDef<GrepOuterInput, GrepOuterOutput, Gre
       type: "function" as const,
       function: {
         name: "grep",
-        description: "Search file contents with a regex pattern.",
-        parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" }, include: { type: "string" } }, required: ["pattern"] },
+        description: "Search file contents. Omit path or use '.' for the current workspace; external paths require explicit scopeIntent.",
+        parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string", default: "." }, include: { type: "string" }, scopeIntent: fileToolScopeIntentSchema() }, required: ["pattern"] },
       },
     },
     briefPromptXnl: readPromptFromDir("Grep", "Tool.brief.xnl"),

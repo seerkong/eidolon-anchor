@@ -6,6 +6,8 @@ import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver";
+import { createMockProcessStream } from "./__test_support__/mockProcessStream";
+import { projectInputContentText } from "@shared/composer";
 
 function makeMockAdapter() {
   return {
@@ -44,6 +46,7 @@ describe("s08 detached actor tasks: registry + completion injection", () => {
     });
 
     const callCount: Record<string, number> = {};
+    const mainProviderSnapshots: any[][] = [];
     const processStream = async (_vm: any, actor: any) => {
       const key = String(actor.key);
       callCount[key] = (callCount[key] ?? 0) + 1;
@@ -52,6 +55,8 @@ describe("s08 detached actor tasks: registry + completion injection", () => {
       if (actor.type === "delegate" || actor.type === "detached") {
         return { role: "assistant", content: "child result" };
       }
+
+      mainProviderSnapshots.push([...actor.messages]);
 
       if (n === 1) {
         return {
@@ -82,7 +87,7 @@ describe("s08 detached actor tasks: registry + completion injection", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (vm, actor) => processStream(vm, actor),
+        processStream: createMockProcessStream(processStream),
       },
     });
 
@@ -143,8 +148,10 @@ describe("s08 detached actor tasks: registry + completion injection", () => {
     await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 50, maxWallMs: 2000 });
     await flushMicrotasks();
 
-    const idxChild = main.messages.findIndex((m: any) => m?.role === "assistant" && String(m?.content ?? "").includes("Delegate actor"));
-    const idxUser = main.messages.findIndex((m: any) => m?.role === "user" && m?.content === "next");
+    const nextTurnProviderMessages = mainProviderSnapshots.at(-1) ?? [];
+    const idxChild = nextTurnProviderMessages.findIndex((m: any) => m?.role === "assistant" && String(m?.content ?? "").includes("Delegate actor"));
+    const idxUser = nextTurnProviderMessages.findIndex((m: any) => m?.role === "user" && projectInputContentText(m?.content) === "next");
+    expect(mainProviderSnapshots.length).toBeGreaterThanOrEqual(2);
     expect(idxChild).toBeGreaterThanOrEqual(0);
     expect(idxUser).toBeGreaterThanOrEqual(0);
     expect(idxChild).toBeLessThan(idxUser);

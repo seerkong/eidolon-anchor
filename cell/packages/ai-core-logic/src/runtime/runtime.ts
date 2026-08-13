@@ -120,6 +120,7 @@ export function createEmptyVmRuntimeContext(): VmRuntimeContext {
     conversationDomainRuntime: null,
     toolCallDomain: null,
     providerCallDomain: null,
+    contextResourcePresentations: {},
     heartbeatScheduler: null,
     threadGoalRuntime: {
       continuationTurns: 0,
@@ -161,6 +162,7 @@ function materializeVmRuntimeContext(runtimeContext?: Partial<VmRuntimeContext>)
     conversationDomainRuntime: runtimeContext?.conversationDomainRuntime ?? null,
     toolCallDomain: runtimeContext?.toolCallDomain ?? null,
     providerCallDomain: runtimeContext?.providerCallDomain ?? null,
+    contextResourcePresentations: { ...(runtimeContext?.contextResourcePresentations ?? {}) },
     heartbeatScheduler: runtimeContext?.heartbeatScheduler ?? null,
     threadGoalRuntime: {
       continuationTurns: 0,

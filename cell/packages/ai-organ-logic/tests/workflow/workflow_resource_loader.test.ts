@@ -101,13 +101,16 @@ describe("WorkflowResourceLoader", () => {
 
   it("accepts a complete actor-authored canonical manifest and rejects identity drift", () => {
     const commands = new WorkflowCommandService()
+    const flowCode = "export function customNode(_runtime: unknown, input: unknown) { return { result: input } }"
     const authored = commands.createBundleDraft({
       form: "ai-data",
       name: "Authored Data",
       fqn: "local.workflow.AuthoredData",
       manifest_content: dataSource.replaceAll("local.workflow.Data", "local.workflow.AuthoredData"),
+      flow_code_content: flowCode,
     })
     expect(authored.canonicalProof.definitionFqn).toBe("local.workflow.AuthoredData")
+    expect(authored.files.find((file) => file.ref === "vfs://./flow-code/index.ts")?.content).toBe(flowCode)
     expect(() => commands.createBundleDraft({
       form: "ai-data",
       name: "Wrong Identity",

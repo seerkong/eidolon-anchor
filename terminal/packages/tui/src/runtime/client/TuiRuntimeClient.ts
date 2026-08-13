@@ -216,8 +216,12 @@ function inferResultCount(value: unknown): number | undefined {
   return undefined
 }
 
-function buildToolMetadata(tool: string, output?: string): Record<string, unknown> {
-  const metadata: Record<string, unknown> = {}
+function buildToolMetadata(
+  tool: string,
+  output?: string,
+  typedMetadata?: Record<string, unknown>,
+): Record<string, unknown> {
+  const metadata: Record<string, unknown> = { ...(typedMetadata ?? {}) }
   const parsed = tryParseJson(output)
   if ((tool === "edit" || tool === "multiedit" || tool === "apply_patch" || tool === "patch") && parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
     const record = parsed as Record<string, unknown>
@@ -570,6 +574,7 @@ function parseToolResultPayload(event: RuntimeBridgeHistoryEvent): {
   toolName: string
   toolCallId: string
   result?: string
+  metadata?: Record<string, unknown>
   isError: boolean
 } | null {
   if (event.stream !== "tool_call_result") return null
@@ -583,6 +588,7 @@ function parseToolResultPayload(event: RuntimeBridgeHistoryEvent): {
     toolName,
     toolCallId,
     result: typeof record.result === "string" ? record.result : undefined,
+    metadata: isRecord(record.metadata) ? record.metadata : undefined,
     isError: record.isError === true,
   }
 }
@@ -1073,38 +1079,33 @@ export function createTuiRuntimeClient(options?: {
 
   function buildHistorySessionMessage(params: {
     sessionID: string
-    message: any
+    message: ChatMessage
     messageIndex: number
+    actorIdentity?: string
   }): { info: Message; parts: Part[] } {
-    const createdAt = Date.now() + params.messageIndex
-    const role = String(params.message?.role ?? "assistant")
-    const messageContent = params.message?.content
+    const role = params.message.role
+    const createdAt = params.message.startAt ?? params.message.endAt ?? params.messageIndex
+    const domainMessageID = String(params.message.messageId ?? "").trim()
+    const stableBaseID = domainMessageID || `history:${params.actorIdentity ?? "actor"}:${params.messageIndex}:${role}`
+    const messageContent = params.message.content
     const rawContent = typeof messageContent === "string" ? messageContent : ""
     const parsedToolContent = role === "tool" ? tryParseJson(rawContent) : null
-    const displayContent =
-      parsedToolContent
-      && typeof parsedToolContent === "object"
-      && typeof (parsedToolContent as Record<string, unknown>).questionnaireId === "string"
-      && typeof (parsedToolContent as Record<string, unknown>).rawText === "string"
-        ? String((parsedToolContent as Record<string, unknown>).rawText)
-        : rawContent
-    const buildContentParts = (messageID: string): Part[] => {
-      if (!Array.isArray(messageContent)) {
-        return [{
-          id: nextPartId(),
-          sessionID: params.sessionID,
-          messageID,
-          type: "text",
-          text: displayContent,
-          synthetic: false,
-          ignored: false,
-        }]
-      }
+    const questionnaireAnswer =
+      isRecord(parsedToolContent)
+      && typeof parsedToolContent.questionnaireId === "string"
+      && typeof parsedToolContent.rawText === "string"
+        ? parsedToolContent.rawText
+        : null
 
-      return messageContent.flatMap((contentPart: InputContentPart): Part[] => {
-        if (contentPart?.type === "text" && typeof contentPart.text === "string") {
+    const buildContentParts = (messageID: string): Part[] => {
+      const content = typeof messageContent === "string"
+        ? [{ type: "text", text: questionnaireAnswer ?? messageContent } as InputContentPart]
+        : messageContent
+      return content.flatMap((contentPart, index): Part[] => {
+        const partID = `${messageID}:content:${index}`
+        if (contentPart.type === "text") {
           return [{
-            id: nextPartId(),
+            id: partID,
             sessionID: params.sessionID,
             messageID,
             type: "text",
@@ -1115,9 +1116,9 @@ export function createTuiRuntimeClient(options?: {
             sourceDigest: contentPart.sourceDigest,
           }]
         }
-        if (contentPart?.type === "image" && typeof contentPart.mime === "string") {
+        if (contentPart.type === "image") {
           return [{
-            id: nextPartId(),
+            id: partID,
             sessionID: params.sessionID,
             messageID,
             type: "file",
@@ -1127,9 +1128,9 @@ export function createTuiRuntimeClient(options?: {
             attachment: { ...contentPart },
           } as FilePart]
         }
-        if (contentPart?.type === "file_reference" && typeof contentPart.path === "string") {
+        if (contentPart.type === "file_reference") {
           return [{
-            id: nextPartId(),
+            id: partID,
             sessionID: params.sessionID,
             messageID,
             type: "file",
@@ -1142,38 +1143,75 @@ export function createTuiRuntimeClient(options?: {
         return []
       })
     }
-    if (role === "user") {
+
+    if (role === "user" || questionnaireAnswer !== null) {
       const info: Message = {
-        id: nextMessageId(),
+        id: stableBaseID,
         sessionID: params.sessionID,
         role: "user",
-        time: { created: createdAt, completed: createdAt },
+        time: { created: createdAt, completed: params.message.endAt ?? createdAt },
         agent: "build",
         variant: "history",
-      } as Message
-      const parts = buildContentParts(info.id)
-      return { info, parts }
+      }
+      return { info, parts: buildContentParts(info.id) }
+    }
+
+    if (role === "tool") {
+      const toolCallID = String(params.message.toolCallId ?? params.message.tool_call_id ?? stableBaseID).trim()
+      const toolName = String(params.message.name ?? "tool").trim() || "tool"
+      const identity = `${params.actorIdentity ?? "actor"}:${toolCallID}`
+      const info: AssistantMessage = {
+        id: `tool-message:${identity}`,
+        sessionID: params.sessionID,
+        role: "assistant",
+        time: { created: createdAt, completed: params.message.endAt ?? createdAt },
+        agent: params.actorIdentity ?? "tool",
+        modelID: catalog.defaultModel.modelID,
+        providerID: catalog.defaultModel.providerID,
+        mode: "history",
+        path: { cwd: directory, root: directory },
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        finish: "stop",
+      }
+      const part: ToolPart = {
+        id: `tool-part:${identity}`,
+        sessionID: params.sessionID,
+        messageID: info.id,
+        type: "tool",
+        tool: toolName,
+        callID: toolCallID,
+        state: {
+          status: "completed",
+          output: rawContent,
+          metadata: buildToolMetadata(
+            toolName,
+            rawContent,
+            isRecord(params.message.resultMetadata) ? params.message.resultMetadata : undefined,
+          ),
+        },
+      }
+      return { info, parts: [part] }
     }
 
     const info: Message = {
-      id: nextMessageId(),
+      id: stableBaseID,
       sessionID: params.sessionID,
-      role: role === "assistant" ? "assistant" : role,
-      time: { created: createdAt, completed: createdAt },
-      agent: role === "tool" ? "tool" : "build",
+      role,
+      time: { created: createdAt, completed: params.message.endAt ?? createdAt },
+      agent: "build",
       modelID: catalog.defaultModel.modelID,
       providerID: catalog.defaultModel.providerID,
-      mode: "history",
+      mode: role === "assistant" ? "history" : "internal",
       path: { cwd: directory, root: directory },
       cost: 0,
       tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
       finish: "stop",
     } as Message
-
     const parts: Part[] = []
-    if (typeof params.message?.reasoning_content === "string" && params.message.reasoning_content.trim()) {
+    if (role === "assistant" && params.message.reasoning_content?.trim()) {
       parts.push({
-        id: nextPartId(),
+        id: `${info.id}:reasoning`,
         sessionID: params.sessionID,
         messageID: info.id,
         type: "reasoning",
@@ -1183,7 +1221,6 @@ export function createTuiRuntimeClient(options?: {
     parts.push(...buildContentParts(info.id))
     return { info, parts }
   }
-
   async function hydrateSessionHistoryFromPersistence(state: SessionState) {
     if (state.historyHydrated || mode !== "local-runtime" || state.messages.length > 0) {
       state.historyHydrated = true
@@ -1198,6 +1235,7 @@ export function createTuiRuntimeClient(options?: {
           sessionID: state.info.id,
           message,
           messageIndex,
+          actorIdentity: runtimeState.activeActorKey ?? undefined,
         }),
       )
       state.messages.splice(0, state.messages.length, ...historical.map((entry) => entry.info))
@@ -1241,6 +1279,7 @@ export function createTuiRuntimeClient(options?: {
         sessionID: state.info.id,
         message,
         messageIndex,
+        actorIdentity: activeActorKey,
       }),
     )
     state.messages.splice(0, state.messages.length, ...historical.map((entry) => entry.info))
@@ -1303,18 +1342,45 @@ export function createTuiRuntimeClient(options?: {
     })
     if (!loaded || loaded.messages.length === 0) return
 
-    const historical = loaded.messages.map((message, messageIndex) =>
-      buildHistorySessionMessage({
+    const existingPartsByID = new Map(
+      Object.values(state.parts).flat().map((part) => [part.id, part] as const),
+    )
+    const historical = loaded.messages.map((message, messageIndex) => {
+      const entry = buildHistorySessionMessage({
         sessionID: state.info.id,
         message,
         messageIndex,
-      }),
-    )
+        actorIdentity: target?.actorId ?? loaded.actorKey ?? undefined,
+      })
+      entry.parts = entry.parts.map((part) => {
+        const existing = existingPartsByID.get(part.id)
+        if (part.type !== "tool" || existing?.type !== "tool") return part
+        return {
+          ...part,
+          state: {
+            ...part.state,
+            metadata: {
+              ...(part.state.metadata ?? {}),
+              ...(existing.state.metadata ?? {}),
+            },
+          },
+        } as ToolPart
+      })
+      return entry
+    })
+    const historicalIDs = new Set(historical.map((entry) => entry.info.id))
+    const removed = state.messages.filter((message) => !historicalIDs.has(message.id))
     state.messages.splice(0, state.messages.length, ...historical.map((entry) => entry.info))
     state.parts = Object.fromEntries(historical.map((entry) => [entry.info.id, entry.parts]))
     trimSessionMessageCache(state)
     touchSession(state)
     state.historyHydrated = true
+    for (const message of removed) {
+      await emitEvent({
+        type: "message.removed",
+        properties: { sessionID: state.info.id, messageID: message.id },
+      } as Event)
+    }
     for (const entry of historical) {
       await emitEvent({ type: "message.updated", properties: { info: entry.info } } as Event)
       for (const part of entry.parts) {
@@ -1518,6 +1584,298 @@ export function createTuiRuntimeClient(options?: {
     const resolvedSessionID = resolveSessionID(sessionID)
     configureTuiStreamDiagnostics({ sessionID: resolvedSessionID })
     return sessions.get(resolvedSessionID) ?? createSessionState(resolvedSessionID)
+  }
+
+  type TurnSurfaceTextState = {
+    message: AssistantMessage
+    part: TextPart
+  }
+
+  type TurnSurfaceRunResult = {
+    finalizedStates: TurnSurfaceTextState[]
+    toolPartsByCallID: Map<string, { message: AssistantMessage; part: ToolPart }>
+    terminalError?: unknown
+  }
+
+  async function runTurnThroughSurface(params: {
+    state: SessionState
+    runtime: TuiRuntimeBridge
+    parentID?: string
+    selectedModel: RuntimeModel
+    agent?: string
+    diagnosticNote: string
+    run: (callbacks: {
+      onControl: (control: { cmd: "NewMessage"; category?: string }) => Promise<void>
+      onChunk: (chunk: string) => Promise<void>
+    }) => Promise<string>
+  }): Promise<TurnSurfaceRunResult> {
+    const finalizedStates: TurnSurfaceTextState[] = []
+    const toolPartsByCallID = new Map<string, { message: AssistantMessage; part: ToolPart }>()
+    let currentState: TurnSurfaceTextState | undefined
+    let activeCategory: string | undefined
+    let finalText = ""
+    let sawVisibleChunk = false
+    let terminalError: unknown
+    let lastStreamPartUpdateAt = Date.now()
+    let pendingStreamPart: TextPart | undefined
+    let pendingStreamBufferChars = 0
+    let streamTimer: ReturnType<typeof setTimeout> | undefined
+    let streamDrainResolvers: Array<() => void> = []
+
+    const createAssistantState = async (mode = "assist") => {
+      activeCategory = mode
+      if (!shouldDisplayAssistantCategory(mode)) {
+        currentState = undefined
+        return
+      }
+      const assistantMessage: AssistantMessage = {
+        id: nextMessageId(),
+        sessionID: params.state.info.id,
+        role: "assistant",
+        time: { created: Date.now() },
+        parentID: params.parentID,
+        modelID: params.selectedModel.modelID,
+        providerID: params.selectedModel.providerID,
+        mode,
+        agent: params.agent ?? "build",
+        path: { cwd: directory, root: directory },
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        finish: "stop",
+      }
+      const assistantPart: TextPart = {
+        id: nextPartId(),
+        sessionID: params.state.info.id,
+        messageID: assistantMessage.id,
+        type: "text",
+        text: "",
+        synthetic: false,
+        ignored: false,
+      }
+      addSessionMessage(params.state, assistantMessage, [assistantPart])
+      await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
+      currentState = { message: assistantMessage, part: assistantPart }
+    }
+
+    const resolveStreamDrainIfIdle = () => {
+      if (pendingStreamPart || streamTimer) return
+      const resolvers = streamDrainResolvers
+      streamDrainResolvers = []
+      for (const resolve of resolvers) resolve()
+    }
+    const emitStreamPartUpdate = async (part: TextPart) => {
+      pendingStreamPart = undefined
+      pendingStreamBufferChars = 0
+      lastStreamPartUpdateAt = Date.now()
+      await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+    }
+    const flushStreamPartUpdate = async (): Promise<void> => {
+      if (streamTimer) {
+        clearTimeout(streamTimer)
+        streamTimer = undefined
+      }
+      if (!pendingStreamPart) {
+        resolveStreamDrainIfIdle()
+        return
+      }
+      const targetPart = pendingStreamPart
+      await emitStreamPartUpdate(targetPart)
+      resolveStreamDrainIfIdle()
+    }
+    const scheduleNextStreamFrame = (delayMs = STREAM_PART_UPDATE_INTERVAL_MS) => {
+      if (streamTimer || !pendingStreamPart) return
+      streamTimer = setTimeout(() => {
+        streamTimer = undefined
+        void flushStreamPartUpdate()
+      }, Math.max(0, delayMs))
+    }
+    const scheduleStreamPartUpdate = (part: TextPart, appendedChars: number) => {
+      pendingStreamPart = part
+      pendingStreamBufferChars += appendedChars
+      const elapsed = Date.now() - lastStreamPartUpdateAt
+      const delay = Math.max(0, STREAM_PART_UPDATE_INTERVAL_MS - elapsed)
+      scheduleNextStreamFrame(
+        elapsed >= STREAM_PART_UPDATE_INTERVAL_MS || pendingStreamBufferChars >= STREAM_PART_UPDATE_MAX_BUFFER_CHARS
+          ? delay
+          : STREAM_PART_UPDATE_INTERVAL_MS - elapsed,
+      )
+    }
+    const waitForStreamDrain = async () => {
+      await flushStreamPartUpdate()
+      if (!pendingStreamPart && !streamTimer) return
+      await new Promise<void>((resolve) => streamDrainResolvers.push(resolve))
+    }
+    const finalizeCurrentState = async () => {
+      const stateToFinalize = currentState
+      if (!stateToFinalize) return
+      await waitForStreamDrain()
+      const message: AssistantMessage = {
+        ...stateToFinalize.message,
+        time: { ...stateToFinalize.message.time, completed: Date.now() },
+      }
+      const part = { ...stateToFinalize.part }
+      addSessionMessage(params.state, message, [part])
+      finalizedStates.push({ message, part })
+      await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
+      await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+      if (currentState === stateToFinalize) currentState = undefined
+    }
+    const appendChunk = async (chunk: string): Promise<boolean> => {
+      if (!chunk) return false
+      const nextMode = activeCategory ?? currentState?.message.mode ?? "assist"
+      traceStreamDiagnostic("runtime.turn", {
+        sessionID: params.state.info.id,
+        note: `${params.diagnosticNote}-on-chunk`,
+        chunkLength: chunk.length,
+        currentTextLength: currentState?.part.text.length ?? 0,
+        controlCategory: nextMode,
+      })
+      if (!shouldDisplayAssistantCategory(nextMode)) return false
+      if (!currentState) await createAssistantState(nextMode)
+      if (!currentState) return false
+      const nextPart = { ...currentState.part, text: currentState.part.text + chunk }
+      currentState = { ...currentState, part: nextPart }
+      addSessionMessage(params.state, currentState.message, [nextPart])
+      scheduleStreamPartUpdate(nextPart, chunk.length)
+      return true
+    }
+    const onControl = async (control: { cmd: "NewMessage"; category?: string }) => {
+      if (control.cmd !== "NewMessage") return
+      activeCategory = control.category ?? "assist"
+      traceStreamDiagnostic("runtime.turn", {
+        sessionID: params.state.info.id,
+        note: `${params.diagnosticNote}-on-control`,
+        controlCategory: activeCategory,
+      })
+      if (!shouldDisplayAssistantCategory(activeCategory)) {
+        if (currentState?.part.text) await finalizeCurrentState()
+        currentState = undefined
+        return
+      }
+      if (!currentState) {
+        await createAssistantState(activeCategory)
+        return
+      }
+      if (!currentState.part.text) return
+      await finalizeCurrentState()
+      await createAssistantState(activeCategory)
+    }
+    const emitToolPartStart = async (event: RuntimeBridgeHistoryEvent) => {
+      const payload = parseToolStartPayload(event)
+      if (!payload) return
+      const key = `${event.agentActorId}:${payload.toolCallId}`
+      if (toolPartsByCallID.has(key)) return
+      const message: AssistantMessage = {
+        id: `tool-message:${key}`,
+        sessionID: params.state.info.id,
+        role: "assistant",
+        time: { created: event.startAt ?? Date.now() },
+        parentID: params.parentID,
+        modelID: params.selectedModel.modelID,
+        providerID: params.selectedModel.providerID,
+        mode: "assist",
+        agent: event.agentKey || params.agent || "build",
+        path: { cwd: directory, root: directory },
+        cost: 0,
+        tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        finish: "stop",
+      }
+      const part: ToolPart = {
+        id: `tool-part:${key}`,
+        sessionID: params.state.info.id,
+        messageID: message.id,
+        type: "tool",
+        tool: payload.toolName,
+        callID: payload.toolCallId,
+        state: { status: "pending", input: parseToolInput(payload.argumentsText) },
+      }
+      addSessionMessage(params.state, message, [part])
+      toolPartsByCallID.set(key, { message, part })
+      await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
+      await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+    }
+    const emitToolPartResult = async (event: RuntimeBridgeHistoryEvent) => {
+      const payload = parseToolResultPayload(event)
+      if (!payload) return
+      const key = `${event.agentActorId}:${payload.toolCallId}`
+      let existing = toolPartsByCallID.get(key)
+      if (!existing) {
+        await emitToolPartStart({
+          ...event,
+          stream: "tool_call_start",
+          payload: JSON.stringify({ toolName: payload.toolName, toolCallId: payload.toolCallId }),
+        })
+        existing = toolPartsByCallID.get(key)
+      }
+      if (!existing) return
+      const message = {
+        ...existing.message,
+        time: { ...existing.message.time, completed: event.endAt ?? Date.now() },
+      }
+      const part: ToolPart = {
+        ...existing.part,
+        state: {
+          ...existing.part.state,
+          status: payload.isError ? "error" : "completed",
+          output: payload.result,
+          error: payload.isError ? payload.result : undefined,
+          metadata: buildToolMetadata(payload.toolName, payload.result, payload.metadata),
+        },
+      }
+      addSessionMessage(params.state, message, [part])
+      toolPartsByCallID.set(key, { message, part })
+      await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
+      await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
+    }
+    const handleHistoryEvent = async (event: RuntimeBridgeHistoryEvent) => {
+      traceRuntimeHistoryEvent(params.state.info.id, event)
+      if (event.stream === "tool_call_start") await emitToolPartStart(event)
+      if (event.stream === "tool_call_result") await emitToolPartResult(event)
+      if (event.stream === "questionnaire_request") await emitQuestionAsked(params.state, event)
+      if (event.stream === "questionnaire_result") await emitQuestionResult(params.state, event)
+      if (event.stream === "user_input") {
+        await appendUserInputHistory(params.state, event.payload, event.endAt ?? event.startAt)
+      }
+    }
+
+    let historyChain = Promise.resolve()
+    const historySub = params.runtime.subscribeHistoryEvents?.((event) => {
+      historyChain = historyChain.then(() => handleHistoryEvent(event))
+    })
+    try {
+      finalText = await params.run({
+        onControl,
+        onChunk: async (chunk) => {
+          if (await appendChunk(chunk)) {
+            sawVisibleChunk = true
+          }
+        },
+      })
+    } catch (error) {
+      terminalError = error
+      const message = error instanceof Error ? error.message : String(error)
+      finalText = (error as { code?: unknown } | null)?.code === "unsupported_modality"
+        ? message
+        : `Runtime error: ${message}`
+      if (!currentState?.part.text) await appendChunk(finalText)
+    } finally {
+      historySub?.unsubscribe()
+      await historyChain
+    }
+
+    if (!sawVisibleChunk && !currentState && finalText) await appendChunk(finalText)
+    if (currentState && finalText.startsWith(currentState.part.text) && finalText.length > currentState.part.text.length) {
+      let remaining = finalText.slice(currentState.part.text.length)
+      while (remaining.length > 0) {
+        const frame = remaining.slice(0, STREAM_FINAL_CATCHUP_CHARS_PER_FRAME)
+        await appendChunk(frame)
+        remaining = remaining.slice(STREAM_FINAL_CATCHUP_CHARS_PER_FRAME)
+        await waitForStreamDrain()
+      }
+    }
+    await waitForStreamDrain()
+    await finalizeCurrentState()
+    return { finalizedStates, toolPartsByCallID, terminalError }
   }
 
   function applySessionInfoToState(state: SessionState, info: Session) {
@@ -2005,387 +2363,26 @@ export function createTuiRuntimeClient(options?: {
         await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
       }
 
-      type AssistantTurnState = {
-        message: AssistantMessage
-        part: TextPart
-      }
-
-      const finalizedStates: AssistantTurnState[] = []
-      const toolPartsByCallID = new Map<string, { message: AssistantMessage; part: ToolPart }>()
-      let currentState: AssistantTurnState | undefined
-      let activeCategory: string | undefined
-      let lastStreamPartUpdateAt = Date.now()
-      let pendingStreamPart: TextPart | undefined
-      let pendingStreamBufferChars = 0
-      let streamTimer: ReturnType<typeof setTimeout> | undefined
-      let streamDrainResolvers: Array<() => void> = []
-
-      const createAssistantState = (mode = "assist") => {
-        activeCategory = mode
-        if (!shouldDisplayAssistantCategory(mode)) {
-          currentState = undefined
-          return
-        }
-        const assistantMessage: AssistantMessage = {
-          id: nextMessageId(),
-          sessionID: state.info.id,
-          role: "assistant",
-          time: { created: Date.now() },
-          parentID: userMessage.id,
-          modelID: selectedModel.modelID,
-          providerID: selectedModel.providerID,
-          mode,
-          agent: agent ?? "build",
-          path: {
-            cwd: directory,
-            root: directory,
-          },
-          cost: 0,
-          tokens: {
-            input: 10,
-            output: 20,
-            reasoning: 0,
-            cache: { read: 0, write: 0 },
-          },
-          finish: "stop",
-        }
-        const assistantPart: TextPart = {
-          id: nextPartId(),
-          sessionID: state.info.id,
-          messageID: assistantMessage.id,
-          type: "text",
-          text: "",
-          synthetic: false,
-          ignored: false,
-        }
-        addSessionMessage(state, assistantMessage, [assistantPart])
-        eventEmitter.emit(clone({ type: "message.updated", properties: { info: assistantMessage } } as Event))
-        currentState = {
-          message: assistantMessage,
-          part: assistantPart,
-        }
-      }
-
-      const resolveStreamDrainIfIdle = () => {
-        if (pendingStreamPart || streamTimer) return
-        const resolvers = streamDrainResolvers
-        streamDrainResolvers = []
-        for (const resolve of resolvers) resolve()
-      }
-
-      const emitStreamPartUpdate = (part: TextPart) => {
-        pendingStreamPart = undefined
-        pendingStreamBufferChars = 0
-        lastStreamPartUpdateAt = Date.now()
-        const event = { type: "message.part.updated", properties: { part } } as Event
-        traceStreamEvent("runtime.emit", event, { note: "prompt-stream" })
-        eventEmitter.emit(clone(event))
-      }
-
-      const scheduleNextStreamFrame = (delayMs = STREAM_PART_UPDATE_INTERVAL_MS) => {
-        if (streamTimer || !pendingStreamPart) return
-        streamTimer = setTimeout(() => {
-          streamTimer = undefined
-          flushStreamPartUpdate()
-        }, Math.max(0, delayMs))
-      }
-
-      const flushStreamPartUpdate = () => {
-        if (streamTimer) {
-          clearTimeout(streamTimer)
-          streamTimer = undefined
-        }
-        if (!pendingStreamPart) {
-          resolveStreamDrainIfIdle()
-          return
-        }
-        const targetPart = pendingStreamPart
-        emitStreamPartUpdate(targetPart)
-        resolveStreamDrainIfIdle()
-      }
-
-      const scheduleStreamPartUpdate = (part: TextPart, appendedChars: number) => {
-        pendingStreamPart = part
-        pendingStreamBufferChars += appendedChars
-        const elapsed = Date.now() - lastStreamPartUpdateAt
-        if (elapsed >= STREAM_PART_UPDATE_INTERVAL_MS || pendingStreamBufferChars >= STREAM_PART_UPDATE_MAX_BUFFER_CHARS) {
-          const delayMs = Math.max(0, STREAM_PART_UPDATE_INTERVAL_MS - elapsed)
-          scheduleNextStreamFrame(delayMs)
-          return
-        }
-        scheduleNextStreamFrame(STREAM_PART_UPDATE_INTERVAL_MS - elapsed)
-      }
-
-      const waitForStreamDrain = () => {
-        flushStreamPartUpdate()
-        if (!pendingStreamPart && !streamTimer) return Promise.resolve()
-        return new Promise<void>((resolve) => {
-          streamDrainResolvers.push(resolve)
-        })
-      }
-
-      const finalizeCurrentState = async () => {
-        const stateToFinalize = currentState
-        if (!stateToFinalize) return
-        await waitForStreamDrain()
-        const completedAssistantMessage: AssistantMessage = {
-          ...stateToFinalize.message,
-          time: {
-            ...stateToFinalize.message.time,
-            completed: Date.now(),
-          },
-        }
-        const completedAssistantPart: TextPart = {
-          ...stateToFinalize.part,
-        }
-        addSessionMessage(state, completedAssistantMessage, [completedAssistantPart])
-        finalizedStates.push({
-          message: completedAssistantMessage,
-          part: completedAssistantPart,
-        })
-        eventEmitter.emit(clone({ type: "message.updated", properties: { info: completedAssistantMessage } } as Event))
-        eventEmitter.emit(clone({ type: "message.part.updated", properties: { part: completedAssistantPart } } as Event))
-        if (currentState === stateToFinalize) {
-          currentState = undefined
-        }
-      }
-
-      const appendChunk = (chunk: string) => {
-        if (!chunk) return undefined
-        traceStreamDiagnostic("runtime.turn", {
-          sessionID: state.info.id,
-          note: "on-chunk",
-          chunkLength: chunk.length,
-          currentTextLength: currentState?.part.text.length ?? 0,
-        })
-        const nextMode = activeCategory ?? currentState?.message.mode ?? "assist"
-        if (!shouldDisplayAssistantCategory(nextMode)) return undefined
-        if (!currentState) {
-          createAssistantState(nextMode)
-        }
-        if (!currentState) {
-          return undefined
-        }
-        const nextPart: TextPart = {
-          ...currentState!.part,
-          text: currentState!.part.text + chunk,
-        }
-        currentState = {
-          ...currentState!,
-          part: nextPart,
-        }
-        addSessionMessage(state, currentState.message, [nextPart])
-        scheduleStreamPartUpdate(nextPart, chunk.length)
-      }
-
-      const alignCurrentStateToFinalText = async (text: string) => {
-        if (!currentState || !text) return
-        const currentText = currentState.part.text
-        if (!text.startsWith(currentText) || text.length <= currentText.length) return
-        await waitForStreamDrain()
-        let remaining = text.slice(currentText.length)
-        traceStreamDiagnostic("runtime.turn", {
-          sessionID: state.info.id,
-          note: "final-catchup-start",
-          finalTextLength: text.length,
-          currentTextLength: currentText.length,
-          missingTextLength: remaining.length,
-        })
-        while (remaining.length > 0) {
-          const frame = remaining.slice(0, STREAM_FINAL_CATCHUP_CHARS_PER_FRAME)
-          traceStreamDiagnostic("runtime.turn", {
-            sessionID: state.info.id,
-            note: "final-catchup-frame",
-            chunkLength: frame.length,
-            missingTextLength: remaining.length,
-          })
-          appendChunk(frame)
-          remaining = remaining.slice(STREAM_FINAL_CATCHUP_CHARS_PER_FRAME)
-          await waitForStreamDrain()
-        }
-      }
-
-      const emitToolPartStart = async (event: RuntimeBridgeHistoryEvent) => {
-        const payload = parseToolStartPayload(event)
-        if (!payload) return
-        const key = `${event.agentActorId}:${payload.toolCallId}`
-        if (toolPartsByCallID.has(key)) return
-
-        const assistantMessage: AssistantMessage = {
-          id: nextMessageId(),
-          sessionID: state.info.id,
-          role: "assistant",
-          time: { created: Date.now() },
-          parentID: userMessage.id,
-          modelID: selectedModel.modelID,
-          providerID: selectedModel.providerID,
-          mode: "assist",
-          agent: event.agentKey || agent || "build",
-          path: { cwd: directory, root: directory },
-          cost: 0,
-          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-          finish: "stop",
-        }
-        const toolPart: ToolPart = {
-          id: nextPartId(),
-          sessionID: state.info.id,
-          messageID: assistantMessage.id,
-          type: "tool",
-          tool: payload.toolName,
-          callID: payload.toolCallId,
-          state: {
-            status: "pending",
-            input: parseToolInput(payload.argumentsText),
-          },
-        }
-
-        addSessionMessage(state, assistantMessage, [toolPart])
-        toolPartsByCallID.set(key, { message: assistantMessage, part: toolPart })
-        await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
-        await emitEvent({ type: "message.part.updated", properties: { part: toolPart } } as Event)
-      }
-
-      const emitToolPartResult = async (event: RuntimeBridgeHistoryEvent) => {
-        const payload = parseToolResultPayload(event)
-        if (!payload) return
-        const key = `${event.agentActorId}:${payload.toolCallId}`
-        let existing = toolPartsByCallID.get(key)
-        if (!existing) {
-          await emitToolPartStart({
-            ...event,
-            stream: "tool_call_start",
-            payload: JSON.stringify({
-              toolName: payload.toolName,
-              toolCallId: payload.toolCallId,
-            }),
-          })
-          existing = toolPartsByCallID.get(key)
-        }
-        if (!existing) return
-
-        const nextMessage: AssistantMessage = {
-          ...existing.message,
-          time: {
-            ...existing.message.time,
-            completed: Date.now(),
-          },
-        }
-        const nextPart: ToolPart = {
-          ...existing.part,
-          state: {
-            ...existing.part.state,
-            status: payload.isError ? "error" : "completed",
-            output: payload.result,
-            error: payload.isError ? payload.result : undefined,
-            metadata: buildToolMetadata(payload.toolName, payload.result),
-          },
-        }
-
-        addSessionMessage(state, nextMessage, [nextPart])
-        toolPartsByCallID.set(key, { message: nextMessage, part: nextPart })
-        await emitEvent({ type: "message.updated", properties: { info: nextMessage } } as Event)
-        await emitEvent({ type: "message.part.updated", properties: { part: nextPart } } as Event)
-      }
-
-      let finalText = ""
-      let sawChunk = false
-      let terminalError: unknown
-      let historySub: { unsubscribe: () => void } | undefined
-      try {
-        const runtime = await ensureSessionRuntime(state)
-        historySub = runtime.subscribeHistoryEvents?.((event) => {
-          traceRuntimeHistoryEvent(state.info.id, event)
-          void (async () => {
-            if (event.stream === "tool_call_start") {
-              await emitToolPartStart(event)
-            }
-            if (event.stream === "tool_call_result") {
-              await emitToolPartResult(event)
-            }
-            if (event.stream === "questionnaire_request") {
-              await emitQuestionAsked(state, event)
-            }
-            if (event.stream === "questionnaire_result") {
-              await emitQuestionResult(state, event)
-            }
-            if (event.stream === "user_input") {
-              await appendUserInputHistory(state, event.payload, event.endAt ?? event.startAt)
-            }
-          })()
-        })
-        await runtime.setActorActiveModel?.({}, selectedModel)
-        finalText = await runtime.turn(runtimeInput.length > 0 ? runtimeInput : promptContent, {
-          onControl: async (control) => {
-            if (control.cmd !== "NewMessage") return
-            activeCategory = control.category ?? "assist"
-            traceStreamDiagnostic("runtime.turn", {
-              sessionID: state.info.id,
-              note: "on-control",
-              controlCategory: activeCategory,
-            })
-            if (!shouldDisplayAssistantCategory(activeCategory)) {
-              if (currentState?.part.text) {
-                await finalizeCurrentState()
-              }
-              currentState = undefined
-              return
-            }
-            if (!currentState) {
-              createAssistantState(activeCategory)
-              return
-            }
-            if (!currentState.part.text) return
-            await finalizeCurrentState()
-            createAssistantState(activeCategory)
-          },
-          onChunk: (chunk) => {
-            const before = currentState?.part.text ?? ""
-            appendChunk(chunk)
-            const after = currentState?.part.text ?? before
-            if (after !== before) {
-              sawChunk = true
-              finalText += chunk
-            }
-          },
-        })
-      } catch (error) {
-        if ((error as { code?: unknown } | null)?.code === "unsupported_modality") {
-          terminalError = error
-          if (!currentState?.part.text) {
-            finalText = error instanceof Error ? error.message : String(error)
-            await appendChunk(finalText)
-          } else {
-            finalText = currentState.part.text
-          }
-        } else {
-          const message = error instanceof Error ? error.message : String(error)
-          finalText = `Runtime error: ${message}`
-          await appendChunk(finalText)
-        }
-      } finally {
-        historySub?.unsubscribe()
-      }
-
-      traceStreamDiagnostic("runtime.turn", {
-        sessionID: state.info.id,
-        note: "turn-finished",
-        finalTextLength: finalText.length,
-        currentTextLength: currentState?.part.text.length ?? 0,
-        sawChunk,
+      const runtime = await ensureSessionRuntime(state)
+      await runtime.setActorActiveModel?.({}, selectedModel)
+      const projected = await runTurnThroughSurface({
+        state,
+        runtime,
+        parentID: userMessage.id,
+        selectedModel,
+        agent,
+        diagnosticNote: "prompt",
+        run: (callbacks) => runtime.turn(runtimeInput.length > 0 ? runtimeInput : promptContent, callbacks),
       })
-      if (!sawChunk && !currentState && finalText) {
-        await appendChunk(finalText)
-      }
-      await alignCurrentStateToFinalText(finalText)
-      await waitForStreamDrain()
-      await finalizeCurrentState()
       await hydratePendingQuestionsFromSnapshot(state)
       await setSessionStatus(state, "idle")
       await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
-      if (terminalError) throw terminalError
-      const lastAssistant = finalizedStates[finalizedStates.length - 1]
+      if ((projected.terminalError as { code?: unknown } | null)?.code === "unsupported_modality") {
+        throw projected.terminalError
+      }
+      const lastAssistant = projected.finalizedStates.at(-1)
       if (!lastAssistant) {
-        const lastTool = Array.from(toolPartsByCallID.values()).at(-1)
+        const lastTool = Array.from(projected.toolPartsByCallID.values()).at(-1)
         if (lastTool) {
           return { data: { info: clone(lastTool.message), parts: [clone(lastTool.part)] } }
         }
@@ -2454,336 +2451,16 @@ export function createTuiRuntimeClient(options?: {
 
       await setSessionStatus(state, "busy")
 
-      type AssistantTurnState = { message: AssistantMessage; part: TextPart }
-      const toolPartsByCallID = new Map<string, { message: AssistantMessage; part: ToolPart }>()
-      let currentState: AssistantTurnState | undefined
-      let activeCategory: string | undefined
-      let lastStreamPartUpdateAt = Date.now()
-      let pendingStreamPart: TextPart | undefined
-      let pendingStreamBufferChars = 0
-      let streamTimer: ReturnType<typeof setTimeout> | undefined
-      let streamDrainResolvers: Array<() => void> = []
-
-      const createAssistantState = async (mode = "assist") => {
-        activeCategory = mode
-        if (!shouldDisplayAssistantCategory(mode)) {
-          currentState = undefined
-          return
-        }
-        const assistantMessage: AssistantMessage = {
-          id: nextMessageId(),
-          sessionID: state.info.id,
-          role: "assistant",
-          time: { created: Date.now() },
-          parentID: userMessage?.id,
-          modelID: selectedModel.modelID,
-          providerID: selectedModel.providerID,
-          mode,
-          agent: agent ?? "build",
-          path: { cwd: directory, root: directory },
-          cost: 0,
-          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-          finish: "stop",
-        }
-        const assistantPart: TextPart = {
-          id: nextPartId(),
-          sessionID: state.info.id,
-          messageID: assistantMessage.id,
-          type: "text",
-          text: "",
-          synthetic: false,
-          ignored: false,
-        }
-        addSessionMessage(state, assistantMessage, [assistantPart])
-        await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
-        currentState = { message: assistantMessage, part: assistantPart }
-      }
-
-      const resolveStreamDrainIfIdle = () => {
-        if (pendingStreamPart || streamTimer) return
-        const resolvers = streamDrainResolvers
-        streamDrainResolvers = []
-        for (const resolve of resolvers) resolve()
-      }
-
-      const emitStreamPartUpdate = async (part: TextPart): Promise<void> => {
-        pendingStreamPart = undefined
-        pendingStreamBufferChars = 0
-        lastStreamPartUpdateAt = Date.now()
-        await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
-      }
-
-      const scheduleNextStreamFrame = (delayMs = STREAM_PART_UPDATE_INTERVAL_MS) => {
-        if (streamTimer || !pendingStreamPart) return
-        streamTimer = setTimeout(() => {
-          streamTimer = undefined
-          void flushStreamPartUpdate()
-        }, Math.max(0, delayMs))
-      }
-
-      const flushStreamPartUpdate = async (): Promise<void> => {
-        if (streamTimer) {
-          clearTimeout(streamTimer)
-          streamTimer = undefined
-        }
-        if (!pendingStreamPart) {
-          resolveStreamDrainIfIdle()
-          return
-        }
-        const targetPart = pendingStreamPart
-        await emitStreamPartUpdate(targetPart)
-        resolveStreamDrainIfIdle()
-      }
-
-      const scheduleStreamPartUpdate = (part: TextPart, appendedChars: number) => {
-        pendingStreamPart = part
-        pendingStreamBufferChars += appendedChars
-        const elapsed = Date.now() - lastStreamPartUpdateAt
-        if (elapsed >= STREAM_PART_UPDATE_INTERVAL_MS || pendingStreamBufferChars >= STREAM_PART_UPDATE_MAX_BUFFER_CHARS) {
-          const delayMs = Math.max(0, STREAM_PART_UPDATE_INTERVAL_MS - elapsed)
-          scheduleNextStreamFrame(delayMs)
-          return
-        }
-        scheduleNextStreamFrame(STREAM_PART_UPDATE_INTERVAL_MS - elapsed)
-      }
-
-      const waitForStreamDrain = async () => {
-        await flushStreamPartUpdate()
-        if (!pendingStreamPart && !streamTimer) return
-        await new Promise<void>((resolve) => {
-          streamDrainResolvers.push(resolve)
-        })
-      }
-
-      const finalizeCurrentState = async () => {
-        const stateToFinalize = currentState
-        if (!stateToFinalize) return
-        await waitForStreamDrain()
-        const completedAssistantMessage: AssistantMessage = {
-          ...stateToFinalize.message,
-          time: { ...stateToFinalize.message.time, completed: Date.now() },
-        }
-        const completedAssistantPart: TextPart = { ...stateToFinalize.part }
-        addSessionMessage(state, completedAssistantMessage, [completedAssistantPart])
-        await emitEvent({ type: "message.updated", properties: { info: completedAssistantMessage } } as Event)
-        await emitEvent({ type: "message.part.updated", properties: { part: completedAssistantPart } } as Event)
-        if (currentState === stateToFinalize) {
-          currentState = undefined
-        }
-      }
-
-      const appendChunk = async (chunk: string) => {
-        if (!chunk) return
-        traceStreamDiagnostic("runtime.turn", {
-          sessionID: state.info.id,
-          note: "command-on-chunk",
-          chunkLength: chunk.length,
-          currentTextLength: currentState?.part.text.length ?? 0,
-        })
-        const nextMode = activeCategory ?? currentState?.message.mode ?? "assist"
-        if (!shouldDisplayAssistantCategory(nextMode)) return false
-        if (!currentState) {
-          await createAssistantState(nextMode)
-        }
-        if (!currentState) {
-          return false
-        }
-        const nextPart: TextPart = {
-          ...currentState!.part,
-          text: currentState!.part.text + chunk,
-        }
-        currentState = { ...currentState!, part: nextPart }
-        addSessionMessage(state, currentState.message, [nextPart])
-        scheduleStreamPartUpdate(nextPart, chunk.length)
-        return true
-      }
-
-      const alignCurrentStateToFinalText = async (text: string) => {
-        if (!currentState || !text) return
-        const currentText = currentState.part.text
-        if (!text.startsWith(currentText) || text.length <= currentText.length) return
-        await waitForStreamDrain()
-        let remaining = text.slice(currentText.length)
-        traceStreamDiagnostic("runtime.turn", {
-          sessionID: state.info.id,
-          note: "command-final-catchup-start",
-          finalTextLength: text.length,
-          currentTextLength: currentText.length,
-          missingTextLength: remaining.length,
-        })
-        while (remaining.length > 0) {
-          const frame = remaining.slice(0, STREAM_FINAL_CATCHUP_CHARS_PER_FRAME)
-          traceStreamDiagnostic("runtime.turn", {
-            sessionID: state.info.id,
-            note: "command-final-catchup-frame",
-            chunkLength: frame.length,
-            missingTextLength: remaining.length,
-          })
-          await appendChunk(frame)
-          remaining = remaining.slice(STREAM_FINAL_CATCHUP_CHARS_PER_FRAME)
-          await waitForStreamDrain()
-        }
-      }
-
-      const emitToolPartStart = async (event: RuntimeBridgeHistoryEvent) => {
-        const payload = parseToolStartPayload(event)
-        if (!payload) return
-        const key = `${event.agentActorId}:${payload.toolCallId}`
-        if (toolPartsByCallID.has(key)) return
-
-        const assistantMessage: AssistantMessage = {
-          id: nextMessageId(),
-          sessionID: state.info.id,
-          role: "assistant",
-          time: { created: Date.now() },
-          parentID: userMessage?.id,
-          modelID: selectedModel.modelID,
-          providerID: selectedModel.providerID,
-          mode: "assist",
-          agent: event.agentKey || agent || "build",
-          path: { cwd: directory, root: directory },
-          cost: 0,
-          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-          finish: "stop",
-        }
-        const toolPart: ToolPart = {
-          id: nextPartId(),
-          sessionID: state.info.id,
-          messageID: assistantMessage.id,
-          type: "tool",
-          tool: payload.toolName,
-          callID: payload.toolCallId,
-          state: {
-            status: "pending",
-            input: parseToolInput(payload.argumentsText),
-          },
-        }
-
-        addSessionMessage(state, assistantMessage, [toolPart])
-        toolPartsByCallID.set(key, { message: assistantMessage, part: toolPart })
-        await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
-        await emitEvent({ type: "message.part.updated", properties: { part: toolPart } } as Event)
-      }
-
-      const emitToolPartResult = async (event: RuntimeBridgeHistoryEvent) => {
-        const payload = parseToolResultPayload(event)
-        if (!payload) return
-        const key = `${event.agentActorId}:${payload.toolCallId}`
-        let existing = toolPartsByCallID.get(key)
-        if (!existing) {
-          await emitToolPartStart({
-            ...event,
-            stream: "tool_call_start",
-            payload: JSON.stringify({
-              toolName: payload.toolName,
-              toolCallId: payload.toolCallId,
-            }),
-          })
-          existing = toolPartsByCallID.get(key)
-        }
-        if (!existing) return
-
-        const nextMessage: AssistantMessage = {
-          ...existing.message,
-          time: {
-            ...existing.message.time,
-            completed: Date.now(),
-          },
-        }
-        const nextPart: ToolPart = {
-          ...existing.part,
-          state: {
-            ...existing.part.state,
-            status: payload.isError ? "error" : "completed",
-            output: payload.result,
-            error: payload.isError ? payload.result : undefined,
-            metadata: buildToolMetadata(payload.toolName, payload.result),
-          },
-        }
-
-        addSessionMessage(state, nextMessage, [nextPart])
-        toolPartsByCallID.set(key, { message: nextMessage, part: nextPart })
-        await emitEvent({ type: "message.updated", properties: { info: nextMessage } } as Event)
-        await emitEvent({ type: "message.part.updated", properties: { part: nextPart } } as Event)
-      }
-
-      let finalText = ""
-      let sawChunk = false
-      let historySub: { unsubscribe: () => void } | undefined
-      try {
-        historySub = runtime.subscribeHistoryEvents?.((event) => {
-          traceRuntimeHistoryEvent(state.info.id, event)
-          void (async () => {
-            if (event.stream === "tool_call_start") {
-              await emitToolPartStart(event)
-            }
-            if (event.stream === "tool_call_result") {
-              await emitToolPartResult(event)
-            }
-            if (event.stream === "questionnaire_request") {
-              await emitQuestionAsked(state, event)
-            }
-            if (event.stream === "questionnaire_result") {
-              await emitQuestionResult(state, event)
-            }
-            if (event.stream === "user_input") {
-              await appendUserInputHistory(state, event.payload, event.endAt ?? event.startAt)
-            }
-          })()
-        })
-        await runtime.setActorActiveModel?.({}, selectedModel)
-        finalText = await runtime.turn(rawInput, {
-          onControl: async (control) => {
-            if (control.cmd !== "NewMessage") return
-            activeCategory = control.category ?? "assist"
-            traceStreamDiagnostic("runtime.turn", {
-              sessionID: state.info.id,
-              note: "command-on-control",
-              controlCategory: activeCategory,
-            })
-            if (!shouldDisplayAssistantCategory(activeCategory)) {
-              if (currentState?.part.text) {
-                await finalizeCurrentState()
-              }
-              currentState = undefined
-              return
-            }
-            if (!currentState) {
-              await createAssistantState(activeCategory)
-              return
-            }
-            if (!currentState.part.text) return
-            await finalizeCurrentState()
-            await createAssistantState(activeCategory)
-          },
-          onChunk: async (chunk) => {
-            if (await appendChunk(chunk)) {
-              sawChunk = true
-              finalText += chunk
-            }
-          },
-        })
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        finalText = `Runtime error: ${message}`
-        await appendChunk(finalText)
-      } finally {
-        historySub?.unsubscribe()
-      }
-
-      traceStreamDiagnostic("runtime.turn", {
-        sessionID: state.info.id,
-        note: "command-turn-finished",
-        finalTextLength: finalText.length,
-        currentTextLength: currentState?.part.text.length ?? 0,
-        sawChunk,
+      await runtime.setActorActiveModel?.({}, selectedModel)
+      await runTurnThroughSurface({
+        state,
+        runtime,
+        parentID: userMessage?.id,
+        selectedModel,
+        agent,
+        diagnosticNote: "command",
+        run: (callbacks) => runtime.turn(rawInput, callbacks),
       })
-      if (!sawChunk && !currentState && finalText) {
-        await appendChunk(finalText)
-      }
-      await alignCurrentStateToFinalText(finalText)
-      await waitForStreamDrain()
-      await finalizeCurrentState()
       await hydratePendingQuestionsFromSnapshot(state)
       await setSessionStatus(state, "idle")
       await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
@@ -2846,171 +2523,23 @@ export function createTuiRuntimeClient(options?: {
             },
           } as Event)
           if (typeof runtime.resumeTurn === "function") {
-            let assistantMessage: AssistantMessage | null = null
-            let assistantPart: TextPart | null = null
-            const toolPartsByCallID = new Map<string, { message: AssistantMessage; part: ToolPart }>()
-            const appendContinuationChunk = async (chunk: string) => {
-              if (!chunk) return
-              if (!assistantMessage || !assistantPart) {
-                assistantMessage = {
-                  id: nextMessageId(),
-                  sessionID: state.info.id,
-                  role: "assistant",
-                  time: { created: Date.now() },
-                  parentID: userMessage.id,
-                  modelID: selectedModel.modelID,
-                  providerID: selectedModel.providerID,
-                  mode: "assist",
-                  agent: "build",
-                  path: { cwd: directory, root: directory },
-                  cost: 0,
-                  tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-                  finish: "stop",
+            await runTurnThroughSurface({
+              state,
+              runtime,
+              parentID: userMessage.id,
+              selectedModel,
+              agent: "build",
+              diagnosticNote: "questionnaire-continuation",
+              run: async (callbacks) => {
+                try {
+                  return await runtime.resumeTurn!(callbacks)
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : String(error)
+                  if (message.startsWith("runtime_turn_unsettled:")) return ""
+                  throw error
                 }
-                assistantPart = {
-                  id: nextPartId(),
-                  sessionID: state.info.id,
-                  messageID: assistantMessage.id,
-                  type: "text",
-                  text: "",
-                  synthetic: false,
-                  ignored: false,
-                }
-                addSessionMessage(state, assistantMessage, [assistantPart])
-                await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
-              }
-              assistantPart = {
-                ...assistantPart,
-                text: assistantPart.text + chunk,
-              }
-              addSessionMessage(state, assistantMessage, [assistantPart])
-              await emitEvent({ type: "message.part.updated", properties: { part: assistantPart } } as Event)
-            }
-            const emitContinuationToolPartStart = async (event: RuntimeBridgeHistoryEvent) => {
-              const payload = parseToolStartPayload(event)
-              if (!payload) return
-              const key = `${event.agentActorId}:${payload.toolCallId}`
-              if (toolPartsByCallID.has(key)) return
-
-              const message: AssistantMessage = {
-                id: nextMessageId(),
-                sessionID: state.info.id,
-                role: "assistant",
-                time: { created: Date.now() },
-                parentID: userMessage.id,
-                modelID: selectedModel.modelID,
-                providerID: selectedModel.providerID,
-                mode: "assist",
-                agent: event.agentKey || "build",
-                path: { cwd: directory, root: directory },
-                cost: 0,
-                tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
-                finish: "stop",
-              }
-              const part: ToolPart = {
-                id: nextPartId(),
-                sessionID: state.info.id,
-                messageID: message.id,
-                type: "tool",
-                tool: payload.toolName,
-                callID: payload.toolCallId,
-                state: {
-                  status: "pending",
-                  input: parseToolInput(payload.argumentsText),
-                },
-              }
-              addSessionMessage(state, message, [part])
-              toolPartsByCallID.set(key, { message, part })
-              await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
-              await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
-            }
-            const emitContinuationToolPartResult = async (event: RuntimeBridgeHistoryEvent) => {
-              const payload = parseToolResultPayload(event)
-              if (!payload) return
-              const key = `${event.agentActorId}:${payload.toolCallId}`
-              let existing = toolPartsByCallID.get(key)
-              if (!existing) {
-                await emitContinuationToolPartStart({
-                  ...event,
-                  stream: "tool_call_start",
-                  payload: JSON.stringify({
-                    toolName: payload.toolName,
-                    toolCallId: payload.toolCallId,
-                  }),
-                })
-                existing = toolPartsByCallID.get(key)
-              }
-              if (!existing) return
-              const message: AssistantMessage = {
-                ...existing.message,
-                time: {
-                  ...existing.message.time,
-                  completed: Date.now(),
-                },
-              }
-              const part: ToolPart = {
-                ...existing.part,
-                state: {
-                  ...existing.part.state,
-                  status: payload.isError ? "error" : "completed",
-                  output: payload.result,
-                  error: payload.isError ? payload.result : undefined,
-                  metadata: buildToolMetadata(payload.toolName, payload.result),
-                },
-              }
-              addSessionMessage(state, message, [part])
-              toolPartsByCallID.set(key, { message, part })
-              await emitEvent({ type: "message.updated", properties: { info: message } } as Event)
-              await emitEvent({ type: "message.part.updated", properties: { part } } as Event)
-            }
-            let historySub: { unsubscribe: () => void } | undefined
-            try {
-              historySub = runtime.subscribeHistoryEvents?.((event) => {
-                traceRuntimeHistoryEvent(state.info.id, event)
-                void (async () => {
-                  if (event.stream === "tool_call_start") {
-                    await emitContinuationToolPartStart(event)
-                  }
-                  if (event.stream === "tool_call_result") {
-                    await emitContinuationToolPartResult(event)
-                  }
-                  if (event.stream === "questionnaire_request") {
-                    await emitQuestionAsked(state, event)
-                  }
-                  if (event.stream === "questionnaire_result") {
-                    await emitQuestionResult(state, event)
-                  }
-                  if (event.stream === "user_input") {
-                    await appendUserInputHistory(state, event.payload, event.endAt ?? event.startAt)
-                  }
-                })()
-              })
-              const finalText = await runtime.resumeTurn({
-                onChunk: appendContinuationChunk,
-              })
-              if (!assistantPart?.text && finalText) {
-                await appendContinuationChunk(finalText)
-              }
-            } catch (error) {
-              const message = error instanceof Error ? error.message : String(error)
-              if (!message.startsWith("runtime_turn_unsettled:")) {
-                throw error
-              }
-            } finally {
-              historySub?.unsubscribe()
-            }
-            if (assistantMessage && assistantPart) {
-              assistantMessage = {
-                ...assistantMessage,
-                time: {
-                  ...assistantMessage.time,
-                  completed: Date.now(),
-                },
-              }
-              addSessionMessage(state, assistantMessage, [assistantPart])
-              await emitEvent({ type: "message.updated", properties: { info: assistantMessage } } as Event)
-              await emitEvent({ type: "message.part.updated", properties: { part: assistantPart } } as Event)
-            }
+              },
+            })
           }
           await syncSessionMessagesFromActorConversation(state, runtime, {
             actorId: typeof pending.request.actorId === "string" ? pending.request.actorId : undefined,

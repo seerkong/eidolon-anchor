@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeGlobOuterComputed,
   makeGlobInnerRuntime,
@@ -17,8 +17,8 @@ export function buildGlobToolDef(): ToolDef<GlobOuterInput, GlobOuterOutput, Glo
       type: "function" as const,
       function: {
         name: "glob",
-        description: "Match files using a glob pattern.",
-        parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string" } }, required: ["pattern"] },
+        description: "Match files using a glob pattern. Omit path or use '.' for the current workspace; external paths require explicit scopeIntent.",
+        parameters: { type: "object", properties: { pattern: { type: "string" }, path: { type: "string", default: "." }, scopeIntent: fileToolScopeIntentSchema() }, required: ["pattern"] },
       },
     },
     briefPromptXnl: readPromptFromDir("Glob", "Tool.brief.xnl"),

@@ -276,6 +276,38 @@ describe("explicit tool execution outcomes", () => {
     });
   });
 
+  it("rebuilds a failed provider effect as providerError instead of partial assistant success", () => {
+    const pending = buildPendingAiGeneratedFromCompletedEffect(
+      {
+        inflight: {
+          kind: "llm",
+          opId: "llm:workflow-child:5",
+          turn: 5,
+          tools: [],
+        },
+      },
+      [{
+        kind: "failed",
+        effectKind: "provider_completion",
+        effectId: "llm:workflow-child:5",
+        handlerKey: "llm:deepseek",
+        error: "Error: invalid_tool_call_payload: invalid JSON arguments",
+        retryable: false,
+      }],
+    );
+
+    expect(pending).toMatchObject({
+      kind: "llm_done",
+      opId: "llm:workflow-child:5",
+      providerError: expect.stringContaining("invalid_tool_call_payload"),
+      replayedFromEffectEvidence: true,
+      msg: {
+        role: "assistant",
+        content: expect.stringContaining("invalid_tool_call_payload"),
+      },
+    });
+  });
+
   it("reconstructs a tool result from a persisted artifact reference", () => {
     const sessionDir = mkdtempSync(path.join(tmpdir(), "tool-output-artifact-recovery-"));
     const assetId = "artifacts/tool-results/main/tc-artifact-a1b2c3.txt";

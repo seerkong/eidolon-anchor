@@ -120,7 +120,11 @@ export function authorizeLocalToolCall(runtime: any, toolName: string, payload: 
     if (decision.action === "allow") {
       return { ok: true };
     }
-    if (execProtocolMode === "dangerous" && !String(decision.message ?? "").includes("Protected local permission config path")) {
+    if (
+      execProtocolMode === "dangerous" &&
+      decision.reasonCode !== "protected_permission_config" &&
+      decision.reasonCode !== "workspace_scope_violation"
+    ) {
       return { ok: true };
     }
     if (decision.action === "deny") {
@@ -228,13 +232,19 @@ export async function replayWorkspaceAccessGrantApprovedTool(params: {
   if (!selected || selected === "deny_permission_grant" || selected === "reject" || selected === "denied") {
     return `Error: workspace access grant declined for ${context.approvalGrant.grantPath}`;
   }
-  const accessKind: FileAccessKind = selected === "grant_read" ? "read" : "write";
-  grantWorkspaceAccess({
-    workDir: context.approvalGrant.workDir,
-    targetPath: context.approvalGrant.grantPath,
-    accessKind,
-    authorityRoot: resolveLocalPermissionAuthorityRootFromRuntime({ vm: params.vm }),
-  });
+  const selection = resolveWorkspaceAccessGrantSelection(selected);
+  if (!selection) {
+    return `Error: unsupported workspace access grant choice '${selected}'`;
+  }
+  const { accessKind, persist } = selection;
+  if (persist) {
+    grantWorkspaceAccess({
+      workDir: context.approvalGrant.workDir,
+      targetPath: context.approvalGrant.grantPath,
+      accessKind,
+      authorityRoot: resolveLocalPermissionAuthorityRootFromRuntime({ vm: params.vm }),
+    });
+  }
   const grant: WorkspaceAccessApprovalGrant = {
     ...context.approvalGrant,
     requestedAccessKind: accessKind,
@@ -243,6 +253,25 @@ export async function replayWorkspaceAccessGrantApprovedTool(params: {
     toolCallId: params.toolCallId,
     localPermissionGrant: grant,
   } as any);
+}
+
+export function resolveWorkspaceAccessGrantSelection(
+  selected: string,
+): { accessKind: FileAccessKind; persist: boolean } | null {
+  switch (selected) {
+    case "grant_once_read":
+      return { accessKind: "read", persist: false };
+    case "grant_once_read_write":
+      return { accessKind: "write", persist: false };
+    case "grant_persist_read":
+    case "grant_read":
+      return { accessKind: "read", persist: true };
+    case "grant_persist_read_write":
+    case "grant_read_write":
+      return { accessKind: "write", persist: true };
+    default:
+      return null;
+  }
 }
 
 function queueLocalPermissionQuestionnaire(
@@ -318,12 +347,14 @@ function buildWorkspaceGrantQuestions(approvalGrant: WorkspaceAccessApprovalGran
   const choices =
     approvalGrant.requestedAccessKind === "read"
       ? [
-          { value: "grant_read", label: "授权只读" },
-          { value: "grant_read_write", label: "授权读写" },
+          { value: "grant_once_read", label: "仅本次只读（推荐）" },
+          { value: "grant_persist_read", label: "持续只读" },
+          { value: "grant_persist_read_write", label: "持续读写（高级）" },
           { value: "deny_permission_grant", label: "拒绝授权" },
         ]
       : [
-          { value: "grant_read_write", label: "授权读写" },
+          { value: "grant_once_read_write", label: "仅本次读写（推荐）" },
+          { value: "grant_persist_read_write", label: "持续读写" },
           { value: "deny_permission_grant", label: "拒绝授权" },
         ];
   return [

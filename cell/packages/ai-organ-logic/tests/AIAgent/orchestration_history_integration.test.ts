@@ -16,6 +16,7 @@ import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager";
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver";
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine";
 import { getMemberManager } from "@cell/ai-organ-logic/organization/MemberManager";
+import { createMockProcessStream } from "./__test_support__/mockProcessStream";
 
 function makeTempSessionDir(): string {
   const dir = path.join(
@@ -103,7 +104,7 @@ describe("orchestration_history.xnl integration", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (vm, actor) => processStream(vm, actor),
+        processStream: createMockProcessStream(processStream),
       },
     });
 

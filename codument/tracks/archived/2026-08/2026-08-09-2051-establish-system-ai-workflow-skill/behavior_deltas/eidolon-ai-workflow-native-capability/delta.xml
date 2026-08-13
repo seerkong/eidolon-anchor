@@ -1,0 +1,112 @@
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/natural-language-authoring">
+    <requirement id="natural-language-authoring">
+      <statement>The system SHALL let humans create, edit and run canonical AI workflows in ordinary language by loading the system-owned AI Workflow Skill into a dedicated Eidolon workflow actor, while deterministic code only validates and applies explicit structured operations.</statement>
+      <suite id="skill-authority" name="System AI Workflow Skill authority">
+        <case id="global-skill-location">
+          <given>An Eidolon installation resolves its global directory, defaulting to `~/.eidolon`</given>
+          <when>The user runs `eidolon global init` and the AI Workflow capability is later composed</when>
+          <then>The command SHALL install or replace the managed canonical Skill at `skills/sys-ai-workflow`, and runtime SHALL resolve it from that global directory</then>
+        </case>
+        <case id="global-init-extensible-system-skill-set">
+          <given>An Eidolon release bundles one or more versioned `sys-*` Skills</given>
+          <when>The user runs `eidolon global init` repeatedly or upgrades Eidolon and runs it again</when>
+          <then>The command SHALL stage, validate and atomically reconcile every managed system Skill listed in `.system-skills.xnl` while preserving unmanaged user Skills</then>
+        </case>
+        <case id="system-skill-cannot-be-shadowed">
+          <given>A workspace contains a skill with the same `sys-ai-workflow` identity as the global system Skill</given>
+          <when>The workflow product composes its actor</when>
+          <then>The system MUST use the global system installation or report an installation error and MUST NOT allow the workspace skill to shadow it</then>
+        </case>
+        <case id="model-owned-semantics">
+          <given>A user supplies an ordinary-language workflow goal</given>
+          <when>The system decides whether and how to author or run a workflow</when>
+          <then>The dedicated workflow actor SHALL interpret the request through `sys-ai-workflow` and SHALL choose the native tools, workflow form, starting facts and workspace edits</then>
+        </case>
+        <case id="no-code-fuzzy-routing">
+          <given>AI Workflow production source is inspected</given>
+          <when>Natural-language intent, scenario, authorization or workflow topology is determined</when>
+          <then>The system MUST NOT use regex, keyword matching, substring matching or ordered heuristic rules in deterministic code to make that semantic decision</then>
+        </case>
+        <case id="structured-component-boundary">
+          <given>The workflow actor calls a native workflow tool with explicit structured arguments</given>
+          <when>The WorkflowComponent handles the call</when>
+          <then>The component SHALL validate schemas, resource refs, paths, revisions, proofs and authorization gates without reinterpreting the original natural language</then>
+        </case>
+      </suite>
+      <suite id="prompt-composition" name="DevOps-stage progressive prompt composition">
+        <case id="devops-directory-structure">
+          <given>The installed `sys-ai-workflow` Skill is inspected on disk</given>
+          <when>Its lifecycle resources are enumerated</when>
+          <then>The Skill SHALL expose `planning`, `coding`, `building`, `testing`, `releasing`, `deploying`, `operating` and `monitoring` parent directories, each with stage-owned system instructions and protocol</then>
+        </case>
+        <case id="router-versus-generation-kernel">
+          <given>The dedicated actor enters the coding stage</given>
+          <when>Its system context is assembled</when>
+          <then>The system SHALL include `coding/system.md` and the full `coding/generation-kernel.md`; a navigation-only root `SKILL.md` MUST NOT substitute for the generation kernel</then>
+        </case>
+        <case id="non-coding-prompt-isolation">
+          <given>The dedicated actor enters building, testing, releasing, deploying, operating or monitoring</given>
+          <when>Its system context and tool policy are assembled</when>
+          <then>The system SHALL load only the selected lifecycle stage resources without the coding generation kernel and SHALL expose only tools valid for that stage</then>
+        </case>
+        <case id="prompt-body-not-in-code">
+          <given>AI Workflow prompt layers and scenario guidance are inspected</given>
+          <when>The runtime composes a stage system prompt</when>
+          <then>Prompt prose SHALL come from the installed global Skill resources while code only selects named layers from an explicit stage</then>
+        </case>
+      </suite>
+      <suite id="stage-products" name="Separated authoring and run products">
+        <case id="authoring-stage">
+          <given>A user asks to create or edit a workflow</given>
+          <when>The AI Workflow Skill handles the authoring stage</when>
+          <then>The actor SHALL produce or modify canonical flow DSL in one recoverable workspace, then diff, validate and dry-run the exact revision before requesting publication confirmation</then>
+        </case>
+        <case id="run-stage">
+          <given>A published workflow revision exists</given>
+          <when>The user asks to prepare, execute or continue it</when>
+          <then>The AI Workflow Skill SHALL enter a distinct run-stage interaction that resolves inputs and Materials, previews the immutable revision and requires independent execution authorization</then>
+        </case>
+        <case id="flow-dsl-knowledge">
+          <given>The workflow actor authors canonical workflow files</given>
+          <when>It needs flow DSL structure or profile-specific AI workflow semantics</when>
+          <then>The installed Skill SHALL provide under `coding/flow-dsl` a self-contained, provenance-tracked `foundation/std/spec` tree containing the L1 foundation, EagerDataFlow/WorkCtrlFlow substrate and AI Workflow profile skeleton required to generate canonical files without inventing syntax</then>
+        </case>
+        <case id="fresh-proof-after-edit">
+          <given>An authoring workspace revision has previously passed validation and dry-run</given>
+          <when>The actor changes any file in the mutable workspace</when>
+          <then>The system SHALL invalidate the old proof and MUST require validation and dry-run of the new exact revision before publication</then>
+        </case>
+        <case id="runtime-facts-do-not-rewrite-definition">
+          <given>An AICtrlWorkflow snapshot or AIDataWorkflow RunGraph changes during execution</given>
+          <when>The runtime persists progress, decisions, patches, generations or invalidations</when>
+          <then>The system MUST keep those facts in the runtime owner and MUST NOT rewrite the published XNL definition or authoring layout</then>
+        </case>
+      </suite>
+      <suite id="devops-lifecycle" name="AI Workflow DevOps lifecycle">
+        <case id="actor-selects-stage">
+          <given>A user request and current workflow facts enter the dedicated actor</given>
+          <when>The next lifecycle action is selected</when>
+          <then>The actor SHALL select planning, coding, building, testing, releasing, deploying, operating or monitoring, while host code MUST NOT infer that stage from natural-language keywords</then>
+        </case>
+        <case id="stage-fact-ownership">
+          <given>A workflow advances across the DevOps lifecycle</given>
+          <when>definition, proof, publication, instance, run or monitoring facts change</when>
+          <then>Each stage SHALL consume and produce only its declared facts, and runtime or monitoring facts MUST NOT rewrite the definition</then>
+        </case>
+      </suite>
+      <suite id="cross-surface-authoring" name="Cross-surface natural-language authoring">
+        <case id="conversation-authoring">
+          <given>A user describes a workflow in ordinary language during an Eidolon conversation</given>
+          <when>The AI kernel routes the request to the workflow product</when>
+          <then>The same dedicated workflow actor and global Skill SHALL perform semantic authoring through native component tools</then>
+        </case>
+        <case id="cli-authoring">
+          <given>A user invokes an `eidolon workflow` command with ordinary language</given>
+          <when>The command enters the in-process Eidolon runtime</when>
+          <then>The command SHALL use the same dedicated workflow actor and global Skill without invoking an external AI CLI</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

@@ -58,6 +58,8 @@ export interface ChatMessage {
   endAt?: number;
   toolCallId?: string;
   tool_call_id?: string;
+  /** Durable, provider-ignored typed projection metadata for a tool result. */
+  resultMetadata?: Record<string, unknown>;
   toolCalls?: ToolCall[];
   tool_calls?: OpenAIToolCall[];
   rawToolCalls?: ToolCall[];

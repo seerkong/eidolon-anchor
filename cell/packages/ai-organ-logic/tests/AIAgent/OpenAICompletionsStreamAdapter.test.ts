@@ -63,13 +63,15 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
     expect(msg.content).toBe("answer");
   });
 
-  it("deduplicates identical consecutive chunks before entering the event graph", async () => {
+  it("deduplicates repeated transport events only when the provider supplies an explicit event identity", async () => {
     const timeline = new OutputStream();
     const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
     const events: Array<{ event: string; data: string }> = [];
     timeline.onData((ev) => events.push(ev));
 
     const repeatedReasoningChunk = {
+      id: "completion-1",
+      event_id: "event-1",
       choices: [
         {
           delta: {
@@ -79,6 +81,8 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
       ],
     };
     const repeatedContentChunk = {
+      id: "completion-1",
+      event_id: "event-2",
       choices: [
         {
           delta: {
@@ -101,6 +105,44 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
     expect(msg.content).toBe("Created member successfully");
     expect(events.filter((ev) => ev.event === "think").map((ev) => ev.data)).toEqual(["Great"]);
     expect(events.filter((ev) => ev.event === "content").map((ev) => ev.data)).toEqual(["Created member successfully"]);
+  });
+
+  it("preserves identical consecutive tool argument deltas as distinct semantic tokens", async () => {
+    const timeline = new OutputStream();
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
+
+    async function* stream() {
+      yield {
+        choices: [{
+          delta: {
+            tool_calls: [{
+              index: 0,
+              id: "call_nested_object",
+              type: "function",
+              function: { name: "Prepare", arguments: "" },
+            }],
+          },
+        }],
+      };
+      for (const fragment of ['{"nested":{', "}", "}"]) {
+        yield {
+          choices: [{
+            delta: {
+              tool_calls: [{ index: 0, function: { arguments: fragment } }],
+            },
+          }],
+        };
+      }
+      yield { choices: [{ finish_reason: "tool_calls", delta: {} }] };
+    }
+
+    const msg = await adapter.processStream(stream());
+
+    expect(msg.tool_calls).toEqual([{
+      id: "call_nested_object",
+      type: "function",
+      function: { name: "Prepare", arguments: '{"nested":{}}' },
+    }]);
   });
 
   it("preserves mirrored reasoning_content for roundtrip without duplicate think emission", async () => {

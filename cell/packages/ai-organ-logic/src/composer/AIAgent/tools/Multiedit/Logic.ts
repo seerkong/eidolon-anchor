@@ -31,6 +31,7 @@ export const multieditCoreLogic: StdInnerLogic<
   const permission = authorizeLocalToolCall(runtime, "multiedit", {
     filePath: rawPath,
     edits: input?.edits,
+    scopeIntent: input?.scopeIntent,
   })
   if (!permission.ok) return permission.output
   const full = resolveToolPath(workdir, rawPath)

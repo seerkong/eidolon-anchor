@@ -8,6 +8,7 @@ export type WorkflowCreateBundleOuterInput = {
   fqn?: string
   description?: string
   manifest_content?: string
+  flow_code_content?: string
   session_id?: string
   dry_run?: boolean
 }

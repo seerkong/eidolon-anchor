@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeWriteOuterComputed,
   makeWriteInnerRuntime,
@@ -17,8 +17,8 @@ export function buildWriteToolDef(): ToolDef<WriteOuterInput, WriteOuterOutput, 
       type: "function" as const,
       function: {
         name: "write",
-        description: "Write content to a file at an accessible path. Supports relative, absolute, and ~/ home-directory paths.",
-        parameters: { type: "object", properties: { filePath: { type: "string" }, content: { type: "string" } }, required: ["filePath", "content"] },
+        description: "Write content to a file. Prefer workspace-relative paths; external paths require explicit scopeIntent.",
+        parameters: { type: "object", properties: { filePath: { type: "string" }, content: { type: "string" }, scopeIntent: fileToolScopeIntentSchema() }, required: ["filePath", "content"] },
       },
     },
     briefPromptXnl: readPromptFromDir("Write", "Tool.brief.xnl"),

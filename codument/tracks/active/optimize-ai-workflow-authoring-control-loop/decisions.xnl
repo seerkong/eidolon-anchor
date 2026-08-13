@@ -1,0 +1,122 @@
+<decision #track.optimize-ai-workflow-authoring-control-loop.summary-boundary {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>Workflow authoring session 的 compact list/summary 应在哪一层实现？</?>
+  <answer { }
+  (
+    <raw-answer ?>它是 workflow 领域 read model，不是 context compression。</?>
+    <decision-text ?>保留 session store full describe/list authority；WorkflowListAuthoringSessions 通过稳定排序与 limit/cursor 返回有界 brief page，WorkflowGetAuthoringSummary 返回有硬上限的 summary，完整 detail 由显式 workspace read 获取。</?>
+    <rationale ?>避免把领域摘要和 transport/history compaction 混为一谈，也不改变其他 Eidolon 工具行为。</?>
+    <evidence ?>当前两个 tool adapter 直接返回完整 metadata；generic compaction 已存在且需保护首次 delivery。</?>
+  )>
+  <confidence ?>0.98</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.generic-context-policy {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>多轮 workflow delegate 的上下文预算如何修复？</?>
+  <answer { }
+  (
+    <raw-answer ?>复用 Eidolon 通用机制，不能给 workflow 另建压缩器。</?>
+    <decision-text ?>将 compaction eligibility 改为 actor-owned generic context policy；多轮 delegate 默认参与，短生命周期 actor 可显式关闭；实现不得检查 workflow/tool name。</?>
+    <rationale ?>问题根因是 actor type eligibility 缺口，workflow-specific 分支会制造第二套机制。</?>
+    <evidence ?>WorkflowAuthor 通过通用 spawnChildExecutionActor 创建 delegate，而 shouldCompressActorHistory 仅接受 primary/member。</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.revision-authority {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>如何表达编辑中版本与最近发布版本？</?>
+  <answer { }
+  (
+    <raw-answer ?>working 与 published 必须是两条显式 revision 线，dirty 由二者派生。</?>
+    <decision-text ?>session metadata SHALL 记录 base/working/published revisions、proof set 与 immutable publication receipt；mutation 只推进 working revision 并使 proof stale，不得抹掉历史 publication authority或把 dirty work 称为 published clean。</?>
+    <rationale ?>单一 currentRevision + status 无法表达发布后继续编辑，也无法支持正确 diff baseline。</?>
+    <evidence ?>当前 invalidate 保留 status=published，publish 不记录 artifact digest/receipt，/base 不 rebase。</?>
+  )>
+  <confidence ?>0.98</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.atomic-control-loop {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>怎样减少成功编辑路径的模型轮次而不把语义移入代码？</?>
+  <answer { }
+  (
+    <raw-answer ?>模型决定目标和内容；component 提供结构化 atomic patch 与 exact-revision proof pipeline。</?>
+    <decision-text ?>新增 expected-revision 原子多文件 patch 和 deterministic prepare-publication command；host 只执行结构化操作，禁止从原始自然语言推导文件、stage 或业务规则。</?>
+    <rationale ?>一次一文件、一 proof 一轮造成可避免的 provider roundtrip；结构化 compound command 不涉及模糊语义。</?>
+    <evidence ?>事故中 native tools 仅 0.430s，而 12 次 completion 占据绝大多数时长。</?>
+  )>
+  <confidence ?>0.97</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.proof-contract {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>静态 dry-run 能否作为 effectful workflow 的发布验收？</?>
+  <answer { }
+  (
+    <raw-answer ?>不能；必须诚实区分 static projection、隔离 candidate acceptance 与授权后的真实 execution。</?>
+    <decision-text ?>发布 proof SHALL 绑定 diff、canonical validation、必需但 non-effectful 的 staticProjectionReceipt、build digest 与 acceptance disposition；required 只能用隔离 effect fixture 形成 candidate receipt，not_required 必须有 canonical/explicit structured policy source。真实 effect 只在发布后独立 execution authorization 下产生 execution receipt。</?>
+    <rationale ?>effectDispatched=false 无法证明 web source success/degrade/failure 行为，而发布确认也没有授权真实执行。</?>
+    <evidence ?>当前 dryRun 只 projectStatic；既有 canonical behavior 要求它继续作为 publication proof，releasing protocol 还要求 build digest，而 publish gate 尚未检查 build/acceptance disposition。</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.receipt-authority {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>Typed authoring 与 publication receipts 的事实 authority 在哪里？</?>
+  <answer { }
+  (
+    <raw-answer ?>模型只请求 transition，component/session authority 从持久化事实生成 receipts。</?>
+    <decision-text ?>WorkflowAuthoringReceipt SHALL 由 component 校验 session/revision/proof 后生成；publication receipts SHALL append-only，session 只投影 latest receipt id；forged/stale/model-claimed receipts 必须拒绝。</?>
+    <rationale ?>避免把模型声明升级为事实，也避免重复发布覆盖历史 authority。</?>
+    <evidence ?>AttractorCheck 指出“authoritative child outcome”和单值 publicationReceipt 会造成事实 owner 冲突。</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.deferred-session-capabilities {
+  priority = "P1"
+  status = "deferred"
+}
+(
+  <question ?>是否在本 track 同时增加自定义压缩提示词和跨 workflow step 的 agent session 复用？</?>
+  <answer { }
+  (
+    <raw-answer ?>不；本 track 完成后再分别提出。</?>
+    <decision-text ?>本 track 只保留兼容扩展 seam，不实现 customizable compaction prompt、run agent-session-id return 或 downstream session reuse。</?>
+    <rationale ?>两项能力涉及新的用户契约和 runtime session ownership，混入当前 correctness/performance 修复会扩大风险。</?>
+    <evidence ?>用户明确指定为“这个 track 修改完毕后”再要求的后续能力。</?>
+  )>
+)>

@@ -250,7 +250,8 @@ export class AgentEventGraph {
     toolName: string,
     toolCallId: string,
     result: string,
-    isError: boolean
+    isError: boolean,
+    outputMetadata?: Record<string, unknown>,
   ): void {
     this.emit({
       ...this.toBase(actor),
@@ -264,6 +265,7 @@ export class AgentEventGraph {
         raw_payload_text: "",
       },
       output_text: result,
+      output_metadata: outputMetadata,
       is_error: isError,
     });
   }

@@ -59,17 +59,21 @@ export function formatSkillContent(skill: SkillEntry): string {
   return content;
 }
 
-function collectSkillResources(skillDir: string): string[] {
+export function collectSkillResources(skillDir: string): string[] {
+  if (!fs.existsSync(skillDir)) return [];
+
   const resources: string[] = [];
-  for (const [folder, label] of [
-    ["scripts", "Scripts"],
-    ["references", "References"],
-    ["assets", "Assets"],
-  ] as const) {
-    const dir = path.join(skillDir, folder);
-    if (!fs.existsSync(dir)) continue;
-    const files = fs.readdirSync(dir);
-    if (files.length) resources.push(`${label}: ${files.join(", ")}`);
-  }
-  return resources;
+  const visit = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const absolute = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        visit(absolute);
+        continue;
+      }
+      const relative = path.relative(skillDir, absolute).split(path.sep).join("/");
+      if (relative !== "SKILL.md") resources.push(relative);
+    }
+  };
+  visit(skillDir);
+  return resources.sort();
 }

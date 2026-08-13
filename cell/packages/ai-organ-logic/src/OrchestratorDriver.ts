@@ -143,6 +143,7 @@ export type AiAgentOrchestratorDriver = {
       parentFiberId: string;
       mode: DelegateRunMode;
       toolCallId?: string;
+      toolName?: string;
       taskId?: string;
       taskKind?: DetachedActorKind;
     };
@@ -162,6 +163,7 @@ export type AiAgentOrchestratorRuntime = {
       parentFiberId: string;
       mode: DelegateRunMode;
       toolCallId?: string;
+      toolName?: string;
       taskId?: string;
       taskKind?: DetachedActorKind;
     }

@@ -105,6 +105,7 @@ export function toHistoryEvent(ev: SemanticEvent): MessageHistoryEvent | null {
           toolName: ev.tool_call.tool_name,
           toolCallId: ev.tool_call.tool_call_id,
           result: ev.output_text,
+          metadata: ev.output_metadata,
           isError: ev.is_error,
         }),
         ...meta,
@@ -751,8 +752,10 @@ export function reduceHistoryProjection(
         agentActorId,
         message: {
           role: "tool",
+          name: ev.tool_call.tool_name,
           content: ev.output_text,
           toolCallId: ev.tool_call.tool_call_id,
+          resultMetadata: ev.output_metadata ? { ...ev.output_metadata } : undefined,
           startAt: emittedAt,
           endAt: emittedAt,
         } as ChatMessage,

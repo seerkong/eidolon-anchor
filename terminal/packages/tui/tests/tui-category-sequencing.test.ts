@@ -68,6 +68,7 @@ describe("TUI category card sequencing", () => {
     try {
       const sdk = createTuiRuntimeClient()
       await sdk.client.session.prompt({
+        sessionID: "ses_1",
         parts: [
           {
             id: "p1",
@@ -94,6 +95,41 @@ describe("TUI category card sequencing", () => {
     }
   })
 
+  it("routes slash-command turns through the same category projection", async () => {
+    __setRuntimeBridgeFactoryForTest(async () => ({
+      async turn(_input: string, opts?: RuntimeTurnOptions) {
+        opts?.onControl?.({ cmd: "NewMessage", category: "turn" })
+        opts?.onChunk?.("Starting turn for command\n")
+        opts?.onControl?.({ cmd: "NewMessage", category: "think" })
+        opts?.onChunk?.("Command thinking\n")
+        opts?.onControl?.({ cmd: "NewMessage", category: "toolcall" })
+        opts?.onChunk?.("read call_command\n")
+        opts?.onControl?.({ cmd: "NewMessage", category: "assist" })
+        opts?.onChunk?.("Command answer")
+        return "Command answer"
+      },
+      async abort() {},
+      dispose() {},
+      subscribeNotifications() {
+        return { unsubscribe() {} }
+      },
+    } as any))
+
+    try {
+      const sdk = createTuiRuntimeClient()
+      await sdk.client.session.command({ sessionID: "ses_1", command: "custom" } as any)
+      const assistantTextMessages = await getAssistantTextMessages(sdk)
+      expect(unique(assistantTextMessages.map((message) => message.mode))).toEqual(["think", "assist"])
+      const text = assistantTextMessages.map((message) => message.text).join("\n")
+      expect(text).toContain("Command thinking")
+      expect(text).toContain("Command answer")
+      expect(text).not.toContain("Starting turn for command")
+      expect(text).not.toContain("read call_command")
+    } finally {
+      __setRuntimeBridgeFactoryForTest(null)
+    }
+  })
+
   it("projects toolcall and result categories through structured tool parts instead of assistant text cards", async () => {
     const controls: string[] = []
     let notifyHistory: ((event: RuntimeHistoryEvent) => void) | null = null
@@ -107,9 +143,9 @@ describe("TUI category card sequencing", () => {
         notifyHistory?.({
           stream: "tool_call_start",
           payload: JSON.stringify({
-            toolName: "bash",
+            toolName: "read",
             toolCallId: "call_1",
-            arguments: JSON.stringify({ command: "echo hello" }),
+            arguments: JSON.stringify({ filePath: "README.md" }),
           }),
           agentKey: "build",
           agentActorId: "actor_build",
@@ -122,10 +158,21 @@ describe("TUI category card sequencing", () => {
         notifyHistory?.({
           stream: "tool_call_result",
           payload: JSON.stringify({
-            toolName: "bash",
+            toolName: "read",
             toolCallId: "call_1",
-            result: "hello",
+            result: "<context-resource>hello</context-resource>",
             isError: false,
+            metadata: {
+              contextResource: {
+                status: "loaded",
+                resourceId: "file:///workspace/README.md",
+                revision: "abc123",
+                totalLines: 1,
+                requestedLines: "1-1",
+                deliveredLines: "1-1",
+                contentText: "hello",
+              },
+            },
           }),
           agentKey: "build",
           agentActorId: "actor_build",
@@ -156,6 +203,7 @@ describe("TUI category card sequencing", () => {
       const events: Event[] = []
       const unsub = sdk.event.on((event) => events.push(event))
       await sdk.client.session.prompt({
+        sessionID: "ses_1",
         parts: [
           {
             id: "p1",
@@ -184,14 +232,21 @@ describe("TUI category card sequencing", () => {
 
       expect(toolParts).toHaveLength(2)
       expect(toolParts.at(-1)).toMatchObject({
-        tool: "bash",
+        tool: "read",
         callID: "call_1",
         state: {
           status: "completed",
           input: {
-            command: "echo hello",
+            filePath: "README.md",
           },
-          output: "hello",
+          output: "<context-resource>hello</context-resource>",
+          metadata: {
+            contextResource: {
+              status: "loaded",
+              resourceId: "file:///workspace/README.md",
+              contentText: "hello",
+            },
+          },
         },
       })
     } finally {

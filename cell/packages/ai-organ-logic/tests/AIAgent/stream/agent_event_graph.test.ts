@@ -145,10 +145,17 @@ describe("AgentEventGraph", () => {
 
     graph.addConsumer((event) => received.push(event));
     graph.emitToolCallStart(actor, "read_file", "tc-1", '{"path":"foo"}');
-    graph.emitToolCallResult(actor, "read_file", "tc-1", "content", false);
+    graph.emitToolCallResult(actor, "read_file", "tc-1", "content", false, {
+      contextResource: { status: "loaded", resourceId: "file:///workspace/foo" },
+    });
 
     expect(received[0].event_type).toBe("semantic_tool_call_start");
     expect(received[1].event_type).toBe("semantic_tool_call_result");
+    expect(received[1]).toMatchObject({
+      output_metadata: {
+        contextResource: { status: "loaded", resourceId: "file:///workspace/foo" },
+      },
+    });
   });
 
   it("emits agent turn start/end events", () => {

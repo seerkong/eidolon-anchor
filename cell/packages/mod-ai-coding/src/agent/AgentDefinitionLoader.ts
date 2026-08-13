@@ -21,6 +21,9 @@ import designerRoutingMd from "./designer/ROUTING.md" with { type: "text" };
 import fixerAgentMd from "./fixer/AGENT.md" with { type: "text" };
 import fixerIdentityMd from "./fixer/IDENTITY.md" with { type: "text" };
 import fixerRoutingMd from "./fixer/ROUTING.md" with { type: "text" };
+import workflowAgentMd from "./workflow/AGENT.md" with { type: "text" };
+import workflowIdentityMd from "./workflow/IDENTITY.md" with { type: "text" };
+import workflowRoutingMd from "./workflow/ROUTING.md" with { type: "text" };
 import delegationGuidanceMd from "../prompt/delegation-guidance.md" with { type: "text" };
 import primaryCodingRulesMd from "../prompt/primary-coding-rules.md" with { type: "text" };
 
@@ -68,6 +71,11 @@ const BUNDLED_AGENT_ASSETS: Readonly<Record<string, BundledAgentAsset>> = {
     identityMd: fixerIdentityMd,
     routingMd: fixerRoutingMd,
   },
+  workflow: {
+    agentMd: workflowAgentMd,
+    identityMd: workflowIdentityMd,
+    routingMd: workflowRoutingMd,
+  },
 };
 
 const PROMPT_MODULES: Readonly<Record<string, string>> = {
@@ -75,7 +83,7 @@ const PROMPT_MODULES: Readonly<Record<string, string>> = {
   "delegation-guidance": delegationGuidanceMd,
 };
 
-const BUILTIN_DELEGATE_AGENT_NAMES = ["code", "explorer", "librarian", "oracle", "designer", "fixer"] as const;
+const BUILTIN_DELEGATE_AGENT_NAMES = ["code", "explorer", "librarian", "oracle", "designer", "fixer", "workflow"] as const;
 
 function parseScalar(value: string): string | boolean {
   const normalized = value.trim().replace(/^['"]|['"]$/g, "");

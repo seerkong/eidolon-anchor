@@ -1,6 +1,6 @@
 {
   "name": "@terminal/cli",
-  "description": "terminal cli command line",
+  "description": "unified Eidolon command surface for TUI and headless subcommands",
   "types": "src/index.ts",
   "module": "src/index.ts",
   "main": "src/index.ts",
@@ -16,6 +16,7 @@
     "@types/yargs": "^17.0.32"
   },
   "dependencies": {
+    "@cell/ai-support": "workspace:*",
     "@cell/ai-runtime-control-composer": "workspace:*",
     "yargs": "^17.7.2",
     "@terminal/organ": "workspace:*",

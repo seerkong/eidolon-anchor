@@ -171,6 +171,10 @@ function isToolPart(part: Part): part is ToolPart {
   return part.type === "tool"
 }
 
+function isReasoningPart(part: Part): part is Extract<Part, { type: "reasoning" }> {
+  return part.type === "reasoning"
+}
+
 function asRecord(value: unknown): Record<string, any> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {}
   return value as Record<string, any>
@@ -218,7 +222,7 @@ export function runtimeMessagesToTuiA1Messages(
     const selection = runtimeMessageSelection(message)
     const displayableText = parts.filter(isDisplayableTextPart).map((part) => part.text).join("")
 
-    if (message.role !== "assistant") {
+    if (message.role === "user") {
       return [
         {
           id: message.id,
@@ -229,6 +233,10 @@ export function runtimeMessagesToTuiA1Messages(
           selection,
         } satisfies TuiA1Message,
       ]
+    }
+
+    if (message.role !== "assistant") {
+      return []
     }
 
     const hasToolParts = parts.some(isToolPart)
@@ -260,6 +268,22 @@ export function runtimeMessagesToTuiA1Messages(
       }
 
       flushAssistantText()
+
+      if (isReasoningPart(part)) {
+        if (!part.text) continue
+        items.push({
+          id: part.id,
+          kind: "assistant",
+          createdAt: message.time.created,
+          completedAt: message.time.completed,
+          parentID: message.parentID,
+          text: part.text,
+          mode: "think",
+          streaming: !message.time.completed,
+          selection,
+        } satisfies TuiA1Message)
+        continue
+      }
 
       if (!isToolPart(part)) continue
 

@@ -25,13 +25,14 @@ export const grepCoreLogic: StdInnerLogic<
 > = async (runtime, input, _config) => {
   const workdir = runtime.vm.outerCtx.workDir
   if (typeof workdir !== "string" || !workdir.trim()) return "Error: workDir not configured"
-  const base = typeof input?.path === "string" && input.path.trim() ? input.path : workdir
+  const base = typeof input?.path === "string" && input.path.trim() ? input.path : "."
   const pattern = String(input?.pattern ?? "")
   if (!pattern.trim()) return "Error: pattern required"
   const permission = authorizeLocalToolCall(runtime, "grep", {
     path: base,
     pattern,
     include: input?.include,
+    scopeIntent: input?.scopeIntent,
   })
   if (!permission.ok) return permission.output
   const cwd = resolveToolPath(workdir, base)

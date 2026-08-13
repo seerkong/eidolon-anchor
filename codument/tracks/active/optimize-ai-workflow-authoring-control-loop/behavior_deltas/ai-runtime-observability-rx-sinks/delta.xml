@@ -1,0 +1,24 @@
+<behavior-patch capability="ai-runtime-observability-rx-sinks" version="1">
+  <upsert selector="behavior://ai-runtime-observability-rx-sinks/requirements/bounded-provider-diagnostic-retention">
+    <requirement id="bounded-provider-diagnostic-retention">
+      <statement>AI runtime observability SHALL retain bounded structured provider, tool and domain-transition metrics by default, while raw streamed reasoning content SHALL require an explicit debug retention policy with capacity and lifetime limits.</statement>
+      <suite id="retention" name="Bounded diagnostic retention">
+        <case id="aggregate-turn-metrics">
+          <given>An AI actor completes provider and tool turns</given>
+          <when>normal session diagnostics are persisted</when>
+          <then>The sink SHALL retain actor/turn/provider identities, first-token time, generation time, token counts, tool duration and structured receipt references</then>
+        </case>
+        <case id="raw-reasoning-debug-only">
+          <given>A provider streams think or reasoning deltas</given>
+          <when>debug retention is not explicitly enabled</when>
+          <then>The sink MUST NOT persist every raw reasoning delta into long-lived session artifacts</then>
+        </case>
+        <case id="debug-retention-bounded">
+          <given>Debug reasoning retention is explicitly enabled</given>
+          <when>raw deltas are recorded</when>
+          <then>The policy SHALL enforce declared capacity and lifetime bounds and SHALL not change Conversation or provider-context authority</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

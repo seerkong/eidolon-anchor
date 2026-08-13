@@ -8,6 +8,7 @@ import {
   evaluateLocalToolPermission,
   parseBashCommandSegments,
 } from "@cell/ai-organ-logic/permissions/LocalPermissionEvaluator";
+import { resolveWorkspaceAccessGrantSelection } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime";
 import { LocalFilePermissionConfigStore } from "@cell/ai-support";
 
 const tempRoots: string[] = [];
@@ -34,6 +35,58 @@ afterEach(() => {
 });
 
 describe("local permission evaluator", () => {
+  it("denies accidental parent traversal without creating an external-access grant", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace", "project");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+
+    const decision = evaluateLocalToolPermission({
+      workDir,
+      toolName: "ls",
+      payload: { path: path.dirname(workDir) },
+      authorityRoot,
+    });
+
+    expect(decision.action).toBe("deny");
+    expect(decision.reasonCode).toBe("workspace_scope_violation");
+    expect(decision.message).toContain("workspace_scope_violation");
+    expect(decision.approvalGrant).toBeUndefined();
+  });
+
+  it("asks for a grant only when external scope is explicit", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const externalDir = path.join(root, "outside");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    fs.mkdirSync(externalDir, { recursive: true });
+
+    const decision = evaluateLocalToolPermission({
+      workDir,
+      toolName: "ls",
+      payload: { path: externalDir, scopeIntent: "external" },
+      authorityRoot,
+    });
+
+    expect(decision.action).toBe("ask");
+    expect(decision.approvalGrant).toMatchObject({
+      kind: "workspace_access_grant",
+      grantPath: externalDir,
+      requestedAccessKind: "read",
+    });
+  });
+
+  it("maps workspace grant choices to one-time or persistent authority explicitly", () => {
+    expect(resolveWorkspaceAccessGrantSelection("grant_once_read")).toEqual({ accessKind: "read", persist: false });
+    expect(resolveWorkspaceAccessGrantSelection("grant_persist_read")).toEqual({ accessKind: "read", persist: true });
+    expect(resolveWorkspaceAccessGrantSelection("grant_once_read_write")).toEqual({ accessKind: "write", persist: false });
+    expect(resolveWorkspaceAccessGrantSelection("grant_persist_read_write")).toEqual({ accessKind: "write", persist: true });
+    expect(resolveWorkspaceAccessGrantSelection("unexpected")).toBeNull();
+  });
+
   it("splits bash segments while preserving quoted separators", () => {
     configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
     expect(parseBashCommandSegments(`printf ";" && git status`)).toEqual(["printf ;", "git status"]);

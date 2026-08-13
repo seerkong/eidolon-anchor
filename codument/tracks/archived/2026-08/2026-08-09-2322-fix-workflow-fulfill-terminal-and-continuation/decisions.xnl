@@ -1,0 +1,47 @@
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.failure-authority {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>Provider failure 之前已有 partial assistant content 时谁拥有终态？</?>
+  <answer { }
+  (
+    <raw-answer ?>当前 provider failure 必须覆盖旧 partial content。</?>
+    <decision-text ?>Provider terminal failure SHALL fail the actor; prior Conversation Domain output MAY be retained as evidence but MUST NOT reclassify the terminal state。</?>
+    <rationale ?>effect terminal 是当前控制事实，历史消息只是记录。</?>
+    <evidence ?>真实回归 sequence 68/170。</?>
+  )>
+)>
+
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.sync-wait-single-writer {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>同步 delegate tool result 由谁写入？</?>
+  <answer { }
+  (
+    <raw-answer ?>只有 childDone terminal message。</?>
+    <decision-text ?>The WAIT_FOR_CHILD_DONE control return SHALL NOT commit a tool result; childDone SHALL be the sole writer of the paired success/failure tool result。</?>
+    <rationale ?>避免空 initial result 与 terminal result 竞争。</?>
+    <evidence ?>真实 conversation history 的空 ToolResult。</?>
+  )>
+)>
+
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.context-projection {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+}
+(
+  <question ?>Fresh workflow actor 如何理解多轮确认？</?>
+  <answer { }
+  (
+    <raw-answer ?>注入 parent Conversation Domain 的结构化业务历史投影，不做关键词解释。</?>
+    <decision-text ?>WorkflowFulfill SHALL project bounded prior user/assistant conversation by role and order; explicit authorization remains solely in current structured input。</?>
+    <rationale ?>补齐上下文同时保持模型语义 authority 与授权边界。</?>
+    <evidence ?>重试 actor 将趋势研究误解为 approval prebuilt。</?>
+  )>
+)>

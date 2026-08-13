@@ -140,8 +140,20 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
       { role: "assistant", content: "hi back from the port" } as ChatMessage,
       {
         role: "tool",
-        content: "tool progress after the user input",
+        name: "read",
+        content: '<context-resource status="loaded">tool progress after the user input</context-resource>',
         toolCallId: "call-port-order",
+        resultMetadata: {
+          contextResource: {
+            status: "loaded",
+            resourceId: "file:///workspace/README.md",
+            revision: "abc123",
+            totalLines: 1,
+            requestedLines: "1-1",
+            deliveredLines: "1-1",
+            contentText: "tool progress after the user input",
+          },
+        },
       } as ChatMessage,
     ]
     const { port, calls } = createRecordingPort({
@@ -159,15 +171,27 @@ describe("TuiRuntimeClient projection-read-port hydration", () => {
     // The port (not a self-built repo) produced the visible history.
     expect(calls.some((call) => call.method === "loadSessionProjection")).toBe(true)
     expect(calls.some((call) => call.method === "loadHistoryProjection")).toBe(true)
-    const texts = (result.data ?? [])
+    const parts = (result.data ?? [])
       .flatMap((entry: any) => (entry.parts ?? []))
-      .filter((part: any) => part.type === "text")
-      .map((part: any) => part.text)
-    expect(texts).toEqual([
-      "hello from the port",
-      "hi back from the port",
-      "tool progress after the user input",
-    ])
+    const texts = parts.filter((part: any) => part.type === "text").map((part: any) => part.text)
+    expect(texts).toEqual(["hello from the port", "hi back from the port"])
+    const toolParts = parts.filter((part: any) => part.type === "tool")
+    expect(toolParts).toHaveLength(1)
+    expect(toolParts[0]).toMatchObject({
+        type: "tool",
+        callID: "call-port-order",
+        state: {
+          status: "completed",
+          output: '<context-resource status="loaded">tool progress after the user input</context-resource>',
+          metadata: {
+            contextResource: {
+              status: "loaded",
+              resourceId: "file:///workspace/README.md",
+              contentText: "tool progress after the user input",
+            },
+          },
+        },
+      })
   })
 
   it("behavioral: structured history hydrates text and image parts without object coercion", async () => {

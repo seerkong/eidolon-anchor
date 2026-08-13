@@ -22,6 +22,7 @@ export type ConversationCommittedMessageData = {
   endAt?: number;
   toolCallId?: string;
   tool_call_id?: string;
+  resultMetadata?: Record<string, unknown>;
   toolCalls?: ConversationCommittedToolCallData[];
 };
 

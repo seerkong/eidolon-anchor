@@ -109,6 +109,52 @@ describe("message card compatibility", () => {
     })
   })
 
+  it("projects roles exhaustively so tool and system history never become USER cards", () => {
+    const user = {
+      id: "user-1",
+      sessionID: "ses_1",
+      role: "user",
+      agent: "build",
+      time: { created: 1 },
+    } as Message
+    const tool = {
+      id: "tool-message:actor:call-1",
+      sessionID: "ses_1",
+      role: "assistant",
+      agent: "build",
+      modelID: "model",
+      providerID: "provider",
+      mode: "history",
+      path: { cwd: process.cwd(), root: process.cwd() },
+      cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      time: { created: 2, completed: 2 },
+    } as Message
+    const system = {
+      id: "system-1",
+      sessionID: "ses_1",
+      role: "system",
+      agent: "internal",
+      time: { created: 0 },
+    } as unknown as Message
+    const projected = runtimeMessagesToTuiA1Messages([system, user, tool], {
+      [system.id]: [{ id: "sys-text", sessionID: "ses_1", messageID: system.id, type: "text", text: "runtime prelude" }],
+      [user.id]: [{ id: "user-text", sessionID: "ses_1", messageID: user.id, type: "text", text: "hello" }],
+      [tool.id]: [{
+        id: "tool-part:actor:call-1",
+        sessionID: "ses_1",
+        messageID: tool.id,
+        type: "tool",
+        tool: "read",
+        callID: "call-1",
+        state: { status: "completed", output: "loaded" },
+      }],
+    })
+
+    expect(projected.map((item) => item.kind)).toEqual(["user", "tool"])
+    expect(projected.some((item) => item.kind === "user" && item.text.includes("runtime prelude"))).toBe(false)
+  })
+
   it("keeps dedicated structured tool card mappings", () => {
     expect(TOOL_CARD_REGISTRY.edit).toBeDefined()
     expect(TOOL_CARD_REGISTRY.multiedit).toBeDefined()

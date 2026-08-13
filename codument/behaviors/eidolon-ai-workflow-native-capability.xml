@@ -85,22 +85,110 @@
     </suite>
   </requirement>
   <requirement id="natural-language-authoring">
-    <statement>The system SHALL let humans create or edit canonical AI workflows using ordinary language through TUI and CLI, using Eidolon actors and component-backed native tools without external agent CLIs.</statement>
-    <suite id="natural-authoring" name="Natural-language authoring">
+    <statement>The system SHALL let humans create, edit and run canonical AI workflows in ordinary language by loading the system-owned AI Workflow Skill into a dedicated Eidolon workflow actor, while deterministic code only validates and applies explicit structured operations.</statement>
+    <suite id="skill-authority" name="System AI Workflow Skill authority">
+      <case id="global-skill-location">
+        <given>An Eidolon installation resolves its global directory, defaulting to `~/.eidolon`</given>
+        <when>The user runs `eidolon global init` and the AI Workflow capability is later composed</when>
+        <then>The command SHALL install or replace the managed canonical Skill at `skills/sys-ai-workflow`, and runtime SHALL resolve it from that global directory</then>
+      </case>
+      <case id="global-init-extensible-system-skill-set">
+        <given>An Eidolon release bundles one or more versioned `sys-*` Skills</given>
+        <when>The user runs `eidolon global init` repeatedly or upgrades Eidolon and runs it again</when>
+        <then>The command SHALL stage, validate and atomically reconcile every managed system Skill listed in `.system-skills.xnl` while preserving unmanaged user Skills</then>
+      </case>
+      <case id="system-skill-cannot-be-shadowed">
+        <given>A workspace contains a skill with the same `sys-ai-workflow` identity as the global system Skill</given>
+        <when>The workflow product composes its actor</when>
+        <then>The system MUST use the global system installation or report an installation error and MUST NOT allow the workspace skill to shadow it</then>
+      </case>
+      <case id="model-owned-semantics">
+        <given>A user supplies an ordinary-language workflow goal</given>
+        <when>The system decides whether and how to author or run a workflow</when>
+        <then>The dedicated workflow actor SHALL interpret the request through `sys-ai-workflow` and SHALL choose the native tools, workflow form, starting facts and workspace edits</then>
+      </case>
+      <case id="no-code-fuzzy-routing">
+        <given>AI Workflow production source is inspected</given>
+        <when>Natural-language intent, scenario, authorization or workflow topology is determined</when>
+        <then>The system MUST NOT use regex, keyword matching, substring matching or ordered heuristic rules in deterministic code to make that semantic decision</then>
+      </case>
+      <case id="structured-component-boundary">
+        <given>The workflow actor calls a native workflow tool with explicit structured arguments</given>
+        <when>The WorkflowComponent handles the call</when>
+        <then>The component SHALL validate schemas, resource refs, paths, revisions, proofs and authorization gates without reinterpreting the original natural language</then>
+      </case>
+    </suite>
+    <suite id="prompt-composition" name="DevOps-stage progressive prompt composition">
+      <case id="devops-directory-structure">
+        <given>The installed `sys-ai-workflow` Skill is inspected on disk</given>
+        <when>Its lifecycle resources are enumerated</when>
+        <then>The Skill SHALL expose `planning`, `coding`, `building`, `testing`, `releasing`, `deploying`, `operating` and `monitoring` parent directories, each with stage-owned system instructions and protocol</then>
+      </case>
+      <case id="router-versus-generation-kernel">
+        <given>The dedicated actor enters the coding stage</given>
+        <when>Its system context is assembled</when>
+        <then>The system SHALL include `coding/system.md` and the full `coding/generation-kernel.md`; a navigation-only root `SKILL.md` MUST NOT substitute for the generation kernel</then>
+      </case>
+      <case id="non-coding-prompt-isolation">
+        <given>The dedicated actor enters building, testing, releasing, deploying, operating or monitoring</given>
+        <when>Its system context and tool policy are assembled</when>
+        <then>The system SHALL load only the selected lifecycle stage resources without the coding generation kernel and SHALL expose only tools valid for that stage</then>
+      </case>
+      <case id="prompt-body-not-in-code">
+        <given>AI Workflow prompt layers and scenario guidance are inspected</given>
+        <when>The runtime composes a stage system prompt</when>
+        <then>Prompt prose SHALL come from the installed global Skill resources while code only selects named layers from an explicit stage</then>
+      </case>
+    </suite>
+    <suite id="stage-products" name="Separated authoring and run products">
+      <case id="authoring-stage">
+        <given>A user asks to create or edit a workflow</given>
+        <when>The AI Workflow Skill handles the authoring stage</when>
+        <then>The actor SHALL produce or modify canonical flow DSL in one recoverable workspace, then diff, validate and dry-run the exact revision before requesting publication confirmation</then>
+      </case>
+      <case id="run-stage">
+        <given>A published workflow revision exists</given>
+        <when>The user asks to prepare, execute or continue it</when>
+        <then>The AI Workflow Skill SHALL enter a distinct run-stage interaction that resolves inputs and Materials, previews the immutable revision and requires independent execution authorization</then>
+      </case>
+      <case id="flow-dsl-knowledge">
+        <given>The workflow actor authors canonical workflow files</given>
+        <when>It needs flow DSL structure or profile-specific AI workflow semantics</when>
+        <then>The installed Skill SHALL provide under `coding/flow-dsl` a self-contained, provenance-tracked `foundation/std/spec` tree containing the L1 foundation, EagerDataFlow/WorkCtrlFlow substrate and AI Workflow profile skeleton required to generate canonical files without inventing syntax</then>
+      </case>
+      <case id="fresh-proof-after-edit">
+        <given>An authoring workspace revision has previously passed validation and dry-run</given>
+        <when>The actor changes any file in the mutable workspace</when>
+        <then>The system SHALL invalidate the old proof and MUST require validation and dry-run of the new exact revision before publication</then>
+      </case>
+      <case id="runtime-facts-do-not-rewrite-definition">
+        <given>An AICtrlWorkflow snapshot or AIDataWorkflow RunGraph changes during execution</given>
+        <when>The runtime persists progress, decisions, patches, generations or invalidations</when>
+        <then>The system MUST keep those facts in the runtime owner and MUST NOT rewrite the published XNL definition or authoring layout</then>
+      </case>
+    </suite>
+    <suite id="devops-lifecycle" name="AI Workflow DevOps lifecycle">
+      <case id="actor-selects-stage">
+        <given>A user request and current workflow facts enter the dedicated actor</given>
+        <when>The next lifecycle action is selected</when>
+        <then>The actor SHALL select planning, coding, building, testing, releasing, deploying, operating or monitoring, while host code MUST NOT infer that stage from natural-language keywords</then>
+      </case>
+      <case id="stage-fact-ownership">
+        <given>A workflow advances across the DevOps lifecycle</given>
+        <when>definition, proof, publication, instance, run or monitoring facts change</when>
+        <then>Each stage SHALL consume and produce only its declared facts, and runtime or monitoring facts MUST NOT rewrite the definition</then>
+      </case>
+    </suite>
+    <suite id="cross-surface-authoring" name="Cross-surface natural-language authoring">
       <case id="conversation-authoring">
         <given>A user describes a workflow in ordinary language during an Eidolon conversation</given>
-        <when>The AI kernel routes the request</when>
-        <then>An Eidolon authoring actor SHALL select the form, generate or edit canonical XNL, run a bounded proof/repair loop and publish through WorkflowComponent</then>
+        <when>The AI kernel routes the request to the workflow product</when>
+        <then>The same dedicated workflow actor and global Skill SHALL perform semantic authoring through native component tools</then>
       </case>
       <case id="cli-authoring">
-        <given>A user invokes `eidolon workflow create` or `edit` with a natural-language instruction</given>
-        <when>The command runs</when>
-        <then>The command SHALL use the in-process Eidolon runtime and the same WorkflowAuthor capability, without invoking an external AI CLI</then>
-      </case>
-      <case id="workspace-primitives-visible">
-        <given>The authoring actor needs resource facts or mutations</given>
-        <when>It inspects the native tool registry</when>
-        <then>Component-backed workspace read/tree/search/diff/validate/write/delete primitives SHALL be model-visible</then>
+        <given>A user invokes an `eidolon workflow` command with ordinary language</given>
+        <when>The command enters the in-process Eidolon runtime</when>
+        <then>The command SHALL use the same dedicated workflow actor and global Skill without invoking an external AI CLI</then>
       </case>
     </suite>
   </requirement>
@@ -305,6 +393,122 @@
         <given>The TUI journey is under automated acceptance</given>
         <when>The test submits and observes the conversation</when>
         <then>The test MUST use TuiRuntimeClient local-runtime, WorkflowFulfill, native authoring/runtime tools, persisted workflow facts, Eidolon effect execution and standard network tools rather than localhost fixtures, component-only calls or prompt-string assertions</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="workflow-agent-runtime-reliability">
+    <statement>The system SHALL complete AI Workflow actor journeys with authoritative terminal state, lossless tool-call identity, bounded observable progress and a non-empty structured result.</statement>
+    <suite id="terminal-semantics" name="Authoritative terminal semantics">
+      <case id="provider-failure-propagates">
+        <given>A workflow delegate provider completion fails or exhausts its retry policy</given>
+        <when>The delegate reaches a terminal state</when>
+        <then>The child fiber and parent workflow tool SHALL observe a structured failure and MUST NOT report completed</then>
+      </case>
+      <case id="domain-materialized-output">
+        <given>A workflow delegate completes with assistant history in the Conversation Domain</given>
+        <when>The orchestrator emits child-done output to the parent</when>
+        <then>The output SHALL be materialized from the authoritative Conversation Domain rather than a compatibility message mirror</then>
+      </case>
+      <case id="reject-empty-success">
+        <given>A child has no business result, wait status, proof status or structured failure</given>
+        <when>The high-level workflow tool resolves</when>
+        <then>The system MUST reject the result as incomplete instead of returning an empty success</then>
+      </case>
+    </suite>
+    <suite id="tool-stream" name="Lossless tool-call streaming">
+      <case id="parallel-same-name-calls">
+        <given>A provider streams multiple parallel calls to the same workflow tool</given>
+        <when>The Chat Completions stream reducer reconstructs tool calls</when>
+        <then>Each call SHALL retain a distinct identity, name and JSON argument stream without concatenation</then>
+      </case>
+      <case id="missing-index-contract">
+        <given>A provider omits or conflicts on a parallel tool-call index</given>
+        <when>The adapter cannot establish an unambiguous call identity</when>
+        <then>The system SHALL apply a documented provider-specific normalization or return a structured protocol error and MUST NOT merge calls silently</then>
+      </case>
+    </suite>
+    <suite id="bounded-progress" name="Bounded workflow progress">
+      <case id="authoring-progress-budget">
+        <given>A workflow actor is authoring a definition</given>
+        <when>model turns continue without workspace revision, proof, wait or result progress</when>
+        <then>The journey SHALL stop within a configured stage budget and return structured diagnostics</then>
+      </case>
+      <case id="structured-stage-outcome">
+        <given>A workflow authoring or run actor completes a model turn</given>
+        <when>No native tool effect was produced</when>
+        <then>The actor SHALL return a non-empty structured stage outcome and MUST NOT treat free-form empty text as completion</then>
+      </case>
+      <case id="bounded-proof-repair">
+        <given>Definition validation or dry-run returns diagnostics</given>
+        <when>The workflow actor attempts correction</when>
+        <then>The repair loop SHALL obey an explicit attempt limit and stage deadline and SHALL return the preserved workspace plus diagnostics when exhausted</then>
+      </case>
+      <case id="interactive-timeout-budget">
+        <given>A provider first-event timeout occurs during an interactive workflow stage</given>
+        <when>The retry policy is evaluated</when>
+        <then>The effective retry and stage deadline SHALL remain within the workflow product latency budget</then>
+      </case>
+      <case id="four-mount-contract">
+        <given>An authoring session exposes `/base`, `/refs`, `/work` and `/out`</given>
+        <when>A mount is empty or inspected with the wrong operation</when>
+        <then>The native workspace tool SHALL return a consistent empty-directory or structured operation diagnostic instead of an unexplained missing-path failure</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="workflow-fulfill-terminal-continuation">
+    <statement>The system SHALL preserve provider/actor terminal authority and continue multi-turn WorkflowFulfill business context without deterministic semantic routing.</statement>
+    <suite id="terminal-authority" name="Terminal authority">
+      <case id="failure-after-partial-content">
+        <given>A workflow child has emitted partial assistant content and its next provider completion fails</given>
+        <when>The child reaches terminal processing</when>
+        <then>The child and parent tool MUST report structured failure; the partial content MUST NOT become a successful final result</then>
+      </case>
+      <case id="sync-wait-single-writer">
+        <given>A synchronous WorkflowFulfill child is still running</given>
+        <when>The spawn command returns its wait control marker</when>
+        <then>The marker MUST NOT commit an empty tool result and childDone SHALL be the sole terminal writer</then>
+      </case>
+      <case id="business-failure-projection">
+        <given>The workflow child terminal message is failed or cancelled</given>
+        <when>The parent and CLI project the business journey result</when>
+        <then>The result MUST contain a non-empty failure and MUST NOT report completed with a null failure summary</then>
+      </case>
+    </suite>
+    <suite id="continuation" name="Multi-turn continuation">
+      <case id="prior-business-context">
+        <given>A later WorkflowFulfill turn confirms or adjusts a plan from earlier conversation</given>
+        <when>A fresh dedicated workflow actor is spawned</when>
+        <then>The actor SHALL receive a bounded role-ordered projection of prior business conversation from Conversation Domain</then>
+      </case>
+      <case id="authorization-not-inherited">
+        <given>Prior conversation includes discussion of publication or execution</given>
+        <when>The current structured invocation has publication or execution authorization false</when>
+        <then>The actor MUST treat the current structured booleans as authoritative and MUST NOT inherit authorization from historical text</then>
+      </case>
+      <case id="no-host-semantics">
+        <given>Host code prepares continuation context</given>
+        <when>It selects and bounds prior messages</when>
+        <then>It MUST use structural role/order/size rules and MUST NOT use regex, keyword or fuzzy business matching</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="workflow-effect-capability-authority">
+    <statement>The AI Workflow Skill SHALL expose exact runtime effect capabilities while the model owns semantic tool and workflow design.</statement>
+    <suite id="effect-capability" name="Exact effect capability authority">
+      <case id="model-owned-effect-design">
+        <given>A workflow needs an external business effect</given>
+        <when>The workflow actor authors dynamic flow code</when>
+        <then>The model SHALL select the tool, arguments, parsing and failure policy from the system Skill without host natural-language matching</then>
+      </case>
+      <case id="exact-runtime-operations">
+        <given>Dynamic flow code invokes the Eidolon effect provider</given>
+        <when>The runtime dispatches the request</when>
+        <then>The operation MUST be one of identity, tool.call, ai.agent, material.read or material.write; registered web access SHALL use tool.call with webfetch</then>
+      </case>
+      <case id="honest-all-source-failure">
+        <given>A multi-source workflow permits partial source degradation</given>
+        <when>All required sources fail</when>
+        <then>The workflow MUST enter Failed and MUST NOT render an empty or fabricated success report</then>
       </case>
     </suite>
   </requirement>

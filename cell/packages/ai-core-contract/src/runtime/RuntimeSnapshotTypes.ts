@@ -135,6 +135,7 @@ export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"
   planApproval?: AiAgentActorContract["planApproval"];
   shutdownCoordination?: AiAgentActorContract["shutdownCoordination"];
   toolPolicy: ActorToolPolicy;
+  contextPolicy?: AiAgentActorContract["contextPolicy"];
   modelConfig: ActorModelConfig;
   ctrlOptions: ActorCtrlOptions;
   taskTree: TaskTree;
@@ -146,6 +147,7 @@ export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"
   continuationBaseline?: ContinuationBaselineData;
   lastMemberResultNotifiedAt?: number | null;
   detachedTask?: DetachedTaskState;
+  workflowProgress?: AiAgentActorContract["workflowProgress"];
   holonState?: HolonActorState;
   recovery?: ActorRecoveryState;
 };

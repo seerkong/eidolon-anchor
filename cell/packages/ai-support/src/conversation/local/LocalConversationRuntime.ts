@@ -91,6 +91,7 @@ export function toCommittedConversationMessage(message: ChatMessage): Conversati
     ...(typeof message.startAt === "number" ? { startAt: message.startAt } : {}),
     ...(typeof message.endAt === "number" ? { endAt: message.endAt } : {}),
     ...(toolCallId ? { toolCallId } : {}),
+    ...(message.resultMetadata ? { resultMetadata: { ...message.resultMetadata } } : {}),
     toolCalls: toCommittedToolCalls(message.toolCalls ?? message.rawToolCalls),
   };
 }
@@ -137,6 +138,7 @@ export function fromCommittedConversationMessage(message: ConversationCommittedM
     ...(typeof message.startAt === "number" ? { startAt: message.startAt } : {}),
     ...(typeof message.endAt === "number" ? { endAt: message.endAt } : {}),
     ...(toolCallId ? { toolCallId, tool_call_id: toolCallId } : {}),
+    ...(message.resultMetadata ? { resultMetadata: { ...message.resultMetadata } } : {}),
     toolCalls,
     rawToolCalls: toolCalls,
     rawToolCallsStr: toolCalls ? JSON.stringify(toolCalls) : undefined,

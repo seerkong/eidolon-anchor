@@ -860,6 +860,7 @@ async function createRuntimeBridge(
   const actorCallbacks = {
     buildToolset: (currentVm: DomainRuntimeVm) => runtimeAssembly.buildToolset(currentVm),
     processStream: (currentVm: any, streamActor: any, stream: any, options?: LlmProcessStreamOptions) => {
+      const reasoningDebug = currentVm.options?.storage?.reasoningDebug
       return processRuntimeIngressStream({
         stream,
         adapterType,
@@ -872,6 +873,13 @@ async function createRuntimeBridge(
         sessionDir,
         sessionId: sessionKey,
         storageLogsEnabled: isRuntimeStorageLogsEnabled(currentVm as DomainRuntimeVm),
+        reasoningRetention: reasoningDebug
+          ? {
+              mode: "debug",
+              maxCharacters: Math.max(0, Number(reasoningDebug.maxCharacters) || 0),
+              expiresAt: Date.now() + Math.max(0, Number(reasoningDebug.ttlMs) || 0),
+            }
+          : undefined,
         signal: options?.signal,
       })
     },

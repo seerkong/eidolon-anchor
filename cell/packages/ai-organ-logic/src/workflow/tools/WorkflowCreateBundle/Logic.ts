@@ -30,8 +30,22 @@ export const workflowCreateBundleCoreLogic: StdInnerLogic<
   const result = {
     kind: "workflow.authoringDraft",
     status: "session_opened",
-    draft,
+    draft: {
+      ...draft,
+      files: draft.files.map((file) => ({
+        path: file.path,
+        ref: file.ref,
+        sizeBytes: Buffer.byteLength(file.content, "utf8"),
+      })),
+    },
     session,
+    persistence: {
+      authoringSessionMaterialized: true,
+      scope: "authoring_session",
+      publicationPerformed: false,
+      executionPerformed: false,
+      note: "The draft generator itself is side-effect free, but this authoring session and its /work files are durably stored.",
+    },
     effectDispatched: false,
   }
   return JSON.stringify(result, null, 2)

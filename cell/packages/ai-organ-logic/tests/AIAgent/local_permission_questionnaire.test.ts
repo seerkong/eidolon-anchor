@@ -358,11 +358,79 @@ describe("local permission questionnaire integration", () => {
     expect(String((toolMsg as any).content)).toContain("1: secret");
   });
 
+  it("replays a one-time external read without persisting workspace access", async () => {
+    const { workDir, authorityRoot, externalDir, externalFile } = buildExternalAccessSandbox();
+    const actor = createActor({
+      key: "main",
+      llmClient: makeParserAdapter({ access_grant: "grant_once_read" }),
+      modelConfig: { model: "mock" },
+      ctrlOptions: { exitAfterToolResult: true },
+      callbacks: {
+        buildToolset: () => [buildLsToolDef().schema],
+        processStream: (() => {
+          let first = true;
+          return async () => {
+            if (first) {
+              first = false;
+              return {
+                role: "assistant",
+                tool_calls: [{
+                  id: "tc-ls-once",
+                  function: {
+                    name: "ls",
+                    arguments: JSON.stringify({ path: externalDir, scopeIntent: "external" }),
+                  },
+                }],
+              };
+            }
+            return { role: "assistant", content: "done" };
+          };
+        })(),
+      },
+    });
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(buildLsToolDef() as any);
+    const vm = createVM({
+      controlActorKey: actor.key,
+      actors: { [actor.key]: actor },
+      registries: { toolRegistry },
+      eventBus: new AgentEventGraph(),
+      outerCtx: {
+        workDir,
+        metadata: { local_permissions: { authority_root: authorityRoot } },
+      },
+    });
+
+    const first = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    expect(first.stopReason).toBe("questionnaire_wait");
+    const pending = actor.drainMailbox("control").find((entry) => entry.kind === "questionnaire_pending");
+    expect(pending).toBeTruthy();
+    const request = actor.pendingQuestionnaires[pending!.questionnaireId];
+    expect(request.questions[0]?.choices?.map((choice: any) => choice.value)).toEqual([
+      "grant_once_read",
+      "grant_persist_read",
+      "grant_persist_read_write",
+      "deny_permission_grant",
+    ]);
+    actor.send("toolResult", {
+      toolCallId: pending!.toolCallId,
+      questionnaireId: pending!.questionnaireId,
+      content: "Q1: A",
+    });
+
+    const second = await aiAgentLoopStreaming({ vm, actor, messages: first.messages });
+    const toolMsg = second.messages.find((message: any) =>
+      message?.role === "tool" && (message?.tool_call_id ?? message?.toolCallId) === "tc-ls-once"
+    );
+    expect(String(toolMsg?.content)).toContain(path.basename(externalFile));
+    expect(fs.existsSync(path.join(authorityRoot, "workspace-access.json"))).toBe(false);
+  });
+
   it("persists workspace read grant and replays external ls in aiAgentLoopStreaming", async () => {
     const { workDir, authorityRoot, externalDir, externalFile } = buildExternalAccessSandbox();
     const actor = createActor({
       key: "main",
-      llmClient: makeParserAdapter({ access_grant: "grant_read" }),
+      llmClient: makeParserAdapter({ access_grant: "grant_persist_read" }),
       modelConfig: { model: "mock" },
       ctrlOptions: { exitAfterToolResult: true },
       callbacks: {
@@ -377,7 +445,7 @@ describe("local permission questionnaire integration", () => {
                 tool_calls: [
                   {
                     id: "tc-ls-1",
-                    function: { name: "ls", arguments: JSON.stringify({ path: externalDir }) },
+                    function: { name: "ls", arguments: JSON.stringify({ path: externalDir, scopeIntent: "external" }) },
                   },
                 ],
               };
@@ -416,7 +484,7 @@ describe("local permission questionnaire integration", () => {
     actor.send("toolResult", {
       toolCallId: pending!.toolCallId,
       questionnaireId: pending!.questionnaireId,
-      content: "Q1: A",
+      content: "Q1: B",
     });
 
     const second = await aiAgentLoopStreaming({ vm, actor, messages: first.messages });
@@ -438,7 +506,7 @@ describe("local permission questionnaire integration", () => {
     const externalFile = path.join(externalDir, "created.txt");
     const actor = createActor({
       key: "main",
-      llmClient: makeParserAdapter({ access_grant: "grant_read_write" }),
+      llmClient: makeParserAdapter({ access_grant: "grant_persist_read_write" }),
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [buildWriteToolDef().schema],
@@ -454,7 +522,7 @@ describe("local permission questionnaire integration", () => {
                     id: "tc-write-1",
                     function: {
                       name: "write",
-                      arguments: JSON.stringify({ filePath: externalFile, content: "created by grant" }),
+                      arguments: JSON.stringify({ filePath: externalFile, content: "created by grant", scopeIntent: "external" }),
                     },
                   },
                 ],
@@ -504,7 +572,7 @@ describe("local permission questionnaire integration", () => {
     actor.send("toolResult", {
       toolCallId: pending!.toolCallId,
       questionnaireId: pending!.questionnaireId,
-      content: "Q1: A",
+      content: "Q1: B",
     });
 
     await advanceCooperativeUntil({

@@ -1,6 +1,6 @@
 import { runByFuncStyleAdapter } from "depa-processor"
 import type { ToolDef } from "@cell/ai-core-contract/types"
-import { readPromptFromDir } from "../_shared"
+import { fileToolScopeIntentSchema, readPromptFromDir } from "../_shared"
 import {
   makeApplyPatchOuterComputed,
   makeApplyPatchInnerRuntime,
@@ -20,7 +20,7 @@ export function buildApplyPatchToolDef(): ToolDef<ApplyPatchOuterInput, ApplyPat
         description: "Apply a structured patch to accessible files. Supports relative, absolute, and ~/ home-directory paths inside permitted roots.",
         parameters: {
           type: "object",
-          properties: { patchText: { type: "string" }, patch: { type: "string" } },
+          properties: { patchText: { type: "string" }, patch: { type: "string" }, scopeIntent: fileToolScopeIntentSchema() },
           anyOf: [{ required: ["patchText"] }, { required: ["patch"] }],
         },
       },

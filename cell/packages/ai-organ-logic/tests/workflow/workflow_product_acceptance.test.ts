@@ -3,7 +3,7 @@ import { access, readFile } from "node:fs/promises"
 import path from "node:path"
 
 import matrix from "./fixtures/workflow-product-acceptance-matrix.json"
-import { WORKFLOW_NATIVE_TOOL_NAMES, planWorkflowExperience } from "../../src/workflow"
+import { WORKFLOW_NATIVE_TOOL_NAMES, assembleWorkflowFulfillmentPrompt } from "../../src/workflow"
 
 const repositoryRoot = path.resolve(import.meta.dir, "../../../../..")
 
@@ -31,14 +31,15 @@ describe("Eidolon final workflow acceptance", () => {
     expect(cli).toContain("'/dev/stdin' to read a heredoc")
     expect(cli).toContain('option("session"')
     expect(cli).toContain("Call WorkflowFulfill exactly once")
+    expect(kernel).toContain("global `sys-ai-workflow`")
     expect(kernel).toContain("WorkflowFulfill")
-    expect(kernel).toContain("若 tool 返回 direct")
   })
 
-  it("routes ordinary requests without requiring internal product fields", () => {
-    const plan = planWorkflowExperience({ request: "并行读取多份访谈，汇总成报告后等待负责人批准。" })
-    expect(plan.route).toBe("composite")
-    expect(plan.userRequiredFields).toEqual(["request"])
-    expect(plan.authorization).toEqual({ publication: "missing", execution: "missing" })
+  it("delegates ordinary request semantics to the system actor", () => {
+    const prompt = assembleWorkflowFulfillmentPrompt({ request: "并行读取多份访谈，汇总成报告后等待负责人批准。" })
+    expect(prompt).toContain("WorkflowLoadStageContext")
+    expect(prompt).toContain('"publication": false')
+    expect(prompt).toContain('"execution": false')
+    expect(prompt).not.toMatch(/approval-process|composite/)
   })
 })

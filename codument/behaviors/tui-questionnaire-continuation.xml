@@ -49,4 +49,15 @@
       </case>
     </suite>
   </requirement>
+  <requirement id="continuation-uses-typed-turn-projection">
+    <statement>Questionnaire continuation SHALL 把 `resumeTurn` 的 `onControl`、`onChunk` 与 runtime history 全部交给通用 turn surface projector，并在 durable resync 时按稳定 identity reconciliation；continuation MUST NOT 把全部 chunk 硬编码为 assist。</statement>
+    <suite id="typed-resume" name="结构化恢复">
+      <case id="resume-preserves-categories-and-tool-identity">
+        <given>问卷恢复后的 turn 发出 turn、think、toolcall、result、assist 与 done 类别以及同一 toolCallId 的 history events</given>
+        <when>TUI 调用 resumeTurn</when>
+        <then>类别 SHALL 进入各自 surface，且同一 tool call 只 SHALL 有一个 ToolPart</then>
+        <then>恢复完成后的 conversation resync MUST NOT 复制已显示卡片</then>
+      </case>
+    </suite>
+  </requirement>
 </behaviors>

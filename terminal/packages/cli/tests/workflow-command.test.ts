@@ -61,7 +61,7 @@ describe("workflow command", () => {
     const calls: any[] = []
     await yargs([
       "workflow", "agent", "调研三个真实来源，综合成报告并等待负责人确认",
-      "--session", "public-trends-session", "--yes", "--json",
+      "--session", "public-trends-session", "--execute", "--json",
     ])
       .scriptName("eidolon")
       .command(createWorkflowCommand({
@@ -92,6 +92,7 @@ describe("workflow command", () => {
       sessionKey: "public-trends-session",
       mcp: false,
       approvalMode: "full-auto",
+      failOnToolError: ["WorkflowFulfill"],
     })
     expect(calls[0].input).toContain("Call WorkflowFulfill exactly once")
     expect(calls[0].input).toContain('"request": "调研三个真实来源，综合成报告并等待负责人确认"')
@@ -186,6 +187,10 @@ describe("workflow command", () => {
       execute: false,
     })
     expect(buildWorkflowCliFulfillInput({ requirement: "生成并执行报告流程", yes: true })).toMatchObject({
+      publish: true,
+      execute: true,
+    })
+    expect(buildWorkflowCliFulfillInput({ requirement: "生成并执行报告流程", execute: true })).toMatchObject({
       publish: true,
       execute: true,
     })

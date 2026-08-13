@@ -33,7 +33,9 @@ export async function spawnChildExecutionActor(
     mode?: "sync_wait" | "detached"
     taskKey?: string
     toolCallId?: string
+    parentToolName?: string
     detachedActorKind?: DetachedActorKind
+    additionalSystemPrompts?: readonly string[]
   },
 ): Promise<string> {
   const config = AgentRegistry.get(vm.registries.agentRegistry, params.agentType)
@@ -77,6 +79,10 @@ export async function spawnChildExecutionActor(
         .filter((m: any) => m?.role === "system")
         .map((m: any) => ({ role: "system" as const, content: String(m.content ?? "") }))
     : config.prompt.map((p) => ({ role: "system" as const, content: p }))
+  systemMessages.push(...(params.additionalSystemPrompts ?? []).map((content) => ({
+    role: "system" as const,
+    content,
+  })))
 
   const shouldStopAfterSingleTool =
     params.detachedActorKind === DETACHED_ACTOR_KINDS.bash
@@ -103,6 +109,9 @@ export async function spawnChildExecutionActor(
       disabledToolKeys: parentActor.toolPolicy.disabledToolKeys,
       computedDisabledTools: parentActor.toolPolicy.computedDisabledTools,
     },
+    contextPolicy: shouldStopAfterSingleTool
+      ? { historyCompaction: "disabled" }
+      : config.contextPolicy,
     callbacks: {
       buildToolset: parentActor.callbacks.buildToolset,
       processStream: parentActor.callbacks.processStream,
@@ -166,6 +175,7 @@ export async function spawnChildExecutionActor(
           parentFiberId: orch.parentFiberId,
           mode,
           toolCallId: typeof params.toolCallId === "string" ? params.toolCallId : undefined,
+          toolName: params.parentToolName,
           taskId: taskId || undefined,
           taskKind: mode === "detached" ? taskKind : undefined,
         },
@@ -199,6 +209,17 @@ export async function spawnChildExecutionActor(
     const now = Date.now()
     driver.resumeFiber(fiberId, now)
     await driver.tickUntilBlocked({ now, maxTicks: 500 })
+
+    const terminalFiber = driver.getState().fibers[fiberId]
+    if (terminalFiber?.status === "failed") {
+      throw new Error(terminalFiber.lastError || `Delegate actor ${actor.key} failed`)
+    }
+    if (terminalFiber?.status === "cancelled") {
+      throw new Error(`Delegate actor ${actor.key} cancelled`)
+    }
+    if (terminalFiber?.status !== "completed") {
+      throw new Error(`Delegate actor ${actor.key} did not reach a terminal completion (${terminalFiber?.status ?? "missing"})`)
+    }
 
     // The conversation domains are the single in-memory truth. `messages` is
     // only the immutable seed handed to the cooperative driver, so scanning it

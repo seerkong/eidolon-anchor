@@ -32,6 +32,8 @@ export type HeadlessExecOptions = {
   outputTracePath?: string;
   autoResume?: boolean;
   maxContinuations?: number;
+  /** Exact tool identities whose structured error result makes this run fail. */
+  failOnToolError?: readonly string[];
   captureProviderRequests?: boolean;
   onVisibleChunk?: (chunk: string) => void | Promise<void>;
   onDiagnosticLine?: (line: string) => void | Promise<void>;
@@ -274,6 +276,9 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
   const startedAtIso = new Date(startedAtMs).toISOString();
   const toolStartedAtByCallId = new Map<string, number>();
   const emittedProcessWarnings = new Set<string>();
+  const fatalToolNames = new Set(options.failOnToolError ?? []);
+  let fatalToolFailure: string | null = null;
+  let fatalToolAbort: Promise<void> | null = null;
 
   appendExecTraceRecord(options.outputTracePath, {
     ts: startedAtIso,
@@ -389,6 +394,19 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
       if (!isError && (toolName === "edit" || toolName === "multiedit" || toolName === "apply_patch" || toolName === "write")) {
         graph.recordFileMutation();
       }
+      if (isError && fatalToolNames.has(toolName)) {
+        const resultText = typeof payload.result === "string" ? payload.result.trim() : "";
+        fatalToolFailure = resultText || `${toolName} failed`;
+        fatalToolAbort ??= runtime.abort().catch(async (abortError) => {
+          const abortMessage = abortError instanceof Error ? abortError.message : String(abortError);
+          await emitProcessWarning(
+            graph,
+            emittedProcessWarnings,
+            options.onDiagnosticLine,
+            `runtime abort after fatal ${toolName} failure failed: ${abortMessage}`,
+          );
+        });
+      }
     }
     const diagnosticLine = formatExecDiagnosticLine(event, toolStartedAtByCallId, nowMs);
     if (diagnosticLine) {
@@ -429,7 +447,9 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
         }
         await runOneTurn(continuationCount === 0 ? "initial" : "resume");
         const turnSnapshot = graph.getSnapshot();
-        if (!turnSnapshot.visibleOutput.trim()) {
+        if (fatalToolFailure) {
+          graph.fail(fatalToolFailure);
+        } else if (!turnSnapshot.visibleOutput.trim()) {
           graph.fail("runtime_turn_completed_without_final_output");
         } else {
           graph.complete();
@@ -437,6 +457,11 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
         break;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
+        if (fatalToolFailure) {
+          await fatalToolAbort;
+          graph.fail(fatalToolFailure);
+          break;
+        }
         if (isRuntimeTurnNotCheckpointSafeError(message)) {
           await runtime.abort().catch((abortError) => {
             const abortMessage = abortError instanceof Error ? abortError.message : String(abortError);
@@ -465,6 +490,7 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
       }
     }
   } finally {
+    await fatalToolAbort;
     historySub?.unsubscribe();
     await disposeSessionRuntimeBridge(sessionKey);
   }

@@ -79,7 +79,7 @@ describe("file tool path access", () => {
     fs.mkdirSync(authorityRoot, { recursive: true })
     const runtime = makeRuntime(workDir, authorityRoot)
 
-    expect(await writeCoreLogic(runtime, { filePath: externalFile, content: "first\nsecond" } as any, {} as any)).toBe(
+    expect(await writeCoreLogic(runtime, { filePath: externalFile, content: "first\nsecond", scopeIntent: "external" } as any, {} as any)).toBe(
       `Error: Path is outside workspace access map: ${externalFile}`,
     )
   })
@@ -100,7 +100,7 @@ describe("file tool path access", () => {
       },
     }
 
-    expect(await lsCoreLogic(runtime, { path: deniedPath } as any, {} as any)).toBe(
+    expect(await lsCoreLogic(runtime, { path: deniedPath, scopeIntent: "external" } as any, {} as any)).toBe(
       `Error: Path is outside workspace access map: ${resolvedDeniedPath}`,
     )
   })
@@ -163,16 +163,21 @@ describe("file tool path access", () => {
       ),
     )
     const runtime = makeRuntime(workDir, authorityRoot)
+    runtime.actor = { key: "main", id: "actor-main" }
 
-    expect(await writeCoreLogic(runtime, { filePath: externalFile, content: "first\nsecond" } as any, {} as any)).toBe(
+    expect(await writeCoreLogic(runtime, { filePath: externalFile, content: "first\nsecond", scopeIntent: "external" } as any, {} as any)).toBe(
       "Wrote file successfully.",
     )
-    expect(await readCoreLogic(runtime, { filePath: externalFile, offset: 1, limit: 10 } as any, {} as any)).toBe(
-      "1: first\n2: second",
+    const readResult = await readCoreLogic(
+      runtime,
+      { filePath: externalFile, offset: 1, limit: 10, scopeIntent: "external" } as any,
+      {} as any,
     )
+    expect(readResult).toContain('<context-resource status="loaded"')
+    expect(readResult).toContain("1: first\n2: second")
     const editResult = await editCoreLogic(
       runtime,
-      { filePath: externalFile, oldString: "second", newString: "third" } as any,
+      { filePath: externalFile, oldString: "second", newString: "third", scopeIntent: "external" } as any,
       {} as any,
     )
     const parsed = JSON.parse(editResult)
@@ -202,6 +207,7 @@ describe("file tool path access", () => {
         runtime,
         {
           patchText: `*** Begin Patch\n*** Update File: ${externalFile}\n@@\n-before\n+after\n*** End Patch\n`,
+          scopeIntent: "external",
         } as any,
         {} as any,
       ),
@@ -232,6 +238,7 @@ describe("file tool path access", () => {
         runtime,
         {
           patchText: `*** Begin Patch\n*** Update File: ${externalFile}\n@@\n-before\n+after\n*** End Patch\n`,
+          scopeIntent: "external",
         } as any,
         {} as any,
       ),

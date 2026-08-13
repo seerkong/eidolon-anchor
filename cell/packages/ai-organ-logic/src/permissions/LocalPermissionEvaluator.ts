@@ -1,5 +1,7 @@
 import path from "path";
 
+import { resolveFileToolScopeIntent, type FileToolScopeIntent } from "./FileToolScope";
+
 import {
   type FileAccessKind,
   type LocalPermissionAction,
@@ -138,6 +140,7 @@ export type WorkspaceAccessApprovalGrant = {
 
 export type LocalPermissionDecision = {
   action: LocalPermissionAction;
+  reasonCode?: "protected_permission_config" | "workspace_scope_violation";
   message?: string;
   fallbackMessage?: string;
   matchedRule?: LocalPermissionRule;
@@ -264,6 +267,7 @@ export function evaluateLocalToolPermission(params: {
       authorityRoot,
       approvalGrant,
       additionalWritableRoots,
+      scopeIntent: resolveFileToolScopeIntent(payload.scopeIntent),
     });
   }
 
@@ -276,6 +280,7 @@ export function evaluateLocalToolPermission(params: {
       authorityRoot,
       approvalGrant,
       additionalWritableRoots,
+      scopeIntent: resolveFileToolScopeIntent(payload.scopeIntent),
     });
   }
 
@@ -288,6 +293,7 @@ export function evaluateLocalToolPermission(params: {
       authorityRoot,
       approvalGrant,
       additionalWritableRoots,
+      scopeIntent: resolveFileToolScopeIntent(payload.scopeIntent),
     });
   }
 
@@ -302,6 +308,7 @@ export function evaluateFilePermission(params: {
   authorityRoot?: string;
   approvalGrant?: LocalPermissionApprovalGrant | WorkspaceAccessApprovalGrant;
   additionalWritableRoots?: string[];
+  scopeIntent?: FileToolScopeIntent;
 }): LocalPermissionDecision {
   const {
     workDir,
@@ -311,18 +318,34 @@ export function evaluateFilePermission(params: {
     authorityRoot,
     approvalGrant,
     additionalWritableRoots = [],
+    scopeIntent = "workspace",
   } = params;
   const resolvedWorkDir = path.resolve(workDir);
   const resolvedPath = resolveRequestedPath(resolvedWorkDir, rawPath);
   const resolvedAdditionalRoots = additionalWritableRoots.map((candidate) => path.resolve(candidate));
+  const outsideWorkspace = !isPathWithin(resolvedPath, resolvedWorkDir);
 
   if (accessKind === "write" && isProtectedPermissionConfigPath(resolvedPath, authorityRoot)) {
     return {
       action: "deny",
+      reasonCode: "protected_permission_config",
       message: "Protected local permission config path cannot be modified via generic file tools",
       permissionName: "edit",
       target: pathPatternInput(resolvedWorkDir, resolvedPath),
       resolvedPath,
+    };
+  }
+
+  if (outsideWorkspace && scopeIntent === "workspace") {
+    return {
+      action: "deny",
+      reasonCode: "workspace_scope_violation",
+      message:
+        `workspace_scope_violation: requested path '${resolvedPath}' is outside workspace '${resolvedWorkDir}'. ` +
+        "Use '.' or a workspace-relative path, or set scopeIntent='external' only for intentional external access.",
+      resolvedPath,
+      permissionName: accessKind === "read" ? "read" : "edit",
+      target: pathPatternInput(resolvedWorkDir, resolvedPath),
     };
   }
 
@@ -335,7 +358,7 @@ export function evaluateFilePermission(params: {
     };
   }
 
-  if (!isPathWithin(resolvedPath, resolvedWorkDir)) {
+  if (outsideWorkspace) {
     const workspaceDecision = evaluateWorkspaceAccessGate({
       workDir: resolvedWorkDir,
       resolvedPath,

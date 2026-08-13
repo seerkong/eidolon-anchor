@@ -88,6 +88,15 @@ describe("read progressive local text resource loading", () => {
     expect(first).toContain('total-lines="4"');
     expect(first).toContain(`size-bytes="${fs.statSync(filePath).size}"`);
     expect(first).toContain("1: alpha\n2: beta");
+    expect(harness.vm.runtimeContext.contextResourcePresentations["read-1"]).toMatchObject({
+      status: "loaded",
+      resourceId: expect.stringContaining("guide.md"),
+      totalLines: 4,
+      sizeBytes: fs.statSync(filePath).size,
+      requestedLines: "1-2",
+      deliveredLines: "1-2",
+      contentText: "1: alpha\n2: beta",
+    });
 
     const repeats = [];
     for (let index = 2; index <= 4; index += 1) {
@@ -99,6 +108,11 @@ describe("read progressive local text resource loading", () => {
       expect(visible).toContain(`size-bytes="${fs.statSync(filePath).size}"`);
       expect(visible).not.toContain("1: alpha");
     }
+    expect(harness.vm.runtimeContext.contextResourcePresentations["read-2"]).toMatchObject({
+      status: "already-visible",
+      requestedLines: "1-2",
+    });
+    expect(harness.vm.runtimeContext.contextResourcePresentations["read-2"].contentText).toBeUndefined();
     expect([first, ...repeats].join("\n").match(/1: alpha/g)).toHaveLength(1);
 
     const expanded = await harness.read("read-5", { filePath: "guide.md", offset: 1, limit: 4 });

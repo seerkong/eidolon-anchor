@@ -4,6 +4,10 @@ import type { AiAgentVm } from "@cell/ai-core-logic/runtime/runtime"
 import { SkillRegistry } from "@cell/ai-core-logic/runtime/SkillRegistry"
 import path from "path"
 import { buildBuiltinToolDefs, INTERNAL_ONLY_BUILTIN_TOOL_NAMES } from "./ToolFuncBuiltin"
+import {
+  loadSkillEntriesWithSystemAuthority,
+  resolveEidolonGlobalRootFromOuterContext,
+} from "@cell/ai-support/system-skill/SystemSkillInstaller"
 
 const DYNAMIC_TOOL_NAMES = new Set(["RunDelegateActor", "Skill"])
 const INTERNAL_ONLY_TOOL_NAMES = INTERNAL_ONLY_BUILTIN_TOOL_NAMES
@@ -71,8 +75,10 @@ export function buildToolset(
     if (typeof workDir !== "string" || !workDir.trim()) {
       return "(workDir not configured; skill list unavailable)"
     }
-    const skillsDir = path.join(workDir, ".eidolon", "skills")
-    SkillRegistry.reloadFromDir(vm.registries.skillRegistry, skillsDir)
+    SkillRegistry.reload(vm.registries.skillRegistry, loadSkillEntriesWithSystemAuthority({
+      globalRoot: resolveEidolonGlobalRootFromOuterContext(vm.outerCtx),
+      workspaceRoot: workDir,
+    }))
     return SkillRegistry.getDescriptions(vm.registries.skillRegistry)
   })()
 

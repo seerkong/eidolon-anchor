@@ -257,9 +257,14 @@ describe("headless exec", () => {
     expect(actorAfter.id).toBe(actorBefore.id)
     expect(actorAfter.systemPrompts).toEqual(["profile prompt v2"])
     expect(recoveredMessages.some((message) => message.role === "system" && message.content === "profile prompt v2")).toBe(true)
-    expect(recoveredMessages.some((message) => message.role === "user" && message.content === "first persisted input")).toBe(true)
+    const providerText = (content: unknown): string => typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content.map((part) => typeof part?.text === "string" ? part.text : "").join("")
+        : ""
+    expect(recoveredMessages.some((message) => message.role === "user" && providerText(message.content) === "first persisted input")).toBe(true)
     expect(recoveredMessages.some((message) => message.role === "assistant" && message.content === "first reply")).toBe(true)
-    expect(recoveredMessages.some((message) => message.role === "user" && message.content === "second input after recovery")).toBe(true)
+    expect(recoveredMessages.some((message) => message.role === "user" && providerText(message.content) === "second input after recovery")).toBe(true)
   })
 
   it("does not overwrite an existing last-message file for failed exec results", async () => {
@@ -309,6 +314,54 @@ describe("headless exec", () => {
     expect(result.visibleOutput).toContain("Error: provider quota exceeded")
     expect(visibleChunks.join("")).toContain("Error: provider quota exceeded")
     expect(result.finalMessage).toBeNull()
+  })
+
+  it("aborts the active turn immediately when an exact fatal tool identity fails", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+
+    let providerCalls = 0
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream() {
+        providerCalls += 1
+        async function* stream() {
+          if (providerCalls === 1) {
+            yield {
+              choices: [{
+                delta: {
+                  tool_calls: [{
+                    index: 0,
+                    id: "tc-fatal-read",
+                    type: "function",
+                    function: {
+                      name: "read",
+                      arguments: JSON.stringify({ filePath: "missing-fatal-input.txt" }),
+                    },
+                  }],
+                },
+              }],
+            } as any
+            return
+          }
+          yield { choices: [{ delta: { content: "must not retry after fatal tool failure" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    const result = await runHeadlessExec({
+      workDir: activeWorkdir,
+      input: "read a missing required input",
+      mcp: false,
+      failOnToolError: ["read"],
+    })
+
+    expect(result.status).toBe("failed")
+    expect(result.failureSummary).toContain("missing-fatal-input.txt")
+    expect(result.visibleOutput).not.toContain("must not retry")
+    expect(providerCalls).toBe(1)
   })
 
   it("reports paused_with_progress when the runtime turn times out before a safepoint", async () => {

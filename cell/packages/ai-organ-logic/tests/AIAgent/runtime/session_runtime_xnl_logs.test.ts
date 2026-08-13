@@ -11,6 +11,42 @@ import {
 } from "@cell/ai-organ-logic/runtime/SessionRuntimeXnlLogs"
 
 describe("session runtime xnl logs", () => {
+  it("persists aggregate reasoning metrics by default and only capped expiring raw debug text", async () => {
+    const sessionDir = await fs.mkdtemp(path.join(os.tmpdir(), "eidolon-reasoning-retention-"))
+    const ingress = new IngressStreams()
+    const binding = bindIngressStreamsToSessionXnlLog({ sessionDir, ingressStreams: ingress })
+    await ingress.think.send("think", "RAW_REASONING_SECRET")
+    await binding.flush()
+    binding.dispose()
+
+    const ingressRaw = await fs.readFile(path.join(sessionDir, "logs", "ingress.xnl"), "utf8")
+    expect(ingressRaw).toContain("ReasoningAggregate")
+    expect(ingressRaw).toContain("characterCount = 20")
+    expect(ingressRaw).not.toContain("RAW_REASONING_SECRET")
+
+    const diagnostics = createSessionDiagnosticsXnlLog({ sessionDir })
+    diagnostics.appendSemanticEvent({ event_type: "semantic_think_delta", text: "DIAGNOSTIC_SECRET" } as any)
+    await diagnostics.flush()
+    const diagnosticsRaw = await fs.readFile(path.join(sessionDir, "logs", "diagnostics.xnl"), "utf8")
+    expect(diagnosticsRaw).toContain("ReasoningAggregate")
+    expect(diagnosticsRaw).not.toContain("DIAGNOSTIC_SECRET")
+
+    const debugDir = await fs.mkdtemp(path.join(os.tmpdir(), "eidolon-reasoning-debug-retention-"))
+    const debugIngress = new IngressStreams()
+    const debug = bindIngressStreamsToSessionXnlLog({
+      sessionDir: debugDir,
+      ingressStreams: debugIngress,
+      reasoningRetention: { mode: "debug", maxCharacters: 4, expiresAt: Date.now() + 60_000 },
+    })
+    await debugIngress.think.send("think", "SECRET")
+    await debug.flush()
+    debug.dispose()
+    const debugRaw = await fs.readFile(path.join(debugDir, "logs", "reasoning-debug.xnl"), "utf8")
+    expect(debugRaw).toContain("SECR")
+    expect(debugRaw).not.toContain("SECRET")
+    expect(debugRaw).toContain("expiresAt")
+  })
+
   it("appends ingress stream events under session logs", async () => {
     const sessionDir = await fs.mkdtemp(path.join(os.tmpdir(), "eidolon-ingress-xnl-"))
     const ingress = new IngressStreams()

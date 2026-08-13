@@ -1,0 +1,63 @@
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/workflow-agent-runtime-reliability">
+    <requirement id="workflow-agent-runtime-reliability">
+      <statement>The system SHALL complete AI Workflow actor journeys with authoritative terminal state, lossless tool-call identity, bounded observable progress and a non-empty structured result.</statement>
+      <suite id="terminal-semantics" name="Authoritative terminal semantics">
+        <case id="provider-failure-propagates">
+          <given>A workflow delegate provider completion fails or exhausts its retry policy</given>
+          <when>The delegate reaches a terminal state</when>
+          <then>The child fiber and parent workflow tool SHALL observe a structured failure and MUST NOT report completed</then>
+        </case>
+        <case id="domain-materialized-output">
+          <given>A workflow delegate completes with assistant history in the Conversation Domain</given>
+          <when>The orchestrator emits child-done output to the parent</when>
+          <then>The output SHALL be materialized from the authoritative Conversation Domain rather than a compatibility message mirror</then>
+        </case>
+        <case id="reject-empty-success">
+          <given>A child has no business result, wait status, proof status or structured failure</given>
+          <when>The high-level workflow tool resolves</when>
+          <then>The system MUST reject the result as incomplete instead of returning an empty success</then>
+        </case>
+      </suite>
+      <suite id="tool-stream" name="Lossless tool-call streaming">
+        <case id="parallel-same-name-calls">
+          <given>A provider streams multiple parallel calls to the same workflow tool</given>
+          <when>The Chat Completions stream reducer reconstructs tool calls</when>
+          <then>Each call SHALL retain a distinct identity, name and JSON argument stream without concatenation</then>
+        </case>
+        <case id="missing-index-contract">
+          <given>A provider omits or conflicts on a parallel tool-call index</given>
+          <when>The adapter cannot establish an unambiguous call identity</when>
+          <then>The system SHALL apply a documented provider-specific normalization or return a structured protocol error and MUST NOT merge calls silently</then>
+        </case>
+      </suite>
+      <suite id="bounded-progress" name="Bounded workflow progress">
+        <case id="authoring-progress-budget">
+          <given>A workflow actor is authoring a definition</given>
+          <when>model turns continue without workspace revision, proof, wait or result progress</when>
+          <then>The journey SHALL stop within a configured stage budget and return structured diagnostics</then>
+        </case>
+        <case id="structured-stage-outcome">
+          <given>A workflow authoring or run actor completes a model turn</given>
+          <when>No native tool effect was produced</when>
+          <then>The actor SHALL return a non-empty structured stage outcome and MUST NOT treat free-form empty text as completion</then>
+        </case>
+        <case id="bounded-proof-repair">
+          <given>Definition validation or dry-run returns diagnostics</given>
+          <when>The workflow actor attempts correction</when>
+          <then>The repair loop SHALL obey an explicit attempt limit and stage deadline and SHALL return the preserved workspace plus diagnostics when exhausted</then>
+        </case>
+        <case id="interactive-timeout-budget">
+          <given>A provider first-event timeout occurs during an interactive workflow stage</given>
+          <when>The retry policy is evaluated</when>
+          <then>The effective retry and stage deadline SHALL remain within the workflow product latency budget</then>
+        </case>
+        <case id="four-mount-contract">
+          <given>An authoring session exposes `/base`, `/refs`, `/work` and `/out`</given>
+          <when>A mount is empty or inspected with the wrong operation</when>
+          <then>The native workspace tool SHALL return a consistent empty-directory or structured operation diagnostic instead of an unexplained missing-path failure</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

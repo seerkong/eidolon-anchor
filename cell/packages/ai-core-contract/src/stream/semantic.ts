@@ -125,6 +125,7 @@ export type SemanticToolCallResultEvent =
   SemanticEventBase<"semantic_tool_call_result"> & {
     tool_call: ToolCallData;
     output_text: string;
+    output_metadata?: Record<string, unknown>;
     is_error: boolean;
   };
 

@@ -18,6 +18,7 @@ import {
 import { buildWorkflowValidateResourceRefToolDef } from "./WorkflowValidateResourceRef"
 import { buildWorkflowWorkspaceToolDef } from "./WorkflowWorkspace"
 import { buildWorkflowLifecycleToolDefs } from "./WorkflowLifecycleTools"
+import { buildWorkflowLoadStageContextToolDef } from "./WorkflowLoadStageContext"
 
 export { buildWorkflowCreateBundleToolDef } from "./WorkflowCreateBundle"
 export { buildWorkflowFulfillToolDef } from "./WorkflowFulfill"
@@ -38,9 +39,11 @@ export {
 export { buildWorkflowValidateResourceRefToolDef } from "./WorkflowValidateResourceRef"
 export { buildWorkflowWorkspaceToolDef } from "./WorkflowWorkspace"
 export { buildWorkflowLifecycleToolDefs } from "./WorkflowLifecycleTools"
+export { buildWorkflowLoadStageContextToolDef } from "./WorkflowLoadStageContext"
 
 export const WORKFLOW_NATIVE_TOOL_NAMES = [
   "WorkflowFulfill",
+  "WorkflowLoadStageContext",
   "WorkflowAuthor",
   "WorkflowGetAuthoringContext",
   "WorkflowListAuthoringTemplates",
@@ -49,6 +52,8 @@ export const WORKFLOW_NATIVE_TOOL_NAMES = [
   "WorkflowOpenAuthoringSession",
   "WorkflowValidateAuthoringSession",
   "WorkflowDryRunAuthoringSession",
+  "WorkflowPreparePublication",
+  "WorkflowCompleteAuthoring",
   "WorkflowPublishAuthoringSession",
   "WorkflowListAuthoringSessions",
   "WorkflowGetAuthoringSummary",
@@ -85,6 +90,7 @@ export const WORKFLOW_NATIVE_TOOL_NAMES = [
 export function buildWorkflowNativeToolDefs(): AnyToolDef[] {
   return [
     buildWorkflowFulfillToolDef(),
+    buildWorkflowLoadStageContextToolDef(),
     buildWorkflowAuthorToolDef(),
     ...buildWorkflowAuthoringToolDefs(),
     buildWorkflowWorkspaceToolDef(),

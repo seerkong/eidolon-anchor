@@ -17,6 +17,7 @@ export class ToolCallAccumulator {
 
 export type ChatCompletionsStreamState = {
   toolCalls: Record<number, ToolCallAccumulator>;
+  protocolFailures: ChatCompletionsProtocolFailure[];
   thinkBuffer: string;
   reasoningContentBuffer: string;
   reasoningContentObserved: boolean;
@@ -26,6 +27,25 @@ export type ChatCompletionsStreamState = {
   inThink: boolean;
   lastChunkFingerprint: string | null;
 };
+
+export type ChatCompletionsProtocolFailure = {
+  code: "ambiguous_tool_call_identity" | "invalid_tool_call_index" | "conflicting_tool_call_identity" | "invalid_tool_call_payload";
+  message: string;
+  delta?: unknown;
+};
+
+export class ChatCompletionsProtocolError extends Error {
+  readonly code: ChatCompletionsProtocolFailure["code"];
+  readonly failures: readonly ChatCompletionsProtocolFailure[];
+
+  constructor(failures: readonly ChatCompletionsProtocolFailure[]) {
+    const first = failures[0] ?? { code: "invalid_tool_call_payload" as const, message: "unknown protocol failure" };
+    super(`${first.code}: ${first.message}`);
+    this.name = "ChatCompletionsProtocolError";
+    this.code = first.code;
+    this.failures = failures;
+  }
+}
 
 export type ChatCompletionsStreamReduction = {
   state: ChatCompletionsStreamState;
@@ -58,6 +78,7 @@ const DEFAULT_CHAT_COMPLETIONS_REASONING_POLICY: ChatCompletionsStreamReasoningP
 export function createChatCompletionsStreamState(): ChatCompletionsStreamState {
   return {
     toolCalls: {},
+    protocolFailures: [],
     thinkBuffer: "",
     reasoningContentBuffer: "",
     reasoningContentObserved: false,
@@ -97,8 +118,8 @@ export function reduceChatCompletionsChunk(
   );
   if (content) reduceContent(state, events, content, reasoningPolicy);
   if (Array.isArray(delta.tool_calls)) {
-    for (const toolCall of delta.tool_calls) {
-      reduceToolCallDelta(state, toolCall);
+    for (const [ordinal, toolCall] of delta.tool_calls.entries()) {
+      reduceToolCallDelta(state, toolCall, ordinal, delta.tool_calls.length);
     }
   }
   return { state, events };
@@ -127,7 +148,27 @@ export function buildChatCompletionsAssistantMessage(
 export function buildChatCompletionsToolCalls(
   state: ChatCompletionsStreamState,
 ): any[] {
-  return Object.values(state.toolCalls).map((toolCall) => ({
+  const failures = [...(state.protocolFailures ?? [])];
+  for (const [index, toolCall] of orderedToolCallEntries(state)) {
+    if (!toolCall.id || !toolCall.functionName) {
+      failures.push({
+        code: "invalid_tool_call_payload",
+        message: `tool call ${index} is missing id or function name`,
+      });
+    }
+    if (toolCall.functionArguments) {
+      try {
+        JSON.parse(toolCall.functionArguments);
+      } catch {
+        failures.push({
+          code: "invalid_tool_call_payload",
+          message: `tool call ${toolCall.id || index} has invalid JSON arguments`,
+        });
+      }
+    }
+  }
+  if (failures.length) throw new ChatCompletionsProtocolError(failures);
+  return orderedToolCallEntries(state).map(([, toolCall]) => ({
     id: toolCall.id,
     type: toolCall.type,
     function: {
@@ -151,36 +192,20 @@ export function normalizeChatCompletionsContent(content: unknown): string {
 
 export function fingerprintChatCompletionsChunk(
   choice: any,
-  delta: any,
+  _delta: any,
   chunk: any,
 ): string | null {
-  const normalized = {
-    reasoning_details:
-      firstNonEmptyArray(
-        chunk?.reasoning_details,
-        choice?.reasoning_details,
-        delta?.reasoning_details,
-      ) ?? undefined,
-    reasoning_content:
-      delta?.reasoning_content ??
-      choice?.reasoning_content ??
-      chunk?.reasoning_content ??
-      undefined,
-    content: delta?.content ?? undefined,
-    tool_calls:
-      Array.isArray(delta?.tool_calls) && delta.tool_calls.length > 0
-        ? delta.tool_calls
-        : undefined,
-    finish_reason: choice?.finish_reason ?? undefined,
-  };
-  if (Object.values(normalized).every((value) => value === undefined)) {
+  // Equal adjacent deltas are not duplicates: token streams may legitimately
+  // emit the same fragment twice (for example the two closing braces of a
+  // nested JSON tool argument). Deduplicate only when the provider supplies an
+  // explicit per-event identity; the standard completion `id` is shared by all
+  // chunks and therefore cannot serve as an event identity.
+  const eventId = chunk?.event_id ?? choice?.event_id;
+  if ((typeof eventId !== "string" && typeof eventId !== "number") || String(eventId).length === 0) {
     return null;
   }
-  try {
-    return JSON.stringify(normalized);
-  } catch {
-    return null;
-  }
+  const completionId = typeof chunk?.id === "string" ? chunk.id : "";
+  return `${completionId}:${String(eventId)}`;
 }
 
 function cloneChatCompletionsStreamState(
@@ -194,6 +219,7 @@ function cloneChatCompletionsStreamState(
         { ...toolCall },
       ]),
     ),
+    protocolFailures: [...(state.protocolFailures ?? [])],
     reasoningDetails: [...state.reasoningDetails],
   };
 }
@@ -273,19 +299,85 @@ function reduceContent(
 function reduceToolCallDelta(
   state: ChatCompletionsStreamState,
   delta: any,
+  ordinal: number,
+  batchSize: number,
 ): void {
-  const index = Number(delta?.index ?? 0);
+  const index = resolveToolCallIndex(state, delta, ordinal, batchSize);
+  if (index === null) return;
   const current = state.toolCalls[index] ?? new ToolCallAccumulator();
   const next = { ...current };
-  if (delta?.id) next.id = String(delta.id);
+  if (delta?.id) {
+    const id = String(delta.id);
+    if (next.id && next.id !== id) {
+      state.protocolFailures.push({
+        code: "conflicting_tool_call_identity",
+        message: `tool call index ${index} changed id from ${next.id} to ${id}`,
+        delta,
+      });
+      return;
+    }
+    next.id = id;
+  }
   if (delta?.type) next.type = String(delta.type);
   if (delta?.function) {
-    if (delta.function.name) next.functionName += String(delta.function.name);
+    if (delta.function.name) {
+      const name = String(delta.function.name);
+      if (!next.functionName) next.functionName = name;
+      else if (next.functionName !== name) next.functionName += name;
+    }
     if (delta.function.arguments) {
       next.functionArguments += String(delta.function.arguments);
     }
   }
   state.toolCalls[index] = next;
+}
+
+function orderedToolCallEntries(state: ChatCompletionsStreamState): Array<[number, ToolCallAccumulator]> {
+  return Object.entries(state.toolCalls)
+    .map(([index, value]) => [Number(index), value] as [number, ToolCallAccumulator])
+    .sort(([left], [right]) => left - right);
+}
+
+function nextToolCallIndex(state: ChatCompletionsStreamState): number {
+  const indices = orderedToolCallEntries(state).map(([index]) => index);
+  return indices.length ? Math.max(...indices) + 1 : 0;
+}
+
+function resolveToolCallIndex(
+  state: ChatCompletionsStreamState,
+  delta: any,
+  ordinal: number,
+  batchSize: number,
+): number | null {
+  if (delta?.index !== undefined && delta?.index !== null) {
+    const explicit = Number(delta.index);
+    if (Number.isInteger(explicit) && explicit >= 0) return explicit;
+    state.protocolFailures.push({
+      code: "invalid_tool_call_index",
+      message: `tool call index must be a non-negative integer, received ${String(delta.index)}`,
+      delta,
+    });
+    return null;
+  }
+
+  const id = typeof delta?.id === "string" && delta.id ? delta.id : undefined;
+  if (id) {
+    const existing = orderedToolCallEntries(state).find(([, toolCall]) => toolCall.id === id);
+    return existing?.[0] ?? nextToolCallIndex(state);
+  }
+
+  const ordered = orderedToolCallEntries(state);
+  if (batchSize > 1 && ordinal < ordered.length) return ordered[ordinal]![0];
+  if (ordered.length === 1) return ordered[0]![0];
+
+  state.protocolFailures.push({
+    code: "ambiguous_tool_call_identity",
+    message: ordered.length === 0
+      ? "tool call delta omitted both index and id before any call identity was established"
+      : `tool call delta omitted both index and id while ${ordered.length} calls were active`,
+    delta,
+  });
+  return null;
 }
 
 function splitThinkSegments(

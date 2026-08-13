@@ -1,0 +1,63 @@
+<behavior-patch capability="eidolon-ai-workflow-native-capability" version="1">
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/workflow-fulfill-terminal-continuation">
+    <requirement id="workflow-fulfill-terminal-continuation">
+      <statement>The system SHALL preserve provider/actor terminal authority and continue multi-turn WorkflowFulfill business context without deterministic semantic routing.</statement>
+      <suite id="terminal-authority" name="Terminal authority">
+        <case id="failure-after-partial-content">
+          <given>A workflow child has emitted partial assistant content and its next provider completion fails</given>
+          <when>The child reaches terminal processing</when>
+          <then>The child and parent tool MUST report structured failure; the partial content MUST NOT become a successful final result</then>
+        </case>
+        <case id="sync-wait-single-writer">
+          <given>A synchronous WorkflowFulfill child is still running</given>
+          <when>The spawn command returns its wait control marker</when>
+          <then>The marker MUST NOT commit an empty tool result and childDone SHALL be the sole terminal writer</then>
+        </case>
+        <case id="business-failure-projection">
+          <given>The workflow child terminal message is failed or cancelled</given>
+          <when>The parent and CLI project the business journey result</when>
+          <then>The result MUST contain a non-empty failure and MUST NOT report completed with a null failure summary</then>
+        </case>
+      </suite>
+      <suite id="continuation" name="Multi-turn continuation">
+        <case id="prior-business-context">
+          <given>A later WorkflowFulfill turn confirms or adjusts a plan from earlier conversation</given>
+          <when>A fresh dedicated workflow actor is spawned</when>
+          <then>The actor SHALL receive a bounded role-ordered projection of prior business conversation from Conversation Domain</then>
+        </case>
+        <case id="authorization-not-inherited">
+          <given>Prior conversation includes discussion of publication or execution</given>
+          <when>The current structured invocation has publication or execution authorization false</when>
+          <then>The actor MUST treat the current structured booleans as authoritative and MUST NOT inherit authorization from historical text</then>
+        </case>
+        <case id="no-host-semantics">
+          <given>Host code prepares continuation context</given>
+          <when>It selects and bounds prior messages</when>
+          <then>It MUST use structural role/order/size rules and MUST NOT use regex, keyword or fuzzy business matching</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+  <upsert selector="behavior://eidolon-ai-workflow-native-capability/requirements/workflow-effect-capability-authority">
+    <requirement id="workflow-effect-capability-authority">
+      <statement>The AI Workflow Skill SHALL expose exact runtime effect capabilities while the model owns semantic tool and workflow design.</statement>
+      <suite id="effect-capability" name="Exact effect capability authority">
+        <case id="model-owned-effect-design">
+          <given>A workflow needs an external business effect</given>
+          <when>The workflow actor authors dynamic flow code</when>
+          <then>The model SHALL select the tool, arguments, parsing and failure policy from the system Skill without host natural-language matching</then>
+        </case>
+        <case id="exact-runtime-operations">
+          <given>Dynamic flow code invokes the Eidolon effect provider</given>
+          <when>The runtime dispatches the request</when>
+          <then>The operation MUST be one of identity, tool.call, ai.agent, material.read or material.write; registered web access SHALL use tool.call with webfetch</then>
+        </case>
+        <case id="honest-all-source-failure">
+          <given>A multi-source workflow permits partial source degradation</given>
+          <when>All required sources fail</when>
+          <then>The workflow MUST enter Failed and MUST NOT render an empty or fabricated success report</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

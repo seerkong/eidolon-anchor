@@ -1,0 +1,3 @@
+<ToolPrompt #WorkflowLoadStageContext.brief>
+  <usage ?>Load the authoritative global sys-ai-workflow context for one explicit DevOps stage.</?>
+</ToolPrompt>

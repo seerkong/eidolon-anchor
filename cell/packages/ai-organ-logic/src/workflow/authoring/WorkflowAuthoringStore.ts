@@ -9,10 +9,13 @@ export type WorkflowAuthoringFile = {
 
 export interface WorkflowAuthoringStore {
   readonly rootPath: string
+  kind(relativePath: string): Promise<"file" | "directory" | "missing">
+  ensureDirectory(relativePath: string): Promise<void>
   read(relativePath: string): Promise<string>
   tree(relativePath?: string): Promise<string[]>
   writeAtomic(relativePath: string, content: string): Promise<void>
   replaceTreeAtomic(relativeRoot: string, files: readonly WorkflowAuthoringFile[]): Promise<void>
+  withExclusiveLock<T>(relativePath: string, action: () => Promise<T>): Promise<T>
   delete(relativePath: string): Promise<void>
 }
 
@@ -75,6 +78,27 @@ export class NodeWorkflowAuthoringStore implements WorkflowAuthoringStore {
         throw error
       }
     }
+  }
+
+  async kind(relativePath: string): Promise<"file" | "directory" | "missing"> {
+    await this.assertNoSymlinkPath(relativePath, true)
+    try {
+      const info = await stat(this.resolve(relativePath, true))
+      if (info.isDirectory()) return "directory"
+      if (info.isFile()) return "file"
+      return "missing"
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return "missing"
+      throw error
+    }
+  }
+
+  async ensureDirectory(relativePath: string): Promise<void> {
+    await this.assertNoSymlinkPath(relativePath, true)
+    const target = this.resolve(relativePath, true)
+    const current = await this.kind(relativePath)
+    if (current === "file") throw new Error(`Workflow authoring directory path is a file: ${relativePath}`)
+    await mkdir(target, { recursive: true })
   }
 
   async read(relativePath: string): Promise<string> {
@@ -152,16 +176,52 @@ export class NodeWorkflowAuthoringStore implements WorkflowAuthoringStore {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
       }
       await rename(staging, destination)
-      if (backedUp) await rm(backup, { recursive: true, force: true })
+      if (backedUp) {
+        await rm(backup, { recursive: true, force: true })
+        backedUp = false
+      }
     } catch (error) {
       if (backedUp) {
-        await rm(destination, { recursive: true, force: true }).catch(() => undefined)
-        await rename(backup, destination).catch(() => undefined)
+        try {
+          await rm(destination, { recursive: true, force: true })
+          await rename(backup, destination)
+          backedUp = false
+        } catch (restoreError) {
+          throw new AggregateError(
+            [error, restoreError],
+            `Workflow authoring tree swap failed and backup recovery also failed; backup retained at ${backup}`,
+          )
+        }
       }
       throw error
     } finally {
       await rm(staging, { recursive: true, force: true }).catch(() => undefined)
-      await rm(backup, { recursive: true, force: true }).catch(() => undefined)
+      if (!backedUp) await rm(backup, { recursive: true, force: true }).catch(() => undefined)
+    }
+  }
+
+  async withExclusiveLock<T>(relativePath: string, action: () => Promise<T>): Promise<T> {
+    const safePath = assertRelativePath(relativePath)
+    const lockPath = this.resolve(safePath)
+    await this.assertNoSymlinkPath(safePath, true)
+    await mkdir(path.dirname(lockPath), { recursive: true })
+    const acquireDeadline = Date.now() + 10_000
+    while (true) {
+      try {
+        await mkdir(lockPath)
+        break
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+        if (Date.now() >= acquireDeadline) {
+          throw new Error(`Workflow authoring lock timeout: ${safePath}`)
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10))
+      }
+    }
+    try {
+      return await action()
+    } finally {
+      await rm(lockPath, { recursive: true, force: true })
     }
   }
 

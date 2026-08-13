@@ -68,6 +68,7 @@ function workflowRef(descriptor: WorkflowRunDescriptor) {
 
 export class AIDataWorkflowRuntimeDriver {
   private graph?: AIDataWorkflowRunGraph
+  private activeRunAuthority: AIWorkflowRunRef
   private readonly code = createFilesystemCodeResolver<any>((specifier) => import(specifier))
   private readonly aiRuntime: ReturnType<typeof createAIDataWorkflowRuntime>
 
@@ -80,6 +81,7 @@ export class AIDataWorkflowRuntimeDriver {
     roots: { globalRoot: string; workspaceRoot: string },
     onMaterialWrite?: ConstructorParameters<typeof EidolonWorkflowEffectProvider>[3],
   ) {
+    this.activeRunAuthority = this.runRef(descriptor.generation)
     this.aiRuntime = createAIDataWorkflowRuntime({
       ai: {
         roots,
@@ -89,8 +91,9 @@ export class AIDataWorkflowRuntimeDriver {
           new StoreBackedWorkflowMaterialAccess(workspace.store),
           facts,
           onMaterialWrite,
+          () => this.activeRunAuthority,
         ),
-        metadata: { run: this.runRef() },
+        metadata: { run: this.activeRunAuthority },
       },
     })
   }
@@ -303,25 +306,23 @@ export class AIDataWorkflowRuntimeDriver {
     return record(entry?.result?.output)
   }
 
-  private runRef(): AIWorkflowRunRef {
-    return {
-      workflow: workflowRef(this.descriptor),
+  private runRef(generation = this.descriptor.generation): AIWorkflowRunRef {
+    return Object.freeze({
+      workflow: Object.freeze(workflowRef(this.descriptor)),
       runId: this.descriptor.runId,
-      generation: this.descriptor.generation,
-    }
+      generation,
+    })
   }
 
   private runtimeForGeneration(generation: number): ReturnType<typeof createAIDataWorkflowRuntime> {
+    this.activeRunAuthority = this.runRef(generation)
     return {
       ...this.aiRuntime,
       ai: {
         ...this.aiRuntime.ai,
         metadata: {
           ...this.aiRuntime.ai.metadata,
-          run: {
-            ...this.runRef(),
-            generation,
-          },
+          run: this.activeRunAuthority,
         },
       },
     }

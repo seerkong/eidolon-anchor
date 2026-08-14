@@ -145,3 +145,8 @@ frontend/packages/react/public/**
 !frontend/packages/react/public/.gitkeep
 codument/**/analysis
 codument/**/reports
+
+# Zig build artifacts
+**/zig-out/
+**/.zig-cache/
+**/windows-sandbox-runner/dist/

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<behavior-patch capability="windows-sandbox-runner" version="1">
+  <upsert selector="behavior://windows-sandbox-runner/requirements/restricted-token-isolation">
+    <requirement id="restricted-token-isolation">
+      <statement>Windows 沙箱 SHALL 由原生 Zig runner（eidolon-windows-sandbox-runner.exe）实现：以 CreateRestrictedToken（DISABLE_MAX_PRIVILEGE|LUA_TOKEN|WRITE_RESTRICTED）+ capability SIDs 派生受限令牌，并用 CreateProcessAsUserW 以受限令牌启动命令；workspace root 的 ACL SHALL 只对 capability SID 授权写，.git/.eidolon 等受保护目录 SHALL 加 deny-write ACE；network_access=disabled 时 SHALL 由 elevated setup 安装的 WFP 过滤器拦截出站连接。SandboxBackendRuntime 的 restricted-token 分支 SHALL 真正 spawn runner（而非返回 not-implemented error）。</statement>
+      <suite id="restricted-token-isolation" name="Restricted-token isolation">
+        <case id="restricted-token-created">
+          <given>runner 以 workspace-write 模式启动</given>
+          <when>构造受限令牌</when>
+          <then>SHALL 用 CreateRestrictedToken + capability SIDs 创建受限令牌</then>
+          <then>SHALL 用 CreateProcessAsUserW 以受限令牌启动命令</then>
+        </case>
+        <case id="write-outside-workspace-denied">
+          <given>受限进程尝试写 workspace 外路径</given>
+          <when>写入受限进程</when>
+          <then>SHALL 因 ACL 失败（workspace 外无写权限）</then>
+        </case>
+        <case id="protected-dir-deny-write">
+          <given>workspace 内含 .git/.eidolon</given>
+          <when>受限进程尝试写这些目录</when>
+          <then>SHALL 被 deny-write ACE 拒绝</then>
+        </case>
+        <case id="network-disabled-blocks">
+          <given>network_access=disabled 且 elevated setup 已完成</given>
+          <when>受限进程发起出站连接</when>
+          <then>SHALL 被 WFP 过滤器拦截</then>
+        </case>
+        <case id="restricted-token-branch-spawns-runner">
+          <given>SandboxBackendRuntime 的 windowsSandboxLevel=restricted-token</given>
+          <when>bash 执行</when>
+          <then>SHALL spawn eidolon-windows-sandbox-runner（而非返回 not-implemented error）</then>
+        </case>
+      </suite>
+    </requirement>
+  </upsert>
+</behavior-patch>

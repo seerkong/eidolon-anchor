@@ -38,6 +38,7 @@
     "@terminal/organ": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",
     "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-organ-logic": "workspace:*",
     "@cell/ai-support": "workspace:*",
     "@cell/mod-profiles": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",

@@ -156,6 +156,18 @@ function install(options: CliOptions): void {
   });
   console.log(`  Native runtime copied successfully.`);
 
+  // Copy the native Windows sandbox helpers next to the installed binary so
+  // the restricted-token / elevated sandbox backends can spawn them.
+  if (isWindows) {
+    for (const helper of ["eidolon-windows-sandbox-runner.exe", "eidolon-windows-sandbox-setup.exe"]) {
+      const srcHelper = join(projectRoot, "dist", "terminal", "tui", helper);
+      if (existsSync(srcHelper)) {
+        copyFileSync(srcHelper, join(targetDir, helper));
+        console.log(`  Copied sandbox helper: ${helper}`);
+      }
+    }
+  }
+
   // Check if target directory is in PATH
   const pathEnv = process.env.PATH || "";
   const pathDirs = pathEnv.split(isWindows ? ";" : ":");

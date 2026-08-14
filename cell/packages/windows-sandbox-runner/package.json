@@ -1,0 +1,13 @@
+{
+  "name": "@cell/windows-sandbox-runner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native Zig Windows sandbox runner (RestrictedToken + capability SID + ACL + WFP).",
+  "bin": {
+    "eidolon-windows-sandbox-runner": "dist/eidolon-windows-sandbox-runner.exe",
+    "eidolon-windows-sandbox-setup": "dist/eidolon-windows-sandbox-setup.exe"
+  },
+  "scripts": {
+    "build": "bun run scripts/build.zig.ts"
+  }
+}

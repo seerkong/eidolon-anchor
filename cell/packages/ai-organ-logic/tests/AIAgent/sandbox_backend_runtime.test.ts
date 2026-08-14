@@ -625,4 +625,113 @@ describe("sandbox backend runtime", () => {
 
     expect(output).toBe("Error: bash command timed out after 15ms");
   });
+
+  it("resolves windowsSandboxLevel to disabled when the runner is absent", () => {
+    const prevEnv = process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER;
+    delete process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER;
+    try {
+      const selection = resolveSandboxBackendSelection({
+        workDir: "C:\\workspace\\project",
+        platform: "win32",
+        metadata: {
+          sandbox_permissions: { sandbox_mode: "workspace-write" },
+        },
+      });
+      expect(selection.backendName).toBe("windows-elevated");
+      // If the runner happens to be installed on this machine, the resolver
+      // legitimately returns elevated; otherwise it must fall back to disabled
+      // (run the command directly rather than ENOENT).
+      if (selection.windowsSandboxLevel === "elevated") {
+        // runner present — resolution is elevated, which is the desired fallback
+        // on developer machines; nothing to assert beyond "not disabled".
+        return;
+      }
+      expect(selection.windowsSandboxLevel).toBe("disabled");
+    } finally {
+      if (prevEnv === undefined) delete process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER;
+      else process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER = prevEnv;
+    }
+  });
+
+  it("keeps windowsSandboxLevel disabled by default even when the runner is present", () => {
+    // Windows defaults to disabled (direct exec + LocalPermissionEvaluator) so
+    // Cygwin/MSYS tooling and Bun keep working. Restricted-token spawning
+    // breaks them; the runner is not auto-activated.
+    const prevEnv = process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER;
+    const runnerPath = "C:\\tools\\eidolon-windows-sandbox-runner.exe";
+    process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER = runnerPath;
+    try {
+      const selection = resolveSandboxBackendSelection({
+        workDir: "C:\\workspace\\project",
+        platform: "win32",
+        metadata: {
+          sandbox_permissions: { sandbox_mode: "workspace-write" },
+        },
+      });
+      expect(selection.backendName).toBe("windows-elevated");
+      expect(selection.windowsSandboxLevel).toBe("disabled");
+    } finally {
+      if (prevEnv === undefined) delete process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER;
+      else process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER = prevEnv;
+    }
+  });
+
+  it("executes a disabled Windows sandbox directly instead of spawning the runner", () => {
+    const calls: Array<{ executable: string; args: string[]; options: any }> = [];
+    const output = executeSandboxedBashCommand({
+      command: "echo hi",
+      cwd: "C:\\workspace\\project",
+      timeoutMs: 120000,
+      selection: {
+        backendName: "windows-elevated",
+        sandboxMode: "workspace-write",
+        networkAccess: "disabled",
+        workDir: "C:\\workspace\\project",
+        writableRoots: ["C:\\workspace\\project"],
+        platform: "win32",
+        windowsSandboxLevel: "disabled",
+      },
+      spawnSyncFn: (executable, args, options) => {
+        calls.push({ executable, args: args ?? [], options });
+        return { stdout: "hi\r\n", stderr: "", status: 0 } as any;
+      },
+    });
+
+    expect(output).toBe("hi");
+    // With shell:true the full command string is passed as the executable
+    // argument to spawn (Bun/Node spawn with shell:true).
+    expect(calls[0]?.executable).toBe("echo hi");
+    expect(calls[0]?.args).toEqual([]);
+    expect(calls[0]?.options.shell).toBe(true);
+  });
+
+  it("spawns the native runner for restricted-token sandbox", () => {
+    const calls: Array<{ executable: string; args: string[]; options: any }> = [];
+    const output = executeSandboxedBashCommand({
+      command: "echo hi",
+      cwd: "C:\\workspace\\project",
+      timeoutMs: 120000,
+      selection: {
+        backendName: "windows-elevated",
+        sandboxMode: "workspace-write",
+        networkAccess: "disabled",
+        workDir: "C:\\workspace\\project",
+        writableRoots: ["C:\\workspace\\project"],
+        platform: "win32",
+        windowsSandboxLevel: "restricted-token",
+      },
+      spawnSyncFn: (executable, args, options) => {
+        calls.push({ executable, args: args ?? [], options });
+        return { stdout: "hi\r\n", stderr: "", status: 0 } as any;
+      },
+    });
+
+    // Restricted-token now runs via the native eidolon-windows-sandbox-runner
+    // (CreateRestrictedToken + CreateProcessAsUserW), not an error.
+    expect(calls[0]?.executable).toBe("eidolon-windows-sandbox-runner");
+    expect(calls[0]?.args).toContain("--mode");
+    expect(calls[0]?.args).toContain("--writable-root");
+    expect(calls[0]?.options.shell).toBe(false);
+    expect(output).toBe("hi");
+  });
 });

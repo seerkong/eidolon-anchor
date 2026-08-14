@@ -1,0 +1,43 @@
+<DecisionForest version="1" id="implement-windows-sandbox-runner">
+  <Decision id="zig-vs-rust" owner="track">
+    <Question>Windows sandbox runner 用 Zig 还是 Rust？</Question>
+    <Options>
+      <Option letter="A" name="zig">Zig 0.16，@extern 直接链接 advapi32</Option>
+      <Option letter="B" name="rust">Rust + windows-sys crate（Codex 方案）</Option>
+      <Option letter="C" name="bun-ts">纯 TS/Bun 调用系统命令</Option>
+    </Options>
+    <Conclusion>A。PoC 已验证 Zig 能直接 @extern advapi32 调用 CreateRestrictedToken，无第三方 C 依赖，产出原生 exe。Rust 需引入 windows-sys crate 和 cargo 工具链；纯 TS 无法做进程级隔离。</Conclusion>
+    <Rationale>Zig 是本机已装工具链，@extern 方案最轻；PoC 已跑通核心 API。</Rationale>
+    <Status>decided</Status>
+  </Decision>
+  <Decision id="two-binaries" owner="track">
+    <Question>runner 是否拆成两个二进制（runner + setup）？</Question>
+    <Options>
+      <Option letter="A" name="one">单个二进制，含 setup 模式（--setup flag）</Option>
+      <Option letter="B" name="two">两个：runner（常驻执行）+ setup（UAC 安装）</Option>
+    </Options>
+    <Conclusion>B。对齐 Codex（codex-command-runner + codex-windows-sandbox-setup）。setup 需要 elevated + 独立 manifest；runner 是普通进程。拆开更清晰。</Conclusion>
+    <Rationale>setup 需要 UAC elevation 与独立生命周期；runner 常驻执行。拆开避免权限混淆。</Rationale>
+    <Status>decided</Status>
+  </Decision>
+  <Decision id="accounts-vs-token" owner="track">
+    <Question>是否实现 Codex 的隔离账号体系（DPAPI 密码加密）？</Question>
+    <Options>
+      <Option letter="A" name="token-only">仅 RestrictedToken + capability SID，不做隔离账号</Option>
+      <Option letter="B" name="accounts">实现隔离账号（离线/在线）+ DPAPI</Option>
+    </Options>
+    <Conclusion>A。首版仅 RestrictedToken + capability SID，账号体系作为后续增强。</Conclusion>
+    <Rationale>RestrictedToken + capability SID 已提供核心进程级隔离；账号体系复杂度高（DPAPI、用户创建、隐藏 profile），且对大多数场景非必需。</Rationale>
+    <Status>decided</Status>
+  </Decision>
+  <Decision id="wfp-scope" owner="track">
+    <Question>WFP 网络过滤在本 track 实现到哪一层？</Question>
+    <Options>
+      <Option letter="A" name="full">完整过滤（FwpmFilterAdd + 事务 + 持久化 + 实机验证）</Option>
+      <Option letter="B" name="binding-only">仅绑定 FwpmEngineOpen/Close + 结构体 + wfpAvailable 检测</Option>
+    </Options>
+    <Conclusion>B。本 track 仅 WFP 基础绑定；完整过滤为后续增强。</Conclusion>
+    <Rationale>完整 WFP 过滤需要 elevated 实机验证且影响系统网络栈（高风险）；当前阶段 RestrictedToken + ACL 已提供核心隔离。network=disabled 无网络隔离是已知限制，已记录 findings。</Rationale>
+    <Status>decided</Status>
+  </Decision>
+</DecisionForest>

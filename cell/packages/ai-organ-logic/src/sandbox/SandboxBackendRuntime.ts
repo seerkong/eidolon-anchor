@@ -24,6 +24,9 @@ export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access"
 export type SandboxNetworkAccess = "enabled" | "disabled";
 export type SandboxBackendName = "macos-seatbelt" | "linux-bwrap" | "windows-elevated" | "unsupported" | "unsandboxed";
 
+/** Windows sandbox enforcement level. Mirrors Codex's three-tier model. */
+export type WindowsSandboxLevel = "elevated" | "restricted-token" | "disabled";
+
 export type SandboxBackendSelection = {
   backendName: SandboxBackendName;
   sandboxMode: SandboxMode;
@@ -31,6 +34,8 @@ export type SandboxBackendSelection = {
   workDir: string;
   writableRoots: string[];
   platform: NodeJS.Platform | string;
+  /** Windows-only: resolved sandbox enforcement level. */
+  windowsSandboxLevel?: WindowsSandboxLevel;
 };
 
 export type ResolveSandboxBackendSelectionParams = {
@@ -99,6 +104,36 @@ function normalizeNetworkAccess(value: unknown): SandboxNetworkAccess {
 
 function isWindowsPlatform(platform: NodeJS.Platform | string): boolean {
   return platform === "win32" || platform === "windows";
+}
+
+/** Resolve the windows-sandbox-runner path from env override or PATH lookup. */
+export function resolveWindowsSandboxRunnerPath(): string | undefined {
+  const fromEnv = process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER?.trim();
+  if (fromEnv) return fromEnv;
+  try {
+    // PATH lookup: Node/Bun on Windows append .exe during spawn resolution.
+    const result = spawnSync(process.platform === "win32" ? "where" : "which", ["eidolon-windows-sandbox-runner"], { encoding: "utf-8" });
+    if (result.status === 0 && result.stdout?.trim()) {
+      return result.stdout.trim().split(/\r?\n/)[0];
+    }
+  } catch {
+    // ignore lookup failures; treat as missing runner
+  }
+  return undefined;
+}
+
+/** Resolve the Windows sandbox enforcement level for a selection.
+ *
+ * Windows defaults to `disabled`: commands run directly under the current
+ * token (shell:true) with filesystem permissions enforced by
+ * LocalPermissionEvaluator. This is deliberate — restricted-token spawning
+ * (CreateRestrictedToken + restricting SIDs) breaks Cygwin/MSYS tooling (Git
+ * Bash find/ls/grep fail at startup with NtSetInformationToken ACCESS_DENIED)
+ * and Bun, which the agent relies on for everyday work. The restricted-token /
+ * elevated backends remain available for explicit opt-in in future work.
+ */
+function resolveWindowsSandboxLevel(_selection: SandboxBackendSelection): WindowsSandboxLevel {
+  return "disabled";
 }
 
 function resolvePathForPlatform(platform: NodeJS.Platform | string, baseDir: string, candidate?: string): string {
@@ -187,7 +222,7 @@ export function resolveSandboxBackendSelection(params: ResolveSandboxBackendSele
       ])
     : [];
 
-  return {
+  const selection: SandboxBackendSelection = {
     backendName,
     sandboxMode,
     networkAccess,
@@ -195,6 +230,10 @@ export function resolveSandboxBackendSelection(params: ResolveSandboxBackendSele
     writableRoots,
     platform,
   };
+  if (isWindowsPlatform(platform)) {
+    selection.windowsSandboxLevel = resolveWindowsSandboxLevel(selection);
+  }
+  return selection;
 }
 
 function resolveSynchronousBashResult(result: SpawnSyncReturns<string>, timeoutMs?: number): StreamingBashResult {
@@ -331,6 +370,45 @@ function buildSpawnSpec(
       };
     }
     case "windows-elevated": {
+      const level = params.selection.windowsSandboxLevel ?? "elevated";
+      // Codex-style fallback: when the elevated runner is unavailable, run the
+      // command directly (filesystem permissions are still enforced by
+      // LocalPermissionEvaluator) instead of failing with an opaque ENOENT.
+      if (level === "disabled") {
+        return {
+          command: params.command,
+          args: [],
+          options: {
+            shell: true,
+            cwd: params.cwd,
+            env: process.env,
+          },
+        };
+      }
+      if (level === "restricted-token") {
+        // Restricted-token sandbox: run the command via the native
+        // eidolon-windows-sandbox-runner, which creates a restricted token and
+        // launches the command under it (RestrictedToken + capability SID + ACL).
+        const windowsCommand = createWindowsSandboxCommand({
+          command: params.command,
+          workDir: params.cwd,
+          writableRoots: params.selection.writableRoots,
+          sandboxMode: params.selection.sandboxMode as WindowsSandboxMode,
+          networkAccess: params.selection.networkAccess as WindowsSandboxNetworkAccess,
+        });
+        return {
+          command: windowsCommand.executable,
+          args: windowsCommand.args,
+          options: {
+            shell: false,
+            cwd: params.cwd,
+            env: {
+              ...process.env,
+              CODEX_SANDBOX: "windows-restricted-token",
+            },
+          },
+        };
+      }
       const windowsCommand = createWindowsSandboxCommand({
         command: params.command,
         workDir: params.cwd,

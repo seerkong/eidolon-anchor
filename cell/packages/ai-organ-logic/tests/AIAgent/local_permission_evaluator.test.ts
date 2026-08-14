@@ -87,6 +87,49 @@ describe("local permission evaluator", () => {
     expect(resolveWorkspaceAccessGrantSelection("unexpected")).toBeNull();
   });
 
+  it("allows Windows read-only commands when no permission rules exist", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+    // No permissions.json → empty rules → default deny, except workspace-safe commands.
+
+    for (const command of [
+      "dir",
+      "where bun",
+      "type README.md",
+      "findstr foo README.md",
+      "tree .",
+      "more README.md",
+      "ver",
+    ]) {
+      const decision = evaluateLocalToolPermission({
+        workDir,
+        toolName: "bash",
+        payload: { command },
+        authorityRoot,
+      });
+      expect(decision.action).toBe("allow");
+    }
+  });
+
+  it("still denies non-workspace-safe commands when no permission rules exist", () => {
+    configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
+    const root = makeTempRoot();
+    const workDir = path.join(root, "workspace");
+    const authorityRoot = path.join(root, ".eidolon");
+    fs.mkdirSync(workDir, { recursive: true });
+
+    const decision = evaluateLocalToolPermission({
+      workDir,
+      toolName: "bash",
+      payload: { command: "rm -rf tmp" },
+      authorityRoot,
+    });
+    expect(decision.action).toBe("deny");
+  });
+
   it("splits bash segments while preserving quoted separators", () => {
     configureLocalPermissionConfigStore(LocalFilePermissionConfigStore);
     expect(parseBashCommandSegments(`printf ";" && git status`)).toEqual(["printf ;", "git status"]);

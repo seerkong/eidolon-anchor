@@ -259,6 +259,38 @@ export function normalizeTerminalRuntimeMetadata(
   metadata?: Record<string, unknown>,
 ): Record<string, unknown> {
   const normalized = isPlainRecord(metadata) ? { ...metadata } : {}
+
+  // Platform defaults: the entry (TUI/CLI) may not pass metadata, so every
+  // consumer below reads sensible per-OS defaults instead of falling back to
+  // POSIX assumptions. Explicit values supplied by the caller are preserved.
+  if (typeof normalized.platform !== "string" || !normalized.platform) {
+    normalized.platform = process.platform
+  }
+  const existingSandboxPermissions = isPlainRecord(normalized.sandbox_permissions)
+    ? { ...normalized.sandbox_permissions }
+    : {}
+  normalized.sandbox_permissions = {
+    sandbox_mode: "workspace-write",
+    network_access: "enabled",
+    approval_policy: "full-auto",
+    ...existingSandboxPermissions,
+  }
+  const existingExecProtocol = isPlainRecord(normalized.exec_protocol)
+    ? { ...normalized.exec_protocol }
+    : {}
+  // exec_protocol.mode drives bash approval behaviour. Default to full-auto on
+  // Windows only (so a metadata-less Windows entry can actually run bash when
+  // the sandbox runner is absent); other platforms keep the interactive default
+  // by not injecting a mode here — resolveExecProtocolPermissionMode falls back
+  // to "interactive" when absent.
+  const isWindows = process.platform === "win32"
+  normalized.exec_protocol = {
+    ...(isWindows ? { mode: "full-auto" } : {}),
+    additional_writable_roots: existingExecProtocol.additional_writable_roots ?? [],
+    ephemeral: existingExecProtocol.ephemeral ?? false,
+    ...existingExecProtocol,
+  }
+
   const localPermissions = isPlainRecord(normalized.local_permissions)
     ? { ...normalized.local_permissions }
     : isPlainRecord(normalized.localPermissions)
@@ -667,8 +699,21 @@ function buildAdapterDefaults() {
   }
 }
 
-function buildSystemMessages(prompt: string[]) {
-  return prompt.map((p) => ({ role: "system", content: p }))
+export function buildSystemMessages(prompt: string[]) {
+  const isWindows = process.platform === "win32"
+  const shellName = isWindows ? "cmd.exe" : process.platform === "darwin" ? "zsh" : "bash"
+  const commandGuidance = isWindows
+    ? "Use Windows commands: `dir` for `ls`, `type` for `cat`, `where` for `which`, `findstr` for `grep`. Run shell syntax via `cmd /c` or `powershell -Command`. Paths use backslashes (`E:\\dir\\file`)."
+    : "Use POSIX commands: `ls`, `find`, `grep`, `pwd`. Paths use forward slashes (`/dir/file`)."
+  const platformBlock = [
+    `Current platform: ${process.platform} (${os.type()}).`,
+    `Shell: ${shellName}.`,
+    commandGuidance,
+  ].join("\n")
+  return [
+    ...prompt.map((p) => ({ role: "system", content: p })),
+    { role: "system", content: platformBlock },
+  ]
 }
 
 function resolveExplicitRuntimeModelRef(model?: string): string | undefined {

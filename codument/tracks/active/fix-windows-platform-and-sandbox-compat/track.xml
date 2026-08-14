@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="fix-windows-platform-and-sandbox-compat" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>修复 eidolon 在 Windows 上的环境感知与沙箱兼容：注入平台信息让 agent 感知 Windows，Windows sandbox 分级（runner 缺失时降级不 ENOENT），TUI 启动引导，扩宽 bash 豁免集。</Goal>
+    <Description>三个叠加问题：agent 无平台感知（只会用 POSIX 命令）、`uv_spawn 'eidolon-windows-sandbox-runner'` ENOENT（runner 缺失 + fail-closed 无降级）、bash 全被 deny（无 permissions.json + 豁免集太窄）。参考 Codex 的 Windows 方案（分级 sandbox、Disabled 降级、TUI 引导）实现修复。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-10T02:00:00Z</CreatedAt>
+    <UpdatedAt>2026-08-10T10:00:00Z</UpdatedAt>
+    <GapRound>1</GapRound>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_fix-windows-platform-and-sandbox-compat" name="fix-windows-platform-and-sandbox-compat" version="1">
+    <Description>按 P1（平台注入 + bash 豁免）、P2（sandbox 分级降级）、P3（TUI 引导 + 显式报错）顺序实施；每 phase TDD（先失败测试后实现），终态 phase 跑 GapLoop 与 AttractorCheck。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="平台感知注入 + bash 豁免集" status="DONE" order="0">
+        <Description>让 agent 感知 Windows 并选用正确命令：systemPrompt 追加平台块，metadata 注入 platform/sandbox_permissions/exec_protocol，扩宽 workspace-safe bash 豁免集。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>buildSystemMessages 输出的系统提示词在 win32 上包含平台块。</cdt:Criterion>
+          <cdt:Criterion>normalizeTerminalRuntimeMetadata 注入 platform/sandbox_permissions/exec_protocol 默认值。</cdt:Criterion>
+          <cdt:Criterion>dir/where/type/findstr/git(只读) 等命令在无 permissions.json 时不 deny。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="normalizeTerminalRuntimeMetadata 注入默认值" status="DONE" order="0" priority="P0">
+            <Description>注入 platform=process.platform、sandbox_permissions（workspace-write/enabled/full-auto）、exec_protocol.mode=full-auto。写失败测试：win32 上 metadata 含 platform/sandbox_permissions/exec_protocol 默认。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">win32 上 normalizeTerminalRuntimeMetadata 输出的 metadata 含 platform="win32"、sandbox_permissions.sandbox_mode="workspace-write"、exec_protocol.mode="full-auto"。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="buildSystemMessages 追加平台块" status="DONE" order="1" priority="P0">
+            <Description>系统提示词末尾追加平台块（platform/shell/路径分隔符/命令替代提示）。写失败测试：win32 上返回的 system messages 末尾含平台信息。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">win32 上 buildSystemMessages 返回的最后一条 system message 包含 "Windows"。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.3" name="扩宽 workspace-safe bash 豁免集" status="DONE" order="2" priority="P0">
+            <Description>READ_ONLY_WORKSPACE_SAFE_BASH_COMMANDS 增加纯只读 Windows 命令：dir/where/type/tree/fc/more/findstr/ver。安全收敛：git 不加（子命令可写，如 reset/push），cmd/powershell/pwsh 不加（可执行任意命令）；此类命令在 full-auto 模式下走审批或权限规则，而非豁免。写失败测试：这些命令在空规则下不 deny。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.3-AC1" checked="true">空权限规则下 dir/where/type/findstr 命令不被 deny。</cdt:Criterion>
+              <cdt:Criterion id="T1.3-AC2" checked="true">Bash/Tool.detail.xnl 含 Windows 命令提示。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="Windows sandbox 分级 + Disabled 降级" status="DONE" order="1">
+        <Description>对齐 Codex exec.rs:516：Windows sandbox 三级（elevated/restricted-token/disabled），runner 缺失/未 setup 时走普通执行 + 权限检查，不再 ENOENT；bash 报错显式可诊断。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>runner 不存在时 resolveSandboxBackendSelection 返回 disabled 或显式 error（不 ENOENT）。</cdt:Criterion>
+          <cdt:Criterion>level=disabled 时 bash 走普通执行 + 保留文件权限检查。</cdt:Criterion>
+          <cdt:Criterion>runner 可用时仍走 windows-elevated。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="SandboxSelection 增加 Windows level" status="DONE" order="0" priority="P0">
+            <Description>SandboxBackendSelection 增加 windowsSandboxLevel（elevated/restricted-token/disabled）；resolveSandboxBackendSelection 按 runner 存在性/setup 状态解析。写失败测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">win32 + runner 缺失 → windowsSandboxLevel="disabled"。</cdt:Criterion>
+              <cdt:Criterion id="T2.1-AC2" checked="true">win32 + runner 存在 + setup 完成 → "elevated"。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="buildSpawnSpec disabled 降级 + 显式报错" status="DONE" order="1" priority="P0">
+            <Description>windows-elevated 分支：runner 缺失返回显式 error（含安装/环境变量提示）；level=disabled 走 unsandboxed + 权限检查。写失败测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">win32 + runner 缺失 + level=disabled → buildSpawnSpec 返回普通执行 spec（非 error）。</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">win32 + runner 缺失 + level=elevated（显式配置）→ 返回显式 error，含 EIDOLON_WINDOWS_SANDBOX_RUNNER 提示。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="TUI 启动引导 + 显式可诊断报错" status="DONE" order="2">
+        <Description>Windows 上 TUI 启动检测 sandbox 状态并引导（安装 runner / 非管理员 / 继续 unsandboxed）；bash 报错从 ENOENT 藏匿改为显式可诊断。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>TUI 在 Windows 检测 sandbox level 并触发引导（disabled/restricted 时）。</cdt:Criterion>
+          <cdt:Criterion>bash 报错包含缺失 runner 与安装/绕过提示。</cdt:Criterion>
+          <cdt:Criterion>非 Windows 平台行为不变。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="WindowsSandbox 显式报错" status="DONE" order="0" priority="P0">
+            <Description>WindowsSandbox.ts / SandboxBackendRuntime 的 error 消息改为显式可诊断（缺什么、EIDOLON_WINDOWS_SANDBOX_RUNNER、绕过选项）。写失败测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="true">runner 缺失的报错包含 "EIDOLON_WINDOWS_SANDBOX_RUNNER"。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="TUI 启动引导" status="DONE" order="1" priority="P1">
+            <Description>生产 TUI 入口 thread.ts 的 handler 在 configureTuiRuntime 前调用 maybeWarnWindowsSandbox（win32 + runner 缺失时输出引导提示：安装 runner / 设 EIDOLON_WINDOWS_SANDBOX_RUNNER / 用 --dangerously-bypass-approvals-and-sandbox 抑制）。tui_a1-main.ts 是 dev-only 脚本入口（entry/index.ts 路由到 thread.ts），故生产路径已覆盖。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">win32 + level=disabled → 触发引导提示。</cdt:Criterion>
+              <cdt:Criterion id="T3.2-AC2" checked="true">非 win32 → 不触发引导。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="收口验证" status="DONE" order="3">
+        <Description>全量相关测试、strict codument validate、Windows 行为验证（平台注入 + sandbox 降级 + bash 豁免）。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>相关单测与回归全绿。</cdt:Criterion>
+          <cdt:Criterion>strict codument validate 通过。</cdt:Criterion>
+          <cdt:Criterion>真实 Windows 会话上 bash 可执行（dir/where/findstr 可用），不再 ENOENT。</cdt:Criterion>
+          <cdt:Criterion>diff 审查确认无无关改动。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T4.1" name="全量验证" status="DONE" order="0" priority="P0">
+            <Description>运行测试套件、strict validate、Windows 上实机验证平台注入与 bash 豁免。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">测试与 validate 通过。</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">Windows 实机验证结果记录在 analysis/findings.md。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block" verify-round="false"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+</Track>

@@ -125,6 +125,19 @@ export function authorizeLocalToolCall(runtime: any, toolName: string, payload: 
       decision.reasonCode !== "protected_permission_config" &&
       decision.reasonCode !== "workspace_scope_violation"
     ) {
+      // dangerous: full bypass (except protected permission config / workspace scope).
+      return { ok: true };
+    }
+    if (
+      execProtocolMode === "full-auto" &&
+      decision.reasonCode !== "protected_permission_config" &&
+      decision.reasonCode !== "workspace_scope_violation" &&
+      decision.approvalGrant?.kind !== "workspace_access_grant"
+    ) {
+      // full-auto: workspace-bounded automatic execution — default-deny when no
+      // explicit rule matches is treated as allowed inside the workspace, unless
+      // it hits a protected config path, leaves the workspace scope, or requires
+      // an external workspace-access grant.
       return { ok: true };
     }
     if (decision.action === "deny") {

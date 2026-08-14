@@ -1,4 +1,5 @@
 import { buildExecRuntimeMetadata } from "@terminal/organ/AIAgent/TerminalRuntime"
+import { resolveWindowsSandboxRunnerPath } from "@cell/ai-organ-logic/sandbox"
 
 import { cmd } from "../support/cli/cmd/cmd"
 import { UI } from "../support/cli/ui"
@@ -23,6 +24,26 @@ export function buildTuiThreadRuntimeMetadata(
     workDir,
     approvalMode: "dangerous",
   })
+}
+
+/**
+ * On Windows, surface a startup notice when the elevated sandbox runner is not
+ * installed so the user understands why bash runs unsandboxed (filesystem
+ * permissions are still enforced by LocalPermissionEvaluator). Mirrors Codex's
+ * windows sandbox enable prompt as an informational banner rather than a
+ * blocking dialog.
+ */
+export function maybeWarnWindowsSandbox(cwd: string, dangerouslyBypass: boolean): void {
+  void cwd // reserved: runner resolution may later be scoped to the project dir
+  if (process.platform !== "win32") return
+  if (dangerouslyBypass) return
+  if (resolveWindowsSandboxRunnerPath()) return
+  UI.println(
+    "Windows sandbox runner 'eidolon-windows-sandbox-runner' was not found. " +
+      "bash will run unsandboxed (filesystem permissions still enforced). " +
+      "Install it or set EIDOLON_WINDOWS_SANDBOX_RUNNER to enable the elevated sandbox, " +
+      "or pass --dangerously-bypass-approvals-and-sandbox to suppress this notice.",
+  )
 }
 
 export const thread = cmd({
@@ -135,6 +156,7 @@ export const thread = cmd({
     })
 
     const attachmentResolver = createLocalAttachmentResolver()
+    maybeWarnWindowsSandbox(cwd, Boolean(args.dangerouslyBypassApprovalsAndSandbox))
     configureTuiRuntime({
       workDir: cwd,
       adapter: args.adapter,

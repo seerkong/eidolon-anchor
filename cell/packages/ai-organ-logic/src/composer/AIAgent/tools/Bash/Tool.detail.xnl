@@ -33,3 +33,8 @@ Prefer `jq` for JSON or structured output. Prefer non-interactive git commands w
 Tests / Scripts:
 After changes, prefer the smallest relevant test target before broader suites. Prefer project-provided scripts over handcrafted shell pipelines when both fit.
 </?>
+
+<warning ?>
+Platform:
+On Windows, use `dir` for `ls`, `type` for `cat`, `where` for `which`, `findstr` for `grep`. Run shell syntax via `cmd /c` or `powershell -Command`. Paths use backslashes (`E:\dir\file`). On Linux/macOS, use POSIX commands (`ls`, `find`, `grep`, `pwd`) with forward-slash paths.
+</?>

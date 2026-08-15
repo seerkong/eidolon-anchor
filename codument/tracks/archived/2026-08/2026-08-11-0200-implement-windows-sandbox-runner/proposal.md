@@ -4,7 +4,7 @@
 
 eidolon 的 Windows sandbox 目前只有"分级降级"：`windowsSandboxLevel=disabled` 时 bash 直接执行（靠 `LocalPermissionEvaluator` 文件权限兜底），`restricted-token` 分支返回 "not yet implemented"，`elevated` 需要一个仓库里**不存在**的 `eidolon-windows-sandbox-runner` 二进制（archived decisions `2026-05-30` 只约定了名字，从未实现）。结果：Windows 上**没有真正的系统级沙箱**（无进程级隔离、无网络过滤），只能靠纯 TS 的文件路径检查。
 
-参考 Codex 的完整 Windows 沙箱方案（`codex-rs/windows-sandbox-rs`）：
+成熟的完整 Windows 沙箱方案参考：
 - **RestrictedToken**：`CreateRestrictedToken`（flags=`DISABLE_MAX_PRIVILEGE|LUA_TOKEN|WRITE_RESTRICTED`）+ restricting SIDs（capability SIDs + 登录 SID + Everyone），用受限令牌 `CreateProcessAsUserW` 起命令。
 - **capability SID + ACL**：每个 workspace root 一个 capability SID，ACL 只对该 SID 授权写 → 命令只能写工作区；对 `.git`/`.eidolon` 加 deny-write ACE。
 - **WFP 网络过滤**：`network_access=disabled` 时用 Windows Filtering Platform 拦截出站连接。
@@ -29,7 +29,7 @@ eidolon 的 Windows sandbox 目前只有"分级降级"：`windowsSandboxLevel=di
 
 - 不做跨平台：仅 Windows（`target=x86_64-windows`）。
 - 不实现 `--danger-full-access` 之外的全权限沙箱语义；`disabled` 降级路径保留。
-- 不移植 Codex 的 DPAPI 密码加密的完整账号体系（首版用受限令牌 + capability SID，账号体系作为可选增强）。
+- 不移植 DPAPI 密码加密的完整账号体系（首版用受限令牌 + capability SID，账号体系作为可选增强）。
 - **不实现完整 WFP 网络过滤**（`network=disabled` 时无网络隔离，为已知限制）；WFP 完整过滤（`FwpmFilterAdd`）与 elevated setup 的 TS 侧接线为后续增强。
 - 不改变非 Windows 平台的 sandbox 行为。
 

@@ -13,6 +13,10 @@ pub fn build(b: *std.Build) void {
     runner_mod.linkSystemLibrary("advapi32", .{});
     runner_mod.linkSystemLibrary("kernel32", .{});
     runner_mod.linkSystemLibrary("shell32", .{});
+    runner_mod.linkSystemLibrary("netapi32", .{});
+    runner_mod.linkSystemLibrary("crypt32", .{});
+    runner_mod.linkSystemLibrary("bcrypt", .{});
+    runner_mod.linkSystemLibrary("fwpuclnt", .{});
     const runner = b.addExecutable(.{
         .name = "eidolon-windows-sandbox-runner",
         .root_module = runner_mod,
@@ -28,11 +32,30 @@ pub fn build(b: *std.Build) void {
     setup_mod.linkSystemLibrary("advapi32", .{});
     setup_mod.linkSystemLibrary("shell32", .{});
     setup_mod.linkSystemLibrary("kernel32", .{});
+    setup_mod.linkSystemLibrary("netapi32", .{});
+    setup_mod.linkSystemLibrary("crypt32", .{});
+    setup_mod.linkSystemLibrary("bcrypt", .{});
+    setup_mod.linkSystemLibrary("fwpuclnt", .{});
     const setup = b.addExecutable(.{
         .name = "eidolon-windows-sandbox-setup",
         .root_module = setup_mod,
     });
     b.installArtifact(setup);
+
+    // ---- account.zig unit tests ----
+    const account_mod = b.createModule(.{
+        .root_source_file = b.path("src/account.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    account_mod.linkSystemLibrary("advapi32", .{});
+    account_mod.linkSystemLibrary("kernel32", .{});
+    account_mod.linkSystemLibrary("netapi32", .{});
+    account_mod.linkSystemLibrary("crypt32", .{});
+    account_mod.linkSystemLibrary("bcrypt", .{});
+    const account_tests = b.addTest(.{ .root_module = account_mod });
+    const run_account_tests = b.addRunArtifact(account_tests);
+    b.step("test-account", "Run account.zig unit tests").dependOn(&run_account_tests.step);
 
     // ---- token.zig unit tests ----
     const token_mod = b.createModule(.{

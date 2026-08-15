@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const token_mod = @import("token.zig");
 const acl_mod = @import("acl.zig");
+const account = @import("account.zig");
 
 const HANDLE = *anyopaque;
 
@@ -69,6 +70,119 @@ extern "kernel32" fn WaitForSingleObject(hHandle: HANDLE, dwMilliseconds: u32) c
 extern "kernel32" fn GetExitCodeProcess(hProcess: HANDLE, lpExitCode: *u32) callconv(.winapi) i32;
 extern "kernel32" fn CloseHandle(hObject: HANDLE) callconv(.winapi) i32;
 extern "kernel32" fn GetStdHandle(nStdHandle: u32) callconv(.winapi) HANDLE;
+
+extern "advapi32" fn LogonUserW(
+    lpszUsername: [*:0]const u16,
+    lpszDomain: ?[*:0]const u16,
+    lpszPassword: [*:0]const u16,
+    dwLogonType: u32,
+    dwLogonProvider: u32,
+    phToken: *HANDLE,
+) callconv(.winapi) i32;
+
+const LOGON32_LOGON_INTERACTIVE: u32 = 2;
+const LOGON32_LOGON_NETWORK: u32 = 3;
+const LOGON32_PROVIDER_DEFAULT: u32 = 0;
+
+/// Read the DPAPI-encrypted sandbox account password from
+/// %LOCALAPPDATA%\eidolon\windows-sandbox\account-password.bin and log in as
+/// the sandbox account. Returns the account token (caller CloseHandle) or null
+/// if setup hasn't run.
+/// Read the DPAPI-encrypted password for `name` from
+/// %LOCALAPPDATA%\eidolon\windows-sandbox\<passwordFileFor(name)> and log in as
+/// that account. Returns the token (caller CloseHandle) or null if setup hasn't
+/// created the account.
+fn loginSandboxAccount(allocator: std.mem.Allocator, name: []const u8) !?HANDLE {
+    var appdata_buf = try allocator.allocSentinel(u16, 4096, 0);
+    defer allocator.free(appdata_buf);
+    const local_appdata = [_:0]u16{ 'L', 'O', 'C', 'A', 'L', 'A', 'P', 'P', 'D', 'A', 'T', 'A', 0 };
+    const n = GetEnvironmentVariableW(&local_appdata, appdata_buf.ptr, @intCast(appdata_buf.len - 64));
+    if (n == 0) return null;
+    var path_idx: usize = n;
+    const dir_suffix = "\\eidolon\\windows-sandbox\\";
+    for (dir_suffix) |c| { appdata_buf[path_idx] = c; path_idx += 1; }
+    const file_suffix = account.passwordFileFor(name);
+    for (file_suffix) |c| { appdata_buf[path_idx] = c; path_idx += 1; }
+    appdata_buf[path_idx] = 0;
+
+    // Read the encrypted blob.
+    const h = CreateFileW(appdata_buf.ptr, 0x80000000, 1, null, 3, 0, null); // GENERIC_READ | FILE_SHARE_READ | OPEN_EXISTING
+    if (h == std.os.windows.INVALID_HANDLE_VALUE) return null;
+    defer _ = CloseHandle(h);
+    var size_hi: u32 = 0;
+    const size = GetFileSize(h, &size_hi);
+    if (size == 0xFFFFFFFF or size == 0) return null;
+    const blob = try allocator.alloc(u8, size);
+    defer allocator.free(blob);
+    var read: u32 = 0;
+    _ = ReadFile(h, blob.ptr, size, &read, null);
+    if (read != size) return null;
+
+    const password = account.dpapiUnprotect(allocator, blob) catch return null;
+    defer allocator.free(password);
+
+    const name_w = try allocator.allocSentinel(u16, name.len + 1, 0);
+    defer allocator.free(name_w);
+    for (name, 0..) |c, i| name_w[i] = c;
+    name_w[name.len] = 0;
+    const pwd_w = try allocator.allocSentinel(u16, password.len + 1, 0);
+    defer allocator.free(pwd_w);
+    for (password, 0..) |c, i| pwd_w[i] = c;
+    pwd_w[password.len] = 0;
+
+    var token: HANDLE = undefined;
+    const ok = LogonUserW(name_w.ptr, null, pwd_w.ptr, LOGON32_LOGON_INTERACTIVE, LOGON32_PROVIDER_DEFAULT, &token);
+    if (ok == 0) return null;
+    return token;
+}
+
+
+extern "kernel32" fn GetFileSize(hFile: HANDLE, lpFileSizeHigh: ?*u32) callconv(.winapi) u32;
+extern "kernel32" fn ReadFile(
+    hFile: HANDLE,
+    lpBuffer: [*]u8,
+    nNumberOfBytesToRead: u32,
+    lpNumberOfBytesRead: *u32,
+    lpOverlapped: ?*anyopaque,
+) callconv(.winapi) i32;
+extern "kernel32" fn GetEnvironmentVariableW(lpName: [*:0]const u16, lpBuffer: [*]u16, nSize: u32) callconv(.winapi) u32;
+extern "advapi32" fn LookupAccountNameW(
+    lpSystemName: ?[*:0]const u16,
+    lpAccountName: [*:0]const u16,
+    Sid: ?[*]u8,
+    cbSid: *u32,
+    ReferencedDomainName: ?[*:0]u16,
+    cchReferencedDomainName: *u32,
+    peUse: ?*i32,
+) callconv(.winapi) i32;
+
+/// Look up an account's SID. Returns a page_allocator heap copy (caller frees).
+fn lookupSandboxAccountSid(allocator: std.mem.Allocator, name: []const u8) !*anyopaque {
+    const name_w = try allocator.allocSentinel(u16, name.len + 1, 0);
+    defer allocator.free(name_w);
+    for (name, 0..) |c, i| name_w[i] = c;
+    name_w[name.len] = 0;
+    var sid_size: u32 = 0;
+    var dom_size: u32 = 0;
+    var use: i32 = 0;
+    _ = LookupAccountNameW(null, name_w.ptr, null, &sid_size, null, &dom_size, &use);
+    const buf = try allocator.alloc(u8, sid_size);
+    const ok = LookupAccountNameW(null, name_w.ptr, buf.ptr, &sid_size, null, &dom_size, &use);
+    if (ok == 0) {
+        allocator.free(buf);
+        return error.LookupAccountFailed;
+    }
+    return @ptrCast(buf.ptr);
+}
+extern "kernel32" fn CreateFileW(
+    lpFileName: [*:0]const u16,
+    dwDesiredAccess: u32,
+    dwShareMode: u32,
+    lpSecurityAttributes: ?*anyopaque,
+    dwCreationDisposition: u32,
+    dwFlagsAndAttributes: u32,
+    hTemplateFile: ?*anyopaque,
+) callconv(.winapi) HANDLE;
 extern "kernel32" fn GetLastError() callconv(.winapi) u32;
 
 const STD_INPUT_HANDLE: u32 = 0xFFFFFFF6;
@@ -236,22 +350,32 @@ pub fn main() void {
         cap_sids.append(allocator, sid) catch {};
     }
 
-    // Create restricted token.
+    // Prefer running under the sandbox account (LogonUserW); fall back to a
+    // restricted token when setup hasn't created the account yet. The --network
+    // flag selects which account: enabled → online (can reach the network),
+    // disabled → offline (WFP blocks outbound).
+    const account_name = if (opts.network) account.SANDBOX_ACCOUNT_ONLINE else account.SANDBOX_ACCOUNT_OFFLINE;
+    const account_token = loginSandboxAccount(allocator, account_name) catch null;
     var restricted = token_mod.createRestrictedToken(allocator, cap_sids.items) catch {
         printToErr("eidolon-windows-sandbox-runner: CreateRestrictedToken failed\n");
         std.process.exit(1);
     };
     defer restricted.destroy();
+    const process_token = if (account_token) |t| t else restricted.handle;
 
-    // Apply ACL grants on writable roots (grant capability SID write).
-    // Note: for a self-contained runner MVP, grant on the writable roots uses
-    // each root's capability SID. Protected metadata dirs get deny-write.
+    // Apply ACL grants on writable roots.
+    // Account mode: grant the sandbox account's SID write access.
+    // Fallback mode: grant the per-root capability SID.
+    // Note: account SID and capability SIDs are intentionally not freed — the
+    // runner is a short-lived process, and matching the existing capability-SID
+    // pattern avoids threading lengths around.
+    const account_sid = if (account_token != null) (lookupSandboxAccountSid(allocator, account_name) catch null) else null;
     for (opts.writable_roots.items, 0..) |root, idx| {
         const path_z = toUtf16(allocator, root) catch continue;
-        const sid = if (idx < cap_sids.items.len) cap_sids.items[idx] else continue;
+        const sid = if (account_sid) |asid| asid else (if (idx < cap_sids.items.len) cap_sids.items[idx] else continue);
         if (opts.mode == .workspace_write) {
-            acl_mod.grantCapabilityWrite(path_z, sid) catch {
-                printToErr("eidolon-windows-sandbox-runner: grantCapabilityWrite failed\n");
+            acl_mod.grantSidWrite(path_z, sid) catch {
+                printToErr("eidolon-windows-sandbox-runner: grantSidWrite failed\n");
                 std.process.exit(1);
             };
         }
@@ -283,7 +407,7 @@ pub fn main() void {
 
     var pi = std.mem.zeroes(PROCESS_INFORMATION);
     const ok = CreateProcessAsUserW(
-        restricted.handle,
+        process_token,
         null,
         cmdline.ptr,
         null,
@@ -304,6 +428,7 @@ pub fn main() void {
     defer {
         _ = CloseHandle(pi.hProcess);
         _ = CloseHandle(pi.hThread);
+        if (account_token) |t| _ = CloseHandle(t);
     }
 
     _ = WaitForSingleObject(pi.hProcess, 0xFFFFFFFF); // INFINITE

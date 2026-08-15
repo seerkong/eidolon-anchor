@@ -17,6 +17,7 @@ const nativeSourcePath = join(projectRoot, "dist", "terminal", "tui", "node_modu
 
 type CliOptions = {
   help: boolean;
+  force: boolean;
   targetPath?: string;
 };
 
@@ -35,12 +36,14 @@ function usage(): never {
 
 Options:
   --target-path PATH   Override the installed path. Defaults to EIDOLON_BIN_PATH or ~/.local/bin/eidolon.
+  --force              On macOS/Linux, overwrite an existing non-symlink file at the target path
+                       (default: refuse, since a real file may be a hand-managed binary).
   --help               Show this help text.`);
   process.exit(0);
 }
 
 function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = { help: false };
+  const options: CliOptions = { help: false, force: false };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -48,6 +51,10 @@ function parseArgs(argv: string[]): CliOptions {
       case "--help":
       case "-h":
         options.help = true;
+        break;
+      case "--force":
+      case "-f":
+        options.force = true;
         break;
       case "--target-path": {
         const value = argv[index + 1];
@@ -104,7 +111,13 @@ function install(options: CliOptions): void {
     process.exit(1);
   }
 
-  const targetPath = resolve(expandHome(options.targetPath ?? getDefaultTargetPath()));
+  const targetPathRaw = resolve(expandHome(options.targetPath ?? getDefaultTargetPath()));
+  // On Windows the binary must end in `.exe` for the shell to run it; a
+  // caller passing a bare path (e.g. `~/.local/bin/eidolon`) gets it appended
+  // automatically so the installed file is actually executable.
+  const targetPath = isWindows && !targetPathRaw.toLowerCase().endsWith(".exe")
+    ? `${targetPathRaw}.exe`
+    : targetPathRaw;
   const targetDir = dirname(targetPath);
   const nativeTargetPath = join(targetDir, "node_modules", "@opentui", nativePackageName);
   const commandName = targetPath.split(/[/\\]/).pop() || exeName;
@@ -117,8 +130,9 @@ function install(options: CliOptions): void {
   // Ensure target directory exists
   ensureDir(targetDir);
 
-  if (!isWindows && existsSync(targetPath) && !isSymlink(targetPath)) {
+  if (!isWindows && existsSync(targetPath) && !isSymlink(targetPath) && !options.force) {
     console.error(`Error: Refusing to replace a non-symlink file: ${targetPath}`);
+    console.error("Pass --force to overwrite it.");
     process.exit(1);
   }
 

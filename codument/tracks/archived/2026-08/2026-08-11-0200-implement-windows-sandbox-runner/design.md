@@ -56,7 +56,7 @@ const entries = [capability_sids..., logon_sid, everyone_sid]; // restricting SI
 CreateRestrictedToken(base_token, flags, 0, null, 0, null, entries.len, &entries, &new_token);
 ```
 
-- capability SID：为每个 workspace root 派生一个唯一 SID（`CreateWellKnownSid` + 自定义算法，或用 codex 的 `cap.rs` 思路：基于 root 路径生成确定性 SID）。
+- capability SID：为每个 workspace root 派生一个唯一 SID（`CreateWellKnownSid` + 自定义算法，或用基于 root 路径的确定性 SID 派生）。
 - 受限 token 的默认 DACL 设为 logon+Everyone+capabilities（让子进程能建管道）。
 
 ### 3.2 `acl.zig` —— workspace ACL
@@ -133,7 +133,7 @@ if (level === "restricted-token") {
 | WFP API 复杂、可能需多次迭代 | 分阶段：先 RestrictedToken+ACL（P1），WFP（P2），elevated setup（P3） |
 | Zig 0.16 std API 变化 | 用 `@extern` + Win32 直调，少用 std 高层 API |
 | 受限 token 破坏某些工具（git 需凭据、网络代理） | `--network=enabled` 时跳过 WFP；git 凭据走 workspace 内 |
-| 管理员 setup 首次弹 UAC | 对齐 Codex：TUI 引导明确提示 |
+| 管理员 setup 首次弹 UAC | TUI 引导明确提示 |
 | `disabled` 降级路径保留 | 不破坏现有降级 |
 
 ## 7. 实施顺序

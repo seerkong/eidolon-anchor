@@ -59,6 +59,37 @@ extern "advapi32" fn AllocateAndInitializeSid(
 
 extern "advapi32" fn FreeSid(pSid: *anyopaque) callconv(.winapi) *anyopaque;
 
+extern "advapi32" fn CreateWellKnownSid(
+    WellKnownSidType: i32,
+    DomainSid: ?*anyopaque,
+    pSid: [*]u8,
+    cbSidBufferSize: *u32,
+) callconv(.winapi) i32;
+
+const WinWorldSid: i32 = 1;
+
+/// Allocate the Everyone (World) SID (S-1-1-0) via AllocateAndInitializeSid so
+/// it can be released with FreeSid. Caller frees via freeSid.
+pub fn everyoneSid() !*anyopaque {
+    const world_authority = SID_IDENTIFIER_AUTHORITY{ .Value = .{ 0, 0, 0, 0, 0, 1 } };
+    var sid: *anyopaque = undefined;
+    const ok = AllocateAndInitializeSid(
+        &world_authority,
+        0, // World has no sub-authorities
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        &sid,
+    );
+    if (ok == 0) return error.AllocateSidFailed;
+    return sid;
+}
+
 pub fn freeSid(sid: *anyopaque) void {
     _ = FreeSid(sid);
 }
@@ -115,8 +146,8 @@ const SE_PRIVILEGE_ENABLED: u32 = 0x00000002;
 /// Re-enable SeChangeNotifyPrivilege on a restricted token. CreateRestrictedToken
 /// with DISABLE_MAX_PRIVILEGE strips all privileges; without SeChangeNotify
 /// (traverse-directory bypass), even listing a directory tree fails under the
-/// restricted token (Git Bash's find/ls error with ACCESS_DENIED). This mirrors
-/// Codex's token.rs enable_single_privilege.
+/// restricted token (Git Bash's find/ls error with ACCESS_DENIED). This is the
+/// standard re-enable needed after CreateRestrictedToken strips privileges.
 pub fn enableSeChangeNotify(token: HANDLE) !void {
     var luid: LUID = undefined;
     const se_change = [_:0]u16{ 'S', 'e', 'C', 'h', 'a', 'n', 'g', 'e', 'N', 'o', 't', 'i', 'f', 'y', 'P', 'r', 'i', 'v', 'i', 'l', 'e', 'g', 'e', 0 };
@@ -196,13 +227,24 @@ pub fn createRestrictedToken(
     if (ok == 0) return error.OpenProcessTokenFailed;
     defer _ = CloseHandle(base_token);
 
-    // Build restricting SIDs list: capabilities + current user + Everyone.
-    // (For MVP we use only the capabilities; user/Everyone are added by the
-    // caller that needs the default-DACL behavior.)
-    const entries = try allocator.alloc(SID_AND_ATTRIBUTES, capability_sids.len);
+    // Build restricting SIDs list: capabilities + Everyone (World).
+    // Everyone is essential: Cygwin/MSYS tooling (Git Bash find/ls/grep) and
+    // Bun need to access the \BaseNamedObjects\msys-* namespace, whose DACL
+    // grants Everyone. Without a World restricting SID, the restricted token
+    // has NO access to that namespace and these tools fail at startup with
+    // NtSetInformationToken/NtCreateDirectoryObject ACCESS_DENIED.
+    const everyone = everyoneSid() catch null;
+    defer if (everyone) |s| freeSid(s);
+    const entries = try allocator.alloc(SID_AND_ATTRIBUTES, capability_sids.len + @intFromBool(everyone != null));
     defer allocator.free(entries);
-    for (capability_sids, 0..) |sid, i| {
-        entries[i] = .{ .Sid = sid, .Attributes = 0 };
+    var ei: usize = 0;
+    for (capability_sids) |sid| {
+        entries[ei] = .{ .Sid = sid, .Attributes = 0 };
+        ei += 1;
+    }
+    if (everyone) |sid| {
+        entries[ei] = .{ .Sid = sid, .Attributes = 0 };
+        ei += 1;
     }
 
     // DISABLE_MAX_PRIVILEGE strips privileges; WRITE_RESTRICTED limits writes.

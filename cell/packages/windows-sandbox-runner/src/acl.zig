@@ -128,7 +128,7 @@ extern "advapi32" fn LocalAlloc(uFlags: u32, uBytes: usize) callconv(.winapi) ?*
 /// This is the critical fix: the original code used PROTECTED_DACL which
 /// REPLACED the DACL and broke directory access (e.g. .eidolon became
 /// unreadable by the current user).
-pub fn grantCapabilityWrite(path: [*:0]const u16, capability_sid: *anyopaque) !void {
+pub fn grantSidWrite(path: [*:0]const u16, capability_sid: *anyopaque) !void {
     const user_sid = try currentUserSid();
     // Read the existing DACL + security descriptor so we preserve inherited ACEs.
     var pp_owner: ?*anyopaque = null;
@@ -281,7 +281,7 @@ const TOKEN_USER = extern struct {
     User: SID_AND_ATTRIBUTES,
 };
 
-test "grantCapabilityWrite rejects empty paths" {
+test "grantSidWrite rejects empty paths" {
     // SetNamedSecurityInfoW on a null/invalid path returns an error code.
     const r = SetNamedSecurityInfoW(
         @as([*:0]const u16, @ptrCast(@constCast(&[_]u16{0}))),
@@ -296,7 +296,7 @@ test "grantCapabilityWrite rejects empty paths" {
     try testing.expect(r != 0);
 }
 
-test "grantCapabilityWrite works on a real temp directory (Windows only)" {
+test "grantSidWrite works on a real temp directory (Windows only)" {
     if (builtin.os.tag != .windows) return error.SkipZigTest;
 
     // Get the current user's SID from the process token.
@@ -321,11 +321,11 @@ test "grantCapabilityWrite works on a real temp directory (Windows only)" {
         std.heap.page_allocator.free(path_w);
     }
 
-    try grantCapabilityWrite(path_w.ptr, user_sid);
+    try grantSidWrite(path_w.ptr, user_sid);
 }
 
-test "grantCapabilityWrite preserves inherited directory access (Windows only)" {
-    // Regression test: grantCapabilityWrite must NOT break the current user's
+test "grantSidWrite preserves inherited directory access (Windows only)" {
+    // Regression test: grantSidWrite must NOT break the current user's
     // access to the directory (it previously used PROTECTED_DACL which replaced
     // the DACL and removed inherited ACEs — e.g. .eidolon became unreadable).
     if (builtin.os.tag != .windows) return error.SkipZigTest;
@@ -350,7 +350,7 @@ test "grantCapabilityWrite preserves inherited directory access (Windows only)" 
     const tu: *TOKEN_USER = @ptrCast(@alignCast(buf.ptr));
     const user_sid = tu.User.Sid;
 
-    try grantCapabilityWrite(path_w.ptr, user_sid);
+    try grantSidWrite(path_w.ptr, user_sid);
 
     // After the grant, the current user must still be able to create a file
     // in the directory (inherited + explicit ACEs preserved).

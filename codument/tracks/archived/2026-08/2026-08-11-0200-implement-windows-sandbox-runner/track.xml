@@ -3,7 +3,7 @@
   <Metadata>
     <Status>completed</Status>
     <Goal>用 Zig 实现 Windows 原生沙箱 runner：RestrictedToken + capability SID + workspace ACL + WFP 网络过滤 + Elevated setup，SandboxBackendRuntime 的 restricted-token 分支真正 spawn runner。</Goal>
-    <Description>Windows 沙箱目前只有分级降级（disabled 直接执行 + 文件权限兜底），restricted-token 分支报 "not implemented"，elevated 缺真实 runner 二进制。用 Zig 0.16（PoC 已验证 CreateRestrictedToken 可调）实现两个原生 exe（runner + setup），对齐 Codex 的 Windows 沙箱方案，提供真正进程级隔离。</Description>
+    <Description>Windows 沙箱目前只有分级降级（disabled 直接执行 + 文件权限兜底），restricted-token 分支报 "not implemented"，elevated 缺真实 runner 二进制。用 Zig 0.16（PoC 已验证 CreateRestrictedToken 可调）实现两个原生 exe（runner + setup），提供真正进程级隔离。</Description>
     <QuestionMode>decision-tree</QuestionMode>
     <QuestionSeverity>auto</QuestionSeverity>
     <CommitMode>manual</CommitMode>

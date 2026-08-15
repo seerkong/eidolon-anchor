@@ -24,7 +24,7 @@ export type SandboxMode = "read-only" | "workspace-write" | "danger-full-access"
 export type SandboxNetworkAccess = "enabled" | "disabled";
 export type SandboxBackendName = "macos-seatbelt" | "linux-bwrap" | "windows-elevated" | "unsupported" | "unsandboxed";
 
-/** Windows sandbox enforcement level. Mirrors Codex's three-tier model. */
+/** Windows sandbox enforcement level (elevated / restricted-token / disabled). */
 export type WindowsSandboxLevel = "elevated" | "restricted-token" | "disabled";
 
 export type SandboxBackendSelection = {
@@ -122,18 +122,35 @@ export function resolveWindowsSandboxRunnerPath(): string | undefined {
   return undefined;
 }
 
+/** Whether the Windows sandbox setup has run (setup.marker.json exists in
+ * %LOCALAPPDATA%\eidolon\windows-sandbox). The marker is written by
+ * eidolon-windows-sandbox-setup.exe after it creates the sandbox account. */
+export function sandboxSetupIsComplete(): boolean {
+  if (process.platform !== "win32") return false;
+  try {
+    const localAppData = process.env.LOCALAPPDATA || path.join(process.env.USERPROFILE || "", "AppData", "Local");
+    const markerPath = path.join(localAppData, "eidolon", "windows-sandbox", "setup.marker.json");
+    return fs.existsSync(markerPath);
+  } catch {
+    return false;
+  }
+}
+
 /** Resolve the Windows sandbox enforcement level for a selection.
  *
- * Windows defaults to `disabled`: commands run directly under the current
- * token (shell:true) with filesystem permissions enforced by
- * LocalPermissionEvaluator. This is deliberate — restricted-token spawning
- * (CreateRestrictedToken + restricting SIDs) breaks Cygwin/MSYS tooling (Git
- * Bash find/ls/grep fail at startup with NtSetInformationToken ACCESS_DENIED)
- * and Bun, which the agent relies on for everyday work. The restricted-token /
- * elevated backends remain available for explicit opt-in in future work.
+ * Windows uses the sandbox account (independent local user) for process-level
+ * isolation when setup has completed AND the native runner is present; that
+ * account is a fresh limited user, so Cygwin/MSYS tooling and Bun run fine
+ * under it (unlike restricted-token downgrade of the current user's token).
+ * Before setup completes, fall back to `disabled` (direct exec +
+ * LocalPermissionEvaluator file checks) so the agent stays usable.
  */
-function resolveWindowsSandboxLevel(_selection: SandboxBackendSelection): WindowsSandboxLevel {
-  return "disabled";
+function resolveWindowsSandboxLevel(selection: SandboxBackendSelection): WindowsSandboxLevel {
+  if (selection.sandboxMode === "danger-full-access") return "disabled";
+  if (!isWindowsPlatform(selection.platform)) return "disabled";
+  if (!resolveWindowsSandboxRunnerPath()) return "disabled";
+  if (!sandboxSetupIsComplete()) return "disabled";
+  return "elevated";
 }
 
 function resolvePathForPlatform(platform: NodeJS.Platform | string, baseDir: string, candidate?: string): string {
@@ -338,7 +355,7 @@ function buildSpawnSpec(
           cwd: params.cwd,
           env: {
             ...process.env,
-            CODEX_SANDBOX: "seatbelt",
+            EIDOLON_SANDBOX: "seatbelt",
             TMPDIR: tempDir,
             TMPPREFIX: path.join(tempDir, "zsh"),
           },
@@ -363,7 +380,7 @@ function buildSpawnSpec(
           cwd: params.cwd,
           env: {
             ...process.env,
-            CODEX_SANDBOX: "linux-bwrap",
+            EIDOLON_SANDBOX: "linux-bwrap",
             TMPDIR: tempDir,
           },
         },
@@ -371,7 +388,7 @@ function buildSpawnSpec(
     }
     case "windows-elevated": {
       const level = params.selection.windowsSandboxLevel ?? "elevated";
-      // Codex-style fallback: when the elevated runner is unavailable, run the
+      // Fallback: when the elevated runner is unavailable, run the
       // command directly (filesystem permissions are still enforced by
       // LocalPermissionEvaluator) instead of failing with an opaque ENOENT.
       if (level === "disabled") {
@@ -404,7 +421,7 @@ function buildSpawnSpec(
             cwd: params.cwd,
             env: {
               ...process.env,
-              CODEX_SANDBOX: "windows-restricted-token",
+              EIDOLON_SANDBOX: "windows-restricted-token",
             },
           },
         };
@@ -424,7 +441,7 @@ function buildSpawnSpec(
           cwd: params.cwd,
           env: {
             ...process.env,
-            CODEX_SANDBOX: "windows-elevated",
+            EIDOLON_SANDBOX: "windows-elevated",
           },
         },
       };

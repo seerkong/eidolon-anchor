@@ -1,0 +1,131 @@
+<decisions #implement-windows-sandbox-runner {
+  track = "implement-windows-sandbox-runner"
+}
+(
+  <decision #implement-windows-sandbox-runner.zig-vs-rust {
+    status = "decided"
+    owner = "track"
+  }
+  (
+    <question ?>Windows sandbox runner 用 Zig 还是 Rust？</?>
+    <options { } [
+      <option { key = "A" recommended = true }
+      (
+        <title ?>zig</?>
+        <description ?>Zig 0.16，@extern 直接链接 advapi32</?>
+      )
+      >
+      <option { key = "B" }
+      (
+        <title ?>rust</?>
+        <description ?>Rust + windows-sys crate</?>
+      )
+      >
+      <option { key = "C" }
+      (
+        <title ?>bun-ts</?>
+        <description ?>纯 TS/Bun 调用系统命令</?>
+      )
+      >
+    ]>
+    <answer { }
+    (
+      <raw-answer ?>A。PoC 已验证 Zig 能直接 @extern advapi32 调用 CreateRestrictedToken，无第三方 C 依赖，产出原生 exe。Rust 需引入 windows-sys crate 和 cargo 工具链；纯 TS 无法做进程级隔离。</?>
+      <decision-text ?>A。PoC 已验证 Zig 能直接 @extern advapi32 调用 CreateRestrictedToken，无第三方 C 依赖，产出原生 exe。Rust 需引入 windows-sys crate 和 cargo 工具链；纯 TS 无法做进程级隔离。</?>
+      <rationale ?>Zig 是本机已装工具链，@extern 方案最轻；PoC 已跑通核心 API。</?>
+      <evidence ?>结论文：A。PoC 已验证 Zig 能直接 @extern advapi32 调用 CreateRestrictedToken，无第三方 C 依赖，产出原生 exe。Rust 需引入 windows-sys crate 和 cargo 工具链；纯 TS 无法做进程级隔离。</?>
+    )
+    >
+  )
+  >
+  <decision #implement-windows-sandbox-runner.two-binaries {
+    status = "decided"
+    owner = "track"
+  }
+  (
+    <question ?>runner 是否拆成两个二进制（runner + setup）？</?>
+    <options { } [
+      <option { key = "A" }
+      (
+        <title ?>one</?>
+        <description ?>单个二进制，含 setup 模式（--setup flag）</?>
+      )
+      >
+      <option { key = "B" recommended = true }
+      (
+        <title ?>two</?>
+        <description ?>两个：runner（常驻执行）+ setup（UAC 安装）</?>
+      )
+      >
+    ]>
+    <answer { }
+    (
+      <raw-answer ?>B。对齐成熟的 command-runner + windows-sandbox-setup 拆分模式。setup 需要 elevated + 独立 manifest；runner 是普通进程。拆开更清晰。</?>
+      <decision-text ?>B。对齐成熟的 command-runner + windows-sandbox-setup 拆分模式。setup 需要 elevated + 独立 manifest；runner 是普通进程。拆开更清晰。</?>
+      <rationale ?>setup 需要 UAC elevation 与独立生命周期；runner 常驻执行。拆开避免权限混淆。</?>
+      <evidence ?>结论文：B。对齐成熟的 command-runner + windows-sandbox-setup 拆分模式。setup 需要 elevated + 独立 manifest；runner 是普通进程。拆开更清晰。</?>
+    )
+    >
+  )
+  >
+  <decision #implement-windows-sandbox-runner.accounts-vs-token {
+    status = "decided"
+    owner = "track"
+  }
+  (
+    <question ?>是否实现隔离账号体系（DPAPI 密码加密）？</?>
+    <options { } [
+      <option { key = "A" recommended = true }
+      (
+        <title ?>token-only</?>
+        <description ?>仅 RestrictedToken + capability SID，不做隔离账号</?>
+      )
+      >
+      <option { key = "B" }
+      (
+        <title ?>accounts</?>
+        <description ?>实现隔离账号（离线/在线）+ DPAPI</?>
+      )
+      >
+    ]>
+    <answer { }
+    (
+      <raw-answer ?>A。首版仅 RestrictedToken + capability SID，账号体系作为后续增强。</?>
+      <decision-text ?>A。首版仅 RestrictedToken + capability SID，账号体系作为后续增强。</?>
+      <rationale ?>RestrictedToken + capability SID 已提供核心进程级隔离；账号体系复杂度高（DPAPI、用户创建、隐藏 profile），且对大多数场景非必需。</?>
+      <evidence ?>结论文：A。首版仅 RestrictedToken + capability SID，账号体系作为后续增强。</?>
+    )
+    >
+  )
+  >
+  <decision #implement-windows-sandbox-runner.wfp-scope {
+    status = "decided"
+    owner = "track"
+  }
+  (
+    <question ?>WFP 网络过滤在本 track 实现到哪一层？</?>
+    <options { } [
+      <option { key = "A" }
+      (
+        <title ?>full</?>
+        <description ?>完整过滤（FwpmFilterAdd + 事务 + 持久化 + 实机验证）</?>
+      )
+      >
+      <option { key = "B" recommended = true }
+      (
+        <title ?>binding-only</?>
+        <description ?>仅绑定 FwpmEngineOpen/Close + 结构体 + wfpAvailable 检测</?>
+      )
+      >
+    ]>
+    <answer { }
+    (
+      <raw-answer ?>B。本 track 仅 WFP 基础绑定；完整过滤为后续增强。</?>
+      <decision-text ?>B。本 track 仅 WFP 基础绑定；完整过滤为后续增强。</?>
+      <rationale ?>完整 WFP 过滤需要 elevated 实机验证且影响系统网络栈（高风险）；当前阶段 RestrictedToken + ACL 已提供核心隔离。network=disabled 无网络隔离是已知限制，已记录 findings。</?>
+      <evidence ?>结论文：B。本 track 仅 WFP 基础绑定；完整过滤为后续增强。</?>
+    )
+    >
+  )
+  >
+)>

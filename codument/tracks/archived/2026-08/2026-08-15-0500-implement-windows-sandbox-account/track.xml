@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Track id="implement-windows-sandbox-account" version="1" xmlns:cdt="urn:codument:v1">
+  <Metadata>
+    <Status>completed</Status>
+    <Goal>用独立受限账号（eidolon-sandbox）实现 Windows 进程级隔离沙箱，达到 同等能力：NetUserAdd 建账号 + LogonUserW/CreateProcessAsUserW 启动 + workspace 账号 ACL + WFP 网络过滤，SandboxBackendRuntime 默认 elevated。</Goal>
+    <Description>当前 Zig 沙箱用 restricted-token 降级路径，实验证明 Cygwin/MSYS 工具（find/ls/grep）与 bun 在其下无法启动（NtSetInformationToken ACCESS_DENIED），被迫默认 disabled（软沙箱）。改用 独立账号方案：setup 创建受限本地账号，命令以账号 token 启动，Cygwin/bun 正常且进程级隔离生效。</Description>
+    <QuestionMode>decision-tree</QuestionMode>
+    <QuestionSeverity>auto</QuestionSeverity>
+    <CommitMode>manual</CommitMode>
+    <CreatedAt>2026-08-14T20:00:00Z</CreatedAt>
+    <UpdatedAt>2026-08-14T21:00:00Z</UpdatedAt>
+    <GapRound>0</GapRound>
+  </Metadata>
+  <Ports scope="track">
+    <MaterialBundle role="input" name="behavior-deltas" domain="behavior" path="vfs://./behavior_deltas/"/>
+    <MaterialBundle role="state" name="analysis" domain="track" path="vfs://./analysis/"/>
+    <MaterialBundle role="output" name="behavior" domain="codument" path="vfs://@/codument/behaviors/"/>
+  </Ports>
+  <TaskSpace id="space_implement-windows-sandbox-account" name="implement-windows-sandbox-account" version="1">
+    <Description>按 P1（账号创建 + 账号启动）、P2（账号 ACL + SandboxBackendRuntime 默认 elevated）、P3（WFP 完整过滤 + TUI 引导）、P4（收口验证）顺序实施；每 phase TDD，终态 phase 跑 GapLoop 与 AttractorCheck。</Description>
+    <SubNodes>
+
+      <TaskGroup id="P1" name="账号创建 + 账号启动" status="DONE" order="0">
+        <Description>setup.zig 用 NetUserAdd 创建 eidolon-sandbox 账号（USER_PRIV_USER，随机密码，DPAPI 存储）+ marker；main.zig 用 LogonUserW + CreateProcessAsUserW 以账号启动。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>setup（elevated）创建账号并写 marker。</cdt:Criterion>
+          <cdt:Criterion>runner 以账号 token 启动命令，Cygwin/bun 正常。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T1.1" name="setup.zig 账号创建" status="DONE" order="0" priority="P0">
+            <Description>实现 NetUserAdd（USER_PRIV_USER, UF_SCRIPT|UF_DONT_EXPIRE_PASSWD）+ NetLocalGroupAddMembers；密码 DPAPI 加密存 %LOCALAPPDATA%\eidolon\windows-sandbox\；写 setup.marker.json。Zig 单测。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.1-AC1" checked="true">setup 创建 eidolon-sandbox 账号（可验证）。</cdt:Criterion>
+              <cdt:Criterion id="T1.1-AC2" checked="false">密码 DPAPI 加密 + marker 写入。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T1.2" name="main.zig 账号启动" status="DONE" order="1" priority="P0">
+            <Description>LogonUserW("eidolon-sandbox", 密码) → token → CreateProcessAsUserW 启动命令（替换 restricted-token 路径）；账号模式下 Cygwin/bun 正常。Zig 单测 + 实机验证。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T1.2-AC1" checked="true">runner 以账号 token 启动命令成功。</cdt:Criterion>
+              <cdt:Criterion id="T1.2-AC2" checked="false">账号下 find/ls/grep/bun 正常运行（实机）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P2" name="账号 ACL + SandboxBackendRuntime 默认 elevated" status="DONE" order="1">
+        <Description>acl.zig 对账号 SID 授权写（LookupAccountNameW）；SandboxBackendRuntime 的 resolveWindowsSandboxLevel 改为：runner 存在 + setup 完成 → elevated，否则 disabled；sandbox_setup_is_complete 读 marker。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>workspace 对账号 SID 授权写（保留继承）。</cdt:Criterion>
+          <cdt:Criterion>Windows 默认 elevated（setup 完成时），未完成降级 disabled。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T2.1" name="acl.zig 账号 SID 授权" status="DONE" order="0" priority="P0">
+            <Description>LookupAccountNameW("eidolon-sandbox") 取账号 SID，workspace root 对其授权写（复用 acl.zig 保留继承）。Zig 单测。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.1-AC1" checked="true">workspace 对账号 SID 有写权（继承保留）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T2.2" name="SandboxBackendRuntime 默认 elevated" status="DONE" order="1" priority="P0">
+            <Description>resolveWindowsSandboxLevel：runner 存在 + sandbox_setup_is_complete → elevated；否则 disabled。sandbox_setup_is_complete 读 marker。Bun 测试。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T2.2-AC1" checked="true">setup 完成 + runner 存在 → windowsSandboxLevel=elevated。</cdt:Criterion>
+              <cdt:Criterion id="T2.2-AC2" checked="true">未 setup → disabled（测试）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P3" name="WFP 完整过滤 + TUI 引导" status="DONE" order="2">
+        <Description>wfp.zig 补 FwpmFilterAdd + 事务，拦沙箱账号 SID；thread.ts 检测 setup 未完成时提示运行 setup。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>network=disabled 时账号出站被 WFP 拦。</cdt:Criterion>
+          <cdt:Criterion>TUI 在 setup 未完成时引导。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T3.1" name="wfp.zig 完整过滤" status="DONE" order="0" priority="P1">
+            <Description>FwpmEngineOpen + FwpmTransactionBegin + FwpmFilterAdd（block 出站，针对账号 SID）+ FwpmTransactionCommit；setup 安装，network=disabled 生效。Zig 单测 + 实机验证。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.1-AC1" checked="false">network=disabled 时账号 ping/curl 失败（实机）。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+          <Task id="T3.2" name="TUI setup 引导" status="DONE" order="1" priority="P1">
+            <Description>thread.ts 检测 sandbox_setup_is_complete=false 时输出引导（运行 setup，UAC）。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T3.2-AC1" checked="true">setup 未完成时 TUI 提示。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+      </TaskGroup>
+
+      <TaskGroup id="P4" name="收口验证" status="DONE" order="3">
+        <Description>全量测试（Zig + Bun）、strict validate、Windows 实机隔离验证（账号下写外被拒、Cygwin/bun 正常、WFP 拦网络）。</Description>
+        <cdt:Gate>
+          <cdt:Criterion>Zig 单测全绿。</cdt:Criterion>
+          <cdt:Criterion>Bun 相关测试全绿。</cdt:Criterion>
+          <cdt:Criterion>strict codument validate 通过。</cdt:Criterion>
+          <cdt:Criterion>Windows 实机验证记录在 analysis/findings.md。</cdt:Criterion>
+        </cdt:Gate>
+        <SubNodes>
+          <Task id="T4.1" name="全量验证" status="DONE" order="0" priority="P0">
+            <Description>运行 zig test、bun test、strict validate、Windows 实机隔离验证。</Description>
+            <cdt:Acceptance>
+              <cdt:Criterion id="T4.1-AC1" checked="true">测试与 validate 通过。</cdt:Criterion>
+              <cdt:Criterion id="T4.1-AC2" checked="true">实机验证结果记录在 analysis/findings.md。</cdt:Criterion>
+            </cdt:Acceptance>
+          </Task>
+        </SubNodes>
+        <Hooks>
+          <Hook on="phase:after"><cdt:GapLoop max-rounds="5" on-exhausted="block" verify-round="false"/></Hook>
+          <Hook on="phase:after"><cdt:AttractorCheck use="coding"/></Hook>
+        </Hooks>
+      </TaskGroup>
+
+    </SubNodes>
+  </TaskSpace>
+</Track>

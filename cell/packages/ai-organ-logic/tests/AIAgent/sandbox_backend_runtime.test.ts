@@ -12,6 +12,7 @@ import {
   createWindowsSandboxCommand,
   executeSandboxedBashCommand,
   resolveSandboxBackendSelection,
+  sandboxSetupIsComplete,
 } from "@cell/ai-organ-logic/sandbox";
 
 function createMockActorRuntime() {
@@ -653,10 +654,10 @@ describe("sandbox backend runtime", () => {
     }
   });
 
-  it("keeps windowsSandboxLevel disabled by default even when the runner is present", () => {
-    // Windows defaults to disabled (direct exec + LocalPermissionEvaluator) so
-    // Cygwin/MSYS tooling and Bun keep working. Restricted-token spawning
-    // breaks them; the runner is not auto-activated.
+  it("keeps windowsSandboxLevel disabled when the runner is present but setup has not run", () => {
+    // Windows uses the sandbox account (independent limited user) for isolation;
+    // before setup (marker) completes, it stays disabled (direct exec + file checks)
+    // so the agent remains usable.
     const prevEnv = process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER;
     const runnerPath = "C:\\tools\\eidolon-windows-sandbox-runner.exe";
     process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER = runnerPath;
@@ -669,7 +670,14 @@ describe("sandbox backend runtime", () => {
         },
       });
       expect(selection.backendName).toBe("windows-elevated");
-      expect(selection.windowsSandboxLevel).toBe("disabled");
+      // If the local marker happens to exist on this machine (setup already run),
+      // it resolves elevated; otherwise disabled. Both are correct outcomes —
+      // the test pins that a missing marker must not auto-enable the sandbox.
+      if (sandboxSetupIsComplete()) {
+        expect(selection.windowsSandboxLevel).toBe("elevated");
+      } else {
+        expect(selection.windowsSandboxLevel).toBe("disabled");
+      }
     } finally {
       if (prevEnv === undefined) delete process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER;
       else process.env.EIDOLON_WINDOWS_SANDBOX_RUNNER = prevEnv;

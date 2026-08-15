@@ -1,0 +1,17 @@
+<behaviors capability="windows-platform-awareness" version="1">
+  <requirement id="platform-injection">
+    <statement>Agent 系统提示词与 outerCtx.metadata SHALL 携带运行平台信息（platform、shell、路径分隔符、命令替代提示），主 agent 与 delegate SHALL 均能感知，并在 Windows 上选择正确的命令与路径形式。tui_a1 不传 metadata 时 SHALL 有合理默认（sandbox_permissions=workspace-write、exec_protocol.mode=full-auto、platform=win32）。</statement>
+    <suite id="platform-awareness" name="Platform awareness">
+      <case id="system-prompt-platform-block">
+        <given>运行平台是 win32</given>
+        <when>构造主 agent 或 delegate 的系统提示词</when>
+        <then>系统提示词 SHALL 包含平台信息块（platform/shell/路径分隔符/命令替代提示）</then>
+      </case>
+      <case id="metadata-defaults">
+        <given>tui_a1 启动且未传 metadata</given>
+        <when>normalizeTerminalRuntimeMetadata 规范化 metadata</when>
+        <then>metadata SHALL 包含 platform=win32、sandbox_permissions.sandbox_mode=workspace-write、exec_protocol.mode=full-auto</then>
+      </case>
+    </suite>
+  </requirement>
+</behaviors>

@@ -8,5 +8,4 @@ export * from "./agent/LocalFileAgentLoader";
 export * from "./skill/LocalFileSkillCatalog";
 export * from "./persistence/LocalFileRuntimeDerivedIndexesStore";
 export * from "./permissions/LocalFilePermissionConfigStore";
-export * from "./system-skill/BundledSystemSkillCatalog";
 export * from "./system-skill/SystemSkillInstaller";

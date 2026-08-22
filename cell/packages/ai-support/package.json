@@ -8,6 +8,10 @@
     ".": "./src/index.ts",
     "./*": "./src/*"
   },
+  "scripts": {
+    "generate:system-skills": "bun run tools/generate-eidolon-system-skill-plan.ts",
+    "generate:system-skills:check": "bun run tools/generate-eidolon-system-skill-plan.ts --check"
+  },
   "description": "Formal AI support host for runtime config, persistence, permissions, and workspace-backed assets.",
   "dependencies": {
     "@cell/ai-core-contract": "workspace:*",
@@ -17,6 +21,8 @@
     "@cell/symbiont-logic": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@cell/ai-organ-logic": "workspace:*",
+    "ai-workflow-flow-dsl-reference": "0.1.0",
+    "halfcode-compiler.xnl": "0.2.3",
     "xnl-core": "^0.1.10"
   }
 }

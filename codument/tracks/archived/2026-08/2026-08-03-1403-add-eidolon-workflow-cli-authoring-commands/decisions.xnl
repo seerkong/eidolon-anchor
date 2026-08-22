@@ -1,14 +1,19 @@
-<decision #track.add-eidolon-workflow-cli-authoring-commands.scope {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>首版 `eidolon workflow` CLI 是否实现 actor-backed create/edit？</?>
-  <answer { }
-  (
-    <raw-answer ?>暂不实现。</?>
-    <decision-text ?>首版落地 deterministic `init/inspect/validate` 和 workflow roots injection；actor-backed create/edit 后续 track 继续。</?>
-    <rationale ?>先保证 CLI 复用 component/service 和安全写入边界，再扩展 AI actor repair loop。</?>
-    <evidence ?>mission design；track design。</?>
+<decision #track.add-eidolon-workflow-cli-authoring-commands.scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PNNZ413184CN33TH92E>
+  首版 `eidolon workflow` CLI 是否实现 actor-backed create/edit？
+  </?01M05F1PNNZ413184CN33TH92E>
+  <answer {  } (
+    <raw-answer ?01M05F1PNNZ413184CN33TH92F>
+    暂不实现。
+    </?01M05F1PNNZ413184CN33TH92F>
+    <decision-text ?01M05F1PNNZ413184CN33TH92G>
+    首版落地 deterministic `init/inspect/validate` 和 workflow roots injection；actor-backed create/edit 后续 track 继续。
+    </?01M05F1PNNZ413184CN33TH92G>
+    <rationale ?01M05F1PNNZ413184CN33TH92H>
+    先保证 CLI 复用 component/service 和安全写入边界，再扩展 AI actor repair loop。
+    </?01M05F1PNNZ413184CN33TH92H>
+    <evidence ?01M05F1PNNZ413184CN33TH92J>
+    mission design；track design。
+    </?01M05F1PNNZ413184CN33TH92J>
   )>
 )>

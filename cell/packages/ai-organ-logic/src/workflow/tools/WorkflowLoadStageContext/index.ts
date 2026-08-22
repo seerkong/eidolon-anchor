@@ -27,7 +27,7 @@ export function buildWorkflowLoadStageContextToolDef(): ToolDef<
       type: "function",
       function: {
         name: "WorkflowLoadStageContext",
-        description: "Load one explicit DevOps stage context from the canonical global sys-ai-workflow system skill.",
+        description: "Load one explicit DevOps stage context from the canonical global sys-eidolon-anchor-devops system Skill.",
         parameters: {
           type: "object",
           properties: {

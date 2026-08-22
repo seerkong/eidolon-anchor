@@ -26,16 +26,25 @@ export function buildWorkflowWorkspaceToolDef(): ToolDef<
       type: "function",
       function: {
         name: "WorkflowWorkspace",
-        description: "Operate a recoverable four-mount workflow authoring VFS session, with compatibility access to published resources.",
+        description: "Operate a recoverable four-mount workflow authoring VFS session, including one bounded exact ResourcePackage selection read, with compatibility access to published resources.",
         parameters: {
           type: "object",
           properties: {
             operation: {
               type: "string",
-              enum: ["describe", "tree", "read", "search", "diff", "validate", "write", "edit", "patch", "delete", "audit"],
+              enum: ["describe", "tree", "read", "read_selection", "read_many", "search", "diff", "validate", "write", "edit", "patch", "delete", "audit"],
+              description: "validate is compatibility-only for a legacy workflow bundle or one supplied published manifest; a ResourcePackage session must use WorkflowPreparePublication.",
             },
             session_id: { type: "string", description: "Recoverable authoring session id. Session paths use /base, /refs, /work or /out." },
             path: { type: "string", description: "Session VFS path, or published workspace-relative compatibility path." },
+            paths: {
+              type: "array",
+              minItems: 1,
+              maxItems: 12,
+              uniqueItems: true,
+              items: { type: "string" },
+              description: "Bounded exact session file paths for one read_many call; directories are not accepted.",
+            },
             query: { type: "string", description: "Text query for search." },
             content: { type: "string", description: "Candidate content for diff/validate/write." },
             old_text: { type: "string", description: "Exact existing text for edit." },

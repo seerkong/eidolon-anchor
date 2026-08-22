@@ -1,0 +1,140 @@
+<Behavior #eidolon.workflow-cli apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #component-backed-authoring (
+      <Statement ?01M05F1P2ESDVHJWW49M2QPD80>
+      The Eidolon CLI SHALL expose workflow authoring commands that reuse the Eidolon workflow component/service instead of implementing independent workflow core logic.
+      </?01M05F1P2ESDVHJWW49M2QPD80>
+      <Suites [
+        <Suite #workflow-init { name = "Workflow init" } (
+          <Cases [
+            <Case #init-writes-controlled-draft (
+              <Given ?01M05F1P2ESDVHJWW49M2QPD81>
+              a user runs `eidolon workflow init ai-data demo`
+              </?01M05F1P2ESDVHJWW49M2QPD81>
+              <When ?01M05F1P2ESDVHJWW49M2QPD82>
+              the command creates files
+              </?01M05F1P2ESDVHJWW49M2QPD82>
+              <Then ?01M05F1P2ESDVHJWW49M2QPD83>
+              the CLI SHALL obtain the bundle draft from the workflow component and write the returned files under the selected `.eidolon` target root
+              </?01M05F1P2ESDVHJWW49M2QPD83>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #workflow-roots-metadata (
+      <Statement ?01M05F1P2ESDVHJWW49M2QPD84>
+      Headless Eidolon runtime metadata SHALL include AI workflow roots so native workflow tools can detect workspace/global workflow roots during CLI conversations.
+      </?01M05F1P2ESDVHJWW49M2QPD84>
+      <Suites [
+        <Suite #exec-runtime-metadata { name = "Exec runtime metadata" } (
+          <Cases [
+            <Case #inject-aiworkflow-roots (
+              <Given ?01M05F1P2ESDVHJWW49M2QPD85>
+              headless exec runtime metadata is built
+              </?01M05F1P2ESDVHJWW49M2QPD85>
+              <When ?01M05F1P2ESDVHJWW49M2QPD86>
+              WorkflowInspectCapability runs in that runtime
+              </?01M05F1P2ESDVHJWW49M2QPD86>
+              <Then ?01M05F1P2ESDVHJWW49M2QPD87>
+              the tool SHALL report workflowRootsInjected=true
+              </?01M05F1P2ESDVHJWW49M2QPD87>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #heredoc-session-continuation (
+      <Statement ?01M05F1P2ESDVHJWW49M2QPD88>
+      The Eidolon workflow CLI MUST accept explicit heredoc-backed user instructions and MUST continue the same Eidolon conversation across independent CLI processes when a session key is supplied.
+      </?01M05F1P2ESDVHJWW49M2QPD88>
+      <Suites [
+        <Suite #workflow-agent-input { name = "Workflow agent input" } (
+          <Cases [
+            <Case #explicit-stdin-source (
+              <Given ?01M05F1P2ESDVHJWW49M2QPD89>
+              A user invokes `eidolon-cli workflow agent /dev/stdin` or `eidolon-cli workflow agent -` with a shell heredoc
+              </?01M05F1P2ESDVHJWW49M2QPD89>
+              <When ?01M05F1P2ESDVHJWW49M2QPD8A>
+              The workflow agent resolves the requirement
+              </?01M05F1P2ESDVHJWW49M2QPD8A>
+              <Then ?01M05F1P2ESDVHJWW49M2QPD8B>
+              The complete multi-line stdin body MUST become the ordinary-language request without treating the source token as text
+              </?01M05F1P2ESDVHJWW49M2QPD8B>
+            )>
+            <Case #positional-compatible (
+              <Given ?01M05F1P2ESDVHJWW49M2QPD8C>
+              A user supplies an ordinary single-line requirement positionally
+              </?01M05F1P2ESDVHJWW49M2QPD8C>
+              <When ?01M05F1P2ESDVHJWW49M2QPD8D>
+              The workflow agent resolves the requirement
+              </?01M05F1P2ESDVHJWW49M2QPD8D>
+              <Then ?01M05F1P2ESDVHJWW49M2QPD8E>
+              The original positional behavior MUST remain unchanged and MUST NOT wait for stdin
+              </?01M05F1P2ESDVHJWW49M2QPD8E>
+            )>
+          ]>
+        )>
+        <Suite #installed-continuation { name = "Installed CLI continuation" } (
+          <Cases [
+            <Case #three-process-journey (
+              <Given ?01M05F1P2ESDVHJWW49M2QPD8F>
+              A locally installed Eidolon CLI and one stable session key
+              </?01M05F1P2ESDVHJWW49M2QPD8F>
+              <When ?01M05F1P2ESDVHJWW49M2QPD8G>
+              three independent heredoc calls create, authorize publication, then authorize execution of a public multi-source workflow
+              </?01M05F1P2ESDVHJWW49M2QPD8G>
+              <Then ?01M05F1P2ESDVHJWW49M2QPD8H>
+              The CLI MUST recover one Eidolon conversation and return a report grounded in the requested public sources without merging publication and execution authorization
+              </?01M05F1P2ESDVHJWW49M2QPD8H>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #unified-eidolon-executable (
+      <Statement ?01M05F1P2ESDVHJWW49M2QPD8J>
+      The project SHALL ship one eidolon executable that owns the interactive TUI and all headless, workflow and global CLI subcommands.
+      </?01M05F1P2ESDVHJWW49M2QPD8J>
+      <Suites [
+        <Suite #unified-entry { name = "Unified executable entry" } (
+          <Cases [
+            <Case #default-tui (
+              <Given ?01M05F1P2ESDVHJWW49M2QPD8K>
+              A user invokes `eidolon` with no subcommand or with a project path
+              </?01M05F1P2ESDVHJWW49M2QPD8K>
+              <When ?01M05F1P2ESDVHJWW49M2QPD8M>
+              The unified command parses the invocation
+              </?01M05F1P2ESDVHJWW49M2QPD8M>
+              <Then ?01M05F1P2ESDVHJWW49M2QPD8N>
+              It SHALL launch the interactive TUI
+              </?01M05F1P2ESDVHJWW49M2QPD8N>
+            )>
+            <Case #shared-subcommands (
+              <Given ?01M05F1P2ESDVHJWW49M2QPD8P>
+              A user invokes `eidolon workflow`, `eidolon global`, `eidolon exec` or another registered headless subcommand
+              </?01M05F1P2ESDVHJWW49M2QPD8P>
+              <When ?01M05F1P2ESDVHJWW49M2QPD8Q>
+              The unified command parses the invocation
+              </?01M05F1P2ESDVHJWW49M2QPD8Q>
+              <Then ?01M05F1P2ESDVHJWW49M2QPD8R>
+              It SHALL execute that subcommand from the same compiled program
+              </?01M05F1P2ESDVHJWW49M2QPD8R>
+            )>
+            <Case #no-parallel-cli-distribution (
+              <Given ?01M05F1P2ESDVHJWW49M2QPD8S>
+              The project build and install surfaces are inspected
+              </?01M05F1P2ESDVHJWW49M2QPD8S>
+              <When ?01M05F1P2ESDVHJWW49M2QPD8T>
+              Terminal artifacts are produced
+              </?01M05F1P2ESDVHJWW49M2QPD8T>
+              <Then ?01M05F1P2ESDVHJWW49M2QPD8V>
+              There MUST be no eidolon-cli command, headless-only entry, package build script or install script
+              </?01M05F1P2ESDVHJWW49M2QPD8V>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

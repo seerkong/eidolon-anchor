@@ -1,0 +1,72 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_7_-_2_0_4_5_-_e_x_e_c_u_t_e_-_a_i_-_d_a_t_a_-_w_o_r_k_f_l_o_w_-_t_h_r_o_u_g_h_-_e_i_d_o_l_o_n_-_r_u_n_t_i_m_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/ai-data-runtime" } (
+      <Requirement #ai-data-runtime (
+        <Statement ?01M05F1PQ54RR481Q6F87W2EAQ>
+        The system SHALL execute AIDataWorkflow as a persisted, per-run mutable DAG over canonical EagerDataFlow and AIDataWorkflow RunGraph semantics.
+        </?01M05F1PQ54RR481Q6F87W2EAQ>
+        <Suites [
+          <Suite #data-runtime { name = "AIDataWorkflow runtime" } (
+            <Cases [
+              <Case #node-state (
+                <Given ?01M05F1PQ54RR481Q6F87W2EAR>
+                A canonical AIDataWorkflow resource exists
+                </?01M05F1PQ54RR481Q6F87W2EAR>
+                <When ?01M05F1PQ54RR481Q6F87W2EAS>
+                WorkflowRun starts it
+                </?01M05F1PQ54RR481Q6F87W2EAS>
+                <Then ?01M05F1PQ54RR481Q6F87W2EAT>
+                The system SHALL persist stable nodes with inputs, outputs, config, status, results and generation
+                </?01M05F1PQ54RR481Q6F87W2EAT>
+              )>
+              <Case #graph-patch (
+                <Given ?01M05F1PQ54RR481Q6F87W2EAV>
+                A completed or waiting run graph
+                </?01M05F1PQ54RR481Q6F87W2EAV>
+                <When ?01M05F1PQ54RR481Q6F87W2EAW>
+                A structurally valid GraphPatch is applied
+                </?01M05F1PQ54RR481Q6F87W2EAW>
+                <Then ?01M05F1PQ54RR481Q6F87W2EAX>
+                The system SHALL create a new generation, record the patch and transitively invalidate affected nodes
+                </?01M05F1PQ54RR481Q6F87W2EAX>
+              )>
+              <Case #semantic-reuse (
+                <Given ?01M05F1PQ54RR481Q6F87W2EAY>
+                An invalidated machine node has unchanged semantic input, config, material revisions and effect policy in the same run
+                </?01M05F1PQ54RR481Q6F87W2EAY>
+                <When ?01M05F1PQ54RR481Q6F87W2EAZ>
+                The new generation advances
+                </?01M05F1PQ54RR481Q6F87W2EAZ>
+                <Then ?01M05F1PQ54RR481Q6F87W2EB0>
+                The system SHALL reuse the prior result without re-executing the node and SHALL retain reuse provenance
+                </?01M05F1PQ54RR481Q6F87W2EB0>
+              )>
+              <Case #never-policy (
+                <Given ?01M05F1PQ54RR481Q6F87W2EB1>
+                A manual node or explicit node policy resolves to never
+                </?01M05F1PQ54RR481Q6F87W2EB1>
+                <When ?01M05F1PQ54RR481Q6F87W2EB2>
+                A new generation advances
+                </?01M05F1PQ54RR481Q6F87W2EB2>
+                <Then ?01M05F1PQ54RR481Q6F87W2EB3>
+                The system SHALL execute or wait again and SHALL record the policy source
+                </?01M05F1PQ54RR481Q6F87W2EB3>
+              )>
+              <Case #recovery (
+                <Given ?01M05F1PQ54RR481Q6F87W2EB4>
+                A persisted graph contains completed and waiting facts
+                </?01M05F1PQ54RR481Q6F87W2EB4>
+                <When ?01M05F1PQ54RR481Q6F87W2EB5>
+                A fresh Eidolon VM queries or resumes it
+                </?01M05F1PQ54RR481Q6F87W2EB5>
+                <Then ?01M05F1PQ54RR481Q6F87W2EB6>
+                The system SHALL restore the RunGraph and continue from stable node identities
+                </?01M05F1PQ54RR481Q6F87W2EB6>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

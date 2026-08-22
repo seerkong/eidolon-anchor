@@ -61,10 +61,6 @@ export class WorkflowAuthoringCatalog {
     return this.installed.prebuiltWorkflows.map(({ files: _files, ...brief }) => Object.freeze(brief))
   }
 
-  listReusableAgents(): readonly { id: string; description: string; promptLoaded: false }[] {
-    return this.installed.reusableAgents
-  }
-
   getPrebuiltWorkflow(id: string): WorkflowPrebuiltBrief & { files: readonly WorkflowAuthoringFile[] } {
     const prebuilt = this.installed.prebuiltWorkflows.find((item) => item.id === id)
     if (!prebuilt) throw new Error(`Prebuilt workflow not found: ${id}`)

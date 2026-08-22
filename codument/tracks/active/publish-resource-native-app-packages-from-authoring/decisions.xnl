@@ -1,0 +1,97 @@
+<decision #resource-package-publication-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>What is the canonical authoring and publication unit for a resource-native App?</?>
+  <recommendation ?>Use the complete workspace ResourcePackage candidate and publish it only through a target-wide transaction followed by registry refresh/readback.</?>
+  <options { } [
+    <option { key = "whole-package" recommended = true } (
+      <title ?>Whole workspace ResourcePackage</?>
+      <description ?>The session edits one complete package and preserves all unrelated resources.</?>
+      <tradeoff ?>Publication replaces a larger tree and therefore needs exact CAS and recovery.</?>
+    )>
+    <option { key = "leaf-bundle" recommended = false } (
+      <title ?>Leaf workflow bundle</?>
+      <description ?>Continue publishing only one workflow directory.</?>
+      <tradeoff ?>It cannot become authority in the separate Halfcode resource root and loses App/Agent/Material closure.</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>The mission and plan review require genuine whole-package publication.</?>
+    <decision-text ?>Resource-native authoring SHALL use the complete workspace ResourcePackage as its candidate/publication unit; resource refs SHALL come from post-commit registry readback.</?>
+    <rationale ?>Halfcode loads one explicit workspace package, while current leaf publication writes to another root and fabricates identity.</?>
+    <evidence ?>WorkflowAuthoringSessionStore, runtime root bindings, EidolonAppResourceRegistryAdapter and the prerequisite plan review.</?>
+  )>
+  <confidence ?>1.0</?>
+  <reversibility ?>low</?>
+)>
+
+<decision #legacy-vfs-reference-honesty apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>How should legacy workflow bundle publication remain compatible?</?>
+  <recommendation ?>Keep the explicit VFS path and return only its actual vfs ref.</?>
+  <options { } [
+    <option { key = "vfs-only" recommended = true } (
+      <title ?>Honest VFS compatibility</?>
+      <description ?>Legacy bundles remain under the workflow root and resolve only through the explicit VFS repository path.</?>
+      <tradeoff ?>Callers that need resource authority must migrate to package mode.</?>
+    )>
+    <option { key = "resource-alias" recommended = false } (
+      <title ?>Construct a resource alias</?>
+      <description ?>Format the workflow FQN as resource URI.</?>
+      <tradeoff ?>The URI is absent from Halfcode registry and creates false authority.</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>Compatibility must be honest and must not claim resource authority.</?>
+    <decision-text ?>Legacy draft/publication receipts SHALL expose vfs refs only and SHALL never construct resource refs.</?>
+    <rationale ?>URI scheme is an authority boundary, not an interchangeable presentation.</?>
+    <evidence ?>The legacy artifact remains physically under .eidolon/workflows and is not loaded by the resource registry.</?>
+  )>
+  <confidence ?>1.0</?>
+  <reversibility ?>low</?>
+)>
+
+<decision #fixture-kind-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>How can tests cover a self-contained package without creating a second Kind authority?</?>
+  <recommendation ?>Use a complete physical ResourcePackage as explicit fixture input and keep every KindDefinition out of production constants/catalogs.</?>
+  <options { } [
+    <option { key = "explicit-package" recommended = true } (
+      <title ?>Explicit package input</?>
+      <description ?>The fixture carries its manifest, actual KindDefinitions and resources as the package under test.</?>
+      <tradeoff ?>Fixture files must be maintained as a coherent input package.</?>
+    )>
+    <option { key = "production-kind-builder" recommended = false } (
+      <title ?>Production Kind builder</?>
+      <description ?>Eidolon code generates the KindDefinitions required by a package.</?>
+      <tradeoff ?>This duplicates Halfcode/depa authority and turns test convenience into production semantics.</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>Published modules or explicit ResourcePackage inputs own the resource standards; Eidolon does not.</?>
+    <decision-text ?>The canonical fixture SHALL be an explicit complete package, while production SHALL only load caller/live packages through Halfcode and depa projections.</?>
+    <rationale ?>A fixture is test input; a production builder/catalog would be a competing authority.</?>
+    <evidence ?>Halfcode loadResourceTree contract, depa projection APIs and current hand-built registry fixture gap.</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #system-skill-patch-versions apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" blocks = [] durable_candidate = false } (
+  <question ?>How should system Skill versions change when authoring/release operations change?</?>
+  <recommendation ?>Increment only affected exact dependencies within 1.0.x.</?>
+  <options { } [
+    <option { key = "patch-only" recommended = true } (
+      <title ?>Patch-only affected Skills</?>
+      <description ?>Authoring and DevOps become 1.0.1; Run and Halfcode remain 1.0.0.</?>
+      <tradeoff ?>Generated plan and expected installed set must update together.</?>
+    )>
+    <option { key = "all-skills" recommended = false } (
+      <title ?>Bump all Skills</?>
+      <description ?>Change every Skill version regardless of content/dependency changes.</?>
+      <tradeoff ?>Creates unrelated version churn and violates smallest-version intent.</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>The user requires 1.0.x-only growth and terminal-smallest increments.</?>
+    <decision-text ?>Authoring and exact-dependent DevOps SHALL move to 1.0.1; unchanged Run and Halfcode SHALL remain 1.0.0.</?>
+    <rationale ?>Only changed content and exact dependency projection require new identities.</?>
+    <evidence ?>User version policy and current generated four-Skill dependency graph.</?>
+  )>
+)>

@@ -32,18 +32,41 @@ function parseSkillMd(skillMdPath: string): SkillEntry | null {
   };
 }
 
-export function loadSkillEntriesFromDir(skillsDir: string): Record<string, SkillEntry> {
+export function loadSkillEntryFromSkillDir(skillDir: string): SkillEntry | null {
+  const skillRootStat = fs.lstatSync(skillDir);
+  if (!skillRootStat.isDirectory() || skillRootStat.isSymbolicLink()) return null;
+  const skillMd = path.join(skillDir, "SKILL.md");
+  if (!fs.existsSync(skillMd)) return null;
+  const skillDocumentStat = fs.lstatSync(skillMd);
+  if (!skillDocumentStat.isFile() || skillDocumentStat.isSymbolicLink()) return null;
+  const realRoot = fs.realpathSync(skillDir);
+  const realDocument = fs.realpathSync(skillMd);
+  const relativeDocument = path.relative(realRoot, realDocument);
+  if (
+    relativeDocument === ".."
+    || relativeDocument.startsWith(`..${path.sep}`)
+    || path.isAbsolute(relativeDocument)
+  ) return null;
+  const skill = parseSkillMd(skillMd);
+  if (!skill) return null;
+  skill.resources = collectSkillResources(skill.dir);
+  return skill;
+}
+
+export function loadSkillEntriesFromDir(
+  skillsDir: string,
+  options: { includeDirectory?: (name: string, absolutePath: string) => boolean } = {},
+): Record<string, SkillEntry> {
   const result: Record<string, SkillEntry> = {};
   if (!skillsDir || !fs.existsSync(skillsDir)) return result;
 
   for (const entry of fs.readdirSync(skillsDir)) {
     const full = path.join(skillsDir, entry);
-    if (!fs.statSync(full).isDirectory()) continue;
-    const skillMd = path.join(full, "SKILL.md");
-    if (!fs.existsSync(skillMd)) continue;
-    const skill = parseSkillMd(skillMd);
+    if (options.includeDirectory && !options.includeDirectory(entry, full)) continue;
+    const directoryStat = fs.lstatSync(full);
+    if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) continue;
+    const skill = loadSkillEntryFromSkillDir(full);
     if (skill) {
-      skill.resources = collectSkillResources(skill.dir);
       result[skill.name] = skill;
     }
   }

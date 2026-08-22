@@ -1,9 +1,19 @@
-<decision #verify-eidolon-workflow-architecture-boundaries.explicit-seams { status = "accepted" priority = "P0" } (
-  <question ?>哪些目标差异可以被视为产品架构边界？</?>
-  <answer { } (
-    <raw-answer ?>资源、root、effect host 与 surface 必须各有明确 authority。</?>
-    <decision-text ?>XNL/depa-flows 拥有资源语义，Eidolon injected roots 拥有工程布局，Eidolon actor/session/runtime-control 拥有 effect lifecycle，native tools/CLI 拥有公开入口；产品状态机与确认/恢复协议不得被旁路。</?>
-    <rationale ?>把格式和宿主职责与产品协议分离，才能独立验证每个 authority 边界。</?>
-    <evidence ?>mission architecture design、已归档 authoring 与 run lifecycle tracks。</?>
+<decision #verify-eidolon-workflow-architecture-boundaries.explicit-seams apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PR4Z7YRD5E5NEM0A0TC>
+  哪些目标差异可以被视为产品架构边界？
+  </?01M05F1PR4Z7YRD5E5NEM0A0TC>
+  <answer {  } (
+    <raw-answer ?01M05F1PR4Z7YRD5E5NEM0A0TD>
+    资源、root、effect host 与 surface 必须各有明确 authority。
+    </?01M05F1PR4Z7YRD5E5NEM0A0TD>
+    <decision-text ?01M05F1PR4Z7YRD5E5NEM0A0TE>
+    XNL/depa-flows 拥有资源语义，Eidolon injected roots 拥有工程布局，Eidolon actor/session/runtime-control 拥有 effect lifecycle，native tools/CLI 拥有公开入口；产品状态机与确认/恢复协议不得被旁路。
+    </?01M05F1PR4Z7YRD5E5NEM0A0TE>
+    <rationale ?01M05F1PR4Z7YRD5E5NEM0A0TF>
+    把格式和宿主职责与产品协议分离，才能独立验证每个 authority 边界。
+    </?01M05F1PR4Z7YRD5E5NEM0A0TF>
+    <evidence ?01M05F1PR4Z7YRD5E5NEM0A0TG>
+    mission architecture design、已归档 authoring 与 run lifecycle tracks。
+    </?01M05F1PR4Z7YRD5E5NEM0A0TG>
   )>
 )>

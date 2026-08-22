@@ -5,6 +5,8 @@ const LOAD = "WorkflowLoadStageContext"
 export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, readonly string[]>> = {
   planning: [
     LOAD,
+    "WorkflowListApps",
+    "WorkflowGetApp",
     "WorkflowGetAuthoringContext",
     "WorkflowListAuthoringTemplates",
     "WorkflowListPrebuiltWorkflows",
@@ -19,6 +21,9 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
   ],
   coding: [
     LOAD,
+    "Skill",
+    "WorkflowListApps",
+    "WorkflowGetApp",
     "WorkflowGetAuthoringContext",
     "WorkflowListAuthoringTemplates",
     "WorkflowListPrebuiltWorkflows",
@@ -34,6 +39,7 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
   ],
   building: [
     LOAD,
+    "Skill",
     "WorkflowGetAuthoringSummary",
     "WorkflowValidateAuthoringSession",
     "WorkflowValidateResourceRef",
@@ -41,6 +47,7 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
   ],
   testing: [
     LOAD,
+    "Skill",
     "WorkflowGetAuthoringSummary",
     "WorkflowValidateAuthoringSession",
     "WorkflowDryRunAuthoringSession",
@@ -50,6 +57,7 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
   ],
   releasing: [
     LOAD,
+    "Skill",
     "WorkflowGetAuthoringSummary",
     "WorkflowValidateAuthoringSession",
     "WorkflowDryRunAuthoringSession",
@@ -59,6 +67,9 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
   ],
   deploying: [
     LOAD,
+    "Skill",
+    "WorkflowListApps",
+    "WorkflowGetApp",
     "WorkflowListTypes",
     "WorkflowGetType",
     "WorkflowCreateInstance",
@@ -71,6 +82,7 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
   ],
   operating: [
     LOAD,
+    "Skill",
     "WorkflowGetInstance",
     "WorkflowUpdateRunVars",
     "WorkflowRun",
@@ -82,6 +94,7 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
   ],
   monitoring: [
     LOAD,
+    "Skill",
     "WorkflowStatus",
     "WorkflowEvents",
     "WorkflowResult",
@@ -92,19 +105,29 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
     "WorkflowMaterialReplay",
     "WorkflowMaterialCleanup",
   ],
+  improving: [
+    LOAD,
+    "Skill",
+    "WorkflowGetAuthoringSummary",
+    "WorkflowStatus",
+    "WorkflowEvents",
+    "WorkflowResult",
+    "WorkflowGetFlowSummary",
+  ],
 }
 
 export function applyAiWorkflowStageToolPolicy(
-  actor: { toolPolicy?: { allowedTools: string[] } },
+  actor: { toolPolicy?: { allowedTools: string[]; allowedToolsMode?: "all" | "exact" } },
   stage: AiWorkflowStageId,
 ): readonly string[] {
   const allowed = [...AI_WORKFLOW_STAGE_TOOL_POLICY[stage]]
   if (!actor.toolPolicy) throw new Error("Workflow stage context requires an actor tool policy")
+  actor.toolPolicy.allowedToolsMode = "exact"
   actor.toolPolicy.allowedTools = allowed
   return allowed
 }
 
-const STAGE_SYSTEM_PROMPT_MARKER = "<!-- eidolon:sys-ai-workflow-stage="
+const STAGE_SYSTEM_PROMPT_MARKER = "<!-- eidolon:sys-eidolon-anchor-devops-stage="
 
 export function applyAiWorkflowStageSystemContext(
   actor: { systemPrompts?: string[] },

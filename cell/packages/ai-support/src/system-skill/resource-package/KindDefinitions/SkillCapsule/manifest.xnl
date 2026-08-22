@@ -1,0 +1,28 @@
+<KindDefinition #Eidolon.Anchor.KindDefinition.SkillCapsule apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  description = "Canonical Halfcode SkillCapsule source contract used by the Eidolon-owned module."
+  resourceKind = "SkillCapsule"
+  sourceShapes = ["directory"]
+  currentApiVersion = "halfcode.resources/v1"
+  supportedApiVersions = ["halfcode.resources/v1"]
+} (
+  <DescriptorContract (
+    <RequiredFiles [
+      <File { name = "SKILL.metadata.yaml" }>
+      <File { name = "SKILL.template.ejs" }>
+      <File { name = "resource-mappings.xnl" }>
+    ]>
+    <SkillDependencyContract {
+      collection = "SkillDependencies"
+      member = "SkillDependency"
+      refScheme = "resource"
+      targetKind = "SkillCapsule"
+      versionBinding = "exact"
+    }>
+    <IncludeContract {
+      collection = "Includes"
+      relation = "compiled-resource-selection"
+      dependencySemantics = false
+    }>
+  )>
+)>

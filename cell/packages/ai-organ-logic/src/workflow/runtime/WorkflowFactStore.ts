@@ -1,4 +1,4 @@
-import { mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
+import { link, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises"
 import path from "node:path"
 import { randomUUID } from "node:crypto"
 
@@ -16,6 +16,7 @@ import type {
 import type { WorkCtrlFlowSnapshot, WorkCtrlFlowStore } from "work-ctrl-flow-contract"
 import type {
   WorkflowDefinitionRevision,
+  WorkflowAgentExecutionFact,
   WorkflowInstance,
   WorkflowMaterialBinding,
   WorkflowMaterialRevision,
@@ -52,6 +53,23 @@ async function writeJsonAtomic(filePath: string, value: unknown): Promise<void> 
   try {
     await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8")
     await rename(temporary, filePath)
+  } finally {
+    await rm(temporary, { force: true }).catch(() => undefined)
+  }
+}
+
+async function writeJsonExclusiveAtomic(filePath: string, value: unknown): Promise<boolean> {
+  await mkdir(path.dirname(filePath), { recursive: true })
+  const temporary = `${filePath}.tmp-${randomUUID()}`
+  try {
+    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, "utf8")
+    try {
+      await link(temporary, filePath)
+      return true
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EEXIST") return false
+      throw error
+    }
   } finally {
     await rm(temporary, { force: true }).catch(() => undefined)
   }
@@ -106,6 +124,16 @@ export class WorkflowFactStore implements WorkCtrlFlowStore, AIWorkflowStateStor
 
   private receiptPath(runId: string): string {
     return path.join(this.rootPath, "run-receipts", `${safeId(runId)}.json`)
+  }
+
+  private agentExecutionPath(runId: string, generation: number, effectId: string): string {
+    return path.join(
+      this.rootPath,
+      "agent-executions",
+      safeId(runId),
+      String(generation),
+      `${safeId(effectId)}.json`,
+    )
   }
 
   materialContentRoot(revision: string): string {
@@ -228,6 +256,37 @@ export class WorkflowFactStore implements WorkCtrlFlowStore, AIWorkflowStateStor
     return this.listJsonDirectory<WorkflowRunReceipt>(path.join(this.rootPath, "run-receipts"))
   }
 
+  async saveAgentExecutionFact(fact: WorkflowAgentExecutionFact): Promise<void> {
+    const existing = await this.loadAgentExecutionFact(fact.runId, fact.generation, fact.effectId)
+    if (existing) {
+      if (JSON.stringify(existing) !== JSON.stringify(fact)) {
+        throw new Error(
+          `Workflow Agent execution fact collision: ${fact.runId}/${fact.generation}/${fact.effectId}`,
+        )
+      }
+      return
+    }
+    const created = await writeJsonExclusiveAtomic(
+      this.agentExecutionPath(fact.runId, fact.generation, fact.effectId),
+      fact,
+    )
+    if (created) return
+    const winner = await this.loadAgentExecutionFact(fact.runId, fact.generation, fact.effectId)
+    if (winner && JSON.stringify(winner) === JSON.stringify(fact)) return
+    throw new Error(
+      `Workflow Agent execution fact collision: ${fact.runId}/${fact.generation}/${fact.effectId}`,
+    )
+  }
+
+  loadAgentExecutionFact(
+    runId: string,
+    generation: number,
+    effectId: string,
+  ): Promise<WorkflowAgentExecutionFact | undefined> {
+    return readJson<WorkflowAgentExecutionFact>(this.agentExecutionPath(runId, generation, effectId))
+      .then((fact) => fact ? deepFreezeJson(fact) : undefined)
+  }
+
   async removeMaterialRevision(materialRef: string, revision: string): Promise<void> {
     await rm(this.materialRevisionPath(materialRef, revision), { force: true })
     const remaining = (await this.listMaterialRevisions()).some((item) => item.revision === revision)
@@ -330,6 +389,12 @@ export class WorkflowFactStore implements WorkCtrlFlowStore, AIWorkflowStateStor
       .map((name) => readJson<T>(path.join(directory, name)))))
       .filter((item): item is T => Boolean(item))
   }
+}
+
+function deepFreezeJson<T>(value: T): T {
+  if (typeof value !== "object" || value === null || Object.isFrozen(value)) return value
+  for (const child of Object.values(value as Record<string, unknown>)) deepFreezeJson(child)
+  return Object.freeze(value)
 }
 
 function sameFingerprint(

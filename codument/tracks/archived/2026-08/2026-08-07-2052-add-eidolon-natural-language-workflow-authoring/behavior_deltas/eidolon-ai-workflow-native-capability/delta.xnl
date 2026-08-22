@@ -1,0 +1,50 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_7_-_2_0_5_2_-_a_d_d_-_e_i_d_o_l_o_n_-_n_a_t_u_r_a_l_-_l_a_n_g_u_a_g_e_-_w_o_r_k_f_l_o_w_-_a_u_t_h_o_r_i_n_g.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/natural-language-authoring" } (
+      <Requirement #natural-language-authoring (
+        <Statement ?01M05F1PQBPSK6GMMQVGEERA67>
+        The system SHALL let humans create or edit canonical AI workflows using ordinary language through TUI and CLI, using Eidolon actors and component-backed native tools without external agent CLIs.
+        </?01M05F1PQBPSK6GMMQVGEERA67>
+        <Suites [
+          <Suite #natural-authoring { name = "Natural-language authoring" } (
+            <Cases [
+              <Case #conversation-authoring (
+                <Given ?01M05F1PQBPSK6GMMQVGEERA68>
+                A user describes a workflow in ordinary language during an Eidolon conversation
+                </?01M05F1PQBPSK6GMMQVGEERA68>
+                <When ?01M05F1PQBPSK6GMMQVGEERA69>
+                The AI kernel routes the request
+                </?01M05F1PQBPSK6GMMQVGEERA69>
+                <Then ?01M05F1PQBPSK6GMMQVGEERA6A>
+                An Eidolon authoring actor SHALL select the form, generate or edit canonical XNL, run a bounded proof/repair loop and publish through WorkflowComponent
+                </?01M05F1PQBPSK6GMMQVGEERA6A>
+              )>
+              <Case #cli-authoring (
+                <Given ?01M05F1PQBPSK6GMMQVGEERA6B>
+                A user invokes `eidolon workflow create` or `edit` with a natural-language instruction
+                </?01M05F1PQBPSK6GMMQVGEERA6B>
+                <When ?01M05F1PQBPSK6GMMQVGEERA6C>
+                The command runs
+                </?01M05F1PQBPSK6GMMQVGEERA6C>
+                <Then ?01M05F1PQBPSK6GMMQVGEERA6D>
+                The command SHALL use the in-process Eidolon runtime and the same WorkflowAuthor capability, without invoking an external AI CLI
+                </?01M05F1PQBPSK6GMMQVGEERA6D>
+              )>
+              <Case #workspace-primitives-visible (
+                <Given ?01M05F1PQBPSK6GMMQVGEERA6E>
+                The authoring actor needs resource facts or mutations
+                </?01M05F1PQBPSK6GMMQVGEERA6E>
+                <When ?01M05F1PQBPSK6GMMQVGEERA6F>
+                It inspects the native tool registry
+                </?01M05F1PQBPSK6GMMQVGEERA6F>
+                <Then ?01M05F1PQBPSK6GMMQVGEERA6G>
+                Component-backed workspace read/tree/search/diff/validate/write/delete primitives SHALL be model-visible
+                </?01M05F1PQBPSK6GMMQVGEERA6G>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

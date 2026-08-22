@@ -1,6 +1,0 @@
-<FlowDslProvenance xmlns="urn:eidolon:flow-dsl-provenance:v1">
-  <Upstream repository="/Users/kongweixian/infra-dev/depa-flows.ts" revision="91ac3156c2635680e3a1b8e74c4da0349c034716" source="docs/flow-dsl"/>
-  <InteractionReference repository="/Users/kongweixian/infra-dev/kwf" revision="dc2e13ae7354500da22ddeabd931a59c1f20b0ac"/>
-  <Included>foundation std/eager-data-flow std/work-ctrl-flow std/ai-data-workflow std/ai-ctrl-workflow spec/flow-core spec/eager-data-flow spec/work-ctrl-flow spec/ai-workflow</Included>
-  <Trimmed>non-AI profiles tutorials historical notes implementation internals</Trimmed>
-</FlowDslProvenance>

@@ -1,0 +1,145 @@
+<Track #publish-resource-native-app-packages-from-authoring apiVersion="codument.tech/v1alpha1" version="1" {
+  status = "completed"
+  goal = "让 Eidolon authoring 以完整 workspace ResourcePackage 为候选，在 Halfcode/depa exact proof、独立发布授权、CAS 原子替换与同一 registry refresh/readback 后返回真实 resource identities。"
+  description = "修复 workflow bundle 写入 .eidolon/workflows 后伪造 resource:// 的根断裂；保留 honest legacy vfs 兼容，补齐并发/恢复/幂等 receipts 与 Authoring/DevOps operations。"
+  question_mode = "decision-tree"
+  question_severity = "auto"
+  commit_mode = "manual"
+  created_at = "2026-08-16T16:26:36.926Z"
+  updated_at = "2026-08-16T20:02:00Z"
+  modeling_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0"
+  engineering_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0"
+} (
+  <Ports { scope = "track" } [
+    <MaterialBundle #mission_authority { role = "input" name = "mission-authority" domain = "docs" path = "vfs://@/codument/missions/active/establish-eidolon-anchor-resource-native-app-and-skills/" }>
+    <MaterialBundle #acceptance_draft { role = "input" name = "acceptance-draft" domain = "docs" path = "vfs://@/codument/tracks/active/verify-eidolon-resource-native-app-lifecycle/" }>
+    <MaterialBundle #workflow_source { role = "output" name = "workflow-source" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+    <MaterialBundle #resource_adapter { role = "output" name = "resource-adapter" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/resources/" }>
+    <MaterialBundle #system_skills { role = "output" name = "system-skills" domain = "code" path = "vfs://@/cell/packages/ai-support/src/system-skill/" }>
+    <MaterialBundle #tests { role = "output" name = "tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/" }>
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_publish-resource-native-app-packages-from-authoring {
+    name = "publish-resource-native-app-packages-from-authoring"
+    version = "1"
+    child_mode = "dag"
+  } (
+    <Description ?>先用完整 fixture 锁定真实 package/legacy 差异，再建立 typed whole-package session 与 exact proof；随后实现 target-wide publication transaction、registry readback和产品面，最后运行fresh verification与方向审查。</?>
+    <SubNodes [
+      <TaskGroup #P1 { name = "锁定 whole-package contract 与 typed session" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?>用物理完整ResourcePackage fixture和compatibility基线固定输入、preservation、session mode与honest refs。</?>
+        <SubNodes [
+          <Task #P1-T1 { name = "建立 self-contained ResourcePackage fixture 与失败基线" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?>Fixture是完整物理ResourcePackage输入，包含所需KindDefinitions、baseline exact AIAgentDefinition/Prompt/MaterialPort与可新增App/Workflow/Material/Binding，不进入production catalog。</?>
+              <Criterion #P1-T1-AC2 { checked = true } ?>用例证明当前workflow bundle publication写入workflows root且返回无法由Halfcode registry解析的resource ref。</?>
+              <Criterion #P1-T1-AC3 { checked = true } ?>Fixture与tests不复制Halfcode通用authority到production，不使用自然语言或名称推断资源关系。</?>
+            ]>
+          )>
+          <Task #P1-T2 { name = "实现 typed whole-package session 与 legacy structural migration" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?>resource-package session从当前workspace package或显式完整package输入复制整树到base/work，记录live base revisions与fixed workspace layer target。</?>
+              <Criterion #P1-T2-AC2 { checked = true } ?>selected resource edit不缩小writer scope；canonical revision绑定path+raw bytes，opaque/binary文件byte-safe保留，只有fatal UTF-8通过的显式source可做文本patch，baseline Agent、Prompt、KindDefinitions和未改资源逐字节保留。</?>
+              <Criterion #P1-T2-AC3 { checked = true } ?>legacy/migrated session只由typed schema/target facts分类，继续使用vfs ref且从不返回resource ref。</?>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?>Session authority能明确区分完整ResourcePackage与legacy VFS bundle，且fixture/KindDefinition来源边界可审计。</?>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "建立 Halfcode/depa exact proof pipeline" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?>让同一candidate revision通过Halfcode loader/registry/content identity和depa App/Workflow/Agent/Material projections形成可发布proof。</?>
+        <SubNodes [
+          <Task #P2-T1 { name = "实现 candidate package validation 与 typed projections" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?>Validator在隔离物理candidate调用Halfcode load/compose/content identity，拒绝invalid package、unsafe path与diagnostics。</?>
+              <Criterion #P2-T1-AC2 { checked = true } ?>depa App与Agent/Material projections、每个App-bound workflow canonical profile与结构化Agent task均被exact验证。</?>
+              <Criterion #P2-T1-AC3 { checked = true } ?>Dependency/run-freeze proof绑定Workflow/Agent/Prompt/Tool/Material closure，不做manifest扫描、文本搜索或第二catalog。</?>
+            ]>
+          )>
+          <Task #P2-T2 { name = "绑定 deterministic proof/receipt 与 revision invalidation" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?>Proof set包含package load、registry/content、App、Agent/Material、workflow profile、freeze和build receipts，全部绑定working/base revisions与完整file digest。</?>
+              <Criterion #P2-T2-AC2 { checked = true } ?>任一patch或live base变化使旧proof不可发布；prepare对同一revision稳定幂等且不触碰live root。</?>
+              <Criterion #P2-T2-AC3 { checked = true } ?>Summary/tool schema返回bounded typed identities与diagnostics，不返回完整重对象或模型自述作为proof。</?>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P2-G1 { checked = true } ?>一个whole-package candidate具有由Halfcode/depa产生的current、complete、effect-free proof。</?>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "实现 publication transaction、readback 与产品协议" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?>在固定workspace resource root上执行target-wide CAS和same-parent recoverable swap，并让同一个registry adapter产生publication receipt。</?>
+        <SubNodes [
+          <Task #P3-T1 { name = "实现 target-wide CAS、journal 与 same-parent atomic replace" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?>Publisher只接受injected workspace layer root和current proof，在target lock内重检live base revision并拒绝concurrent drift。</?>
+              <Criterion #P3-T1-AC2 { checked = true } ?>Staging/backup/journal与live同父，preflight后按显式attempt states推进；任一异常保留或恢复上一完整root。</?>
+              <Criterion #P3-T1-AC3 { checked = true } ?>进程中断恢复、same-revision重试、different-revision conflict与receipt exact-once/idempotence都有稳定用例。</?>
+            ]>
+          )>
+          <Task #P3-T2 { name = "绑定 same-component registry refresh/readback receipt" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?>Component-owned adapter提供typed publication fence：独立加载candidate、与普通refresh generation互斥、协调snapshot/source readers并保留旧authority；live exact readback后一次admit新snapshot且不复用旧in-flight promise。</?>
+              <Criterion #P3-T2-AC2 { checked = true } ?>Receipt中的App、entrypoint Workflow、Agent、Material resource refs全部来自refresh snapshot typed projections，不由FQN拼接。</?>
+              <Criterion #P3-T2-AC3 { checked = true } ?>Readback失败恢复backup且从未admit candidate snapshot；并发snapshot/source read不会观察未验证candidate；receipt明确publicationEffectDispatched=true、runtimeEffectDispatched=false，且publication不创建instance/run。</?>
+            ]>
+          )>
+          <Task #P3-T3 { name = "迁移 native tools、CLI read model 与 operations Skills" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?>Native tools和CLI使用同一component typed mode/receipts；WorkflowFulfill使用closed authoring/publication/execution continuation union并向owner stores校验exact ids；legacy bundle全生命周期只返回真实vfs ref，历史session按结构迁移。</?>
+              <Criterion #P3-T3-AC2 { checked = true } ?>Authoring operations覆盖open/inspect/batch/validate/publish/legacy，DevOps协议引用它们；目录只有operations。</?>
+              <Criterion #P3-T3-AC3 { checked = true } ?>Authoring与DevOps升至1.0.1，Run/Halfcode保持1.0.0，Halfcode generated plan/expected set/global init readback一致。</?>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = true } ?>显式发布能原子替换整个workspace ResourcePackage并返回同一registry readback证明的真实resource identities。</?>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "fresh verification 与 architecture closeout" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?>从新临时workspace验证完整package创建/发布、兼容、恢复、Skill生成与静态authority边界。</?>
+        <SubNodes [
+          <Task #P4-T1 { name = "运行 focused 与 compiled-product verification" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?>Whole-package authoring保留baseline Agent/Prompt，publish后registry exact解析App/Workflow/Agent/Material并可进入既有runtime freeze。</?>
+              <Criterion #P4-T1-AC2 { checked = true } ?>CAS/idempotence/recovery/rollback/containment/legacy-vfs/authorization边界用例、relevant suites、build、frozen install、generator与diff checks通过。</?>
+              <Criterion #P4-T1-AC3 { checked = true } ?>Compiled CLI/native/TUI read path观察同一publication/registry facts；outer session通过typed receipts继续而fresh child history不被复用。</?>
+            ]>
+          )>
+          <Task #P4-T2 { name = "执行 single-authority 静态终审" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?>Production无第二ResourcePackage catalog/scanner/dependency resolver、KindDefinition literals或手工Flow DSL副本。</?>
+              <Criterion #P4-T2-AC2 { checked = true } ?>Production无FQN-to-resource伪造、自然语言/名称regex/keyword/substring/fuzzy/alias/ordered决策分支或workflow-specific child session/history。</?>
+              <Criterion #P4-T2-AC3 { checked = true } ?>Fresh coding AttractorCheck无P0/P1；strict Track/BehaviorPatch/Decision、XNL parse与git diff checks通过。</?>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P4-G1 { checked = true } ?>Resource-native publication prerequisite真实达成，可让mission lifecycle acceptance继续。</?>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_publish-resource-native-app-packages-from-authoring" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

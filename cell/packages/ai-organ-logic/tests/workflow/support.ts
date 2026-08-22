@@ -19,7 +19,7 @@ export async function publishWorkflowFixture(
       scope: "definition",
       id: draft.name,
       path: bundlePath,
-      resourceRef: draft.resourceRef,
+      workflowRef: draft.workflowRef,
     },
   })
   const diff = await component.sessions.diff(session.sessionId)

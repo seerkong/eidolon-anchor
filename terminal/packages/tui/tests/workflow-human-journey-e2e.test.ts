@@ -14,7 +14,7 @@ import { createTuiRuntimeClient } from "../src/runtime/client/TuiRuntimeClient"
 
 const originalHome = process.env.HOME
 const WORKFLOW_FQN = "local.workflow.AIApplicationTrendReport"
-const WORKFLOW_REF = `resource://${WORKFLOW_FQN}`
+const WORKFLOW_REF = "vfs://./ai-application-trend-report/manifest.xnl"
 const SESSION_ID = "ai-trend-report"
 const INSTANCE_ID = "ai-trend-report-instance"
 const RUN_ID = "ai-trend-report-run"

@@ -2,12 +2,64 @@ import type { StdInnerLogic } from "depa-processor"
 import type { SkillInnerConfig, SkillInnerInput, SkillInnerOutput, SkillInnerRuntime } from "./InnerTypes"
 import { SkillRegistry } from "@cell/ai-core-logic/runtime/SkillRegistry"
 import { loadLocalTextResource } from "@cell/ai-organ-logic/runtime/LocalTextResourceLoader"
+import { lstat, readFile, realpath } from "node:fs/promises"
 import path from "path"
 import { pathToFileURL } from "node:url"
 import {
   loadSkillEntriesWithSystemAuthority,
+  readInstalledSystemSkillResource,
   resolveEidolonGlobalRootFromOuterContext,
 } from "@cell/ai-support/system-skill/SystemSkillInstaller"
+
+const ROOT_RESOURCE = "SKILL.md"
+
+function exactResourceIssue(resource: string): string | undefined {
+  if (!resource) return "must be a non-empty relative path"
+  if (resource.includes("\\")) return "must use forward slashes"
+  if (resource.includes("\0")) return "must not contain a null byte"
+  if (path.isAbsolute(resource) || path.posix.isAbsolute(resource)) return "must be relative"
+  const segments = resource.split("/")
+  if (segments.some((segment) => segment === "" || segment === "." || segment === "..")) {
+    return "must not contain empty, current, or parent segments"
+  }
+  if (path.posix.normalize(resource) !== resource) return "must be canonical"
+  return undefined
+}
+
+function isWithin(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate)
+  return relative === "" || (
+    relative !== ".."
+    && !relative.startsWith(`..${path.sep}`)
+    && !path.isAbsolute(relative)
+  )
+}
+
+async function readOrdinarySkillResource(skillDir: string, resource: string): Promise<{
+  fullPath: string
+  sourceText: string
+  sizeBytes: number
+}> {
+  const rootStat = await lstat(skillDir)
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+    throw new Error("Skill root must be a physical directory")
+  }
+  const realRoot = await realpath(skillDir)
+  const fullPath = path.resolve(skillDir, ...resource.split("/"))
+  if (!isWithin(path.resolve(skillDir), fullPath)) throw new Error("Skill resource escapes its lexical root")
+  const resourceStat = await lstat(fullPath)
+  if (!resourceStat.isFile() || resourceStat.isSymbolicLink()) {
+    throw new Error("Skill resource must be a physical file")
+  }
+  const realFile = await realpath(fullPath)
+  if (!isWithin(realRoot, realFile)) throw new Error("Skill resource escapes its real root")
+  const bytes = await readFile(realFile)
+  return {
+    fullPath: realFile,
+    sourceText: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
+    sizeBytes: bytes.byteLength,
+  }
+}
 
 export const skillCoreLogic: StdInnerLogic<SkillInnerRuntime, SkillInnerInput, SkillInnerConfig, SkillInnerOutput> = async (
   runtime,
@@ -29,17 +81,52 @@ export const skillCoreLogic: StdInnerLogic<SkillInnerRuntime, SkillInnerInput, S
     const available = SkillRegistry.keys(runtime.vm.registries.skillRegistry).join(", ") || "none"
     return `Error: Unknown skill '${input.skill}'. Available: ${available}`
   }
-  const content = SkillRegistry.getSkillContent(runtime.vm.registries.skillRegistry, skillName) ?? ""
-  const documentPath = skill.documentPath ?? path.join(skill.dir, "SKILL.md")
+  const resource = input.resource === undefined ? ROOT_RESOURCE : String(input.resource)
+  const issue = exactResourceIssue(resource)
+  if (issue) return `Error: Skill resource '${resource}' ${issue}`
+  if (resource !== ROOT_RESOURCE && !skill.resources?.includes(resource)) {
+    return `Error: Skill resource '${resource}' is not declared by '${skillName}'`
+  }
+
+  const globalRoot = resolveEidolonGlobalRootFromOuterContext(runtime.vm.outerCtx)
+  let fullPath = path.resolve(skill.dir, ...resource.split("/"))
+  let sourceText: string
+  let sizeBytes: number
+  if (skillName.startsWith("sys-")) {
+    const installedText = await readInstalledSystemSkillResource({
+      globalRoot,
+      skillName,
+      relativePath: resource,
+    })
+    sourceText = resource === ROOT_RESOURCE
+      ? SkillRegistry.getSkillContent(runtime.vm.registries.skillRegistry, skillName) ?? installedText
+      : installedText
+    sizeBytes = Buffer.byteLength(sourceText)
+  } else {
+    try {
+      const ordinary = await readOrdinarySkillResource(skill.dir, resource)
+      fullPath = ordinary.fullPath
+      sourceText = resource === ROOT_RESOURCE
+        ? SkillRegistry.getSkillContent(runtime.vm.registries.skillRegistry, skillName) ?? ordinary.sourceText
+        : ordinary.sourceText
+      sizeBytes = Buffer.byteLength(sourceText)
+    } catch (error) {
+      return `Error: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
+
   return loadLocalTextResource({
     vm: runtime.vm,
     actorKey: runtime.actor.key,
     actorId: runtime.actor.id,
     toolCallId: String((runtime as any).toolCallId ?? ""),
-    fullPath: documentPath,
-    canonicalResourceId: `${pathToFileURL(documentPath).href}#instruction-document`,
-    sourceText: content,
-    offset: 1,
-    limit: Math.max(1, content.split(/\r?\n/).length),
+    fullPath,
+    canonicalResourceId: resource === ROOT_RESOURCE
+      ? `${pathToFileURL(fullPath).href}#instruction-document`
+      : pathToFileURL(fullPath).href,
+    sourceText,
+    offset: input.offset,
+    limit: input.limit,
+    sizeBytes,
   })
 }

@@ -1,0 +1,179 @@
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.generic-resource-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VC3>
+  Fabric平台 的 App 能力迁移时，通用资源管理由谁拥有？
+  </?01M05F1P506EXRVHCRT75Q9VC3>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VC4>
+    必须复用 halfcode-compiler.xnl，不能复制 Fabric平台 的早期资源管理器。
+    </?01M05F1P506EXRVHCRT75Q9VC4>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VC5>
+    ResourcePackage、Catalog、KindDefinition、ResourceTree、identity/ref、layering、revision/provenance 与 SkillCapsule distribution 统一由 Halfcode 拥有；depa-flows 和 Eidolon 只能消费 normalized public facts。
+    </?01M05F1P506EXRVHCRT75Q9VC5>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VC6>
+    避免出现第二套 scanner/catalog/overlay/installer authority，并与 Codument 新版消费 Halfcode 的模式一致。
+    </?01M05F1P506EXRVHCRT75Q9VC6>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VC7>
+    用户明确约束；Halfcode resource-core、application-assembly 与 SkillCapsule compiler；Fabric平台 ResourceRegistry 只作为迁移证据。
+    </?01M05F1P506EXRVHCRT75Q9VC7>
+  )>
+)>
+
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.workflow-domain-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VC8>
+  AI Workflow、Agent 与 Material 的资源语义应落在哪个项目？
+  </?01M05F1P506EXRVHCRT75Q9VC8>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VC9>
+    只有 workflow 相关内容放入 depa-flows.ts，其他资源类型必须留在各自 owner 项目。
+    </?01M05F1P506EXRVHCRT75Q9VC9>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VCA>
+    depa-flows 拥有 AICtrlWorkflow、AIDataWorkflow、AIAgentDefinition、agent task、ordered messages、MaterialPort/Binding 和 run freeze 的 Kind contract/consumer projection；它不拥有通用 package/catalog。
+    </?01M05F1P506EXRVHCRT75Q9VCA>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VCB>
+    领域语义与通用资源机制必须分离，才能让其他项目复用 Halfcode 且不依赖 AI Workflow。
+    </?01M05F1P506EXRVHCRT75Q9VCB>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VCC>
+    用户边界；现有 depa-flows packages/docs；Halfcode normalized ResourceRecord contract。
+    </?01M05F1P506EXRVHCRT75Q9VCC>
+  )>
+)>
+
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.system-skill-topology apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VCD>
+  原 sys-ai-workflow 应怎样拆分？
+  </?01M05F1P506EXRVHCRT75Q9VCD>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VCE>
+    建立 DevOps 总 Skill、独立 authoring Skill 和独立 run Skill。
+    </?01M05F1P506EXRVHCRT75Q9VCE>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VCF>
+    安装 `sys-eidolon-anchor-devops`、`sys-eidolon-anchor-authoring`、`sys-eidolon-anchor-run`；DevOps 的 Code 阶段引用 authoring，Deploy/Operate/Monitor 阶段引用 run。
+    </?01M05F1P506EXRVHCRT75Q9VCF>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VCG>
+    对齐 ACE Workbench 的生命周期路由与独立 authoring 结构，同时保留 develop/run 的产品阶段隔离。
+    </?01M05F1P506EXRVHCRT75Q9VCG>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VCH>
+    用户确认的名称和职责；ACE sibling Skill delegation；Fabric平台 develop/run skills。
+    </?01M05F1P506EXRVHCRT75Q9VCH>
+  )>
+)>
+
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.resource-dsl-skill apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VCJ>
+  是否需要一个对标 flow-xml-dsl 的 XNL Resource DSL Skill？
+  </?01M05F1P506EXRVHCRT75Q9VCJ>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VCK>
+    需要，但它应由 Halfcode 所有，不应成为另一个 Eidolon 私有标准。
+    </?01M05F1P506EXRVHCRT75Q9VCK>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VCM>
+    Halfcode 从 canonical resource-dsl docs 和 SkillCapsule 生成 `sys-halfcode-resource-dsl`；它只拥有语言规范和静态诊断，不拥有 Eidolon authoring operations。
+    </?01M05F1P506EXRVHCRT75Q9VCM>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VCN>
+    通用 XNL 资源语法服务多个 consumer，独立 Skill 能保持 authority、复用和渐进加载边界。
+    </?01M05F1P506EXRVHCRT75Q9VCN>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VCP>
+    Halfcode framework-resource-dsl 与 docs/resource-dsl 已形成标准真源，但现有仓库维护 Skill 不适合作为安装制品。
+    </?01M05F1P506EXRVHCRT75Q9VCP>
+  )>
+)>
+
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.operations-terminology apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VCQ>
+  专属 Skill 中结构化操作目录使用什么名称？
+  </?01M05F1P506EXRVHCRT75Q9VCQ>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VCR>
+    使用 operations/，不用 actions/。
+    </?01M05F1P506EXRVHCRT75Q9VCR>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VCS>
+    authoring 与 run Skill 的操作协议统一放在 `operations/`；DevOps 生命周期阶段仍使用独立 stage 目录。
+    </?01M05F1P506EXRVHCRT75Q9VCS>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VCT>
+    operations 同时覆盖 inspect、plan、apply、validate、start、resume 和 observe，比 actions 更准确。
+    </?01M05F1P506EXRVHCRT75Q9VCT>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VCV>
+    用户明确修正。
+    </?01M05F1P506EXRVHCRT75Q9VCV>
+  )>
+)>
+
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.generated-domain-references apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VCW>
+  Flow DSL 和其他 Kind 规范怎样进入 authoring Skill？
+  </?01M05F1P506EXRVHCRT75Q9VCW>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VCX>
+    通过 Halfcode 编译为 references，必须携带来源和版本，不能在 Eidolon 手工维护副本。
+    </?01M05F1P506EXRVHCRT75Q9VCX>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VCY>
+    authoring Skill 只声明所需标准资源；Halfcode ResourceMappings/SkillCapsule 从 owner 项目生成 references，并写入 source FQN、apiVersion、content digest 与 provenance。
+    </?01M05F1P506EXRVHCRT75Q9VCY>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VCZ>
+    既支持离线渐进加载，又避免 copied docs 漂移成第二事实源。
+    </?01M05F1P506EXRVHCRT75Q9VCZ>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VD0>
+    用户确认；Halfcode SkillCapsule Includes、ResourceMappings 与 deterministic compiler。
+    </?01M05F1P506EXRVHCRT75Q9VD0>
+  )>
+)>
+
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.eidolon-host-boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VD1>
+  Eidolon 在 Resource-native App 架构中拥有什么？
+  </?01M05F1P506EXRVHCRT75Q9VD1>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VD2>
+    Eidolon 保留安装入口、资源消费 adapter 和现有 actor/runtime。
+    </?01M05F1P506EXRVHCRT75Q9VD2>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VD3>
+    Eidolon 拥有 `~/.eidolon`/workspace binding、`global init` staged installation、system authority、TUI/CLI/native tools 与 AgentRegistry/actor/provider/tool/session runtime；资源与 workflow 语义分别来自 Halfcode 和 depa-flows。
+    </?01M05F1P506EXRVHCRT75Q9VD3>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VD4>
+    保持 host effect 和产品 surface 内聚，同时拒绝平行资源编译器或 workflow-specific agent runtime。
+    </?01M05F1P506EXRVHCRT75Q9VD4>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VD5>
+    既有 Eidolon architecture attractors；用户要求只维护一个 eidolon 程序并复用底层通用机制。
+    </?01M05F1P506EXRVHCRT75Q9VD5>
+  )>
+)>
+
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.system-skill-versioning apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VD6>
+  新系统 Skill 如何版本化并迁移旧 Skill？
+  </?01M05F1P506EXRVHCRT75Q9VD6>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VD7>
+    使用 1.0.&lt;patch&gt;，只增长小版本。
+    </?01M05F1P506EXRVHCRT75Q9VD7>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VD8>
+    四个新 Skill 以各自新 identity 从 `1.0.0` 开始，只允许 `1.0.x`；global init 在新 closure 完整 readback 后移除旧 `sys-ai-workflow`，失败时保留上一完整安装集。
+    </?01M05F1P506EXRVHCRT75Q9VD8>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VD9>
+    独立 identity 不继承旧单体 Skill 的 patch 数；原子迁移避免双 authority 和部分升级。
+    </?01M05F1P506EXRVHCRT75Q9VD9>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VDA>
+    用户版本约束；当前 system skill installer 与 global init 行为。
+    </?01M05F1P506EXRVHCRT75Q9VDA>
+  )>
+)>
+
+<decision #mission.establish-eidolon-anchor-resource-native-app-and-skills.no-fuzzy-host-semantics apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P506EXRVHCRT75Q9VDB>
+  资源 Kind、stage、topology 和业务操作由谁从自然语言决定？
+  </?01M05F1P506EXRVHCRT75Q9VDB>
+  <answer {  } (
+    <raw-answer ?01M05F1P506EXRVHCRT75Q9VDC>
+    由模型和系统 Skill 决定，host 代码不得模糊匹配。
+    </?01M05F1P506EXRVHCRT75Q9VDC>
+    <decision-text ?01M05F1P506EXRVHCRT75Q9VDD>
+    模型读取 DevOps/authoring/run 与领域 references 后提交结构化选择；host 只校验显式 Kind、stage、operation、revision、resource ref、receipt 和 authorization，禁止 regex、keyword、substring 或 ordered heuristic。
+    </?01M05F1P506EXRVHCRT75Q9VDD>
+    <rationale ?01M05F1P506EXRVHCRT75Q9VDE>
+    语义判断属于 AI 控制面，确定性代码只拥有可判定 transition 和安全边界。
+    </?01M05F1P506EXRVHCRT75Q9VDE>
+    <evidence ?01M05F1P506EXRVHCRT75Q9VDF>
+    用户原则性约束；eidolon-ai-workflow-native-capability behavior。
+    </?01M05F1P506EXRVHCRT75Q9VDF>
+  )>
+)>

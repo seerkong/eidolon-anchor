@@ -1,0 +1,98 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_3_-_1_0_5_0_-_i_n_t_e_g_r_a_t_e_-_a_i_-_w_o_r_k_f_l_o_w_-_n_a_t_i_v_e_-_c_a_p_a_b_i_l_i_t_y.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/native-workflow-capability" } (
+      <Requirement #native-workflow-capability (
+        <Statement ?01M05F1PNDE269S6AT6GDF5TBM>
+        The system SHALL expose AI workflow as an Eidolon-native capability through contract, tool, effect and profile boundaries.
+        </?01M05F1PNDE269S6AT6GDF5TBM>
+        <Suites [
+          <Suite #native-registration { name = "Native registration" } (
+            <Cases [
+              <Case #tool-registry-visible (
+                <Given ?01M05F1PNDE269S6AT6GDF5TBN>
+                The AI kernel runtime composes built-in native tools
+                </?01M05F1PNDE269S6AT6GDF5TBN>
+                <When ?01M05F1PNDE269S6AT6GDF5TBP>
+                The tool registry and model-visible tool schemas are inspected
+                </?01M05F1PNDE269S6AT6GDF5TBP>
+                <Then ?01M05F1PNDE269S6AT6GDF5TBQ>
+                The system SHALL include native workflow tools without requiring MCP fallback
+                </?01M05F1PNDE269S6AT6GDF5TBQ>
+              )>
+              <Case #workflow-owned-directory (
+                <Given ?01M05F1PNDE269S6AT6GDF5TBR>
+                Workflow tool implementations are added
+                </?01M05F1PNDE269S6AT6GDF5TBR>
+                <When ?01M05F1PNDE269S6AT6GDF5TBS>
+                The source layout is inspected
+                </?01M05F1PNDE269S6AT6GDF5TBS>
+                <Then ?01M05F1PNDE269S6AT6GDF5TBT>
+                The implementation SHALL live under `ai-organ-logic/src/workflow/tools`, with composer code limited to bundle registration
+                </?01M05F1PNDE269S6AT6GDF5TBT>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/workflow-fact-contract" } (
+      <Requirement #workflow-fact-contract (
+        <Statement ?01M05F1PNDE269S6AT6GDF5TBV>
+        The system SHALL declare workflow-owned orchestration facts without taking ownership of existing Eidolon runtime facts.
+        </?01M05F1PNDE269S6AT6GDF5TBV>
+        <Suites [
+          <Suite #fact-boundary { name = "Fact boundary" } (
+            <Cases [
+              <Case #data-subgraph-additive (
+                <Given ?01M05F1PNDE269S6AT6GDF5TBW>
+                Eidolon runtime data-subgraph contracts are loaded
+                </?01M05F1PNDE269S6AT6GDF5TBW>
+                <When ?01M05F1PNDE269S6AT6GDF5TBX>
+                The workflow contract package is imported
+                </?01M05F1PNDE269S6AT6GDF5TBX>
+                <Then ?01M05F1PNDE269S6AT6GDF5TBY>
+                The workflow data-subgraph SHALL be additive and SHALL explicitly disown actor, session, conversation, tool, provider, runtime-control, checkpoint, member, holon and detached-task facts
+                </?01M05F1PNDE269S6AT6GDF5TBY>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/minimal-tool-operations" } (
+      <Requirement #minimal-tool-operations (
+        <Statement ?01M05F1PNDE269S6AT6GDF5TBZ>
+        The system SHALL provide a minimal native workflow tool surface that can be called by Eidolon agents.
+        </?01M05F1PNDE269S6AT6GDF5TBZ>
+        <Suites [
+          <Suite #tool-operations { name = "Tool operations" } (
+            <Cases [
+              <Case #inspect-capability (
+                <Given ?01M05F1PNDE269S6AT6GDF5TC0>
+                An agent calls the workflow capability inspection tool
+                </?01M05F1PNDE269S6AT6GDF5TC0>
+                <When ?01M05F1PNDE269S6AT6GDF5TC1>
+                The tool runs inside an Eidolon runtime
+                </?01M05F1PNDE269S6AT6GDF5TC1>
+                <Then ?01M05F1PNDE269S6AT6GDF5TC2>
+                The tool SHALL return available workflow forms, fact owner boundaries and whether workflow roots are injected
+                </?01M05F1PNDE269S6AT6GDF5TC2>
+              )>
+              <Case #validate-resource-ref (
+                <Given ?01M05F1PNDE269S6AT6GDF5TC3>
+                An agent calls the workflow resource reference validation tool
+                </?01M05F1PNDE269S6AT6GDF5TC3>
+                <When ?01M05F1PNDE269S6AT6GDF5TC4>
+                The ref uses an allowed workflow resource scheme
+                </?01M05F1PNDE269S6AT6GDF5TC4>
+                <Then ?01M05F1PNDE269S6AT6GDF5TC5>
+                The tool SHALL return a structured accepted result; unsafe refs SHALL be rejected
+                </?01M05F1PNDE269S6AT6GDF5TC5>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

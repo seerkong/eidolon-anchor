@@ -4,7 +4,10 @@ import os from "node:os"
 import path from "node:path"
 
 import { createWorkflowComponentForRuntime } from "@cell/ai-organ-logic/workflow"
-import { normalizeTerminalRuntimeMetadata } from "@terminal/organ/AIAgent/TerminalRuntime"
+import {
+  normalizeTerminalRuntimeMetadata,
+  resolveRuntimeAuthorityRoot,
+} from "@terminal/organ/AIAgent/TerminalRuntime"
 
 describe("TUI workflow authoring binding", () => {
   it("uses the recoverable native session lifecycle through the normal TUI runtime binding", async () => {
@@ -37,6 +40,10 @@ describe("TUI workflow authoring binding", () => {
     const published = await component.sessions.publish({ sessionId: session.sessionId, confirmed: true })
 
     const expectedRoot = path.join(workDir, ".eidolon", "workflows")
+    expect((metadata.resourcePackages as any).layers).toEqual([
+      { id: "global", rootDir: path.join(resolveRuntimeAuthorityRoot(workDir), "resources") },
+      { id: "workspace", rootDir: path.join(workDir, ".eidolon", "resources") },
+    ])
     expect(component.authoring?.store.rootPath).toBe(expectedRoot)
     expect(published).toMatchObject({ status: "published", targetPath: "tui-evidence" })
     expect(await readFile(path.join(expectedRoot, "tui-evidence", "manifest.xnl"), "utf8"))

@@ -1,0 +1,37 @@
+<Behavior #eidolon.workflow-runtime-tools apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #detached-actor-backed-run (
+      <Statement ?01M05F1P2FTB69FGVDQJ7WPR5E>
+      Eidolon workflow run tools SHALL reuse existing detached actor runtime facts for AI agent task execution and observation instead of introducing a workflow-specific runtime store.
+      </?01M05F1P2FTB69FGVDQJ7WPR5E>
+      <Suites [
+        <Suite #run-status-result { name = "Run status result" } (
+          <Cases [
+            <Case #workflow-run-delegates-to-actor (
+              <Given ?01M05F1P2FTB69FGVDQJ7WPR5F>
+              a workflow run request contains a valid workflow resource ref
+              </?01M05F1P2FTB69FGVDQJ7WPR5F>
+              <When ?01M05F1P2FTB69FGVDQJ7WPR5G>
+              WorkflowRun executes
+              </?01M05F1P2FTB69FGVDQJ7WPR5G>
+              <Then ?01M05F1P2FTB69FGVDQJ7WPR5H>
+              the tool SHALL delegate execution to Eidolon actor infrastructure and return detached task evidence
+              </?01M05F1P2FTB69FGVDQJ7WPR5H>
+            )>
+            <Case #workflow-status-uses-detached-registry (
+              <Given ?01M05F1P2FTB69FGVDQJ7WPR5J>
+              a workflow run id maps to a detached actor task id
+              </?01M05F1P2FTB69FGVDQJ7WPR5J>
+              <When ?01M05F1P2FTB69FGVDQJ7WPR5K>
+              WorkflowStatus, WorkflowEvents or WorkflowResult executes
+              </?01M05F1P2FTB69FGVDQJ7WPR5K>
+              <Then ?01M05F1P2FTB69FGVDQJ7WPR5M>
+              the tools SHALL read existing detached actor registry or observability facts
+              </?01M05F1P2FTB69FGVDQJ7WPR5M>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

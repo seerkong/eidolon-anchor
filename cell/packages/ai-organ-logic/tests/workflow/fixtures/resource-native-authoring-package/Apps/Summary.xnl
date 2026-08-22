@@ -1,0 +1,8 @@
+<AIWorkflowAppBundle #eidolon.fixture.SummaryApp apiVersion="depa.flows/v1" version="1.0.0" {
+  lifecycle = "Active"
+  description = "Baseline summary app"
+} (
+  <WorkflowBindings [
+    <WorkflowBinding #summary { kind = "AICtrlWorkflow" ref = "resource://eidolon.fixture.SummaryWorkflow" entrypoint = true }>
+  ]>
+)>

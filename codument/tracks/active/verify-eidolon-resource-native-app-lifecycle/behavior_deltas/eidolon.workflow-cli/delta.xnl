@@ -1,0 +1,39 @@
+<BehaviorPatch #track.verify-eidolon-resource-native-app-lifecycle.behavior_patch.eidolon.workflow-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.workflow-cli" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon.workflow-cli/requirements/resource-native-agent-continuation" } (
+      <Requirement #resource-native-agent-continuation (
+        <Statement ?01M05F2C000000000000000001>
+        The unified workflow CLI SHALL continue one durable natural-language session across create, publication and execution turns and SHALL expose stable machine-readable identities without implementing a second workflow lifecycle.
+        </?01M05F2C000000000000000001>
+        <Suites [
+          <Suite #session-continuation { name = "Durable CLI continuation" } (
+            <Cases [
+              <Case #three-turn-session (
+                <Given ?01M05F2C000000000000000002>
+                a caller supplies one explicit session id to workflow agent
+                </?01M05F2C000000000000000002>
+                <When ?01M05F2C000000000000000003>
+                create, publication and execution are requested in separate invocations
+                </?01M05F2C000000000000000003>
+                <Then ?01M05F2C000000000000000004>
+                only the outer generic CLI session SHALL continue; each workflow child may be fresh and SHALL receive typed durable authoring/publication/run handoff facts rather than prior child conversation or history
+                </?01M05F2C000000000000000004>
+              )>
+              <Case #json-evidence (
+                <Given ?01M05F2C000000000000000005>
+                the caller requests JSON output
+                </?01M05F2C000000000000000005>
+                <When ?01M05F2C000000000000000006>
+                a lifecycle turn returns
+                </?01M05F2C000000000000000006>
+                <Then ?01M05F2C000000000000000007>
+                output SHALL expose stable session and lifecycle receipt identities without credentials, raw reasoning or machine-specific authority paths
+                </?01M05F2C000000000000000007>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,3 +1,5 @@
+import type { WorkflowFulfillmentContinuation } from "../tools/WorkflowFulfill/OuterTypes"
+
 export type WorkflowAuthorPromptInput = {
   operation: "create" | "edit"
   request: string
@@ -8,7 +10,7 @@ export type WorkflowAuthorPromptInput = {
 
 export function assembleWorkflowAuthorPrompt(input: WorkflowAuthorPromptInput): string {
   return [
-    "Process this structured AI Workflow authoring invocation under the injected sys-ai-workflow system authority.",
+    "Process this structured AI Workflow authoring invocation under the injected sys-eidolon-anchor-devops system authority.",
     "Select the DevOps stage semantically and call WorkflowLoadStageContext before stage-specific work.",
     JSON.stringify({
       kind: "eidolon.aiWorkflowAuthoringInvocation",
@@ -27,17 +29,19 @@ export type WorkflowFulfillmentPromptInput = {
   workflowRef?: string
   publish?: boolean
   execute?: boolean
+  continuation?: WorkflowFulfillmentContinuation
 }
 
 export function assembleWorkflowFulfillmentPrompt(input: WorkflowFulfillmentPromptInput): string {
   return [
-    "Process this structured AI Workflow invocation under the injected sys-ai-workflow system authority.",
+    "Process this structured AI Workflow invocation under the injected sys-eidolon-anchor-devops system authority.",
     "You own semantic stage and topology selection. Call WorkflowLoadStageContext with an explicit stage before stage-specific work.",
     JSON.stringify({
       kind: "eidolon.aiWorkflowInvocation",
       request: input.request.trim(),
       operation: input.operation ?? "auto",
       ...(input.workflowRef ? { workflowRef: input.workflowRef } : {}),
+      ...(input.continuation ? { continuation: input.continuation } : {}),
       authorization: {
         publication: input.publish === true,
         execution: input.execute === true,

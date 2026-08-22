@@ -1,0 +1,18 @@
+---
+name: <%= metadata.name %>
+description: <%= metadata.description %>
+---
+
+# <%= metadata.title %>
+
+Use exact structured authoring operations. Start with:
+
+```json
+{ "skill": "sys-eidolon-anchor-authoring", "resource": "operations/index.md" }
+```
+
+For an existing workspace ResourcePackage, establish recoverable state before reading grammar: load this Skill and `operations/index.md`, query only the App and reusable-Agent identities that are still missing, then call `WorkflowOpenAuthoringSession` in the next provider completion. Do not query templates or prebuilt workflows for an in-place package update. Opening the complete package is deterministic and does not choose its semantic topology.
+
+After the session exists, load `sys-halfcode-resource-dsl` for the generic XNL resource contract. For workflow Kind/profile semantics, first read `references/flow-dsl/README.md`, then load only the exact declared reference needed for the selected Kind or profile. Use `WorkflowWorkspace(operation=read_selection)` before requesting further source files.
+
+The model chooses the resource Kind, profile, topology, and operation from installed standards. Deterministic components own parsing, containment, revision checks, CAS application, digests, build/proof evidence, and publication transitions. A successful edit does not authorize publication or execution, and runtime facts never become authoring source.

@@ -1,0 +1,53 @@
+<BehaviorPatch #track.publish-resource-native-app-packages-from-authoring.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/resource-package-authoring-publication" } (
+      <Requirement #resource-package-authoring-publication (
+        <Statement ?>Eidolon SHALL author and publish a resource-native AI App as one complete workspace ResourcePackage candidate, and SHALL expose resource identities only after Halfcode/depa validation and registry readback.</?>
+        <Suites [
+          <Suite #whole-package-session { name = "Whole-package recoverable authoring" } (
+            <Cases [
+              <Case #preserve-baseline-resources (
+                <Given ?>the workspace ResourcePackage already contains an exact AIAgentDefinition, Prompt, KindDefinitions and other resources</?>
+                <When ?>a resource-native App authoring session is opened and patched</?>
+                <Then ?>the session SHALL clone the complete package into base/work and SHALL preserve every unmodified baseline file byte-for-byte</?>
+              )>
+              <Case #explicit-package-input (
+                <Given ?>the caller supplies a complete ResourcePackage with its own KindDefinitions</?>
+                <When ?>Eidolon opens resource-package authoring</?>
+                <Then ?>Halfcode SHALL load that package as input and production code MUST NOT synthesize a generic KindDefinition catalog</?>
+              )>
+            ]>
+          )>
+          <Suite #exact-package-proof { name = "Exact ResourcePackage proof" } (
+            <Cases [
+              <Case #halfcode-depa-proof (
+                <Given ?>one working revision contains a complete candidate package</?>
+                <When ?>publication preparation runs</?>
+                <Then ?>proof SHALL bind Halfcode package/content/registry revisions, depa App/Workflow/Agent/Material projections, exact workflow profile validation and dependency freeze facts to that revision without running real effects</?>
+              )>
+              <Case #stale-proof-invalidated (
+                <Given ?>a prepared candidate or its live base changes</?>
+                <When ?>publication is requested with the prior proof or base revision</?>
+                <Then ?>publication MUST fail with a structured revision conflict and MUST preserve the recoverable session and live package</?>
+              )>
+            ]>
+          )>
+          <Suite #separate-authorizations { name = "Separated authoring, publication and runtime authority" } (
+            <Cases [
+              <Case #publication-only (
+                <Given ?>the exact candidate is prepared and publication is independently authorized</?>
+                <When ?>the workspace package publication commits</?>
+                <Then ?>the result SHALL contain registry-readback App/Workflow/Agent/Material refs, SHALL record publicationEffectDispatched=true and runtimeEffectDispatched=false, and MUST NOT create an instance, run or workflow runtime effect</?>
+              )>
+              <Case #typed-fresh-child-handoff (
+                <Given ?>an outer CLI/TUI session continues in a later turn</?>
+                <When ?>a fresh WorkflowFulfill child handles publication or execution</?>
+                <Then ?>continuation SHALL use a closed typed handoff discriminated as authoring, publication or execution, SHALL validate its exact ids against durable stores, and MUST NOT require reuse of child conversation history or ordinary-language reconstruction</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

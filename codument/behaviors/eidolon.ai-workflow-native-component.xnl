@@ -1,0 +1,81 @@
+<Behavior #eidolon.ai-workflow-native-component apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #shared-component-authority (
+      <Statement ?01M05F1P2DC5G7HC8B3AZD75H8>
+      Eidolon AI workflow tools SHALL delegate workflow inspection, validation and authoring commands to a shared workflow component/service instead of implementing independent tool-local workflow logic.
+      </?01M05F1P2DC5G7HC8B3AZD75H8>
+      <Suites [
+        <Suite #tool-service-sharing { name = "Tool service sharing" } (
+          <Cases [
+            <Case #inspect-and-validate-use-component (
+              <Given ?01M05F1P2DC5G7HC8B3AZD75H9>
+              WorkflowInspectCapability and WorkflowValidateResourceRef are registered as Eidolon native tools
+              </?01M05F1P2DC5G7HC8B3AZD75H9>
+              <When ?01M05F1P2DC5G7HC8B3AZD75HA>
+              the tools execute
+              </?01M05F1P2DC5G7HC8B3AZD75HA>
+              <Then ?01M05F1P2DC5G7HC8B3AZD75HB>
+              they SHALL use the shared workflow component/service command or query boundary
+              </?01M05F1P2DC5G7HC8B3AZD75HB>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #controlled-authoring-tools (
+      <Statement ?01M05F1P2DC5G7HC8B3AZD75HC>
+      Eidolon SHALL expose controlled workflow authoring tools that create or patch XNL workflow bundles through the workflow component write boundary.
+      </?01M05F1P2DC5G7HC8B3AZD75HC>
+      <Suites [
+        <Suite #authoring-resource-safety { name = "Authoring resource safety" } (
+          <Cases [
+            <Case #create-bundle-validates-resource-refs (
+              <Given ?01M05F1P2DC5G7HC8B3AZD75HD>
+              a workflow create request contains bundle resource references
+              </?01M05F1P2DC5G7HC8B3AZD75HD>
+              <When ?01M05F1P2DC5G7HC8B3AZD75HE>
+              the workflow component prepares the bundle draft
+              </?01M05F1P2DC5G7HC8B3AZD75HE>
+              <Then ?01M05F1P2DC5G7HC8B3AZD75HF>
+              the component SHALL validate resource refs and reject host absolute paths, traversal, naked relative paths, file refs and http refs
+              </?01M05F1P2DC5G7HC8B3AZD75HF>
+            )>
+            <Case #authoring-output-is-structured (
+              <Given ?01M05F1P2DC5G7HC8B3AZD75HG>
+              an AI agent asks to create or patch a workflow
+              </?01M05F1P2DC5G7HC8B3AZD75HG>
+              <When ?01M05F1P2DC5G7HC8B3AZD75HH>
+              the corresponding tool completes
+              </?01M05F1P2DC5G7HC8B3AZD75HH>
+              <Then ?01M05F1P2DC5G7HC8B3AZD75HJ>
+              the tool SHALL return structured JSON evidence describing files, refs and validation diagnostics
+              </?01M05F1P2DC5G7HC8B3AZD75HJ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #no-mcp-in-eidolon-integration (
+      <Statement ?01M05F1P2DC5G7HC8B3AZD75HK>
+      Eidolon AI workflow integration SHALL NOT add an MCP adapter or MCP tool surface in this track.
+      </?01M05F1P2DC5G7HC8B3AZD75HK>
+      <Suites [
+        <Suite #surface-scope { name = "Surface scope" } (
+          <Cases [
+            <Case #only-native-tools (
+              <Given ?01M05F1P2DC5G7HC8B3AZD75HM>
+              workflow native component and tools are added to Eidolon
+              </?01M05F1P2DC5G7HC8B3AZD75HM>
+              <When ?01M05F1P2DC5G7HC8B3AZD75HN>
+              the integration surface is inspected
+              </?01M05F1P2DC5G7HC8B3AZD75HN>
+              <Then ?01M05F1P2DC5G7HC8B3AZD75HP>
+              the added surface SHALL be Eidolon native tools only; MCP remains out of scope
+              </?01M05F1P2DC5G7HC8B3AZD75HP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

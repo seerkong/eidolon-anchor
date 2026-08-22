@@ -1,0 +1,6 @@
+<Prompt #eidolon.fixture.SummaryPrompt apiVersion="depa.flows/v1" version="1.0.0" {
+  lifecycle = "Active"
+  description = "Exact reusable summary prompt"
+} (
+  <Content ?>Return a concise summary of the provided topic text. Do not use tools.</?>
+)>

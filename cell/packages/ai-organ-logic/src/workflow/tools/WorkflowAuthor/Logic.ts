@@ -26,10 +26,10 @@ export const workflowAuthorCoreLogic: StdInnerLogic<
   const globalRoot = resolveEidolonGlobalRootFromOuterContext(runtime.vm.outerCtx)
   const systemAuthority = await readInstalledSystemSkillResource({
     globalRoot,
-    skillName: "sys-ai-workflow",
+    skillName: "sys-eidolon-anchor-devops",
     relativePath: "SKILL.md",
   }).catch((error) => {
-    throw new Error(`Cannot load canonical sys-ai-workflow; run \`eidolon global init\`. ${error instanceof Error ? error.message : String(error)}`)
+    throw new Error(`Cannot load canonical sys-eidolon-anchor-devops; run \`eidolon global init\`. ${error instanceof Error ? error.message : String(error)}`)
   })
   return spawnChildExecutionActor(runtime.vm as any, runtime.actor as any, {
     description: input.operation === "edit" ? "Edit an AI workflow" : "Create an AI workflow",

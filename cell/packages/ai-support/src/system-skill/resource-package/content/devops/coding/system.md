@@ -1,0 +1,9 @@
+# Coding system context
+
+Author or revise resource source through the dedicated sibling Skill. Load it exactly with `Skill({ skill: "sys-eidolon-anchor-authoring" })`, then start with `Skill({ skill: "sys-eidolon-anchor-authoring", resource: "operations/index.md" })`.
+
+For an existing workspace ResourcePackage, use the first post-stage provider completion to load the Authoring root and operation index while querying only missing App and reusable-Agent identities. In the next provider completion call `WorkflowOpenAuthoringSession` with those exact refs. Do not query templates or prebuilt workflows for an in-place package update, and do not spend the pre-open budget on grammar references.
+
+The open receipt already contains the bounded exact-source `selection` when `selected_resource_refs` were supplied, including each workspace-owned effective KindDefinition document required by the selected resource closure. When it is not truncated, consume it directly: do not call workspace `describe`, `tree`, or `read_selection`, and do not search or read those KindDefinition paths again. In the next provider completion, preload the selected batch/proof operation resources together and use the returned source to select the exact Flow DSL Kind/profile reference; do not preload the full reference tree. The following provider completion must patch or, if source already satisfies the request, enter proof. Editing creates a recoverable source revision; it does not publish or execute.
+
+When the requested outcome includes proof, a successful patch is not a terminal result. In the next provider completion call `WorkflowLoadStageContext({ "stage": "testing" })`; the testing tool policy then exposes the single `WorkflowPreparePublication` authority. Do not claim a missing proof tool while still in the coding stage.

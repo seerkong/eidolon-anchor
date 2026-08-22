@@ -1,0 +1,118 @@
+<BehaviorPatch #track.execute-ai-agent-resources-through-eidolon-runtime.behavior_patch.eidolon-resource-native-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-agent-runtime" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-agent-runtime/requirements/resource-agent-runtime-bridge" } (
+      <Requirement #resource-agent-runtime-bridge (
+        <Statement ?01M05F1P7E2EED4MEKENBQRK9R>
+        Eidolon SHALL execute canonical AIAgentDefinition resources through its existing AgentRegistry and actor runtime, freezing exact depa task/resource evidence before workflow dispatch and without creating workflow-specific actor, session, history or compaction authority.
+        </?01M05F1P7E2EED4MEKENBQRK9R>
+        <Suites [
+          <Suite #agent-plan { name = "Resource Agent execution plan" } (
+            <Cases [
+              <Case #exact-message-and-tool-materialization [
+                <Then ?01M05F1P7E2EED4MEKENBQRK9S>
+                message content SHALL come from the exact referenced resource's fixed Halfcode `Content` TextElement subdomain in authored order
+                </?01M05F1P7E2EED4MEKENBQRK9S>
+                <Then ?01M05F1P7E2EED4MEKENBQRK9T>
+                tool keys SHALL equal the exact referenced resource identities and MUST NOT use aliases, suffixes or text inference
+                </?01M05F1P7E2EED4MEKENBQRK9T>
+              ] (
+                <Given ?01M05F1P7E2EED4MEKENBQRK9V>
+                an effective AIAgentDefinition has ordered typed Message and Tool references
+                </?01M05F1P7E2EED4MEKENBQRK9V>
+                <When ?01M05F1P7E2EED4MEKENBQRK9W>
+                Eidolon materializes an execution plan
+                </?01M05F1P7E2EED4MEKENBQRK9W>
+              )>
+              <Case #unsupported-contract-fails-closed (
+                <Given ?01M05F1P7E2EED4MEKENBQRK9X>
+                an Agent definition declares a schema, effect policy or other contract the generic actor runtime cannot enforce
+                </?01M05F1P7E2EED4MEKENBQRK9X>
+                <When ?01M05F1P7E2EED4MEKENBQRK9Y>
+                an execution plan is requested
+                </?01M05F1P7E2EED4MEKENBQRK9Y>
+                <Then ?01M05F1P7E2EED4MEKENBQRK9Z>
+                Eidolon SHALL return a stable unsupported-profile diagnostic and MUST NOT silently omit the contract
+                </?01M05F1P7E2EED4MEKENBQRK9Z>
+              )>
+            ]>
+          )>
+          <Suite #generic-runtime { name = "Existing actor runtime reuse" } (
+            <Cases [
+              <Case #standalone-resource-agent (
+                <Given ?01M05F1P7E2EED4MEKENBQRKA0>
+                a standalone Agent resource has no Material ports and all exact tools are installed
+                </?01M05F1P7E2EED4MEKENBQRKA0>
+                <When ?01M05F1P7E2EED4MEKENBQRKA1>
+                Terminal runtime composition completes
+                </?01M05F1P7E2EED4MEKENBQRKA1>
+                <Then ?01M05F1P7E2EED4MEKENBQRKA2>
+                the Agent SHALL be registered under its full resource ref and execute through the ordinary delegate actor
+                </?01M05F1P7E2EED4MEKENBQRKA2>
+              )>
+              <Case #no-parallel-agent-runtime [
+                <Then ?01M05F1P7E2EED4MEKENBQRKA3>
+                the same generic Eidolon actor and Conversation Domain mechanisms SHALL own those facts
+                </?01M05F1P7E2EED4MEKENBQRKA3>
+                <Then ?01M05F1P7E2EED4MEKENBQRKA4>
+                workflow code MUST NOT create a second actor, session, history or compaction store
+                </?01M05F1P7E2EED4MEKENBQRKA4>
+              ] (
+                <Given ?01M05F1P7E2EED4MEKENBQRKA5>
+                a resource Agent starts or completes
+                </?01M05F1P7E2EED4MEKENBQRKA5>
+                <When ?01M05F1P7E2EED4MEKENBQRKA6>
+                provider, tool, history, compaction or session facts are observed
+                </?01M05F1P7E2EED4MEKENBQRKA6>
+              )>
+            ]>
+          )>
+          <Suite #workflow-freeze { name = "Workflow Agent resource freeze" } (
+            <Cases [
+              <Case #freeze-before-dispatch [
+                <Then ?01M05F1P7E2EED4MEKENBQRKA7>
+                Eidolon SHALL call depa run-resource freeze with the exact workflow kind, ref, node id, Agent ref, Material bindings and Halfcode content identities
+                </?01M05F1P7E2EED4MEKENBQRKA7>
+                <Then ?01M05F1P7E2EED4MEKENBQRKA8>
+                the immutable execution plan and receipt SHALL be persisted before the existing delegate actor is dispatched
+                </?01M05F1P7E2EED4MEKENBQRKA8>
+              ] (
+                <Given ?01M05F1P7E2EED4MEKENBQRKA9>
+                a resource-backed Ctrl or Data workflow invokes ai.agent with an exact agentDefinitionRef
+                </?01M05F1P7E2EED4MEKENBQRKA9>
+                <When ?01M05F1P7E2EED4MEKENBQRKAA>
+                the effect is admitted
+                </?01M05F1P7E2EED4MEKENBQRKAA>
+              )>
+              <Case #recover-frozen-plan (
+                <Given ?01M05F1P7E2EED4MEKENBQRKAB>
+                an Agent execution fact was persisted and the live ResourcePackage later changes or disappears
+                </?01M05F1P7E2EED4MEKENBQRKAB>
+                <When ?01M05F1P7E2EED4MEKENBQRKAC>
+                the same run generation and effect resumes
+                </?01M05F1P7E2EED4MEKENBQRKAC>
+                <Then ?01M05F1P7E2EED4MEKENBQRKAD>
+                Eidolon SHALL reuse the persisted Agent config and receipt without rereading mutable resource content
+                </?01M05F1P7E2EED4MEKENBQRKAD>
+              )>
+              <Case #legacy-vfs-agent-type-only [
+                <Then ?01M05F1P7E2EED4MEKENBQRKAE>
+                Eidolon MAY use the existing registry path for compatibility
+                </?01M05F1P7E2EED4MEKENBQRKAE>
+                <Then ?01M05F1P7E2EED4MEKENBQRKAF>
+                a resource-backed workflow MUST NOT use that fallback or default to the code Agent
+                </?01M05F1P7E2EED4MEKENBQRKAF>
+              ] (
+                <Given ?01M05F1P7E2EED4MEKENBQRKAG>
+                an explicit legacy vfs workflow invokes ai.agent
+                </?01M05F1P7E2EED4MEKENBQRKAG>
+                <When ?01M05F1P7E2EED4MEKENBQRKAH>
+                it supplies agentType instead of a resource Agent ref
+                </?01M05F1P7E2EED4MEKENBQRKAH>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -13,16 +13,9 @@ export type InstalledWorkflowTemplateResource = {
 
 export type InstalledPrebuiltWorkflowResource = InstalledWorkflowTemplateResource
 
-export type InstalledReusableWorkflowAgentResource = {
-  id: string
-  description: string
-  promptLoaded: false
-}
-
 export type WorkflowAuthoringInstalledResourceRegistry = {
   templates: readonly InstalledWorkflowTemplateResource[]
   prebuiltWorkflows: readonly InstalledPrebuiltWorkflowResource[]
-  reusableAgents: readonly InstalledReusableWorkflowAgentResource[]
 }
 
 export const INSTALLED_WORKFLOW_AUTHORING_RESOURCES: WorkflowAuthoringInstalledResourceRegistry = Object.freeze({
@@ -48,5 +41,4 @@ export const INSTALLED_WORKFLOW_AUTHORING_RESOURCES: WorkflowAuthoringInstalledR
       files: Object.freeze([{ path: "manifest.xnl", content: durableApprovalManifest }]),
     }),
   ]),
-  reusableAgents: Object.freeze([]),
 })

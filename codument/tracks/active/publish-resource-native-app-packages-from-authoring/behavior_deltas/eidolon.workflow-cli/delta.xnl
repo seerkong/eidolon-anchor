@@ -1,0 +1,30 @@
+<BehaviorPatch #track.publish-resource-native-app-packages-from-authoring.behavior_patch.eidolon.workflow-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.workflow-cli" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon.workflow-cli/requirements/resource-package-publication-receipts" } (
+      <Requirement #resource-package-publication-receipts (
+        <Statement ?>The unified Eidolon CLI SHALL expose component-derived ResourcePackage authoring/publication receipts and SHALL distinguish registry-backed resource refs from legacy VFS workflow refs.</?>
+        <Suites [
+          <Suite #machine-readable-publication { name = "Machine-readable publication facts" } (
+            <Cases [
+              <Case #registry-readback-json (
+                <Given ?>a resource-package publication succeeds</?>
+                <When ?>the CLI returns JSON or text output</?>
+                <Then ?>it SHALL report the package/artifact/registry revisions and exact readback App, entrypoint Workflow, Agent and Material refs from the shared component</?>
+              )>
+              <Case #legacy-vfs-honesty (
+                <Given ?>a legacy workflow bundle is published under the workflow authoring root</?>
+                <When ?>the CLI/native receipt is projected</?>
+                <Then ?>create/open/publish/resolve/capture/freeze and CLI read models SHALL preserve the same canonical vfs workflow ref and MUST NOT construct or claim any resource ref</?>
+              )>
+              <Case #outer-session-continuation (
+                <Given ?>independent CLI invocations share one explicit outer Eidolon session</?>
+                <When ?>fresh WorkflowFulfill children perform create, publication and execution turns</?>
+                <Then ?>the CLI SHALL hand off a closed authoring/publication/execution continuation union, validate its ids against durable stores, preserve separate authorization booleans and avoid both ordinary-language reconstruction and child-history reuse</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

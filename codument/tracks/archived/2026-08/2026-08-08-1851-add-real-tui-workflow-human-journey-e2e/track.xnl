@@ -1,0 +1,85 @@
+<Track #add-real-tui-workflow-human-journey-e2e version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "以真实 TUI 多轮对话证明自然语言 workflow 创建、独立发布确认、独立执行确认和网络报告执行链。" description = "参考 terminal 既有 local-runtime E2E harness，实现确定性热点门户 AI 趋势报告命题并修复暴露的共享链路缺口。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-08T15:33:44Z" updated_at = "2026-08-08T15:51:57Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "tui-tests" domain = "test" path = "vfs://@/terminal/packages/tui/tests/" }>
+    <MaterialBundle { role = "output" name = "workflow-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+    <MaterialBundle { role = "output" name = "reports" domain = "track" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_add-real-tui-workflow-human-journey-e2e { name = "add-real-tui-workflow-human-journey-e2e" child_mode = "dag" } (
+    <Description ?01M05F1PRT95FW5DJSR459H6P7>
+    Real TUI workflow human journey acceptance and production repair.
+    </?01M05F1PRT95FW5DJSR459H6P7>
+    <SubNodes [
+      <TaskGroup #P1 { name = "真实 TUI E2E harness 与红灯" status = "DONE" order = 0 } (
+        <Description ?01M05F1PRT95FW5DJSR459H6P8>
+        从 TuiRuntimeClient local-runtime 提交三轮自然语言，建立网络门户和完整 journey 断言。
+        </?01M05F1PRT95FW5DJSR459H6P8>
+        <SubNodes [
+          <Task { id = "T1.1" name = "新增网络 AI 趋势报告 TUI E2E" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PRT95FW5DJSR459H6P9>
+              测试通过 TuiRuntimeClient local-runtime 提交创建、发布确认和执行确认三轮消息
+              </?01M05F1PRT95FW5DJSR459H6P9>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PRT95FW5DJSR459H6PA>
+              测试使用真实确定性 HTTP 门户并断言执行确认前无网络请求
+              </?01M05F1PRT95FW5DJSR459H6PA>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1PRT95FW5DJSR459H6PB>
+              首轮失败证据定位真实共享链路而非绕过失败
+              </?01M05F1PRT95FW5DJSR459H6PB>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "共享产品链路修复" status = "DONE" order = 1 } (
+        <Description ?01M05F1PRT95FW5DJSR459H6PC>
+        依据红灯修复 WorkflowFulfill、跨轮恢复、确认门、effect 或结果投影中的真实偏差。
+        </?01M05F1PRT95FW5DJSR459H6PC>
+        <SubNodes [
+          <Task { id = "T2.1" name = "修复并通过完整人类 journey" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PRT95FW5DJSR459H6PD>
+              所有业务消息均从真实 TUI 入口经过 WorkflowFulfill 和 native lifecycle
+              </?01M05F1PRT95FW5DJSR459H6PD>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PRT95FW5DJSR459H6PE>
+              第一次确认只发布，第二次确认才执行 depa-flows 图和 Eidolon effect
+              </?01M05F1PRT95FW5DJSR459H6PE>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1PRT95FW5DJSR459H6PF>
+              最终报告包含门户证据且默认人类输出不泄漏内部 workflow 细节
+              </?01M05F1PRT95FW5DJSR459H6PF>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "回归与独立复验" status = "DONE" order = 2 } (
+        <Description ?01M05F1PRT95FW5DJSR459H6PG>
+        复跑 TUI E2E、workflow product suite、build 和 fresh verifier。
+        </?01M05F1PRT95FW5DJSR459H6PG>
+        <Gate [
+          <Criterion ?01M05F1PRT95FW5DJSR459H6PH>
+          真实 TUI journey、workflow regressions、production builds 与独立复验全部通过
+          </?01M05F1PRT95FW5DJSR459H6PH>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "运行回归、构建与独立验证" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PRT95FW5DJSR459H6PJ>
+              fresh verifier 无未解决 P0/P1 gap
+              </?01M05F1PRT95FW5DJSR459H6PJ>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_add-real-tui-workflow-human-journey-e2e" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks>
+)>

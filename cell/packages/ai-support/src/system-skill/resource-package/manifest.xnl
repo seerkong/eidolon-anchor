@@ -1,0 +1,9 @@
+<ResourcePackage #Eidolon.Anchor.SystemSkills.Package apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  description = "Eidolon Anchor DevOps, authoring and run system Skill resources."
+} (
+  <Catalogs [
+    <Catalog #KindDefinitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
+    <Catalog #SkillCapsules { kind = "SkillCapsule" shape = "directory" root = "vfs://./SkillCapsules/" entry = "manifest.xnl" }>
+  ]>
+)>

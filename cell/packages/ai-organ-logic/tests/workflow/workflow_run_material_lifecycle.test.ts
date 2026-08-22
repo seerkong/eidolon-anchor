@@ -98,7 +98,7 @@ describe("workflow run and Material lifecycle", () => {
       effectDispatched: false,
       instance: {
         instanceId: "prebuilt-instance",
-        workflowRef: "resource://installed.workflow.DurableApproval",
+        workflowRef: "builtin://workflow/durable-approval-flow",
         status: "Prepared",
       },
     })
@@ -114,7 +114,7 @@ describe("workflow run and Material lifecycle", () => {
     const runtime = await makeRuntime()
     await publish(runtime, manifest("frozen_v1"))
     const prepared = await call(runtime, "WorkflowCreateInstance", {
-      workflow_ref: "resource://demo.lifecycle.Frozen",
+      workflow_ref: "vfs://./frozen-lifecycle/manifest.xnl",
       instance_id: "instance-stable",
       idempotency_key: "prepare-stable",
       input: { value: "v1" },
@@ -124,14 +124,22 @@ describe("workflow run and Material lifecycle", () => {
       status: "Prepared",
       definitionRevision: expect.stringMatching(/^sha256:/),
     })
+    expect(prepared.workflow_progress).toEqual({
+      kind: "workflow.domainProgressFact",
+      schemaVersion: "workflow.domain-progress-fact/v1",
+      owner: "workflow.runtime",
+      transition: "instance_prepared",
+      subjectId: "instance-stable",
+      revision: prepared.instance.definitionRevision,
+    })
     const idempotent = await call(runtime, "WorkflowCreateInstance", {
-      workflow_ref: "resource://demo.lifecycle.Frozen",
+      workflow_ref: "vfs://./frozen-lifecycle/manifest.xnl",
       idempotency_key: "prepare-stable",
       input: { value: "v1" },
     })
     expect(idempotent.instance.instanceId).toBe("instance-stable")
     expect(await call(runtime, "WorkflowCreateInstance", {
-      workflow_ref: "resource://demo.lifecycle.Frozen",
+      workflow_ref: "vfs://./frozen-lifecycle/manifest.xnl",
       idempotency_key: "prepare-stable",
       input: { value: "conflict" },
     })).toMatchObject({ ok: false, error: expect.stringContaining("idempotency conflict") })
@@ -159,7 +167,32 @@ describe("workflow run and Material lifecycle", () => {
       status: "Completed",
       instance_id: "instance-stable",
       definition_revision: prepared.instance.definitionRevision,
+      workflow_progress: {
+        kind: "workflow.domainProgressFact",
+        owner: "workflow.runtime",
+        transition: "run_started",
+        subjectId: "run-stable",
+        revision: prepared.instance.definitionRevision,
+      },
     })
+    const observed = await call(runtime, "WorkflowResult", { run_id: "run-stable" })
+    expect(observed.workflow_progress).toEqual({
+      kind: "workflow.domainProgressFact",
+      schemaVersion: "workflow.domain-progress-fact/v1",
+      owner: "workflow.runtime",
+      transition: "result_observed",
+      subjectId: "run-stable",
+      revision: prepared.instance.definitionRevision,
+    })
+    const summary = await call(runtime, "WorkflowGetFlowSummary", { run_id: "run-stable" })
+    expect(summary.descriptor).toMatchObject({
+      runId: "run-stable",
+      instanceId: "instance-stable",
+      workflowRef: "vfs://./frozen-lifecycle/manifest.xnl",
+      definitionRevision: prepared.instance.definitionRevision,
+    })
+    expect(summary.descriptor).not.toHaveProperty("bundlePath")
+    expect(JSON.stringify(summary)).not.toContain(runtime.root)
     expect(started.nodes.map((node: any) => node.nodeId)).toEqual(["frozen_v1", "done"])
     expect(await call(runtime, "WorkflowUpdateRunVars", {
       instance_id: "instance-stable",
@@ -201,7 +234,7 @@ describe("workflow run and Material lifecycle", () => {
     expect(String(first.revision).startsWith("sha256:")).toBe(true)
 
     const prepared = await call(runtime, "WorkflowCreateInstance", {
-      workflow_ref: "resource://demo.lifecycle.Frozen",
+      workflow_ref: "vfs://./frozen-lifecycle/manifest.xnl",
       input: { task: "consume" },
     })
     const bound = await call(runtime, "WorkflowMaterialBind", {

@@ -1,0 +1,194 @@
+<Track #split-eidolon-anchor-devops-authoring-and-run-skills version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "以一个 Halfcode distribution closure 安装 sys-halfcode-resource-dsl 与三个职责分离的 Eidolon Anchor 系统 Skill，并退出旧 sys-ai-workflow authority。" description = "组合已发布的 Halfcode Resource DSL module、depa Flow DSL reference module 与 Eidolon-owned SkillCapsules，生成四 Skill 计划；迁移 global init、渐进资源加载和 workflow actor prompt authority。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-16T14:12:13Z" updated_at = "2026-08-16T15:53:52Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "system-skills" domain = "source" path = "vfs://@/cell/packages/ai-support/src/system-skill/" }>
+    <MaterialBundle { role = "output" name = "skill-tool" domain = "source" path = "vfs://@/cell/packages/ai-organ-logic/src/composer/AIAgent/tools/Skill/" }>
+    <MaterialBundle { role = "output" name = "workflow-prompts" domain = "source" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_split-eidolon-anchor-devops-authoring-and-run-skills { name = "split-eidolon-anchor-devops-authoring-and-run-skills" } (
+    <Description ?01M05F1P8JHX8CQA4WWCTTTEBF>
+    先冻结四 Skill closure 与现有单体边界，再生成一个 Halfcode plan，随后迁移运行时上下文和旧 identity，最后执行构建与独立验收。
+    </?01M05F1P8JHX8CQA4WWCTTTEBF>
+    <SubNodes [
+      <TaskGroup #P1 { name = "冻结四 Skill closure 与迁移边界" status = "DONE" order = 0 } (
+        <Description ?01M05F1P8JHX8CQA4WWCTTTEBG>
+        用边界基线锁定 published modules、目标 identities、sibling dependencies、渐进加载和旧 authority 退出条件。
+        </?01M05F1P8JHX8CQA4WWCTTTEBG>
+        <SubNodes [
+          <Task { id = "T1.1" name = "增加单体 Skill 与完整 closure 的边界基线" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBH>
+              基线明确证明当前仍手工输出 sys-ai-workflow、复制 Flow DSL 正文并把 builtin 与单根 Halfcode plan 拼接
+              </?01M05F1P8JHX8CQA4WWCTTTEBH>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBJ>
+              先行用例覆盖四个 exact identities、dependency edges、1.0.x 版本、operations 目录、generated references 与旧 identity 退出
+              </?01M05F1P8JHX8CQA4WWCTTTEBJ>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBK>
+              异常输入、迁移恢复与健壮性验证使用中性术语，并证明无自然语言 host routing
+              </?01M05F1P8JHX8CQA4WWCTTTEBK>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "绑定公开 module 与唯一 identity authority" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBM>
+              ai-support 精确依赖 halfcode-compiler.xnl@0.2.3 和 ai-workflow-flow-dsl-reference@0.1.0，lock 无 source/file substitute
+              </?01M05F1P8JHX8CQA4WWCTTTEBM>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBN>
+              三个新 Skill identity/version 只由 SkillCapsule XNL 和 Halfcode plan 拥有，不再生成 system-skill.xnl 或 builtin descriptor
+              </?01M05F1P8JHX8CQA4WWCTTTEBN>
+              <Criterion { id = "T1.2-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBP>
+              modeling 已按项目 enabled=false 配置显式跳过，不创建不会被归档的 modeling delta
+              </?01M05F1P8JHX8CQA4WWCTTTEBP>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion ?01M05F1P8JHX8CQA4WWCTTTEBQ>
+          四 Skill 期望 closure、公开版本和旧 authority 迁移边界均有可复现基线
+          </?01M05F1P8JHX8CQA4WWCTTTEBQ>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "生成单一 Halfcode plan 并迁移 global init" status = "DONE" order = 1 } (
+        <Description ?01M05F1P8JHX8CQA4WWCTTTEBR>
+        用两个 published modules 与 Eidolon-owned ResourcePackage 生成完整四 Skill closure，再让现有 whole-root transaction 只消费该计划。
+        </?01M05F1P8JHX8CQA4WWCTTTEBR>
+        <SubNodes [
+          <Task { id = "T2.1" name = "创建 Eidolon Anchor SkillCapsule module 与 deterministic plan" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBS>
+              Eidolon module 定义 DevOps、Authoring、Run 三个 1.0.0 SkillCapsule，DevOps exact 依赖 Authoring+Run，Authoring exact 依赖 Halfcode Resource DSL
+              </?01M05F1P8JHX8CQA4WWCTTTEBS>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBT>
+              ApplicationAssembly 同时加载 Halfcode、depa Flow DSL 与 Eidolon modules，并以 DevOps 为唯一 root 生成恰好四个 Skill 的 dependency-first plan
+              </?01M05F1P8JHX8CQA4WWCTTTEBT>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBV>
+              Authoring 的 references/flow-dsl 只由 published depa module 的显式 ResourceMappings 生成，路径、bytes、digest 与 provenance 完整一致
+              </?01M05F1P8JHX8CQA4WWCTTTEBV>
+              <Criterion { id = "T2.1-AC4" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBW>
+              build-time plan artifact 可重复生成且可在 standalone binary 中离线 hydrate，不依赖运行时源码目录
+              </?01M05F1P8JHX8CQA4WWCTTTEBW>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "让 global init 只安装完整 generated closure" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBX>
+              installer 不再 materialize BUNDLED_SYSTEM_SKILLS 或拼接多个独立计划，只验证、apply、read back 一个 Halfcode closure
+              </?01M05F1P8JHX8CQA4WWCTTTEBX>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBY>
+              global init 成功后 manifest 只含四个 halfcode-distribution identities；runtime 在暴露任何 sys-* 前以 generated plan 校验 exact identity/version/capsuleFqn/closureDigest，旧 manifest、新 binary 不匹配时 fail closed 并提示 global init
+              </?01M05F1P8JHX8CQA4WWCTTTEBY>
+              <Criterion { id = "T2.2-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEBZ>
+              重复执行 byte-equivalent；所有现有 transaction 中断点继续恢复上一完整树并保留 ordinary user Skills
+              </?01M05F1P8JHX8CQA4WWCTTTEBZ>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion ?01M05F1P8JHX8CQA4WWCTTTEC0>
+          四 Skill complete plan 与 whole-root migration 在 source 和 compiled runtime 中均可复现
+          </?01M05F1P8JHX8CQA4WWCTTTEC0>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "拆分内容并迁移渐进上下文 authority" status = "DONE" order = 2 } (
+        <Description ?01M05F1P8JHX8CQA4WWCTTTEC1>
+        让 DevOps 只路由生命周期，让 Authoring/Run 各自拥有 operations，并通过通用 Skill resource fragment 逐步加载标准。
+        </?01M05F1P8JHX8CQA4WWCTTTEC1>
+        <SubNodes [
+          <Task { id = "T3.1" name = "实现 DevOps、Authoring 与 Run 的职责分离内容" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEC2>
+              DevOps 保留 planning/coding/building/testing/releasing/deploying/operating/monitoring/improving 阶段，Code 委派 Authoring，Deploy/Operate/Monitor 委派 Run
+              </?01M05F1P8JHX8CQA4WWCTTTEC2>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEC3>
+              Authoring 只含 operations/ 与 generated references；Run 只含 operations/，且产品树中不存在 actions/
+              </?01M05F1P8JHX8CQA4WWCTTTEC3>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEC4>
+              Authoring、publication、execution authorization 与 runtime fact ownership 保持分离，prompt 不模拟 parser/CAS/digest/build/runtime 算法
+              </?01M05F1P8JHX8CQA4WWCTTTEC4>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "扩展通用 Skill resource fragment 加载" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEC5>
+              Skill 接受 exact skill/resource/offset/limit；根调用默认 SKILL.md，resource 必须来自 catalog 声明的 exact relative path
+              </?01M05F1P8JHX8CQA4WWCTTTEC5>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEC6>
+              managed sys-* 先通过 generated expected projection admission 再做 manifest digest readback，ordinary Skill 通过 physical-file containment；旧 sys-ai-workflow 与额外 managed identity 不得进入 registry，二者复用 LocalTextResourceLoader revision/visibility facts
+              </?01M05F1P8JHX8CQA4WWCTTTEC6>
+              <Criterion { id = "T3.2-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEC7>
+              coding 不再一次注入全部 29 篇 Flow DSL；模型先读 root/operations，再按 exact Kind/profile 渐进加载所需 reference
+              </?01M05F1P8JHX8CQA4WWCTTTEC7>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "迁移 workflow actor、stage 与 prompt identity" status = "DONE" order = 2 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.3-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEC8>
+              WorkflowFulfill、WorkflowAuthor、kernel、workflow agent 和 tool prompts 只引用 sys-eidolon-anchor-devops
+              </?01M05F1P8JHX8CQA4WWCTTTEC8>
+              <Criterion { id = "T3.3-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTEC9>
+              WorkflowLoadStageContext 只按显式 stage 加载 DevOps stage files，authority marker 更新且 host STAGE_NEXT_ACTION prose 被删除
+              </?01M05F1P8JHX8CQA4WWCTTTEC9>
+              <Criterion { id = "T3.3-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTECA>
+              stage tool policy 在需要的阶段允许通用 Skill，host 不维护 topology/profile/operation 到 reference 文件的语义表
+              </?01M05F1P8JHX8CQA4WWCTTTECA>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion ?01M05F1P8JHX8CQA4WWCTTTECB>
+          旧 identity 不再进入 runtime prompt authority，三个新 Skill 通过通用渐进加载协作
+          </?01M05F1P8JHX8CQA4WWCTTTECB>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "兼容、构建与独立验收" status = "DONE" order = 3 } (
+        <Description ?01M05F1P8JHX8CQA4WWCTTTECC>
+        验证 source、global init、compiled binary、CLI/TUI/actor journey 与静态 authority 边界。
+        </?01M05F1P8JHX8CQA4WWCTTTECC>
+        <SubNodes [
+          <Task { id = "T4.1" name = "运行 installer、Skill、workflow 与 binary gates" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTECD>
+              installer/CLI/Skill tool/workflow actor/stage policy/TUI journey focused suites 与既有 workflow lifecycle regression 全部通过
+              </?01M05F1P8JHX8CQA4WWCTTTECD>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTECE>
+              TypeScript changed-line、server/TUI build、frozen install、XML/XNL 和 git diff checks 通过
+              </?01M05F1P8JHX8CQA4WWCTTTECE>
+              <Criterion { id = "T4.1-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTECF>
+              真实新构建 eidolon 对临时 global root 执行 global init --json，安装四项并可逐文件加载 Authoring/Run/Flow references
+              </?01M05F1P8JHX8CQA4WWCTTTECF>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "验证单一 compiler、无旧 authority 与无模糊 host 语义" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1P8JHX8CQA4WWCTTTECG>
+              production 无 BUNDLED_SYSTEM_SKILLS、旧 assets/sys-ai-workflow、system-skill.xnl、手工 Flow DSL 正文或第五个 Skill
+              </?01M05F1P8JHX8CQA4WWCTTTECG>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1P8JHX8CQA4WWCTTTECH>
+              production 不以 regex、keyword、substring、ordered heuristic 或别名决定 stage、Kind、topology、operation 或 authorization
+              </?01M05F1P8JHX8CQA4WWCTTTECH>
+              <Criterion { id = "T4.2-AC3" checked = true } ?01M05F1P8JHX8CQA4WWCTTTECJ>
+              Halfcode 是 dependency/topology/content plan 唯一 authority；Eidolon 仅拥有 global binding、readback、whole-root transaction 和 context delivery
+              </?01M05F1P8JHX8CQA4WWCTTTECJ>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion ?01M05F1P8JHX8CQA4WWCTTTECK>
+          四 Skill 安装、渐进加载、旧 identity 退出和 compiled product evidence 完整
+          </?01M05F1P8JHX8CQA4WWCTTTECK>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Parallel { max_concurrent = 1 spot_check = true }>
+  ]>
+  <Hooks>
+)>

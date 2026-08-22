@@ -1,0 +1,57 @@
+<decision #track.execute-ai-agent-resources-through-eidolon-runtime.generic-runtime {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+} (
+  <question ?>What runtime executes a resource-backed Agent?</?>
+  <answer (
+    <raw-answer ?>The existing Eidolon delegate actor runtime.</?>
+    <decision-text ?>Resource Agents SHALL materialize to generic AgentConfig and execute through AgentRegistry, spawnChildExecutionActor, existing provider/tool policies and the Conversation Domain.</?>
+    <rationale ?>A resource-specific actor or session path would duplicate the platform and violate the mission boundary.</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>low</?>
+)>
+
+<decision #track.execute-ai-agent-resources-through-eidolon-runtime.prompt-content {
+  priority = "P0"
+  status = "accepted"
+} (
+  <question ?>How does Eidolon obtain executable message text from a typed prompt ref?</?>
+  <answer (
+    <raw-answer ?>Only from the referenced resource's fixed Content TextElement subdomain.</?>
+    <decision-text ?>The first execution profile accepts exact non-empty ResourceRecord.node.subdomains.Content.text and performs no source parsing, property fallback or interpolation.</?>
+    <rationale ?>Halfcode business resource roots are DataElements; one fixed normalized Content subdomain is deterministic and avoids reviving Sparrow-era frontmatter or host text scanners.</?>
+  )>
+  <confidence ?>0.96</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.execute-ai-agent-resources-through-eidolon-runtime.freeze-fact {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+} (
+  <question ?>What must be persisted before workflow Agent dispatch?</?>
+  <answer (
+    <raw-answer ?>The depa receipt and immutable host execution plan.</?>
+    <decision-text ?>WorkflowFactStore SHALL persist a task/effect-bound execution fact before dispatch; recovery SHALL use its frozen generic config without rereading the live package.</?>
+    <rationale ?>A digest receipt alone cannot recreate prompt text after the source disappears, while a second registry is unnecessary.</?>
+  )>
+  <confidence ?>0.98</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.execute-ai-agent-resources-through-eidolon-runtime.unsupported-profile {
+  priority = "P0"
+  status = "accepted"
+} (
+  <question ?>How are Agent contracts handled when generic runtime enforcement is absent?</?>
+  <answer (
+    <raw-answer ?>Fail closed.</?>
+    <decision-text ?>Message schemas, input/output schemas and effect policy declarations SHALL reject execution until an owning generic runtime contract is implemented; they MUST NOT be ignored.</?>
+    <rationale ?>Silent omission would make the resource plan claim semantics that the runtime does not enforce.</?>
+  )>
+  <confidence ?>0.98</?>
+  <reversibility ?>high</?>
+)>

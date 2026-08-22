@@ -1,0 +1,50 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_7_-_1_9_3_8_-_b_i_n_d_-_e_i_d_o_l_o_n_-_a_i_-_w_o_r_k_f_l_o_w_-_t_o_-_d_e_p_a_-_f_l_o_w_s_-_c_o_r_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/canonical-core-binding" } (
+      <Requirement #canonical-core-binding (
+        <Statement ?01M05F1PPKJ9YDD6ZQARE3H4S7>
+        The system SHALL consume depa-flows AI workflow contracts and profile source loaders as the authority for workflow kinds, substrates, resource refs, definition bindings and XNL diagnostics.
+        </?01M05F1PPKJ9YDD6ZQARE3H4S7>
+        <Suites [
+          <Suite #canonical-binding { name = "Canonical core binding" } (
+            <Cases [
+              <Case #canonical-contracts (
+                <Given ?01M05F1PPKJ9YDD6ZQARE3H4S8>
+                Eidolon workflow contracts are imported
+                </?01M05F1PPKJ9YDD6ZQARE3H4S8>
+                <When ?01M05F1PPKJ9YDD6ZQARE3H4S9>
+                Workflow kinds, substrates, reuse policies or definition bindings are inspected
+                </?01M05F1PPKJ9YDD6ZQARE3H4S9>
+                <Then ?01M05F1PPKJ9YDD6ZQARE3H4SA>
+                The values and types SHALL come from depa-flows while Eidolon-specific fact ownership remains additive
+                </?01M05F1PPKJ9YDD6ZQARE3H4SA>
+              )>
+              <Case #canonical-source-loaders (
+                <Given ?01M05F1PPKJ9YDD6ZQARE3H4SB>
+                Named XNL sources contain an AICtrlWorkflow or AIDataWorkflow definition
+                </?01M05F1PPKJ9YDD6ZQARE3H4SB>
+                <When ?01M05F1PPKJ9YDD6ZQARE3H4SC>
+                The Eidolon workflow resource loader validates the sources
+                </?01M05F1PPKJ9YDD6ZQARE3H4SC>
+                <Then ?01M05F1PPKJ9YDD6ZQARE3H4SD>
+                The loader SHALL invoke the corresponding depa-flows profile loader and return its typed binding and structured diagnostics
+                </?01M05F1PPKJ9YDD6ZQARE3H4SD>
+              )>
+              <Case #canonical-draft-roundtrip (
+                <Given ?01M05F1PPKJ9YDD6ZQARE3H4SE>
+                The WorkflowCommandService creates a deterministic bundle draft
+                </?01M05F1PPKJ9YDD6ZQARE3H4SE>
+                <When ?01M05F1PPKJ9YDD6ZQARE3H4SF>
+                The draft XNL is loaded through the workflow resource loader
+                </?01M05F1PPKJ9YDD6ZQARE3H4SF>
+                <Then ?01M05F1PPKJ9YDD6ZQARE3H4SG>
+                The draft SHALL produce a canonical definition binding without diagnostics
+                </?01M05F1PPKJ9YDD6ZQARE3H4SG>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

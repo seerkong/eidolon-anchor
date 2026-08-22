@@ -1,0 +1,4 @@
+<KindDefinition #eidolon.fixture.kind.AIAgentDefinition apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable" resourceKind = "AIAgentDefinition" sourceShapes = ["single-file"]
+  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
+}>

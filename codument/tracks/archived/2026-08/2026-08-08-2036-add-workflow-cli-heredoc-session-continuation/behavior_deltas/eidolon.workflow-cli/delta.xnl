@@ -1,0 +1,54 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_8_-_2_0_3_6_-_a_d_d_-_w_o_r_k_f_l_o_w_-_c_l_i_-_h_e_r_e_d_o_c_-_s_e_s_s_i_o_n_-_c_o_n_t_i_n_u_a_t_i_o_n.behavior_patch.eidolon.workflow-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.workflow-cli" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon.workflow-cli/requirements/heredoc-session-continuation" } (
+      <Requirement #heredoc-session-continuation (
+        <Statement ?01M05F1PS3AMX7TYQ7S9AR02W5>
+        The Eidolon workflow CLI MUST accept explicit heredoc-backed user instructions and MUST continue the same Eidolon conversation across independent CLI processes when a session key is supplied.
+        </?01M05F1PS3AMX7TYQ7S9AR02W5>
+        <Suites [
+          <Suite #workflow-agent-input { name = "Workflow agent input" } (
+            <Cases [
+              <Case #explicit-stdin-source (
+                <Given ?01M05F1PS3AMX7TYQ7S9AR02W6>
+                A user invokes `eidolon-cli workflow agent /dev/stdin` or `eidolon-cli workflow agent -` with a shell heredoc
+                </?01M05F1PS3AMX7TYQ7S9AR02W6>
+                <When ?01M05F1PS3AMX7TYQ7S9AR02W7>
+                The workflow agent resolves the requirement
+                </?01M05F1PS3AMX7TYQ7S9AR02W7>
+                <Then ?01M05F1PS3AMX7TYQ7S9AR02W8>
+                The complete multi-line stdin body MUST become the ordinary-language request without treating the source token as text
+                </?01M05F1PS3AMX7TYQ7S9AR02W8>
+              )>
+              <Case #positional-compatible (
+                <Given ?01M05F1PS3AMX7TYQ7S9AR02W9>
+                A user supplies an ordinary single-line requirement positionally
+                </?01M05F1PS3AMX7TYQ7S9AR02W9>
+                <When ?01M05F1PS3AMX7TYQ7S9AR02WA>
+                The workflow agent resolves the requirement
+                </?01M05F1PS3AMX7TYQ7S9AR02WA>
+                <Then ?01M05F1PS3AMX7TYQ7S9AR02WB>
+                The original positional behavior MUST remain unchanged and MUST NOT wait for stdin
+                </?01M05F1PS3AMX7TYQ7S9AR02WB>
+              )>
+            ]>
+          )>
+          <Suite #installed-continuation { name = "Installed CLI continuation" } (
+            <Cases [
+              <Case #three-process-journey (
+                <Given ?01M05F1PS3AMX7TYQ7S9AR02WC>
+                A locally installed Eidolon CLI and one stable session key
+                </?01M05F1PS3AMX7TYQ7S9AR02WC>
+                <When ?01M05F1PS3AMX7TYQ7S9AR02WD>
+                three independent heredoc calls create, authorize publication, then authorize execution of a public multi-source workflow
+                </?01M05F1PS3AMX7TYQ7S9AR02WD>
+                <Then ?01M05F1PS3AMX7TYQ7S9AR02WE>
+                The CLI MUST recover one Eidolon conversation and return a report grounded in the requested public sources without merging publication and execution authorization
+                </?01M05F1PS3AMX7TYQ7S9AR02WE>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

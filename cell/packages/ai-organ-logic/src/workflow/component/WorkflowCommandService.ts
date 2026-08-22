@@ -22,7 +22,7 @@ export type WorkflowBundleDraft = {
   name: string
   fqn: string
   bundleRootRef: string
-  resourceRef: string
+  workflowRef: string
   files: WorkflowBundleFileDraft[]
   diagnostics: AiWorkflowResourceRefValidationResult[]
   canonicalProof: {
@@ -93,10 +93,6 @@ function defaultFqn(name: string): string {
   return `local.workflow.${toPascalCase(name)}`
 }
 
-function resourceRefForFqn(fqn: string): string {
-  return `resource://${fqn}`
-}
-
 function renderManifest(command: {
   form: AiWorkflowForm
   fqn: string
@@ -129,7 +125,7 @@ function renderFlowCode(command: {
   description: string
 }): string {
   return [
-    `export const workflowResourceRef = "resource://${command.fqn}" as const`,
+    `export const workflowDefinitionRef = "vfs://./manifest.xnl" as const`,
     `export const workflowForm = "${command.form}" as const`,
     `export const workflowName = ${JSON.stringify(command.name)} as const`,
     `export const workflowDescription = ${JSON.stringify(command.description)} as const`,
@@ -166,7 +162,7 @@ export class WorkflowCommandService {
     const fqn = command.fqn?.trim() || defaultFqn(name)
     const description = command.description?.trim() || `${name} ${form} bundle.`
     const bundleRootRef = `vfs://./${slug}/`
-    const resourceRef = resourceRefForFqn(fqn)
+    const workflowRef = `vfs://./${slug}/manifest.xnl`
     const files: WorkflowBundleFileDraft[] = [
       {
         path: `${slug}/manifest.xnl`,
@@ -181,7 +177,7 @@ export class WorkflowCommandService {
     ]
     const diagnostics = [
       validateAiWorkflowResourceRef(bundleRootRef),
-      validateAiWorkflowResourceRef(resourceRef),
+      validateAiWorkflowResourceRef(workflowRef),
       ...files.map((file) => validateAiWorkflowResourceRef(file.ref)),
     ]
     const canonical = this.resources.load({
@@ -205,7 +201,7 @@ export class WorkflowCommandService {
       name,
       fqn,
       bundleRootRef,
-      resourceRef,
+      workflowRef,
       files,
       diagnostics,
       canonicalProof: {

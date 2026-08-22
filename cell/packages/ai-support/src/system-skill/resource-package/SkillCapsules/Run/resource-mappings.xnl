@@ -1,0 +1,7 @@
+<ResourceMappings #Eidolon.Anchor.ResourceMappings.Run apiVersion="halfcode.resources/v1" version="1.0.0" (
+  <SourceRoots [
+    <SourceRoot #EidolonRun { sourceRoot = "vfs://module/EidolonAnchorSystemSkills/" } [
+      <CopyDirectory { from = "content/run/operations" to = "operations" }>
+    ]>
+  ]>
+)>

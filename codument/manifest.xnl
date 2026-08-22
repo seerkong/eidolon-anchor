@@ -1,0 +1,66 @@
+<ResourcePackage #codument.workspace apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Active"
+  description = "Codument workspace structured resources"
+} (
+  <Catalogs [
+    <Catalog #kind_definitions {
+      kind = "KindDefinition"
+      shape = "directory"
+      root = "vfs://./std/kinds/KindDefinitions/"
+      entry = "manifest.xnl"
+    }>
+    <Catalog #pending_tracks {
+      kind = "Track"
+      shape = "directory"
+      root = "vfs://./tracks/pending/"
+      entry = "track.xnl"
+    }>
+    <Catalog #active_tracks {
+      kind = "Track"
+      shape = "directory"
+      root = "vfs://./tracks/active/"
+      entry = "track.xnl"
+    }>
+    <Catalog #pending_missions {
+      kind = "Mission"
+      shape = "directory"
+      root = "vfs://./missions/pending/"
+      entry = "mission.xnl"
+    }>
+    <Catalog #active_missions {
+      kind = "Mission"
+      shape = "directory"
+      root = "vfs://./missions/active/"
+      entry = "mission.xnl"
+    }>
+    <Catalog #operation_hooks {
+      kind = "OperationHooks"
+      shape = "single-file"
+      root = "vfs://./config/"
+      entry = "operation-hooks.xnl"
+    }>
+    <Catalog #attractor_profiles {
+      kind = "AttractorProfiles"
+      shape = "single-file"
+      root = "vfs://./config/"
+      entry = "attractor-profiles.xnl"
+    }>
+    <Catalog #modeling_config {
+      kind = "ModelingConfig"
+      shape = "single-file"
+      root = "vfs://./config/"
+      entry = "modeling.xnl"
+    }>
+    <Catalog #engineering_config {
+      kind = "EngineeringConfig"
+      shape = "single-file"
+      root = "vfs://./config/"
+      entry = "engineering.xnl"
+    }>
+    <Catalog #behaviors {
+      kind = "Behavior"
+      shape = "single-file"
+      root = "vfs://./behaviors/"
+    }>
+  ]>
+)>

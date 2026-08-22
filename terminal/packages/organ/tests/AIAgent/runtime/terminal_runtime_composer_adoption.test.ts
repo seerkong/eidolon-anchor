@@ -63,6 +63,61 @@ function makeTempHomeDir(): string {
   return dir
 }
 
+function writeStandaloneAgentResourcePackage(workdir: string): void {
+  const root = path.join(workdir, ".eidolon", "resources")
+  const files: Record<string, string> = {
+    "manifest.xnl": `<ResourcePackage #eidolon.terminal.fixture.package apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Active"
+  description = "Terminal resource Agent fixture"
+} (
+  <Catalogs [
+    <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
+    <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>
+    <Catalog #prompts { kind = "Prompt" shape = "single-file" root = "vfs://./Prompts/" }>
+  ]>
+)>
+`,
+    "KindDefinitions/AIAgentDefinition/manifest.xnl": `<KindDefinition #eidolon.terminal.fixture.kind.AIAgentDefinition apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  resourceKind = "AIAgentDefinition"
+  sourceShapes = ["single-file"]
+  currentApiVersion = "depa.flows/v1"
+  supportedApiVersions = ["depa.flows/v1"]
+}>
+`,
+    "KindDefinitions/Prompt/manifest.xnl": `<KindDefinition #eidolon.terminal.fixture.kind.Prompt apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  resourceKind = "Prompt"
+  sourceShapes = ["single-file"]
+  currentApiVersion = "depa.flows/v1"
+  supportedApiVersions = ["depa.flows/v1"]
+}>
+`,
+    "Agents/Terminal.xnl": `<AIAgentDefinition #eidolon.terminal.fixture.Agent apiVersion="depa.flows/v1" version="1.0.0" {
+  lifecycle = "Active"
+  description = "Terminal resource Agent"
+} (
+  <Messages [
+    <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.terminal.fixture.Prompt" }>
+  ]>
+  <ToolRefs []>
+  <MaterialPortRefs []>
+)>
+`,
+    "Prompts/Terminal.xnl": `<Prompt #eidolon.terminal.fixture.Prompt apiVersion="depa.flows/v1" version="1.0.0" {
+  lifecycle = "Active"
+} (
+  <Content ?>Use the exact Terminal resource context.</?>
+)>
+`,
+  }
+  for (const [relativePath, content] of Object.entries(files)) {
+    const target = path.join(root, relativePath)
+    fs.mkdirSync(path.dirname(target), { recursive: true })
+    fs.writeFileSync(target, content)
+  }
+}
+
 let activeWorkdir: string | null = null
 let activeHomeDir: string | null = null
 
@@ -651,6 +706,45 @@ describe("TerminalRuntime composer adoption", () => {
     expect(memberList).toContain("\"member_count\":0")
   })
 
+  it("merges standalone resource Agents into the same Terminal runtime assembly", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+    writeStandaloneAgentResourcePackage(activeWorkdir)
+
+    const observedAgentConfigs: Array<Record<string, any>> = []
+    __setRuntimeAssemblyFactoryForTest((context) => {
+      observedAgentConfigs.push(context.loadedAgents)
+      return assembleAiCodingRuntimeProfile(context)
+    })
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream() {
+        async function* stream() {
+          yield { choices: [{ delta: { content: "ok" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    configureTerminalRuntime({ workDir: activeWorkdir, mcp: false })
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+    expect(runtime).toBeTruthy()
+
+    const resourceAgent = observedAgentConfigs.at(-1)?.["resource://eidolon.terminal.fixture.Agent"]
+    expect(resourceAgent).toMatchObject({
+      name: "resource://eidolon.terminal.fixture.Agent",
+      description: "Terminal resource Agent",
+      tools: [],
+      prompt: [],
+      requireExactTools: true,
+      seedMessages: [{
+        role: "system",
+        content: "Use the exact Terminal resource context.",
+      }],
+    })
+  })
+
   it("reuses one request observation binding across initial and refreshed adapters and disposes it", async () => {
     activeWorkdir = makeTempWorkdir()
     activeHomeDir = makeTempHomeDir()
@@ -907,7 +1001,7 @@ describe("TerminalRuntime composer adoption", () => {
     expect(memberHelp).toContain("/member catalog")
   })
 
-  it("does not expose a terminal prompt-injection capability", async () => {
+  it("does not expose a terminal runtime-prompt mutation capability", async () => {
     activeWorkdir = makeTempWorkdir()
     activeHomeDir = makeTempHomeDir()
     process.env.HOME = activeHomeDir

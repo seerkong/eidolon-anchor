@@ -6,6 +6,17 @@ import {
   resolveExecApprovalMode,
   type ExecCommandProcessLike,
 } from "../src/commands/exec"
+import { projectRuntimeTiming } from "../../organ/src/AIAgent/RuntimeTimingProjection"
+
+function testTiming(sessionId = "test-session") {
+  return projectRuntimeTiming({
+    sessionId,
+    startedAt: 10,
+    endedAt: 20,
+    providerCalls: [],
+    toolCalls: [],
+  })
+}
 
 describe("exec command", () => {
   test("maps codex-compatible args into headless exec options", async () => {
@@ -50,6 +61,7 @@ describe("exec command", () => {
           finalMessage: "visible reply",
           warnings: [],
           failureSummary: null,
+          timing: testTiming("session-123"),
           outputLastMessagePath: options.outputLastMessagePath,
         }
       },
@@ -182,6 +194,7 @@ describe("exec command", () => {
           finalMessage: "done",
           warnings: [],
           failureSummary: null,
+          timing: testTiming(),
         }
       },
       processLike,
@@ -225,6 +238,7 @@ describe("exec command", () => {
         finalMessage: null,
         warnings: [],
         failureSummary: "runtime_turn_unsettled:mandatory_continuation",
+        timing: testTiming(),
       }),
       processLike,
       reportError: (message) => {

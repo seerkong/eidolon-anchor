@@ -1,0 +1,189 @@
+<Track #verify-eidolon-resource-native-app-lifecycle apiVersion="codument.tech/v1alpha1" version="1" {
+  status = "completed"
+  goal = "用真实新构建 Eidolon 和当前 provider，完成隔离的 Resource-native App 自然语言 authoring、显式发布、显式运行与 evidence readback，并只按结构化事实修复链路。"
+  description = "验证四 Skill、Halfcode/depa resource authority、通用 actor/session/runtime 与 CLI/TUI/native surfaces 的最终产品闭环；拒绝以 host 模糊语义或平行资源管理器掩盖问题。"
+  question_mode = "decision-tree"
+  question_severity = "auto"
+  commit_mode = "manual"
+  created_at = "2026-08-16T15:58:32Z"
+  updated_at = "2026-08-17T15:30:00Z"
+  modeling_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0"
+  engineering_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0"
+} (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "input" name = "mission-authority" domain = "docs" path = "vfs://@/codument/missions/active/establish-eidolon-anchor-resource-native-app-and-skills/" }>
+    <MaterialBundle { role = "input" name = "resource-publication-prerequisite" domain = "docs" path = "vfs://@/codument/tracks/active/publish-resource-native-app-packages-from-authoring/" }>
+    <MaterialBundle { role = "output" name = "analysis" domain = "artifact" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "workflow-product" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+    <MaterialBundle { role = "output" name = "terminal-product" domain = "code" path = "vfs://@/terminal/" }>
+  ]>
+  <TaskSpace #space_verify-eidolon-resource-native-app-lifecycle { name = "verify-eidolon-resource-native-app-lifecycle" version = "1" } (
+    <Description ?01M05F2A000000000000000001>
+    先冻结隔离环境、真实 provider 与三次显式授权边界，再运行 compiled product journey；只依据 provider/tool/runtime facts 修复通用接缝，最后从新环境复跑并独立验收。
+    </?01M05F2A000000000000000001>
+    <SubNodes [
+      <TaskGroup #P1 { name = "冻结隔离产品环境与可观测基线" status = "DONE" order = 0 } (
+        <Description ?01M05F2A000000000000000002>
+        在 resource-publication prerequisite 完成后，建立不触碰真实 HOME、global root 或 workspace 的可重复 harness，并冻结同一 ResourcePackage fixture、自然语言目标、授权顺序、provider 配置投影和时延事实格式。
+        </?01M05F2A000000000000000002>
+        <SubNodes [
+          <Task { id = "T1.1" name = "建立 compiled Eidolon 隔离 harness" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F2A000000000000000003>
+              harness 使用当前 dist/本地 eidolon 同一 0.1.2 产品，在 mktemp HOME、global root 与 workspace 中运行，且不修改用户真实 ~/.eidolon
+              </?01M05F2A000000000000000003>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F2A000000000000000004>
+              仅把当前 llm-provider.json 与 agent-present.json 作为临时只读输入投影，日志和持久报告不得包含 credential 值
+              </?01M05F2A000000000000000004>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F2A000000000000000005>
+              global init 在隔离 root 安装 exact 四 Skill；workspace layer 是一个 authentic ResourcePackage，包含 exact KindDefinitions、App/Workflow catalogs、固定 reusable AIAgentDefinition 与 Prompt，且发布时必须保留这些既有资源
+              </?01M05F2A000000000000000005>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "冻结三 turn 目标、授权和观测契约" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F2A000000000000000006>
+              固定普通语言目标为资源原生 AI App：接收主题文本，由 exact AIAgentDefinition 资源生成简短摘要并返回
+              </?01M05F2A000000000000000006>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F2A000000000000000007>
+              只有外层 generic CLI session 通过 --session 延续；每次 WorkflowFulfill 可创建 fresh child，三 turn 只用 typed authoringSession/revision/proof/publication/instance/run handoff，不能复用 child history
+              </?01M05F2A000000000000000007>
+              <Criterion { id = "T1.2-AC3" checked = true } ?01M05F2A000000000000000008>
+              wall/provider/tool/residual product区间互斥；missing first-token 时整个 provider call interval归 provider，timeout与user cancellation用 typed reason区分，并持久化 failure kind/retry reason/count/terminal cause
+              </?01M05F2A000000000000000008>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion { checked = true } ?01M05F2A000000000000000009>
+          隔离环境、真实 provider、三次授权边界与可审计时延事实均可重复且不泄漏敏感配置
+          </?01M05F2A000000000000000009>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "执行真实 provider 的跨入口生命周期" status = "DONE" order = 1 } (
+        <Description ?01M05F2A00000000000000000A>
+        使用 unified eidolon workflow agent 和同一 session 完成 create、proof、publish、deploy/run 与 result evidence；同时确认 TUI/native read models 指向同一 authority。
+        </?01M05F2A00000000000000000A>
+        <SubNodes [
+          <Task { id = "T2.1" name = "完成自然语言 authoring 与独立 publication gate" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F2A00000000000000000B>
+              首 turn 通过新 DevOps/Authoring/Halfcode/Flow DSL Skills 和 native batch/CAS/proof tools 产出标准化 source revision，不出现 invalid_tool_call_payload 或逐文件低效编辑循环
+              </?01M05F2A00000000000000000B>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F2A00000000000000000C>
+              未授权 publication 时返回 recoverable session/revision/proof facts 且无 published artifact；第二 turn 的显式授权只发布 exact prepared revision并返回 immutable receipt/ref
+              </?01M05F2A00000000000000000C>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F2A00000000000000000D>
+              published App/Workflow/Agent/material bindings 可由同一 Halfcode-backed registry 与 depa typed projections解析，不通过 manifest 扫描、字符串猜测或 vfs 伪装 resource authority
+              </?01M05F2A00000000000000000D>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "完成显式 deploy/run 与 evidence readback" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F2A00000000000000000E>
+              publication 不自动执行；第三 turn 的显式 execution authorization 创建独立 instance/run 并冻结 exact workflow、AgentDefinition、Material 与 dependency snapshot
+              </?01M05F2A00000000000000000E>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F2A00000000000000000F>
+              terminal result、status/events/summary/replay evidence 对同一 session/instance/run identities 一致，运行 facts 不回写 source definition
+              </?01M05F2A00000000000000000F>
+              <Criterion { id = "T2.2-AC3" checked = true } ?01M05F2A00000000000000000G>
+              compiled CLI、native component 与 TUI read path 观察同一 registry revision、publication receipt 与 run evidence，不存在第二实现或 surface-specific session
+              </?01M05F2A00000000000000000G>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion { checked = true } ?01M05F2A00000000000000000H>
+          一个真实 provider session 在独立授权下完成资源原生 App 从 source 到 immutable artifact 再到 run evidence 的完整闭环
+          </?01M05F2A00000000000000000H>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "按结构化事实修复并验证 recovery 与时延" status = "DONE" order = 2 } (
+        <Description ?01M05F2A00000000000000000J>
+        仅当 fresh journey 暴露真实 provider/tool/runtime 缺口时修改其通用 owner；禁止增加 workflow 名称、自然语言或产品场景特判。
+        </?01M05F2A00000000000000000J>
+        <SubNodes [
+          <Task { id = "T3.1" name = "修复事实定位的最小通用接缝" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F2A00000000000000000K>
+              任何修复由 stable provider/tool/runtime diagnostic 与边界基线驱动，落在通用 schema、Skill、actor/session、resource adapter 或 native component owner
+              </?01M05F2A00000000000000000K>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F2A00000000000000000M>
+              production 不新增 regex、keyword、substring、ordered heuristic、alias 或 workflow/app 名称语义路由，也不新增 workflow-specific history/compactor/session/resource manager
+              </?01M05F2A00000000000000000M>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F2A00000000000000000N>
+              provider 不可用或外部等待占主导时以 provider facts 标记 blocked/外部限制，不通过 host 兜底伪造成功
+              </?01M05F2A00000000000000000N>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "复跑 continuation、recovery 与时延预算" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F2A00000000000000000P>
+              同 session continuation、进程重启后的 authoring recovery、重复 publication/run request 与 first-delivery tool result 均保持 exact-once 或稳定幂等语义
+              </?01M05F2A00000000000000000P>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F2A00000000000000000Q>
+              create/publish/run 各 turn 不发生无进展 retry loop；product-owned overhead create/publish 不超过15秒、run不超过10秒，端到端 wall/provider 分量完整报告
+              </?01M05F2A00000000000000000Q>
+              <Criterion { id = "T3.2-AC3" checked = true } ?01M05F2A00000000000000000R>
+              若单 turn 超过120秒，必须由持久 provider/tool timeline 定位并继续收敛；不能以删减 proof、authorization、resource freeze 或 recovery 语义换取时间
+              </?01M05F2A00000000000000000R>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion { checked = true } ?01M05F2A00000000000000000S>
+          所有观察到的产品缺口已在其通用 owner 收敛，recovery、授权与时延 evidence 无语义退化
+          </?01M05F2A00000000000000000S>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "fresh 产品验收与架构终审" status = "DONE" order = 3 } (
+        <Description ?01M05F2A00000000000000000T>
+        从新的隔离目录和新的 session 复跑最终 journey，并对 compiled product、tests、evidence、authority 与敏感信息边界独立复核。
+        </?01M05F2A00000000000000000T>
+        <SubNodes [
+          <Task { id = "T4.1" name = "运行 fresh lifecycle 与 cross-surface gates" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F2A00000000000000000V>
+              新 build、新 mktemp HOME/global/workspace、新 session 的 real-provider三 turn journey通过，并生成脱敏的 command/timing/identity/proof/run evidence report
+              </?01M05F2A00000000000000000V>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F2A00000000000000000W>
+              focused lifecycle/provider/tool/schema/resource/actor/session/CLI/TUI suites、build、frozen install、generator、XNL/XML 与 git diff checks通过
+              </?01M05F2A00000000000000000W>
+              <Criterion { id = "T4.1-AC3" checked = true } ?01M05F2A00000000000000000X>
+              reports 不持久化 provider credential、机器绝对路径或 prompt reasoning 正文，只保留脱敏 provider identity、timing、stable diagnostics 与 receipt identities
+              </?01M05F2A00000000000000000X>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "执行 authority 与模糊逻辑静态终审" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F2A00000000000000000Y>
+              production 无 parallel catalog/scanner/dependency resolver、manual Flow DSL、副本 Skill authority、workflow-specific actor/session/compactor 或 run fact 写回 source
+              </?01M05F2A00000000000000000Y>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F2A00000000000000000Z>
+              production 无基于普通语言、节点标签、App/workflow 名称的 regex/keyword/substring/fuzzy/ordered/alias 决策分支
+              </?01M05F2A00000000000000000Z>
+              <Criterion { id = "T4.2-AC3" checked = true } ?01M05F2A000000000000000010>
+              Halfcode/depa/Skill/native component/generic actor runtime 的 writer 与 derived receipt 边界保持单一，fresh AttractorCheck(coding) 无P0/P1
+              </?01M05F2A000000000000000010>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion { checked = true } ?01M05F2A000000000000000011>
+          真实 provider、compiled product、跨入口与架构 evidence 共同证明 Resource-native App 生命周期可顺畅完成
+          </?01M05F2A000000000000000011>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Parallel { max_concurrent = 1 spot_check = true }>
+  ]>
+  <Hooks []>
+)>

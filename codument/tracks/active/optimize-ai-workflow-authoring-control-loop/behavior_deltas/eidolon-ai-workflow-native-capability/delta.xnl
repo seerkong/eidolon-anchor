@@ -1,0 +1,249 @@
+<BehaviorPatch #track.optimize-ai-workflow-authoring-control-loop.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/authoring-control-loop-and-publication-proof" } (
+      <Requirement #authoring-control-loop-and-publication-proof (
+        <Statement ?01M05F1P7WHDHB8BZB0SX5TAF9>
+        AI Workflow authoring SHALL use a bounded target-first model control loop over structured atomic workspace commands and exact-revision proof/publication receipts, while deterministic code MUST NOT infer workflow semantics from natural-language matching.
+        </?01M05F1P7WHDHB8BZB0SX5TAF9>
+        <Suites [
+          <Suite #atomic-authoring { name = "Atomic authoring transitions" } (
+            <Cases [
+              <Case #multi-file-cas-patch [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFA>
+                The component SHALL validate all operations and commit the candidate bundle atomically
+                </?01M05F1P7WHDHB8BZB0SX5TAFA>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFB>
+                A stale revision or invalid operation SHALL leave the prior bundle unchanged
+                </?01M05F1P7WHDHB8BZB0SX5TAFB>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAFC>
+                A workflow actor has selected a coherent set of file additions, updates and deletions
+                </?01M05F1P7WHDHB8BZB0SX5TAFC>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAFD>
+                It submits one structured patch with the expected working revision
+                </?01M05F1P7WHDHB8BZB0SX5TAFD>
+              )>
+              <Case #semantic-authority-remains-model-owned [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFE>
+                The dedicated workflow actor and system Skill SHALL make the semantic choice
+                </?01M05F1P7WHDHB8BZB0SX5TAFE>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFF>
+                Host code MUST NOT use regex, keyword, substring or heuristic matching to choose it
+                </?01M05F1P7WHDHB8BZB0SX5TAFF>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAFG>
+                A natural-language workflow request enters authoring
+                </?01M05F1P7WHDHB8BZB0SX5TAFG>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAFH>
+                Targets, stage, topology, authorization or business behavior are selected
+                </?01M05F1P7WHDHB8BZB0SX5TAFH>
+              )>
+            ]>
+          )>
+          <Suite #revision-authority { name = "Working and published revision authority" } (
+            <Cases [
+              <Case #published-dirty-state [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFJ>
+                The working revision SHALL advance, current proofs SHALL become stale and dirty SHALL be true
+                </?01M05F1P7WHDHB8BZB0SX5TAFJ>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFK>
+                The prior publication receipt SHALL remain historical authority and the new work MUST NOT be reported as published
+                </?01M05F1P7WHDHB8BZB0SX5TAFK>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAFM>
+                An authoring session has a published revision and an append-only publication receipt
+                </?01M05F1P7WHDHB8BZB0SX5TAFM>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAFN>
+                The actor mutates the working bundle
+                </?01M05F1P7WHDHB8BZB0SX5TAFN>
+              )>
+              <Case #publication-history-is-append-only [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFP>
+                The system SHALL append a new immutable receipt and update only the latest receipt projection
+                </?01M05F1P7WHDHB8BZB0SX5TAFP>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFQ>
+                Earlier publication receipts MUST NOT be overwritten or deleted
+                </?01M05F1P7WHDHB8BZB0SX5TAFQ>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAFR>
+                The same authoring session publishes more than one revision
+                </?01M05F1P7WHDHB8BZB0SX5TAFR>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAFS>
+                A later publication succeeds or recovery follows an interrupted rebase
+                </?01M05F1P7WHDHB8BZB0SX5TAFS>
+              )>
+              <Case #published-baseline-rebase [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFT>
+                The published bundle SHALL be the new base revision
+                </?01M05F1P7WHDHB8BZB0SX5TAFT>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAFV>
+                Unchanged published files MUST NOT be reported as newly created
+                </?01M05F1P7WHDHB8BZB0SX5TAFV>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAFW>
+                A candidate revision is published and passes canonical readback
+                </?01M05F1P7WHDHB8BZB0SX5TAFW>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAFX>
+                The same authoring session computes its next diff
+                </?01M05F1P7WHDHB8BZB0SX5TAFX>
+              )>
+            ]>
+          )>
+          <Suite #proof-pipeline { name = "Exact-revision proof pipeline" } (
+            <Cases [
+              <Case #complete-receipt-set (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAFY>
+                A working revision is prepared for publication
+                </?01M05F1P7WHDHB8BZB0SX5TAFY>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAFZ>
+                The deterministic preparation command completes
+                </?01M05F1P7WHDHB8BZB0SX5TAFZ>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAG0>
+                Diff, canonical validation, non-effectful static projection, build and acceptance disposition receipts SHALL identify the same revision and bundle digest
+                </?01M05F1P7WHDHB8BZB0SX5TAG0>
+              )>
+              <Case #acceptance-disposition-gates-publication [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAG1>
+                The component SHALL derive required or not_required only from a canonical profile/manifest or explicit structured definition policy
+                </?01M05F1P7WHDHB8BZB0SX5TAG1>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAG2>
+                Required SHALL need a passing isolated candidate receipt; not_required SHALL need a recorded policy source; natural-language and name matching are forbidden
+                </?01M05F1P7WHDHB8BZB0SX5TAG2>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAG3>
+                An exact candidate revision is prepared for publication
+                </?01M05F1P7WHDHB8BZB0SX5TAG3>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAG4>
+                Its acceptance requirement is resolved
+                </?01M05F1P7WHDHB8BZB0SX5TAG4>
+              )>
+              <Case #candidate-effects-are-isolated [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAG5>
+                It SHALL use injected isolated Eidolon effect doubles or fixtures and MUST NOT access real networks, external services or business systems
+                </?01M05F1P7WHDHB8BZB0SX5TAG5>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAG6>
+                Real effects SHALL require a separately authorized post-publication execution and SHALL produce an execution receipt outside publication proof
+                </?01M05F1P7WHDHB8BZB0SX5TAG6>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAG7>
+                Candidate acceptance exercises an effectful workflow before publication
+                </?01M05F1P7WHDHB8BZB0SX5TAG7>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAG8>
+                The canonical runtime dispatches test effects
+                </?01M05F1P7WHDHB8BZB0SX5TAG8>
+              )>
+              <Case #static-projection-is-not-runtime-acceptance [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAG9>
+                The system SHALL retain it as a required exact-revision publication proof, label it as non-effectful static projection and MUST NOT claim external-source or failure-path acceptance
+                </?01M05F1P7WHDHB8BZB0SX5TAG9>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAGA>
+                An acceptance disposition receipt SHALL always be present; required SHALL reference isolated candidate evidence and not_required SHALL reference its canonical or explicit structured policy source
+                </?01M05F1P7WHDHB8BZB0SX5TAGA>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAGB>
+                A static dry-run does not dispatch workflow effects
+                </?01M05F1P7WHDHB8BZB0SX5TAGB>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAGC>
+                Proof is reported or publication is requested
+                </?01M05F1P7WHDHB8BZB0SX5TAGC>
+              )>
+              <Case #publication-receipt (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAGD>
+                Explicit publication authorization and a current complete receipt set exist
+                </?01M05F1P7WHDHB8BZB0SX5TAGD>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAGE>
+                The component publishes and canonically reads back the artifact
+                </?01M05F1P7WHDHB8BZB0SX5TAGE>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAGF>
+                It SHALL emit an immutable publication receipt containing revision, artifact digest, target, definition identity and diff/validation/static-projection/build/acceptance proof identities
+                </?01M05F1P7WHDHB8BZB0SX5TAGF>
+              )>
+            ]>
+          )>
+          <Suite #authoring-read-model { name = "Bounded authoring read model" } (
+            <Cases [
+              <Case #list-returns-briefs [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAGG>
+                It SHALL return briefs in stable order with an opaque cursor, total and truncated semantics
+                </?01M05F1P7WHDHB8BZB0SX5TAGG>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAGH>
+                The default page size SHALL be 20, the hard maximum SHALL be 100, and full validation bindings, source bodies or dry-run projections SHALL be excluded
+                </?01M05F1P7WHDHB8BZB0SX5TAGH>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAGJ>
+                One or more recoverable authoring sessions exist
+                </?01M05F1P7WHDHB8BZB0SX5TAGJ>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAGK>
+                WorkflowListAuthoringSessions is called
+                </?01M05F1P7WHDHB8BZB0SX5TAGK>
+              )>
+              <Case #summary-and-detail-separated (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAGM>
+                An actor needs current proof and diagnostics identity
+                </?01M05F1P7WHDHB8BZB0SX5TAGM>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAGN>
+                WorkflowGetAuthoringSummary is called
+                </?01M05F1P7WHDHB8BZB0SX5TAGN>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAGP>
+                It SHALL return counts plus at most 20 diagnostic codes or receipt references with truncated metadata, while full authoritative metadata remains available only through an explicit detail read
+                </?01M05F1P7WHDHB8BZB0SX5TAGP>
+              )>
+              <Case #read-model-is-not-authority (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAGQ>
+                A brief or summary has been returned
+                </?01M05F1P7WHDHB8BZB0SX5TAGQ>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAGR>
+                The session later changes
+                </?01M05F1P7WHDHB8BZB0SX5TAGR>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAGS>
+                The projector SHALL derive a new view from the authoritative session and MUST NOT persist or write back an independent summary state
+                </?01M05F1P7WHDHB8BZB0SX5TAGS>
+              )>
+            ]>
+          )>
+          <Suite #typed-completion { name = "Typed authoring completion" } (
+            <Cases [
+              <Case #child-authoring-receipt [
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAGT>
+                The model SHALL only request the terminal transition and the component/session authority SHALL generate a typed receipt from persisted authoring-session, revision, dirty, proof and publication identities
+                </?01M05F1P7WHDHB8BZB0SX5TAGT>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAGV>
+                The parent SHALL NOT parse free-form prose or repeat successful proof operations
+                </?01M05F1P7WHDHB8BZB0SX5TAGV>
+              ] (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAGW>
+                The dedicated workflow actor reaches a ready, published, waiting or failed authoring outcome
+                </?01M05F1P7WHDHB8BZB0SX5TAGW>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAGX>
+                WorkflowAuthor returns to its parent actor
+                </?01M05F1P7WHDHB8BZB0SX5TAGX>
+              )>
+              <Case #forged-or-stale-receipt-rejected (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAGY>
+                A model claims a receipt or presents one whose session, revision or proof identity is stale or forged
+                </?01M05F1P7WHDHB8BZB0SX5TAGY>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAGZ>
+                The high-level authoring tool resolves completion
+                </?01M05F1P7WHDHB8BZB0SX5TAGZ>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAH0>
+                The component SHALL reject the claim and MUST NOT promote it to authoritative completion
+                </?01M05F1P7WHDHB8BZB0SX5TAH0>
+              )>
+              <Case #bounded-success-path (
+                <Given ?01M05F1P7WHDHB8BZB0SX5TAH1>
+                The standard two-file authoring fixture has no diagnostics
+                </?01M05F1P7WHDHB8BZB0SX5TAH1>
+                <When ?01M05F1P7WHDHB8BZB0SX5TAH2>
+                It runs through a deterministic scripted provider
+                </?01M05F1P7WHDHB8BZB0SX5TAH2>
+                <Then ?01M05F1P7WHDHB8BZB0SX5TAH3>
+                The journey SHALL require no more than six authoring model completions and SHALL commit its first workspace mutation by the fourth completion
+                </?01M05F1P7WHDHB8BZB0SX5TAH3>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

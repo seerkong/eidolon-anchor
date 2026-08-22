@@ -1,0 +1,87 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_3_-_1_3_5_6_-_a_d_d_-_e_i_d_o_l_o_n_-_a_i_-_w_o_r_k_f_l_o_w_-_c_o_m_p_o_n_e_n_t_-_a_n_d_-_t_o_o_l_s.behavior_patch.eidolon.ai-workflow-native-component apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.ai-workflow-native-component" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon.ai-workflow-native-component/requirements/shared-component-authority" } (
+      <Requirement #shared-component-authority (
+        <Statement ?01M05F1PNGCEZK2K285J5CAPBG>
+        Eidolon AI workflow tools SHALL delegate workflow inspection, validation and authoring commands to a shared workflow component/service instead of implementing independent tool-local workflow logic.
+        </?01M05F1PNGCEZK2K285J5CAPBG>
+        <Suites [
+          <Suite #tool-service-sharing { name = "Tool service sharing" } (
+            <Cases [
+              <Case #inspect-and-validate-use-component (
+                <Given ?01M05F1PNGCEZK2K285J5CAPBH>
+                WorkflowInspectCapability and WorkflowValidateResourceRef are registered as Eidolon native tools
+                </?01M05F1PNGCEZK2K285J5CAPBH>
+                <When ?01M05F1PNGCEZK2K285J5CAPBJ>
+                the tools execute
+                </?01M05F1PNGCEZK2K285J5CAPBJ>
+                <Then ?01M05F1PNGCEZK2K285J5CAPBK>
+                they SHALL use the shared workflow component/service command or query boundary
+                </?01M05F1PNGCEZK2K285J5CAPBK>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon.ai-workflow-native-component/requirements/controlled-authoring-tools" } (
+      <Requirement #controlled-authoring-tools (
+        <Statement ?01M05F1PNGCEZK2K285J5CAPBM>
+        Eidolon SHALL expose controlled workflow authoring tools that create or patch XNL workflow bundles through the workflow component write boundary.
+        </?01M05F1PNGCEZK2K285J5CAPBM>
+        <Suites [
+          <Suite #authoring-resource-safety { name = "Authoring resource safety" } (
+            <Cases [
+              <Case #create-bundle-validates-resource-refs (
+                <Given ?01M05F1PNGCEZK2K285J5CAPBN>
+                a workflow create request contains bundle resource references
+                </?01M05F1PNGCEZK2K285J5CAPBN>
+                <When ?01M05F1PNGCEZK2K285J5CAPBP>
+                the workflow component prepares the bundle draft
+                </?01M05F1PNGCEZK2K285J5CAPBP>
+                <Then ?01M05F1PNGCEZK2K285J5CAPBQ>
+                the component SHALL validate resource refs and reject host absolute paths, traversal, naked relative paths, file refs and http refs
+                </?01M05F1PNGCEZK2K285J5CAPBQ>
+              )>
+              <Case #authoring-output-is-structured (
+                <Given ?01M05F1PNGCEZK2K285J5CAPBR>
+                an AI agent asks to create or patch a workflow
+                </?01M05F1PNGCEZK2K285J5CAPBR>
+                <When ?01M05F1PNGCEZK2K285J5CAPBS>
+                the corresponding tool completes
+                </?01M05F1PNGCEZK2K285J5CAPBS>
+                <Then ?01M05F1PNGCEZK2K285J5CAPBT>
+                the tool SHALL return structured JSON evidence describing files, refs and validation diagnostics
+                </?01M05F1PNGCEZK2K285J5CAPBT>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon.ai-workflow-native-component/requirements/no-mcp-in-eidolon-integration" } (
+      <Requirement #no-mcp-in-eidolon-integration (
+        <Statement ?01M05F1PNGCEZK2K285J5CAPBV>
+        Eidolon AI workflow integration SHALL NOT add an MCP adapter or MCP tool surface in this track.
+        </?01M05F1PNGCEZK2K285J5CAPBV>
+        <Suites [
+          <Suite #surface-scope { name = "Surface scope" } (
+            <Cases [
+              <Case #only-native-tools (
+                <Given ?01M05F1PNGCEZK2K285J5CAPBW>
+                workflow native component and tools are added to Eidolon
+                </?01M05F1PNGCEZK2K285J5CAPBW>
+                <When ?01M05F1PNGCEZK2K285J5CAPBX>
+                the integration surface is inspected
+                </?01M05F1PNGCEZK2K285J5CAPBX>
+                <Then ?01M05F1PNGCEZK2K285J5CAPBY>
+                the added surface SHALL be Eidolon native tools only; MCP remains out of scope
+                </?01M05F1PNGCEZK2K285J5CAPBY>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

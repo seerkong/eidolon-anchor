@@ -21,6 +21,7 @@ function makeActor() {
     type: "primary",
     systemPrompts: [],
     toolPolicy: {
+      allowedToolsMode: "all",
       allowedTools: [],
       enabledToolKeys: [],
       disabledToolKeys: [],

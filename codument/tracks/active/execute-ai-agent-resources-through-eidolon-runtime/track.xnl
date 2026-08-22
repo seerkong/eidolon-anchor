@@ -1,0 +1,142 @@
+<Track #execute-ai-agent-resources-through-eidolon-runtime version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "将 Halfcode/depa AIAgentDefinition 投影为通用 AgentConfig，并在 workflow dispatch 前冻结资源闭包，复用现有 Eidolon actor runtime 执行。" description = "增加 generic ordered seed messages、资源 Agent execution plan、Terminal AgentRegistry 接入和 task-bound depa freeze fact，不新增 workflow-specific actor/session/history/compactor。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-16T09:47:00Z" updated_at = "2026-08-16T10:56:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_execute-ai-agent-resources-through-eidolon-runtime { name = "execute-ai-agent-resources-through-eidolon-runtime" } (
+    <Description ?01M05F1P7GW86SGW829A0R1HYH>
+    先扩展通用 Agent 配置入口，再物化 resource plan，随后接入 workflow freeze/recovery，最后验证单一 runtime authority。
+    </?01M05F1P7GW86SGW829A0R1HYH>
+    <SubNodes [
+      <TaskGroup #P1 { name = "通用 Agent seed 与已解析 config seam" status = "DONE" order = 0 } (
+        <Description ?01M05F1P7GW86SGW829A0R1HYJ>
+        以 additive generic contract 承载有序资源消息，不引入 workflow 专用 actor 分支。
+        </?01M05F1P7GW86SGW829A0R1HYJ>
+        <SubNodes [
+          <Task { id = "T1.1" name = "增加 AgentConfig ordered seedMessages contract" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTNY>
+              closed role、非空 content、instruction-before-conversation 顺序由 generic validator 稳定校验
+              </?01M05F1P7HWJ5FSECDXRAQVTNY>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTNZ>
+              旧 prompt-only AgentConfig 的行为和 public shape 兼容
+              </?01M05F1P7HWJ5FSECDXRAQVTNZ>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "让 delegate creator 接受 frozen generic config" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTP0>
+              registry config 与 supplied frozen config 均进入同一 actor/provider/tool/conversation path
+              </?01M05F1P7HWJ5FSECDXRAQVTP0>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTP1>
+              context compaction/session/history eligibility 不包含 workflow、Agent kind 或 resource 特判
+              </?01M05F1P7HWJ5FSECDXRAQVTP1>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Resource Agent execution plan 与 Terminal registry" status = "DONE" order = 1 } (
+        <Description ?01M05F1P7HWJ5FSECDXRAQVTP2>
+        从同一 Halfcode/depa snapshot 生成 frozen generic plan，并在 runtime composition 阶段按 exact ref 注册 standalone Agents。
+        </?01M05F1P7HWJ5FSECDXRAQVTP2>
+        <SubNodes [
+          <Task { id = "T2.1" name = "物化 immutable resource Agent execution plan" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTP3>
+              ordered messages 仅从 exact referenced resource 的固定 Content TextElement subdomain 获取，并绑定 content digest
+              </?01M05F1P7HWJ5FSECDXRAQVTP3>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTP4>
+              tool ids 使用 exact resource identity；schema/effect policy 无 generic enforcement 时 fail closed
+              </?01M05F1P7HWJ5FSECDXRAQVTP4>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTP5>
+              standalone plan 要求零 Material ports；workflow plan 保留 task admission requirement
+              </?01M05F1P7HWJ5FSECDXRAQVTP5>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "将 standalone resource Agents 合入 Terminal AgentRegistry" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTP6>
+              registry key 是 full resource ref，local collision 在 runtime creation 前拒绝，missing exact tool 在 actor creation 前稳定拒绝
+              </?01M05F1P7HWJ5FSECDXRAQVTP6>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTP7>
+              Terminal 预建 component 在 VM 创建后原样绑定，native/workflow/AgentRegistry 共享 snapshot
+              </?01M05F1P7HWJ5FSECDXRAQVTP7>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Workflow task freeze、dispatch 与 recovery" status = "DONE" order = 2 } (
+        <Description ?01M05F1P7HWJ5FSECDXRAQVTP8>
+        resource workflow 用 typed Agent ref 和 depa receipt admission，legacy VFS 仅保留显式 agentType 兼容。
+        </?01M05F1P7HWJ5FSECDXRAQVTP8>
+        <SubNodes [
+          <Task { id = "T3.1" name = "持久化 task-bound Agent execution fact" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTP9>
+              固定 task tuple 由 descriptor form、active workflow ref、canonical nodeId 与 exact agentDefinitionRef 构造
+              </?01M05F1P7HWJ5FSECDXRAQVTP9>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPA>
+              depa freeze receipt 与 frozen plan 在 actor dispatch 前原子持久化，identity collision 不覆盖旧 fact
+              </?01M05F1P7HWJ5FSECDXRAQVTPA>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "resource ai.agent 复用 existing delegate actor" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPB>
+              resource workflow 无 agentDefinitionRef 时拒绝，且不 fallback 到 agentType/code
+              </?01M05F1P7HWJ5FSECDXRAQVTPB>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPC>
+              同一 effect retry 从 persisted plan 执行，live package 删除后仍不重读 source
+              </?01M05F1P7HWJ5FSECDXRAQVTPC>
+              <Criterion { id = "T3.2-AC3" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPD>
+              显式 vfs workflow 的既有 agentType path 保持兼容
+              </?01M05F1P7HWJ5FSECDXRAQVTPD>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "集成、边界与独立验收" status = "DONE" order = 3 } (
+        <Description ?01M05F1P7HWJ5FSECDXRAQVTPE>
+        用真实 ResourcePackage、generic delegate 和 persisted facts 验证 executable Agent bridge。
+        </?01M05F1P7HWJ5FSECDXRAQVTPE>
+        <SubNodes [
+          <Task { id = "T4.1" name = "运行 Agent/resource/workflow/Terminal focused suites" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPF>
+              ordered messages、exact tools、standalone delegate、Ctrl/Data workflow freeze 与 recovery 用例通过
+              </?01M05F1P7HWJ5FSECDXRAQVTPF>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPG>
+              旧 local/bundled agents、workflow runtime 与 TUI/headless composition 兼容用例通过
+              </?01M05F1P7HWJ5FSECDXRAQVTPG>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "运行 build、TypeScript 与 package boundary gates" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPH>
+              changed-line TypeScript、modified entry build、frozen install 与 exact public dependency gates 通过
+              </?01M05F1P7HWJ5FSECDXRAQVTPH>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPJ>
+              browser-safe surfaces 不引入 Node-only run-freeze
+              </?01M05F1P7HWJ5FSECDXRAQVTPJ>
+            ]>
+          )>
+          <Task { id = "T4.3" name = "静态验证单一 actor/resource authority" status = "DONE" order = 2 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.3-AC1" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPK>
+              无新增 workflow-specific actor/session/history/compactor/provider/tool runtime 或第二 resource manager
+              </?01M05F1P7HWJ5FSECDXRAQVTPK>
+              <Criterion { id = "T4.3-AC2" checked = true } ?01M05F1P7HWJ5FSECDXRAQVTPM>
+              无 regex/keyword/substring/fuzzy/name alias 决定 Agent、tool、Material、policy 或 relation
+              </?01M05F1P7HWJ5FSECDXRAQVTPM>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

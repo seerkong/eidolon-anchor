@@ -1,9 +1,16 @@
-<decision #track.execute-ai-data-workflow-through-eidolon-runtime.driver-boundary { status = "accepted" priority = "P0" }
-(
-  <question ?>Which layer owns mutable DAG semantics and which layer drives effects?</?>
-  <answer { } (
-    <raw-answer ?>depa-flows owns RunGraph semantics; Eidolon owns host application and effect authorities.</?>
-    <decision-text ?>Use canonical graph/patch/invalidation/reuse functions and add only a persisted Eidolon driver over their ready frontier.</?>
-    <rationale ?>This preserves product semantics without introducing a parallel workflow core.</?>
+<decision #track.execute-ai-data-workflow-through-eidolon-runtime.driver-boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PQ64H8AW8H0ZD162XFA>
+  Which layer owns mutable DAG semantics and which layer drives effects?
+  </?01M05F1PQ64H8AW8H0ZD162XFA>
+  <answer {  } (
+    <raw-answer ?01M05F1PQ64H8AW8H0ZD162XFB>
+    depa-flows owns RunGraph semantics; Eidolon owns host application and effect authorities.
+    </?01M05F1PQ64H8AW8H0ZD162XFB>
+    <decision-text ?01M05F1PQ64H8AW8H0ZD162XFC>
+    Use canonical graph/patch/invalidation/reuse functions and add only a persisted Eidolon driver over their ready frontier.
+    </?01M05F1PQ64H8AW8H0ZD162XFC>
+    <rationale ?01M05F1PQ64H8AW8H0ZD162XFD>
+    This preserves product semantics without introducing a parallel workflow core.
+    </?01M05F1PQ64H8AW8H0ZD162XFD>
   )>
 )>

@@ -1,0 +1,135 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_9_-_2_1_2_6_-_h_a_r_d_e_n_-_a_i_-_w_o_r_k_f_l_o_w_-_a_g_e_n_t_-_r_u_n_t_i_m_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/workflow-agent-runtime-reliability" } (
+      <Requirement #workflow-agent-runtime-reliability (
+        <Statement ?01M05F1PSDDWZ113VXQ9H0X5Y8>
+        The system SHALL complete AI Workflow actor journeys with authoritative terminal state, lossless tool-call identity, bounded observable progress and a non-empty structured result.
+        </?01M05F1PSDDWZ113VXQ9H0X5Y8>
+        <Suites [
+          <Suite #terminal-semantics { name = "Authoritative terminal semantics" } (
+            <Cases [
+              <Case #provider-failure-propagates (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5Y9>
+                A workflow delegate provider completion fails or exhausts its retry policy
+                </?01M05F1PSDDWZ113VXQ9H0X5Y9>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5YA>
+                The delegate reaches a terminal state
+                </?01M05F1PSDDWZ113VXQ9H0X5YA>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5YB>
+                The child fiber and parent workflow tool SHALL observe a structured failure and MUST NOT report completed
+                </?01M05F1PSDDWZ113VXQ9H0X5YB>
+              )>
+              <Case #domain-materialized-output (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5YC>
+                A workflow delegate completes with assistant history in the Conversation Domain
+                </?01M05F1PSDDWZ113VXQ9H0X5YC>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5YD>
+                The orchestrator emits child-done output to the parent
+                </?01M05F1PSDDWZ113VXQ9H0X5YD>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5YE>
+                The output SHALL be materialized from the authoritative Conversation Domain rather than a compatibility message mirror
+                </?01M05F1PSDDWZ113VXQ9H0X5YE>
+              )>
+              <Case #reject-empty-success (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5YF>
+                A child has no business result, wait status, proof status or structured failure
+                </?01M05F1PSDDWZ113VXQ9H0X5YF>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5YG>
+                The high-level workflow tool resolves
+                </?01M05F1PSDDWZ113VXQ9H0X5YG>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5YH>
+                The system MUST reject the result as incomplete instead of returning an empty success
+                </?01M05F1PSDDWZ113VXQ9H0X5YH>
+              )>
+            ]>
+          )>
+          <Suite #tool-stream { name = "Lossless tool-call streaming" } (
+            <Cases [
+              <Case #parallel-same-name-calls (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5YJ>
+                A provider streams multiple parallel calls to the same workflow tool
+                </?01M05F1PSDDWZ113VXQ9H0X5YJ>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5YK>
+                The Chat Completions stream reducer reconstructs tool calls
+                </?01M05F1PSDDWZ113VXQ9H0X5YK>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5YM>
+                Each call SHALL retain a distinct identity, name and JSON argument stream without concatenation
+                </?01M05F1PSDDWZ113VXQ9H0X5YM>
+              )>
+              <Case #missing-index-contract (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5YN>
+                A provider omits or conflicts on a parallel tool-call index
+                </?01M05F1PSDDWZ113VXQ9H0X5YN>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5YP>
+                The adapter cannot establish an unambiguous call identity
+                </?01M05F1PSDDWZ113VXQ9H0X5YP>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5YQ>
+                The system SHALL apply a documented provider-specific normalization or return a structured protocol error and MUST NOT merge calls silently
+                </?01M05F1PSDDWZ113VXQ9H0X5YQ>
+              )>
+            ]>
+          )>
+          <Suite #bounded-progress { name = "Bounded workflow progress" } (
+            <Cases [
+              <Case #authoring-progress-budget (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5YR>
+                A workflow actor is authoring a definition
+                </?01M05F1PSDDWZ113VXQ9H0X5YR>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5YS>
+                model turns continue without workspace revision, proof, wait or result progress
+                </?01M05F1PSDDWZ113VXQ9H0X5YS>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5YT>
+                The journey SHALL stop within a configured stage budget and return structured diagnostics
+                </?01M05F1PSDDWZ113VXQ9H0X5YT>
+              )>
+              <Case #structured-stage-outcome (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5YV>
+                A workflow authoring or run actor completes a model turn
+                </?01M05F1PSDDWZ113VXQ9H0X5YV>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5YW>
+                No native tool effect was produced
+                </?01M05F1PSDDWZ113VXQ9H0X5YW>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5YX>
+                The actor SHALL return a non-empty structured stage outcome and MUST NOT treat free-form empty text as completion
+                </?01M05F1PSDDWZ113VXQ9H0X5YX>
+              )>
+              <Case #bounded-proof-repair (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5YY>
+                Definition validation or dry-run returns diagnostics
+                </?01M05F1PSDDWZ113VXQ9H0X5YY>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5YZ>
+                The workflow actor attempts correction
+                </?01M05F1PSDDWZ113VXQ9H0X5YZ>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5Z0>
+                The repair loop SHALL obey an explicit attempt limit and stage deadline and SHALL return the preserved workspace plus diagnostics when exhausted
+                </?01M05F1PSDDWZ113VXQ9H0X5Z0>
+              )>
+              <Case #interactive-timeout-budget (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5Z1>
+                A provider first-event timeout occurs during an interactive workflow stage
+                </?01M05F1PSDDWZ113VXQ9H0X5Z1>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5Z2>
+                The retry policy is evaluated
+                </?01M05F1PSDDWZ113VXQ9H0X5Z2>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5Z3>
+                The effective retry and stage deadline SHALL remain within the workflow product latency budget
+                </?01M05F1PSDDWZ113VXQ9H0X5Z3>
+              )>
+              <Case #four-mount-contract (
+                <Given ?01M05F1PSDDWZ113VXQ9H0X5Z4>
+                An authoring session exposes `/base`, `/refs`, `/work` and `/out`
+                </?01M05F1PSDDWZ113VXQ9H0X5Z4>
+                <When ?01M05F1PSDDWZ113VXQ9H0X5Z5>
+                A mount is empty or inspected with the wrong operation
+                </?01M05F1PSDDWZ113VXQ9H0X5Z5>
+                <Then ?01M05F1PSDDWZ113VXQ9H0X5Z6>
+                The native workspace tool SHALL return a consistent empty-directory or structured operation diagnostic instead of an unexplained missing-path failure
+                </?01M05F1PSDDWZ113VXQ9H0X5Z6>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

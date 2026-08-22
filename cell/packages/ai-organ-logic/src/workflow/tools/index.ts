@@ -2,6 +2,7 @@ import type { AnyToolDef } from "@cell/ai-core-contract/types"
 import { buildWorkflowFulfillToolDef } from "./WorkflowFulfill"
 import { buildWorkflowAuthorToolDef } from "./WorkflowAuthor"
 import { buildWorkflowAuthoringToolDefs } from "./WorkflowAuthoringTools"
+import { buildWorkflowAppToolDefs } from "./WorkflowAppTools"
 import { buildWorkflowCreateBundleToolDef } from "./WorkflowCreateBundle"
 import { buildWorkflowInspectCapabilityToolDef } from "./WorkflowInspectCapability"
 import { buildWorkflowPatchBundleToolDef } from "./WorkflowPatchBundle"
@@ -24,6 +25,7 @@ export { buildWorkflowCreateBundleToolDef } from "./WorkflowCreateBundle"
 export { buildWorkflowFulfillToolDef } from "./WorkflowFulfill"
 export { buildWorkflowAuthorToolDef } from "./WorkflowAuthor"
 export * from "./WorkflowAuthoringTools"
+export { buildWorkflowAppToolDefs } from "./WorkflowAppTools"
 export { buildWorkflowInspectCapabilityToolDef } from "./WorkflowInspectCapability"
 export { buildWorkflowPatchBundleToolDef } from "./WorkflowPatchBundle"
 export {
@@ -45,6 +47,8 @@ export const WORKFLOW_NATIVE_TOOL_NAMES = [
   "WorkflowFulfill",
   "WorkflowLoadStageContext",
   "WorkflowAuthor",
+  "WorkflowListApps",
+  "WorkflowGetApp",
   "WorkflowGetAuthoringContext",
   "WorkflowListAuthoringTemplates",
   "WorkflowListPrebuiltWorkflows",
@@ -92,6 +96,7 @@ export function buildWorkflowNativeToolDefs(): AnyToolDef[] {
     buildWorkflowFulfillToolDef(),
     buildWorkflowLoadStageContextToolDef(),
     buildWorkflowAuthorToolDef(),
+    ...buildWorkflowAppToolDefs(),
     ...buildWorkflowAuthoringToolDefs(),
     buildWorkflowWorkspaceToolDef(),
     buildWorkflowInspectCapabilityToolDef(),

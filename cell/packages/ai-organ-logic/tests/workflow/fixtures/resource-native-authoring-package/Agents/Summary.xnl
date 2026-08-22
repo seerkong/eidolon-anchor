@@ -1,0 +1,12 @@
+<AIAgentDefinition #eidolon.fixture.SummaryAgent apiVersion="depa.flows/v1" version="1.0.0" {
+  lifecycle = "Active"
+  description = "Exact reusable summary Agent"
+} (
+  <Messages [
+    <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SummaryPrompt" }>
+  ]>
+  <ToolRefs []>
+  <MaterialPortRefs [
+    <MaterialPortRef #article { kind = "MaterialPort" ref = "resource://eidolon.fixture.ArticlePort" }>
+  ]>
+)>

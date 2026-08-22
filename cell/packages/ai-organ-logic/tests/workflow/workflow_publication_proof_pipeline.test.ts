@@ -50,7 +50,7 @@ describe("workflow publication proof pipeline", () => {
       .rejects.toThrow("data-code-effect-contract")
   })
 
-  it("rejects a flow-code effect invocation with a forged run capability", async () => {
+  it("rejects a flow-code effect invocation with a substituted non-authoritative run capability", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-proof-forged-run-contract-"))
     const component = createWorkflowComponent({ workspaceRoot: root })
     const manifest = `<AIDataWorkflow #demo.workflow.ForgedRun apiVersion="depa.flows/v1" version="1.0.0" (
@@ -254,11 +254,11 @@ export async function fetch(runtime: any, _input: any, _config: any) {
     expect(proofSet.acceptanceDispositionReceipt).toMatchObject({
       kind: "workflow.acceptanceDispositionReceipt",
       disposition: "not_required",
-      policySource: "canonical-profile:effect-free-default",
+      policySource: "canonical-profile:explicit-acceptance-policy-default",
     })
 
     const published = await component.sessions.publish({ sessionId: session.sessionId, confirmed: true }) as any
-    expect(published.receipt.workflowRef).toBe("resource://demo.workflow.Proofs")
+    expect(published.receipt.workflowRef).toBe("vfs://./proofs/manifest.xnl")
     expect(published.receipt.contract).toEqual({ inputPorts: ["input"], outputPorts: ["result"] })
     expect(published.receipt.proofReceiptIds).toEqual([
       proofSet.diffReceipt.receiptId,

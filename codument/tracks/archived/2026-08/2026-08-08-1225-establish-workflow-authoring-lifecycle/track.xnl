@@ -1,0 +1,66 @@
+<Track #establish-workflow-authoring-lifecycle version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "在 Eidolon XNL native component 中完整实现 workflow authoring 产品生命周期。" description = "建立 stage context、template/prebuilt、四挂载 VFS session、audit、proof、validation revision、publication gate 和自然语言业务 payload 协议。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-08T04:55:22Z" updated_at = "2026-08-08T09:25:58Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "source" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+    <MaterialBundle { role = "output" name = "tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_establish-workflow-authoring-lifecycle { name = "establish-workflow-authoring-lifecycle" } (
+    <Description ?01M05F1PQSAAV2C5H6FPMEF0ST>
+    Establish the complete workflow authoring lifecycle with explicit Eidolon architecture boundaries.
+    </?01M05F1PQSAAV2C5H6FPMEF0ST>
+    <SubNodes [
+      <TaskGroup #P1 { name = "建立 baseline 与 contract tests" status = "DONE" order = 0 } (
+        <Description ?01M05F1PQSAAV2C5H6FPMEF0SV>
+        先用完整产品场景锁定目标行为和 requirement-to-evidence mapping。
+        </?01M05F1PQSAAV2C5H6FPMEF0SV>
+        <SubNodes [
+          <Task { id = "T1.1" name = "建立 authoring coverage fixture 和失败测试" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PQSAAV2C5H6FPMEF0SW>
+              测试覆盖 mixed request、template selection、VFS recovery、stale validation 和 publication gate
+              </?01M05F1PQSAAV2C5H6FPMEF0SW>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "定义建立后的 authoring session、catalog 和 proof contracts" status = "DONE" order = 1 priority = "P0" }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Authoring session 与 catalog 落地" status = "DONE" order = 1 } (
+        <Description ?01M05F1PQSAAV2C5H6FPMEF0SX>
+        在共享 WorkflowComponent 中建立四挂载 session、audit、recovery、template/prebuilt catalog 和 stage context。
+        </?01M05F1PQSAAV2C5H6FPMEF0SX>
+        <SubNodes [
+          <Task { id = "T2.1" name = "实现 recoverable four-mount WorkflowAuthoringSessionStore" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T2.2" name = "实现 template/prebuilt/context catalogs 与 query/tool projection" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T2.3" name = "扩展 WorkflowWorkspace 为 session-scoped 完整 VFS operations" status = "DONE" order = 2 priority = "P0" }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Proof、publication 与自然语言 lifecycle" status = "DONE" order = 2 } (
+        <Description ?01M05F1PQSAAV2C5H6FPMEF0SY>
+        建立 revision-bound proof、独立发布门、业务 payload 分离和 session fact recovery。
+        </?01M05F1PQSAAV2C5H6FPMEF0SY>
+        <SubNodes [
+          <Task { id = "T3.1" name = "实现 diff-validate-dry-run proof 与 validation invalidation" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T3.2" name = "实现 explicit publication authorization 和原子发布" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T3.3" name = "建立 develop skill、natural-language routing 与 WorkflowAuthor coordinator" status = "DONE" order = 2 priority = "P0" }>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "跨入口 acceptance 验证" status = "DONE" order = 3 } (
+        <Description ?01M05F1PQSAAV2C5H6FPMEF0SZ>
+        用完整产品场景验证 component、对话 tools、CLI/TUI binding 和安全边界。
+        </?01M05F1PQSAAV2C5H6FPMEF0SZ>
+        <SubNodes [
+          <Task { id = "T4.1" name = "运行 authoring unit、acceptance、TUI/CLI binding 和 build tests" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T4.2" name = "更新 coverage evidence 并复核无 XML/MCP/外部 agent CLI" status = "DONE" order = 1 priority = "P0" }>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+  <Hooks>
+)>

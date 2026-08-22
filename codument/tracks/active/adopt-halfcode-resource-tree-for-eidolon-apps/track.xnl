@@ -1,0 +1,188 @@
+<Track #adopt-halfcode-resource-tree-for-eidolon-apps version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 Eidolon 的 App 与 resource:// workflow discovery 统一消费 Halfcode ResourceTree，而不再扫描 manifest 或维护平行 catalog。" description = "新增独立 global/workspace ResourcePackage roots、Halfcode layered registry adapter、depa App projection、exact definition receipt，并接入共享 component、native tools 与统一 CLI。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-16T06:55:00Z" updated_at = "2026-08-16T09:46:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_adopt-halfcode-resource-tree-for-eidolon-apps { name = "adopt-halfcode-resource-tree-for-eidolon-apps" } (
+    <Description ?01M05F1P74AYY5ZZN51HA2KNR3>
+    先以真实 ResourcePackage 固化边界基线证据，再建立唯一 registry adapter，随后替换 discovery 并验证跨入口兼容。
+    </?01M05F1P74AYY5ZZN51HA2KNR3>
+    <SubNodes [
+      <TaskGroup #P1 { name = "真实资源 fixture、依赖与边界基线" status = "DONE" order = 0 } (
+        <Description ?01M05F1P757DN2JB3AV74PVPXS>
+        冻结 root/layout、public package identity、现有 manifest scan 与 surface sharing 的可执行证据。
+        </?01M05F1P757DN2JB3AV74PVPXS>
+        <SubNodes [
+          <Task { id = "T1.1" name = "建立 global/workspace ResourcePackage 与 shadow fixture" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPXT>
+              fixture 由真实 Halfcode loader 接受，包含 App、Ctrl/Data workflow 与精确 KindDefinitions
+              </?01M05F1P757DN2JB3AV74PVPXT>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPXV>
+              workspace exact identity 覆盖 global，未登记 manifest 与普通文本保持不可见
+              </?01M05F1P757DN2JB3AV74PVPXV>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "增加当前 scanner/catalog/root 混用的边界基线测试" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPXW>
+              测试先证明 resource:// resolve/list 仍依赖 authoring manifest enumeration
+              </?01M05F1P757DN2JB3AV74PVPXW>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPXX>
+              测试先证明 CLI/native 尚无共享 App list/detail surface
+              </?01M05F1P757DN2JB3AV74PVPXX>
+            ]>
+          )>
+          <Task { id = "T1.3" name = "精确升级并锁定三个公开资源依赖" status = "DONE" order = 2 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.3-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPXY>
+              package manifests 与本地生成的 Bun resolution 精确解析 Halfcode 0.2.2、contract/logic 0.1.2，无 source/file dependency；仓库既有策略忽略根 bun.lock
+              </?01M05F1P757DN2JB3AV74PVPXY>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Halfcode host registry adapter" status = "DONE" order = 1 } (
+        <Description ?01M05F1P757DN2JB3AV74PVPXZ>
+        实现显式 root、ordered layers、content identities 与 App projection 的薄 host adapter。
+        </?01M05F1P757DN2JB3AV74PVPXZ>
+        <SubNodes [
+          <Task { id = "T2.1" name = "增加独立 resourceRoots runtime metadata policy" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPY0>
+              默认 global/workspace resources 与现有 workflow authoring roots 分离且均为绝对路径
+              </?01M05F1P757DN2JB3AV74PVPY0>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPY1>
+              TUI/headless/native runtime 使用同一结构化 root descriptor
+              </?01M05F1P757DN2JB3AV74PVPY1>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "实现可刷新的 EidolonResourceRegistry snapshot" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPY2>
+              adapter 仅调用 Halfcode load/compose/content-identity APIs，global 在 workspace 之前
+              </?01M05F1P757DN2JB3AV74PVPY2>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPY3>
+              missing root 为空层，existing invalid root 保留结构化诊断且无 fallback
+              </?01M05F1P757DN2JB3AV74PVPY3>
+              <Criterion { id = "T2.2-AC3" checked = true } ?01M05F1P757DN2JB3AV74PVPY4>
+              snapshot、origin lookup 与 App projections 深度不可变且不持久化第二 registry
+              </?01M05F1P757DN2JB3AV74PVPY4>
+              <Criterion { id = "T2.2-AC4" checked = true } ?01M05F1P757DN2JB3AV74PVPY5>
+              reusable Agent briefs 由同一 snapshot 的 depa typed projection 产生，不执行或桥接 Agent
+              </?01M05F1P757DN2JB3AV74PVPY5>
+            ]>
+          )>
+          <Task { id = "T2.3" name = "接入 WorkflowComponent App list/detail queries" status = "DONE" order = 2 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.3-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPY6>
+              component 以 depa projector 返回 bounded App briefs/details 和 ordered bindings
+              </?01M05F1P757DN2JB3AV74PVPY6>
+              <Criterion { id = "T2.3-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPY7>
+              同一 VM 的工具共享 component/adapter，不存在 tool-local catalog
+              </?01M05F1P757DN2JB3AV74PVPY7>
+              <Criterion { id = "T2.3-AC3" checked = true } ?01M05F1P757DN2JB3AV74PVPY8>
+              WorkflowListReusableAgents 不读取硬编码 inventory，并返回同一 registry revision 的 bounded briefs
+              </?01M05F1P757DN2JB3AV74PVPY8>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Exact definition、native tools 与 CLI" status = "DONE" order = 2 } (
+        <Description ?01M05F1P757DN2JB3AV74PVPY9>
+        将 resource:// discovery 切换到 effective registry，并把 bounded App queries 暴露给所有 terminal surfaces。
+        </?01M05F1P757DN2JB3AV74PVPY9>
+        <SubNodes [
+          <Task { id = "T3.1" name = "以 exact ResourceRecord origin 替换 manifest discovery" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPYA>
+              resource:// resolve/list 不再调用 authoring tree 扫描，wrong kind/unknown id 稳定拒绝
+              </?01M05F1P757DN2JB3AV74PVPYA>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPYB>
+              显式 vfs:// path 继续可读但不参与 App/Type discovery
+              </?01M05F1P757DN2JB3AV74PVPYB>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1P757DN2JB3AV74PVPYC>
+              selected origin 在绑定 layer root 内；source readback 先与 Halfcode content identity 摘要一致，再经 canonical depa profile loader
+              </?01M05F1P757DN2JB3AV74PVPYC>
+              <Criterion { id = "T3.1-AC4" checked = true } ?01M05F1P757DN2JB3AV74PVPYD>
+              WorkflowQueryService 复用 component repository，Material diagnostics 仅来自 normalized record 与 depa typed projection/edges
+              </?01M05F1P757DN2JB3AV74PVPYD>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "冻结 registry/content resource receipt" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPYE>
+              definition revision 兼容新增 resource receipt 并持久化 exact registry/content identity
+              </?01M05F1P757DN2JB3AV74PVPYE>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPYF>
+              live package 改变后既有 Instance 仍从 frozen source 与 receipt 恢复
+              </?01M05F1P757DN2JB3AV74PVPYF>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "新增 WorkflowListApps 与 WorkflowGetApp native tools" status = "DONE" order = 2 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.3-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPYG>
+              工具 schema 使用 exact app resource id，输出不含整个 registry/source bodies
+              </?01M05F1P757DN2JB3AV74PVPYG>
+              <Criterion { id = "T3.3-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPYH>
+              built-in tool registry、stage policy 与稳定工具名称测试同步
+              </?01M05F1P757DN2JB3AV74PVPYH>
+            ]>
+          )>
+          <Task { id = "T3.4" name = "将 eidolon workflow apps 接到相同 native query" status = "DONE" order = 3 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.4-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPYJ>
+              统一 CLI 不直接读 filesystem，且输出与 native tool projection 一致
+              </?01M05F1P757DN2JB3AV74PVPYJ>
+              <Criterion { id = "T3.4-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPYK>
+              TUI 继续从同一 built-in native registry 获取 App tools
+              </?01M05F1P757DN2JB3AV74PVPYK>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "回归、静态边界与独立验收" status = "DONE" order = 3 } (
+        <Description ?01M05F1P757DN2JB3AV74PVPYM>
+        覆盖真实 layer、跨入口、冻结恢复和 architecture boundary，再执行 fresh terminal review。
+        </?01M05F1P757DN2JB3AV74PVPYM>
+        <SubNodes [
+          <Task { id = "T4.1" name = "运行 ResourcePackage、workflow runtime 与 terminal focused suites" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPYN>
+              global/workspace precedence、App projection、Type list、Instance freeze/recovery 全部通过
+              </?01M05F1P757DN2JB3AV74PVPYN>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPYP>
+              authoring/session、CLI/TUI/native workflow 兼容套件通过
+              </?01M05F1P757DN2JB3AV74PVPYP>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "运行 typecheck、lock 与 dependency/public boundary gates" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPYQ>
+              变更范围 TypeScript 诊断、Bun frozen install 与精确 package identity 检查通过；根 bun.lock 沿用仓库既有 ignore 策略
+              </?01M05F1P757DN2JB3AV74PVPYQ>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPYR>
+              无 source/file/private depa import，browser-safe surface 不引入 Node-only run-freeze
+              </?01M05F1P757DN2JB3AV74PVPYR>
+            ]>
+          )>
+          <Task { id = "T4.3" name = "静态扫描单一 resource authority 与无语义 host heuristic" status = "DONE" order = 2 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.3-AC1" checked = true } ?01M05F1P757DN2JB3AV74PVPYS>
+              production 不存在 manifest 全树 discovery、第二 Catalog parser/layer composer、硬编码 App inventory 或硬编码 reusable Agent inventory
+              </?01M05F1P757DN2JB3AV74PVPYS>
+              <Criterion { id = "T4.3-AC2" checked = true } ?01M05F1P757DN2JB3AV74PVPYT>
+              production（含 WorkflowQueryService）不以 regex/keyword/substring/fuzzy/ordered heuristic 决定 App、workflow、Agent、Material、policy 或 relation
+              </?01M05F1P757DN2JB3AV74PVPYT>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

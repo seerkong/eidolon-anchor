@@ -19,12 +19,15 @@ import {
 import { applyActorModelConfigControlSignals, hasPendingAiAgentWakeMailbox, type AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
 import {
   createRuntimeLlmAdapter,
+  createProviderDiagnosticsCollector,
   createDefaultRuntimeHookHandlers,
   defaultProviderConfigPath,
   emitRuntimeDirectSlashAssistantOutput,
   forceCompressActorHistory,
   createShellRuntimeFacade,
   createShellRuntimePaths,
+  bindWorkflowComponentToRuntime,
+  createWorkflowComponentForRuntimeBinding,
   ensureShellRuntimeSessionDir,
   extractProviderOptions,
   isPersistedModelStillResolvable,
@@ -40,12 +43,18 @@ import {
   validateProviderPromptInputModalities,
   getConversationActorRawStateFromVm,
   getConversationSessionRawStateFromVm,
+  getVmProviderCallDomain,
+  getVmToolCallDomain,
   materializeConversationHistoryMessagesFromVm,
   materializeConversationRuntimeMessagesFromVm,
+  mergeResourceAgentConfigs,
+  projectRuntimeTiming,
   setActorWorkMode,
   type LlmAdapterType,
   type LlmProviderRuntime,
   type ProviderRequestObservationPort,
+  type RuntimeTimingProjection,
+  type RuntimeTimingWindow,
 } from "@cell/ai-organ-logic"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import {
@@ -181,6 +190,8 @@ export type TuiRuntimeBridge = {
     actorKey: string | null
     messages: ChatMessage[]
   }>
+  /** Sanitized, read-only timing projection over existing runtime domains. */
+  readTimingProjection?: (window: RuntimeTimingWindow) => RuntimeTimingProjection
 }
 
 export type TuiRuntimeConfig = {
@@ -254,6 +265,16 @@ export function resolveRuntimeWorkflowRoots(workDir: string, authorityRoot: stri
   }
 }
 
+export function resolveRuntimeResourcePackageLayers(workDir: string, authorityRoot: string): Array<{
+  id: "global" | "workspace"
+  rootDir: string
+}> {
+  return [
+    { id: "global", rootDir: path.join(path.resolve(authorityRoot), "resources") },
+    { id: "workspace", rootDir: path.join(path.resolve(workDir), ".eidolon", "resources") },
+  ]
+}
+
 export function normalizeTerminalRuntimeMetadata(
   workDir: string,
   metadata?: Record<string, unknown>,
@@ -318,6 +339,16 @@ export function normalizeTerminalRuntimeMetadata(
       globalRoot: typeof existingRoots.globalRoot === "string" ? existingRoots.globalRoot : defaultRoots.globalRoot,
       workspaceRoot: typeof existingRoots.workspaceRoot === "string" ? existingRoots.workspaceRoot : defaultRoots.workspaceRoot,
     },
+  }
+  const resourcePackages = isPlainRecord(normalized.resourcePackages)
+    ? { ...normalized.resourcePackages }
+    : {}
+  const resourceLayers = Array.isArray(resourcePackages.layers)
+    ? resourcePackages.layers.map((layer) => isPlainRecord(layer) ? { ...layer } : layer)
+    : resolveRuntimeResourcePackageLayers(workDir, authorityRoot)
+  normalized.resourcePackages = {
+    ...resourcePackages,
+    layers: resourceLayers,
   }
 
   // runtime-config.json: terminal constructs a ResourceVFS from the two
@@ -730,6 +761,7 @@ async function createRuntimeBridge(
   options?: { onInitStatus?: RuntimeBridgeInitStatusHandler },
 ): Promise<TuiRuntimeBridge | null> {
   const paths = createShellRuntimePaths(runtimeConfig.workDir)
+  const normalizedRuntimeMetadata = normalizeTerminalRuntimeMetadata(paths.WORKDIR, runtimeConfig.metadata)
   const runtimeBinding = resolveTerminalRuntimeBindingFromConfig(runtimeConfig)
   const defaultRuntimeAssemblyFactory =
     runtimeAssemblyFactoryOverride
@@ -745,11 +777,17 @@ async function createRuntimeBridge(
     throw new Error("Runtime unavailable: runtime profile did not provide runtime support descriptor")
   }
   const agentLoader = runtimeSupport.createAgentLoader(paths.AGENTS_DIR)
+  const workflowComponent = createWorkflowComponentForRuntimeBinding({
+    workDir: paths.WORKDIR,
+    metadata: normalizedRuntimeMetadata,
+  })
+  const resourceAgentPlans = await workflowComponent.resourceRegistry.listStandaloneAgentExecutionPlans()
+  const loadedAgents = mergeResourceAgentConfigs(agentLoader.getAgents(), resourceAgentPlans)
   const runtimeAssemblyFactory = defaultRuntimeAssemblyFactory
   const runtimeAssembly = runtimeAssemblyFactory({
     workDir: paths.WORKDIR,
     skillsDescription: "",
-    loadedAgents: agentLoader.getAgents(),
+    loadedAgents,
     delegateAgentDescriptions: agentLoader.getDescriptions(),
   })
   const runtimeRegistries = runtimeAssembly.createRegistries({ includeInternalOnly: true })
@@ -823,8 +861,10 @@ async function createRuntimeBridge(
     providerRequestObservationBinding = null
   }
 
+  const providerDiagnosticsCollector = createProviderDiagnosticsCollector()
   const providerObservationRuntime = {
     sessionId: sessionKey,
+    diagnostics: providerDiagnosticsCollector.runtime,
     requestObservationPort: providerRequestObservationBinding?.port ?? null,
   }
   const llmAdapter = await createRuntimeLlmAdapter({
@@ -955,9 +995,10 @@ async function createRuntimeBridge(
     actorCallbacks,
     buildSystemMessages,
     mcpManager: (mcpManager ?? undefined) as any,
-    outerCtxMetadata: runtimeConfig.metadata,
+    outerCtxMetadata: normalizedRuntimeMetadata,
     storage: runtimeBinding.descriptor.storage,
   })
+  bindWorkflowComponentToRuntime({ vm }, workflowComponent)
   const adapterStateByActor = new WeakMap<AiAgentActor, {
     adapterType: LlmAdapterType
     apiKey?: string
@@ -1802,6 +1843,14 @@ async function createRuntimeBridge(
     return publicRxData.usage.subscribe(handler)
   }
 
+  const readTimingProjection = (window: RuntimeTimingWindow): RuntimeTimingProjection => projectRuntimeTiming({
+    ...window,
+    sessionId: sessionKey,
+    providerCalls: getVmProviderCallDomain(vm)?.getAllRecords() ?? [],
+    toolCalls: getVmToolCallDomain(vm)?.getAllRecords() ?? [],
+    providerRetries: providerDiagnosticsCollector.events.retry,
+  })
+
   const loadConversationViews = async () => {
     const state = await loadConversationState()
     if (!state) {
@@ -1894,6 +1943,7 @@ async function createRuntimeBridge(
     loadConversationState,
     loadConversationViews,
     loadActorConversationMessages,
+    readTimingProjection,
   }
 }
 

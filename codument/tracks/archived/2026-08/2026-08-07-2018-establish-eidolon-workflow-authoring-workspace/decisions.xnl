@@ -1,27 +1,33 @@
-<decision #track.establish-eidolon-workflow-authoring-workspace.component-write-authority {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>哪个层拥有 workflow 物理写入？</?>
-  <answer { }
-  (
-    <raw-answer ?>WorkflowComponent authoring workspace。</?>
-    <decision-text ?>WorkflowComponent 绑定的 authoring workspace 是唯一写入 authority；CLI 和对话 tool 只投影 command。</?>
-    <rationale ?>防止 surface 绕过 canonical validation 和 containment policy。</?>
+<decision #track.establish-eidolon-workflow-authoring-workspace.component-write-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PQ02BBRJJYG77AHXF6Q>
+  哪个层拥有 workflow 物理写入？
+  </?01M05F1PQ02BBRJJYG77AHXF6Q>
+  <answer {  } (
+    <raw-answer ?01M05F1PQ02BBRJJYG77AHXF6R>
+    WorkflowComponent authoring workspace。
+    </?01M05F1PQ02BBRJJYG77AHXF6R>
+    <decision-text ?01M05F1PQ02BBRJJYG77AHXF6S>
+    WorkflowComponent 绑定的 authoring workspace 是唯一写入 authority；CLI 和对话 tool 只投影 command。
+    </?01M05F1PQ02BBRJJYG77AHXF6S>
+    <rationale ?01M05F1PQ02BBRJJYG77AHXF6T>
+    防止 surface 绕过 canonical validation 和 containment policy。
+    </?01M05F1PQ02BBRJJYG77AHXF6T>
   )>
 )>
 
-<decision #track.establish-eidolon-workflow-authoring-workspace.runtime-root-binding {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>TUI 与 CLI 如何获得相同的 workspace？</?>
-  <answer { }
-  (
-    <raw-answer ?>通过 runtime/workDir 注入 workflow root。</?>
-    <decision-text ?>二者通过同一 component factory 构造同一种 store/workspace；同一 VM 的 model tools 复用同一 component binding。</?>
-    <rationale ?>让资源事实持久化于共享 workspace，而不是某个 surface 的临时内存。</?>
+<decision #track.establish-eidolon-workflow-authoring-workspace.runtime-root-binding apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PQ02BBRJJYG77AHXF6V>
+  TUI 与 CLI 如何获得相同的 workspace？
+  </?01M05F1PQ02BBRJJYG77AHXF6V>
+  <answer {  } (
+    <raw-answer ?01M05F1PQ02BBRJJYG77AHXF6W>
+    通过 runtime/workDir 注入 workflow root。
+    </?01M05F1PQ02BBRJJYG77AHXF6W>
+    <decision-text ?01M05F1PQ02BBRJJYG77AHXF6X>
+    二者通过同一 component factory 构造同一种 store/workspace；同一 VM 的 model tools 复用同一 component binding。
+    </?01M05F1PQ02BBRJJYG77AHXF6X>
+    <rationale ?01M05F1PQ02BBRJJYG77AHXF6Y>
+    让资源事实持久化于共享 workspace，而不是某个 surface 的临时内存。
+    </?01M05F1PQ02BBRJJYG77AHXF6Y>
   )>
 )>

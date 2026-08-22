@@ -1,0 +1,173 @@
+<BehaviorPatch #track.adopt-halfcode-resource-tree-for-eidolon-apps.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/halfcode-backed-app-registry" } (
+      <Requirement #halfcode-backed-app-registry (
+        <Statement ?01M05F1P709AD6YQWQ9MNT05WQ>
+        Eidolon SHALL expose one host-bound App resource registry derived from canonical Halfcode ResourcePackages and depa-flows domain projectors, while deterministic host code MUST NOT implement parallel resource discovery or infer semantic relations from text.
+        </?01M05F1P709AD6YQWQ9MNT05WQ>
+        <Suites [
+          <Suite #root-and-layer-authority { name = "Root and layer authority" } (
+            <Cases [
+              <Case #separate-resource-and-authoring-roots (
+                <Given ?01M05F1P709AD6YQWQ9MNT05WR>
+                Eidolon resolves its global directory and project work directory
+                </?01M05F1P709AD6YQWQ9MNT05WR>
+                <When ?01M05F1P709AD6YQWQ9MNT05WS>
+                runtime resource and workflow roots are constructed
+                </?01M05F1P709AD6YQWQ9MNT05WS>
+                <Then ?01M05F1P709AD6YQWQ9MNT05WT>
+                global and workspace ResourcePackage roots SHALL be explicit and separate from the workflow authoring/session root
+                </?01M05F1P709AD6YQWQ9MNT05WT>
+              )>
+              <Case #one-package-per-root [
+                <Then ?01M05F1P709AD6YQWQ9MNT05WV>
+                the root's own ResourcePackage SHALL be loaded through Halfcode
+                </?01M05F1P709AD6YQWQ9MNT05WV>
+                <Then ?01M05F1P709AD6YQWQ9MNT05WW>
+                Eidolon MUST NOT recursively discover package directories or manifest files
+                </?01M05F1P709AD6YQWQ9MNT05WW>
+              ] (
+                <Given ?01M05F1P709AD6YQWQ9MNT05WX>
+                A configured global or workspace resource root exists
+                </?01M05F1P709AD6YQWQ9MNT05WX>
+                <When ?01M05F1P709AD6YQWQ9MNT05WY>
+                Eidolon loads resources
+                </?01M05F1P709AD6YQWQ9MNT05WY>
+              )>
+              <Case #ordered-layer-composition [
+                <Then ?01M05F1P709AD6YQWQ9MNT05WZ>
+                Eidolon SHALL pass explicit `global` then `workspace` layers to Halfcode and workspace resources SHALL have higher precedence by exact identity
+                </?01M05F1P709AD6YQWQ9MNT05WZ>
+                <Then ?01M05F1P709AD6YQWQ9MNT05X0>
+                absence MUST NOT be converted into an implicit tombstone
+                </?01M05F1P709AD6YQWQ9MNT05X0>
+              ] (
+                <Given ?01M05F1P709AD6YQWQ9MNT05X1>
+                valid global and workspace ResourcePackages exist
+                </?01M05F1P709AD6YQWQ9MNT05X1>
+                <When ?01M05F1P709AD6YQWQ9MNT05X2>
+                the effective registry is composed
+                </?01M05F1P709AD6YQWQ9MNT05X2>
+              )>
+              <Case #invalid-existing-root-fails-closed (
+                <Given ?01M05F1P709AD6YQWQ9MNT05X3>
+                a configured resource root exists but its ResourcePackage is invalid
+                </?01M05F1P709AD6YQWQ9MNT05X3>
+                <When ?01M05F1P709AD6YQWQ9MNT05X4>
+                the App registry is requested
+                </?01M05F1P709AD6YQWQ9MNT05X4>
+                <Then ?01M05F1P709AD6YQWQ9MNT05X5>
+                the operation SHALL return structured Halfcode diagnostics and MUST NOT fall back to host discovery
+                </?01M05F1P709AD6YQWQ9MNT05X5>
+              )>
+            ]>
+          )>
+          <Suite #domain-projection { name = "Domain projection" } (
+            <Cases [
+              <Case #exact-app-projection (
+                <Given ?01M05F1P709AD6YQWQ9MNT05X6>
+                the effective registry contains AIWorkflowAppBundle records
+                </?01M05F1P709AD6YQWQ9MNT05X6>
+                <When ?01M05F1P709AD6YQWQ9MNT05X7>
+                Apps are listed or one App is read
+                </?01M05F1P709AD6YQWQ9MNT05X7>
+                <Then ?01M05F1P709AD6YQWQ9MNT05X8>
+                Eidolon SHALL use depa-flows projection and preserve exact identities, ordered bindings and entrypoints
+                </?01M05F1P709AD6YQWQ9MNT05X8>
+              )>
+              <Case #unregistered-content-is-invisible (
+                <Given ?01M05F1P709AD6YQWQ9MNT05X9>
+                a resource root or authoring root contains an unregistered manifest or ordinary text with resource-like content
+                </?01M05F1P709AD6YQWQ9MNT05X9>
+                <When ?01M05F1P709AD6YQWQ9MNT05XA>
+                Apps and workflow Types are listed
+                </?01M05F1P709AD6YQWQ9MNT05XA>
+                <Then ?01M05F1P709AD6YQWQ9MNT05XB>
+                that content MUST NOT appear unless Halfcode registered an exact typed ResourceRecord
+                </?01M05F1P709AD6YQWQ9MNT05XB>
+              )>
+              <Case #no-host-semantic-routing (
+                <Given ?01M05F1P709AD6YQWQ9MNT05XC>
+                resource descriptions, prompts or identifiers contain business or lifecycle language
+                </?01M05F1P709AD6YQWQ9MNT05XC>
+                <When ?01M05F1P709AD6YQWQ9MNT05XD>
+                Eidolon projects or resolves resources
+                </?01M05F1P709AD6YQWQ9MNT05XD>
+                <Then ?01M05F1P709AD6YQWQ9MNT05XE>
+                host code MUST NOT use regex, keywords, substrings, fuzzy matching or ordered heuristics to choose App, workflow, Agent, policy or relation
+                </?01M05F1P709AD6YQWQ9MNT05XE>
+              )>
+            ]>
+          )>
+          <Suite #shared-surfaces { name = "Shared product surfaces" } (
+            <Cases [
+              <Case #component-owned-registry (
+                <Given ?01M05F1P709AD6YQWQ9MNT05XF>
+                native tools execute in one Eidolon VM
+                </?01M05F1P709AD6YQWQ9MNT05XF>
+                <When ?01M05F1P709AD6YQWQ9MNT05XG>
+                they list Apps or workflow Types
+                </?01M05F1P709AD6YQWQ9MNT05XG>
+                <Then ?01M05F1P709AD6YQWQ9MNT05XH>
+                they SHALL query the registry adapter owned by the shared WorkflowComponent
+                </?01M05F1P709AD6YQWQ9MNT05XH>
+              )>
+              <Case #cli-and-tui-share-native-tools (
+                <Given ?01M05F1P709AD6YQWQ9MNT05XJ>
+                a user lists Apps from the unified CLI or an Eidolon TUI conversation
+                </?01M05F1P709AD6YQWQ9MNT05XJ>
+                <When ?01M05F1P709AD6YQWQ9MNT05XK>
+                the request executes
+                </?01M05F1P709AD6YQWQ9MNT05XK>
+                <Then ?01M05F1P709AD6YQWQ9MNT05XM>
+                both surfaces SHALL use the same native App query tools without a surface-local scanner or catalog
+                </?01M05F1P709AD6YQWQ9MNT05XM>
+              )>
+            ]>
+          )>
+          <Suite #definition-freeze { name = "Resource-backed workflow freeze" } (
+            <Cases [
+              <Case #resource-ref-exact-resolution [
+                <Then ?01M05F1P709AD6YQWQ9MNT05XN>
+                it SHALL select the exact effective AICtrlWorkflow or AIDataWorkflow record and read only its registered origin
+                </?01M05F1P709AD6YQWQ9MNT05XN>
+                <Then ?01M05F1P709AD6YQWQ9MNT05XP>
+                it MUST NOT enumerate authoring manifests to find a matching FQN
+                </?01M05F1P709AD6YQWQ9MNT05XP>
+              ] (
+                <Given ?01M05F1P709AD6YQWQ9MNT05XQ>
+                a workflow `resource://` ref is captured
+                </?01M05F1P709AD6YQWQ9MNT05XQ>
+                <When ?01M05F1P709AD6YQWQ9MNT05XR>
+                the definition repository resolves it
+                </?01M05F1P709AD6YQWQ9MNT05XR>
+              )>
+              <Case #freeze-binds-resource-receipt (
+                <Given ?01M05F1P709AD6YQWQ9MNT05XS>
+                a resource-backed workflow definition is captured for an Instance
+                </?01M05F1P709AD6YQWQ9MNT05XS>
+                <When ?01M05F1P709AD6YQWQ9MNT05XT>
+                the frozen definition revision is persisted
+                </?01M05F1P709AD6YQWQ9MNT05XT>
+                <Then ?01M05F1P709AD6YQWQ9MNT05XV>
+                it SHALL bind resource id, kind, package, layer, registry revision and Halfcode content digest alongside the frozen source
+                </?01M05F1P709AD6YQWQ9MNT05XV>
+              )>
+              <Case #legacy-vfs-is-explicit-only (
+                <Given ?01M05F1P709AD6YQWQ9MNT05XW>
+                an existing authoring operation supplies an explicit containment-safe `vfs://` ref
+                </?01M05F1P709AD6YQWQ9MNT05XW>
+                <When ?01M05F1P709AD6YQWQ9MNT05XX>
+                the definition is read during migration
+                </?01M05F1P709AD6YQWQ9MNT05XX>
+                <Then ?01M05F1P709AD6YQWQ9MNT05XY>
+                Eidolon MAY resolve that exact path but MUST NOT use VFS manifests for App or Type discovery
+                </?01M05F1P709AD6YQWQ9MNT05XY>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

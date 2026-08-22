@@ -1,0 +1,65 @@
+<BehaviorPatch #track.optimize-ai-workflow-authoring-control-loop.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/generic-actor-context-policy" } (
+      <Requirement #generic-actor-context-policy (
+        <Statement ?01M05F1P7VATSQ4965E3PNJXJY>
+        Every multi-turn AI actor SHALL participate in provider-context budgeting through an actor-owned generic context policy independent of actor role, agent type, tool name or product name, while Conversation and History authorities remain unchanged.
+        </?01M05F1P7VATSQ4965E3PNJXJY>
+        <Suites [
+          <Suite #actor-policy { name = "Generic actor context policy" } (
+            <Cases [
+              <Case #delegate-auto-compaction (
+                <Given ?01M05F1P7VATSQ4965E3PNJXJZ>
+                A delegate or detached actor is configured for multiple provider turns
+                </?01M05F1P7VATSQ4965E3PNJXJZ>
+                <When ?01M05F1P7VATSQ4965E3PNJXK0>
+                Its materialized provider context approaches the configured budget
+                </?01M05F1P7VATSQ4965E3PNJXK0>
+                <Then ?01M05F1P7VATSQ4965E3PNJXK1>
+                The executor SHALL apply the same generic compaction and resource-delivery mechanisms used by other multi-turn actors
+                </?01M05F1P7VATSQ4965E3PNJXK1>
+              )>
+              <Case #short-lived-explicit-opt-out (
+                <Given ?01M05F1P7VATSQ4965E3PNJXK2>
+                An actor is explicitly configured as a one-tool short-lived execution
+                </?01M05F1P7VATSQ4965E3PNJXK2>
+                <When ?01M05F1P7VATSQ4965E3PNJXK3>
+                context policy is resolved
+                </?01M05F1P7VATSQ4965E3PNJXK3>
+                <Then ?01M05F1P7VATSQ4965E3PNJXK4>
+                The actor MAY disable history compaction through the generic actor contract rather than an agent-name special case
+                </?01M05F1P7VATSQ4965E3PNJXK4>
+              )>
+              <Case #no-workflow-specific-compressor [
+                <Then ?01M05F1P7VATSQ4965E3PNJXK5>
+                They SHALL reuse Conversation materialization, ContextCompressor and generic delivery facts
+                </?01M05F1P7VATSQ4965E3PNJXK5>
+                <Then ?01M05F1P7VATSQ4965E3PNJXK6>
+                The system MUST NOT create a workflow-specific history, compactor, cache or tool-name branch
+                </?01M05F1P7VATSQ4965E3PNJXK6>
+              ] (
+                <Given ?01M05F1P7VATSQ4965E3PNJXK7>
+                AI Workflow actors exercise context budgeting
+                </?01M05F1P7VATSQ4965E3PNJXK7>
+                <When ?01M05F1P7VATSQ4965E3PNJXK8>
+                The runtime source and facts are inspected
+                </?01M05F1P7VATSQ4965E3PNJXK8>
+              )>
+              <Case #first-delivery-protection-preserved (
+                <Given ?01M05F1P7VATSQ4965E3PNJXK9>
+                A large tool result has not yet completed its first successful provider delivery
+                </?01M05F1P7VATSQ4965E3PNJXK9>
+                <When ?01M05F1P7VATSQ4965E3PNJXKA>
+                A delegate context budget is applied
+                </?01M05F1P7VATSQ4965E3PNJXKA>
+                <Then ?01M05F1P7VATSQ4965E3PNJXKB>
+                The existing pending-first-delivery protection SHALL remain effective
+                </?01M05F1P7VATSQ4965E3PNJXKB>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

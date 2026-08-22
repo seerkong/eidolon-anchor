@@ -12,12 +12,23 @@ import type {
 import { spawnChildExecutionActor } from "../../agent/DelegateActor"
 import { hashWorkflowSources, type WorkflowAuthoringStore } from "../authoring"
 import type { WorkflowFactStore } from "../runtime/WorkflowFactStore"
+import type { AiWorkflowForm } from "@cell/ai-workflow-contract"
+import type {
+  EidolonAppResourceRegistryAdapter,
+  EidolonPreparedWorkflowAgentExecution,
+} from "../../resources"
+import type { WorkflowAgentExecutionFact } from "../runtime/WorkflowLifecycleFacts"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
 
 export interface WorkflowMaterialAccess {
   read(materialPath: string): Promise<{ path: string; content: string }>
   write(materialPath: string, content: string): Promise<{ path: string; revision: string }>
+}
+
+export type WorkflowAgentResourceBinding = {
+  readonly workflowForm: AiWorkflowForm
+  readonly resourceRegistry: Pick<EidolonAppResourceRegistryAdapter, "prepareWorkflowAgentExecution">
 }
 
 function controlledMaterialPath(value: string): string {
@@ -79,6 +90,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider {
       output: { path: string; revision: string },
     ) => Promise<void>) | undefined,
     private readonly resolveRunAuthority: () => AIWorkflowRunRef,
+    private readonly agentResources?: WorkflowAgentResourceBinding,
   ) {}
 
   async invoke<Input = unknown, Output = unknown>(request: AIWorkflowEffectRequest<Input>): Promise<Output> {
@@ -176,6 +188,9 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider {
         )
       }
       case "ai.agent": {
+        if (request.run.workflow.scheme === "resource") {
+          return this.dispatchResourceAgent(request, input, config)
+        }
         const agentType = text(input.agentType ?? input.agent_type, text(config.agentType ?? config.agent_type, "code"))
         const prompt = text(input.prompt, typeof request.input === "string" ? request.input : JSON.stringify(request.input, null, 2))
         return spawnChildExecutionActor(this.runtime.vm, this.runtime.actor, {
@@ -202,6 +217,72 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider {
     }
   }
 
+  private async dispatchResourceAgent(
+    request: AIWorkflowEffectRequest,
+    input: Record<string, unknown>,
+    config: Record<string, unknown>,
+  ): Promise<string> {
+    if (!this.agentResources) {
+      throw new Error("Resource workflow Agent execution requires a bound resource registry")
+    }
+    const agentDefinitionRef = selectExactAgentDefinitionRef(input, config)
+    const nodeId = typeof request.nodeId === "string" ? request.nodeId : ""
+    if (!nodeId || nodeId !== nodeId.trim()) {
+      throw new Error("Resource workflow ai.agent requires an exact nodeId")
+    }
+    let prepared: EidolonPreparedWorkflowAgentExecution
+    const existing = await this.facts.loadAgentExecutionFact(
+      request.run.runId,
+      request.run.generation,
+      request.effectId,
+    )
+    if (existing) {
+      assertSameAgentExecutionFact(existing, {
+        workflowForm: this.agentResources.workflowForm,
+        workflowRef: request.run.workflow.ref,
+        nodeId,
+        agentDefinitionRef,
+      })
+      prepared = Object.freeze({ plan: existing.plan, receipt: existing.resourceReceipt })
+    } else {
+      prepared = await this.agentResources.resourceRegistry.prepareWorkflowAgentExecution({
+        workflowKind: this.agentResources.workflowForm,
+        workflowRef: request.run.workflow.ref as `resource://${string}`,
+        nodeId,
+        agentDefinitionRef,
+      })
+      if (prepared.plan.agentDefinitionRef !== agentDefinitionRef) {
+        throw new Error("Prepared resource Agent plan does not match the requested Agent definition")
+      }
+      const fact: WorkflowAgentExecutionFact = {
+        schemaVersion: "eidolon.workflow-agent-execution-fact/v1",
+        runId: request.run.runId,
+        generation: request.run.generation,
+        effectId: request.effectId,
+        nodeId,
+        workflowForm: this.agentResources.workflowForm,
+        workflowRef: request.run.workflow.ref,
+        agentDefinitionRef,
+        plan: prepared.plan,
+        resourceReceipt: prepared.receipt,
+        createdAt: Date.now(),
+      }
+      await this.facts.saveAgentExecutionFact(fact)
+    }
+    const prompt = text(
+      input.prompt,
+      typeof request.input === "string" ? request.input : JSON.stringify(request.input, null, 2),
+    )
+    return spawnChildExecutionActor(this.runtime.vm, this.runtime.actor, {
+      description: text(input.description, `Workflow node ${nodeId}`),
+      prompt,
+      agentType: agentDefinitionRef,
+      resolvedConfig: prepared.plan.agentConfig,
+      mode: "sync_wait",
+      toolCallId: request.effectId,
+    })
+  }
+
   private appendEvent(request: AIWorkflowEffectRequest, event: AIWorkflowRunEvent): Promise<void> {
     return this.facts.appendRunEvent(request.run, event)
   }
@@ -212,5 +293,49 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider {
   ): Promise<void> {
     const root = sessionDir(this.runtime)
     if (root) await recordAiRuntimeEffectLifecycleEvent({ sessionDir: root, event })
+  }
+}
+
+function selectExactAgentDefinitionRef(
+  input: Record<string, unknown>,
+  config: Record<string, unknown>,
+): `resource://${string}` {
+  const values = [input.agentDefinitionRef, config.agentDefinitionRef]
+    .filter((value): value is string => typeof value === "string")
+  const unique = [...new Set(values)]
+  if (unique.length !== 1) {
+    throw new Error("Resource workflow ai.agent requires one exact agentDefinitionRef")
+  }
+  const value = unique[0]!
+  const prefix = "resource://"
+  if (value !== value.trim() || !value.startsWith(prefix)) {
+    throw new Error("Resource workflow ai.agent requires one exact agentDefinitionRef")
+  }
+  const id = value.slice(prefix.length)
+  if (!id || id !== id.trim() || id.includes("://")) {
+    throw new Error("Resource workflow ai.agent requires one exact agentDefinitionRef")
+  }
+  return value as `resource://${string}`
+}
+
+function assertSameAgentExecutionFact(
+  fact: WorkflowAgentExecutionFact,
+  expected: {
+    workflowForm: AiWorkflowForm
+    workflowRef: string
+    nodeId: string
+    agentDefinitionRef: `resource://${string}`
+  },
+): void {
+  if (fact.workflowForm !== expected.workflowForm
+    || fact.workflowRef !== expected.workflowRef
+    || fact.nodeId !== expected.nodeId
+    || fact.agentDefinitionRef !== expected.agentDefinitionRef
+    || fact.resourceReceipt.task.workflowKind !== expected.workflowForm
+    || fact.resourceReceipt.task.workflowRef !== expected.workflowRef
+    || fact.resourceReceipt.task.nodeId !== expected.nodeId
+    || fact.resourceReceipt.task.agentDefinitionRef !== expected.agentDefinitionRef
+    || fact.plan.agentDefinitionRef !== expected.agentDefinitionRef) {
+    throw new Error("Workflow Agent execution fact does not match the active effect authority")
   }
 }

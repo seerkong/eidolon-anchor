@@ -60,13 +60,9 @@ describe("workflow authoring lifecycle", () => {
         files: [{ path: "manifest.xnl", content: DATA_MANIFEST }],
       }],
       prebuiltWorkflows: [],
-      reusableAgents: [{ id: "review-agent", description: "Installed agent brief.", promptLoaded: false }],
     })
     expect(injected.listTemplates()).toEqual([
       { id: "workspace-template", form: "AIDataWorkflow", description: "Injected installed resource." },
-    ])
-    expect(injected.listReusableAgents()).toEqual([
-      { id: "review-agent", description: "Installed agent brief.", promptLoaded: false },
     ])
   })
 
@@ -301,7 +297,7 @@ describe("workflow authoring lifecycle", () => {
       .rejects.toThrow("diff, validation and dry-run")
   })
 
-  it("imports an existing published definition into read-only base and editable work facts", async () => {
+  it("imports an explicit authoring VFS definition into read-only base and editable work facts", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-edit-"))
     const runtime = {
       vm: { outerCtx: { workDir: root, metadata: { aiWorkflow: { roots: { workspaceRoot: root } } } }, registries: {} },
@@ -315,7 +311,7 @@ describe("workflow authoring lifecycle", () => {
       "WorkflowOpenAuthoringSession",
       runtime.vm,
       runtime.actor,
-      { session_id: "existing-edit", workflow_ref: "resource://demo.workflow.Existing" },
+      { session_id: "existing-edit", workflow_ref: "vfs://./existing/manifest.xnl" },
     )))
     expect(opened).toMatchObject({ ok: true, sessionId: "existing-edit", status: "open" })
     const base = await createWorkflowComponent({ workspaceRoot: root }).sessions.read("existing-edit", "/base/manifest.xnl")

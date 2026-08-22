@@ -1,0 +1,13 @@
+<MaterialBinding #eidolon.fixture.ArticleBinding apiVersion="depa.flows/v1" version="1.0.0" {
+  lifecycle = "Active"
+  description = "Article binding for the summary task"
+} (
+  <AgentTaskRef {
+    workflowKind = "AICtrlWorkflow"
+    workflowRef = "resource://eidolon.fixture.SummaryWorkflow"
+    nodeId = "summarize"
+    agentDefinitionRef = "resource://eidolon.fixture.SummaryAgent"
+  }>
+  <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.ArticlePort" }>
+  <MaterialRef { kind = "ArticleMaterial" ref = "resource://eidolon.fixture.Article" }>
+)>

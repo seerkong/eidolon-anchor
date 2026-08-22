@@ -49,6 +49,24 @@ function expectWorkflowRuntimeToolNames(names: string[]) {
   expect(names).toContain("WorkflowApplyGraphPatch")
 }
 
+function schemaAccepts(value: unknown, schema: any): boolean {
+  if (schema.oneOf) return schema.oneOf.filter((branch: unknown) => schemaAccepts(value, branch)).length === 1
+  if (schema.const !== undefined) return Object.is(value, schema.const)
+  if (schema.enum) return schema.enum.includes(value)
+  if (schema.type === "string") return typeof value === "string"
+  if (schema.type === "array") return Array.isArray(value) && value.every((item) => schemaAccepts(item, schema.items))
+  if (schema.type !== "object" || typeof value !== "object" || value === null || Array.isArray(value)) return false
+  const record = value as Record<string, unknown>
+  if ((schema.required ?? []).some((key: string) => !Object.hasOwn(record, key))) return false
+  if (schema.additionalProperties === false && Object.keys(record).some((key) => !Object.hasOwn(schema.properties ?? {}, key))) {
+    return false
+  }
+  return Object.entries(record).every(([key, item]) => {
+    const property = schema.properties?.[key]
+    return property === undefined || schemaAccepts(item, property)
+  })
+}
+
 function makeSeededWorkflowRuntime() {
   const actor = createActor({ key: "main" })
   const toolRegistry = composeToolRegistry({ includeInternalOnly: false })
@@ -119,6 +137,113 @@ describe("native AI workflow tools", () => {
     })
   })
 
+  it("publishes disjoint ResourcePackage and legacy open-session parameter branches", () => {
+    const open = buildWorkflowNativeToolDefs().find(
+      (def) => def.schema.function.name === "WorkflowOpenAuthoringSession",
+    )
+    const parameters = open!.schema.function.parameters as any
+
+    expect(parameters).toEqual({
+      type: "object",
+      oneOf: [
+        {
+          type: "object",
+          properties: {
+            artifact_kind: { type: "string", enum: ["resource-package"] },
+            source_kind: { type: "string", enum: ["workspace-layer"] },
+            session_id: { type: "string" },
+            selected_resource_refs: { type: "array", items: { type: "string" }, minItems: 1 },
+          },
+          required: ["artifact_kind", "source_kind"],
+          additionalProperties: false,
+        },
+        {
+          type: "object",
+          properties: {
+            artifact_kind: { type: "string", enum: ["legacy-vfs-workflow-bundle"] },
+            session_id: { type: "string" },
+            form: { type: "string", enum: ["AICtrlWorkflow", "AIDataWorkflow", "ai-ctrl", "ai-data"] },
+            template_id: { type: "string" },
+            prebuilt_id: { type: "string" },
+            workflow_ref: {
+              type: "string",
+              description: "Published logical resource or VFS ref to import into /base and /work.",
+            },
+            target: { type: "object", additionalProperties: true },
+          },
+          required: [],
+          additionalProperties: false,
+        },
+      ],
+    })
+    expect(schemaAccepts({
+      artifact_kind: "resource-package",
+      source_kind: "workspace-layer",
+      selected_resource_refs: ["resource://eidolon.fixture.SummaryWorkflow"],
+    }, parameters)).toBe(true)
+    expect(schemaAccepts({
+      artifact_kind: "resource-package",
+      source_kind: "workspace-layer",
+      form: "AICtrlWorkflow",
+    }, parameters)).toBe(false)
+    expect(schemaAccepts({
+      artifact_kind: "legacy-vfs-workflow-bundle",
+      form: "AICtrlWorkflow",
+      target: { path: "demo" },
+    }, parameters)).toBe(true)
+    expect(schemaAccepts({ form: "ai-data" }, parameters)).toBe(true)
+  })
+
+  it("keeps the authoring schema on the explicit DeepSeek Chat request path and outside Responses", async () => {
+    const { buildProviderDriverRegistry } = await import("../../src/llm/ProviderDriverRegistry")
+    const registry = buildProviderDriverRegistry()
+    const deepSeek = registry["deepseek-chat"]
+    const responses = registry["openai-responses"]
+    const open = buildWorkflowNativeToolDefs().find(
+      (def) => def.schema.function.name === "WorkflowOpenAuthoringSession",
+    )!
+
+    expect(deepSeek.chatCompletionsEffectBundle?.id).toBe("deepseek-official-chat")
+    expect(responses.chatCompletionsEffectBundle).toBeUndefined()
+    expect(responses.normalizedChatCompletionsStreamBinding?.id).toBe("openai-responses-normalized")
+
+    const request = deepSeek.buildRequest!({
+      model: "deepseek-v4-flash",
+      messages: [],
+      tools: [open.schema],
+      requestOptions: {},
+      extraBody: {},
+      connectionOptions: {},
+      runtime: {
+        providerId: "deepseek",
+        selectedModel: "deepseek-v4-flash",
+        adapterName: "deepseek",
+        driverName: deepSeek.name,
+      },
+    })
+    const emitted = (request.body!.tools as any[])[0].function.parameters
+
+    expect(emitted).toEqual(open.schema.function.parameters)
+    expect(emitted.type).toBe("object")
+    expect(emitted.oneOf).toHaveLength(2)
+  })
+
+  it("exposes one bounded multi-file read for a recoverable authoring session", () => {
+    const workspace = buildWorkflowNativeToolDefs().find(
+      (def) => def.schema.function.name === "WorkflowWorkspace",
+    )
+    const parameters = workspace!.schema.function.parameters as any
+
+    expect(parameters.properties.operation.enum).toContain("read_selection")
+    expect(parameters.properties.operation.enum).toContain("read_many")
+    expect(parameters.properties.paths).toMatchObject({
+      type: "array",
+      minItems: 1,
+      maxItems: 12,
+      items: { type: "string" },
+    })
+  })
+
   it("exposes workflow tools through model-visible built-in schemas", () => {
     const baseNames = BASE_TOOLS.map((tool) => tool.function.name)
     expect(baseNames).toContain("WorkflowFulfill")
@@ -127,6 +252,8 @@ describe("native AI workflow tools", () => {
     expect(baseNames).toContain("WorkflowWorkspace")
     expect(baseNames).toContain("WorkflowGetAuthoringContext")
     expect(baseNames).toContain("WorkflowListAuthoringTemplates")
+    expect(baseNames).toContain("WorkflowListApps")
+    expect(baseNames).toContain("WorkflowGetApp")
     expect(baseNames).toContain("WorkflowOpenAuthoringSession")
     expect(baseNames).toContain("WorkflowPublishAuthoringSession")
     expect(baseNames).toContain("WorkflowValidateResourceRef")
@@ -141,6 +268,8 @@ describe("native AI workflow tools", () => {
     expect(allNames).toContain("WorkflowWorkspace")
     expect(allNames).toContain("WorkflowGetAuthoringContext")
     expect(allNames).toContain("WorkflowListAuthoringTemplates")
+    expect(allNames).toContain("WorkflowListApps")
+    expect(allNames).toContain("WorkflowGetApp")
     expect(allNames).toContain("WorkflowOpenAuthoringSession")
     expect(allNames).toContain("WorkflowPublishAuthoringSession")
     expect(allNames).toContain("WorkflowValidateResourceRef")
@@ -158,6 +287,8 @@ describe("native AI workflow tools", () => {
     expect(ToolFuncRegistry.get(registry, "WorkflowValidateResourceRef")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowCreateBundle")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowPatchBundle")).toBeDefined()
+    expect(ToolFuncRegistry.get(registry, "WorkflowListApps")).toBeDefined()
+    expect(ToolFuncRegistry.get(registry, "WorkflowGetApp")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowRun")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowStatus")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowEvents")).toBeDefined()
@@ -225,7 +356,8 @@ describe("native AI workflow tools", () => {
 
     expect(created.kind).toBe("workflow.bundleDraft")
     expect(created.form).toBe("AIDataWorkflow")
-    expect(created.resourceRef).toBe("resource://demo.workflow.Data")
+    expect(created.workflowRef).toBe("vfs://./demo-data-workflow/manifest.xnl")
+    expect(created.resourceRef).toBeUndefined()
     expect(created.writePolicy.physicalWritePerformed).toBe(false)
     expect(created.files.map((file: any) => file.path)).toContain("demo-data-workflow/manifest.xnl")
     expect(created.files.some((file: any) => String(file.content).includes("<AIDataWorkflow #demo.workflow.Data"))).toBe(true)
@@ -262,6 +394,7 @@ describe("native AI workflow tools", () => {
     ) as string)
 
     expect(created).toMatchObject({
+      ok: true,
       kind: "workflow.authoringDraft",
       status: "session_opened",
       effectDispatched: false,
@@ -271,6 +404,11 @@ describe("native AI workflow tools", () => {
         scope: "authoring_session",
         publicationPerformed: false,
         executionPerformed: false,
+      },
+      workflow_progress: {
+        kind: "workflow.domainProgressFact",
+        owner: "workflow.authoring",
+        transition: "workspace_opened",
       },
     })
     expect(created.draft.files).toEqual(expect.arrayContaining([
@@ -294,7 +432,67 @@ describe("native AI workflow tools", () => {
         actual: "file",
       },
     })
+    const workTree = JSON.parse(String(await ToolFuncRegistry.call(
+      registry,
+      "WorkflowWorkspace",
+      runtime.vm,
+      runtime.actor,
+      { operation: "tree", session_id: sessionId, path: "/work" },
+    )))
+    const paths = workTree.files.slice(0, 2)
+    const readMany = JSON.parse(String(await ToolFuncRegistry.call(
+      registry,
+      "WorkflowWorkspace",
+      runtime.vm,
+      runtime.actor,
+      { operation: "read_many", session_id: sessionId, paths },
+    )))
+    expect(readMany).toEqual({
+      ok: true,
+      operation: "read_many",
+      files: paths.map((filePath: string) => ({
+        path: filePath,
+        content: expect.any(String),
+      })),
+    })
+    await expect(ToolFuncRegistry.call(
+      registry,
+      "WorkflowWorkspace",
+      runtime.vm,
+      runtime.actor,
+      { operation: "read_many", session_id: sessionId, paths: new Array(1) },
+    )).rejects.toThrow("dense plain array")
+    await expect(ToolFuncRegistry.call(
+      registry,
+      "WorkflowWorkspace",
+      runtime.vm,
+      runtime.actor,
+      { operation: "read_many", session_id: sessionId, paths: Array.from({ length: 13 }, (_, index) => `/work/${index}.xnl`) },
+    )).rejects.toThrow("1 to 12 paths")
     await expect(readFile(path.join(workspaceRoot, "runtime-review", "manifest.xnl"), "utf8")).rejects.toThrow()
+    const changed = JSON.parse(String(await ToolFuncRegistry.call(
+      registry,
+      "WorkflowWorkspace",
+      runtime.vm,
+      runtime.actor,
+      {
+        operation: "edit",
+        session_id: sessionId,
+        path: "/work/manifest.xnl",
+        old_text: 'version="1.0.0"',
+        new_text: 'version="1.0.1"',
+      },
+    )))
+    expect(changed).toMatchObject({
+      ok: true,
+      workflow_progress: {
+        kind: "workflow.domainProgressFact",
+        owner: "workflow.authoring",
+        transition: "workspace_revision_changed",
+        subjectId: sessionId,
+        revision: changed.revision,
+      },
+    })
     await ToolFuncRegistry.call(registry, "WorkflowWorkspace", runtime.vm, runtime.actor, { operation: "diff", session_id: sessionId })
     await ToolFuncRegistry.call(registry, "WorkflowValidateAuthoringSession", runtime.vm, runtime.actor, { session_id: sessionId })
     await ToolFuncRegistry.call(registry, "WorkflowDryRunAuthoringSession", runtime.vm, runtime.actor, { session_id: sessionId })
@@ -443,6 +641,13 @@ describe("native AI workflow tools", () => {
       run_id: "workflow-run-1",
       status: "completed",
       output_text: "workflow final output",
+      workflow_progress: {
+        kind: "workflow.domainProgressFact",
+        owner: "workflow.runtime",
+        transition: "result_observed",
+        subjectId: "workflow-run-1",
+        revision: "workflow-run-1",
+      },
     })
     expect(result.events.entries.map((entry: any) => entry.text)).toEqual([
       "workflow final output",

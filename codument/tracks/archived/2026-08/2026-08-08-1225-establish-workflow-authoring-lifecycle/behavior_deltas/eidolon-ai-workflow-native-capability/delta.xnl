@@ -1,0 +1,117 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_8_-_1_2_2_5_-_e_s_t_a_b_l_i_s_h_-_w_o_r_k_f_l_o_w_-_a_u_t_h_o_r_i_n_g_-_l_i_f_e_c_y_c_l_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/workflow-authoring-lifecycle" } (
+      <Requirement #workflow-authoring-lifecycle (
+        <Statement ?01M05F1PQPFQRYVSZM0JPNYNJR>
+        The system MUST provide a complete native workflow authoring lifecycle using canonical XNL, depa-flows semantics, injected Eidolon roots and native tools.
+        </?01M05F1PQPFQRYVSZM0JPNYNJR>
+        <Suites [
+          <Suite #capability-coverage { name = "Capability coverage" } (
+            <Cases [
+              <Case #requirement-evidence (
+                <Given ?01M05F1PQPFQRYVSZM0JPNYNJS>
+                A workflow authoring capability is implemented or claimed complete
+                </?01M05F1PQPFQRYVSZM0JPNYNJS>
+                <When ?01M05F1PQPFQRYVSZM0JPNYNJT>
+                Its acceptance evidence is inspected
+                </?01M05F1PQPFQRYVSZM0JPNYNJT>
+                <Then ?01M05F1PQPFQRYVSZM0JPNYNJV>
+                The evidence MUST identify the required behavior, implementation evidence, architecture boundary and executable acceptance test
+                </?01M05F1PQPFQRYVSZM0JPNYNJV>
+              )>
+            ]>
+          )>
+          <Suite #authoring-session { name = "Recoverable authoring session" } (
+            <Cases [
+              <Case #four-mount-vfs (
+                <Given ?01M05F1PQPFQRYVSZM0JPNYNJW>
+                A user or author actor creates or edits a workflow
+                </?01M05F1PQPFQRYVSZM0JPNYNJW>
+                <When ?01M05F1PQPFQRYVSZM0JPNYNJX>
+                The WorkflowComponent opens an authoring session
+                </?01M05F1PQPFQRYVSZM0JPNYNJX>
+                <Then ?01M05F1PQPFQRYVSZM0JPNYNJY>
+                The session MUST expose read-only base and refs mounts plus writable work and out mounts through containment-safe native operations
+                </?01M05F1PQPFQRYVSZM0JPNYNJY>
+              )>
+              <Case #audit-and-recovery (
+                <Given ?01M05F1PQPFQRYVSZM0JPNYNJZ>
+                An authoring session has mutations, validation or dry-run facts
+                </?01M05F1PQPFQRYVSZM0JPNYNJZ>
+                <When ?01M05F1PQPFQRYVSZM0JPNYNK0>
+                A later turn reloads the session
+                </?01M05F1PQPFQRYVSZM0JPNYNK0>
+                <Then ?01M05F1PQPFQRYVSZM0JPNYNK1>
+                The system MUST recover its identity, mounts, current revision, proof state, target and ordered audit facts without guessing from host paths
+                </?01M05F1PQPFQRYVSZM0JPNYNK1>
+              )>
+            ]>
+          )>
+          <Suite #proof-and-publication { name = "Proof and publication" } (
+            <Cases [
+              <Case #proof-loop (
+                <Given ?01M05F1PQPFQRYVSZM0JPNYNK2>
+                The editable work mount contains a workflow draft
+                </?01M05F1PQPFQRYVSZM0JPNYNK2>
+                <When ?01M05F1PQPFQRYVSZM0JPNYNK3>
+                The authoring lifecycle proves it
+                </?01M05F1PQPFQRYVSZM0JPNYNK3>
+                <Then ?01M05F1PQPFQRYVSZM0JPNYNK4>
+                The system MUST perform diff, canonical validate and static dry-run for one content revision and MUST support repair before publication
+                </?01M05F1PQPFQRYVSZM0JPNYNK4>
+              )>
+              <Case #stale-validation (
+                <Given ?01M05F1PQPFQRYVSZM0JPNYNK5>
+                A validated draft is modified
+                </?01M05F1PQPFQRYVSZM0JPNYNK5>
+                <When ?01M05F1PQPFQRYVSZM0JPNYNK6>
+                Publication is requested with the prior validation revision
+                </?01M05F1PQPFQRYVSZM0JPNYNK6>
+                <Then ?01M05F1PQPFQRYVSZM0JPNYNK7>
+                The system MUST reject publication until the current revision is validated and dry-run again
+                </?01M05F1PQPFQRYVSZM0JPNYNK7>
+              )>
+              <Case #separate-authorization (
+                <Given ?01M05F1PQPFQRYVSZM0JPNYNK8>
+                A draft has current successful proof
+                </?01M05F1PQPFQRYVSZM0JPNYNK8>
+                <When ?01M05F1PQPFQRYVSZM0JPNYNK9>
+                Publication is not explicitly authorized
+                </?01M05F1PQPFQRYVSZM0JPNYNK9>
+                <Then ?01M05F1PQPFQRYVSZM0JPNYNKA>
+                The system MUST retain the draft and MUST NOT publish or execute it
+                </?01M05F1PQPFQRYVSZM0JPNYNKA>
+              )>
+            ]>
+          )>
+          <Suite #human-authoring { name = "Human authoring surface" } (
+            <Cases [
+              <Case #business-language-only (
+                <Given ?01M05F1PQPFQRYVSZM0JPNYNKB>
+                A person describes a durable business task in ordinary language
+                </?01M05F1PQPFQRYVSZM0JPNYNKB>
+                <When ?01M05F1PQPFQRYVSZM0JPNYNKC>
+                Eidolon authors a workflow
+                </?01M05F1PQPFQRYVSZM0JPNYNKC>
+                <Then ?01M05F1PQPFQRYVSZM0JPNYNKD>
+                The person MUST NOT be required to choose a workflow form, nodes, ports, reuse policy, XNL syntax or storage path
+                </?01M05F1PQPFQRYVSZM0JPNYNKD>
+              )>
+              <Case #exact-business-payload (
+                <Given ?01M05F1PQPFQRYVSZM0JPNYNKE>
+                A request mixes authoring instructions with one unambiguous contiguous business payload
+                </?01M05F1PQPFQRYVSZM0JPNYNKE>
+                <When ?01M05F1PQPFQRYVSZM0JPNYNKF>
+                The workflow task input is authored
+                </?01M05F1PQPFQRYVSZM0JPNYNKF>
+                <Then ?01M05F1PQPFQRYVSZM0JPNYNKG>
+                The system MUST preserve exactly that business payload while keeping authoring and lifecycle clauses outside the task
+                </?01M05F1PQPFQRYVSZM0JPNYNKG>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

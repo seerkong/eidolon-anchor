@@ -1,0 +1,10 @@
+<ResourceMappings #Eidolon.Anchor.ResourceMappings.Authoring apiVersion="halfcode.resources/v1" version="1.0.0" (
+  <SourceRoots [
+    <SourceRoot #EidolonAuthoring { sourceRoot = "vfs://module/EidolonAnchorSystemSkills/" } [
+      <CopyDirectory { from = "content/authoring/operations" to = "operations" }>
+    ]>
+    <SourceRoot #CanonicalFlowDsl { sourceRoot = "vfs://module/DepaFlowsFlowDslReference/" } [
+      <CopyDirectory { from = "content" to = "references/flow-dsl" }>
+    ]>
+  ]>
+)>

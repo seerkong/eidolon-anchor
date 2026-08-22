@@ -1,179 +1,239 @@
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.surface-scope {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Eidolon 集成是否需要同时实现 MCP surface？</?>
-  <answer { }
-  (
-    <raw-answer ?>不需要。</?>
-    <decision-text ?>本次 Eidolon 集成只做对话内普通 AI tools 与 `eidolon workflow` CLI。MCP adapter 只属于 depa-flows 独立使用场景。</?>
-    <rationale ?>用户明确收敛范围：Eidolon 自己就是 agent runtime，不需要在本次集成里额外封装 MCP。</?>
-    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.surface-scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6J0VG4WD8T7BHM908N>
+  Eidolon 集成是否需要同时实现 MCP surface？
+  </?01M05F1P6J0VG4WD8T7BHM908N>
+  <answer {  } (
+    <raw-answer ?01M05F1P6J0VG4WD8T7BHM908P>
+    不需要。
+    </?01M05F1P6J0VG4WD8T7BHM908P>
+    <decision-text ?01M05F1P6J0VG4WD8T7BHM908Q>
+    本次 Eidolon 集成只做对话内普通 AI tools 与 `eidolon workflow` CLI。MCP adapter 只属于 depa-flows 独立使用场景。
+    </?01M05F1P6J0VG4WD8T7BHM908Q>
+    <rationale ?01M05F1P6J0VG4WD8T7BHM908R>
+    用户明确收敛范围：Eidolon 自己就是 agent runtime，不需要在本次集成里额外封装 MCP。
+    </?01M05F1P6J0VG4WD8T7BHM908R>
+    <evidence ?01M05F1P6J0VG4WD8T7BHM908S>
+    analysis/context.md；proposal.md；design.md。
+    </?01M05F1P6J0VG4WD8T7BHM908S>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.component-first {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>`eidolon workflow` 应该独立实现，还是作为共享 component 的 CLI projection？</?>
-  <answer { }
-  (
-    <raw-answer ?>作为共享 component 的 CLI projection。</?>
-    <decision-text ?>先实现 Eidolon AI Workflow native component/service，再把它投影为对话 tools 和 CLI 命令。</?>
-    <rationale ?>避免 CLI、tool、runtime 各自实现一套 workflow 逻辑，保持 Data/Processor/Effect/Actor 边界清楚。</?>
-    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.component-first apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6J0VG4WD8T7BHM908T>
+  `eidolon workflow` 应该独立实现，还是作为共享 component 的 CLI projection？
+  </?01M05F1P6J0VG4WD8T7BHM908T>
+  <answer {  } (
+    <raw-answer ?01M05F1P6J0VG4WD8T7BHM908V>
+    作为共享 component 的 CLI projection。
+    </?01M05F1P6J0VG4WD8T7BHM908V>
+    <decision-text ?01M05F1P6J0VG4WD8T7BHM908W>
+    先实现 Eidolon AI Workflow native component/service，再把它投影为对话 tools 和 CLI 命令。
+    </?01M05F1P6J0VG4WD8T7BHM908W>
+    <rationale ?01M05F1P6J0VG4WD8T7BHM908X>
+    避免 CLI、tool、runtime 各自实现一套 workflow 逻辑，保持 Data/Processor/Effect/Actor 边界清楚。
+    </?01M05F1P6J0VG4WD8T7BHM908X>
+    <evidence ?01M05F1P6J0VG4WD8T7BHM908Y>
+    analysis/context.md；proposal.md；design.md。
+    </?01M05F1P6J0VG4WD8T7BHM908Y>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.authority-boundary {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>AI agent 是否可以直接成为 workflow 文件写入 authority？</?>
-  <answer { }
-  (
-    <raw-answer ?>不可以。</?>
-    <decision-text ?>AI 只产出 structured draft 或 patch；最终写入由 workflow component 执行 parse、validate、controlled write、validate、repair/publish。</?>
-    <rationale ?>这样对话 tool 与 CLI 都不会绕过 workflow authoring contract，也不会让普通文件写入变成业务资源 authority。</?>
-    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.authority-boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6J0VG4WD8T7BHM908Z>
+  AI agent 是否可以直接成为 workflow 文件写入 authority？
+  </?01M05F1P6J0VG4WD8T7BHM908Z>
+  <answer {  } (
+    <raw-answer ?01M05F1P6J0VG4WD8T7BHM9090>
+    不可以。
+    </?01M05F1P6J0VG4WD8T7BHM9090>
+    <decision-text ?01M05F1P6J0VG4WD8T7BHM9091>
+    AI 只产出 structured draft 或 patch；最终写入由 workflow component 执行 parse、validate、controlled write、validate、repair/publish。
+    </?01M05F1P6J0VG4WD8T7BHM9091>
+    <rationale ?01M05F1P6J0VG4WD8T7BHM9092>
+    这样对话 tool 与 CLI 都不会绕过 workflow authoring contract，也不会让普通文件写入变成业务资源 authority。
+    </?01M05F1P6J0VG4WD8T7BHM9092>
+    <evidence ?01M05F1P6J0VG4WD8T7BHM9093>
+    analysis/context.md；proposal.md；design.md。
+    </?01M05F1P6J0VG4WD8T7BHM9093>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.runtime-reuse {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Workflow 是否创建独立 session/actor/effect persistence？</?>
-  <answer { }
-  (
-    <raw-answer ?>不创建。</?>
-    <decision-text ?>Workflow 自己只保存 workflow facts；session、actor、durable head、effect lifecycle 与恢复尽量复用 Eidolon 已有 runtime-control 体系。</?>
-    <rationale ?>用户明确要求执行 AI agent task 应由 Eidolon 现有 actor 体系承载，不应为 workflow 创建特例。</?>
-    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.runtime-reuse apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6J0VG4WD8T7BHM9094>
+  Workflow 是否创建独立 session/actor/effect persistence？
+  </?01M05F1P6J0VG4WD8T7BHM9094>
+  <answer {  } (
+    <raw-answer ?01M05F1P6J0VG4WD8T7BHM9095>
+    不创建。
+    </?01M05F1P6J0VG4WD8T7BHM9095>
+    <decision-text ?01M05F1P6J0VG4WD8T7BHM9096>
+    Workflow 自己只保存 workflow facts；session、actor、durable head、effect lifecycle 与恢复尽量复用 Eidolon 已有 runtime-control 体系。
+    </?01M05F1P6J0VG4WD8T7BHM9096>
+    <rationale ?01M05F1P6J0VG4WD8T7BHM9097>
+    用户明确要求执行 AI agent task 应由 Eidolon 现有 actor 体系承载，不应为 workflow 创建特例。
+    </?01M05F1P6J0VG4WD8T7BHM9097>
+    <evidence ?01M05F1P6J0VG4WD8T7BHM9098>
+    analysis/context.md；proposal.md；design.md。
+    </?01M05F1P6J0VG4WD8T7BHM9098>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.resource-contract {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Workflow bundle authoring 应采用什么资源系统？</?>
-  <answer { }
-  (
-    <raw-answer ?>XNL resource bundle + `.eidolon` runtime roots。</?>
-    <decision-text ?>Authoring 使用 XNL，业务身份使用 `resource://&lt;FQN&gt;`，bundle 内部使用 `vfs://./...` / `vfs://@/...`，配置和密钥使用 `config://...` / `secret://...`；禁止 host absolute path、traversal、裸相对路径、`file://`、`http://`。</?>
-    <rationale ?>这与 depa-flows flow-dsl resource 标准和 Eidolon runtime root 注入边界一致，也避免第二套资源根设计。</?>
-    <evidence ?>analysis/context.md；proposal.md；design.md。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.resource-contract apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6J0VG4WD8T7BHM9099>
+  Workflow bundle authoring 应采用什么资源系统？
+  </?01M05F1P6J0VG4WD8T7BHM9099>
+  <answer {  } (
+    <raw-answer ?01M05F1P6J0VG4WD8T7BHM909A>
+    XNL resource bundle + `.eidolon` runtime roots。
+    </?01M05F1P6J0VG4WD8T7BHM909A>
+    <decision-text ?01M05F1P6J0VG4WD8T7BHM909B>
+    Authoring 使用 XNL，业务身份使用 `resource://&lt;FQN&gt;`，bundle 内部使用 `vfs://./...` / `vfs://@/...`，配置和密钥使用 `config://...` / `secret://...`；禁止 host absolute path、traversal、裸相对路径、`file://`、`http://`。
+    </?01M05F1P6J0VG4WD8T7BHM909B>
+    <rationale ?01M05F1P6J0VG4WD8T7BHM909C>
+    这与 depa-flows flow-dsl resource 标准和 Eidolon runtime root 注入边界一致，也避免第二套资源根设计。
+    </?01M05F1P6J0VG4WD8T7BHM909C>
+    <evidence ?01M05F1P6J0VG4WD8T7BHM909D>
+    analysis/context.md；proposal.md；design.md。
+    </?01M05F1P6J0VG4WD8T7BHM909D>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.depa-flows-authority {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Eidolon 是否可以自行近似实现 AI workflow contract、XNL validation 和 runtime semantics？</?>
-  <answer { }
-  (
-    <raw-answer ?>不可以。</?>
-    <decision-text ?>depa-flows 的 ai-workflow、ai-ctrl-workflow、ai-data-workflow、WorkCtrlFlow 与 EagerDataFlow packages 是语义 authority；Eidolon 只实现 resource、actor/effect、persistence 和 surface adapters。</?>
-    <rationale ?>当前平行近似实现没有加载或执行真实 workflow，已造成协议和产品行为漂移。</?>
-    <evidence ?>analysis/gap-review-2026-08-07.md；用户此前关于底层必须基于 depa-flows 的明确约束。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.depa-flows-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6J0VG4WD8T7BHM909E>
+  Eidolon 是否可以自行近似实现 AI workflow contract、XNL validation 和 runtime semantics？
+  </?01M05F1P6J0VG4WD8T7BHM909E>
+  <answer {  } (
+    <raw-answer ?01M05F1P6J0VG4WD8T7BHM909F>
+    不可以。
+    </?01M05F1P6J0VG4WD8T7BHM909F>
+    <decision-text ?01M05F1P6J0VG4WD8T7BHM909G>
+    depa-flows 的 ai-workflow、ai-ctrl-workflow、ai-data-workflow、WorkCtrlFlow 与 EagerDataFlow packages 是语义 authority；Eidolon 只实现 resource、actor/effect、persistence 和 surface adapters。
+    </?01M05F1P6J0VG4WD8T7BHM909G>
+    <rationale ?01M05F1P6J0VG4WD8T7BHM909H>
+    当前平行近似实现没有加载或执行真实 workflow，已造成协议和产品行为漂移。
+    </?01M05F1P6J0VG4WD8T7BHM909H>
+    <evidence ?01M05F1P6J0VG4WD8T7BHM909J>
+    analysis/gap-review-2026-08-07.md；用户此前关于底层必须基于 depa-flows 的明确约束。
+    </?01M05F1P6J0VG4WD8T7BHM909J>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.shared-authoring-adapter {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>TUI 与 CLI 是否可以分别实现 workflow 文件写入？</?>
-  <answer { }
-  (
-    <raw-answer ?>不可以。</?>
-    <decision-text ?>TUI 与 CLI 必须绑定同一个 WorkflowComponent 和同一种 containment-safe filesystem/resource authoring adapter；写入、编辑、验证和发布 transition 由 component 统一拥有。</?>
-    <rationale ?>CLI 私有 `Bun.write` 造成 TUI 无法写入，也违反 component-first authority 边界。</?>
-    <evidence ?>analysis/gap-review-2026-08-07.md；用户 code review 反馈。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.shared-authoring-adapter apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6KKZ9FE6N8JHSXWG2Y>
+  TUI 与 CLI 是否可以分别实现 workflow 文件写入？
+  </?01M05F1P6KKZ9FE6N8JHSXWG2Y>
+  <answer {  } (
+    <raw-answer ?01M05F1P6KKZ9FE6N8JHSXWG2Z>
+    不可以。
+    </?01M05F1P6KKZ9FE6N8JHSXWG2Z>
+    <decision-text ?01M05F1P6KKZ9FE6N8JHSXWG30>
+    TUI 与 CLI 必须绑定同一个 WorkflowComponent 和同一种 containment-safe filesystem/resource authoring adapter；写入、编辑、验证和发布 transition 由 component 统一拥有。
+    </?01M05F1P6KKZ9FE6N8JHSXWG30>
+    <rationale ?01M05F1P6KKZ9FE6N8JHSXWG31>
+    CLI 私有 `Bun.write` 造成 TUI 无法写入，也违反 component-first authority 边界。
+    </?01M05F1P6KKZ9FE6N8JHSXWG31>
+    <evidence ?01M05F1P6KKZ9FE6N8JHSXWG32>
+    analysis/gap-review-2026-08-07.md；用户 code review 反馈。
+    </?01M05F1P6KKZ9FE6N8JHSXWG32>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.natural-language-human-surface {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>面向用户的 workflow 使用方式是否可以要求用户直接调用低层 form/FQN/manifest tools？</?>
-  <answer { }
-  (
-    <raw-answer ?>不可以。</?>
-    <decision-text ?>TUI 对话和 `eidolon workflow create/edit` 必须接受普通自然语言需求；Eidolon 自身 actor runtime 负责选择 workflow form、生成/修改 XNL、执行 proof/repair loop，并通过 component 发布。</?>
-    <rationale ?>Eidolon 本身就是 AI agent runtime；自然语言到受控 authoring lifecycle 是产品能力，不应把内部 DSL 或低层命令外形暴露给普通用户。</?>
-    <evidence ?>analysis/gap-review-2026-08-07.md；用户 code review 反馈。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.natural-language-human-surface apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6KKZ9FE6N8JHSXWG33>
+  面向用户的 workflow 使用方式是否可以要求用户直接调用低层 form/FQN/manifest tools？
+  </?01M05F1P6KKZ9FE6N8JHSXWG33>
+  <answer {  } (
+    <raw-answer ?01M05F1P6KKZ9FE6N8JHSXWG34>
+    不可以。
+    </?01M05F1P6KKZ9FE6N8JHSXWG34>
+    <decision-text ?01M05F1P6KKZ9FE6N8JHSXWG35>
+    TUI 对话和 `eidolon workflow create/edit` 必须接受普通自然语言需求；Eidolon 自身 actor runtime 负责选择 workflow form、生成/修改 XNL、执行 proof/repair loop，并通过 component 发布。
+    </?01M05F1P6KKZ9FE6N8JHSXWG35>
+    <rationale ?01M05F1P6KKZ9FE6N8JHSXWG36>
+    Eidolon 本身就是 AI agent runtime；自然语言到受控 authoring lifecycle 是产品能力，不应把内部 DSL 或低层命令外形暴露给普通用户。
+    </?01M05F1P6KKZ9FE6N8JHSXWG36>
+    <evidence ?01M05F1P6KKZ9FE6N8JHSXWG37>
+    analysis/gap-review-2026-08-07.md；用户 code review 反馈。
+    </?01M05F1P6KKZ9FE6N8JHSXWG37>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.profile-loader-authority {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>发现 depa-flows 尚未公开解析 AICtrlWorkflow / AIDataWorkflow roots 的 loader 时，应在 Eidolon 内补兼容解析，还是先补齐 authority？</?>
-  <answer { }
-  (
-    <raw-answer ?>先补齐 depa-flows authority。</?>
-    <decision-text ?>AICtrlWorkflow 与 AIDataWorkflow 的 XNL profile source loading、lowering 和结构化诊断必须由 depa-flows packages 提供；Eidolon 只消费公开 API。</?>
-    <rationale ?>在 Eidolon 内重新解析 profile root 会制造 mission 已禁止的平行 workflow core，并让 canonical examples 无法证明跨产品一致性。</?>
-    <evidence ?>受影响范围观测：AI workflow packages 只有 definition/runtime helpers，现有 substrate loaders 只接受 WorkCtrlFlow 与 EagerDataFlow roots。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.profile-loader-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6KKZ9FE6N8JHSXWG38>
+  发现 depa-flows 尚未公开解析 AICtrlWorkflow / AIDataWorkflow roots 的 loader 时，应在 Eidolon 内补兼容解析，还是先补齐 authority？
+  </?01M05F1P6KKZ9FE6N8JHSXWG38>
+  <answer {  } (
+    <raw-answer ?01M05F1P6KKZ9FE6N8JHSXWG39>
+    先补齐 depa-flows authority。
+    </?01M05F1P6KKZ9FE6N8JHSXWG39>
+    <decision-text ?01M05F1P6KKZ9FE6N8JHSXWG3A>
+    AICtrlWorkflow 与 AIDataWorkflow 的 XNL profile source loading、lowering 和结构化诊断必须由 depa-flows packages 提供；Eidolon 只消费公开 API。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3A>
+    <rationale ?01M05F1P6KKZ9FE6N8JHSXWG3B>
+    在 Eidolon 内重新解析 profile root 会制造 mission 已禁止的平行 workflow core，并让 canonical examples 无法证明跨产品一致性。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3B>
+    <evidence ?01M05F1P6KKZ9FE6N8JHSXWG3C>
+    受影响范围观测：AI workflow packages 只有 definition/runtime helpers，现有 substrate loaders 只接受 WorkCtrlFlow 与 EagerDataFlow roots。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3C>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.workflow-product-baseline {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Eidolon workflow 产品应只补提示词，还是先建立完整产品协议？</?>
-  <answer { }
-  (
-    <raw-answer ?>必须先建立完整产品协议，再做界面和场景增强。</?>
-    <decision-text ?>Eidolon 必须完整实现 authoring、隔离 VFS session、template/prebuilt、proof、publication、fact recovery、Material 和 run lifecycle；低层 primitives 只能作为基础设施，不能代替产品生命周期。</?>
-    <rationale ?>只补用户态提示词无法提供可恢复 session、revision-bound proof、独立授权门和 durable run facts。</?>
-    <evidence ?>用户体验纠偏；真实 TUI/CLI journey 验收要求。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.workflow-product-baseline apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6KKZ9FE6N8JHSXWG3D>
+  Eidolon workflow 产品应只补提示词，还是先建立完整产品协议？
+  </?01M05F1P6KKZ9FE6N8JHSXWG3D>
+  <answer {  } (
+    <raw-answer ?01M05F1P6KKZ9FE6N8JHSXWG3E>
+    必须先建立完整产品协议，再做界面和场景增强。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3E>
+    <decision-text ?01M05F1P6KKZ9FE6N8JHSXWG3F>
+    Eidolon 必须完整实现 authoring、隔离 VFS session、template/prebuilt、proof、publication、fact recovery、Material 和 run lifecycle；低层 primitives 只能作为基础设施，不能代替产品生命周期。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3F>
+    <rationale ?01M05F1P6KKZ9FE6N8JHSXWG3G>
+    只补用户态提示词无法提供可恢复 session、revision-bound proof、独立授权门和 durable run facts。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3G>
+    <evidence ?01M05F1P6KKZ9FE6N8JHSXWG3H>
+    用户体验纠偏；真实 TUI/CLI journey 验收要求。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3H>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.product-implementation-order {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>产品协议、目标格式与运行时集成应按什么顺序实现？</?>
-  <answer { }
-  (
-    <raw-answer ?>先锁定产品行为和 authority 边界，再实现 canonical XNL、资源根与 effect integration，最后实施体验增强。</?>
-    <decision-text ?>每项能力必须给出 requirement、implementation evidence、architecture boundary 与 executable acceptance test。目标资源从首次落盘即使用 XNL；体验增强必须位于核心 lifecycle acceptance 之后。</?>
-    <rationale ?>这样既遵守 Eidolon/depa-flows authority，也避免格式或 surface 选择改变核心产品状态机。</?>
-    <evidence ?>resource-contract、depa-flows-authority 与真实 E2E 验收决策。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.product-implementation-order apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6KKZ9FE6N8JHSXWG3J>
+  产品协议、目标格式与运行时集成应按什么顺序实现？
+  </?01M05F1P6KKZ9FE6N8JHSXWG3J>
+  <answer {  } (
+    <raw-answer ?01M05F1P6KKZ9FE6N8JHSXWG3K>
+    先锁定产品行为和 authority 边界，再实现 canonical XNL、资源根与 effect integration，最后实施体验增强。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3K>
+    <decision-text ?01M05F1P6KKZ9FE6N8JHSXWG3M>
+    每项能力必须给出 requirement、implementation evidence、architecture boundary 与 executable acceptance test。目标资源从首次落盘即使用 XNL；体验增强必须位于核心 lifecycle acceptance 之后。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3M>
+    <rationale ?01M05F1P6KKZ9FE6N8JHSXWG3N>
+    这样既遵守 Eidolon/depa-flows authority，也避免格式或 surface 选择改变核心产品状态机。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3N>
+    <evidence ?01M05F1P6KKZ9FE6N8JHSXWG3P>
+    resource-contract、depa-flows-authority 与真实 E2E 验收决策。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3P>
   )>
 )>
 
-<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.real-tui-e2e {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>什么证据才能证明 TUI 内自然语言创建 workflow、人工确认后执行已经真实可用？</?>
-  <answer { }
-  (
-    <raw-answer ?>参考 terminal 既有 TUI E2E 测试，从真实 TUI 对话入口验证完整人类旅程。</?>
-    <decision-text ?>验收必须通过 TuiRuntimeClient local-runtime 提交真实多轮自然语言消息，经过 WorkflowFulfill、authoring workspace、发布门、运行门和 workflow runtime；首个命题通过网络热点门户收集 AI 应用趋势并生成报告。组件直调、prompt 字符串断言或 direct actor smoke 不能替代该证据。</?>
-    <rationale ?>此前 final acceptance 只证明了组件、注册、编译和局部真实 actor，未证明 TUI 的多轮创建、确认和执行旅程。</?>
-    <evidence ?>用户对 revision 38 completed gate 的纠偏；terminal 既有 local-runtime E2E harness。</?>
+<decision #mission.establish-eidolon-ai-workflow-native-component-and-cli.real-tui-e2e apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1P6KKZ9FE6N8JHSXWG3Q>
+  什么证据才能证明 TUI 内自然语言创建 workflow、人工确认后执行已经真实可用？
+  </?01M05F1P6KKZ9FE6N8JHSXWG3Q>
+  <answer {  } (
+    <raw-answer ?01M05F1P6KKZ9FE6N8JHSXWG3R>
+    参考 terminal 既有 TUI E2E 测试，从真实 TUI 对话入口验证完整人类旅程。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3R>
+    <decision-text ?01M05F1P6KKZ9FE6N8JHSXWG3S>
+    验收必须通过 TuiRuntimeClient local-runtime 提交真实多轮自然语言消息，经过 WorkflowFulfill、authoring workspace、发布门、运行门和 workflow runtime；首个命题通过网络热点门户收集 AI 应用趋势并生成报告。组件直调、prompt 字符串断言或 direct actor smoke 不能替代该证据。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3S>
+    <rationale ?01M05F1P6KKZ9FE6N8JHSXWG3T>
+    此前 final acceptance 只证明了组件、注册、编译和局部真实 actor，未证明 TUI 的多轮创建、确认和执行旅程。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3T>
+    <evidence ?01M05F1P6KKZ9FE6N8JHSXWG3V>
+    用户对 revision 38 completed gate 的纠偏；terminal 既有 local-runtime E2E harness。
+    </?01M05F1P6KKZ9FE6N8JHSXWG3V>
   )>
 )>

@@ -23,10 +23,17 @@ export function buildSkillToolDef(): ToolDef<SkillOuterInput, SkillOuterOutput, 
         properties: {
           skill: {
             type: "string",
-            description: "Name of the skill to load",
+            description: "Exact name of the skill to load",
           },
+          resource: {
+            type: "string",
+            description: "Exact declared relative resource; defaults to SKILL.md",
+          },
+          offset: { type: "integer", minimum: 1, default: 1 },
+          limit: { type: "integer", minimum: 1, default: 2000 },
         },
         required: ["skill"],
+        additionalProperties: false,
       },
     },
   }

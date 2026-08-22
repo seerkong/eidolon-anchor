@@ -1,0 +1,16 @@
+<SkillCapsule #Eidolon.Anchor.Skill.DevOps apiVersion="halfcode.resources/v1" version="1.0.8" {
+  name = "sys-eidolon-anchor-devops"
+  lifecycle = "Stable"
+  description = "Route the explicit Eidolon application lifecycle to its authoring and run sibling Skills."
+} (
+  <SkillMetadata { href = "vfs://./SKILL.metadata.yaml" format = "yaml" }>
+  <Template { href = "vfs://./SKILL.template.ejs" format = "ejs" }>
+  <ResourceMappings { href = "vfs://./resource-mappings.xnl" format = "xnl" }>
+  <SkillDependencies [
+    <SkillDependency { ref = "resource://Eidolon.Anchor.Skill.Authoring" version = "1.0.7" }>
+    <SkillDependency { ref = "resource://Eidolon.Anchor.Skill.Run" version = "1.0.0" }>
+  ]>
+  <Includes [
+    <Include { kind = "SkillCapsule" ref = "resource://Eidolon.Anchor.Skill.DevOps" }>
+  ]>
+)>

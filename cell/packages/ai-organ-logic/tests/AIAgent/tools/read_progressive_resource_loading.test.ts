@@ -326,7 +326,7 @@ describe("read progressive local text resource loading", () => {
     expect(delivered).toHaveLength(2000);
   });
 
-  it("reuses delivered coverage as already-visible after the tool result message is compacted", async () => {
+  it("re-delivers a compacted range once after recovery", async () => {
     const harness = makeHarness();
     const filePath = path.join(harness.workDir, "guide.md");
     fs.writeFileSync(filePath, "alpha\nbeta\ngamma\ndelta\n");
@@ -346,21 +346,18 @@ describe("read progressive local text resource loading", () => {
     ].join("\n"));
 
     const after = await harness.read("read-2", { filePath: "guide.md", offset: 1, limit: 2 });
-    expect(after).toContain('<context-resource status="already-visible"');
+    expect(after).toContain('<context-resource status="loaded"');
     expect(after).toContain('requested-lines="1-2"');
-    // The already-visible reference carries the persisted artifact path so the
-    // model can read the original output instead of waiting for re-delivery.
-    expect(after).toContain("Full output persisted at: /artifacts/tool-results/main/read-1-abc.txt");
-    expect(after).not.toContain("1: alpha\n2: beta");
-    expect(after).not.toContain('<context-resource status="loaded"');
+    expect(after).toContain("1: alpha\n2: beta");
+    expect(after).not.toContain('<context-resource status="already-visible"');
 
     // Appended deliveries remain the original delivered range, not a re-delivery.
     const asset = harness.conversationDomainRuntime.sessionStateSignal
       .get()["session-progressive-read"]?.contextAssets?.[0];
-    expect(asset?.resourceFact?.deliveries.map((delivery) => delivery.toolCallId)).toEqual(["read-1"]);
+    expect(asset?.resourceFact?.deliveries.map((delivery) => delivery.toolCallId)).toEqual(["read-1", "read-2"]);
   });
 
-  it("omits the recovery-path hint when the compacted wrapper carries no persisted path", async () => {
+  it("re-delivers a compacted range when no recovery path remains", async () => {
     const harness = makeHarness();
     const filePath = path.join(harness.workDir, "guide.md");
     fs.writeFileSync(filePath, "alpha\nbeta\ngamma\ndelta\n");
@@ -380,9 +377,11 @@ describe("read progressive local text resource loading", () => {
     ].join("\n"));
 
     const after = await harness.read("read-2", { filePath: "guide.md", offset: 1, limit: 2 });
-    expect(after).toContain('<context-resource status="already-visible"');
+    expect(after).toContain('<context-resource status="loaded"');
     expect(after).toContain('requested-lines="1-2"');
-    expect(after).not.toContain("Full output persisted at:");
+    expect(after).toContain('delivered-lines="1-2"');
+    expect(after).toContain("1: alpha\n2: beta");
+    expect(after).not.toContain('<context-resource status="already-visible"');
   });
 
   it("re-delivers the body when the tool result was compacted before its first delivery", async () => {
@@ -446,40 +445,41 @@ describe("read progressive local text resource loading", () => {
       "</compacted-tool-result>",
     ].join("\n"));
 
-    // Same range re-requested after compaction: STILL already-visible, no body,
-    // and the reference carries the recovery path for the original output.
+    // Same range re-requested after compaction gets one real body re-delivery,
+    // because the current provider context only has the compacted wrapper.
     const afterCompaction = await harness.read("read-3", { filePath: "guide.md", offset: 1, limit: 2 });
-    expect(afterCompaction).toContain('<context-resource status="already-visible"');
+    expect(afterCompaction).toContain('<context-resource status="loaded"');
     expect(afterCompaction).toContain('requested-lines="1-2"');
-    expect(afterCompaction).toContain("Full output persisted at: /artifacts/tool-results/main/read-1-abc.txt");
-    expect(afterCompaction).not.toContain("1: alpha\n2: beta");
-    expect(afterCompaction).not.toContain('<context-resource status="loaded"');
+    expect(afterCompaction).toContain("1: alpha\n2: beta");
+    expect(afterCompaction).not.toContain('<context-resource status="already-visible"');
 
-    // And again, one more turn later: still no re-delivery of the body.
+    // And again, one more turn later: the body is now materialized and can be
+    // reused without another delivery.
     const secondAfterCompaction = await harness.read("read-4", { filePath: "guide.md", offset: 1, limit: 2 });
     expect(secondAfterCompaction).toContain('<context-resource status="already-visible"');
     expect(secondAfterCompaction).not.toContain("1: alpha\n2: beta");
 
-    // The delivered tool message stays a compacted wrapper in the materialized
-    // context (it was not re-materialized by a re-delivery).
+    // The re-delivery replaces the compacted wrapper with the full result.
     const materialized = materializeConversationRuntimeMessagesFromVm({
       vm: harness.vm,
       actorKey: harness.actor.key,
     });
     const wrapper = materialized.find(
-      (message) => (message.toolCallId ?? message.tool_call_id) === "read-1",
+      (message) => (message.toolCallId ?? message.tool_call_id) === "read-3",
     );
     expect(wrapper?.role).toBe("tool");
-    expect(wrapper?.content).toContain('status="delivered_and_compacted"');
+    expect(wrapper?.content).toContain("1: alpha\n2: beta");
 
-    // The full body was delivered exactly once across the whole cycle.
+    // The full body is delivered once initially and once after recovery; it
+    // is not emitted again on the following already-visible request.
     const allOutputs = [first, beforeCompaction, afterCompaction, secondAfterCompaction].join("\n");
-    expect(allOutputs.match(/1: alpha/g)).toHaveLength(1);
+    expect(allOutputs.match(/1: alpha/g)).toHaveLength(2);
 
-    // Appended deliveries still contain only the original read-1 delivery.
+    // The one recovery re-delivery is recorded as a new delivery; later
+    // already-visible reads do not append another one.
     const asset = harness.conversationDomainRuntime.sessionStateSignal
       .get()["session-progressive-read"]?.contextAssets?.[0];
-    expect(asset?.resourceFact?.deliveries.map((delivery) => delivery.toolCallId)).toEqual(["read-1"]);
+    expect(asset?.resourceFact?.deliveries.map((delivery) => delivery.toolCallId)).toEqual(["read-1", "read-3"]);
   });
 
   it("reports file size-bytes in loaded, already-visible, and empty-range headers and omits it for directories", async () => {

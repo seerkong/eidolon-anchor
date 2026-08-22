@@ -1,14 +1,19 @@
-<decision #track.add-eidolon-workflow-runtime-run-tools.runtime-owner {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Workflow runtime tools 是否创建独立 workflow run store？</?>
-  <answer { }
-  (
-    <raw-answer ?>不创建。</?>
-    <decision-text ?>首版 workflow run/status/events/result/resume 复用 detached actor registry 与 observability facts。</?>
-    <rationale ?>Mission 决策要求 workflow 自己只保存 workflow facts，runtime facts 由 Eidolon actor/session/runtime-control 体系拥有。</?>
-    <evidence ?>mission decisions；design.md。</?>
+<decision #track.add-eidolon-workflow-runtime-run-tools.runtime-owner apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PNRGAC8CZGC5J8NFR67>
+  Workflow runtime tools 是否创建独立 workflow run store？
+  </?01M05F1PNRGAC8CZGC5J8NFR67>
+  <answer {  } (
+    <raw-answer ?01M05F1PNRGAC8CZGC5J8NFR68>
+    不创建。
+    </?01M05F1PNRGAC8CZGC5J8NFR68>
+    <decision-text ?01M05F1PNRGAC8CZGC5J8NFR69>
+    首版 workflow run/status/events/result/resume 复用 detached actor registry 与 observability facts。
+    </?01M05F1PNRGAC8CZGC5J8NFR69>
+    <rationale ?01M05F1PNRGAC8CZGC5J8NFR6A>
+    Mission 决策要求 workflow 自己只保存 workflow facts，runtime facts 由 Eidolon actor/session/runtime-control 体系拥有。
+    </?01M05F1PNRGAC8CZGC5J8NFR6A>
+    <evidence ?01M05F1PNRGAC8CZGC5J8NFR6B>
+    mission decisions；design.md。
+    </?01M05F1PNRGAC8CZGC5J8NFR6B>
   )>
 )>

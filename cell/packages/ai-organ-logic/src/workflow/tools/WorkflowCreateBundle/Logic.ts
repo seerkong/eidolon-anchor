@@ -1,5 +1,6 @@
 import type { StdInnerLogic } from "depa-processor"
 import { createWorkflowComponentForRuntime } from "../../component"
+import { withWorkflowDomainProgress } from "../../runtime/WorkflowDomainProgress"
 import type {
   WorkflowCreateBundleInnerConfig,
   WorkflowCreateBundleInnerInput,
@@ -25,7 +26,7 @@ export const workflowCreateBundleCoreLogic: StdInnerLogic<
       path: file.path.slice(prefix.length),
       content: file.content,
     })),
-    target: { scope: "definition", id: draft.fqn, path: bundlePath, resourceRef: draft.resourceRef },
+    target: { scope: "definition", id: draft.fqn, path: bundlePath, workflowRef: draft.workflowRef },
   })
   const result = {
     kind: "workflow.authoringDraft",
@@ -48,5 +49,10 @@ export const workflowCreateBundleCoreLogic: StdInnerLogic<
     },
     effectDispatched: false,
   }
-  return JSON.stringify(result, null, 2)
+  return JSON.stringify(withWorkflowDomainProgress({ ok: true, ...result }, {
+    owner: "workflow.authoring",
+    transition: "workspace_opened",
+    subjectId: session.sessionId,
+    revision: session.workingRevision,
+  }), null, 2)
 }

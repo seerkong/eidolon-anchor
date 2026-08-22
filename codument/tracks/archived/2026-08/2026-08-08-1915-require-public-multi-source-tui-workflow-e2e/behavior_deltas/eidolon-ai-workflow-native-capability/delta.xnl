@@ -1,0 +1,39 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_8_-_1_9_1_5_-_r_e_q_u_i_r_e_-_p_u_b_l_i_c_-_m_u_l_t_i_-_s_o_u_r_c_e_-_t_u_i_-_w_o_r_k_f_l_o_w_-_e_2_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/real-tui-human-journey" } (
+      <Requirement #real-tui-human-journey (
+        <Statement ?01M05F1PRW2Q53HQJQ245YNK3Q>
+        The system MUST prove the ordinary-language workflow product through a real TUI local-runtime multi-turn journey using multiple independent public network sources before claiming the human experience complete.
+        </?01M05F1PRW2Q53HQJQ245YNK3Q>
+        <Suites [
+          <Suite #network-trend-report { name = "Public multi-source trend report journey" } (
+            <Cases [
+              <Case #author-confirm-publish-confirm-run (
+                <Given ?01M05F1PRW2Q53HQJQ245YNK3R>
+                A person asks in ordinary language for a reusable workflow that reads at least three explicit URLs on different real public domains and produces a combined AI trend report
+                </?01M05F1PRW2Q53HQJQ245YNK3R>
+                <When ?01M05F1PRW2Q53HQJQ245YNK3S>
+                The person separately confirms publication and later confirms execution through TUI conversation
+                </?01M05F1PRW2Q53HQJQ245YNK3S>
+                <Then ?01M05F1PRW2Q53HQJQ245YNK3T>
+                The system MUST preserve a proven draft before publication, MUST publish without network access after the first confirmation, and MUST access every public source and return dynamically grounded evidence only after the second confirmation
+                </?01M05F1PRW2Q53HQJQ245YNK3T>
+              )>
+              <Case #real-shared-path (
+                <Given ?01M05F1PRW2Q53HQJQ245YNK3V>
+                The TUI journey is under automated acceptance
+                </?01M05F1PRW2Q53HQJQ245YNK3V>
+                <When ?01M05F1PRW2Q53HQJQ245YNK3W>
+                The test submits and observes the conversation
+                </?01M05F1PRW2Q53HQJQ245YNK3W>
+                <Then ?01M05F1PRW2Q53HQJQ245YNK3X>
+                The test MUST use TuiRuntimeClient local-runtime, WorkflowFulfill, native authoring/runtime tools, persisted workflow facts, Eidolon effect execution and standard network tools rather than localhost fixtures, component-only calls or prompt-string assertions
+                </?01M05F1PRW2Q53HQJQ245YNK3X>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

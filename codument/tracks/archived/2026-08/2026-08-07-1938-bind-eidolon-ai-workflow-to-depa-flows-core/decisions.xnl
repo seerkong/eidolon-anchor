@@ -1,29 +1,39 @@
-<decision #track.bind-eidolon-ai-workflow-to-depa-flows-core.contract-boundary {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Which workflow semantics may remain locally defined in Eidolon?</?>
-  <answer { }
-  (
-    <raw-answer ?>Only Eidolon-owned additive facts and compatibility projections.</?>
-    <decision-text ?>Kinds, substrates, definition bindings, reuse policies and resource-ref semantics come from depa-flows; Eidolon owns its data-subgraph declaration, roots and runtime fact references.</?>
-    <rationale ?>This preserves fact authority without erasing host-specific integration contracts.</?>
-    <evidence ?>Mission depa-flows-authority and runtime-reuse decisions.</?>
+<decision #track.bind-eidolon-ai-workflow-to-depa-flows-core.contract-boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PPM0ADQS94PTKGN16BJ>
+  Which workflow semantics may remain locally defined in Eidolon?
+  </?01M05F1PPM0ADQS94PTKGN16BJ>
+  <answer {  } (
+    <raw-answer ?01M05F1PPM0ADQS94PTKGN16BK>
+    Only Eidolon-owned additive facts and compatibility projections.
+    </?01M05F1PPM0ADQS94PTKGN16BK>
+    <decision-text ?01M05F1PPM0ADQS94PTKGN16BM>
+    Kinds, substrates, definition bindings, reuse policies and resource-ref semantics come from depa-flows; Eidolon owns its data-subgraph declaration, roots and runtime fact references.
+    </?01M05F1PPM0ADQS94PTKGN16BM>
+    <rationale ?01M05F1PPM0ADQS94PTKGN16BN>
+    This preserves fact authority without erasing host-specific integration contracts.
+    </?01M05F1PPM0ADQS94PTKGN16BN>
+    <evidence ?01M05F1PPM0ADQS94PTKGN16BP>
+    Mission depa-flows-authority and runtime-reuse decisions.
+    </?01M05F1PPM0ADQS94PTKGN16BP>
   )>
 )>
 
-<decision #track.bind-eidolon-ai-workflow-to-depa-flows-core.source-only-loader {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Should the core binding loader read host files?</?>
-  <answer { }
-  (
-    <raw-answer ?>No.</?>
-    <decision-text ?>The core binding exposes a named-source loader; filesystem and resource-store effects are injected by the later authoring workspace track.</?>
-    <rationale ?>This keeps parsing deterministic and avoids giving CLI or TUI a private filesystem authority.</?>
-    <evidence ?>Mission shared-authoring-adapter decision and depa-flows source-loader API.</?>
+<decision #track.bind-eidolon-ai-workflow-to-depa-flows-core.source-only-loader apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PPM0ADQS94PTKGN16BQ>
+  Should the core binding loader read host files?
+  </?01M05F1PPM0ADQS94PTKGN16BQ>
+  <answer {  } (
+    <raw-answer ?01M05F1PPM0ADQS94PTKGN16BR>
+    No.
+    </?01M05F1PPM0ADQS94PTKGN16BR>
+    <decision-text ?01M05F1PPM0ADQS94PTKGN16BS>
+    The core binding exposes a named-source loader; filesystem and resource-store effects are injected by the later authoring workspace track.
+    </?01M05F1PPM0ADQS94PTKGN16BS>
+    <rationale ?01M05F1PPM0ADQS94PTKGN16BT>
+    This keeps parsing deterministic and avoids giving CLI or TUI a private filesystem authority.
+    </?01M05F1PPM0ADQS94PTKGN16BT>
+    <evidence ?01M05F1PPM0ADQS94PTKGN16BV>
+    Mission shared-authoring-adapter decision and depa-flows source-loader API.
+    </?01M05F1PPM0ADQS94PTKGN16BV>
   )>
 )>

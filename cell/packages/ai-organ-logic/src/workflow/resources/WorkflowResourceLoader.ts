@@ -36,7 +36,6 @@ export type WorkflowStaticProjection = {
   definitionFqn: string
   declarationOrder: readonly string[]
   terminalNodeIds: readonly string[]
-  effectNodeIds: readonly string[]
   effectDispatched: false
 }
 
@@ -111,9 +110,6 @@ export class WorkflowResourceLoader {
     if (terminalNodeIds.length === 0) {
       throw new Error(`Workflow static projection failed: ${definition.fqn} has no terminal return node`)
     }
-    const effectNodeIds = nodes
-      .filter((node) => /Effect|Task|Transform|Source|Sink/iu.test(String(node?.tag ?? "")))
-      .map((node, index) => String(node.id ?? `effect-${index}`))
     return Object.freeze({
       kind: "workflow.staticProjection" as const,
       form: loaded.form,
@@ -121,7 +117,6 @@ export class WorkflowResourceLoader {
       definitionFqn: String(definition.fqn),
       declarationOrder: Object.freeze(nodes.map((node, index) => String(node?.id ?? `${node?.tag ?? "node"}-${index}`))),
       terminalNodeIds: Object.freeze(terminalNodeIds),
-      effectNodeIds: Object.freeze(effectNodeIds),
       effectDispatched: false as const,
     })
   }

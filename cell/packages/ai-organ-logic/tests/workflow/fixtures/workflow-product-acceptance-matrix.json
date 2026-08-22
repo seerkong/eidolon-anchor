@@ -12,7 +12,7 @@
     "id": "exact-business-payload",
     "area": "authoring",
     "requiredBehavior": "separate authoring clauses from exact business payload",
-    "implementationEvidence": "cell/packages/ai-support/src/system-skill/assets/sys-ai-workflow/SKILL.md",
+    "implementationEvidence": "cell/packages/ai-support/src/system-skill/resource-package/SkillCapsules/DevOps/SKILL.template.ejs",
     "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_authoring_lifecycle.test.ts",
     "status": "closed",
     "boundary": "xnl"
@@ -165,7 +165,7 @@
     "id": "business-scenarios",
     "area": "human",
     "requiredBehavior": "scenario-guided natural workflow construction",
-    "implementationEvidence": "cell/packages/ai-support/src/system-skill/assets/sys-ai-workflow/planning/scenarios/index.md",
+    "implementationEvidence": "cell/packages/ai-support/src/system-skill/resource-package/content/devops/planning/protocol.md",
     "test": "cell/packages/ai-organ-logic/tests/workflow/workflow_human_product_experience.test.ts",
     "status": "closed",
     "boundary": "native-component"

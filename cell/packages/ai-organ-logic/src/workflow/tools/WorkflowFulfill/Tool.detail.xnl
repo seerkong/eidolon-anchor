@@ -1,5 +1,5 @@
 <ToolPrompt #WorkflowFulfill.detail>
 (
-  <usage ?>Pass the person's complete business request. The tool starts the dedicated AI Workflow actor with the canonical global sys-ai-workflow system authority.</?>
-  <safety ?>The host does not infer route, scenario, stage or topology from the request. Publication and execution are separate explicit structured authorizations.</?>
+  <usage ?>Pass the person's complete business request. For a later lifecycle turn, pass the exact typed authoring, publication or execution continuation returned by durable tools. The tool starts a fresh dedicated AI Workflow actor with the canonical global sys-eidolon-anchor-devops system authority.</?>
+  <safety ?>The host does not infer route, scenario, stage, topology, session or receipt identity from the request. Publication and execution are separate explicit structured authorizations; child conversation history is not a continuation authority.</?>
 )>

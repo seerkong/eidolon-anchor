@@ -1,0 +1,73 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_8_-_1_6_1_2_-_v_e_r_i_f_y_-_e_i_d_o_l_o_n_-_w_o_r_k_f_l_o_w_-_a_r_c_h_i_t_e_c_t_u_r_e_-_b_o_u_n_d_a_r_i_e_s.behavior_patch.eidolon-workflow-architecture-boundaries apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-workflow-architecture-boundaries" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-workflow-architecture-boundaries/requirements/explicit-architecture-boundaries" } (
+      <Requirement #explicit-architecture-boundaries (
+        <Statement ?01M05F1PR244F6262Z4H2GJJRH>
+        Eidolon workflow integration SHALL use canonical XNL/depa-flows resources, injected Eidolon roots, actor/session effect authority and native surfaces; it SHALL NOT introduce XML authoring, MCP, external agent CLI or parallel flow/runtime authority.
+        </?01M05F1PR244F6262Z4H2GJJRH>
+        <Suites [
+          <Suite #resource-and-runtime-authority { name = "Resource and runtime authority" } (
+            <Cases [
+              <Case #canonical-xnl-and-depa-runtime [
+                <Then ?01M05F1PR244F6262Z4H2GJJRJ>
+                it SHALL use canonical depa-flows XNL loaders and Ctrl/Data runtimes
+                </?01M05F1PR244F6262Z4H2GJJRJ>
+                <Then ?01M05F1PR244F6262Z4H2GJJRK>
+                it SHALL NOT parse XML or implement a parallel scheduler
+                </?01M05F1PR244F6262Z4H2GJJRK>
+              ] (
+                <Given ?01M05F1PR244F6262Z4H2GJJRM>
+                Ctrl or Data workflow production source
+                </?01M05F1PR244F6262Z4H2GJJRM>
+                <When ?01M05F1PR244F6262Z4H2GJJRN>
+                it loads or executes a definition
+                </?01M05F1PR244F6262Z4H2GJJRN>
+              )>
+              <Case #eidolon-roots [
+                <Then ?01M05F1PR244F6262Z4H2GJJRP>
+                injected Eidolon roots SHALL be shared and default ownership SHALL use `.eidolon/workflows`
+                </?01M05F1PR244F6262Z4H2GJJRP>
+                <Then ?01M05F1PR244F6262Z4H2GJJRQ>
+                workflow resources SHALL remain under the injected Eidolon-owned root
+                </?01M05F1PR244F6262Z4H2GJJRQ>
+              ] (
+                <Given ?01M05F1PR244F6262Z4H2GJJRR>
+                CLI or TUI constructs the workflow component
+                </?01M05F1PR244F6262Z4H2GJJRR>
+                <When ?01M05F1PR244F6262Z4H2GJJRS>
+                workspace/global roots are resolved
+                </?01M05F1PR244F6262Z4H2GJJRS>
+              )>
+            ]>
+          )>
+          <Suite #effect-and-surface-authority { name = "Effect and surface authority" } (
+            <Cases [
+              <Case #eidolon-effect-lifecycle (
+                <Given ?01M05F1PR244F6262Z4H2GJJRT>
+                a workflow node invokes agent, tool, human or Material work
+                </?01M05F1PR244F6262Z4H2GJJRT>
+                <When ?01M05F1PR244F6262Z4H2GJJRV>
+                the effect starts, completes or fails
+                </?01M05F1PR244F6262Z4H2GJJRV>
+                <Then ?01M05F1PR244F6262Z4H2GJJRW>
+                Eidolon actor/session/runtime-control SHALL retain lifecycle authority and workflow facts SHALL only reference it
+                </?01M05F1PR244F6262Z4H2GJJRW>
+              )>
+              <Case #native-no-mcp-surface (
+                <Given ?01M05F1PR244F6262Z4H2GJJRX>
+                conversation, TUI or CLI uses workflow capability
+                </?01M05F1PR244F6262Z4H2GJJRX>
+                <When ?01M05F1PR244F6262Z4H2GJJRY>
+                it reads or mutates authoring/run facts
+                </?01M05F1PR244F6262Z4H2GJJRY>
+                <Then ?01M05F1PR244F6262Z4H2GJJRZ>
+                it SHALL call native component services without MCP, external agent CLI or private mutation paths
+                </?01M05F1PR244F6262Z4H2GJJRZ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

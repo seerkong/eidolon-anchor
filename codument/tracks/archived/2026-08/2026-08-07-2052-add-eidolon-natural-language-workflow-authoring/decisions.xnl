@@ -1,19 +1,33 @@
-<decision #track.add-eidolon-natural-language-workflow-authoring.actor-boundary { status = "accepted" priority = "P0" }
-(
-  <question ?>Who owns semantic generation and who owns resource writes?</?>
-  <answer { } (
-    <raw-answer ?>Eidolon actor generates; WorkflowComponent validates and writes.</?>
-    <decision-text ?>The coordinator delegates semantic authoring to an Eidolon child actor, which may mutate resources only through native workflow tools.</?>
-    <rationale ?>This prevents both a deterministic heuristic pretending to be AI authoring and an actor bypassing resource authority.</?>
+<decision #track.add-eidolon-natural-language-workflow-authoring.actor-boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PQC3VV6GQAZCAW0B91C>
+  Who owns semantic generation and who owns resource writes?
+  </?01M05F1PQC3VV6GQAZCAW0B91C>
+  <answer {  } (
+    <raw-answer ?01M05F1PQC3VV6GQAZCAW0B91D>
+    Eidolon actor generates; WorkflowComponent validates and writes.
+    </?01M05F1PQC3VV6GQAZCAW0B91D>
+    <decision-text ?01M05F1PQC3VV6GQAZCAW0B91E>
+    The coordinator delegates semantic authoring to an Eidolon child actor, which may mutate resources only through native workflow tools.
+    </?01M05F1PQC3VV6GQAZCAW0B91E>
+    <rationale ?01M05F1PQC3VV6GQAZCAW0B91F>
+    This prevents both a deterministic heuristic pretending to be AI authoring and an actor bypassing resource authority.
+    </?01M05F1PQC3VV6GQAZCAW0B91F>
   )>
 )>
 
-<decision #track.add-eidolon-natural-language-workflow-authoring.cli-runtime { status = "accepted" priority = "P0" }
-(
-  <question ?>How does the workflow CLI obtain AI generation?</?>
-  <answer { } (
-    <raw-answer ?>Invoke the in-process Eidolon headless runtime.</?>
-    <decision-text ?>CLI create/edit runs an Eidolon turn that routes to WorkflowAuthor; it never spawns an external agent executable.</?>
-    <rationale ?>Eidolon already is the AI runtime and should remain the only provider/session authority.</?>
+<decision #track.add-eidolon-natural-language-workflow-authoring.cli-runtime apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PQC3VV6GQAZCAW0B91G>
+  How does the workflow CLI obtain AI generation?
+  </?01M05F1PQC3VV6GQAZCAW0B91G>
+  <answer {  } (
+    <raw-answer ?01M05F1PQC3VV6GQAZCAW0B91H>
+    Invoke the in-process Eidolon headless runtime.
+    </?01M05F1PQC3VV6GQAZCAW0B91H>
+    <decision-text ?01M05F1PQC3VV6GQAZCAW0B91J>
+    CLI create/edit runs an Eidolon turn that routes to WorkflowAuthor; it never spawns an external agent executable.
+    </?01M05F1PQC3VV6GQAZCAW0B91J>
+    <rationale ?01M05F1PQC3VV6GQAZCAW0B91K>
+    Eidolon already is the AI runtime and should remain the only provider/session authority.
+    </?01M05F1PQC3VV6GQAZCAW0B91K>
   )>
 )>

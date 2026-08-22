@@ -1,25 +1,39 @@
-<decision #track.verify-eidolon-workflow-product.evidence-standard {
-  status = "accepted"
-  priority = "P0"
-} (
-  <question ?>什么证据足以关闭最终建立矩阵？</?>
-  <answer { } (
-    <raw-answer ?>必须是 requirement-to-evidence mapping、动态测试、编译/安装 smoke 和独立复验的组合。</?>
-    <decision-text ?>每一项能力至少有行为来源、目标 surface、明确架构边界 seam 和一个可执行验证；prompt 文本或实现者自述不能单独关闭。</?>
-    <rationale ?>最终验收需要证明建立后的真实产品，而不仅是代码结构。</?>
-    <evidence ?>mission 成功判据和前序 implementation/architecture tracks 已定义这些证据层。</?>
+<decision #track.verify-eidolon-workflow-product.evidence-standard apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PRKE33X4FHZ67PKS8BE>
+  什么证据足以关闭最终建立矩阵？
+  </?01M05F1PRKE33X4FHZ67PKS8BE>
+  <answer {  } (
+    <raw-answer ?01M05F1PRKE33X4FHZ67PKS8BF>
+    必须是 requirement-to-evidence mapping、动态测试、编译/安装 smoke 和独立复验的组合。
+    </?01M05F1PRKE33X4FHZ67PKS8BF>
+    <decision-text ?01M05F1PRKE33X4FHZ67PKS8BG>
+    每一项能力至少有行为来源、目标 surface、明确架构边界 seam 和一个可执行验证；prompt 文本或实现者自述不能单独关闭。
+    </?01M05F1PRKE33X4FHZ67PKS8BG>
+    <rationale ?01M05F1PRKE33X4FHZ67PKS8BH>
+    最终验收需要证明建立后的真实产品，而不仅是代码结构。
+    </?01M05F1PRKE33X4FHZ67PKS8BH>
+    <evidence ?01M05F1PRKE33X4FHZ67PKS8BJ>
+    mission 成功判据和前序 implementation/architecture tracks 已定义这些证据层。
+    </?01M05F1PRKE33X4FHZ67PKS8BJ>
   )>
 )>
 
-<decision #track.verify-eidolon-workflow-product.install-scope {
-  status = "accepted"
-  priority = "P1"
-} (
-  <question ?>如何验证安装而不覆盖用户当前全局二进制？</?>
-  <answer { } (
-    <raw-answer ?>使用 installer 的临时 target path。</?>
-    <decision-text ?>production build 后把 TUI 安装到临时 target，并从该安装布局运行 smoke；CLI 直接从同一次 production dist 验证。</?>
-    <rationale ?>既验证真实 installer/产物依赖，又保持用户环境可恢复。</?>
-    <evidence ?>现有 installer 支持显式 target path。</?>
+<decision #track.verify-eidolon-workflow-product.install-scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" } (
+  <question ?01M05F1PRKE33X4FHZ67PKS8BK>
+  如何验证安装而不覆盖用户当前全局二进制？
+  </?01M05F1PRKE33X4FHZ67PKS8BK>
+  <answer {  } (
+    <raw-answer ?01M05F1PRKE33X4FHZ67PKS8BM>
+    使用 installer 的临时 target path。
+    </?01M05F1PRKE33X4FHZ67PKS8BM>
+    <decision-text ?01M05F1PRKE33X4FHZ67PKS8BN>
+    production build 后把 TUI 安装到临时 target，并从该安装布局运行 smoke；CLI 直接从同一次 production dist 验证。
+    </?01M05F1PRKE33X4FHZ67PKS8BN>
+    <rationale ?01M05F1PRKE33X4FHZ67PKS8BP>
+    既验证真实 installer/产物依赖，又保持用户环境可恢复。
+    </?01M05F1PRKE33X4FHZ67PKS8BP>
+    <evidence ?01M05F1PRKE33X4FHZ67PKS8BQ>
+    现有 installer 支持显式 target path。
+    </?01M05F1PRKE33X4FHZ67PKS8BQ>
   )>
 )>

@@ -1,0 +1,49 @@
+<BehaviorPatch #track.publish-resource-native-app-packages-from-authoring.behavior_patch.eidolon.ai-workflow-native-component apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.ai-workflow-native-component" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon.ai-workflow-native-component/requirements/workspace-resource-package-publication-transaction" } (
+      <Requirement #workspace-resource-package-publication-transaction (
+        <Statement ?>The shared WorkflowComponent SHALL publish one complete prepared workspace ResourcePackage with target-wide CAS, recoverable same-parent atomic replacement and same-component registry refresh/readback.</?>
+        <Suites [
+          <Suite #atomic-publication { name = "Recoverable publication transaction" } (
+            <Cases [
+              <Case #cas-and-swap (
+                <Given ?>a session records an exact live-base revision and current complete proof</?>
+                <When ?>publication is explicitly authorized</?>
+                <Then ?>the component SHALL lock the workspace resource target, recheck the live base, preflight a same-parent candidate and atomically replace the whole root or leave the prior root intact</?>
+              )>
+              <Case #recovery-and-idempotence (
+                <Given ?>a publication is repeated, interrupted or resumed</?>
+                <When ?>the same target is recovered under its persistent attempt journal</?>
+                <Then ?>the same session/revision SHALL return one stable receipt, a competing revision SHALL conflict, and staging/backup state SHALL recover deterministically</?>
+              )>
+              <Case #refresh-readback (
+                <Given ?>the candidate becomes the live workspace resource root</?>
+                <When ?>the publication transaction performs readback</?>
+                <Then ?>a component-owned publication fence SHALL isolate candidate loading from current readers, coordinate snapshot/source reads and ordinary refresh generations, admit the candidate snapshot only after exact live-root verification, and SHALL roll back without exposing it if readback fails</?>
+              )>
+              <Case #concurrent-reader-admission (
+                <Given ?>ordinary snapshot, source-read or refresh work is in flight while publication swaps the live root</?>
+                <When ?>the publication fence advances or rolls back</?>
+                <Then ?>readers SHALL observe the prior admitted snapshot, the newly admitted verified snapshot, or a stable retryable diagnostic, and MUST NOT observe an unverified candidate or reuse a stale loading promise</?>
+              )>
+            ]>
+          )>
+          <Suite #single-authority-boundaries { name = "Single resource authority" } (
+            <Cases [
+              <Case #no-parallel-resource-manager (
+                <Given ?>the authoring and publication implementation is inspected</?>
+                <When ?>resource semantics are resolved</?>
+                <Then ?>Eidolon MUST delegate package/catalog/Kind/layer/content/dependency logic to Halfcode and App/Agent/Material semantics to depa, without another scanner, catalog or resolver</?>
+              )>
+              <Case #no-host-semantic-routing (
+                <Given ?>a structured authoring or publication tool call is handled</?>
+                <When ?>mode, operation, resource or authorization is selected</?>
+                <Then ?>host code MUST use closed typed fields and MUST NOT use natural-language, name, regex, keyword, substring, fuzzy, alias or ordered heuristics</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,50 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_7_-_2_1_2_0_-_v_e_r_i_f_y_-_e_i_d_o_l_o_n_-_w_o_r_k_f_l_o_w_-_c_r_o_s_s_-_s_u_r_f_a_c_e_-_a_c_c_e_p_t_a_n_c_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/cross-surface-runtime-acceptance" } (
+      <Requirement #cross-surface-runtime-acceptance (
+        <Statement ?01M05F1PQGXF3RHP1R2PBZWF9K>
+        The system SHALL expose workflow authoring and runtime lifecycle behavior through the same native component and tool contracts across Eidolon conversation and CLI surfaces.
+        </?01M05F1PQGXF3RHP1R2PBZWF9K>
+        <Suites [
+          <Suite #cross-surface { name = "Workflow cross-surface acceptance" } (
+            <Cases [
+              <Case #cli-runtime (
+                <Given ?01M05F1PQGXF3RHP1R2PBZWF9M>
+                A workflow resource and an Eidolon workspace
+                </?01M05F1PQGXF3RHP1R2PBZWF9M>
+                <When ?01M05F1PQGXF3RHP1R2PBZWF9N>
+                A human invokes workflow run, status, events, result, resume, or graph-patch from the CLI
+                </?01M05F1PQGXF3RHP1R2PBZWF9N>
+                <Then ?01M05F1PQGXF3RHP1R2PBZWF9P>
+                The CLI SHALL invoke the corresponding native workflow tool in a recoverable Eidolon session
+                </?01M05F1PQGXF3RHP1R2PBZWF9P>
+              )>
+              <Case #conversation-routing (
+                <Given ?01M05F1PQGXF3RHP1R2PBZWF9Q>
+                A human describes workflow creation, execution, inspection, resume, or correction in ordinary language
+                </?01M05F1PQGXF3RHP1R2PBZWF9Q>
+                <When ?01M05F1PQGXF3RHP1R2PBZWF9R>
+                The request is handled by TUI or headless conversation
+                </?01M05F1PQGXF3RHP1R2PBZWF9R>
+                <Then ?01M05F1PQGXF3RHP1R2PBZWF9S>
+                The AI SHALL route it to the high-level native workflow tools without requiring XNL, internal paths, MCP, or an external agent CLI
+                </?01M05F1PQGXF3RHP1R2PBZWF9S>
+              )>
+              <Case #single-authority (
+                <Given ?01M05F1PQGXF3RHP1R2PBZWF9T>
+                Multiple terminal surfaces use workflow capability
+                </?01M05F1PQGXF3RHP1R2PBZWF9T>
+                <When ?01M05F1PQGXF3RHP1R2PBZWF9V>
+                They read or mutate workflow resources and runs
+                </?01M05F1PQGXF3RHP1R2PBZWF9V>
+                <Then ?01M05F1PQGXF3RHP1R2PBZWF9W>
+                No surface SHALL implement a private parser, runtime, fact store, or unrestricted file-writing path
+                </?01M05F1PQGXF3RHP1R2PBZWF9W>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

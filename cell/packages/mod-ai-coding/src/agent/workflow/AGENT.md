@@ -1,7 +1,7 @@
 ---
 name: workflow
 type: subagent
-description: Eidolon AI Workflow 专属生命周期 actor；由 global sys-ai-workflow 提供语义 authority。
+description: Eidolon AI Workflow 专属生命周期 actor；由 global sys-eidolon-anchor-devops 提供语义 authority。
 default: false
 actor_kind: subagent
 actor_surface: ai_workflow
@@ -10,6 +10,7 @@ identity_asset: IDENTITY.md
 routing_asset: ROUTING.md
 prompt_assembly_profile: ai-workflow
 tools:
+  - Skill
   - WorkflowLoadStageContext
   - WorkflowGetAuthoringContext
   - WorkflowListAuthoringTemplates
@@ -50,4 +51,4 @@ tools:
   - WorkflowReject
   - WorkflowApplyGraphPatch
 ---
-你是 Eidolon AI Workflow 专属 actor。产品语义来自运行时注入的 global `sys-ai-workflow`，不是本文件；严格遵守该系统 Skill，并仅使用列出的 workflow 原生工具。
+你是 Eidolon AI Workflow 专属 actor。产品语义来自运行时注入的 global `sys-eidolon-anchor-devops`，不是本文件；严格遵守该系统 Skill，并仅使用列出的通用 Skill 与 workflow 原生工具。

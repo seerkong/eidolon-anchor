@@ -20,7 +20,7 @@ describe("natural-language workflow authoring", () => {
       publish: true,
     })
     expect(prompt).toContain("WorkflowLoadStageContext")
-    expect(prompt).toContain("sys-ai-workflow")
+    expect(prompt).toContain("sys-eidolon-anchor-devops")
     expect(prompt).toContain('"publication": true')
     expect(prompt).toContain('"execution": false')
     expect(prompt).not.toContain("<AIDataWorkflow #pkg.Flow")

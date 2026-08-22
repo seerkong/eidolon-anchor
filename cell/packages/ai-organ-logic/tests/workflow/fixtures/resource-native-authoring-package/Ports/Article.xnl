@@ -1,0 +1,7 @@
+<MaterialPort #eidolon.fixture.ArticlePort apiVersion="depa.flows/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  description = "Required article material"
+  materialKind = "ArticleMaterial"
+  required = true
+  cardinality = "one"
+}>

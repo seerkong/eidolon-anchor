@@ -22,6 +22,7 @@ import type { WorkflowAuthoringWorkspace } from "../authoring"
 import { EidolonWorkflowEffectProvider, StoreBackedWorkflowMaterialAccess } from "../effects"
 import type { ResolvedWorkflowDefinition } from "./WorkflowDefinitionRepository"
 import type { WorkflowFactStore, WorkflowRunDescriptor } from "./WorkflowFactStore"
+import type { EidolonAppResourceRegistryAdapter } from "../../resources"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
 
@@ -59,10 +60,13 @@ function exactOutput(value: unknown, outputs: readonly string[], label: string):
   return Object.fromEntries(outputs.map((key) => [key, output[key]]))
 }
 
-function workflowRef(descriptor: WorkflowRunDescriptor) {
+function workflowRef(
+  descriptor: WorkflowRunDescriptor,
+  definition: ResolvedWorkflowDefinition,
+) {
   return {
     ref: descriptor.workflowRef,
-    scheme: descriptor.workflowRef.startsWith("resource://") ? "resource" as const : "vfs" as const,
+    scheme: definition.resourceReceipt ? "resource" as const : "vfs" as const,
   }
 }
 
@@ -80,6 +84,7 @@ export class AIDataWorkflowRuntimeDriver {
     private readonly definition: ResolvedWorkflowDefinition,
     roots: { globalRoot: string; workspaceRoot: string },
     onMaterialWrite?: ConstructorParameters<typeof EidolonWorkflowEffectProvider>[3],
+    resourceRegistry?: EidolonAppResourceRegistryAdapter,
   ) {
     this.activeRunAuthority = this.runRef(descriptor.generation)
     this.aiRuntime = createAIDataWorkflowRuntime({
@@ -92,6 +97,9 @@ export class AIDataWorkflowRuntimeDriver {
           facts,
           onMaterialWrite,
           () => this.activeRunAuthority,
+          resourceRegistry
+            ? { workflowForm: descriptor.form, resourceRegistry }
+            : undefined,
         ),
         metadata: { run: this.activeRunAuthority },
       },
@@ -308,7 +316,7 @@ export class AIDataWorkflowRuntimeDriver {
 
   private runRef(generation = this.descriptor.generation): AIWorkflowRunRef {
     return Object.freeze({
-      workflow: Object.freeze(workflowRef(this.descriptor)),
+      workflow: Object.freeze(workflowRef(this.descriptor, this.definition)),
       runId: this.descriptor.runId,
       generation,
     })
@@ -330,7 +338,7 @@ export class AIDataWorkflowRuntimeDriver {
 
   private async persist(): Promise<void> {
     await this.facts.saveDataGraph(this.graph!)
-    const state = projectAIDataWorkflowRunState(this.graph!, workflowRef(this.descriptor))
+    const state = projectAIDataWorkflowRunState(this.graph!, workflowRef(this.descriptor, this.definition))
     await this.facts.saveRunState({
       ...state,
       status: this.statusValue() === "Waiting" ? "Waiting" : state.status,

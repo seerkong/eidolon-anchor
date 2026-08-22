@@ -1,0 +1,61 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_7_-_2_0_1_8_-_e_s_t_a_b_l_i_s_h_-_e_i_d_o_l_o_n_-_w_o_r_k_f_l_o_w_-_a_u_t_h_o_r_i_n_g_-_w_o_r_k_s_p_a_c_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/shared-authoring-workspace" } (
+      <Requirement #shared-authoring-workspace (
+        <Statement ?01M05F1PPYV641DPR26MS1TMD4>
+        The system SHALL expose one containment-safe workflow authoring workspace through the native component, and CLI/TUI surfaces MUST use that component for physical resource transitions.
+        </?01M05F1PPYV641DPR26MS1TMD4>
+        <Suites [
+          <Suite #authoring-authority { name = "Shared authoring authority" } (
+            <Cases [
+              <Case #runtime-bound-tool-write (
+                <Given ?01M05F1PPYV641DPR26MS1TMD5>
+                An Eidolon agent calls a workflow authoring tool inside TUI or headless runtime
+                </?01M05F1PPYV641DPR26MS1TMD5>
+                <When ?01M05F1PPYV641DPR26MS1TMD6>
+                The tool creates or edits a workflow resource
+                </?01M05F1PPYV641DPR26MS1TMD6>
+                <Then ?01M05F1PPYV641DPR26MS1TMD7>
+                The component SHALL bind the injected workflow workspace root and perform a canonical validate-write-validate transition
+                </?01M05F1PPYV641DPR26MS1TMD7>
+              )>
+              <Case #cli-component-write (
+                <Given ?01M05F1PPZ09T24W34T1649S8N>
+                A user invokes an `eidolon workflow` authoring command
+                </?01M05F1PPZ09T24W34T1649S8N>
+                <When ?01M05F1PPZ09T24W34T1649S8P>
+                The command publishes workflow resources
+                </?01M05F1PPZ09T24W34T1649S8P>
+                <Then ?01M05F1PPZ09T24W34T1649S8Q>
+                The CLI SHALL invoke the same component command and SHALL NOT implement a private filesystem write loop
+                </?01M05F1PPZ09T24W34T1649S8Q>
+              )>
+              <Case #containment-and-atomicity (
+                <Given ?01M05F1PPZ09T24W34T1649S8R>
+                An authoring operation contains resource-relative paths
+                </?01M05F1PPZ09T24W34T1649S8R>
+                <When ?01M05F1PPZ09T24W34T1649S8S>
+                The workspace applies the transition
+                </?01M05F1PPZ09T24W34T1649S8S>
+                <Then ?01M05F1PPZ09T24W34T1649S8T>
+                Traversal and absolute paths SHALL be rejected and file replacement SHALL be atomic within the workspace root
+                </?01M05F1PPZ09T24W34T1649S8T>
+              )>
+              <Case #authoring-primitives (
+                <Given ?01M05F1PPZ09T24W34T1649S8V>
+                A natural-language coordinator needs to inspect or modify a workflow
+                </?01M05F1PPZ09T24W34T1649S8V>
+                <When ?01M05F1PPZ09T24W34T1649S8W>
+                It uses the component authoring workspace
+                </?01M05F1PPZ09T24W34T1649S8W>
+                <Then ?01M05F1PPZ09T24W34T1649S8X>
+                The workspace SHALL provide read, tree, search, diff, write/edit, delete, validate, dry-run and publish primitives with revision evidence
+                </?01M05F1PPZ09T24W34T1649S8X>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

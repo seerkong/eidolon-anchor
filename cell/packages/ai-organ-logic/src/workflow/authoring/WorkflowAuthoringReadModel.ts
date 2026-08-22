@@ -6,6 +6,7 @@ export const WORKFLOW_AUTHORING_MAX_PROOF_REFERENCES = 20
 
 export type WorkflowAuthoringBrief = {
   session_id: string
+  artifact_kind: WorkflowAuthoringSession["artifactKind"]
   form: WorkflowAuthoringSession["form"]
   status: WorkflowAuthoringSession["status"]
   lifecycle: WorkflowAuthoringSession["lifecycle"]
@@ -19,6 +20,10 @@ export type WorkflowAuthoringBrief = {
 }
 
 type CursorFact = { updatedAt: string; sessionId: string }
+
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0
+}
 
 function encodeCursor(value: CursorFact): string {
   return Buffer.from(JSON.stringify(value), "utf8").toString("base64url")
@@ -37,6 +42,7 @@ function decodeCursor(value: string): CursorFact {
 export function projectWorkflowAuthoringBrief(session: WorkflowAuthoringSession): WorkflowAuthoringBrief {
   return {
     session_id: session.sessionId,
+    artifact_kind: session.artifactKind,
     form: session.form,
     status: session.status,
     lifecycle: session.lifecycle,
@@ -63,7 +69,7 @@ export function projectWorkflowAuthoringSessionPage(
   if (requested < 1) throw new Error("Workflow authoring sessions limit must be positive")
   const limit = Math.min(requested, WORKFLOW_AUTHORING_MAX_PAGE_SIZE)
   const ordered = [...sessions].sort((left, right) => (
-    right.updatedAt.localeCompare(left.updatedAt) || left.sessionId.localeCompare(right.sessionId)
+    compareCodeUnits(right.updatedAt, left.updatedAt) || compareCodeUnits(left.sessionId, right.sessionId)
   ))
   let offset = 0
   if (input.cursor) {
@@ -94,6 +100,13 @@ export function projectWorkflowAuthoringSummary(session: WorkflowAuthoringSessio
     session.dryRunRevision ? { kind: "static_projection", revision: session.dryRunRevision } : undefined,
     session.latestPublicationReceiptId
       ? { kind: "publication", receipt_id: session.latestPublicationReceiptId, revision: session.publishedRevision }
+      : undefined,
+    session.resourcePackageProofSet
+      ? {
+          kind: "resource_package_proof",
+          revision: session.resourcePackageProofSet.revision,
+          receipt_id: session.resourcePackageProofSet.buildReceipt.receiptId,
+        }
       : undefined,
   ].filter((item): item is NonNullable<typeof item> => Boolean(item))
   const proofReferences = references.slice(0, WORKFLOW_AUTHORING_MAX_PROOF_REFERENCES)

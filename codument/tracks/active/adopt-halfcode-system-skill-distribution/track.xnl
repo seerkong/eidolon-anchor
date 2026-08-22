@@ -1,0 +1,142 @@
+<Track #adopt-halfcode-system-skill-distribution version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 `eidolon global init` 复用 Halfcode Skill distribution plan，并以整棵 global Skill 树 transaction 安装统一托管集合。" description = "安装过渡期 sys-ai-workflow 与 generated sys-halfcode-resource-dsl，建立 manifest-bound loader、ordinary Skill 保留和可恢复 whole-root swap。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-16T10:57:00Z" updated_at = "2026-08-16T13:30:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_adopt-halfcode-system-skill-distribution { name = "adopt-halfcode-system-skill-distribution" } (
+    <Description ?01M05F1P7BGX91TCNRDRHQKZKE>
+    先锁定公开计划与现有部分更新基线，再接入 generated output，随后实现整树 transaction 和通用 readback。
+    </?01M05F1P7BGX91TCNRDRHQKZKE>
+    <SubNodes [
+      <TaskGroup #P1 { name = "公开依赖、managed contract 与边界基线" status = "DONE" order = 0 } (
+        <Description ?01M05F1P7BGX91TCNRDRHQKZKF>
+        以可执行用例固定现有部分更新风险、Halfcode public identity 和新 manifest contract。
+        </?01M05F1P7BGX91TCNRDRHQKZKF>
+        <SubNodes [
+          <Task { id = "T1.1" name = "增加 whole-root 与 generated Skill 边界基线用例" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKG>
+              用例覆盖两项托管 identity、普通 Skill 保留、重复执行、候选 readback 与受控中断恢复
+              </?01M05F1P7BGX91TCNRDRHQKZKG>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKH>
+              基线明确证明现有逐 Skill swap 不能提供集合级一致性
+              </?01M05F1P7BGX91TCNRDRHQKZKH>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "精确绑定 Halfcode 0.2.2 与 managed projection" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKJ>
+              ai-support 直接依赖精确 registry `halfcode-compiler.xnl@0.2.2`，无 source/file substitute
+              </?01M05F1P7BGX91TCNRDRHQKZKJ>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKK>
+              generated identity/version/digests 只来自 Halfcode plan/receipt，过渡期内建 Skill 投影到同一 immutable contract
+              </?01M05F1P7BGX91TCNRDRHQKZKK>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Halfcode plan 消费与统一 manifest" status = "DONE" order = 1 } (
+        <Description ?01M05F1P7BGX91TCNRDRHQKZKM>
+        隔离应用 canonical plan，验证输出并生成可精确读取的 installed-set manifest。
+        </?01M05F1P7BGX91TCNRDRHQKZKM>
+        <SubNodes [
+          <Task { id = "T2.1" name = "隔离应用 Resource DSL system Skill plan" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKN>
+              直接调用 Halfcode plan/applier，receipt identity、closure digest、targets 与 readback bytes 全部一致
+              </?01M05F1P7BGX91TCNRDRHQKZKN>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKP>
+              Eidolon production 不复制 Resource DSL 内容、不构建 sibling topology、不重写 collision 或 content validation
+              </?01M05F1P7BGX91TCNRDRHQKZKP>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "生成并解析统一 system Skill manifest" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKQ>
+              manifest 稳定记录 exact name/version/source/skill digest 和完整 file path/digest 集
+              </?01M05F1P7BGX91TCNRDRHQKZKQ>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKR>
+              重复/未知 identity、重复/unsafe path、摘要漂移和未声明文件稳定拒绝且不返回部分 projection
+              </?01M05F1P7BGX91TCNRDRHQKZKR>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "整棵 Skill 树 transaction 与恢复" status = "DONE" order = 2 } (
+        <Description ?01M05F1P7BGX91TCNRDRHQKZKS>
+        在同父候选中合并 ordinary assets 和所有 managed outputs，readback 后一次替换 live root。
+        </?01M05F1P7BGX91TCNRDRHQKZKS>
+        <SubNodes [
+          <Task { id = "T3.1" name = "实现 whole-root candidate 与单次 live swap" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKT>
+              候选位于 global root 同父目录，保留非托管文件/目录/符号链接本身且不跟随链接
+              </?01M05F1P7BGX91TCNRDRHQKZKT>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKV>
+              候选树 complete readback 通过后只发生一次 live `skills` root replacement
+              </?01M05F1P7BGX91TCNRDRHQKZKV>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKW>
+              重复 global init 产生 byte-equivalent managed tree/manifest，用户资产不变
+              </?01M05F1P7BGX91TCNRDRHQKZKW>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "验证受控中断恢复与残留清理" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKX>
+              plan apply、candidate readback、rename 与 final readback 各中断点均保持或恢复原 live tree
+              </?01M05F1P7BGX91TCNRDRHQKZKX>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZKY>
+              恢复异常不被吞掉，backup 证据不被删除；成功路径无 staging/backup 残留
+              </?01M05F1P7BGX91TCNRDRHQKZKY>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "通用 loader、CLI 与独立验收" status = "DONE" order = 3 } (
+        <Description ?01M05F1P7BGX91TCNRDRHQKZKZ>
+        把 runtime reads 和 CLI result 绑定到统一 manifest，并验证无第二 compiler 或局部更新路径。
+        </?01M05F1P7BGX91TCNRDRHQKZKZ>
+        <SubNodes [
+          <Task { id = "T4.1" name = "增加 generic system Skill context loader" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZM0>
+              exact identity 与 ordered paths 通过 manifest file digests 读取，path containment、symlink escape 与 drift 均 fail closed
+              </?01M05F1P7BGX91TCNRDRHQKZM0>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZM1>
+              AI Workflow stage wrapper 委托 generic loader，当前 planning/coding/其他 stage isolation 保持
+              </?01M05F1P7BGX91TCNRDRHQKZM1>
+              <Criterion { id = "T4.1-AC3" checked = true } ?01M05F1P7BGX91TCNRDRHQKZM2>
+              runtime 只暴露 manifest 登记的 global `sys-*` identity，并继续拒绝 workspace `sys-*` shadow
+              </?01M05F1P7BGX91TCNRDRHQKZM2>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "更新 global CLI result 并运行 focused/build/lock gates" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZM3>
+              CLI text/JSON 稳定报告两项 installed identity、version、source 与 digest
+              </?01M05F1P7BGX91TCNRDRHQKZM3>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZM4>
+              installer、Skill runtime、CLI/TUI/headless、build、TypeScript changed-line 与 frozen install gates 通过
+              </?01M05F1P7BGX91TCNRDRHQKZM4>
+            ]>
+          )>
+          <Task { id = "T4.3" name = "静态验证单一 distribution authority 与 transaction boundary" status = "DONE" order = 2 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.3-AC1" checked = true } ?01M05F1P7BGX91TCNRDRHQKZM5>
+              production 无 Halfcode topology/content compiler 副本、无逐 managed-Skill live swap、无 arbitrary generated inventory
+              </?01M05F1P7BGX91TCNRDRHQKZM5>
+              <Criterion { id = "T4.3-AC2" checked = true } ?01M05F1P7BGX91TCNRDRHQKZM6>
+              production 不以 regex/keyword/substring/fuzzy/name alias 决定 Skill、stage、resource 或 dependency 语义
+              </?01M05F1P7BGX91TCNRDRHQKZM6>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

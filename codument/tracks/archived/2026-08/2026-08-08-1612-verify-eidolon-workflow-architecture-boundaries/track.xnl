@@ -1,0 +1,75 @@
+<Track #verify-eidolon-workflow-architecture-boundaries version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "用可执行证据证明 Eidolon workflow 遵守已定义的架构 authority 边界。" description = "审计并锁定 XNL/depa-flows、Eidolon roots、actor/session effects 与 native tools/CLI 四类边界，修复任何 XML、MCP、外部 agent CLI、非 Eidolon root 或平行 flow authority 泄漏。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-08T13:05:04Z" updated_at = "2026-08-08T13:12:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_verify-eidolon-workflow-architecture-boundaries { name = "verify-eidolon-workflow-architecture-boundaries" } (
+    <Description ?01M05F1PR641A0GA48PNASF2W1>
+    先建 seam matrix 与失败规则，再执行静态/运行时验证，发现越界立即修复并复检。
+    </?01M05F1PR641A0GA48PNASF2W1>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Target architecture boundary audit" status = "DONE" order = 0 } (
+        <Description ?01M05F1PR641A0GA48PNASF2W2>
+        审计 resource、root、effect 和 surface authority，并建立长期回归。
+        </?01M05F1PR641A0GA48PNASF2W2>
+        <Gate [
+          <Criterion ?01M05F1PR641A0GA48PNASF2W3>
+          workflow production source 不解析 XML、不引用非 Eidolon root、MCP client 或外部 agent CLI
+          </?01M05F1PR641A0GA48PNASF2W3>
+          <Criterion ?01M05F1PR641A0GA48PNASF2W4>
+          两种 flow form 只经 depa-flows loaders/runtimes，effect 只经 Eidolon actor/tool/material adapters
+          </?01M05F1PR641A0GA48PNASF2W4>
+          <Criterion ?01M05F1PR641A0GA48PNASF2W5>
+          CLI/TUI/tools 共享 component/runtime services 且 workflow facts 不复制 actor/session authority
+          </?01M05F1PR641A0GA48PNASF2W5>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "建立 architecture boundary matrix 与静态 contracts" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PR641A0GA48PNASF2W6>
+            记录 source→target seam，新增 production source scan、依赖 allowlist 与 root/surface assertions。
+            </?01M05F1PR641A0GA48PNASF2W6>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M05F1PR641A0GA48PNASF2W7>
+              fixture 覆盖四类 seam 与禁止替换项
+              </?01M05F1PR641A0GA48PNASF2W7>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M05F1PR641A0GA48PNASF2W8>
+              测试能识别 XML parser、MCP、外部 CLI、非 Eidolon workflow root 与平行 flow 实现
+              </?01M05F1PR641A0GA48PNASF2W8>
+            ]>
+          )>
+          <Task #P1-T2 { name = "验证 runtime authority 与跨入口 binding" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PR641A0GA48PNASF2W9>
+            复跑 canonical loaders、actor/session effect evidence、CLI/TUI component binding、frozen facts 与 compiled smoke。
+            </?01M05F1PR641A0GA48PNASF2W9>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M05F1PR641A0GA48PNASF2WA>
+              ctrl/data runtime imports 与 tests 证明底层 authority 在 depa-flows
+              </?01M05F1PR641A0GA48PNASF2WA>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M05F1PR641A0GA48PNASF2WB>
+              agent/tool/human effect lifecycle 由 Eidolon runtime-control/session 记录
+              </?01M05F1PR641A0GA48PNASF2WB>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M05F1PR641A0GA48PNASF2WC>
+              native tools、CLI、TUI 无私有写入与 direct execution bypass
+              </?01M05F1PR641A0GA48PNASF2WC>
+            ]>
+          )>
+          <Task #P1-T3 { name = "执行 strict architecture acceptance gate" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PR641A0GA48PNASF2WD>
+            运行 focused/full tests、CLI/TUI build、compiled smoke、diff check 与 Codument strict validate。
+            </?01M05F1PR641A0GA48PNASF2WD>
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M05F1PR641A0GA48PNASF2WE>
+              静态 seam contract 与全部 workflow 回归通过
+              </?01M05F1PR641A0GA48PNASF2WE>
+              <Criterion #P1-T3-AC2 { checked = true } ?01M05F1PR641A0GA48PNASF2WF>
+              生产构建、compiled smoke 与 strict validate 通过
+              </?01M05F1PR641A0GA48PNASF2WF>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Hooks>
+)>

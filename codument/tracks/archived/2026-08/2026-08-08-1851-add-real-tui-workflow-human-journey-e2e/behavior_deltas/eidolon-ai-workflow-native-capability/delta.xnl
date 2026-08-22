@@ -1,0 +1,39 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_8_-_1_8_5_1_-_a_d_d_-_r_e_a_l_-_t_u_i_-_w_o_r_k_f_l_o_w_-_h_u_m_a_n_-_j_o_u_r_n_e_y_-_e_2_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/real-tui-human-journey" } (
+      <Requirement #real-tui-human-journey (
+        <Statement ?01M05F1PRQQ90TJJC29EDAGS3V>
+        The system MUST prove the ordinary-language workflow product through a real TUI local-runtime multi-turn journey before claiming the human experience complete.
+        </?01M05F1PRQQ90TJJC29EDAGS3V>
+        <Suites [
+          <Suite #network-trend-report { name = "Network trend report journey" } (
+            <Cases [
+              <Case #author-confirm-publish-confirm-run (
+                <Given ?01M05F1PRQQ90TJJC29EDAGS3W>
+                A person asks in ordinary language for a reusable workflow that reads an AI hot-topic portal and produces a trend report
+                </?01M05F1PRQQ90TJJC29EDAGS3W>
+                <When ?01M05F1PRQQ90TJJC29EDAGS3X>
+                The person separately confirms publication and later confirms execution through TUI conversation
+                </?01M05F1PRQQ90TJJC29EDAGS3X>
+                <Then ?01M05F1PRQQ90TJJC29EDAGS3Y>
+                The system MUST preserve a proven draft before publication, MUST publish without execution after the first confirmation, and MUST access the network and return a grounded report only after the second confirmation
+                </?01M05F1PRQQ90TJJC29EDAGS3Y>
+              )>
+              <Case #real-shared-path (
+                <Given ?01M05F1PRQQ90TJJC29EDAGS3Z>
+                The TUI journey is under automated acceptance
+                </?01M05F1PRQQ90TJJC29EDAGS3Z>
+                <When ?01M05F1PRQQ90TJJC29EDAGS40>
+                The test submits and observes the conversation
+                </?01M05F1PRQQ90TJJC29EDAGS40>
+                <Then ?01M05F1PRQQ90TJJC29EDAGS41>
+                The test MUST use TuiRuntimeClient local-runtime, WorkflowFulfill, native authoring/runtime tools, persisted workflow facts and Eidolon effect execution rather than component-only calls or prompt-string assertions
+                </?01M05F1PRQQ90TJJC29EDAGS41>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

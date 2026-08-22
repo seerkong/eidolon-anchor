@@ -1,4 +1,8 @@
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
+import {
+  parseWorkflowDomainProgressFact,
+  type WorkflowDomainProgressTransition,
+} from "./WorkflowDomainProgress"
 
 export const DEFAULT_WORKFLOW_ACTOR_BUDGET = Object.freeze({
   stageDeadlineMs: 180_000,
@@ -61,6 +65,25 @@ function ensureProgress(actor: AiAgentActor, now: number, config: WorkflowActorB
   return actor.workflowProgress
 }
 
+const WORKFLOW_PROGRESS_PROMPT_MARKER = "<!-- eidolon:workflow-progress-budget -->"
+
+function exposeProgressBudget(actor: AiAgentActor): void {
+  if (!actor.workflowProgress) return
+  actor.systemPrompts = actor.systemPrompts.filter((prompt) => !prompt.startsWith(WORKFLOW_PROGRESS_PROMPT_MARKER))
+  const progress = actor.workflowProgress
+  const remaining = Math.max(0, progress.maxNoProgressTurns - progress.turnsSinceProgress)
+  actor.systemPrompts.push([
+    WORKFLOW_PROGRESS_PROMPT_MARKER,
+    "<workflow_progress_budget>",
+    `stage: ${progress.stageId ?? "unselected"}`,
+    `turns_without_progress: ${progress.turnsSinceProgress}`,
+    `remaining_no_progress_turns: ${remaining}`,
+    "progress_facts: workspace revision, proof, lifecycle/waiting receipt, or runtime result",
+    "instruction: Read-only context and tool discovery do not reset this budget. When one or fewer turns remain, use already loaded facts to produce the next valid progress fact; if that is impossible, return a typed waiting or failure receipt instead of continuing inspection.",
+    "</workflow_progress_budget>",
+  ].join("\n"))
+}
+
 export function enterWorkflowActorStage(input: {
   actor: AiAgentActor
   stageId: string
@@ -105,27 +128,31 @@ export function beginWorkflowActorTurn(input: {
       `stage=${progress.stageId ?? "unselected"} produced no workspace/proof/lifecycle/result progress for ${progress.turnsSinceProgress} turns`,
     )
   }
+  exposeProgressBudget(input.actor)
 }
 
-const SIMPLE_PROGRESS_OUTCOMES: Readonly<Record<string, string>> = {
-  WorkflowOpenAuthoringSession: "workspace_opened",
-  WorkflowCreateBundle: "workspace_changed",
-  WorkflowPatchBundle: "workspace_changed",
-  WorkflowPublishAuthoringSession: "published",
-  WorkflowMaterialBind: "materials_bound",
-  WorkflowCreateInstance: "prepared",
-  WorkflowCreateInstanceFromPrebuilt: "prepared",
-  WorkflowRun: "running",
-  WorkflowResume: "running",
-  WorkflowResolve: "running",
-  WorkflowReject: "running",
-  WorkflowApplyGraphPatch: "running",
-  WorkflowResult: "result",
+function outputIndicatesFailure(outputText: string | undefined): boolean {
+  if (!outputText) return false
+  try {
+    const parsed = JSON.parse(outputText)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return false
+    const descriptor = Object.getOwnPropertyDescriptor(parsed, "ok")
+    return descriptor !== undefined && "value" in descriptor && descriptor.value === false
+  } catch {
+    return false
+  }
 }
 
-function workspaceOperationIsProgress(args: unknown): boolean {
-  const operation = String(record(args)?.operation ?? "")
-  return ["write", "mkdir", "move", "delete", "apply_patch", "patch"].includes(operation)
+const PROGRESS_OUTCOME_BY_TRANSITION: Readonly<Record<WorkflowDomainProgressTransition, string>> = {
+  workspace_opened: "workspace_opened",
+  workspace_revision_changed: "workspace_changed",
+  proof_prepared: "proof",
+  lifecycle_completed: "lifecycle_changed",
+  publication_created: "published",
+  instance_prepared: "prepared",
+  run_started: "running",
+  run_advanced: "running",
+  result_observed: "result",
 }
 
 export function recordWorkflowActorToolOutcome(input: {
@@ -140,10 +167,11 @@ export function recordWorkflowActorToolOutcome(input: {
   if (!isWorkflowActor(input.actor)) return
   const now = input.now ?? Date.now()
   const progress = ensureProgress(input.actor, now, input.config)
+  const failed = input.isError || outputIndicatesFailure(input.outputText)
   const isProofTool = input.toolName === "WorkflowValidateAuthoringSession"
     || input.toolName === "WorkflowDryRunAuthoringSession"
 
-  if (isProofTool && input.isError) {
+  if (isProofTool && failed) {
     progress.proofRepairAttempts += 1
     progress.lastDiagnostic = input.outputText
     if (progress.proofRepairAttempts > progress.maxProofRepairAttempts) {
@@ -155,10 +183,9 @@ export function recordWorkflowActorToolOutcome(input: {
     return
   }
 
-  let outcome = SIMPLE_PROGRESS_OUTCOMES[input.toolName]
-  if (input.toolName === "WorkflowWorkspace" && workspaceOperationIsProgress(input.args)) outcome = "workspace_changed"
-  if (isProofTool && !input.isError) outcome = "proof"
-  if (!outcome || input.isError) return
+  const fact = failed ? undefined : parseWorkflowDomainProgressFact(input.outputText)
+  if (!fact) return
+  const outcome = PROGRESS_OUTCOME_BY_TRANSITION[fact.transition]
 
   progress.turnsSinceProgress = 0
   progress.lastProgressAt = now

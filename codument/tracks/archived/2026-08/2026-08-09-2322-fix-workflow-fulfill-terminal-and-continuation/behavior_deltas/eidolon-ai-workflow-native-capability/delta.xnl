@@ -1,0 +1,133 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_9_-_2_3_2_2_-_f_i_x_-_w_o_r_k_f_l_o_w_-_f_u_l_f_i_l_l_-_t_e_r_m_i_n_a_l_-_a_n_d_-_c_o_n_t_i_n_u_a_t_i_o_n.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/workflow-fulfill-terminal-continuation" } (
+      <Requirement #workflow-fulfill-terminal-continuation (
+        <Statement ?01M05F1PSH7NFD2ZWK25DWZ3V9>
+        The system SHALL preserve provider/actor terminal authority and continue multi-turn WorkflowFulfill business context without deterministic semantic routing.
+        </?01M05F1PSH7NFD2ZWK25DWZ3V9>
+        <Suites [
+          <Suite #terminal-authority { name = "Terminal authority" } (
+            <Cases [
+              <Case #failure-after-partial-content (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3VA>
+                A workflow child has emitted partial assistant content and its next provider completion fails
+                </?01M05F1PSH7NFD2ZWK25DWZ3VA>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3VB>
+                The child reaches terminal processing
+                </?01M05F1PSH7NFD2ZWK25DWZ3VB>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3VC>
+                The child and parent tool MUST report structured failure; the partial content MUST NOT become a successful final result
+                </?01M05F1PSH7NFD2ZWK25DWZ3VC>
+              )>
+              <Case #sync-wait-single-writer (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3VD>
+                A synchronous WorkflowFulfill child is still running
+                </?01M05F1PSH7NFD2ZWK25DWZ3VD>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3VE>
+                The spawn command returns its wait control marker
+                </?01M05F1PSH7NFD2ZWK25DWZ3VE>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3VF>
+                The marker MUST NOT commit an empty tool result and childDone SHALL be the sole terminal writer
+                </?01M05F1PSH7NFD2ZWK25DWZ3VF>
+              )>
+              <Case #business-failure-projection (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3VG>
+                The workflow child terminal message is failed or cancelled
+                </?01M05F1PSH7NFD2ZWK25DWZ3VG>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3VH>
+                The parent and CLI project the business journey result
+                </?01M05F1PSH7NFD2ZWK25DWZ3VH>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3VJ>
+                The result MUST contain a non-empty failure and MUST NOT report completed with a null failure summary
+                </?01M05F1PSH7NFD2ZWK25DWZ3VJ>
+              )>
+            ]>
+          )>
+          <Suite #continuation { name = "Multi-turn continuation" } (
+            <Cases [
+              <Case #prior-business-context (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3VK>
+                A later WorkflowFulfill turn confirms or adjusts a plan from earlier conversation
+                </?01M05F1PSH7NFD2ZWK25DWZ3VK>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3VM>
+                A fresh dedicated workflow actor is spawned
+                </?01M05F1PSH7NFD2ZWK25DWZ3VM>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3VN>
+                The actor SHALL receive a bounded role-ordered projection of prior business conversation from Conversation Domain
+                </?01M05F1PSH7NFD2ZWK25DWZ3VN>
+              )>
+              <Case #authorization-not-inherited (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3VP>
+                Prior conversation includes discussion of publication or execution
+                </?01M05F1PSH7NFD2ZWK25DWZ3VP>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3VQ>
+                The current structured invocation has publication or execution authorization false
+                </?01M05F1PSH7NFD2ZWK25DWZ3VQ>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3VR>
+                The actor MUST treat the current structured booleans as authoritative and MUST NOT inherit authorization from historical text
+                </?01M05F1PSH7NFD2ZWK25DWZ3VR>
+              )>
+              <Case #no-host-semantics (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3VS>
+                Host code prepares continuation context
+                </?01M05F1PSH7NFD2ZWK25DWZ3VS>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3VT>
+                It selects and bounds prior messages
+                </?01M05F1PSH7NFD2ZWK25DWZ3VT>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3VV>
+                It MUST use structural role/order/size rules and MUST NOT use regex, keyword or fuzzy business matching
+                </?01M05F1PSH7NFD2ZWK25DWZ3VV>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/workflow-effect-capability-authority" } (
+      <Requirement #workflow-effect-capability-authority (
+        <Statement ?01M05F1PSH7NFD2ZWK25DWZ3VW>
+        The AI Workflow Skill SHALL expose exact runtime effect capabilities while the model owns semantic tool and workflow design.
+        </?01M05F1PSH7NFD2ZWK25DWZ3VW>
+        <Suites [
+          <Suite #effect-capability { name = "Exact effect capability authority" } (
+            <Cases [
+              <Case #model-owned-effect-design (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3VX>
+                A workflow needs an external business effect
+                </?01M05F1PSH7NFD2ZWK25DWZ3VX>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3VY>
+                The workflow actor authors dynamic flow code
+                </?01M05F1PSH7NFD2ZWK25DWZ3VY>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3VZ>
+                The model SHALL select the tool, arguments, parsing and failure policy from the system Skill without host natural-language matching
+                </?01M05F1PSH7NFD2ZWK25DWZ3VZ>
+              )>
+              <Case #exact-runtime-operations (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3W0>
+                Dynamic flow code invokes the Eidolon effect provider
+                </?01M05F1PSH7NFD2ZWK25DWZ3W0>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3W1>
+                The runtime dispatches the request
+                </?01M05F1PSH7NFD2ZWK25DWZ3W1>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3W2>
+                The operation MUST be one of identity, tool.call, ai.agent, material.read or material.write; registered web access SHALL use tool.call with webfetch
+                </?01M05F1PSH7NFD2ZWK25DWZ3W2>
+              )>
+              <Case #honest-all-source-failure (
+                <Given ?01M05F1PSH7NFD2ZWK25DWZ3W3>
+                A multi-source workflow permits partial source degradation
+                </?01M05F1PSH7NFD2ZWK25DWZ3W3>
+                <When ?01M05F1PSH7NFD2ZWK25DWZ3W4>
+                All required sources fail
+                </?01M05F1PSH7NFD2ZWK25DWZ3W4>
+                <Then ?01M05F1PSH7NFD2ZWK25DWZ3W5>
+                The workflow MUST enter Failed and MUST NOT render an empty or fabricated success report
+                </?01M05F1PSH7NFD2ZWK25DWZ3W5>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

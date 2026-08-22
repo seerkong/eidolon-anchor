@@ -99,6 +99,20 @@ describe("Eidolon workflow architecture boundaries", () => {
     expect(builder).toContain("EIDOLON_UNIFIED_ENTRY")
   })
 
+  it("checks the generated system Skill plan before every canonical unified build", async () => {
+    const builder = await source("scripts/build-terminal-tui.ts")
+    const release = await source("scripts/build_tui_release.sh")
+    const checkCommand = '["bun", "run", "--cwd", "cell/packages/ai-support", "generate:system-skills:check"]'
+    const bundleCommand = '["bun", "--config=./scripts/bunfig.build.toml", "./scripts/build.ts", outFile]'
+
+    expect(builder).toContain(checkCommand)
+    expect(builder.indexOf(checkCommand)).toBeLessThan(builder.indexOf(bundleCommand))
+    expect(builder).toContain("if (exitCode !== 0) process.exit(exitCode)")
+    expect(builder).not.toContain('"generate:system-skills"')
+    expect(release).toContain("bun run build:terminal:tui")
+    expect(release).not.toContain("generate:system-skills")
+  })
+
   it("forbids deterministic natural-language workflow routing", async () => {
     const violations: string[] = []
     for (const filePath of await typescriptFiles(workflowRoot)) {
@@ -111,6 +125,66 @@ describe("Eidolon workflow architecture boundaries", () => {
       }
     }
     expect(violations).toEqual([])
+  })
+
+  it("requires explicit typed authority instead of node-label keyword inference", async () => {
+    const loader = await source("cell/packages/ai-organ-logic/src/workflow/resources/WorkflowResourceLoader.ts")
+    const sessions = await source("cell/packages/ai-organ-logic/src/workflow/authoring/WorkflowAuthoringSessionStore.ts")
+    expect(loader).not.toContain("effectNodeIds")
+    expect(loader).not.toMatch(/Effect\|Task\|Transform\|Source\|Sink/)
+    expect(sessions).not.toContain("effectNodeIds")
+    expect(sessions).toContain('source: "canonical-profile:explicit-acceptance-policy-default"')
+  })
+
+  it("keeps published resource discovery on Halfcode and typed depa projections", async () => {
+    const repository = await source("cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowDefinitionRepository.ts")
+    expect(repository).not.toContain("workspace.tree()")
+    expect(repository).not.toContain('endsWith("/manifest.xnl")')
+    expect(repository).toContain("executableDependencyPaths(loaded.binding)")
+    expect(repository).toContain("node?.attrs?.src")
+    expect(repository).toContain("node?.attrs?.when")
+    expect(repository).toContain('"src" in node ? node.src')
+    expect(repository).toContain('"impl" in node ? node.impl')
+    expect(repository).not.toContain("Object.values(definition)")
+    expect(repository).not.toContain("JSON.stringify(definition)")
+
+    const query = await source("cell/packages/ai-organ-logic/src/workflow/component/WorkflowQueryService.ts")
+    expect(query).not.toContain("new WorkflowDefinitionRepository")
+    expect(query).not.toContain("JSON.stringify(definition)")
+    expect(query).not.toContain(".match(/material:")
+
+    const registry = await source("cell/packages/ai-organ-logic/src/resources/EidolonAppResourceRegistryAdapter.ts")
+    expect(registry).toContain('from "halfcode-compiler.xnl/resource-core"')
+    expect(registry).toContain('from "halfcode-compiler.xnl/resource-mapping"')
+    expect(registry).toContain('from "ai-workflow-logic"')
+    expect(registry).toContain("safePathLexicalIssue(value, \"relative-path\")")
+    expect(registry).toContain("new WeakMap<")
+    expect(registry).not.toContain("readdir")
+    expect(registry).not.toContain("manifest.xnl")
+  })
+
+  it("separates whole-package registry publication from honest legacy VFS drafts", async () => {
+    const publisher = await source("cell/packages/ai-organ-logic/src/workflow/component/WorkflowResourcePackagePublisher.ts")
+    expect(publisher).toContain("withPublicationFence")
+    expect(publisher).toContain("recordResourcePackagePublication")
+    expect(publisher).toContain("publicationEffectDispatched: true")
+    expect(publisher).toContain("runtimeEffectDispatched: false")
+    expect(publisher).not.toMatch(/批准|审批|负责人|等待.*确认/u)
+    expect(publisher).not.toMatch(/infer|guess|fuzzy/i)
+
+    const drafts = await source("cell/packages/ai-organ-logic/src/workflow/component/WorkflowCommandService.ts")
+    expect(drafts).toContain('const workflowRef = `vfs://./${slug}/manifest.xnl`')
+    expect(drafts).toContain('workflowDefinitionRef = "vfs://./manifest.xnl"')
+    expect(drafts).not.toContain('`resource://${command.fqn}`')
+    expect(drafts).not.toContain("workflowResourceRef")
+  })
+
+  it("does not retain a code-owned reusable Agent inventory", async () => {
+    const installed = await source("cell/packages/ai-organ-logic/src/workflow/resources/authoring/WorkflowAuthoringResourceRegistry.ts")
+    expect(installed).not.toContain("reusableAgents")
+
+    const tools = await source("cell/packages/ai-organ-logic/src/workflow/tools/WorkflowAuthoringTools.ts")
+    expect(tools).not.toContain("catalog.listReusableAgents")
   })
 
   it("reuses the generic actor context policy without a workflow compactor or actor-name routing", async () => {
@@ -132,5 +206,27 @@ describe("Eidolon workflow architecture boundaries", () => {
     )?.[1] ?? ""
     expect(eligibility).toContain("contextPolicy.historyCompaction")
     expect(eligibility).not.toMatch(/primary|delegate|detached|member|agentType|workflow|tool/i)
+  })
+
+  it("keeps resource Agent selection exact while reusing the generic delegate runtime", async () => {
+    const resources = await source("cell/packages/ai-organ-logic/src/resources/EidolonAppResourceRegistryAdapter.ts")
+    const effects = await source("cell/packages/ai-organ-logic/src/workflow/effects/EidolonWorkflowEffectProvider.ts")
+    const delegate = await source("cell/packages/ai-organ-logic/src/agent/DelegateActor.ts")
+    const ctrlRuntime = await source("cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowRuntimeService.ts")
+    const dataRuntime = await source("cell/packages/ai-organ-logic/src/workflow/runtime/AIDataWorkflowRuntimeDriver.ts")
+
+    expect(resources).toContain('from "ai-workflow-logic/run-freeze"')
+    expect(resources).toContain("freezeAIWorkflowRunResources")
+    expect(resources).not.toMatch(/RegExp|localeCompare|inferAgent|guessAgent|resolveAgentAlias/)
+    expect(effects).toContain("selectExactAgentDefinitionRef")
+    expect(effects).toContain("spawnChildExecutionActor")
+    expect(effects).not.toContain('workflow.ref.startsWith("resource://")')
+    expect(effects).not.toMatch(/inferAgent|guessAgent|resolveAgentAlias/)
+    expect(ctrlRuntime).toContain('scheme: definition.resourceReceipt ? "resource" : "vfs"')
+    expect(dataRuntime).toContain('scheme: definition.resourceReceipt ? "resource" as const : "vfs" as const')
+    expect(ctrlRuntime).not.toContain('descriptor.workflowRef.startsWith("resource://")')
+    expect(dataRuntime).not.toContain('descriptor.workflowRef.startsWith("resource://")')
+    expect(delegate).toContain("params.resolvedConfig ?? AgentRegistry.get")
+    expect(delegate).not.toMatch(/WorkflowAgentActor|WorkflowAgentSession|WorkflowAgentHistory|WorkflowAgentCompactor/)
   })
 })

@@ -83,7 +83,7 @@ describe("Eidolon AI Ctrl Workflow runtime", () => {
       `]>`,
     ].join("\n"))
 
-    const started = await start(runtime, "resource://demo.ctrl.Completed", { message: "hello" })
+    const started = await start(runtime, "vfs://./completed-ctrl/manifest.xnl", { message: "hello" })
     expect(started).toMatchObject({
       ok: true,
       kind: "workflow.run",
@@ -118,7 +118,7 @@ describe("Eidolon AI Ctrl Workflow runtime", () => {
       `]>`,
     ].join("\n"))
 
-    const started = await start(runtime, "resource://demo.ctrl.Waiting", { message: "review" })
+    const started = await start(runtime, "vfs://./waiting-ctrl/manifest.xnl", { message: "review" })
     expect(started.status).toBe("Waiting")
     expect(started.open_wait_handles).toHaveLength(1)
     expect(started.nodes).toMatchObject([{ nodeId: "review", status: "Waiting" }])
@@ -149,7 +149,7 @@ describe("Eidolon AI Ctrl Workflow runtime", () => {
     const repeated = await call(runtime, "WorkflowResume", { run_id: started.run_id })
     expect(repeated).toMatchObject({ status: "Completed", resumed: false })
 
-    const rejectedRun = await start(runtime, "resource://demo.ctrl.Waiting", { message: "reject" })
+    const rejectedRun = await start(runtime, "vfs://./waiting-ctrl/manifest.xnl", { message: "reject" })
     const rejected = await call(runtime, "WorkflowReject", {
       run_id: rejectedRun.run_id,
       payload: { reason: "not approved" },
@@ -168,7 +168,7 @@ describe("Eidolon AI Ctrl Workflow runtime", () => {
       `]>`,
     ].join("\n"))
 
-    const started = await start(runtime, "resource://demo.ctrl.Effect", {
+    const started = await start(runtime, "vfs://./effect-ctrl/manifest.xnl", {
       path: "materials/result.txt",
       content: "effect output",
     })

@@ -1,5 +1,7 @@
 import type { AiAgentOneActorRuntime, ToolDef } from "@cell/ai-core-contract/types"
 import { getWorkflowRuntimeService } from "../runtime"
+import { withWorkflowDomainProgress } from "../runtime/WorkflowDomainProgress"
+import { createWorkflowInstanceFromFulfillmentContinuation } from "./WorkflowFulfill/ExecutionContinuation"
 
 type ToolConfig = Record<string, unknown>
 type Input = Record<string, any>
@@ -38,32 +40,48 @@ export function buildWorkflowLifecycleToolDefs(): ToolDef<Input, string, ToolCon
     }, ["workflow_ref"], async (runtime, input) => ({
       ok: true, kind: "workflow.type", type: await getWorkflowRuntimeService(runtime).getType(String(input.workflow_ref)),
     })),
-    tool("WorkflowCreateInstance", "Create a durable workflow Instance with a frozen definition revision; this never executes it.", {
+    tool("WorkflowCreateInstance", "Create a durable workflow Instance with a frozen definition revision; an active fulfillment continuation owns a stable idempotent Instance; this never executes it.", {
       workflow_ref: { type: "string" }, instance_id: { type: "string" }, input: {}, idempotency_key: { type: "string" },
-    }, ["workflow_ref"], async (runtime, input) => ({
-      ok: true,
-      kind: "workflow.instance",
-      instance: await getWorkflowRuntimeService(runtime).createInstance({
+    }, ["workflow_ref"], async (runtime, input) => {
+      const instance = await createWorkflowInstanceFromFulfillmentContinuation(runtime, {
         workflowRef: String(input.workflow_ref),
         instanceId: input.instance_id ? String(input.instance_id) : undefined,
         initialInput: input.input,
         idempotencyKey: input.idempotency_key ? String(input.idempotency_key) : undefined,
-      }),
-      effectDispatched: false,
-    })),
+      })
+      return withWorkflowDomainProgress({
+        ok: true,
+        kind: "workflow.instance",
+        instance,
+        effectDispatched: false,
+      }, {
+        owner: "workflow.runtime",
+        transition: "instance_prepared",
+        subjectId: instance.instanceId,
+        revision: instance.definitionRevision,
+      })
+    }),
     tool("WorkflowCreateInstanceFromPrebuilt", "Create a durable workflow Instance from an installed prebuilt starting fact; this never executes it.", {
       prebuilt_id: { type: "string" }, instance_id: { type: "string" }, input: {}, idempotency_key: { type: "string" },
-    }, ["prebuilt_id"], async (runtime, input) => ({
-      ok: true,
-      kind: "workflow.instance",
-      instance: await getWorkflowRuntimeService(runtime).createInstanceFromPrebuilt({
+    }, ["prebuilt_id"], async (runtime, input) => {
+      const instance = await getWorkflowRuntimeService(runtime).createInstanceFromPrebuilt({
         prebuiltId: String(input.prebuilt_id),
         instanceId: input.instance_id ? String(input.instance_id) : undefined,
         initialInput: input.input,
         idempotencyKey: input.idempotency_key ? String(input.idempotency_key) : undefined,
-      }),
-      effectDispatched: false,
-    })),
+      })
+      return withWorkflowDomainProgress({
+        ok: true,
+        kind: "workflow.instance",
+        instance,
+        effectDispatched: false,
+      }, {
+        owner: "workflow.runtime",
+        transition: "instance_prepared",
+        subjectId: instance.instanceId,
+        revision: instance.definitionRevision,
+      })
+    }),
     tool("WorkflowListInstances", "List durable workflow Instances.", {}, [], async (runtime) => ({
       ok: true, kind: "workflow.instances", instances: await getWorkflowRuntimeService(runtime).listInstances(),
     })),

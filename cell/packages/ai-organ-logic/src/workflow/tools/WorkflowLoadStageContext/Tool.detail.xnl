@@ -1,4 +1,4 @@
 <ToolPrompt #WorkflowLoadStageContext.detail>
-  <usage ?>Choose the stage semantically, then load its system and protocol resources. Coding additionally loads the canonical generation kernel and Flow DSL references.</?>
+  <usage ?>Choose the stage semantically, then load only its system and protocol resources. Use the generic Skill tool for exact sibling operations or progressively selected references.</?>
   <safety ?>The host validates only the explicit stage id; it never infers a stage from natural-language keywords.</?>
 </ToolPrompt>

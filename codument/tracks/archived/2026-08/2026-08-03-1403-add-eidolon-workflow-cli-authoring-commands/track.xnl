@@ -1,0 +1,76 @@
+<Track #add-eidolon-workflow-cli-authoring-commands version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "增加 component-backed `eidolon workflow` authoring CLI 第一阶段命令。" description = "实现 workflow init/inspect/validate，注册到 CLI 入口，并注入 headless runtime aiWorkflow roots。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-03T10:58:49Z" updated_at = "2026-08-03T11:03:34Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-eidolon-workflow-cli-authoring-commands { name = "add-eidolon-workflow-cli-authoring-commands" } (
+    <Description ?01M05F1PNPQ1B16YYT8JX5HCPR>
+    Eidolon workflow CLI authoring commands.
+    </?01M05F1PNPQ1B16YYT8JX5HCPR>
+    <SubNodes [
+      <TaskGroup #P1 { name = "CLI authoring commands" status = "DONE" order = 0 } (
+        <Description ?01M05F1PNPQ1B16YYT8JX5HCPS>
+        新增 workflow command module and register it in CLI entrypoints.
+        </?01M05F1PNPQ1B16YYT8JX5HCPS>
+        <SubNodes [
+          <Task { id = "T1.1" name = "实现 workflow init/inspect/validate command module" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PNPQ1B16YYT8JX5HCPT>
+              init 使用 workflow component draft 并写入 target root
+              </?01M05F1PNPQ1B16YYT8JX5HCPT>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PNPQ1B16YYT8JX5HCPV>
+              inspect/validate 输出 JSON 或 human-readable 结果
+              </?01M05F1PNPQ1B16YYT8JX5HCPV>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "注册 workflow command 到 CLI entrypoints" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PNPQ1B16YYT8JX5HCPW>
+              headless `eidolon` entry includes workflow command
+              </?01M05F1PNPQ1B16YYT8JX5HCPW>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PNPQ1B16YYT8JX5HCPX>
+              desktop `terminal` entry includes workflow command
+              </?01M05F1PNPQ1B16YYT8JX5HCPX>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Workflow roots metadata" status = "DONE" order = 1 } (
+        <Description ?01M05F1PNPQ1B16YYT8JX5HCPY>
+        Inject aiWorkflow roots into headless runtime metadata.
+        </?01M05F1PNPQ1B16YYT8JX5HCPY>
+        <SubNodes [
+          <Task { id = "T2.1" name = "注入 aiWorkflow.roots" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PNPQ1B16YYT8JX5HCPZ>
+              buildExecRuntimeMetadata returns metadata.aiWorkflow.roots
+              </?01M05F1PNPQ1B16YYT8JX5HCPZ>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PNPQ1B16YYT8JX5HCQ0>
+              WorkflowInspectCapability can see roots in CLI-style runtime metadata
+              </?01M05F1PNPQ1B16YYT8JX5HCQ0>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "验证与收口" status = "DONE" order = 2 } (
+        <Description ?01M05F1PNPQ1B16YYT8JX5HCQ1>
+        Test CLI command behavior and runtime metadata root injection.
+        </?01M05F1PNPQ1B16YYT8JX5HCQ1>
+        <SubNodes [
+          <Task { id = "T3.1" name = "补齐 CLI 和 metadata tests" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PNPQ1B16YYT8JX5HCQ2>
+              workflow CLI init smoke writes manifest.xnl under temp target
+              </?01M05F1PNPQ1B16YYT8JX5HCQ2>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PNPQ1B16YYT8JX5HCQ3>
+              workflow roots metadata test passes
+              </?01M05F1PNPQ1B16YYT8JX5HCQ3>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Hooks>
+)>

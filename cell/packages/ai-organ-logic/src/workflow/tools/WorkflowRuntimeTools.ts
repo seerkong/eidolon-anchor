@@ -9,6 +9,11 @@ import {
   type DetachedMessageRole,
 } from "@cell/ai-organ-logic/detached/DetachedActorObservability"
 import { getWorkflowRuntimeService } from "../runtime"
+import {
+  withWorkflowDomainProgress,
+  type WorkflowDomainProgressTransition,
+} from "../runtime/WorkflowDomainProgress"
+import { startWorkflowRunFromFulfillmentContinuation } from "./WorkflowFulfill/ExecutionContinuation"
 
 type ToolConfig = Record<string, unknown>
 
@@ -74,6 +79,28 @@ function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
 }
 
+function ownDataValue(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined
+  const descriptor = Object.getOwnPropertyDescriptor(value, key)
+  return descriptor && "value" in descriptor && descriptor.enumerable ? descriptor.value : undefined
+}
+
+function successfulRuntimeProgress(
+  value: unknown,
+  transition: Extract<WorkflowDomainProgressTransition, "run_started" | "result_observed">,
+): unknown {
+  if (ownDataValue(value, "ok") !== true) return value
+  const runId = normalizeString(ownDataValue(value, "run_id"))
+  if (!runId) return value
+  const definitionRevision = normalizeString(ownDataValue(value, "definition_revision"))
+  return withWorkflowDomainProgress(value as object, {
+    owner: "workflow.runtime",
+    transition,
+    subjectId: runId,
+    revision: definitionRevision || runId,
+  })
+}
+
 function normalizeArray<T extends string>(value: unknown, allowed: Set<string>): T[] | undefined {
   if (!Array.isArray(value)) return undefined
   const next = value.map((item) => String(item)).filter((item) => allowed.has(item)) as T[]
@@ -133,7 +160,7 @@ export function buildWorkflowRunToolDef(): ToolDef<WorkflowRunInput, string, Too
       type: "function",
       function: {
         name: "WorkflowRun",
-        description: "Preview or explicitly confirm start of a prepared workflow Instance using frozen definition and Material facts.",
+        description: "Preview or explicitly confirm start of a prepared workflow Instance using frozen definition and Material facts; an active execution continuation returns its exact durable run without starting another.",
         parameters: {
           type: "object",
           properties: {
@@ -154,11 +181,12 @@ export function buildWorkflowRunToolDef(): ToolDef<WorkflowRunInput, string, Too
     run: async (runtime, input) => {
       const instanceId = normalizeString((input as any)?.instance_id)
       try {
-        return JSON.stringify(await getWorkflowRuntimeService(runtime as any).start({
+        const result = await startWorkflowRunFromFulfillmentContinuation(runtime as any, {
           instanceId,
           runId: normalizeString((input as any)?.run_id) || undefined,
           confirmed: (input as any)?.confirmed === true,
-        }))
+        })
+        return JSON.stringify(successfulRuntimeProgress(result, "run_started"))
       } catch (e: any) {
         return JSON.stringify({
           ok: false,
@@ -293,9 +321,9 @@ export function buildWorkflowResultToolDef(): ToolDef<WorkflowResultInput, strin
       if (workflow) {
         if ((input as any)?.include_events === true && workflow.ok) {
           const events = await getWorkflowRuntimeService(runtime as any).events(runId)
-          return JSON.stringify({ ...workflow, events })
+          return JSON.stringify(successfulRuntimeProgress({ ...workflow, events }, "result_observed"))
         }
-        return JSON.stringify(workflow)
+        return JSON.stringify(successfulRuntimeProgress(workflow, "result_observed"))
       }
       const record = getDetachedRecord(runtime, runId)
       if (!record) return notFoundPayload(runId)
@@ -335,7 +363,7 @@ export function buildWorkflowResultToolDef(): ToolDef<WorkflowResultInput, strin
         }
       }
 
-      return JSON.stringify(payload)
+      return JSON.stringify(successfulRuntimeProgress(payload, "result_observed"))
     },
   }
 }

@@ -1,0 +1,159 @@
+<BehaviorPatch #track.split-eidolon-anchor-devops-authoring-and-run-skills.behavior_patch.eidolon-system-skill-distribution apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-system-skill-distribution" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-system-skill-distribution/requirements/halfcode-backed-global-init" } (
+      <Requirement #halfcode-backed-global-init (
+        <Statement ?01M05F1P8EPNYBADB3WFE0JNPG>
+        Eidolon SHALL install one canonical Halfcode-generated four-Skill closure through its whole-root global transaction, preserve ordinary user assets, and expose exact manifest-bound reads without duplicating Skill identity, dependency, content or provenance authority.
+        </?01M05F1P8EPNYBADB3WFE0JNPG>
+        <Suites [
+          <Suite #plan-consumption { name = "Complete generated Skill closure" } (
+            <Cases [
+              <Case #four-skill-closure [
+                <Then ?01M05F1P8EPNYBADB3WFE0JNPH>
+                the plan SHALL contain exactly sys-halfcode-resource-dsl, sys-eidolon-anchor-authoring, sys-eidolon-anchor-run and sys-eidolon-anchor-devops on the 1.0.x line
+                </?01M05F1P8EPNYBADB3WFE0JNPH>
+                <Then ?01M05F1P8EPNYBADB3WFE0JNPJ>
+                DevOps SHALL depend on Authoring and Run, and Authoring SHALL depend on Halfcode Resource DSL through exact SkillCapsule dependencies
+                </?01M05F1P8EPNYBADB3WFE0JNPJ>
+              ] (
+                <Given ?01M05F1P8EPNYBADB3WFE0JNPK>
+                Halfcode 0.2.3, the depa Flow DSL reference module 0.1.0 and the Eidolon Anchor SkillCapsules are available
+                </?01M05F1P8EPNYBADB3WFE0JNPK>
+                <When ?01M05F1P8EPNYBADB3WFE0JNPM>
+                the build generates the DevOps-rooted distribution plan
+                </?01M05F1P8EPNYBADB3WFE0JNPM>
+              )>
+              <Case #generated-flow-references [
+                <Then ?01M05F1P8EPNYBADB3WFE0JNPN>
+                references/flow-dsl SHALL be generated from the published depa module with matching paths, bytes, digests and provenance
+                </?01M05F1P8EPNYBADB3WFE0JNPN>
+                <Then ?01M05F1P8EPNYBADB3WFE0JNPP>
+                Eidolon MUST NOT maintain a second Flow DSL source tree
+                </?01M05F1P8EPNYBADB3WFE0JNPP>
+              ] (
+                <Given ?01M05F1P8EPNYBADB3WFE0JNPQ>
+                the Authoring capsule declares Flow DSL references
+                </?01M05F1P8EPNYBADB3WFE0JNPQ>
+                <When ?01M05F1P8EPNYBADB3WFE0JNPR>
+                Halfcode applies its ResourceMappings
+                </?01M05F1P8EPNYBADB3WFE0JNPR>
+              )>
+              <Case #one-plan-authority (
+                <Given ?01M05F1P8EPNYBADB3WFE0JNPS>
+                global init assembles its managed candidate set
+                </?01M05F1P8EPNYBADB3WFE0JNPS>
+                <When ?01M05F1P8EPNYBADB3WFE0JNPT>
+                the plan is materialized
+                </?01M05F1P8EPNYBADB3WFE0JNPT>
+                <Then ?01M05F1P8EPNYBADB3WFE0JNPV>
+                Eidolon SHALL apply and read back one complete Halfcode plan and MUST NOT append builtin Skill descriptors or independently merge dependency plans
+                </?01M05F1P8EPNYBADB3WFE0JNPV>
+              )>
+              <Case #standalone-plan-transport (
+                <Given ?01M05F1P8EPNYBADB3WFE0JNPW>
+                a standalone Eidolon binary has no source checkout
+                </?01M05F1P8EPNYBADB3WFE0JNPW>
+                <When ?01M05F1P8EPNYBADB3WFE0JNPX>
+                global init loads the generated plan
+                </?01M05F1P8EPNYBADB3WFE0JNPX>
+                <Then ?01M05F1P8EPNYBADB3WFE0JNPY>
+                the full immutable plan SHALL hydrate offline with the same projection and closure digest produced at build time
+                </?01M05F1P8EPNYBADB3WFE0JNPY>
+              )>
+            ]>
+          )>
+          <Suite #whole-root-transaction { name = "Whole Skill tree migration" } (
+            <Cases [
+              <Case #single-visible-swap [
+                <Then ?01M05F1P8EPNYBADB3WFE0JNPZ>
+                Eidolon SHALL verify a complete same-parent candidate before replacing the live skills root once
+                </?01M05F1P8EPNYBADB3WFE0JNPZ>
+                <Then ?01M05F1P8EPNYBADB3WFE0JNQ0>
+                ordinary non-system assets SHALL remain while sys-ai-workflow and stale unlisted sys-* directories SHALL no longer be visible
+                </?01M05F1P8EPNYBADB3WFE0JNQ0>
+              ] (
+                <Given ?01M05F1P8EPNYBADB3WFE0JNQ1>
+                the live Skill root contains the old managed set and ordinary user assets
+                </?01M05F1P8EPNYBADB3WFE0JNQ1>
+                <When ?01M05F1P8EPNYBADB3WFE0JNQ2>
+                global init installs the four-Skill candidate
+                </?01M05F1P8EPNYBADB3WFE0JNQ2>
+              )>
+              <Case #interrupted-reconciliation [
+                <Then ?01M05F1P8EPNYBADB3WFE0JNQ3>
+                the previous complete live tree SHALL remain byte-identical or be restored from retained diagnosable backup evidence
+                </?01M05F1P8EPNYBADB3WFE0JNQ3>
+                <Then ?01M05F1P8EPNYBADB3WFE0JNQ4>
+                the installer MUST NOT report success with a mixed managed set
+                </?01M05F1P8EPNYBADB3WFE0JNQ4>
+              ] (
+                <Given ?01M05F1P8FAPCVYSK9GD7MPFZD>
+                a controlled interruption occurs during plan application, candidate readback, live swap or final readback
+                </?01M05F1P8FAPCVYSK9GD7MPFZD>
+                <When ?01M05F1P8FAPCVYSK9GD7MPFZE>
+                the installer exits with an error
+                </?01M05F1P8FAPCVYSK9GD7MPFZE>
+              )>
+              <Case #repeat-idempotence (
+                <Given ?01M05F1P8FAPCVYSK9GD7MPFZF>
+                the installed tree already equals the current four-Skill plan
+                </?01M05F1P8FAPCVYSK9GD7MPFZF>
+                <When ?01M05F1P8FAPCVYSK9GD7MPFZG>
+                global init runs again
+                </?01M05F1P8FAPCVYSK9GD7MPFZG>
+                <Then ?01M05F1P8FAPCVYSK9GD7MPFZH>
+                the managed files, manifest and preserved ordinary assets SHALL be byte-equivalent
+                </?01M05F1P8FAPCVYSK9GD7MPFZH>
+              )>
+            ]>
+          )>
+          <Suite #manifest-authority { name = "Installed system Skill readback" } (
+            <Cases [
+              <Case #exact-manifest-bound-read [
+                <Then ?01M05F1P8FAPCVYSK9GD7MPFZJ>
+                the identity and path SHALL be declared in .system-skills.xnl and the physical bytes SHALL match its digest
+                </?01M05F1P8FAPCVYSK9GD7MPFZJ>
+                <Then ?01M05F1P8FAPCVYSK9GD7MPFZK>
+                unknown identities, duplicate entries, unsafe paths, symbolic-link escape and digest drift SHALL fail closed
+                </?01M05F1P8FAPCVYSK9GD7MPFZK>
+              ] (
+                <Given ?01M05F1P8FAPCVYSK9GD7MPFZM>
+                a caller requests a system Skill resource by exact identity and relative path
+                </?01M05F1P8FAPCVYSK9GD7MPFZM>
+                <When ?01M05F1P8FAPCVYSK9GD7MPFZN>
+                the generic system Skill loader reads the resource
+                </?01M05F1P8FAPCVYSK9GD7MPFZN>
+              )>
+              <Case #single-identity-authority [
+                <Then ?01M05F1P8FAPCVYSK9GD7MPFZP>
+                identity and version SHALL originate only from SkillCapsule XNL and the Halfcode plan
+                </?01M05F1P8FAPCVYSK9GD7MPFZP>
+                <Then ?01M05F1P8FAPCVYSK9GD7MPFZQ>
+                payload SHALL NOT contain system-skill.xnl or another manually maintained identity descriptor
+                </?01M05F1P8FAPCVYSK9GD7MPFZQ>
+              ] (
+                <Given ?01M05F1P8FAPCVYSK9GD7MPFZR>
+                the three Eidolon SkillCapsules have been generated
+                </?01M05F1P8FAPCVYSK9GD7MPFZR>
+                <When ?01M05F1P8FAPCVYSK9GD7MPFZS>
+                their payload and installed manifest are inspected
+                </?01M05F1P8FAPCVYSK9GD7MPFZS>
+              )>
+              <Case #global-authority (
+                <Given ?01M05F1P8FAPCVYSK9GD7MPFZT>
+                global or workspace Skill roots contain a sys-* identity and the binary has a generated expected four-Skill projection
+                </?01M05F1P8FAPCVYSK9GD7MPFZT>
+                <When ?01M05F1P8FAPCVYSK9GD7MPFZV>
+                runtime loads Skill entries
+                </?01M05F1P8FAPCVYSK9GD7MPFZV>
+                <Then ?01M05F1P8FAPCVYSK9GD7MPFZW>
+                only manifest entries whose identity, version, capsule FQN, closure digest and file digests exactly match the generated plan projection SHALL enter the runtime Skill registry; any old, missing, extra or drifted managed set SHALL fail closed before exposing a sys-* entry and SHALL direct the user to global init
+                </?01M05F1P8FAPCVYSK9GD7MPFZW>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

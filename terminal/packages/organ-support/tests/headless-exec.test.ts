@@ -14,6 +14,7 @@ import {
 } from "../../organ/src/AIAgent/TerminalRuntime"
 import { __resetSessionUlidForTest } from "../../core/src/AIAgent/SessionId"
 import { assembleAiCodingRuntimeProfile } from "@cell/mod-profiles"
+import { projectRuntimeTiming } from "../../organ/src/AIAgent/RuntimeTimingProjection"
 
 const originalHome = process.env.HOME
 
@@ -126,7 +127,7 @@ describe("headless exec", () => {
       },
     })
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       status: "completed",
       visibleOutput: "exec reply",
       finalMessage: "exec reply",
@@ -135,6 +136,26 @@ describe("headless exec", () => {
       outputLastMessagePath,
       outputTracePath,
     })
+    expect(result.timing).toMatchObject({
+      schemaVersion: 1,
+      counts: {
+        providerCalls: 1,
+        providerFailures: 0,
+        toolCalls: 0,
+      },
+    })
+    expect(
+      result.timing.components.providerWaitMs
+      + result.timing.components.providerGenerationMs
+      + result.timing.components.toolMs
+      + result.timing.components.productOwnedMs,
+    ).toBe(result.timing.window.wallMs)
+    expect(result.timing.providerCalls.entries).toHaveLength(1)
+    expect(result.timing.providerCalls.entries[0]).toMatchObject({
+      status: "completed",
+      terminalCause: "completed",
+    })
+    expect(JSON.stringify(result.timing)).not.toContain("hidden")
     expect(visibleChunks.join("")).toBe("exec reply")
     expect(diagnosticLines).toEqual([])
     expect(fs.readFileSync(outputLastMessagePath, "utf-8")).toBe("exec reply")
@@ -153,6 +174,10 @@ describe("headless exec", () => {
       status: "completed",
       finalMessageChars: "exec reply".length,
       visibleOutputChars: "exec reply".length,
+      timing: {
+        schemaVersion: 1,
+        counts: { providerCalls: 1, toolCalls: 0 },
+      },
     })
   })
 
@@ -192,6 +217,47 @@ describe("headless exec", () => {
     expect(diagnosticLines).toHaveLength(1)
     expect(diagnosticLines[0]).toContain("provider request ledger open_failed")
     expect(diagnosticLines[0]).toContain(`session=${sessionKey}`)
+  })
+
+  it("reports a complete empty-domain timing projection when runtime initialization is unavailable", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    process.env.HOME = activeHomeDir
+    __setLlmAdapterFactoryForTest(async () => {
+      throw new Error("runtime init unavailable")
+    })
+
+    const outputTracePath = path.join(activeWorkdir, "artifacts", "unavailable-trace.jsonl")
+    const result = await runHeadlessExec({
+      workDir: activeWorkdir,
+      input: "hello",
+      mcp: false,
+      outputTracePath,
+    })
+
+    expect(result.status).toBe("failed")
+    expect(result.timing.counts).toMatchObject({ providerCalls: 0, toolCalls: 0 })
+    expect(result.timing.components).toMatchObject({
+      providerWaitMs: 0,
+      providerGenerationMs: 0,
+      toolMs: 0,
+      productOwnedMs: result.timing.window.wallMs,
+    })
+    expect(
+      result.timing.components.providerWaitMs
+      + result.timing.components.providerGenerationMs
+      + result.timing.components.toolMs
+      + result.timing.components.productOwnedMs,
+    ).toBe(result.timing.window.wallMs)
+    const traceLines = fs.readFileSync(outputTracePath, "utf-8").trim().split("\n").map((line) => JSON.parse(line))
+    expect(traceLines.at(-1)).toMatchObject({
+      type: "session_end",
+      status: "failed",
+      timing: {
+        schemaVersion: 1,
+        counts: { providerCalls: 0, toolCalls: 0 },
+      },
+    })
   })
 
   it("recovers an existing manifest for the exact cwd and session instead of creating a new actor", async () => {
@@ -280,6 +346,13 @@ describe("headless exec", () => {
       finalMessage: null,
       warnings: [],
       failureSummary: "stream failed",
+      timing: projectRuntimeTiming({
+        sessionId: "test-session",
+        startedAt: 10,
+        endedAt: 20,
+        providerCalls: [],
+        toolCalls: [],
+      }),
       outputLastMessagePath,
       outputTracePath: undefined,
     })
@@ -495,6 +568,19 @@ describe("headless exec", () => {
 
     expect(result.status).toBe("completed")
     expect(result.finalMessage).toBe("resumed final")
+    expect(result.timing.counts).toMatchObject({ providerCalls: 2, toolCalls: 1 })
+    expect(result.timing.toolCalls.entries).toHaveLength(1)
+    expect(result.timing.toolCalls.entries[0]).toMatchObject({
+      toolName: "read",
+      status: "completed",
+      terminalCause: "completed",
+    })
+    expect(
+      result.timing.components.providerWaitMs
+      + result.timing.components.providerGenerationMs
+      + result.timing.components.toolMs
+      + result.timing.components.productOwnedMs,
+    ).toBe(result.timing.window.wallMs)
     expect(fs.readFileSync(outputLastMessagePath, "utf-8")).toBe("resumed final")
     expect(streamCount).toBe(2)
     expect(secondPromptUserCount).toBe(1)

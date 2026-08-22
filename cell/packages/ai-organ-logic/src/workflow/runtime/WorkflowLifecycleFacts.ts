@@ -1,4 +1,6 @@
 import type { AiWorkflowForm } from "@cell/ai-workflow-contract"
+import type { AIWorkflowRunResourceFreezeReceipt } from "ai-workflow-contract"
+import type { EidolonResourceAgentExecutionPlan } from "../../resources"
 
 export type WorkflowDefinitionRevision = {
   revision: string
@@ -7,7 +9,21 @@ export type WorkflowDefinitionRevision = {
   form: AiWorkflowForm
   sourceBundlePath: string
   files: Record<string, string>
+  resourceReceipt?: WorkflowDefinitionResourceReceipt
   createdAt: number
+}
+
+export type WorkflowDefinitionResourceReceipt = {
+  schemaVersion: "eidolon.workflow-definition-resource-receipt/v1"
+  resourceId: string
+  kind: AiWorkflowForm
+  packageId: string
+  layerId: string
+  logicalPath: string
+  compositionRevision: string
+  registryRevision: string
+  authorityDigest: string
+  contentDigest: string
 }
 
 export type WorkflowInstanceStatus = "Prepared" | "Running" | "Completed" | "Failed"
@@ -66,4 +82,18 @@ export type WorkflowRunReceipt = {
   replayOf?: string
   createdAt: number
   updatedAt: number
+}
+
+export type WorkflowAgentExecutionFact = {
+  schemaVersion: "eidolon.workflow-agent-execution-fact/v1"
+  runId: string
+  generation: number
+  effectId: string
+  nodeId: string
+  workflowForm: AiWorkflowForm
+  workflowRef: string
+  agentDefinitionRef: `resource://${string}`
+  plan: EidolonResourceAgentExecutionPlan
+  resourceReceipt: AIWorkflowRunResourceFreezeReceipt
+  createdAt: number
 }

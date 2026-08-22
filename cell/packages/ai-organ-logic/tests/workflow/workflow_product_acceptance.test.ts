@@ -31,8 +31,15 @@ describe("Eidolon final workflow acceptance", () => {
     expect(cli).toContain("'/dev/stdin' to read a heredoc")
     expect(cli).toContain('option("session"')
     expect(cli).toContain("Call WorkflowFulfill exactly once")
-    expect(kernel).toContain("global `sys-ai-workflow`")
+    expect(kernel).toContain("global `sys-eidolon-anchor-devops`")
     expect(kernel).toContain("WorkflowFulfill")
+    const stageLoader = await readFile(path.join(
+      repositoryRoot,
+      "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowLoadStageContext/Logic.ts",
+    ), "utf8")
+    expect(stageLoader).not.toContain("STAGE_NEXT_ACTION")
+    expect(stageLoader).not.toContain("nextAction:")
+    expect(stageLoader).toContain('authority: "global:sys-eidolon-anchor-devops"')
   })
 
   it("delegates ordinary request semantics to the system actor", () => {
@@ -41,5 +48,22 @@ describe("Eidolon final workflow acceptance", () => {
     expect(prompt).toContain('"publication": false')
     expect(prompt).toContain('"execution": false')
     expect(prompt).not.toMatch(/approval-process|composite/)
+  })
+
+  it("binds workflow prompt producers to the split DevOps authority", async () => {
+    const productionFiles = [
+      "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowFulfill/Logic.ts",
+      "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowFulfill/Tool.detail.xnl",
+      "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowAuthor/Logic.ts",
+      "cell/packages/ai-organ-logic/src/workflow/prompts/index.ts",
+      "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowLoadStageContext/Logic.ts",
+      "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowLoadStageContext/StageToolPolicy.ts",
+      "cell/packages/mod-ai-kernel/src/prompt/KernelRules.md",
+      "cell/packages/mod-ai-coding/src/agent/workflow/AGENT.md",
+      "cell/packages/mod-ai-coding/src/agent/workflow/ROUTING.md",
+    ]
+    const sources = await Promise.all(productionFiles.map((file) => readFile(path.join(repositoryRoot, file), "utf8")))
+    expect(sources.join("\n")).toContain("sys-eidolon-anchor-devops")
+    for (const source of sources) expect(source).not.toContain("sys-ai-workflow")
   })
 })

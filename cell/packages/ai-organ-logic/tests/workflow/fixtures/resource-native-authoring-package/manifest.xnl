@@ -1,0 +1,15 @@
+<ResourcePackage #eidolon.fixture.resource_native_authoring apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Active"
+  description = "Complete ResourcePackage fixture for whole-package authoring"
+} (
+  <Catalogs [
+    <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
+    <Catalog #apps { kind = "AIWorkflowAppBundle" shape = "single-file" root = "vfs://./Apps/" }>
+    <Catalog #workflows { kind = "AICtrlWorkflow" shape = "single-file" root = "vfs://./Workflows/" }>
+    <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>
+    <Catalog #prompts { kind = "Prompt" shape = "single-file" root = "vfs://./Prompts/" }>
+    <Catalog #ports { kind = "MaterialPort" shape = "single-file" root = "vfs://./Ports/" }>
+    <Catalog #materials { kind = "ArticleMaterial" shape = "single-file" root = "vfs://./Materials/" }>
+    <Catalog #bindings { kind = "MaterialBinding" shape = "single-file" root = "vfs://./Bindings/" }>
+  ]>
+)>

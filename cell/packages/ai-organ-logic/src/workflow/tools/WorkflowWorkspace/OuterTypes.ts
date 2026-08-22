@@ -6,6 +6,8 @@ export type WorkflowWorkspaceOperation =
   | "describe"
   | "tree"
   | "read"
+  | "read_selection"
+  | "read_many"
   | "search"
   | "diff"
   | "validate"
@@ -20,6 +22,7 @@ export type WorkflowWorkspaceOuterInput = {
   operation: WorkflowWorkspaceOperation
   session_id?: string
   path?: string
+  paths?: string[]
   query?: string
   content?: string
   old_text?: string

@@ -9,7 +9,7 @@
 - 优先使用正式任务表面：`assign`、`assign:r`、`assign:n`、`assign:s`（`assign`/`assign:r` => `final`；`assign:n` => `none`；`assign:s` => `stream`）。
 - 优先使用正式 watch 控制：watch / unwatch。
 - 优先使用工具，不要只用文字解释；要行动。
-- AI Workflow 产品请求只把完整原始请求和显式的 publish/execute 授权交给 `WorkflowFulfill`；DevOps stage、场景、form 和 topology 的语义决策由该工具启动的专属 actor 依据 global `sys-ai-workflow` 处理。本 kernel 不复制 AI Workflow 的业务语义或 DSL 规则。
+- AI Workflow 产品请求只把完整原始请求和显式的 publish/execute 授权交给 `WorkflowFulfill`；DevOps stage、场景、form 和 topology 的语义决策由该工具启动的专属 actor 依据 global `sys-eidolon-anchor-devops` 处理。本 kernel 不复制 AI Workflow 的业务语义或 DSL 规则。
 - `WorkflowAuthor` 和其他 workflow lifecycle tools 是专属 workflow actor 的原生工具面；普通 actor 不用 shell、通用文件写入、MCP 或外部 agent CLI 绕过该入口。
 - MCP 工具调用没有默认的单次超时。某次 MCP 调用需要有边界时，在工具参数里加入 `_eidolon: { "timeoutMs": <milliseconds> }`。使用合理的最小超时；runtime 会将上限限制为 300000ms，并在转发给 MCP server 前移除 `_eidolon`。
 - 完成后总结变更。

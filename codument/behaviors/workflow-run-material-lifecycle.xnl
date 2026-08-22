@@ -1,0 +1,141 @@
+<Behavior #workflow-run-material-lifecycle apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #type-instance-run-and-material-acceptance (
+      <Statement ?01M05F1P4J75PRXY83V6DRB21S>
+      Eidolon native workflow component SHALL provide Resource Type/Instance/Run and immutable Material lifecycles using canonical XNL/depa-flows resources and Eidolon actor/session effect authority.
+      </?01M05F1P4J75PRXY83V6DRB21S>
+      <Suites [
+        <Suite #definition-instance-run { name = "Definition, instance and run lifecycle" } (
+          <Cases [
+            <Case #instance-freezes-definition-revision [
+              <Then ?01M05F1P4J75PRXY83V6DRB21T>
+              execution SHALL use the instance's frozen content revision and form
+              </?01M05F1P4J75PRXY83V6DRB21T>
+              <Then ?01M05F1P4J75PRXY83V6DRB21V>
+              it SHALL NOT resolve the current publication
+              </?01M05F1P4J75PRXY83V6DRB21V>
+            ] (
+              <Given ?01M05F1P4J75PRXY83V6DRB21W>
+              a published workflow resource is instantiated and the publication is later changed
+              </?01M05F1P4J75PRXY83V6DRB21W>
+              <When ?01M05F1P4J75PRXY83V6DRB21X>
+              the instance is started or a prior run is recovered
+              </?01M05F1P4J75PRXY83V6DRB21X>
+            )>
+            <Case #execution-has-independent-confirmation (
+              <Given ?01M05F1P4J75PRXY83V6DRB21Y>
+              a valid instance with input facts and bindings
+              </?01M05F1P4J75PRXY83V6DRB21Y>
+              <When ?01M05F1P4J75PRXY83V6DRB21Z>
+              start is requested without explicit execution confirmation
+              </?01M05F1P4J75PRXY83V6DRB21Z>
+              <Then ?01M05F1P4J75PRXY83V6DRB220>
+              the component SHALL return a freeze preview without creating run facts, events, or effects
+              </?01M05F1P4J75PRXY83V6DRB220>
+            )>
+            <Case #start-is-idempotent-and-inputs-freeze (
+              <Given ?01M05F1P4J75PRXY83V6DRB221>
+              a caller-supplied run id and request fingerprint
+              </?01M05F1P4J75PRXY83V6DRB221>
+              <When ?01M05F1P4J75PRXY83V6DRB222>
+              the same start is repeated or input mutation is attempted after start
+              </?01M05F1P4J75PRXY83V6DRB222>
+              <Then ?01M05F1P4J75PRXY83V6DRB223>
+              the same request SHALL return the existing run, conflicting reuse SHALL fail, and started instance inputs SHALL be immutable
+              </?01M05F1P4J75PRXY83V6DRB223>
+            )>
+            <Case #wait-resolve-reject-and-recovery (
+              <Given ?01M05F1P4J75PRXY83V6DRB224>
+              a ctrl or data workflow has a pending human or agent wait handle
+              </?01M05F1P4J75PRXY83V6DRB224>
+              <When ?01M05F1P4J75PRXY83V6DRB225>
+              the handle is resolved/rejected or the runtime process is reconstructed
+              </?01M05F1P4J75PRXY83V6DRB225>
+              <Then ?01M05F1P4J75PRXY83V6DRB226>
+              the exact pending handle SHALL transition through the existing Eidolon/depa-flows lifecycle and stable run facts SHALL recover status and result
+              </?01M05F1P4J75PRXY83V6DRB226>
+            )>
+          ]>
+        )>
+        <Suite #immutable-materials { name = "Immutable Material lifecycle" } (
+          <Cases [
+            <Case #import-produces-exact-revision [
+              <Then ?01M05F1P4J75PRXY83V6DRB227>
+              the component SHALL create or reuse a content-addressed immutable revision with manifest and provenance
+              </?01M05F1P4J75PRXY83V6DRB227>
+              <Then ?01M05F1P4J75PRXY83V6DRB228>
+              path escape and symlink traversal SHALL be rejected
+              </?01M05F1P4J75PRXY83V6DRB228>
+            ] (
+              <Given ?01M05F1P4J75PRXY83V6DRB229>
+              a workspace-contained regular source file or directory
+              </?01M05F1P4J75PRXY83V6DRB229>
+              <When ?01M05F1P4J75PRXY83V6DRB22A>
+              it is imported as a Material
+              </?01M05F1P4J75PRXY83V6DRB22A>
+            )>
+            <Case #binding-and-receipt-freeze-revisions (
+              <Given ?01M05F1P4J75PRXY83V6DRB22B>
+              an instance node port is bound to an exact Material revision
+              </?01M05F1P4J75PRXY83V6DRB22B>
+              <When ?01M05F1P4J75PRXY83V6DRB22C>
+              a confirmed run starts and produces outputs
+              </?01M05F1P4J75PRXY83V6DRB22C>
+              <Then ?01M05F1P4J75PRXY83V6DRB22D>
+              its receipt SHALL retain exact input and output revisions and leases
+              </?01M05F1P4J75PRXY83V6DRB22D>
+            )>
+            <Case #replay-ignores-later-rebinding (
+              <Given ?01M05F1P4J75PRXY83V6DRB22E>
+              a completed run receipt and a later binding to a different revision
+              </?01M05F1P4J75PRXY83V6DRB22E>
+              <When ?01M05F1P4J75PRXY83V6DRB22F>
+              the original run is replayed
+              </?01M05F1P4J75PRXY83V6DRB22F>
+              <Then ?01M05F1P4J75PRXY83V6DRB22G>
+              the new run SHALL inherit the original receipt's exact revisions rather than current bindings
+              </?01M05F1P4J75PRXY83V6DRB22G>
+            )>
+            <Case #export-and-cleanup-require-confirmation (
+              <Given ?01M05F1P4J75PRXY83V6DRB22H>
+              an export destination or cleanup candidate set
+              </?01M05F1P4J75PRXY83V6DRB22H>
+              <When ?01M05F1P4J75PRXY83V6DRB22J>
+              the operation is not confirmed or a revision remains leased
+              </?01M05F1P4J75PRXY83V6DRB22J>
+              <Then ?01M05F1P4J75PRXY83V6DRB22K>
+              no filesystem export or leased revision deletion SHALL occur
+              </?01M05F1P4J75PRXY83V6DRB22K>
+            )>
+          ]>
+        )>
+        <Suite #native-authority { name = "Native surface and authority" } (
+          <Cases [
+            <Case #tools-and-cli-share-component (
+              <Given ?01M05F1P4J75PRXY83V6DRB22M>
+              conversation tools and eidolon workflow CLI expose lifecycle operations
+              </?01M05F1P4J75PRXY83V6DRB22M>
+              <When ?01M05F1P4J75PRXY83V6DRB22N>
+              they query or mutate workflow facts
+              </?01M05F1P4J75PRXY83V6DRB22N>
+              <Then ?01M05F1P4J75PRXY83V6DRB22P>
+              both surfaces SHALL call the same workflow component service and SHALL NOT retain a direct-run or private-storage path
+              </?01M05F1P4J75PRXY83V6DRB22P>
+            )>
+            <Case #workflow-owns-only-workflow-facts (
+              <Given ?01M05F1P4J75PRXY83V6DRB22Q>
+              agent, tool, human, graph and Material execution evidence exists
+              </?01M05F1P4J75PRXY83V6DRB22Q>
+              <When ?01M05F1P4J75PRXY83V6DRB22R>
+              workflow recovery facts are persisted
+              </?01M05F1P4J75PRXY83V6DRB22R>
+              <Then ?01M05F1P4J75PRXY83V6DRB22S>
+              the workflow store SHALL own only Type/Instance/Run/receipt facts while depa-flows and Eidolon retain their existing fact authority
+              </?01M05F1P4J75PRXY83V6DRB22S>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

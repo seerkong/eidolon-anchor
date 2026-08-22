@@ -1,19 +1,33 @@
-<decision #track.verify-eidolon-workflow-cross-surface-acceptance.terminal-native-tool-port { status = "accepted" priority = "P0" durable_candidate = false }
-(
-  <question ?>How should CLI runtime commands reach workflow behavior?</?>
-  <answer { } (
-    <raw-answer ?>Project the same native workflow tools through the terminal runtime bridge.</?>
-    <decision-text ?>Expose a generic native-tool invocation port and keep workflow semantics in the shared component and tools.</?>
-    <rationale ?>This preserves one implementation and the existing Eidolon session authority.</?>
+<decision #track.verify-eidolon-workflow-cross-surface-acceptance.terminal-native-tool-port apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?01M05F1PQJE89T8QSBN5RW82JD>
+  How should CLI runtime commands reach workflow behavior?
+  </?01M05F1PQJE89T8QSBN5RW82JD>
+  <answer {  } (
+    <raw-answer ?01M05F1PQJE89T8QSBN5RW82JE>
+    Project the same native workflow tools through the terminal runtime bridge.
+    </?01M05F1PQJE89T8QSBN5RW82JE>
+    <decision-text ?01M05F1PQJE89T8QSBN5RW82JF>
+    Expose a generic native-tool invocation port and keep workflow semantics in the shared component and tools.
+    </?01M05F1PQJE89T8QSBN5RW82JF>
+    <rationale ?01M05F1PQJE89T8QSBN5RW82JG>
+    This preserves one implementation and the existing Eidolon session authority.
+    </?01M05F1PQJE89T8QSBN5RW82JG>
   )>
 )>
 
-<decision #track.verify-eidolon-workflow-cross-surface-acceptance.stable-workspace-session { status = "accepted" priority = "P0" durable_candidate = false }
-(
-  <question ?>How do separate workflow CLI processes recover the same run?</?>
-  <answer { } (
-    <raw-answer ?>Use one deterministic workspace-scoped Eidolon session.</?>
-    <decision-text ?>Derive the workflow control session key from the canonical workspace path.</?>
-    <rationale ?>Stable session identity lets run, status, result and resume share existing actor and workflow facts.</?>
+<decision #track.verify-eidolon-workflow-cross-surface-acceptance.stable-workspace-session apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?01M05F1PQJE89T8QSBN5RW82JH>
+  How do separate workflow CLI processes recover the same run?
+  </?01M05F1PQJE89T8QSBN5RW82JH>
+  <answer {  } (
+    <raw-answer ?01M05F1PQJE89T8QSBN5RW82JJ>
+    Use one deterministic workspace-scoped Eidolon session.
+    </?01M05F1PQJE89T8QSBN5RW82JJ>
+    <decision-text ?01M05F1PQJE89T8QSBN5RW82JK>
+    Derive the workflow control session key from the canonical workspace path.
+    </?01M05F1PQJE89T8QSBN5RW82JK>
+    <rationale ?01M05F1PQJE89T8QSBN5RW82JM>
+    Stable session identity lets run, status, result and resume share existing actor and workflow facts.
+    </?01M05F1PQJE89T8QSBN5RW82JM>
   )>
 )>

@@ -88,7 +88,7 @@ describe("Eidolon AI Data Workflow runtime", () => {
       `  <TransformNode #transform { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] src = "vfs://./flow-code/index.ts#identity" config = { reuse_policy = "semantic-hash" } }>`,
     ]))
 
-    const started = await start(runtime, "resource://demo.data.Complete", { value: "hello" })
+    const started = await start(runtime, "vfs://./data-complete/manifest.xnl", { value: "hello" })
     expect(started).toMatchObject({
       ok: true,
       runtime: "depa-flows.AIDataWorkflow",
@@ -117,7 +117,7 @@ describe("Eidolon AI Data Workflow runtime", () => {
       `  <TransformNode #transform { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] src = "vfs://./flow-code/index.ts#identity" config = { node_type = "manual" } }>`,
     ]))
 
-    const started = await start(runtime, "resource://demo.data.Manual", { value: "draft" })
+    const started = await start(runtime, "vfs://./data-manual/manifest.xnl", { value: "draft" })
     expect(started.status).toBe("Waiting")
     expect(started.nodes[1]).toMatchObject({
       id: "transform",
@@ -153,7 +153,7 @@ describe("Eidolon AI Data Workflow runtime", () => {
       `  <TransformNode #fresh { inputs = { value = "flow-port://#transform/value" } outputs = ["value"] src = "vfs://./flow-code/index.ts#identity" config = { reuse_policy = "never" } }>`,
     ]))
 
-    const started = await start(runtime, "resource://demo.data.Reuse", { value: "same" })
+    const started = await start(runtime, "vfs://./data-reuse/manifest.xnl", { value: "same" })
     expect(started.status).toBe("Succeeded")
 
     const patched = await call(runtime, "WorkflowApplyGraphPatch", {
@@ -207,7 +207,7 @@ describe("Eidolon AI Data Workflow runtime", () => {
       `]>`,
     ].join("\n"))
 
-    const started = await start(runtime, "resource://demo.data.Effect", {
+    const started = await start(runtime, "vfs://./data-effect/manifest.xnl", {
       path: "materials/data.txt",
       content: "generation aware",
     })

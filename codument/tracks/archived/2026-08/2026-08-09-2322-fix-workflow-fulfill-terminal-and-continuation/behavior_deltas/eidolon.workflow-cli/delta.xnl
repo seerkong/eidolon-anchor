@@ -1,0 +1,50 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_9_-_2_3_2_2_-_f_i_x_-_w_o_r_k_f_l_o_w_-_f_u_l_f_i_l_l_-_t_e_r_m_i_n_a_l_-_a_n_d_-_c_o_n_t_i_n_u_a_t_i_o_n.behavior_patch.eidolon.workflow-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.workflow-cli" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon.workflow-cli/requirements/unified-eidolon-executable" } (
+      <Requirement #unified-eidolon-executable (
+        <Statement ?01M05F1PSMS0WS6HR3HZW2W4SB>
+        The project SHALL ship one eidolon executable that owns the interactive TUI and all headless, workflow and global CLI subcommands.
+        </?01M05F1PSMS0WS6HR3HZW2W4SB>
+        <Suites [
+          <Suite #unified-entry { name = "Unified executable entry" } (
+            <Cases [
+              <Case #default-tui (
+                <Given ?01M05F1PSMS0WS6HR3HZW2W4SC>
+                A user invokes `eidolon` with no subcommand or with a project path
+                </?01M05F1PSMS0WS6HR3HZW2W4SC>
+                <When ?01M05F1PSMS0WS6HR3HZW2W4SD>
+                The unified command parses the invocation
+                </?01M05F1PSMS0WS6HR3HZW2W4SD>
+                <Then ?01M05F1PSMS0WS6HR3HZW2W4SE>
+                It SHALL launch the interactive TUI
+                </?01M05F1PSMS0WS6HR3HZW2W4SE>
+              )>
+              <Case #shared-subcommands (
+                <Given ?01M05F1PSMS0WS6HR3HZW2W4SF>
+                A user invokes `eidolon workflow`, `eidolon global`, `eidolon exec` or another registered headless subcommand
+                </?01M05F1PSMS0WS6HR3HZW2W4SF>
+                <When ?01M05F1PSMS0WS6HR3HZW2W4SG>
+                The unified command parses the invocation
+                </?01M05F1PSMS0WS6HR3HZW2W4SG>
+                <Then ?01M05F1PSMS0WS6HR3HZW2W4SH>
+                It SHALL execute that subcommand from the same compiled program
+                </?01M05F1PSMS0WS6HR3HZW2W4SH>
+              )>
+              <Case #no-parallel-cli-distribution (
+                <Given ?01M05F1PSMS0WS6HR3HZW2W4SJ>
+                The project build and install surfaces are inspected
+                </?01M05F1PSMS0WS6HR3HZW2W4SJ>
+                <When ?01M05F1PSMS0WS6HR3HZW2W4SK>
+                Terminal artifacts are produced
+                </?01M05F1PSMS0WS6HR3HZW2W4SK>
+                <Then ?01M05F1PSMS0WS6HR3HZW2W4SM>
+                There MUST be no eidolon-cli command, headless-only entry, package build script or install script
+                </?01M05F1PSMS0WS6HR3HZW2W4SM>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

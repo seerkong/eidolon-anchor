@@ -8,6 +8,7 @@ import {
   buildSystemMessages,
   normalizeTerminalRuntimeMetadata,
   resolveRuntimeAuthorityRoot,
+  resolveRuntimeResourcePackageLayers,
 } from "@terminal/organ/AIAgent/TerminalRuntime"
 
 describe("TerminalRuntime metadata normalization", () => {
@@ -19,6 +20,16 @@ describe("TerminalRuntime metadata normalization", () => {
     expect(metadata.local_permissions).toEqual({
       authority_root: authorityRoot,
     })
+    expect(resolveRuntimeResourcePackageLayers(workDir, authorityRoot)).toEqual([
+      { id: "global", rootDir: path.join(authorityRoot, "resources") },
+      { id: "workspace", rootDir: path.join(path.resolve(workDir), ".eidolon", "resources") },
+    ])
+    expect(metadata.resourcePackages).toEqual({
+      layers: resolveRuntimeResourcePackageLayers(workDir, authorityRoot),
+    })
+    expect((metadata.aiWorkflow as any).roots.workspaceRoot).toBe(
+      path.join(path.resolve(workDir), ".eidolon", "workflows"),
+    )
     // Assert the injected platform defaults without binding to the user's local
     // runtime-config.json (which may or may not exist in ~/.eidolon).
     expect(metadata.platform).toBe(process.platform)
@@ -55,10 +66,16 @@ describe("TerminalRuntime metadata normalization", () => {
       platform: "linux",
       sandbox_permissions: { sandbox_mode: "read-only" },
       exec_protocol: { mode: "dangerous" },
+      resourcePackages: {
+        layers: [{ id: "workspace", rootDir: "/opt/eidolon/resources" }],
+      },
     })
     expect(metadata.platform).toBe("linux")
     expect(metadata.sandbox_permissions.sandbox_mode).toBe("read-only")
     expect(metadata.exec_protocol.mode).toBe("dangerous")
+    expect(metadata.resourcePackages).toEqual({
+      layers: [{ id: "workspace", rootDir: "/opt/eidolon/resources" }],
+    })
   })
 
   it("builds exec metadata on top of shared runtime defaults", () => {

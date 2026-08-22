@@ -1,0 +1,76 @@
+<BehaviorPatch #track.adopt-halfcode-resource-tree-for-eidolon-apps.behavior_patch.eidolon-workflow-architecture-boundaries apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-workflow-architecture-boundaries" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-workflow-architecture-boundaries/requirements/explicit-architecture-boundaries" } (
+      <Requirement #explicit-architecture-boundaries (
+        <Statement ?01M05F1P72P7BV97B9MJZ9F535>
+        Eidolon workflow integration SHALL use canonical XNL/depa-flows resources, injected Eidolon roots, actor/session effect authority and native surfaces; it SHALL NOT introduce XML authoring, MCP, external agent CLI or parallel flow/runtime authority.
+        </?01M05F1P72P7BV97B9MJZ9F535>
+        <Suites [
+          <Suite #resource-and-runtime-authority { name = "Resource and runtime authority" } (
+            <Cases [
+              <Case #canonical-xnl-and-depa-runtime [
+                <Then ?01M05F1P72P7BV97B9MJZ9F536>
+                it SHALL use canonical depa-flows XNL loaders and Ctrl/Data runtimes
+                </?01M05F1P72P7BV97B9MJZ9F536>
+                <Then ?01M05F1P72P7BV97B9MJZ9F537>
+                it SHALL NOT parse XML or implement a parallel scheduler
+                </?01M05F1P72P7BV97B9MJZ9F537>
+              ] (
+                <Given ?01M05F1P72P7BV97B9MJZ9F538>
+                Ctrl or Data workflow production source
+                </?01M05F1P72P7BV97B9MJZ9F538>
+                <When ?01M05F1P72P7BV97B9MJZ9F539>
+                it loads or executes a definition
+                </?01M05F1P72P7BV97B9MJZ9F539>
+              )>
+              <Case #eidolon-roots [
+                <Then ?01M05F1P72P7BV97B9MJZ9F53A>
+                the workflow authoring/session root SHALL remain the injected workspace `.eidolon/workflows` root
+                </?01M05F1P72P7BV97B9MJZ9F53A>
+                <Then ?01M05F1P72P7BV97B9MJZ9F53B>
+                optional global and workspace ResourcePackage layers SHALL use separately injected `.eidolon/resources` roots and SHALL be shared by CLI, TUI and native runtime surfaces
+                </?01M05F1P72P7BV97B9MJZ9F53B>
+                <Then ?01M05F1P72P7BV97B9MJZ9F53C>
+                Eidolon MUST NOT scan either root for child packages or treat the authoring root as a ResourcePackage by implication
+                </?01M05F1P72P7BV97B9MJZ9F53C>
+              ] (
+                <Given ?01M05F1P72P7BV97B9MJZ9F53D>
+                CLI or TUI constructs the workflow component
+                </?01M05F1P72P7BV97B9MJZ9F53D>
+                <When ?01M05F1P72P7BV97B9MJZ9F53E>
+                workspace/global roots are resolved
+                </?01M05F1P72P7BV97B9MJZ9F53E>
+              )>
+            ]>
+          )>
+          <Suite #effect-and-surface-authority { name = "Effect and surface authority" } (
+            <Cases [
+              <Case #eidolon-effect-lifecycle (
+                <Given ?01M05F1P72P7BV97B9MJZ9F53F>
+                a workflow node invokes agent, tool, human or Material work
+                </?01M05F1P72P7BV97B9MJZ9F53F>
+                <When ?01M05F1P72P7BV97B9MJZ9F53G>
+                the effect starts, completes or fails
+                </?01M05F1P72P7BV97B9MJZ9F53G>
+                <Then ?01M05F1P72P7BV97B9MJZ9F53H>
+                Eidolon actor/session/runtime-control SHALL retain lifecycle authority and workflow facts SHALL only reference it
+                </?01M05F1P72P7BV97B9MJZ9F53H>
+              )>
+              <Case #native-no-mcp-surface (
+                <Given ?01M05F1P72P7BV97B9MJZ9F53J>
+                conversation, TUI or CLI uses workflow capability
+                </?01M05F1P72P7BV97B9MJZ9F53J>
+                <When ?01M05F1P72P7BV97B9MJZ9F53K>
+                it reads or mutates authoring/run facts
+                </?01M05F1P72P7BV97B9MJZ9F53K>
+                <Then ?01M05F1P72P7BV97B9MJZ9F53M>
+                it SHALL call native component services without MCP, external agent CLI or private mutation paths
+                </?01M05F1P72P7BV97B9MJZ9F53M>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,124 @@
+<Track #complete-eidolon-workflow-human-product-experience version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让普通用户用一个业务目标完成 workflow 的选择、创建、推断、确认、执行与业务结果获取。" description = "增加业务场景 catalog、产品 journey coordinator、WorkflowFulfill native tool、共享 CLI agent 入口和 business-language E2E corpus。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-08T13:20:00Z" updated_at = "2026-08-08T13:30:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "workflow-source" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+    <MaterialBundle { role = "output" name = "kernel-source" domain = "code" path = "vfs://@/cell/packages/mod-ai-kernel/" }>
+    <MaterialBundle { role = "output" name = "cli-source" domain = "code" path = "vfs://@/terminal/packages/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_complete-eidolon-workflow-human-product-experience { name = "complete-eidolon-workflow-human-product-experience" } (
+    <Description ?01M05F1PRF3WVPK38K2P4C6ASP>
+    Implement a business-language product journey above the native workflow lifecycle.
+    </?01M05F1PRF3WVPK38K2P4C6ASP>
+    <SubNodes [
+      <TaskGroup #P1 { name = "产品契约与业务场景" status = "DONE" order = 0 } (
+        <Description ?01M05F1PRF3WVPK38K2P4C6ASQ>
+        用业务 corpus 锁定路由、场景、journey 和输出隔离，再实现确定性产品 contracts。
+        </?01M05F1PRF3WVPK38K2P4C6ASQ>
+        <Gate [
+          <Criterion ?01M05F1PRF3WVPK38K2P4C6ASR>
+          路由与场景测试覆盖 direct、ctrl、data、composite 和至少八类业务请求
+          </?01M05F1PRF3WVPK38K2P4C6ASR>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "建立 business-language corpus 与失败测试" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PRF3WVPK38K2P4C6ASS>
+              corpus 不要求任何 workflow 内部字段
+              </?01M05F1PRF3WVPK38K2P4C6ASS>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "实现 scenario catalog、intent router 与 journey plan" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PRF3WVPK38K2P4C6AST>
+              route/scenario/authorization source 可测试且 direct 不强制 workflow
+              </?01M05F1PRF3WVPK38K2P4C6AST>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "共享高层 native tool" status = "DONE" order = 1 } (
+        <Description ?01M05F1PRF3WVPK38K2P4C6ASV>
+        实现 WorkflowFulfill 和专用 coordinator actor contract，复用现有 authoring/lifecycle/runtime tools。
+        </?01M05F1PRF3WVPK38K2P4C6ASV>
+        <Gate [
+          <Criterion ?01M05F1PRF3WVPK38K2P4C6ASW>
+          工具只协调现有 authority，无新 parser/store/runtime 或外部进程
+          </?01M05F1PRF3WVPK38K2P4C6ASW>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "实现 WorkflowFulfill 标准化 tool 与 business projection" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PRF3WVPK38K2P4C6ASX>
+              普通请求只需 request，内部产生 route/scenario/journey
+              </?01M05F1PRF3WVPK38K2P4C6ASX>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PRF3WVPK38K2P4C6ASY>
+              direct 返回当前 actor，workflow route 使用 Eidolon child actor
+              </?01M05F1PRF3WVPK38K2P4C6ASY>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "实现 author-proof-infer-instance-run journey 协调协议" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PRF3WVPK38K2P4C6ASZ>
+              发布与执行独立授权且未授权状态可恢复
+              </?01M05F1PRF3WVPK38K2P4C6ASZ>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PRF3WVPK38K2P4C6AT0>
+              只调用既有 native workflow tools
+              </?01M05F1PRF3WVPK38K2P4C6AT0>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "对话与 CLI 产品入口" status = "DONE" order = 2 } (
+        <Description ?01M05F1PRF3WVPK38K2P4C6AT1>
+        让 kernel 与 `eidolon workflow agent` 共享 WorkflowFulfill，保留专家入口。
+        </?01M05F1PRF3WVPK38K2P4C6AT1>
+        <SubNodes [
+          <Task { id = "T3.1" name = "更新 kernel 普通业务路由与专家覆盖" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PRF3WVPK38K2P4C6AT2>
+              普通用户不需感知 form/node/port/policy/XNL/path
+              </?01M05F1PRF3WVPK38K2P4C6AT2>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "增加 workflow agent CLI 并复用 native tool" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PRF3WVPK38K2P4C6AT3>
+              CLI 不实现私有 journey，不调用 MCP 或外部 agent CLI
+              </?01M05F1PRF3WVPK38K2P4C6AT3>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "实现默认业务态输出与 expert debug projection" status = "DONE" order = 2 priority = "P1" }>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "真实体验回归与构建" status = "DONE" order = 3 } (
+        <Description ?01M05F1PRF3WVPK38K2P4C6AT4>
+        验证 corpus、native registry、对话/CLI acceptance、runtime recovery 和 production builds。
+        </?01M05F1PRF3WVPK38K2P4C6AT4>
+        <Gate [
+          <Criterion ?01M05F1PRF3WVPK38K2P4C6AT5>
+          focused/full workflow tests、CLI/TUI build、compiled smoke 和 strict validation 全部通过
+          </?01M05F1PRF3WVPK38K2P4C6AT5>
+        ]>
+        <SubNodes [
+          <Task { id = "T4.1" name = "执行 business corpus 与 fake/real actor journey tests" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1PRF3WVPK38K2P4C6AT6>
+              至少一个跨入口 journey 走到可执行/终态且内部词汇不出现在默认输出
+              </?01M05F1PRF3WVPK38K2P4C6AT6>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "执行 CLI/TUI build、compiled smoke 与 strict validate" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1PRF3WVPK38K2P4C6AT7>
+              安装产物包含 workflow agent 且基础回归无退化
+              </?01M05F1PRF3WVPK38K2P4C6AT7>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+  <Hooks>
+)>

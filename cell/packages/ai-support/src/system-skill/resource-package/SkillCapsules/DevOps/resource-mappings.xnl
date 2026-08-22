@@ -1,0 +1,15 @@
+<ResourceMappings #Eidolon.Anchor.ResourceMappings.DevOps apiVersion="halfcode.resources/v1" version="1.0.0" (
+  <SourceRoots [
+    <SourceRoot #EidolonDevOps { sourceRoot = "vfs://module/EidolonAnchorSystemSkills/" } [
+      <CopyDirectory { from = "content/devops/planning" to = "planning" }>
+      <CopyDirectory { from = "content/devops/coding" to = "coding" }>
+      <CopyDirectory { from = "content/devops/building" to = "building" }>
+      <CopyDirectory { from = "content/devops/testing" to = "testing" }>
+      <CopyDirectory { from = "content/devops/releasing" to = "releasing" }>
+      <CopyDirectory { from = "content/devops/deploying" to = "deploying" }>
+      <CopyDirectory { from = "content/devops/operating" to = "operating" }>
+      <CopyDirectory { from = "content/devops/monitoring" to = "monitoring" }>
+      <CopyDirectory { from = "content/devops/improving" to = "improving" }>
+    ]>
+  ]>
+)>

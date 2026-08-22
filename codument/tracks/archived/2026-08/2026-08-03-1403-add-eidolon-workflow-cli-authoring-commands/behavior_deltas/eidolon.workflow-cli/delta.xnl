@@ -1,0 +1,52 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_3_-_1_4_0_3_-_a_d_d_-_e_i_d_o_l_o_n_-_w_o_r_k_f_l_o_w_-_c_l_i_-_a_u_t_h_o_r_i_n_g_-_c_o_m_m_a_n_d_s.behavior_patch.eidolon.workflow-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.workflow-cli" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon.workflow-cli/requirements/component-backed-authoring" } (
+      <Requirement #component-backed-authoring (
+        <Statement ?01M05F1PNMFT6W96D8QDBEXH61>
+        The Eidolon CLI SHALL expose workflow authoring commands that reuse the Eidolon workflow component/service instead of implementing independent workflow core logic.
+        </?01M05F1PNMFT6W96D8QDBEXH61>
+        <Suites [
+          <Suite #workflow-init { name = "Workflow init" } (
+            <Cases [
+              <Case #init-writes-controlled-draft (
+                <Given ?01M05F1PNMFT6W96D8QDBEXH62>
+                a user runs `eidolon workflow init ai-data demo`
+                </?01M05F1PNMFT6W96D8QDBEXH62>
+                <When ?01M05F1PNMFT6W96D8QDBEXH63>
+                the command creates files
+                </?01M05F1PNMFT6W96D8QDBEXH63>
+                <Then ?01M05F1PNMFT6W96D8QDBEXH64>
+                the CLI SHALL obtain the bundle draft from the workflow component and write the returned files under the selected `.eidolon` target root
+                </?01M05F1PNMFT6W96D8QDBEXH64>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://eidolon.workflow-cli/requirements/workflow-roots-metadata" } (
+      <Requirement #workflow-roots-metadata (
+        <Statement ?01M05F1PNMFT6W96D8QDBEXH65>
+        Headless Eidolon runtime metadata SHALL include AI workflow roots so native workflow tools can detect workspace/global workflow roots during CLI conversations.
+        </?01M05F1PNMFT6W96D8QDBEXH65>
+        <Suites [
+          <Suite #exec-runtime-metadata { name = "Exec runtime metadata" } (
+            <Cases [
+              <Case #inject-aiworkflow-roots (
+                <Given ?01M05F1PNMFT6W96D8QDBEXH66>
+                headless exec runtime metadata is built
+                </?01M05F1PNMFT6W96D8QDBEXH66>
+                <When ?01M05F1PNMFT6W96D8QDBEXH67>
+                WorkflowInspectCapability runs in that runtime
+                </?01M05F1PNMFT6W96D8QDBEXH67>
+                <Then ?01M05F1PNMFT6W96D8QDBEXH68>
+                the tool SHALL report workflowRootsInjected=true
+                </?01M05F1PNMFT6W96D8QDBEXH68>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

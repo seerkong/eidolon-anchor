@@ -90,11 +90,14 @@ function factRoot(runtime: WorkflowRuntime, workspaceRoot: string): string {
     : path.join(workspaceRoot, ".runtime")
 }
 
-function runRef(descriptor: WorkflowRunDescriptor): AIWorkflowRunRef {
+function runRef(
+  descriptor: WorkflowRunDescriptor,
+  definition: ResolvedWorkflowDefinition,
+): AIWorkflowRunRef {
   return Object.freeze({
     workflow: Object.freeze({
       ref: descriptor.workflowRef,
-      scheme: descriptor.workflowRef.startsWith("resource://") ? "resource" : "vfs",
+      scheme: definition.resourceReceipt ? "resource" : "vfs",
     }),
     runId: descriptor.runId,
     generation: descriptor.generation,
@@ -113,9 +116,10 @@ export class WorkflowRuntimeService {
   constructor(private readonly runtime: WorkflowRuntime) {
     const component = createWorkflowComponentForRuntime(runtime)
     if (!component.authoring) throw new Error("Workflow authoring workspace is not bound")
+    if (!component.repository) throw new Error("Workflow definition repository is not bound")
     this.workspace = component.authoring
     this.catalog = component.catalog
-    this.repository = new WorkflowDefinitionRepository(component.authoring)
+    this.repository = component.repository
     this.facts = new WorkflowFactStore(factRoot(runtime, component.authoring.store.rootPath))
     this.materials = new WorkflowMaterialService(component.authoring, this.facts)
   }
@@ -186,6 +190,7 @@ export class WorkflowRuntimeService {
       files: prebuilt.files,
       form: prebuilt.form,
       sourceBundlePath: `prebuilt:${prebuilt.id}`,
+      workflowRef: `builtin://workflow/${prebuilt.id}`,
     })
     await this.facts.saveDefinitionRevision(frozen)
     const requestFingerprint = fingerprint({
@@ -236,11 +241,12 @@ export class WorkflowRuntimeService {
   async flowSummary(runId: string): Promise<Record<string, unknown> | undefined> {
     const descriptor = await this.facts.loadDescriptor(runId)
     if (!descriptor) return undefined
+    const { bundlePath: _physicalBundlePath, ...portableDescriptor } = descriptor
     return {
       ok: true,
       kind: "workflow.flowSummary",
       run: await this.status(runId),
-      descriptor,
+      descriptor: portableDescriptor,
       instance: descriptor.instanceId ? await this.facts.loadInstance(descriptor.instanceId) : undefined,
       receipt: await this.facts.loadRunReceipt(runId),
     }
@@ -534,7 +540,7 @@ export class WorkflowRuntimeService {
     if (definition.binding.kind !== "AICtrlWorkflow") throw new Error("Expected AICtrlWorkflow binding")
     const component = createWorkflowComponentForRuntime(this.runtime)
     if (!component.authoring) throw new Error("Workflow authoring workspace is not bound")
-    const activeRunAuthority = runRef(descriptor)
+    const activeRunAuthority = runRef(descriptor, definition)
     return createAICtrlWorkflowController({
       binding: definition.binding,
       store: this.facts,
@@ -548,6 +554,10 @@ export class WorkflowRuntimeService {
           this.facts,
           (request, output) => this.captureMaterialOutput(request.run.runId, request.nodeId ?? "effect", output.path),
           () => activeRunAuthority,
+          {
+            workflowForm: descriptor.form,
+            resourceRegistry: component.resourceRegistry,
+          },
         ),
         metadata: { run: activeRunAuthority },
       },
@@ -555,6 +565,7 @@ export class WorkflowRuntimeService {
   }
 
   private createDataDriver(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): AIDataWorkflowRuntimeDriver {
+    const component = createWorkflowComponentForRuntime(this.runtime)
     return new AIDataWorkflowRuntimeDriver(
       this.runtime,
       this.workspace,
@@ -563,6 +574,7 @@ export class WorkflowRuntimeService {
       definition,
       runtimeRoots(this.runtime, this.workspace.store.rootPath),
       (request, output) => this.captureMaterialOutput(request.run.runId, request.nodeId ?? "effect", output.path),
+      component.resourceRegistry,
     )
   }
 

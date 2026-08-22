@@ -1,0 +1,39 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_3_-_1_4_2_6_-_a_d_d_-_e_i_d_o_l_o_n_-_w_o_r_k_f_l_o_w_-_r_u_n_t_i_m_e_-_r_u_n_-_t_o_o_l_s.behavior_patch.eidolon.workflow-runtime-tools apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.workflow-runtime-tools" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon.workflow-runtime-tools/requirements/detached-actor-backed-run" } (
+      <Requirement #detached-actor-backed-run (
+        <Statement ?01M05F1PNQZHZH3KAHQH2693EE>
+        Eidolon workflow run tools SHALL reuse existing detached actor runtime facts for AI agent task execution and observation instead of introducing a workflow-specific runtime store.
+        </?01M05F1PNQZHZH3KAHQH2693EE>
+        <Suites [
+          <Suite #run-status-result { name = "Run status result" } (
+            <Cases [
+              <Case #workflow-run-delegates-to-actor (
+                <Given ?01M05F1PNQZHZH3KAHQH2693EF>
+                a workflow run request contains a valid workflow resource ref
+                </?01M05F1PNQZHZH3KAHQH2693EF>
+                <When ?01M05F1PNQZHZH3KAHQH2693EG>
+                WorkflowRun executes
+                </?01M05F1PNQZHZH3KAHQH2693EG>
+                <Then ?01M05F1PNQZHZH3KAHQH2693EH>
+                the tool SHALL delegate execution to Eidolon actor infrastructure and return detached task evidence
+                </?01M05F1PNQZHZH3KAHQH2693EH>
+              )>
+              <Case #workflow-status-uses-detached-registry (
+                <Given ?01M05F1PNQZHZH3KAHQH2693EJ>
+                a workflow run id maps to a detached actor task id
+                </?01M05F1PNQZHZH3KAHQH2693EJ>
+                <When ?01M05F1PNQZHZH3KAHQH2693EK>
+                WorkflowStatus, WorkflowEvents or WorkflowResult executes
+                </?01M05F1PNQZHZH3KAHQH2693EK>
+                <Then ?01M05F1PNQZHZH3KAHQH2693EM>
+                the tools SHALL read existing detached actor registry or observability facts
+                </?01M05F1PNQZHZH3KAHQH2693EM>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

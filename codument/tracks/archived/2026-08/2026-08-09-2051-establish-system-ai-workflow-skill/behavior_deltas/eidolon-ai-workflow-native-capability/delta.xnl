@@ -1,0 +1,242 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_9_-_2_0_5_1_-_e_s_t_a_b_l_i_s_h_-_s_y_s_t_e_m_-_a_i_-_w_o_r_k_f_l_o_w_-_s_k_i_l_l.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/natural-language-authoring" } (
+      <Requirement #natural-language-authoring (
+        <Statement ?01M05F1PS8DFTMCMMFD7WRT74E>
+        The system SHALL let humans create, edit and run canonical AI workflows in ordinary language by loading the system-owned AI Workflow Skill into a dedicated Eidolon workflow actor, while deterministic code only validates and applies explicit structured operations.
+        </?01M05F1PS8DFTMCMMFD7WRT74E>
+        <Suites [
+          <Suite #skill-authority { name = "System AI Workflow Skill authority" } (
+            <Cases [
+              <Case #global-skill-location (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT74F>
+                An Eidolon installation resolves its global directory, defaulting to `~/.eidolon`
+                </?01M05F1PS8DFTMCMMFD7WRT74F>
+                <When ?01M05F1PS8DFTMCMMFD7WRT74G>
+                The user runs `eidolon global init` and the AI Workflow capability is later composed
+                </?01M05F1PS8DFTMCMMFD7WRT74G>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT74H>
+                The command SHALL install or replace the managed canonical Skill at `skills/sys-ai-workflow`, and runtime SHALL resolve it from that global directory
+                </?01M05F1PS8DFTMCMMFD7WRT74H>
+              )>
+              <Case #global-init-extensible-system-skill-set (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT74J>
+                An Eidolon release bundles one or more versioned `sys-*` Skills
+                </?01M05F1PS8DFTMCMMFD7WRT74J>
+                <When ?01M05F1PS8DFTMCMMFD7WRT74K>
+                The user runs `eidolon global init` repeatedly or upgrades Eidolon and runs it again
+                </?01M05F1PS8DFTMCMMFD7WRT74K>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT74M>
+                The command SHALL stage, validate and atomically reconcile every managed system Skill listed in `.system-skills.xnl` while preserving unmanaged user Skills
+                </?01M05F1PS8DFTMCMMFD7WRT74M>
+              )>
+              <Case #system-skill-cannot-be-shadowed (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT74N>
+                A workspace contains a skill with the same `sys-ai-workflow` identity as the global system Skill
+                </?01M05F1PS8DFTMCMMFD7WRT74N>
+                <When ?01M05F1PS8DFTMCMMFD7WRT74P>
+                The workflow product composes its actor
+                </?01M05F1PS8DFTMCMMFD7WRT74P>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT74Q>
+                The system MUST use the global system installation or report an installation error and MUST NOT allow the workspace skill to shadow it
+                </?01M05F1PS8DFTMCMMFD7WRT74Q>
+              )>
+              <Case #model-owned-semantics (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT74R>
+                A user supplies an ordinary-language workflow goal
+                </?01M05F1PS8DFTMCMMFD7WRT74R>
+                <When ?01M05F1PS8DFTMCMMFD7WRT74S>
+                The system decides whether and how to author or run a workflow
+                </?01M05F1PS8DFTMCMMFD7WRT74S>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT74T>
+                The dedicated workflow actor SHALL interpret the request through `sys-ai-workflow` and SHALL choose the native tools, workflow form, starting facts and workspace edits
+                </?01M05F1PS8DFTMCMMFD7WRT74T>
+              )>
+              <Case #no-code-fuzzy-routing (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT74V>
+                AI Workflow production source is inspected
+                </?01M05F1PS8DFTMCMMFD7WRT74V>
+                <When ?01M05F1PS8DFTMCMMFD7WRT74W>
+                Natural-language intent, scenario, authorization or workflow topology is determined
+                </?01M05F1PS8DFTMCMMFD7WRT74W>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT74X>
+                The system MUST NOT use regex, keyword matching, substring matching or ordered heuristic rules in deterministic code to make that semantic decision
+                </?01M05F1PS8DFTMCMMFD7WRT74X>
+              )>
+              <Case #structured-component-boundary (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT74Y>
+                The workflow actor calls a native workflow tool with explicit structured arguments
+                </?01M05F1PS8DFTMCMMFD7WRT74Y>
+                <When ?01M05F1PS8DFTMCMMFD7WRT74Z>
+                The WorkflowComponent handles the call
+                </?01M05F1PS8DFTMCMMFD7WRT74Z>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT750>
+                The component SHALL validate schemas, resource refs, paths, revisions, proofs and authorization gates without reinterpreting the original natural language
+                </?01M05F1PS8DFTMCMMFD7WRT750>
+              )>
+            ]>
+          )>
+          <Suite #prompt-composition { name = "DevOps-stage progressive prompt composition" } (
+            <Cases [
+              <Case #devops-directory-structure (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT751>
+                The installed `sys-ai-workflow` Skill is inspected on disk
+                </?01M05F1PS8DFTMCMMFD7WRT751>
+                <When ?01M05F1PS8DFTMCMMFD7WRT752>
+                Its lifecycle resources are enumerated
+                </?01M05F1PS8DFTMCMMFD7WRT752>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT753>
+                The Skill SHALL expose `planning`, `coding`, `building`, `testing`, `releasing`, `deploying`, `operating` and `monitoring` parent directories, each with stage-owned system instructions and protocol
+                </?01M05F1PS8DFTMCMMFD7WRT753>
+              )>
+              <Case #router-versus-generation-kernel (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT754>
+                The dedicated actor enters the coding stage
+                </?01M05F1PS8DFTMCMMFD7WRT754>
+                <When ?01M05F1PS8DFTMCMMFD7WRT755>
+                Its system context is assembled
+                </?01M05F1PS8DFTMCMMFD7WRT755>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT756>
+                The system SHALL include `coding/system.md` and the full `coding/generation-kernel.md`; a navigation-only root `SKILL.md` MUST NOT substitute for the generation kernel
+                </?01M05F1PS8DFTMCMMFD7WRT756>
+              )>
+              <Case #non-coding-prompt-isolation (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT757>
+                The dedicated actor enters building, testing, releasing, deploying, operating or monitoring
+                </?01M05F1PS8DFTMCMMFD7WRT757>
+                <When ?01M05F1PS8DFTMCMMFD7WRT758>
+                Its system context and tool policy are assembled
+                </?01M05F1PS8DFTMCMMFD7WRT758>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT759>
+                The system SHALL load only the selected lifecycle stage resources without the coding generation kernel and SHALL expose only tools valid for that stage
+                </?01M05F1PS8DFTMCMMFD7WRT759>
+              )>
+              <Case #prompt-body-not-in-code (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT75A>
+                AI Workflow prompt layers and scenario guidance are inspected
+                </?01M05F1PS8DFTMCMMFD7WRT75A>
+                <When ?01M05F1PS8DFTMCMMFD7WRT75B>
+                The runtime composes a stage system prompt
+                </?01M05F1PS8DFTMCMMFD7WRT75B>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT75C>
+                Prompt prose SHALL come from the installed global Skill resources while code only selects named layers from an explicit stage
+                </?01M05F1PS8DFTMCMMFD7WRT75C>
+              )>
+            ]>
+          )>
+          <Suite #stage-products { name = "Separated authoring and run products" } (
+            <Cases [
+              <Case #authoring-stage (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT75D>
+                A user asks to create or edit a workflow
+                </?01M05F1PS8DFTMCMMFD7WRT75D>
+                <When ?01M05F1PS8DFTMCMMFD7WRT75E>
+                The AI Workflow Skill handles the authoring stage
+                </?01M05F1PS8DFTMCMMFD7WRT75E>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT75F>
+                The actor SHALL produce or modify canonical flow DSL in one recoverable workspace, then diff, validate and dry-run the exact revision before requesting publication confirmation
+                </?01M05F1PS8DFTMCMMFD7WRT75F>
+              )>
+              <Case #run-stage (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT75G>
+                A published workflow revision exists
+                </?01M05F1PS8DFTMCMMFD7WRT75G>
+                <When ?01M05F1PS8DFTMCMMFD7WRT75H>
+                The user asks to prepare, execute or continue it
+                </?01M05F1PS8DFTMCMMFD7WRT75H>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT75J>
+                The AI Workflow Skill SHALL enter a distinct run-stage interaction that resolves inputs and Materials, previews the immutable revision and requires independent execution authorization
+                </?01M05F1PS8DFTMCMMFD7WRT75J>
+              )>
+              <Case #flow-dsl-knowledge (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT75K>
+                The workflow actor authors canonical workflow files
+                </?01M05F1PS8DFTMCMMFD7WRT75K>
+                <When ?01M05F1PS8DFTMCMMFD7WRT75M>
+                It needs flow DSL structure or profile-specific AI workflow semantics
+                </?01M05F1PS8DFTMCMMFD7WRT75M>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT75N>
+                The installed Skill SHALL provide under `coding/flow-dsl` a self-contained, provenance-tracked `foundation/std/spec` tree containing the L1 foundation, EagerDataFlow/WorkCtrlFlow substrate and AI Workflow profile skeleton required to generate canonical files without inventing syntax
+                </?01M05F1PS8DFTMCMMFD7WRT75N>
+              )>
+              <Case #fresh-proof-after-edit (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT75P>
+                An authoring workspace revision has previously passed validation and dry-run
+                </?01M05F1PS8DFTMCMMFD7WRT75P>
+                <When ?01M05F1PS8DFTMCMMFD7WRT75Q>
+                The actor changes any file in the mutable workspace
+                </?01M05F1PS8DFTMCMMFD7WRT75Q>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT75R>
+                The system SHALL invalidate the old proof and MUST require validation and dry-run of the new exact revision before publication
+                </?01M05F1PS8DFTMCMMFD7WRT75R>
+              )>
+              <Case #runtime-facts-do-not-rewrite-definition (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT75S>
+                An AICtrlWorkflow snapshot or AIDataWorkflow RunGraph changes during execution
+                </?01M05F1PS8DFTMCMMFD7WRT75S>
+                <When ?01M05F1PS8DFTMCMMFD7WRT75T>
+                The runtime persists progress, decisions, patches, generations or invalidations
+                </?01M05F1PS8DFTMCMMFD7WRT75T>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT75V>
+                The system MUST keep those facts in the runtime owner and MUST NOT rewrite the published XNL definition or authoring layout
+                </?01M05F1PS8DFTMCMMFD7WRT75V>
+              )>
+            ]>
+          )>
+          <Suite #devops-lifecycle { name = "AI Workflow DevOps lifecycle" } (
+            <Cases [
+              <Case #actor-selects-stage (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT75W>
+                A user request and current workflow facts enter the dedicated actor
+                </?01M05F1PS8DFTMCMMFD7WRT75W>
+                <When ?01M05F1PS8DFTMCMMFD7WRT75X>
+                The next lifecycle action is selected
+                </?01M05F1PS8DFTMCMMFD7WRT75X>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT75Y>
+                The actor SHALL select planning, coding, building, testing, releasing, deploying, operating or monitoring, while host code MUST NOT infer that stage from natural-language keywords
+                </?01M05F1PS8DFTMCMMFD7WRT75Y>
+              )>
+              <Case #stage-fact-ownership (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT75Z>
+                A workflow advances across the DevOps lifecycle
+                </?01M05F1PS8DFTMCMMFD7WRT75Z>
+                <When ?01M05F1PS8DFTMCMMFD7WRT760>
+                definition, proof, publication, instance, run or monitoring facts change
+                </?01M05F1PS8DFTMCMMFD7WRT760>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT761>
+                Each stage SHALL consume and produce only its declared facts, and runtime or monitoring facts MUST NOT rewrite the definition
+                </?01M05F1PS8DFTMCMMFD7WRT761>
+              )>
+            ]>
+          )>
+          <Suite #cross-surface-authoring { name = "Cross-surface natural-language authoring" } (
+            <Cases [
+              <Case #conversation-authoring (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT762>
+                A user describes a workflow in ordinary language during an Eidolon conversation
+                </?01M05F1PS8DFTMCMMFD7WRT762>
+                <When ?01M05F1PS8DFTMCMMFD7WRT763>
+                The AI kernel routes the request to the workflow product
+                </?01M05F1PS8DFTMCMMFD7WRT763>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT764>
+                The same dedicated workflow actor and global Skill SHALL perform semantic authoring through native component tools
+                </?01M05F1PS8DFTMCMMFD7WRT764>
+              )>
+              <Case #cli-authoring (
+                <Given ?01M05F1PS8DFTMCMMFD7WRT765>
+                A user invokes an `eidolon workflow` command with ordinary language
+                </?01M05F1PS8DFTMCMMFD7WRT765>
+                <When ?01M05F1PS8DFTMCMMFD7WRT766>
+                The command enters the in-process Eidolon runtime
+                </?01M05F1PS8DFTMCMMFD7WRT766>
+                <Then ?01M05F1PS8DFTMCMMFD7WRT767>
+                The command SHALL use the same dedicated workflow actor and global Skill without invoking an external AI CLI
+                </?01M05F1PS8DFTMCMMFD7WRT767>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

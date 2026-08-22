@@ -4,7 +4,12 @@ import {
   type AiWorkflowResourceRefValidationResult,
   type AiWorkflowRootDescriptor,
 } from "@cell/ai-workflow-contract"
-import type { WorkflowAuthoringWorkspace } from "../authoring"
+import type { EidolonAppResourceRegistryAdapter } from "../../resources"
+import type {
+  EidolonReusableAgentBrief,
+  EidolonWorkflowAppBrief,
+  EidolonWorkflowAppDetail,
+} from "../../resources"
 import { WorkflowDefinitionRepository } from "../runtime/WorkflowDefinitionRepository"
 
 export type WorkflowCapabilityInspection = {
@@ -46,7 +51,25 @@ export function readWorkflowRootsFromRuntime(runtime: unknown): AiWorkflowRootDe
 }
 
 export class WorkflowQueryService {
-  constructor(private readonly authoring?: WorkflowAuthoringWorkspace) {}
+  constructor(
+    private readonly repository?: WorkflowDefinitionRepository,
+    private readonly resourceRegistry?: EidolonAppResourceRegistryAdapter,
+  ) {}
+
+  listApps(): Promise<readonly EidolonWorkflowAppBrief[]> {
+    if (!this.resourceRegistry) return Promise.resolve([])
+    return this.resourceRegistry.listApps()
+  }
+
+  getApp(resourceId: string): Promise<EidolonWorkflowAppDetail> {
+    if (!this.resourceRegistry) throw new Error("Eidolon resource registry is not bound")
+    return this.resourceRegistry.getApp(resourceId)
+  }
+
+  listReusableAgents(): Promise<readonly EidolonReusableAgentBrief[]> {
+    if (!this.resourceRegistry) return Promise.resolve([])
+    return this.resourceRegistry.listReusableAgents()
+  }
 
   inspectCapability(runtime: unknown): WorkflowCapabilityInspection {
     const boundary = summarizeAiWorkflowContractBoundary()
@@ -93,7 +116,7 @@ export class WorkflowQueryService {
         diagnostics: [{ level: "resource", code: "invalid-resource-ref", message: resourceRef.reason }],
       }
     }
-    if (!this.authoring) {
+    if (!this.repository) {
       return {
         ok: false,
         kind: "workflow.definitionValidation",
@@ -103,7 +126,7 @@ export class WorkflowQueryService {
       }
     }
     try {
-      const resolved = await new WorkflowDefinitionRepository(this.authoring).resolve(logicalRef)
+      const resolved = await this.repository.resolve(logicalRef)
       const definition = resolved.binding.definition as any
       const nodeIds = Array.isArray(definition.declarationOrder)
         ? definition.declarationOrder.map(String)
@@ -112,8 +135,9 @@ export class WorkflowQueryService {
           : Array.isArray(definition.nodes)
             ? definition.nodes.map((node: any) => String(node?.id ?? node?.name ?? "")).filter(Boolean)
             : []
-      const materialRefs = [...new Set(JSON.stringify(definition)
-        .match(/material:\/\/[^"\\\s]+/g) ?? [])]
+      const materialRefs = this.resourceRegistry
+        ? [...await this.resourceRegistry.listMaterialResourceRefsForWorkflow(resolved.workflowRef)]
+        : []
       return {
         ok: true,
         kind: "workflow.definitionValidation",

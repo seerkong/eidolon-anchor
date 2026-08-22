@@ -1,0 +1,212 @@
+<Track #establish-workflow-run-lifecycle version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "在 Eidolon native workflow component 中完整实现 workflow Type、Instance、Run 与 Material 产品生命周期。" description = "以 product contract 锁定两阶段运行、冻结 revision、等待恢复和 immutable Material receipt，再用 XNL/depa-flows 与 Eidolon actor/session authority 实现明确架构边界。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" modeling_base_commit = "f6068103550c3bada7c44ba13f4b00b030515d87" created_at = "2026-08-08T10:17:58Z" updated_at = "2026-08-08T11:05:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "input" name = "modeling-deltas" domain = "modeling" path = "vfs://./modeling_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+    <MaterialBundle { role = "output" name = "modeling" domain = "codument" path = "vfs://@/codument/modeling/" }>
+  ]>
+  <TaskSpace #space_establish-workflow-run-lifecycle { name = "establish-workflow-run-lifecycle" child_mode = "dag" } (
+    <Description ?01M05F1PR0VG54CV01QKW6BH66>
+    按 product contract、workflow facts、Material facts、运行/恢复 surface 和最终 acceptance 的顺序建立。
+    </?01M05F1PR0VG54CV01QKW6BH66>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Source baseline 与 RED acceptance fixtures" status = "DONE" order = 0 } (
+        <Description ?01M05F1PR0VG54CV01QKW6BH67>
+        把 source 的资源、Type/Instance/Run、Material 与等待恢复协议写成目标侧可执行 fixtures。
+        </?01M05F1PR0VG54CV01QKW6BH67>
+        <Gate [
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH68>
+          fixture 能证明当前 direct run 与 mutable latest binding 不满足源端协议
+          </?01M05F1PR0VG54CV01QKW6BH68>
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH69>
+          每个目标 case 能追溯到 required behavior，而非目标侧重新设计
+          </?01M05F1PR0VG54CV01QKW6BH69>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "建立 run 与 Material source acceptance fixtures" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PR0VG54CV01QKW6BH6A>
+            覆盖 Type/Instance、输入事实、独立确认、冻结 revision、resolve/reject、immutable Material、receipt replay 与 fresh-runtime recovery。
+            </?01M05F1PR0VG54CV01QKW6BH6A>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6B>
+              RED tests 明确拒绝未经确认的执行与不稳定 latest resolution
+              </?01M05F1PR0VG54CV01QKW6BH6B>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6C>
+              fixture 记录 source operation 到 target component/tool/CLI operation 的映射
+              </?01M05F1PR0VG54CV01QKW6BH6C>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Type、Instance 与冻结运行 facts" status = "DONE" order = 1 } (
+        <Description ?01M05F1PR0VG54CV01QKW6BH6D>
+        建立 definition revision、可重复实例化、输入事实和 confirmed start；禁止 start 后修改输入。
+        </?01M05F1PR0VG54CV01QKW6BH6D>
+        <Gate [
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH6E>
+          Run 永远从 Instance 的冻结 definition revision 创建
+          </?01M05F1PR0VG54CV01QKW6BH6E>
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH6F>
+          同一 idempotency key 相同请求重放、冲突请求拒绝
+          </?01M05F1PR0VG54CV01QKW6BH6F>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "实现 Type 与 Instance durable facts" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PR0VG54CV01QKW6BH6G>
+            把发布资源解析为 content revision，创建带 frozen bundle snapshot、form 与 input facts 的实例，并支持 list/get/update-before-start。
+            </?01M05F1PR0VG54CV01QKW6BH6G>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6H>
+              后续发布同 resource ref 不改变既有 instance 的 definition revision
+              </?01M05F1PR0VG54CV01QKW6BH6H>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6J>
+              实例创建和 run-id start 具有请求指纹幂等与冲突检测
+              </?01M05F1PR0VG54CV01QKW6BH6J>
+            ]>
+          )>
+          <Task #P2-T2 { name = "实现独立确认与冻结 start" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PR0VG54CV01QKW6BH6K>
+            start 未确认仅返回预览；确认后冻结 definition、input 与 bindings，创建 descriptor/receipt 并执行 depa-flows runtime。
+            </?01M05F1PR0VG54CV01QKW6BH6K>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6M>
+              未经 confirmed=true 不产生 descriptor、actor effect 或 run event
+              </?01M05F1PR0VG54CV01QKW6BH6M>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6N>
+              运行后 input vars 不可修改，descriptor 含 frozen definition revision 与 instance id
+              </?01M05F1PR0VG54CV01QKW6BH6N>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Immutable Material 生命周期与 receipts" status = "DONE" order = 2 } (
+        <Description ?01M05F1PR0VG54CV01QKW6BH6P>
+        建立 import/inspect/bind/export/replay/cleanup，所有运行输入输出都指向精确 immutable revision。
+        </?01M05F1PR0VG54CV01QKW6BH6P>
+        <Gate [
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH6Q>
+          Material revision content-addressed 且 manifest/provenance 可审计
+          </?01M05F1PR0VG54CV01QKW6BH6Q>
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH6R>
+          replay 使用原 receipt 的精确 refs，不跟随后来 binding
+          </?01M05F1PR0VG54CV01QKW6BH6R>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "实现 Material revision、binding 与 containment" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PR0VG54CV01QKW6BH6S>
+            实现 workspace-contained import/export、manifest/provenance、instance+node+port exact binding 和确认 gate。
+            </?01M05F1PR0VG54CV01QKW6BH6S>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6T>
+              相同内容去重，不同内容生成新 revision，逻辑 material ref 不可覆盖旧 revision
+              </?01M05F1PR0VG54CV01QKW6BH6T>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6V>
+              路径逃逸与 symlink 拒绝，export 未确认无文件写入
+              </?01M05F1PR0VG54CV01QKW6BH6V>
+            ]>
+          )>
+          <Task #P3-T2 { name = "实现 run receipts、replay 与 lease cleanup" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PR0VG54CV01QKW6BH6W>
+            start 冻结 input bindings，完成时登记 output refs；replay 建新 run 并继承精确 refs；cleanup 仅清理已确认且无 lease 的 revisions。
+            </?01M05F1PR0VG54CV01QKW6BH6W>
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6X>
+              receipt 同时保存 exact input/output revisions 与 provenance
+              </?01M05F1PR0VG54CV01QKW6BH6X>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M05F1PR0VG54CV01QKW6BH6Y>
+              后来 rebind 不影响 replay，leased revision 不被 cleanup 删除
+              </?01M05F1PR0VG54CV01QKW6BH6Y>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Native surface、等待与恢复" status = "DONE" order = 3 } (
+        <Description ?01M05F1PR0VG54CV01QKW6BH6Z>
+        让 conversation tools 与 CLI 复用 component lifecycle service，并以 Eidolon actor/session 恢复执行。
+        </?01M05F1PR0VG54CV01QKW6BH6Z>
+        <Gate [
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH70>
+          tool/CLI 没有私有事实写入或 direct-run bypass
+          </?01M05F1PR0VG54CV01QKW6BH70>
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH71>
+          fresh runtime 能按 stable run id 恢复 status、resolve/reject 和 result
+          </?01M05F1PR0VG54CV01QKW6BH71>
+        ]>
+        <SubNodes [
+          <Task #P4-T1 { name = "建立 resource/type/instance/run/material native tools" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PR0VG54CV01QKW6BH72>
+            补齐 inspect/validate/resolve、list/get/create/update/start/resolve/reject/summary 与 Material operation component tools，并绑定 CLI。
+            </?01M05F1PR0VG54CV01QKW6BH72>
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M05F1PR0VG54CV01QKW6BH73>
+              所有 mutation 经 component lifecycle service 且危险操作要求 confirmation
+              </?01M05F1PR0VG54CV01QKW6BH73>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M05F1PR0VG54CV01QKW6BH74>
+              CLI 与对话 tools 返回相同 structured product facts
+              </?01M05F1PR0VG54CV01QKW6BH74>
+            ]>
+          )>
+          <Task #P4-T2 { name = "验证等待、resolve/reject 与 fresh-runtime recovery" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PR0VG54CV01QKW6BH75>
+            让 pending wait/questionnaire 通过既有 Eidolon actor/session effect lifecycle 恢复，workflow store 仅记录关联 facts。
+            </?01M05F1PR0VG54CV01QKW6BH75>
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M05F1PR0VG54CV01QKW6BH76>
+              resolve/reject 精确命中 pending handle，错误 handle 不改变状态
+              </?01M05F1PR0VG54CV01QKW6BH76>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M05F1PR0VG54CV01QKW6BH77>
+              重新构造 VM/service 后无需当前 definition 即可恢复冻结 run
+              </?01M05F1PR0VG54CV01QKW6BH77>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Acceptance 验证与收口" status = "DONE" order = 4 } (
+        <Description ?01M05F1PR0VG54CV01QKW6BH78>
+        运行产品 acceptance tests、相关回归、compiled CLI/TUI smoke、build 与 strict validate。
+        </?01M05F1PR0VG54CV01QKW6BH78>
+        <Gate [
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH79>
+          product acceptance matrix 的 run/fact/material cases 全部有自动化 evidence
+          </?01M05F1PR0VG54CV01QKW6BH79>
+          <Criterion ?01M05F1PR0VG54CV01QKW6BH7A>
+          架构边界仅为 XNL、Eidolon roots、native surface 与 actor/session authority
+          </?01M05F1PR0VG54CV01QKW6BH7A>
+        ]>
+        <SubNodes [
+          <Task #P5-T1 { name = "执行最终 implementation acceptance verification" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PR0VG54CV01QKW6BH7B>
+            运行 focused/full tests、build、compiled smoke 和 Codument validators，更新 coverage 与 residual risks。
+            </?01M05F1PR0VG54CV01QKW6BH7B>
+            <Acceptance [
+              <Criterion #P5-T1-AC1 { checked = true } ?01M05F1PR0VG54CV01QKW6BH7C>
+              run/material focused tests 与已有 authoring/runtime tests 全绿
+              </?01M05F1PR0VG54CV01QKW6BH7C>
+              <Criterion #P5-T1-AC2 { checked = true } ?01M05F1PR0VG54CV01QKW6BH7D>
+              terminal CLI/TUI build、compiled smoke、strict validate 与 modeling validate 通过
+              </?01M05F1PR0VG54CV01QKW6BH7D>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_establish-workflow-run-lifecycle" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+      <Node #P5 [
+        <After { ref = "P4" }>
+      ]>
+    ]>
+  ]>
+  <Hooks>
+)>

@@ -1,38 +1,59 @@
-<decision #track.complete-eidolon-workflow-human-product-experience.primary-surface {
-  status = "accepted"
-  priority = "P0"
-} (
-  <question ?>普通用户的主入口应位于哪里？</?>
-  <answer { } (
-    <raw-answer ?>同意一个由对话与 CLI 共享的高层 native tool，低层能力作为专家入口。</?>
-    <decision-text ?>建立对话和 CLI 共享的 WorkflowFulfill native tool；CLI agent 命令只投影该 tool，低层命令保留为专家入口。</?>
-    <rationale ?>只有共享高层能力才能避免 TUI 与 CLI 再次形成两套产品协议。</?>
-    <evidence ?>用户要求对话与 CLI 复用同一标准化组件能力，并明确反对只添加 CLI 或提示词表面。</?>
+<decision #track.complete-eidolon-workflow-human-product-experience.primary-surface apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PRE226G539EZS1B0C6R>
+  普通用户的主入口应位于哪里？
+  </?01M05F1PRE226G539EZS1B0C6R>
+  <answer {  } (
+    <raw-answer ?01M05F1PRE226G539EZS1B0C6S>
+    同意一个由对话与 CLI 共享的高层 native tool，低层能力作为专家入口。
+    </?01M05F1PRE226G539EZS1B0C6S>
+    <decision-text ?01M05F1PRE226G539EZS1B0C6T>
+    建立对话和 CLI 共享的 WorkflowFulfill native tool；CLI agent 命令只投影该 tool，低层命令保留为专家入口。
+    </?01M05F1PRE226G539EZS1B0C6T>
+    <rationale ?01M05F1PRE226G539EZS1B0C6V>
+    只有共享高层能力才能避免 TUI 与 CLI 再次形成两套产品协议。
+    </?01M05F1PRE226G539EZS1B0C6V>
+    <evidence ?01M05F1PRE226G539EZS1B0C6W>
+    用户要求对话与 CLI 复用同一标准化组件能力，并明确反对只添加 CLI 或提示词表面。
+    </?01M05F1PRE226G539EZS1B0C6W>
   )>
 )>
 
-<decision #track.complete-eidolon-workflow-human-product-experience.gates {
-  status = "accepted"
-  priority = "P0"
-} (
-  <question ?>自然语言 journey 如何处理发布与执行授权？</?>
-  <answer { } (
-    <raw-answer ?>使用独立的 publication 与 execution gate。</?>
-    <decision-text ?>发布授权和执行授权保持独立；未明确授权时保留可恢复的已证明或已准备事实，绝不把 authoring 请求解释成执行许可。</?>
-    <rationale ?>这保持产品安全边界，同时允许一条自然语言旅程继续恢复。</?>
-    <evidence ?>已经归档的 authoring/run lifecycle behaviors 将发布与执行定义为独立确认。</?>
+<decision #track.complete-eidolon-workflow-human-product-experience.gates apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PRE226G539EZS1B0C6X>
+  自然语言 journey 如何处理发布与执行授权？
+  </?01M05F1PRE226G539EZS1B0C6X>
+  <answer {  } (
+    <raw-answer ?01M05F1PRE226G539EZS1B0C6Y>
+    使用独立的 publication 与 execution gate。
+    </?01M05F1PRE226G539EZS1B0C6Y>
+    <decision-text ?01M05F1PRE226G539EZS1B0C6Z>
+    发布授权和执行授权保持独立；未明确授权时保留可恢复的已证明或已准备事实，绝不把 authoring 请求解释成执行许可。
+    </?01M05F1PRE226G539EZS1B0C6Z>
+    <rationale ?01M05F1PRE226G539EZS1B0C70>
+    这保持产品安全边界，同时允许一条自然语言旅程继续恢复。
+    </?01M05F1PRE226G539EZS1B0C70>
+    <evidence ?01M05F1PRE226G539EZS1B0C71>
+    已经归档的 authoring/run lifecycle behaviors 将发布与执行定义为独立确认。
+    </?01M05F1PRE226G539EZS1B0C71>
   )>
 )>
 
-<decision #track.complete-eidolon-workflow-human-product-experience.route-default {
-  status = "accepted"
-  priority = "P1"
-} (
-  <question ?>路由不确定时怎样处理？</?>
-  <answer { } (
-    <raw-answer ?>不确定时采用保守默认，避免把简单任务强制 workflow 化。</?>
-    <decision-text ?>确定性 coordinator 使用保守 direct/generic 基线并把证据交给 Eidolon actor；只有存在明确 durable/data/control 信号时才创建 workflow，组合信号同时存在时选择 composite。</?>
-    <rationale ?>避免为了展示能力把简单请求强行 workflow 化，也给真实 actor 留出语义判断空间。</?>
-    <evidence ?>参考产品的自然语言 routing 规则明确区分直接任务与 durable process，且 mission QuestionSeverity 为 auto。</?>
+<decision #track.complete-eidolon-workflow-human-product-experience.route-default apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P1" } (
+  <question ?01M05F1PRE226G539EZS1B0C72>
+  路由不确定时怎样处理？
+  </?01M05F1PRE226G539EZS1B0C72>
+  <answer {  } (
+    <raw-answer ?01M05F1PRE226G539EZS1B0C73>
+    不确定时采用保守默认，避免把简单任务强制 workflow 化。
+    </?01M05F1PRE226G539EZS1B0C73>
+    <decision-text ?01M05F1PRE226G539EZS1B0C74>
+    确定性 coordinator 使用保守 direct/generic 基线并把证据交给 Eidolon actor；只有存在明确 durable/data/control 信号时才创建 workflow，组合信号同时存在时选择 composite。
+    </?01M05F1PRE226G539EZS1B0C74>
+    <rationale ?01M05F1PRE226G539EZS1B0C75>
+    避免为了展示能力把简单请求强行 workflow 化，也给真实 actor 留出语义判断空间。
+    </?01M05F1PRE226G539EZS1B0C75>
+    <evidence ?01M05F1PRE226G539EZS1B0C76>
+    参考产品的自然语言 routing 规则明确区分直接任务与 durable process，且 mission QuestionSeverity 为 auto。
+    </?01M05F1PRE226G539EZS1B0C76>
   )>
 )>

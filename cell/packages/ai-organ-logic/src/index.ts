@@ -1,6 +1,7 @@
 export { spawnChildExecutionActor } from "./agent/DelegateActor";
 export { forceCompressActorHistory, validateProviderPromptInputModalities } from "./exec/AiAgentExecutor";
 export * from "./workflow";
+export * from "./resources";
 export {
   createAiAgentOrchestratorDriver,
   createAiAgentOrchestratorDriverWithCooperative,
@@ -130,6 +131,18 @@ export {
   getLatestActorProviderReasoning,
   type ProviderCallDomainRuntime,
 } from "./runtime/ProviderCallDomainRuntime";
+export {
+  projectRuntimeTiming,
+  type RuntimeProviderRetryEntry,
+  type RuntimeProviderRetryFact,
+  type RuntimeProviderRetryReason,
+  type RuntimeProviderRetryTerminalCause,
+  type RuntimeProviderTimingEntry,
+  type RuntimeTimingProjection,
+  type RuntimeTimingProjectionInput,
+  type RuntimeTimingWindow,
+  type RuntimeToolTimingEntry,
+} from "./runtime/RuntimeTimingProjection";
 export {
   advanceActorWorkContextAfterTool,
   buildCompactionPolicyContextForActor,

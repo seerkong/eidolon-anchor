@@ -1,9 +1,0 @@
-<SystemSkill xmlns="urn:eidolon:system-skill:v1">
-  <Identity name="sys-ai-workflow" version="1.0.6" authority="global-only"/>
-  <Actor id="ai-workflow" semanticAuthority="model"/>
-  <Lifecycle>planning coding building testing releasing deploying operating monitoring</Lifecycle>
-  <Invariant id="no-host-language-heuristic"/>
-  <Invariant id="definition-publication-binding-run-separated"/>
-  <Invariant id="target-first-atomic-authoring"/>
-  <Invariant id="component-generated-terminal-receipt"/>
-</SystemSkill>

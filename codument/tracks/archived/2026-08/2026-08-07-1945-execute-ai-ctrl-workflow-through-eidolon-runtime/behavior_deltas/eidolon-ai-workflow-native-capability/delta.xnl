@@ -1,0 +1,61 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_7_-_1_9_4_5_-_e_x_e_c_u_t_e_-_a_i_-_c_t_r_l_-_w_o_r_k_f_l_o_w_-_t_h_r_o_u_g_h_-_e_i_d_o_l_o_n_-_r_u_n_t_i_m_e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/ai-ctrl-runtime" } (
+      <Requirement #ai-ctrl-runtime (
+        <Statement ?01M05F1PPRVX909DC5TWXCH7H7>
+        The system SHALL execute AICtrlWorkflow through the canonical WorkCtrlFlow controller while using Eidolon actor/tool/material/session authorities for effects and recovery.
+        </?01M05F1PPRVX909DC5TWXCH7H7>
+        <Suites [
+          <Suite #ctrl-runtime { name = "AICtrlWorkflow runtime" } (
+            <Cases [
+              <Case #real-graph-run (
+                <Given ?01M05F1PPRVX909DC5TWXCH7H8>
+                A canonical AICtrlWorkflow resource exists
+                </?01M05F1PPRVX909DC5TWXCH7H8>
+                <When ?01M05F1PPRVX909DC5TWXCH7H9>
+                WorkflowRun starts it
+                </?01M05F1PPRVX909DC5TWXCH7H9>
+                <Then ?01M05F1PPRVX909DC5TWXCH7HA>
+                The system SHALL load its binding and execute stable nodes through WorkCtrlFlow instead of delegating one opaque prompt
+                </?01M05F1PPRVX909DC5TWXCH7HA>
+              )>
+              <Case #wait-resume (
+                <Given ?01M05F1PPRVX909DC5TWXCH7HB>
+                A ctrl run opens an ExternalJob wait handle
+                </?01M05F1PPRVX909DC5TWXCH7HB>
+                <When ?01M05F1PPRVX909DC5TWXCH7HC>
+                WorkflowResume receives the matching signal and resume token
+                </?01M05F1PPRVX909DC5TWXCH7HC>
+                <Then ?01M05F1PPRVX909DC5TWXCH7HD>
+                The persisted snapshot SHALL resume idempotently and project stable node/invocation status
+                </?01M05F1PPRVX909DC5TWXCH7HD>
+              )>
+              <Case #effect-authority (
+                <Given ?01M05F1PPSEMCR55FYZFSK7HEZ>
+                Flow code invokes an embedded AI workflow effect
+                </?01M05F1PPSEMCR55FYZFSK7HEZ>
+                <When ?01M05F1PPSEMCR55FYZFSK7HF0>
+                The host handles it
+                </?01M05F1PPSEMCR55FYZFSK7HF0>
+                <Then ?01M05F1PPSEMCR55FYZFSK7HF1>
+                The effect SHALL use existing Eidolon actor/tool/material adapters and runtime-control evidence without copying their owned facts into workflow state
+                </?01M05F1PPSEMCR55FYZFSK7HF1>
+              )>
+              <Case #session-recovery (
+                <Given ?01M05F1PPSEMCR55FYZFSK7HF2>
+                A VM is reconstructed for the same session
+                </?01M05F1PPSEMCR55FYZFSK7HF2>
+                <When ?01M05F1PPSEMCR55FYZFSK7HF3>
+                Status or resume loads a prior run
+                </?01M05F1PPSEMCR55FYZFSK7HF3>
+                <Then ?01M05F1PPSEMCR55FYZFSK7HF4>
+                The controller SHALL be rebuilt from its descriptor and persisted workflow snapshot
+                </?01M05F1PPSEMCR55FYZFSK7HF4>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

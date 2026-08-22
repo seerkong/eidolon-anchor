@@ -39,7 +39,10 @@ export function createGlobalCommand(
           deps.stdout.write(`${JSON.stringify(result)}\n`);
           return;
         }
-        deps.stdout.write(`Initialized ${result.installed.join(", ")} under ${result.skillsRoot}\n`);
+        const installed = result.managed
+          .map((skill) => `${skill.name}@${skill.version} (${skill.source}, ${skill.digest})`)
+          .join(", ");
+        deps.stdout.write(`Initialized ${installed} under ${result.skillsRoot}\n`);
       },
     }).demandCommand(1),
     handler: () => undefined,

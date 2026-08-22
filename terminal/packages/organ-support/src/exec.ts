@@ -5,6 +5,8 @@ import type { MessageHistoryEvent } from "@cell/ai-core-logic/stream/MessageHist
 import {
   type ExecApprovalMode,
   ExecProtocolGraph,
+  projectRuntimeTiming,
+  type RuntimeTimingProjection,
 } from "@terminal/organ";
 import {
   buildExecRuntimeMetadata,
@@ -45,6 +47,7 @@ export type HeadlessExecResult = {
   finalMessage: string | null;
   warnings: string[];
   failureSummary: string | null;
+  timing: RuntimeTimingProjection;
   outputLastMessagePath?: string;
   outputTracePath?: string;
 };
@@ -83,6 +86,7 @@ type ExecTraceRecord =
       durationMs: number;
       finalMessageChars: number;
       visibleOutputChars: number;
+      timing: RuntimeTimingProjection;
     };
 
 export function parseExecConfigOverride(raw: string): { mcp: boolean } {
@@ -174,6 +178,20 @@ function appendExecTraceRecord(outputTracePath: string | undefined, record: Exec
   if (!tracePath) return;
   fs.mkdirSync(path.dirname(tracePath), { recursive: true });
   fs.appendFileSync(tracePath, `${JSON.stringify(record)}\n`, "utf-8");
+}
+
+function emptyRuntimeTiming(
+  sessionId: string,
+  startedAt: number,
+  endedAt: number,
+): RuntimeTimingProjection {
+  return projectRuntimeTiming({
+    sessionId,
+    startedAt,
+    endedAt,
+    providerCalls: [],
+    toolCalls: [],
+  })
 }
 
 function isRuntimeTurnNotCheckpointSafeError(message: string): boolean {
@@ -329,19 +347,29 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
       : undefined,
   });
 
-  const runtime = await getSessionRuntimeBridge(sessionKey);
+  let runtime: Awaited<ReturnType<typeof getSessionRuntimeBridge>> = null;
+  let runtimeInitializationFailure: string | null = null;
+  try {
+    runtime = await getSessionRuntimeBridge(sessionKey);
+  } catch (error) {
+    runtimeInitializationFailure = error instanceof Error ? error.message : String(error);
+  }
   if (!runtime) {
-    graph.fail("Runtime unavailable: failed to initialize model adapter from configuration");
+    graph.fail(runtimeInitializationFailure
+      ? `Runtime unavailable: ${runtimeInitializationFailure}`
+      : "Runtime unavailable: failed to initialize model adapter from configuration");
     const snapshot = graph.getSnapshot();
+    const timing = emptyRuntimeTiming(sessionKey, startedAtMs, Date.now());
     appendExecTraceRecord(options.outputTracePath, {
-      ts: new Date().toISOString(),
+      ts: new Date(timing.window.endedAt).toISOString(),
       type: "session_end",
       status: "failed",
       failureSummary: snapshot.failureSummary,
       warningCount: snapshot.warnings.length,
-      durationMs: Math.max(0, Date.now() - startedAtMs),
+      durationMs: timing.window.wallMs,
       finalMessageChars: snapshot.lastMessageContents?.length ?? 0,
       visibleOutputChars: snapshot.visibleOutput.length,
+      timing,
     });
     graph.dispose();
     return {
@@ -350,6 +378,7 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
       finalMessage: snapshot.lastMessageContents,
       warnings: [...snapshot.warnings],
       failureSummary: snapshot.failureSummary,
+      timing,
       outputLastMessagePath: options.outputLastMessagePath,
       outputTracePath: options.outputTracePath,
     };
@@ -357,6 +386,7 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
 
   let emittedLength = 0;
   let continuationCount = 0;
+  let timing = emptyRuntimeTiming(sessionKey, startedAtMs, startedAtMs);
   const emitVisibleDelta = async () => {
     const snapshot = graph.getSnapshot();
     const next = snapshot.visibleOutput.slice(emittedLength);
@@ -491,20 +521,26 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
     }
   } finally {
     await fatalToolAbort;
+    const endedAtMs = Date.now();
+    timing = runtime.readTimingProjection?.({
+      startedAt: startedAtMs,
+      endedAt: endedAtMs,
+    }) ?? emptyRuntimeTiming(sessionKey, startedAtMs, endedAtMs);
     historySub?.unsubscribe();
     await disposeSessionRuntimeBridge(sessionKey);
   }
 
   const snapshot = graph.getSnapshot();
   appendExecTraceRecord(options.outputTracePath, {
-    ts: new Date().toISOString(),
+    ts: new Date(timing.window.endedAt).toISOString(),
     type: "session_end",
     status: statusFromSnapshot(snapshot),
     failureSummary: snapshot.failureSummary,
     warningCount: snapshot.warnings.length + snapshot.processWarnings.length,
-    durationMs: Math.max(0, Date.now() - startedAtMs),
+    durationMs: timing.window.wallMs,
     finalMessageChars: snapshot.lastMessageContents?.length ?? 0,
     visibleOutputChars: snapshot.visibleOutput.length,
+    timing,
   });
   const allWarnings = [...snapshot.warnings, ...snapshot.processWarnings];
   const result: HeadlessExecResult = {
@@ -513,6 +549,7 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
     finalMessage: snapshot.lastMessageContents,
     warnings: allWarnings,
     failureSummary: snapshot.failureSummary,
+    timing,
     outputLastMessagePath: options.outputLastMessagePath,
     outputTracePath: options.outputTracePath,
   };

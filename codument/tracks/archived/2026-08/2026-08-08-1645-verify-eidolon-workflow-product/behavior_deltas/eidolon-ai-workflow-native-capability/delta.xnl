@@ -1,0 +1,58 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_8_-_1_6_4_5_-_v_e_r_i_f_y_-_e_i_d_o_l_o_n_-_w_o_r_k_f_l_o_w_-_p_r_o_d_u_c_t.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/workflow-product-acceptance" } (
+      <Requirement #workflow-product-acceptance (
+        <Statement ?01M05F1PRH1W118F5QSSGB6RAQ>
+        The system MUST provide executable end-to-end evidence for the complete Eidolon workflow lifecycle across architecture, human surfaces, distribution and recovery.
+        </?01M05F1PRH1W118F5QSSGB6RAQ>
+        <Suites [
+          <Suite #coverage { name = "Requirement coverage" } (
+            <Cases [
+              <Case #matrix-closed (
+                <Given ?01M05F1PRH1W118F5QSSGB6RAR>
+                The final implementation matrix is inspected
+                </?01M05F1PRH1W118F5QSSGB6RAR>
+                <When ?01M05F1PRH1W118F5QSSGB6RAS>
+                Each required behavior is evaluated
+                </?01M05F1PRH1W118F5QSSGB6RAS>
+                <Then ?01M05F1PRH1W118F5QSSGB6RAT>
+                Every row MUST identify implementation evidence, an explicit architecture boundary and executable verification with no unexplained missing or partial state
+                </?01M05F1PRH1W118F5QSSGB6RAT>
+              )>
+            ]>
+          )>
+          <Suite #distribution { name = "Compiled and installed distribution" } (
+            <Cases [
+              <Case #shared-installed-entry (
+                <Given ?01M05F1PRH1W118F5QSSGB6RAV>
+                Production CLI and TUI artifacts are built and installed into an isolated target
+                </?01M05F1PRH1W118F5QSSGB6RAV>
+                <When ?01M05F1PRH1W118F5QSSGB6RAW>
+                Conversation and workflow CLI capabilities are inspected or exercised
+                </?01M05F1PRH1W118F5QSSGB6RAW>
+                <Then ?01M05F1PRH1W118F5QSSGB6RAX>
+                Both MUST expose the same native WorkflowFulfill journey and component-backed lifecycle without MCP or an external agent CLI
+                </?01M05F1PRH1W118F5QSSGB6RAX>
+              )>
+            ]>
+          )>
+          <Suite #recovery { name = "Durable recovery" } (
+            <Cases [
+              <Case #fresh-runtime-recovery (
+                <Given ?01M05F1PRH1W118F5QSSGB6RAY>
+                Authoring, Ctrl and Data runs have persisted facts
+                </?01M05F1PRH1W118F5QSSGB6RAY>
+                <When ?01M05F1PRH1W118F5QSSGB6RAZ>
+                A fresh Eidolon runtime reads, resumes or replays them
+                </?01M05F1PRH1W118F5QSSGB6RAZ>
+                <Then ?01M05F1PRH1W118F5QSSGB6RB0>
+                The product MUST recover from frozen workflow facts and Eidolon-owned runtime facts without locating state by mutable graph position or host path
+                </?01M05F1PRH1W118F5QSSGB6RB0>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

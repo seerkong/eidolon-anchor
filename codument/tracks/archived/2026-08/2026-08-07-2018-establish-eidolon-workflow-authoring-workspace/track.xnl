@@ -1,0 +1,130 @@
+<Track #establish-eidolon-workflow-authoring-workspace version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 TUI 与 CLI 通过同一 native component authoring workspace 安全写入 workflow resources。" description = "建立 runtime-bound store、authoring transitions 和跨 surface 统一写入 authority。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-07T16:42:00Z" updated_at = "2026-08-07T17:18:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "cell-packages" domain = "source" path = "vfs://@/cell/packages/" }>
+    <MaterialBundle { role = "output" name = "terminal-cli" domain = "source" path = "vfs://@/terminal/packages/cli/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_establish-eidolon-workflow-authoring-workspace { name = "establish-eidolon-workflow-authoring-workspace" } (
+    <Description ?01M05F1PQ1F5S92BM68Y5S4YW9>
+    Shared runtime-bound workflow authoring workspace and surface adapters.
+    </?01M05F1PQ1F5S92BM68Y5S4YW9>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Authoring store and component binding" status = "DONE" order = 0 } (
+        <Description ?01M05F1PQ1F5S92BM68Y5S4YWA>
+        Define the explicit store contract, safe filesystem implementation and runtime-rooted component factory.
+        </?01M05F1PQ1F5S92BM68Y5S4YWA>
+        <Gate [
+          <Criterion ?01M05F1PQ1F5S92BM68Y5S4YWB>
+          Containment tests reject absolute and traversal paths
+          </?01M05F1PQ1F5S92BM68Y5S4YWB>
+          <Criterion ?01M05F1PQ1F5S92BM68Y5S4YWC>
+          Runtime and explicit factories produce the same component capability
+          </?01M05F1PQ1F5S92BM68Y5S4YWC>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add authoring store and workspace operations" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PQ1F5S92BM68Y5S4YWD>
+            Implement safe read/tree/search/diff/write/delete and atomic publish primitives behind an injectable store contract.
+            </?01M05F1PQ1F5S92BM68Y5S4YWD>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YWE>
+              Store paths are containment-safe and writes use atomic replacement
+              </?01M05F1PQ1F5S92BM68Y5S4YWE>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YWF>
+              Workspace exposes revisioned read/tree/search/diff/delete operations
+              </?01M05F1PQ1F5S92BM68Y5S4YWF>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "Bind workspace into WorkflowComponent" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PQ1F5S92BM68Y5S4YWG>
+            Add explicit and runtime-derived component factories with canonical loader and authoring workspace ports.
+            </?01M05F1PQ1F5S92BM68Y5S4YWG>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YWH>
+              Runtime metadata workflow root selects the physical authoring root
+              </?01M05F1PQ1F5S92BM68Y5S4YWH>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YWJ>
+              Absent root uses a workDir-based conservative default and the binding is scoped to its runtime VM
+              </?01M05F1PQ1F5S92BM68Y5S4YWJ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Shared publish commands and surface adoption" status = "DONE" order = 1 } (
+        <Description ?01M05F1PQ1F5S92BM68Y5S4YWK>
+        Move physical transitions into commands and make both surfaces call runtime-bound component instances.
+        </?01M05F1PQ1F5S92BM68Y5S4YWK>
+        <Gate [
+          <Criterion ?01M05F1PQ1F5S92BM68Y5S4YWM>
+          Tool and CLI publish the same canonical files and evidence
+          </?01M05F1PQ1F5S92BM68Y5S4YWM>
+          <Criterion ?01M05F1PQ1F5S92BM68Y5S4YWN>
+          CLI contains no workflow-specific filesystem write loop
+          </?01M05F1PQ1F5S92BM68Y5S4YWN>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Add canonical publish and edit commands" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PQ1F5S92BM68Y5S4YWP>
+            Validate draft sources, atomically publish, revalidate and expose patch/edit through the same workspace.
+            </?01M05F1PQ1F5S92BM68Y5S4YWP>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YWQ>
+              Publish returns physical write and canonical revision evidence
+              </?01M05F1PQ1F5S92BM68Y5S4YWQ>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YWR>
+              Invalid replacement content is rejected before committed publication
+              </?01M05F1PQ1F5S92BM68Y5S4YWR>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "Adopt component authoring in model tools and CLI" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PQ1F5S92BM68Y5S4YWS>
+            Use runtime-bound component in tools and remove terminal-owned mkdir/write adapters.
+            </?01M05F1PQ1F5S92BM68Y5S4YWS>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YWT>
+              TUI/headless native tool writes beneath injected workspace root
+              </?01M05F1PQ1F5S92BM68Y5S4YWT>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YWV>
+              CLI init uses the component transition and preserves dry-run behavior
+              </?01M05F1PQ1F5S92BM68Y5S4YWV>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Cross-surface verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PQ1F5S92BM68Y5S4YWW>
+        Prove acceptance, containment, canonical proof and absence of private surface authority.
+        </?01M05F1PQ1F5S92BM68Y5S4YWW>
+        <Gate [
+          <Criterion ?01M05F1PQ1F5S92BM68Y5S4YWX>
+          Focused package and terminal tests pass
+          </?01M05F1PQ1F5S92BM68Y5S4YWX>
+          <Criterion ?01M05F1PQ1F5S92BM68Y5S4YWY>
+          Authority scans and package build pass
+          </?01M05F1PQ1F5S92BM68Y5S4YWY>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Run authoring acceptance verification" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PQ1F5S92BM68Y5S4YWZ>
+            Run tool/CLI/store tests, build entry points and scan for duplicated writes.
+            </?01M05F1PQ1F5S92BM68Y5S4YWZ>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YX0>
+              Tool and CLI fixtures both produce loadable resources under their injected roots
+              </?01M05F1PQ1F5S92BM68Y5S4YX0>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PQ1F5S92BM68Y5S4YX1>
+              No CLI-private workflow filesystem implementation remains
+              </?01M05F1PQ1F5S92BM68Y5S4YX1>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Parallel { max_concurrent = 1 spot_check = true }>
+  ]>
+  <Hooks>
+)>

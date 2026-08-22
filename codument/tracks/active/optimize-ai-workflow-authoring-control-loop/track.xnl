@@ -1,0 +1,142 @@
+<Track #optimize-ai-workflow-authoring-control-loop version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "显著缩短 AI Workflow 编辑成功路径，并建立正确的 working/published/proof/read-model authority。" description = "以原子多文件 patch、exact-revision proof、typed receipt、workflow summary projection 和通用 delegate context policy 修复 143 秒编辑链路。" question_mode = "decision-tree" question_severity = "light" commit_mode = "manual" created_at = "2026-08-10T11:21:46+03:00" updated_at = "2026-08-10T14:17:53+03:00" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_optimize-ai-workflow-authoring-control-loop { name = "optimize-ai-workflow-authoring-control-loop" } (
+    <Description ?01M05F1P7Z6YJW8W5YS318B44A>
+    先锁定事故指标和 behavior，再修正 session/proof authority，随后收敛 actor 控制环并执行真实回放。
+    </?01M05F1P7Z6YJW8W5YS318B44A>
+    <SubNodes [
+      <TaskGroup #P1 { name = "事故 harness 与契约红测" status = "DONE" order = 0 } (
+        <Description ?01M05F1P7Z6YJW8W5YS318B44B>
+        建立同口径时序观测和失败测试，防止用总体耗时掩盖 provider、tool、proof 和 payload 根因。
+        </?01M05F1P7Z6YJW8W5YS318B44B>
+        <SubNodes [
+          <Task { id = "T1.1" name = "固化 142.956 秒 session 的阶段时序与轮次基线" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T1.2" name = "增加 first mutation、provider wait/generation、tool duration 和 payload size 指标" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T1.3" name = "增加 working/published/dirty、diff baseline 和 stale proof 红测" status = "DONE" order = 2 priority = "P0" }>
+          <Task { id = "T1.4" name = "增加 brief/summary/detail contract 与 payload boundary 红测" status = "DONE" order = 3 priority = "P0" }>
+          <Task { id = "T1.5" name = "增加 generic delegate compaction 与 pending-first-delivery 红测" status = "DONE" order = 4 priority = "P0" }>
+          <Task { id = "T1.6" name = "增加禁 workflow compressor 与禁自然语言 fuzzy routing 静态扫描" status = "DONE" order = 5 priority = "P0" }>
+        ]>
+        <Acceptance [
+          <Criterion #P1-AC1 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44C>
+          harness 可独立报告每次 completion、tool transition、首次 mutation、proof 与 publication 时间
+          </?01M05F1P7Z6YJW8W5YS318B44C>
+          <Criterion #P1-AC2 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44D>
+          所有目标缺陷先由失败测试复现，禁止先改实现后补 happy-path assertion
+          </?01M05F1P7Z6YJW8W5YS318B44D>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Session authority 与 authoring read model" status = "DONE" order = 1 } (
+        <Description ?01M05F1P7Z6YJW8W5YS318B44E>
+        分离 mutable working state、published artifact history 和有界 tool projection。
+        </?01M05F1P7Z6YJW8W5YS318B44E>
+        <SubNodes [
+          <Task { id = "T2.1" name = "版本化 session metadata 并迁移 base/working/published revision" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T2.2" name = "实现 dirty lifecycle、proof set、append-only publication journal 与 latest receipt projection" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T2.3" name = "实现 expected-revision 原子多文件结构化 patch" status = "DONE" order = 2 priority = "P0" }>
+          <Task { id = "T2.4" name = "发布 readback 后 rebase /base 并保证中断恢复幂等" status = "DONE" order = 3 priority = "P0" }>
+          <Task { id = "T2.5" name = "实现分页 Brief 与有硬上限的 Summary 纯 projector" status = "DONE" order = 4 priority = "P0" }>
+          <Task { id = "T2.6" name = "将 list/summary tools 切换为投影并保留显式 detail read" status = "DONE" order = 5 priority = "P0" }>
+        ]>
+        <Acceptance [
+          <Criterion #P2-AC1 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44F>
+          发布后 mutation 显示 published_dirty，最近 publication receipt 保留且 working revision 不冒充 published
+          </?01M05F1P7Z6YJW8W5YS318B44F>
+          <Criterion #P2-AC2 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44G>
+          同一 patch 的任一操作失败时 workspace/metadata/proof 均不部分推进
+          </?01M05F1P7Z6YJW8W5YS318B44G>
+          <Criterion #P2-AC3 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44H>
+          workflow list 稳定分页（20/100 limit）且 summary 集合有硬上限；完整 session 仍可按需读取，其他 Eidolon 工具无行为变化
+          </?01M05F1P7Z6YJW8W5YS318B44H>
+          <Criterion #P2-AC4 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44J>
+          重复发布 append receipts 并只更新 latest ref，历史 receipt 在恢复后仍可查询
+          </?01M05F1P7Z6YJW8W5YS318B44J>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Build、candidate acceptance 与 publication proof" status = "DONE" order = 2 } (
+        <Description ?01M05F1P7Z6YJW8W5YS318B44K>
+        让 releasing 消费真实 exact-revision receipts，不让 static projection 冒充运行验收。
+        </?01M05F1P7Z6YJW8W5YS318B44K>
+        <SubNodes [
+          <Task { id = "T3.1" name = "实现 canonical build receipt 与 bundle/link digest" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T3.2" name = "将 canonical static dry-run 升级为 exact-revision/digest-bound receipt" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T3.3" name = "实现无真实网络/副作用的隔离 effect fixture candidate harness" status = "DONE" order = 2 priority = "P0" }>
+          <Task { id = "T3.4" name = "实现 acceptance disposition policy 与 deterministic prepare-publication command" status = "DONE" order = 3 priority = "P0" }>
+          <Task { id = "T3.5" name = "强化 publish CAS gate 并生成 artifact digest/publication receipt" status = "DONE" order = 4 priority = "P0" }>
+          <Task { id = "T3.6" name = "由 component/session authority 生成 typed WorkflowAuthoringReceipt 并拒绝 forged/stale claims" status = "DONE" order = 5 priority = "P0" }>
+          <Task { id = "T3.7" name = "移除 parent 成功路径的 full-summary 重读和 proof 重跑" status = "DONE" order = 6 priority = "P0" }>
+        ]>
+        <Acceptance [
+          <Criterion #P3-AC1 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44M>
+          diff/validation/static projection/build/acceptance disposition/publish receipts 均绑定相同 revision、digest 和 identity
+          </?01M05F1P7Z6YJW8W5YS318B44M>
+          <Criterion #P3-AC2 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44N>
+          required 只接受隔离 fixture candidate receipt，not_required 必须有 policy source；发布前绝不访问真实网络或业务系统
+          </?01M05F1P7Z6YJW8W5YS318B44N>
+          <Criterion #P3-AC3 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44P>
+          component 生成 typed receipt，拒绝模型自报/forged/stale receipt；父 actor 不重复 verification
+          </?01M05F1P7Z6YJW8W5YS318B44P>
+          <Criterion #P3-AC4 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44Q>
+          static projection 继续是发布必需 proof，但明确 effectDispatched=false 且不冒充 runtime acceptance
+          </?01M05F1P7Z6YJW8W5YS318B44Q>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "通用 actor context 与模型轮次收敛" status = "DONE" order = 3 } (
+        <Description ?01M05F1P7Z6YJW8W5YS318B44R>
+        修复 delegate 对通用 context policy 的复用缺口，并通过 structured transition/compound tools 缩短成功路径。
+        </?01M05F1P7Z6YJW8W5YS318B44R>
+        <SubNodes [
+          <Task { id = "T4.1" name = "在 actor contract 增加通用 history compaction policy" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T4.2" name = "让多轮 delegate/detached 默认复用 ContextCompressor" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T4.3" name = "保留短生命周期 actor 显式 opt-out 与全 actor matrix 回归" status = "DONE" order = 2 priority = "P0" }>
+          <Task { id = "T4.4" name = "将 stage selection 改为结构化 transition 并消除解释性空转" status = "DONE" order = 3 priority = "P0" }>
+          <Task { id = "T4.5" name = "优化 sys-ai-workflow 为 target-first atomic patch/proof 协议" status = "DONE" order = 4 priority = "P0" }>
+          <Task { id = "T4.6" name = "实现 raw reasoning debug-only retention 与聚合 timing sink" status = "DONE" order = 5 priority = "P1" }>
+        ]>
+        <Acceptance [
+          <Criterion #P4-AC1 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44S>
+          generic compaction 不依赖 actor/product/tool 名称，并保持首次 tool result delivery 保护
+          </?01M05F1P7Z6YJW8W5YS318B44S>
+          <Criterion #P4-AC2 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44T>
+          标准双文件 fixture 不超过 6 次 authoring completion，首次 mutation 不晚于第 4 次
+          </?01M05F1P7Z6YJW8W5YS318B44T>
+          <Criterion #P4-AC3 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44V>
+          常规 session 不持久化逐 delta raw reasoning，debug 模式有明确容量和期限
+          </?01M05F1P7Z6YJW8W5YS318B44V>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "真实流程回放与独立验收" status = "DONE" order = 4 } (
+        <Description ?01M05F1P7Z6YJW8W5YS318B44W>
+        用原事故需求重新发起会话、编辑、发布和运行，并验证性能、proof、failure semantics 与架构边界。
+        </?01M05F1P7Z6YJW8W5YS318B44W>
+        <SubNodes [
+          <Task { id = "T5.1" name = "运行隔离 fixture candidate；发布后经独立 execution authorization 再运行 public E2E" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T5.2" name = "运行单源失败降级与全部 required source 失败用例" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T5.3" name = "执行发布后继续编辑、恢复和 CAS 冲突回归" status = "DONE" order = 2 priority = "P0" }>
+          <Task { id = "T5.4" name = "执行 CLI/TUI/native tools 与非-workflow delegate 回归" status = "DONE" order = 3 priority = "P0" }>
+          <Task { id = "T5.5" name = "输出与 142.956 秒基线同口径的三次 real-provider 性能报告" status = "DONE" order = 4 priority = "P0" }>
+          <Task { id = "T5.6" name = "独立扫描 no fuzzy routing、no workflow compactor 和 authority boundaries" status = "DONE" order = 5 priority = "P0" }>
+        ]>
+        <Acceptance [
+          <Criterion #P5-AC1 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44X>
+          真实编辑耗时相对基线显著下降，报告同时给出轮次、首次 mutation、provider 与 tool 分解
+          </?01M05F1P7Z6YJW8W5YS318B44X>
+          <Criterion #P5-AC2 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44Y>
+          隔离 candidate 与授权后真实 execution 的成功/降级/失败事实分属独立 receipts，均可追溯到 exact revision
+          </?01M05F1P7Z6YJW8W5YS318B44Y>
+          <Criterion #P5-AC3 { checked = true } ?01M05F1P7Z6YJW8W5YS318B44Z>
+          没有新增 workflow-specific compression/history/cache，也没有自然语言 fuzzy routing
+          </?01M05F1P7Z6YJW8W5YS318B44Z>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

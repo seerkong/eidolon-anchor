@@ -43,7 +43,8 @@ describe("workflow authoring revision authority", () => {
     await component.sessions.store.writeAtomic(metadataPath, `${JSON.stringify(current, null, 2)}\n`)
 
     const migrated = await component.sessions.describe(session.sessionId)
-    expect(migrated.schemaVersion).toBe(2)
+    expect(migrated.schemaVersion).toBe(3)
+    expect(migrated.artifactKind).toBe("legacy-vfs-workflow-bundle")
     expect(migrated.publishedRevision).toBe(migrated.workingRevision)
     expect(migrated.latestPublicationReceiptId).toBeUndefined()
     expect(await component.sessions.listPublicationReceipts(session.sessionId)).toEqual([])
@@ -139,7 +140,8 @@ describe("workflow authoring revision authority", () => {
     const opened = await component.sessions.describe(session.sessionId)
     expect(opened.baseRevision).toBe(opened.workingRevision)
     expect(opened).toMatchObject({
-      schemaVersion: 2,
+      schemaVersion: 3,
+      artifactKind: "legacy-vfs-workflow-bundle",
       baseRevision: expect.stringMatching(/^sha256:/),
       workingRevision: expect.stringMatching(/^sha256:/),
       dirty: true,

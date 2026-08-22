@@ -1,0 +1,83 @@
+<Track #harden-ai-workflow-agent-runtime version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 AI Workflow actor 具备一致失败语义、可靠 child 输出、无损 tool-call identity 和有界进展。" description = "修复 provider failure 空成功、Conversation Domain 输出旁路、同名并行 tool-call 拼接、无进展长循环和 authoring VFS 诊断。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-09T16:48:55Z" updated_at = "2026-08-09T21:26:31+03:00" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_harden-ai-workflow-agent-runtime { name = "harden-ai-workflow-agent-runtime" } (
+    <Description ?01M05F1PSFAE93P07ZTJHE1X5R>
+    修复 workflow delegate 从 provider stream 到 parent result 的可靠性链路，并加入产品进展预算。
+    </?01M05F1PSFAE93P07ZTJHE1X5R>
+    <SubNodes [
+      <TaskGroup #P1 { name = "事故回归与 terminal semantics" status = "DONE" order = 0 } (
+        <Description ?01M05F1PSFAE93P07ZTJHE1X5S>
+        先复现 provider failure 被标记 completed、空 child result 和非权威输出读取。
+        </?01M05F1PSFAE93P07ZTJHE1X5S>
+        <SubNodes [
+          <Task { id = "T1.1" name = "编写 provider failure 与 empty-success 回归测试" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T1.2" name = "编写 orchestrator Conversation Domain 输出测试" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T1.3" name = "修正 delegate fail terminal 和 parent propagation" status = "DONE" order = 2 priority = "P0" }>
+          <Task { id = "T1.4" name = "统一 child output materialization 并拒绝空成功" status = "DONE" order = 3 priority = "P0" }>
+        ]>
+        <Acceptance [
+          <Criterion #P1-AC1 { checked = true } ?01M05F1PSFAE93P07ZTJHE1X5T>
+          provider failure 不再产生 completed fiber 或空 tool result
+          </?01M05F1PSFAE93P07ZTJHE1X5T>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Tool-call stream identity" status = "DONE" order = 1 } (
+        <Description ?01M05F1PSFAE93P07ZTJHE1X5V>
+        修复 parallel same-name tool-call 聚合并建立 provider compatibility contract。
+        </?01M05F1PSFAE93P07ZTJHE1X5V>
+        <SubNodes [
+          <Task { id = "T2.1" name = "记录并复现缺 index 的 provider stream fixtures" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T2.2" name = "编写并行同名 tool-call reducer 测试" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T2.3" name = "实现 identity-aware accumulator 与 adapter normalization" status = "DONE" order = 2 priority = "P0" }>
+          <Task { id = "T2.4" name = "增加歧义 stream 的结构化 protocol failure" status = "DONE" order = 3 priority = "P0" }>
+        ]>
+        <Acceptance [
+          <Criterion #P2-AC1 { checked = true } ?01M05F1PSFAE93P07ZTJHE1X5W>
+          两个并行同名调用保持独立 name、id 和 JSON arguments
+          </?01M05F1PSFAE93P07ZTJHE1X5W>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Progress budget 与 VFS surface" status = "DONE" order = 2 } (
+        <Description ?01M05F1PSFAE93P07ZTJHE1X5X>
+        以显式 stage outcome、bounded proof-repair 和 deadline 限制无产物模型循环，并统一四挂载诊断。
+        </?01M05F1PSFAE93P07ZTJHE1X5X>
+        <SubNodes [
+          <Task { id = "T3.1" name = "编写无进展 authoring 与 retry deadline 测试" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T3.2" name = "实现非空 stage outcome、progress facts 和 deadline" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T3.3" name = "实现有界 validation/correction/proof-repair loop" status = "DONE" order = 2 priority = "P0" }>
+          <Task { id = "T3.4" name = "编写空 mount 和 operation mismatch 测试" status = "DONE" order = 3 priority = "P1" }>
+          <Task { id = "T3.5" name = "统一 authoring VFS 四挂载 surface" status = "DONE" order = 4 priority = "P1" }>
+        ]>
+        <Acceptance [
+          <Criterion #P3-AC1 { checked = true } ?01M05F1PSFAE93P07ZTJHE1X5Y>
+          连续无 workspace/proof/result 进展的 actor 在阶段预算内结构化失败
+          </?01M05F1PSFAE93P07ZTJHE1X5Y>
+          <Criterion #P3-AC2 { checked = true } ?01M05F1PSFAE93P07ZTJHE1X5Z>
+          interactive retry 不越过产品阶段 deadline
+          </?01M05F1PSFAE93P07ZTJHE1X5Z>
+          <Criterion #P3-AC3 { checked = true } ?01M05F1PSFAE93P07ZTJHE1X60>
+          proof repair 达到轮数或 deadline 时返回保留 workspace 的结构化 diagnostics，不继续开放式探索
+          </?01M05F1PSFAE93P07ZTJHE1X60>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Runtime 综合验收" status = "DONE" order = 3 } (
+        <Description ?01M05F1PSFAE93P07ZTJHE1X61>
+        执行通用 delegate 回归和真实 workflow incident replay。
+        </?01M05F1PSFAE93P07ZTJHE1X61>
+        <SubNodes [
+          <Task { id = "T4.1" name = "运行 actor/provider/tool-stream 全量相关测试" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T4.2" name = "执行真实 provider workflow incident replay" status = "DONE" order = 1 priority = "P0" }>
+          <Task { id = "T4.3" name = "验证失败、等待、proof 和成功结果 projection" status = "DONE" order = 2 priority = "P0" }>
+        ]>
+        <Acceptance [
+          <Criterion #P4-AC1 { checked = true } ?01M05F1PSFAE93P07ZTJHE1X62>
+          事故命题不再出现非法拼接工具、空成功或十五分钟无产物等待
+          </?01M05F1PSFAE93P07ZTJHE1X62>
+        ]>
+      )>
+    ]>
+  )>
+)>

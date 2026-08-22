@@ -80,6 +80,8 @@ export type WorkflowRuntimeArgs = {
   sourcePath?: string
   destinationPath?: string
   port?: string
+  appResourceId?: string
+  session?: string
 }
 
 export type WorkflowCommandProcessLike = Pick<NodeJS.Process, "env" | "cwd" | "stdout" | "stderr"> & {
@@ -127,6 +129,22 @@ function resolveTargetRoot(processLike: WorkflowCommandProcessLike, target?: str
   return path.resolve(launchCwd, target?.trim() || path.join(".eidolon", "workflows"))
 }
 
+function resolveCliResourceLayers(processLike: WorkflowCommandProcessLike): Array<{
+  id: "global" | "workspace"
+  rootDir: string
+}> {
+  const launchCwd = resolveLaunchCwd(processLike)
+  const home = processLike.env.HOME
+    ?? processLike.env.USERPROFILE
+    ?? process.env.HOME
+    ?? process.env.USERPROFILE
+    ?? launchCwd
+  return [
+    { id: "global", rootDir: path.join(path.resolve(home), ".eidolon", "resources") },
+    { id: "workspace", rootDir: path.join(launchCwd, ".eidolon", "resources") },
+  ]
+}
+
 function makeCliRuntime(processLike: WorkflowCommandProcessLike) {
   const launchCwd = resolveLaunchCwd(processLike)
   return {
@@ -139,6 +157,9 @@ function makeCliRuntime(processLike: WorkflowCommandProcessLike) {
               workspaceRoot: path.join(launchCwd, ".eidolon", "workflows"),
             },
           },
+          resourcePackages: {
+            layers: resolveCliResourceLayers(processLike),
+          },
         },
       },
     },
@@ -149,6 +170,7 @@ function makeCliRuntime(processLike: WorkflowCommandProcessLike) {
 function makeCliWorkflowComponent(deps: WorkflowCommandDeps): WorkflowComponent {
   return deps.createWorkflowComponent({
     workspaceRoot: resolveTargetRoot(deps.processLike),
+    resourceLayers: resolveCliResourceLayers(deps.processLike),
   })
 }
 
@@ -187,6 +209,8 @@ function renderRuntimeToolResult(
     writeLine(deps.processLike, `${toolName}: ${status}${runId}`)
     if (item.output !== undefined) writeJson(deps.processLike, item.output)
     if (Array.isArray(item.entries)) writeJson(deps.processLike, item.entries)
+    if (Array.isArray(item.apps)) writeJson(deps.processLike, item.apps)
+    if (item.app !== undefined) writeJson(deps.processLike, item.app)
   }
   if (typeof result === "object" && result !== null && (result as any).ok === false) {
     setProcessExitCode(deps.processLike, 1)
@@ -207,12 +231,14 @@ async function callRuntimeTool(
     model: args.model,
     profile: args.profile,
     timeoutSeconds: args.timeout,
+    sessionKey: args.session?.trim() || undefined,
   })
   renderRuntimeToolResult(deps, toolName, value, args.json)
 }
 
 function withRuntimeOptions(yargs: any) {
   return yargs
+    .option("session", { type: "string", describe: "Eidolon session id containing durable workflow instance/run facts" })
     .option("model", { type: "string", describe: "optional Eidolon model override" })
     .option("profile", { type: "string", describe: "optional Eidolon runtime profile" })
     .option("timeout", { type: "number", describe: "runtime initialization timeout in seconds" })
@@ -260,6 +286,7 @@ export function buildWorkflowCliAgentPrompt(input: WorkflowAgentArgs): string {
   return [
     "Fulfill the business goal below through Eidolon's native workflow product experience.",
     "Call WorkflowFulfill exactly once with the arguments below.",
+    "If this outer session already contains a typed durable WorkflowFulfill handoff, include that exact authoring, publication or execution object as continuation; never reconstruct identifiers from ordinary prose or child history.",
     "Wait for the dedicated workflow actor and report only the business purpose, progress, needed confirmation or wait, and final result.",
     "Do not expose form, nodes, ports, policy, XNL, identifiers, Material revisions, fact paths or physical paths in the ordinary business response.",
     "Do not use MCP, an external agent CLI, shell, generic file writes, or low-level workflow tools outside WorkflowFulfill.",
@@ -490,6 +517,44 @@ export function createWorkflowCommand(
                 input: parseHumanValue(runtimeArgs.input),
                 ...(runtimeArgs.instanceId ? { instance_id: runtimeArgs.instanceId } : {}),
               }, runtimeArgs)
+            } catch (error) {
+              deps.reportError(error instanceof Error ? error.message : String(error))
+              setProcessExitCode(deps.processLike, 1)
+            }
+          },
+        })
+        .command({
+          command: "apps [app-resource-id]",
+          describe: "list AI Workflow Apps or inspect one exact App resource",
+          builder: (yargs) => withRuntimeOptions(yargs
+            .positional("app-resource-id", { type: "string", describe: "exact AIWorkflowAppBundle resource identity" })),
+          handler: async (args) => {
+            const runtimeArgs = args as WorkflowRuntimeArgs
+            try {
+              const appResourceId = runtimeArgs.appResourceId
+              const component = makeCliWorkflowComponent(deps)
+              const result = appResourceId
+                ? {
+                    ok: true,
+                    kind: "workflow.app",
+                    app: await component.queries.getApp(appResourceId),
+                    effectDispatched: false,
+                  }
+                : {
+                    ok: true,
+                    kind: "workflow.apps",
+                    apps: await component.queries.listApps(),
+                    effectDispatched: false,
+                  }
+              if (runtimeArgs.json) {
+                writeJson(deps.processLike, result)
+              } else if (result.kind === "workflow.app") {
+                writeJson(deps.processLike, result.app)
+              } else if (result.apps.length === 0) {
+                writeLine(deps.processLike, "No AI Workflow Apps are installed.")
+              } else {
+                for (const app of result.apps) writeLine(deps.processLike, app.id)
+              }
             } catch (error) {
               deps.reportError(error instanceof Error ? error.message : String(error))
               setProcessExitCode(deps.processLike, 1)
@@ -790,6 +855,42 @@ export function createWorkflowCommand(
           },
         })
         .command({
+          command: "package-open",
+          describe: "open the complete workspace ResourcePackage as a recoverable authoring session",
+          builder: (yargs) => yargs
+            .option("session-id", { type: "string", describe: "optional recoverable authoring session id" })
+            .option("select", {
+              type: "array",
+              string: true,
+              describe: "optional exact resource ref to select; repeat for more than one",
+            })
+            .option("json", { type: "boolean", default: false }),
+          handler: async (args) => {
+            try {
+              const component = makeCliWorkflowComponent(deps)
+              const session = await component.sessions.openResourcePackage({
+                sessionId: typeof (args as any).sessionId === "string" ? (args as any).sessionId : undefined,
+                source: { kind: "workspace-layer" },
+                selectedResourceRefs: Array.isArray((args as any).select)
+                  ? (args as any).select.map(String)
+                  : undefined,
+              })
+              const result = {
+                status: "session_opened",
+                artifactKind: "resource-package",
+                session,
+                publicationEffectDispatched: false,
+                runtimeEffectDispatched: false,
+              }
+              if ((args as any).json) writeJson(deps.processLike, result)
+              else writeLine(deps.processLike, `${result.status} ${session.sessionId} ${session.workingRevision}`)
+            } catch (error) {
+              deps.reportError(error instanceof Error ? error.message : String(error))
+              setProcessExitCode(deps.processLike, 1)
+            }
+          },
+        })
+        .command({
           command: "sessions",
           describe: "list recoverable workflow authoring sessions",
           builder: (yargs) => yargs.option("json", { type: "boolean", default: false }),
@@ -814,12 +915,30 @@ export function createWorkflowCommand(
             try {
               const component = makeCliWorkflowComponent(deps)
               const sessionId = String((args as any).sessionId)
-              const diff = await component.sessions.diff(sessionId)
-              const validation = await component.sessions.validate(sessionId)
-              const dryRun = await component.sessions.dryRun(sessionId)
-              const result = { status: "proved", sessionId, diff, validation, dryRun, effectDispatched: false }
+              const session = await component.sessions.describe(sessionId)
+              const result = session.artifactKind === "resource-package"
+                ? {
+                    status: "proved",
+                    sessionId,
+                    proof: await component.sessions.prepareResourcePackagePublication({ sessionId }),
+                    publicationEffectDispatched: false,
+                    runtimeEffectDispatched: false,
+                  }
+                : {
+                    status: "proved",
+                    sessionId,
+                    diff: await component.sessions.diff(sessionId),
+                    validation: await component.sessions.validate(sessionId),
+                    dryRun: await component.sessions.dryRun(sessionId),
+                    effectDispatched: false,
+                  }
               if ((args as any).json) writeJson(deps.processLike, result)
-              else writeLine(deps.processLike, `proved ${sessionId} ${dryRun.revision}`)
+              else {
+                const revision = session.artifactKind === "resource-package"
+                  ? result.proof.revision
+                  : result.dryRun.revision
+                writeLine(deps.processLike, `proved ${sessionId} ${revision}`)
+              }
             } catch (error) {
               deps.reportError(error instanceof Error ? error.message : String(error))
               setProcessExitCode(deps.processLike, 1)
@@ -832,13 +951,23 @@ export function createWorkflowCommand(
           builder: (yargs) => yargs
             .positional("session-id", { type: "string" })
             .option("yes", { type: "boolean", default: false, describe: "explicit publication confirmation; never executes" })
+            .option("revision", { type: "string", describe: "exact working revision; required for ResourcePackage publication" })
             .option("json", { type: "boolean", default: false }),
           handler: async (args) => {
             try {
-              const result = await makeCliWorkflowComponent(deps).sessions.publish({
-                sessionId: String((args as any).sessionId),
-                confirmed: (args as any).yes === true,
-              })
+              const component = makeCliWorkflowComponent(deps)
+              const sessionId = String((args as any).sessionId)
+              const session = await component.sessions.describe(sessionId)
+              const result = session.artifactKind === "resource-package"
+                ? await component.resourcePackagePublisher!.publish({
+                    sessionId,
+                    expectedRevision: String((args as any).revision ?? session.workingRevision),
+                    confirmed: (args as any).yes === true,
+                  })
+                : await component.sessions.publish({
+                    sessionId,
+                    confirmed: (args as any).yes === true,
+                  })
               if ((args as any).json) writeJson(deps.processLike, result)
               else writeLine(deps.processLike, `${String(result.status)} ${String(result.sessionId)}`)
             } catch (error) {
@@ -956,7 +1085,7 @@ export function createWorkflowCommand(
                   scope: "definition",
                   id: draft.name,
                   path: bundlePrefix.slice(0, -1),
-                  resourceRef: draft.resourceRef,
+                  workflowRef: draft.workflowRef,
                 },
               })
               const result = {
@@ -969,7 +1098,7 @@ export function createWorkflowCommand(
               if (initArgs.json) {
                 writeJson(deps.processLike, result)
               } else {
-                writeLine(deps.processLike, `${result.status}: ${draft.resourceRef}`)
+                writeLine(deps.processLike, `${result.status}: ${draft.workflowRef}`)
                 writeLine(deps.processLike, `  session=${session.sessionId}`)
               }
             } catch (error) {

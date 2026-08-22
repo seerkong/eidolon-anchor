@@ -1,0 +1,12 @@
+<SkillCapsule #Eidolon.Anchor.Skill.Run apiVersion="halfcode.resources/v1" version="1.0.0" {
+  name = "sys-eidolon-anchor-run"
+  lifecycle = "Stable"
+  description = "Operate published Eidolon resources through exact runtime identities, transitions and evidence reads."
+} (
+  <SkillMetadata { href = "vfs://./SKILL.metadata.yaml" format = "yaml" }>
+  <Template { href = "vfs://./SKILL.template.ejs" format = "ejs" }>
+  <ResourceMappings { href = "vfs://./resource-mappings.xnl" format = "xnl" }>
+  <Includes [
+    <Include { kind = "SkillCapsule" ref = "resource://Eidolon.Anchor.Skill.Run" }>
+  ]>
+)>

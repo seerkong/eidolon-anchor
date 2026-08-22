@@ -1,0 +1,71 @@
+<decision #track.verify-eidolon-resource-native-app-lifecycle.real-provider apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?>What proves the terminal lifecycle is usable?</?>
+  <answer (
+    <raw-answer ?>A fresh journey through the current compiled product and current provider preset.</?>
+    <decision-text ?>The terminal acceptance SHALL use compiled eidolon workflow agent without a model override; deterministic providers may reproduce boundaries but cannot replace the final journey.</?>
+    <rationale ?>The reported failure concerned real provider latency and tool payload behavior.</?>
+    <evidence ?>The mission preserves the prior 142.956-second and invalid_tool_call_payload incident facts; the ephemeral original sessions no longer exist.</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.verify-eidolon-resource-native-app-lifecycle.isolation apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?>How can the real provider be used without modifying user state?</?>
+  <answer (
+    <raw-answer ?>Run with mktemp HOME/global/workspace and copy only the two current provider configuration files into the temporary HOME.</?>
+    <decision-text ?>The harness SHALL initialize and mutate only isolated roots, redact credentials from all durable evidence, and leave the real ~/.eidolon untouched.</?>
+    <rationale ?>Provider configuration is required for realism; user assets and secrets are not acceptance outputs.</?>
+    <evidence ?>Local config resolution supports project-or-HOME `.eidolon/llm-provider.json` and `agent-present.json`, while global init accepts an explicit root.</?>
+  )>
+  <confidence ?>0.98</?>
+  <reversibility ?>high</?>
+)>
+
+<decision #track.verify-eidolon-resource-native-app-lifecycle.authorization apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?>How are publication and execution separated?</?>
+  <answer (
+    <raw-answer ?>Three explicit turns in one durable session.</?>
+    <decision-text ?>Create SHALL not publish or run; the second turn SHALL authorize publication only; the third SHALL authorize execution and bind input.</?>
+    <rationale ?>Proof, publication authorization and execution authorization are separate product facts.</?>
+    <evidence ?>Existing workflow CLI and native tools expose separate authoring, publication, instance and run transitions.</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>low</?>
+)>
+
+<decision #track.verify-eidolon-resource-native-app-lifecycle.fact-driven-repair apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?>How may a failed journey be repaired?</?>
+  <answer (
+    <raw-answer ?>Only from stable provider/tool/runtime facts in the owning generic component.</?>
+    <decision-text ?>No repair may add natural-language, node-name, App/workflow-name or alias heuristics, nor a workflow-specific actor/session/compactor/resource authority.</?>
+    <rationale ?>Model-owned semantics and deterministic structured components are a non-negotiable architecture boundary.</?>
+    <evidence ?>The mission and completed architecture tracks explicitly prohibit fuzzy host routing and parallel authorities.</?>
+  )>
+  <confidence ?>1.0</?>
+  <reversibility ?>low</?>
+)>
+
+<decision #track.verify-eidolon-resource-native-app-lifecycle.timing apiVersion="codument.tech/v1alpha1" { priority = "P1" status = "accepted" } (
+  <question ?>How is responsiveness evaluated without hiding provider variance?</?>
+  <answer (
+    <raw-answer ?>Report wall, provider and product-owned timing separately.</?>
+    <decision-text ?>Product-owned overhead SHALL meet explicit budgets; wall time above 120 seconds requires persistent timeline diagnosis or an honest external-provider limitation.</?>
+    <rationale ?>Users experience wall time, while safe optimization needs the authoritative duration owner.</?>
+    <evidence ?>ProviderCallDomain and tool/runtime facts already own the relevant timestamps.</?>
+  )>
+  <confidence ?>0.94</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.verify-eidolon-resource-native-app-lifecycle.historical-evidence apiVersion="codument.tech/v1alpha1" { priority = "P1" status = "accepted" } (
+  <question ?>What happens when the requested historical session files are absent?</?>
+  <answer (
+    <raw-answer ?>Record the limitation and create fresh evidence; never reconstruct missing logs.</?>
+    <decision-text ?>The track SHALL use durable incident summaries as baseline and obtain new session/tool/runtime evidence from the current product.</?>
+    <rationale ?>Missing ephemeral files cannot be treated as authority.</?>
+    <evidence ?>Both user-specified historical paths are absent as of 2026-08-16.</?>
+  )>
+  <confidence ?>1.0</?>
+  <reversibility ?>high</?>
+)>

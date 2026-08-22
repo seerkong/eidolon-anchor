@@ -5,21 +5,21 @@ const outDir = path.resolve("dist", "terminal", "tui");
 const isWindows = process.platform === "win32";
 const binaryName = isWindows ? "eidolon.exe" : "eidolon";
 const outFile = path.join(outDir, binaryName);
+const repoRoot = path.resolve(".");
 
 await mkdir(outDir, { recursive: true });
 
-const generatePromptAssetsProc = Bun.spawn(
-  ["bun", "./scripts/generate-tool-prompt-assets.ts"],
-  {
-    cwd: path.resolve("."),
+async function runRequiredBuildStep(command: string[]): Promise<void> {
+  const proc = Bun.spawn(command, {
+    cwd: repoRoot,
     stdio: ["ignore", "inherit", "inherit"],
-  }
-);
-
-const generatePromptAssetsExitCode = await generatePromptAssetsProc.exited;
-if (generatePromptAssetsExitCode !== 0) {
-  process.exit(generatePromptAssetsExitCode);
+  });
+  const exitCode = await proc.exited;
+  if (exitCode !== 0) process.exit(exitCode);
 }
+
+await runRequiredBuildStep(["bun", "run", "--cwd", "cell/packages/ai-support", "generate:system-skills:check"]);
+await runRequiredBuildStep(["bun", "./scripts/generate-tool-prompt-assets.ts"]);
 
 // Build and stage the native Windows sandbox helpers (Zig) so the bundled TUI
 // ships with eidolon-windows-sandbox-runner/setup next to the binary.

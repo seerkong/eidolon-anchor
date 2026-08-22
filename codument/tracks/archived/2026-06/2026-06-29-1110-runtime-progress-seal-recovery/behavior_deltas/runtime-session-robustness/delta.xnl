@@ -1,0 +1,58 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_2_9_-_1_1_1_0_-_r_u_n_t_i_m_e_-_p_r_o_g_r_e_s_s_-_s_e_a_l_-_r_e_c_o_v_e_r_y.behavior_patch.runtime-session-robustness apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-session-robustness" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-session-robustness/requirements/timed-out-turn-progress-persisted" } (
+      <Requirement #timed-out-turn-progress-persisted (
+        <Statement ?01M05F1PJXNGZ38WA2GTM1P6TJ>
+        当一个 turn 在 mandatory_continuation 状态下超时（unsettled）时，运行时 SHALL seal 已完成的 conversation 进度（已 commit 进 conversation domain 的完成工具对/消息），SHALL NOT 因此快照不安全的工具执行中状态。后续 continuation 恢复该 session 时，model-visible history SHALL 包含 sealed completed progress，SHALL NOT 回到超时前的 checkpoint 从头重来。恢复门 SHALL 只容忍 conversation head 的 forward-only advancement；缺失、倒退、或非 conversation authoritative head mismatch 仍 SHALL 判 dirty。
+        </?01M05F1PJXNGZ38WA2GTM1P6TJ>
+        <Suites [
+          <Suite #timeout-progress { name = "Timed-out turn persists completed progress" } (
+            <Cases [
+              <Case #completed-progress-sealed-on-timeout [
+                <Then ?01M05F1PJXNGZ38WA2GTM1P6TK>
+                已完成的 conversation 进度 SHALL 被 seal 进持久化 history
+                </?01M05F1PJXNGZ38WA2GTM1P6TK>
+                <Then ?01M05F1PJXNGZ38WA2GTM1P6TM>
+                SHALL NOT 快照不安全的 in-flight VM/ToolCallDomain 状态
+                </?01M05F1PJXNGZ38WA2GTM1P6TM>
+              ] (
+                <Given ?01M05F1PJXNGZ38WA2GTM1P6TN>
+                一个 turn 完成了若干工具对后在 mandatory_continuation 超时
+                </?01M05F1PJXNGZ38WA2GTM1P6TN>
+                <When ?01M05F1PJXNGZ38WA2GTM1P6TP>
+                turn 返回 timeout_unsettled
+                </?01M05F1PJXNGZ38WA2GTM1P6TP>
+              )>
+              <Case #continuation-resumes-not-restarts [
+                <Then ?01M05F1PJXNGZ38WA2GTM1P6TQ>
+                恢复的 model-visible history SHALL 含 sealed completed progress
+                </?01M05F1PJXNGZ38WA2GTM1P6TQ>
+                <Then ?01M05F1PJXNGZ38WA2GTM1P6TR>
+                恢复 SHALL 容忍 conversation head actual 大于 checkpoint expected
+                </?01M05F1PJXNGZ38WA2GTM1P6TR>
+              ] (
+                <Given ?01M05F1PJXNGZ38WA2GTM1P6TS>
+                一个 session 先 settle 落过 checkpoint，随后某轮 seal 了 completed conversation progress 但未保存 VM checkpoint
+                </?01M05F1PJXNGZ38WA2GTM1P6TS>
+                <When ?01M05F1PJXNGZ38WA2GTM1P6TT>
+                后续 continuation 恢复该 session
+                </?01M05F1PJXNGZ38WA2GTM1P6TT>
+              )>
+              <Case #non-forward-mismatch-remains-dirty (
+                <Given ?01M05F1PJXNGZ38WA2GTM1P6TV>
+                恢复时 durable head 缺失、倒退、或非 conversation authoritative head 与 checkpoint marker 不一致
+                </?01M05F1PJXNGZ38WA2GTM1P6TV>
+                <When ?01M05F1PJXNGZ38WA2GTM1P6TW>
+                runtime-control recovery gate 分类该 session
+                </?01M05F1PJXNGZ38WA2GTM1P6TW>
+                <Then ?01M05F1PJXNGZ38WA2GTM1P6TX>
+                恢复 SHALL 判 dirty 或 pending，SHALL NOT 把该 mismatch 当作 clean recovery
+                </?01M05F1PJXNGZ38WA2GTM1P6TX>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

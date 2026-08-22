@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import { OpenAICompletionsNodejsFetchLlmAdapter } from "@cell/ai-organ-logic/llm/OpenAICompletionsNodejsFetchAdapter";
 import { deepSeekOfficialChatEffectBundle } from "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles";
+import { buildWorkflowNativeToolDefs } from "../../src/workflow/tools";
 
 function sseResponse(): Response {
   return new Response("data: [DONE]\n\n", {
@@ -11,6 +12,43 @@ function sseResponse(): Response {
 }
 
 describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
+  it("serializes the real authoring-session ToolDef for DeepSeek with an object root", async () => {
+    const workflowOpen = buildWorkflowNativeToolDefs().find(
+      (definition) => definition.schema.function.name === "WorkflowOpenAuthoringSession",
+    );
+    if (!workflowOpen) throw new Error("WorkflowOpenAuthoringSession ToolDef missing");
+    let observedBody = "";
+    let fetchedBody = "";
+    const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
+      apiKey: "test-key",
+      effectBundle: deepSeekOfficialChatEffectBundle,
+      baseUrl: "https://api.deepseek.com/v1",
+      requestObserver: (observation) => {
+        observedBody = observation.requestBody;
+        return undefined;
+      },
+      providerOptions: {
+        fetch: async (_url, init) => {
+          fetchedBody = String(init?.body ?? "");
+          return sseResponse();
+        },
+      },
+    });
+
+    await adapter.createStream({
+      model: "deepseek-v4-flash",
+      messages: [{ role: "user", content: "Open an authoring session" }],
+      tools: [workflowOpen.schema],
+    });
+
+    expect(fetchedBody).toBe(observedBody);
+    const parameters = JSON.parse(fetchedBody).tools[0].function.parameters;
+    expect(parameters).toEqual(workflowOpen.schema.function.parameters);
+    expect(parameters.type).toBe("object");
+    expect(parameters.oneOf).toHaveLength(2);
+    expect(fetchedBody).not.toContain('"type":null');
+  });
+
   it("does not force DeepSeek thinking by default", async () => {
     let body: any;
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({

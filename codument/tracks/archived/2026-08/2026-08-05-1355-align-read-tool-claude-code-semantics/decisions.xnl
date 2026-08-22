@@ -1,74 +1,99 @@
-<decision #track.align-read-tool-claude-code-semantics.read-semantics-option {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>read 工具采用哪种大文件语义？</?>
-  <answer { }
-  (
-    <raw-answer ?>选项 1：对齐 Claude Code Read 语义。</?>
-    <decision-text ?>默认 limit 2000、offset 1 起始、>2000 行截断到前 2000 行、header 报 total-lines。不采用 Codex file_view 的强制 range。</?>
-    <rationale ?>用户明确选择 Claude Code 语义；改动集中在 read 工具与 loader。</?>
-    <evidence ?>mission.read-semantics 决策；用户讨论。</?>
+<decision #track.align-read-tool-claude-code-semantics.read-semantics-option apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PP6TZJF62SV084E5TTM>
+  read 工具采用哪种大文件语义？
+  </?01M05F1PP6TZJF62SV084E5TTM>
+  <answer {  } (
+    <raw-answer ?01M05F1PP6TZJF62SV084E5TTN>
+    选项 1：对齐 Claude Code Read 语义。
+    </?01M05F1PP6TZJF62SV084E5TTN>
+    <decision-text ?01M05F1PP6TZJF62SV084E5TTP>
+    默认 limit 2000、offset 1 起始、>2000 行截断到前 2000 行、header 报 total-lines。不采用 Codex file_view 的强制 range。
+    </?01M05F1PP6TZJF62SV084E5TTP>
+    <rationale ?01M05F1PP6TZJF62SV084E5TTQ>
+    用户明确选择 Claude Code 语义；改动集中在 read 工具与 loader。
+    </?01M05F1PP6TZJF62SV084E5TTQ>
+    <evidence ?01M05F1PP6TZJF62SV084E5TTR>
+    mission.read-semantics 决策；用户讨论。
+    </?01M05F1PP6TZJF62SV084E5TTR>
   )>
 )>
 
-<decision #track.align-read-tool-claude-code-semantics.total-lines-header {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>total_lines 如何实现？</?>
-  <answer { }
-  (
-    <raw-answer ?>结合现有 <context-resource> XML 结构，把 total-lines 作为 header 属性。</?>
-    <decision-text ?>在 LocalTextResourceLoader 的 <context-resource> header 中增加 total-lines 属性；文件/目录通用；already-visible 引用也保留。</?>
-    <rationale ?>与现有 resource revision / requested-lines / delivered-lines 属性风格一致，改动最小，与 already-visible 判定兼容。</?>
-    <evidence ?>决策 A；LocalTextResourceLoader.ts 现状。</?>
+<decision #track.align-read-tool-claude-code-semantics.total-lines-header apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PP6TZJF62SV084E5TTS>
+  total_lines 如何实现？
+  </?01M05F1PP6TZJF62SV084E5TTS>
+  <answer {  } (
+    <raw-answer ?01M05F1PP6TZJF62SV084E5TTT>
+    结合现有 <context-resource> XML 结构，把 total-lines 作为 header 属性。
+    </?01M05F1PP6TZJF62SV084E5TTT>
+    <decision-text ?01M05F1PP6TZJF62SV084E5TTV>
+    在 LocalTextResourceLoader 的 <context-resource> header 中增加 total-lines 属性；文件/目录通用；already-visible 引用也保留。
+    </?01M05F1PP6TZJF62SV084E5TTV>
+    <rationale ?01M05F1PP6TZJF62SV084E5TTW>
+    与现有 resource revision / requested-lines / delivered-lines 属性风格一致，改动最小，与 already-visible 判定兼容。
+    </?01M05F1PP6TZJF62SV084E5TTW>
+    <evidence ?01M05F1PP6TZJF62SV084E5TTX>
+    决策 A；LocalTextResourceLoader.ts 现状。
+    </?01M05F1PP6TZJF62SV084E5TTX>
   )>
 )>
 
-<decision #track.align-read-tool-claude-code-semantics.truncation-line-numbers {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>超 2000 行截断时正文是否带行号？</?>
-  <answer { }
-  (
-    <raw-answer ?>对齐 Claude Code：截断时不带行号，total-lines 在 header。</?>
-    <decision-text ?>大文件截断返回正文不带每行行号；header 提供 total-lines 元信息。</?>
-    <rationale ?>用户选择对齐 Claude Code 行为。</?>
-    <evidence ?>决策 B；用户讨论。</?>
+<decision #track.align-read-tool-claude-code-semantics.truncation-line-numbers apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PP6TZJF62SV084E5TTY>
+  超 2000 行截断时正文是否带行号？
+  </?01M05F1PP6TZJF62SV084E5TTY>
+  <answer {  } (
+    <raw-answer ?01M05F1PP6TZJF62SV084E5TTZ>
+    对齐 Claude Code：截断时不带行号，total-lines 在 header。
+    </?01M05F1PP6TZJF62SV084E5TTZ>
+    <decision-text ?01M05F1PP6TZJF62SV084E5TV0>
+    大文件截断返回正文不带每行行号；header 提供 total-lines 元信息。
+    </?01M05F1PP6TZJF62SV084E5TV0>
+    <rationale ?01M05F1PP6TZJF62SV084E5TV1>
+    用户选择对齐 Claude Code 行为。
+    </?01M05F1PP6TZJF62SV084E5TV1>
+    <evidence ?01M05F1PP6TZJF62SV084E5TV2>
+    决策 B；用户讨论。
+    </?01M05F1PP6TZJF62SV084E5TV2>
   )>
 )>
 
-<decision #track.align-read-tool-claude-code-semantics.directory-total {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>目录读取是否也加 total 元信息？</?>
-  <answer { }
-  (
-    <raw-answer ?>要，与文件一致。</?>
-    <decision-text ?>目录读取同样提供 total 元信息（total-lines / total-entries 语义与文件对齐），并统一目录默认与文件默认。</?>
-    <rationale ?>用户选择"也要一样加上"，同时消除 200 vs 2000 双默认。</?>
-    <evidence ?>决策 C；用户讨论；Read/Logic.ts 现状。</?>
+<decision #track.align-read-tool-claude-code-semantics.directory-total apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PP6TZJF62SV084E5TV3>
+  目录读取是否也加 total 元信息？
+  </?01M05F1PP6TZJF62SV084E5TV3>
+  <answer {  } (
+    <raw-answer ?01M05F1PP6TZJF62SV084E5TV4>
+    要，与文件一致。
+    </?01M05F1PP6TZJF62SV084E5TV4>
+    <decision-text ?01M05F1PP6TZJF62SV084E5TV5>
+    目录读取同样提供 total 元信息（total-lines / total-entries 语义与文件对齐），并统一目录默认与文件默认。
+    </?01M05F1PP6TZJF62SV084E5TV5>
+    <rationale ?01M05F1PP6TZJF62SV084E5TV6>
+    用户选择"也要一样加上"，同时消除 200 vs 2000 双默认。
+    </?01M05F1PP6TZJF62SV084E5TV6>
+    <evidence ?01M05F1PP6TZJF62SV084E5TV7>
+    决策 C；用户讨论；Read/Logic.ts 现状。
+    </?01M05F1PP6TZJF62SV084E5TV7>
   )>
 )>
 
-<decision #track.align-read-tool-claude-code-semantics.metadata-direction-c {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>文件大小/总行数元信息如何提供？</?>
-  <answer { }
-  (
-    <raw-answer ?>方向 C：提供快速文件元信息，先 size/行数 再读。</?>
-    <decision-text ?>在读取前提供文件大小/总行数元信息（read 输出或 ls 目录工具），模型据此决定每次读取范围；与 total-lines header 保持同一语义。</?>
-    <rationale ?>用户选择方向 C；模型当前对文件大小一无所知，只能盲猜 limit。</?>
-    <evidence ?>mission.metadata-direction-c 决策；用户讨论。</?>
+<decision #track.align-read-tool-claude-code-semantics.metadata-direction-c apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PP6TZJF62SV084E5TV8>
+  文件大小/总行数元信息如何提供？
+  </?01M05F1PP6TZJF62SV084E5TV8>
+  <answer {  } (
+    <raw-answer ?01M05F1PP6TZJF62SV084E5TV9>
+    方向 C：提供快速文件元信息，先 size/行数 再读。
+    </?01M05F1PP6TZJF62SV084E5TV9>
+    <decision-text ?01M05F1PP6TZJF62SV084E5TVA>
+    在读取前提供文件大小/总行数元信息（read 输出或 ls 目录工具），模型据此决定每次读取范围；与 total-lines header 保持同一语义。
+    </?01M05F1PP6TZJF62SV084E5TVA>
+    <rationale ?01M05F1PP6TZJF62SV084E5TVB>
+    用户选择方向 C；模型当前对文件大小一无所知，只能盲猜 limit。
+    </?01M05F1PP6TZJF62SV084E5TVB>
+    <evidence ?01M05F1PP6TZJF62SV084E5TVC>
+    mission.metadata-direction-c 决策；用户讨论。
+    </?01M05F1PP6TZJF62SV084E5TVC>
   )>
 )>

@@ -1,0 +1,30 @@
+<BehaviorPatch #track.harden-provider-stream-retry.behavior_patch.provider-stream-retry apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-stream-retry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-stream-retry/requirements/stream-failure-recovery" } (
+      <Requirement #stream-failure-recovery (
+        <Statement ?>Provider stream consumption SHALL classify upstream temporary failures with the same retry policy used for request establishment, but SHALL retry only when no assistant content, reasoning, or tool-call output has been observed for the failed attempt.</?>
+        <Suites [
+          <Suite #stream-failure-recovery-cases { name = "Provider stream failure recovery" } (
+            <Cases [
+              <Case #retry-before-visible-output [
+                <Given ?>A provider request establishes a stream and emits a retryable upstream failure before any visible assistant content, reasoning, or tool call is observed.</?>
+                <When ?>The runtime consumes the provider stream.</?>
+                <Then ?>The runtime SHALL retry the same request contract according to the configured provider retry policy.</?>
+              ]>
+              <Case #do-not-retry-after-visible-output [
+                <Given ?>A provider stream has emitted any assistant content, reasoning, or tool-call fragment before a retryable transport/provider failure.</?>
+                <When ?>The stream fails.</?>
+                <Then ?>The runtime SHALL NOT replay the request automatically and SHALL preserve the failure as indeterminate-after-accept.</?>
+              ]>
+              <Case #retry-diagnostics [
+                <Given ?>A stream failure is retried or terminates retry evaluation.</?>
+                <When ?>The runtime records provider diagnostics.</?>
+                <Then ?>Each actual attempt, retry decision, attempt number, retry count, termination reason, and replay-safety classification SHALL be observable.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,65 @@
+<BehaviorPatch #track.fix-deepseek-thinking-tool-roundtrip.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/thinking-tool-roundtrip" } (
+      <Requirement #thinking-tool-roundtrip (
+        <Statement ?01M05F1P7KZJQX510YKPXGNF0J>
+        DeepSeek adapter SHALL preserve each assistant tool-call message's `reasoning_content` as provider continuation state and SHALL pass it back with `content` and `tool_calls` in all subsequent tool and user interaction requests; field preservation MUST NOT depend on whether the reasoning text is empty, mirrors content, or is hidden by the TUI presentation policy.
+        </?01M05F1P7KZJQX510YKPXGNF0J>
+        <Suites [
+          <Suite #thinking-tools { name = "DeepSeek interleaved thinking and tools" } (
+            <Cases [
+              <Case #non-empty-reasoning-roundtrip (
+                <Given ?01M05F1P7KZJQX510YKPXGNF0K>
+                DeepSeek thinking mode returns non-empty reasoning_content with an assistant tool call
+                </?01M05F1P7KZJQX510YKPXGNF0K>
+                <When ?01M05F1P7KZJQX510YKPXGNF0M>
+                the tool result is appended and the next provider request is built
+                </?01M05F1P7KZJQX510YKPXGNF0M>
+                <Then ?01M05F1P7KZJQX510YKPXGNF0N>
+                the assistant content, reasoning_content, and tool_calls SHALL be passed back unchanged before the corresponding tool result
+                </?01M05F1P7KZJQX510YKPXGNF0N>
+              )>
+              <Case #empty-or-mirrored-reasoning-roundtrip [
+                <Then ?01M05F1P7KZJQX510YKPXGNF0P>
+                the reasoning_content field SHALL remain present in the provider message
+                </?01M05F1P7KZJQX510YKPXGNF0P>
+                <Then ?01M05F1P7KZJQX510YKPXGNF0Q>
+                TUI display deduplication MUST NOT delete the wire-level continuation value
+                </?01M05F1P7KZJQX510YKPXGNF0Q>
+              ] (
+                <Given ?01M05F1P7KZJQX510YKPXGNF0R>
+                a DeepSeek-compatible stream returns an empty reasoning_content field or reasoning text that mirrors content
+                </?01M05F1P7KZJQX510YKPXGNF0R>
+                <When ?01M05F1P7KZJQX510YKPXGNF0S>
+                the stream is aggregated and the next tool continuation request is built
+                </?01M05F1P7KZJQX510YKPXGNF0S>
+              )>
+              <Case #legacy-missing-reasoning-recovery (
+                <Given ?01M05F1P7KZJQX510YKPXGNF0T>
+                a historical DeepSeek session contains an assistant tool-call message persisted before this fix without reasoning_content
+                </?01M05F1P7KZJQX510YKPXGNF0T>
+                <When ?01M05F1P7KZJQX510YKPXGNF0V>
+                the session is loaded and a subsequent DeepSeek request is prepared
+                </?01M05F1P7KZJQX510YKPXGNF0V>
+                <Then ?01M05F1P7KZJQX510YKPXGNF0W>
+                the adapter SHALL provide a DeepSeek-only empty reasoning_content compatibility value without rewriting the session file
+                </?01M05F1P7KZJQX510YKPXGNF0W>
+              )>
+              <Case #openai-isolation (
+                <Given ?01M05F1P7KZJQX510YKPXGNF0X>
+                an ordinary OpenAI adapter processes an assistant tool-call message without reasoning_content
+                </?01M05F1P7KZJQX510YKPXGNF0X>
+                <When ?01M05F1P7KZJQX510YKPXGNF0Y>
+                the provider request is prepared
+                </?01M05F1P7KZJQX510YKPXGNF0Y>
+                <Then ?01M05F1P7KZJQX510YKPXGNF0Z>
+                the system MUST NOT inject the DeepSeek compatibility field
+                </?01M05F1P7KZJQX510YKPXGNF0Z>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

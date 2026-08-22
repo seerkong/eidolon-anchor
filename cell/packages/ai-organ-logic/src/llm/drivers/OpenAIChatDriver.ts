@@ -3,13 +3,39 @@ import type {
   ProviderDriverRequestParams,
   ProviderDriverStreamParams,
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
-import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
+import type { ProviderToolSchemaProjectionAuthority } from "@cell/ai-organ-contract/llm/ProviderToolSchemaProjection";
+import { OpenAICompletionsAdmittedFetchTransport } from "../OpenAICompletionsNodejsFetchAdapter";
 import { openAIOfficialChatEffectBundle } from "../ChatCompletionsEffectBundles";
 import {
   extractProviderTransportRequestOptions,
   sanitizeProviderExtraBody,
   sanitizeProviderRequestBodyOptions,
 } from "../ProviderOptions";
+import { prepareProviderToolSchemaProjection } from "../tool-schema/ProviderRequestAdmission";
+
+function prepareOpenAIChatRequest(params: ProviderDriverRequestParams) {
+  const requestBodyOptions = sanitizeProviderRequestBodyOptions(params.requestOptions);
+  const toolSchemaProjectionAuthority = prepareProviderToolSchemaProjection(
+    openAIOfficialChatEffectBundle.toolSchemaProjector,
+    params.tools,
+  );
+  return {
+    contract: {
+      method: "POST",
+      body: openAIOfficialChatEffectBundle.projectRequest({
+        model: params.model,
+        messages: params.messages,
+        tools: params.tools,
+        extraBody: {
+          ...requestBodyOptions,
+          ...sanitizeProviderExtraBody(params.extraBody),
+        },
+        toolSchemaProjectionAuthority,
+      }),
+    },
+    toolSchemaProjectionAuthority,
+  } as const;
+}
 
 function getString(
   options: Record<string, unknown>,
@@ -34,24 +60,11 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
       "openai_chat_completions",
     ],
     buildRequest(params: ProviderDriverRequestParams) {
-      const requestBodyOptions = sanitizeProviderRequestBodyOptions(
-        params.requestOptions,
-      );
-      return {
-        method: "POST",
-        body: openAIOfficialChatEffectBundle.projectRequest({
-          model: params.model,
-          messages: params.messages,
-          tools: params.tools,
-          extraBody: {
-            ...requestBodyOptions,
-            ...sanitizeProviderExtraBody(params.extraBody),
-          },
-        }),
-      };
+      return prepareOpenAIChatRequest(params).contract;
     },
+    prepareRequest: prepareOpenAIChatRequest,
     async createStream(params: ProviderDriverStreamParams) {
-      const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
+      const transport = new OpenAICompletionsAdmittedFetchTransport({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
         baseUrl: getString(params.connectionOptions, "base_url", "baseurl"),
         effectBundle: openAIOfficialChatEffectBundle,
@@ -63,17 +76,16 @@ export function buildOpenAIChatProviderDriver(): ProviderDriverDefinition {
         },
         requestObserver: params.transportRequestObserver,
       });
-      return adapter.createStream({
+      return transport.createStream({
         model: params.model,
         messages: params.messages as any[],
-        tools: params.tools as any[],
         extraBody: {
           ...sanitizeProviderRequestBodyOptions(params.requestOptions),
           ...extractProviderTransportRequestOptions(params.requestOptions),
           ...sanitizeProviderExtraBody(params.extraBody),
         },
         signal: params.signal,
-      });
+      }, params.toolSchemaProjectionAuthority as ProviderToolSchemaProjectionAuthority);
     },
   };
 }

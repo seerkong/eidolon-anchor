@@ -360,6 +360,7 @@ export class LocalFileRuntimeSnapshotRepository {
       planApproval: stateJson.planApproval,
       shutdownCoordination: stateJson.shutdownCoordination,
       toolPolicy: actorJson.toolPolicy ?? {
+        allowedToolsMode: "all",
         allowedTools: [],
         enabledToolKeys: [],
         disabledToolKeys: [],

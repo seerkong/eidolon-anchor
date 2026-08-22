@@ -1,0 +1,60 @@
+<Track #repair-responses-canonical-replay apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Restore complete Responses canonical replay after rewind and tool rounds without reusing Chat adjacency repair." description = "Make Responses request construction replay every canonical assistant function call and tool output in order, keep frontier stable across tool completion, and invalidate stale optimization after history rewinds." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-19T19:03:00.933Z" updated_at = "2026-08-19T19:11:41.433Z" modeling_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0" engineering_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_repair-responses-canonical-replay { name = "repair-responses-canonical-replay" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "responses canonical compiler" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "compile complete historical tool pairs" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0DPSR3RZX6Q4Q288VKPJRX5>
+              Full canonical Responses replay emits every assistant function_call and matching function_call_output in chronological order.
+              </?01M0DPSR3RZX6Q4Q288VKPJRX5>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0DPSR3RZX6Q4Q288VKPJRX6>
+              The compiler does not import or call OpenAI Chat adjacency repair.
+              </?01M0DPSR3RZX6Q4Q288VKPJRX6>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M0DPSR3RZX6Q4Q288VKPJRX7>
+              Missing/orphan/duplicate lineage fails closed before provider send.
+              </?01M0DPSR3RZX6Q4Q288VKPJRX7>
+            ]>
+          )>
+          <Task #P1-T2 { name = "stabilize frontier across tool completion" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0DPSR3RZX6Q4Q288VKPJRX8>
+              The provider frontier remains a stable prefix when a tool result is appended to a previously emitted assistant call.
+              </?01M0DPSR3RZX6Q4Q288VKPJRX8>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0DPSR3RZX6Q4Q288VKPJRX9>
+              Checkpoint/native-window optimization and canonical rebuild produce equivalent semantic input.
+              </?01M0DPSR3RZX6Q4Q288VKPJRX9>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "rewind and historical regression" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T2 { name = "verify long tool round replay" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0DPSR3RZX6Q4Q288VKPJRXC>
+              A long scripted tool history does not reduce canonical replay to the latest pair.
+              </?01M0DPSR3RZX6Q4Q288VKPJRXC>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0DPSR3RZX6Q4Q288VKPJRXD>
+              The target rewind regression shape is covered without provider network dependence.
+              </?01M0DPSR3RZX6Q4Q288VKPJRXD>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_repair-responses-canonical-replay" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "phase:after" } (
+      <AttractorCheck { use = "coding" }>
+    )>
+  ]>
+)>

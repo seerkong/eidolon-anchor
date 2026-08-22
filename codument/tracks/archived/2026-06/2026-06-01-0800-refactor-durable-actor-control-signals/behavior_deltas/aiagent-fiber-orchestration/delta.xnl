@@ -1,0 +1,171 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_1_-_0_8_0_0_-_r_e_f_a_c_t_o_r_-_d_u_r_a_b_l_e_-_a_c_t_o_r_-_c_o_n_t_r_o_l_-_s_i_g_n_a_l_s.behavior_patch.aiagent-fiber-orchestration apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-fiber-orchestration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/durable-control-signal-scheduling" } (
+      <Requirement #durable-control-signal-scheduling (
+        <Statement ?01M05F1PEN77AVZ7BZHZKAEXTY>
+        系统 SHALL make durable control signals the source of truth for fiber wake, resume, and interrupt scheduling.
+        </?01M05F1PEN77AVZ7BZHZKAEXTY>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/durable-control-signal-scheduling" strength = "hint" }>
+        <Suites [
+          <Suite #mailbox-enqueue-scheduling { name = "Mailbox enqueue scheduling" } (
+            <Cases [
+              <Case #suspended-fiber-wake [
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXTZ>
+                The orchestrator SHALL mark the fiber ready or record a pending resume in the same control transaction
+                </?01M05F1PEN77AVZ7BZHZKAEXTZ>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXV0>
+                The next scheduler tick SHALL be able to continue the fiber without requiring transcript-tail inference
+                </?01M05F1PEN77AVZ7BZHZKAEXV0>
+              ] (
+                <Given ?01M05F1PEN77AVZ7BZHZKAEXV1>
+                A fiber is suspended on a typed wait reason
+                </?01M05F1PEN77AVZ7BZHZKAEXV1>
+                <When ?01M05F1PEN77AVZ7BZHZKAEXV2>
+                A durable control signal that satisfies that wait reason is enqueued into the owning actor mailbox
+                </?01M05F1PEN77AVZ7BZHZKAEXV2>
+              )>
+              <Case #running-fiber-normal-message [
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXV3>
+                The runtime SHALL enqueue the message without re-entering the actor handler
+                </?01M05F1PEN77AVZ7BZHZKAEXV3>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXV4>
+                The actor SHALL drain the message at the next safe boundary according to mailbox priority
+                </?01M05F1PEN77AVZ7BZHZKAEXV4>
+              ] (
+                <Given ?01M05F1PEN77AVZ7BZHZKAEXV5>
+                An actor fiber is currently running
+                </?01M05F1PEN77AVZ7BZHZKAEXV5>
+                <When ?01M05F1PEN77AVZ7BZHZKAEXV6>
+                A non-interrupt ordinary mailbox message arrives
+                </?01M05F1PEN77AVZ7BZHZKAEXV6>
+              )>
+              <Case #running-fiber-wake-message [
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXV7>
+                The runtime SHALL persist and enqueue the message
+                </?01M05F1PEN77AVZ7BZHZKAEXV7>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXV8>
+                The runtime SHALL NOT concurrently execute a second handler for the same actor
+                </?01M05F1PEN77AVZ7BZHZKAEXV8>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXV9>
+                The runtime SHALL make the message visible to the current or next cooperative drain boundary
+                </?01M05F1PEN77AVZ7BZHZKAEXV9>
+              ] (
+                <Given ?01M05F1PEN77AVZ7BZHZKAEXVA>
+                An actor fiber is currently running
+                </?01M05F1PEN77AVZ7BZHZKAEXVA>
+                <When ?01M05F1PEN77AVZ7BZHZKAEXVB>
+                A wake message such as LLM done, tool done, child done, or human input arrives
+                </?01M05F1PEN77AVZ7BZHZKAEXVB>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/cooperative-interrupt-control" } (
+      <Requirement #cooperative-interrupt-control (
+        <Statement ?01M05F1PEN77AVZ7BZHZKAEXVC>
+        系统 SHALL model interrupt-capable messages as high-priority control signals that enter actor mailboxes and cooperatively abort current in-flight work.
+        </?01M05F1PEN77AVZ7BZHZKAEXVC>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/cooperative-interrupt-control" strength = "hint" }>
+        <Suites [
+          <Suite #cancel-semantics { name = "Cancel semantics" } (
+            <Cases [
+              <Case #cancel-running-llm [
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVD>
+                The signal SHALL be persisted and enqueued in the actor control mailbox with interrupt priority
+                </?01M05F1PEN77AVZ7BZHZKAEXVD>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVE>
+                The runtime SHALL abort the active LLM operation when an abort controller is available
+                </?01M05F1PEN77AVZ7BZHZKAEXVE>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVF>
+                The fiber SHALL observe cancellation at a safe boundary and terminate or suspend according to the cancel policy
+                </?01M05F1PEN77AVZ7BZHZKAEXVF>
+              ] (
+                <Given ?01M05F1PEN77AVZ7BZHZKAEXVG>
+                A fiber is running or suspended with an in-flight LLM operation
+                </?01M05F1PEN77AVZ7BZHZKAEXVG>
+                <When ?01M05F1PEN77AVZ7BZHZKAEXVH>
+                A cancel control signal arrives
+                </?01M05F1PEN77AVZ7BZHZKAEXVH>
+              )>
+              <Case #cancel-running-tool [
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVJ>
+                The runtime SHALL mark the in-flight operation as cancelled
+                </?01M05F1PEN77AVZ7BZHZKAEXVJ>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVK>
+                The runtime SHALL abort the tool when it supports AbortSignal
+                </?01M05F1PEN77AVZ7BZHZKAEXVK>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVM>
+                Any late tool completion SHALL be ignored or recorded as a cancelled observation using op id and epoch checks
+                </?01M05F1PEN77AVZ7BZHZKAEXVM>
+              ] (
+                <Given ?01M05F1PEN77AVZ7BZHZKAEXVN>
+                A fiber is waiting on a tool operation
+                </?01M05F1PEN77AVZ7BZHZKAEXVN>
+                <When ?01M05F1PEN77AVZ7BZHZKAEXVP>
+                A cancel control signal arrives
+                </?01M05F1PEN77AVZ7BZHZKAEXVP>
+              )>
+              <Case #interrupt-does-not-reenter-actor [
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVQ>
+                The runtime SHALL NOT re-enter the actor handler concurrently
+                </?01M05F1PEN77AVZ7BZHZKAEXVQ>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVR>
+                The runtime SHALL set an interrupt state that the current execution observes cooperatively
+                </?01M05F1PEN77AVZ7BZHZKAEXVR>
+              ] (
+                <Given ?01M05F1PEN77AVZ7BZHZKAEXVS>
+                An actor is currently inside a handler execution
+                </?01M05F1PEN77AVZ7BZHZKAEXVS>
+                <When ?01M05F1PEN77AVZ7BZHZKAEXVT>
+                An interrupt-capable message arrives
+                </?01M05F1PEN77AVZ7BZHZKAEXVT>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/typed-wait-reasons" } (
+      <Requirement #typed-wait-reasons (
+        <Statement ?01M05F1PEN77AVZ7BZHZKAEXVV>
+        系统 SHALL use typed wait reasons for cooperative async boundaries and reserve generic external waiting for true idle or external-human waits.
+        </?01M05F1PEN77AVZ7BZHZKAEXVV>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/typed-wait-reasons" strength = "hint" }>
+        <Suites [
+          <Suite #wait-reason-classification { name = "Wait reason classification" } (
+            <Cases [
+              <Case #llm-tool-compress-waits-typed [
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVW>
+                The fiber SHALL contain a typed waitingReason describing the awaited event class
+                </?01M05F1PEN77AVZ7BZHZKAEXVW>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXVX>
+                The cooperative exec state SHALL contain the matching op id or durable wait condition when applicable
+                </?01M05F1PEN77AVZ7BZHZKAEXVX>
+              ] (
+                <Given ?01M05F1PEN77AVZ7BZHZKAEXVY>
+                A cooperative step suspends for LLM, tool, compression, questionnaire parsing, child completion, or human input
+                </?01M05F1PEN77AVZ7BZHZKAEXVY>
+                <When ?01M05F1PEN77AVZ7BZHZKAEXVZ>
+                The fiber snapshot is written
+                </?01M05F1PEN77AVZ7BZHZKAEXVZ>
+              )>
+              <Case #external-not-internal-async (
+                <Given ?01M05F1PEN77AVZ7BZHZKAEXW0>
+                A fiber is suspended on an internal async operation
+                </?01M05F1PEN77AVZ7BZHZKAEXW0>
+                <When ?01M05F1PEN77AVZ7BZHZKAEXW1>
+                The runtime records the suspension
+                </?01M05F1PEN77AVZ7BZHZKAEXW1>
+                <Then ?01M05F1PEN77AVZ7BZHZKAEXW2>
+                The runtime SHALL NOT use generic external as the only wait reason
+                </?01M05F1PEN77AVZ7BZHZKAEXW2>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

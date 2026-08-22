@@ -183,6 +183,19 @@ describe("OpenAI Responses hybrid request plan", () => {
     );
   });
 
+  it("keeps provider-visible stateless input equivalent when the checkpoint is deleted", () => {
+    const optimized = plan({ mode: "stateless_replay" });
+    const rebuilt = plan({
+      mode: "stateless_replay",
+      checkpoint: undefined,
+      baseline: undefined,
+    });
+
+    expect(optimized).toEqual(expect.objectContaining({ source: "native_window" }));
+    expect(rebuilt).toEqual(expect.objectContaining({ source: "canonical_rebuild" }));
+    expect(optimized.input).toEqual(rebuilt.input);
+  });
+
   it("classifies replay state as a non-authoritative replaceable snapshot", () => {
     const checkpoint = makeCheckpoint();
 

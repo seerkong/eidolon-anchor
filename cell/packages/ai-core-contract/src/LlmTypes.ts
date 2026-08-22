@@ -52,6 +52,8 @@ export type LlmGenerateOptions = {
    * being serialized as request body fields. Provider packages own its schema.
    */
   providerRequestContext?: unknown;
+  /** Provider-call-scoped opaque authority prepared by the configured driver. */
+  providerToolSchemaProjectionAuthority?: unknown;
   executionIdentity?: LlmRequestExecutionIdentity;
 };
 
@@ -60,6 +62,8 @@ export type LlmStreamResult = {
   toolContext?: any;
   /** Provider-native completion data, finalized after `stream` is consumed. */
   providerOutput?: Promise<unknown | undefined>;
+  /** True once the provider has emitted assistant-visible output for this attempt. */
+  outputObserved?: () => boolean;
 };
 
 export interface LlmAdapter {

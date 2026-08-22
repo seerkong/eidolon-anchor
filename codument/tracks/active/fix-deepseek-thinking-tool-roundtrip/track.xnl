@@ -1,0 +1,113 @@
+<Track #fix-deepseek-thinking-tool-roundtrip version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Restore protocol-correct DeepSeek interleaved thinking and tool-call continuation for new and historical sessions." description = "Preserve reasoning_content independently from TUI display filtering and add a DeepSeek-only legacy request fallback." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-04T16:05:37Z" updated_at = "2026-08-04T16:28:46Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_fix-deepseek-thinking-tool-roundtrip { name = "fix-deepseek-thinking-tool-roundtrip" } (
+    <Description ?01M05F1P7NMDQGXWZ3PF45QWH2>
+    Characterize and repair DeepSeek reasoning continuation across stream aggregation, provider projection, and historical session recovery.
+    </?01M05F1P7NMDQGXWZ3PF45QWH2>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Protocol regression characterization" status = "DONE" order = 0 } (
+        <Description ?01M05F1P7NMDQGXWZ3PF45QWH3>
+        Add deterministic failing tests for empty, mirrored, and historically missing DeepSeek reasoning fields.
+        </?01M05F1P7NMDQGXWZ3PF45QWH3>
+        <Gate [
+          <Criterion ?01M05F1P7NMDQGXWZ3PF45QWH4>
+          Focused tests demonstrate the current field-loss behavior before production code changes.
+          </?01M05F1P7NMDQGXWZ3PF45QWH4>
+          <Criterion ?01M05F1P7NMDQGXWZ3PF45QWH5>
+          OpenAI isolation is covered alongside DeepSeek compatibility.
+          </?01M05F1P7NMDQGXWZ3PF45QWH5>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add failing DeepSeek roundtrip regressions" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P7NMDQGXWZ3PF45QWH6>
+            Add stream aggregation and chat normalization regressions for empty reasoning, mirrored reasoning, historical missing reasoning, and ordinary OpenAI isolation.
+            </?01M05F1P7NMDQGXWZ3PF45QWH6>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWH7>
+              A stream test requires an observed empty reasoning_content field to remain present.
+              </?01M05F1P7NMDQGXWZ3PF45QWH7>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWH8>
+              A stream test requires mirrored reasoning to remain available for wire roundtrip without duplicate think emission.
+              </?01M05F1P7NMDQGXWZ3PF45QWH8>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWH9>
+              Normalization tests require DeepSeek legacy tool calls to receive an empty compatibility field and OpenAI messages to remain unchanged.
+              </?01M05F1P7NMDQGXWZ3PF45QWH9>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Adapter protocol repair" status = "DONE" order = 1 } (
+        <Description ?01M05F1P7NMDQGXWZ3PF45QWHA>
+        Separate wire reasoning preservation from display filtering and repair DeepSeek message normalization.
+        </?01M05F1P7NMDQGXWZ3PF45QWHA>
+        <Gate [
+          <Criterion ?01M05F1P7NMDQGXWZ3PF45QWHB>
+          All characterization tests pass.
+          </?01M05F1P7NMDQGXWZ3PF45QWHB>
+          <Criterion ?01M05F1P7NMDQGXWZ3PF45QWHC>
+          Non-DeepSeek provider behavior remains covered.
+          </?01M05F1P7NMDQGXWZ3PF45QWHC>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Implement field-preserving DeepSeek continuation" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P7NMDQGXWZ3PF45QWHD>
+            Track reasoning field presence and wire content in the stream adapter, preserve empty values during normalization, and apply a DeepSeek-only fallback to historical assistant tool-call messages.
+            </?01M05F1P7NMDQGXWZ3PF45QWHD>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWHE>
+              buildMessage preserves observed reasoning_content even when empty or mirrored.
+              </?01M05F1P7NMDQGXWZ3PF45QWHE>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWHF>
+              Mirrored reasoning may be hidden from display events without being removed from the returned protocol message.
+              </?01M05F1P7NMDQGXWZ3PF45QWHF>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWHG>
+              DeepSeek request normalization preserves real values and repairs only missing historical tool-call fields.
+              </?01M05F1P7NMDQGXWZ3PF45QWHG>
+              <Criterion { id = "T2.1-AC4" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWHH>
+              Ordinary OpenAI request normalization does not receive the DeepSeek fallback.
+              </?01M05F1P7NMDQGXWZ3PF45QWHH>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Continuation verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1P7NMDQGXWZ3PF45QWHJ>
+        Verify serialized provider requests and the incident-compatible continuation path.
+        </?01M05F1P7NMDQGXWZ3PF45QWHJ>
+        <Gate [
+          <Criterion ?01M05F1P7NMDQGXWZ3PF45QWHK>
+          Focused stream, chat helper, fetch adapter, and provider context tests pass.
+          </?01M05F1P7NMDQGXWZ3PF45QWHK>
+          <Criterion ?01M05F1P7NMDQGXWZ3PF45QWHM>
+          Strict Codument validation passes.
+          </?01M05F1P7NMDQGXWZ3PF45QWHM>
+          <Criterion ?01M05F1P7NMDQGXWZ3PF45QWHN>
+          Diff review confirms no session rewrite or unrelated provider changes.
+          </?01M05F1P7NMDQGXWZ3PF45QWHN>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Verify multi-turn request payload and incident compatibility" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P7NMDQGXWZ3PF45QWHP>
+            Add or extend a transport-level test that serializes assistant tool calls and tool results, then run focused regressions and read-only verification against the recorded incident shape.
+            </?01M05F1P7NMDQGXWZ3PF45QWHP>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWHQ>
+              The serialized DeepSeek request contains assistant content, reasoning_content, tool_calls, followed by the matching tool result.
+              </?01M05F1P7NMDQGXWZ3PF45QWHQ>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWHR>
+              A historical assistant tool-call message without reasoning_content is projected with the compatibility field.
+              </?01M05F1P7NMDQGXWZ3PF45QWHR>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1P7NMDQGXWZ3PF45QWHS>
+              Focused tests pass; package type checks are documented as environment-blocked by missing workspace type declarations.
+              </?01M05F1P7NMDQGXWZ3PF45QWHS>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

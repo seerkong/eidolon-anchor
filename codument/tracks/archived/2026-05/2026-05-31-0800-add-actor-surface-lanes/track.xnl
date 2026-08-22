@@ -1,0 +1,32 @@
+<Track #add-actor-surface-lanes version="1" apiVersion="codument.tech/v1alpha1" { status = "in_progress" description = "参考 Sparrow actor-team 的 conversation lanes、actor lanes、backend identity 与全局 questionnaire 设计，在本项目实现 actor surface 基础设施，并接入 terminal TUI Actor 列表与 questionnaire 修复。" commit_mode = "manual" created_at = "2026-05-30T16:01:16Z" updated_at = "2026-05-31T00:00:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-actor-surface-lanes { name = "add-actor-surface-lanes" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Contract and Surface Projection Foundations" status = "NOT_STARTED" order = 0 } (
+        <SubNodes>
+      )>
+      <TaskGroup #P2 { name = "Primary Backend Identity and Lane Routing" status = "NOT_STARTED" order = 1 } (
+        <SubNodes>
+      )>
+      <TaskGroup #P3 { name = "Global Questionnaire Surface" status = "NOT_STARTED" order = 2 } (
+        <SubNodes>
+      )>
+      <TaskGroup #P4 { name = "Terminal TUI Actor List and Bottom Bar Integration" status = "NOT_STARTED" order = 3 } (
+        <SubNodes>
+      )>
+      <TaskGroup #P5 { name = "Regression, Validation, and Cleanup" status = "NOT_STARTED" order = 4 } (
+        <SubNodes>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

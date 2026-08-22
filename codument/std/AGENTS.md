@@ -1,6 +1,6 @@
 # Codument 使用指南（std/AGENTS.md）
 
-AI 编程助手用 Codument 做行为驱动开发的**入口与路由**。本文件只做路由 + 速查；**怎么操作**的过程在 `std/methods/`，**格式规范**在 `std/spec/`，**各 skill** 在 `std/actions/`。init 后全部自包含于 `codument/`。
+AI 编程助手用 Codument 做行为驱动开发的**入口与路由**。本文件只做路由 + 速查；**怎么操作**的过程在 `std/methods/`，**格式规范**在 `std/spec/`，**各 skill** 在 `std/operations/`。init 后全部自包含于 `codument/`。
 
 ## 何时打开本指南
 
@@ -17,33 +17,33 @@ AI 编程助手用 Codument 做行为驱动开发的**入口与路由**。本文
 | **一条信息该落哪层 / 何时晋升 / 冲突谁赢** | `std/attractors/knowledge-tiers.md`（分层 + 信息晋升 + 真源优先级） |
 | 某标准文件夹"装什么" / 给目录补职责说明 | `std/spec/folder-manifest.md`（目录职责自描述 + 补齐机制） |
 | 选下一个该做的任务（候选 + 自主度） | `backlog/README.md` |
-| 规划跨多个 track 的路线 / mission | `missions/README.md`、`std/spec/mission-xml-spec.md` |
+| 规划跨多个 track 的路线 / mission | `missions/README.md`、`std/spec/mission-xnl-spec.md` |
 | 长期记忆（lessons/incidents/patterns） | `std/attractors/project-memory.md` + `memory/`（memory profile） |
 | engineering/modeling 长期知识 registry 怎么写 | `std/spec/{modeling,engineering}-registry.md`、`std/spec/{modeling,engineering}-node-schema.md` |
 | modeling / engineering 长期知识怎么写（分形、路由、元数据） | `std/attractors/model-driven-docs.md` → `std/skill/docs-{modeling,engineering}-fractal/index.md` |
 | 怎么提问/确认/纠偏（协议） | `std/protocols/decision-tree.md`、`std/protocols/questioning.md`、`std/protocols/validation.md` |
 | 执行套路（TDD / DAG 调度 / workflow） | `std/methods/{tdd,dag-execution,workflow}.md` |
-| track 文件（track.xml）格式 | `std/spec/track-xml-spec.md` |
-| mission 文件（mission.xml）格式 | `std/spec/mission-xml-spec.md` |
+| track 文件（track.xnl）格式 | `std/spec/track-xnl-spec.md` |
+| mission 文件（mission.xnl）格式 | `std/spec/mission-xnl-spec.md` |
 | 流程标记块（flow notation）格式 | `std/spec/flow-notation.md` |
 | 怎么写 behavior delta / behavior 登记表格式 | `std/spec/behavior-delta.md`、`std/spec/behavior-registry.md` |
 | 怎么写 engineering delta / engineering 登记表格式 | `std/spec/engineering-delta.md`、`std/spec/engineering-registry.md` |
 | 长期 decision registry、`decision://`、递归 source/merge 怎么工作 | `std/spec/decision-registry.md`、`std/spec/xnl-format.md` |
-| 具体某个 action 怎么做 | `std/actions/<name>.md`（索引见 `std/actions/README.md`） |
-| 命令级 hook、attractor profile、能力开关 | `config/action-hooks.xml`、`config/attractor-profiles.xml` |
+| 具体某个 operation 怎么做 | `std/operations/<name>.md`（索引见 `std/operations/README.md`） |
+| 命令级 hook、attractor profile、能力开关 | `config/operation-hooks.xnl`、`config/attractor-profiles.xnl` |
 
 ## 三阶段（详见 std/methods/workflow.md）
 
 0. **小改动**：`codument-impl-quick` → 读取 Codument 上下文后直接实现；若超出 quick 范围则转 track/mission。
 1. **创建 track 前讨论**：`codument-discuss` → 与用户讨论、搜集上下文并分流到 quick / track / mission / blocked。
-2. **创建 track**：`codument-plan-track` → behavior delta（`behavior_deltas/`）+ proposal + `track.xml`（TaskSpace/Schedule/Hooks）。
+2. **创建 track**：`codument-plan-track` → behavior delta（`behavior_deltas/`）+ proposal + `track.xnl`（TaskSpace/Schedule/Hooks）。
 3. **实现**：`codument-maintain-track`（按 mode 细化、修订或调度）/ `codument-impl-track`，按需 `codument-gap-loop` / `codument-verify`。
 4. **归档**：`codument-archive-track` → 提升 behavior 进 `codument/behaviors/`、移入 `tracks/archived/`、按显式 hook 同步 artifact/docs。
 
 mission 是更长周期的控制面对象：
 
-1. **创建 mission**：`codument-plan-mission` → `codument/missions/pending/<id>/mission.xml` + `proposal.md` + `design.md`。
-2. **执行 mission**：`codument-impl-mission` → 按 `mission.xml` DAG + MissionPlanner/Observer/Reconciler/Applier 控制论 actor loop 推进，允许受控重规划。
+1. **创建 mission**：`codument-plan-mission` → `codument/missions/pending/<id>/mission.xnl` + `proposal.md` + `design.md`。
+2. **执行 mission**：`codument-impl-mission` → 按 `mission.xnl` DAG + MissionPlanner/Observer/Reconciler/Applier 控制论 actor loop 推进，允许受控重规划。
 3. **归档 mission**：`codument-archive-mission` → 移入 `codument/missions/archived/YYYY-MM-DD-<id>/`，按条件提升 decisions/memory。
 
 ## 知识沉淀与晋升（务必，详见 std/attractors/knowledge-tiers.md）
@@ -70,14 +70,20 @@ codument 是 **track 中心**的：迭代记忆强，但 **owner registry（`cod
 
 ## CLI 速查
 
+CLI 是 scaffold、结构校验、生命周期、资源迁移、registry transaction、frontier 计算与文件分发的确定性 authority。operation 提示词先调用对应 CLI，再由 AI 编写 prose/XNL 业务内容、处理 `review-required` 与做语义复核。
+
 ```bash
-codument list [--behaviors]      # 列活跃 track / 行为登记表
-codument show [item] [--json]
+codument list [--behaviors] [--json]
+codument show [item] [--json] [--include-content]
 codument validate [item] [--strict]
 codument archive <track-id>
+codument track transition|ready|task transition|task complete|gap-round
+codument mission transition|task transition|bind-track|gap-round|archive
+codument decisions validate|frontier
+codument artifact sync / std lint
 codument modeling validate|lint
 codument engineering validate|lint
-codument init [path] / upgrade-workspace / upgrade-track <id> / status
+codument init [path] / upgrade-workspace / upgrade-resource <path> / status
 ```
 
-> 外部 CLI 回退：若提示词要求运行 `codument validate ...` 但系统无 `codument` 命令，跳过该步并明确说明已跳过（不阻塞工作流）。详见 `std/methods/workflow.md`。
+> CLI 不可用时：只读检查可标为 `SKIPPED` 并继续语义 review；scaffold、状态写回、迁移、归档、registry 或制品写入保持 blocked。详见 `std/methods/workflow.md`。

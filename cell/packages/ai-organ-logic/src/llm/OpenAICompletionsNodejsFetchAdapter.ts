@@ -11,6 +11,14 @@ import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/l
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
 import { openAIOfficialChatEffectBundle } from "./ChatCompletionsEffectBundles";
+import type { ProviderToolSchemaProjectionAuthority } from "@cell/ai-organ-contract/llm/ProviderToolSchemaProjection";
+import {
+  admitProviderRequest,
+  assertProviderToolSchemaProtocol,
+  prepareProviderToolSchemaProjection,
+  readAdmittedProviderRequest,
+  readProviderToolSchemaProjection,
+} from "./tool-schema/ProviderRequestAdmission";
 
 type OpenAICompletionsNodejsFetchAdapterSettings = {
   apiKey: string;
@@ -19,6 +27,11 @@ type OpenAICompletionsNodejsFetchAdapterSettings = {
   providerOptions?: ProviderOptions;
   requestObserver?: ProviderTransportRequestObserver;
 };
+
+type AdmittedChatGenerateOptions = Omit<
+  LlmGenerateOptions,
+  "tools" | "providerToolSchemaProjectionAuthority"
+>;
 
 const INTERNAL_EXTRA_BODY_KEYS = new Set(["prompt_plan", "work_context"]);
 const TRANSPORT_EXTRA_BODY_KEYS = new Set([
@@ -359,8 +372,19 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
   }
 
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
-    const { model, messages, tools, extraBody, signal } = options;
-    const toolset = toOpenAITools(tools);
+    const authority = prepareProviderToolSchemaProjection(
+      this.chatCompletionsEffectBundle.toolSchemaProjector,
+      toOpenAITools(options.tools) ?? [],
+    );
+    const { tools: _tools, providerToolSchemaProjectionAuthority: _authority, ...admittedOptions } = options;
+    return this.createAdmittedStream(admittedOptions, authority);
+  }
+
+  async createAdmittedStream(
+    options: AdmittedChatGenerateOptions,
+    toolSchemaProjectionAuthority: ProviderToolSchemaProjectionAuthority,
+  ): Promise<LlmStreamResult> {
+    const { model, messages, extraBody, signal } = options;
     const timeouts = resolveStreamTimeouts(extraBody, this.providerOptions);
     const abortLink = createLinkedAbortController(signal);
     let internalTimeoutError: Error | undefined;
@@ -371,11 +395,17 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
 
     const extra = sanitizeExtraBody(extraBody);
     const providerOptions = this.providerOptions;
+    const toolProjection = readProviderToolSchemaProjection(toolSchemaProjectionAuthority);
+    assertProviderToolSchemaProtocol(
+      toolProjection.protocol,
+      this.chatCompletionsEffectBundle.toolSchemaProjector.protocol,
+    );
     const body = this.chatCompletionsEffectBundle.projectRequest({
       model,
       messages,
-      tools: toolset,
+      tools: toolProjection.tools,
       extraBody: extra,
+      toolSchemaProjectionAuthority,
     });
     const url = this.chatCompletionsEffectBundle.resolveEndpoint(
       (providerOptions.baseURL as string | undefined) || this.baseUrl,
@@ -391,18 +421,21 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       Authorization: `Bearer ${apiKey}`,
       ...(providerOptions.headers || {}),
     };
+    const admitted = admitProviderRequest(toolSchemaProjectionAuthority, body);
+    const admittedRequest = readAdmittedProviderRequest(admitted);
+    const serializedBody = admittedRequest.serializedBody;
 
     if (process.env.MINIMAX_DEBUG === "1") {
-      console.log("[openai] request", JSON.stringify(redactCanonicalImages({ url, body }), null, 2));
+      console.log("[openai] request", JSON.stringify(redactCanonicalImages({ url, body: JSON.parse(serializedBody) }), null, 2));
     }
 
     const fetchFn = providerOptions.fetch || fetch;
-    const serializedBody = JSON.stringify(body);
     observeProviderTransportRequest(this.requestObserver, {
       transportType: "http",
       requestBody: serializedBody,
       url,
       method: "POST",
+      toolSchemaCoverage: admittedRequest.coverageObservation,
     });
     let res: Response;
     try {
@@ -465,5 +498,21 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
         abortForTimeout,
       ),
     };
+  }
+}
+
+/** Capability-only transport boundary used by configured provider drivers. */
+export class OpenAICompletionsAdmittedFetchTransport {
+  private readonly compatibilityAdapter: OpenAICompletionsNodejsFetchLlmAdapter;
+
+  constructor(settings: OpenAICompletionsNodejsFetchAdapterSettings) {
+    this.compatibilityAdapter = new OpenAICompletionsNodejsFetchLlmAdapter(settings);
+  }
+
+  createStream(
+    options: AdmittedChatGenerateOptions,
+    authority: ProviderToolSchemaProjectionAuthority,
+  ): Promise<LlmStreamResult> {
+    return this.compatibilityAdapter.createAdmittedStream(options, authority);
   }
 }

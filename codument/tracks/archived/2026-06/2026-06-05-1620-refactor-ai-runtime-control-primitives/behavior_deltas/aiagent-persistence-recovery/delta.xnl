@@ -1,0 +1,32 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_5_-_1_6_2_0_-_r_e_f_a_c_t_o_r_-_a_i_-_r_u_n_t_i_m_e_-_c_o_n_t_r_o_l_-_p_r_i_m_i_t_i_v_e_s.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/runtime-control-safepoint-source" } (
+      <Requirement #runtime-control-safepoint-source (
+        <Statement ?01M05F1PFX30JFC3F5GQE7NCP3>
+        系统 SHALL source snapshot safepoint decisions from the AI runtime control layer rather than from the persistence writer.
+        </?01M05F1PFX30JFC3F5GQE7NCP3>
+        <Suites [
+          <Suite #snapshot-save { name = "Snapshot Save" } (
+            <Cases [
+              <Case #persistence-consumes-barrier [
+                <Then ?01M05F1PFX30JFC3F5GQE7NCP4>
+                The writer SHALL call the AI runtime control layer for the barrier result
+                </?01M05F1PFX30JFC3F5GQE7NCP4>
+                <Then ?01M05F1PFX30JFC3F5GQE7NCP5>
+                The writer SHALL only persist or skip according to that result
+                </?01M05F1PFX30JFC3F5GQE7NCP5>
+              ] (
+                <Given ?01M05F1PFX30JFC3F5GQE7NCP6>
+                The snapshot writer is asked to save runtime state
+                </?01M05F1PFX30JFC3F5GQE7NCP6>
+                <When ?01M05F1PFX30JFC3F5GQE7NCP7>
+                It checks whether the runtime is at a safepoint
+                </?01M05F1PFX30JFC3F5GQE7NCP7>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

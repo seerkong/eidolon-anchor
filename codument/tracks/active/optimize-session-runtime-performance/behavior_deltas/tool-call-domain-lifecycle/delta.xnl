@@ -1,0 +1,43 @@
+<BehaviorPatch #track.optimize-session-runtime-performance.behavior_patch.tool-call-domain-lifecycle apiVersion="codument.tech/v1alpha1" version="1" { capability = "tool-call-domain-lifecycle" } (
+  <Mutations [
+    <Upsert { selector = "behavior://tool-call-domain-lifecycle/requirements/retention-and-externalization" } (
+      <Requirement #retention-and-externalization (
+        <Statement ?01M05F1P84064QWP7XQ17QJ96Y>
+        ToolCallDomain SHALL 提供保留边界：仅保留活跃/进行中记录与最近 N 条终态记录；终态记录的大 outputText SHALL 外部化到 artifacts/tool-results 并在 domain 中仅保留引用/预览；恢复路径 SHALL 能从外部化引用重建工具结果消息。
+        </?01M05F1P84064QWP7XQ17QJ96Y>
+        <Suites [
+          <Suite #retention { name = "Retention and externalization" } (
+            <Cases [
+              <Case #terminal-records-pruned [
+                <Then ?01M05F1P84064QWP7XQ17QJ96Z>
+                SHALL 裁剪超出窗口的终态记录
+                </?01M05F1P84064QWP7XQ17QJ96Z>
+                <Then ?01M05F1P84064QWP7XQ17QJ970>
+                SHALL 保留活跃/进行中记录
+                </?01M05F1P84064QWP7XQ17QJ970>
+              ] (
+                <Given ?01M05F1P84064QWP7XQ17QJ971>
+                终态工具记录数量超过保留窗口
+                </?01M05F1P84064QWP7XQ17QJ971>
+                <When ?01M05F1P84064QWP7XQ17QJ972>
+                运行保留裁剪
+                </?01M05F1P84064QWP7XQ17QJ972>
+              )>
+              <Case #large-output-externalized (
+                <Given ?01M05F1P84064QWP7XQ17QJ973>
+                工具输出超过外部化阈值
+                </?01M05F1P84064QWP7XQ17QJ973>
+                <When ?01M05F1P84064QWP7XQ17QJ974>
+                记录工具结果
+                </?01M05F1P84064QWP7XQ17QJ974>
+                <Then ?01M05F1P84064QWP7XQ17QJ975>
+                SHALL 将全文写入 artifact 并仅保留引用/预览
+                </?01M05F1P84064QWP7XQ17QJ975>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

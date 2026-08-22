@@ -1,0 +1,203 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_1_6_-_0_3_1_8_-_r_e_f_a_c_t_o_r_-_p_e_r_s_i_s_t_e_n_t_-_s_e_s_s_i_o_n_-_b_a_c_k_p_l_a_n_e.behavior_patch.persistent-session-backplane apiVersion="codument.tech/v1alpha1" version="1" { capability = "persistent-session-backplane" } (
+  <Mutations [
+    <Upsert { selector = "behavior://persistent-session-backplane/requirements/backplane-package-boundary" } (
+      <Requirement #backplane-package-boundary (
+        <Statement ?01M05F1PHZQ9JA4MQYGNPJVPZ3>
+        session 持久化与恢复（checkpoint snapshot、effect-evidence journal、derived index、conversation persistence）SHALL 由一个专用的 data/persistence 包拥有写入与读取边界；ai-organ-logic 的 live 执行逻辑 SHALL NOT 内联 repository / journal 文件 I/O，只能通过注入的端口与该包交互。
+        </?01M05F1PHZQ9JA4MQYGNPJVPZ3>
+        <Suites [
+          <Suite #package-boundary { name = "Backplane package boundary" } (
+            <Cases [
+              <Case #executor-no-inline-io [
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZ4>
+                SHALL NOT 直接构造或调用 ConversationPersistenceRepository / 快照写入器 / effect-evidence 文件写入
+                </?01M05F1PHZQ9JA4MQYGNPJVPZ4>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZ5>
+                所有持久化触达 SHALL 经由注入的端口接口完成
+                </?01M05F1PHZQ9JA4MQYGNPJVPZ5>
+              ] (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVPZ6>
+                持久化/恢复已抽出为专用包
+                </?01M05F1PHZQ9JA4MQYGNPJVPZ6>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVPZ7>
+                检查 cell/packages/ai-organ-logic 的 live 执行路径（AiAgentExecutor 主循环、OrchestratorDriver、coordinator）
+                </?01M05F1PHZQ9JA4MQYGNPJVPZ7>
+              )>
+              <Case #recovery-reader-in-package (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVPZ8>
+                恢复入口
+                </?01M05F1PHZQ9JA4MQYGNPJVPZ8>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVPZ9>
+                检查 recovery 读取实现的归属
+                </?01M05F1PHZQ9JA4MQYGNPJVPZ9>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZA>
+                快照写入器、recovery 读取器、derived-index I/O SHALL 位于专用 persistence 包，而非 ai-organ-logic 逻辑模块内
+                </?01M05F1PHZQ9JA4MQYGNPJVPZA>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://persistent-session-backplane/requirements/one-way-persistence-ports" } (
+      <Requirement #one-way-persistence-ports (
+        <Statement ?01M05F1PHZQ9JA4MQYGNPJVPZB>
+        持久化背板 SHALL 暴露单向端口：live→write port（写入侧，非阻塞 write-behind，fire-and-forget，失败非致命）与 recovery→read port（恢复侧，每个事实只来自单一来源）；持久化能力 SHALL 通过显式注入提供，SHALL NOT 通过 vm.outerCtx.metadata 等隐式无类型通道传递。
+        </?01M05F1PHZQ9JA4MQYGNPJVPZB>
+        <Suites [
+          <Suite #port-shape { name = "One-way ports" } (
+            <Cases [
+              <Case #write-behind-non-blocking [
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZC>
+                live loop SHALL NOT 在热路径上 await 文件 I/O（写入是 write-behind / fire-and-forget）
+                </?01M05F1PHZQ9JA4MQYGNPJVPZC>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZD>
+                写入失败 SHALL NOT 中断或阻塞当前 turn
+                </?01M05F1PHZQ9JA4MQYGNPJVPZD>
+              ] (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVPZE>
+                live agent loop 完成一次会产生持久化的进展（如 compaction、effect 生命周期事件）
+                </?01M05F1PHZQ9JA4MQYGNPJVPZE>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVPZF>
+                把持久化工作交给 write port
+                </?01M05F1PHZQ9JA4MQYGNPJVPZF>
+              )>
+              <Case #explicit-injection [
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZG>
+                persistence port SHALL 作为显式注入的依赖传入
+                </?01M05F1PHZQ9JA4MQYGNPJVPZG>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZH>
+                SHALL NOT 通过 vm.outerCtx.metadata 或 runtime-context stash 隐式传递无类型 repository factory
+                </?01M05F1PHZQ9JA4MQYGNPJVPZH>
+              ] (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVPZJ>
+                runtime 组装
+                </?01M05F1PHZQ9JA4MQYGNPJVPZJ>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVPZK>
+                向执行体提供持久化能力
+                </?01M05F1PHZQ9JA4MQYGNPJVPZK>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://persistent-session-backplane/requirements/storage-not-live-gate" } (
+      <Requirement #storage-not-live-gate (
+        <Statement ?01M05F1PHZQ9JA4MQYGNPJVPZM>
+        storage / checkpoint / journal / derived projection 在正常运行中 SHALL 只观察 live execution，SHALL NOT 修改或 gate live agent loop；safepoint SHALL 仅 gate 快照写入，SHALL NOT gate turn 继续；存储文件/日志关闭（memory-only profile）时 live AI loop SHALL 仍能完成一个 turn。对应 gate G-data-no-live-storage / G-persist-profile。
+        </?01M05F1PHZQ9JA4MQYGNPJVPZM>
+        <Suites [
+          <Suite #no-live-gate { name = "Storage does not gate the live loop" } (
+            <Cases [
+              <Case #safepoint-gates-save-only [
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZN>
+                safepoint SHALL 仅决定是否写快照（其条件 SHALL 仅来自 live in-memory 状态）
+                </?01M05F1PHZQ9JA4MQYGNPJVPZN>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZP>
+                SHALL NOT 用 checkpoint / journal / recovery-scan 等 storage-derived 状态决定 turn 是否继续
+                </?01M05F1PHZQ9JA4MQYGNPJVPZP>
+              ] (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVPZQ>
+                safepoint 判定
+                </?01M05F1PHZQ9JA4MQYGNPJVPZQ>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVPZR>
+                turn 进行中
+                </?01M05F1PHZQ9JA4MQYGNPJVPZR>
+              )>
+              <Case #memory-only-completes (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVPZS>
+                storage files 与 logs 均关闭
+                </?01M05F1PHZQ9JA4MQYGNPJVPZS>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVPZT>
+                用户发起一次普通对话 turn
+                </?01M05F1PHZQ9JA4MQYGNPJVPZT>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZV>
+                turn SHALL 正常完成，不因缺少持久化写入而被阻塞或失败
+                </?01M05F1PHZQ9JA4MQYGNPJVPZV>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://persistent-session-backplane/requirements/recovery-single-source-replay" } (
+      <Requirement #recovery-single-source-replay (
+        <Statement ?01M05F1PHZQ9JA4MQYGNPJVPZW>
+        session recovery SHALL 为每个事实只选择单一来源（conversation 事实来自 conversation 文件、tool 结果来自 ToolCallDomain）；恢复后模型可见 history SHALL 是完整、配对的，使"重复读文件"这类根因症状不复现。本 track SHALL 提供对真实事故 session（005）的 recovery replay harness 作为根因验证。
+        </?01M05F1PHZQ9JA4MQYGNPJVPZW>
+        <Suites [
+          <Suite #single-source { name = "Single-source recovery" } (
+            <Cases [
+              <Case #no-multi-source-mixing [
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZX>
+                每个事实 SHALL 只来自其单一 owner 来源；声明的来源不可加载时 SHALL 硬失败而非降级混用多个半事实源
+                </?01M05F1PHZQ9JA4MQYGNPJVPZX>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVPZY>
+                link-only evidence 仅作恢复缺失时的顺序兜底（backward-compat），SHALL NOT 与 domain 并列作为同一事实的第二来源
+                </?01M05F1PHZQ9JA4MQYGNPJVPZY>
+              ] (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVPZZ>
+                恢复一个 session
+                </?01M05F1PHZQ9JA4MQYGNPJVPZZ>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVQ00>
+                重建模型可见 history 与 inflight 结果
+                </?01M05F1PHZQ9JA4MQYGNPJVQ00>
+              )>
+              <Case #incident-replay-no-repeat-read [
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVQ01>
+                恢复后的下一轮 provider context SHALL 含完整配对的工具结果
+                </?01M05F1PHZQ9JA4MQYGNPJVQ01>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVQ02>
+                SHALL NOT 触发对同一文件的重复读取（根因症状不复现）
+                </?01M05F1PHZQ9JA4MQYGNPJVQ02>
+              ] (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVQ03>
+                005 真实事故 session 的持久化产物
+                </?01M05F1PHZQ9JA4MQYGNPJVQ03>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVQ04>
+                经 recovery replay harness 恢复并继续一个 turn
+                </?01M05F1PHZQ9JA4MQYGNPJVQ04>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://persistent-session-backplane/requirements/persistence-file-grades" } (
+      <Requirement #persistence-file-grades (
+        <Statement ?01M05F1PHZQ9JA4MQYGNPJVQ05>
+        持久化背板的各类文件 SHALL 按 DataSubgraphContract 的 fact-grade 显式分级：checkpoint snapshot 为 checkpoint_snapshot、effect-evidence WAL 为 append_only_journal、derived index 为 derived_projection_cache；append-only journal SHALL NOT 被 checkpoint 管理或当作 live truth。对应 gate G-data-file-grades / G-persist-backplane。
+        </?01M05F1PHZQ9JA4MQYGNPJVQ05>
+        <Suites [
+          <Suite #file-grades { name = "File grade classification" } (
+            <Cases [
+              <Case #journal-not-checkpoint (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVQ06>
+                effect-evidence WAL
+                </?01M05F1PHZQ9JA4MQYGNPJVQ06>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVQ07>
+                分类其 fact grade
+                </?01M05F1PHZQ9JA4MQYGNPJVQ07>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVQ08>
+                SHALL 为 append_only_journal，SHALL NOT 被 checkpoint 写入管理，也 SHALL NOT 成为 live truth 或恢复的主来源
+                </?01M05F1PHZQ9JA4MQYGNPJVQ08>
+              )>
+              <Case #checkpoint-durable-subset-only (
+                <Given ?01M05F1PHZQ9JA4MQYGNPJVQ09>
+                checkpoint snapshot
+                </?01M05F1PHZQ9JA4MQYGNPJVQ09>
+                <When ?01M05F1PHZQ9JA4MQYGNPJVQ0A>
+                检查其 owned facts
+                </?01M05F1PHZQ9JA4MQYGNPJVQ0A>
+                <Then ?01M05F1PHZQ9JA4MQYGNPJVQ0B>
+                SHALL 仅拥有声明的 vm durable subset，SHALL NOT 拥有 History / LlmContext / ToolCall 的 owned facts
+                </?01M05F1PHZQ9JA4MQYGNPJVQ0B>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

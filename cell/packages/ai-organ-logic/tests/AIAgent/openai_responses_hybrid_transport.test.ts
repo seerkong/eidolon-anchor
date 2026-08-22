@@ -11,6 +11,7 @@ import {
   decideResponsesCallLineage,
 } from "@cell/ai-organ-logic/llm";
 import { buildOpenAIResponsesProviderDriver } from "@cell/ai-organ-logic/llm/drivers/OpenAIResponsesDriver";
+import { openAIResponsesToolSchemaProjector } from "@cell/ai-organ-logic/llm/tool-schema/OpenAIResponsesToolSchemaProjector";
 
 function sse(events: readonly unknown[]): Response {
   const body =
@@ -216,7 +217,8 @@ describe("Responses hybrid transport request plans", () => {
       const plan = statelessPlan([
         { type: "message", role: "user", content: [{ type: "input_text", text: "driver" }] },
       ]);
-      const result = await buildOpenAIResponsesProviderDriver().createStream({
+      const driver = buildOpenAIResponsesProviderDriver();
+      const requestParams = {
         model: "gpt-5.5",
         messages: [{ role: "user", content: "must not replace plan" }],
         tools: [],
@@ -230,6 +232,11 @@ describe("Responses hybrid transport request plans", () => {
           driverName: "openai-responses",
         },
         providerRequestContext: requestContext({ primary: plan }),
+      };
+      const prepared = driver.prepareRequest!(requestParams);
+      const result = await driver.createStream({
+        ...requestParams,
+        toolSchemaProjectionAuthority: prepared.toolSchemaProjectionAuthority,
       });
       await drain(result.stream);
       const transportResult = await result.providerOutput as ResponsesTransportResult;
@@ -400,6 +407,98 @@ describe("Responses hybrid transport request plans", () => {
     expect(transportResult.plan).toEqual(fallback);
     expect(transportResult.plan.input).toEqual(observed.input);
     expect(transportResult.responseStored).toBe(true);
+  });
+
+  it("projects tools once and reuses one receipt across separate WS and HTTP admissions", async () => {
+    const originalFetch = globalThis.fetch;
+    let projectionCalls = 0;
+    const countingProjector = {
+      ...openAIResponsesToolSchemaProjector,
+      project(tools: readonly unknown[]) {
+        projectionCalls += 1;
+        return openAIResponsesToolSchemaProjector.project(tools);
+      },
+    };
+    const observations: any[] = [];
+    const driver = buildOpenAIResponsesProviderDriver(countingProjector);
+    const incremental = [{ type: "function_call_output", call_id: "call_1", output: "done" }];
+    const fallback = statelessPlan([
+      { type: "function_call", call_id: "call_1", name: "fixture", arguments: "{}" },
+      ...incremental,
+    ]);
+    const params: any = {
+      model: "gpt-5.5",
+      messages: [{ role: "user", content: "canonical" }],
+      tools: [{
+        type: "function",
+        function: {
+          name: "fixture",
+          parameters: {
+            type: "object",
+            oneOf: [{ type: "object" }, { type: "object", additionalProperties: false }],
+          },
+        },
+      }],
+      requestOptions: {},
+      extraBody: {},
+      connectionOptions: {
+        api_key: "test-key",
+        transport_mode: "websocket",
+        supports_websockets: true,
+        webSocketFactory: () => {
+          const socket: any = {
+            onopen: null,
+            onmessage: null,
+            onerror: null,
+            onclose: null,
+            send() { throw new Error("ws send unavailable"); },
+            close() {},
+          };
+          queueMicrotask(() => socket.onopen?.({}));
+          return socket;
+        },
+      },
+      runtime: {
+        providerId: "openai",
+        selectedModel: "gpt-5.5",
+        adapterName: "openai-responses",
+        driverName: "openai-responses",
+      },
+      providerRequestContext: requestContext({
+        primary: statefulPlan(incremental),
+        fallback,
+      }),
+      transportRequestObserver: (observation: unknown) => {
+        observations.push(observation);
+        return undefined;
+      },
+    };
+    globalThis.fetch = (async () => sse([{
+      type: "response.completed",
+      response: { id: "resp_fallback", output: [] },
+    }])) as typeof fetch;
+    try {
+      const prepared = driver.prepareRequest!(params);
+      const result = await driver.createStream({
+        ...params,
+        toolSchemaProjectionAuthority: prepared.toolSchemaProjectionAuthority,
+      });
+      await drain(result.stream);
+
+      expect(projectionCalls).toBe(1);
+      expect(observations.map((entry) => entry.transportType)).toEqual(["websocket", "http"]);
+      expect(observations[0].toolSchemaCoverage.sourceFactSetDigest).toBe(
+        observations[1].toolSchemaCoverage.sourceFactSetDigest,
+      );
+      expect(observations[0].toolSchemaCoverage.projectorRuleSetId).toBe(
+        observations[1].toolSchemaCoverage.projectorRuleSetId,
+      );
+      expect(observations[0].toolSchemaCoverage.serializedBodyDigest).not.toBe(
+        observations[1].toolSchemaCoverage.serializedBodyDigest,
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("fails an invalid canonical lineage before request observation or transport I/O", async () => {

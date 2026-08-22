@@ -1,0 +1,185 @@
+<Behavior #control-plane-logic-capsules apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #capsule-structure (
+      <Statement ?01M05F1P21WSP07Q7MAQB92A1J>
+      每个控制面 logic 集群 SHALL 以 capsule 形态组织：一个稳定的 core logic 入口（output = fn(runtime, input, config) 或 fn(input, config)）、对每个存在的适配轴一个以枚举 id 布线 adapter 的 adapter registry（adapter 实现 MAY 由 support/composer 包在组装时注册，与类型留在 contract 包同理按包级分离落位；当前无适配轴的集群 MAY 省略 registry）、以及不可被外部 import 的 internals。capsule config SHALL 为强类型且只携带 adapter 枚举 id 与少量静态策略，SHALL NOT 携带函数对象或重复 runtime 已有字段。类型 SHALL 只定义在对应 contract 包中，logic 包 SHALL NOT 复制类型定义。
+      </?01M05F1P21WSP07Q7MAQB92A1J>
+      <Suites [
+        <Suite #capsule-shape { name = "Capsule structure" } (
+          <Cases [
+            <Case #stable-core-logic-entry [
+              <Then ?01M05F1P21WSP07Q7MAQB92A1K>
+              调用方 SHALL 只通过 core logic 入口传入 (runtime, input, config)
+              </?01M05F1P21WSP07Q7MAQB92A1K>
+              <Then ?01M05F1P21WSP07Q7MAQB92A1M>
+              调用方 SHALL NOT 通过 config 传入函数对象、controller 或 runtime
+              </?01M05F1P21WSP07Q7MAQB92A1M>
+            ] (
+              <Given ?01M05F1P21WSP07Q7MAQB92A1N>
+              一个控制面集群已重构为 capsule
+              </?01M05F1P21WSP07Q7MAQB92A1N>
+              <When ?01M05F1P21WSP07Q7MAQB92A1P>
+              调用方使用该集群能力
+              </?01M05F1P21WSP07Q7MAQB92A1P>
+            )>
+            <Case #adapters-wired-by-enum (
+              <Given ?01M05F1P21WSP07Q7MAQB92A1Q>
+              capsule 需要选择某个适配轴的实现
+              </?01M05F1P21WSP07Q7MAQB92A1Q>
+              <When ?01M05F1P21WSP07Q7MAQB92A1R>
+              core logic 解析 config
+              </?01M05F1P21WSP07Q7MAQB92A1R>
+              <Then ?01M05F1P21WSP07Q7MAQB92A1S>
+              adapter SHALL 经 adapter registry 按枚举 id 解析
+              </?01M05F1P21WSP07Q7MAQB92A1S>
+            )>
+            <Case #internals-not-imported (
+              <Given ?01M05F1P21WSP07Q7MAQB92A1T>
+              capsule 的 internals 目录存在私有 helper
+              </?01M05F1P21WSP07Q7MAQB92A1T>
+              <When ?01M05F1P21WSP07Q7MAQB92A1V>
+              检查 capsule 外部的 import
+              </?01M05F1P21WSP07Q7MAQB92A1V>
+              <Then ?01M05F1P21WSP07Q7MAQB92A1W>
+              SHALL NOT 存在来自 capsule 外部对 internals 的 import
+              </?01M05F1P21WSP07Q7MAQB92A1W>
+            )>
+            <Case #types-stay-in-contract [
+              <Then ?01M05F1P21WSP07Q7MAQB92A1X>
+              类型 SHALL 定义于对应 contract 包并被 logic 包 import
+              </?01M05F1P21WSP07Q7MAQB92A1X>
+              <Then ?01M05F1P21WSP07Q7MAQB92A1Y>
+              logic 包 SHALL NOT 重新定义同名类型
+              </?01M05F1P21WSP07Q7MAQB92A1Y>
+            ] (
+              <Given ?01M05F1P21WSP07Q7MAQB92A1Z>
+              capsule 需要 input/output/config/state 类型
+              </?01M05F1P21WSP07Q7MAQB92A1Z>
+              <When ?01M05F1P21WSP07Q7MAQB92A20>
+              检查类型定义位置
+              </?01M05F1P21WSP07Q7MAQB92A20>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #derivation-contract (
+      <Statement ?01M05F1P21WSP07Q7MAQB92A21>
+      三个控制面集群的 reducer/projection 加工定义 SHALL 提升为 contract 包中的类型化 derivation contract：声明 initialize/reduce/project/decide 等必需方法集合，并提供运行时断言 helper。流转布线 SHALL 复用既有 vendor/platform 原语并注入 derivation 实现；SHALL NOT 新建平行的 store、scheduler 或 dispatch 框架。
+      </?01M05F1P21WSP07Q7MAQB92A21>
+      <Suites [
+        <Suite #derivation { name = "Derivation contract" } (
+          <Cases [
+            <Case #derivation-methods-asserted (
+              <Given ?01M05F1P21WSP07Q7MAQB92A22>
+              一个 derivation 实现缺少必需方法
+              </?01M05F1P21WSP07Q7MAQB92A22>
+              <When ?01M05F1P21WSP07Q7MAQB92A23>
+              实现被注入流转布线
+              </?01M05F1P21WSP07Q7MAQB92A23>
+              <Then ?01M05F1P21WSP07Q7MAQB92A24>
+              运行时断言 SHALL 以明确错误失败，指出缺失方法名
+              </?01M05F1P21WSP07Q7MAQB92A24>
+            )>
+            <Case #derivation-is-pure (
+              <Given ?01M05F1P21WSP07Q7MAQB92A25>
+              derivation contract 声明的 reduce/project 方法
+              </?01M05F1P21WSP07Q7MAQB92A25>
+              <When ?01M05F1P21WSP07Q7MAQB92A26>
+              检查其实现源码
+              </?01M05F1P21WSP07Q7MAQB92A26>
+              <Then ?01M05F1P21WSP07Q7MAQB92A27>
+              实现 SHALL 是显式 state 上的纯函数，SHALL NOT 直接执行 IO
+              </?01M05F1P21WSP07Q7MAQB92A27>
+            )>
+            <Case #flow-wiring-reuses-primitives [
+              <Then ?01M05F1P21WSP07Q7MAQB92A28>
+              布线 SHALL 复用既有 vendor/platform 原语
+              </?01M05F1P21WSP07Q7MAQB92A28>
+              <Then ?01M05F1P21WSP07Q7MAQB92A29>
+              SHALL NOT 在控制面本地定义平行的 store/scheduler/dispatch 框架
+              </?01M05F1P21WSP07Q7MAQB92A29>
+            ] (
+              <Given ?01M05F1P21WSP07Q7MAQB92A2A>
+              derivation 需要事件流、信号或投影布线
+              </?01M05F1P21WSP07Q7MAQB92A2A>
+              <When ?01M05F1P21WSP07Q7MAQB92A2B>
+              检查布线实现
+              </?01M05F1P21WSP07Q7MAQB92A2B>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #behavior-preservation (
+      <Statement ?01M05F1P21WSP07Q7MAQB92A2C>
+      本重构 SHALL 行为保持：runtime-control-component-boundaries 能力的全部 conformance SHALL 持续通过；既有失败基线 SHALL NOT 增长；调用方表面 SHALL 经兼容导出继续工作；boundary declaration 与 conformance 的源码映射 SHALL 随文件移动同步更新。
+      </?01M05F1P21WSP07Q7MAQB92A2C>
+      <Suites [
+        <Suite #preservation { name = "Behavior preservation" } (
+          <Cases [
+            <Case #predecessor-conformance-stays-green (
+              <Given ?01M05F1P21WSP07Q7MAQB92A2D>
+              任一集群完成 capsule 重构
+              </?01M05F1P21WSP07Q7MAQB92A2D>
+              <When ?01M05F1P21WSP07Q7MAQB92A2E>
+              运行 runtime-control-component-boundaries 的全部 conformance
+              </?01M05F1P21WSP07Q7MAQB92A2E>
+              <Then ?01M05F1P21WSP07Q7MAQB92A2F>
+              conformance SHALL 全部通过
+              </?01M05F1P21WSP07Q7MAQB92A2F>
+            )>
+            <Case #failure-baseline-does-not-grow (
+              <Given ?01M05F1P21WSP07Q7MAQB92A2G>
+              重构前已记录既有失败基线
+              </?01M05F1P21WSP07Q7MAQB92A2G>
+              <When ?01M05F1P21WSP07Q7MAQB92A2H>
+              重构后运行同一测试集
+              </?01M05F1P21WSP07Q7MAQB92A2H>
+              <Then ?01M05F1P21WSP07Q7MAQB92A2J>
+              失败集合 SHALL 是基线的子集
+              </?01M05F1P21WSP07Q7MAQB92A2J>
+            )>
+            <Case #boundary-maps-updated (
+              <Given ?01M05F1P21WSP07Q7MAQB92A2K>
+              集群源码文件因 capsule 化而移动
+              </?01M05F1P21WSP07Q7MAQB92A2K>
+              <When ?01M05F1P21WSP07Q7MAQB92A2M>
+              检查 boundary declaration 与 encapsulation conformance 的源码映射
+              </?01M05F1P21WSP07Q7MAQB92A2M>
+              <Then ?01M05F1P21WSP07Q7MAQB92A2N>
+              映射 SHALL 指向移动后的真实文件与符号
+              </?01M05F1P21WSP07Q7MAQB92A2N>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #guardrail-disposition-recorded (
+      <Statement ?01M05F1P21WSP07Q7MAQB92A2P>
+      AiRuntimeTurnSupervisor 在实施中被证实已接线进 live turn 主路径（hint 注入与强制 continuation），其移除属于行为变更，SHALL NOT 在本能力（纯结构重构）内执行；其移除 SHALL 作为 turn/tool/provider lifecycle 能力的显式输入记录，且本能力期间 SHALL NOT 扩展该 guardrail。
+      </?01M05F1P21WSP07Q7MAQB92A2P>
+      <Suites [
+        <Suite #disposition { name = "Guardrail disposition" } (
+          <Cases [
+            <Case #supervisor-kept-but-frozen [
+              <Then ?01M05F1P21WSP07Q7MAQB92A2Q>
+              supervisor 行为 SHALL 与重构前一致（不删除、不扩展）
+              </?01M05F1P21WSP07Q7MAQB92A2Q>
+              <Then ?01M05F1P21WSP07Q7MAQB92A2R>
+              其移除计划 SHALL 记录于 track 决策与后续 lifecycle track 输入
+              </?01M05F1P21WSP07Q7MAQB92A2R>
+            ] (
+              <Given ?01M05F1P21WSP07Q7MAQB92A2S>
+              driver 集群完成 capsule 重构
+              </?01M05F1P21WSP07Q7MAQB92A2S>
+              <When ?01M05F1P21WSP07Q7MAQB92A2T>
+              检查 supervisor 相关源码与本 track 改动
+              </?01M05F1P21WSP07Q7MAQB92A2T>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

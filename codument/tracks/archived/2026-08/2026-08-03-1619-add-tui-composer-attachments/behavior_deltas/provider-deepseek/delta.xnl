@@ -1,0 +1,58 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_3_-_1_6_1_9_-_a_d_d_-_t_u_i_-_c_o_m_p_o_s_e_r_-_a_t_t_a_c_h_m_e_n_t_s.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/v4-flash-capabilities" } (
+      <Requirement #v4-flash-capabilities (
+        <Statement ?01M05F1PNW4JY4FSX4KRJJACF8>
+        DeepSeek adapter SHALL 支持模型 id `deepseek-v4-flash` 及其官方 Chat Completions 文本、thinking、reasoning effort、stream 与 tool-call contract；截至 2026-08-02，该模型 SHALL 声明为 text-only，系统 MUST NOT 把官方不支持的 image/file content 发送后当作识图成功。
+        </?01M05F1PNW4JY4FSX4KRJJACF8>
+        <Suites [
+          <Suite #v4-flash-routing { name = "DeepSeek V4 Flash 接入" } (
+            <Cases [
+              <Case #uses-current-model-id-and-endpoint [
+                <Then ?01M05F1PNW4JY4FSX4KRJJACF9>
+                请求 SHALL 使用配置的 DeepSeek base URL、`/chat/completions` endpoint 与原始模型 id
+                </?01M05F1PNW4JY4FSX4KRJJACF9>
+                <Then ?01M05F1PNW4JY4FSX4KRJJACFA>
+                stream、tools、thinking 与受支持 reasoning effort SHALL 继续工作
+                </?01M05F1PNW4JY4FSX4KRJJACFA>
+              ] (
+                <Given ?01M05F1PNW4JY4FSX4KRJJACFB>
+                provider adapter 为 deepseek 且模型配置为 deepseek-v4-flash
+                </?01M05F1PNW4JY4FSX4KRJJACFB>
+                <When ?01M05F1PNW4JY4FSX4KRJJACFC>
+                系统构造 Chat Completions 请求
+                </?01M05F1PNW4JY4FSX4KRJJACFC>
+              )>
+              <Case #official-limits-are-configurable (
+                <Given ?01M05F1PNW4JY4FSX4KRJJACFD>
+                示例或用户配置选择 DeepSeek V4 Flash
+                </?01M05F1PNW4JY4FSX4KRJJACFD>
+                <When ?01M05F1PNW4JY4FSX4KRJJACFE>
+                provider catalog 解析模型
+                </?01M05F1PNW4JY4FSX4KRJJACFE>
+                <Then ?01M05F1PNW4JY4FSX4KRJJACFF>
+                context/output limits SHALL 可按官方 1M/384K 值配置并传播到 runtime capability
+                </?01M05F1PNW4JY4FSX4KRJJACFF>
+              )>
+              <Case #image-is-rejected-not-placeholdered [
+                <Then ?01M05F1PNW4JY4FSX4KRJJACFG>
+                系统 SHALL 在 I/O 前以 unsupported image modality 拒绝请求
+                </?01M05F1PNW4JY4FSX4KRJJACFG>
+                <Then ?01M05F1PNW4JY4FSX4KRJJACFH>
+                系统 MUST NOT 发送 input_image 让服务端替换为 placeholder，也 MUST NOT 声称已识别图片
+                </?01M05F1PNW4JY4FSX4KRJJACFH>
+              ] (
+                <Given ?01M05F1PNW4JY4FSX4KRJJACFJ>
+                当前模型为 deepseek-v4-flash 且 prompt 含 image part
+                </?01M05F1PNW4JY4FSX4KRJJACFJ>
+                <When ?01M05F1PNW4JY4FSX4KRJJACFK>
+                系统准备 provider 请求
+                </?01M05F1PNW4JY4FSX4KRJJACFK>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,25 @@
+<BehaviorPatch #track.verify-provider-context-architecture.behavior_patch.provider-context-architecture-conformance apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-context-architecture-conformance" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-context-architecture-conformance/requirements/replay-equivalence-gate" } (
+      <Requirement #replay-equivalence-gate (
+        <Statement ?>Provider context architecture SHALL retain executable conformance evidence that canonical replay is complete, Chat repair is isolated, checkpoint deletion is semantically neutral, and history mutation invalidates provider optimization state.</?>
+        <Suites [
+          <Suite #provider-context-conformance { name = "Provider context conformance" } (
+            <Cases [
+              <Case #checkpoint-deletion-equivalence [
+                <Given ?>A valid canonical conversation and an equivalent replay checkpoint exist.</?>
+                <When ?>Stateless input is planned with and without the checkpoint.</?>
+                <Then ?>Both plans SHALL expose identical provider-visible native input.</?>
+              ]>
+              <Case #long-replay-coverage [
+                <Given ?>Canonical History contains one hundred completed tool rounds.</?>
+                <When ?>The named Responses canonical compiler projects it.</?>
+                <Then ?>All calls and outputs SHALL appear in order and in the coverage proof.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

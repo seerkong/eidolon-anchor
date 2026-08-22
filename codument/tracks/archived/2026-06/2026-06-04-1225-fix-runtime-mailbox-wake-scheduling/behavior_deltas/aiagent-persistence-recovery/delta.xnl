@@ -1,0 +1,124 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_4_-_1_2_2_5_-_f_i_x_-_r_u_n_t_i_m_e_-_m_a_i_l_b_o_x_-_w_a_k_e_-_s_c_h_e_d_u_l_i_n_g.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/recover-consumed-signal-mailbox-work" } (
+      <Requirement #recover-consumed-signal-mailbox-work (
+        <Statement ?01M05F1PFE2F6ESG0NTF6AW4SQ>
+        系统 SHALL recover and schedule actor mailbox wake work even when the corresponding durable control signal is present only as a consumed tombstone.
+        </?01M05F1PFE2F6ESG0NTF6AW4SQ>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/recover-consumed-signal-mailbox-work" strength = "hint" }>
+        <Suites [
+          <Suite #consumed-signal-mailbox-payload { name = "Consumed signal with pending mailbox payload" } (
+            <Cases [
+              <Case #consumed-async-signal-mailbox-pending [
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4SR>
+                The actor mailbox snapshot still contains `asyncCompletion` payload for op id `X`
+                </?01M05F1PFE2F6ESG0NTF6AW4SR>
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4SS>
+                The actor mailbox payload SHALL remain the recoverable execution truth
+                </?01M05F1PFE2F6ESG0NTF6AW4SS>
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4ST>
+                The owning fiber SHALL become schedulable without requiring a pending durable signal event
+                </?01M05F1PFE2F6ESG0NTF6AW4ST>
+              ] (
+                <Given ?01M05F1PFE2F6ESG0NTF6AW4SV>
+                `runtime_state/vm.json` contains a consumed `async_completed` control-signal tombstone for op id `X`
+                </?01M05F1PFE2F6ESG0NTF6AW4SV>
+                <When ?01M05F1PFE2F6ESG0NTF6AW4SW>
+                The session runtime is recovered
+                </?01M05F1PFE2F6ESG0NTF6AW4SW>
+              )>
+              <Case #mailbox-work-reconstructs-pending-resume [
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4SX>
+                The runtime SHALL rebuild the equivalent schedulable state from actor mailbox plus cooperative exec state
+                </?01M05F1PFE2F6ESG0NTF6AW4SX>
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4SY>
+                The runtime SHALL NOT require transcript-tail inference to resume the fiber
+                </?01M05F1PFE2F6ESG0NTF6AW4SY>
+              ] (
+                <Given ?01M05F1PFE2F6ESG0NTF6AW4SZ>
+                A recovered actor has pending wake mailbox work and no serialized pending resume
+                </?01M05F1PFE2F6ESG0NTF6AW4SZ>
+                <When ?01M05F1PFE2F6ESG0NTF6AW4T0>
+                The runtime reconstructs orchestrator state
+                </?01M05F1PFE2F6ESG0NTF6AW4T0>
+              )>
+              <Case #pending-resume-never-required-as-sole-truth [
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4T1>
+                The explicit `pendingResumes` scheduler set was lost or absent
+                </?01M05F1PFE2F6ESG0NTF6AW4T1>
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4T2>
+                The pending actor mailbox entry SHALL be sufficient to re-schedule the fiber
+                </?01M05F1PFE2F6ESG0NTF6AW4T2>
+              ] (
+                <Given ?01M05F1PFE2F6ESG0NTF6AW4T3>
+                A wake message was durably delivered to an actor mailbox before process exit
+                </?01M05F1PFE2F6ESG0NTF6AW4T3>
+                <When ?01M05F1PFE2F6ESG0NTF6AW4T4>
+                The runtime recovers
+                </?01M05F1PFE2F6ESG0NTF6AW4T4>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/cooperative-wait-snapshot-guard" } (
+      <Requirement #cooperative-wait-snapshot-guard (
+        <Statement ?01M05F1PFE2F6ESG0NTF6AW4T5>
+        系统 SHALL reject, repair, or explicitly diagnose snapshots that persist a cooperative async wait as an apparently idle ready fiber.
+        </?01M05F1PFE2F6ESG0NTF6AW4T5>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/cooperative-wait-snapshot-guard" strength = "hint" }>
+        <Suites [
+          <Suite #cooperative-wait-guards { name = "Cooperative wait snapshot guards" } (
+            <Cases [
+              <Case #ready-wait-llm-guard [
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4T6>
+                The cooperative exec state is `wait_llm` with inflight work
+                </?01M05F1PFE2F6ESG0NTF6AW4T6>
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4T7>
+                The runtime SHALL NOT silently accept it as ordinary idle state
+                </?01M05F1PFE2F6ESG0NTF6AW4T7>
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4T8>
+                The runtime SHALL repair it to a schedulable or typed waiting state and emit diagnostics when repair is applied
+                </?01M05F1PFE2F6ESG0NTF6AW4T8>
+              ] (
+                <Given ?01M05F1PFE2F6ESG0NTF6AW4T9>
+                A snapshot would persist a fiber as `ready` with no waiting reason
+                </?01M05F1PFE2F6ESG0NTF6AW4T9>
+                <When ?01M05F1PFE2F6ESG0NTF6AW4TA>
+                The snapshot is saved or recovered
+                </?01M05F1PFE2F6ESG0NTF6AW4TA>
+              )>
+              <Case #ready-wait-tool-guard (
+                <Given ?01M05F1PFE2F6ESG0NTF6AW4TB>
+                A snapshot would persist a fiber as `ready` with cooperative exec state `wait_tool` and inflight work
+                </?01M05F1PFE2F6ESG0NTF6AW4TB>
+                <When ?01M05F1PFE2F6ESG0NTF6AW4TC>
+                The snapshot is saved or recovered
+                </?01M05F1PFE2F6ESG0NTF6AW4TC>
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4TD>
+                The runtime SHALL preserve a deterministic continuation path for the pending tool result
+                </?01M05F1PFE2F6ESG0NTF6AW4TD>
+              )>
+              <Case #recovery-fixture-covers-empty-pending-signal-store [
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4TE>
+                It has consumed wake tombstones, pending actor mailbox payloads, and cooperative wait state
+                </?01M05F1PFE2F6ESG0NTF6AW4TE>
+                <Then ?01M05F1PFE2F6ESG0NTF6AW4TF>
+                The test SHALL prove that mailbox-owned payloads still drive recovery and execution
+                </?01M05F1PFE2F6ESG0NTF6AW4TF>
+              ] (
+                <Given ?01M05F1PFE2F6ESG0NTF6AW4TG>
+                A recovery fixture has no pending durable control signal events
+                </?01M05F1PFE2F6ESG0NTF6AW4TG>
+                <When ?01M05F1PFE2F6ESG0NTF6AW4TH>
+                The focused recovery test runs
+                </?01M05F1PFE2F6ESG0NTF6AW4TH>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

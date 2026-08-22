@@ -1,0 +1,25 @@
+<BehaviorPatch #track.bind-rewind-context-epoch.behavior_patch.provider-context-epoch apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-context-epoch" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-context-epoch/requirements/history-movement-invalidates-replay" } (
+      <Requirement #history-movement-invalidates-replay (
+        <Statement ?>Provider replay optimization SHALL be scoped by a Session-owned context epoch; history head movement, fork, rollback, and reset MUST advance the epoch and invalidate affected replay checkpoints before the next provider request.</?>
+        <Suites [
+          <Suite #history-mutation { name = "History mutation invalidation" } (
+            <Cases [
+              <Case #rewind-invalidates-checkpoint [
+                <Given ?>A Responses replay checkpoint exists for the current conversation head.</?>
+                <When ?>The actor history head moves to another generation.</?>
+                <Then ?>The context epoch SHALL advance and the checkpoint SHALL be removed without changing canonical History.</?>
+              ]>
+              <Case #stale-result-rejected [
+                <Given ?>A provider request was prepared under an earlier context epoch.</?>
+                <When ?>History changes before the provider result commits.</?>
+                <Then ?>The stale result SHALL NOT advance replay checkpoint or continuation state.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

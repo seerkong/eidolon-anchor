@@ -1,0 +1,85 @@
+<Track #add-deepseek-model-support version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" description = "把 DeepSeek 模型族的缓存友好策略、上下文窗口映射和 provider / prompt 迁移方案纳入本项目的正式迭代。" commit_mode = "manual" created_at = "2026-05-18T00:00:00Z" updated_at = "2026-05-18T00:00:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-deepseek-model-support { name = "add-deepseek-model-support" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Model family and provider inventory" status = "DONE" order = 0 } (
+        <Description ?01M05F1PDK5BDBMJ1JYH7V9HCQ>
+        梳理当前 provider / model / prompt 流程，并对齐 DeepSeek-TUI 的缓存与上下文策略。
+        </?01M05F1PDK5BDBMJ1JYH7V9HCQ>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Inventory current model flow" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDK5BDBMJ1JYH7V9HCR>
+            梳理 local model state、provider list、runtime model resolution 和 prompt build 的实际路径。
+            </?01M05F1PDK5BDBMJ1JYH7V9HCR>
+          )>
+          <Task { id = "T1.2" name = "Capture DeepSeek reference rules" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PDK5BDBMJ1JYH7V9HCS>
+            整理 DeepSeek-TUI 中的 context window、prefix cache、compaction 和 model alias 规则。
+            </?01M05F1PDK5BDBMJ1JYH7V9HCS>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "DeepSeek capability layer" status = "DONE" order = 1 } (
+        <Description ?01M05F1PDK5BDBMJ1JYH7V9HCT>
+        把 DeepSeek 变成可复用的模型能力层，而不是零散特判。
+        </?01M05F1PDK5BDBMJ1JYH7V9HCT>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Add DeepSeek capability mapping" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDK5BDBMJ1JYH7V9HCV>
+            定义 DeepSeek family、alias、context window 和 compaction threshold 的模型能力映射。
+            </?01M05F1PDK5BDBMJ1JYH7V9HCV>
+          )>
+          <Task { id = "T2.2" name = "Align runtime provider resolution" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PDK5BDBMJ1JYH7V9HCW>
+            让 runtime 在不破坏现有 provider 行为的前提下，按模型能力决定 DeepSeek 相关路径。
+            </?01M05F1PDK5BDBMJ1JYH7V9HCW>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Prompt serialization and cache stability" status = "DONE" order = 2 } (
+        <Description ?01M05F1PDK5BDBMJ1JYH7V9HCX>
+        减少 DeepSeek 请求的稳定前缀漂移，提高缓存命中率。
+        </?01M05F1PDK5BDBMJ1JYH7V9HCX>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Stabilize prompt assembly" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDK5BDBMJ1JYH7V9HCY>
+            保持 prompt parts 的顺序、范围和序列化输出稳定，明确稳定前缀与动态内容边界。
+            </?01M05F1PDK5BDBMJ1JYH7V9HCY>
+          )>
+          <Task { id = "T3.2" name = "Apply model-aware compaction policy" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PDK5BDBMJ1JYH7V9HCZ>
+            根据模型上下文窗口计算 compaction 阈值，避免过早重写稳定前缀。
+            </?01M05F1PDK5BDBMJ1JYH7V9HCZ>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Verification and rollout" status = "DONE" order = 3 } (
+        <Description ?01M05F1PDK5BDBMJ1JYH7V9HD0>
+        通过测试和回归验证，确认 DeepSeek 支持不会破坏既有模型流。
+        </?01M05F1PDK5BDBMJ1JYH7V9HD0>
+        <SubNodes [
+          <Task { id = "T4.1" name = "Add focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDK5BDBMJ1JYH7V9HD1>
+            补充模型别名、context window、prompt 序列化、compaction 和 fallback 的聚焦测试。
+            </?01M05F1PDK5BDBMJ1JYH7V9HD1>
+          )>
+          <Task { id = "T4.2" name = "Review rollout boundaries" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PDK5BDBMJ1JYH7V9HD2>
+            确认 DeepSeek 规则的应用边界，避免把非 DeepSeek provider 一并改坏。
+            </?01M05F1PDK5BDBMJ1JYH7V9HD2>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

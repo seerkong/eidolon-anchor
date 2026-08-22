@@ -1,0 +1,213 @@
+<Behavior #detached-actor-observability apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #detached-bash-logs-are-queryable-while-running (
+      <Statement ?01M05F1P25RBQN92EC16VPF8P5>
+      The system SHALL expose scoped, bounded log queries for `RunDetachedBash` tasks while they are pending, running, suspended, or terminal.
+      </?01M05F1P25RBQN92EC16VPF8P5>
+      <Suites [
+        <Suite { name = "detached-bash-logs-are-queryable-while-running" } (
+          <Cases [
+            <Case #query-recent-stdout-only { name = "Query recent stdout only" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8P6>
+              the response SHALL include only stdout log entries
+              </?01M05F1P25RBQN92EC16VPF8P6>
+              <Then ?01M05F1P25RBQN92EC16VPF8P7>
+              the response SHALL include sequence metadata for follow-up polling
+              </?01M05F1P25RBQN92EC16VPF8P7>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8P8>
+              a `RunDetachedBash` task has emitted stdout and stderr chunks
+              </?01M05F1P25RBQN92EC16VPF8P8>
+              <When ?01M05F1P25RBQN92EC16VPF8P9>
+              the caller queries detached logs with `sources=["stdout"]`
+              </?01M05F1P25RBQN92EC16VPF8P9>
+            )>
+            <Case #query-recent-stderr-only { name = "Query recent stderr only" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8PA>
+              the response SHALL include only stderr log entries
+              </?01M05F1P25RBQN92EC16VPF8PA>
+              <Then ?01M05F1P25RBQN92EC16VPF8PB>
+              stdout entries SHALL NOT be included
+              </?01M05F1P25RBQN92EC16VPF8PB>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8PC>
+              a `RunDetachedBash` task has emitted stderr chunks
+              </?01M05F1P25RBQN92EC16VPF8PC>
+              <When ?01M05F1P25RBQN92EC16VPF8PD>
+              the caller queries detached logs with `sources=["stderr"]`
+              </?01M05F1P25RBQN92EC16VPF8PD>
+            )>
+            <Case #query-log-range-by-sequence { name = "Query log range by sequence" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8PE>
+              the response SHALL include only entries with sequence greater than `after_seq`
+              </?01M05F1P25RBQN92EC16VPF8PE>
+              <Then ?01M05F1P25RBQN92EC16VPF8PF>
+              the response SHALL include the next sequence cursor
+              </?01M05F1P25RBQN92EC16VPF8PF>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8PG>
+              a `RunDetachedBash` task has emitted ordered log chunks
+              </?01M05F1P25RBQN92EC16VPF8PG>
+              <When ?01M05F1P25RBQN92EC16VPF8PH>
+              the caller queries with `after_seq`
+              </?01M05F1P25RBQN92EC16VPF8PH>
+            )>
+            <Case #log-retention-rolls-over { name = "Log retention rolls over" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8PJ>
+              the query response SHALL report dropped entry or byte metadata
+              </?01M05F1P25RBQN92EC16VPF8PJ>
+              <Then ?01M05F1P25RBQN92EC16VPF8PK>
+              the remaining entries SHALL preserve monotonic sequence ordering
+              </?01M05F1P25RBQN92EC16VPF8PK>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8PM>
+              a `RunDetachedBash` task emits more logs than the configured retention limits
+              </?01M05F1P25RBQN92EC16VPF8PM>
+              <When ?01M05F1P25RBQN92EC16VPF8PN>
+              the oldest entries are discarded
+              </?01M05F1P25RBQN92EC16VPF8PN>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #detached-delegate-messages-are-queryable-while-running (
+      <Statement ?01M05F1P25RBQN92EC16VPF8PP>
+      The system SHALL expose recent message and execution event queries for detached `RunDelegateActor` tasks.
+      </?01M05F1P25RBQN92EC16VPF8PP>
+      <Suites [
+        <Suite { name = "detached-delegate-messages-are-queryable-while-running" } (
+          <Cases [
+            <Case #query-recent-assistant-messages { name = "Query recent assistant messages" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8PQ>
+              the response SHALL include only assistant message entries
+              </?01M05F1P25RBQN92EC16VPF8PQ>
+              <Then ?01M05F1P25RBQN92EC16VPF8PR>
+              the response SHALL include sequence metadata for follow-up polling
+              </?01M05F1P25RBQN92EC16VPF8PR>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8PS>
+              a detached delegate actor has produced assistant messages and tool events
+              </?01M05F1P25RBQN92EC16VPF8PS>
+              <When ?01M05F1P25RBQN92EC16VPF8PT>
+              the caller queries messages with `roles=["assistant"]`
+              </?01M05F1P25RBQN92EC16VPF8PT>
+            )>
+            <Case #query-recent-tool-events { name = "Query recent tool events" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8PV>
+              the response SHALL include tool call and tool result entries
+              </?01M05F1P25RBQN92EC16VPF8PV>
+              <Then ?01M05F1P25RBQN92EC16VPF8PW>
+              ordinary assistant text SHALL NOT be included unless requested
+              </?01M05F1P25RBQN92EC16VPF8PW>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8PX>
+              a detached delegate actor has started and completed tool calls
+              </?01M05F1P25RBQN92EC16VPF8PX>
+              <When ?01M05F1P25RBQN92EC16VPF8PY>
+              the caller queries messages with `kinds=["tool_call","tool_result"]`
+              </?01M05F1P25RBQN92EC16VPF8PY>
+            )>
+            <Case #query-message-range-and-limit { name = "Query message range and limit" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8PZ>
+              the response SHALL honor the requested range and limits
+              </?01M05F1P25RBQN92EC16VPF8PZ>
+              <Then ?01M05F1P25RBQN92EC16VPF8Q0>
+              it SHALL report truncation or dropped-entry metadata when applicable
+              </?01M05F1P25RBQN92EC16VPF8Q0>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8Q1>
+              a detached delegate actor has many message entries
+              </?01M05F1P25RBQN92EC16VPF8Q1>
+              <When ?01M05F1P25RBQN92EC16VPF8Q2>
+              the caller provides `after_seq`, `limit_entries`, or `limit_bytes`
+              </?01M05F1P25RBQN92EC16VPF8Q2>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #detached-task-result-is-queryable-after-completion (
+      <Statement ?01M05F1P25RBQN92EC16VPF8Q3>
+      The system SHALL provide a focused result query for detached tasks that returns terminal status and final output.
+      </?01M05F1P25RBQN92EC16VPF8Q3>
+      <Suites [
+        <Suite { name = "detached-task-result-is-queryable-after-completion" } (
+          <Cases [
+            <Case #completed-detached-bash-result { name = "Completed detached bash result" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8Q4>
+              the response SHALL include terminal status, final output summary, and available stdout/stderr tail data
+              </?01M05F1P25RBQN92EC16VPF8Q4>
+              <Then ?01M05F1P25RBQN92EC16VPF8Q5>
+              the response SHALL indicate whether logs were truncated or rolled over
+              </?01M05F1P25RBQN92EC16VPF8Q5>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8Q6>
+              a `RunDetachedBash` task has completed
+              </?01M05F1P25RBQN92EC16VPF8Q6>
+              <When ?01M05F1P25RBQN92EC16VPF8Q7>
+              the caller queries the detached result
+              </?01M05F1P25RBQN92EC16VPF8Q7>
+            )>
+            <Case #completed-delegate-result { name = "Completed delegate result" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8Q8>
+              the response SHALL include terminal status and final assistant result text
+              </?01M05F1P25RBQN92EC16VPF8Q8>
+              <Then ?01M05F1P25RBQN92EC16VPF8Q9>
+              the caller MAY request a bounded recent message tail in the same response
+              </?01M05F1P25RBQN92EC16VPF8Q9>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8QA>
+              a detached `RunDelegateActor` task has completed
+              </?01M05F1P25RBQN92EC16VPF8QA>
+              <When ?01M05F1P25RBQN92EC16VPF8QB>
+              the caller queries the detached result
+              </?01M05F1P25RBQN92EC16VPF8QB>
+            )>
+            <Case #result-requested-before-terminal-state { name = "Result requested before terminal state" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8QC>
+              the response SHALL report that the task is not terminal
+              </?01M05F1P25RBQN92EC16VPF8QC>
+              <Then ?01M05F1P25RBQN92EC16VPF8QD>
+              it SHALL include the current task status
+              </?01M05F1P25RBQN92EC16VPF8QD>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8QE>
+              a detached task is not yet completed, failed, or cancelled
+              </?01M05F1P25RBQN92EC16VPF8QE>
+              <When ?01M05F1P25RBQN92EC16VPF8QF>
+              the caller queries the detached result without allowing partial results
+              </?01M05F1P25RBQN92EC16VPF8QF>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #existing-detached-status-compatibility-is-preserved (
+      <Statement ?01M05F1P25RBQN92EC16VPF8QG>
+      The system SHALL preserve existing detached task status behavior while adding observability-specific tools.
+      </?01M05F1P25RBQN92EC16VPF8QG>
+      <Suites [
+        <Suite { name = "existing-detached-status-compatibility-is-preserved" } (
+          <Cases [
+            <Case #existing-status-query-remains-valid { name = "Existing status query remains valid" } [
+              <Then ?01M05F1P25RBQN92EC16VPF8QH>
+              the status response SHALL continue to include task id, kind, status, timestamps, child identifiers, output text, and error
+              </?01M05F1P25RBQN92EC16VPF8QH>
+              <Then ?01M05F1P25RBQN92EC16VPF8QJ>
+              callers needing logs or message tails SHALL use the new observability query tools
+              </?01M05F1P25RBQN92EC16VPF8QJ>
+            ] (
+              <Given ?01M05F1P25RBQN92EC16VPF8QK>
+              a caller uses `DetachedActorStatus` for an existing detached task
+              </?01M05F1P25RBQN92EC16VPF8QK>
+              <When ?01M05F1P25RBQN92EC16VPF8QM>
+              the observability implementation is enabled
+              </?01M05F1P25RBQN92EC16VPF8QM>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

@@ -1,0 +1,30 @@
+<BehaviorPatch #track.bind-provider-tool-schema-projection-and-coverage.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/tool-schema-object-root" } (
+      <Requirement #tool-schema-object-root (
+        <Statement ?>The DeepSeek Chat tool-schema projector SHALL emit an object-root function parameters schema, preserve every canonical alternative and constraint unless an evidenced DeepSeek-specific typed transformation accounts for it, and SHALL NOT reuse the OpenAI Responses schema compatibility implementation.</?>
+        <Suites [
+          <Suite #deepseek-tool-schema { name = "DeepSeek tool-schema compatibility" } (
+            <Cases [
+              <Case #workflow-open-object-root (
+                <Given ?>the canonical WorkflowOpenAuthoringSession parameters with two object alternatives</?>
+                <When ?>the DeepSeek Chat bundle projects the function declaration</?>
+                <Then ?>the emitted parameters SHALL declare root type object and preserve both oneOf branches with their required fields and constraints</?>
+              )>
+              <Case #unsupported-deepseek-transformation (
+                <Given ?>a canonical schema feature for which the DeepSeek projector has no exact preservation or typed compatibility rule</?>
+                <When ?>projection coverage is evaluated</?>
+                <Then ?>projection SHALL fail closed before a DeepSeek request is observed or sent</?>
+              )>
+              <Case #provider-policy-isolation (
+                <Given ?>the same canonical tool offered to DeepSeek Chat, ordinary OpenAI Chat, and OpenAI Responses</?>
+                <When ?>each configured driver projects its request</?>
+                <Then ?>DeepSeek-specific compatibility behavior SHALL affect only the DeepSeek bundle and Responses behavior SHALL remain independently owned</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,87 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_8_-_1_7_0_4_-_a_d_d_-_p_r_o_v_i_d_e_r_-_r_e_q_u_e_s_t_-_s_q_l_i_t_e_-_l_e_d_g_e_r.behavior_patch.ai-runtime-observability-rx-sinks apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-observability-rx-sinks" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-observability-rx-sinks/requirements/provider-request-sqlite-ledger" } (
+      <Requirement #provider-request-sqlite-ledger (
+        <Statement ?01M05F1PKN5MWJ2HMVA3698BHV>
+        系统 SHALL 在显式启用时，把每次真实 provider request attempt 作为独立、append-only、可查询的 SQLite 诊断事实持久化，且该 sink SHALL NOT 参与或改变 live AI loop。
+        </?01M05F1PKN5MWJ2HMVA3698BHV>
+        <Suites [
+          <Suite #attempt-capture { name = "Provider request attempt capture" } (
+            <Cases [
+              <Case #one-row-per-real-attempt [
+                <Then ?01M05F1PKN5MWJ2HMVA3698BHW>
+                系统 SHALL 在每个真实发送动作前持久化恰好一条 request observation
+                </?01M05F1PKN5MWJ2HMVA3698BHW>
+                <Then ?01M05F1PKN5MWJ2HMVA3698BHX>
+                observation SHALL 保留脱敏后的 exact request body、transport type/ordinal、source provider messages/tools 以及 session/actor/turn/provider-call/provider-attempt identity
+                </?01M05F1PKN5MWJ2HMVA3698BHX>
+                <Then ?01M05F1PKN5MWJ2HMVA3698BHY>
+                只执行 prompt build、估算或 preflight 而未调用 provider 时 SHALL NOT 写入 request observation
+                </?01M05F1PKN5MWJ2HMVA3698BHY>
+                <Then ?01M05F1PKN5MWJ2HMVA3698BHZ>
+                WebSocket 失败后发送不同 HTTP fallback body 时 SHALL 记录同一 provider attempt 下两个有序 transport observations
+                </?01M05F1PKN5MWJ2HMVA3698BHZ>
+              ] (
+                <Given ?01M05F1PKN5MWJ2HMVA3698BJ0>
+                provider runtime 即将执行一次真实 transport attempt，包括 retry 内的 WebSocket、HTTP 或 fallback attempt
+                </?01M05F1PKN5MWJ2HMVA3698BJ0>
+                <When ?01M05F1PKN5MWJ2HMVA3698BJ1>
+                最终 request body 已完成所有 adapter-specific 变换且即将执行 fetch 或 WebSocket send
+                </?01M05F1PKN5MWJ2HMVA3698BJ1>
+              )>
+              <Case #observation-does-not-mutate-request [
+                <Then ?01M05F1PKN5MWJ2HMVA3698BJ2>
+                原 provider request 的结构、顺序、字段和值 SHALL 保持不变
+                </?01M05F1PKN5MWJ2HMVA3698BJ2>
+                <Then ?01M05F1PKN5MWJ2HMVA3698BJ3>
+                启用或关闭 observation SHALL 产生相同的 provider 调用次数和输入
+                </?01M05F1PKN5MWJ2HMVA3698BJ3>
+              ] (
+                <Given ?01M05F1PKN5MWJ2HMVA3698BJ4>
+                runtime 已生成将要发送的 messages、tools 和 request contract
+                </?01M05F1PKN5MWJ2HMVA3698BJ4>
+                <When ?01M05F1PKN5MWJ2HMVA3698BJ5>
+                系统复制并持久化 observation
+                </?01M05F1PKN5MWJ2HMVA3698BJ5>
+              )>
+            ]>
+          )>
+          <Suite #security-and-failure { name = "Security and failure isolation" } (
+            <Cases [
+              <Case #credential-redaction [
+                <Then ?01M05F1PKN5MWJ2HMVA3698BJ6>
+                认证字段和 connection options SHALL NOT 以明文写入数据库
+                </?01M05F1PKN5MWJ2HMVA3698BJ6>
+                <Then ?01M05F1PKN5MWJ2HMVA3698BJ7>
+                数据库文件 SHALL 仅允许当前用户读写
+                </?01M05F1PKN5MWJ2HMVA3698BJ7>
+              ] (
+                <Given ?01M05F1PKN5MWJ2HMVA3698BJ8>
+                request 配置包含 authorization、API key、cookie、token、secret 或 connection options
+                </?01M05F1PKN5MWJ2HMVA3698BJ8>
+                <When ?01M05F1PKN5MWJ2HMVA3698BJ9>
+                系统构造 SQLite observation 副本
+                </?01M05F1PKN5MWJ2HMVA3698BJ9>
+              )>
+              <Case #sqlite-failure-is-fail-open [
+                <Then ?01M05F1PKN5MWJ2HMVA3698BJA>
+                系统 SHALL 产生有界诊断并继续原 provider attempt
+                </?01M05F1PKN5MWJ2HMVA3698BJA>
+                <Then ?01M05F1PKN5MWJ2HMVA3698BJB>
+                系统 SHALL NOT 因 observation 失败而取消、重试或改变 provider 结果
+                </?01M05F1PKN5MWJ2HMVA3698BJB>
+              ] (
+                <Given ?01M05F1PKN5MWJ2HMVA3698BJC>
+                SQLite open、schema、lock、write 或 disk 操作失败
+                </?01M05F1PKN5MWJ2HMVA3698BJC>
+                <When ?01M05F1PKN5MWJ2HMVA3698BJD>
+                provider attempt 到达 observation port
+                </?01M05F1PKN5MWJ2HMVA3698BJD>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

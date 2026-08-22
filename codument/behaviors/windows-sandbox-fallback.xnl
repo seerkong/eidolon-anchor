@@ -1,0 +1,56 @@
+<Behavior #windows-sandbox-fallback apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #tiered-fallback (
+      <Statement ?01M05F1P4F91H6H72WCTWQTHMR>
+      Windows sandbox SHALL 采用分级模式（elevated/restricted-token/disabled）：runner 可用且 setup 完成时 SHALL 走 windows-elevated；runner 未安装或未 setup 时 SHALL 走普通执行 + 保留文件权限检查（不 ENOENT）。bash 报错 SHALL 显式可诊断（缺失 runner、EIDOLON_WINDOWS_SANDBOX_RUNNER、绕过选项）。
+      </?01M05F1P4F91H6H72WCTWQTHMR>
+      <Suites [
+        <Suite #windows-sandbox-tiered { name = "Windows sandbox tiered fallback" } (
+          <Cases [
+            <Case #runner-missing-disabled [
+              <Then ?01M05F1P4F91H6H72WCTWQTHMS>
+              windowsSandboxLevel SHALL 为 disabled
+              </?01M05F1P4F91H6H72WCTWQTHMS>
+              <Then ?01M05F1P4F91H6H72WCTWQTHMT>
+              bash SHALL 走普通执行 + 保留文件权限检查，SHALL NOT 报 ENOENT
+              </?01M05F1P4F91H6H72WCTWQTHMT>
+            ] (
+              <Given ?01M05F1P4F91H6H72WCTWQTHMV>
+              运行平台是 win32 且 windows-sandbox-runner 不存在
+              </?01M05F1P4F91H6H72WCTWQTHMV>
+              <When ?01M05F1P4F91H6H72WCTWQTHMW>
+              解析 sandbox backend selection
+              </?01M05F1P4F91H6H72WCTWQTHMW>
+            )>
+            <Case #runner-available-elevated [
+              <Then ?01M05F1P4F91H6H72WCTWQTHMX>
+              windowsSandboxLevel SHALL 为 elevated
+              </?01M05F1P4F91H6H72WCTWQTHMX>
+              <Then ?01M05F1P4F91H6H72WCTWQTHMY>
+              bash SHALL 走 eidolon-windows-sandbox-runner
+              </?01M05F1P4F91H6H72WCTWQTHMY>
+            ] (
+              <Given ?01M05F1P4F91H6H72WCTWQTHMZ>
+              运行平台是 win32 且 runner 存在且 setup 完成
+              </?01M05F1P4F91H6H72WCTWQTHMZ>
+              <When ?01M05F1P4F91H6H72WCTWQTHN0>
+              解析 sandbox backend selection
+              </?01M05F1P4F91H6H72WCTWQTHN0>
+            )>
+            <Case #diagnosable-error (
+              <Given ?01M05F1P4F91H6H72WCTWQTHN1>
+              配置显式要求 elevated 但 runner 缺失
+              </?01M05F1P4F91H6H72WCTWQTHN1>
+              <When ?01M05F1P4F91H6H72WCTWQTHN2>
+              bash 执行
+              </?01M05F1P4F91H6H72WCTWQTHN2>
+              <Then ?01M05F1P4F91H6H72WCTWQTHN3>
+              报错 SHALL 包含 EIDOLON_WINDOWS_SANDBOX_RUNNER 提示
+              </?01M05F1P4F91H6H72WCTWQTHN3>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

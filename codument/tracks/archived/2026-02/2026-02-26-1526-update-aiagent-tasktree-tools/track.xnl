@@ -1,0 +1,137 @@
+<Track #update-aiagent-tasktree-tools version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "将已实现的 TaskTree 工具链改动补建为可验证、可归档的 Codument 追踪，并完成严格校验收口" commit_mode = "manual" created_at = "2026-02-26T14:36:33Z" updated_at = "2026-02-26T15:26:52Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_update-aiagent-tasktree-tools { name = "update-aiagent-tasktree-tools" } (
+    <Description ?01M05F1P8MGYXYTG6BVRD8VW8B>
+    AIAgent TaskTree 工具链对齐与规范化补建
+    </?01M05F1P8MGYXYTG6BVRD8VW8B>
+    <SubNodes [
+      <TaskGroup #P1 { name = "规范文件补建" status = "DONE" order = 0 } (
+        <Description ?01M05F1P8MGYXYTG6BVRD8VW8C>
+        完成 spec/proposal/design 三件套并锁定范围与决策
+        </?01M05F1P8MGYXYTG6BVRD8VW8C>
+        <Gate [
+          <Criterion ?01M05F1P8MGYXYTG6BVRD8VW8D>
+          spec/proposal/design 内容一致且与现有实现对齐
+          </?01M05F1P8MGYXYTG6BVRD8VW8D>
+        ]>
+        <SubNodes [
+          <TaskGroup { id = "T1.1" name = "补建 spec.md" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P8MGYXYTG6BVRD8VW8E>
+            将 TaskTreeWrite/TaskTreeRead/RunSubAgent 命名与契约、ToolDefinitions schema 去重、terminal minimal 对齐写入规范增量。
+            </?01M05F1P8MGYXYTG6BVRD8VW8E>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8F>
+              spec.md 使用 ADDED Requirements 并包含 Scenario
+              </?01M05F1P8MGYXYTG6BVRD8VW8F>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8G>
+              范围外事项明确排除 vfs 和完整 TUI 重构
+              </?01M05F1P8MGYXYTG6BVRD8VW8G>
+            ]>
+            <SubNodes [
+              <Task { id = "T1.1.1" name = "梳理已实现改动边界" status = "DONE" order = 0 }>
+              <Task { id = "T1.1.2" name = "编写规范增量与场景" status = "DONE" order = 1 }>
+            ]>
+          )>
+          <TaskGroup { id = "T1.2" name = "补建 proposal.md" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1P8MGYXYTG6BVRD8VW8H>
+            说明补建动机、目标/非目标、变更内容与影响范围，确保与现状代码一致。
+            </?01M05F1P8MGYXYTG6BVRD8VW8H>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8J>
+              proposal 明确这是已实现改动的追踪补建
+              </?01M05F1P8MGYXYTG6BVRD8VW8J>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8K>
+              非目标明确不包含新能力扩展
+              </?01M05F1P8MGYXYTG6BVRD8VW8K>
+            ]>
+            <SubNodes [
+              <Task { id = "T1.2.1" name = "整理背景与动机" status = "DONE" order = 0 }>
+              <Task { id = "T1.2.2" name = "固化范围与影响说明" status = "DONE" order = 1 }>
+            ]>
+          )>
+          <TaskGroup { id = "T1.3" name = "补建设计说明 design.md" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1P8MGYXYTG6BVRD8VW8M>
+            记录跨模块影响、关键决策、替代方案、风险和迁移路径，消除技术歧义。
+            </?01M05F1P8MGYXYTG6BVRD8VW8M>
+            <Acceptance [
+              <Criterion { id = "T1.3-AC1" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8N>
+              design.md 覆盖决策、风险/权衡、兼容性和迁移计划
+              </?01M05F1P8MGYXYTG6BVRD8VW8N>
+              <Criterion { id = "T1.3-AC2" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8P>
+              影响文件列表覆盖 backend 与 terminal 关键路径
+              </?01M05F1P8MGYXYTG6BVRD8VW8P>
+            ]>
+            <SubNodes [
+              <Task { id = "T1.3.1" name = "整理模块影响点" status = "DONE" order = 0 }>
+              <Task { id = "T1.3.2" name = "记录设计决策与替代方案" status = "DONE" order = 1 }>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "计划与验证收口" status = "DONE" order = 1 } (
+        <Description ?01M05F1P8MGYXYTG6BVRD8VW8Q>
+        完成 plan 编排、严格校验和 track 索引更新
+        </?01M05F1P8MGYXYTG6BVRD8VW8Q>
+        <Gate [
+          <Criterion ?01M05F1P8MGYXYTG6BVRD8VW8R>
+          strict 校验通过
+          </?01M05F1P8MGYXYTG6BVRD8VW8R>
+          <Criterion ?01M05F1P8MGYXYTG6BVRD8VW8S>
+          tracks.md 已登记本 track
+          </?01M05F1P8MGYXYTG6BVRD8VW8S>
+        ]>
+        <SubNodes [
+          <TaskGroup { id = "T2.1" name = "编排 plan.xml" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P8MGYXYTG6BVRD8VW8T>
+            使用项目既有 plan 结构编排文档化收口任务，反映当前执行状态。
+            </?01M05F1P8MGYXYTG6BVRD8VW8T>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8V>
+              plan.xml 包含 metadata、phases、tasks 与验收标准
+              </?01M05F1P8MGYXYTG6BVRD8VW8V>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8W>
+              任务状态与实际执行进度一致
+              </?01M05F1P8MGYXYTG6BVRD8VW8W>
+            ]>
+            <SubNodes [
+              <Task { id = "T2.1.1" name = "对齐仓库内 plan 模板" status = "DONE" order = 0 }>
+              <Task { id = "T2.1.2" name = "生成本 track 计划文件" status = "DONE" order = 1 }>
+            ]>
+          )>
+          <TaskGroup { id = "T2.2" name = "执行 codument 严格校验" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1P8MGYXYTG6BVRD8VW8X>
+            运行 codument validate strict，确保 track 文件完整、格式有效且可进入后续流程。
+            </?01M05F1P8MGYXYTG6BVRD8VW8X>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW8Y>
+              codument validate update-aiagent-tasktree-tools --strict 通过
+              </?01M05F1P8MGYXYTG6BVRD8VW8Y>
+            ]>
+            <SubNodes [
+              <Task { id = "T2.2.1" name = "执行 strict 校验命令" status = "DONE" order = 0 }>
+              <Task { id = "T2.2.2" name = "若失败则修复并复验" status = "DONE" order = 1 }>
+            ]>
+          )>
+          <TaskGroup { id = "T2.3" name = "更新 tracks.md 活跃索引" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1P8MGYXYTG6BVRD8VW8Z>
+            在活跃 tracks 表中登记 update-aiagent-tasktree-tools，便于全局追踪。
+            </?01M05F1P8MGYXYTG6BVRD8VW8Z>
+            <Acceptance [
+              <Criterion { id = "T2.3-AC1" checked = true } ?01M05F1P8MGYXYTG6BVRD8VW90>
+              tracks.md 新增本 track 链接、名称、状态与创建日期
+              </?01M05F1P8MGYXYTG6BVRD8VW90>
+            ]>
+            <SubNodes [
+              <Task { id = "T2.3.1" name = "插入活跃 track 表格行" status = "DONE" order = 0 }>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

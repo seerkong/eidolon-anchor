@@ -1,0 +1,119 @@
+<Track #refactor-platform-kernel-wave1-contract-composer-and-ownership version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "建立第一版 platform contract、platform composer contract 与 ownership tables，作为后续 profile/shell/package 波次的正式基线。" commit_mode = "manual" created_at = "2026-04-10T20:06:35Z" updated_at = "2026-04-11T04:26:46Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-platform-kernel-wave1-contract-composer-and-ownership { name = "refactor-platform-kernel-wave1-contract-composer-and-ownership" } (
+    <Description ?01M05F1PBSXXNPB7SE545NVGY0>
+    实施平台微内核 Wave 1 的 contract、composer 与 ownership 收口
+    </?01M05F1PBSXXNPB7SE545NVGY0>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Ownership Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PBSXXNPB7SE545NVGY1>
+        将 Wave 1 所需的 contract ownership、runtime facet 与 package mapping 先冻结成正式表格。
+        </?01M05F1PBSXXNPB7SE545NVGY1>
+        <SubNodes [
+          <Task { id = "T1.1" name = "产出 contract ownership table" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PBSXXNPB7SE545NVGY2>
+            明确 platform contract 与 AI domain contract 的正式 ownership 边界。
+            </?01M05F1PBSXXNPB7SE545NVGY2>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PBSXXNPB7SE545NVGY3>
+              contract ownership table 覆盖当前关键 core/composer/organ 边界
+              </?01M05F1PBSXXNPB7SE545NVGY3>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PBSXXNPB7SE545NVGY4>
+              AI-shaped surface 的迁出方向明确
+              </?01M05F1PBSXXNPB7SE545NVGY4>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "产出 runtime facet 与 package mapping table" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PBSXXNPB7SE545NVGY5>
+            明确 `AiAgentVm` 的 platform/domain facet 归属，以及现有包的目标职责。
+            </?01M05F1PBSXXNPB7SE545NVGY5>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PBSXXNPB7SE545NVGY6>
+              runtime facet table 明确 platform/domain 切分
+              </?01M05F1PBSXXNPB7SE545NVGY6>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PBSXXNPB7SE545NVGY7>
+              package mapping table 明确现有包的新职责
+              </?01M05F1PBSXXNPB7SE545NVGY7>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Composer Contract Cutover" status = "DONE" order = 1 } (
+        <Description ?01M05F1PBSXXNPB7SE545NVGY8>
+        将 `@cell/composer` contract 收口为平台级 capability composition contract。
+        </?01M05F1PBSXXNPB7SE545NVGY8>
+        <SubNodes [
+          <Task { id = "T2.1" name = "重构 platform composer contract" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PBSXXNPB7SE545NVGY9>
+            调整 `RuntimeAssemblyContext/State/Result` 及相关 contract，移除直接 AI-shaped 依赖。
+            </?01M05F1PBSXXNPB7SE545NVGY9>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PBSXXNPB7SE545NVGYA>
+              composer contract 不再直接依赖 `AgentConfig` / `ToolSchema`
+              </?01M05F1PBSXXNPB7SE545NVGYA>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PBSXXNPB7SE545NVGYB>
+              AI domain assembly contribution 有正式边界位置
+              </?01M05F1PBSXXNPB7SE545NVGYB>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "为 composer contract 兼容过渡提供最小适配" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PBSXXNPB7SE545NVGYC>
+            在不引入第二真相源的前提下，为现有 AI runtime 保留最小兼容过渡层。
+            </?01M05F1PBSXXNPB7SE545NVGYC>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PBSXXNPB7SE545NVGYD>
+              现有 runtime 仍可通过正式 composer contract 路径运行
+              </?01M05F1PBSXXNPB7SE545NVGYD>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PBSXXNPB7SE545NVGYE>
+              未新建平行 composer truth source
+              </?01M05F1PBSXXNPB7SE545NVGYE>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Focused Verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PBSXXNPB7SE545NVGYF>
+        通过 focused verification 锁定 ownership 与 AI runtime 连续可运行。
+        </?01M05F1PBSXXNPB7SE545NVGYF>
+        <SubNodes [
+          <Task { id = "T3.1" name = "补齐 ownership 与 composer focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PBSXXNPB7SE545NVGYG>
+            补充验证 composer ownership、contract ownership 与 AI-shaped surface 退出方向的 focused tests。
+            </?01M05F1PBSXXNPB7SE545NVGYG>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PBSXXNPB7SE545NVGYH>
+              focused tests 验证行为和 ownership，而非源码 grep
+              </?01M05F1PBSXXNPB7SE545NVGYH>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PBSXXNPB7SE545NVGYJ>
+              composer/platform contract 边界具备自动化保护
+              </?01M05F1PBSXXNPB7SE545NVGYJ>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "验证当前 AI runtime 主路径连续可运行" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PBSXXNPB7SE545NVGYK>
+            确认 terminal/tui/headless 主路径在 Wave 1 结束时仍可运行。
+            </?01M05F1PBSXXNPB7SE545NVGYK>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PBSXXNPB7SE545NVGYM>
+              terminal 主路径可运行
+              </?01M05F1PBSXXNPB7SE545NVGYM>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PBSXXNPB7SE545NVGYN>
+              tui/headless 主路径未被本波次打断
+              </?01M05F1PBSXXNPB7SE545NVGYN>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <HumanConfirm>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

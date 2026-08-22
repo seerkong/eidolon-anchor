@@ -25,11 +25,19 @@ export function resolveDeepSeekModelCapabilities(params: {
   reasoningEffort?: ProviderModelReasoningConfig["effort"];
 }): LlmModelCapabilities | undefined {
   if (!isDeepSeekModelRef(params.providerId, params.adapter, params.modelId)) return undefined;
+  const reasoningEffort = resolveDeepSeekReasoningEffort(
+    params.modelId,
+    params.reasoningEffort,
+  );
   return {
     family: "deepseek",
-    contextWindow: params.contextWindow,
-    outputLimit: params.outputLimit,
-    reasoningEffort: resolveDeepSeekReasoningEffort(params.modelId, params.reasoningEffort),
+    ...(params.contextWindow !== undefined
+      ? { contextWindow: params.contextWindow }
+      : {}),
+    ...(params.outputLimit !== undefined
+      ? { outputLimit: params.outputLimit }
+      : {}),
+    ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
     cachePolicy: {
       stablePrefix: true,
       providerManagedPrefixCache: true,

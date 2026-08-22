@@ -125,7 +125,8 @@
           {
             "role": "tool",
             "content": "# Eidolon Anchor\nA runtime workbench.",
-            "tool_call_id": "tc-readme-1"
+            "tool_call_id": "tc-readme-1",
+            "name": "read_file"
           }
         ]
       },
@@ -161,7 +162,8 @@
           {
             "role": "tool",
             "content": "# Eidolon Anchor\nA runtime workbench.",
-            "tool_call_id": "tc-readme-1"
+            "tool_call_id": "tc-readme-1",
+            "name": "read_file"
           },
           {
             "role": "assistant",

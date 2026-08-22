@@ -1,0 +1,274 @@
+<Behavior #ai-multi-agent-domain-integration apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #member-holon-data-components (
+      <Statement ?01M05F1P0GZF7QHDRT0Z9ZV6YF>
+      member / holon / detached-actor（delegate/subagent）的运行时状态 SHALL 由一个 MemberHolonDataComponents DataSubgraphContract 治理：member roster、holon governance、detached tasks 各自有声明的单一 owner 与 owned fact nodes；该 contract SHALL 经 Not-Owned-Here 显式声明它**不**拥有 conversation / history / LLM-context / turn 真源。member/holon/detached 状态的写入 SHALL 经该 contract 的 writeCommands（单写），SHALL NOT 由多个 ad-hoc 写入点直接改运行时状态。对应 gate G-control-depa-actor。
+      </?01M05F1P0GZF7QHDRT0Z9ZV6YF>
+      <Suites [
+        <Suite #contract-shape { name = "MemberHolon data components contract" } (
+          <Cases [
+            <Case #contract-declares-owned-and-not-owned [
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6YG>
+              SHALL 声明 member roster / holon governance / detached tasks 的 owned fact nodes 与单一 owner
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YG>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6YH>
+              SHALL 在 Not-Owned-Here 显式列出 History / LlmContext / ToolCall / TurnState 的 owned facts（这些不归 member/holon 拥有）
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YH>
+            ] (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6YJ>
+              MemberHolonDataComponents DataSubgraphContract
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YJ>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6YK>
+              检查其 fact 治理
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YK>
+            )>
+            <Case #state-writes-through-write-commands (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6YM>
+              member roster / holon governance / detached tasks 状态变更
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YM>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6YN>
+              运行时改写该状态
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YN>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6YP>
+              SHALL 经 contract 声明的 writeCommands（单写 owner），SHALL NOT 由多个 ad-hoc 直写点绕过 contract
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #extension-not-conversation-owner (
+      <Statement ?01M05F1P0GZF7QHDRT0Z9ZV6YQ>
+      member / holon / delegate / subagent 作为 AI domain extension，SHALL NOT 写入或拥有 conversation / history / LLM-context 真源；它们对 Conversation / LLM Context 的读取与贡献 SHALL 经 domain protocol（声明的 readViews 与 spine 单写语义管线），SHALL NOT 直达 conversation domain 内部写入器或运行时内部状态。对应 005「delegate/subagent 不成为 conversation truth owner」「member/holon 经 domain protocol 接入」。
+      </?01M05F1P0GZF7QHDRT0Z9ZV6YQ>
+      <Suites [
+        <Suite #domain-protocol-access { name = "Extension accesses conversation via domain protocol" } (
+          <Cases [
+            <Case #no-extension-conversation-writes [
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6YR>
+              SHALL NOT 调用 conversation domain 写入器（appendLiveHistory… / recordPromptRequest… / writeHistory/Prompt/SessionIndex / applyConversationCompaction / ConversationDomainRuntime 写）
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YR>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6YS>
+              对 Conversation/LLM Context 的贡献 SHALL 经 spine 单写语义管线注入，读取 SHALL 经声明的 readViews
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YS>
+            ] (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6YT>
+              member/holon/delegate/subagent 代码路径
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YT>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6YV>
+              边界检查其对 conversation/history/llm-context 的访问
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YV>
+            )>
+            <Case #member-holon-protocol-read (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6YW>
+              member/holon 需要读取 Conversation / LLM Context
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YW>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6YX>
+              访问这些真源
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YX>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6YY>
+              SHALL 经 domain-protocol readViews（只读视图），SHALL NOT 直达 runtime 内部
+              </?01M05F1P0GZF7QHDRT0Z9ZV6YY>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #delegate-completion-mailbox-injection (
+      <Statement ?01M05F1P0GZF7QHDRT0Z9ZV6YZ>
+      delegate / subagent 的完成结果 SHALL 经 actor mailbox 注入回父 actor，注入唤醒等级 SHALL 遵循已确立的 wake-class 分流：sync_wait（同步等待）完成走高优先 mandatory_completion，detached（后台）完成走 low_priority_continuation（不打断主循环）。完成注入 SHALL NOT 由 delegate/subagent 直接写父 actor 的 conversation truth。对应 gate G-ai-turn-state / G-ai-tool-result。
+      </?01M05F1P0GZF7QHDRT0Z9ZV6YZ>
+      <Suites [
+        <Suite #mailbox-injection { name = "Delegate/subagent completion via mailbox" } (
+          <Cases [
+            <Case #completion-enqueues-via-mailbox (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6Z0>
+              delegate/subagent 完成
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z0>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6Z1>
+              把完成结果交回父 actor
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z1>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6Z2>
+              SHALL 经 mailbox enqueue 完成事件（childDone / semantic_background_result），SHALL NOT 直接写父 actor conversation/history 真源
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z2>
+            )>
+            <Case #wake-class-split-pinned [
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6Z3>
+              sync_wait 完成 SHALL 用 mandatory_completion（高优先）
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z3>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6Z4>
+              detached 完成 SHALL 用 low_priority_continuation（低优先，不打断主循环）
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z4>
+            ] (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6Z5>
+              完成的等待类型
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z5>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6Z6>
+              决定注入唤醒等级
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z6>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #detached-delegate-single-flight (
+      <Statement ?01M05F1P0GZF7QHDRT0Z9ZV6Z7>
+      系统 SHALL 为 detached delegate 建立由 parent actor、agent type 与可选 task_key 确定的 active single-flight scope；缺省 task_key SHALL 使用 default scope，同 scope 已存在 pending、running 或 suspended task 时 SHALL 复用其 task_id 而不是创建新 child actor；调用者 MAY 以不同显式 task_key 表达合法并行，completed、failed、cancelled 或 interrupted task SHALL 不占有 active scope，sync_wait SHALL 保持既有语义。
+      </?01M05F1P0GZF7QHDRT0Z9ZV6Z7>
+      <Suites [
+        <Suite #detached-delegate-concurrency { name = "Detached delegate single-flight concurrency" } (
+          <Cases [
+            <Case #default-scope-reuses-active-task [
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6Z8>
+              系统 SHALL 返回原 task_id、当前状态与 reused=true
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z8>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6Z9>
+              系统 SHALL NOT 创建第二个 child actor 或重复调度工作
+              </?01M05F1P0GZF7QHDRT0Z9ZV6Z9>
+            ] (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6ZA>
+              同一 parent actor 与 agent type 的 default scope 已有 pending、running 或 suspended detached task
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZA>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6ZB>
+              父 actor 再次调用 detached delegate 且未提供 task_key
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZB>
+            )>
+            <Case #explicit-task-key-allows-parallelism (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6ZC>
+              同一 parent actor 需要多个同类型 delegate 执行彼此独立的工作
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZC>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6ZD>
+              调用者为每项工作提供不同的显式 task_key
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZD>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6ZE>
+              系统 SHALL 允许这些 scope 各自创建并运行 detached task
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZE>
+            )>
+            <Case #scope-isolated-by-owner-and-agent (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6ZF>
+              不同 parent actor、不同 agent type 或不同 task_key 发起 detached 调用
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZF>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6ZG>
+              registry 查询 active single-flight scope
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZG>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6ZH>
+              这些调用 SHALL NOT 错误复用彼此的 task
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZH>
+            )>
+            <Case #terminal-task-releases-scope (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6ZJ>
+              single-flight scope 对应 task 完成、失败或取消
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZJ>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6ZK>
+              终态事件被处理一次或重复处理
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZK>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6ZM>
+              scope SHALL 被幂等释放，后续同 scope 调用 MAY 创建新 task
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZM>
+            )>
+            <Case #recovery-preserves-resumable-active-ownership (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6ZN>
+              runtime snapshot 恢复出一个仍可续跑且状态为 pending、running 或 suspended 的 detached task
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZN>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6ZP>
+              父 actor 在恢复后调用相同 scope
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZP>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6ZQ>
+              系统 SHALL 重建或保留 single-flight ownership 并复用恢复的 task
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZQ>
+            )>
+            <Case #recovery-releases-interrupted-ownership [
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6ZR>
+              系统 SHALL 保留旧 task、scope 与 interrupted 状态供审计查询
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZR>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6ZS>
+              系统 SHALL 释放旧 active ownership，创建新的 detached task，并返回 reused=false
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZS>
+            ] (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6ZT>
+              runtime snapshot 中的 detached task 无法续跑并被恢复为 interrupted
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZT>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6ZV>
+              父 actor 在恢复后调用相同 scope
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZV>
+            )>
+            <Case #sync-wait-unchanged (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV6ZW>
+              调用者使用 sync_wait delegate 模式
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZW>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV6ZX>
+              系统执行 delegate
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZX>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV6ZY>
+              既有等待、结果交付与错误语义 SHALL 保持，不受 detached default scope 限制
+              </?01M05F1P0GZF7QHDRT0Z9ZV6ZY>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #asynchronous-conversation-message-first-delivery (
+      <Statement ?01M05F1P0GZF7QHDRT0Z9ZV6ZZ>
+      系统 SHALL 把 detached completion 等异步注入父 Conversation 的 committed message 首次 provider delivery 建模为工具无关、可持久恢复的显式生命周期：History message SHALL 具有跨 compaction 稳定的 message id，Session domain fact SHALL 以独立 delivery id 持有 pending/delivered；provider materialization SHALL 收集 request 实际包含的 pending message id，并只在成功 completion 后确认对应 delivery；provider failure、abort 与 recovery SHALL 保持 pending，通用摘要压缩 SHALL 原子保留受保护 message，且 message id、delivery fact 与状态 SHALL NOT 进入 provider-visible message、稳定 instructions 或 cache key。
+      </?01M05F1P0GZF7QHDRT0Z9ZV6ZZ>
+      <Suites [
+        <Suite #asynchronous-message-delivery-lifecycle { name = "Asynchronous Conversation message first provider delivery" } (
+          <Cases [
+            <Case #detached-completion-survives-failure-recovery-and-summary [
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV700>
+              Session delivery fact SHALL 保持 pending，且受保护 message 的稳定 message id 与完整正文 SHALL 跨恢复和压缩原子保留
+              </?01M05F1P0GZF7QHDRT0Z9ZV700>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV701>
+              摘要 provider request SHALL NOT 包含该 completion，系统 SHALL NOT 在首次成功交付前生成其 artifact 或 summary 替代
+              </?01M05F1P0GZF7QHDRT0Z9ZV701>
+            ] (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV702>
+              detached childDone 向父 Conversation 提交一个约 26KB completion message，首次包含它的父 provider call 失败
+              </?01M05F1P0GZF7QHDRT0Z9ZV702>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV703>
+              系统持久化并恢复 Conversation，追加输入触发通用摘要压缩，再构造下一 provider request
+              </?01M05F1P0GZF7QHDRT0Z9ZV703>
+            )>
+            <Case #success-confirms-only-included-asynchronous-messages (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV704>
+              provider request 实际包含一个或多个 pending asynchronous message id
+              </?01M05F1P0GZF7QHDRT0Z9ZV704>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV705>
+              provider completion 成功
+              </?01M05F1P0GZF7QHDRT0Z9ZV705>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV706>
+              系统 SHALL 只确认该 request 实际包含的 delivery id 为 delivered
+              </?01M05F1P0GZF7QHDRT0Z9ZV706>
+            )>
+            <Case #failure-and-abort-keep-asynchronous-message-pending (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV707>
+              包含 pending asynchronous message 的 provider call 失败、中止或未形成成功 completion
+              </?01M05F1P0GZF7QHDRT0Z9ZV707>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV708>
+              系统重试 provider call 或恢复 Conversation
+              </?01M05F1P0GZF7QHDRT0Z9ZV708>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV709>
+              该 message SHALL 保持 pending，并继续拥有首次完整交付资格
+              </?01M05F1P0GZF7QHDRT0Z9ZV709>
+            )>
+            <Case #asynchronous-delivery-metadata-remains-runtime-only [
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV70A>
+              message id、delivery id、delivery fact 与状态 SHALL 只存在于 History/Session/runtime materialization metadata
+              </?01M05F1P0GZF7QHDRT0Z9ZV70A>
+              <Then ?01M05F1P0GZF7QHDRT0Z9ZV70B>
+              这些动态事实 SHALL NOT 出现在 provider-visible messages、稳定 instructions 或 cache key
+              </?01M05F1P0GZF7QHDRT0Z9ZV70B>
+            ] (
+              <Given ?01M05F1P0GZF7QHDRT0Z9ZV70C>
+              不同轮次具有不同 pending/delivered asynchronous message 集合
+              </?01M05F1P0GZF7QHDRT0Z9ZV70C>
+              <When ?01M05F1P0GZF7QHDRT0Z9ZV70D>
+              系统构造普通 provider request、摘要 provider request与稳定 cache identity
+              </?01M05F1P0GZF7QHDRT0Z9ZV70D>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

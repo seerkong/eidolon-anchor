@@ -1,0 +1,282 @@
+<Behavior #vendor-data-graph-stream-foundations apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #vendor-datagraph-shall-provide-ordered-timeline-and-fanout-primitives (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ1A>
+      系统应当在 `vendor/depa-data-graph` 中提供正式的 ordered timeline primitive，用于表达按序事件追加、时间线可见性和多下游 fanout 分发。
+      </?01M05F1P453Y6K03N5FGV8YZ1A>
+      <Suites [
+        <Suite { name = "vendor-datagraph-shall-provide-ordered-timeline-and-fanout-primitives" } (
+          <Cases [
+            <Case #ordered-timeline-is-modeled-as-vendor-primitive { name = "Ordered timeline is modeled as vendor primitive" } [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1B>
+              应当能够仅通过 `vendor/depa-data-graph` 提供的 timeline / fanout primitive 建模该能力
+              </?01M05F1P453Y6K03N5FGV8YZ1B>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1C>
+              调用方不需要继续在项目内维护与 vendor 平行的 `OutputStream` / `TeeOutputStream` 级通用 timeline 基座
+              </?01M05F1P453Y6K03N5FGV8YZ1C>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ1D>
+              项目中存在按顺序到达的流式事件源
+              </?01M05F1P453Y6K03N5FGV8YZ1D>
+              <When ?01M05F1P453Y6K03N5FGV8YZ1E>
+              调用方需要把这些事件作为 timeline 暴露给多个下游 consumer 或 projector
+              </?01M05F1P453Y6K03N5FGV8YZ1E>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #vendor-datagraph-shall-provide-append-only-event-log-and-reducer-projection-primitives (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ1F>
+      系统应当在 `vendor/depa-data-graph` 中提供 append-only event log 与 reducer/projection primitive，以支持事件累积、派生快照和投影视图的通用建模。
+      </?01M05F1P453Y6K03N5FGV8YZ1F>
+      <Suites [
+        <Suite { name = "vendor-datagraph-shall-provide-append-only-event-log-and-reducer-projection-primitives" } (
+          <Cases [
+            <Case #projection-graph-consumes-append-only-event-log { name = "Projection graph consumes append-only event log" } [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1G>
+              应当能够使用 vendor 提供的 append-only event log 与 reducer/projection primitive 完成建模
+              </?01M05F1P453Y6K03N5FGV8YZ1G>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1H>
+              不应强制项目层继续用 `latest_event + seq + consumer` 这类手工模式重复实现
+              </?01M05F1P453Y6K03N5FGV8YZ1H>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ1J>
+              某个 runtime 按顺序产生事件记录
+              </?01M05F1P453Y6K03N5FGV8YZ1J>
+              <When ?01M05F1P453Y6K03N5FGV8YZ1K>
+              上层需要基于这些事件构建快照、派生状态或 UI projection
+              </?01M05F1P453Y6K03N5FGV8YZ1K>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #symbiont-ingress-foundations-shall-converge-on-vendor-datagraph (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ1M>
+      系统应当使 `symbiont-*` 中的低层 ingress/timeline helper 收口到 vendor foundation，而不是长期保留双轨通用实现。
+      </?01M05F1P453Y6K03N5FGV8YZ1M>
+      <Suites [
+        <Suite { name = "symbiont-ingress-foundations-shall-converge-on-vendor-datagraph" } (
+          <Cases [
+            <Case #existing-symbiont-helper-duplicates-vendor-capability { name = "Existing symbiont helper duplicates vendor capability" } [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1N>
+              项目实现应当迁移到 vendor primitive 之上
+              </?01M05F1P453Y6K03N5FGV8YZ1N>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1P>
+              旧 helper 只允许作为短期适配层存在，不能继续作为长期正式通用来源
+              </?01M05F1P453Y6K03N5FGV8YZ1P>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ1Q>
+              `symbiont-contract` 或 `symbiont-logic` 中存在某个通用 stream/timeline helper
+              </?01M05F1P453Y6K03N5FGV8YZ1Q>
+              <When ?01M05F1P453Y6K03N5FGV8YZ1R>
+              `vendor/depa-data-graph` 已提供等价的正式 primitive
+              </?01M05F1P453Y6K03N5FGV8YZ1R>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #core-and-terminal-shared-projections-shall-converge-on-vendor-event-foundations (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ1S>
+      系统应当使 `core-logic`、`organ-logic` 与 terminal 中可复用的 append-only event dispatch 与 stateful projection 基座逐步收口到 vendor foundation。
+      说明：
+      - 共享的 event log / state projection 应优先建立在 vendor primitive 之上
+      - 仅做表现层格式化或 UI event 发射的薄 listener，不要求在本 capability 中一律改写为 reducer projection
+      </?01M05F1P453Y6K03N5FGV8YZ1S>
+      <Suites [
+        <Suite { name = "core-and-terminal-shared-projections-shall-converge-on-vendor-event-foundations" } (
+          <Cases [
+            <Case #existing-project-event-graph-duplicates-vendor-log-or-projection-capability { name = "Existing project event graph duplicates vendor log or projection capability" } [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1T>
+              项目实现应当迁移到 vendor primitive 之上
+              </?01M05F1P453Y6K03N5FGV8YZ1T>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1V>
+              `AgentEventGraph`、terminal projection 或同类基座不应继续长期保留独立的通用事件日志语义
+              </?01M05F1P453Y6K03N5FGV8YZ1V>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ1W>
+              项目中存在某个事件 runtime，通过手工 listener、seq signal 或 projection dispatch 维护通用事件流
+              </?01M05F1P453Y6K03N5FGV8YZ1W>
+              <When ?01M05F1P453Y6K03N5FGV8YZ1X>
+              `vendor/depa-data-graph` 已提供可表达同类抽象的 event log / projection primitive
+              </?01M05F1P453Y6K03N5FGV8YZ1X>
+            )>
+            <Case #stateful-snapshot-projection-exists-in-core-or-terminal { name = "Stateful snapshot projection exists in core or terminal" } [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1Y>
+              其正式状态派生逻辑应优先使用 vendor `ReducerProjection` 或等价 primitive
+              </?01M05F1P453Y6K03N5FGV8YZ1Y>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ1Z>
+              不应继续长期依赖项目内私有的 stateful projection substrate
+              </?01M05F1P453Y6K03N5FGV8YZ1Z>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ20>
+              某个 core 或 terminal 模块负责维护可复用的派生快照、聚合状态或 transcript-style projection
+              </?01M05F1P453Y6K03N5FGV8YZ20>
+              <When ?01M05F1P453Y6K03N5FGV8YZ21>
+              该模块本质上是 reducer-style state projection
+              </?01M05F1P453Y6K03N5FGV8YZ21>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #ai-specific-stream-semantics-shall-remain-outside-vendor-core (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ22>
+      系统应当明确将 AI-specific 的 stage event contract、LLM delta 语义、transcript naming 等能力保留在 `symbiont-*`、`core-contract` 或更高层，而不是直接沉淀到 `vendor/depa-data-graph`。
+      </?01M05F1P453Y6K03N5FGV8YZ22>
+      <Suites [
+        <Suite { name = "ai-specific-stream-semantics-shall-remain-outside-vendor-core" } (
+          <Cases [
+            <Case #ai-stage-contract-is-reviewed-for-vendorization { name = "AI stage contract is reviewed for vendorization" } [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ23>
+              如果该能力依赖 lexical/syntactic/semantic、questionnaire、tool-call、transcript naming 或 AI actor event 语义
+              </?01M05F1P453Y6K03N5FGV8YZ23>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ24>
+              该能力应继续留在 `symbiont-*`、`core-contract` 或更高层
+              </?01M05F1P453Y6K03N5FGV8YZ24>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ25>
+              某项 stream 能力已经带有明确的 AI-specific 语义
+              </?01M05F1P453Y6K03N5FGV8YZ25>
+              <When ?01M05F1P453Y6K03N5FGV8YZ26>
+              评估该能力是否应进入 `vendor/depa-data-graph`
+              </?01M05F1P453Y6K03N5FGV8YZ26>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #migration-shall-be-guarded-by-focused-tests-and-single-source-cutover (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ27>
+      系统应当以 focused tests 锁定 vendor primitive、symbiont adapter 与 core/terminal cutover 的边界，避免形成新的长期双轨来源。
+      </?01M05F1P453Y6K03N5FGV8YZ27>
+      <Suites [
+        <Suite { name = "migration-shall-be-guarded-by-focused-tests-and-single-source-cutover" } (
+          <Cases [
+            <Case #vendor-primitive-lands-before-project-cutover-completes { name = "Vendor primitive lands before project cutover completes" } [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ28>
+              应当存在 focused tests 明确约束 vendor primitive 的行为、项目 adapter 的兼容语义和最终 cutover 的单源结果
+              </?01M05F1P453Y6K03N5FGV8YZ28>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ29>
+              迁移完成后不应再留下两个正式的通用 stream/timeline/projection 真相源
+              </?01M05F1P453Y6K03N5FGV8YZ29>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ2A>
+              新的 vendor primitive 已经实现，但项目侧仍处于迁移阶段
+              </?01M05F1P453Y6K03N5FGV8YZ2A>
+              <When ?01M05F1P453Y6K03N5FGV8YZ2B>
+              capability 按 phase 推进 cutover
+              </?01M05F1P453Y6K03N5FGV8YZ2B>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #exec-protocol-unified-state-projection (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ2C>
+      ExecProtocolGraph SHALL use a unified DataGraph stream-driven state-signal projection instead of removed ReducerProjection APIs, preserving snapshots, listeners, completion and disposal behavior.
+      </?01M05F1P453Y6K03N5FGV8YZ2C>
+      <Suites [
+        <Suite #exec-projection (
+          <Cases [
+            <Case #exec-snapshot-contract [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ2D>
+              it SHALL read the state-node handle output and SHALL NOT import removed projection APIs
+              </?01M05F1P453Y6K03N5FGV8YZ2D>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ2E>
+              existing exec protocol focused tests SHALL preserve observable snapshots and lifecycle
+              </?01M05F1P453Y6K03N5FGV8YZ2E>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ2F>
+              terminal execution protocol events append to an ordered log
+              </?01M05F1P453Y6K03N5FGV8YZ2F>
+              <When ?01M05F1P453Y6K03N5FGV8YZ2G>
+              the graph derives its current snapshot
+              </?01M05F1P453Y6K03N5FGV8YZ2G>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #message-history-unified-state-projection (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ2H>
+      MessageHistoryGraph SHALL project its append-only semantic input through the unified DataGraph stream-driven state-signal contract, without retaining removed ReducerProjection APIs, while preserving transcript, committed-message, anomaly, completion, and disposal behavior.
+      </?01M05F1P453Y6K03N5FGV8YZ2H>
+      <Suites [
+        <Suite #projection-contract { name = "Message history projection contract" } (
+          <Cases [
+            <Case #history-reducer-uses-unified-state-node [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ2J>
+              it SHALL register the log stream as a DataGraph source and read a stream-driven state-signal handle output
+              </?01M05F1P453Y6K03N5FGV8YZ2J>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ2K>
+              it SHALL NOT import or reference ReducerProjection or createReducerProjection
+              </?01M05F1P453Y6K03N5FGV8YZ2K>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ2M>
+              MessageHistoryGraph receives semantic events through its ordered input log
+              </?01M05F1P453Y6K03N5FGV8YZ2M>
+              <When ?01M05F1P453Y6K03N5FGV8YZ2N>
+              it reduces a transcript state and exposes listener notifications
+              </?01M05F1P453Y6K03N5FGV8YZ2N>
+            )>
+            <Case #history-fixtures-and-lifecycle-remain-stable (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ2P>
+              existing history transcript fixtures and listener lifecycle tests
+              </?01M05F1P453Y6K03N5FGV8YZ2P>
+              <When ?01M05F1P453Y6K03N5FGV8YZ2Q>
+              the unified projection receives semantic events, completion, or disposal
+              </?01M05F1P453Y6K03N5FGV8YZ2Q>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ2R>
+              they SHALL preserve current emitted records and committed messages, stop after completion, and dispose graph subscriptions without disposing the independently owned input log twice
+              </?01M05F1P453Y6K03N5FGV8YZ2R>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #host-unified-data-graph-package-baseline (
+      <Statement ?01M05F1P453Y6K03N5FGV8YZ2S>
+      The host workspace SHALL resolve every direct depa-data-graph core and Solid dependency to the upstream unified 1.0.1 release line, and its boundary guard SHALL describe the current public API rather than removed projection APIs or stale package topology.
+      </?01M05F1P453Y6K03N5FGV8YZ2S>
+      <Suites [
+        <Suite #dependency-resolution { name = "Unified dependency resolution" } (
+          <Cases [
+            <Case #all-direct-manifests-and-lockfile-use-unified-release (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ2T>
+              Cell and terminal packages directly depend on depa-data-graph core or Solid
+              </?01M05F1P453Y6K03N5FGV8YZ2T>
+              <When ?01M05F1P453Y6K03N5FGV8YZ2V>
+              the workspace resolves its dependencies
+              </?01M05F1P453Y6K03N5FGV8YZ2V>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ2W>
+              every direct manifest SHALL request the 1.0.1 release line and bun.lock SHALL resolve core and Solid without a legacy 0.1.x entry
+              </?01M05F1P453Y6K03N5FGV8YZ2W>
+            )>
+          ]>
+        )>
+        <Suite #surface-guard { name = "Current vendor surface guard" } (
+          <Cases [
+            <Case #boundary-test-targets-unified-public-api [
+              <Then ?01M05F1P453Y6K03N5FGV8YZ2X>
+              it SHALL require supported generic exports and SHALL NOT require removed ReducerProjection or createReducerProjection exports
+              </?01M05F1P453Y6K03N5FGV8YZ2X>
+              <Then ?01M05F1P453Y6K03N5FGV8YZ2Y>
+              it SHALL locate current AI-specific source ownership paths rather than stale package topology
+              </?01M05F1P453Y6K03N5FGV8YZ2Y>
+            ] (
+              <Given ?01M05F1P453Y6K03N5FGV8YZ2Z>
+              the target package exposes unified DataGraph state-node and timeline foundations
+              </?01M05F1P453Y6K03N5FGV8YZ2Z>
+              <When ?01M05F1P453Y6K03N5FGV8YZ30>
+              the vendor data-graph boundary test runs
+              </?01M05F1P453Y6K03N5FGV8YZ30>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

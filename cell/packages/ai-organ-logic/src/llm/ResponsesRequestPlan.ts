@@ -13,6 +13,7 @@ import type {
 } from "@cell/ai-organ-contract/llm/ResponsesReplay";
 import {
   decideResponsesCallLineage,
+  decideResponsesRequestLineage,
   isValidResponsesCallLineageProof,
   isValidResponsesProviderOutputSnapshot,
   ResponsesRequestLineageError,
@@ -370,7 +371,7 @@ export function planResponsesRequest(input: ResponsesRequestPlanInput): Response
       checkpoint.output.responseId === input.baseline?.previousResponseId,
   );
   const statefulLineage = checkpoint
-    ? decideResponsesCallLineage([...checkpoint.nativeWindow, ...input.incrementalInput])
+    ? decideResponsesRequestLineage([...checkpoint.nativeWindow, ...input.incrementalInput])
     : undefined;
 
   if (
@@ -394,7 +395,7 @@ export function planResponsesRequest(input: ResponsesRequestPlanInput): Response
   const promptCacheKey = createResponsesStablePromptCacheKey(input.stablePrefix);
   if (checkpointMatches && checkpoint) {
     const nativeInput = immutableItems([...checkpoint.nativeWindow, ...input.incrementalInput]);
-    const nativeLineage = decideResponsesCallLineage(nativeInput);
+    const nativeLineage = decideResponsesRequestLineage(nativeInput);
     if (nativeLineage.status === "valid") {
     return Object.freeze({
       kind: "stateless_replay",
@@ -408,7 +409,7 @@ export function planResponsesRequest(input: ResponsesRequestPlanInput): Response
     }
   }
 
-  const canonicalLineage = decideResponsesCallLineage(input.fullCanonicalInput);
+  const canonicalLineage = decideResponsesRequestLineage(input.fullCanonicalInput);
   if (canonicalLineage.status !== "valid") {
     throw new ResponsesRequestLineageError(canonicalLineage);
   }

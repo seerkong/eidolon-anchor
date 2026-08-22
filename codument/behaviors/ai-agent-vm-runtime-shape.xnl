@@ -1,0 +1,306 @@
+<Behavior #ai-agent-vm-runtime-shape apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #aiagentvm (
+      <Statement ?01M05F1P0BVCB9462JCHXQGTY6>
+      系统必须在 `AiAgentVm` 类型层面表达 actors、holonRuntime、runtime knobs、non-rx ctx/snapshot 和 rx data 字段的所有权。
+      </?01M05F1P0BVCB9462JCHXQGTY6>
+      <Suites [
+        <Suite { name = "aiagentvm" } (
+          <Cases [
+            <Case #case-1 { name = "字段所有权可被静态阅读" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTY7>
+              必须能区分内层平台字段与外层 AI 领域字段
+              </?01M05F1P0BVCB9462JCHXQGTY7>
+              <Then ?01M05F1P0BVCB9462JCHXQGTY8>
+              不需要通过 controller runtime 猜测字段归属
+              </?01M05F1P0BVCB9462JCHXQGTY8>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTY9>
+              开发者打开 `AiAgentVm` 类型定义
+              </?01M05F1P0BVCB9462JCHXQGTY9>
+              <When ?01M05F1P0BVCB9462JCHXQGTYA>
+              查看字段与 ownership 常量
+              </?01M05F1P0BVCB9462JCHXQGTYA>
+            )>
+            <Case #actors { name = "actors 字段聚合" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTYB>
+              `controlActorKey`、`actors`、`actorRuntime` 必须位于 actors 分类
+              </?01M05F1P0BVCB9462JCHXQGTYB>
+              <Then ?01M05F1P0BVCB9462JCHXQGTYC>
+              actor 相关字段不得散落到 `holonRuntime` 或 snapshots 中
+              </?01M05F1P0BVCB9462JCHXQGTYC>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTYD>
+              开发者查看 `AiAgentVm`
+              </?01M05F1P0BVCB9462JCHXQGTYD>
+              <When ?01M05F1P0BVCB9462JCHXQGTYE>
+              需要理解 actor 运行能力
+              </?01M05F1P0BVCB9462JCHXQGTYE>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #ai-aiholonruntime (
+      <Statement ?01M05F1P0BVCB9462JCHXQGTYF>
+      系统必须新增 `AiHolonRuntime`，专属承载原多 AI 协作 / holon 相关状态，并吸收原 `aiFacet/sessionState/runtimeContext` 中对应字段。
+      </?01M05F1P0BVCB9462JCHXQGTYF>
+      <Suites [
+        <Suite { name = "ai-aiholonruntime" } (
+          <Cases [
+            <Case #session-runtime-context-holonruntime { name = "session/runtime context 通过 holonRuntime 同源访问" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTYG>
+              helper 必须从 `vm.holonRuntime` 返回对应对象
+              </?01M05F1P0BVCB9462JCHXQGTYG>
+              <Then ?01M05F1P0BVCB9462JCHXQGTYH>
+              不得与 `vm.holonRuntime` 形成第二份状态
+              </?01M05F1P0BVCB9462JCHXQGTYH>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTYJ>
+              现有代码仍通过 `ensureVmSessionState(vm)` 或 `ensureVmRuntimeContext(vm)` 访问状态
+              </?01M05F1P0BVCB9462JCHXQGTYJ>
+              <When ?01M05F1P0BVCB9462JCHXQGTYK>
+              VM 已按新结构创建
+              </?01M05F1P0BVCB9462JCHXQGTYK>
+            )>
+            <Case #holonruntime { name = "holonRuntime 承载协作相关字段" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTYM>
+              这些字段必须归入 `AiHolonRuntime`
+              </?01M05F1P0BVCB9462JCHXQGTYM>
+              <Then ?01M05F1P0BVCB9462JCHXQGTYN>
+              不得作为 `AiAgentVm` 顶层散列字段继续扩张
+              </?01M05F1P0BVCB9462JCHXQGTYN>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTYP>
+              需要访问 member roster、holons、detached actors、orchestrator context 或 deferred resumes
+              </?01M05F1P0BVCB9462JCHXQGTYP>
+              <When ?01M05F1P0BVCB9462JCHXQGTYQ>
+              选择字段位置
+              </?01M05F1P0BVCB9462JCHXQGTYQ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #airuntimeinnerctx (
+      <Statement ?01M05F1P0BVCB9462JCHXQGTYR>
+      系统必须新增 `AiRuntimeInnerCtx`，用于承载原 `registries`、`mcpManager`、`recovery` 等内部运行上下文。
+      </?01M05F1P0BVCB9462JCHXQGTYR>
+      <Suites [
+        <Suite { name = "airuntimeinnerctx" } (
+          <Cases [
+            <Case #registries-innerctx { name = "registries 迁移到 innerCtx" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTYS>
+              标准访问位置必须是 `vm.innerCtx.registries`
+              </?01M05F1P0BVCB9462JCHXQGTYS>
+              <Then ?01M05F1P0BVCB9462JCHXQGTYT>
+              可以提供 `vm.registries` 兼容 facade，但不得成为长期主结构
+              </?01M05F1P0BVCB9462JCHXQGTYT>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTYV>
+              现有代码需要访问 tool/skill/agent/mcp registries
+              </?01M05F1P0BVCB9462JCHXQGTYV>
+              <When ?01M05F1P0BVCB9462JCHXQGTYW>
+              字段结构完成迁移
+              </?01M05F1P0BVCB9462JCHXQGTYW>
+            )>
+            <Case #innerctx { name = "innerCtx 按类别扩充" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTYX>
+              可以归入 `AiRuntimeInnerCtx`
+              </?01M05F1P0BVCB9462JCHXQGTYX>
+              <Then ?01M05F1P0BVCB9462JCHXQGTYY>
+              必须按子类别记录其生命周期与职责
+              </?01M05F1P0BVCB9462JCHXQGTYY>
+              <Then ?01M05F1P0BVCB9462JCHXQGTYZ>
+              不得把业务领域状态混入 innerCtx
+              </?01M05F1P0BVCB9462JCHXQGTYZ>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTZ0>
+              实现过程中发现新的内部运行上下文字段
+              </?01M05F1P0BVCB9462JCHXQGTZ0>
+              <When ?01M05F1P0BVCB9462JCHXQGTZ1>
+              该字段不属于 actors、holonRuntime、runtime knobs、snapshot 或 rx data
+              </?01M05F1P0BVCB9462JCHXQGTZ1>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #vm (
+      <Statement ?01M05F1P0BVCB9462JCHXQGTZ2>
+      系统必须新增 runtime snapshot 字段，以表达创建时固定事实与运行中可恢复事实。
+      </?01M05F1P0BVCB9462JCHXQGTZ2>
+      <Suites [
+        <Suite { name = "vm" } (
+          <Cases [
+            <Case #vm-snapshots { name = "创建 VM 时初始化 snapshots" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTZ3>
+              必须存在 `immutableSnapshot`
+              </?01M05F1P0BVCB9462JCHXQGTZ3>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZ4>
+              必须存在 `mutableSnapshot`
+              </?01M05F1P0BVCB9462JCHXQGTZ4>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZ5>
+              二者边界必须在类型或注释中说明
+              </?01M05F1P0BVCB9462JCHXQGTZ5>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTZ6>
+              `createVM` 被调用
+              </?01M05F1P0BVCB9462JCHXQGTZ6>
+              <When ?01M05F1P0BVCB9462JCHXQGTZ7>
+              VM 创建完成
+              </?01M05F1P0BVCB9462JCHXQGTZ7>
+            )>
+            <Case #snapshot { name = "snapshot 按生命周期扩充" } [
+              <When ?01M05F1P0BVCB9462JCHXQGTZ8>
+              字段代表 VM 创建时固定事实
+              </?01M05F1P0BVCB9462JCHXQGTZ8>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZ9>
+              必须归入 `AiRuntimeImmutableSnapshot`
+              </?01M05F1P0BVCB9462JCHXQGTZ9>
+              <When ?01M05F1P0BVCB9462JCHXQGTZA>
+              字段代表运行中可变且需要恢复/持久化的事实
+              </?01M05F1P0BVCB9462JCHXQGTZA>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZB>
+              必须归入 `AiRuntimeMutableSnapshot`
+              </?01M05F1P0BVCB9462JCHXQGTZB>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZC>
+              不得把可变状态放入 immutable snapshot
+              </?01M05F1P0BVCB9462JCHXQGTZC>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTZD>
+              实现过程中发现需要纳入 snapshot 的字段
+              </?01M05F1P0BVCB9462JCHXQGTZD>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #aifacet-sessionstate-runtimecontext (
+      <Statement ?01M05F1P0BVCB9462JCHXQGTZE>
+      系统必须允许现有调用点继续读取 `aiFacet`、`sessionState`、`runtimeContext`、`registries`、`mcpManager`、`recovery`，但内部语义应收敛到 `holonRuntime` 或 `innerCtx`。
+      </?01M05F1P0BVCB9462JCHXQGTZE>
+      <Suites [
+        <Suite { name = "aifacet-sessionstate-runtimecontext" } (
+          <Cases [
+            <Case #ensure-helpers { name = "现有 ensure helpers 保持可用" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTZF>
+              helper 必须返回与新字段一致的对象
+              </?01M05F1P0BVCB9462JCHXQGTZF>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZG>
+              不得创建彼此分叉的 session/runtime context
+              </?01M05F1P0BVCB9462JCHXQGTZG>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTZH>
+              现有代码调用 `ensureAiRuntimeFacet(vm)`、`ensureVmSessionState(vm)` 或 `ensureVmRuntimeContext(vm)`
+              </?01M05F1P0BVCB9462JCHXQGTZH>
+              <When ?01M05F1P0BVCB9462JCHXQGTZJ>
+              VM 字段完成标准化
+              </?01M05F1P0BVCB9462JCHXQGTZJ>
+            )>
+            <Case #registries { name = "现有 registries 访问保持可用" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTZK>
+              读取结果必须与 `vm.innerCtx.registries` 同源
+              </?01M05F1P0BVCB9462JCHXQGTZK>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZM>
+              修改兼容 facade 不得绕开 `innerCtx`
+              </?01M05F1P0BVCB9462JCHXQGTZM>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTZN>
+              现有代码读取 `vm.registries`
+              </?01M05F1P0BVCB9462JCHXQGTZN>
+              <When ?01M05F1P0BVCB9462JCHXQGTZP>
+              VM 字段完成标准化
+              </?01M05F1P0BVCB9462JCHXQGTZP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #controller-runtime (
+      <Statement ?01M05F1P0BVCB9462JCHXQGTZQ>
+      系统不得新增一个承载所有历史状态的大型 controller runtime 对象来模拟参考项目。
+      </?01M05F1P0BVCB9462JCHXQGTZQ>
+      <Suites [
+        <Suite { name = "controller-runtime" } (
+          <Cases [
+            <Case #case-11 { name = "领域状态按类别归属" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTZR>
+              必须按平台、AI 领域、响应式数据、可观测绑定等类别归属
+              </?01M05F1P0BVCB9462JCHXQGTZR>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZS>
+              不得新增一个无边界 `controllerRuntime` 字段承载所有内容
+              </?01M05F1P0BVCB9462JCHXQGTZS>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTZT>
+              需要挂载 conversation domain runtime、rx data 或 observability binding
+              </?01M05F1P0BVCB9462JCHXQGTZT>
+              <When ?01M05F1P0BVCB9462JCHXQGTZV>
+              选择字段位置
+              </?01M05F1P0BVCB9462JCHXQGTZV>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #ai-core-contract (
+      <Statement ?01M05F1P0BVCB9462JCHXQGTZW>
+      系统必须将 `AiAgentVm`、runtime ctx/snapshot、registry 纯接口与 runtime snapshot persisted 类型等不执行副作用的契约定义放在 `cell/packages/ai-core-contract`，并让 `cell/packages/ai-core-logic` 只提供实现类、初始化逻辑与兼容 helper。
+      </?01M05F1P0BVCB9462JCHXQGTZW>
+      <Suites [
+        <Suite { name = "ai-core-contract" } (
+          <Cases [
+            <Case #contract-logic { name = "contract 包不依赖 logic 包" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGTZX>
+              `ai-core-contract` 不得依赖或 import `@cell/ai-core-logic`
+              </?01M05F1P0BVCB9462JCHXQGTZX>
+              <Then ?01M05F1P0BVCB9462JCHXQGTZY>
+              纯类型消费者必须能从 `ai-core-contract` 获取 VM 与 registry 数据契约
+              </?01M05F1P0BVCB9462JCHXQGTZY>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGTZZ>
+              开发者检查 `cell/packages/ai-core-contract`
+              </?01M05F1P0BVCB9462JCHXQGTZZ>
+              <When ?01M05F1P0BVCB9462JCHXQGV00>
+              查看 package 依赖与源码 import
+              </?01M05F1P0BVCB9462JCHXQGV00>
+            )>
+            <Case #logic-contract { name = "logic 包实现 contract 包契约" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGV01>
+              必须复用 `ai-core-contract` 中的类型或接口
+              </?01M05F1P0BVCB9462JCHXQGV01>
+              <Then ?01M05F1P0BVCB9462JCHXQGV02>
+              不得在 logic 包中维护第二套分叉的数据契约
+              </?01M05F1P0BVCB9462JCHXQGV02>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGV03>
+              `ai-core-logic` 需要创建 `AiAgentVm` 或 registry 实例
+              </?01M05F1P0BVCB9462JCHXQGV03>
+              <When ?01M05F1P0BVCB9462JCHXQGV04>
+              实现类和 `createVM` 引用 VM、ctx、snapshot 或 registry 形态
+              </?01M05F1P0BVCB9462JCHXQGV04>
+            )>
+            <Case #registry { name = "registry 数据与行为分离" } [
+              <Then ?01M05F1P0BVCB9462JCHXQGV05>
+              `ai-core-contract` 必须提供不包含业务方法的 registry dataclass
+              </?01M05F1P0BVCB9462JCHXQGV05>
+              <Then ?01M05F1P0BVCB9462JCHXQGV06>
+              `ai-core-logic` 必须提供对应静态逻辑类
+              </?01M05F1P0BVCB9462JCHXQGV06>
+              <Then ?01M05F1P0BVCB9462JCHXQGV07>
+              原实例方法必须迁移为以 dataclass 为第一个参数的静态方法
+              </?01M05F1P0BVCB9462JCHXQGV07>
+            ] (
+              <Given ?01M05F1P0BVCB9462JCHXQGV08>
+              `AgentRegistry`、`SkillRegistry`、`McpRegistry` 或 `ToolFuncRegistry` 需要被运行时持有
+              </?01M05F1P0BVCB9462JCHXQGV08>
+              <When ?01M05F1P0BVCB9462JCHXQGV09>
+              表达其状态与操作
+              </?01M05F1P0BVCB9462JCHXQGV09>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

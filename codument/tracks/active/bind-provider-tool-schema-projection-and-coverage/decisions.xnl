@@ -1,0 +1,35 @@
+<decision #track.bind-provider-tool-schema-projection-and-coverage.dialect-owner apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>DeepSeek 的细微协议差异应由谁拥有，才能符合已建立的 provider context architecture？</?>
+  <answer (
+    <raw-answer ?>DeepSeek 的特殊处理必须位于 canonical authority、provider-specific projection compiler、coverage compatibility gate、provider request 这条链路内。</?>
+    <decision-text ?>由配置选中的 ProviderDriver 及其显式 effect bundle 拥有对应的 tool-schema projection compiler；DeepSeek、普通 OpenAI Chat 与 OpenAI Responses 各自拥有独立投影器，通用 fetch 层不得推断或修补 provider schema。</?>
+    <rationale ?>这保持 canonical ToolDef 的唯一语义 authority，把协议差异约束在 provider capsule 内，并确保 request preview 与真实发送复用同一个 dialect owner。</?>
+    <evidence ?>DeepSeekDriver 已显式选择 deepSeekOfficialChatEffectBundle；故障链路走 Chat Completions adapter，而不是 Responses compatibility processor。</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.bind-provider-tool-schema-projection-and-coverage.loss-policy apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>Provider compatibility projection 可以怎样改变 canonical tool schema？</?>
+  <answer (
+    <raw-answer ?>先修正 canonical object root 并保留 oneOf；没有证据时不能假定 DeepSeek 不支持 oneOf，也不能静默删除 schema 约束。</?>
+    <decision-text ?>Canonical schema 先表达真实共享 object root；每个 schema keyword、branch 与 constraint 规范化为带 kind/path/valueDigest 的 fact。Provider projector 仅能执行带 rule id/version、完整 consumed/produced fact identities 的兼容转换。成功状态只有 exact 或 compatible；不满足完整覆盖时返回不携带 request body 的独立 rejection 分支。</?>
+    <rationale ?>静默删字段会使模型看到的工具契约与运行时校验分叉，而把 provider 特例写入 canonical authority 又会污染其他 provider。</?>
+    <evidence ?>当前已证实的 DeepSeek 错误仅要求 function parameters 根 type 为 object；现有两个 oneOf 分支本身都是 object schema，未有 oneOf 不兼容证据。</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.bind-provider-tool-schema-projection-and-coverage.request-admission-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>怎样保证 preview 与真实 transport 复用同一 tool projection，同时允许 Responses 为不同 transport attempt 生成不同 body？</?>
+  <answer (
+    <raw-answer ?>Provider call 只投影一次 canonical tools；每个真正发送的 transport body 独立准入，并绑定真正发送的序列化字节。</?>
+    <decision-text ?>Configured driver 在 prepare 阶段创建一次 opaque ToolSchemaProjectionAuthority，preview、retry 与 Responses fallback 均复用它。Coverage gate 是每个 concrete transport attempt 的 opaque/nominal AdmittedProviderRequest capability 唯一 factory。Capability 私有持有 defensive-copied serialized bytes 及 body digest；transport 在既有 request observation 与 I/O 前验证 authenticity 与 digest，并直接发送固定字节。</?>
+    <rationale ?>TypeScript 结构类型和 readonly 标注不能阻止外部构造 lookalike 或修改嵌套 request；私有 capability authority 与 effect-boundary digest readback 才能把准入事实绑定到实际发送内容。</?>
+    <evidence ?>实现审计确认 ProviderRuntime 目前 preview 与 send 重复投影；Responses WebSocket 与 HTTP fallback 会形成不同 body，因此 projection authority 应按 provider call 唯一，而 request admission 应按 concrete transport attempt 唯一。</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>moderate</?>
+)>

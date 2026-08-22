@@ -1,0 +1,112 @@
+<Track #fix-conversation-generation-sequence-replay version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Restore canonical chronological replay of persisted conversation generations so sealed assistant/tool progress remains visible after session recovery." description = "Use HistoryMessage.sequence as generation chronology, repair freshness reconstruction, and verify TUI hydration against the historical incident." question_mode = "decision-tree" question_severity = "light" commit_mode = "manual" created_at = "2026-08-02T04:06:48Z" updated_at = "2026-08-02T04:47:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_fix-conversation-generation-sequence-replay { name = "fix-conversation-generation-sequence-replay" } (
+    <Description ?01M05F1PNCF28F3S2N7W7J5P5T>
+    Use TDD to reproduce, repair, and verify chronological generation replay through the shared persistence/projection path.
+    </?01M05F1PNCF28F3S2N7W7J5P5T>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Replay regression characterization" status = "DONE" order = 0 } (
+        <Description ?01M05F1PNCF28F3S2N7W7J5P5V>
+        Capture mixed committedAt replay and stale freshness as deterministic failing tests.
+        </?01M05F1PNCF28F3S2N7W7J5P5V>
+        <Gate [
+          <Criterion ?01M05F1PNCF28F3S2N7W7J5P5W>
+          Focused repository tests reproduce user-last misordering and stale updatedAt before implementation.
+          </?01M05F1PNCF28F3S2N7W7J5P5W>
+          <Criterion ?01M05F1PNCF28F3S2N7W7J5P5X>
+          A legacy fixture without complete sequence metadata characterizes deterministic committedAt and record-id fallback.
+          </?01M05F1PNCF28F3S2N7W7J5P5X>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add mixed committedAt failing regression" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PNCF28F3S2N7W7J5P5Y>
+            Add a local conversation repository fixture whose compacted user record has timestamp committedAt and post-input assistant/tool records have ordinal committedAt with continuous sequence; also characterize a legacy generation without complete sequence metadata.
+            </?01M05F1PNCF28F3S2N7W7J5P5Y>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PNCF28F3S2N7W7J5P5Z>
+              The test asserts sequence order user → assistant → tool and fails against the current committedAt sort.
+              </?01M05F1PNCF28F3S2N7W7J5P5Z>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PNCF28F3S2N7W7J5P60>
+              The test asserts reconstructed updatedAt uses the newest generationUpdatedAt and fails against the current first-record metadata.
+              </?01M05F1PNCF28F3S2N7W7J5P60>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1PNCF28F3S2N7W7J5P61>
+              A directly constructed legacy XNL fixture with incomplete sequence metadata orders the entire generation by committedAt and uses record id as the tie-breaker.
+              </?01M05F1PNCF28F3S2N7W7J5P61>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Shared reader repair" status = "DONE" order = 1 } (
+        <Description ?01M05F1PNCF28F3S2N7W7J5P62>
+        Make sequence canonical and repair generation freshness while preserving legacy fallback.
+        </?01M05F1PNCF28F3S2N7W7J5P62>
+        <Gate [
+          <Criterion ?01M05F1PNCF28F3S2N7W7J5P63>
+          Repository regression and existing conversation persistence tests pass.
+          </?01M05F1PNCF28F3S2N7W7J5P63>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Implement canonical sequence replay" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PNCF28F3S2N7W7J5P64>
+            Update historyMessageRecordsToGeneration ordering and metadata reconstruction with a generation-level legacy fallback.
+            </?01M05F1PNCF28F3S2N7W7J5P64>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PNCF28F3S2N7W7J5P65>
+              Complete sequence generations replay strictly by sequence.
+              </?01M05F1PNCF28F3S2N7W7J5P65>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PNCF28F3S2N7W7J5P66>
+              Sequence-incomplete legacy generations retain deterministic committedAt and record-id ordering.
+              </?01M05F1PNCF28F3S2N7W7J5P66>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1PNCF28F3S2N7W7J5P67>
+              Reconstructed updatedAt reflects the newest valid generationUpdatedAt.
+              </?01M05F1PNCF28F3S2N7W7J5P67>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Projection and incident verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PNCF28F3S2N7W7J5P68>
+        Prove the shared fix reaches projection/TUI hydration and the real historical session without data migration.
+        </?01M05F1PNCF28F3S2N7W7J5P68>
+        <Gate [
+          <Criterion ?01M05F1PNCF28F3S2N7W7J5P69>
+          Production projection port preserves post-input progress order.
+          </?01M05F1PNCF28F3S2N7W7J5P69>
+          <Criterion ?01M05F1PNCF28F3S2N7W7J5P6A>
+          Real incident generation ends at ::408 after ::30.
+          </?01M05F1PNCF28F3S2N7W7J5P6A>
+          <Criterion ?01M05F1PNCF28F3S2N7W7J5P6B>
+          Strict Codument validation and focused package tests pass.
+          </?01M05F1PNCF28F3S2N7W7J5P6B>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Add projection hydration acceptance and verify incident" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PNCF28F3S2N7W7J5P6C>
+            Add a production local-file projection acceptance for chronological post-input progress, run relevant TUI tests, and read the real incident session through the locator recorded in analysis/findings.md without writes.
+            </?01M05F1PNCF28F3S2N7W7J5P6C>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PNCF28F3S2N7W7J5P6D>
+              ConversationProjectionReadPort returns assistant/tool progress after the last user input for the mixed fixture.
+              </?01M05F1PNCF28F3S2N7W7J5P6D>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PNCF28F3S2N7W7J5P6E>
+              Relevant TUI hydration tests pass without adding a second source or TUI-specific repair path.
+              </?01M05F1PNCF28F3S2N7W7J5P6E>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1PNCF28F3S2N7W7J5P6F>
+              Read-only incident verification reports ::30 before ::31..::408 and ::408 as the final tool record.
+              </?01M05F1PNCF28F3S2N7W7J5P6F>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

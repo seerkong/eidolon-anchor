@@ -1,0 +1,120 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_9_-_2_0_2_6_-_f_i_x_-_t_u_i_-_q_u_e_s_t_i_o_n_n_a_i_r_e_-_c_o_n_t_i_n_u_a_t_i_o_n.behavior_patch.tui-questionnaire-continuation apiVersion="codument.tech/v1alpha1" version="1" { capability = "tui-questionnaire-continuation" } (
+  <Mutations [
+    <Upsert { selector = "behavior://tui-questionnaire-continuation/requirements/continue-after-questionnaire" } (
+      <Requirement #continue-after-questionnaire (
+        <Statement ?01M05F1PM88FDN02V1J5YZ2SK8>
+        TUI questionnaire replies SHALL continue the unblocked runtime turn rather than treating mailbox submission as final completion.
+        </?01M05F1PM88FDN02V1J5YZ2SK8>
+        <Suites [
+          <Suite #reply-continuation { name = "Reply continuation" } (
+            <Cases [
+              <Case #facade-submit-resumes-turn (
+                <Given ?01M05F1PM88FDN02V1J5YZ2SK9>
+                A runtime bridge supports submitQuestionnaireResponse and resumeTurn
+                </?01M05F1PM88FDN02V1J5YZ2SK9>
+                <When ?01M05F1PM88FDN02V1J5YZ2SKA>
+                The user replies to a pending questionnaire
+                </?01M05F1PM88FDN02V1J5YZ2SKA>
+                <Then ?01M05F1PM88FDN02V1J5YZ2SKB>
+                The TUI SHALL submit the answer and then call resumeTurn on the same runtime session
+                </?01M05F1PM88FDN02V1J5YZ2SKB>
+              )>
+              <Case #continuation-output-visible (
+                <Given ?01M05F1PM88FDN02V1J5YZ2SKC>
+                The resumed runtime emits assistant output after questionnaire approval
+                </?01M05F1PM88FDN02V1J5YZ2SKC>
+                <When ?01M05F1PM88FDN02V1J5YZ2SKD>
+                The answer is submitted through the TUI question bridge
+                </?01M05F1PM88FDN02V1J5YZ2SKD>
+                <Then ?01M05F1PM88FDN02V1J5YZ2SKE>
+                The TUI SHALL synchronize and expose the assistant output before returning the session to idle
+                </?01M05F1PM88FDN02V1J5YZ2SKE>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://tui-questionnaire-continuation/requirements/human-wait-boundary" } (
+      <Requirement #human-wait-boundary (
+        <Statement ?01M05F1PM88FDN02V1J5YZ2SKF>
+        Foreground runtime execution SHALL return control promptly when a questionnaire reaches a human wait boundary, without classifying the wait as an unsettled timeout.
+        </?01M05F1PM88FDN02V1J5YZ2SKF>
+        <Suites [
+          <Suite #foreground-human-wait { name = "Foreground human wait" } (
+            <Cases [
+              <Case #pause-all-questionnaire-stops-foreground (
+                <Given ?01M05F1PM88FDN02V1J5YZ2SKG>
+                A foreground fiber is suspended for human input with pause_all and retains a questionnaire_pending control marker
+                </?01M05F1PM88FDN02V1J5YZ2SKG>
+                <When ?01M05F1PM88FDN02V1J5YZ2SKH>
+                The foreground runtime is driven until settled
+                </?01M05F1PM88FDN02V1J5YZ2SKH>
+                <Then ?01M05F1PM88FDN02V1J5YZ2SKJ>
+                The runtime SHALL return at the human wait boundary without repeatedly resuming the marker
+                </?01M05F1PM88FDN02V1J5YZ2SKJ>
+              )>
+              <Case #continue-others-marker-is-not-wake-work (
+                <Given ?01M05F1PM88FDN02V1J5YZ2SKK>
+                A foreground fiber is suspended for human input with continue_others and its only pending wake item is the questionnaire_pending marker
+                </?01M05F1PM88FDN02V1J5YZ2SKK>
+                <When ?01M05F1PM88FDN02V1J5YZ2SKM>
+                No other foreground fiber has runnable work
+                </?01M05F1PM88FDN02V1J5YZ2SKM>
+                <Then ?01M05F1PM88FDN02V1J5YZ2SKN>
+                The runtime SHALL return at the human wait boundary without repeatedly resuming the marker
+                </?01M05F1PM88FDN02V1J5YZ2SKN>
+              )>
+              <Case #background-does-not-delay-human-boundary (
+                <Given ?01M05F1PM88FDN02V1J5YZ2SKP>
+                A foreground questionnaire is waiting for a human while unrelated background work remains registered
+                </?01M05F1PM88FDN02V1J5YZ2SKP>
+                <When ?01M05F1PM88FDN02V1J5YZ2SKQ>
+                The interactive turn reaches the questionnaire wait
+                </?01M05F1PM88FDN02V1J5YZ2SKQ>
+                <Then ?01M05F1PM88FDN02V1J5YZ2SKR>
+                The foreground turn SHALL return without waiting for the unrelated background work
+                </?01M05F1PM88FDN02V1J5YZ2SKR>
+              )>
+              <Case #human-wait-is-explicit-result (
+                <Given ?01M05F1PM88FDN02V1J5YZ2SKS>
+                The interactive coordinator observes a main or pause_all foreground human wait
+                </?01M05F1PM88FDN02V1J5YZ2SKS>
+                <When ?01M05F1PM88FDN02V1J5YZ2SKT>
+                The runtime may or may not be at a snapshot safepoint
+                </?01M05F1PM88FDN02V1J5YZ2SKT>
+                <Then ?01M05F1PM88FDN02V1J5YZ2SKV>
+                The coordinator SHALL report blocked_on_human with the actual safepoint state and SHALL NOT report timeout_unsettled
+                </?01M05F1PM88FDN02V1J5YZ2SKV>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://tui-questionnaire-continuation/requirements/questionnaire-answer-history" } (
+      <Requirement #questionnaire-answer-history (
+        <Statement ?01M05F1PM88FDN02V1J5YZ2SKW>
+        TUI conversation history SHALL expose the user's questionnaire answer rather than the internal tool-result envelope.
+        </?01M05F1PM88FDN02V1J5YZ2SKW>
+        <Suites [
+          <Suite #answer-projection { name = "Answer projection" } (
+            <Cases [
+              <Case #raw-answer-visible (
+                <Given ?01M05F1PM88FDN02V1J5YZ2SKX>
+                A questionnaire tool result contains canonical JSON with questionnaireId and rawText
+                </?01M05F1PM88FDN02V1J5YZ2SKX>
+                <When ?01M05F1PM88FDN02V1J5YZ2SKY>
+                The TUI projects conversation history
+                </?01M05F1PM88FDN02V1J5YZ2SKY>
+                <Then ?01M05F1PM88FDN02V1J5YZ2SKZ>
+                The visible text SHALL be rawText while the canonical JSON remains available to runtime/provider history
+                </?01M05F1PM88FDN02V1J5YZ2SKZ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

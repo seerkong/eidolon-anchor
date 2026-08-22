@@ -1,0 +1,203 @@
+<Track #standardize-tui-dialogs version="1" apiVersion="codument.tech/v1alpha1" { status = "in_progress" description = "统一改造 eidolon-tui 剩余 dialog，使其符合当前 Dialog UI/UX 标准，并保留 Sessions 专属密集列表体验。" commit_mode = "manual" created_at = "2026-05-23T11:37:22Z" updated_at = "2026-05-23T14:11:05Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_standardize-tui-dialogs { name = "standardize-tui-dialogs" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Inventory and baseline coverage" status = "DONE" order = 0 } (
+        <Description ?01M05F1PE1MZ8XK7BHWH14SE6V>
+        确认剩余 dialog 范围，并为高风险共享组件建立基础验证。
+        </?01M05F1PE1MZ8XK7BHWH14SE6V>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Inventory remaining dialogs" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE6W>
+            扫描所有 TUI dialog implementation 和调用点，标记 shared、custom、already-compliant 三类。
+            </?01M05F1PE1MZ8XK7BHWH14SE6W>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE6X>
+              产出剩余 dialog 清单并映射到标准 dialog category。
+              </?01M05F1PE1MZ8XK7BHWH14SE6X>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE6Y>
+              确认 DialogSelect 可覆盖的列表类弹窗范围。
+              </?01M05F1PE1MZ8XK7BHWH14SE6Y>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "Add focused dialog behavior tests" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE6Z>
+            为 shared dialog primitive 的 action labels、search clear、row truncation、footer anchoring 和 close behavior 添加聚焦测试。
+            </?01M05F1PE1MZ8XK7BHWH14SE6Z>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE70>
+              测试覆盖 bracketed action rendering。
+              </?01M05F1PE1MZ8XK7BHWH14SE70>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE71>
+              测试覆盖列表长文本单行截断和右侧 action/metadata 不重叠。
+              </?01M05F1PE1MZ8XK7BHWH14SE71>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE72>
+              测试覆盖 Escape 和 `[关闭(esc)]` 关闭行为。
+              </?01M05F1PE1MZ8XK7BHWH14SE72>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Shared dialog primitive standardization" status = "DONE" order = 1 } (
+        <Description ?01M05F1PE1MZ8XK7BHWH14SE73>
+        统一 shared dialog primitives，让多数选择类、表单类、确认类和信息类弹窗自动继承规范。
+        </?01M05F1PE1MZ8XK7BHWH14SE73>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Standardize Dialog shell and header" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE74>
+            调整 dialog shell/header/footer 的边框、内边距、关闭动作和可复用布局能力。
+            </?01M05F1PE1MZ8XK7BHWH14SE74>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE75>
+              Dialog shell 使用 OpenTUI 内置 border。
+              </?01M05F1PE1MZ8XK7BHWH14SE75>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE76>
+              默认关闭动作显示为 `[关闭(esc)]` 并可点击。
+              </?01M05F1PE1MZ8XK7BHWH14SE76>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE77>
+              普通 dialog 保持 5% 左右和 10% 上下外部空间。
+              </?01M05F1PE1MZ8XK7BHWH14SE77>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "Standardize DialogSelect lists" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE78>
+            改造 DialogSelect 的搜索、清空、列表 body、hover/focus、footer、截断和滚动行为。
+            </?01M05F1PE1MZ8XK7BHWH14SE78>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE79>
+              搜索区 `[清空]` 右对齐且能重置搜索。
+              </?01M05F1PE1MZ8XK7BHWH14SE79>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7A>
+              列表 body 填充剩余高度，footer 不漂浮在大块空白上方。
+              </?01M05F1PE1MZ8XK7BHWH14SE7A>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7B>
+              列表项长文本保持单行截断且 hover/focus 文字可读。
+              </?01M05F1PE1MZ8XK7BHWH14SE7B>
+            ]>
+          )>
+          <Task { id = "T2.3" name = "Standardize alert confirm and prompt dialogs" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE7C>
+            改造 Alert、Confirm、Prompt shared components 的 action labels、布局、异步确认和 close behavior。
+            </?01M05F1PE1MZ8XK7BHWH14SE7C>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7D>
+              Alert 使用标准 `[关闭(esc)]` 或 bracketed ok action。
+              </?01M05F1PE1MZ8XK7BHWH14SE7D>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7E>
+              Confirm 使用 `[取消]` 和 `[确认]` 或配置的 bracketed verb。
+              </?01M05F1PE1MZ8XK7BHWH14SE7E>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7F>
+              Prompt/form dialog 保持稳定输入和异步提交防重复。
+              </?01M05F1PE1MZ8XK7BHWH14SE7F>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Custom dialog migration" status = "DONE" order = 2 } (
+        <Description ?01M05F1PE1MZ8XK7BHWH14SE7G>
+        迁移不能通过 shared primitive 自动覆盖的 custom dialog。
+        </?01M05F1PE1MZ8XK7BHWH14SE7G>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Migrate file picker dialog" status = "DONE" order = 0 priority = "P1" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE7H>
+            将 composer file picker 对齐列表类 dialog 标准，压缩多余说明文本并统一 close/footer/search 行为。
+            </?01M05F1PE1MZ8XK7BHWH14SE7H>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7J>
+              文件列表行保持单行截断，不与右侧信息重叠。
+              </?01M05F1PE1MZ8XK7BHWH14SE7J>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7K>
+              close/footer/search 行为符合标准。
+              </?01M05F1PE1MZ8XK7BHWH14SE7K>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "Migrate shortcuts and status dialogs" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE7M>
+            将 shortcuts 和 status 对齐 information dialog 标准，统一边框、滚动区、footer 和 close action。
+            </?01M05F1PE1MZ8XK7BHWH14SE7M>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7N>
+              Shortcuts dialog 不再使用非标准 footer 文案。
+              </?01M05F1PE1MZ8XK7BHWH14SE7N>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7P>
+              Status dialog 内容区可滚动并使用标准 close action。
+              </?01M05F1PE1MZ8XK7BHWH14SE7P>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "Migrate provider auth dialogs" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE7Q>
+            将 provider OAuth/API key 相关子弹窗对齐 information/form dialog 标准。
+            </?01M05F1PE1MZ8XK7BHWH14SE7Q>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7R>
+              OAuth/API key dialog 使用标准边框和 bracketed actions。
+              </?01M05F1PE1MZ8XK7BHWH14SE7R>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7S>
+              复制、确认、取消、关闭等动作保持原有功能并视觉统一。
+              </?01M05F1PE1MZ8XK7BHWH14SE7S>
+            ]>
+          )>
+          <Task { id = "T3.4" name = "Recheck Sessions specialized dense list" status = "DONE" order = 3 priority = "P0" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE7T>
+            复查 Sessions dialog 的三行记录布局、按钮可用性、数据持久化、搜索清空、单行截断和底部关闭位置。
+            </?01M05F1PE1MZ8XK7BHWH14SE7T>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7V>
+              分叉、重命名、删除后重新打开 Sessions dialog 显示正确。
+              </?01M05F1PE1MZ8XK7BHWH14SE7V>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7W>
+              初始问题、最新消息、创建时间、更新时间均稳定单行展示。
+              </?01M05F1PE1MZ8XK7BHWH14SE7W>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE7X>
+              过长 session name 不与按钮或时间重叠。
+              </?01M05F1PE1MZ8XK7BHWH14SE7X>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Verification and cleanup" status = "DONE" order = 3 } (
+        <Description ?01M05F1PE1MZ8XK7BHWH14SE7Y>
+        完成自动化和手动验证，并清理与标准不一致的残留实现。
+        </?01M05F1PE1MZ8XK7BHWH14SE7Y>
+        <SubNodes [
+          <Task { id = "T4.1" name = "Run focused automated verification" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE7Z>
+            运行 TUI dialog 相关 focused tests 和必要的 typecheck/build。
+            </?01M05F1PE1MZ8XK7BHWH14SE7Z>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE80>
+              相关 TUI tests 通过。
+              </?01M05F1PE1MZ8XK7BHWH14SE80>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE81>
+              相关 package typecheck 或 build 通过。
+              </?01M05F1PE1MZ8XK7BHWH14SE81>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "Run manual interaction verification" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE1MZ8XK7BHWH14SE82>
+            使用 TUI 启动方式打开关键 dialog，验证 Escape、click、search clear、hover/focus、scroll、truncation 和数据刷新。
+            </?01M05F1PE1MZ8XK7BHWH14SE82>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE83>
+              Sessions、使用说明、功能菜单、Slash Commands、Model/Provider/Agent/MCP/Theme、File Picker、Status、Provider Auth 均完成自动化交互渲染验证。
+              </?01M05F1PE1MZ8XK7BHWH14SE83>
+              <Criterion { checked = true } ?01M05F1PE1MZ8XK7BHWH14SE84>
+              记录任何无法自动验证的残余风险。
+              </?01M05F1PE1MZ8XK7BHWH14SE84>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

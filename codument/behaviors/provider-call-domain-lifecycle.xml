@@ -1,4 +1,7 @@
 <capability id="provider-call-domain-lifecycle" version="1">
+  <Metadata>
+    <ApiVersion>codument.tech/v1alpha1</ApiVersion>
+  </Metadata>
   <requirement id="provider-call-record">
     <statement>每次发往 provider 的请求 SHALL 在 ProviderCallDomain 落一条 ProviderCallRecord 记录：包含 actorKey、turnId、modelRef、temperature 等模型参数、tool schemas snapshot、prompt generation 引用、startedAt；该记录 SHALL 是该次 provider 请求的事实真相，runtime-control evidence 与 cooperative state.inflight 中相关字段 SHALL 退化为该记录的引用。</statement>
     <suite id="record" name="ProviderCallRecord">

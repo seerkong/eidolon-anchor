@@ -1,0 +1,360 @@
+<Behavior #provider-responses-websocket apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #websocket-transport (
+      <Statement ?01M05F1P2ZS3YKF2MKEABGJ7XE>
+      openai-responses adapter SHALL 支持 Responses WebSocket v2 transport：连接 `wss://.../responses`（由 `/responses` HTTP URL 派生 scheme，或显式 websocket_url），带鉴权头（剥离 WS 控制头、保留 Authorization 等），把请求 body 作为一条 JSON 消息发出，并把收到的每条 WS 消息解析为与 SSE 同形状的 event，复用既有 event→chunk 解析。transport 选择 SHALL 支持 auto / websocket / http_sse；`auto` 在 provider 标记可用 WS（supports_websockets 或 websocket_url）时用 WS，否则 http_sse。WS 连接/传输失败 SHALL 回退 HTTP SSE，SHALL NOT 破坏现有 SSE 行为。
+      </?01M05F1P2ZS3YKF2MKEABGJ7XE>
+      <Suites [
+        <Suite #ws-transport { name = "Responses WebSocket transport" } (
+          <Cases [
+            <Case #ws-url-derived (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7XF>
+              HTTP responses base url（https://host/v1/responses）
+              </?01M05F1P2ZS3YKF2MKEABGJ7XF>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7XG>
+              构造 WS url
+              </?01M05F1P2ZS3YKF2MKEABGJ7XG>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7XH>
+              SHALL 得到 wss://host/v1/responses（http→ws）；显式 websocket_url 时优先用之
+              </?01M05F1P2ZS3YKF2MKEABGJ7XH>
+            )>
+            <Case #ws-events-parsed-like-sse (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7XJ>
+              WS 收到与 SSE 同形状的 event 消息（response.created / output_item.* / function_call_arguments.* / completed）
+              </?01M05F1P2ZS3YKF2MKEABGJ7XJ>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7XK>
+              adapter 解析 WS 流
+              </?01M05F1P2ZS3YKF2MKEABGJ7XK>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7XM>
+              SHALL 产出与 SSE 路径一致的 chunk（content / tool_calls），事件解析逻辑共用
+              </?01M05F1P2ZS3YKF2MKEABGJ7XM>
+            )>
+            <Case #ws-failure-falls-back-to-sse (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7XN>
+              provider 未标记 WS 能力，或 WS 连接失败
+              </?01M05F1P2ZS3YKF2MKEABGJ7XN>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7XP>
+              选择/建立 transport
+              </?01M05F1P2ZS3YKF2MKEABGJ7XP>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7XQ>
+              SHALL 用 HTTP SSE（不报错、不回归现有行为）
+              </?01M05F1P2ZS3YKF2MKEABGJ7XQ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #previous-response-id-continuity (
+      <Statement ?01M05F1P2ZS3YKF2MKEABGJ7XR>
+      openai-responses adapter SHALL 把本地 Conversation materialization 作为唯一 canonical context；`previous_response_id` SHALL 仅作为 capability-gated、可失效的 stateful 优化。系统 MUST NOT 以模块级或进程级共享 Map 作为 continuation 真源。只有 configured mode、transport capability、actor baseline epoch、provider-visible context digest、previous response id 与 replay checkpoint 全部匹配时，系统才 SHALL 发送 previous id 与增量 input；任一条件失配、恢复缺失或 transport fallback 时 SHALL 开启 stateless full replay。
+      </?01M05F1P2ZS3YKF2MKEABGJ7XR>
+      <Suites [
+        <Suite #continuity { name = "Hybrid Responses continuation" } (
+          <Cases [
+            <Case #stateful-chain-sends-incremental-input [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7XS>
+              请求 SHALL 带 previous_response_id 与仅包含新 user/tool items 的增量 input
+              </?01M05F1P2ZS3YKF2MKEABGJ7XS>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7XT>
+              请求 SHALL NOT 重发 prior native window
+              </?01M05F1P2ZS3YKF2MKEABGJ7XT>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7XV>
+              stateful mode 已启用，transport 支持 continuation，且 response id、epoch、context digest、message frontier 全部匹配
+              </?01M05F1P2ZS3YKF2MKEABGJ7XV>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7XW>
+              下一轮构造 Responses 请求
+              </?01M05F1P2ZS3YKF2MKEABGJ7XW>
+            )>
+            <Case #baseline-mismatch-starts-full-chain [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7XX>
+              系统 SHALL omit 或清空 previous_response_id
+              </?01M05F1P2ZS3YKF2MKEABGJ7XX>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7XY>
+              系统 SHALL 从当前 canonical context 构造完整 input 并建立新 chain
+              </?01M05F1P2ZS3YKF2MKEABGJ7XY>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7XZ>
+              system prompt、dynamic projection、compaction、model/provider、tool schema、epoch、digest 或 replay frontier 任一变化
+              </?01M05F1P2ZS3YKF2MKEABGJ7XZ>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7Y0>
+              系统构造下一次请求
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y0>
+            )>
+            <Case #transport-fallback-never-sends-truncated-input [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7Y1>
+              fallback SHALL 使用 stateless full replay plan
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y1>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7Y2>
+              fallback SHALL NOT 复用仅含 tool output 的截断 WS body
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y2>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7Y3>
+              WS incremental request 在 send 前或连接阶段失败并回退 HTTP SSE
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y3>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7Y4>
+              系统构造 fallback body
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y4>
+            )>
+            <Case #response-id-owned-by-actor-baseline [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7Y5>
+              actor continuation baseline SHALL 记录 latest response id 与 context digest
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y5>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7Y6>
+              失败、中止或无 response id SHALL NOT 推进 baseline
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y6>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7Y7>
+              provider response 成功完成并返回 response id
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y7>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7Y8>
+              executor 完成 stream 消费
+              </?01M05F1P2ZS3YKF2MKEABGJ7Y8>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #provider-native-stateless-replay (
+      <Statement ?01M05F1P2ZS3YKF2MKEABGJ7Y9>
+      openai-responses stateless replay SHALL 保存并按原顺序回放 Responses 原生 input/output items，包括 provider 返回的 reasoning items、encrypted content、assistant phase、function calls、messages 与 compaction-compatible items；系统 MUST NOT 只以 Chat-Completions-shaped assistant/tool messages 近似替代原生回放。
+      </?01M05F1P2ZS3YKF2MKEABGJ7Y9>
+      <Suites [
+        <Suite #native-window { name = "Provider-native replay window" } (
+          <Cases [
+            <Case #capture-complete-response-output [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YA>
+              系统 SHALL 生成有序、不可变的 native output snapshot
+              </?01M05F1P2ZS3YKF2MKEABGJ7YA>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YB>
+              snapshot SHALL 与 canonical History 分离并作为可失效 checkpoint 持久化
+              </?01M05F1P2ZS3YKF2MKEABGJ7YB>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7YC>
+              Responses stream 返回 output_item events 或 completed response.output
+              </?01M05F1P2ZS3YKF2MKEABGJ7YC>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7YD>
+              stream 成功消费完成
+              </?01M05F1P2ZS3YKF2MKEABGJ7YD>
+            )>
+            <Case #stateless-replays-native-items [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YE>
+              系统 SHALL 发送 prior native window 加本轮 canonical delta
+              </?01M05F1P2ZS3YKF2MKEABGJ7YE>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YF>
+              reasoning/phase/function-call items SHALL 保持原始顺序与字段
+              </?01M05F1P2ZS3YKF2MKEABGJ7YF>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7YG>
+              previous response id 不可用但 matching native checkpoint 可用
+              </?01M05F1P2ZS3YKF2MKEABGJ7YG>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7YH>
+              构造 stateless 请求
+              </?01M05F1P2ZS3YKF2MKEABGJ7YH>
+            )>
+            <Case #missing-checkpoint-rebuilds-canonical-full-input [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YJ>
+              系统 SHALL 从当前 canonical provider messages 构造完整 input
+              </?01M05F1P2ZS3YKF2MKEABGJ7YJ>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YK>
+              系统 SHALL 在本轮成功后建立新的 native checkpoint
+              </?01M05F1P2ZS3YKF2MKEABGJ7YK>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7YM>
+              旧 session 没有 checkpoint、checkpoint 损坏或 frontier 不匹配
+              </?01M05F1P2ZS3YKF2MKEABGJ7YM>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7YN>
+              构造请求
+              </?01M05F1P2ZS3YKF2MKEABGJ7YN>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #stable-prompt-cache-routing (
+      <Statement ?01M05F1P2ZS3YKF2MKEABGJ7YP>
+      Responses full replay SHALL 使用由 provider、model、固定 transport/sandbox/provider-configured instructions、稳定 materialized system prompts 与 tool schema 派生的稳定 prompt cache key；work-context、mutable provider projections、动态对话与 session 随机值 MUST NOT 进入该 key。系统 MUST NOT 为共享同一稳定前缀的每次请求生成随机 cache key。
+      </?01M05F1P2ZS3YKF2MKEABGJ7YP>
+      <Suites [
+        <Suite #cache-key { name = "Stable prompt cache routing" } (
+          <Cases [
+            <Case #same-prefix-same-key (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7YQ>
+              两个请求具有相同 provider/model/stable instructions/tool schema，但 work-context、mutable projection 或对话尾部不同
+              </?01M05F1P2ZS3YKF2MKEABGJ7YQ>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7YR>
+              构造 full replay body
+              </?01M05F1P2ZS3YKF2MKEABGJ7YR>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YS>
+              两个请求 SHALL 使用相同 prompt_cache_key
+              </?01M05F1P2ZS3YKF2MKEABGJ7YS>
+            )>
+            <Case #stable-prefix-change-changes-key (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7YT>
+              model、稳定 instructions 或 tool schema 发生变化
+              </?01M05F1P2ZS3YKF2MKEABGJ7YT>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7YV>
+              构造下一请求
+              </?01M05F1P2ZS3YKF2MKEABGJ7YV>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YW>
+              prompt_cache_key SHALL 改变且旧 continuation SHALL 不可复用
+              </?01M05F1P2ZS3YKF2MKEABGJ7YW>
+            )>
+            <Case #stable-instructions-are-wire-prefix [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YX>
+              stable instructions SHALL 是完整 wire instructions 的精确前缀
+              </?01M05F1P2ZS3YKF2MKEABGJ7YX>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7YY>
+              动态 overlay 变化 SHALL 改变 context digest 但 SHALL NOT 改变 prompt_cache_key
+              </?01M05F1P2ZS3YKF2MKEABGJ7YY>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7YZ>
+              完整 wire instructions 同时包含稳定 system sections 与动态 overlays
+              </?01M05F1P2ZS3YKF2MKEABGJ7YZ>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7Z0>
+              系统组装 cache routing 输入与实际 request body
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z0>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #materialized-system-instructions (
+      <Statement ?01M05F1P2ZS3YKF2MKEABGJ7Z1>
+      openai-responses adapter SHALL 把当前 provider materialization 中的全部 system-role messages 编译进实际 wire `instructions`，并 SHALL 以单一、确定的 assembly 同时产出完整 wire instructions 与 stable instructions：完整值驱动 context digest、request observation 与 wire body，稳定值驱动 prompt cache key。系统 MUST NOT 静默丢弃 materialized system context、把动态 overlay 纳入 stable instructions、覆盖 provider-configured instructions、重复相同 section，或为具体工具/资源/业务名称分支。
+      </?01M05F1P2ZS3YKF2MKEABGJ7Z1>
+      <Suites [
+        <Suite #instructions-assembly { name = "Materialized Responses system instructions" } (
+          <Cases [
+            <Case #all-system-messages-reach-wire [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7Z2>
+              所有 system-role 文本 SHALL 按原顺序进入 instructions，普通 user/assistant/tool history SHALL 保持 chronological input
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z2>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7Z3>
+              任一 system-role 文本 SHALL NOT 同时在 instructions 与 input 重复发送
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z3>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7Z4>
+              provider messages 按物化顺序包含 kernel prompt、runtime work context、动态 overlay 和 actor system prompt
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z4>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7Z5>
+              Responses adapter 构造 stateless wire body
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z5>
+            )>
+            <Case #configured-and-default-instructions-compose (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7Z6>
+              transport default、sandbox、provider-configured instructions 与 materialized system messages 同时存在
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z6>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7Z7>
+              统一 assembly 合并 instructions
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z7>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7Z8>
+              section 顺序 SHALL 固定，configured instructions SHALL NOT 被静默覆盖，精确重复 section SHALL 只保留一次
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z8>
+            )>
+            <Case #dynamic-system-change-invalidates-wire-context [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7Z9>
+              wire instructions 与 context digest SHALL 同时变化，稳定 section 的顺序 SHALL 不变
+              </?01M05F1P2ZS3YKF2MKEABGJ7Z9>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZA>
+              prompt_cache_key SHALL 保持不变
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZA>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZB>
+              request observation 中的 instructions SHALL 与实际 send body 完全一致
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZB>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7ZC>
+              稳定前缀不变，任一动态 materialized system message 发生变化
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZC>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7ZD>
+              构造下一 Responses request
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZD>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #provider-native-replay-integrity (
+      <Statement ?01M05F1P2ZS3YKF2MKEABGJ7ZE>
+      系统 SHALL 只从具有 typed completeness proof 的 Responses 原生 output 建立 replay checkpoint，并 SHALL 在完整 request lineage 上校验 function call/output 闭包；不完整、冲突、旧版本或无 proof 的 native checkpoint MUST 自动失效，且 MUST NOT 推进 continuation baseline。
+      </?01M05F1P2ZS3YKF2MKEABGJ7ZE>
+      <Suites [
+        <Suite #native-completeness { name = "Provider-native output completeness" } (
+          <Cases [
+            <Case #conflicting-terminal-output-is-not-replayable [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZF>
+              系统 SHALL NOT 用不完整 terminal output 覆盖已观测 evidence
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZF>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZG>
+              无法证明完整时 SHALL NOT 发布 replay checkpoint 或推进 continuation baseline
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZG>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7ZH>
+              stream 的 added/delta/done evidence 已形成 function call，但 `response.completed.output` 为空、缺项或与 evidence 冲突
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZH>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7ZJ>
+              pure completeness logic 重建 provider output
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZJ>
+            )>
+            <Case #old-checkpoint-without-proof-invalidates (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7ZK>
+              恢复的 checkpoint 是旧版本、损坏或没有 completeness proof
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZK>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7ZM>
+              系统规划下一 Responses 请求
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZM>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZN>
+              checkpoint SHALL 自动失效并走 canonical rebuild
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZN>
+            )>
+            <Case #empty-terminal-output-requires-independent-event-proof [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZP>
+              只有 evidence 自身证明完整 index、done、identity、顺序且 call lineage 闭合时，系统才 SHALL 发布 reconstructed_event_items proof
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZP>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZQ>
+              缺少任一证明时 outcome SHALL 保持 incomplete，且 SHALL NOT 推进 checkpoint 或 baseline
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZQ>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7ZR>
+              `response.completed.output` 为空，但 transport 已收到 indexed added/done/delta evidence
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZR>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7ZS>
+              pure completeness logic 裁决 native output
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZS>
+            )>
+          ]>
+        )>
+        <Suite #call-lineage { name = "Function-call lineage closure" } (
+          <Cases [
+            <Case #stateful-output-may-reference-previous-lineage (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7ZT>
+              stateful 增量只有 function_call_output，且 previous response/checkpoint 中存在匹配 function_call
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZT>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ7ZV>
+              系统校验 request lineage
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZV>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZW>
+              该闭包 SHALL 被视为有效，不得仅因当前增量 body 无 function_call 而拒绝
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZW>
+            )>
+            <Case #invalid-native-falls-back-before-send [
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZX>
+              系统 SHALL 先尝试 canonical rebuild
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZX>
+              <Then ?01M05F1P2ZS3YKF2MKEABGJ7ZY>
+              canonical rebuild 仍不闭合时 SHALL 在 request observation 与 transport I/O 前本地失败
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZY>
+            ] (
+              <Given ?01M05F1P2ZS3YKF2MKEABGJ7ZZ>
+              native replay lineage 存在 orphan、duplicate、乱序或空 call id
+              </?01M05F1P2ZS3YKF2MKEABGJ7ZZ>
+              <When ?01M05F1P2ZS3YKF2MKEABGJ800>
+              系统准备 transport request
+              </?01M05F1P2ZS3YKF2MKEABGJ800>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

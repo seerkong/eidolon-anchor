@@ -1,4 +1,4 @@
-<decision #track.establish-system-ai-workflow-skill.semantic-authority { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.establish-system-ai-workflow-skill.semantic-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKTFNTXTTXG1W6TSXVK0T37>
   谁负责从普通自然语言决定 workflow warrant、form、topology、starting fact 和工具调用？
   </?01KZKTFNTXTTXG1W6TSXVK0T37>
@@ -18,7 +18,7 @@
   )>
 )>
 
-<decision #track.establish-system-ai-workflow-skill.global-location { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.establish-system-ai-workflow-skill.global-location apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKTFNTYEV0NHYVCGK081KSA>
   AI Workflow 提示词的产品真源安装在哪里？
   </?01KZKTFNTYEV0NHYVCGK081KSA>
@@ -38,7 +38,7 @@
   )>
 )>
 
-<decision #track.establish-system-ai-workflow-skill.stage-boundary { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.establish-system-ai-workflow-skill.stage-boundary apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKTFNTYEV0NHYVCGK081KSF>
   编辑与运行应如何呈现为产品交互？
   </?01KZKTFNTYEV0NHYVCGK081KSF>
@@ -58,7 +58,7 @@
   )>
 )>
 
-<decision #track.establish-system-ai-workflow-skill.prompt-layering { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.establish-system-ai-workflow-skill.prompt-layering apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKTFNTYEV0NHYVCGK081KSM>
   系统 Skill 的提示词和知识应按什么生命周期组织？
   </?01KZKTFNTYEV0NHYVCGK081KSM>
@@ -78,7 +78,7 @@
   )>
 )>
 
-<decision #track.establish-system-ai-workflow-skill.flow-dsl-skeleton { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.establish-system-ai-workflow-skill.flow-dsl-skeleton apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKTFNTYEV0NHYVCGK081KSS>
   depa-flows flow-dsl 应怎样内嵌到 AI Workflow Skill？
   </?01KZKTFNTYEV0NHYVCGK081KSS>
@@ -98,7 +98,7 @@
   )>
 )>
 
-<decision #track.establish-system-ai-workflow-skill.global-init { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.establish-system-ai-workflow-skill.global-init apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKTFNTYEV0NHYVCGK081KSY>
   未来多个系统级 Skill 应如何安装和升级？
   </?01KZKTFNTYEV0NHYVCGK081KSY>
@@ -118,7 +118,7 @@
   )>
 )>
 
-<decision #track.establish-system-ai-workflow-skill.system-identity { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.establish-system-ai-workflow-skill.system-identity apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKTFNTYEV0NHYVCGK081KT3>
   workspace 中的同名 skill 是否可以覆盖产品系统 Skill？
   </?01KZKTFNTYEV0NHYVCGK081KT3>
@@ -138,7 +138,7 @@
   )>
 )>
 
-<decision #track.establish-system-ai-workflow-skill.fact-ownership { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.establish-system-ai-workflow-skill.fact-ownership apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKTFNTYEV0NHYVCGK081KT8>
   编辑、发布和运行各自消费与产生什么事实？
   </?01KZKTFNTYEV0NHYVCGK081KT8>
@@ -158,7 +158,7 @@
   )>
 )>
 
-<decision #track.harden-ai-workflow-agent-runtime.failure-terminal { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.harden-ai-workflow-agent-runtime.failure-terminal apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKWFSP4D00WZ11ERKNZWFPE>
   Provider completion 失败时 delegate 应以何种终态返回？
   </?01KZKWFSP4D00WZ11ERKNZWFPE>
@@ -178,7 +178,7 @@
   )>
 )>
 
-<decision #track.harden-ai-workflow-agent-runtime.result-authority { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.harden-ai-workflow-agent-runtime.result-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKWFSP4D00WZ11ERKNZWFPK>
   Orchestrator 从哪里派生 child 输出？
   </?01KZKWFSP4D00WZ11ERKNZWFPK>
@@ -198,7 +198,7 @@
   )>
 )>
 
-<decision #track.harden-ai-workflow-agent-runtime.tool-call-identity { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.harden-ai-workflow-agent-runtime.tool-call-identity apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKWFSP4D00WZ11ERKNZWFPR>
   并行 tool-call identity 缺失或冲突时是否允许猜测合并？
   </?01KZKWFSP4D00WZ11ERKNZWFPR>
@@ -218,7 +218,7 @@
   )>
 )>
 
-<decision #track.harden-ai-workflow-agent-runtime.stage-outcome { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.harden-ai-workflow-agent-runtime.stage-outcome apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZKWFSP4D00WZ11ERKNZWFPX>
   怎样防止 workflow actor 在没有产物时持续探索十余分钟？
   </?01KZKWFSP4D00WZ11ERKNZWFPX>
@@ -238,7 +238,7 @@
   )>
 )>
 
-<decision #track.fix-workflow-fulfill-terminal-and-continuation.failure-authority { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.failure-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZM376J89SBRFRM2JQJ91A18>
   Provider failure 之前已有 partial assistant content 时谁拥有终态？
   </?01KZM376J89SBRFRM2JQJ91A18>
@@ -258,7 +258,7 @@
   )>
 )>
 
-<decision #track.fix-workflow-fulfill-terminal-and-continuation.sync-wait-single-writer { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.sync-wait-single-writer apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZM376J9DYZVC71NQQ8D51YF>
   同步 delegate tool result 由谁写入？
   </?01KZM376J9DYZVC71NQQ8D51YF>
@@ -278,7 +278,7 @@
   )>
 )>
 
-<decision #track.fix-workflow-fulfill-terminal-and-continuation.context-projection { priority = "P0" status = "accepted" durable_candidate = true } (
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.context-projection apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
   <question ?01KZM376J9DYZVC71NQQ8D51YM>
   Fresh workflow actor 如何理解多轮确认？
   </?01KZM376J9DYZVC71NQQ8D51YM>
@@ -298,62 +298,62 @@
   )>
 )>
 
-<decision #unify-tui-turn-projection-and-workspace-scope.projection-owner { priority = "P0" status = "accepted" durable_candidate = true } (
-  <question ?>
+<decision #unify-tui-turn-projection-and-workspace-scope.projection-owner apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M05F1P4YHBXSG9Y2884CQJ6X>
   首轮 prompt、slash command 与 questionnaire continuation 的流投影由谁负责？
-  </?>
-  <answer { } (
-    <raw-answer ?>
+  </?01M05F1P4YHBXSG9Y2884CQJ6X>
+  <answer {  } (
+    <raw-answer ?01M05F1P4YHBXSG9Y2884CQJ6Y>
     抽取一套首轮、命令执行、问卷恢复共同使用的流投影器。
-    </?>
-    <decision-text ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ6Y>
+    <decision-text ?01M05F1P4YHBXSG9Y2884CQJ6Z>
     TuiRuntimeClient 内建立单一 turn surface projector/state owner，三条入口只保留各自 ingress/生命周期职责，共同委托 typed control、chunk、history 与 final reconciliation。
-    </?>
-    <rationale ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ6Z>
+    <rationale ?01M05F1P4YHBXSG9Y2884CQJ70>
     runtime 已提供统一结构化流；继续复制会让类别、buffer、tool identity 与恢复行为漂移。
-    </?>
-    <evidence ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ70>
+    <evidence ?01M05F1P4YHBXSG9Y2884CQJ71>
     continuation 当前只传 onChunk，prompt/command/continuation 分别复制 assistant/tool 投影逻辑。
-    </?>
+    </?01M05F1P4YHBXSG9Y2884CQJ71>
   )>
 )>
 
-<decision #unify-tui-turn-projection-and-workspace-scope.authority { priority = "P0" status = "accepted" durable_candidate = true } (
-  <question ?>
+<decision #unify-tui-turn-projection-and-workspace-scope.authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M05F1P4YHBXSG9Y2884CQJ72>
   live stream 与 durable history 如何消重？
-  </?>
-  <answer { } (
-    <raw-answer ?>
+  </?01M05F1P4YHBXSG9Y2884CQJ72>
+  <answer {  } (
+    <raw-answer ?01M05F1P4YHBXSG9Y2884CQJ73>
     复用 Eidolon 底层通用机制，不新增 runtime/session authority。
-    </?>
-    <decision-text ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ73>
+    <decision-text ?01M05F1P4YHBXSG9Y2884CQJ74>
     live semantic event 只做低延迟 observation；conversation 与 ToolCallDomain 保持 durable authority；surface 以 conversation message id、actorId+toolCallId、questionnaireId 和 resource id+revision+range 做 identity reconciliation。
-    </?>
-    <rationale ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ74>
+    <rationale ?01M05F1P4YHBXSG9Y2884CQJ75>
     以随机 surface id 全量替换会重复卡片并破坏恢复稳定性。
-    </?>
-    <evidence ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ75>
+    <evidence ?01M05F1P4YHBXSG9Y2884CQJ76>
     syncSessionMessagesFromActorConversation 当前清空 state 并为所有历史创建随机 id。
-    </?>
+    </?01M05F1P4YHBXSG9Y2884CQJ76>
   )>
 )>
 
-<decision #unify-tui-turn-projection-and-workspace-scope.workspace-scope { priority = "P0" status = "accepted" durable_candidate = true } (
-  <question ?>
+<decision #unify-tui-turn-projection-and-workspace-scope.workspace-scope apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M05F1P4YHBXSG9Y2884CQJ77>
   文件工具误请求父目录时怎样避免扩大授权？
-  </?>
-  <answer { } (
-    <raw-answer ?>
+  </?01M05F1P4YHBXSG9Y2884CQJ77>
+  <answer {  } (
+    <raw-answer ?01M05F1P4YHBXSG9Y2884CQJ78>
     workspace 操作默认限制在 workspace；外部访问必须显式表达。
-    </?>
-    <decision-text ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ78>
+    <decision-text ?01M05F1P4YHBXSG9Y2884CQJ79>
     文件工具新增 `scopeIntent=workspace|external`，默认 workspace；workspace intent 越界时返回结构化诊断且不发授权问卷，只有 external intent 才进入明确的 one-time/persistent grant 流程。
-    </?>
-    <rationale ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ79>
+    <rationale ?01M05F1P4YHBXSG9Y2884CQJ7A>
     权限层应验证结构化意图，不能猜测路径或静默改写模型参数。
-    </?>
-    <evidence ?>
+    </?01M05F1P4YHBXSG9Y2884CQJ7A>
+    <evidence ?01M05F1P4YHBXSG9Y2884CQJ7B>
     现场 `ls /Users/kongweixian/infra-dev` 导致对整个父目录的读写授权问卷。
-    </?>
+    </?01M05F1P4YHBXSG9Y2884CQJ7B>
   )>
 )>

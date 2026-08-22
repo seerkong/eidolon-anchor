@@ -98,6 +98,7 @@ import {
   registerPendingToolResultDeliveryToConversationDomainRuntime,
   rewriteActiveHistoryGenerationMessagesInConversationDomainRuntime,
   synchronizeConversationDomainActorFromPersistence,
+  synchronizeProviderContextEpochToConversationDomainRuntime,
   upsertProviderProjectionFactToConversationDomainRuntime,
   upsertResponsesReplayCheckpointToConversationDomainRuntime,
 } from "../conversation/ConversationDomainRuntime";
@@ -132,9 +133,9 @@ import { accountThreadGoalUsage, getThreadGoal } from "../goals/ThreadGoalManage
 import { createSessionDiagnosticsXnlLog } from "../runtime/SessionRuntimeXnlLogs";
 import { getContextResourcePresentation } from "../runtime/LocalTextResourceLoader";
 import {
-  buildOpenAIResponsesFullInputItems,
-  buildOpenAIResponsesIncrementalInputItems,
-} from "../llm/ResponsesInputItems";
+  compileConversationDeltaToResponsesInput,
+  compileConversationToResponsesCanonicalReplay,
+} from "../llm/ResponsesCanonicalReplayCompiler";
 import {
   createResponsesContextDigest,
   createResponsesMessageFrontier,
@@ -157,6 +158,52 @@ import { normalizeInputContent, projectInputContentText, type InputContentPart }
 import { UnsupportedModalityError, validateInputModalities } from "../llm/InputModalityValidator";
 
 const isDebugEnabled = (): boolean => (globalThis as any)?.process?.env?.AI_LOOP_DEBUG === "1";
+
+const REPEATED_TOOL_CALL_LIMIT = 3;
+const repeatedToolCallCounts = new WeakMap<object, Map<string, number>>();
+const repeatedToolCallStopOps = new WeakMap<object, Set<string>>();
+
+function toolCallRepetitionKey(actor: AiAgentActor, toolCall: any): string {
+  const latestUserMessage = [...actor.messages]
+    .reverse()
+    .find((message: any) => message?.role === "user");
+  const fn = toolCall?.function && typeof toolCall.function === "object" ? toolCall.function : null;
+  const name = String(fn?.name ?? toolCall?.name ?? "");
+  const rawArguments = fn?.arguments ?? toolCall?.arguments ?? toolCall?.input ?? {};
+  const argumentsText = typeof rawArguments === "string" ? rawArguments : JSON.stringify(rawArguments);
+  return JSON.stringify([
+    actor.key,
+    String(latestUserMessage?.content ?? ""),
+    name,
+    argumentsText,
+  ]);
+}
+
+function noteRepeatedToolCall(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  toolCall: any;
+  opId?: string;
+}): number {
+  const key = toolCallRepetitionKey(params.actor, params.toolCall);
+  const counts = repeatedToolCallCounts.get(params.vm as object) ?? new Map<string, number>();
+  const count = (counts.get(key) ?? 0) + 1;
+  counts.set(key, count);
+  repeatedToolCallCounts.set(params.vm as object, counts);
+  if (count >= REPEATED_TOOL_CALL_LIMIT && params.opId) {
+    const stopOps = repeatedToolCallStopOps.get(params.vm as object) ?? new Set<string>();
+    stopOps.add(params.opId);
+    repeatedToolCallStopOps.set(params.vm as object, stopOps);
+  }
+  return count;
+}
+
+function shouldStopAfterRepeatedTool(vm: AiAgentVm, opId: string): boolean {
+  const stopOps = repeatedToolCallStopOps.get(vm as object);
+  if (!stopOps?.has(opId)) return false;
+  stopOps.delete(opId);
+  return true;
+}
 
 /**
  * Shared no-op write port for the storage-off / no-injection path (memory-only
@@ -286,6 +333,12 @@ function prepareMessagesForLlmAdapter(llmAdapter: LlmAdapter, messages: any[]): 
   if (llmAdapter.type === "openai") {
     return normalizeOpenAIChatMessages(providerVisibleMessages);
   }
+  if (llmAdapter.type === "codex") {
+    // Responses has its own native replay compiler. Do not pass Codex history
+    // through Chat Completions adjacency repair: it can delete a still-open
+    // assistant function call and destabilize the replay frontier.
+    return providerVisibleMessages;
+  }
   if (llmAdapter.type === "deepseek") {
     return normalizeOpenAIChatMessages(providerVisibleMessages, { preserveReasoningContent: true });
   }
@@ -336,7 +389,9 @@ function isToolAllowed(actor: AiAgentActor, toolName: string): boolean {
   const disabled = new Set((actor.toolPolicy.computedDisabledTools ?? []).map((x) => String(x)));
   if (disabled.has(toolName)) return false;
   const allowed = (actor.toolPolicy.allowedTools ?? []).map((x) => String(x));
-  if (allowed.length === 0) return true;
+  const mode = actor.toolPolicy.allowedToolsMode
+    ?? (allowed.length > 0 ? "exact" : "all");
+  if (mode === "all") return true;
   return allowed.includes(toolName);
 }
 
@@ -1428,7 +1483,7 @@ function deriveTurnSessionKey(vm: AiAgentVm, actor: AiAgentActor): string | unde
     : "";
   const actorKey = typeof (actor as any)?.key === "string" ? String((actor as any).key).trim() : "";
   if (!sessionId && !actorKey) return undefined;
-  return `${sessionId}/${actorKey}/baseline-${getActorContinuationBaseline(actor).baselineEpoch}`;
+  return `${sessionId}/${actorKey}/context-${resolveResponsesContextEpoch({ vm, actor })}`;
 }
 
 function resolveConversationSessionId(vm: AiAgentVm): string {
@@ -1611,6 +1666,18 @@ function findActorResponsesReplayCheckpoint(params: {
   ))?.replayCheckpoint;
 }
 
+function resolveResponsesContextEpoch(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): number {
+  const rawState = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  });
+  const sessionEpoch = rawState?.session.actorBindings[params.actor.key]?.contextEpoch ?? 0;
+  return Math.max(sessionEpoch, getActorContinuationBaseline(params.actor).baselineEpoch);
+}
+
 function prepareResponsesTurnRequest(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
@@ -1625,6 +1692,7 @@ function prepareResponsesTurnRequest(params: {
   if (!config) return null;
 
   const baseline = getActorContinuationBaseline(params.actor);
+  const contextEpoch = resolveResponsesContextEpoch(params);
   const checkpointCandidate = findActorResponsesReplayCheckpoint(params);
   const checkpoint = isValidResponsesReplayCheckpoint(checkpointCandidate)
     ? checkpointCandidate
@@ -1651,9 +1719,11 @@ function prepareResponsesTurnRequest(params: {
     providerBodyConfig,
     tools: params.tools,
   });
-  const fullCanonicalInput = buildOpenAIResponsesFullInputItems(params.providerMessages);
+  const fullCanonicalInput = compileConversationToResponsesCanonicalReplay(
+    params.providerMessages,
+  ).items;
   const frontierCount = checkpoint?.messageFrontier.messageCount ?? params.providerMessages.length;
-  const incrementalInput = buildOpenAIResponsesIncrementalInputItems(
+  const incrementalInput = compileConversationDeltaToResponsesInput(
     params.providerMessages.slice(
       frontierCount >= 0 && frontierCount <= params.providerMessages.length
         ? frontierCount
@@ -1680,7 +1750,7 @@ function prepareResponsesTurnRequest(params: {
         }
       : undefined,
     checkpoint,
-    currentEpoch: baseline.baselineEpoch,
+    currentEpoch: contextEpoch,
     currentContextDigest: contextDigest,
     currentMessages: params.providerMessages,
     fullCanonicalInput,
@@ -1708,7 +1778,7 @@ function prepareResponsesTurnRequest(params: {
       statelessFallback,
     },
     checkpoint,
-    baselineEpoch: baseline.baselineEpoch,
+    baselineEpoch: contextEpoch,
     contextDigest,
     providerId: config.providerId,
     model: params.model,
@@ -1748,8 +1818,9 @@ function commitResponsesTurnResult(params: {
   if (result.outputDecision.status !== "complete") return;
   const output = result.outputDecision.output;
   const currentBaseline = getActorContinuationBaseline(params.actor);
+  const currentContextEpoch = resolveResponsesContextEpoch({ vm: params.vm, actor: params.actor });
   if (
-    currentBaseline.baselineEpoch !== params.prepared.baselineEpoch
+    currentContextEpoch !== params.prepared.baselineEpoch
     || result.plan.contextDigest !== params.prepared.contextDigest
   ) return;
 
@@ -1814,8 +1885,15 @@ function commitResponsesTurnResult(params: {
     actorKey: params.actor.key,
     checkpoint: replayCheckpoint,
   });
+  synchronizeProviderContextEpochToConversationDomainRuntime({
+    runtime,
+    sessionId: resolveConversationSessionId(params.vm),
+    actorKey: params.actor.key,
+    contextEpoch: params.prepared.baselineEpoch,
+  });
   params.actor.continuationBaseline = {
     ...currentBaseline,
+    baselineEpoch: params.prepared.baselineEpoch,
     latestResponseId:
       result.responseStored && typeof output.responseId === "string" && output.responseId
         ? output.responseId

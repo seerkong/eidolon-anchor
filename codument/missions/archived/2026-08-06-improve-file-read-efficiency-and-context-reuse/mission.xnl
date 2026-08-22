@@ -1,0 +1,112 @@
+<Mission #improve-file-read-efficiency-and-context-reuse version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "对齐 read 工具大文件读取语义并修复压缩导致的重复重读循环，再以通用配置机制参数化压缩阈值。" description = "read 工具行为对齐 Claude Code Read 语义（默认 limit 2000、offset 1 起始、大文件截断、total-lines 元信息、目录默认对齐）；ContextResourceLoadDecision 识别已压缩/持久化引用为可见覆盖；压缩阈值从隐式硬编码迁移为可配置项（第三 track 不完整，到达即停在 human confirm）。" question_mode = "decision-tree" question_severity = "auto" revision = 6 created_at = "2026-08-05T10:34:57Z" updated_at = "2026-08-05T12:20:00Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+  ]>
+  <ActorSets { default = "file-read-context-loop" } [
+    <ActorSet #file-read-context-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN36>
+        根据 read 工具、LocalTextResourceLoader、ContextResourceLoadDecision、compression 管线与 config 机制的 evidence 切分 tracks，并在用户提供通用配置方案后受控重规划第三 track。
+        </?01M05F1P6GC8XEZFP0EAF7DN36>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN37>
+        读取 read/LocalTextResourceLoader/ContextResourceLoadDecision/ContextCompressor 的代码、tests、track 状态、archive 与 mission reports 的实际态。
+        </?01M05F1P6GC8XEZFP0EAF7DN37>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN38>
+        比较 read 语义、可见性判定与阈值配置的期望态与实际态；验证明确且无偏差时持续推进，第三 track 的 human confirm 命中即停下等待用户。
+        </?01M05F1P6GC8XEZFP0EAF7DN38>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN39>
+        连续创建、执行、验证或归档 read 工具与上下文复用 tracks；每个动作完成后用工具测试或配置证据校验，再继续 mission loop。
+        </?01M05F1P6GC8XEZFP0EAF7DN39>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_improve-file-read-efficiency-and-context-reuse { name = "improve-file-read-efficiency-and-context-reuse" child_mode = "dag" } (
+    <Description ?01M05F1P6GC8XEZFP0EAF7DN3A>
+    read 大文件读取效率、已压缩引用可见性修复与压缩阈值参数化 mission。
+    </?01M05F1P6GC8XEZFP0EAF7DN3A>
+    <SubNodes [
+      <TaskGroup #G1 { name = "证据盘点与决策固化" status = "DONE" order = 0 } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN3B>
+        确认 read 工具、loader、可见性判定与压缩阈值现状，并把本轮讨论固化到 mission 与各 track decisions。
+        </?01M05F1P6GC8XEZFP0EAF7DN3B>
+        <SubNodes [
+          <Task #G1-T1 { name = "盘点 read 工具、loader、可见性判定与压缩阈值现状" status = "DONE" order = 0 }>
+          <Task #G1-T2 { name = "固化 read 对齐、可见性修复、阈值参数化决策" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "read 工具行为对齐落地" status = "DONE" order = 1 } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN3C>
+        对齐 Claude Code Read 语义：默认 limit 2000、offset 1 起始、大文件截断、total-lines 元信息、目录默认对齐，并先提供文件大小/行数元信息再读。
+        </?01M05F1P6GC8XEZFP0EAF7DN3C>
+        <SubNodes [
+          <Task #G2-T1 { name = "创建并执行 read 工具对齐 track" status = "DONE" order = 0 } (
+            <TrackLink #align-read-tool-claude-code-semantics { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G2-T2 { name = "验证 read 工具行为对齐与文件元信息" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "已压缩引用可见性修复落地" status = "DONE" order = 2 } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN3D>
+        ContextResourceLoadDecision 识别 compacted/persisted 引用为可见覆盖，消除跨 turn 压缩导致的重复重读循环。
+        </?01M05F1P6GC8XEZFP0EAF7DN3D>
+        <SubNodes [
+          <Task #G3-T1 { name = "创建并执行已压缩引用可见性修复 track" status = "DONE" order = 0 } (
+            <TrackLink #fix-compacted-resource-visible-coverage { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G3-T2 { name = "验证 repeat-read 循环消除" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "压缩阈值参数化（通用配置机制）" status = "DONE" order = 3 } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN3E>
+        压缩阈值迁移为通用配置机制承载的可配置项。方案已确认：symbiont ResourceVFS + ai-support RuntimeConfigVfsLoader + terminal 构造 VFS + runtime-config.json。
+        </?01M05F1P6GC8XEZFP0EAF7DN3E>
+        <SubNodes [
+          <Task #G4-T1 { name = "创建并执行压缩阈值参数化 track" status = "DONE" order = 0 } (
+            <TrackLink #parameterize-tool-result-compaction-thresholds { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #VERIFY { name = "总体验收" status = "DONE" order = 4 } (
+        <Description ?01M05F1P6GC8XEZFP0EAF7DN3F>
+        验证 mission 成功判据：read 语义对齐、可见性循环消除、阈值配置化落地。
+        </?01M05F1P6GC8XEZFP0EAF7DN3F>
+        <SubNodes [
+          <Task #VERIFY-T1 { name = "运行 read 工具、loader、可见性相关测试" status = "DONE" order = 0 }>
+          <Task #VERIFY-T2 { name = "检查无隐式双默认与无 repeat-read 循环" status = "DONE" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_improve-file-read-efficiency-and-context-reuse" } [
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G3" }>
+      ]>
+      <Node #VERIFY [
+        <After { ref = "G4" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

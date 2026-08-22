@@ -300,7 +300,7 @@ describe("context resource load decisions", () => {
     });
   });
 
-  it("returns already-visible for the original range after a delivered delivery is compacted", () => {
+  it("re-delivers the original range after a delivered delivery is compacted", () => {
     const fact = makeFact();
     const records = [
       completedRecord("delivery-1", "full result one"),
@@ -324,16 +324,16 @@ describe("context resource load decisions", () => {
       materializedMessages: [compacted, toolMessage("delivery-2", "full result two")],
       toolCallRecords: records,
     })).toEqual({
-      kind: "already_visible",
+       kind: "missing_ranges",
       revisionDigest: REVISION_A,
       requestedRanges: [range(2, 4)],
       visibleRanges: [range(1, 5), range(8, 10)],
-      missingRanges: [],
-      recoveryPaths: ["/artifacts/tool-results/main/delivery-1.txt"],
+       missingRanges: [range(2, 4)],
+       recoveryPaths: [],
     });
   });
 
-  it("collects a recovery path only for the delivered_and_compacted wrappers that carry one", () => {
+  it("keeps recovery paths as fallback metadata while requiring body re-delivery", () => {
     const fact = makeFact();
     const records = [
       completedRecord("delivery-1", "full result one"),
@@ -367,18 +367,19 @@ describe("context resource load decisions", () => {
     expect(decideContextResourceLoad({
       resourceFact: fact,
       currentRevisionDigest: REVISION_A,
-      // Both requested ranges sit fully inside the two deliveries' coverage.
+      // The second wrapper has no recovery path, so only its range is
+      // re-delivered even though the resource fact records prior coverage.
       requestedRanges: [range(2, 4), range(9, 10)],
       materializedMessages: messages,
       toolCallRecords: records,
     })).toEqual({
-      kind: "already_visible",
-      revisionDigest: REVISION_A,
-      requestedRanges: [range(2, 4), range(9, 10)],
-      visibleRanges: [range(1, 5), range(8, 10)],
-      missingRanges: [],
-      recoveryPaths: ["/artifacts/tool-results/main/delivery-1.txt"],
-    });
+       kind: "missing_ranges",
+       revisionDigest: REVISION_A,
+       requestedRanges: [range(2, 4), range(9, 10)],
+       visibleRanges: [range(1, 5), range(8, 10)],
+       missingRanges: [range(2, 4), range(9, 10)],
+       recoveryPaths: [],
+     });
   });
 
   it("excludes pending_first_delivery_compacted wrappers from the recovery paths", () => {

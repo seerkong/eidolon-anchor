@@ -1,0 +1,35 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_2_9_-_1_1_2_2_-_h_i_s_t_o_r_i_c_a_l_-_l_o_n_g_-_t_u_r_n_-_r_e_s_u_m_e_-_v_e_r_i_f_i_c_a_t_i_o_n.behavior_patch.runtime-session-robustness apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-session-robustness" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-session-robustness/requirements/historical-long-turn-smoke" } (
+      <Requirement #historical-long-turn-smoke (
+        <Statement ?01M05F1PK37FM1VBAZBC1AET9W>
+        系统 SHALL provide a real CLI smoke path for historical long-running inputs that verifies resumable pause semantics without requiring unsafe checkpoint snapshots.
+        </?01M05F1PK37FM1VBAZBC1AET9W>
+        <Suites [
+          <Suite #historical-smoke { name = "Historical long turn smoke" } (
+            <Cases [
+              <Case #sparrow-session-pauses-with-progress [
+                <Then ?01M05F1PK37FM1VBAZBC1AET9X>
+                headless result SHALL be `paused_with_progress`
+                </?01M05F1PK37FM1VBAZBC1AET9X>
+                <Then ?01M05F1PK37FM1VBAZBC1AET9Y>
+                trace SHALL record `session_end.status=paused_with_progress`
+                </?01M05F1PK37FM1VBAZBC1AET9Y>
+                <Then ?01M05F1PK37FM1VBAZBC1AET9Z>
+                `--output-last-message` SHALL NOT be written
+                </?01M05F1PK37FM1VBAZBC1AET9Z>
+              ] (
+                <Given ?01M05F1PK37FM1VBAZBC1AETA0>
+                the historical Sparrow session analysis prompt is executed through source CLI with a short timeout
+                </?01M05F1PK37FM1VBAZBC1AETA0>
+                <When ?01M05F1PK37FM1VBAZBC1AETA1>
+                the turn reaches mandatory continuation before safepoint
+                </?01M05F1PK37FM1VBAZBC1AETA1>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

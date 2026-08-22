@@ -1,0 +1,116 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_1_-_0_8_0_0_-_r_e_f_a_c_t_o_r_-_d_u_r_a_b_l_e_-_a_c_t_o_r_-_c_o_n_t_r_o_l_-_s_i_g_n_a_l_s.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/durable-control-signal-recovery" } (
+      <Requirement #durable-control-signal-recovery (
+        <Statement ?01M05F1PEPQGB5CSMNJK5164FR>
+        系统 SHALL persist unblock-capable actor control signals durably and replay or re-deliver them during session recovery.
+        </?01M05F1PEPQGB5CSMNJK5164FR>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/durable-control-signal-recovery" strength = "hint" }>
+        <Suites [
+          <Suite #outbox-inbox-recovery { name = "Outbox and inbox recovery" } (
+            <Cases [
+              <Case #crash-after-control-event-before-resume [
+                <Then ?01M05F1PEQ82JS8C6V04YNC0BZ>
+                The process crashes before the matching resume is applied
+                </?01M05F1PEQ82JS8C6V04YNC0BZ>
+                <Then ?01M05F1PEQ82JS8C6V04YNC0C0>
+                The runtime SHALL re-deliver or reduce the durable signal into the actor mailbox or cooperative exec state
+                </?01M05F1PEQ82JS8C6V04YNC0C0>
+                <Then ?01M05F1PEQ82JS8C6V04YNC0C1>
+                The owning fiber SHALL become schedulable if the signal satisfies its wait condition
+                </?01M05F1PEQ82JS8C6V04YNC0C1>
+              ] (
+                <Given ?01M05F1PEQ82JS8C6V04YNC0C2>
+                A tool, LLM, child, human, or cancel event has been persisted as a durable control signal
+                </?01M05F1PEQ82JS8C6V04YNC0C2>
+                <When ?01M05F1PEQ82JS8C6V04YNC0C3>
+                The session runtime is recovered
+                </?01M05F1PEQ82JS8C6V04YNC0C3>
+              )>
+              <Case #crash-after-mailbox-before-projection [
+                <Then ?01M05F1PEQ82JS8C6V04YNC0C4>
+                The process crashes before transcript or projection persistence completes
+                </?01M05F1PEQ82JS8C6V04YNC0C4>
+                <Then ?01M05F1PEQ82JS8C6V04YNC0C5>
+                The control signal SHALL remain available for actor execution
+                </?01M05F1PEQ82JS8C6V04YNC0C5>
+                <Then ?01M05F1PEQ82JS8C6V04YNC0C6>
+                Transcript projection SHALL be rebuilt or repaired as a read model
+                </?01M05F1PEQ82JS8C6V04YNC0C6>
+              ] (
+                <Given ?01M05F1PEQ82JS8C6V04YNC0C7>
+                A durable control signal has been enqueued into an actor mailbox
+                </?01M05F1PEQ82JS8C6V04YNC0C7>
+                <When ?01M05F1PEQ82JS8C6V04YNC0C8>
+                The session runtime is recovered
+                </?01M05F1PEQ82JS8C6V04YNC0C8>
+              )>
+              <Case #idempotent-redelivery [
+                <Then ?01M05F1PEQ82JS8C6V04YNC0C9>
+                The runtime SHALL de-duplicate by event id, op id, fiber id, and tool call id as applicable
+                </?01M05F1PEQ82JS8C6V04YNC0C9>
+                <Then ?01M05F1PEQ82JS8C6V04YNC0CA>
+                The actor SHALL NOT apply the same completion twice
+                </?01M05F1PEQ82JS8C6V04YNC0CA>
+              ] (
+                <Given ?01M05F1PEQ82JS8C6V04YNC0CB>
+                The same durable control signal is encountered more than once during recovery
+                </?01M05F1PEQ82JS8C6V04YNC0CB>
+                <When ?01M05F1PEQ82JS8C6V04YNC0CC>
+                The runtime replays control events
+                </?01M05F1PEQ82JS8C6V04YNC0CC>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/suspended-fiber-invariant" } (
+      <Requirement #suspended-fiber-invariant (
+        <Statement ?01M05F1PEQ82JS8C6V04YNC0CD>
+        系统 SHALL reject, repair, or explicitly diagnose suspended fiber snapshots that have no recoverable wait condition or pending control signal.
+        </?01M05F1PEQ82JS8C6V04YNC0CD>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/suspended-fiber-invariant" strength = "hint" }>
+        <Suites [
+          <Suite #snapshot-invariants { name = "Snapshot invariants" } (
+            <Cases [
+              <Case #invalid-external-empty-state [
+                <Then ?01M05F1PEQ82JS8C6V04YNC0CE>
+                The actor has no pending mailbox entries, no cooperative exec state, no durable pending control signal, and no terminal condition
+                </?01M05F1PEQ82JS8C6V04YNC0CE>
+                <Then ?01M05F1PEQ82JS8C6V04YNC0CF>
+                The runtime SHALL NOT silently persist or accept the state as a healthy blocked fiber
+                </?01M05F1PEQ82JS8C6V04YNC0CF>
+                <Then ?01M05F1PEQ82JS8C6V04YNC0CG>
+                The runtime SHALL either mark it recoverable-failed with diagnostics or rehydrate it to a deterministic ready state when a safe continuation rule exists
+                </?01M05F1PEQ82JS8C6V04YNC0CG>
+              ] (
+                <Given ?01M05F1PEQ82JS8C6V04YNC0CH>
+                A fiber snapshot would be saved as suspended with generic external waiting
+                </?01M05F1PEQ82JS8C6V04YNC0CH>
+                <When ?01M05F1PEQ82JS8C6V04YNC0CJ>
+                The runtime attempts to save or recover the snapshot
+                </?01M05F1PEQ82JS8C6V04YNC0CJ>
+              )>
+              <Case #projection-tail-not-primary-control-truth [
+                <Then ?01M05F1PEQ82JS8C6V04YNC0CK>
+                The runtime MAY use the transcript tail as a conservative repair hint
+                </?01M05F1PEQ82JS8C6V04YNC0CK>
+                <Then ?01M05F1PEQ82JS8C6V04YNC0CM>
+                The runtime SHALL prefer durable control signals, actor mailboxes, and cooperative exec state as the primary control truth
+                </?01M05F1PEQ82JS8C6V04YNC0CM>
+              ] (
+                <Given ?01M05F1PEQ82JS8C6V04YNC0CN>
+                The transcript or conversation history ends with a tool result
+                </?01M05F1PEQ82JS8C6V04YNC0CN>
+                <When ?01M05F1PEQ82JS8C6V04YNC0CP>
+                The runtime recovers control state
+                </?01M05F1PEQ82JS8C6V04YNC0CP>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,32 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_1_2_-_0_8_0_0_-_r_e_f_a_c_t_o_r_-_a_i_-_s_e_m_a_n_t_i_c_-_c_o_n_v_e_r_s_a_t_i_o_n_-_s_p_i_n_e.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/conversation-single-recovery-source" } (
+      <Requirement #conversation-single-recovery-source (
+        <Statement ?01M05F1PHJCRPSQ4S84BG7HQGM>
+        对话恢复 SHALL 以会话文件（history、prompts、session.index）为唯一来源；SHALL NOT 读取 actor transcript（该形态已删除）；transcript-only 旧 session SHALL 被显式拒绝而非静默降级。
+        </?01M05F1PHJCRPSQ4S84BG7HQGM>
+        <Suites [
+          <Suite #single-source { name = "Single recovery source" } (
+            <Cases [
+              <Case #no-transcript-fallback [
+                <Then ?01M05F1PHJCRPSQ4S84BG7HQGN>
+                恢复 SHALL 失败并返回显式错误
+                </?01M05F1PHJCRPSQ4S84BG7HQGN>
+                <Then ?01M05F1PHJCRPSQ4S84BG7HQGP>
+                SHALL NOT 回退到 transcript 或其它部分事实源
+                </?01M05F1PHJCRPSQ4S84BG7HQGP>
+              ] (
+                <Given ?01M05F1PHJCRPSQ4S84BG7HQGQ>
+                恢复流程选择对话来源
+                </?01M05F1PHJCRPSQ4S84BG7HQGQ>
+                <When ?01M05F1PHJCRPSQ4S84BG7HQGR>
+                会话文件缺失或不完整
+                </?01M05F1PHJCRPSQ4S84BG7HQGR>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

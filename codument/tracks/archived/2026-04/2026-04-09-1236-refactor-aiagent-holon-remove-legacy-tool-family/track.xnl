@@ -1,0 +1,61 @@
+<Track #refactor-aiagent-holon-remove-legacy-tool-family version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 builtin registry 与仓库源码中不再保留 internal-only Collective/Formation 旧工具族。" commit_mode = "manual" created_at = "2026-04-09T12:36:09Z" updated_at = "2026-04-09T12:36:09Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-aiagent-holon-remove-legacy-tool-family { name = "refactor-aiagent-holon-remove-legacy-tool-family" } (
+    <Description ?01M05F1PBJHC623ZK9G508KDF9>
+    移除 legacy Collective/Formation tool family
+    </?01M05F1PBJHC623ZK9G508KDF9>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Track Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PBKXT2BFZ50GBBZ9601>
+        锁定 legacy tool family removal 边界。
+        </?01M05F1PBKXT2BFZ50GBBZ9601>
+        <SubNodes [
+          <Task { id = "T1.1" name = "编写 proposal/spec/plan" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PBKXT2BFZ50GBBZ9602>
+            明确本轮删除 internal-only Collective/Formation tool family，不影响其他 internal-only tools。
+            </?01M05F1PBKXT2BFZ50GBBZ9602>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Tool Family Removal" status = "DONE" order = 1 } (
+        <Description ?01M05F1PBKXT2BFZ50GBBZ9603>
+        删除 legacy tool defs、prompt assets 与源码目录。
+        </?01M05F1PBKXT2BFZ50GBBZ9603>
+        <SubNodes [
+          <Task { id = "T2.1" name = "移除 builtin registry 中的 legacy tool family" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PBKXT2BFZ50GBBZ9604>
+            删除 ToolFuncBuiltin 中的 Collective/Formation imports、tool defs 与 internal-only 名单。
+            </?01M05F1PBKXT2BFZ50GBBZ9604>
+          )>
+          <Task { id = "T2.2" name = "移除 prompt assets 与工具源码目录" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PBKXT2BFZ50GBBZ9605>
+            删除 PromptAssets.generated 中的相关入口，并移除 Collective*/Formation* 工具目录。
+            </?01M05F1PBKXT2BFZ50GBBZ9605>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Tests And Closure" status = "DONE" order = 2 } (
+        <Description ?01M05F1PBKXT2BFZ50GBBZ9606>
+        同步 tests、报告与 strict validation。
+        </?01M05F1PBKXT2BFZ50GBBZ9606>
+        <SubNodes [
+          <Task { id = "T3.1" name = "更新 focused tests 与报告" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PBKXT2BFZ50GBBZ9607>
+            移除 legacy tool 调用断言，并同步 theater 报告的当前剩余面。
+            </?01M05F1PBKXT2BFZ50GBBZ9607>
+          )>
+          <Task { id = "T3.2" name = "执行 strict validation 与 focused regression" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PBKXT2BFZ50GBBZ9608>
+            运行相关 tests 与 `codument validate refactor-aiagent-holon-remove-legacy-tool-family --strict`。
+            </?01M05F1PBKXT2BFZ50GBBZ9608>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

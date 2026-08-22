@@ -1,0 +1,77 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_2_-_0_9_2_9_-_a_d_d_-_r_u_n_t_i_m_e_-_h_o_o_k_s_-_g_o_a_l_-_c_o_n_t_i_n_u_a_t_i_o_n.behavior_patch.cell-runtime-composer-and-mod-profiles apiVersion="codument.tech/v1alpha1" version="1" { capability = "cell-runtime-composer-and-mod-profiles" } (
+  <Mutations [
+    <Upsert { selector = "behavior://cell-runtime-composer-and-mod-profiles/requirements/runtime-assembly-lifecycle-hooks" } (
+      <Requirement #runtime-assembly-lifecycle-hooks (
+        <Statement ?01M05F1PF2A672PCVCHB0SW3WE>
+        系统 SHALL 让现有 module extension/manifest 支持 first-class lifecycle hook 字段，并将 hook definitions 作为 runtime assembly result 的正式组成部分暴露；assembly 层 SHALL NOT 拥有 hook dispatcher。
+        </?01M05F1PF2A672PCVCHB0SW3WE>
+        <Suites [
+          <Suite #hook-assembly { name = "Lifecycle hook assembly" } (
+            <Cases [
+              <Case #extension-contributes-hooks [
+                <Then ?01M05F1PF2A672PCVCHB0SW3WF>
+                assembly state SHALL 从该 extension 或 module manifest 的 `hooks` 字段收集 hook descriptors
+                </?01M05F1PF2A672PCVCHB0SW3WF>
+                <Then ?01M05F1PF2A672PCVCHB0SW3WG>
+                assembly result SHALL 暴露最终 lifecycle hook descriptors
+                </?01M05F1PF2A672PCVCHB0SW3WG>
+              ] (
+                <Given ?01M05F1PF2A672PCVCHB0SW3WH>
+                某个 runtime extension 需要贡献 lifecycle hook
+                </?01M05F1PF2A672PCVCHB0SW3WH>
+                <When ?01M05F1PF2A672PCVCHB0SW3WJ>
+                composer 组装 runtime profile
+                </?01M05F1PF2A672PCVCHB0SW3WJ>
+              )>
+              <Case #assembly-does-not-own-dispatcher [
+                <Then ?01M05F1PF2A672PCVCHB0SW3WK>
+                assembly result SHALL 暴露 hook descriptors 而不是 lifecycle hook dispatcher
+                </?01M05F1PF2A672PCVCHB0SW3WK>
+                <Then ?01M05F1PF2A672PCVCHB0SW3WM>
+                `ai-organ-logic` SHALL own lifecycle hook producer and dispatcher runtime behavior
+                </?01M05F1PF2A672PCVCHB0SW3WM>
+              ] (
+                <Given ?01M05F1PF2A672PCVCHB0SW3WN>
+                runtime profile 包含 AI kernel baseline
+                </?01M05F1PF2A672PCVCHB0SW3WN>
+                <When ?01M05F1PF2A672PCVCHB0SW3WP>
+                composer 完成 runtime assembly
+                </?01M05F1PF2A672PCVCHB0SW3WP>
+              )>
+              <Case #overlay-order-is-preserved [
+                <Then ?01M05F1PF3HKHV1JMSWBKCSJ2D>
+                最终 hook list SHALL 保留可确定的 extension 贡献顺序
+                </?01M05F1PF3HKHV1JMSWBKCSJ2D>
+                <Then ?01M05F1PF3HKHV1JMSWBKCSJ2E>
+                `ai-organ-logic` dispatcher SHALL 再按 hook point、phase、priority、extension id、name 形成执行顺序
+                </?01M05F1PF3HKHV1JMSWBKCSJ2E>
+              ] (
+                <Given ?01M05F1PF3HKHV1JMSWBKCSJ2F>
+                多个 profile overlay 都贡献 lifecycle hook
+                </?01M05F1PF3HKHV1JMSWBKCSJ2F>
+                <When ?01M05F1PF3HKHV1JMSWBKCSJ2G>
+                composer 按 profile 叠加顺序 reduce extensions
+                </?01M05F1PF3HKHV1JMSWBKCSJ2G>
+              )>
+              <Case #no-parallel-hook-registry [
+                <Then ?01M05F1PF3HKHV1JMSWBKCSJ2H>
+                它们 SHALL 通过现有 module extension/manifest 的 `hooks` 字段声明 hook
+                </?01M05F1PF3HKHV1JMSWBKCSJ2H>
+                <Then ?01M05F1PF3HKHV1JMSWBKCSJ2J>
+                系统 SHALL NOT 要求它们调用另一条 hook 注册 API
+                </?01M05F1PF3HKHV1JMSWBKCSJ2J>
+              ] (
+                <Given ?01M05F1PF3HKHV1JMSWBKCSJ2K>
+                mod-ai-kernel、mod-ai-coding 或第三方 mod 需要声明 hook
+                </?01M05F1PF3HKHV1JMSWBKCSJ2K>
+                <When ?01M05F1PF3HKHV1JMSWBKCSJ2M>
+                它们参与 runtime profile assembly
+                </?01M05F1PF3HKHV1JMSWBKCSJ2M>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

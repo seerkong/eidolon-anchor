@@ -1,0 +1,127 @@
+<Behavior #vendor-actor-control-primitives apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #vendor-actor-control-package (
+      <Statement ?01M05F1P3XJ8NXNQVY2PFR2AFJ>
+      系统 SHALL provide a business-neutral `depa-actor-control` vendor package under the project root `vendor/` directory.
+      </?01M05F1P3XJ8NXNQVY2PFR2AFJ>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/vendor-actor-control-primitives/package-boundary" strength = "hint" }>
+      <Suites [
+        <Suite #package-boundary { name = "Package Boundary" } (
+          <Cases [
+            <Case #no-ai-domain-semantics [
+              <Then ?01M05F1P3XJ8NXNQVY2PFR2AFK>
+              The package SHALL NOT contain AI, LLM, tool-call, questionnaire, member, delegate, or holon domain names
+              </?01M05F1P3XJ8NXNQVY2PFR2AFK>
+              <Then ?01M05F1P3XJ8NXNQVY2PFR2AFM>
+              The package SHALL depend only on business-neutral dependencies
+              </?01M05F1P3XJ8NXNQVY2PFR2AFM>
+            ] (
+              <Given ?01M05F1P3XJ8NXNQVY2PFR2AFN>
+              The vendor package defines actor control primitives
+              </?01M05F1P3XJ8NXNQVY2PFR2AFN>
+              <When ?01M05F1P3XJ8NXNQVY2PFR2AFP>
+              A maintainer reviews exported types and tests
+              </?01M05F1P3XJ8NXNQVY2PFR2AFP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #control-operation (
+      <Statement ?01M05F1P3XJ8NXNQVY2PFR2AFQ>
+      系统 SHALL model actor control operations as data with target identity, causality, idempotency, and expected barrier metadata.
+      </?01M05F1P3XJ8NXNQVY2PFR2AFQ>
+      <Suites [
+        <Suite #operation-shape { name = "Operation Shape" } (
+          <Cases [
+            <Case #operation-is-data [
+              <Then ?01M05F1P3XJ8NXNQVY2PFR2AFR>
+              The operation SHALL be represented as serializable data
+              </?01M05F1P3XJ8NXNQVY2PFR2AFR>
+              <Then ?01M05F1P3XJ8NXNQVY2PFR2AFS>
+              The operation SHALL NOT directly invoke an actor implementation
+              </?01M05F1P3XJ8NXNQVY2PFR2AFS>
+            ] (
+              <Given ?01M05F1P3XJ8NXNQVY2PFR2AFT>
+              A control operation targets an actor or fiber
+              </?01M05F1P3XJ8NXNQVY2PFR2AFT>
+              <When ?01M05F1P3XJ8NXNQVY2PFR2AFV>
+              The operation is created
+              </?01M05F1P3XJ8NXNQVY2PFR2AFV>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #mailbox-work-classification (
+      <Statement ?01M05F1P3XJ8NXNQVY2PFR2AFW>
+      系统 SHALL classify pending mailbox work using business-neutral work classes.
+      </?01M05F1P3XJ8NXNQVY2PFR2AFW>
+      <Suites [
+        <Suite #classification { name = "Classification" } (
+          <Cases [
+            <Case #stable-work-classes (
+              <Given ?01M05F1P3XJ8NXNQVY2PFR2AFX>
+              A mailbox entry is inspected by a domain classifier
+              </?01M05F1P3XJ8NXNQVY2PFR2AFX>
+              <When ?01M05F1P3XJ8NXNQVY2PFR2AFY>
+              The classifier returns a work class
+              </?01M05F1P3XJ8NXNQVY2PFR2AFY>
+              <Then ?01M05F1P3XJ8NXNQVY2PFR2AFZ>
+              The work class SHALL be one of recoverable input, mandatory completion, interrupt, control marker, low priority continuation, timer wake, or an explicitly named extension
+              </?01M05F1P3XJ8NXNQVY2PFR2AFZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #control-barrier (
+      <Statement ?01M05F1P3XJ8NXNQVY2PFR2AG0>
+      系统 SHALL provide control barrier result types that describe whether an actor control boundary may advance.
+      </?01M05F1P3XJ8NXNQVY2PFR2AG0>
+      <Suites [
+        <Suite #barrier-result { name = "Barrier Result" } (
+          <Cases [
+            <Case #blocked-barrier-is-bounded [
+              <Then ?01M05F1P3XJ8NXNQVY2PFR2AG1>
+              The blocker list SHALL include bounded metadata such as participant id, work class, phase, and reason
+              </?01M05F1P3XJ8NXNQVY2PFR2AG1>
+              <Then ?01M05F1P3XJ8NXNQVY2PFR2AG2>
+              The blocker list SHALL NOT require large payloads to explain the block
+              </?01M05F1P3XJ8NXNQVY2PFR2AG2>
+            ] (
+              <Given ?01M05F1P3XJ8NXNQVY2PFR2AG3>
+              A barrier is blocked
+              </?01M05F1P3XJ8NXNQVY2PFR2AG3>
+              <When ?01M05F1P3XJ8NXNQVY2PFR2AG4>
+              The barrier result is returned to a caller
+              </?01M05F1P3XJ8NXNQVY2PFR2AG4>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #durable-head-cohort (
+      <Statement ?01M05F1P3XJ8NXNQVY2PFR2AG5>
+      系统 SHALL model durable head cohorts as groups of recovery truth heads that advance only after a matching control barrier is safe.
+      </?01M05F1P3XJ8NXNQVY2PFR2AG5>
+      <Suites [
+        <Suite #cohort-advance { name = "Cohort Advance" } (
+          <Cases [
+            <Case #no-partial-head-advance (
+              <Given ?01M05F1P3XJ8NXNQVY2PFR2AG6>
+              A durable head cohort contains multiple heads
+              </?01M05F1P3XJ8NXNQVY2PFR2AG6>
+              <When ?01M05F1P3XJ8NXNQVY2PFR2AG7>
+              The associated barrier is not safe
+              </?01M05F1P3XJ8NXNQVY2PFR2AG7>
+              <Then ?01M05F1P3XJ8NXNQVY2PFR2AG8>
+              The cohort SHALL NOT advance any recoverable head as the latest truth
+              </?01M05F1P3XJ8NXNQVY2PFR2AG8>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

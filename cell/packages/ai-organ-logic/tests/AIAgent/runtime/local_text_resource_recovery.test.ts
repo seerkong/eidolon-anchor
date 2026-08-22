@@ -155,7 +155,7 @@ describe("local text resource recovery visibility", () => {
         `<persisted-tool-result status="delivered_and_compacted"><preview>${initial.output}</preview></persisted-tool-result>`,
       ),
     },
-  ])("reuses compacted delivered coverage after recovery when only $name remains", ({ records, actorRawState }) => {
+  ])("re-delivers compacted content after recovery when only $name remains", ({ records, actorRawState }) => {
     const initial = completeInitialDelivery();
     const restoredRecords = typeof records === "function" ? records(initial) : records;
     const output = reload(recover(initial, {
@@ -163,10 +163,10 @@ describe("local text resource recovery visibility", () => {
       records: restoredRecords,
     }), initial.fullPath);
 
-    expect(output).toContain('<context-resource status="already-visible"');
+    expect(output).toContain('<context-resource status="loaded"');
     expect(output).toContain('total-lines="3"');
     expect(output).toContain(`size-bytes="${fs.statSync(initial.fullPath).size}"`);
-    expect(output).not.toContain("1: alpha");
+    expect(output).toContain("1: alpha\n2: beta\n3: gamma");
   });
 
   it.each([

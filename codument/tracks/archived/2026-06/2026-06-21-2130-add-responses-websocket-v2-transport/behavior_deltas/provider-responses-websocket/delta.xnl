@@ -1,0 +1,107 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_2_1_-_2_1_3_0_-_a_d_d_-_r_e_s_p_o_n_s_e_s_-_w_e_b_s_o_c_k_e_t_-_v_2_-_t_r_a_n_s_p_o_r_t.behavior_patch.provider-responses-websocket apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-responses-websocket" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-responses-websocket/requirements/websocket-transport" } (
+      <Requirement #websocket-transport (
+        <Statement ?01M05F1PJS840TQM18WRH8TGFD>
+        openai-responses adapter SHALL 支持 Responses WebSocket v2 transport：连接 `wss://.../responses`（由 `/responses` HTTP URL 派生 scheme，或显式 websocket_url），带鉴权头（剥离 WS 控制头、保留 Authorization 等），把请求 body 作为一条 JSON 消息发出，并把收到的每条 WS 消息解析为与 SSE 同形状的 event，复用既有 event→chunk 解析。transport 选择 SHALL 支持 auto / websocket / http_sse；`auto` 在 provider 标记可用 WS（supports_websockets 或 websocket_url）时用 WS，否则 http_sse。WS 连接/传输失败 SHALL 回退 HTTP SSE，SHALL NOT 破坏现有 SSE 行为。
+        </?01M05F1PJS840TQM18WRH8TGFD>
+        <Suites [
+          <Suite #ws-transport { name = "Responses WebSocket transport" } (
+            <Cases [
+              <Case #ws-url-derived (
+                <Given ?01M05F1PJS840TQM18WRH8TGFE>
+                HTTP responses base url（https://host/v1/responses）
+                </?01M05F1PJS840TQM18WRH8TGFE>
+                <When ?01M05F1PJS840TQM18WRH8TGFF>
+                构造 WS url
+                </?01M05F1PJS840TQM18WRH8TGFF>
+                <Then ?01M05F1PJS840TQM18WRH8TGFG>
+                SHALL 得到 wss://host/v1/responses（http→ws）；显式 websocket_url 时优先用之
+                </?01M05F1PJS840TQM18WRH8TGFG>
+              )>
+              <Case #ws-events-parsed-like-sse (
+                <Given ?01M05F1PJS840TQM18WRH8TGFH>
+                WS 收到与 SSE 同形状的 event 消息（response.created / output_item.* / function_call_arguments.* / completed）
+                </?01M05F1PJS840TQM18WRH8TGFH>
+                <When ?01M05F1PJS840TQM18WRH8TGFJ>
+                adapter 解析 WS 流
+                </?01M05F1PJS840TQM18WRH8TGFJ>
+                <Then ?01M05F1PJS840TQM18WRH8TGFK>
+                SHALL 产出与 SSE 路径一致的 chunk（content / tool_calls），事件解析逻辑共用
+                </?01M05F1PJS840TQM18WRH8TGFK>
+              )>
+              <Case #ws-failure-falls-back-to-sse (
+                <Given ?01M05F1PJS840TQM18WRH8TGFM>
+                provider 未标记 WS 能力，或 WS 连接失败
+                </?01M05F1PJS840TQM18WRH8TGFM>
+                <When ?01M05F1PJS840TQM18WRH8TGFN>
+                选择/建立 transport
+                </?01M05F1PJS840TQM18WRH8TGFN>
+                <Then ?01M05F1PJS840TQM18WRH8TGFP>
+                SHALL 用 HTTP SSE（不报错、不回归现有行为）
+                </?01M05F1PJS840TQM18WRH8TGFP>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://provider-responses-websocket/requirements/previous-response-id-continuity" } (
+      <Requirement #previous-response-id-continuity (
+        <Statement ?01M05F1PJS840TQM18WRH8TGFQ>
+        在 WS transport 下，openai-responses adapter SHALL 支持 `previous_response_id` 续传：把每次响应的 response id 按 **session/actor** 持久化（跨 per-call adapter 实例复用，不依赖单实例字段），下一次同 session 的请求 SHALL 带 `previous_response_id`=上次 id、`store: true`、且 input 只发增量（新 tool 输出），使推理模型经服务端保留推理链（reasoning continuity）。SHALL NOT 在 HTTP SSE 下发 previous_response_id（代理会 400）。无前序 id（首轮）SHALL 发完整 input。
+        </?01M05F1PJS840TQM18WRH8TGFQ>
+        <Suites [
+          <Suite #continuity { name = "previous_response_id reasoning continuity" } (
+            <Cases [
+              <Case #response-id-persisted-by-session (
+                <Given ?01M05F1PJS840TQM18WRH8TGFR>
+                一次 WS 响应返回 response id
+                </?01M05F1PJS840TQM18WRH8TGFR>
+                <When ?01M05F1PJS840TQM18WRH8TGFS>
+                同 session 的下一次请求构造
+                </?01M05F1PJS840TQM18WRH8TGFS>
+                <Then ?01M05F1PJS840TQM18WRH8TGFT>
+                SHALL 复用该 response id 作 previous_response_id（即便 adapter 实例是新建的）
+                </?01M05F1PJS840TQM18WRH8TGFT>
+              )>
+              <Case #chain-sends-incremental-input (
+                <Given ?01M05F1PJS840TQM18WRH8TGFV>
+                有 previous_response_id 且本轮续 tool 调用
+                </?01M05F1PJS840TQM18WRH8TGFV>
+                <When ?01M05F1PJS840TQM18WRH8TGFW>
+                构造请求
+                </?01M05F1PJS840TQM18WRH8TGFW>
+                <Then ?01M05F1PJS840TQM18WRH8TGFX>
+                body SHALL 含 previous_response_id + store:true + 仅增量 input（新 tool 输出），SHALL NOT 重发完整历史
+                </?01M05F1PJS840TQM18WRH8TGFX>
+              )>
+              <Case #sse-never-sends-previous-response-id (
+                <Given ?01M05F1PJS840TQM18WRH8TGFY>
+                transport 为 HTTP SSE
+                </?01M05F1PJS840TQM18WRH8TGFY>
+                <When ?01M05F1PJS840TQM18WRH8TGFZ>
+                构造请求
+                </?01M05F1PJS840TQM18WRH8TGFZ>
+                <Then ?01M05F1PJS840TQM18WRH8TGG0>
+                SHALL NOT 带 previous_response_id（避免代理 400）
+                </?01M05F1PJS840TQM18WRH8TGG0>
+              )>
+              <Case #converges-on-real-session (
+                <Given ?01M05F1PJS840TQM18WRH8TGG1>
+                真实 codex/gpt-5.5 session（原 repeat-read 不收口）
+                </?01M05F1PJS840TQM18WRH8TGG1>
+                <When ?01M05F1PJS840TQM18WRH8TGG2>
+                启用 WS + previous_response_id 续传后重跑 turn
+                </?01M05F1PJS840TQM18WRH8TGG2>
+                <Then ?01M05F1PJS840TQM18WRH8TGG3>
+                模型 SHALL 保留推理链并收口（产出 output_text、停止重读同一文件）
+                </?01M05F1PJS840TQM18WRH8TGG3>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

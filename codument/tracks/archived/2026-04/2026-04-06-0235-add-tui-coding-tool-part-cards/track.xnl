@@ -1,0 +1,242 @@
+<Track #add-tui-coding-tool-part-cards version="1" apiVersion="codument.tech/v1alpha1" { status = "in_progress" goal = "让新的 prototype TUI 在真实 session 中使用结构化 coding tool part cards，而不是摘要 tool 卡片" commit_mode = "manual" created_at = "2026-04-05T15:13:24Z" updated_at = "2026-04-06T02:35:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-tui-coding-tool-part-cards { name = "add-tui-coding-tool-part-cards" } (
+    <Description ?01M05F1PA8V8XJB5N8ANQPDRRH>
+    接入 TUI coding 工具专用消息卡片
+    </?01M05F1PA8V8XJB5N8ANQPDRRH>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Discovery And Contract Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PA8V8XJB5N8ANQPDRRJ>
+        冻结 runtime tool part 到 prototype 渲染链的边界与首批范围
+        </?01M05F1PA8V8XJB5N8ANQPDRRJ>
+        <SubNodes [
+          <Task { id = "T1.1" name = "冻结当前 projection 与 renderer 边界" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRRK>
+            确认 runtime message、runtime part、PrototypeMessage 和 MessageCards 之间的真实边界，避免在实现阶段重复摸索。
+            </?01M05F1PA8V8XJB5N8ANQPDRRK>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRRM>
+              明确记录当前 `runtimeMessagesToPrototypeMessages(...)` 会丢失真实 `ToolPart`
+              </?01M05F1PA8V8XJB5N8ANQPDRRM>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRRN>
+              明确记录 `MessageCards` 仍使用摘要 `ToolCard`，尚未接入 registry
+              </?01M05F1PA8V8XJB5N8ANQPDRRN>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "冻结首批 dedicated card 范围与 fallback 规则" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRRP>
+            明确本 track 首批仅接入 coding 工具，并定义 unsupported tool 的 fallback 行为。
+            </?01M05F1PA8V8XJB5N8ANQPDRRP>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRRQ>
+              首批工具范围仅包含 `bash`、`edit`、`write`、`read`、`grep`、`glob`、`list`、`patch`
+              </?01M05F1PA8V8XJB5N8ANQPDRRQ>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRRR>
+              未命中 allowlist 的工具继续使用 `GenericTool`
+              </?01M05F1PA8V8XJB5N8ANQPDRRR>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Projection Refactor" status = "DONE" order = 1 } (
+        <Description ?01M05F1PA8V8XJB5N8ANQPDRRS>
+        让 graph 投影结果保留 structured coding tool parts，并形成稳定的渲染 item
+        </?01M05F1PA8V8XJB5N8ANQPDRRS>
+        <SubNodes [
+          <Task { id = "T2.1" name = "定义 card-ready timeline item 形态" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRRT>
+            将 prototype 渲染输入从“每条 message 一卡”扩展为可表达 assistant 文本与 tool part 的 timeline item。
+            </?01M05F1PA8V8XJB5N8ANQPDRRT>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRRV>
+              assistant 文本与 tool part 可以同时存在于同一条 runtime message 的渲染结果中
+              </?01M05F1PA8V8XJB5N8ANQPDRRV>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRRW>
+              每个 `ToolPart` 保留稳定 identity，并直接携带 `tool`、`input`、`output`、`metadata`、`part`
+              </?01M05F1PA8V8XJB5N8ANQPDRRW>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "改造 runtime 投影保留 tool part 顺序与更新" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRRX>
+            让 projection 在处理 `message.part.updated` 时输出按 part 顺序排列的 assistant text/tool items，并正确反映 pending/completed/error 更新。
+            </?01M05F1PA8V8XJB5N8ANQPDRRX>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRRY>
+              同一 assistant message 内的文本与 tool part 顺序可预测
+              </?01M05F1PA8V8XJB5N8ANQPDRRY>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRRZ>
+              同一个 tool call 的状态更新不会导致 item identity 漂移
+              </?01M05F1PA8V8XJB5N8ANQPDRRZ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Rendering Integration" status = "DONE" order = 2 } (
+        <Description ?01M05F1PA8V8XJB5N8ANQPDRS0>
+        将新的消息区渲染主链接入 coding tool card registry，并保留兜底
+        </?01M05F1PA8V8XJB5N8ANQPDRS0>
+        <SubNodes [
+          <Task { id = "T3.1" name = "接入首批 coding 工具的 registry-driven 渲染" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRS1>
+            让消息区对 coding 工具使用 dedicated card，而不再使用摘要型 `ToolCard`。
+            </?01M05F1PA8V8XJB5N8ANQPDRS1>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRS2>
+              `bash`、`edit`、`write`、`read`、`grep`、`glob`、`list`、`patch` 走 dedicated card
+              </?01M05F1PA8V8XJB5N8ANQPDRS2>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRS3>
+              prototype session 中可直接消费真实 runtime `ToolPart`
+              </?01M05F1PA8V8XJB5N8ANQPDRS3>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "保留 unsupported tool 的 generic fallback" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRS4>
+            让未覆盖工具仍可见，并避免新旧卡片并存造成双重渲染或缺失渲染。
+            </?01M05F1PA8V8XJB5N8ANQPDRS4>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRS5>
+              unsupported tool 继续显示 `GenericTool`
+              </?01M05F1PA8V8XJB5N8ANQPDRS5>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRS6>
+              不存在“既不走 dedicated 也不走 fallback”的工具黑洞
+              </?01M05F1PA8V8XJB5N8ANQPDRS6>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Verification" status = "DONE" order = 3 } (
+        <Description ?01M05F1PA8V8XJB5N8ANQPDRS7>
+        用测试和 gap-loop 验证投影、渲染路由和 fallback 行为
+        </?01M05F1PA8V8XJB5N8ANQPDRS7>
+        <SubNodes [
+          <Task { id = "T4.1" name = "补 projection、renderer 和 fallback 测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRS8>
+            新增或更新测试，覆盖 timeline item 投影、dedicated card 路由和 unsupported tool fallback。
+            </?01M05F1PA8V8XJB5N8ANQPDRS8>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRS9>
+              测试覆盖 assistant 文本与多个 tool part 的顺序
+              </?01M05F1PA8V8XJB5N8ANQPDRS9>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSA>
+              测试覆盖 dedicated card 与 fallback card 的选择逻辑
+              </?01M05F1PA8V8XJB5N8ANQPDRSA>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "运行 terminal TUI 测试并记录结果" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRSB>
+            执行 terminal TUI 相关测试，确认该 track 的改造不破坏现有 prototype message card 能力。
+            </?01M05F1PA8V8XJB5N8ANQPDRSB>
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSC>
+              至少运行一次 terminal TUI 相关测试命令
+              </?01M05F1PA8V8XJB5N8ANQPDRSC>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSD>
+              测试结果和剩余风险被记录到 track 进展文档
+              </?01M05F1PA8V8XJB5N8ANQPDRSD>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Runtime Tool Part Delivery Repair" status = "DONE" order = 4 } (
+        <Description ?01M05F1PA8V8XJB5N8ANQPDRSE>
+        补齐真实 runtime 到 prototype 的 structured tool part 输送链，避免 dedicated card 只停留在 renderer 侧
+        </?01M05F1PA8V8XJB5N8ANQPDRSE>
+        <SubNodes [
+          <Task { id = "T5.1" name = "让 runtime bridge 暴露结构化 tool history 事件" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRSF>
+            修复当前 bridge 仅输出 toolcall/result 文本片段的问题，使 TUI client 能拿到带 tool name、call id、arguments 和 result 的结构化事件。
+            </?01M05F1PA8V8XJB5N8ANQPDRSF>
+            <Acceptance [
+              <Criterion { id = "T5.1-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSG>
+              真实 runtime turn 中的 tool call 不再只能以纯文本 category/chunk 形式暴露
+              </?01M05F1PA8V8XJB5N8ANQPDRSG>
+              <Criterion { id = "T5.1-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSH>
+              client 能从 bridge 获取创建/更新 `ToolPart` 所需的 call id、tool 名称和输入输出信息
+              </?01M05F1PA8V8XJB5N8ANQPDRSH>
+            ]>
+          )>
+          <Task { id = "T5.2" name = "将结构化 tool history 投影为 prototype runtime `ToolPart`" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRSJ>
+            在 TuiRuntimeClient 中消费结构化 tool history，生成真实 assistant message + tool part，而不是继续显示 toolcall/result 文本消息。
+            </?01M05F1PA8V8XJB5N8ANQPDRSJ>
+            <Acceptance [
+              <Criterion { id = "T5.2-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSK>
+              编辑文件时可在 prototype timeline 中看到真实 `edit`/`bash` 等 tool part，而不是仅 assistant 文本
+              </?01M05F1PA8V8XJB5N8ANQPDRSK>
+              <Criterion { id = "T5.2-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSM>
+              tool part 的 pending/completed/error 更新保持同一 identity
+              </?01M05F1PA8V8XJB5N8ANQPDRSM>
+            ]>
+          )>
+          <Task { id = "T5.3" name = "补充真实 runtime 主链回归测试" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRSN>
+            新增测试覆盖 bridge 结构化 tool 事件到 prototype tool part 的完整链路，防止再次只测 registry 不测 runtime 输送。
+            </?01M05F1PA8V8XJB5N8ANQPDRSN>
+            <Acceptance [
+              <Criterion { id = "T5.3-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSP>
+              自动化测试能断言 runtime client 产出 `ToolPart`，而不是 toolcall/result 文本
+              </?01M05F1PA8V8XJB5N8ANQPDRSP>
+              <Criterion { id = "T5.3-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSQ>
+              回归测试保留原有 assistant text/new message 行为检查
+              </?01M05F1PA8V8XJB5N8ANQPDRSQ>
+            ]>
+          )>
+          <Task { id = "T5.4" name = "收紧文本文件编辑的 tool 选择提示词" status = "DONE" order = 3 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRSR>
+            将“普通文本文件优先使用 edit/write tool，不要用 bash 直接修改”的规则写入默认 runtime system prompt，并补测试固定。
+            </?01M05F1PA8V8XJB5N8ANQPDRSR>
+            <Acceptance [
+              <Criterion { id = "T5.4-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSS>
+              system prompt 明确要求文本文件编辑优先使用 `edit` / `write`，读取优先使用 `read`
+              </?01M05F1PA8V8XJB5N8ANQPDRSS>
+              <Criterion { id = "T5.4-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRST>
+              自动化测试覆盖这条 tool 选择规则，防止回退为 bash 改文件
+              </?01M05F1PA8V8XJB5N8ANQPDRST>
+            ]>
+          )>
+          <Task { id = "T5.5" name = "补齐 prototype 真实入口的 provider 装配" status = "DONE" order = 4 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRSV>
+            修复真实 prototypeTui 入口缺少 Theme/Sync/Keybind/Route/Local 等 provider 的问题，避免 tool cards 在真实界面触发时崩溃。
+            </?01M05F1PA8V8XJB5N8ANQPDRSV>
+            <Acceptance [
+              <Criterion { id = "T5.5-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSW>
+              真实 TUI 入口渲染 dedicated tool cards 时不再出现 `ThemeProvider is not defined` 等上下文错误
+              </?01M05F1PA8V8XJB5N8ANQPDRSW>
+              <Criterion { id = "T5.5-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSX>
+              自动化测试覆盖真实 provider 树下的 tool card 渲染
+              </?01M05F1PA8V8XJB5N8ANQPDRSX>
+            ]>
+          )>
+          <Task { id = "T5.6" name = "放宽文件工具到权限允许的目录并固定 `~/` 语义" status = "DONE" order = 5 priority = "P0" } (
+            <Description ?01M05F1PA8V8XJB5N8ANQPDRSY>
+            修复文件工具路径语义与重复暴露问题：保留更完整的 `read`/`write`/`edit`，删除重复且较弱的 `read_file`/`write_file`/`edit_file`，并支持权限允许的绝对路径与 `~/` home 路径，避免模型因“工作区外”误判回退到 bash。
+            </?01M05F1PA8V8XJB5N8ANQPDRSY>
+            <Acceptance [
+              <Criterion { id = "T5.6-AC1" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRSZ>
+              仅保留 `read`/`write`/`edit` 这一套更完整的文件工具，并支持工作区外的绝对路径
+              </?01M05F1PA8V8XJB5N8ANQPDRSZ>
+              <Criterion { id = "T5.6-AC2" checked = true } ?01M05F1PA8V8XJB5N8ANQPDRT0>
+              system prompt 明确 `~/...` 是 home 路径，且 `read`/`write`/`edit` 可用于当前权限允许的目录
+              </?01M05F1PA8V8XJB5N8ANQPDRT0>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

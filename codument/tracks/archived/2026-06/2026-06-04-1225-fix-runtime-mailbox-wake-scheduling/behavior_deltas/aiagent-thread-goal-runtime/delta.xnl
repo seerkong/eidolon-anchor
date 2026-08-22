@@ -1,0 +1,21 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_4_-_1_2_2_5_-_f_i_x_-_r_u_n_t_i_m_e_-_m_a_i_l_b_o_x_-_w_a_k_e_-_s_c_h_e_d_u_l_i_n_g.behavior_patch.aiagent-thread-goal-runtime apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-thread-goal-runtime" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-thread-goal-runtime/requirements/usage-and-idle-continuation/suite/idle-continuation-hook/case/wake-mailbox-preempts-goal-continuation" } (
+      <Requirement #wake-mailbox-preempts-goal-continuation [
+        <Then ?01M05F1PFG0H3BRQYZ5GDWBKRJ>
+        the hook SHALL skip continuation
+        </?01M05F1PFG0H3BRQYZ5GDWBKRJ>
+        <Then ?01M05F1PFG0H3BRQYZ5GDWBKRK>
+        existing mailbox work SHALL retain actor mailbox priority over goal heartbeat continuation
+        </?01M05F1PFG0H3BRQYZ5GDWBKRK>
+      ] (
+        <Given ?01M05F1PFG0H3BRQYZ5GDWBKRM>
+        an active goal and pending actor mailbox work in `control`, `toolResult`, `asyncCompletion`, `childDone`, `memberCoordination`, `humanInput`, `memberChatInbox`, or `heartbeat`
+        </?01M05F1PFG0H3BRQYZ5GDWBKRM>
+        <When ?01M05F1PFG0H3BRQYZ5GDWBKRN>
+        the `actor.idle.before` goal continuation hook evaluates continuation
+        </?01M05F1PFG0H3BRQYZ5GDWBKRN>
+      )>
+    )>
+  ]>
+)>

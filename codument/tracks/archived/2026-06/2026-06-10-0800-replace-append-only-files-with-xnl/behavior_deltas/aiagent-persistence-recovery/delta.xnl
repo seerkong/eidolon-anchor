@@ -1,0 +1,488 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_1_0_-_0_8_0_0_-_r_e_p_l_a_c_e_-_a_p_p_e_n_d_-_o_n_l_y_-_f_i_l_e_s_-_w_i_t_h_-_x_n_l.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/append-only-xnl-storage" } (
+      <Requirement #append-only-xnl-storage (
+        <Statement ?01M05F1PGQW349B10R1JASY226>
+        系统 SHALL store every append-only session record stream as parser-valid top-level XNL records appended with filesystem append operations, and SHALL keep replace-written state files bounded.
+        </?01M05F1PGQW349B10R1JASY226>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/append-only-xnl-storage" strength = "hint" }>
+        <Suites [
+          <Suite #classification { name = "XNL file classification" } (
+            <Cases [
+              <Case #shared-xnl-helpers [
+                <Then ?01M05F1PGQW349B10R1JASY227>
+                The implementation SHALL use shared project-level XNL formatter, append helper, and read helper where practical
+                </?01M05F1PGQW349B10R1JASY227>
+                <Then ?01M05F1PGQW349B10R1JASY228>
+                The formatter SHALL follow xnl-core-compatible AST and syntax rules
+                </?01M05F1PGQW349B10R1JASY228>
+                <Then ?01M05F1PGQW349B10R1JASY229>
+                The append helper SHALL write one complete top-level record plus newline per append
+                </?01M05F1PGQW349B10R1JASY229>
+                <Then ?01M05F1PGQW349B10R1JASY22A>
+                The read helper SHALL be built on XNL-provided parser/helper functions rather than reimplementing an XNL parser
+                </?01M05F1PGQW349B10R1JASY22A>
+                <Then ?01M05F1PGQW349B10R1JASY22B>
+                The read helper SHALL parse multi-root append streams and reject root-wrapper growing history for append-only streams
+                </?01M05F1PGQW349B10R1JASY22B>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY22C>
+                The implementation writes or reads runtime XNL persistence records covered by this requirement
+                </?01M05F1PGQW349B10R1JASY22C>
+                <When ?01M05F1PGQW349B10R1JASY22D>
+                The implementation serializes, appends, or reads those records
+                </?01M05F1PGQW349B10R1JASY22D>
+              )>
+              <Case #append-only-classification [
+                <Then ?01M05F1PGQW349B10R1JASY22E>
+                The component SHALL append one complete top-level XNL element per record
+                </?01M05F1PGQW349B10R1JASY22E>
+                <Then ?01M05F1PGQW349B10R1JASY22F>
+                The component SHALL NOT rewrite a growing root wrapper, JSON array, JSONL stream, or plain text transcript as the authoritative append-only format
+                </?01M05F1PGQW349B10R1JASY22F>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY22G>
+                A session file records historical facts, audit facts, replay facts, diagnostics, message history, prompt materialization history, orchestration events, or runtime-control evidence
+                </?01M05F1PGQW349B10R1JASY22G>
+                <When ?01M05F1PGQW349B10R1JASY22H>
+                The component persists the fact to an XNL file
+                </?01M05F1PGQW349B10R1JASY22H>
+              )>
+              <Case #attribute-unique-child-body-shape [
+                <Then ?01M05F1PGQW349B10R1JASY22J>
+                A pure key-value subject SHALL be represented in the top-level node's custom attribute block
+                </?01M05F1PGQW349B10R1JASY22J>
+                <Then ?01M05F1PGQW349B10R1JASY22K>
+                A single subject that has its own tag, metadata, attributes, or text marker semantics SHALL be represented as a named child node in `()`
+                </?01M05F1PGQW349B10R1JASY22K>
+                <Then ?01M05F1PGQW349B10R1JASY22M>
+                The writer SHALL use `[]` body only when the record has multiple peer child nodes, ordered blocks, or mixed text/data children
+                </?01M05F1PGQW349B10R1JASY22M>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY22N>
+                An append-only XNL record has exactly one event subject, payload, payload reference, or structured result
+                </?01M05F1PGQW349B10R1JASY22N>
+                <When ?01M05F1PGQW349B10R1JASY22P>
+                The record is serialized
+                </?01M05F1PGQW349B10R1JASY22P>
+              )>
+              <Case #replace-state-classification [
+                <Then ?01M05F1PGQW349B10R1JASY22Q>
+                The component MAY use replace-written JSON or replace-written XNL only if the file does not contain historical record bodies
+                </?01M05F1PGQW349B10R1JASY22Q>
+                <Then ?01M05F1PGQW349B10R1JASY22R>
+                The file SHALL remain bounded by current state rather than growing with session event count
+                </?01M05F1PGQW349B10R1JASY22R>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY22S>
+                A session file stores bounded current state such as a manifest, index, head, cursor, checkpoint marker, or projection metadata
+                </?01M05F1PGQW349B10R1JASY22S>
+                <When ?01M05F1PGQW349B10R1JASY22T>
+                The component persists that state
+                </?01M05F1PGQW349B10R1JASY22T>
+              )>
+              <Case #replace-xnl-review (
+                <Given ?01M05F1PGQW349B10R1JASY22V>
+                An XNL file is currently written by full replacement
+                </?01M05F1PGQW349B10R1JASY22V>
+                <When ?01M05F1PGQW349B10R1JASY22W>
+                The file's rows represent lifecycle history or recovery/audit evidence rather than bounded current state
+                </?01M05F1PGQW349B10R1JASY22W>
+                <Then ?01M05F1PGQW349B10R1JASY22X>
+                The implementation SHALL convert it to an append-only XNL stream or split historical facts into a dedicated append-only XNL stream
+                </?01M05F1PGQW349B10R1JASY22X>
+              )>
+            ]>
+          )>
+          <Suite #required-session-streams { name = "Required append-only session streams" } (
+            <Cases [
+              <Case #conversation-history-xnl [
+                <Then ?01M05F1PGQW349B10R1JASY22Y>
+                The record SHALL be appended to `conversation/history.xnl` as a top-level XNL record
+                </?01M05F1PGQW349B10R1JASY22Y>
+                <Then ?01M05F1PGQW349B10R1JASY22Z>
+                `conversation/history-generations/*.json` SHALL NOT be used as the authoritative format for new or upgraded sessions
+                </?01M05F1PGQW349B10R1JASY22Z>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY230>
+                The runtime persists actor conversation history records
+                </?01M05F1PGQW349B10R1JASY230>
+                <When ?01M05F1PGQW349B10R1JASY231>
+                The record is saved
+                </?01M05F1PGQW349B10R1JASY231>
+              )>
+              <Case #prompt-generation-xnl [
+                <Then ?01M05F1PGQW349B10R1JASY232>
+                The record SHALL be appended to `conversation/prompts.xnl` as a top-level XNL record
+                </?01M05F1PGQW349B10R1JASY232>
+                <Then ?01M05F1PGQW349B10R1JASY233>
+                Prompt caches that are rebuildable SHALL be explicitly non-authoritative
+                </?01M05F1PGQW349B10R1JASY233>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY234>
+                The runtime persists prompt materialization records that are retained for recovery, audit, or debugging
+                </?01M05F1PGQW349B10R1JASY234>
+                <When ?01M05F1PGQW349B10R1JASY235>
+                The record is saved
+                </?01M05F1PGQW349B10R1JASY235>
+              )>
+              <Case #remove-actor-transcript-xnl [
+                <Then ?01M05F1PGQW349B10R1JASY236>
+                The actor source SHALL be represented in `conversation/history.xnl` generation and message metadata
+                </?01M05F1PGQW349B10R1JASY236>
+                <Then ?01M05F1PGQW349B10R1JASY237>
+                The runtime SHALL NOT create or append to `actors/&lt;actor-dir&gt;/transcript.xnl` as an independent history file
+                </?01M05F1PGQW349B10R1JASY237>
+                <Then ?01M05F1PGQW349B10R1JASY238>
+                `transcript.txt` and legacy `transcript.xnl` files SHALL NOT be used as recovery or append-only history sources for new or upgraded sessions
+                </?01M05F1PGQW349B10R1JASY238>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY239>
+                The runtime persists actor-originated conversation history
+                </?01M05F1PGQW349B10R1JASY239>
+                <When ?01M05F1PGQW349B10R1JASY23A>
+                The record is saved in a new or upgraded session
+                </?01M05F1PGQW349B10R1JASY23A>
+              )>
+              <Case #runtime-control-effects-xnl [
+                <Then ?01M05F1PGQW349B10R1JASY23B>
+                The evidence SHALL be appended to `runtime-control/effects.xnl` as a top-level XNL record with monotonic sequence metadata
+                </?01M05F1PGQW349B10R1JASY23B>
+                <Then ?01M05F1PGQW349B10R1JASY23C>
+                `runtime-control/effects.jsonl` SHALL NOT be used for new or upgraded sessions
+                </?01M05F1PGQW349B10R1JASY23C>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY23D>
+                The runtime-control engine records effect lifecycle evidence
+                </?01M05F1PGQW349B10R1JASY23D>
+                <When ?01M05F1PGQW349B10R1JASY23E>
+                The evidence is persisted
+                </?01M05F1PGQW349B10R1JASY23E>
+              )>
+              <Case #orchestration-history-xnl [
+                <Then ?01M05F1PGQW349B10R1JASY23F>
+                The event SHALL be appended to `logs/orchestration_history.xnl` as a top-level XNL record
+                </?01M05F1PGQW349B10R1JASY23F>
+                <Then ?01M05F1PGQW349B10R1JASY23G>
+                `logs/orchestration_history.jsonl` SHALL NOT be used for new or upgraded sessions
+                </?01M05F1PGQW349B10R1JASY23G>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY23H>
+                The runtime records orchestration history
+                </?01M05F1PGQW349B10R1JASY23H>
+                <When ?01M05F1PGQW349B10R1JASY23J>
+                The event is persisted
+                </?01M05F1PGQW349B10R1JASY23J>
+              )>
+              <Case #runtime-ingress-diagnostics-xnl [
+                <Then ?01M05F1PGQW349B10R1JASY23K>
+                The event SHALL be appended to `logs/ingress.xnl` or `logs/diagnostics.xnl` as a top-level XNL record
+                </?01M05F1PGQW349B10R1JASY23K>
+                <Then ?01M05F1PGQW349B10R1JASY23M>
+                Any head JSON for those logs SHALL contain only bounded cursor, count, id, timestamp, or sequence state
+                </?01M05F1PGQW349B10R1JASY23M>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY23N>
+                The runtime records ingress or diagnostic event facts
+                </?01M05F1PGQW349B10R1JASY23N>
+                <When ?01M05F1PGQW349B10R1JASY23P>
+                The event is persisted
+                </?01M05F1PGQW349B10R1JASY23P>
+              )>
+            ]>
+          )>
+          <Suite #history-message-format { name = "History message XNL format" } (
+            <Cases [
+              <Case #message-first-layer [
+                <Then ?01M05F1PGQW349B10R1JASY23Q>
+                The top-level XNL node SHALL represent one message, not a generation wrapper
+                </?01M05F1PGQW349B10R1JASY23Q>
+                <Then ?01M05F1PGQW349B10R1JASY23R>
+                The message metadata SHALL include actor source fields such as `actorKey` and `actorId`
+                </?01M05F1PGQW349B10R1JASY23R>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY23S>
+                The runtime writes a record to `conversation/history.xnl`
+                </?01M05F1PGQW349B10R1JASY23S>
+                <When ?01M05F1PGQW349B10R1JASY23T>
+                The record is serialized
+                </?01M05F1PGQW349B10R1JASY23T>
+              )>
+              <Case #message-blocks-second-layer [
+                <Then ?01M05F1PGQW349B10R1JASY23V>
+                The message body SHALL contain the block nodes in order
+                </?01M05F1PGQW349B10R1JASY23V>
+                <Then ?01M05F1PGQW349B10R1JASY23W>
+                `Think` and `Content` blocks SHALL be XNL text nodes without a `mime` metadata field
+                </?01M05F1PGQW349B10R1JASY23W>
+                <Then ?01M05F1PGQW349B10R1JASY23X>
+                `Think` and `Content` text markers SHALL be generated ULIDs
+                </?01M05F1PGQW349B10R1JASY23X>
+                <Then ?01M05F1PGQW349B10R1JASY23Y>
+                Non-text blocks such as tool calls, tool results, artifact refs, and questionnaire refs SHALL be XNL data nodes
+                </?01M05F1PGQW349B10R1JASY23Y>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY23Z>
+                A history message contains multiple blocks
+                </?01M05F1PGQW349B10R1JASY23Z>
+                <When ?01M05F1PGQW349B10R1JASY240>
+                The message is serialized
+                </?01M05F1PGQW349B10R1JASY240>
+              )>
+              <Case #no-transcript-source-record-blobs [
+                <Then ?01M05F1PGQW349B10R1JASY241>
+                The writer SHALL NOT persist legacy transcript-shaped `sourceRecords` payload blobs or `transcriptPath` fields in `HistoryMessage` attributes
+                </?01M05F1PGQW349B10R1JASY241>
+                <Then ?01M05F1PGQW349B10R1JASY242>
+                The message text SHALL live only in the block children rather than being duplicated as attribute payload strings
+                </?01M05F1PGQW349B10R1JASY242>
+                <Then ?01M05F1PGQW349B10R1JASY243>
+                Readers MAY keep accepting `sourceRecords` attributes from records written before this rule for tool-call-id recovery and user-input history compatibility
+                </?01M05F1PGQW349B10R1JASY243>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY244>
+                A history message is persisted to `conversation/history.xnl`, including runtime commits, compaction writes, legacy history-generation migration, and transcript-only legacy session bootstrap
+                </?01M05F1PGQW349B10R1JASY244>
+                <When ?01M05F1PGQW349B10R1JASY245>
+                The `HistoryMessage` record is serialized
+                </?01M05F1PGQW349B10R1JASY245>
+              )>
+              <Case #compact-open-tag-format [
+                <Then ?01M05F1PGQW349B10R1JASY246>
+                The formatter SHALL keep the node name, metadata fields, and attribute block on the same opening line when an attribute block exists
+                </?01M05F1PGQW349B10R1JASY246>
+                <Then ?01M05F1PGQW349B10R1JASY247>
+                The formatter SHALL be based on xnl-core compatible syntax or AST rules rather than ad hoc XML string concatenation
+                </?01M05F1PGQW349B10R1JASY247>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY248>
+                The history writer serializes message and block nodes
+                </?01M05F1PGQW349B10R1JASY248>
+                <When ?01M05F1PGQW349B10R1JASY249>
+                It writes XNL text
+                </?01M05F1PGQW349B10R1JASY249>
+              )>
+            ]>
+          )>
+          <Suite #prompt-generation-format { name = "Prompt generation XNL format" } (
+            <Cases [
+              <Case #prompt-generation-first-layer [
+                <Then ?01M05F1PGQW349B10R1JASY24A>
+                The top-level XNL node SHALL represent one `PromptGeneration` record
+                </?01M05F1PGQW349B10R1JASY24A>
+                <Then ?01M05F1PGQW349B10R1JASY24B>
+                The prompt generation metadata SHALL include `id`, `sessionId`, `actorKey`, `actorId`, `reason`, `sealed`, `createdAt`, and `updatedAt` when available
+                </?01M05F1PGQW349B10R1JASY24B>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY24C>
+                The runtime writes a record to `conversation/prompts.xnl`
+                </?01M05F1PGQW349B10R1JASY24C>
+                <When ?01M05F1PGQW349B10R1JASY24D>
+                The prompt generation is serialized
+                </?01M05F1PGQW349B10R1JASY24D>
+              )>
+              <Case #prompt-generation-second-layer [
+                <Then ?01M05F1PGQW349B10R1JASY24E>
+                The body SHALL contain structured second-layer nodes such as `Basis`, `BasisRef`, `Transform`, and `MaterializedContext`
+                </?01M05F1PGQW349B10R1JASY24E>
+                <Then ?01M05F1PGQW349B10R1JASY24F>
+                `MaterializedContext` SHALL be an XNL text node with a generated ULID marker
+                </?01M05F1PGQW349B10R1JASY24F>
+                <Then ?01M05F1PGQW349B10R1JASY24G>
+                `Basis`, `BasisRef`, and `Transform` SHALL be XNL data nodes
+                </?01M05F1PGQW349B10R1JASY24G>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY24H>
+                A prompt generation has basis refs, transforms, and materialized context
+                </?01M05F1PGQW349B10R1JASY24H>
+                <When ?01M05F1PGQW349B10R1JASY24J>
+                The prompt generation is serialized
+                </?01M05F1PGQW349B10R1JASY24J>
+              )>
+              <Case #prompt-authority-classification [
+                <Then ?01M05F1PGQW349B10R1JASY24K>
+                The record SHALL explicitly state whether it is recoverable audit truth or a rebuildable non-authoritative cache
+                </?01M05F1PGQW349B10R1JASY24K>
+                <Then ?01M05F1PGQW349B10R1JASY24M>
+                Rebuildable prompt caches SHALL NOT be used as recovery fact sources
+                </?01M05F1PGQW349B10R1JASY24M>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY24N>
+                A prompt materialization is persisted
+                </?01M05F1PGQW349B10R1JASY24N>
+                <When ?01M05F1PGQW349B10R1JASY24P>
+                The record is written to `conversation/prompts.xnl`
+                </?01M05F1PGQW349B10R1JASY24P>
+              )>
+            ]>
+          )>
+          <Suite #runtime-effect-event-format { name = "Runtime effect event XNL format" } (
+            <Cases [
+              <Case #effect-event-first-layer [
+                <Then ?01M05F1PGQW349B10R1JASY24Q>
+                The top-level XNL node SHALL represent one `RuntimeEffectEvent` lifecycle event
+                </?01M05F1PGQW349B10R1JASY24Q>
+                <Then ?01M05F1PGQW349B10R1JASY24R>
+                The top-level metadata SHALL include `sequence`, `kind`, `effectKind`, `effectId`, and `handlerKey`
+                </?01M05F1PGQW349B10R1JASY24R>
+                <Then ?01M05F1PGQW349B10R1JASY24S>
+                The implementation SHALL NOT wrap the full lifecycle event object in a generic nested `event` data node
+                </?01M05F1PGQW349B10R1JASY24S>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY24T>
+                The runtime-control engine writes a record to `runtime-control/effects.xnl`
+                </?01M05F1PGQW349B10R1JASY24T>
+                <When ?01M05F1PGQW349B10R1JASY24V>
+                The lifecycle evidence is serialized
+                </?01M05F1PGQW349B10R1JASY24V>
+              )>
+              <Case #effect-event-second-layer [
+                <Then ?01M05F1PGQW349B10R1JASY24W>
+                The event-specific subject SHALL be stored as a named child node in `()`, such as `Request`, `Wait`, `Result`, or `Error`
+                </?01M05F1PGQW349B10R1JASY24W>
+                <Then ?01M05F1PGQW349B10R1JASY24X>
+                The writer SHALL NOT use a `[]` body solely to wrap a single event-specific subject
+                </?01M05F1PGQW349B10R1JASY24X>
+                <Then ?01M05F1PGQW349B10R1JASY24Y>
+                Small structured subjects SHALL be expanded directly into the event-specific child node attributes rather than wrapped as `{ payload = ... }` by default
+                </?01M05F1PGQW349B10R1JASY24Y>
+                <Then ?01M05F1PGQW349B10R1JASY24Z>
+                The writer MAY use a `payload` field only when that field has a real sibling at the same level and the schema documents the sibling semantics
+                </?01M05F1PGQW349B10R1JASY24Z>
+                <Then ?01M05F1PGQW349B10R1JASY250>
+                Large payloads, text bodies, provider outputs, or tool outputs SHALL be stored as artifact refs, digests, or bounded summaries rather than top-level metadata
+                </?01M05F1PGQW349B10R1JASY250>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY251>
+                An effect lifecycle event has kind `request`, `waiting`, `result`, or `failed`
+                </?01M05F1PGQW349B10R1JASY251>
+                <When ?01M05F1PGQW349B10R1JASY252>
+                The event is serialized
+                </?01M05F1PGQW349B10R1JASY252>
+              )>
+            ]>
+          )>
+          <Suite #ingress-event-format { name = "Ingress event XNL format" } (
+            <Cases [
+              <Case #ingress-typed-top-level [
+                <Then ?01M05F1PGQW349B10R1JASY253>
+                The top-level XNL node SHALL represent the ingress category directly rather than a generic `IngressEvent` wrapper
+                </?01M05F1PGQW349B10R1JASY253>
+                <Then ?01M05F1PGQW349B10R1JASY254>
+                The writer SHALL NOT use `IngressEvent` containing `Data` containing `{ payload = ... }` for new records
+                </?01M05F1PGQW349B10R1JASY254>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY255>
+                The runtime writes a record to `logs/ingress.xnl`
+                </?01M05F1PGQW349B10R1JASY255>
+                <When ?01M05F1PGQW349B10R1JASY256>
+                The ingress event is serialized
+                </?01M05F1PGQW349B10R1JASY256>
+              )>
+              <Case #ingress-text-readable [
+                <Then ?01M05F1PGQW349B10R1JASY257>
+                The event SHALL be written as a typed XNL text node such as `Think` or `Content`
+                </?01M05F1PGQW349B10R1JASY257>
+                <Then ?01M05F1PGQW349B10R1JASY258>
+                The human-readable text SHALL be the text node body, not JSON inside a payload field
+                </?01M05F1PGQW349B10R1JASY258>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY259>
+                An ingress event contains think or content text
+                </?01M05F1PGQW349B10R1JASY259>
+                <When ?01M05F1PGQW349B10R1JASY25A>
+                The event is serialized
+                </?01M05F1PGQW349B10R1JASY25A>
+              )>
+              <Case #ingress-structured-events [
+                <Then ?01M05F1PGQW349B10R1JASY25B>
+                The event SHALL use a typed top-level data node with metadata and direct attributes when the subject is a pure key-value structure
+                </?01M05F1PGQW349B10R1JASY25B>
+                <Then ?01M05F1PGQW349B10R1JASY25C>
+                The event MAY use `()` only when a single child subject has its own tag, metadata, attributes, or text-marker semantics
+                </?01M05F1PGQW349B10R1JASY25C>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY25D>
+                An ingress event contains tool, control, or other structured data
+                </?01M05F1PGQW349B10R1JASY25D>
+                <When ?01M05F1PGQW349B10R1JASY25E>
+                The event is serialized
+                </?01M05F1PGQW349B10R1JASY25E>
+              )>
+            ]>
+          )>
+          <Suite #orchestration-event-format { name = "Orchestration event XNL format" } (
+            <Cases [
+              <Case #orchestration-event-first-layer [
+                <Then ?01M05F1PGQW349B10R1JASY25F>
+                The top-level XNL node SHALL represent one `OrchestrationEvent`
+                </?01M05F1PGQW349B10R1JASY25F>
+                <Then ?01M05F1PGQW349B10R1JASY25G>
+                The top-level metadata SHALL include `version`, `sequence`, `observedAt`, `stream`, and `kind`
+                </?01M05F1PGQW349B10R1JASY25G>
+                <Then ?01M05F1PGQW349B10R1JASY25H>
+                The implementation SHALL NOT wrap the full event object in a generic nested `event` data node
+                </?01M05F1PGQW349B10R1JASY25H>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY25J>
+                The runtime writes a record to `logs/orchestration_history.xnl`
+                </?01M05F1PGQW349B10R1JASY25J>
+                <When ?01M05F1PGQW349B10R1JASY25K>
+                The orchestration event is serialized
+                </?01M05F1PGQW349B10R1JASY25K>
+              )>
+              <Case #orchestration-event-payload-shape [
+                <Then ?01M05F1PGQW349B10R1JASY25M>
+                Small structured payloads SHALL be stored as a `Payload` child node in `()`
+                </?01M05F1PGQW349B10R1JASY25M>
+                <Then ?01M05F1PGQW349B10R1JASY25N>
+                Large hook reports, long text, or complex diagnostic objects SHALL be stored as `PayloadRef` child nodes in `()` with artifact refs, digests, or bounded summaries
+                </?01M05F1PGQW349B10R1JASY25N>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY25P>
+                An orchestration event has one payload subject
+                </?01M05F1PGQW349B10R1JASY25P>
+                <When ?01M05F1PGQW349B10R1JASY25Q>
+                The event is serialized
+                </?01M05F1PGQW349B10R1JASY25Q>
+              )>
+            ]>
+          )>
+          <Suite #questionnaire-table-boundary { name = "Questionnaire table boundary" } (
+            <Cases [
+              <Case #questionnaire-current-state-table [
+                <Then ?01M05F1PGQW349B10R1JASY25R>
+                The file MAY remain a replace-written bounded XNL table of `QuestionnaireRow` nodes
+                </?01M05F1PGQW349B10R1JASY25R>
+                <Then ?01M05F1PGQW349B10R1JASY25S>
+                The implementation SHALL prove that the table does not grow as an audit log of questionnaire lifecycle events
+                </?01M05F1PGQW349B10R1JASY25S>
+                <Then ?01M05F1PGQW349B10R1JASY25T>
+                `QuestionnaireRow` SHALL use `[]` for multiple typed children such as `Request`, `Result`, and `Metadata`
+                </?01M05F1PGQW349B10R1JASY25T>
+              ] (
+                <Given ?01M05F1PGQW349B10R1JASY25V>
+                `runtime_state/questionnaires.xnl` stores only current questionnaire rows for recovery of pending or answered questionnaire state
+                </?01M05F1PGQW349B10R1JASY25V>
+                <When ?01M05F1PGQW349B10R1JASY25W>
+                The runtime writes a snapshot
+                </?01M05F1PGQW349B10R1JASY25W>
+              )>
+              <Case #questionnaire-history-split (
+                <Given ?01M05F1PGQW349B10R1JASY25X>
+                The runtime needs questionnaire lifecycle audit or replay history
+                </?01M05F1PGQW349B10R1JASY25X>
+                <When ?01M05F1PGQW349B10R1JASY25Y>
+                The lifecycle facts are persisted
+                </?01M05F1PGQW349B10R1JASY25Y>
+                <Then ?01M05F1PGQW349B10R1JASY25Z>
+                The facts SHALL be stored in a dedicated append-only XNL stream rather than hidden inside the replace-written questionnaire state table
+                </?01M05F1PGQW349B10R1JASY25Z>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,89 @@
+<Behavior #bash-permission-approval apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #unsupported-risk-fallback (
+      <Statement ?01M05F1P1QGCMP0KEP5Y3V47XM>
+      The system SHALL classify parser-unsupported bash commands by deterministic risk before requiring human approval.
+      </?01M05F1P1QGCMP0KEP5Y3V47XM>
+      <Suites [
+        <Suite #readonly-fallback { name = "Readonly Unsupported Fallback" } (
+          <Cases [
+            <Case #readonly-command-substitution (
+              <Given ?01M05F1P1QGCMP0KEP5Y3V47XN>
+              A bash command uses unsupported shell syntax but only performs readonly inspection commands
+              </?01M05F1P1QGCMP0KEP5Y3V47XN>
+              <When ?01M05F1P1QGCMP0KEP5Y3V47XP>
+              The parser cannot normalize the command
+              </?01M05F1P1QGCMP0KEP5Y3V47XP>
+              <Then ?01M05F1P1QGCMP0KEP5Y3V47XQ>
+              The evaluator SHALL allow the command when the classifier determines the command is low-risk readonly
+              </?01M05F1P1QGCMP0KEP5Y3V47XQ>
+            )>
+            <Case #readonly-python-inspection (
+              <Given ?01M05F1P1QGCMP0KEP5Y3V47XR>
+              A parser-unsupported bash command embeds a Python script that only reads files and prints diagnostics
+              </?01M05F1P1QGCMP0KEP5Y3V47XR>
+              <When ?01M05F1P1QGCMP0KEP5Y3V47XS>
+              The Python script has no obvious write, network, subprocess, or shell side effects
+              </?01M05F1P1QGCMP0KEP5Y3V47XS>
+              <Then ?01M05F1P1QGCMP0KEP5Y3V47XT>
+              The evaluator SHALL classify it as low-risk readonly
+              </?01M05F1P1QGCMP0KEP5Y3V47XT>
+            )>
+          ]>
+        )>
+        <Suite #dangerous-fallback { name = "Dangerous Unsupported Fallback" } (
+          <Cases [
+            <Case #dangerous-command-remains-ask-or-deny (
+              <Given ?01M05F1P1QGCMP0KEP5Y3V47XV>
+              A parser-unsupported bash command contains destructive, write, privilege, network-execute, or protected-config behavior
+              </?01M05F1P1QGCMP0KEP5Y3V47XV>
+              <When ?01M05F1P1QGCMP0KEP5Y3V47XW>
+              The evaluator classifies the command
+              </?01M05F1P1QGCMP0KEP5Y3V47XW>
+              <Then ?01M05F1P1QGCMP0KEP5Y3V47XX>
+              The evaluator MUST NOT silently allow the command
+              </?01M05F1P1QGCMP0KEP5Y3V47XX>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #command-normalization (
+      <Statement ?01M05F1P1QGCMP0KEP5Y3V47XY>
+      The system SHALL normalize common low-risk shell command shapes before deciding that bash syntax requires human approval.
+      </?01M05F1P1QGCMP0KEP5Y3V47XY>
+      <Suites [
+        <Suite #multiline-segments { name = "Multiline Command Segments" } (
+          <Cases [
+            <Case #readonly-newline-segments (
+              <Given ?01M05F1P1QGCMP0KEP5Y3V47XZ>
+              A bash command contains multiple top-level lines that each parse as supported command segments
+              </?01M05F1P1QGCMP0KEP5Y3V47XZ>
+              <When ?01M05F1P1QGCMP0KEP5Y3V47Y0>
+              The local permission evaluator parses the command
+              </?01M05F1P1QGCMP0KEP5Y3V47Y0>
+              <Then ?01M05F1P1QGCMP0KEP5Y3V47Y1>
+              The evaluator SHALL treat the newline as a segment boundary and apply existing per-segment rules
+              </?01M05F1P1QGCMP0KEP5Y3V47Y1>
+            )>
+          ]>
+        )>
+        <Suite #python-heredoc { name = "Python Heredoc Normalization" } (
+          <Cases [
+            <Case #python-stdin-heredoc (
+              <Given ?01M05F1P1QGCMP0KEP5Y3V47Y2>
+              A bash command invokes python through stdin heredoc with or without an explicit dash argument
+              </?01M05F1P1QGCMP0KEP5Y3V47Y2>
+              <When ?01M05F1P1QGCMP0KEP5Y3V47Y3>
+              The heredoc prefix is otherwise supported
+              </?01M05F1P1QGCMP0KEP5Y3V47Y3>
+              <Then ?01M05F1P1QGCMP0KEP5Y3V47Y4>
+              The evaluator SHALL normalize the command to a python stdin segment such as `python3 -`
+              </?01M05F1P1QGCMP0KEP5Y3V47Y4>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

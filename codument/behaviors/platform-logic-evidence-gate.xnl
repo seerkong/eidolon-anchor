@@ -1,0 +1,56 @@
+<Behavior #platform-logic-evidence-gate apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #platform-logic-introduction-must-be-evidence-gated (
+      <Statement ?01M05F1P2RNJBGP65T0DKCH49Z>
+      系统应当为 `platform-logic` 的引入设置明确证据门槛，而不是因为目标结构中存在该层就提前实现空平台逻辑包。
+      </?01M05F1P2RNJBGP65T0DKCH49Z>
+      <Suites [
+        <Suite { name = "platform-logic-introduction-must-be-evidence-gated" } (
+          <Cases [
+            <Case #no-platform-logic-without-cross-domain-evidence { name = "No platform-logic without cross-domain evidence" } [
+              <Then ?01M05F1P2RNJBGP65T0DKCH4A0>
+              必须先具备明确跨领域复用证据或第二领域需求
+              </?01M05F1P2RNJBGP65T0DKCH4A0>
+              <Then ?01M05F1P2RNJBGP65T0DKCH4A1>
+              不应为了未来可能复用而提前抽象
+              </?01M05F1P2RNJBGP65T0DKCH4A1>
+            ] (
+              <Given ?01M05F1P2RNJBGP65T0DKCH4A2>
+              当前只有 AI 领域真实落在平台微内核之上
+              </?01M05F1P2RNJBGP65T0DKCH4A2>
+              <When ?01M05F1P2RNJBGP65T0DKCH4A3>
+              团队评估是否引入 `platform-logic`
+              </?01M05F1P2RNJBGP65T0DKCH4A3>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #evidence-gate-must-preserve-current-ownership-boundaries (
+      <Statement ?01M05F1P2RNJBGP65T0DKCH4A4>
+      系统应当确保 platform-logic 的证据门槛不会把 AI 语义错误上移到平台层。
+      </?01M05F1P2RNJBGP65T0DKCH4A4>
+      <Suites [
+        <Suite { name = "evidence-gate-must-preserve-current-ownership-boundaries" } (
+          <Cases [
+            <Case #candidate-capability-remains-in-current-host-until-evidence-is-sufficient { name = "Candidate capability remains in current host until evidence is sufficient" } [
+              <Then ?01M05F1P2RNJBGP65T0DKCH4A5>
+              它应继续留在当前宿主
+              </?01M05F1P2RNJBGP65T0DKCH4A5>
+              <Then ?01M05F1P2RNJBGP65T0DKCH4A6>
+              不应为追求结构完整而被提前上收到平台层
+              </?01M05F1P2RNJBGP65T0DKCH4A6>
+            ] (
+              <Given ?01M05F1P2RNJBGP65T0DKCH4A7>
+              某个能力仍主要服务于 AI domain
+              </?01M05F1P2RNJBGP65T0DKCH4A7>
+              <When ?01M05F1P2RNJBGP65T0DKCH4A8>
+              尚未满足 platform-logic 证据门槛
+              </?01M05F1P2RNJBGP65T0DKCH4A8>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

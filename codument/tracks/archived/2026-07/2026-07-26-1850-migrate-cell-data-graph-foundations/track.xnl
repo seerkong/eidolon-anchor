@@ -1,0 +1,62 @@
+<Track #migrate-cell-data-graph-foundations version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "迁移 Cell stage graph foundations 到 unified DataGraph consumer contract。" description = "修复 stage consumer callback state-read mechanism，并用 focused foundation tests 验证保留语义。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-07-26T15:35:49Z" updated_at = "2026-07-26T15:50:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_migrate-cell-data-graph-foundations { name = "migrate-cell-data-graph-foundations" } (
+    <Description ?01M05F1PMTN34Q3VSH0ACF5B1W>
+    以 RED/GREEN 迁移 stage graph consumer callbacks。
+    </?01M05F1PMTN34Q3VSH0ACF5B1W>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Stage graph consumer migration" status = "DONE" order = 0 } (
+        <Description ?01M05F1PMTN34Q3VSH0ACF5B1X>
+        锁定 failure、迁移 callback read、复跑 foundations selection。
+        </?01M05F1PMTN34Q3VSH0ACF5B1X>
+        <Gate [
+          <Criterion ?01M05F1PMTN34Q3VSH0ACF5B1Y>
+          stage consumer callbacks 不使用 ctx.get
+          </?01M05F1PMTN34Q3VSH0ACF5B1Y>
+          <Criterion ?01M05F1PMTN34Q3VSH0ACF5B1Z>
+          focused foundations selection 通过
+          </?01M05F1PMTN34Q3VSH0ACF5B1Z>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "锁定 unified consumer callback failure" status = "DONE" order = 0 } (
+            <Description ?01M05F1PMTN34Q3VSH0ACF5B20>
+            用现有 focused stage tests 和必要的 source guard 确认旧 ctx.get contract 在 1.0.1 下失败。
+            </?01M05F1PMTN34Q3VSH0ACF5B20>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PMTN34Q3VSH0ACF5B21>
+              RED test 明确归因 consumer callback contract
+              </?01M05F1PMTN34Q3VSH0ACF5B21>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "迁移 StageGraph consumer state reads" status = "DONE" order = 1 } (
+            <Description ?01M05F1PMTN34Q3VSH0ACF5B22>
+            以 supported DataGraph read 改写所有 stage consumer callback，并保留 batch/order behavior。
+            </?01M05F1PMTN34Q3VSH0ACF5B22>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PMTN34Q3VSH0ACF5B23>
+              stage pipeline 不再在 consumer callback 使用 ctx.get
+              </?01M05F1PMTN34Q3VSH0ACF5B23>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PMTN34Q3VSH0ACF5B24>
+              live/replay and semantic focused tests 通过
+              </?01M05F1PMTN34Q3VSH0ACF5B24>
+            ]>
+          )>
+          <Task { id = "T1.3" name = "验证 Cell foundations surface" status = "DONE" order = 2 } (
+            <Description ?01M05F1PMTN34Q3VSH0ACF5B25>
+            复跑完整 focused foundations selection，记录 Residual owners。
+            </?01M05F1PMTN34Q3VSH0ACF5B25>
+            <Acceptance [
+              <Criterion { id = "T1.3-AC1" checked = true } ?01M05F1PMTN34Q3VSH0ACF5B26>
+              G3 focused foundations selection 通过且 aggregation remains loadable
+              </?01M05F1PMTN34Q3VSH0ACF5B26>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

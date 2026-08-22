@@ -1,0 +1,69 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_9_-_2_0_1_0_-_h_a_r_d_e_n_-_r_e_s_p_o_n_s_e_s_-_h_y_b_r_i_d_-_c_o_n_t_i_n_u_a_t_i_o_n.behavior_patch.ai-runtime-observability-rx-sinks apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-observability-rx-sinks" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-observability-rx-sinks/requirements/provider-request-plan-outcome-ledger" } (
+      <Requirement #provider-request-plan-outcome-ledger (
+        <Statement ?01M05F1PM17JWBAT76D0S5BT41>
+        显式启用 provider request capture 时，系统 SHALL 以同一 attempt identity 分别持久化 send-before request plan/wire observation 与 response-after terminal outcome；SQLite sink MUST 保持 app 顶层 support effect、fail-open、append-only，且 MUST NOT 参与 planning 或改变 live loop。
+        </?01M05F1PM17JWBAT76D0S5BT41>
+        <Suites [
+          <Suite #plan-and-outcome { name = "Request plan and outcome correlation" } (
+            <Cases [
+              <Case #request-row-records-decision [
+                <Then ?01M05F1PM17JWBAT76D0S5BT42>
+                observation SHALL 显式记录 plan kind、可空 replay source、previous-id 采用或拒绝及 reason
+                </?01M05F1PM17JWBAT76D0S5BT42>
+                <Then ?01M05F1PM17JWBAT76D0S5BT43>
+                wire body、transport 与 attempt identity SHALL 来自同一个实际发送动作
+                </?01M05F1PM17JWBAT76D0S5BT43>
+              ] (
+                <Given ?01M05F1PM17JWBAT76D0S5BT44>
+                logic 已生成真实 transport attempt 的 request plan 与最终 wire body
+                </?01M05F1PM17JWBAT76D0S5BT44>
+                <When ?01M05F1PM17JWBAT76D0S5BT45>
+                send-before observation 写入 ledger
+                </?01M05F1PM17JWBAT76D0S5BT45>
+              )>
+              <Case #outcome-row-records-actual-result [
+                <Then ?01M05F1PM17JWBAT76D0S5BT46>
+                outcome SHALL 以 attempt identity 关联 request row，并记录 terminal state、实际 fallback 与 output completeness decision
+                </?01M05F1PM17JWBAT76D0S5BT46>
+                <Then ?01M05F1PM17JWBAT76D0S5BT47>
+                `fallback_used` SHALL 表示真实发生的 fallback，而非配置意图
+                </?01M05F1PM17JWBAT76D0S5BT47>
+              ] (
+                <Given ?01M05F1PM17JWBAT76D0S5BT48>
+                一个 provider/transport attempt 完成、失败、中止或发生 WS→HTTP fallback
+                </?01M05F1PM17JWBAT76D0S5BT48>
+                <When ?01M05F1PM17JWBAT76D0S5BT49>
+                response-after outcome 写入 ledger
+                </?01M05F1PM17JWBAT76D0S5BT49>
+              )>
+            ]>
+          )>
+          <Suite #effect-boundary { name = "SQLite effect boundary" } (
+            <Cases [
+              <Case #support-owned-schema-evolution [
+                <Then ?01M05F1PM17JWBAT76D0S5BT4A>
+                schema SHALL 非破坏迁移并保留旧 request rows
+                </?01M05F1PM17JWBAT76D0S5BT4A>
+                <Then ?01M05F1PM17JWBAT76D0S5BT4B>
+                认证字段 SHALL 继续脱敏，SQLite 失败 SHALL fail-open
+                </?01M05F1PM17JWBAT76D0S5BT4B>
+                <Then ?01M05F1PM17JWBAT76D0S5BT4C>
+                core/logic SHALL NOT 存储 SQLite，terminal/organ SHALL 只绑定 port 与 lifecycle
+                </?01M05F1PM17JWBAT76D0S5BT4C>
+              ] (
+                <Given ?01M05F1PM17JWBAT76D0S5BT4D>
+                旧 session 的 ledger 使用较早 schema
+                </?01M05F1PM17JWBAT76D0S5BT4D>
+                <When ?01M05F1PM17JWBAT76D0S5BT4E>
+                顶层 support sink 打开并追加新 observation
+                </?01M05F1PM17JWBAT76D0S5BT4E>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

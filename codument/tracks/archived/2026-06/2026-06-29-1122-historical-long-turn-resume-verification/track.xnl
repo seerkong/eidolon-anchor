@@ -1,0 +1,28 @@
+<Track #historical-long-turn-resume-verification version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Verify historical long-turn input now pauses with progress through source CLI." description = "Record real CLI smoke evidence for the Sparrow session analysis prompt." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-06-29T08:22:04Z" updated_at = "2026-06-29T08:22:04Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_historical-long-turn-resume-verification { name = "historical-long-turn-resume-verification" } (
+    <Description ?01M05F1PK4TCEEEFG6XD8151HC>
+    Historical smoke verification.
+    </?01M05F1PK4TCEEEFG6XD8151HC>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Historical CLI smoke" status = "DONE" order = 0 } (
+        <Description ?01M05F1PK4TCEEEFG6XD8151HD>
+        Run and inspect real CLI smoke.
+        </?01M05F1PK4TCEEEFG6XD8151HD>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Run source CLI with Sparrow session input" status = "DONE" order = 0 priority = "P0" }>
+          <Task { id = "T1.2" name = "Inspect trace and last-message outputs" status = "DONE" order = 1 priority = "P0" }>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Hooks>
+)>

@@ -1,0 +1,217 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_1_-_1_7_4_5_-_r_e_f_a_c_t_o_r_-_v_m_-_s_n_a_p_s_h_o_t_-_c_o_n_t_r_o_l_-_s_i_g_n_a_l_-_b_o_u_n_d_a_r_i_e_s.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/vm-snapshot-boundaries" } (
+      <Requirement #vm-snapshot-boundaries (
+        <Statement ?01M05F1PEWX7XQWMNSRDCEDMZR>
+        系统 SHALL keep the VM snapshot as a bounded durable subset and SHALL NOT persist complete AI message history, provider-private content, or large tool outputs in `runtime_state/vm.json`.
+        </?01M05F1PEWX7XQWMNSRDCEDMZR>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/vm-snapshot-boundaries" strength = "hint" }>
+        <Suites [
+          <Suite #durable-subset { name = "VM durable subset boundary" } (
+            <Cases [
+              <Case #no-ai-history-payloads-in-vm-json [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDMZS>
+                The VM snapshot SHALL NOT contain complete `llm_done.msg`, `tool_done.output`, `tool_done.outputText`, `reasoning_content`, or complete tool schemas
+                </?01M05F1PEWX7XQWMNSRDCEDMZS>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDMZT>
+                The message content SHALL remain recoverable from actor transcript, conversation history, or a referenced artifact store
+                </?01M05F1PEWX7XQWMNSRDCEDMZT>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDMZV>
+                An actor turn produces assistant messages, reasoning content, tool calls, and tool results
+                </?01M05F1PEWX7XQWMNSRDCEDMZV>
+                <When ?01M05F1PEWX7XQWMNSRDCEDMZW>
+                The runtime writes `runtime_state/vm.json`
+                </?01M05F1PEWX7XQWMNSRDCEDMZW>
+              )>
+              <Case #bounded-vm-growth [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDMZX>
+                The serialized VM snapshot size SHALL remain bounded by session control state, not by historical LLM/tool content volume
+                </?01M05F1PEWX7XQWMNSRDCEDMZX>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDMZY>
+                Consumed control signal records SHALL be compacted or checkpointed into small idempotency tombstones
+                </?01M05F1PEWX7XQWMNSRDCEDMZY>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDMZZ>
+                A session runs many LLM/tool cycles and all corresponding control signals have been consumed
+                </?01M05F1PEWX7XQWMNSRDCEDMZZ>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN00>
+                The runtime writes repeated VM snapshots
+                </?01M05F1PEWX7XQWMNSRDCEDN00>
+              )>
+              <Case #legacy-full-payload-snapshot-recovery [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN01>
+                The runtime SHALL preserve recoverability
+                </?01M05F1PEWX7XQWMNSRDCEDN01>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN02>
+                The next saved VM snapshot SHALL normalize or migrate those control signals to the bounded durable format
+                </?01M05F1PEWX7XQWMNSRDCEDN02>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN03>
+                A legacy session contains full LLM/tool payloads inside `sessionState.controlSignals.events`
+                </?01M05F1PEWX7XQWMNSRDCEDN03>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN04>
+                The runtime recovers and saves the session with the new snapshot writer
+                </?01M05F1PEWX7XQWMNSRDCEDN04>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/control-signal-payload-refs" } (
+      <Requirement #control-signal-payload-refs (
+        <Statement ?01M05F1PEWX7XQWMNSRDCEDN05>
+        系统 SHALL persist durable control signal payloads as typed metadata or payload references rather than unbounded mailbox payload copies.
+        </?01M05F1PEWX7XQWMNSRDCEDN05>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/control-signal-payload-refs" strength = "hint" }>
+        <Suites [
+          <Suite #payload-normalization { name = "Control signal payload normalization" } (
+            <Cases [
+              <Case #async-completion-stores-ref [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN06>
+                The signal SHALL store op id, tool call id, mailbox kind, signal kind, priority, created time, and a small payload reference or digest
+                </?01M05F1PEWX7XQWMNSRDCEDN06>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN07>
+                The full completion payload SHALL be delivered through the actor mailbox and persisted by the appropriate actor mailbox, transcript, conversation, or artifact surface
+                </?01M05F1PEWX7XQWMNSRDCEDN07>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN08>
+                An async LLM or tool operation completes with a large result
+                </?01M05F1PEWX7XQWMNSRDCEDN08>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN09>
+                The runtime emits the durable control signal that wakes the owning fiber
+                </?01M05F1PEWX7XQWMNSRDCEDN09>
+              )>
+              <Case #unconsumed-mailbox-payload-remains-actor-owned [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0A>
+                The actor mailbox snapshot SHALL retain enough payload data to continue mailbox drain after recovery
+                </?01M05F1PEWX7XQWMNSRDCEDN0A>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0B>
+                The VM control signal snapshot SHALL NOT duplicate that payload as a second content truth source
+                </?01M05F1PEWX7XQWMNSRDCEDN0B>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN0C>
+                A mailbox payload is not yet consumed at snapshot time
+                </?01M05F1PEWX7XQWMNSRDCEDN0C>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN0D>
+                The runtime writes actor snapshots
+                </?01M05F1PEWX7XQWMNSRDCEDN0D>
+              )>
+              <Case #projection-not-promoted-by-accident [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0E>
+                Those projections SHALL either be rebuildable from VM, actor, fiber, transcript, conversation, and artifact truth sources or be explicitly modeled as durable state
+                </?01M05F1PEWX7XQWMNSRDCEDN0E>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0F>
+                They SHALL NOT silently become the only source of truth for recoverable state
+                </?01M05F1PEWX7XQWMNSRDCEDN0F>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN0G>
+                Derived indexes or projection files exist for member, detached actor, coordination, conversation, or UI views
+                </?01M05F1PEWX7XQWMNSRDCEDN0G>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN0H>
+                The runtime recovers a session
+                </?01M05F1PEWX7XQWMNSRDCEDN0H>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/snapshot-guardrails" } (
+      <Requirement #snapshot-guardrails (
+        <Statement ?01M05F1PEWX7XQWMNSRDCEDN0J>
+        系统 SHALL provide guard tests or diagnostics that prevent VM snapshot boundary regressions.
+        </?01M05F1PEWX7XQWMNSRDCEDN0J>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/snapshot-guardrails" strength = "hint" }>
+        <Suites [
+          <Suite #snapshot-guards { name = "Snapshot guardrails" } (
+            <Cases [
+              <Case #vm-json-forbidden-fields (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN0K>
+                A test runtime produces assistant reasoning, tool output, MCP output, and consumed control signals
+                </?01M05F1PEWX7XQWMNSRDCEDN0K>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN0M>
+                The test inspects serialized `vm.json`
+                </?01M05F1PEWX7XQWMNSRDCEDN0M>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0N>
+                The test SHALL fail if `vm.json` contains provider-private fields such as `reasoning_content` or full `tool_done.outputText` payloads
+                </?01M05F1PEWX7XQWMNSRDCEDN0N>
+              )>
+              <Case #vm-json-size-regression (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN0P>
+                A fixture produces repeated consumed LLM/tool completion signals
+                </?01M05F1PEWX7XQWMNSRDCEDN0P>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN0Q>
+                The test compares VM snapshot size before and after additional consumed history
+                </?01M05F1PEWX7XQWMNSRDCEDN0Q>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0R>
+                The test SHALL fail if VM snapshot growth is proportional to historical message or tool payload bytes
+                </?01M05F1PEWX7XQWMNSRDCEDN0R>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/questionnaire-table-persistence" } (
+      <Requirement #questionnaire-table-persistence (
+        <Statement ?01M05F1PEWX7XQWMNSRDCEDN0S>
+        系统 SHALL persist questionnaire state as first-class rows in `runtime_state/questionnaires.xnl` and SHALL NOT persist questionnaire request payloads inside actor snapshots.
+        </?01M05F1PEWX7XQWMNSRDCEDN0S>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/questionnaire-table-persistence" strength = "hint" }>
+        <Suites [
+          <Suite #questionnaire-xnl-table { name = "Questionnaire XNL table" } (
+            <Cases [
+              <Case #questionnaires-xnl-uses-row-nodes [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0T>
+                The snapshot SHALL write `runtime_state/questionnaires.xnl` as repeated `QuestionnaireRow` XNL data nodes without an outer wrapper node
+                </?01M05F1PEWX7XQWMNSRDCEDN0T>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0V>
+                The writer SHALL use xnl-core parsing and stringifying APIs rather than XML syntax or ad hoc string concatenation
+                </?01M05F1PEWX7XQWMNSRDCEDN0V>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN0W>
+                A runtime has pending or answered questionnaires
+                </?01M05F1PEWX7XQWMNSRDCEDN0W>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN0X>
+                The runtime writes a snapshot
+                </?01M05F1PEWX7XQWMNSRDCEDN0X>
+              )>
+              <Case #actor-snapshot-does-not-own-questionnaires [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0Y>
+                The actor metadata, state, and mailbox snapshot files SHALL NOT store `pendingQuestionnaires` as durable questionnaire truth
+                </?01M05F1PEWX7XQWMNSRDCEDN0Y>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN0Z>
+                The questionnaire SHALL remain recoverable from `runtime_state/questionnaires.xnl`
+                </?01M05F1PEWX7XQWMNSRDCEDN0Z>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN10>
+                An actor owns a pending questionnaire
+                </?01M05F1PEWX7XQWMNSRDCEDN10>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN11>
+                The runtime writes actor snapshot files
+                </?01M05F1PEWX7XQWMNSRDCEDN11>
+              )>
+              <Case #recover-pending-questionnaires-from-table [
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN12>
+                The runtime SHALL rebuild the actor surface pending questionnaire list from those rows
+                </?01M05F1PEWX7XQWMNSRDCEDN12>
+                <Then ?01M05F1PEWX7XQWMNSRDCEDN13>
+                The TUI SHALL show pending questionnaires when loading the session
+                </?01M05F1PEWX7XQWMNSRDCEDN13>
+              ] (
+                <Given ?01M05F1PEWX7XQWMNSRDCEDN14>
+                A session is recovered from snapshot files
+                </?01M05F1PEWX7XQWMNSRDCEDN14>
+                <When ?01M05F1PEWX7XQWMNSRDCEDN15>
+                `runtime_state/questionnaires.xnl` contains pending questionnaire rows
+                </?01M05F1PEWX7XQWMNSRDCEDN15>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,134 @@
+<Behavior #ai-runtime-control-primitives apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #package-layering (
+      <Statement ?01M05F1P0S4MGA41V9X8J0TCC3>
+      系统 SHALL provide AI runtime control contract and logic packages separated as `ai-runtime-control-contract` and `ai-runtime-control-logic`.
+      </?01M05F1P0S4MGA41V9X8J0TCC3>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-runtime-control-primitives/package-layering" strength = "hint" }>
+      <Suites [
+        <Suite #dependency-direction { name = "Dependency Direction" } (
+          <Cases [
+            <Case #logic-does-not-depend-on-organ [
+              <Then ?01M05F1P0S4MGA41V9X8J0TCC4>
+              The logic package SHALL NOT depend on `@cell/ai-organ-logic`
+              </?01M05F1P0S4MGA41V9X8J0TCC4>
+              <Then ?01M05F1P0S4MGA41V9X8J0TCC5>
+              The organ logic package MAY depend on the AI runtime control logic package
+              </?01M05F1P0S4MGA41V9X8J0TCC5>
+            ] (
+              <Given ?01M05F1P0S4MGA41V9X8J0TCC6>
+              The AI runtime control logic package is implemented
+              </?01M05F1P0S4MGA41V9X8J0TCC6>
+              <When ?01M05F1P0S4MGA41V9X8J0TCC7>
+              Package dependencies are inspected
+              </?01M05F1P0S4MGA41V9X8J0TCC7>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #ai-mailbox-policy (
+      <Statement ?01M05F1P0S4MGA41V9X8J0TCC8>
+      系统 SHALL map AI mailbox entries and cooperative execution state to vendor actor-control work classifications.
+      </?01M05F1P0S4MGA41V9X8J0TCC8>
+      <Suites [
+        <Suite #wake-mailbox-policy { name = "Wake Mailbox Policy" } (
+          <Cases [
+            <Case #completion-work-classification (
+              <Given ?01M05F1P0S4MGA41V9X8J0TCC9>
+              An actor is waiting on an inflight LLM or synchronous child result
+              </?01M05F1P0S4MGA41V9X8J0TCC9>
+              <When ?01M05F1P0S4MGA41V9X8J0TCCA>
+              The matching completion mailbox entry is pending
+              </?01M05F1P0S4MGA41V9X8J0TCCA>
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCB>
+              The AI mailbox policy SHALL classify the entry as mandatory completion
+              </?01M05F1P0S4MGA41V9X8J0TCCB>
+            )>
+            <Case #ordinary-input-classification [
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCC>
+              The entry SHALL remain recoverable input, control marker, timer wake, or low priority continuation according to AI semantics
+              </?01M05F1P0S4MGA41V9X8J0TCCC>
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCD>
+              The classification SHALL NOT force every pending mailbox into mandatory completion
+              </?01M05F1P0S4MGA41V9X8J0TCCD>
+            ] (
+              <Given ?01M05F1P0S4MGA41V9X8J0TCCE>
+              An actor has pending human input, member chat, member coordination, ordinary control, ordinary tool result, or heartbeat mailbox work
+              </?01M05F1P0S4MGA41V9X8J0TCCE>
+              <When ?01M05F1P0S4MGA41V9X8J0TCCF>
+              The AI mailbox policy classifies the entry
+              </?01M05F1P0S4MGA41V9X8J0TCCF>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #ai-turn-barrier (
+      <Statement ?01M05F1P0S4MGA41V9X8J0TCCG>
+      系统 SHALL expose an AI turn barrier that can be reused by snapshot save, idle preemption, heartbeat eligibility, recovery scheduling, and TUI settled checks.
+      </?01M05F1P0S4MGA41V9X8J0TCCG>
+      <Suites [
+        <Suite #snapshot-barrier { name = "Snapshot Barrier" } (
+          <Cases [
+            <Case #safepoint-result-compatible [
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCH>
+              The returned result SHALL preserve the existing safepoint safe/blocker semantics
+              </?01M05F1P0S4MGA41V9X8J0TCCH>
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCJ>
+              The result SHALL NOT require `AiAgentVm` contract expansion
+              </?01M05F1P0S4MGA41V9X8J0TCCJ>
+            ] (
+              <Given ?01M05F1P0S4MGA41V9X8J0TCCK>
+              The current runtime is evaluated for snapshot safety
+              </?01M05F1P0S4MGA41V9X8J0TCCK>
+              <When ?01M05F1P0S4MGA41V9X8J0TCCM>
+              The AI turn barrier is inspected
+              </?01M05F1P0S4MGA41V9X8J0TCCM>
+            )>
+            <Case #wake-mailbox-before-snapshot [
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCN>
+              The actor has not drained that mailbox entry into conversation or cooperative state
+              </?01M05F1P0S4MGA41V9X8J0TCCN>
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCP>
+              The barrier SHALL report the runtime as unsafe
+              </?01M05F1P0S4MGA41V9X8J0TCCP>
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCQ>
+              The blocker metadata SHALL NOT include raw mailbox payloads
+              </?01M05F1P0S4MGA41V9X8J0TCCQ>
+            ] (
+              <Given ?01M05F1P0S4MGA41V9X8J0TCCR>
+              A wake mailbox entry has been delivered to an actor
+              </?01M05F1P0S4MGA41V9X8J0TCCR>
+              <When ?01M05F1P0S4MGA41V9X8J0TCCS>
+              The snapshot barrier is evaluated
+              </?01M05F1P0S4MGA41V9X8J0TCCS>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #ai-durable-head-cohort (
+      <Statement ?01M05F1P0S4MGA41V9X8J0TCCT>
+      系统 SHALL model AI runtime durable heads as a cohort guarded by AI turn barriers.
+      </?01M05F1P0S4MGA41V9X8J0TCCT>
+      <Suites [
+        <Suite #first-cohort { name = "First Cohort" } (
+          <Cases [
+            <Case #snapshot-and-conversation-heads (
+              <Given ?01M05F1P0S4MGA41V9X8J0TCCV>
+              A runtime snapshot and conversation head are both recoverable truth heads
+              </?01M05F1P0S4MGA41V9X8J0TCCV>
+              <When ?01M05F1P0S4MGA41V9X8J0TCCW>
+              The runtime has not reached the snapshot barrier
+              </?01M05F1P0S4MGA41V9X8J0TCCW>
+              <Then ?01M05F1P0S4MGA41V9X8J0TCCX>
+              The AI durable head cohort SHALL prevent advancing the latest recoverable conversation head independently from the runtime snapshot
+              </?01M05F1P0S4MGA41V9X8J0TCCX>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

@@ -1,0 +1,86 @@
+<Track #fix-tui-stability-and-jsonl-logs version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Stabilize eidolon-tui under sustained coding sessions and move non-state logs to append-only JSONL storage" description = "Fix TUI freeze and hang risks by reducing hot-path logging/projection pressure and migrating non-state diagnostics to append-only JSONL storage." commit_mode = "manual" created_at = "2026-05-20T17:23:35Z" updated_at = "2026-05-20T19:28:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_fix-tui-stability-and-jsonl-logs { name = "fix-tui-stability-and-jsonl-logs" } (
+    <Description ?01M05F1PDWQ19XCQFN93DWF7MS>
+    Fix TUI stability and migrate non-state logs to JSONL
+    </?01M05F1PDWQ19XCQFN93DWF7MS>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Reproduce and define the pressure boundary" status = "DONE" order = 0 } (
+        <Description ?01M05F1PDWQ19XCQFN93DWF7MT>
+        Lock down the failing behavior with focused regression tests and log classification decisions.
+        </?01M05F1PDWQ19XCQFN93DWF7MT>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add regression tests for hot-path pressure" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDWQ19XCQFN93DWF7MV>
+            Cover repeated runtime event updates, sync event churn, and the current logging behavior that blocks the UI thread.
+            </?01M05F1PDWQ19XCQFN93DWF7MV>
+          )>
+          <Task { id = "T1.2" name = "Define non-state log classification and JSONL contract" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PDWQ19XCQFN93DWF7MW>
+            Finalize the initial boundary for non-state diagnostics and record the JSONL append-only file shape in decisions.md.
+            </?01M05F1PDWQ19XCQFN93DWF7MW>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Implement stability and log migration" status = "DONE" order = 1 } (
+        <Description ?01M05F1PDWQ19XCQFN93DWF7MX>
+        Move diagnostics out of the synchronous hot path and reduce repeated projection cost.
+        </?01M05F1PDWQ19XCQFN93DWF7MX>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Add append-only JSONL sink for diagnostics" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDWQ19XCQFN93DWF7MY>
+            Replace synchronous text-file writes for non-state logs with buffered JSONL append-only persistence.
+            </?01M05F1PDWQ19XCQFN93DWF7MY>
+          )>
+          <Task { id = "T2.2" name = "Reduce runtime and sync hot-path logging" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PDXDA6QZMJGDZMW1S20>
+            Trim high-frequency log calls in runtime-client, sync-context, and dialog/input paths so event storms do not flood disk or stdout.
+            </?01M05F1PDXDA6QZMJGDZMW1S20>
+          )>
+          <Task { id = "T2.3" name = "Bound projection and cache growth" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PDXDA6QZMJGDZMW1S21>
+            Reduce repeated full rebuilds of runtime message projections and cap or prune caches that grow over long sessions.
+            </?01M05F1PDXDA6QZMJGDZMW1S21>
+          )>
+          <Task { id = "T2.4" name = "Harden fallback subscribe and cleanup paths" status = "DONE" order = 3 priority = "P1" } (
+            <Description ?01M05F1PDXDA6QZMJGDZMW1S22>
+            Add abort-aware control and retry backoff to the fallback subscribe loop and keep disposal paths deterministic.
+            </?01M05F1PDXDA6QZMJGDZMW1S22>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Validate and document the new behavior" status = "DONE" order = 2 } (
+        <Description ?01M05F1PDXDA6QZMJGDZMW1S23>
+        Prove the fix under test and capture the final user-visible behavior.
+        </?01M05F1PDXDA6QZMJGDZMW1S23>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Run focused regression coverage" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDXDA6QZMJGDZMW1S24>
+            Verify the new JSONL sink, the pressure tests, and the long-session stability checks.
+            </?01M05F1PDXDA6QZMJGDZMW1S24>
+          )>
+          <Task { id = "T3.2" name = "Update docs and final verification notes" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PDXDA6QZMJGDZMW1S25>
+            Record the new log storage model and summarize the stability changes for later implementation and review.
+            </?01M05F1PDXDA6QZMJGDZMW1S25>
+          )>
+          <Task { id = "T3.3" name = "Preserve print-logs console mirror CLI compatibility" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PDXDA6QZMJGDZMW1S26>
+            Declare the hidden print-logs option under strict TUI CLI parsing and verify it still enables the JSONL console mirror path.
+            </?01M05F1PDXDA6QZMJGDZMW1S26>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

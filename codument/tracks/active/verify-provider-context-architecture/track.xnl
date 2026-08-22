@@ -1,0 +1,43 @@
+<Track #verify-provider-context-architecture apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Prove provider context replay completeness, protocol isolation, checkpoint equivalence, rewind invalidation, and historical incident coverage." description = "Add durable source and behavioral conformance gates, run the complete bounded suite, and record historical evidence with authority limits." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-19T19:36:48.228Z" updated_at = "2026-08-19T19:41:58.934Z" modeling_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0" engineering_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_verify-provider-context-architecture { name = "verify-provider-context-architecture" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "architecture conformance" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "enforce source projection boundaries" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0DRNGBB8PNVZPN62W2Y2RX7>
+              Responses replay modules cannot import Chat repair, and production planning executes canonical coverage proof.
+              </?01M0DRNGBB8PNVZPN62W2Y2RX7>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0DRNGBB8PNVZPN62W2Y2RX8>
+              Production commit rejects changed context epochs and persists only current replay state.
+              </?01M0DRNGBB8PNVZPN62W2Y2RX8>
+            ]>
+          )>
+          <Task #P1-T2 { name = "prove replay and checkpoint equivalence" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0DRNGBB8PNVZPN62W2Y2RX9>
+              The named canonical compiler and coverage proof retain one hundred completed tool rounds.
+              </?01M0DRNGBB8PNVZPN62W2Y2RX9>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0DRNGBB8PNVZPN62W2Y2RXA>
+              Stateless native-window and checkpoint-deleted canonical plans expose identical native input.
+              </?01M0DRNGBB8PNVZPN62W2Y2RXA>
+            ]>
+          )>
+          <Task #P1-T3 { name = "verify historical incident and full bounded suite" status = "DONE" order = 2 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M0DRNGBB8PNVZPN62W2Y2RXB>
+              Historical session evidence is recorded with canonical and non-canonical authority limits.
+              </?01M0DRNGBB8PNVZPN62W2Y2RXB>
+              <Criterion #P1-T3-AC2 { checked = true } ?01M0DRNGBB8PNVZPN62W2Y2RXC>
+              Responses, conversation, checkpoint, compaction, and recovery regression suites pass.
+              </?01M0DRNGBB8PNVZPN62W2Y2RXC>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

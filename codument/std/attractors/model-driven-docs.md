@@ -52,7 +52,7 @@ codument/
 
 registry 元数据写在 XNL 节点属性中，不使用 Markdown frontmatter：
 
-- modeling 节点至少遵循 `kind`、稳定 `#id` 与该 kind 的最小表征；derived 节点用 `derived_from="modeling://..."`。
+- modeling 节点至少遵循 `kind`、稳定 `#id` 与该 kind 的最小表征；derived 节点在属性块写 `{ derived_from = "modeling://..." }`。
 - engineering 节点至少遵循 `kind`、稳定 `#id` 与该 kind 的必需 section。
 - modeling 引用 behavior 用 `behavior://...`；engineering 引用本体用 `modeling://...`。
 - 代码位置写入对应节点正文或 engineering reference/code-map 节点，不把路径数组堆进元数据。
@@ -84,7 +84,7 @@ registry 元数据写在 XNL 节点属性中，不使用 Markdown frontmatter：
 | 可重复维护操作 | `engineering_deltas/<plane>/howto.xnl` |
 | 实现规则与护栏 | `engineering_deltas/<plane>/rules.xnl` |
 | 示例、查表、排障 | 对应 `examples` / `reference` / `troubleshooting` delta |
-| 用户可见行为变化 | `behavior_deltas/<capability>/delta.xml` |
+| 用户可见行为变化 | `behavior_deltas/<capability>/delta.xnl` |
 | 承重决策 / 复用教训 | `decisions/**/*.xnl` / `memory/` |
 
 ## Quality Checklist

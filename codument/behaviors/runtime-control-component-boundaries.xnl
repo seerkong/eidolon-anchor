@@ -1,0 +1,145 @@
+<Behavior #runtime-control-component-boundaries apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #standard-logic-component-encapsulation (
+      <Statement ?01M05F1P33DWQZXY1JNE8RQBX6>
+      控制面 Logic Component SHALL 按标准组件封装表达：Outer Input、Compute Derived、Transform Runtime/Input/Config、Core Logic、Transform Output、Outer Output；Core Logic SHALL 只依赖显式注入的 runtime，SHALL NOT 直接执行文件、provider、tool、terminal 等副作用。封装 SHALL 复用 depa-processor 的标准 adapter 原语，不另建平行封装机制。
+      </?01M05F1P33DWQZXY1JNE8RQBX6>
+      <Suites [
+        <Suite #encapsulation { name = "Standard encapsulation" } (
+          <Cases [
+            <Case #core-logic-has-explicit-runtime [
+              <Then ?01M05F1P33DWQZXY1JNE8RQBX7>
+              系统 SHALL 能确定它的 core logic 入口、注入的 effect contracts 和 outer adapter 表面
+              </?01M05F1P33DWQZXY1JNE8RQBX7>
+              <Then ?01M05F1P33DWQZXY1JNE8RQBX8>
+              core logic SHALL NOT 出现在 forbidden direct IO 清单中的调用
+              </?01M05F1P33DWQZXY1JNE8RQBX8>
+            ] (
+              <Given ?01M05F1P33DWQZXY1JNE8RQBX9>
+              一个控制面 logic component 声明了边界
+              </?01M05F1P33DWQZXY1JNE8RQBX9>
+              <When ?01M05F1P33DWQZXY1JNE8RQBXA>
+              读取其 boundary declaration
+              </?01M05F1P33DWQZXY1JNE8RQBXA>
+            )>
+            <Case #reuse-vendor-adapter (
+              <Given ?01M05F1P33DWQZXY1JNE8RQBXB>
+              控制面 logic 需要 outer/inner 分层
+              </?01M05F1P33DWQZXY1JNE8RQBXB>
+              <When ?01M05F1P33DWQZXY1JNE8RQBXC>
+              实现封装
+              </?01M05F1P33DWQZXY1JNE8RQBXC>
+              <Then ?01M05F1P33DWQZXY1JNE8RQBXD>
+              实现 SHALL 复用 depa-processor 标准 adapter，SHALL NOT 新建平行的封装框架
+              </?01M05F1P33DWQZXY1JNE8RQBXD>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #sync-command-async-message-boundary (
+      <Statement ?01M05F1P33DWQZXY1JNE8RQBXE>
+      同步状态推进 SHALL command 化：同一 actor/component 内的 reducer 输入和可立即完成的显式能力调用 SHALL 通过公开 reducer/contract 进入。异步协作 SHALL message 化：跨 actor/fiber、provider/tool/human 等待、timeout、approval、childDone、恢复调度 SHALL 进入 mailbox 或可恢复事件时间线，SHALL NOT 通过直接函数调用绕过 owner。
+      </?01M05F1P33DWQZXY1JNE8RQBXE>
+      <Suites [
+        <Suite #command-message { name = "Command and message boundary" } (
+          <Cases [
+            <Case #sync-reducer-input-is-command [
+              <Then ?01M05F1P33DWQZXY1JNE8RQBXF>
+              变化 SHALL 以 command 形式进入该组件公开 reducer
+              </?01M05F1P33DWQZXY1JNE8RQBXF>
+              <Then ?01M05F1P33DWQZXY1JNE8RQBXG>
+              调用方 SHALL NOT 直接修改组件内部字段
+              </?01M05F1P33DWQZXY1JNE8RQBXG>
+            ] (
+              <Given ?01M05F1P33DWQZXY1JNE8RQBXH>
+              控制面组件需要同步推进自身状态
+              </?01M05F1P33DWQZXY1JNE8RQBXH>
+              <When ?01M05F1P33DWQZXY1JNE8RQBXJ>
+              调用方触发状态变化
+              </?01M05F1P33DWQZXY1JNE8RQBXJ>
+            )>
+            <Case #cross-actor-unblock-is-message [
+              <Then ?01M05F1P33DWQZXY1JNE8RQBXK>
+              信号 SHALL 通过目标 actor 的 mailbox 投递
+              </?01M05F1P33DWQZXY1JNE8RQBXK>
+              <Then ?01M05F1P33DWQZXY1JNE8RQBXM>
+              系统 SHALL NOT 在 actor 之外另建消息总线或直接调用目标内部方法
+              </?01M05F1P33DWQZXY1JNE8RQBXM>
+            ] (
+              <Given ?01M05F1P33DWQZXY1JNE8RQBXN>
+              一个 actor 需要解除另一个 actor 的等待（如 childDone、tool result、human input）
+              </?01M05F1P33DWQZXY1JNE8RQBXN>
+              <When ?01M05F1P33DWQZXY1JNE8RQBXP>
+              发送解除信号
+              </?01M05F1P33DWQZXY1JNE8RQBXP>
+            )>
+            <Case #boundary-classification-is-declared (
+              <Given ?01M05F1P33DWQZXY1JNE8RQBXQ>
+              一个控制面组件同时拥有同步 command 和异步 message 入口
+              </?01M05F1P33DWQZXY1JNE8RQBXQ>
+              <When ?01M05F1P33DWQZXY1JNE8RQBXR>
+              读取其 boundary declaration
+              </?01M05F1P33DWQZXY1JNE8RQBXR>
+              <Then ?01M05F1P33DWQZXY1JNE8RQBXS>
+              每个入口 SHALL 被显式分类为 sync_command 或 async_message
+              </?01M05F1P33DWQZXY1JNE8RQBXS>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #control-plane-not-domain-truth (
+      <Statement ?01M05F1P33DWQZXY1JNE8RQBXT>
+      控制面组件 SHALL 遵守 runtime_control 数据子图契约：SHALL NOT 拥有 conversation truth、LLM context truth、tool result attribution 或 turn state；snapshot writer SHALL NOT 在 persistence 层调度 fiber 或推进 AI step；coordinator SHALL 在安全边界做出推进或跳过的决定。
+      </?01M05F1P33DWQZXY1JNE8RQBXT>
+      <Suites [
+        <Suite #control-plane-boundary { name = "Control plane does not own domain truth" } (
+          <Cases [
+            <Case #snapshot-writer-does-not-schedule [
+              <Then ?01M05F1P33DWQZXY1JNE8RQBXV>
+              writer SHALL 只返回结构化跳过结果或持久化数据
+              </?01M05F1P33DWQZXY1JNE8RQBXV>
+              <Then ?01M05F1P33DWQZXY1JNE8RQBXW>
+              writer SHALL NOT 调度 fiber、推进 cooperative step 或修改 turn state
+              </?01M05F1P33DWQZXY1JNE8RQBXW>
+            ] (
+              <Given ?01M05F1P33DWQZXY1JNE8RQBXX>
+              系统在非 safepoint 时请求保存 snapshot
+              </?01M05F1P33DWQZXY1JNE8RQBXX>
+              <When ?01M05F1P33DWQZXY1JNE8RQBXY>
+              snapshot 流程执行
+              </?01M05F1P33DWQZXY1JNE8RQBXY>
+            )>
+            <Case #coordinator-decides-at-boundary (
+              <Given ?01M05F1P33DWQZXY1JNE8RQBXZ>
+              checkpoint 需要在 mandatory continuation 存在时处理
+              </?01M05F1P33DWQZXY1JNE8RQBXZ>
+              <When ?01M05F1P33DWQZXY1JNE8RQBY0>
+              coordinator 评估保存时机
+              </?01M05F1P33DWQZXY1JNE8RQBY0>
+              <Then ?01M05F1P33DWQZXY1JNE8RQBY1>
+              coordinator SHALL 在 orchestration 边界选择有限推进或跳过
+              </?01M05F1P33DWQZXY1JNE8RQBY1>
+            )>
+            <Case #engine-effects-via-contract [
+              <Then ?01M05F1P33DWQZXY1JNE8RQBY2>
+              副作用 SHALL 通过注入的 effect contract 执行并留下 effect 证据
+              </?01M05F1P33DWQZXY1JNE8RQBY2>
+              <Then ?01M05F1P33DWQZXY1JNE8RQBY3>
+              engine core reducer SHALL NOT 直接执行 IO
+              </?01M05F1P33DWQZXY1JNE8RQBY3>
+            ] (
+              <Given ?01M05F1P33DWQZXY1JNE8RQBY4>
+              runtime-control engine 需要执行带副作用的命令
+              </?01M05F1P33DWQZXY1JNE8RQBY4>
+              <When ?01M05F1P33DWQZXY1JNE8RQBY5>
+              命令被处理
+              </?01M05F1P33DWQZXY1JNE8RQBY5>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

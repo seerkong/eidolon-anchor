@@ -1,0 +1,212 @@
+<Track #implement-windows-sandbox-runner version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "用 Zig 实现 Windows 原生沙箱 runner：RestrictedToken + capability SID + workspace ACL + WFP 网络过滤 + Elevated setup，SandboxBackendRuntime 的 restricted-token 分支真正 spawn runner。" description = "Windows 沙箱目前只有分级降级（disabled 直接执行 + 文件权限兜底），restricted-token 分支报 \"not implemented\"，elevated 缺真实 runner 二进制。用 Zig 0.16（PoC 已验证 CreateRestrictedToken 可调）实现两个原生 exe（runner + setup），提供真正进程级隔离。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-10T11:00:00Z" updated_at = "2026-08-10T18:00:00Z" gap_round = 1 } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_implement-windows-sandbox-runner { name = "implement-windows-sandbox-runner" } (
+    <Description ?01M05F1PT3GYZSYPPXDBCC2K8J>
+    按 P1（Zig 骨架 + RestrictedToken + ACL）、P2（WFP + Elevated setup）、P3（Bun 集成）、P4（收口验证）顺序实施；每 phase TDD，终态 phase 跑 GapLoop 与 AttractorCheck。
+    </?01M05F1PT3GYZSYPPXDBCC2K8J>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Zig 骨架 + RestrictedToken + ACL" status = "DONE" order = 0 } (
+        <Description ?01M05F1PT3GYZSYPPXDBCC2K8K>
+        创建 Zig 包（cell/packages/windows-sandbox-runner/），实现 token.zig（CreateRestrictedToken + capability SID）、acl.zig（workspace ACL + deny-write）、main.zig（参数解析 + 受限进程），build.zig 产出 runner exe。
+        </?01M05F1PT3GYZSYPPXDBCC2K8K>
+        <Gate [
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K8M>
+          zig build 产出 eidolon-windows-sandbox-runner.exe。
+          </?01M05F1PT3GYZSYPPXDBCC2K8M>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K8N>
+          受限进程无法写 workspace 外路径。
+          </?01M05F1PT3GYZSYPPXDBCC2K8N>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K8P>
+          deny-write 对 .git/.eidolon 生效。
+          </?01M05F1PT3GYZSYPPXDBCC2K8P>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Zig 包骨架 + build.zig" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K8Q>
+            创建 cell/packages/windows-sandbox-runner/ 目录：build.zig（Zig 0.16，产出 runner exe）、package.json（元数据+bin）、scripts/build.zig.ts（Bun 调 zig build）。
+            </?01M05F1PT3GYZSYPPXDBCC2K8Q>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K8R>
+              zig build 产出 eidolon-windows-sandbox-runner.exe（可运行）。
+              </?01M05F1PT3GYZSYPPXDBCC2K8R>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "token.zig: CreateRestrictedToken + capability SID" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K8S>
+            实现 CreateRestrictedToken（flags=DISABLE_MAX_PRIVILEGE|LUA_TOKEN|WRITE_RESTRICTED）+ capability SID 生成（每个 workspace root 一个确定性 SID）+ restricting SIDs 组合。Zig 单测验证 token 创建成功且特权被禁用。
+            </?01M05F1PT3GYZSYPPXDBCC2K8S>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K8T>
+              zig test 通过：RestrictedToken 创建成功，权限被限制。
+              </?01M05F1PT3GYZSYPPXDBCC2K8T>
+            ]>
+          )>
+          <Task { id = "T1.3" name = "acl.zig: workspace ACL + deny-write" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K8V>
+            实现 workspace root 对 capability SID 授权写（--writable-root），.git/.eidolon 加 deny-write ACE（--deny-write），read-only 模式只授读。Zig 单测验证 ACL 生效。
+            </?01M05F1PT3GYZSYPPXDBCC2K8V>
+            <Acceptance [
+              <Criterion { id = "T1.3-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K8W>
+              zig test 通过：workspace root 对 capability SID 有写权，受保护目录有 deny-write。
+              </?01M05F1PT3GYZSYPPXDBCC2K8W>
+            ]>
+          )>
+          <Task { id = "T1.4" name = "main.zig: 参数解析 + 受限进程启动" status = "DONE" order = 3 priority = "P0" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K8X>
+            解析 --cwd/--mode/--network/--writable-root/--deny-write/-- &lt;shell&gt; /d /s /c &lt;command&gt;，构造受限令牌，CreateProcessAsUserW 启动命令，转发 stdio，等退出返回 exit code。
+            </?01M05F1PT3GYZSYPPXDBCC2K8X>
+            <Acceptance [
+              <Criterion { id = "T1.4-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K8Y>
+              受限进程能执行命令并返回输出/exit code。
+              </?01M05F1PT3GYZSYPPXDBCC2K8Y>
+              <Criterion { id = "T1.4-AC2" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K8Z>
+              受限进程写 workspace 外路径失败（集成验证）。
+              </?01M05F1PT3GYZSYPPXDBCC2K8Z>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "WFP 网络过滤 + Elevated setup" status = "DONE" order = 1 } (
+        <Description ?01M05F1PT3GYZSYPPXDBCC2K90>
+        实现 wfp.zig（基础绑定 + wfpAvailable 检测；完整网络过滤为后续增强）、setup.zig（elevated + UAC + setup marker），build.zig 产出第二个 exe eidolon-windows-sandbox-setup.exe。
+        </?01M05F1PT3GYZSYPPXDBCC2K90>
+        <Gate [
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K91>
+          zig build 产出 eidolon-windows-sandbox-setup.exe。 —— 达成
+          </?01M05F1PT3GYZSYPPXDBCC2K91>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K92>
+          network=disabled 时受限进程出站连接被拦截。 —— 未达成（WFP 完整过滤为后续增强，已记录 decisions.wfp-scope）
+          </?01M05F1PT3GYZSYPPXDBCC2K92>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K93>
+          setup 完成后写 marker，sandbox_setup_is_complete 返回 true。 —— 部分：marker 已写，Bun 侧读取为后续增强
+          </?01M05F1PT3GYZSYPPXDBCC2K93>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "setup.zig: elevated + UAC + marker" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K94>
+            检测 elevated（GetTokenInformation(TokenElevation)），否→ShellExecuteExW("runas")，是→建 sandbox dir、生成 capability SIDs、写 setup marker。产出 eidolon-windows-sandbox-setup.exe。
+            </?01M05F1PT3GYZSYPPXDBCC2K94>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K95>
+              zig build 产出 setup exe。
+              </?01M05F1PT3GYZSYPPXDBCC2K95>
+              <Criterion { id = "T2.1-AC2" checked = false } ?01M05F1PT3GYZSYPPXDBCC2K96>
+              setup 完成后写 marker 文件。
+              </?01M05F1PT3GYZSYPPXDBCC2K96>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "wfp.zig: WFP 网络过滤" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K97>
+            WFP 基础绑定（FwpmEngineOpen/Close + 结构体 + wfpAvailable 检测）。完整过滤（FwpmFilterAdd + 事务 + 持久化）为后续增强——需要 elevated 实机验证且影响系统网络栈。当前 network=disabled 无网络隔离（已记录为已知限制）。
+            </?01M05F1PT3GYZSYPPXDBCC2K97>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = false } ?01M05F1PT3GYZSYPPXDBCC2K98>
+              network=disabled 时受限进程 ping/curl 失败（集成验证）—— 未达成（完整过滤为后续增强）。
+              </?01M05F1PT3GYZSYPPXDBCC2K98>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Bun 集成" status = "DONE" order = 2 } (
+        <Description ?01M05F1PT3GYZSYPPXDBCC2K99>
+        SandboxBackendRuntime 的 restricted-token 分支接 runner；构建/安装脚本分发两个 exe；WindowsSandbox.ts 协议对齐。
+        </?01M05F1PT3GYZSYPPXDBCC2K99>
+        <Gate [
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K9A>
+          restricted-token 分支 spawn eidolon-windows-sandbox-runner（非 error）。
+          </?01M05F1PT3GYZSYPPXDBCC2K9A>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K9B>
+          构建后 dist/terminal/tui/ 含两个 exe。
+          </?01M05F1PT3GYZSYPPXDBCC2K9B>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K9C>
+          安装后 ~/.local/bin/ 含两个 exe。
+          </?01M05F1PT3GYZSYPPXDBCC2K9C>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "SandboxBackendRuntime restricted-token 接 runner" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K9D>
+            buildSpawnSpec 的 restricted-token 分支改为 spawn eidolon-windows-sandbox-runner（同 elevated 逻辑，--mode 对应）。更新测试：restricted-token 分支断言 spawn runner 而非 error。
+            </?01M05F1PT3GYZSYPPXDBCC2K9D>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K9E>
+              restricted-token 分支 spawn runner（测试通过）。
+              </?01M05F1PT3GYZSYPPXDBCC2K9E>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "构建/安装脚本分发两个 exe" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K9F>
+            build-terminal-tui.ts / tui build.ts 复制 runner+setup exe 到 dist；install-dist-tui.ts 复制到安装目录。resolveWindowsSandboxRunnerPath 命中。
+            </?01M05F1PT3GYZSYPPXDBCC2K9F>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K9G>
+              构建后 dist/terminal/tui/ 含两个 exe。
+              </?01M05F1PT3GYZSYPPXDBCC2K9G>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K9H>
+              安装后本地 bin 含两个 exe。
+              </?01M05F1PT3GYZSYPPXDBCC2K9H>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "WindowsSandbox.ts 协议对齐" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K9J>
+            确认 --writable-root/--deny-write 参数与 Zig runner 解析一致；文档注释对齐。
+            </?01M05F1PT3GYZSYPPXDBCC2K9J>
+            <Acceptance [
+              <Criterion { id = "T3.3-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K9K>
+              参数协议与 Zig runner 一致。
+              </?01M05F1PT3GYZSYPPXDBCC2K9K>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "收口验证" status = "DONE" order = 3 } (
+        <Description ?01M05F1PT3GYZSYPPXDBCC2K9M>
+        全量测试（Zig 单测 + Bun 测试）、strict validate、Windows 实机集成验证（受限进程写 workspace 外失败、WFP 拦截、restricted-token 分支 spawn runner）。
+        </?01M05F1PT3GYZSYPPXDBCC2K9M>
+        <Gate [
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K9N>
+          Zig 单测全绿。
+          </?01M05F1PT3GYZSYPPXDBCC2K9N>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K9P>
+          Bun 相关测试全绿。
+          </?01M05F1PT3GYZSYPPXDBCC2K9P>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K9Q>
+          strict codument validate 通过。
+          </?01M05F1PT3GYZSYPPXDBCC2K9Q>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K9R>
+          Windows 实机验证记录在 analysis/findings.md。
+          </?01M05F1PT3GYZSYPPXDBCC2K9R>
+          <Criterion ?01M05F1PT3GYZSYPPXDBCC2K9S>
+          diff 审查无无关改动。
+          </?01M05F1PT3GYZSYPPXDBCC2K9S>
+        ]>
+        <SubNodes [
+          <Task { id = "T4.1" name = "全量验证" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PT3GYZSYPPXDBCC2K9T>
+            运行 zig test、bun test、strict validate、Windows 实机集成验证。
+            </?01M05F1PT3GYZSYPPXDBCC2K9T>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K9V>
+              测试与 validate 通过。
+              </?01M05F1PT3GYZSYPPXDBCC2K9V>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1PT3GYZSYPPXDBCC2K9W>
+              实机验证结果记录在 analysis/findings.md。
+              </?01M05F1PT3GYZSYPPXDBCC2K9W>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = false }>
+          )>
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

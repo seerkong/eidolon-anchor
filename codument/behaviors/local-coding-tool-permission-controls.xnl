@@ -1,0 +1,361 @@
+<Behavior #local-coding-tool-permission-controls apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #home-scoped-local-permission-config (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJFD>
+      系统应当（SHALL）从 home 级 `.eidolon` 目录加载本地权限配置，而不是依赖 workspace 内可被运行时修改的权限真相文件。
+      </?01M05F1P2KY6E0MZEG1MV0DJFD>
+      <Suites [
+        <Suite { name = "home-scoped-local-permission-config" } (
+          <Cases [
+            <Case #load-local-permission-rules-from-home-config { name = "Load local permission rules from home config" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFE>
+              系统从该 home 级配置读取规则
+              </?01M05F1P2KY6E0MZEG1MV0DJFE>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFF>
+              不要求 workspace 内存在权限配置文件
+              </?01M05F1P2KY6E0MZEG1MV0DJFF>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJFG>
+              用户在 `~/.eidolon/permissions.json` 中声明了权限规则
+              </?01M05F1P2KY6E0MZEG1MV0DJFG>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJFH>
+              runtime 执行 `bash` 或文件工具
+              </?01M05F1P2KY6E0MZEG1MV0DJFH>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #configurable-allow-deny-ask-for-coding-tools (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJFJ>
+      系统应当（SHALL）继续让 `bash`、`read`、`write`、`edit`、`multiedit`、`ls`、`glob`、`grep` 共享统一的本地权限求值语义，并允许 `exec` 兼容命令通过正式 profile 将 `ask` 转换为自动放行，而不是进入交互式审批等待。
+      </?01M05F1P2KY6E0MZEG1MV0DJFJ>
+      <Suites [
+        <Suite { name = "configurable-allow-deny-ask-for-coding-tools" } (
+          <Cases [
+            <Case #deny-a-bash-segment-by-pattern { name = "Deny a bash segment by pattern" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFK>
+              工具调用被拒绝
+              </?01M05F1P2KY6E0MZEG1MV0DJFK>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFM>
+              不执行对应 shell 命令
+              </?01M05F1P2KY6E0MZEG1MV0DJFM>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJFN>
+              `permissions.json` 将某条 `bash` pattern 配置为 `deny`
+              </?01M05F1P2KY6E0MZEG1MV0DJFN>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJFP>
+              agent 调用包含该 segment 的 `bash`
+              </?01M05F1P2KY6E0MZEG1MV0DJFP>
+            )>
+            <Case #ask-before-reading-a-guarded-file { name = "Ask before reading a guarded file" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFQ>
+              runtime 发起 approval questionnaire
+              </?01M05F1P2KY6E0MZEG1MV0DJFQ>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFR>
+              当前执行进入 `questionnaire_wait`
+              </?01M05F1P2KY6E0MZEG1MV0DJFR>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJFS>
+              `permissions.json` 将某条 `read` pattern 配置为 `ask`
+              </?01M05F1P2KY6E0MZEG1MV0DJFS>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJFT>
+              agent 通过 `read`、`ls`、`glob` 或 `grep` 访问命中的目标路径或目录
+              </?01M05F1P2KY6E0MZEG1MV0DJFT>
+            )>
+            <Case #full-auto-auto-approves-guarded-in-workspace-tool-calls { name = "Full-auto auto-approves guarded in-workspace tool calls" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFV>
+              系统在 workspace 与显式额外可写目录边界内自动放行这些调用
+              </?01M05F1P2KY6E0MZEG1MV0DJFV>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFW>
+              不进入 questionnaire 阻塞链路
+              </?01M05F1P2KY6E0MZEG1MV0DJFW>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJFX>
+              调用方以 `exec --full-auto -C &amp;lt;workspace&amp;gt;` 启动 headless exec
+              </?01M05F1P2KY6E0MZEG1MV0DJFX>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJFY>
+              本地 coding 工具命中原本会进入 `ask` 的权限规则
+              </?01M05F1P2KY6E0MZEG1MV0DJFY>
+            )>
+            <Case #dangerous-bypass-disables-approvals-and-workspace-sandbox-checks { name = "Dangerous bypass disables approvals and workspace sandbox checks" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJFZ>
+              系统跳过审批等待
+              </?01M05F1P2KY6E0MZEG1MV0DJFZ>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJG0>
+              以危险模式运行，不再受 workspace-write 边界限制
+              </?01M05F1P2KY6E0MZEG1MV0DJG0>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJG1>
+              该模式仍被明确标记为危险行为
+              </?01M05F1P2KY6E0MZEG1MV0DJG1>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJG2>
+              调用方以 `exec --dangerously-bypass-approvals-and-sandbox` 启动命令
+              </?01M05F1P2KY6E0MZEG1MV0DJG2>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJG3>
+              headless exec 运行并触发本地工具调用
+              </?01M05F1P2KY6E0MZEG1MV0DJG3>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #workspace-external-paths-require-explicit-access-map (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJG4>
+      系统应当（SHALL）要求 workspace 外路径先命中 `~/.eidolon/workspace-access.json` 中按 workspace 声明的外部目录白名单；未命中时直接拒绝，命中后按授予的 `read/write` 能力执行。
+      </?01M05F1P2KY6E0MZEG1MV0DJG4>
+      <Suites [
+        <Suite { name = "workspace-external-paths-require-explicit-access-map" } (
+          <Cases [
+            <Case #deny-external-path-when-workspace-access-entry-is-missing { name = "Deny external path when workspace access entry is missing" } [
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJG5>
+              目标文件位于当前 `workDir` 之外
+              </?01M05F1P2KY6E0MZEG1MV0DJG5>
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJG6>
+              `workspace-access.json` 未为当前 workspace 声明该外部目录权限
+              </?01M05F1P2KY6E0MZEG1MV0DJG6>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJG7>
+              系统直接拒绝访问
+              </?01M05F1P2KY6E0MZEG1MV0DJG7>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJG8>
+              不把这类缺失白名单访问静默视为允许
+              </?01M05F1P2KY6E0MZEG1MV0DJG8>
+            ] (
+              <When ?01M05F1P2KY6E0MZEG1MV0DJG9>
+              agent 调用 `read`、`ls`、`glob`、`grep`、`write`、`edit` 或 `multiedit`
+              </?01M05F1P2KY6E0MZEG1MV0DJG9>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #workspace-access-can-be-granted-through-questionnaire-writeback (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJGA>
+      系统应当（SHALL）在 workspace 外目录尚未授权时，通过正式 questionnaire 提供目录授权选项，并在用户批准后把结果写回 `~/.eidolon/workspace-access.json`，随后自动重放原始工具调用。
+      </?01M05F1P2KY6E0MZEG1MV0DJGA>
+      <Suites [
+        <Suite { name = "workspace-access-can-be-granted-through-questionnaire-writeback" } (
+          <Cases [
+            <Case #external-read-offers-read-only-or-read-write-grant { name = "External read offers read-only or read-write grant" } [
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJGB>
+              agent 通过 `read`、`ls`、`glob` 或 `grep` 访问 workspace 外目录
+              </?01M05F1P2KY6E0MZEG1MV0DJGB>
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJGC>
+              当前 workspace 尚未对白名单声明该目录
+              </?01M05F1P2KY6E0MZEG1MV0DJGC>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGD>
+              系统发起 questionnaire
+              </?01M05F1P2KY6E0MZEG1MV0DJGD>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGE>
+              问卷至少提供&quot;授权只读&quot;&quot;授权读写&quot;&quot;拒绝授权&quot;选项
+              </?01M05F1P2KY6E0MZEG1MV0DJGE>
+            ] (
+              <When ?01M05F1P2KY6E0MZEG1MV0DJGF>
+              系统拦截本次访问
+              </?01M05F1P2KY6E0MZEG1MV0DJGF>
+            )>
+            <Case #approved-external-read-persists-grant-and-retries { name = "Approved external read persists grant and retries" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGG>
+              系统将授权结果写入 `workspace-access.json`
+              </?01M05F1P2KY6E0MZEG1MV0DJGG>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGH>
+              自动重放原始工具调用
+              </?01M05F1P2KY6E0MZEG1MV0DJGH>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGJ>
+              本次调用按新白名单成功执行
+              </?01M05F1P2KY6E0MZEG1MV0DJGJ>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJGK>
+              外部目录访问触发了目录授权 questionnaire
+              </?01M05F1P2KY6E0MZEG1MV0DJGK>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJGM>
+              用户批准合适的授权选项
+              </?01M05F1P2KY6E0MZEG1MV0DJGM>
+            )>
+            <Case #allow-external-write-when-workspace-access-entry-grants-write { name = "Allow external write when workspace access entry grants write" } (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJGN>
+              `workspace-access.json` 为当前 workspace 声明了某个外部目录的 `write` 权限
+              </?01M05F1P2KY6E0MZEG1MV0DJGN>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJGP>
+              agent 调用 `write`、`edit` 或 `multiedit`
+              </?01M05F1P2KY6E0MZEG1MV0DJGP>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGQ>
+              系统允许本次写入
+              </?01M05F1P2KY6E0MZEG1MV0DJGQ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #bash-permission-parsing-is-segment-based (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJGR>
+      系统应当（SHALL）对 shell 输入按可执行 segment 进行解析和判权，而不是只对整条原始命令字符串做模糊匹配。
+      </?01M05F1P2KY6E0MZEG1MV0DJGR>
+      <Suites [
+        <Suite { name = "bash-permission-parsing-is-segment-based" } (
+          <Cases [
+            <Case #mixed-bash-command-is-denied-when-any-segment-is-denied { name = "Mixed bash command is denied when any segment is denied" } [
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJGS>
+              一条 `bash` 输入包含多个由 `&amp;amp;&amp;amp;`、`||`、`;`、`|` 或 `&amp;amp;` 分隔的 segment
+              </?01M05F1P2KY6E0MZEG1MV0DJGS>
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJGT>
+              其中任一 segment 命中 `deny`
+              </?01M05F1P2KY6E0MZEG1MV0DJGT>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGV>
+              整次调用失败
+              </?01M05F1P2KY6E0MZEG1MV0DJGV>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGW>
+              不继续执行命令
+              </?01M05F1P2KY6E0MZEG1MV0DJGW>
+            ] (
+              <When ?01M05F1P2KY6E0MZEG1MV0DJGX>
+              系统执行该 `bash`
+              </?01M05F1P2KY6E0MZEG1MV0DJGX>
+            )>
+            <Case #unsupported-shell-syntax-fails-closed { name = "Unsupported shell syntax fails closed" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGY>
+              系统以 fail-closed 方式拒绝执行
+              </?01M05F1P2KY6E0MZEG1MV0DJGY>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJGZ>
+              不回退到宽松放行
+              </?01M05F1P2KY6E0MZEG1MV0DJGZ>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJH0>
+              `bash` 输入包含当前 parser 无法可靠建模的 shell 结构
+              </?01M05F1P2KY6E0MZEG1MV0DJH0>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJH1>
+              系统尝试为本地权限求值解析该输入
+              </?01M05F1P2KY6E0MZEG1MV0DJH1>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #file-tool-access-follows-runtime-permission-boundary (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJH2>
+      系统 MUST 让 `read`、`write`、`edit`、`multiedit`、`ls`、`glob`、`grep` 的可访问路径由当前 runtime 权限决定，而不是默认无限制访问任意绝对路径。
+      </?01M05F1P2KY6E0MZEG1MV0DJH2>
+      <Suites [
+        <Suite { name = "file-tool-access-follows-runtime-permission-boundary" } (
+          <Cases [
+            <Case #absolute-path-is-no-longer-implicitly-allowed { name = "Absolute path is no longer implicitly allowed" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJH3>
+              系统先评估 workspace 外目录白名单
+              </?01M05F1P2KY6E0MZEG1MV0DJH3>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJH4>
+              只有命中允许条件时才继续访问
+              </?01M05F1P2KY6E0MZEG1MV0DJH4>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJH5>
+              agent 传入一个位于 `workDir` 外的绝对路径
+              </?01M05F1P2KY6E0MZEG1MV0DJH5>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJH6>
+              文件工具执行该请求
+              </?01M05F1P2KY6E0MZEG1MV0DJH6>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #home-path-notation-is-normalized-before-permission-evaluation (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJH7>
+      系统应当（SHALL）在本地权限求值与工具执行前，先把 `~/...` 解析为真实 home 路径，而不是将其当作 workspace 相对路径。
+      </?01M05F1P2KY6E0MZEG1MV0DJH7>
+      <Suites [
+        <Suite { name = "home-path-notation-is-normalized-before-permission-evaluation" } (
+          <Cases [
+            <Case #ls-on-home-path-is-evaluated-against-actual-absolute-path { name = "Ls on home path is evaluated against actual absolute path" } [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJH8>
+              `~/tmp/demo5` 被解析为真实 home 目录下的绝对路径
+              </?01M05F1P2KY6E0MZEG1MV0DJH8>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJH9>
+              不会被错误拼接成 `&amp;lt;workDir&amp;gt;/~/tmp/demo5`
+              </?01M05F1P2KY6E0MZEG1MV0DJH9>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJHA>
+              agent 调用 `ls` 并传入 `~/tmp/demo5`
+              </?01M05F1P2KY6E0MZEG1MV0DJHA>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJHB>
+              系统做路径解析与权限判断
+              </?01M05F1P2KY6E0MZEG1MV0DJHB>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #explicit-file-tool-scope-intent (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJHC>
+      文件工具 SHALL 接受结构化 `scopeIntent=workspace|external`，默认值 SHALL 为 workspace；workspace intent 解析到 workspace 外路径时 SHALL fail closed 并返回可恢复诊断，MUST NOT 发起父级目录授权、静默重写路径或从路径文本猜测意图。只有 explicit external intent 才 SHALL 进入 workspace-access grant policy。
+      </?01M05F1P2KY6E0MZEG1MV0DJHC>
+      <Suites [
+        <Suite #intent-gate { name = "访问意图门控" } (
+          <Cases [
+            <Case #workspace-ancestor-does-not-prompt [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJHD>
+              系统 SHALL 拒绝并建议使用 `.` 或 workspace-relative path
+              </?01M05F1P2KY6E0MZEG1MV0DJHD>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJHE>
+              系统 MUST NOT 为父目录创建授权 questionnaire
+              </?01M05F1P2KY6E0MZEG1MV0DJHE>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJHF>
+              当前 workspace 为一个子目录，文件工具省略 scopeIntent 或指定 workspace
+              </?01M05F1P2KY6E0MZEG1MV0DJHF>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJHG>
+              调用请求该 workspace 的父目录
+              </?01M05F1P2KY6E0MZEG1MV0DJHG>
+            )>
+            <Case #external-intent-enters-grant-policy (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJHH>
+              调用显式指定 scopeIntent=external 且目标位于 workspace 外
+              </?01M05F1P2KY6E0MZEG1MV0DJHH>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJHJ>
+              目标尚未在 workspace-access map 授权
+              </?01M05F1P2KY6E0MZEG1MV0DJHJ>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJHK>
+              系统 SHALL 通过正式 grant policy/questionnaire 处理，不得自动允许
+              </?01M05F1P2KY6E0MZEG1MV0DJHK>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #least-privilege-external-grant-modes (
+      <Statement ?01M05F1P2KY6E0MZEG1MV0DJHM>
+      外部目录授权 questionnaire SHALL 区分 one-time 与 persistent grant；read 型请求的推荐快捷选项 SHALL 是 one-time read 或 persistent read，persistent read-write SHALL 只作为显式高级选项。one-time grant MUST NOT 写入 `workspace-access.json`，persistent grant SHALL 继续由现有 workspace-access authority 持久化。
+      </?01M05F1P2KY6E0MZEG1MV0DJHM>
+      <Suites [
+        <Suite #grant-modes { name = "最小权限授权" } (
+          <Cases [
+            <Case #one-time-read-replays-without-persisting [
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJHN>
+              系统 SHALL 仅重放当前工具调用
+              </?01M05F1P2KY6E0MZEG1MV0DJHN>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJHP>
+              系统 MUST NOT 修改 workspace-access.json
+              </?01M05F1P2KY6E0MZEG1MV0DJHP>
+            ] (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJHQ>
+              external read 请求进入授权问卷
+              </?01M05F1P2KY6E0MZEG1MV0DJHQ>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJHR>
+              用户选择 one-time read
+              </?01M05F1P2KY6E0MZEG1MV0DJHR>
+            )>
+            <Case #persistent-read-write-is-advanced (
+              <Given ?01M05F1P2KY6E0MZEG1MV0DJHS>
+              read 型 external 请求进入授权问卷
+              </?01M05F1P2KY6E0MZEG1MV0DJHS>
+              <When ?01M05F1P2KY6E0MZEG1MV0DJHT>
+              TUI 展示选项
+              </?01M05F1P2KY6E0MZEG1MV0DJHT>
+              <Then ?01M05F1P2KY6E0MZEG1MV0DJHV>
+              persistent read-write MUST NOT 与推荐 read 选项等权并列
+              </?01M05F1P2KY6E0MZEG1MV0DJHV>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

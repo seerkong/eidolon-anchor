@@ -1,0 +1,43 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_2_9_-_1_6_2_7_-_a_d_d_-_h_e_a_d_l_e_s_s_-_a_u_t_o_-_r_e_s_u_m_e.behavior_patch.terminal-headless-runtime-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-headless-runtime-cli" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-headless-runtime-cli/requirements/auto-resume-paused-progress" } (
+      <Requirement #auto-resume-paused-progress (
+        <Statement ?01M05F1PK60RKQ7PTBPWKDB22P>
+        Headless exec SHALL provide an explicit bounded auto-resume mode for resumable `paused_with_progress` turns; internal continuations MUST NOT append new user input.
+        </?01M05F1PK60RKQ7PTBPWKDB22P>
+        <Suites [
+          <Suite #auto-resume { name = "Headless auto-resume" } (
+            <Cases [
+              <Case #explicit-auto-resume-reaches-final [
+                <Then ?01M05F1PK60RKQ7PTBPWKDB22Q>
+                the runtime SHALL be resumed without adding a new user message
+                </?01M05F1PK60RKQ7PTBPWKDB22Q>
+                <Then ?01M05F1PK60RKQ7PTBPWKDB22R>
+                headless exec SHALL continue until final output, hard failure, no-progress pause, or the continuation limit
+                </?01M05F1PK60RKQ7PTBPWKDB22R>
+              ] (
+                <Given ?01M05F1PK60RKQ7PTBPWKDB22S>
+                a turn pauses with `runtime_turn_unsettled:*` after making progress
+                </?01M05F1PK60RKQ7PTBPWKDB22S>
+                <When ?01M05F1PK60RKQ7PTBPWKDB22T>
+                headless exec is run with auto-resume enabled
+                </?01M05F1PK60RKQ7PTBPWKDB22T>
+              )>
+              <Case #default-paused-behavior-remains (
+                <Given ?01M05F1PK60RKQ7PTBPWKDB22V>
+                a turn pauses with `runtime_turn_unsettled:*` after making progress
+                </?01M05F1PK60RKQ7PTBPWKDB22V>
+                <When ?01M05F1PK60RKQ7PTBPWKDB22W>
+                headless exec is run without auto-resume
+                </?01M05F1PK60RKQ7PTBPWKDB22W>
+                <Then ?01M05F1PK60RKQ7PTBPWKDB22X>
+                the result SHALL remain `paused_with_progress`
+                </?01M05F1PK60RKQ7PTBPWKDB22X>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

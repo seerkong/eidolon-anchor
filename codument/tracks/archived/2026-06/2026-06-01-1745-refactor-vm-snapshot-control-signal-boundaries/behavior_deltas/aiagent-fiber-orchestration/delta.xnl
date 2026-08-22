@@ -1,0 +1,48 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_1_-_1_7_4_5_-_r_e_f_a_c_t_o_r_-_v_m_-_s_n_a_p_s_h_o_t_-_c_o_n_t_r_o_l_-_s_i_g_n_a_l_-_b_o_u_n_d_a_r_i_e_s.behavior_patch.aiagent-fiber-orchestration apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-fiber-orchestration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/durable-control-signal-scheduling" } (
+      <Requirement #durable-control-signal-scheduling (
+        <Statement ?01M05F1PETEBVQ1CMM1TR7SCM7>
+        系统 SHALL make durable control signals the source of truth for fiber wake, resume, and interrupt scheduling while keeping signal payloads bounded and separate from message history.
+        </?01M05F1PETEBVQ1CMM1TR7SCM7>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/durable-control-signal-scheduling" strength = "hint" }>
+        <Suites [
+          <Suite #mailbox-enqueue-scheduling { name = "Mailbox enqueue scheduling" } (
+            <Cases [
+              <Case #wake-signal-uses-bounded-payload [
+                <Then ?01M05F1PETEBVQ1CMM1TR7SCM8>
+                The signal SHALL include scheduling metadata sufficient for wake/resume recovery
+                </?01M05F1PETEBVQ1CMM1TR7SCM8>
+                <Then ?01M05F1PETEBVQ1CMM1TR7SCM9>
+                The signal SHALL NOT duplicate unbounded mailbox payloads that are owned by actor mailbox, transcript, conversation, or artifact persistence
+                </?01M05F1PETEBVQ1CMM1TR7SCM9>
+              ] (
+                <Given ?01M05F1PETEBVQ1CMM1TR7SCMA>
+                A wake message such as LLM done, tool done, child done, human input, or heartbeat arrives
+                </?01M05F1PETEBVQ1CMM1TR7SCMA>
+                <When ?01M05F1PETEBVQ1CMM1TR7SCMB>
+                The runtime persists the durable control signal
+                </?01M05F1PETEBVQ1CMM1TR7SCMB>
+              )>
+              <Case #pending-signal-redelivery-with-payload-ref [
+                <Then ?01M05F1PETEBVQ1CMM1TR7SCMC>
+                The runtime SHALL redeliver the intended mailbox message using the actor mailbox snapshot or payload reference
+                </?01M05F1PETEBVQ1CMM1TR7SCMC>
+                <Then ?01M05F1PETEBVQ1CMM1TR7SCMD>
+                The fiber SHALL continue without transcript-tail inference
+                </?01M05F1PETEBVQ1CMM1TR7SCMD>
+              ] (
+                <Given ?01M05F1PETEBVQ1CMM1TR7SCME>
+                A signal is pending when the process exits
+                </?01M05F1PETEBVQ1CMM1TR7SCME>
+                <When ?01M05F1PETEBVQ1CMM1TR7SCMF>
+                The runtime recovers the session
+                </?01M05F1PETEBVQ1CMM1TR7SCMF>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

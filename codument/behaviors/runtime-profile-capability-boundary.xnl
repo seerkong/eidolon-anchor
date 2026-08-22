@@ -1,0 +1,93 @@
+<Behavior #runtime-profile-capability-boundary apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #single-profile-composition-entry (
+      <Statement ?01M05F1P3AGKTA254WT5PKHQ8Y>
+      系统 SHALL 通过单一 profile composition path 创建 CLI、TUI 和 headless runtime。
+      </?01M05F1P3AGKTA254WT5PKHQ8Y>
+      <Suites [
+        <Suite #entry-composition { name = "Entry composition" } (
+          <Cases [
+            <Case #same-profile-same-binding (
+              <Given ?01M05F1P3AGKTA254WT5PKHQ8Z>
+              CLI、TUI 和 headless 使用同一个 runtime profile
+              </?01M05F1P3AGKTA254WT5PKHQ8Z>
+              <When ?01M05F1P3AGKTA254WT5PKHQ90>
+              系统创建 runtime binding descriptor
+              </?01M05F1P3AGKTA254WT5PKHQ90>
+              <Then ?01M05F1P3AGKTA254WT5PKHQ91>
+              三个入口 SHALL 生成兼容的 profile、capability 和 storage binding 描述
+              </?01M05F1P3AGKTA254WT5PKHQ91>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #surface-entry-no-domain-truth (
+      <Statement ?01M05F1P3AGKTA254WT5PKHQ92>
+      Product surface SHALL NOT 直接定义 AI domain truth、provider/tool/conversation 默认语义或 domain fact writer。
+      </?01M05F1P3AGKTA254WT5PKHQ92>
+      <Suites [
+        <Suite #surface-boundary { name = "Surface boundary" } (
+          <Cases [
+            <Case #surface-selects-profile-only [
+              <Then ?01M05F1P3AGKTA254WT5PKHQ93>
+              entry SHALL 只选择 profile 并提供 surface adapter
+              </?01M05F1P3AGKTA254WT5PKHQ93>
+              <Then ?01M05F1P3AGKTA254WT5PKHQ94>
+              entry SHALL NOT 私有创建 provider、tool、conversation 或 history owner
+              </?01M05F1P3AGKTA254WT5PKHQ94>
+            ] (
+              <Given ?01M05F1P3AGKTA254WT5PKHQ95>
+              一个 product surface entry 需要启动 AI runtime
+              </?01M05F1P3AGKTA254WT5PKHQ95>
+              <When ?01M05F1P3AGKTA254WT5PKHQ96>
+              entry 初始化 runtime
+              </?01M05F1P3AGKTA254WT5PKHQ96>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #runtime-storage-capability-flags (
+      <Statement ?01M05F1P3AGKTA254WT5PKHQ97>
+      Runtime storage capabilities SHALL 显式表达 logs/files 开关，关闭持久化文件写入不得阻止 memory-only AI loop。
+      </?01M05F1P3AGKTA254WT5PKHQ97>
+      <Suites [
+        <Suite #storage-capability { name = "Storage capability" } (
+          <Cases [
+            <Case #memory-only-loop [
+              <Then ?01M05F1P3AGKTA254WT5PKHQ98>
+              AI loop SHALL 可以在 memory-only profile 下完成
+              </?01M05F1P3AGKTA254WT5PKHQ98>
+              <Then ?01M05F1P3AGKTA254WT5PKHQ99>
+              系统 SHALL NOT 因 session 文件写入关闭而停止主流程
+              </?01M05F1P3AGKTA254WT5PKHQ99>
+            ] (
+              <Given ?01M05F1P3AGKTA254WT5PKHQ9A>
+              runtime profile 禁用 logs 和 files storage capabilities
+              </?01M05F1P3AGKTA254WT5PKHQ9A>
+              <When ?01M05F1P3AGKTA254WT5PKHQ9B>
+              用户发起普通对话
+              </?01M05F1P3AGKTA254WT5PKHQ9B>
+            )>
+            <Case #shared-upgrade-capability [
+              <Then ?01M05F1P3AGKTA254WT5PKHQ9C>
+              TUI SHALL 调用共享 upgrade capability
+              </?01M05F1P3AGKTA254WT5PKHQ9C>
+              <Then ?01M05F1P3AGKTA254WT5PKHQ9D>
+              TUI SHALL NOT 实现私有 session migration 语义
+              </?01M05F1P3AGKTA254WT5PKHQ9D>
+            ] (
+              <Given ?01M05F1P3AGKTA254WT5PKHQ9E>
+              TUI session picker 加载需要升级的旧 session
+              </?01M05F1P3AGKTA254WT5PKHQ9E>
+              <When ?01M05F1P3AGKTA254WT5PKHQ9F>
+              用户确认升级
+              </?01M05F1P3AGKTA254WT5PKHQ9F>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

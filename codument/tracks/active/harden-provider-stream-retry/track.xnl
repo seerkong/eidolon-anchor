@@ -1,0 +1,152 @@
+<Track #harden-provider-stream-retry apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Make retryable provider failures raised during stream consumption follow the existing retry policy without replaying attempts that already emitted visible output." description = "Harden the provider attempt boundary, stream retry safety classification, and retry diagnostics for OpenAI Responses, Chat Completions, DeepSeek, and delegate/primary runtime paths." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-19T04:24:14.297Z" updated_at = "2026-08-19T04:43:27.436Z" modeling_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0" engineering_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_harden-provider-stream-retry { name = "harden-provider-stream-retry" version = "1" child_mode = "dag" } (
+    <Description ?01M0C4HHWN9YGH7BYC1210NC86>
+    Implement safe retry across provider stream creation and consumption while preserving no-replay-after-visible-output semantics.
+    </?01M0C4HHWN9YGH7BYC1210NC86>
+    <SubNodes [
+      <TaskGroup #P1 { name = "stream attempt contract and retry boundary" status = "DONE" order = 0 } (
+        <Description ?01M0C4HHWPCSM62QAEHE805VJ2>
+        Define typed attempt output state and move the retry boundary over stream consumption.
+        </?01M0C4HHWPCSM62QAEHE805VJ2>
+        <Gate [
+          <Criterion { checked = true } ?01M0C4HHWPCSM62QAEHE805VJ3>
+          Stream failures before visible output reuse the provider retry policy.
+          </?01M0C4HHWPCSM62QAEHE805VJ3>
+          <Criterion { checked = true } ?01M0C4HHWPCSM62QAEHE805VJ4>
+          Failures after visible output do not automatically replay the request.
+          </?01M0C4HHWPCSM62QAEHE805VJ4>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "define stream attempt output state" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M0C4HHWPCSM62QAEHE805VJ5>
+            Add the smallest contract needed to tell whether an attempt has emitted assistant content, reasoning, or tool-call data, and expose a retry safety classification.
+            </?01M0C4HHWPCSM62QAEHE805VJ5>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJ6>
+              Pure tests cover none, visible output, completed, and indeterminate-after-accept states.
+              </?01M0C4HHWPCSM62QAEHE805VJ6>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJ7>
+              No work-mode, tool-name, or task-specific threshold is introduced.
+              </?01M0C4HHWPCSM62QAEHE805VJ7>
+            ]>
+          )>
+          <Task #P1-T2 { name = "wrap stream consumption in provider retry" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M0C4HHWPCSM62QAEHE805VJ8>
+            Make ProviderRuntimeAdapter retry the complete stream attempt, including consumption, while preserving abort and prompt-too-long special handling.
+            </?01M0C4HHWPCSM62QAEHE805VJ8>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJ9>
+              A retryable stream failure before visible output causes a new provider attempt.
+              </?01M0C4HHWPCSM62QAEHE805VJ9>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJA>
+              A retryable stream failure after visible output terminates without replay.
+              </?01M0C4HHWPCSM62QAEHE805VJA>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJB>
+              Existing request-establishment retry behavior remains unchanged.
+              </?01M0C4HHWPCSM62QAEHE805VJB>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Responses and provider diagnostics" status = "DONE" order = 1 } (
+        <Description ?01M0C4HHWPCSM62QAEHE805VJC>
+        Connect Responses SSE/WS stream errors and provider attempt diagnostics to the new retry boundary.
+        </?01M0C4HHWPCSM62QAEHE805VJC>
+        <Gate [
+          <Criterion { checked = true } ?01M0C4HHWPCSM62QAEHE805VJD>
+          Responses response.failed/server_error failures are classified and retried only when safe.
+          </?01M0C4HHWPCSM62QAEHE805VJD>
+          <Criterion { checked = true } ?01M0C4HHWPCSM62QAEHE805VJE>
+          Each actual attempt and terminal retry decision is observable.
+          </?01M0C4HHWPCSM62QAEHE805VJE>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "integrate Responses stream failure state" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M0C4HHWPCSM62QAEHE805VJF>
+            Mark visible output as soon as Responses emits relevant content/reasoning/function-call events and propagate stream failures with replay safety.
+            </?01M0C4HHWPCSM62QAEHE805VJF>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJG>
+              SSE and WebSocket response.failed/error paths use the shared attempt classification.
+              </?01M0C4HHWPCSM62QAEHE805VJG>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJH>
+              Failed attempts do not publish replay checkpoint or continuation baseline.
+              </?01M0C4HHWPCSM62QAEHE805VJH>
+            ]>
+          )>
+          <Task #P2-T2 { name = "persist attempt retry diagnostics" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M0C4HHWPCSM62QAEHE805VJJ>
+            Record attempt number, retry count, termination reason, retry scope, replay safety, and provider/actor identity for stream failures.
+            </?01M0C4HHWPCSM62QAEHE805VJJ>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJK>
+              A transient stream failure has a diagnostic with retry_scheduled when a retry occurs.
+              </?01M0C4HHWPCSM62QAEHE805VJK>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJM>
+              A visible-output failure has a diagnostic with indeterminate-after-accept and no retry.
+              </?01M0C4HHWPCSM62QAEHE805VJM>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "cross-provider regression and verification" status = "DONE" order = 2 } (
+        <Description ?01M0C4HHWPCSM62QAEHE805VJN>
+        Verify Responses, OpenAI Chat, DeepSeek, delegate, and primary paths without changing existing provider contracts.
+        </?01M0C4HHWPCSM62QAEHE805VJN>
+        <Gate [
+          <Criterion { checked = true } ?01M0C4HHWPCSM62QAEHE805VJP>
+          Targeted provider retry, Responses, Chat, DeepSeek, and executor tests pass.
+          </?01M0C4HHWPCSM62QAEHE805VJP>
+          <Criterion { checked = true } ?01M0C4HHWPCSM62QAEHE805VJQ>
+          A bounded session reproduction demonstrates retry or safe terminal failure with diagnostics.
+          </?01M0C4HHWPCSM62QAEHE805VJQ>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "add cross-provider stream retry tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M0C4HHWPCSM62QAEHE805VJR>
+            Add deterministic tests for SSE failure before/after visible output and verify DeepSeek reasoning/tool behavior remains unchanged.
+            </?01M0C4HHWPCSM62QAEHE805VJR>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJS>
+              Responses and Chat stream retry tests cover safe and unsafe replay cases.
+              </?01M0C4HHWPCSM62QAEHE805VJS>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJT>
+              DeepSeek-specific regression tests remain green.
+              </?01M0C4HHWPCSM62QAEHE805VJT>
+            ]>
+          )>
+          <Task #P3-T2 { name = "run bounded provider failure verification" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M0C4HHWPCSM62QAEHE805VJV>
+            Run targeted tests and a bounded real-session or mocked transport verification; record actual attempts and remaining environment limitations.
+            </?01M0C4HHWPCSM62QAEHE805VJV>
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJW>
+              Verification evidence distinguishes actual retries from retryable terminal failures.
+              </?01M0C4HHWPCSM62QAEHE805VJW>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0C4HHWPCSM62QAEHE805VJX>
+              No unbounded retry or duplicate tool execution is introduced.
+              </?01M0C4HHWPCSM62QAEHE805VJX>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_harden-provider-stream-retry" } [
+      <Node #P1 []>
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "phase:after" } (
+      <AttractorCheck { use = "coding" }>
+    )>
+  ]>
+)>

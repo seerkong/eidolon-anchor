@@ -1,0 +1,39 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_1_0_-_1_8_0_0_-_f_i_x_-_w_i_n_d_o_w_s_-_p_l_a_t_f_o_r_m_-_a_n_d_-_s_a_n_d_b_o_x_-_c_o_m_p_a_t.behavior_patch.windows-platform-awareness apiVersion="codument.tech/v1alpha1" version="1" { capability = "windows-platform-awareness" } (
+  <Mutations [
+    <Upsert { selector = "behavior://windows-platform-awareness/requirements/platform-injection" } (
+      <Requirement #platform-injection (
+        <Statement ?01M05F1PSWD5JP9A8TFQR63RJ1>
+        Agent 系统提示词与 outerCtx.metadata SHALL 携带运行平台信息（platform、shell、路径分隔符、命令替代提示），主 agent 与 delegate SHALL 均能感知，并在 Windows 上选择正确的命令与路径形式。tui_a1 不传 metadata 时 SHALL 有合理默认（sandbox_permissions=workspace-write、exec_protocol.mode=full-auto、platform=win32）。
+        </?01M05F1PSWD5JP9A8TFQR63RJ1>
+        <Suites [
+          <Suite #platform-awareness { name = "Platform awareness" } (
+            <Cases [
+              <Case #system-prompt-platform-block (
+                <Given ?01M05F1PSWD5JP9A8TFQR63RJ2>
+                运行平台是 win32
+                </?01M05F1PSWD5JP9A8TFQR63RJ2>
+                <When ?01M05F1PSWD5JP9A8TFQR63RJ3>
+                构造主 agent 或 delegate 的系统提示词
+                </?01M05F1PSWD5JP9A8TFQR63RJ3>
+                <Then ?01M05F1PSWD5JP9A8TFQR63RJ4>
+                系统提示词 SHALL 包含平台信息块（platform/shell/路径分隔符/命令替代提示）
+                </?01M05F1PSWD5JP9A8TFQR63RJ4>
+              )>
+              <Case #metadata-defaults (
+                <Given ?01M05F1PSWD5JP9A8TFQR63RJ5>
+                tui_a1 启动且未传 metadata
+                </?01M05F1PSWD5JP9A8TFQR63RJ5>
+                <When ?01M05F1PSWD5JP9A8TFQR63RJ6>
+                normalizeTerminalRuntimeMetadata 规范化 metadata
+                </?01M05F1PSWD5JP9A8TFQR63RJ6>
+                <Then ?01M05F1PSWD5JP9A8TFQR63RJ7>
+                metadata SHALL 包含 platform=win32、sandbox_permissions.sandbox_mode=workspace-write、exec_protocol.mode=full-auto
+                </?01M05F1PSWD5JP9A8TFQR63RJ7>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

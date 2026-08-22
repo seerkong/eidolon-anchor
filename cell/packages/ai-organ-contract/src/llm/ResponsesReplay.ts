@@ -51,7 +51,8 @@ export type ResponsesCallLineageInvalidReason =
   | "duplicate_function_call"
   | "duplicate_function_call_output"
   | "out_of_order_function_call_output"
-  | "orphan_function_call_output";
+  | "orphan_function_call_output"
+  | "unresolved_function_call";
 
 export type ResponsesCallLineageDecision =
   | ResponsesCallLineageProof

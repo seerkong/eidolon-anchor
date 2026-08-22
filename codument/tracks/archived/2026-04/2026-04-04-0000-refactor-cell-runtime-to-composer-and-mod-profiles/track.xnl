@@ -1,0 +1,21 @@
+<Track #refactor-cell-runtime-to-composer-and-mod-profiles version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Legacy archived track migrated with invalid source plan.xml." description = "Original plan.xml could not be parsed during migration: not well-formed (invalid token): line 446, column 113" commit_mode = "manual" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-cell-runtime-to-composer-and-mod-profiles { name = "refactor-cell-runtime-to-composer-and-mod-profiles" } (
+    <Description ?01M05F1PA2PNNYBWQ9HVVPYP77>
+    Legacy invalid plan preserved under codument/legacy/archive/.
+    </?01M05F1PA2PNNYBWQ9HVVPYP77>
+    <SubNodes [
+      <TaskGroup #P1 { name = "legacy-plan-preserved" status = "DONE" order = 0 } (
+        <Description ?01M05F1PA2PNNYBWQ9HVVPYP78>
+        Source plan.xml was invalid XML and was preserved for audit.
+        </?01M05F1PA2PNNYBWQ9HVVPYP78>
+        <SubNodes>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

@@ -1,0 +1,69 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_5_-_1_2_3_0_-_a_d_d_-_r_u_n_t_i_m_e_-_s_n_a_p_s_h_o_t_-_s_a_f_e_p_o_i_n_t_s.behavior_patch.aiagent-fiber-orchestration apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-fiber-orchestration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/mandatory-continuation-settling" } (
+      <Requirement #mandatory-continuation-settling (
+        <Statement ?01M05F1PFMZFHTABDD4JSJ151T>
+        系统 SHALL treat protocol-critical cooperative continuations as mandatory work that must be consumed before a foreground or all-lane settle operation reports a snapshot-safe boundary.
+        </?01M05F1PFMZFHTABDD4JSJ151T>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/mandatory-continuation-settling" strength = "hint" }>
+        <Suites [
+          <Suite #foreground-settle-boundary { name = "Foreground settle boundary" } (
+            <Cases [
+              <Case #start-tool-is-mandatory-continuation [
+                <Then ?01M05F1PFMZFHTABDD4JSJ151V>
+                The actor history has an assistant tool call awaiting runtime tool startup
+                </?01M05F1PFMZFHTABDD4JSJ151V>
+                <Then ?01M05F1PFMZFHTABDD4JSJ151W>
+                The scheduler SHALL continue executing `agent_step` work until `start_tool` creates durable tool operation state or reaches a typed wait
+                </?01M05F1PFMZFHTABDD4JSJ151W>
+                <Then ?01M05F1PFMZFHTABDD4JSJ151X>
+                The scheduler SHALL NOT report a snapshot-safe settled state while the `start_tool` continuation remains unconsumed
+                </?01M05F1PFMZFHTABDD4JSJ151X>
+              ] (
+                <Given ?01M05F1PFMZFHTABDD4JSJ151Y>
+                A foreground fiber is `ready` with cooperative exec state `start_tool`
+                </?01M05F1PFMZFHTABDD4JSJ151Y>
+                <When ?01M05F1PFMZFHTABDD4JSJ151Z>
+                The foreground scheduler settles the runtime for snapshot or turn completion
+                </?01M05F1PFMZFHTABDD4JSJ151Z>
+              )>
+              <Case #settled-distinguishes-idle-from-unsafe-ready [
+                <Then ?01M05F1PFMZFHTABDD4JSJ1520>
+                A ready fiber still has mandatory continuation work
+                </?01M05F1PFMZFHTABDD4JSJ1520>
+                <Then ?01M05F1PFMZFHTABDD4JSJ1521>
+                The runtime SHALL classify the lane as not settled for snapshot purposes
+                </?01M05F1PFMZFHTABDD4JSJ1521>
+                <Then ?01M05F1PFMZFHTABDD4JSJ1522>
+                The runtime SHALL either schedule the continuation or surface a diagnostic if progress is impossible
+                </?01M05F1PFMZFHTABDD4JSJ1522>
+              ] (
+                <Given ?01M05F1PFMZFHTABDD4JSJ1523>
+                No fiber is currently running
+                </?01M05F1PFMZFHTABDD4JSJ1523>
+                <When ?01M05F1PFMZFHTABDD4JSJ1524>
+                The runtime evaluates whether the foreground lane is settled
+                </?01M05F1PFMZFHTABDD4JSJ1524>
+              )>
+            ]>
+          )>
+          <Suite #mailbox-drain-observability { name = "Mailbox drain observability" } (
+            <Cases [
+              <Case #fiber-result-drained-before-safepoint (
+                <Given ?01M05F1PFMZFHTABDD4JSJ1525>
+                A fiber actor has returned `yield` and posted `fiber_result` to the orchestrator mailbox
+                </?01M05F1PFMZFHTABDD4JSJ1525>
+                <When ?01M05F1PFMZFHTABDD4JSJ1526>
+                The scheduler checks for a snapshot-safe boundary
+                </?01M05F1PFMZFHTABDD4JSJ1526>
+                <Then ?01M05F1PFMZFHTABDD4JSJ1527>
+                The runtime SHALL ensure queued orchestrator results that affect scheduling have been delivered or are represented as recoverable durable work
+                </?01M05F1PFMZFHTABDD4JSJ1527>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

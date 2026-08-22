@@ -1,0 +1,47 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_2_6_-_1_8_1_0_-_u_p_g_r_a_d_e_-_d_e_p_a_-_d_a_t_a_-_g_r_a_p_h_-_p_a_c_k_a_g_e_-_b_a_s_e_l_i_n_e.behavior_patch.vendor-data-graph-stream-foundations apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-data-graph-stream-foundations" } (
+  <Mutations [
+    <Upsert { selector = "behavior://vendor-data-graph-stream-foundations/requirements/host-unified-data-graph-package-baseline" } (
+      <Requirement #host-unified-data-graph-package-baseline (
+        <Statement ?01M05F1PMG7PVGAVAK14P4JCJJ>
+        The host workspace SHALL resolve every direct depa-data-graph core and Solid dependency to the upstream unified 1.0.1 release line, and its boundary guard SHALL describe the current public API rather than removed projection APIs or stale package topology.
+        </?01M05F1PMG7PVGAVAK14P4JCJJ>
+        <Suites [
+          <Suite #dependency-resolution { name = "Unified dependency resolution" } (
+            <Cases [
+              <Case #all-direct-manifests-and-lockfile-use-unified-release (
+                <Given ?01M05F1PMG7PVGAVAK14P4JCJK>
+                Cell and terminal packages directly depend on depa-data-graph core or Solid
+                </?01M05F1PMG7PVGAVAK14P4JCJK>
+                <When ?01M05F1PMG7PVGAVAK14P4JCJM>
+                the workspace resolves its dependencies
+                </?01M05F1PMG7PVGAVAK14P4JCJM>
+                <Then ?01M05F1PMG7PVGAVAK14P4JCJN>
+                every direct manifest SHALL request the 1.0.1 release line and bun.lock SHALL resolve core and Solid without a legacy 0.1.x entry
+                </?01M05F1PMG7PVGAVAK14P4JCJN>
+              )>
+            ]>
+          )>
+          <Suite #surface-guard { name = "Current vendor surface guard" } (
+            <Cases [
+              <Case #boundary-test-targets-unified-public-api [
+                <Then ?01M05F1PMG7PVGAVAK14P4JCJP>
+                it SHALL require supported generic exports and SHALL NOT require removed ReducerProjection or createReducerProjection exports
+                </?01M05F1PMG7PVGAVAK14P4JCJP>
+                <Then ?01M05F1PMG7PVGAVAK14P4JCJQ>
+                it SHALL locate current AI-specific source ownership paths rather than stale package topology
+                </?01M05F1PMG7PVGAVAK14P4JCJQ>
+              ] (
+                <Given ?01M05F1PMG7PVGAVAK14P4JCJR>
+                the target package exposes unified DataGraph state-node and timeline foundations
+                </?01M05F1PMG7PVGAVAK14P4JCJR>
+                <When ?01M05F1PMG7PVGAVAK14P4JCJS>
+                the vendor data-graph boundary test runs
+                </?01M05F1PMG7PVGAVAK14P4JCJS>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,43 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_3_-_1_6_1_9_-_a_d_d_-_t_u_i_-_c_o_m_p_o_s_e_r_-_a_t_t_a_c_h_m_e_n_t_s.behavior_patch.runtime-session-persistence apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-session-persistence" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-session-persistence/requirements/provider-secret-redaction" } (
+      <Requirement #provider-secret-redaction (
+        <Statement ?01M05F1PNXWW8VNQKS9CS2CN6D>
+        Durable runtime snapshot SHALL 保留 actor 的 provider/model/capability 选择，但 MUST NOT 以明文保存 provider API key、authorization、token、secret 或嵌套 connection credential；恢复时脱敏占位符 MUST NOT 被当作有效凭据，真实凭据 SHALL 从当前 provider 配置重新注入。
+        </?01M05F1PNXWW8VNQKS9CS2CN6D>
+        <Suites [
+          <Suite #actor-snapshot-secrets { name = "Actor snapshot 凭据安全" } (
+            <Cases [
+              <Case #actor-json-redacts-provider-key [
+                <Then ?01M05F1PNXWW8VNQKS9CS2CN6E>
+                actor.json MUST NOT 包含任一原始 secret
+                </?01M05F1PNXWW8VNQKS9CS2CN6E>
+                <Then ?01M05F1PNXWW8VNQKS9CS2CN6F>
+                非敏感 provider、model、base URL、limits 与 capabilities SHALL 保持可恢复
+                </?01M05F1PNXWW8VNQKS9CS2CN6F>
+              ] (
+                <Given ?01M05F1PNXWW8VNQKS9CS2CN6G>
+                actor modelConfig 与嵌套 options 含 provider API key/authorization/token
+                </?01M05F1PNXWW8VNQKS9CS2CN6G>
+                <When ?01M05F1PNXWW8VNQKS9CS2CN6H>
+                runtime 写入 actors/*/actor.json
+                </?01M05F1PNXWW8VNQKS9CS2CN6H>
+              )>
+              <Case #recovery-rehydrates-current-credential (
+                <Given ?01M05F1PNXWW8VNQKS9CS2CN6J>
+                session actor snapshot 的凭据已经脱敏且当前 provider 配置含有效凭据
+                </?01M05F1PNXWW8VNQKS9CS2CN6J>
+                <When ?01M05F1PNXWW8VNQKS9CS2CN6K>
+                runtime 恢复 actor 并创建 provider adapter
+                </?01M05F1PNXWW8VNQKS9CS2CN6K>
+                <Then ?01M05F1PNXWW8VNQKS9CS2CN6M>
+                脱敏值 MUST NOT 覆盖当前配置，provider/model 选择 SHALL 保持，adapter SHALL 使用当前配置凭据
+                </?01M05F1PNXWW8VNQKS9CS2CN6M>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

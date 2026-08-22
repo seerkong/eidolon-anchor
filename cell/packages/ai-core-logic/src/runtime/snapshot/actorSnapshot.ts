@@ -39,6 +39,7 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
       planApproval: actor.planApproval,
       shutdownCoordination: actor.shutdownCoordination,
       toolPolicy: {
+        allowedToolsMode: actor.toolPolicy.allowedToolsMode,
         allowedTools: [...actor.toolPolicy.allowedTools],
         enabledToolKeys: [...actor.toolPolicy.enabledToolKeys],
         disabledToolKeys: [...actor.toolPolicy.disabledToolKeys],
@@ -104,6 +105,8 @@ function hydrateActorFromSnapshot(
     planApproval: snapshot.planApproval,
     shutdownCoordination: snapshot.shutdownCoordination,
     toolPolicy: {
+      allowedToolsMode: snapshot.toolPolicy.allowedToolsMode
+        ?? (snapshot.toolPolicy.allowedTools.length > 0 ? "exact" : "all"),
       allowedTools: [...snapshot.toolPolicy.allowedTools],
       enabledToolKeys: [...snapshot.toolPolicy.enabledToolKeys],
       disabledToolKeys: [...snapshot.toolPolicy.disabledToolKeys],

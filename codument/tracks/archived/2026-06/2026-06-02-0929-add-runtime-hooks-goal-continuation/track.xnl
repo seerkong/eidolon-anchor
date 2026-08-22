@@ -1,0 +1,265 @@
+<Track #add-runtime-hooks-goal-continuation version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "添加 Runtime Lifecycle Hook 并改造 Goal Continuation" description = "添加 module manifest/profile hook extension type，在 ai-organ-logic 实现 Sparrow-aligned hook producer 与 dispatcher，让 mod-ai-kernel/mod-ai-coding 通过 hooks 字段贡献 hook，并基于 actor.idle.before hook 改造 goal 自动续接。" commit_mode = "manual" created_at = "2026-06-01T17:21:15Z" updated_at = "2026-06-02T01:29:52Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-runtime-hooks-goal-continuation { name = "add-runtime-hooks-goal-continuation" } (
+    <Description ?01M05F1PF55QM1055E9KDQF0D3>
+    添加 Runtime Lifecycle Hook 并改造 Goal Continuation
+    </?01M05F1PF55QM1055E9KDQF0D3>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Contract And Assembly" status = "DONE" order = 0 } (
+        <Description ?01M05F1PF55QM1055E9KDQF0D4>
+        扩展 runtime assembly contract，使 lifecycle hooks 成为 first-class profile contribution。
+        </?01M05F1PF55QM1055E9KDQF0D4>
+        <SubNodes [
+          <Task { id = "T1.1" name = "新增 lifecycle hook contract 类型" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0D5>
+            在 AI domain assembly contract 中定义 Sparrow-aligned hook definition、matcher、invocation context、result、dispatch report 与标准组件 handler reference 类型。
+            </?01M05F1PF55QM1055E9KDQF0D5>
+            <Acceptance [
+              <Criterion { id = "AC1.1-contract-exported" checked = true } ?01M05F1PF55QM1055E9KDQF0D6>
+              相关类型从正式 contract export 暴露
+              </?01M05F1PF55QM1055E9KDQF0D6>
+              <Criterion { id = "AC1.1-effect-oriented" checked = true } ?01M05F1PF55QM1055E9KDQF0D7>
+              hook result 使用结构化 effects 表达副作用
+              </?01M05F1PF55QM1055E9KDQF0D7>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "扩展 module hooks 字段与 assembly state/result" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0D8>
+            在现有 module extension/manifest 中新增 hooks 字段，将 lifecycle hook descriptors 纳入 DomainRuntimeAssemblyState/Result，并保持 profile overlay 顺序；assembly 不拥有 dispatcher。
+            </?01M05F1PF55QM1055E9KDQF0D8>
+            <Acceptance [
+              <Criterion { id = "AC1.2-state-result" checked = true } ?01M05F1PF55QM1055E9KDQF0D9>
+              assembly state/result 包含 lifecycle hook 字段
+              </?01M05F1PF55QM1055E9KDQF0D9>
+              <Criterion { id = "AC1.2-tests" checked = true } ?01M05F1PF55QM1055E9KDQF0DA>
+              focused tests 覆盖多个 extension 贡献 hooks 的组合结果
+              </?01M05F1PF55QM1055E9KDQF0DA>
+            ]>
+          )>
+          <Task { id = "T1.3" name = "正式收集 runtime extension hooks 字段" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0DB>
+            在 AI runtime extension contract 上暴露 hooks contribution 字段，并由 composer 在 extension apply 后按 overlay 顺序归并到 assembly hookDefinitions。
+            </?01M05F1PF55QM1055E9KDQF0DB>
+            <Acceptance [
+              <Criterion { id = "AC1.3-extension-hooks-field" checked = true } ?01M05F1PF55QM1055E9KDQF0DC>
+              RuntimeExtension 类型包含 hooks 字段
+              </?01M05F1PF55QM1055E9KDQF0DC>
+              <Criterion { id = "AC1.3-composer-collects-hooks" checked = true } ?01M05F1PF55QM1055E9KDQF0DD>
+              assembleRuntimeProfile 从 extension hooks 字段收集 hook definitions
+              </?01M05F1PF55QM1055E9KDQF0DD>
+              <Criterion { id = "AC1.3-mod-profile-hooks" checked = true } ?01M05F1PF55QM1055E9KDQF0DE>
+              mod-ai-kernel 与 mod-ai-coding 的 hook contributions 声明在 module extension hooks 字段上
+              </?01M05F1PF55QM1055E9KDQF0DE>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Organ Hook Dispatcher" status = "DONE" order = 1 } (
+        <Description ?01M05F1PF55QM1055E9KDQF0DF>
+        在 ai-organ-logic 中实现 hook dispatcher，并使用 depa-processor runByFuncStyleAdapter 执行 hook handler。
+        </?01M05F1PF55QM1055E9KDQF0DF>
+        <SubNodes [
+          <Task { id = "T2.1" name = "实现 lifecycle hook dispatcher" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0DG>
+            在 ai-organ-logic 中实现 matcher、排序、reentrancy guard、timeout、failOpen、per-cycle budget、diagnostics 与 action/effect 归一化。
+            </?01M05F1PF55QM1055E9KDQF0DG>
+            <Acceptance [
+              <Criterion { id = "AC2.1-ordering" checked = true } ?01M05F1PF55QM1055E9KDQF0DH>
+              hooks 按 phase、priority、extensionId、name 稳定排序
+              </?01M05F1PF55QM1055E9KDQF0DH>
+              <Criterion { id = "AC2.1-reentrancy" checked = true } ?01M05F1PF55QM1055E9KDQF0DJ>
+              同一 guard key reentrant invocation 被跳过并记录 diagnostic
+              </?01M05F1PF55QM1055E9KDQF0DJ>
+              <Criterion { id = "AC2.1-timeout" checked = true } ?01M05F1PF55QM1055E9KDQF0DK>
+              超时和失败按 failOpen 策略处理
+              </?01M05F1PF55QM1055E9KDQF0DK>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "使用 runByFuncStyleAdapter 调用 hook handler" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0DM>
+            让 dispatcher 调用 matched hook handler 时走 depa-processor runByFuncStyleAdapter，并补齐标准组件封装测试。
+            </?01M05F1PF55QM1055E9KDQF0DM>
+            <Acceptance [
+              <Criterion { id = "AC2.2-adapter" checked = true } ?01M05F1PF55QM1055E9KDQF0DN>
+              hook handler invocation 使用 runByFuncStyleAdapter
+              </?01M05F1PF55QM1055E9KDQF0DN>
+              <Criterion { id = "AC2.2-component-flow" checked = true } ?01M05F1PF55QM1055E9KDQF0DP>
+              测试覆盖 outer/inner/core/output 标准组件流程
+              </?01M05F1PF55QM1055E9KDQF0DP>
+              <Criterion { id = "AC2.2-no-second-path" checked = true } ?01M05F1PF55QM1055E9KDQF0DQ>
+              不存在绕过 adapter 的普通 handler 调用路径
+              </?01M05F1PF55QM1055E9KDQF0DQ>
+            ]>
+          )>
+          <Task { id = "T2.3" name = "让 mod 通过 hooks 字段贡献 hook" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0DR>
+            让 mod-ai-kernel、mod-ai-coding 和自定义 RuntimeExtension 通过现有 module extension/manifest hooks 字段贡献 descriptors，不新增平行注册 API。
+            </?01M05F1PF55QM1055E9KDQF0DR>
+            <Acceptance [
+              <Criterion { id = "AC2.3-kernel-hooks" checked = true } ?01M05F1PF55QM1055E9KDQF0DS>
+              mod-ai-kernel 通过 hooks 字段声明 baseline hooks
+              </?01M05F1PF55QM1055E9KDQF0DS>
+              <Criterion { id = "AC2.3-coding-hooks" checked = true } ?01M05F1PF55QM1055E9KDQF0DT>
+              mod-ai-coding 可通过同一 hooks 字段声明 overlay hooks
+              </?01M05F1PF55QM1055E9KDQF0DT>
+              <Criterion { id = "AC2.3-no-register-api" checked = true } ?01M05F1PF55QM1055E9KDQF0DV>
+              没有新增独立 hook register 链路
+              </?01M05F1PF55QM1055E9KDQF0DV>
+            ]>
+          )>
+          <Task { id = "T2.4" name = "修复 producer 级 reentrancy guard" status = "DONE" order = 3 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0DW>
+            确保通过 producer 递归触发的同 guard key lifecycle hook dispatch 共享 reentrancy 状态，并记录 reentrant_skipped diagnostic。
+            </?01M05F1PF55QM1055E9KDQF0DW>
+            <Acceptance [
+              <Criterion { id = "AC2.4-shared-guard" checked = true } ?01M05F1PF55QM1055E9KDQF0DX>
+              嵌套 producer lifecycle invocation 不能绕过 dispatcher reentrancy guard
+              </?01M05F1PF55QM1055E9KDQF0DX>
+              <Criterion { id = "AC2.4-producer-test" checked = true } ?01M05F1PF55QM1055E9KDQF0DY>
+              focused test 覆盖 runRuntimeLifecycleHook 递归调用时 nested report 为 reentrant_skipped
+              </?01M05F1PF55QM1055E9KDQF0DY>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Organ Hook Producer" status = "DONE" order = 2 } (
+        <Description ?01M05F1PF55QM1055E9KDQF0DZ>
+        在 ai-organ-logic 的 runtime 生命周期边界生产 hook invocation，调用 dispatcher，并统一应用 effects。
+        </?01M05F1PF55QM1055E9KDQF0DZ>
+        <SubNodes [
+          <Task { id = "T3.1" name = "新增 hook producer runtime ops" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0E0>
+            实现构造 hook invocation context、调用 ai-organ-logic dispatcher、应用 mailbox/resume/diagnostic effects 的 runtime ops。
+            </?01M05F1PF55QM1055E9KDQF0E0>
+            <Acceptance [
+              <Criterion { id = "AC3.1-serial-boundary" checked = true } ?01M05F1PF55QM1055E9KDQF0E1>
+              effect application 发生在 coordinator 串行 enqueue 边界内
+              </?01M05F1PF55QM1055E9KDQF0E1>
+              <Criterion { id = "AC3.1-mailbox-only" checked = true } ?01M05F1PF55QM1055E9KDQF0E2>
+              actor 相关 effect 通过 mailbox/driver 应用
+              </?01M05F1PF55QM1055E9KDQF0E2>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "接入 runtime lifecycle 边界" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0E3>
+            在 interactive turn finished、background watchdog settled、session resume idle check 等边界触发 actor.idle.before 或相关 hook invocation。
+            </?01M05F1PF55QM1055E9KDQF0E3>
+            <Acceptance [
+              <Criterion { id = "AC3.2-turn-finished" checked = true } ?01M05F1PF55QM1055E9KDQF0E4>
+              interactive turn finished 后会触发 idle lifecycle check
+              </?01M05F1PF55QM1055E9KDQF0E4>
+              <Criterion { id = "AC3.2-watchdog" checked = true } ?01M05F1PF55QM1055E9KDQF0E5>
+              background watchdog 只生产 lifecycle invocation，不直接调用 goal logic
+              </?01M05F1PF55QM1055E9KDQF0E5>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "实现高频 idle 编排重检" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0E6>
+            每个 idle hook 执行前基于最新 VM/driver state 重建 idle snapshot，并在非 idle 时停止本轮 dispatch。
+            </?01M05F1PF55QM1055E9KDQF0E6>
+            <Acceptance [
+              <Criterion { id = "AC3.3-state-recheck" checked = true } ?01M05F1PF55QM1055E9KDQF0E7>
+              多个 idle hooks 时每个 hook 前会重检 idle 状态
+              </?01M05F1PF55QM1055E9KDQF0E7>
+              <Criterion { id = "AC3.3-stop-action" checked = true } ?01M05F1PF55QM1055E9KDQF0E8>
+              stop action 会停止当前 actor.idle.before dispatch 的后续 hooks
+              </?01M05F1PF55QM1055E9KDQF0E8>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Goal Continuation Hook" status = "DONE" order = 3 } (
+        <Description ?01M05F1PF55QM1055E9KDQF0E9>
+        将 goal continuation 从 background polling primary path 改造成 actor.idle.before hook contribution。
+        </?01M05F1PF55QM1055E9KDQF0E9>
+        <SubNodes [
+          <Task { id = "T4.1" name = "提取 goal continuation hook handler" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0EA>
+            复用现有 goal idle 判断与 continuation prompt 构建逻辑，返回 heartbeat mailbox enqueue effect。
+            </?01M05F1PF55QM1055E9KDQF0EA>
+            <Acceptance [
+              <Criterion { id = "AC4.1-same-guards" checked = true } ?01M05F1PF55QM1055E9KDQF0EB>
+              保留 active goal、in-flight、mailbox pending、fiber status 等现有 guard
+              </?01M05F1PF55QM1055E9KDQF0EB>
+              <Criterion { id = "AC4.1-heartbeat-effect" checked = true } ?01M05F1PF55QM1055E9KDQF0EC>
+              continuation 通过 heartbeat mailbox enqueue effect 投递
+              </?01M05F1PF55QM1055E9KDQF0EC>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "移除 background tick 直接 goal call" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0ED>
+            让 background tick 只触发 lifecycle idle invocation，不再直接调用 maybeStartThreadGoalContinuation。
+            </?01M05F1PF55QM1055E9KDQF0ED>
+            <Acceptance [
+              <Criterion { id = "AC4.2-no-direct-call" checked = true } ?01M05F1PF55QM1055E9KDQF0EE>
+              tickAiAgentRuntimeBackground 不再直接调用 goal continuation logic
+              </?01M05F1PF55QM1055E9KDQF0EE>
+              <Criterion { id = "AC4.2-watchdog-works" checked = true } ?01M05F1PF55QM1055E9KDQF0EF>
+              没有前台 turn 时 watchdog 仍能触发 idle hook
+              </?01M05F1PF55QM1055E9KDQF0EF>
+            ]>
+          )>
+          <Task { id = "T4.3" name = "验证 human input preemption" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0EG>
+            增加回归测试，确保 pending humanInput/control 阻止 goal continuation，且用户输入不会被 goal heartbeat 挤占。
+            </?01M05F1PF55QM1055E9KDQF0EG>
+            <Acceptance [
+              <Criterion { id = "AC4.3-human-input" checked = true } ?01M05F1PF55QM1055E9KDQF0EH>
+              pending humanInput 时 goal hook skip
+              </?01M05F1PF55QM1055E9KDQF0EH>
+              <Criterion { id = "AC4.3-control" checked = true } ?01M05F1PF55QM1055E9KDQF0EJ>
+              pending control 时 goal hook skip
+              </?01M05F1PF55QM1055E9KDQF0EJ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Verification" status = "DONE" order = 4 } (
+        <Description ?01M05F1PF55QM1055E9KDQF0EK>
+        通过 focused tests 和项目验证确认 lifecycle hook 与 goal continuation 行为符合规范。
+        </?01M05F1PF55QM1055E9KDQF0EK>
+        <SubNodes [
+          <Task { id = "T5.1" name = "补齐 focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0EM>
+            覆盖 hook assembly、dispatcher ordering/failure/reentrancy、organ producer effect application、goal idle continuation。
+            </?01M05F1PF55QM1055E9KDQF0EM>
+            <Acceptance [
+              <Criterion { id = "AC5.1-assembly-tests" checked = true } ?01M05F1PF55QM1055E9KDQF0EN>
+              composer/mod profile hook assembly tests 通过
+              </?01M05F1PF55QM1055E9KDQF0EN>
+              <Criterion { id = "AC5.1-dispatcher-tests" checked = true } ?01M05F1PF55QM1055E9KDQF0EP>
+              dispatcher tests 通过
+              </?01M05F1PF55QM1055E9KDQF0EP>
+              <Criterion { id = "AC5.1-goal-tests" checked = true } ?01M05F1PF55QM1055E9KDQF0EQ>
+              goal hook continuation tests 通过
+              </?01M05F1PF55QM1055E9KDQF0EQ>
+            ]>
+          )>
+          <Task { id = "T5.2" name = "运行项目验证" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PF55QM1055E9KDQF0ER>
+            使用 bun 运行相关 package 的测试、类型检查或项目现有验证命令，不使用 pnpm。
+            </?01M05F1PF55QM1055E9KDQF0ER>
+            <Acceptance [
+              <Criterion { id = "AC5.2-bun-only" checked = true } ?01M05F1PF55QM1055E9KDQF0ES>
+              验证命令基于 bun 执行
+              </?01M05F1PF55QM1055E9KDQF0ES>
+              <Criterion { id = "AC5.2-results-recorded" checked = true } ?01M05F1PF55QM1055E9KDQF0ET>
+              验证结果记录在最终实现总结中
+              </?01M05F1PF55QM1055E9KDQF0ET>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

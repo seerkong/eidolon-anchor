@@ -1,0 +1,76 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_1_1_-_0_2_0_0_-_i_m_p_l_e_m_e_n_t_-_w_i_n_d_o_w_s_-_s_a_n_d_b_o_x_-_r_u_n_n_e_r.behavior_patch.windows-sandbox-runner apiVersion="codument.tech/v1alpha1" version="1" { capability = "windows-sandbox-runner" } (
+  <Mutations [
+    <Upsert { selector = "behavior://windows-sandbox-runner/requirements/restricted-token-isolation" } (
+      <Requirement #restricted-token-isolation (
+        <Statement ?01M05F1PT1824SC06Y9332QB4A>
+        Windows 沙箱 SHALL 由原生 Zig runner（eidolon-windows-sandbox-runner.exe）实现：以 CreateRestrictedToken（DISABLE_MAX_PRIVILEGE|LUA_TOKEN|WRITE_RESTRICTED）+ capability SIDs 派生受限令牌，并用 CreateProcessAsUserW 以受限令牌启动命令；workspace root 的 ACL SHALL 只对 capability SID 授权写，.git/.eidolon 等受保护目录 SHALL 加 deny-write ACE；network_access=disabled 时 SHALL 由 elevated setup 安装的 WFP 过滤器拦截出站连接。SandboxBackendRuntime 的 restricted-token 分支 SHALL 真正 spawn runner（而非返回 not-implemented error）。
+        </?01M05F1PT1824SC06Y9332QB4A>
+        <Suites [
+          <Suite #restricted-token-isolation { name = "Restricted-token isolation" } (
+            <Cases [
+              <Case #restricted-token-created [
+                <Then ?01M05F1PT1824SC06Y9332QB4B>
+                SHALL 用 CreateRestrictedToken + capability SIDs 创建受限令牌
+                </?01M05F1PT1824SC06Y9332QB4B>
+                <Then ?01M05F1PT1824SC06Y9332QB4C>
+                SHALL 用 CreateProcessAsUserW 以受限令牌启动命令
+                </?01M05F1PT1824SC06Y9332QB4C>
+              ] (
+                <Given ?01M05F1PT1824SC06Y9332QB4D>
+                runner 以 workspace-write 模式启动
+                </?01M05F1PT1824SC06Y9332QB4D>
+                <When ?01M05F1PT1824SC06Y9332QB4E>
+                构造受限令牌
+                </?01M05F1PT1824SC06Y9332QB4E>
+              )>
+              <Case #write-outside-workspace-denied (
+                <Given ?01M05F1PT1824SC06Y9332QB4F>
+                受限进程尝试写 workspace 外路径
+                </?01M05F1PT1824SC06Y9332QB4F>
+                <When ?01M05F1PT1824SC06Y9332QB4G>
+                写入受限进程
+                </?01M05F1PT1824SC06Y9332QB4G>
+                <Then ?01M05F1PT1824SC06Y9332QB4H>
+                SHALL 因 ACL 失败（workspace 外无写权限）
+                </?01M05F1PT1824SC06Y9332QB4H>
+              )>
+              <Case #protected-dir-deny-write (
+                <Given ?01M05F1PT1824SC06Y9332QB4J>
+                workspace 内含 .git/.eidolon
+                </?01M05F1PT1824SC06Y9332QB4J>
+                <When ?01M05F1PT1824SC06Y9332QB4K>
+                受限进程尝试写这些目录
+                </?01M05F1PT1824SC06Y9332QB4K>
+                <Then ?01M05F1PT1824SC06Y9332QB4M>
+                SHALL 被 deny-write ACE 拒绝
+                </?01M05F1PT1824SC06Y9332QB4M>
+              )>
+              <Case #network-disabled-blocks (
+                <Given ?01M05F1PT1824SC06Y9332QB4N>
+                network_access=disabled 且 elevated setup 已完成
+                </?01M05F1PT1824SC06Y9332QB4N>
+                <When ?01M05F1PT1824SC06Y9332QB4P>
+                受限进程发起出站连接
+                </?01M05F1PT1824SC06Y9332QB4P>
+                <Then ?01M05F1PT1824SC06Y9332QB4Q>
+                SHALL 被 WFP 过滤器拦截
+                </?01M05F1PT1824SC06Y9332QB4Q>
+              )>
+              <Case #restricted-token-branch-spawns-runner (
+                <Given ?01M05F1PT1824SC06Y9332QB4R>
+                SandboxBackendRuntime 的 windowsSandboxLevel=restricted-token
+                </?01M05F1PT1824SC06Y9332QB4R>
+                <When ?01M05F1PT1824SC06Y9332QB4S>
+                bash 执行
+                </?01M05F1PT1824SC06Y9332QB4S>
+                <Then ?01M05F1PT1824SC06Y9332QB4T>
+                SHALL spawn eidolon-windows-sandbox-runner（而非返回 not-implemented error）
+                </?01M05F1PT1824SC06Y9332QB4T>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

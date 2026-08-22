@@ -1,0 +1,32 @@
+<AttractorProfiles #codument.config.attractor_profiles apiVersion="codument.tech/v1alpha1" version="1" (
+  <Profiles [
+    <Profile #coding { enabled = true } (
+      <Description ?01M05F1P4NN1ZM2PPH758C00HB>
+      编码方向（默认仅 project）
+      </?01M05F1P4NN1ZM2PPH758C00HB>
+      <Attractors [
+        <Attractor { ref = "vfs://@/codument/attractors/project.md" }>
+      ]>
+    )>
+    <Profile #docs { enabled = true } (
+      <Description ?01M05F1P4NN1ZM2PPH758C00HC>
+      docs 知识方向（分层晋升 + 分形规范）
+      </?01M05F1P4NN1ZM2PPH758C00HC>
+      <Attractors [
+        <Attractor { ref = "vfs://@/codument/attractors/knowledge-tiers.md" }>
+        <Attractor { ref = "vfs://@/codument/attractors/model-driven-docs.md" }>
+        <Attractor { ref = "vfs://@/codument/std/skill/docs-modeling-fractal/index.md" }>
+        <Attractor { ref = "vfs://@/codument/std/skill/docs-engineering-fractal/index.md" }>
+        <Attractor { ref = "vfs://@/codument/std/spec/folder-manifest.md" }>
+      ]>
+    )>
+    <Profile #memory { enabled = true } (
+      <Description ?01M05F1P4NN1ZM2PPH758C00HD>
+      长期记忆方向（lessons/incidents/patterns/summaries）
+      </?01M05F1P4NN1ZM2PPH758C00HD>
+      <Attractors [
+        <Attractor { ref = "vfs://@/codument/attractors/project-memory.md" }>
+      ]>
+    )>
+  ]>
+)>

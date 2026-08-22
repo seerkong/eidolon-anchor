@@ -1,0 +1,8 @@
+<KindDefinition #codument.resource_kind.BehaviorPatch apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  resourceKind = "BehaviorPatch"
+  sourceShapes = ["single-file"]
+  currentApiVersion = "codument.tech/v1alpha1"
+  supportedApiVersions = ["codument.tech/v1alpha1"]
+  description = "Codument track-local behavior mutation set"
+}>

@@ -5,6 +5,7 @@ import {
   createResponsesProviderOutputSnapshot,
   createResponsesReplayCheckpoint,
   decideResponsesCallLineage,
+  decideResponsesRequestLineage,
   decideResponsesNativeOutputCompleteness,
   planResponsesRequest,
 } from "@cell/ai-organ-logic/llm";
@@ -253,6 +254,55 @@ describe("Responses request lineage", () => {
 
     expect(plan.kind).toBe("stateful_incremental");
     expect(plan.lineageProof.status).toBe("valid");
+  });
+
+  it("rejects a request that leaves a previous function call unresolved", () => {
+    expect(decideResponsesRequestLineage([
+      { type: "function_call", call_id: "call-pending", name: "inspect", arguments: "{}" },
+    ])).toEqual(expect.objectContaining({
+      status: "invalid",
+      reason: "unresolved_function_call",
+      callId: "call-pending",
+    }));
+  });
+
+  it("keeps provider output lineage permissive until the request is assembled", () => {
+    const output = [{
+      type: "function_call",
+      call_id: "call-pending",
+      name: "inspect",
+      arguments: "{}",
+    }];
+
+    expect(decideResponsesCallLineage(output).status).toBe("valid");
+    expect(decideResponsesRequestLineage(output).status).toBe("invalid");
+  });
+
+  it("falls back to canonical input when the native window is not request-closed", () => {
+    const checkpoint = checkpointWithPendingCall();
+    const plan = planResponsesRequest({
+      actorId: "actor-1",
+      providerId: "openai",
+      model: "gpt-5.5",
+      mode: "stateless_replay",
+      transportSupportsContinuation: false,
+      baseline: undefined,
+      checkpoint,
+      currentEpoch: 1,
+      currentContextDigest: digest,
+      currentMessages: [{ role: "user", content: "before" }],
+      fullCanonicalInput: [
+        { type: "function_call", call_id: "call-1", name: "inspect", arguments: "{}" },
+        { type: "function_call_output", call_id: "call-1", output: "ok" },
+      ],
+      incrementalInput: [],
+      stablePrefix: { providerId: "openai", model: "gpt-5.5" },
+    });
+
+    expect(plan).toEqual(expect.objectContaining({
+      kind: "stateless_replay",
+      source: "canonical_rebuild",
+    }));
   });
 
   it.each([

@@ -1,0 +1,212 @@
+<Track #bind-provider-tool-schema-projection-and-coverage apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Bind canonical ToolDefs to configured provider-specific tool-schema projection compilers and a send-before compatibility coverage proof." description = "Repair the DeepSeek object-root failure without bypassing the provider-context architecture, while isolating ordinary OpenAI Chat and Responses schema policy." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-20T05:12:49.235Z" updated_at = "2026-08-20T06:56:56.045Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #provider-code { role = "input" name = "provider-code" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/llm/" }>
+    <MaterialBundle #workflow-tool-code { role = "input" name = "workflow-tool-code" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/tools/" }>
+    <MaterialBundle #tests { role = "output" name = "provider-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/" }>
+    <MaterialBundle #behavior { role = "output" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_bind-provider-tool-schema-projection-and-coverage { name = "bind-provider-tool-schema-projection-and-coverage" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "canonical contract and boundary baseline" status = "DONE" order = 0 child_mode = "sequential" } (
+        <Description ?01M0EX4J8TJD2X5TCSWEH2ZH94>
+        Freeze the real DeepSeek request path, correct the truthful canonical object root, and establish the initial compatibility boundary evidence.
+        </?01M0EX4J8TJD2X5TCSWEH2ZH94>
+        <SubNodes [
+          <Task #P1-T1 { name = "characterize configured DeepSeek request path" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH95>
+              A focused test SHALL prove DeepSeekDriver selects deepSeekOfficialChatEffectBundle and the failing request does not traverse the Responses adapter.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH95>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH96>
+              Static evidence SHALL show provider selection depends only on configured driver identity, with no model, base URL, tool name, or textual heuristic.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH96>
+            ]>
+          )>
+          <Task #P1-T2 { name = "make authoring-session schema truthfully object-rooted" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH97>
+              WorkflowOpenAuthoringSession parameters SHALL declare root type object while retaining both existing oneOf object branches.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH97>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH98>
+              Contract tests SHALL compare required fields, enums, properties, and additional-property constraints before and after the root correction.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH98>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH99>
+              A DeepSeek request-shape boundary test SHALL reproduce the prior null root before the correction and observe an object root after it.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH99>
+            ]>
+          )>
+          <Task #P1-T3 { name = "establish projection and coverage RED baseline" status = "DONE" order = 2 } (
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9A>
+              Tests SHALL initially demonstrate that Chat request projection copies canonical tools without a typed provider projection receipt.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9A>
+              <Criterion #P1-T3-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9B>
+              The RED evidence SHALL be attributable to the missing provider projection and coverage seam, not provider credentials or network availability.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9B>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "provider-specific projection compilers" status = "DONE" order = 1 child_mode = "sequential" } (
+        <Description ?01M0EX4J8TJD2X5TCSWEH2ZH9C>
+        Introduce the typed projection contract and bind explicit, isolated projector owners to OpenAI Chat, DeepSeek Chat, and OpenAI Responses.
+        </?01M0EX4J8TJD2X5TCSWEH2ZH9C>
+        <SubNodes [
+          <Task #P2-T1 { name = "define immutable tool-schema projection contract" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9D>
+              The contract SHALL normalize every schema keyword, value, branch, and constraint into stable kind/path/valueDigest facts and preserve authored branch identity or index.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9D>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9E>
+              The result SHALL be a closed accepted exact-or-compatible projection or a typed rejection; rejection SHALL carry no provider request body and compatible success SHALL cite versioned rules with complete consumed and produced fact identities.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9E>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9F>
+              Projection outputs and bounded receipts SHALL be deterministic plain immutable data and SHALL omit prompt, reasoning, credential, provider configuration, raw schema body, and tool-result bodies.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9F>
+            ]>
+          )>
+          <Task #P2-T2 { name = "bind explicit OpenAI Chat and DeepSeek projectors" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9G>
+              The ordinary OpenAI Chat and DeepSeek Chat effect bundles SHALL each expose an explicit tool-schema projector selected by ProviderDriverRegistry.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9G>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9H>
+              The DeepSeek projector SHALL require an object-root parameters schema and preserve the canonical oneOf alternatives and constraints.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9H>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9J>
+              DeepSeek policy SHALL NOT be imported by ordinary OpenAI Chat, generic fetch, or canonical workflow tool definitions.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9J>
+            ]>
+          )>
+          <Task #P2-T3 { name = "isolate Responses tool-schema ownership" status = "DONE" order = 2 } (
+            <Acceptance [
+              <Criterion #P2-T3-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9K>
+              OpenAI Responses SHALL expose its own tool-schema projector owner and preserve its existing accepted compatibility behavior.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9K>
+              <Criterion #P2-T3-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9M>
+              Responses projector code SHALL NOT execute on ordinary Chat or DeepSeek request paths, and Chat projectors SHALL NOT import Responses compatibility implementation.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9M>
+            ]>
+          )>
+          <Task #P2-T4 { name = "bind preview and transport to one selected compiler" status = "DONE" order = 3 } (
+            <Acceptance [
+              <Criterion #P2-T4-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9N>
+              The configured driver SHALL prepare one opaque ToolSchemaProjectionAuthority per provider call and pass it unchanged through preview, retries, and concrete transport attempts.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9N>
+              <Criterion #P2-T4-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9P>
+              Only the coverage gate SHALL construct an opaque or nominal AdmittedProviderRequest per concrete HTTP/WebSocket body, binding dialect, projector rule-set identity, emitted-tools digest, defensive-copied serialized bytes, serialized-body digest, and receipt.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9P>
+              <Criterion #P2-T4-AC3 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9Q>
+              Generic transport SHALL reject structural lookalikes and canonical tools, verify capability authenticity and body digest before the established request observation/I/O, and contain no provider dialect transformation or inference.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9Q>
+              <Criterion #P2-T4-AC4 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9R>
+              Instrumentation SHALL prove tool projection occurs once per provider call while Responses fallback may create separate admitted requests that reuse the same projection receipt.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9R>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "coverage gate and request admission" status = "DONE" order = 2 child_mode = "sequential" } (
+        <Description ?01M0EX4J8TJD2X5TCSWEH2ZH9S>
+        Prove exact tool and schema coverage against the serialized body before provider request observation or I/O.
+        </?01M0EX4J8TJD2X5TCSWEH2ZH9S>
+        <SubNodes [
+          <Task #P3-T1 { name = "compute declaration coverage receipt" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9T>
+              Every canonical tool and schema fact SHALL have an equal emitted fact or one versioned transformation that consumes and produces complete fact identities and digests.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9T>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9V>
+              Set-valued identities and paths SHALL use explicit UTF-16 code-unit ordering; authored branch order SHALL remain unchanged.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9V>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9W>
+              Conversation function-call/output coverage SHALL NOT substitute for tool declaration coverage.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9W>
+            ]>
+          )>
+          <Task #P3-T2 { name = "enforce send-before compatibility gate" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9X>
+              Missing tools or facts, same-path changed values, duplicate identities, unknown transformations, incomplete consume/produce relations, and emitted-body mismatch SHALL return a stable typed rejection.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9X>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9Y>
+              On projection rejection, capability authenticity failure, or serialized-body digest mismatch, provider request observation and network invocation counts SHALL both remain zero.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9Y>
+              <Criterion #P3-T2-AC3 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZH9Z>
+              Coverage diagnostics/metadata SHALL carry only bounded provider protocol, tool identity, counts, digests, schema path, rule identity, and reason code facts; existing final-wire request observation remains unchanged.
+              </?01M0EX4J8TJD2X5TCSWEH2ZH9Z>
+            ]>
+          )>
+          <Task #P3-T3 { name = "verify deterministic compatibility behavior" status = "DONE" order = 2 } (
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA0>
+              Repeated identical canonical input and provider configuration SHALL yield byte-equivalent admitted requests, emitted declarations, and coverage receipts.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA0>
+              <Criterion #P3-T3-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA1>
+              Boundary tests SHALL cover missing branch, extra emitted tool, duplicate identity, body mismatch, structural request lookalike, post-admission source mutation, and unsupported schema feature without textual matching.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA1>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "cross-provider verification and closure" status = "DONE" order = 3 child_mode = "sequential" } (
+        <Description ?01M0EX4J8TJD2X5TCSWEH2ZHA2>
+        Verify the incident correction and provider isolation, then run fresh architectural conformance review.
+        </?01M0EX4J8TJD2X5TCSWEH2ZHA2>
+        <SubNodes [
+          <Task #P4-T1 { name = "verify DeepSeek workflow tool request" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA3>
+              A DeepSeek V4 Flash request built from the real WorkflowOpenAuthoringSession ToolDef SHALL contain an object-root parameters schema and both canonical branches.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA3>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA4>
+              The original invalid type-null session failure SHALL no longer reproduce in a credential-free request serialization test and, when configured, a real provider smoke.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA4>
+            ]>
+          )>
+          <Task #P4-T2 { name = "verify OpenAI compatibility and isolation" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA5>
+              Existing ordinary OpenAI Chat request fixtures and stream behavior SHALL remain unchanged except for the additive bounded receipt.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA5>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA6>
+              Responses fixtures SHALL preserve their accepted schema compatibility through the independent Responses projector.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA6>
+            ]>
+          )>
+          <Task #P4-T3 { name = "run architecture and quality gates" status = "DONE" order = 2 } (
+            <Acceptance [
+              <Criterion #P4-T3-AC1 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA7>
+              Focused provider, workflow-tool, and request-adapter suites plus relevant build/type gates SHALL pass.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA7>
+              <Criterion #P4-T3-AC2 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA8>
+              Static checks SHALL find no model/baseURL/provider-label/tool-name/natural-language schema routing in generic provider request and fetch code.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA8>
+              <Criterion #P4-T3-AC3 { checked = true } ?01M0EX4J8TJD2X5TCSWEH2ZHA9>
+              Codument strict validation, decisions validation, diff check, and a fresh coding AttractorCheck SHALL report no P0 or P1 gap.
+              </?01M0EX4J8TJD2X5TCSWEH2ZHA9>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_bind-provider-tool-schema-projection-and-coverage" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "phase:after" } (
+      <AttractorCheck { use = "coding" }>
+    )>
+  ]>
+)>

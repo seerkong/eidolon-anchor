@@ -2,7 +2,7 @@
 
 > `codument/modeling/` 是项目的**领域建模真源**（领域本体 / attractor 载体）。与 `codument/behaviors/`（行为契约）和 `codument/engineering/`（工程知识真源）正交：behaviors 答“系统应有什么可测行为”，modeling 答“系统的结构真相是什么”（对象、类型、状态机、模块依赖、事实源、actor），engineering 答“人和 AI 应该如何实现、维护、排障”。
 >
-> modeling **默认启用**：缺失 `codument/config/modeling.xml` 时按 `enabled=true` 处理，fresh init 模板也生成 `enabled="true"`；已有 workspace 显式配置 `enabled="false"` 时必须保持关闭，不得被默认值或升级覆盖。
+> modeling **默认启用**：缺失 `codument/config/modeling.xnl` 时按 `enabled=true` 处理，fresh init 模板也生成 `enabled = true`；已有 workspace 显式配置 `enabled = false` 时必须保持关闭，不得被默认值或升级覆盖。
 >
 > **启用状态与 delta 义务分离**：只有对象、状态机、policy、模块边界、事实源、actor/component IO 等结构知识变化时，track 才生成或维护 `modeling_deltas/`；普通 track 若无结构变化，不强制生成 delta，也不创建空 registry。
 >
@@ -29,7 +29,7 @@ codument/modeling/
 - 文件 = XNL（`xnl-core`）。`DataElement`（结构）+ `TextElement ?marker`（desc / TypeScript / mermaid / 伪代码，**零转义**）。
 - 节点 id = `XnlWord` 命名空间：`#<context>.<name>`（类似 `命名空间::类名`，全局唯一）。
 - `modeling://<plane>/<context>/<id>` 是跨文档引用的 VFS 路径，映射到 XNL `#<context>.<id>`；mutation 在 `metadataIdMode:"identity"` 下按 id 命中。
-- 单文件 ↔ 同名文件夹**自动演化**：内容过大时把 `index.xnl` 节点拆为 `<kind>/<id>.xnl`（宿主 git 跟踪 rename）。`codument modeling lint` 给出拆分建议——默认阈值 **> ~400 行 或 > ~8 个顶层建模节点**（可在 `config/modeling.xml` 配）；lint 只建议，实际拆分由模型按 `folder-manifest.md` 应用。
+- 单文件 ↔ 同名文件夹**自动演化**：内容过大时把 `index.xnl` 节点拆为 `<kind>/<id>.xnl`（宿主 git 跟踪 rename）。`codument modeling lint` 给出拆分建议——默认阈值 **> ~400 行 或 > ~8 个顶层建模节点**（可在 `config/modeling.xnl` 配）；lint 只建议，实际拆分由模型按 `folder-manifest.md` 应用。
 
 ## 节点（kind 谱系 + 最小表征）
 
@@ -37,7 +37,7 @@ codument/modeling/
 
 - **kind 谱系**：越靠内核越用 DEPA 跨领域概念（裸名 kind：`entity`/`enum`/`state-machine`/`module`/`component`/`port`/`actor`/`policy`）；越靠 shell 越用命名空间领域 kind（`surface:route`/`backend:endpoint`/`cli:command`…）。
 - **节点属性承载**：`kind`、`fact_grade`、`single_writer`、`depends_on` 等常规语义属性写进 XNL `{}` 属性块；metadata 只留给系统级解析/合并字段。
-- **最小必备表征**（CLI 校验）：`entity` 必带 `types`+`fact_grade`+`single_writer`；`state-machine` 必带 `mermaid`；`module` 必带 `depends_on`+capsule-tree（**到文件/符号级**，非仅 contract/logic/support）；`component` 必带 `runtime`/`input`/`config`/`output` 四个 `types` 块。
+- **最小必备表征**：`entity`/`object` 必带 `types`+`fact_grade`+`single_writer`；`state-machine` 必带声明状态的 `mermaid`；`module`/`capsule` 必带 `depends_on`+capsule-tree；`component` 必带 `runtime`/`input`/`config`/`output` 四个 `types` 块 + `pseudo` 槽位；`port` 必带 `command|message` 标注；`policy` 必带 rule `pseudo` 或 `behavior://` 引用——以上由 CLI 强制（`codument modeling validate`）。内容质量项（entity invariants、actor 单写边界/偏重/解环论述、module capsule-tree 的文件/符号级深度）为**评审项**（非 CLI 强制），见 `modeling-node-schema.md §2`。
 - **不重复 behaviors**：可测行为契约归 `behaviors`；modeling 的 behavior/policy 节点**引用 `behavior://…`**，不复述 case。
 
 ## 应用 delta（归档时）
@@ -55,5 +55,5 @@ codument/modeling/
 - modeling 是**结构真源**层，不与代码/docs 争夺实现真源（实现真源在代码 + `codument/engineering`）。
 - 复用 xnl 的**节点级 merge 算法**（优于 git 行级合并），但**不持久化平行 vcs 仓库**——历史/协作交宿主 git，xnl-vfs/vcs 只当临时合并引擎。
 - 不自建 delta 节点类型与 apply 算法。
-- 默认开：缺失 `config/modeling.xml` 视为 enabled；只有显式 `enabled="false"` 才跳过 modeling 全流程。
+- 默认开：缺失 `config/modeling.xnl` 视为 enabled；只有显式 `enabled = false` 才跳过 modeling 全流程。
 - enablement 只决定能力是否可用，不等于每个 track 都必须生成 modeling delta。

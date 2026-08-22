@@ -1,0 +1,152 @@
+<Track #refactor-platform-kernel-and-ai-domain-kernel version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "形成平台微内核 + AI 领域微内核的正式分层设计，并制定可执行的增量迁移路径。" commit_mode = "manual" created_at = "2026-04-10T19:17:54Z" updated_at = "2026-04-11T12:48:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-platform-kernel-and-ai-domain-kernel { name = "refactor-platform-kernel-and-ai-domain-kernel" } (
+    <Description ?01M05F1PCG392E67NEG7JDJWAP>
+    将当前 AI 运行时演进为平台微内核与 AI 领域微内核
+    </?01M05F1PCG392E67NEG7JDJWAP>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Architecture Boundary Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PCG392E67NEG7JDJWAQ>
+        冻结平台内核、AI 领域内核与 app overlay 的正式边界。
+        </?01M05F1PCG392E67NEG7JDJWAQ>
+        <SubNodes [
+          <Task { id = "T1.1" name = "定义平台微内核能力边界" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCG392E67NEG7JDJWAR>
+            锁定哪些能力属于跨领域平台内核，哪些能力必须留在 AI 领域层。
+            </?01M05F1PCG392E67NEG7JDJWAR>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PCG392E67NEG7JDJWAS>
+              平台微内核能力清单明确且不包含 AI 专属语义
+              </?01M05F1PCG392E67NEG7JDJWAS>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PCG392E67NEG7JDJWAT>
+              AI 领域微内核能力清单明确且不被错误抽空
+              </?01M05F1PCG392E67NEG7JDJWAT>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "冻结 vendor 原语复用策略与禁止事项" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PCG392E67NEG7JDJWAV>
+            明确 vendor 复用原则、禁止重复造轮子、禁止空泛抽象等反模式。
+            </?01M05F1PCG392E67NEG7JDJWAV>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PCG392E67NEG7JDJWAW>
+              vendor actor/processor/data-graph 的职责归位明确
+              </?01M05F1PCG392E67NEG7JDJWAW>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PCG392E67NEG7JDJWAX>
+              反模式与非目标被正式记录
+              </?01M05F1PCG392E67NEG7JDJWAX>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Contract And Package Design" status = "DONE" order = 1 } (
+        <Description ?01M05F1PCG392E67NEG7JDJWAY>
+        设计新的 contract / logic / support / mod / profile 边界。
+        </?01M05F1PCG392E67NEG7JDJWAY>
+        <SubNodes [
+          <Task { id = "T2.1" name = "设计平台内核 contract 与 runtime facet" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCG392E67NEG7JDJWAZ>
+            定义平台级 runtime contract、capability ports、assembly contract 和 state facet。
+            </?01M05F1PCG392E67NEG7JDJWAZ>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PCG392E67NEG7JDJWB0>
+              platform contract 与 AI domain contract 的边界可单独描述
+              </?01M05F1PCG392E67NEG7JDJWB0>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PCG392E67NEG7JDJWB1>
+              assembly/result/state contract 不再默认 AI-shaped
+              </?01M05F1PCG392E67NEG7JDJWB1>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "设计目标包结构与兼容过渡策略" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PCG392E67NEG7JDJWB2>
+            给出从现有 cell/core/organ/mod 结构迁移到目标微内核结构的包级过渡方案。
+            </?01M05F1PCG392E67NEG7JDJWB2>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PCG392E67NEG7JDJWB3>
+              目标包结构、命名与兼容阶段明确
+              </?01M05F1PCG392E67NEG7JDJWB3>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PCG392E67NEG7JDJWB4>
+              不要求单轮重构完成全部 rename/cutover
+              </?01M05F1PCG392E67NEG7JDJWB4>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Profile And Runtime Adoption Design" status = "DONE" order = 2 } (
+        <Description ?01M05F1PCG392E67NEG7JDJWB5>
+        设计 profile 叠加模型与 shell/runtime entry 的消费边界。
+        </?01M05F1PCG392E67NEG7JDJWB5>
+        <SubNodes [
+          <Task { id = "T3.1" name = "定义 platform-only -> ai-kernel -> ai-app profile 叠加模型" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCG392E67NEG7JDJWB6>
+            明确平台基线、AI 领域基线、AI app overlay 的组合顺序与 ownership。
+            </?01M05F1PCG392E67NEG7JDJWB6>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PCG392E67NEG7JDJWB7>
+              profile 组合顺序明确
+              </?01M05F1PCG392E67NEG7JDJWB7>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PCG392E67NEG7JDJWB8>
+              未来非 AI 领域可在 platform-only 之上独立组装
+              </?01M05F1PCG392E67NEG7JDJWB8>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "定义 shell 与 support adoption 边界" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PCG392E67NEG7JDJWB9>
+            明确 terminal/tui/headless 仅消费装配结果与 capability ports，support 实现按平台/AI 归位。
+            </?01M05F1PCG392E67NEG7JDJWB9>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PCG392E67NEG7JDJWBA>
+              shell 不再作为默认产品定义宿主
+              </?01M05F1PCG392E67NEG7JDJWBA>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PCG392E67NEG7JDJWBB>
+              support adoption 边界与缺失语义明确
+              </?01M05F1PCG392E67NEG7JDJWBB>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Migration And Verification Plan" status = "DONE" order = 3 } (
+        <Description ?01M05F1PCG392E67NEG7JDJWBC>
+        形成增量迁移路径、focused tests 与最终实施基线。
+        </?01M05F1PCG392E67NEG7JDJWBC>
+        <SubNodes [
+          <Task { id = "T4.1" name = "制定增量迁移波次与实施顺序" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCG392E67NEG7JDJWBD>
+            将架构方案转换为可分阶段实施的迁移波次，避免一次性大重构。
+            </?01M05F1PCG392E67NEG7JDJWBD>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1PCG392E67NEG7JDJWBE>
+              迁移阶段、先后顺序与回退风险明确
+              </?01M05F1PCG392E67NEG7JDJWBE>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1PCG392E67NEG7JDJWBF>
+              当前 AI runtime 的连续可运行性被保护
+              </?01M05F1PCG392E67NEG7JDJWBF>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "定义 focused verification baseline" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PCG392E67NEG7JDJWBG>
+            为 ownership、profile 顺序、capability 缺失语义、runtime adoption 建立 focused verification baseline。
+            </?01M05F1PCG392E67NEG7JDJWBG>
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1PCG392E67NEG7JDJWBH>
+              验证关注行为与 ownership，而不只是文件搬迁
+              </?01M05F1PCG392E67NEG7JDJWBH>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1PCG392E67NEG7JDJWBJ>
+              架构基线可供后续实现 track 继续使用
+              </?01M05F1PCG392E67NEG7JDJWBJ>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <HumanConfirm>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

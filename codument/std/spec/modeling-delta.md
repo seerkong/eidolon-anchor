@@ -2,7 +2,7 @@
 
 > 每个 track 对 modeling 登记表（`codument/modeling/`，见 `modeling-registry.md`）的增删改，用**目标态节点 + 节点级 3-way 合并**表达，而非自建 delta 节点类型。真 VCS 是宿主 git；xnl-vfs 只当**临时合并引擎**（不持久化平行 vcs 仓库）。
 >
-> modeling 默认启用：缺失配置按 enabled 处理，fresh init 模板生成 `enabled="true"`；显式 `enabled="false"` 始终优先并关闭本能力。
+> modeling 默认启用：缺失配置按 enabled 处理，fresh init 模板生成 `enabled = true`；显式 `enabled = false` 始终优先并关闭本能力。
 >
 > XNL 语法权威见 [std/spec/xnl-format.md](./xnl-format.md)。
 
@@ -23,14 +23,14 @@
   kind = "entity"
   fact_grade = "authoritative_fact"
   single_writer = "resource.store"
-} [
+} (
   <desc ?>聚合型资源：可编辑/打包/恢复的文本文件集合。</?>
   <types ?ts1>
   interface SkillTool { key: string; appId: string; status: SkillToolStatus; isArchived: boolean }
   enum SkillToolStatus { Draft="draft", Online="online" }
   </?ts1>
   <fact-source ?>唯一写入者 resource.store；file_contents 为只读投影，不反写。</?>
-]>
+)>
 ```
 
 ## 增删改移（git 语义，不自建 op）
@@ -73,17 +73,17 @@
 | ADD/ADD 同 id 异内容 | ❌ 默认人工 |
 
 - 报告每条真冲突给 `{ metadataId, base/ours/theirs 片段 }`；归档 agent 低歧义的可判定并记录 `choice`，真语义冲突升级给用户逐条选 `choice: "ours"|"theirs"|"base"` 或手改。
-- **按冲突类型可在 `config/modeling.xml` 配**覆盖默认，例如把 `delete_modify` 设为 `theirs` 自动尊重删除；缺省全部走人工。配置字段（建议）：
-  ```xml
-  <modeling-config>
-    <merge-policy>
-      <conflict type="same-field" resolve="human"/>
-      <conflict type="delete-modify" resolve="human"/>
-      <conflict type="rename-rename" resolve="human"/>
-      <conflict type="add-add" resolve="human"/>
-    </merge-policy>
-  </modeling-config>
-  ```
+- **按冲突类型可在 `config/modeling.xnl` 配**覆盖默认，例如把 `delete_modify` 设为 `theirs` 自动尊重删除；缺省全部走人工。配置字段（建议）：
+  下例展示 `codument init` / `upgrade-workspace` 安装的受管 ModelingConfig；`#id`、`apiVersion` 与 `version` 由 CLI 模板维护，项目只修改配置语义字段。
+   ```xnl
+   <ModelingConfig #codument.config.modeling apiVersion="codument.tech/v1alpha1" version="1" (
+     <MergePolicy (
+       <Conflict { type = "same-field" resolve = "human" }>
+       <Conflict { type = "delete-modify" resolve = "human" }>
+       <Conflict { type = "add-add" resolve = "human" }>
+     )>
+   )>
+   ```
   `resolve` 取 `human` | `ours` | `theirs` | `base`。
 
 ## 与 track / 归档的关系

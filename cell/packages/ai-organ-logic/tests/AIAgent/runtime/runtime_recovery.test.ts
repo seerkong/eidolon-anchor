@@ -16,12 +16,16 @@ import {
   createAiAgentOrchestratorDriverWithCooperative,
   getMemberManager,
 } from "@cell/ai-organ-logic"
-import { appendLiveHistoryMessageToConversationDomainRuntime } from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime"
+import {
+  appendLiveHistoryMessageToConversationDomainRuntime,
+  materializeConversationRuntimeMessagesFromVm,
+} from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime"
 import { aiAgentCooperativeStep, aiAgentLoopStreaming } from "@cell/ai-organ-logic/exec/AiAgentExecutor"
 import { createMockProcessStream } from "../__test_support__/mockProcessStream"
 import { createAutonomousHolonController } from "@cell/ai-organ-logic/organization/AutonomousHolonController"
 import { getDetachedActorRegistry } from "@cell/ai-organ-logic/detached/DetachedActorRegistry"
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine"
+import { getVmToolCallDomain } from "@cell/ai-organ-logic/runtime/ToolCallDomainRuntime"
 import { recoverAiAgentRuntime, saveAiAgentRuntimeSnapshot } from "@cell/ai-organ-logic/persistence/RuntimeSnapshots"
 import {
   applyConversationCompaction,
@@ -912,6 +916,161 @@ describe("runtime recovery bootstrap", () => {
     }
   })
 
+  it("closes a superseded tool lineage whose fiber already advanced before checkpoint", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-recovery-superseded-tool-lineage"
+    const adapter = makeMockAdapter()
+    const toolCallId = "call_superseded_after_progress"
+    const toolCall = {
+      id: toolCallId,
+      name: "bash",
+      input: { command: "bun run typecheck" },
+    }
+    const root = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      messages: [],
+      callbacks: {
+        buildToolset: () => [],
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+      },
+    })
+    const vm = createVM({
+      controlActorKey: root.key,
+      actors: { [root.key]: root },
+      outerCtx: { metadata: { sessionId, sessionDir } },
+      registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+      callbacks: {
+        buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+      },
+    })
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: root.key,
+      actorId: root.id,
+      message: { role: "user", content: "run verification" } as any,
+    })
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: root.key,
+      actorId: root.id,
+      message: { role: "assistant", content: "", toolCalls: [toolCall] } as any,
+    })
+    const fiberId = `${root.key}:${root.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor: root, messages: root.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    const effectId = `tool:${fiberId}:92`
+
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      const vmPath = path.join(sessionDir, "runtime_state", "vm.json")
+      const vmSnapshot = JSON.parse(fs.readFileSync(vmPath, "utf8"))
+      vmSnapshot.toolCallDomain = [
+        ...(Array.isArray(vmSnapshot.toolCallDomain) ? vmSnapshot.toolCallDomain : []),
+        {
+          toolCallId,
+          actorKey: root.key,
+          turnId: 50,
+          funcName: "bash",
+          args: { command: "bun run typecheck" },
+          plannedAt: 100,
+          dispatchedAt: 101,
+          executedAt: 102,
+          gateOutcome: "allow",
+          status: "executing",
+        },
+      ]
+      fs.writeFileSync(vmPath, `${JSON.stringify(vmSnapshot, null, 2)}\n`)
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "bash",
+          effectId,
+          handlerKey: "bash",
+          idempotencyKey: `${fiberId}:${effectId}:tool`,
+          sourceCommandId: effectId,
+          payload: { toolCallId },
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "waiting",
+          effectKind: "bash",
+          effectId,
+          handlerKey: "bash",
+          idempotencyKey: `${fiberId}:${effectId}:tool`,
+          waitReason: "wait_tool_result",
+        },
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "failed",
+          effectKind: "tool_call",
+          effectId,
+          handlerKey: "tool:superseded",
+          error: "Error: runtime-control effect was superseded by later live progress before checkpoint",
+          retryable: false,
+        },
+      })
+      await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter as any,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        callbacks: {
+          buildSystemMessages: (prompts) => prompts.map((content) => ({ role: "system", content })),
+        },
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })
+
+      expect(recovered).toBeTruthy()
+      expect(getVmToolCallDomain(recovered!.vm)?.getRecord(toolCallId)).toMatchObject({
+        status: "failed",
+        failureKind: "aborted",
+      })
+      const matchingResults = recovered!.controlActor.messages.filter((message: any) =>
+        message?.role === "tool" && message?.tool_call_id === toolCallId
+      )
+      expect(matchingResults).toHaveLength(1)
+      expect(matchingResults[0]?.content).toContain("superseded")
+
+      await saveAiAgentRuntimeSnapshot({
+        sessionDir,
+        sessionId,
+        vm: recovered!.vm,
+        driver: recovered!.driver,
+      })
+      const recoveredAgain = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter as any,
+        registries: { toolRegistry: composeToolRegistry({ includeInternalOnly: true }) } as any,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "continued" })),
+        },
+      })
+      expect(recoveredAgain).toBeTruthy()
+      expect(recoveredAgain!.controlActor.messages.filter((message: any) =>
+        message?.role === "tool" && message?.tool_call_id === toolCallId
+      )).toHaveLength(1)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("does not reject recovery when effect WAL tail advances beyond the checkpoint", async () => {
     // Historical session 20260604001602__01KT74AEF400CGVZ5X318GJM8Y:
     // runtime_state/fiber still waited on LLM op 105, but effects.jsonl proved
@@ -1419,9 +1578,12 @@ describe("runtime recovery bootstrap", () => {
     expect(secondOutcome).toEqual({ kind: "yield" })
     expect(savedState.phase).toBe("compress")
     expect(root.peekMailbox("humanInput")).toEqual([])
-    expect(
-      root.messages.some((message: any) => message?.role === "user" && message?.content === "new prompt"),
-    ).toBe(true)
+    expect(materializeConversationRuntimeMessagesFromVm({ vm, actorKey: root.key })).toContainEqual(
+      expect.objectContaining({
+        role: "user",
+        content: [{ type: "text", text: "new prompt" }],
+      }),
+    )
     expect(llmCalls).toBe(0)
   })
 

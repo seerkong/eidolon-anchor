@@ -137,6 +137,10 @@ function messageToolCallId(message: ChatMessage): string | undefined {
 
 export type VisibleResourceCoverage = {
   visibleRanges: LineRange[];
+  /** Ranges whose complete tool result is still present in the prompt. */
+  materializedRanges: LineRange[];
+  /** Ranges whose compacted result has an artifact fallback path. */
+  recoverableRanges: LineRange[];
   recoveryPaths: string[];
 };
 
@@ -186,6 +190,8 @@ export function deriveVisibleResourceCoverage({
     return path ? [path] : [];
   };
 
+  const materializedRanges: LineRange[] = [];
+  const recoverableRanges: LineRange[] = [];
   const visibleRanges = resourceFact.deliveries.flatMap((delivery) => {
     if (delivery.revisionDigest !== revisionDigest) return [];
     const fragment = fragments.get(delivery.fragmentId);
@@ -197,6 +203,7 @@ export function deriveVisibleResourceCoverage({
     const visibleResult = visibleResults.get(delivery.toolCallId);
     if (visibleResult !== undefined) {
       if (visibleResult !== record.outputText) return [];
+      materializedRanges.push(fragment.selection);
       return [fragment.selection];
     }
 
@@ -206,6 +213,9 @@ export function deriveVisibleResourceCoverage({
     // the model already saw the full body, so the original delivery range (kept
     // append-only in resource fact deliveries) remains visible.
     if (deliveredAndCompactedMessages.has(delivery.toolCallId)) {
+      if (recoveryPathsForDelivery(delivery).length > 0) {
+        recoverableRanges.push(fragment.selection);
+      }
       return [fragment.selection];
     }
 
@@ -216,7 +226,12 @@ export function deriveVisibleResourceCoverage({
     recoveryPathsForDelivery(delivery),
   );
 
-  return { visibleRanges: normalizeLineRanges(visibleRanges), recoveryPaths };
+  return {
+    visibleRanges: normalizeLineRanges(visibleRanges),
+    materializedRanges: normalizeLineRanges(materializedRanges),
+    recoverableRanges: normalizeLineRanges(recoverableRanges),
+    recoveryPaths,
+  };
 }
 
 export function decideContextResourceLoad({
@@ -239,7 +254,7 @@ export function decideContextResourceLoad({
     };
   }
 
-  const { visibleRanges, recoveryPaths } = deriveVisibleResourceCoverage({
+  const { visibleRanges, materializedRanges, recoverableRanges, recoveryPaths } = deriveVisibleResourceCoverage({
     resourceFact,
     revisionDigest: currentRevisionDigest,
     materializedMessages,
@@ -248,6 +263,26 @@ export function decideContextResourceLoad({
   const missingRanges = subtractLineRanges(normalizedRequested, visibleRanges);
 
   if (missingRanges.length === 0) {
+    // A compacted result without an artifact path is not usable by the next
+    // provider request: the model may only see this empty resource envelope
+    // after compaction. Re-deliver that range instead of creating a repeat-read
+    // loop around an `already-visible` card with no recoverable content.
+    // An artifact path is a recovery fallback, not proof that the current
+    // provider context contains the source. Re-deliver compacted ranges once
+    // after recovery so the model does not have to discover and read an
+    // internal artifact path before it can continue its task.
+    const usableRanges = normalizeLineRanges(materializedRanges);
+    const unrecoverableRanges = subtractLineRanges(normalizedRequested, usableRanges);
+    if (unrecoverableRanges.length > 0) {
+      return {
+        kind: "missing_ranges",
+        revisionDigest: currentRevisionDigest,
+        requestedRanges: normalizedRequested,
+        visibleRanges,
+        missingRanges: unrecoverableRanges,
+        recoveryPaths: [],
+      };
+    }
     return {
       kind: "already_visible",
       revisionDigest: currentRevisionDigest,

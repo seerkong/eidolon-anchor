@@ -4,6 +4,9 @@ import {
   buildOpenAIResponsesRequestBody,
   buildOpenAIResponsesToolFollowUpInputItems,
   buildOpenAIResponsesInputItemsWithAssistantReplay,
+  buildOpenAIResponsesFullInputItems,
+  buildOpenAIResponsesIncrementalInputItems,
+  normalizeOpenAIChatMessages,
 } from "@cell/ai-organ-logic/llm";
 
 describe("OpenAI Responses input item builders", () => {
@@ -88,6 +91,61 @@ describe("OpenAI Responses input item builders", () => {
     ]);
   });
 
+  it("replays every historical tool pair instead of only the trailing pair", () => {
+    const result = buildOpenAIResponsesFullInputItems([
+      { role: "user", content: "inspect the project" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "call_a", name: "read", input: { path: "a.ts" } }],
+      },
+      { role: "tool", toolCallId: "call_a", content: "a result" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "call_b", name: "read", input: { path: "b.ts" } }],
+      },
+      { role: "tool", toolCallId: "call_b", content: "b result" },
+    ]);
+
+    expect(result).toEqual([
+      { type: "message", role: "user", content: [{ type: "input_text", text: "inspect the project" }] },
+      { type: "function_call", call_id: "call_a", name: "read", arguments: "{\"path\":\"a.ts\"}" },
+      { type: "function_call_output", call_id: "call_a", output: "a result" },
+      { type: "function_call", call_id: "call_b", name: "read", arguments: "{\"path\":\"b.ts\"}" },
+      { type: "function_call_output", call_id: "call_b", output: "b result" },
+    ]);
+  });
+
+  it("keeps all tool pairs across a long canonical replay", () => {
+    const messages: any[] = [{ role: "user", content: "long investigation" }];
+    for (let index = 0; index < 100; index += 1) {
+      messages.push({
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: `call_${index}`, name: "read", input: { path: `file-${index}.ts` } }],
+      });
+      messages.push({ role: "tool", toolCallId: `call_${index}`, content: `result-${index}` });
+    }
+
+    const result = buildOpenAIResponsesFullInputItems(messages);
+
+    expect(result).toHaveLength(201);
+    expect(result.filter((item) => item.type === "function_call")).toHaveLength(100);
+    expect(result.filter((item) => item.type === "function_call_output")).toHaveLength(100);
+    expect(result.at(-2)).toEqual({
+      type: "function_call",
+      call_id: "call_99",
+      name: "read",
+      arguments: "{\"path\":\"file-99.ts\"}",
+    });
+    expect(result.at(-1)).toEqual({
+      type: "function_call_output",
+      call_id: "call_99",
+      output: "result-99",
+    });
+  });
+
   it("supports assistant replay payloads", () => {
     const result = buildOpenAIResponsesInputItemsWithAssistantReplay(
       [{ role: "user", content: "continue" }],
@@ -130,6 +188,34 @@ describe("OpenAI Responses input item builders", () => {
     ]);
   });
 
+  it("keeps every output from a split parallel tool round in incremental replay", () => {
+    const messages = normalizeOpenAIChatMessages([
+      { role: "user", content: "inspect files" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          { id: "call_a", name: "read", input: { path: "a.ts" } },
+          { id: "call_b", name: "read", input: { path: "b.ts" } },
+        ],
+      },
+      { role: "tool", toolCallId: "call_a", content: "a" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "call_b", name: "read", input: { path: "b.ts" } }],
+      },
+      { role: "tool", toolCallId: "call_b", content: "b" },
+    ]);
+
+    const incremental = buildOpenAIResponsesIncrementalInputItems(messages.slice(2));
+
+    expect(incremental).toEqual([
+      { type: "function_call_output", call_id: "call_a", output: "a" },
+      { type: "function_call_output", call_id: "call_b", output: "b" },
+    ]);
+  });
+
   it("does not derive continuation from legacy requestOptions.previous_response_id", () => {
     const input = buildOpenAIResponsesInputItems([
       { role: "user", content: "use tool" },
@@ -162,6 +248,8 @@ describe("OpenAI Responses input item builders", () => {
         role: "user",
         content: [{ type: "input_text", text: "use tool" }],
       },
+      { type: "function_call", call_id: "call_1", name: "read_file", arguments: "{}" },
+      { type: "function_call_output", call_id: "call_1", output: "done" },
     ]);
   });
 

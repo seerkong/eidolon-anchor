@@ -78,11 +78,11 @@ Good：
 <rule #runtime.rules.state.no_derived_writeback {
   kind = "rule"
   applies_to = ["modeling://domain/orders/order"]
-} [
+} (
   <rule ?>派生 projection 不得反写 authoritative fact。</?>
   <rationale ?>避免多个事实源同时写同一业务状态。</?>
   <enforcement ?>review 时检查写路径；测试覆盖 projection 只读。</?>
-]>
+)>
 ```
 
 Bad：

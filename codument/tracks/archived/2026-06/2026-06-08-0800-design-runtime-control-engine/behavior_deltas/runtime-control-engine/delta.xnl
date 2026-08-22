@@ -1,0 +1,126 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_8_-_0_8_0_0_-_d_e_s_i_g_n_-_r_u_n_t_i_m_e_-_c_o_n_t_r_o_l_-_e_n_g_i_n_e.behavior_patch.runtime-control-engine apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-control-engine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-control-engine/requirements/command-interpreter" } (
+      <Requirement #command-interpreter (
+        <Statement ?01M05F1PGH9F3J88KN55G0JTYC>
+        系统 SHALL 提供一个可恢复的 runtime control engine，将控制操作表示为持久化的 command 数据，复用 depa-actor@0.2.0 的 CommandDequeGroup/stack/dispatcher 原语进行本地解释执行，并产生状态投影、effect request 和 commit intent。
+        </?01M05F1PGH9F3J88KN55G0JTYC>
+        <Suites [
+          <Suite #deterministic-reduction { name = "确定性解释" } (
+            <Cases [
+              <Case #same-input-same-output (
+                <Given ?01M05F1PGH9F3J88KN55G0JTYD>
+                相同的 control state 和相同的 command sequence
+                </?01M05F1PGH9F3J88KN55G0JTYD>
+                <When ?01M05F1PGH9F3J88KN55G0JTYE>
+                engine 执行 command reduction
+                </?01M05F1PGH9F3J88KN55G0JTYE>
+                <Then ?01M05F1PGH9F3J88KN55G0JTYF>
+                engine SHALL 产生相同的 next state、projection patch、effect request 和 commit intent
+                </?01M05F1PGH9F3J88KN55G0JTYF>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://runtime-control-engine/requirements/local-command-worklist" } (
+      <Requirement #local-command-worklist (
+        <Statement ?01M05F1PGH9F3J88KN55G0JTYG>
+        系统 SHALL 使用 depa-actor@0.2.0 CommandDequeGroup 表达 actor-local 内部 command worklist；command item 不应携带 lane 或 priority，调度元数据 SHALL 位于 deque/group 层。
+        </?01M05F1PGH9F3J88KN55G0JTYG>
+        <Suites [
+          <Suite #selector-policy { name = "选择策略" } (
+            <Cases [
+              <Case #safepoint-aware-selection (
+                <Given ?01M05F1PGH9F3J88KN55G0JTYH>
+                commit deque 中存在 pending commit command 且 runtime 尚未到达 safepoint
+                </?01M05F1PGH9F3J88KN55G0JTYH>
+                <When ?01M05F1PGH9F3J88KN55G0JTYJ>
+                engine selector 选择下一条 command
+                </?01M05F1PGH9F3J88KN55G0JTYJ>
+                <Then ?01M05F1PGH9F3J88KN55G0JTYK>
+                selector SHALL 跳过该 commit command 并选择其他可消费 command 或返回无可消费 command
+                </?01M05F1PGH9F3J88KN55G0JTYK>
+              )>
+              <Case #explicit-selection-mutation [
+                <Then ?01M05F1PGH9F3J88KN55G0JTYM>
+                command group state SHALL NOT 被修改
+                </?01M05F1PGH9F3J88KN55G0JTYM>
+                <Then ?01M05F1PGH9F3J88KN55G0JTYN>
+                engine SHALL 只在 popSelected 或 takeNext 阶段消费 command
+                </?01M05F1PGH9F3J88KN55G0JTYN>
+              ] (
+                <Given ?01M05F1PGH9F3J88KN55G0JTYP>
+                selector 已选出下一条 command
+                </?01M05F1PGH9F3J88KN55G0JTYP>
+                <When ?01M05F1PGH9F3J88KN55G0JTYQ>
+                engine 只执行 selectNext
+                </?01M05F1PGH9F3J88KN55G0JTYQ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://runtime-control-engine/requirements/safepoint-cohort" } (
+      <Requirement #safepoint-cohort (
+        <Statement ?01M05F1PGH9F3J88KN55G0JTYR>
+        系统 SHALL 使用 safepoint 管理多个 durable heads 的写入；未达到 safepoint 的变更 SHALL 保留在内存缓冲或待提交 intent 中，不得把 runtime 保存成不可恢复状态。
+        </?01M05F1PGH9F3J88KN55G0JTYR>
+        <Suites [
+          <Suite #multi-head-commit { name = "多 head 一致性提交" } (
+            <Cases [
+              <Case #commit-only-at-safepoint (
+                <Given ?01M05F1PGH9F3J88KN55G0JTYS>
+                snapshot、mailbox、conversation、event log 或 diagnostics 中任一 head 尚未满足 safepoint policy
+                </?01M05F1PGH9F3J88KN55G0JTYS>
+                <When ?01M05F1PGH9F3J88KN55G0JTYT>
+                engine 准备执行持久化写入
+                </?01M05F1PGH9F3J88KN55G0JTYT>
+                <Then ?01M05F1PGH9F3J88KN55G0JTYV>
+                engine SHALL 延迟相关 durable heads 的 cohort commit
+                </?01M05F1PGH9F3J88KN55G0JTYV>
+              )>
+              <Case #recover-after-crash (
+                <Given ?01M05F1PGH9F3J88KN55G0JTYW>
+                进程在 effect request 和 durable cohort commit 之间崩溃
+                </?01M05F1PGH9F3J88KN55G0JTYW>
+                <When ?01M05F1PGH9F3J88KN55G0JTYX>
+                engine 从持久化 heads 恢复
+                </?01M05F1PGH9F3J88KN55G0JTYX>
+                <Then ?01M05F1PGH9F3J88KN55G0JTYY>
+                engine SHALL 根据 evidence 和 commit marker 明确分类该 effect 的恢复状态
+                </?01M05F1PGH9F3J88KN55G0JTYY>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://runtime-control-engine/requirements/effect-lifecycle" } (
+      <Requirement #effect-lifecycle (
+        <Statement ?01M05F1PGH9F3J88KN55G0JTYZ>
+        系统 SHALL 将副作用建模为 effect request/result 生命周期，并支持长时间等待、权限拦截、重试、取消和恢复分类。
+        </?01M05F1PGH9F3J88KN55G0JTYZ>
+        <Suites [
+          <Suite #long-running-effect { name = "长耗时 effect" } (
+            <Cases [
+              <Case #wait-without-invalid-snapshot (
+                <Given ?01M05F1PGH9F3J88KN55G0JTZ0>
+                effect handler 因权限拦截或外部等待长时间未返回
+                </?01M05F1PGH9F3J88KN55G0JTZ0>
+                <When ?01M05F1PGH9F3J88KN55G0JTZ1>
+                engine 需要保存 runtime 状态
+                </?01M05F1PGH9F3J88KN55G0JTZ1>
+                <Then ?01M05F1PGH9F3J88KN55G0JTZ2>
+                engine SHALL 保存可恢复的 waiting state 或延迟不安全 head 的提交
+                </?01M05F1PGH9F3J88KN55G0JTZ2>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

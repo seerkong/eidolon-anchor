@@ -1,0 +1,65 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_1_5_-_1_0_0_0_-_i_m_p_l_e_m_e_n_t_-_w_i_n_d_o_w_s_-_s_a_n_d_b_o_x_-_d_u_a_l_-_a_c_c_o_u_n_t.behavior_patch.windows-sandbox-dual-account apiVersion="codument.tech/v1alpha1" version="1" { capability = "windows-sandbox-dual-account" } (
+  <Mutations [
+    <Upsert { selector = "behavior://windows-sandbox-dual-account/requirements/dual-account-network-choice" } (
+      <Requirement #dual-account-network-choice (
+        <Statement ?01M05F1PTGXT601VRCE3P8W2MZ>
+        Windows 沙箱 SHALL 使用双账号：eidolon-sandbox-online（联网）与 eidolon-sandbox-offline（WFP 拦截出站）。setup SHALL 创建两账号并各自 DPAPI 加密存储密码，SHALL 只对 offline 账号安装 WFP 出站拦截。runner SHALL 依据 --network 选择账号：enabled→online、disabled→offline，使每次命令可独立选择网络策略。旧单账号 eidolon-sandbox SHALL 可清理。
+        </?01M05F1PTGXT601VRCE3P8W2MZ>
+        <Suites [
+          <Suite #dual-account { name = "Dual-account network choice" } (
+            <Cases [
+              <Case #two-accounts-created [
+                <Then ?01M05F1PTGXT601VRCE3P8W2N0>
+                SHALL 创建 eidolon-sandbox-online 与 eidolon-sandbox-offline 两账号
+                </?01M05F1PTGXT601VRCE3P8W2N0>
+                <Then ?01M05F1PTGXT601VRCE3P8W2N1>
+                SHALL 各自 DPAPI 加密存储密码
+                </?01M05F1PTGXT601VRCE3P8W2N1>
+              ] (
+                <Given ?01M05F1PTGXT601VRCE3P8W2N2>
+                setup 以 elevated 运行
+                </?01M05F1PTGXT601VRCE3P8W2N2>
+                <When ?01M05F1PTGXT601VRCE3P8W2N3>
+                创建沙箱账号
+                </?01M05F1PTGXT601VRCE3P8W2N3>
+              )>
+              <Case #wfp-only-on-offline (
+                <Given ?01M05F1PTGXT601VRCE3P8W2N4>
+                setup 完成
+                </?01M05F1PTGXT601VRCE3P8W2N4>
+                <When ?01M05F1PTHEMKZF7MMFZEQSGKA>
+                安装网络过滤
+                </?01M05F1PTHEMKZF7MMFZEQSGKA>
+                <Then ?01M05F1PTHEMKZF7MMFZEQSGKB>
+                SHALL 仅对 eidolon-sandbox-offline 安装 WFP 出站拦截
+                </?01M05F1PTHEMKZF7MMFZEQSGKB>
+              )>
+              <Case #network-enabled-uses-online (
+                <Given ?01M05F1PTHEMKZF7MMFZEQSGKC>
+                runner 收到 --network enabled
+                </?01M05F1PTHEMKZF7MMFZEQSGKC>
+                <When ?01M05F1PTHEMKZF7MMFZEQSGKD>
+                启动命令
+                </?01M05F1PTHEMKZF7MMFZEQSGKD>
+                <Then ?01M05F1PTHEMKZF7MMFZEQSGKE>
+                SHALL 用 eidolon-sandbox-online 账号运行（可联网）
+                </?01M05F1PTHEMKZF7MMFZEQSGKE>
+              )>
+              <Case #network-disabled-uses-offline (
+                <Given ?01M05F1PTHEMKZF7MMFZEQSGKF>
+                runner 收到 --network disabled
+                </?01M05F1PTHEMKZF7MMFZEQSGKF>
+                <When ?01M05F1PTHEMKZF7MMFZEQSGKG>
+                启动命令
+                </?01M05F1PTHEMKZF7MMFZEQSGKG>
+                <Then ?01M05F1PTHEMKZF7MMFZEQSGKH>
+                SHALL 用 eidolon-sandbox-offline 账号运行（出站被 WFP 拦截）
+                </?01M05F1PTHEMKZF7MMFZEQSGKH>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

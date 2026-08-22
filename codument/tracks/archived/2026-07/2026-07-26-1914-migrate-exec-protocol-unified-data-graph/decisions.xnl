@@ -1,14 +1,19 @@
-<decision #migrate-exec-protocol-unified-data-graph.projection {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>How is the removed terminal reducer projection replaced?</?>
-  <answer { }
-  (
-    <raw-answer ?>Use the unified state node.</?>
-    <decision-text ?>Use DataGraph.addSource(eventLog.stream()) and addStreamDrivenStateSignalNode with handle.output reads.</?>
-    <rationale ?>It matches upstream lifecycle and the completed history migration.</?>
-    <evidence ?>Upstream migration guide and current load failure.</?>
+<decision #migrate-exec-protocol-unified-data-graph.projection apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PMX90PVGGHMZNZZBHKN>
+  How is the removed terminal reducer projection replaced?
+  </?01M05F1PMX90PVGGHMZNZZBHKN>
+  <answer {  } (
+    <raw-answer ?01M05F1PMX90PVGGHMZNZZBHKP>
+    Use the unified state node.
+    </?01M05F1PMX90PVGGHMZNZZBHKP>
+    <decision-text ?01M05F1PMX90PVGGHMZNZZBHKQ>
+    Use DataGraph.addSource(eventLog.stream()) and addStreamDrivenStateSignalNode with handle.output reads.
+    </?01M05F1PMX90PVGGHMZNZZBHKQ>
+    <rationale ?01M05F1PMX90PVGGHMZNZZBHKR>
+    It matches upstream lifecycle and the completed history migration.
+    </?01M05F1PMX90PVGGHMZNZZBHKR>
+    <evidence ?01M05F1PMX90PVGGHMZNZZBHKS>
+    Upstream migration guide and current load failure.
+    </?01M05F1PMX90PVGGHMZNZZBHKS>
   )>
 )>

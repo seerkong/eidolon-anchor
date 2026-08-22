@@ -133,55 +133,110 @@ function findLatestAssistantToolCalls(messages: any[]): Map<string, { name: stri
   return new Map();
 }
 
+function isMoreSpecificToolCall(
+  candidate: { name: string; arguments: string },
+  current: { name: string; arguments: string },
+  id: string,
+): boolean {
+  const candidatePlaceholder = candidate.name === id && candidate.arguments === "{}";
+  const currentPlaceholder = current.name === id && current.arguments === "{}";
+  if (currentPlaceholder && !candidatePlaceholder) return true;
+  if (candidatePlaceholder && !currentPlaceholder) return false;
+  return candidate.arguments.length > current.arguments.length;
+}
+
+function collectCanonicalFunctionCalls(
+  messages: any[],
+): Array<{ id: string; name: string; arguments: string }> {
+  const ordered: string[] = [];
+  const byId = new Map<string, { name: string; arguments: string }>();
+  for (const message of messages) {
+    if (!message || message.role !== "assistant") continue;
+    const rawToolCalls = message.tool_calls ?? message.toolCalls ?? [];
+    if (!Array.isArray(rawToolCalls)) continue;
+    for (const rawToolCall of rawToolCalls) {
+      const normalized = normalizeToolCall(rawToolCall);
+      if (!normalized) continue;
+      const current = byId.get(normalized.id);
+      if (!current) ordered.push(normalized.id);
+      if (!current || isMoreSpecificToolCall(normalized, current, normalized.id)) {
+        byId.set(normalized.id, {
+          name: normalized.name,
+          arguments: normalized.arguments,
+        });
+      }
+    }
+  }
+  return ordered.flatMap((id) => {
+    const call = byId.get(id);
+    return call ? [{ id, ...call }] : [];
+  });
+}
+
 export function buildOpenAIResponsesInputItems(messages: any[]): OpenAIResponsesInputBuildResult {
-  const trailingToolMessages = collectTrailingToolMessages(messages);
-  const toolCallMap = findLatestAssistantToolCalls(messages);
+  const canonicalFunctionCalls = collectCanonicalFunctionCalls(messages);
+  const toolCallMap = new Map(canonicalFunctionCalls.map((call) => [call.id, call]));
   const toolItems: OpenAIResponsesInputItem[] = [];
   const toolOutputItems: OpenAIResponsesInputItem[] = [];
 
-  for (const message of trailingToolMessages) {
-    const callId = getToolCallId(message);
-    if (!callId) {
-      toolOutputItems.push({ type: "function_call_output", call_id: "", output: normalizeToolOutput(message.content) });
-      continue;
-    }
-    const callInfo = toolCallMap.get(callId);
-    if (callInfo?.name) {
-      toolItems.push({ type: "function_call", call_id: callId, name: callInfo.name, arguments: callInfo.arguments || "" });
-    }
-    toolOutputItems.push({ type: "function_call_output", call_id: callId, output: normalizeToolOutput(message.content) });
-  }
-
   const messageItems: OpenAIResponsesInputItem[] = [];
-  const skipToolMessages = toolOutputItems.length > 0;
+  const emittedFunctionCallIds = new Set<string>();
+  const orderedInput: OpenAIResponsesInputItem[] = [];
   for (const message of messages) {
     if (!message) continue;
     if (message.role === "system") continue;
     if (message.role === "tool") {
-      if (skipToolMessages) continue;
-      const content = normalizeToolOutput(message.content ?? "");
-      if (!content.trim()) continue;
-      messageItems.push({ type: "message", role: "user", content: [{ type: "input_text", text: content }] });
+      const callId = getToolCallId(message);
+      const outputItem: OpenAIResponsesInputItem = {
+        type: "function_call_output",
+        call_id: callId,
+        output: normalizeToolOutput(message.content),
+      };
+      toolOutputItems.push(outputItem);
+      orderedInput.push(outputItem);
       continue;
     }
     if (message.role === "user" || message.role === "assistant") {
       if (message.role === "user" && Array.isArray(message.content)) {
         const content = projectOpenAIResponsesUserContent(message.content as InputContentPart[]);
         if (!content.some((part) => part.type === "input_image" || part.text.trim())) continue;
-        messageItems.push({ type: "message", role: "user", content });
+        const item: OpenAIResponsesInputItem = { type: "message", role: "user", content };
+        messageItems.push(item);
+        orderedInput.push(item);
         continue;
       }
       const content = normalizeText(message.content ?? "");
-      if (!content.trim()) continue;
-      messageItems.push({
-        type: "message",
-        role: message.role,
-        content: [{ type: message.role === "user" ? "input_text" : "output_text", text: content }],
-      });
+      if (content.trim()) {
+        const item: OpenAIResponsesInputItem = {
+          type: "message",
+          role: message.role,
+          content: [{ type: message.role === "user" ? "input_text" : "output_text", text: content }],
+        };
+        messageItems.push(item);
+        orderedInput.push(item);
+      }
+      if (message.role === "assistant") {
+        const rawToolCalls = message.tool_calls ?? message.toolCalls ?? [];
+        if (!Array.isArray(rawToolCalls)) continue;
+        for (const rawToolCall of rawToolCalls) {
+          const normalized = normalizeToolCall(rawToolCall);
+          if (!normalized || emittedFunctionCallIds.has(normalized.id)) continue;
+          const callInfo = toolCallMap.get(normalized.id) ?? normalized;
+          const item: OpenAIResponsesInputItem = {
+            type: "function_call",
+            call_id: normalized.id,
+            name: callInfo.name,
+            arguments: callInfo.arguments || "",
+          };
+          toolItems.push(item);
+          orderedInput.push(item);
+          emittedFunctionCallIds.add(normalized.id);
+        }
+      }
     }
   }
 
-  return { input: messageItems, messageItems, toolItems, toolOutputItems };
+  return { input: orderedInput, messageItems, toolItems, toolOutputItems };
 }
 
 export function buildOpenAIResponsesToolFollowUpInputItems(
@@ -194,11 +249,7 @@ export function buildOpenAIResponsesToolFollowUpInputItems(
 export function buildOpenAIResponsesFullInputItems(
   messages: any[],
 ): OpenAIResponsesInputItem[] {
-  const built = buildOpenAIResponsesInputItems(messages);
-  if (built.toolItems.length || built.toolOutputItems.length) {
-    return [...built.messageItems, ...built.toolItems, ...built.toolOutputItems];
-  }
-  return [...built.input];
+  return [...buildOpenAIResponsesInputItems(messages).input];
 }
 
 /**

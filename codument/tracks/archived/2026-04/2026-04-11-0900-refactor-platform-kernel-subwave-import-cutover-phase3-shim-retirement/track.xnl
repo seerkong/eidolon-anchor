@@ -1,0 +1,75 @@
+<Track #refactor-platform-kernel-subwave-import-cutover-phase3-shim-retirement version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "删除 legacy support/mod shim package，并用 focused guard 固化其退场状态。" commit_mode = "manual" created_at = "2026-04-11T08:52:00Z" updated_at = "2026-04-11T09:00:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-platform-kernel-subwave-import-cutover-phase3-shim-retirement { name = "refactor-platform-kernel-subwave-import-cutover-phase3-shim-retirement" } (
+    <Description ?01M05F1PC7T7Z5V3XBFP635MS8>
+    平台微内核后续 sub-wave：import cutover phase3 shim retirement
+    </?01M05F1PC7T7Z5V3XBFP635MS8>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Track Setup" status = "DONE" order = 0 } (
+        <Description ?01M05F1PC7T7Z5V3XBFP635MS9>
+        建立 phase3 的规范与计划。
+        </?01M05F1PC7T7Z5V3XBFP635MS9>
+        <SubNodes [
+          <Task { id = "T1.1" name = "创建 phase3 track 文档" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PC7T7Z5V3XBFP635MSA>
+            创建 proposal/spec/design/plan 与 analysis 文件。
+            </?01M05F1PC7T7Z5V3XBFP635MSA>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PC7T7Z5V3XBFP635MSB>
+              track 文档完整
+              </?01M05F1PC7T7Z5V3XBFP635MSB>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PC7T7Z5V3XBFP635MSC>
+              phase3 范围明确锚定在 shim retirement
+              </?01M05F1PC7T7Z5V3XBFP635MSC>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Shim Retirement" status = "DONE" order = 1 } (
+        <Description ?01M05F1PC7T7Z5V3XBFP635MSD>
+        从工作区物理结构中移除 legacy shim package。
+        </?01M05F1PC7T7Z5V3XBFP635MSD>
+        <SubNodes [
+          <Task { id = "T2.1" name = "删除 legacy shim package 目录" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PC7T7Z5V3XBFP635MSE>
+            删除 `cell/packages/organ-support`、`cell/packages/mod-sys-kernel` 与 `cell/packages/mod-sys-coding`。
+            </?01M05F1PC7T7Z5V3XBFP635MSE>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PC7T7Z5V3XBFP635MSF>
+              legacy shim package 目录已删除
+              </?01M05F1PC7T7Z5V3XBFP635MSF>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PC7T7Z5V3XBFP635MSG>
+              新宿主 package 仍为唯一 truth host
+              </?01M05F1PC7T7Z5V3XBFP635MSG>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Regression Guard" status = "DONE" order = 2 } (
+        <Description ?01M05F1PC7T7Z5V3XBFP635MSH>
+        用 focused guard 固化 shim retirement 状态。
+        </?01M05F1PC7T7Z5V3XBFP635MSH>
+        <SubNodes [
+          <Task { id = "T3.1" name = "更新 migration guard 并验证" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PC7T7Z5V3XBFP635MSJ>
+            将 migration surface tests 更新为要求 legacy shim package 不存在，并继续阻止旧包名回流。
+            </?01M05F1PC7T7Z5V3XBFP635MSJ>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PC7T7Z5V3XBFP635MSK>
+              focused guard 可检测 shim 回流
+              </?01M05F1PC7T7Z5V3XBFP635MSK>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PC7T7Z5V3XBFP635MSM>
+              相关测试与 codument validate 通过
+              </?01M05F1PC7T7Z5V3XBFP635MSM>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

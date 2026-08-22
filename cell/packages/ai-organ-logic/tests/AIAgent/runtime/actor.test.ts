@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import { AI_AGENT_MAILBOXES, applyActorModelConfigControlSignals, createActor } from "@cell/ai-core-logic/runtime/actor";
-import { hydrateActor, RUNTIME_SNAPSHOT_SCHEMA_VERSION } from "@cell/ai-core-logic/runtime/snapshot";
+import { hydrateActor, RUNTIME_SNAPSHOT_SCHEMA_VERSION, serializeActor } from "@cell/ai-core-logic/runtime/snapshot";
 
 describe("createActor", () => {
   it("creates a primary actor with defaults", () => {
@@ -12,6 +12,7 @@ describe("createActor", () => {
     expect(typeof actor.id).toBe("string");
     expect(actor.type).toBe("primary");
     expect(actor.ctrlOptions.stopAfterFirstTool).toBe(false);
+    expect(actor.toolPolicy.allowedToolsMode).toBe("all");
     expect(actor.toolPolicy.allowedTools).toEqual([]);
     expect(actor.priority).toEqual(AI_AGENT_MAILBOXES);
     expect((actor as any).watchState).toBe("unwatched");
@@ -43,7 +44,20 @@ describe("createActor", () => {
 
     expect(actor.type).toBe("delegate");
     expect(actor.ctrlOptions.stopAfterFirstTool).toBe(true);
+    expect(actor.toolPolicy.allowedToolsMode).toBe("exact");
     expect(actor.toolPolicy.allowedTools).toEqual(["read"]);
+  });
+
+  it("round-trips an exact empty tool policy without widening it", () => {
+    const actor = createActor({
+      key: "exact-empty",
+      toolPolicy: { allowedToolsMode: "exact", allowedTools: [] },
+    });
+
+    const restored = hydrateActor(serializeActor(actor));
+
+    expect(restored.toolPolicy.allowedToolsMode).toBe("exact");
+    expect(restored.toolPolicy.allowedTools).toEqual([]);
   });
 
   it("supports detached actors and the new organization identities", () => {
@@ -126,6 +140,7 @@ describe("createActor", () => {
       type: "primary",
       systemPrompts: [],
       toolPolicy: {
+        allowedToolsMode: "all",
         allowedTools: [],
         enabledToolKeys: [],
         disabledToolKeys: [],

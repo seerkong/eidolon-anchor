@@ -1,0 +1,13 @@
+<ResourcePackage #codument.kind_system apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  description = "Codument structured resource Kind authority"
+} (
+  <Catalogs [
+    <Catalog #kind_definitions {
+      kind = "KindDefinition"
+      shape = "directory"
+      root = "vfs://./KindDefinitions/"
+      entry = "manifest.xnl"
+    }>
+  ]>
+)>

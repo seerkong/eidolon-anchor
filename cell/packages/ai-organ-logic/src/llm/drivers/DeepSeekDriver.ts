@@ -3,7 +3,8 @@ import type {
   ProviderDriverRequestParams,
   ProviderDriverStreamParams,
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
-import { OpenAICompletionsNodejsFetchLlmAdapter } from "../OpenAICompletionsNodejsFetchAdapter";
+import type { ProviderToolSchemaProjectionAuthority } from "@cell/ai-organ-contract/llm/ProviderToolSchemaProjection";
+import { OpenAICompletionsAdmittedFetchTransport } from "../OpenAICompletionsNodejsFetchAdapter";
 import { deepSeekOfficialChatEffectBundle } from "../ChatCompletionsEffectBundles";
 import { resolveDeepSeekModelCapabilities } from "../DeepSeekModelCapabilities";
 import {
@@ -11,6 +12,27 @@ import {
   sanitizeProviderExtraBody,
   sanitizeProviderRequestBodyOptions,
 } from "../ProviderOptions";
+import { prepareProviderToolSchemaProjection } from "../tool-schema/ProviderRequestAdmission";
+
+function prepareDeepSeekRequest(params: ProviderDriverRequestParams) {
+  const toolSchemaProjectionAuthority = prepareProviderToolSchemaProjection(
+    deepSeekOfficialChatEffectBundle.toolSchemaProjector,
+    params.tools,
+  );
+  return {
+    contract: {
+      method: "POST",
+      body: deepSeekOfficialChatEffectBundle.projectRequest({
+        model: params.model,
+        messages: params.messages,
+        tools: params.tools,
+        extraBody: buildDeepSeekExtraBody(params),
+        toolSchemaProjectionAuthority,
+      }),
+    },
+    toolSchemaProjectionAuthority,
+  } as const;
+}
 
 function getString(
   options: Record<string, unknown>,
@@ -59,18 +81,11 @@ export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
       "deep-seek",
     ],
     buildRequest(params: ProviderDriverRequestParams) {
-      return {
-        method: "POST",
-        body: deepSeekOfficialChatEffectBundle.projectRequest({
-          model: params.model,
-          messages: params.messages,
-          tools: params.tools,
-          extraBody: buildDeepSeekExtraBody(params),
-        }),
-      };
+      return prepareDeepSeekRequest(params).contract;
     },
+    prepareRequest: prepareDeepSeekRequest,
     async createStream(params: ProviderDriverStreamParams) {
-      const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
+      const transport = new OpenAICompletionsAdmittedFetchTransport({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
         effectBundle: deepSeekOfficialChatEffectBundle,
         baseUrl:
@@ -86,16 +101,15 @@ export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
         },
         requestObserver: params.transportRequestObserver,
       });
-      return adapter.createStream({
+      return transport.createStream({
         model: params.model,
         messages: params.messages as any[],
-        tools: params.tools as any[],
         extraBody: {
           ...buildDeepSeekExtraBody(params),
           ...extractProviderTransportRequestOptions(params.requestOptions),
         },
         signal: params.signal,
-      });
+      }, params.toolSchemaProjectionAuthority as ProviderToolSchemaProjectionAuthority);
     },
   };
 }

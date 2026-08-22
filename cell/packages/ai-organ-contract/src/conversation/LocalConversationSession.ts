@@ -11,6 +11,8 @@ export type LocalConversationSessionActorBinding = {
   boundAt?: string | null;
   historyHeadGenerationId?: string | null;
   promptHeadGenerationId?: string | null;
+  /** Monotonic provider-context identity; history rewinds invalidate it. */
+  contextEpoch?: number;
   metadata?: Record<string, unknown>;
 };
 

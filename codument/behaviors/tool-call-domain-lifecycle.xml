@@ -1,4 +1,7 @@
 <capability id="tool-call-domain-lifecycle" version="1">
+  <Metadata>
+    <ApiVersion>codument.tech/v1alpha1</ApiVersion>
+  </Metadata>
   <requirement id="single-owner">
     <statement>tool call 的全生命周期事实 SHALL 由 ToolCallDomain 单独拥有；其它模块（executor 隐式 state、cooperative pendingAiGenerated、runtime-control effect evidence）SHALL NOT 持有事实真相，只能持有派生信号或 audit 副本。</statement>
     <suite id="ownership" name="Lifecycle ownership">

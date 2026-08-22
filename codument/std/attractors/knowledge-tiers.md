@@ -26,8 +26,8 @@
 | 承重决策 | `decisions/**/*.xnl`（`decision://<stable-id>`） | 从 track/mission 完整 decision forest 提升的长期决策 | 稳定·节点级合并 | "为什么这么定" |
 | 长期教训 | `memory/`（`memory://`） | lessons / incidents / patterns / summaries | 稳定·追加 | "反复踩的坑 / 复用模式" |
 | 候选工作 | `backlog/` | 跨 track 的下一步候选 + 自主度 | 活的·就地改 | "下一个该做什么"（非真源） |
-| 跨 track 路线 | `missions/<id>/roadmap.md` | 一组相关 track 的阶段路线、依赖、进度证据 | 活的·就地改 | "多个 track 如何排布"（非行为真源） |
-| 迭代工作面 | `tracks/{pending,active}/<id>/` | proposal、design、discussion、`track.xml`、`behavior_deltas/`、`analysis/`、`decisions*`、`reports/` | **带日期·迭代内可变** | "本次要建什么 / 怎么收口 / 发生了什么" |
+| 跨 track 路线 | `missions/{pending,active,archived}/<id>/mission.xnl` | 一组相关 track 的任务图、依赖、状态与进度证据 | 活的·就地改 | "多个 track 如何排布"（非行为真源） |
+| 迭代工作面 | `tracks/{pending,active}/<id>/` | proposal、design、discussion、`track.xnl`、`behavior_deltas/`、`analysis/`、`decisions*`、`reports/` | **带日期·迭代内可变** | "本次要建什么 / 怎么收口 / 发生了什么" |
 | 轨迹历史 | `tracks/archived/YYYY-MM/...` | 已完成 track | **带日期·归档后不可变** | "历史上做过什么" |
 
 > 工具性目录（`std/`、`config/`、`workflows/`、`sop/`）不是知识层，不在晋升阶梯内。
@@ -40,7 +40,7 @@
 外部输入 / 对话
    │  [建 track / discuss 时，落文件]
    ▼
-tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · behavior_deltas/ · track.xml · reports/
+tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · behavior_deltas/ · track.xnl · reports/
    │
    ├─[行为变更]──────────────▶ behaviors/      （归档必做：delta 应用进登记表）
    │
@@ -52,7 +52,7 @@ tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · b
    │
    └─[可复用教训 / gap 模式]──▶ memory/         （lessons/incidents/patterns）
          │
-         └─[同类问题跨多 track 复发]──▶ 方法层：std/methods/ · std/actions/ · attractor-profile check · action-hook · validation 守卫
+         └─[同类问题跨多 track 复发]──▶ 方法层：std/methods/ · std/operations/ · attractor-profile check · operation-hook · validation 守卫
                （codument 版 "prose 教训 → 可复用方法 → 固化检查"；先 sop/prompt，再考虑固化为 check/hook）
 ```
 
@@ -64,7 +64,7 @@ tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · b
 | track → `behaviors/` | 任何对外行为新增/变更（归档必做） |
 | track/mission → `decisions/**/*.xnl` | 一个原本一次性的取舍变成"以后都按这个来"的承重决策；从根 `decisions.xnl` 与递归 `decisions/**/*.xnl` 同时选择完整 durable tree closure，并按 stable id 合并 |
 | track/复盘 → `memory/` | 出现可复用的教训、非显然的 incident、值得记住的 pattern |
-| `memory/` → 方法层(sop/skill/check) | **同一类问题反复出现**：先提炼为可复用 sop/prompt；若仍复发，再固化为 attractor-check profile / action-hook / validation 守卫（按项目误报容忍度调优） |
+| `memory/` → 方法层(sop/skill/check) | **同一类问题反复出现**：先提炼为可复用 sop/prompt；若仍复发，再固化为 attractor-check profile / operation-hook / validation 守卫（按项目误报容忍度调优） |
 | 任意 → `migration-map` | owner 文档路径移动/拆分/合并/被吸收 |
 
 > 反向**不**晋升：被否决的方案、未稳定的猜测、纯过程噪音留在 track / `memory` 即可，不污染 owner 文档。
@@ -76,7 +76,7 @@ tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · b
 | 当前领域本体是什么 | `codument/modeling/`（canonical）；能力契约看 `behaviors/` |
 | 可执行真相（数据/接口/schema） | 源码 / 测试 / schema / config（owner 文档只解释意图） |
 | 本次 track 要建什么 | `tracks/pending/<id>/proposal.md` + `behavior_deltas/` |
-| 本 track 怎么执行/收口 | `tracks/active/<id>/track.xml` |
+| 本 track 怎么执行/收口 | `tracks/active/<id>/track.xnl` |
 | 实现/运维怎么做 | `codument/engineering/` |
 | 发生了什么 | `tracks/active/<id>/reports/` + `tracks/archived/` |
 | 长期必须为真 | `codument/modeling/` + `codument/engineering/` + `behaviors/` + `decisions/` + `attractors/` |
@@ -95,4 +95,4 @@ tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · b
 - registry 规范（modeling/engineering 怎么写、拆分与校验）：[model-driven-docs.md](./model-driven-docs.md) → [docs-modeling-fractal](@codument/std/skill/docs-modeling-fractal/index.md) / [docs-engineering-fractal](@codument/std/skill/docs-engineering-fractal/index.md)。
 - decision registry、递归 source、stable-id merge 与 URI：[decision-registry.md](@codument/std/spec/decision-registry.md)。
 - 每个标准文件夹"装什么"的自描述与补齐：[std/spec/folder-manifest.md](@codument/std/spec/folder-manifest.md)。
-- 晋升动作落在流程里：归档晋升见 `std/actions/archive-track.md`；docs 同步见 `std/actions/artifact-sync.md`；澄清期实时更新见 `std/protocols/questioning.md`。
+- 晋升操作落在流程里：归档晋升见 `std/operations/archive-track.md`；docs 同步见 `std/operations/artifact-sync.md`；澄清期实时更新见 `std/protocols/questioning.md`。

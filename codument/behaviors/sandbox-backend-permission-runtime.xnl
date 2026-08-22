@@ -1,0 +1,401 @@
+<Behavior #sandbox-backend-permission-runtime apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #sandbox-backend-runtime-abstraction (
+      <Statement ?01M05F1P3HTWP8D3GTGC36T3P7>
+      The system SHALL provide a platform-neutral sandbox backend runtime for command execution across macOS, Linux, and Windows.
+      </?01M05F1P3HTWP8D3GTGC36T3P7>
+      <Suites [
+        <Suite { name = "sandbox-backend-runtime-abstraction" } (
+          <Cases [
+            <Case #platform-specific-backend-selection { name = "Platform-specific backend selection" } [
+              <Then ?01M05F1P3HTWP8D3GTGC36T3P8>
+              macOS SHALL select the Seatbelt backend for `read-only` or `workspace-write`
+              </?01M05F1P3HTWP8D3GTGC36T3P8>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3P9>
+              Linux SHALL select the Linux sandbox backend for `read-only` or `workspace-write`
+              </?01M05F1P3HTWP8D3GTGC36T3P9>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PA>
+              Windows SHALL select the Windows sandbox backend for `read-only` or `workspace-write`
+              </?01M05F1P3HTWP8D3GTGC36T3PA>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PB>
+              `danger-full-access` SHALL select the unsandboxed backend on every platform.
+              </?01M05F1P3HTWP8D3GTGC36T3PB>
+            ] (
+              <Given ?01M05F1P3HTWP8D3GTGC36T3PC>
+              a Bash tool execution with runtime metadata containing `sandbox_permissions`
+              </?01M05F1P3HTWP8D3GTGC36T3PC>
+              <When ?01M05F1P3HTWP8D3GTGC36T3PD>
+              the runtime resolves backend selection
+              </?01M05F1P3HTWP8D3GTGC36T3PD>
+            )>
+            <Case #bash-execution-uses-backend-selection { name = "Bash execution uses backend selection" } [
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PE>
+              the tool SHALL delegate process execution to the sandbox backend runtime
+              </?01M05F1P3HTWP8D3GTGC36T3PE>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PF>
+              SHALL preserve existing local permission authorization before executing the command.
+              </?01M05F1P3HTWP8D3GTGC36T3PF>
+            ] (
+              <Given ?01M05F1P3HTWP8D3GTGC36T3PG>
+              a Bash tool execution with runtime metadata containing sandbox permissions
+              </?01M05F1P3HTWP8D3GTGC36T3PG>
+              <When ?01M05F1P3HTWP8D3GTGC36T3PH>
+              the command is executed
+              </?01M05F1P3HTWP8D3GTGC36T3PH>
+            )>
+            <Case #existing-permission-chain-is-preserved { name = "Existing permission chain is preserved" } [
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PJ>
+              the tool SHALL call local permission authorization before resolving or invoking the sandbox backend
+              </?01M05F1P3HTWP8D3GTGC36T3PJ>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PK>
+              SHALL keep existing dangerous command guards.
+              </?01M05F1P3HTWP8D3GTGC36T3PK>
+            ] (
+              <Given ?01M05F1P3HTWP8D3GTGC36T3PM>
+              a Bash tool execution requires local permission authorization
+              </?01M05F1P3HTWP8D3GTGC36T3PM>
+              <When ?01M05F1P3HTWP8D3GTGC36T3PN>
+              the command is executed through any sandbox backend
+              </?01M05F1P3HTWP8D3GTGC36T3PN>
+            )>
+            <Case #writable-roots-are-resolved-consistently { name = "Writable roots are resolved consistently" } [
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PP>
+              the selected platform backend SHALL receive a normalized unique list of writable roots
+              </?01M05F1P3HTWP8D3GTGC36T3PP>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PQ>
+              read-only mode SHALL receive no writable roots.
+              </?01M05F1P3HTWP8D3GTGC36T3PQ>
+            ] (
+              <Given ?01M05F1P3HTWP8D3GTGC36T3PR>
+              `workspace-write` mode and runtime metadata with additional writable roots or workspace-access grants
+              </?01M05F1P3HTWP8D3GTGC36T3PR>
+              <When ?01M05F1P3HTWP8D3GTGC36T3PS>
+              backend selection is resolved
+              </?01M05F1P3HTWP8D3GTGC36T3PS>
+            )>
+            <Case #workspace-access-grants-extend-sandbox-writable-roots { name = "Workspace access grants extend sandbox writable roots" } [
+              <Given ?01M05F1P3HTWP8D3GTGC36T3PT>
+              `workspace-access.json` grants write access to a directory outside the workspace for the current workspace
+              </?01M05F1P3HTWP8D3GTGC36T3PT>
+              <Given ?01M05F1P3HTWP8D3GTGC36T3PV>
+              the platform is macOS with `sandbox_mode` set to `workspace-write`
+              </?01M05F1P3HTWP8D3GTGC36T3PV>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PW>
+              the macOS Seatbelt writable roots SHALL include the granted directory
+              </?01M05F1P3HTWP8D3GTGC36T3PW>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PX>
+              SHALL continue to protect workspace metadata directories from generic writes.
+              </?01M05F1P3HTWP8D3GTGC36T3PX>
+            ] (
+              <When ?01M05F1P3HTWP8D3GTGC36T3PY>
+              a Bash command is executed through the sandbox backend
+              </?01M05F1P3HTWP8D3GTGC36T3PY>
+            )>
+            <Case #dangerous-mode-remains-unsandboxed { name = "Dangerous mode remains unsandboxed" } [
+              <Then ?01M05F1P3HTWP8D3GTGC36T3PZ>
+              the runtime SHALL execute without wrapping the command in a sandbox backend
+              </?01M05F1P3HTWP8D3GTGC36T3PZ>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3Q0>
+              SHALL retain existing dangerous command guards.
+              </?01M05F1P3HTWP8D3GTGC36T3Q0>
+            ] (
+              <Given ?01M05F1P3HTWP8D3GTGC36T3Q1>
+              runtime metadata has `sandbox_mode` set to `danger-full-access`
+              </?01M05F1P3HTWP8D3GTGC36T3Q1>
+              <When ?01M05F1P3HTWP8D3GTGC36T3Q2>
+              a Bash command is executed
+              </?01M05F1P3HTWP8D3GTGC36T3Q2>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #macos-seatbelt-backend (
+      <Statement ?01M05F1P3HTWP8D3GTGC36T3Q3>
+      The system SHALL provide a macOS Seatbelt backend that wraps shell commands with `/usr/bin/sandbox-exec`.
+      </?01M05F1P3HTWP8D3GTGC36T3Q3>
+      <Suites [
+        <Suite { name = "macos-seatbelt-backend" } (
+          <Cases [
+            <Case #workspace-write-restricts-writes-to-allowed-roots { name = "workspace-write restricts writes to allowed roots" } [
+              <Given ?01M05F1P3HTWP8D3GTGC36T3Q4>
+              the platform is macOS and `sandbox_mode` is `workspace-write`
+              </?01M05F1P3HTWP8D3GTGC36T3Q4>
+              <Given ?01M05F1P3HTWP8D3GTGC36T3Q5>
+              the workspace root and additional writable roots are known
+              </?01M05F1P3HTWP8D3GTGC36T3Q5>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3Q6>
+              the command SHALL run under a Seatbelt policy that permits writes only under those writable roots
+              </?01M05F1P3HTWP8D3GTGC36T3Q6>
+              <Then ?01M05F1P3HTWP8D3GTGC36T3Q7>
+              SHALL protect workspace metadata directories from generic writes.
+              </?01M05F1P3HTWP8D3GTGC36T3Q7>
+            ] (
+              <When ?01M05F1P3HTWP8D3GTGC36T3Q8>
+              a Bash command is executed
+              </?01M05F1P3HTWP8D3GTGC36T3Q8>
+            )>
+            <Case #read-only-blocks-writes { name = "read-only blocks writes" } (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNTS>
+              the platform is macOS and `sandbox_mode` is `read-only`
+              </?01M05F1P3JR89PCFZQV9SQNNTS>
+              <When ?01M05F1P3JR89PCFZQV9SQNNTT>
+              a Bash command attempts filesystem writes
+              </?01M05F1P3JR89PCFZQV9SQNNTT>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNTV>
+              the Seatbelt policy SHALL deny those writes.
+              </?01M05F1P3JR89PCFZQV9SQNNTV>
+            )>
+            <Case #network-follows-runtime-metadata { name = "network follows runtime metadata" } (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNTW>
+              the platform is macOS and `network_access` is disabled
+              </?01M05F1P3JR89PCFZQV9SQNNTW>
+              <When ?01M05F1P3JR89PCFZQV9SQNNTX>
+              a Bash command is executed through the sandbox backend
+              </?01M05F1P3JR89PCFZQV9SQNNTX>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNTY>
+              the generated Seatbelt policy SHALL omit broad outbound and inbound network permissions.
+              </?01M05F1P3JR89PCFZQV9SQNNTY>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #linux-sandbox-backend (
+      <Statement ?01M05F1P3JR89PCFZQV9SQNNTZ>
+      The system SHALL provide a Linux backend modeled on Codex's bubblewrap plus seccomp sandbox design.
+      </?01M05F1P3JR89PCFZQV9SQNNTZ>
+      <Suites [
+        <Suite { name = "linux-sandbox-backend" } (
+          <Cases [
+            <Case #linux-read-only-blocks-writes { name = "Linux read-only blocks writes" } [
+              <Then ?01M05F1P3JR89PCFZQV9SQNNV0>
+              the Linux backend SHALL run the command in a read-only filesystem view
+              </?01M05F1P3JR89PCFZQV9SQNNV0>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNV1>
+              the write attempt SHALL fail without modifying the target path.
+              </?01M05F1P3JR89PCFZQV9SQNNV1>
+            ] (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNV2>
+              the platform is Linux and `sandbox_mode` is `read-only`
+              </?01M05F1P3JR89PCFZQV9SQNNV2>
+              <When ?01M05F1P3JR89PCFZQV9SQNNV3>
+              Bash execution attempts filesystem writes
+              </?01M05F1P3JR89PCFZQV9SQNNV3>
+            )>
+            <Case #linux-workspace-write-permits-only-writable-roots { name = "Linux workspace-write permits only writable roots" } [
+              <Given ?01M05F1P3JR89PCFZQV9SQNNV4>
+              the platform is Linux and `sandbox_mode` is `workspace-write`
+              </?01M05F1P3JR89PCFZQV9SQNNV4>
+              <Given ?01M05F1P3JR89PCFZQV9SQNNV5>
+              workspace and additional writable roots are known
+              </?01M05F1P3JR89PCFZQV9SQNNV5>
+              <When ?01M05F1P3JR89PCFZQV9SQNNV6>
+              Bash execution writes inside an allowed writable root
+              </?01M05F1P3JR89PCFZQV9SQNNV6>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNV7>
+              the write SHALL succeed
+              </?01M05F1P3JR89PCFZQV9SQNNV7>
+              <When ?01M05F1P3JR89PCFZQV9SQNNV8>
+              Bash execution writes outside the writable roots
+              </?01M05F1P3JR89PCFZQV9SQNNV8>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNV9>
+              the write SHALL fail.
+              </?01M05F1P3JR89PCFZQV9SQNNV9>
+            ]>
+            <Case #linux-protected-metadata-remains-protected { name = "Linux protected metadata remains protected" } (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNVA>
+              a writable root contains protected metadata directories
+              </?01M05F1P3JR89PCFZQV9SQNNVA>
+              <When ?01M05F1P3JR89PCFZQV9SQNNVB>
+              a sandboxed Linux command attempts to write protected metadata paths
+              </?01M05F1P3JR89PCFZQV9SQNNVB>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVC>
+              the backend SHALL deny or mask those writes.
+              </?01M05F1P3JR89PCFZQV9SQNNVC>
+            )>
+            <Case #linux-network-policy-is-enforced-or-explicitly-rejected { name = "Linux network policy is enforced or explicitly rejected" } [
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVD>
+              the backend SHALL isolate or block network access
+              </?01M05F1P3JR89PCFZQV9SQNNVD>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVE>
+              if the required namespace or helper capability is unavailable, execution SHALL fail with a clear sandbox setup error.
+              </?01M05F1P3JR89PCFZQV9SQNNVE>
+            ] (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNVF>
+              the platform is Linux and `network_access` is `disabled`
+              </?01M05F1P3JR89PCFZQV9SQNNVF>
+              <When ?01M05F1P3JR89PCFZQV9SQNNVG>
+              Bash execution attempts network access
+              </?01M05F1P3JR89PCFZQV9SQNNVG>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #windows-sandbox-backend (
+      <Statement ?01M05F1P3JR89PCFZQV9SQNNVH>
+      The system SHALL provide a Windows backend modeled on Codex's elevated restricted-token and ACL sandbox design.
+      </?01M05F1P3JR89PCFZQV9SQNNVH>
+      <Suites [
+        <Suite { name = "windows-sandbox-backend" } (
+          <Cases [
+            <Case #windows-read-only-uses-restricted-identity { name = "Windows read-only uses restricted identity" } [
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVJ>
+              the Windows backend SHALL run it under a restricted sandbox identity or token
+              </?01M05F1P3JR89PCFZQV9SQNNVJ>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVK>
+              filesystem writes outside required runtime scratch locations SHALL fail.
+              </?01M05F1P3JR89PCFZQV9SQNNVK>
+            ] (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNVM>
+              the platform is Windows and `sandbox_mode` is `read-only`
+              </?01M05F1P3JR89PCFZQV9SQNNVM>
+              <When ?01M05F1P3JR89PCFZQV9SQNNVN>
+              Bash execution runs a command
+              </?01M05F1P3JR89PCFZQV9SQNNVN>
+            )>
+            <Case #windows-workspace-write-uses-capability-scoped-writable-roots { name = "Windows workspace-write uses capability-scoped writable roots" } [
+              <Given ?01M05F1P3JR89PCFZQV9SQNNVP>
+              the platform is Windows and `sandbox_mode` is `workspace-write`
+              </?01M05F1P3JR89PCFZQV9SQNNVP>
+              <Given ?01M05F1P3JR89PCFZQV9SQNNVQ>
+              writable roots are known
+              </?01M05F1P3JR89PCFZQV9SQNNVQ>
+              <When ?01M05F1P3JR89PCFZQV9SQNNVR>
+              Bash execution writes inside an allowed writable root
+              </?01M05F1P3JR89PCFZQV9SQNNVR>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVS>
+              the write SHALL succeed
+              </?01M05F1P3JR89PCFZQV9SQNNVS>
+              <When ?01M05F1P3JR89PCFZQV9SQNNVT>
+              Bash execution writes outside allowed writable roots
+              </?01M05F1P3JR89PCFZQV9SQNNVT>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVV>
+              the write SHALL fail.
+              </?01M05F1P3JR89PCFZQV9SQNNVV>
+            ]>
+            <Case #windows-setup-state-is-explicit { name = "Windows setup state is explicit" } [
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVW>
+              the runtime SHALL return an actionable setup error
+              </?01M05F1P3JR89PCFZQV9SQNNVW>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNVX>
+              SHALL NOT silently downgrade to unsandboxed execution.
+              </?01M05F1P3JR89PCFZQV9SQNNVX>
+            ] (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNVY>
+              Windows sandbox setup is required before command execution
+              </?01M05F1P3JR89PCFZQV9SQNNVY>
+              <When ?01M05F1P3JR89PCFZQV9SQNNVZ>
+              the setup has not completed or required privileges are unavailable
+              </?01M05F1P3JR89PCFZQV9SQNNVZ>
+            )>
+            <Case #windows-network-policy-is-enforced-or-explicitly-rejected { name = "Windows network policy is enforced or explicitly rejected" } [
+              <Then ?01M05F1P3JR89PCFZQV9SQNNW0>
+              the backend SHALL apply the configured Windows network restriction
+              </?01M05F1P3JR89PCFZQV9SQNNW0>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNW1>
+              if network filtering is unavailable, execution SHALL fail with a clear degraded-state message rather than allowing unrestricted network access.
+              </?01M05F1P3JR89PCFZQV9SQNNW1>
+            ] (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNW2>
+              the platform is Windows and `network_access` is `disabled`
+              </?01M05F1P3JR89PCFZQV9SQNNW2>
+              <When ?01M05F1P3JR89PCFZQV9SQNNW3>
+              Bash execution requests a sandboxed command
+              </?01M05F1P3JR89PCFZQV9SQNNW3>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #cross-platform-compatibility (
+      <Statement ?01M05F1P3JR89PCFZQV9SQNNW4>
+      The system SHALL preserve explicit fallback behavior without silently weakening requested sandbox permissions.
+      </?01M05F1P3JR89PCFZQV9SQNNW4>
+      <Suites [
+        <Suite { name = "cross-platform-compatibility" } (
+          <Cases [
+            <Case #unsupported-backend-reports-a-degraded-or-unsupported-state { name = "Unsupported backend reports a degraded or unsupported state" } [
+              <Given ?01M05F1P3JR89PCFZQV9SQNNW5>
+              the host platform requests `read-only` or `workspace-write`
+              </?01M05F1P3JR89PCFZQV9SQNNW5>
+              <Given ?01M05F1P3JR89PCFZQV9SQNNW6>
+              the required platform backend dependency is unavailable
+              </?01M05F1P3JR89PCFZQV9SQNNW6>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNW7>
+              the runtime SHALL return a clear error or degraded-state message
+              </?01M05F1P3JR89PCFZQV9SQNNW7>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNW8>
+              SHALL NOT silently run the command unsandboxed.
+              </?01M05F1P3JR89PCFZQV9SQNNW8>
+            ] (
+              <When ?01M05F1P3JR89PCFZQV9SQNNW9>
+              Bash execution attempts to run
+              </?01M05F1P3JR89PCFZQV9SQNNW9>
+            )>
+            <Case #macos-behavior-remains-unchanged { name = "macOS behavior remains unchanged" } (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNWA>
+              the platform is macOS
+              </?01M05F1P3JR89PCFZQV9SQNNWA>
+              <When ?01M05F1P3JR89PCFZQV9SQNNWB>
+              a command is executed under `read-only`, `workspace-write`, or `danger-full-access`
+              </?01M05F1P3JR89PCFZQV9SQNNWB>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNWC>
+              existing Seatbelt and unsandboxed behavior SHALL continue to pass current sandbox backend tests.
+              </?01M05F1P3JR89PCFZQV9SQNNWC>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #process-outcome-preservation (
+      <Statement ?01M05F1P3JR89PCFZQV9SQNNWD>
+      Bash command execution SHALL preserve the sandbox process outcome through the generic tool execution contract; non-zero exit, timeout, abort, signal termination, and spawn failure SHALL be explicit failed outcomes while preserving bounded stdout/stderr diagnostics for the model.
+      </?01M05F1P3JR89PCFZQV9SQNNWD>
+      <Suites [
+        <Suite #bash-process-outcome { name = "Bash process outcome preservation" } (
+          <Cases [
+            <Case #nonzero-exit-is-failure [
+              <Then ?01M05F1P3JR89PCFZQV9SQNNWE>
+              the result SHALL retain the test output and exit-code diagnostic
+              </?01M05F1P3JR89PCFZQV9SQNNWE>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNWF>
+              the generic tool outcome SHALL be failed without an executor Bash-name branch
+              </?01M05F1P3JR89PCFZQV9SQNNWF>
+            ] (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNWG>
+              a Bash command starts successfully, emits ordinary test failure text, and exits with code 1
+              </?01M05F1P3JR89PCFZQV9SQNNWG>
+              <When ?01M05F1P3JR89PCFZQV9SQNNWH>
+              the Bash tool returns to the agent runtime
+              </?01M05F1P3JR89PCFZQV9SQNNWH>
+            )>
+            <Case #zero-exit-is-complete (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNWJ>
+              a Bash command exits with code 0
+              </?01M05F1P3JR89PCFZQV9SQNNWJ>
+              <When ?01M05F1P3JR89PCFZQV9SQNNWK>
+              the Bash tool returns its result
+              </?01M05F1P3JR89PCFZQV9SQNNWK>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNWM>
+              the generic tool outcome SHALL be completed
+              </?01M05F1P3JR89PCFZQV9SQNNWM>
+            )>
+            <Case #timeout-and-abort-are-classified (
+              <Given ?01M05F1P3JR89PCFZQV9SQNNWN>
+              a Bash process times out or is aborted
+              </?01M05F1P3JR89PCFZQV9SQNNWN>
+              <When ?01M05F1P3JR89PCFZQV9SQNNWP>
+              the process outcome is mapped into the tool contract
+              </?01M05F1P3JR89PCFZQV9SQNNWP>
+              <Then ?01M05F1P3JR89PCFZQV9SQNNWQ>
+              the failed outcome SHALL use timeout or aborted failureKind respectively
+              </?01M05F1P3JR89PCFZQV9SQNNWQ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

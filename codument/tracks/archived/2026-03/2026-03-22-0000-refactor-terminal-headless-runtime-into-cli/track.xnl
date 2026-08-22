@@ -1,0 +1,42 @@
+<Track #refactor-terminal-headless-runtime-into-cli version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 cli 承担无头 terminal 入口，并将公共 runtime 逻辑下沉到非 tui 包" commit_mode = "manual" created_at = "2026-03-22" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-terminal-headless-runtime-into-cli { name = "refactor-terminal-headless-runtime-into-cli" } (
+    <Description ?01M05F1P901DHWE335FG64B0NG>
+    将 terminal 无头运行链路从 tui 拆分到 cli
+    </?01M05F1P901DHWE335FG64B0NG>
+    <SubNodes [
+      <TaskGroup #P1 { name = "公共逻辑抽取" status = "NOT_STARTED" order = 0 } (
+        <Description ?01M05F1P901DHWE335FG64B0NH>
+        将项目根解析与 session runtime 公共能力从 tui 中拆出
+        </?01M05F1P901DHWE335FG64B0NH>
+        <SubNodes [
+          <Task { id = "T1.1" name = "抽取项目根解析 helper" status = "NOT_STARTED" order = 0 }>
+          <Task { id = "T1.2" name = "将 headless runtime 初始化与 turn 执行能力迁移到非 tui 包" status = "NOT_STARTED" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "cli 接入" status = "NOT_STARTED" order = 1 } (
+        <Description ?01M05F1P901DHWE335FG64B0NJ>
+        在 cli 包中实现无头入口
+        </?01M05F1P901DHWE335FG64B0NJ>
+        <SubNodes [
+          <Task { id = "T2.1" name = "新增无头 run 命令" status = "NOT_STARTED" order = 0 }>
+          <Task { id = "T2.2" name = "让 tui 的 -T 路径复用共享 helper" status = "NOT_STARTED" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "验证" status = "NOT_STARTED" order = 2 } (
+        <Description ?01M05F1P901DHWE335FG64B0NK>
+        用测试覆盖核心拆分点
+        </?01M05F1P901DHWE335FG64B0NK>
+        <SubNodes [
+          <Task { id = "T3.1" name = "补充项目根解析测试" status = "NOT_STARTED" order = 0 }>
+          <Task { id = "T3.2" name = "补充无头 runtime / cli 测试" status = "NOT_STARTED" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

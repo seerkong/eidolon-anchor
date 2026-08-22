@@ -1,0 +1,132 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_1_1_-_0_0_3_0_-_a_d_d_-_r_u_n_t_i_m_e_-_d_a_t_a_-_s_u_b_g_r_a_p_h_-_c_o_n_t_r_a_c_t_s.behavior_patch.runtime-data-subgraph-contracts apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-data-subgraph-contracts" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-data-subgraph-contracts/requirements/data-subgraph-contract-shape" } (
+      <Requirement #data-subgraph-contract-shape (
+        <Statement ?01M05F1PGVVG10JAWWRVSB7BAN>
+        系统 SHALL 为 runtime data component 声明 owned fact nodes、derived nodes、write commands、read views、fact streams、projection sinks、allowed recovery reads、forbidden live reads 和 Not Owned Here。
+        </?01M05F1PGVVG10JAWWRVSB7BAN>
+        <Suites [
+          <Suite #contract-shape { name = "DataSubgraphContract shape" } (
+            <Cases [
+              <Case #declares-owner-boundaries (
+                <Given ?01M05F1PGVVG10JAWWRVSB7BAP>
+                一个 runtime data component 被注册
+                </?01M05F1PGVVG10JAWWRVSB7BAP>
+                <When ?01M05F1PGVVG10JAWWRVSB7BAQ>
+                系统读取该 component 的 contract
+                </?01M05F1PGVVG10JAWWRVSB7BAQ>
+                <Then ?01M05F1PGVVG10JAWWRVSB7BAR>
+                系统 SHALL 能确定该 component 拥有的事实节点、衍生节点、写命令、读视图和禁止拥有的节点
+                </?01M05F1PGVVG10JAWWRVSB7BAR>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://runtime-data-subgraph-contracts/requirements/fact-grade-boundaries" } (
+      <Requirement #fact-grade-boundaries (
+        <Statement ?01M05F1PGVVG10JAWWRVSB7BAS>
+        系统 SHALL 对 runtime 数据节点标注事实等级，并禁止 journal、checkpoint snapshot、projection/cache、surface view 成为 live truth。
+        </?01M05F1PGVVG10JAWWRVSB7BAS>
+        <Suites [
+          <Suite #not-live-truth { name = "Not live truth" } (
+            <Cases [
+              <Case #effect-journal-not-tool-result (
+                <Given ?01M05F1PGVVG10JAWWRVSB7BAT>
+                runtime-control effect evidence 中存在 pending tool effect
+                </?01M05F1PGVVG10JAWWRVSB7BAT>
+                <When ?01M05F1PGVVG10JAWWRVSB7BAV>
+                系统组装下一轮 provider context
+                </?01M05F1PGVVG10JAWWRVSB7BAV>
+                <Then ?01M05F1PGVVG10JAWWRVSB7BAW>
+                系统 SHALL NOT 把 pending effect 当作 provider-visible tool result message
+                </?01M05F1PGVVG10JAWWRVSB7BAW>
+              )>
+              <Case #snapshot-not-formal-history (
+                <Given ?01M05F1PGVVG10JAWWRVSB7BAX>
+                checkpoint snapshot 中存在 actor 或 fiber state
+                </?01M05F1PGVVG10JAWWRVSB7BAX>
+                <When ?01M05F1PGVVG10JAWWRVSB7BAY>
+                系统读取 Formal History
+                </?01M05F1PGVVG10JAWWRVSB7BAY>
+                <Then ?01M05F1PGVVG10JAWWRVSB7BAZ>
+                系统 SHALL NOT 把 snapshot message 当作 Formal History truth
+                </?01M05F1PGVVG10JAWWRVSB7BAZ>
+              )>
+              <Case #surface-not-domain-owner (
+                <Given ?01M05F1PGVVG10JAWWRVSB7BB0>
+                TUI surface hydration 读取了 persistence
+                </?01M05F1PGVVG10JAWWRVSB7BB0>
+                <When ?01M05F1PGVVG10JAWWRVSB7BB1>
+                surface 更新显示状态
+                </?01M05F1PGVVG10JAWWRVSB7BB1>
+                <Then ?01M05F1PGVVG10JAWWRVSB7BB2>
+                系统 SHALL NOT 让 surface 写入 History、ToolCall 或 TurnState 的 owned facts
+                </?01M05F1PGVVG10JAWWRVSB7BB2>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://runtime-data-subgraph-contracts/requirements/core-runtime-components" } (
+      <Requirement #core-runtime-components (
+        <Statement ?01M05F1PGVVG10JAWWRVSB7BB3>
+        系统 SHALL 为 ActorRuntime、AiTurnState、History、LLM Context、Session、ToolCall、ProviderCall、RuntimeControl、CheckpointSnapshot 和 SurfaceProjection 定义首批 DataSubgraphContract。
+        </?01M05F1PGVVG10JAWWRVSB7BB3>
+        <Suites [
+          <Suite #core-components { name = "Core runtime data components" } (
+            <Cases [
+              <Case #provider-context-has-owner [
+                <Then ?01M05F1PGVVG10JAWWRVSB7BB4>
+                系统 SHALL 能区分 LLM Context、History、Session、ToolCall、ProviderCall 和 RuntimeControl 的职责边界
+                </?01M05F1PGVVG10JAWWRVSB7BB4>
+                <Then ?01M05F1PGVVG10JAWWRVSB7BB5>
+                系统 SHALL 能确定 provider context 的合法输入仅为 LLM Context Domain、History Domain active tail 和 Session Domain active binding
+                </?01M05F1PGVVG10JAWWRVSB7BB5>
+              ] (
+                <Given ?01M05F1PGVVG10JAWWRVSB7BB6>
+                系统需要构造 provider request messages
+                </?01M05F1PGVVG10JAWWRVSB7BB6>
+                <When ?01M05F1PGVVG10JAWWRVSB7BB7>
+                系统查询 data subgraph contracts
+                </?01M05F1PGVVG10JAWWRVSB7BB7>
+              )>
+              <Case #session-head-single-resolution-rule [
+                <Then ?01M05F1PGVVG10JAWWRVSB7BB8>
+                系统 SHALL 按 SessionDomain contract 声明的唯一优先级规则解析
+                </?01M05F1PGVVG10JAWWRVSB7BB8>
+                <Then ?01M05F1PGVVG10JAWWRVSB7BB9>
+                系统 SHALL NOT 在多个 component 中各自维护独立的 head 解析逻辑
+                </?01M05F1PGVVG10JAWWRVSB7BB9>
+              ] (
+                <Given ?01M05F1PGVVG10JAWWRVSB7BBA>
+                session 同时存在 history head、LLM Context head 和 prompt target 引用
+                </?01M05F1PGVVG10JAWWRVSB7BBA>
+                <When ?01M05F1PGVVG10JAWWRVSB7BBB>
+                系统解析当前 active head
+                </?01M05F1PGVVG10JAWWRVSB7BBB>
+              )>
+              <Case #snapshot-content-has-owner [
+                <Then ?01M05F1PGVVG10JAWWRVSB7BBC>
+                系统 SHALL 能确定 snapshot 内容的 VM durable subset 由 CheckpointSnapshot contract 唯一声明
+                </?01M05F1PGVVG10JAWWRVSB7BBC>
+                <Then ?01M05F1PGVVG10JAWWRVSB7BBD>
+                系统 SHALL NOT 把 control signal payload 或 message 内容写入 snapshot durable subset 之外的位置
+                </?01M05F1PGVVG10JAWWRVSB7BBD>
+              ] (
+                <Given ?01M05F1PGVVG10JAWWRVSB7BBE>
+                系统需要写入或读取 recoverable snapshot 内容
+                </?01M05F1PGVVG10JAWWRVSB7BBE>
+                <When ?01M05F1PGVVG10JAWWRVSB7BBF>
+                系统查询 data subgraph contracts
+                </?01M05F1PGVVG10JAWWRVSB7BBF>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

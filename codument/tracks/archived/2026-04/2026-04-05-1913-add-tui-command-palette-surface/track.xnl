@@ -1,0 +1,139 @@
+<Track #add-tui-command-palette-surface version="1" apiVersion="codument.tech/v1alpha1" { status = "in_progress" goal = "让新的 prototype TUI 挂载 command palette host，并把首批 system/material actions 收敛为统一入口" commit_mode = "manual" created_at = "2026-04-05T16:22:25Z" updated_at = "2026-04-05T19:13:01Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-tui-command-palette-surface { name = "add-tui-command-palette-surface" } (
+    <Description ?01M05F1PA4T6HX5H130Y1V33YK>
+    添加 TUI 命令面板界面
+    </?01M05F1PA4T6HX5H130Y1V33YK>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Palette Host Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PA4T6HX5H130Y1V33YM>
+        冻结 palette host/provider 链和首批 action 边界
+        </?01M05F1PA4T6HX5H130Y1V33YM>
+        <SubNodes [
+          <Task { id = "T1.1" name = "冻结 palette host 与 registration 边界" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA4T6HX5H130Y1V33YN>
+            明确 prototype 根部需要接入的 provider，以及首批进入 palette 的 action 范围。
+            </?01M05F1PA4T6HX5H130Y1V33YN>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PA4T6HX5H130Y1V33YP>
+              明确 prototype 根部将挂载 command palette 所需 provider/host
+              </?01M05F1PA4T6HX5H130Y1V33YP>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PA4T6HX5H130Y1V33YQ>
+              明确首批 session/provider-model/agent/MCP/status/help actions 的注册边界
+              </?01M05F1PA4T6HX5H130Y1V33YQ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Host Integration" status = "DONE" order = 1 } (
+        <Description ?01M05F1PA4T6HX5H130Y1V33YR>
+        在 prototype shell 中启用 command palette host
+        </?01M05F1PA4T6HX5H130Y1V33YR>
+        <SubNodes [
+          <Task { id = "T2.1" name = "挂载 command palette 所需 provider/host" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA4T6HX5H130Y1V33YS>
+            在 prototype 根部挂载 command palette 运行所需的 provider，使 `command_list` 可以全局打开 palette。
+            </?01M05F1PA4T6HX5H130Y1V33YS>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PA4T6HX5H130Y1V33YT>
+              prototype shell 中可通过 `command_list` 打开 palette
+              </?01M05F1PA4T6HX5H130Y1V33YT>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PA4T6HX5H130Y1V33YV>
+              dialog 打开/关闭不会破坏当前焦点恢复
+              </?01M05F1PA4T6HX5H130Y1V33YV>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "保留直达快捷键能力" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA4T6HX5H130Y1V33YW>
+            保持已有 direct shortcuts 继续有效，不因接入 palette 而被替代或分叉。
+            </?01M05F1PA4T6HX5H130Y1V33YW>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PA4T6HX5H130Y1V33YX>
+              palette 是统一入口，但不替代 direct shortcuts
+              </?01M05F1PA4T6HX5H130Y1V33YX>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PA4T6HX5H130Y1V33YY>
+              关键快捷键与 palette 共存且不冲突
+              </?01M05F1PA4T6HX5H130Y1V33YY>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Action Registration" status = "DONE" order = 2 } (
+        <Description ?01M05F1PA4T6HX5H130Y1V33YZ>
+        把首批 system/material actions 注册进 command palette，并统一触发路径
+        </?01M05F1PA4T6HX5H130Y1V33YZ>
+        <SubNodes [
+          <Task { id = "T3.1" name = "注册首批 palette actions" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA4T6HX5H130Y1V33Z0>
+            把 session、provider-model、agent、MCP、status、help 等动作注册到 palette 中，包含标题、类别和快捷键展示。
+            </?01M05F1PA4T6HX5H130Y1V33Z0>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PA4T6HX5H130Y1V33Z1>
+              palette 中出现首批 system/material actions
+              </?01M05F1PA4T6HX5H130Y1V33Z1>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PA4T6HX5H130Y1V33Z2>
+              palette 支持按名称筛选并显示快捷键信息
+              </?01M05F1PA4T6HX5H130Y1V33Z2>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "统一 palette 与 direct shortcut 的 handler" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA4T6HX5H130Y1V33Z3>
+            让 palette 选择与 direct shortcut 触发共用同一套动作定义，避免行为分叉。
+            </?01M05F1PA4T6HX5H130Y1V33Z3>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PA4T6HX5H130Y1V33Z4>
+              同一动作通过 palette 或快捷键触发时结果一致
+              </?01M05F1PA4T6HX5H130Y1V33Z4>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PA4T6HX5H130Y1V33Z5>
+              未就绪 actions 不会导致 palette 报错
+              </?01M05F1PA4T6HX5H130Y1V33Z5>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Verification" status = "DONE" order = 3 } (
+        <Description ?01M05F1PA4T6HX5H130Y1V33Z6>
+        通过测试和手工点验验证 command palette 行为
+        </?01M05F1PA4T6HX5H130Y1V33Z6>
+        <SubNodes [
+          <Task { id = "T4.1" name = "补 command palette 自动化测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA4T6HX5H130Y1V33Z7>
+            新增或更新测试，覆盖 palette 打开、action 注册和触发一致性。
+            </?01M05F1PA4T6HX5H130Y1V33Z7>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1PA4T6HX5H130Y1V33Z8>
+              存在覆盖 palette 打开和 action registration 的自动化测试
+              </?01M05F1PA4T6HX5H130Y1V33Z8>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1PA4T6HX5H130Y1V33Z9>
+              存在覆盖 palette/direct shortcut 一致性的自动化测试
+              </?01M05F1PA4T6HX5H130Y1V33Z9>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "运行 terminal TUI 测试并手工点验" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA4T6HX5H130Y1V33ZA>
+            执行 terminal TUI 测试，并手工检查 palette 的打开、筛选、选择、关闭和焦点恢复行为。
+            </?01M05F1PA4T6HX5H130Y1V33ZA>
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1PA4T6HX5H130Y1V33ZB>
+              至少运行一次 terminal TUI 相关测试命令
+              </?01M05F1PA4T6HX5H130Y1V33ZB>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1PA4T6HX5H130Y1V33ZC>
+              手工点验覆盖 command_list、至少三个 action 类别和焦点恢复
+              </?01M05F1PA4T6HX5H130Y1V33ZC>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

@@ -1,0 +1,187 @@
+# skill: codument-verify（独立验证 · fresh-subagent 实跑）
+
+以**独立验证模式**确认 track 的实现真正达成目标：fresh-spawn 一个独立子代理，**实际运行**应用/测试、复现验收用例，对照 `Acceptance`/`Gate` 与 behavior 验收用例从目标倒推，逐条给 PASS/FAIL + 证据，落 `track://reports/verify-report.md`。**只判定不修复**；有 FAIL 则列差距并建议回 `implement`/`gap-loop`。
+
+> 程序化流程使用 ` ```text ` + `@delimiter: --` 的流程标记块。当前 Track authority 是 `track.xnl`；legacy 输入先交给 `codument upgrade-resource`，verify 不教授迁移写法。
+
+---
+
+## 0. 角色与定位
+
+你是 Codument 规范驱动开发框架的**独立验证代理**。职责是：
+
+- **不参与实现，只做验证**。
+- 从目标与验收标准**倒推**，验证实现是否真实成立。
+- 按 **issues-first** 输出（先阻塞问题，再非阻塞问题，再结论）。
+
+**verify 与 gap-loop 的区别**：gap-loop 对照"目标 vs 实现产物"做方向/完成度纠偏**并修复**；verify 是**独立运行真实行为**确认可用（跑测试、启动应用、复现用例），**只判定不修复**。verify 必须用 fresh-subagent 执行以保证独立性，且**实际运行而非只读代码**。报告状态对照失败时不轻易判 PASS。
+
+---
+
+## 1. 设置检查
+
+1. **检查以下入口存在：**
+   - 项目上下文：`codument/attractors/`。
+   - `codument/std/methods/workflow.md`（内置工作流规程）。
+
+2. **处理缺失：** 若标准工作流文件或 `codument/attractors/` 缺失，停止并提示：
+   > "Codument 未设置。请先运行 `codument init`。"
+
+## 1.1 交互式问答
+
+所有用户澄清、选择、确认问题都必须遵循 `codument/std/protocols/questioning.md` 中的 ask-* 协议。问答 ToolCall 只能用于真实问题；禁止为测试运行环境能力发起占位问题。
+
+---
+
+## 2. 验证目标选择
+
+1. **识别 track：**
+   - `{{args}}` 含 `<track-id>` → 优先精确匹配；若精确且唯一匹配，直接使用；仅在无匹配或多个候选时请求澄清。
+   - 否则从 `codument/tracks/active/` 与各 track 的 `track.xnl` 根 `{ status }` 选第一个活跃 track。
+
+2. **识别验证范围（可选）：**
+   - `{{args}}` 可附带 `P{n}`（phase）或某 dag 层的某波次标识；未指定时验证整个 track。
+
+3. **读取上下文文件：**
+   - `codument/tracks/active/<track_id>/track.xnl`
+   - `codument/tracks/active/<track_id>/behavior_deltas/**/*.xnl`
+   - `codument/tracks/active/<track_id>/proposal.md`
+   - `codument/tracks/active/<track_id>/design.md`（如存在）
+   - `codument/tracks/active/<track_id>/decisions.xnl`、递归 `decisions/**/*.xnl` / `analysis/`（如存在，迭代期背景）
+   - `codument/tracks/active/<track_id>/reports/`（已有历史报告，如存在）
+
+---
+
+## 3. 验证方法
+
+### 3.1 Goal-Backward（目标倒推）
+
+1. 从 `track.xnl` 提取目标 task 的 `Acceptance`（验收标准），以及所属 phase 的 `Gate`（阶段门控）。
+2. 按 criterion 逐条反推：
+   - 需要哪些代码/配置/文件存在。
+   - 需要哪些行为可达。
+   - 需要哪些测试或证据支持。
+3. 可选补充：从 `behavior_deltas/**/*.xnl` 的行为 case（suite/case）取验收用例作复现依据。
+
+### 3.2 三级验证
+
+对每个目标 task 执行以下三层验证：
+
+1. **Exists（存在性）**
+   - 文件是否存在。
+   - task 的 `status` 是否与实现一致。
+   - auto 提交模式下是否存在对应 commit（如适用）。
+
+2. **Substantive（实质性）**
+   - 代码/配置改动是否真正满足 task 的 `<Description>`。
+   - 是否覆盖 `Acceptance` 各 criterion。
+   - 相关测试是否存在并能支持结论。
+
+3. **Wired（连通性）**
+   - 新增能力是否被正确引用/接入。
+   - 入口是否可达。
+   - 系统路径是否连通（不是"孤立代码"）。
+
+### 3.3 Wave 模式附加检查（如适用）
+
+若目标范围所在层写了 `{ child_mode = "dag" }`（wave = 该层依赖的拓扑分层派生视图）：
+
+- 检查目标波次内各 Task 是否按依赖完成。
+- 检查跨波次依赖产物（前驱 Task 的 output）是否被后续波次正确使用。
+
+---
+
+## 4. 独立执行与逐项判定
+
+verify 的核心是**派发 fresh-subagent 实际运行**——不是父代理顺手读一遍代码。父代理只负责收集验证目标、spawn 子代理、汇总其 PASS/FAIL，并据结论决定收口/回退。
+
+```text
+@delimiter: --
+-- #sequence ?verify
+---- #step ?v1
+父代理：从 track.xnl 收集所有 Acceptance、Gate，以及 behavior_deltas 的验收用例（suite/case），按范围（整 track / phase / wave）圈定目标集
+---- /?v1
+---- #step ?v2
+父代理：建立 evidence plan，把可由同一测试 / 启动 / smoke 命令证明的目标归组；以规范化命令与运行前提作为唯一键，明确每条唯一命令映射哪些 Acceptance / Gate / behavior case
+---- /?v2
+---- #spawn ?run as=fresh-subagent inject="注入验证范围、输入路径、输出报告要求和必要禁止事项"
+独立上下文：按 evidence plan 对每条唯一命令运行 `codument track verify <track-id> --fresh -- <verification-command>`，实跑测试 / 启动应用 / 复现用例并保存 receipt、退出码与关键输出；同一结果可映射到多个目标，但不得因复用而省略逐项语义判断
+---- /?run
+---- #loop ?items for="每条 Acceptance / Gate / behavior case"
+------ #step ?ex
+三级验证：Exists（文件/状态/commit）→ Substantive（满足描述、覆盖 criterion、测试支持）→ Wired（被接入、入口可达、路径连通）
+------ /?ex
+------ #switch ?verdict on="实跑结果"
+-------- #case ?pass when="行为真实达成、证据充分"
+记 PASS + 证据（命令输出 / 测试结果 / 复现步骤 / 文件定位）
+-------- /?pass
+-------- #case ?fail when="未达成 / 行为错误 / 证据缺失"
+记 FAIL + 差距（定位、影响、修复建议）；不在 verify 内修复
+-------- /?fail
+------ /?verdict
+---- /?items
+---- #step ?report
+汇总写报告 → track://reports/verify-report.md（issues-first：阻塞 → 非阻塞 → 结论）
+---- /?report
+---- #switch ?conclude on="是否存在 FAIL"
+------ #case ?allpass when="全部 PASS"
+-------- #return ?ok value="PASS：报告可进归档（codument-archive-track）"
+-------- /?ok
+------ /?allpass
+------ #case ?hasfail when="存在 FAIL"
+-------- #return ?back value="FAIL：列差距，建议回 codument-impl-track 修实现 / codument-gap-loop 做目标对比修复"
+-------- /?back
+------ /?hasfail
+---- /?conclude
+-- /?verify
+```
+
+**fresh-spawn 注入：** 父代理 spawn 验证子代理时只注入验证范围、输入路径、输出报告要求和必要禁止事项；具体运行时配置由当前 agent/runtime 自行决定，Codument 标准提示词不承载这类配置。
+
+**证据复用：** “逐项判定”不等于“逐项重复执行”。fresh verifier 对每条唯一命令使用一次 `--fresh`，不消费实现阶段回执；随后在本次报告的多个目标下引用该次结果。只有目标需要不同输入、状态或复现路径时才新增执行。
+
+**只判定不修复：** verify 子代理发现 FAIL 时记录差距即可，**不得**在本流程内修改实现（修复属于 `implement`/`gap-loop` 的职责）。
+
+---
+
+## 5. 输出协议（issues-first）
+
+输出顺序必须为：
+
+1. **阻塞问题（Blocking Issues）** — 会导致验收失败或行为错误的问题。每条含：定位、影响、修复建议。
+2. **非阻塞问题（Non-Blocking Issues）** — 质量或一致性问题。
+3. **简要结论（Summary）** — 验证范围、通过/失败任务数、是否可进入下一步（如归档）。
+
+报告落 `track://reports/verify-report.md`（=`codument/tracks/active/<id>/reports/verify-report.md`，按需带轮次/范围后缀以与历史报告区分）。模板：
+
+```text
+📋 验证报告：<track_id> [范围]
+
+Blocking Issues:
+- <问题1>（定位 / 影响 / 修复建议）
+
+Non-Blocking Issues:
+- <问题1>
+
+逐项判定:
+- <AC/Gate/case id>: PASS | FAIL — <证据 / 差距>
+
+Summary:
+- 验证任务数：<n>
+- 通过：<n>
+- 失败：<n>
+- 结论：PASS | FAIL
+- 下一步：全 PASS → codument-archive-track；有 FAIL → codument-impl-track / codument-gap-loop
+```
+
+> 全 PASS 才可进归档；有 FAIL 则列差距并建议回 `implement`（补实现）或 `gap-loop`（目标对比纠偏修复）。报告/状态对照失败时不轻易判 PASS。
+
+---
+
+## 引用
+
+- `codument/std/spec/track-xnl-spec.md`（`Acceptance`/`Gate`、phase=第一层 TaskGroup、wave=dag 层派生视图）
+- `codument/std/protocols/validation.md`（裁决词汇、fresh-subagent 执行约定）
+- `codument/std/operations/gap-loop.md`（FAIL 后的目标对比修复双角色协议）
+- `codument/std/operations/impl-track.md`（FAIL 后补实现）
+- `codument/std/protocols/questioning.md`（ask-* 协议）

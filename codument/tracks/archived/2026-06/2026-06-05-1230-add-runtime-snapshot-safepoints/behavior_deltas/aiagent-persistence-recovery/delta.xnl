@@ -1,0 +1,88 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_5_-_1_2_3_0_-_a_d_d_-_r_u_n_t_i_m_e_-_s_n_a_p_s_h_o_t_-_s_a_f_e_p_o_i_n_t_s.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/runtime-snapshot-safepoints" } (
+      <Requirement #runtime-snapshot-safepoints (
+        <Statement ?01M05F1PFN964R1HX0VAXRYGV5>
+        系统 SHALL save runtime snapshots only at recoverable safepoints or preserve the previous known-good snapshot when the current runtime state is not a safepoint.
+        </?01M05F1PFN964R1HX0VAXRYGV5>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/runtime-snapshot-safepoints" strength = "hint" }>
+        <Suites [
+          <Suite #snapshot-save-safepoint { name = "Snapshot save safepoint semantics" } (
+            <Cases [
+              <Case #reject-start-tool-half-step [
+                <Then ?01M05F1PFN964R1HX0VAXRYGV6>
+                The owning fiber cooperative exec state is `start_tool`
+                </?01M05F1PFN964R1HX0VAXRYGV6>
+                <Then ?01M05F1PFN964R1HX0VAXRYGV7>
+                No durable tool operation or matching tool result exists for that tool call
+                </?01M05F1PFN964R1HX0VAXRYGV7>
+                <Then ?01M05F1PFN964R1HX0VAXRYGV8>
+                The snapshot writer SHALL NOT persist that state as the latest recoverable snapshot
+                </?01M05F1PFN964R1HX0VAXRYGV8>
+                <Then ?01M05F1PFN964R1HX0VAXRYGV9>
+                The runtime SHALL either advance to a safepoint or skip the save while preserving the previous known-good snapshot
+                </?01M05F1PFN964R1HX0VAXRYGV9>
+              ] (
+                <Given ?01M05F1PFN964R1HX0VAXRYGVA>
+                An actor history contains an assistant tool call that requires tool execution
+                </?01M05F1PFN964R1HX0VAXRYGVA>
+                <When ?01M05F1PFN964R1HX0VAXRYGVB>
+                The runtime attempts to save a snapshot
+                </?01M05F1PFN964R1HX0VAXRYGVB>
+              )>
+              <Case #tool-call-has-durable-proof [
+                <Then ?01M05F1PFN964R1HX0VAXRYGVC>
+                The snapshot SHALL contain recoverable proof that the matching tool operation has started or is waiting for completion
+                </?01M05F1PFN964R1HX0VAXRYGVC>
+                <Then ?01M05F1PFN964R1HX0VAXRYGVD>
+                Recovery SHALL be able to continue without relying on transcript-tail inference
+                </?01M05F1PFN964R1HX0VAXRYGVD>
+              ] (
+                <Given ?01M05F1PFN964R1HX0VAXRYGVE>
+                An actor history contains an assistant tool call without a matching tool result
+                </?01M05F1PFN964R1HX0VAXRYGVE>
+                <When ?01M05F1PFN964R1HX0VAXRYGVF>
+                The runtime saves a snapshot
+                </?01M05F1PFN964R1HX0VAXRYGVF>
+              )>
+              <Case #save-after-crash-boundary [
+                <Then ?01M05F1PFN964R1HX0VAXRYGVG>
+                The recovered runtime SHALL be able to continue or remain in a typed external wait state
+                </?01M05F1PFN964R1HX0VAXRYGVG>
+                <Then ?01M05F1PFN964R1HX0VAXRYGVH>
+                The recovered message history SHALL NOT contain unmatched assistant tool calls unless a durable operation can produce the matching tool result
+                </?01M05F1PFN964R1HX0VAXRYGVH>
+              ] (
+                <Given ?01M05F1PFN964R1HX0VAXRYGVJ>
+                A snapshot save has completed successfully
+                </?01M05F1PFN964R1HX0VAXRYGVJ>
+                <When ?01M05F1PFN964R1HX0VAXRYGVK>
+                The process exits immediately after the save and the session is recovered
+                </?01M05F1PFN964R1HX0VAXRYGVK>
+              )>
+            ]>
+          )>
+          <Suite #snapshot-diagnostics { name = "Snapshot diagnostics" } (
+            <Cases [
+              <Case #diagnose-non-safepoint-skip [
+                <Then ?01M05F1PFN964R1HX0VAXRYGVM>
+                The runtime SHALL emit diagnostics describing the blocking fiber, phase, and reason
+                </?01M05F1PFN964R1HX0VAXRYGVM>
+                <Then ?01M05F1PFN964R1HX0VAXRYGVN>
+                The diagnostics SHALL NOT expose provider-private message content or large tool payloads
+                </?01M05F1PFN964R1HX0VAXRYGVN>
+              ] (
+                <Given ?01M05F1PFN964R1HX0VAXRYGVP>
+                The runtime attempts to save while mandatory continuations remain unconsumed
+                </?01M05F1PFN964R1HX0VAXRYGVP>
+                <When ?01M05F1PFN964R1HX0VAXRYGVQ>
+                The save is skipped or delayed because the state is not a safepoint
+                </?01M05F1PFN964R1HX0VAXRYGVQ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

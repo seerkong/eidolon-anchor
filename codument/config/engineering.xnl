@@ -1,0 +1,11 @@
+<EngineeringConfig #codument.config.engineering apiVersion="codument.tech/v1alpha1" version="1" { enabled = false } (
+  <Registry { dir = "vfs://@/codument/engineering/" }>
+  <Lint { max_lines = 400 max_nodes = 8 }>
+  <MergePolicy (
+    <Conflicts [
+      <Conflict { type = "same-field" resolve = "human" }>
+      <Conflict { type = "delete-modify" resolve = "human" }>
+      <Conflict { type = "add-add" resolve = "human" }>
+    ]>
+  )>
+)>

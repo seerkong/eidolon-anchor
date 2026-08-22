@@ -1,0 +1,28 @@
+<BehaviorPatch #track.optimize-session-runtime-performance.behavior_patch.ai-runtime-control-engine-adoption apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-control-engine-adoption" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-control-engine-adoption/requirements/checkpoint-head-resolution-bounded" } (
+      <Requirement #checkpoint-head-resolution-bounded (
+        <Statement ?01M05F1P8153HJHX6BW7NKM459>
+        checkpoint 组合器解析 real session heads SHALL 以有界方式完成：优先从持久化 head 文件解析 ingress_log/diagnostics_log 的 count/last，SHALL NOT 每次 checkpoint 全量读取并解析整个日志文件；读取成本 SHALL 与日志体积解耦。
+        </?01M05F1P8153HJHX6BW7NKM459>
+        <Suites [
+          <Suite #bounded-head-resolution { name = "Bounded head resolution in checkpoint" } (
+            <Cases [
+              <Case #checkpoint-head-from-head-file (
+                <Given ?01M05F1P8153HJHX6BW7NKM45A>
+                session 存在持久化 head 文件
+                </?01M05F1P8153HJHX6BW7NKM45A>
+                <When ?01M05F1P8153HJHX6BW7NKM45B>
+                runFileStoreAiRuntimeConcreteCheckpoint 解析 real session heads
+                </?01M05F1P8153HJHX6BW7NKM45B>
+                <Then ?01M05F1P8153HJHX6BW7NKM45C>
+                SHALL 从 head 文件取值，SHALL NOT 全量解析日志
+                </?01M05F1P8153HJHX6BW7NKM45C>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,21 +1,21 @@
-<decisions #fix-conversation-generation-sequence-replay {
-  track = "fix-conversation-generation-sequence-replay"
-}
-(
-  <decision #fix-conversation-generation-sequence-replay.canonical-order {
-    status = "accepted"
-    priority = "P0"
-    durable_candidate = true
-  }
-  (
-    <question ?>Conversation generation 应使用哪个字段恢复消息顺序？</?>
-    <answer { }
-    (
-      <raw-answer ?>用户确认按调查方案创建并实施修复 track。</?>
-      <decision-text ?>完整 sequence metadata 存在时以 HistoryMessage.sequence 为权威顺序；仅对 sequence 不完整的 legacy generation 使用 committedAt fallback。</?>
-      <rationale ?>现有 committedAt 混合 wall-clock milliseconds 与 generation ordinal，而 sequence 在故障 generation 中完整连续。</?>
-      <evidence ?>Auto_LIFE.OS incident generation records ::0 through ::408 and production loader comparison.</?>
+<decisions #fix-conversation-generation-sequence-replay apiVersion="codument.tech/v1alpha1" { track = "fix-conversation-generation-sequence-replay" } (
+  <decision #fix-conversation-generation-sequence-replay.canonical-order { status = "accepted" priority = "P0" durable_candidate = true } (
+    <question ?01M05F1PNBHD69TP2M77W9R4YE>
+    Conversation generation 应使用哪个字段恢复消息顺序？
+    </?01M05F1PNBHD69TP2M77W9R4YE>
+    <answer {  } (
+      <raw-answer ?01M05F1PNBHD69TP2M77W9R4YF>
+      用户确认按调查方案创建并实施修复 track。
+      </?01M05F1PNBHD69TP2M77W9R4YF>
+      <decision-text ?01M05F1PNBHD69TP2M77W9R4YG>
+      完整 sequence metadata 存在时以 HistoryMessage.sequence 为权威顺序；仅对 sequence 不完整的 legacy generation 使用 committedAt fallback。
+      </?01M05F1PNBHD69TP2M77W9R4YG>
+      <rationale ?01M05F1PNBHD69TP2M77W9R4YH>
+      现有 committedAt 混合 wall-clock milliseconds 与 generation ordinal，而 sequence 在故障 generation 中完整连续。
+      </?01M05F1PNBHD69TP2M77W9R4YH>
+      <evidence ?01M05F1PNBHD69TP2M77W9R4YJ>
+      Auto_LIFE.OS incident generation records ::0 through ::408 and production loader comparison.
+      </?01M05F1PNBHD69TP2M77W9R4YJ>
     )>
   )>
 )>
-

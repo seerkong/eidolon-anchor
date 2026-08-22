@@ -1,14 +1,19 @@
-<decision #upgrade-depa-data-graph-package-baseline.scope {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>Should package resolution and source migration be implemented in the same track？</?>
-  <answer { }
-  (
-    <raw-answer ?>No.</?>
-    <decision-text ?>This track upgrades direct manifests and bun.lock, then updates only the boundary guard. Source-level unified API migration stays in the successor tracks.</?>
-    <rationale ?>The upstream release is breaking and the mission needs an observable dependency baseline before distinct behavior owners change their graph code.</?>
-    <evidence ?>The containing mission G1 baseline reports and target migration contract.</?>
+<decision #upgrade-depa-data-graph-package-baseline.scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PMH1XJMVWPPFA60BDV5>
+  Should package resolution and source migration be implemented in the same track？
+  </?01M05F1PMH1XJMVWPPFA60BDV5>
+  <answer {  } (
+    <raw-answer ?01M05F1PMH1XJMVWPPFA60BDV6>
+    No.
+    </?01M05F1PMH1XJMVWPPFA60BDV6>
+    <decision-text ?01M05F1PMH1XJMVWPPFA60BDV7>
+    This track upgrades direct manifests and bun.lock, then updates only the boundary guard. Source-level unified API migration stays in the successor tracks.
+    </?01M05F1PMH1XJMVWPPFA60BDV7>
+    <rationale ?01M05F1PMH1XJMVWPPFA60BDV8>
+    The upstream release is breaking and the mission needs an observable dependency baseline before distinct behavior owners change their graph code.
+    </?01M05F1PMH1XJMVWPPFA60BDV8>
+    <evidence ?01M05F1PMH1XJMVWPPFA60BDV9>
+    The containing mission G1 baseline reports and target migration contract.
+    </?01M05F1PMH1XJMVWPPFA60BDV9>
   )>
 )>

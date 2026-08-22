@@ -1,0 +1,254 @@
+<Track #add-linux-windows-sandbox-backends version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" description = "阅读 Codex Windows Elevated sandbox 与 Linux sandbox 的实现原理，参考本项目 macOS sandbox 扩展机制，实现 Windows 和 Linux sandbox backend。" commit_mode = "manual" created_at = "2026-05-30T06:34:46Z" updated_at = "2026-05-30T10:46:26Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-linux-windows-sandbox-backends { name = "add-linux-windows-sandbox-backends" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Contract and failing tests" status = "DONE" order = 0 } (
+        <Description ?01M05F1PEFZ4ZKNEA4YA9R75YD>
+        用测试锁定 Linux/Windows backend 的 selection、分派和安全失败语义。
+        </?01M05F1PEFZ4ZKNEA4YA9R75YD>
+        <SubNodes [
+          <TaskGroup { id = "T1.1" name = "Add backend selection failing tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75YE>
+            覆盖 Linux/Windows read-only 和 workspace-write 不再选择 unsandboxed，danger-full-access 仍选择 unsandboxed。
+            </?01M05F1PEFZ4ZKNEA4YA9R75YE>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YF>
+              Linux read-only/workspace-write selection 期望 `linux-bwrap`。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YF>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YG>
+              Windows read-only/workspace-write selection 期望 Windows backend。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YG>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YH>
+              所有平台 danger-full-access 仍选择 `unsandboxed`。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YH>
+            ]>
+            <SubNodes [
+              <Task { id = "T1.1.1" name = "Write selection tests" status = "DONE" order = 0 }>
+              <Task { id = "T1.1.2" name = "Run tests and confirm red" status = "DONE" order = 1 }>
+            ]>
+          )>
+          <TaskGroup { id = "T1.2" name = "Add platform command planner failing tests" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75YJ>
+            覆盖 Linux command args、Windows setup/readiness planner、dependency missing fail-closed、network disabled fail-closed。
+            </?01M05F1PEFZ4ZKNEA4YA9R75YJ>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YK>
+              Linux command planner 测试体现 helper/bwrap 风格参数。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YK>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YM>
+              Windows planner 测试体现 setup/readiness 和 capability scoped writable roots。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YM>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YN>
+              缺失依赖或 setup 未完成不会降级为 unsandboxed。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YN>
+            ]>
+            <SubNodes [
+              <Task { id = "T1.2.1" name = "Write Linux planner tests" status = "DONE" order = 0 }>
+              <Task { id = "T1.2.2" name = "Write Windows planner tests" status = "DONE" order = 1 }>
+              <Task { id = "T1.2.3" name = "Run tests and confirm red" status = "DONE" order = 2 }>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Backend runtime extension" status = "DONE" order = 1 } (
+        <Description ?01M05F1PEFZ4ZKNEA4YA9R75YP>
+        扩展 shared sandbox backend runtime，使 Bash sync/streaming execution 能按 Linux/Windows backend 分派。
+        </?01M05F1PEFZ4ZKNEA4YA9R75YP>
+        <SubNodes [
+          <TaskGroup { id = "T2.1" name = "Extend backend selection types" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75YQ>
+            新增 Linux/Windows backend names，保持 selection shape 和 writable roots 解析一致。
+            </?01M05F1PEFZ4ZKNEA4YA9R75YQ>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YR>
+              `SandboxBackendName` 包含 Linux 和 Windows backend。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YR>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YS>
+              selection 包含统一 normalized writable roots。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YS>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YT>
+              macOS selection 测试保持通过。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YT>
+            ]>
+            <SubNodes [
+              <Task { id = "T2.1.1" name = "Update type definitions" status = "DONE" order = 0 }>
+              <Task { id = "T2.1.2" name = "Update selection logic" status = "DONE" order = 1 }>
+              <Task { id = "T2.1.3" name = "Run focused selection tests" status = "DONE" order = 2 }>
+            ]>
+          )>
+          <TaskGroup { id = "T2.2" name = "Refactor execution dispatcher" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75YV>
+            将 sync/streaming Bash execution 分派到 backend modules，同时保持测试注入能力。
+            </?01M05F1PEFZ4ZKNEA4YA9R75YV>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YW>
+              macOS 分派仍调用 Seatbelt command builder。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YW>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YX>
+              Linux/Windows 分派调用对应 backend module。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YX>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75YY>
+              unsupported backend path 返回明确错误。
+              </?01M05F1PEFZ4ZKNEA4YA9R75YY>
+            ]>
+            <SubNodes [
+              <Task { id = "T2.2.1" name = "Extract shared spawn spec builder if needed" status = "DONE" order = 0 }>
+              <Task { id = "T2.2.2" name = "Wire sync execution dispatcher" status = "DONE" order = 1 }>
+              <Task { id = "T2.2.3" name = "Wire streaming execution dispatcher" status = "DONE" order = 2 }>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Linux backend" status = "DONE" order = 2 } (
+        <Description ?01M05F1PEFZ4ZKNEA4YA9R75YZ>
+        实现 Linux sandbox backend 的 dependency detection、command construction 和 execution semantics。
+        </?01M05F1PEFZ4ZKNEA4YA9R75YZ>
+        <SubNodes [
+          <TaskGroup { id = "T3.1" name = "Implement Linux sandbox module" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75Z0>
+            新增 Linux backend module，封装 helper/bwrap 风格 args、writable roots、protected metadata 和 network disabled 语义。
+            </?01M05F1PEFZ4ZKNEA4YA9R75Z0>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75Z1>
+              Linux planner 生成包含 sandbox policy cwd、command cwd、permission/profile 或等价 metadata 的参数。
+              </?01M05F1PEFZ4ZKNEA4YA9R75Z1>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75Z2>
+              workspace-write 包含 writable roots 和 protected metadata handling。
+              </?01M05F1PEFZ4ZKNEA4YA9R75Z2>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75Z3>
+              dependency/namespace 不可用时 fail closed。
+              </?01M05F1PEFZ4ZKNEA4YA9R75Z3>
+            ]>
+            <SubNodes [
+              <Task { id = "T3.1.1" name = "Implement dependency detection" status = "DONE" order = 0 }>
+              <Task { id = "T3.1.2" name = "Implement command builder" status = "DONE" order = 1 }>
+              <Task { id = "T3.1.3" name = "Implement execution adapter" status = "DONE" order = 2 }>
+            ]>
+          )>
+          <TaskGroup { id = "T3.2" name = "Add Linux backend tests" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75Z4>
+            补充 Linux unit tests 和 platform-gated smoke tests。
+            </?01M05F1PEFZ4ZKNEA4YA9R75Z4>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75Z5>
+              非 Linux 环境可运行 planner/selection/unit tests。
+              </?01M05F1PEFZ4ZKNEA4YA9R75Z5>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75Z6>
+              Linux 环境可用时 smoke 覆盖 read-only deny 和 workspace-write allow/deny；非 Linux 环境记录未运行原因。
+              </?01M05F1PEFZ4ZKNEA4YA9R75Z6>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75Z7>
+              network disabled 无法实际限制时返回明确错误。
+              </?01M05F1PEFZ4ZKNEA4YA9R75Z7>
+            ]>
+            <SubNodes [
+              <Task { id = "T3.2.1" name = "Run Linux planner tests" status = "DONE" order = 0 }>
+              <Task { id = "T3.2.2" name = "Run platform-gated smoke where available" status = "DONE" order = 1 }>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Windows backend" status = "DONE" order = 3 } (
+        <Description ?01M05F1PEFZ4ZKNEA4YA9R75Z8>
+        实现 Windows sandbox backend 的 setup/readiness、restricted execution planning 和 error semantics。
+        </?01M05F1PEFZ4ZKNEA4YA9R75Z8>
+        <SubNodes [
+          <TaskGroup { id = "T4.1" name = "Implement Windows sandbox module" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75Z9>
+            新增 Windows backend module，封装 elevated setup readiness、capability scoped roots、runner adapter 和 fail-closed behavior。
+            </?01M05F1PEFZ4ZKNEA4YA9R75Z9>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZA>
+              Windows planner 表达 read-only capability 与 workspace-write writable-root capabilities。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZA>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZB>
+              setup 未完成或权限不足时返回 actionable error。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZB>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZC>
+              network disabled 能力不可用时 fail closed。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZC>
+            ]>
+            <SubNodes [
+              <Task { id = "T4.1.1" name = "Implement setup readiness contract" status = "DONE" order = 0 }>
+              <Task { id = "T4.1.2" name = "Implement command runner adapter" status = "DONE" order = 1 }>
+              <Task { id = "T4.1.3" name = "Implement Windows error mapping" status = "DONE" order = 2 }>
+            ]>
+          )>
+          <TaskGroup { id = "T4.2" name = "Add Windows backend tests" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75ZD>
+            补充 Windows unit tests 和 platform-gated smoke tests。
+            </?01M05F1PEFZ4ZKNEA4YA9R75ZD>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZE>
+              非 Windows 环境可运行 planner/selection/unit tests。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZE>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZF>
+              Windows 环境可用时 smoke 覆盖 setup readiness、read-only deny、workspace-write allow/deny；非 Windows 环境记录未运行原因。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZF>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZG>
+              Bash delegation 能路由到 Windows backend。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZG>
+            ]>
+            <SubNodes [
+              <Task { id = "T4.2.1" name = "Run Windows planner tests" status = "DONE" order = 0 }>
+              <Task { id = "T4.2.2" name = "Run platform-gated smoke where available" status = "DONE" order = 1 }>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Validation and documentation" status = "DONE" order = 4 } (
+        <Description ?01M05F1PEFZ4ZKNEA4YA9R75ZH>
+        验证跨平台 sandbox backend contract，并更新规范状态所需证据。
+        </?01M05F1PEFZ4ZKNEA4YA9R75ZH>
+        <SubNodes [
+          <TaskGroup { id = "T5.1" name = "Run focused automated validation" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75ZJ>
+            运行 sandbox backend、Bash integration 和 local permission 相关聚焦测试。
+            </?01M05F1PEFZ4ZKNEA4YA9R75ZJ>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZK>
+              sandbox backend runtime tests pass。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZK>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZM>
+              Bash integration tests pass。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZM>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZN>
+              local permission exec mode tests pass。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZN>
+            ]>
+            <SubNodes [
+              <Task { id = "T5.1.1" name = "Run focused test commands" status = "DONE" order = 0 }>
+              <Task { id = "T5.1.2" name = "Record unavailable platform smoke tests" status = "DONE" order = 1 }>
+            ]>
+          )>
+          <TaskGroup { id = "T5.2" name = "Update track evidence" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PEFZ4ZKNEA4YA9R75ZP>
+            根据实现结果更新 analysis、decisions 和 plan validation evidence。
+            </?01M05F1PEFZ4ZKNEA4YA9R75ZP>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZQ>
+              pending decisions 已回写最终结论或保留明确阻塞说明。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZQ>
+              <Criterion { checked = true } ?01M05F1PEFZ4ZKNEA4YA9R75ZR>
+              plan validation 记录通过的测试与跳过原因。
+              </?01M05F1PEFZ4ZKNEA4YA9R75ZR>
+            ]>
+            <SubNodes [
+              <Task { id = "T5.2.1" name = "Update decisions if needed" status = "DONE" order = 0 }>
+              <Task { id = "T5.2.2" name = "Update validation evidence" status = "DONE" order = 1 }>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

@@ -1,0 +1,119 @@
+<Track #align-read-tool-claude-code-semantics version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "read 工具行为对齐 Claude Code Read 语义并补齐文件大小/总行数元信息。" description = "默认 limit 2000、offset 1 起始、超过 2000 行截断到前 2000 行、context-resource header 带 total-lines；统一目录与文件默认，消除 200 vs 2000 双默认；提供文件 size/行数元信息供模型决定读取范围。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-05T10:34:57Z" updated_at = "2026-08-05T10:55:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_align-read-tool-claude-code-semantics { name = "align-read-tool-claude-code-semantics" } (
+    <Description ?01M05F1PP8C0KD6P14EMCDX0Q0>
+    对齐 read 工具语义与元信息，消除隐式双默认，并让模型先获得文件大小/行数再决定读取范围。
+    </?01M05F1PP8C0KD6P14EMCDX0Q0>
+    <SubNodes [
+      <TaskGroup #P1 { name = "read 工具语义对齐" status = "DONE" order = 0 } (
+        <Description ?01M05F1PP8C0KD6P14EMCDX0Q1>
+        把 read 工具对齐 Claude Code Read 语义，统一默认值，补 total-lines 元信息。
+        </?01M05F1PP8C0KD6P14EMCDX0Q1>
+        <Gate [
+          <Criterion ?01M05F1PP8C0KD6P14EMCDX0Q2>
+          文件读取默认 limit 2000、offset 1 起始，>2000 行截断到前 2000 行。
+          </?01M05F1PP8C0KD6P14EMCDX0Q2>
+          <Criterion ?01M05F1PP8C0KD6P14EMCDX0Q3>
+          目录默认与文件默认一致，不再 200 vs 2000 双默认。
+          </?01M05F1PP8C0KD6P14EMCDX0Q3>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "统一 read 默认并实现大文件截断" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PP8C0KD6P14EMCDX0Q4>
+            在 Read/Logic.ts 中让文件与目录默认统一（2000），>2000 行文件截断到前 2000 行（结合 offset/limit），截断行为对齐 Claude Code。
+            </?01M05F1PP8C0KD6P14EMCDX0Q4>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PP8C0KD6P14EMCDX0Q5>
+              文件读取默认 limit=2000、offset=1；目录默认改为与文件一致。
+              </?01M05F1PP8C0KD6P14EMCDX0Q5>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PP8C0KD6P14EMCDX0Q6>
+              >2000 行文件截断到前 2000 行，不再整文件进入上下文。
+              </?01M05F1PP8C0KD6P14EMCDX0Q6>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1PP8C0KD6P14EMCDX0Q7>
+              截断行为与 Claude Code 对齐（decision B：截断时不带行号，total-lines 在 header）。
+              </?01M05F1PP8C0KD6P14EMCDX0Q7>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "header 增加 total-lines 元信息" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PP8C0KD6P14EMCDX0Q8>
+            在 LocalTextResourceLoader 的 context-resource header 中增加 total-lines 属性，文件/目录通用；已在 already-visible 引用中也保留。
+            </?01M05F1PP8C0KD6P14EMCDX0Q8>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PP8C0KD6P14EMCDX0Q9>
+              context-resource header 带 total-lines 属性（decision A）。
+              </?01M05F1PP8C0KD6P14EMCDX0Q9>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PP8C0KD6P14EMCDX0QA>
+              目录读取也带 total 元信息（decision C）。
+              </?01M05F1PP8C0KD6P14EMCDX0QA>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "文件大小/行数元信息（方向 C）" status = "DONE" order = 1 } (
+        <Description ?01M05F1PP8C0KD6P14EMCDX0QB>
+        提供快速文件元信息（size/行数），让模型在读取前就能决定范围。
+        </?01M05F1PP8C0KD6P14EMCDX0QB>
+        <Gate [
+          <Criterion ?01M05F1PP8C0KD6P14EMCDX0QC>
+          模型能先获得文件大小/总行数，再基于文件大小决定读取范围。
+          </?01M05F1PP8C0KD6P14EMCDX0QC>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "补齐文件 size/行数元信息入口" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PP8C0KD6P14EMCDX0QD>
+            在 read 输出（或 ls 等目录工具）中提供文件大小与总行数元信息；与 total-lines header 保持一致，避免另一套隐式语义。
+            </?01M05F1PP8C0KD6P14EMCDX0QD>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PP8C0KD6P14EMCDX0QE>
+              文件大小/总行数元信息在读取前可得。
+              </?01M05F1PP8C0KD6P14EMCDX0QE>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PP8C0KD6P14EMCDX0QF>
+              元信息入口与 total-lines header 语义一致，无隐式分叉。
+              </?01M05F1PP8C0KD6P14EMCDX0QF>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "验证与收口" status = "DONE" order = 2 } (
+        <Description ?01M05F1PP8C0KD6P14EMCDX0QG>
+        补充或更新测试，验证截断、total-lines、目录默认一致性与元信息。
+        </?01M05F1PP8C0KD6P14EMCDX0QG>
+        <Gate [
+          <Criterion ?01M05F1PP8C0KD6P14EMCDX0QH>
+          read 工具、loader 相关测试覆盖截断与元信息。
+          </?01M05F1PP8C0KD6P14EMCDX0QH>
+          <Criterion ?01M05F1PP8C0KD6P14EMCDX0QJ>
+          严格 codument 与 decisions 校验通过。
+          </?01M05F1PP8C0KD6P14EMCDX0QJ>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "补测试并验证 read 语义对齐" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PP8C0KD6P14EMCDX0QK>
+            更新/新增 read 工具与 LocalTextResourceLoader 测试，覆盖大文件截断、total-lines、目录默认一致性与文件元信息。
+            </?01M05F1PP8C0KD6P14EMCDX0QK>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PP8C0KD6P14EMCDX0QM>
+              大文件截断与 total-lines 测试通过。
+              </?01M05F1PP8C0KD6P14EMCDX0QM>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PP8C0KD6P14EMCDX0QN>
+              目录默认与文件默认一致测试通过。
+              </?01M05F1PP8C0KD6P14EMCDX0QN>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1PP8C0KD6P14EMCDX0QP>
+              strict track/decisions validation 通过。
+              </?01M05F1PP8C0KD6P14EMCDX0QP>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

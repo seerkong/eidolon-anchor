@@ -1,0 +1,210 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_1_5_-_2_2_3_0_-_r_e_f_a_c_t_o_r_-_a_i_-_t_u_r_n_-_t_o_o_l_-_p_r_o_v_i_d_e_r_-_l_i_f_e_c_y_c_l_e.behavior_patch.ai-turn-execution-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-turn-execution-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-turn-execution-spine/requirements/turn-state-adt" } (
+      <Requirement #turn-state-adt (
+        <Statement ?01M05F1PHRQS95FFVEKV771QJJ>
+        AI turn 的运行时状态 SHALL 由一个 discriminated union ADT（TurnState）显式表达，每个 variant 自带该阶段必要的字段；SHALL NOT 通过 phase 字符串 + 平行 inflight union + 多个 pending 数组的隐式组合表达运行时状态。
+        </?01M05F1PHRQS95FFVEKV771QJJ>
+        <Suites [
+          <Suite #turn-state-shape { name = "TurnState ADT shape" } (
+            <Cases [
+              <Case #variants-cover-runtime-phases [
+                <Then ?01M05F1PHRQS95FFVEKV771QJK>
+                state SHALL 落入 TurnState ADT 的恰好一个 variant（drain / wait_llm / wait_tool / wait_questionnaire_parse / wait_compress / wait_human / completed / failed 等）
+                </?01M05F1PHRQS95FFVEKV771QJK>
+                <Then ?01M05F1PHRQS95FFVEKV771QJM>
+                该 variant 自带本阶段所有必要字段（如 wait_tool 自带 opId、toolCallId、gateOutcome）
+                </?01M05F1PHRQS95FFVEKV771QJM>
+              ] (
+                <Given ?01M05F1PHRQS95FFVEKV771QJN>
+                cooperative 或 streaming 主循环处于任意运行时刻
+                </?01M05F1PHRQS95FFVEKV771QJN>
+                <When ?01M05F1PHRQS95FFVEKV771QJP>
+                读取当前 turn state
+                </?01M05F1PHRQS95FFVEKV771QJP>
+              )>
+              <Case #no-cross-variant-fields [
+                <Then ?01M05F1PHRQS95FFVEKV771QJQ>
+                SHALL NOT 出现"phase 是 wait_llm 但 inflight 是 tool"这类跨 variant 不一致
+                </?01M05F1PHRQS95FFVEKV771QJQ>
+                <Then ?01M05F1PHRQS95FFVEKV771QJR>
+                类型系统 SHALL 在编译期防止此类组合
+                </?01M05F1PHRQS95FFVEKV771QJR>
+              ] (
+                <Given ?01M05F1PHRQS95FFVEKV771QJS>
+                TurnState variant 已确定
+                </?01M05F1PHRQS95FFVEKV771QJS>
+                <When ?01M05F1PHRQS95FFVEKV771QJT>
+                外部代码访问运行时状态
+                </?01M05F1PHRQS95FFVEKV771QJT>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-turn-execution-spine/requirements/turn-wait-boundary" } (
+      <Requirement #turn-wait-boundary (
+        <Statement ?01M05F1PHRQS95FFVEKV771QJV>
+        turn 的等待边界（provider 等待 / tool 等待 / human 等待 / questionnaire 等待 / compress 等待）SHALL 作为彼此区分的 owned 事实存在（TurnState ADT 的独立 wait variant + ai_turn_state 数据子图的 turn.wait_boundary 事实节点），各自携带其边界字段；SHALL NOT 退化为单一无差别的"waiting"标志。对应 mission gate G-ai-wait-message。
+        </?01M05F1PHRQS95FFVEKV771QJV>
+        <Suites [
+          <Suite #wait-boundary-facts { name = "Wait boundaries as distinct owned facts" } (
+            <Cases [
+              <Case #wait-kinds-are-distinct [
+                <Then ?01M05F1PHRQS95FFVEKV771QJW>
+                provider / tool / human / questionnaire / compress 五类等待 SHALL 映射到五个不同的 TurnState variant（wait_llm / wait_tool / wait_human / wait_questionnaire_parse / wait_compress）
+                </?01M05F1PHRQS95FFVEKV771QJW>
+                <Then ?01M05F1PHRQS95FFVEKV771QJX>
+                每个 wait variant SHALL 携带其边界字段（wait_llm 带 providerCallId、wait_tool 带 toolCallId+gateDecision、wait_human 带 reason、wait_questionnaire_parse 带 questionnaireId、wait_compress 带 compression reason）
+                </?01M05F1PHRQS95FFVEKV771QJX>
+              ] (
+                <Given ?01M05F1PHRQS95FFVEKV771QJY>
+                turn 进入某个等待
+                </?01M05F1PHRQS95FFVEKV771QJY>
+                <When ?01M05F1PHRQS95FFVEKV771QJZ>
+                读取 turn state
+                </?01M05F1PHRQS95FFVEKV771QJZ>
+              )>
+              <Case #wait-boundary-is-owned-fact (
+                <Given ?01M05F1PHRQS95FFVEKV771QK0>
+                ai_turn_state 数据子图契约
+                </?01M05F1PHRQS95FFVEKV771QK0>
+                <When ?01M05F1PHRQS95FFVEKV771QK1>
+                检查 owned fact nodes
+                </?01M05F1PHRQS95FFVEKV771QK1>
+                <Then ?01M05F1PHRQS95FFVEKV771QK2>
+                SHALL 声明 turn.wait_boundary 为 ai_turn_state 的 owned authoritative_fact，并提供 turn.wait_view 读取视图
+                </?01M05F1PHRQS95FFVEKV771QK2>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-turn-execution-spine/requirements/unified-main-loop" } (
+      <Requirement #unified-main-loop (
+        <Statement ?01M05F1PHRQS95FFVEKV771QK3>
+        aiAgentLoopStreaming 与 aiAgentCooperativeStep 当前的两套主循环 SHALL 合并为单一 phase machine；streaming 入口 SHALL 退化为 cooperative phase machine 的薄包装（驱动方式不同但 phase 转换规则相同）；ToolExecutionGateDecision 评估、tool 任务派发、eventBus emit、runtime-control evidence 记录 SHALL 共用同一实现，不再两份。
+        </?01M05F1PHRQS95FFVEKV771QK3>
+        <Suites [
+          <Suite #loop-unification { name = "Main loop unification" } (
+            <Cases [
+              <Case #single-phase-machine [
+                <Then ?01M05F1PHRQS95FFVEKV771QK4>
+                SHALL 只有一份 phase 转换实现（cooperative phase machine）
+                </?01M05F1PHRQS95FFVEKV771QK4>
+                <Then ?01M05F1PHRQS95FFVEKV771QK5>
+                aiAgentLoopStreaming SHALL 在内部驱动同一 phase machine 直到 completed/failed，不复制 phase 转换逻辑
+                </?01M05F1PHRQS95FFVEKV771QK5>
+              ] (
+                <Given ?01M05F1PHRQS95FFVEKV771QK6>
+                检查 ai-organ-logic exec 主循环源码
+                </?01M05F1PHRQS95FFVEKV771QK6>
+                <When ?01M05F1PHRQS95FFVEKV771QK7>
+                枚举 phase 转换实现
+                </?01M05F1PHRQS95FFVEKV771QK7>
+              )>
+              <Case #shared-tool-dispatch [
+                <Then ?01M05F1PHRQS95FFVEKV771QK8>
+                SHALL 由同一组函数承担（每条职责一处定义）
+                </?01M05F1PHRQS95FFVEKV771QK8>
+                <Then ?01M05F1PHRQS95FFVEKV771QK9>
+                SHALL NOT 在 streaming 与 cooperative 两套代码路径上分别维护
+                </?01M05F1PHRQS95FFVEKV771QK9>
+              ] (
+                <Given ?01M05F1PHRQS95FFVEKV771QKA>
+                tool dispatch（gate 评估 + 任务派发 + emit + evidence）需要执行
+                </?01M05F1PHRQS95FFVEKV771QKA>
+                <When ?01M05F1PHRQS95FFVEKV771QKB>
+                检查实现
+                </?01M05F1PHRQS95FFVEKV771QKB>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-turn-execution-spine/requirements/supervisor-retired" } (
+      <Requirement #supervisor-retired (
+        <Statement ?01M05F1PHRQS95FFVEKV771QKC>
+        AiRuntimeTurnSupervisor SHALL 在本能力中被完全移除：文件本体、TerminalRuntime 中的 continuation hint 注入、exec warning 回调、cell 侧导出、单元测试 SHALL 一并删除。其原本试图缓解的"重复读文件"风险 SHALL 由本 track 的 TurnState ADT、ToolCallDomain 事实链与 ProviderCallDomain 元数据从根因消除，而非通过新的 guardrail 替换。
+        </?01M05F1PHRQS95FFVEKV771QKC>
+        <Suites [
+          <Suite #retire-supervisor { name = "Supervisor retirement" } (
+            <Cases [
+              <Case #no-supervisor-source [
+                <Then ?01M05F1PHRQS95FFVEKV771QKD>
+                SHALL 不存在 AiRuntimeTurnSupervisor 类、函数或类型
+                </?01M05F1PHRQS95FFVEKV771QKD>
+                <Then ?01M05F1PHRQS95FFVEKV771QKE>
+                SHALL 不存在 TerminalRuntime supervisor continuation 循环（原 1243-1281 区间）
+                </?01M05F1PHRQS95FFVEKV771QKE>
+                <Then ?01M05F1PHRQS95FFVEKV771QKF>
+                SHALL 不存在 exec surface 对 supervisor warning 回调的消费点
+                </?01M05F1PHRQS95FFVEKV771QKF>
+              ] (
+                <Given ?01M05F1PHRQS95FFVEKV771QKG>
+                本 track 完成后
+                </?01M05F1PHRQS95FFVEKV771QKG>
+                <When ?01M05F1PHRQS95FFVEKV771QKH>
+                检查 cell/packages/ai-organ-logic 与 terminal/packages/organ 源码树
+                </?01M05F1PHRQS95FFVEKV771QKH>
+              )>
+              <Case #no-replacement-guardrail [
+                <Then ?01M05F1PHRQS95FFVEKV771QKJ>
+                SHALL NOT 引入任何"deny 第 N+1 次重复 tool"或类似 hint-based guardrail
+                </?01M05F1PHRQS95FFVEKV771QKJ>
+                <Then ?01M05F1PHRQS95FFVEKV771QKK>
+                "重复读文件"等行为 SHALL 仅靠 TurnState + ToolCallDomain + ProviderCallDomain 的真源唯一性来防止
+                </?01M05F1PHRQS95FFVEKV771QKK>
+              ] (
+                <Given ?01M05F1PHRQS95FFVEKV771QKM>
+                supervisor 已删除
+                </?01M05F1PHRQS95FFVEKV771QKM>
+                <When ?01M05F1PHRQS95FFVEKV771QKN>
+                审查本 track 引入的 lifecycle 改造
+                </?01M05F1PHRQS95FFVEKV771QKN>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-turn-execution-spine/requirements/conformance-tests" } (
+      <Requirement #conformance-tests (
+        <Statement ?01M05F1PHRQS95FFVEKV771QKP>
+        本能力 SHALL 提供 TurnState ADT 形态一致性测试、统一主循环行为等价测试（cooperative 与 streaming 入口产出相同的 providerMessages 与 turn 转换序列）、以及 supervisor 移除后既有功能不回归的测试。
+        </?01M05F1PHRQS95FFVEKV771QKP>
+        <Suites [
+          <Suite #tests { name = "Conformance tests" } (
+            <Cases [
+              <Case #adt-shape-test (
+                <Given ?01M05F1PHRQS95FFVEKV771QKQ>
+                TurnState ADT 已定义
+                </?01M05F1PHRQS95FFVEKV771QKQ>
+                <When ?01M05F1PHRQS95FFVEKV771QKR>
+                对每个 variant 构造、转换、序列化进行单元测试
+                </?01M05F1PHRQS95FFVEKV771QKR>
+                <Then ?01M05F1PHRQS95FFVEKV771QKS>
+                SHALL 保证 variant 完整覆盖运行时所有可达状态
+                </?01M05F1PHRQS95FFVEKV771QKS>
+              )>
+              <Case #loop-equivalence-test (
+                <Given ?01M05F1PHRQS95FFVEKV771QKT>
+                同一脚本化输入序列分别经 streaming 入口与 cooperative 入口
+                </?01M05F1PHRQS95FFVEKV771QKT>
+                <When ?01M05F1PHRQS95FFVEKV771QKV>
+                对比产出的 providerMessages 与 turn 转换序列
+                </?01M05F1PHRQS95FFVEKV771QKV>
+                <Then ?01M05F1PHRQS95FFVEKV771QKW>
+                SHALL 逐元素等价
+                </?01M05F1PHRQS95FFVEKV771QKW>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

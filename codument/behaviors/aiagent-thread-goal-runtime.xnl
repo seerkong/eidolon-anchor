@@ -1,0 +1,75 @@
+<Behavior #aiagent-thread-goal-runtime apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #usage-and-idle-continuation (
+      <Statement ?01M05F1P1NF1JA786GW04YSW03>
+      The system SHALL account token and elapsed-time usage for active goals across turn lifecycle events, SHALL update budget-related statuses when needed, and SHALL automatically continue an active goal through the runtime lifecycle hook mechanism when the session becomes idle and no higher-priority user input is pending.
+      </?01M05F1P1NF1JA786GW04YSW03>
+      <Suites [
+        <Suite #idle-continuation-hook { name = "Hook based idle continuation" } (
+          <Requirement #wake-mailbox-preempts-goal-continuation [
+            <Then ?01M05F1P1NF1JA786GW04YSW04>
+            the hook SHALL skip continuation
+            </?01M05F1P1NF1JA786GW04YSW04>
+            <Then ?01M05F1P1NF1JA786GW04YSW05>
+            existing mailbox work SHALL retain actor mailbox priority over goal heartbeat continuation
+            </?01M05F1P1NF1JA786GW04YSW05>
+          ] (
+            <Given ?01M05F1P1NF1JA786GW04YSW06>
+            an active goal and pending actor mailbox work in `control`, `toolResult`, `asyncCompletion`, `childDone`, `memberCoordination`, `humanInput`, `memberChatInbox`, or `heartbeat`
+            </?01M05F1P1NF1JA786GW04YSW06>
+            <When ?01M05F1P1NF1JA786GW04YSW07>
+            the `actor.idle.before` goal continuation hook evaluates continuation
+            </?01M05F1P1NF1JA786GW04YSW07>
+          )>
+          <Cases [
+            <Case #continue-active-goal-through-runtime-idle-hook [
+              <Then ?01M05F1P1NF1JA786GW04YSW08>
+              the goal continuation hook SHALL return a mailbox enqueue effect for the continuation prompt
+              </?01M05F1P1NF1JA786GW04YSW08>
+              <Then ?01M05F1P1NF1JA786GW04YSW09>
+              the effect SHALL enqueue a `heartbeat` mailbox message for the owning actor/fiber
+              </?01M05F1P1NF1JA786GW04YSW09>
+            ] (
+              <Given ?01M05F1P1NF1JA786GW04YSW0A>
+              an active goal and no active turn or pending higher-priority mailbox message
+              </?01M05F1P1NF1JA786GW04YSW0A>
+              <When ?01M05F1P1NF1JA786GW04YSW0B>
+              the organ runtime produces an `actor.idle.before` hook invocation
+              </?01M05F1P1NF1JA786GW04YSW0B>
+            )>
+            <Case #human-input-preempts-goal-continuation [
+              <Then ?01M05F1P1NF1JA786GW04YSW0C>
+              the hook SHALL skip continuation
+              </?01M05F1P1NF1JA786GW04YSW0C>
+              <Then ?01M05F1P1NF1JA786GW04YSW0D>
+              the pending human input or control message SHALL retain priority over goal continuation
+              </?01M05F1P1NF1JA786GW04YSW0D>
+            ] (
+              <Given ?01M05F1P1NF1JA786GW04YSW0E>
+              an active goal and pending human input or control mailbox message
+              </?01M05F1P1NF1JA786GW04YSW0E>
+              <When ?01M05F1P1NF1JA786GW04YSW0F>
+              the `actor.idle.before` goal hook evaluates goal continuation
+              </?01M05F1P1NF1JA786GW04YSW0F>
+            )>
+            <Case #background-pump-is-not-primary-goal-driver [
+              <Then ?01M05F1P1NF1JA786GW04YSW0G>
+              the watchdog MAY produce a lifecycle idle invocation
+              </?01M05F1P1NF1JA786GW04YSW0G>
+              <Then ?01M05F1P1NF1JA786GW04YSW0H>
+              the watchdog SHALL NOT call goal continuation logic directly
+              </?01M05F1P1NF1JA786GW04YSW0H>
+            ] (
+              <Given ?01M05F1P1NF1JA786GW04YSW0J>
+              the runtime background watchdog ticks while a goal is active
+              </?01M05F1P1NF1JA786GW04YSW0J>
+              <When ?01M05F1P1NF1JA786GW04YSW0K>
+              the runtime needs to check for idle continuation
+              </?01M05F1P1NF1JA786GW04YSW0K>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

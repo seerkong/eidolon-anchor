@@ -16,17 +16,17 @@ modeling 节点的常规属性一律写进 `{}` 属性块：`kind`、`fact_grade
 
 ## 2. kind 谱系（内核裸名 → shell 命名空间）
 
-| 层 | kind 标签 | 最小必备表征 | DEPA / 来源 |
+| 层 | kind 标签 | 最小必备表征（CLI 强制 = `codument modeling validate` 检查项；评审项 = review 职责） | DEPA / 来源 |
 |---|---|---|---|
-| 内核（裸名，跨领域） | `entity` / `object` | `types` + `fact_grade` + `single_writer` + invariants | Data / 事实源； `objects/data.md` |
+| 内核（裸名，跨领域） | `entity` / `object` | `types` + `fact_grade` + `single_writer`（**CLI 强制**）+ invariants（评审项） | Data / 事实源； `objects/data.md` |
 | | `enum` | `types` | Data |
-| | `state-machine` | `mermaid` + 状态枚举 | Data/Processor； `workflows` |
-| | `module` / `capsule` | `depends_on` + capsule-tree（**到文件/符号级**，见 §2.1） | Effect / 边界；`Module` |
-| | `component` | `runtime`/`input`/`config`/`output` 四个 `types` 块 + ctrl/rule/dataflow `pseudo` | DEPA 标准组件；`Procedure` |
-| | `port` | 入口签名 + `command\|message` 标注 | Actor/Processor；泛化 HttpEndpoint/Kafka |
-| | `actor` | 单写边界 + 偏重(data-owner/执行/组合) + 解环决策 | DEPA actor-paradigm |
-| | `policy` | rule `pseudo`(datalog/switch) 或引用 `behavior://` | 跨对象； `policies` |
-| shell（命名空间，领域定） | `surface:route` `backend:endpoint` `cli:command` `agent:tool` … | 各 plane 自定义 | route/command/action 本就跨领域 |
+| | `state-machine` | `mermaid` 且须声明状态（**CLI 强制**）+ 状态枚举（评审项） | Data/Processor； `workflows` |
+| | `module` / `capsule` | `depends_on` + capsule-tree（**CLI 强制**；**到文件/符号级**为评审项，见 §2.1） | Effect / 边界；`Module` |
+| | `component` | `runtime`/`input`/`config`/`output` 四个 `types` 块 + ctrl/rule/dataflow `pseudo`（**CLI 强制**） | DEPA 标准组件；`Procedure` |
+| | `port` | `command\|message` 标注（**CLI 强制**）+ 入口签名（评审项） | Actor/Processor；泛化 HttpEndpoint/Kafka |
+| | `actor` | 单写边界 + 偏重(data-owner/执行/组合) + 解环决策（**评审项**；CLI 仅校验 kind 合法） | DEPA actor-paradigm |
+| | `policy` | rule `pseudo`(datalog/switch) 或引用 `behavior://`（**CLI 强制**） | 跨对象； `policies` |
+| shell（命名空间，领域定） | `surface:route` `backend:endpoint` `cli:command` `agent:tool` … | 各 plane 自定义 | route/command/operation 本就跨领域 |
 
 > kind 词汇的“内核裸名 vs 命名空间领域”区分 Layer-1 的 Extension kind 谱系：通用概念裸名共用，领域概念加命名空间前缀。
 
@@ -117,28 +117,28 @@ Good（entity，最小必备齐）：
   kind = "entity"
   fact_grade = "authoritative_fact"
   single_writer = "resource.store"
-} [
+} (
   <desc ?>聚合型资源…</?>
   <types ?t>interface SkillTool { key: string; status: SkillToolStatus }
   enum SkillToolStatus { Draft="draft", Online="online" }</?t>
-  <state-machine #resource.skill_tool_status [ <mermaid ?m>
+  <state-machine #resource.skill_tool_status ( <mermaid ?m>
   stateDiagram-v2
     draft --> online: publish
-  </?m> ]>
+  </?m> )>
   <fact-source ?>唯一写入者 resource.store；file_contents 只读投影不反写。</?>
-]>
+)>
 ```
 
 Good（component，四块裸标签 — canonical）：
 ```xnl
-<component #orders.place_order_proc { kind = "component" } [
+<component #orders.place_order_proc { kind = "component" } (
   <desc ?>下单组件：校验库存、落账、投递通知。</?>
   <runtime ?r>type Runtime = { clock: Clock; orderStore: OrderStore }</?r>
   <input ?i>interface PlaceOrderInput { cartId: string; userId: string }</?i>
   <config ?c>interface PlaceOrderConfig { maxLines: number }</?c>
   <output ?o>interface PlaceOrderOutput { orderId: string; total: number }</?o>
   <pseudo { kind = "ctrl" } ?p>validate(input) -> reserve(stock) -> append(order) -> notify</?p>
-]>
+)>
 ```
 
 Good（shell kind 节点 — 普通标签 + `kind` 属性）：
@@ -174,7 +174,7 @@ modeling 节点的**描述性内容一律用中文**，**代码标识符保持�
 
 Good（注释/描述中文，标识符英文）：
 ```xnl
-<component #orders.place_order { kind = "component" } [
+<component #orders.place_order { kind = "component" } (
   <desc ?>下单组件：校验购物车、预留库存、落账。</?>
   <runtime ?r>
   interface PlaceOrderRuntime {
@@ -183,7 +183,7 @@ Good（注释/描述中文，标识符英文）：
   }
   </?r>
   <pseudo { kind = "ctrl" } ?p>校验 input → 经 message 预留库存 → 落账 → 发布事件</?p>
-]>
+)>
 ```
 
 Bad：

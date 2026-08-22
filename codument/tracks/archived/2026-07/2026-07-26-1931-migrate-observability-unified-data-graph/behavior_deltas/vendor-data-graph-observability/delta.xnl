@@ -1,0 +1,43 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_2_6_-_1_9_3_1_-_m_i_g_r_a_t_e_-_o_b_s_e_r_v_a_b_i_l_i_t_y_-_u_n_i_f_i_e_d_-_d_a_t_a_-_g_r_a_p_h.behavior_patch.vendor-data-graph-observability apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-data-graph-observability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://vendor-data-graph-observability/requirements/unified-computed-runtime-contract" } (
+      <Requirement #unified-computed-runtime-contract (
+        <Statement ?01M05F1PN0E3MKJWXNTDDSQRFR>
+        Cell and terminal organ diagnostic observability SHALL use the unified DataGraph computed-node runtime contract and SHALL preserve diagnostic summary values, graph lifecycle, and trace behavior.
+        </?01M05F1PN0E3MKJWXNTDDSQRFR>
+        <Suites [
+          <Suite #diagnostic-summary-runtime { name = "Diagnostic summary runtime" } (
+            <Cases [
+              <Case #computed-summary-reads-dependencies [
+                <Then ?01M05F1PN0E3MKJWXNTDDSQRFS>
+                the computed callback SHALL read dependencies through runtime.graph.get and SHALL NOT use the removed ctx.get callback API
+                </?01M05F1PN0E3MKJWXNTDDSQRFS>
+                <Then ?01M05F1PN0E3MKJWXNTDDSQRFT>
+                the summary SHALL report the current tool, retry, compaction, turn, and model values
+                </?01M05F1PN0E3MKJWXNTDDSQRFT>
+              ] (
+                <Given ?01M05F1PN0E3MKJWXNTDDSQRFV>
+                diagnostic signal nodes are mounted in a DataGraph upgraded to 1.0.1
+                </?01M05F1PN0E3MKJWXNTDDSQRFV>
+                <When ?01M05F1PN0E3MKJWXNTDDSQRFW>
+                their computed summary is read after signals are updated
+                </?01M05F1PN0E3MKJWXNTDDSQRFW>
+              )>
+              <Case #observable-graph-computed-contract (
+                <Given ?01M05F1PN0E3MKJWXNTDDSQRFX>
+                a terminal observable graph owns a simple computed signal
+                </?01M05F1PN0E3MKJWXNTDDSQRFX>
+                <When ?01M05F1PN0E3MKJWXNTDDSQRFY>
+                the signal is read with debug middleware enabled
+                </?01M05F1PN0E3MKJWXNTDDSQRFY>
+                <Then ?01M05F1PN0E3MKJWXNTDDSQRFZ>
+                the computation SHALL succeed through the unified runtime contract without breaking graph disposal or tracing
+                </?01M05F1PN0E3MKJWXNTDDSQRFZ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

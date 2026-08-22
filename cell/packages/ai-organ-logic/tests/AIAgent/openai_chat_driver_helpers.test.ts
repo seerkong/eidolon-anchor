@@ -3,27 +3,9 @@ import {
   findOpenAIReplaySafeMessagePrefix,
   normalizeOpenAIChatMessages,
   repairOpenAIChatToolCallAdjacency,
-  stripOpenAICompatibleUnsupportedSchemaKeys,
 } from "@cell/ai-organ-logic/llm";
 
 describe("OpenAI Chat driver helpers", () => {
-  it("strips OpenAI-compatible unsupported schema combinators", () => {
-    const schema = {
-      type: "object",
-      oneOf: [{ type: "string" }],
-      properties: {
-        value: { anyOf: [{ type: "string" }], description: "ok" },
-      },
-    };
-
-    expect(stripOpenAICompatibleUnsupportedSchemaKeys(schema)).toEqual({
-      type: "object",
-      properties: {
-        value: { description: "ok" },
-      },
-    });
-  });
-
   it("finds replay-safe prefix before dangling tool calls", () => {
     const result = findOpenAIReplaySafeMessagePrefix([
       { role: "user", content: "hi" },

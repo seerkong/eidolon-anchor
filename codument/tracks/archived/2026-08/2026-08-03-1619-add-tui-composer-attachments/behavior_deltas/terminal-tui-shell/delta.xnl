@@ -1,0 +1,158 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_3_-_1_6_1_9_-_a_d_d_-_t_u_i_-_c_o_m_p_o_s_e_r_-_a_t_t_a_c_h_m_e_n_t_s.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/composer-attachment-blocks" } (
+      <Requirement #composer-attachment-blocks (
+        <Statement ?01M05F1PNYWPHBRH72MD2PTKTY>
+        Terminal TUI Composer SHALL 以显式用户选择区分路径文本、文件引用与附件；当 bracketed-paste 完整解析为一个或多个存在的文件路径时，Composer SHALL 弹出“附件 / 引用 / 路径文本”三选一，且在用户选择前 MUST NOT 创建 structured part 或读取文件内容。普通非路径文本直接插入；带二进制图片 MIME 的剪贴板输入直接创建图片附件。
+        </?01M05F1PNYWPHBRH72MD2PTKTY>
+        <Suites [
+          <Suite #attachment-ingress { name = "附件输入" } (
+            <Cases [
+              <Case #path-candidate-requires-explicit-choice [
+                <Then ?01M05F1PNYWPHBRH72MD2PTKTZ>
+                Composer SHALL 弹出简短的“附件 / 引用 / 路径文本”选择器，并将一次选择应用到本次路径集合
+                </?01M05F1PNYWPHBRH72MD2PTKTZ>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKV0>
+                选择完成前 MUST NOT 读取文件内容或创建 canonical part
+                </?01M05F1PNYWPHBRH72MD2PTKV0>
+              ] (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKV1>
+                bracketed-paste payload 完整解析为一个或多个存在的 Windows drive/UNC、POSIX 或 file URI 文件路径
+                </?01M05F1PNYWPHBRH72MD2PTKV1>
+                <When ?01M05F1PNYWPHBRH72MD2PTKV2>
+                Composer 接收该路径集合
+                </?01M05F1PNYWPHBRH72MD2PTKV2>
+              )>
+              <Case #attachment-choice-imports-value [
+                <Then ?01M05F1PNYWPHBRH72MD2PTKV3>
+                每个文件 SHALL 按值导入 session asset store 并建立附件块；图片 SHALL 依文件头识别为 image attachment
+                </?01M05F1PNYWPHBRH72MD2PTKV3>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKV4>
+                源文件之后移动、删除或变化 MUST NOT 影响已导入附件的恢复
+                </?01M05F1PNYWPHBRH72MD2PTKV4>
+              ] (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKV5>
+                路径候选选择器正在显示且用户选择“附件”
+                </?01M05F1PNYWPHBRH72MD2PTKV5>
+                <When ?01M05F1PNYWPHBRH72MD2PTKV6>
+                Composer 应用选择
+                </?01M05F1PNYWPHBRH72MD2PTKV6>
+              )>
+              <Case #reference-choice-keeps-local-reference (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKV7>
+                路径候选选择器正在显示且用户选择“引用”
+                </?01M05F1PNYWPHBRH72MD2PTKV7>
+                <When ?01M05F1PNYWPHBRH72MD2PTKV8>
+                Composer 应用选择
+                </?01M05F1PNYWPHBRH72MD2PTKV8>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKV9>
+                每个文件 SHALL 建立 file-reference part，发送时从原路径解析，因此源文件变化或移动 SHALL 影响后续读取
+                </?01M05F1PNYWPHBRH72MD2PTKV9>
+              )>
+              <Case #path-text-choice-preserves-text (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKVA>
+                路径候选选择器正在显示且用户选择“路径文本”
+                </?01M05F1PNYWPHBRH72MD2PTKVA>
+                <When ?01M05F1PNYWPHBRH72MD2PTKVB>
+                Composer 应用选择
+                </?01M05F1PNYWPHBRH72MD2PTKVB>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKVC>
+                原始 paste payload SHALL 作为普通文本插入且 MUST NOT 读取文件内容或创建 structured part
+                </?01M05F1PNYWPHBRH72MD2PTKVC>
+              )>
+              <Case #ordinary-non-path-paste-remains-text (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKVD>
+                文本 paste payload 不能完整解析为存在的文件路径集合
+                </?01M05F1PNYWPHBRH72MD2PTKVD>
+                <When ?01M05F1PNYWPHBRH72MD2PTKVE>
+                Composer 处理 paste
+                </?01M05F1PNYWPHBRH72MD2PTKVE>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKVF>
+                payload SHALL 按普通文本原样插入且不弹出文件意图选择器
+                </?01M05F1PNYWPHBRH72MD2PTKVF>
+              )>
+              <Case #explicit-file-reference-becomes-part (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKVG>
+                用户通过 Ctrl+O 或 `@fs:` 显式选择一个或多个文件引用
+                </?01M05F1PNYWPHBRH72MD2PTKVG>
+                <When ?01M05F1PNYWPHBRH72MD2PTKVH>
+                Composer 接收该显式引用入口
+                </?01M05F1PNYWPHBRH72MD2PTKVH>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKVJ>
+                每个有效文件 SHALL 直接成为独立 file-reference part 和可见引用块，无需再次弹出意图选择器
+                </?01M05F1PNYWPHBRH72MD2PTKVJ>
+              )>
+              <Case #clipboard-image-becomes-image-attachment (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKVK>
+                剪贴板输入显式携带受支持的 image MIME 与二进制内容
+                </?01M05F1PNYWPHBRH72MD2PTKVK>
+                <When ?01M05F1PNYWPHBRH72MD2PTKVM>
+                Composer 处理 paste 命令
+                </?01M05F1PNYWPHBRH72MD2PTKVM>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKVN>
+                图片 SHALL 成为 image attachment part，而不是路径文本或 file reference
+                </?01M05F1PNYWPHBRH72MD2PTKVN>
+              )>
+              <Case #all-entry-points-share-part-shape (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKVP>
+                同一附件分别由文件选择、显式引用或剪贴板图片加入
+                </?01M05F1PNYWPHBRH72MD2PTKVP>
+                <When ?01M05F1PNYWPHBRH72MD2PTKVQ>
+                Composer 建立附件
+                </?01M05F1PNYWPHBRH72MD2PTKVQ>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKVR>
+                附件 SHALL 使用相同的 file part identity、MIME、source range 与 extmark lifecycle
+                </?01M05F1PNYWPHBRH72MD2PTKVR>
+              )>
+            ]>
+          )>
+          <Suite #atomic-editing { name = "附件块编辑与计数" } (
+            <Cases [
+              <Case #backspace-deletes-whole-block [
+                <Then ?01M05F1PNYWPHBRH72MD2PTKVS>
+                Composer SHALL 一次删除完整虚拟范围、extmark 与对应 structured part
+                </?01M05F1PNYWPHBRH72MD2PTKVS>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKVT>
+                相邻普通文本和其他附件 SHALL 保持不变
+                </?01M05F1PNYWPHBRH72MD2PTKVT>
+              ] (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKVV>
+                光标位于附件虚拟块之后
+                </?01M05F1PNYWPHBRH72MD2PTKVV>
+                <When ?01M05F1PNYWPHBRH72MD2PTKVW>
+                用户按 Backspace
+                </?01M05F1PNYWPHBRH72MD2PTKVW>
+              )>
+              <Case #delete-deletes-whole-block (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKVX>
+                光标位于附件虚拟块之前或 selection 覆盖附件块
+                </?01M05F1PNYWPHBRH72MD2PTKVX>
+                <When ?01M05F1PNYWPHBRH72MD2PTKVY>
+                用户按 Delete 或删除 selection
+                </?01M05F1PNYWPHBRH72MD2PTKVY>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKVZ>
+                Composer SHALL 一次删除整个附件块而不留下部分文件名或孤立 part
+                </?01M05F1PNYWPHBRH72MD2PTKVZ>
+              )>
+              <Case #part-count-is-canonical [
+                <Then ?01M05F1PNYWPHBRH72MD2PTKW0>
+                数量 SHALL 与 reconciliation 后的 canonical structured parts 数量一致
+                </?01M05F1PNYWPHBRH72MD2PTKW0>
+                <Then ?01M05F1PNYWPHBRH72MD2PTKW1>
+                同一 UI transaction 完成后 SHALL 不显示旧计数
+                </?01M05F1PNYWPHBRH72MD2PTKW1>
+              ] (
+                <Given ?01M05F1PNYWPHBRH72MD2PTKW2>
+                附件被批量插入、原子删除、历史恢复或草稿清空
+                </?01M05F1PNYWPHBRH72MD2PTKW2>
+                <When ?01M05F1PNYWPHBRH72MD2PTKW3>
+                Composer 右下角渲染 parts 数量
+                </?01M05F1PNYWPHBRH72MD2PTKW3>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

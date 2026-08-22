@@ -1,0 +1,176 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_8_-_1_1_3_9_-_r_e_f_a_c_t_o_r_-_p_r_o_v_i_d_e_r_-_c_o_n_t_e_x_t_-_s_t_a_t_e_-_p_r_o_j_e_c_t_i_o_n_s.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/provider-context-state-projection" } (
+      <Requirement #provider-context-state-projection (
+        <Statement ?01M05F1PKJWTVFYQCP97J1K2VW>
+        系统 SHALL 让工具产生的可变上下文状态通过工具无关的 projection key、revision 与 source delivery 生命周期进入 provider view；History 与 ToolCallDomain SHALL 保留完整工具事实，而 provider materialization SHALL 在 source call/result 成功交付一次且已有当前 projection 承接后按 tool_call_id 整体消隐旧配对，并且每个 logical key SHALL 只投影当前 revision。
+        </?01M05F1PKJWTVFYQCP97J1K2VW>
+        <Suites [
+          <Suite #projection-lifecycle { name = "Provider context projection lifecycle" } (
+            <Cases [
+              <Case #first-delivery-retains-pair [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2VX>
+                provider messages SHALL 保留完整匹配的 assistant tool call 与 tool result
+                </?01M05F1PKJWTVFYQCP97J1K2VX>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2VY>
+                系统 SHALL 同时 materialize 当前 projection revision
+                </?01M05F1PKJWTVFYQCP97J1K2VY>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2VZ>
+                一个工具结果首次产生 mutable projection 且 source tool call 尚未被成功 provider completion 消费
+                </?01M05F1PKJWTVFYQCP97J1K2VZ>
+                <When ?01M05F1PKJWTVFYQCP97J1K2W0>
+                系统构造下一次 provider request
+                </?01M05F1PKJWTVFYQCP97J1K2W0>
+              )>
+              <Case #delivered-pair-elided-as-unit [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2W1>
+                系统 SHALL 按 tool_call_id 同时消隐 assistant tool call 与 matching tool result
+                </?01M05F1PKJWTVFYQCP97J1K2W1>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2W2>
+                系统 SHALL NOT 修改 History、ToolCallDomain 或审计 effect
+                </?01M05F1PKJWTVFYQCP97J1K2W2>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2W3>
+                source tool call/result 已随一次成功 provider request 完成交付，且当前 projection 仍可用
+                </?01M05F1PKJWTVFYQCP97J1K2W3>
+                <When ?01M05F1PKJWTVFYQCP97J1K2W4>
+                系统构造后续 provider request
+                </?01M05F1PKJWTVFYQCP97J1K2W4>
+              )>
+              <Case #mixed-tool-call-message-preserved [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2W5>
+                系统 SHALL 保留其他 tool call、matching result 以及 assistant content/reasoning
+                </?01M05F1PKJWTVFYQCP97J1K2W5>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2W6>
+                provider messages SHALL NOT 产生孤儿 tool result 或无结果 tool call
+                </?01M05F1PKJWTVFYQCP97J1K2W6>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2W7>
+                一个 assistant message 同时包含已投影 source call 与普通 tool call
+                </?01M05F1PKJWTVFYQCP97J1K2W7>
+                <When ?01M05F1PKJWTVFYQCP97J1K2W8>
+                provider materializer 消隐已投影 source pair
+                </?01M05F1PKJWTVFYQCP97J1K2W8>
+              )>
+              <Case #revision-replaces-current-projection [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2W9>
+                系统 SHALL 只 materialize 新 revision，并 SHALL NOT 累积旧 revision state message
+                </?01M05F1PKJWTVFYQCP97J1K2W9>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WA>
+                projection SHALL 位于 cache-friendly late dynamic insertion boundary
+                </?01M05F1PKJWTVFYQCP97J1K2WA>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2WB>
+                同一 actor 和 logical projection key 产生新 revision
+                </?01M05F1PKJWTVFYQCP97J1K2WB>
+                <When ?01M05F1PKJWTVFYQCP97J1K2WC>
+                系统构造 provider context
+                </?01M05F1PKJWTVFYQCP97J1K2WC>
+              )>
+              <Case #provider-failure-does-not-confirm-delivery (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2WD>
+                包含 undelivered source pair 的 provider call 失败或被中止
+                </?01M05F1PKJWTVFYQCP97J1K2WD>
+                <When ?01M05F1PKJWTVFYQCP97J1K2WE>
+                系统再次构造 provider request
+                </?01M05F1PKJWTVFYQCP97J1K2WE>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WF>
+                该 source pair SHALL 仍被视为 undelivered 并再次完整交付
+                </?01M05F1PKJWTVFYQCP97J1K2WF>
+              )>
+              <Case #tool-independent-materializer [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WG>
+                处理逻辑 SHALL 只依赖 projection contract、revision 和 tool_call_id
+                </?01M05F1PKJWTVFYQCP97J1K2WG>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WH>
+                SHALL NOT 按 TaskTreeWrite、Skill、Read 或其他具体工具名分支
+                </?01M05F1PKJWTVFYQCP97J1K2WH>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2WJ>
+                不同工具 producer 发布同一种 mutable projection effect
+                </?01M05F1PKJWTVFYQCP97J1K2WJ>
+                <When ?01M05F1PKJWTVFYQCP97J1K2WK>
+                executor 和 provider materializer 处理这些 effect
+                </?01M05F1PKJWTVFYQCP97J1K2WK>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/recovered-profile-prompt-reconciliation" } (
+      <Requirement #recovered-profile-prompt-reconciliation (
+        <Statement ?01M05F1PKJWTVFYQCP97J1K2WM>
+        系统 SHALL 在恢复 shell control actor 时，以显式 profile-owned prompt slot/provenance 把该 slot 协调为当前 runtime profile assembly 的 system prompt，同时 SHALL 保留 actor/session/model/work/task/mailbox/History、其他 actor 以及非 profile-owned 自定义 prompt；terminal SHALL NOT 拥有提示词正文或迁移语义。
+        </?01M05F1PKJWTVFYQCP97J1K2WM>
+        <Suites [
+          <Suite #owner-aware-recovery { name = "Owner-aware recovered prompt reconciliation" } (
+            <Cases [
+              <Case #owned-profile-slot-refreshes [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WN>
+                系统 SHALL 只把该 owned slot 替换为当前 profile prompt 并更新 provenance
+                </?01M05F1PKJWTVFYQCP97J1K2WN>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WP>
+                其他 system prompts 与 actor/runtime/conversation 状态 SHALL 保持不变
+                </?01M05F1PKJWTVFYQCP97J1K2WP>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2WQ>
+                snapshot 含 profile-owned prompt slot，且 persisted digest 与 slot 内容匹配
+                </?01M05F1PKJWTVFYQCP97J1K2WQ>
+                <When ?01M05F1PKJWTVFYQCP97J1K2WR>
+                shell runtime 使用当前 profile assembly 恢复 control actor
+                </?01M05F1PKJWTVFYQCP97J1K2WR>
+              )>
+              <Case #legacy-empty-or-single-migrates [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WS>
+                空 prompt SHALL 插入当前 profile prompt；单 prompt SHALL 被认领为 legacy profile baseline 后替换
+                </?01M05F1PKJWTVFYQCP97J1K2WS>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WT>
+                迁移后 SHALL 写入明确的 profile ownership provenance
+                </?01M05F1PKJWTVFYQCP97J1K2WT>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2WV>
+                legacy shell control actor 没有 prompt provenance，且 system prompts 为空或恰好一条
+                </?01M05F1PKJWTVFYQCP97J1K2WV>
+                <When ?01M05F1PKJWTVFYQCP97J1K2WW>
+                系统恢复 snapshot
+                </?01M05F1PKJWTVFYQCP97J1K2WW>
+              )>
+              <Case #legacy-multiple-prompts-preserved [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WX>
+                系统 SHALL 保留全部 prompt，不得猜测 owner 或覆盖内容
+                </?01M05F1PKJWTVFYQCP97J1K2WX>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2WY>
+                系统 SHALL 发出可观测诊断以提示需要显式迁移
+                </?01M05F1PKJWTVFYQCP97J1K2WY>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2WZ>
+                legacy shell control actor 没有 provenance 且包含多条 system prompts
+                </?01M05F1PKJWTVFYQCP97J1K2WZ>
+                <When ?01M05F1PKJWTVFYQCP97J1K2X0>
+                系统恢复 snapshot
+                </?01M05F1PKJWTVFYQCP97J1K2X0>
+              )>
+              <Case #workspace-session-resumes-exact-snapshot [
+                <Then ?01M05F1PKJWTVFYQCP97J1K2X1>
+                系统 SHALL 恢复该 session 的 control actor、History、TaskTree 和 mailboxes，而不是创建新 session
+                </?01M05F1PKJWTVFYQCP97J1K2X1>
+                <Then ?01M05F1PKJWTVFYQCP97J1K2X2>
+                当前 profile-owned prompt SHALL 按上述规则协调后进入 provider context
+                </?01M05F1PKJWTVFYQCP97J1K2X2>
+              ] (
+                <Given ?01M05F1PKJWTVFYQCP97J1K2X3>
+                CLI 指定存在的 workspace 与 session id，snapshot schema 可恢复且 fiber 位于 idle external boundary
+                </?01M05F1PKJWTVFYQCP97J1K2X3>
+                <When ?01M05F1PKJWTVFYQCP97J1K2X4>
+                headless exec 启动 runtime turn
+                </?01M05F1PKJWTVFYQCP97J1K2X4>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

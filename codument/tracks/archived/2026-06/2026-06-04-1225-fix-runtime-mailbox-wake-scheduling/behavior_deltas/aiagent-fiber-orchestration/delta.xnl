@@ -1,0 +1,120 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_4_-_1_2_2_5_-_f_i_x_-_r_u_n_t_i_m_e_-_m_a_i_l_b_o_x_-_w_a_k_e_-_s_c_h_e_d_u_l_i_n_g.behavior_patch.aiagent-fiber-orchestration apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-fiber-orchestration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/mailbox-wake-scheduling-consistency" } (
+      <Requirement #mailbox-wake-scheduling-consistency (
+        <Statement ?01M05F1PFDFG934CD47SXD3VQM>
+        系统 SHALL treat pending wake-capable actor mailbox entries as scheduler wake truth even when the matching durable control signal has already been consumed.
+        </?01M05F1PFDFG934CD47SXD3VQM>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/mailbox-wake-scheduling-consistency" strength = "hint" }>
+        <Suites [
+          <Suite #mailbox-priority-wake { name = "Mailbox priority wake scheduling" } (
+            <Cases [
+              <Case #async-completion-before-human-input [
+                <Then ?01M05F1PFDFG934CD47SXD3VQN>
+                The fiber SHALL first continue the cooperative async boundary represented by `asyncCompletion` according to actor mailbox priority
+                </?01M05F1PFDFG934CD47SXD3VQN>
+                <Then ?01M05F1PFDFG934CD47SXD3VQP>
+                The user input SHALL remain queued until the higher-priority async completion has been processed
+                </?01M05F1PFDFG934CD47SXD3VQP>
+              ] (
+                <Given ?01M05F1PFDFG934CD47SXD3VQQ>
+                An actor has pending `asyncCompletion` and pending `humanInput` entries
+                </?01M05F1PFDFG934CD47SXD3VQQ>
+                <When ?01M05F1PFDFG934CD47SXD3VQR>
+                The runtime schedules the owning fiber
+                </?01M05F1PFDFG934CD47SXD3VQR>
+              )>
+              <Case #heartbeat-does-not-preempt-wake-work [
+                <Then ?01M05F1PFDFG934CD47SXD3VQS>
+                The runtime SHALL NOT treat the actor as idle
+                </?01M05F1PFDFG934CD47SXD3VQS>
+                <Then ?01M05F1PFDFG934CD47SXD3VQT>
+                The lower-priority `heartbeat` continuation SHALL NOT preempt existing wake work
+                </?01M05F1PFDFG934CD47SXD3VQT>
+              ] (
+                <Given ?01M05F1PFDFG934CD47SXD3VQV>
+                An actor has pending `asyncCompletion`, `toolResult`, `childDone`, `memberCoordination`, `humanInput`, `memberChatInbox`, or `control` work
+                </?01M05F1PFDFG934CD47SXD3VQV>
+                <When ?01M05F1PFDFG934CD47SXD3VQW>
+                A goal continuation or other idle hook wants to enqueue `heartbeat` work
+                </?01M05F1PFDFG934CD47SXD3VQW>
+              )>
+              <Case #ready-fiber-with-mailbox-wake-runs-agent-step (
+                <Given ?01M05F1PFDFG934CD47SXD3VQX>
+                A fiber is `ready` and its actor has pending wake-capable mailbox work
+                </?01M05F1PFDFG934CD47SXD3VQX>
+                <When ?01M05F1PFDFG934CD47SXD3VQY>
+                The foreground or background scheduler settles the runtime
+                </?01M05F1PFDFG934CD47SXD3VQY>
+                <Then ?01M05F1PFDFG934CD47SXD3VQZ>
+                The scheduler SHALL execute an `agent_step` for that fiber or keep settling until the wake work is consumed
+                </?01M05F1PFDFG934CD47SXD3VQZ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/cooperative-wait-state-normalization" } (
+      <Requirement #cooperative-wait-state-normalization (
+        <Statement ?01M05F1PFDFG934CD47SXD3VR0>
+        系统 SHALL normalize or actively schedule fibers whose cooperative exec state is waiting on async work while the fiber record is not suspended on the matching typed wait reason.
+        </?01M05F1PFDFG934CD47SXD3VR0>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/cooperative-wait-state-normalization" strength = "hint" }>
+        <Suites [
+          <Suite #ready-wait-state { name = "Ready fiber cooperative wait state" } (
+            <Cases [
+              <Case #ready-wait-llm-with-completion [
+                <Then ?01M05F1PFDFG934CD47SXD3VR1>
+                Its cooperative exec state is `wait_llm` with inflight op id `X`
+                </?01M05F1PFDFG934CD47SXD3VR1>
+                <Then ?01M05F1PFDFG934CD47SXD3VR2>
+                The actor mailbox contains `asyncCompletion` for op id `X`
+                </?01M05F1PFDFG934CD47SXD3VR2>
+                <Then ?01M05F1PFDFG934CD47SXD3VR3>
+                The runtime SHALL either normalize the fiber to `suspended + wait_llm_result` before waiting
+                </?01M05F1PFDFG934CD47SXD3VR3>
+                <Then ?01M05F1PFDFG934CD47SXD3VR4>
+                Or SHALL schedule an `agent_step` that drains the matching async completion
+                </?01M05F1PFDFG934CD47SXD3VR4>
+              ] (
+                <Given ?01M05F1PFDFG934CD47SXD3VR5>
+                A fiber record is `ready` with `waitingReason` unset
+                </?01M05F1PFDFG934CD47SXD3VR5>
+                <When ?01M05F1PFDFG934CD47SXD3VR6>
+                The runtime saves, recovers, or settles the scheduler
+                </?01M05F1PFDFG934CD47SXD3VR6>
+              )>
+              <Case #ready-wait-tool-with-completion [
+                <Then ?01M05F1PFDFG934CD47SXD3VR7>
+                The runtime SHALL NOT leave the fiber indefinitely idle
+                </?01M05F1PFDFG934CD47SXD3VR7>
+                <Then ?01M05F1PFDFG934CD47SXD3VR8>
+                The matching tool completion SHALL be consumed or the fiber SHALL be normalized to the typed wait state
+                </?01M05F1PFDFG934CD47SXD3VR8>
+              ] (
+                <Given ?01M05F1PFDFG934CD47SXD3VR9>
+                A fiber record is `ready` with cooperative exec state `wait_tool` and matching pending completion work
+                </?01M05F1PFDFG934CD47SXD3VR9>
+                <When ?01M05F1PFDFG934CD47SXD3VRA>
+                The runtime saves, recovers, or settles the scheduler
+                </?01M05F1PFDFG934CD47SXD3VRA>
+              )>
+              <Case #inflight-async-detection-covers-ready-wait (
+                <Given ?01M05F1PFDFG934CD47SXD3VRB>
+                A cooperative exec state has `wait_llm`, `wait_tool`, or `wait_questionnaire_parse` with inflight work
+                </?01M05F1PFDFG934CD47SXD3VRB>
+                <When ?01M05F1PFDFG934CD47SXD3VRC>
+                The scheduler checks whether async work is still outstanding
+                </?01M05F1PFDFG934CD47SXD3VRC>
+                <Then ?01M05F1PFDFG934CD47SXD3VRD>
+                The check SHALL include both suspended typed waits and ready fibers with cooperative wait state
+                </?01M05F1PFDFG934CD47SXD3VRD>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

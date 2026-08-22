@@ -1,6 +1,6 @@
 # Project Memory Attractor（std/attractors/project-memory.md）
 
-> 当 `memory` profile（`config/attractor-profiles.xml`）启用时，本文件定义**长期项目记忆**如何提升。它是 `memory/` tier 的吸引子，地位与 `model-driven-docs.md`（docs tier 吸引子）并列。分层与晋升总览见 [knowledge-tiers.md](./knowledge-tiers.md)。
+> 当 `memory` profile（`config/attractor-profiles.xnl`）启用时，本文件定义**长期项目记忆**如何提升。它是 `memory/` tier 的吸引子，地位与 `model-driven-docs.md`（docs tier 吸引子）并列。分层与晋升总览见 [knowledge-tiers.md](./knowledge-tiers.md)。
 
 ## 目的
 
@@ -41,7 +41,7 @@ codument/memory/<category>/YYYY-MM/YYYY-MM-DD-HHmm-slug/
 
 ## 复发即固化（与 knowledge-tiers 阶梯衔接）
 
-`memory/` 里**同一类问题反复出现**时，不要停在 prose 记忆——按 [knowledge-tiers.md](./knowledge-tiers.md) §5 再向上固化为可复用方法：`std/methods/` 规程 / `std/actions/` / `attractor-profile` check / `action-hook` / validation 守卫（按项目误报容忍度调优）。
+`memory/` 里**同一类问题反复出现**时，不要停在 prose 记忆——按 [knowledge-tiers.md](./knowledge-tiers.md) §5 再向上固化为可复用方法：`std/methods/` 规程 / `std/operations/` / `attractor-profile` check / `operation-hook` / validation 守卫（按项目误报容忍度调优）。
 
 ## 复查
 

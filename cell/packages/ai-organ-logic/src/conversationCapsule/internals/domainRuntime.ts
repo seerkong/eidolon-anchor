@@ -386,10 +386,160 @@ function refreshConversationActorRawStateFromDomainState(params: {
   });
 }
 
+function historyMutationInvalidatesProviderContext(event: ConversationDomainEvent): boolean {
+  return event.type === "actor_history_head_moved"
+    || event.type === "actor_history_generation_forked"
+    || event.type === "actor_history_generation_rolled_back"
+    || event.type === "actor_history_reset"
+    || event.type === "local_conversation_session_forked";
+}
+
+function advanceProviderContextEpochForHistoryMutation(
+  runtime: ConversationDomainRuntime,
+  event: ConversationDomainEvent,
+): void {
+  if (!historyMutationInvalidatesProviderContext(event)) return;
+
+  const currentSession = runtime.sessionStateSignal.get()[event.sessionId]
+    ?? createEmptySessionState(event.sessionId);
+  const replayActorKeys = (currentSession.contextAssets ?? []).flatMap((asset) => (
+    asset.replayCheckpoint && asset.source.kind === "note" && asset.source.ownerId
+      ? [asset.source.ownerId]
+      : []
+  ));
+  const actorKeys = "actorKey" in event && typeof event.actorKey === "string"
+    ? [event.actorKey]
+    : [...new Set([...Object.keys(currentSession.actorBindings), ...replayActorKeys])];
+  if (actorKeys.length === 0) return;
+
+  const affectedActorKeys = new Set(actorKeys);
+  const affectedAssetIds = new Set(actorKeys.map(responsesReplayCheckpointAssetId));
+  const nextBindings = { ...currentSession.actorBindings };
+  const nextAssets = (currentSession.contextAssets ?? []).filter((asset) => {
+    if (!asset.replayCheckpoint) return true;
+    const ownerId = asset.source.kind === "note" ? asset.source.ownerId ?? "" : "";
+    return !affectedAssetIds.has(asset.assetId) && !affectedActorKeys.has(ownerId);
+  });
+  const remainingAssetIds = new Set(nextAssets.map((asset) => asset.assetId));
+
+  for (const actorKey of actorKeys) {
+    const existing = nextBindings[actorKey] ?? {
+      actorKey,
+      actorId: runtime.historyStateSignal.get()[actorRuntimeKey(event.sessionId, actorKey)]?.actorId ?? "",
+      boundAt: event.occurredAt,
+    };
+    const checkpoint = (currentSession.contextAssets ?? []).find((asset) => (
+      asset.assetId === responsesReplayCheckpointAssetId(actorKey)
+    ))?.replayCheckpoint;
+    const currentEpoch = Math.max(existing.contextEpoch ?? 0, checkpoint?.baselineEpoch ?? 0);
+    nextBindings[actorKey] = { ...existing, contextEpoch: currentEpoch + 1 };
+  }
+
+  const nextRegistry = currentSession.contextAssetRegistry
+    ? {
+        ...currentSession.contextAssetRegistry,
+        assetIds: currentSession.contextAssetRegistry.assetIds.filter((assetId) => remainingAssetIds.has(assetId)),
+        updatedAt: event.occurredAt,
+      }
+    : null;
+  const nextSession = {
+    ...currentSession,
+    actorBindings: nextBindings,
+    contextAssetRegistry: nextRegistry,
+    contextAssets: nextAssets,
+    sessionIndex: {
+      ...currentSession.sessionIndex,
+      updatedAt: event.occurredAt,
+      session: {
+        ...currentSession.sessionIndex.session,
+        actorBindings: nextBindings,
+        contextAssetRegistry: nextRegistry,
+        contextAssets: nextAssets,
+        updatedAt: event.occurredAt,
+      },
+    },
+  };
+  runtime.sessionStateSignal.set({
+    ...runtime.sessionStateSignal.get(),
+    [event.sessionId]: nextSession,
+  });
+  for (const actorKey of actorKeys) {
+    refreshConversationActorRawStateFromDomainState({
+      runtime,
+      sessionId: event.sessionId,
+      actorKey,
+      actorId: nextBindings[actorKey]?.actorId,
+    });
+  }
+  const firstActorKey = actorKeys[0]!;
+  runtime.persistHooks.session?.({
+    type: "local_conversation_session_actor_bound",
+    sessionId: event.sessionId,
+    actorKey: firstActorKey,
+    actorId: nextBindings[firstActorKey]!.actorId,
+    binding: nextBindings[firstActorKey],
+    occurredAt: event.occurredAt,
+  });
+}
+
+export function synchronizeProviderContextEpochToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  actorKey: string;
+  contextEpoch: number;
+  occurredAt?: string;
+}): void {
+  if (!Number.isSafeInteger(params.contextEpoch) || params.contextEpoch < 0) return;
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const currentSession = params.runtime.sessionStateSignal.get()[params.sessionId]
+    ?? createEmptySessionState(params.sessionId);
+  const existing = currentSession.actorBindings[params.actorKey] ?? {
+    actorKey: params.actorKey,
+    actorId: "",
+    boundAt: occurredAt,
+  };
+  if (existing.contextEpoch !== undefined && existing.contextEpoch >= params.contextEpoch) return;
+
+  const nextBinding = { ...existing, contextEpoch: params.contextEpoch };
+  const nextBindings = { ...currentSession.actorBindings, [params.actorKey]: nextBinding };
+  const nextSession = {
+    ...currentSession,
+    actorBindings: nextBindings,
+    sessionIndex: {
+      ...currentSession.sessionIndex,
+      updatedAt: occurredAt,
+      session: {
+        ...currentSession.sessionIndex.session,
+        actorBindings: nextBindings,
+        updatedAt: occurredAt,
+      },
+    },
+  };
+  params.runtime.sessionStateSignal.set({
+    ...params.runtime.sessionStateSignal.get(),
+    [params.sessionId]: nextSession,
+  });
+  refreshConversationActorRawStateFromDomainState({
+    runtime: params.runtime,
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: nextBinding.actorId,
+  });
+  params.runtime.persistHooks.session?.({
+    type: "local_conversation_session_actor_bound",
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: nextBinding.actorId,
+    binding: nextBinding,
+    occurredAt,
+  });
+}
+
 export function appendConversationDomainEvent(
   runtime: ConversationDomainRuntime,
   event: ConversationDomainEvent,
 ): void {
+  advanceProviderContextEpochForHistoryMutation(runtime, event);
   const keyActor =
     "actorKey" in event && typeof event.actorKey === "string"
       ? actorRuntimeKey(event.sessionId, event.actorKey)

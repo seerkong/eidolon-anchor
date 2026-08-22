@@ -1,0 +1,101 @@
+<Track #refactor-runtime-profile-capability-boundary version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Unify CLI/TUI/headless runtime composition through profile, capability registry, and runtime binding." description = "建立 runtime profile/capability/runtime binding 边界，使 product surface 只选择 profile，不手工拼默认 AI 业务语义。" commit_mode = "manual" created_at = "2026-06-10T00:00:00Z" updated_at = "2026-06-11T02:00:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-runtime-profile-capability-boundary { name = "refactor-runtime-profile-capability-boundary" } (
+    <Description ?01M05F1PH52787C45HCHCSM4H7>
+    Refactor Runtime Profile Capability Boundary
+    </?01M05F1PH52787C45HCHCSM4H7>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Profile And Binding Contract" status = "DONE" order = 0 } (
+        <Description ?01M05F1PH52787C45HCHCSM4H8>
+        定义 profile/capability/runtime binding descriptor contract。
+        </?01M05F1PH52787C45HCHCSM4H8>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add failing binding descriptor tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PH52787C45HCHCSM4H9>
+            新增 CLI/TUI/headless binding descriptor 一致性失败测试。
+            </?01M05F1PH52787C45HCHCSM4H9>
+            <Acceptance [
+              <Criterion { id = "AC-T1.1-tests-red" checked = true } ?01M05F1PH52787C45HCHCSM4HA>
+              测试能表达同 profile 下三入口 descriptor 兼容。
+              </?01M05F1PH52787C45HCHCSM4HA>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "Define runtime profile and capability contracts" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PH52787C45HCHCSM4HB>
+            定义 runtime profile、capability registry、runtime binding descriptor 类型。
+            </?01M05F1PH52787C45HCHCSM4HB>
+            <Acceptance [
+              <Criterion { id = "AC-T1.2-contracts" checked = true } ?01M05F1PH52787C45HCHCSM4HC>
+              contracts 覆盖 profile id、capabilities、storage flags、entry type、modules、overlays、surface capabilities。
+              </?01M05F1PH52787C45HCHCSM4HC>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Shared Composition Path" status = "DONE" order = 1 } (
+        <Description ?01M05F1PH52787C45HCHCSM4HD>
+        收敛 CLI/TUI/headless 入口组合路径。
+        </?01M05F1PH52787C45HCHCSM4HD>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Implement shared runtime binding builder" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PH52787C45HCHCSM4HE>
+            实现共享 binding builder，入口只选择 profile 并提供 surface adapter。
+            </?01M05F1PH52787C45HCHCSM4HE>
+            <Acceptance [
+              <Criterion { id = "AC-T2.1-builder" checked = true } ?01M05F1PH52787C45HCHCSM4HF>
+              CLI/TUI/headless 共用 binding builder。
+              </?01M05F1PH52787C45HCHCSM4HF>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "Route terminal entries through shared composition" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PH52787C45HCHCSM4HG>
+            将 terminal entry 的 runtime 创建接入共享 composition path。
+            </?01M05F1PH52787C45HCHCSM4HG>
+            <Acceptance [
+              <Criterion { id = "AC-T2.2-entry" checked = true } ?01M05F1PH52787C45HCHCSM4HH>
+              entry 不再私有拼 provider/tool/conversation 默认语义。
+              </?01M05F1PH52787C45HCHCSM4HH>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Storage Capabilities And Surface Boundary" status = "DONE" order = 2 } (
+        <Description ?01M05F1PH6MD5XDRNXQ4GTFTG3>
+        将 logs/files 与 upgrade 等能力显式化，并验证 surface 不写 domain truth。
+        </?01M05F1PH6MD5XDRNXQ4GTFTG3>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Add storage capability flags to profile binding" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PH6MD5XDRNXQ4GTFTG4>
+            把 logs/files 能力纳入 profile binding descriptor，并覆盖 memory-only 行为。
+            </?01M05F1PH6MD5XDRNXQ4GTFTG4>
+            <Acceptance [
+              <Criterion { id = "AC-T3.1-storage" checked = true } ?01M05F1PH6MD5XDRNXQ4GTFTG5>
+              关闭 logs/files 时普通对话不依赖 session 文件写入。
+              </?01M05F1PH6MD5XDRNXQ4GTFTG5>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "Add surface no-domain-write conformance tests" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PH6MD5XDRNXQ4GTFTG6>
+            验证 TUI/CLI/headless 不直接写 domain truth。
+            </?01M05F1PH6MD5XDRNXQ4GTFTG6>
+            <Acceptance [
+              <Criterion { id = "AC-T3.2-surface" checked = true } ?01M05F1PH6MD5XDRNXQ4GTFTG7>
+              surface 不直接创建 provider/tool/conversation/history owner。
+              </?01M05F1PH6MD5XDRNXQ4GTFTG7>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

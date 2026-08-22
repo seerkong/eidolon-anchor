@@ -1,0 +1,165 @@
+<Behavior #ai-runtime-rx-protocol-bindings apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #rxdata-public-rxdata (
+      <Statement ?01M05F1P0Y1GW6BP4GF1P98JXS>
+      系统必须通过 `AiAgentVmPublicRxData` 创建协议专属数据面，不得直接消费 private rx data。
+      </?01M05F1P0Y1GW6BP4GF1P98JXS>
+      <Suites [
+        <Suite { name = "rxdata-public-rxdata" } (
+          <Cases [
+            <Case #case-1 { name = "创建协议绑定" } [
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JXT>
+              adapter 或 binding factory 必须先取得 `ensureVmRxData(vm).publicRxData`
+              </?01M05F1P0Y1GW6BP4GF1P98JXT>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JXV>
+              必须从 public rx data 派生协议专属 RxData 或 protocol frames
+              </?01M05F1P0Y1GW6BP4GF1P98JXV>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JXW>
+              不得直接订阅 VM private rx data
+              </?01M05F1P0Y1GW6BP4GF1P98JXW>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JXX>
+              不得直接订阅 `vm.eventBus` 作为协议输出主来源
+              </?01M05F1P0Y1GW6BP4GF1P98JXX>
+            ] (
+              <Given ?01M05F1P0Y1GW6BP4GF1P98JXY>
+              VM 可以通过 `ensureVmRxData(vm)` 初始化 public rx data
+              </?01M05F1P0Y1GW6BP4GF1P98JXY>
+              <When ?01M05F1P0Y1GW6BP4GF1P98JXZ>
+              TUI、web、terminal 或 OpenAI-compatible adapter 创建输出管线
+              </?01M05F1P0Y1GW6BP4GF1P98JXZ>
+            )>
+            <Case #private { name = "协议层不能写 private 数据" } [
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JY0>
+              它只能读取 public stream/signal
+              </?01M05F1P0Y1GW6BP4GF1P98JY0>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JY1>
+              不得调用 private stream 的 `append`
+              </?01M05F1P0Y1GW6BP4GF1P98JY1>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JY2>
+              不得调用 private signal 的 `set`
+              </?01M05F1P0Y1GW6BP4GF1P98JY2>
+            ] (
+              <Given ?01M05F1P0Y1GW6BP4GF1P98JY3>
+              协议 binding 正在运行
+              </?01M05F1P0Y1GW6BP4GF1P98JY3>
+              <When ?01M05F1P0Y1GW6BP4GF1P98JY4>
+              它需要输出 content、tool、domain 或 usage 信息
+              </?01M05F1P0Y1GW6BP4GF1P98JY4>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #requirement-2 (
+      <Statement ?01M05F1P0Y1GW6BP4GF1P98JY5>
+      协议 stream 绑定必须发生在 actor submit/execute 之前。
+      </?01M05F1P0Y1GW6BP4GF1P98JY5>
+      <Suites [
+        <Suite { name = "requirement-2" } (
+          <Cases [
+            <Case #semantic-event { name = "不丢失首个 semantic event" } [
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JY6>
+              adapter 必须先完成 rx binding
+              </?01M05F1P0Y1GW6BP4GF1P98JY6>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JY7>
+              随后产生的 turn start、content delta、tool call 等事件都能被协议输出消费
+              </?01M05F1P0Y1GW6BP4GF1P98JY7>
+            ] (
+              <Given ?01M05F1P0Y1GW6BP4GF1P98JY8>
+              请求即将触发 actor runtime
+              </?01M05F1P0Y1GW6BP4GF1P98JY8>
+              <When ?01M05F1P0Y1GW6BP4GF1P98JY9>
+              协议 adapter 初始化
+              </?01M05F1P0Y1GW6BP4GF1P98JY9>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #semantic-protocol-frame (
+      <Statement ?01M05F1P0Y1GW6BP4GF1P98JYA>
+      系统必须先落地一个不绑定具体 UI 路由的 semantic protocol frame binding，作为 terminal、web/composer 与 OpenAI-compatible adapter 的共同输入层。
+      </?01M05F1P0Y1GW6BP4GF1P98JYA>
+      <Suites [
+        <Suite { name = "semantic-protocol-frame" } (
+          <Cases [
+            <Case #semantic-event-frame { name = "semantic event 转换为协议 frame" } [
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYB>
+              它必须输出稳定的 protocol frame
+              </?01M05F1P0Y1GW6BP4GF1P98JYB>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYC>
+              frame 必须保留 trace、actor、team 与 event type 等可路由字段
+              </?01M05F1P0Y1GW6BP4GF1P98JYC>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYD>
+              具体 TUI/web/OpenAI adapter 可以在后续从该 frame 做协议格式化
+              </?01M05F1P0Y1GW6BP4GF1P98JYD>
+            ] (
+              <Given ?01M05F1P0Y1GW6BP4GF1P98JYE>
+              public rx data 收到 turn、content、tool、error 或 questionnaire 语义事件
+              </?01M05F1P0Y1GW6BP4GF1P98JYE>
+              <When ?01M05F1P0Y1GW6BP4GF1P98JYF>
+              semantic protocol binding 已订阅 public stream
+              </?01M05F1P0Y1GW6BP4GF1P98JYF>
+            )>
+            <Case #domain-stream-frame { name = "domain stream 作为可选 frame 来源" } [
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYG>
+              history、prompt、session domain event 必须以只读方式投影为协议 frame
+              </?01M05F1P0Y1GW6BP4GF1P98JYG>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYH>
+              未接入 domain runtime 时 binding 仍必须可用
+              </?01M05F1P0Y1GW6BP4GF1P98JYH>
+            ] (
+              <Given ?01M05F1P0Y1GW6BP4GF1P98JYJ>
+              conversation domain streams 已通过 `bindVmDomainRxStreams` 接入 VM public rx data
+              </?01M05F1P0Y1GW6BP4GF1P98JYJ>
+              <When ?01M05F1P0Y1GW6BP4GF1P98JYK>
+              semantic protocol binding 启用 domain frame 输出
+              </?01M05F1P0Y1GW6BP4GF1P98JYK>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #stream-signal (
+      <Statement ?01M05F1P0Y1GW6BP4GF1P98JYM>
+      协议 adapter 可以读取 signal 生成最终响应字段，但不得把 signal 状态伪造成 semantic stream event。
+      </?01M05F1P0Y1GW6BP4GF1P98JYM>
+      <Suites [
+        <Suite { name = "stream-signal" } (
+          <Cases [
+            <Case #usage-signal { name = "usage 输出来自 signal" } [
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYN>
+              usage 必须来自 public/protocol rx data 的 readonly signal
+              </?01M05F1P0Y1GW6BP4GF1P98JYN>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYP>
+              不得向 semantic event stream 注入 usage 事件
+              </?01M05F1P0Y1GW6BP4GF1P98JYP>
+            ] (
+              <Given ?01M05F1P0Y1GW6BP4GF1P98JYQ>
+              OpenAI-compatible 或其他最终响应需要 usage
+              </?01M05F1P0Y1GW6BP4GF1P98JYQ>
+              <When ?01M05F1P0Y1GW6BP4GF1P98JYR>
+              生成响应尾部或 summary
+              </?01M05F1P0Y1GW6BP4GF1P98JYR>
+            )>
+            <Case #trace-summary-signal { name = "trace summary 输出来自 signal" } [
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYS>
+              trace summary 必须来自 public/protocol rx data 的 readonly signal
+              </?01M05F1P0Y1GW6BP4GF1P98JYS>
+              <Then ?01M05F1P0Y1GW6BP4GF1P98JYT>
+              不得通过扫描 private log 或写入 synthetic semantic event 生成 summary
+              </?01M05F1P0Y1GW6BP4GF1P98JYT>
+            ] (
+              <Given ?01M05F1P0Y1GW6BP4GF1P98JYV>
+              协议输出需要展示事件计数或最后事件时间
+              </?01M05F1P0Y1GW6BP4GF1P98JYV>
+              <When ?01M05F1P0Y1GW6BP4GF1P98JYW>
+              生成 runtime summary
+              </?01M05F1P0Y1GW6BP4GF1P98JYW>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

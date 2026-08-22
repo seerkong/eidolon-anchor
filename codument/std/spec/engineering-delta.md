@@ -2,7 +2,7 @@
 
 > 每个 track 对 engineering 登记表（`codument/engineering/`）的变更，用**目标态节点 + 节点级 3-way 合并**表达。真 VCS 是宿主 git；xnl-vfs 只当临时合并引擎。
 >
-> 仅当 `codument/config/engineering.xml` 的 engineering profile `enabled` 时启用。
+> 仅当 `codument/config/engineering.xnl` 的 engineering profile `enabled` 时启用。
 
 ## 形态：目标态节点
 
@@ -15,7 +15,7 @@ tracks/{pending,active}/<id>/engineering_deltas/<plane>/<category>/<topic>.xnl
 示例：
 
 ```xnl
-<howto #backend.howto.orders.add_endpoint { kind = "howto" } [
+<howto #backend.howto.orders.add_endpoint { kind = "howto" } (
   <desc ?>新增订单接口的标准维护步骤。</?>
   <when-to-use ?>需要新增 backend endpoint 并接入 behavior case 时使用。</?>
   <steps ?>
@@ -24,7 +24,7 @@ tracks/{pending,active}/<id>/engineering_deltas/<plane>/<category>/<topic>.xnl
   3. 写集成测试。
   </?>
   <verification ?>运行 backend route test 与 codument validate。</?>
-]>
+)>
 ```
 
 ## 操作语义
@@ -54,14 +54,14 @@ tracks/{pending,active}/<id>/engineering_deltas/<plane>/<category>/<topic>.xnl
 | delete-modify | 人工 |
 | add-add 同 id 异内容 | 人工 |
 
-策略可在 `codument/config/engineering.xml` 覆盖：
+策略可在 `codument/config/engineering.xnl` 覆盖：
 
-```xml
-<MergePolicy>
-  <Conflict type="same-field" resolve="human"/>
-  <Conflict type="delete-modify" resolve="human"/>
-  <Conflict type="add-add" resolve="human"/>
-</MergePolicy>
+```xnl
+<MergePolicy (
+  <Conflict { type = "same-field" resolve = "human" }>
+  <Conflict { type = "delete-modify" resolve = "human" }>
+  <Conflict { type = "add-add" resolve = "human" }>
+)>
 ```
 
 `resolve` 取 `human | ours | theirs | base`。

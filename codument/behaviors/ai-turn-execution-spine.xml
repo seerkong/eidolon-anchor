@@ -1,4 +1,7 @@
 <capability id="ai-turn-execution-spine" version="1">
+  <Metadata>
+    <ApiVersion>codument.tech/v1alpha1</ApiVersion>
+  </Metadata>
   <requirement id="turn-state-adt">
     <statement>AI turn 的运行时状态 SHALL 由一个 discriminated union ADT（TurnState）显式表达，每个 variant 自带该阶段必要的字段；SHALL NOT 通过 phase 字符串 + 平行 inflight union + 多个 pending 数组的隐式组合表达运行时状态。</statement>
     <suite id="turn-state-shape" name="TurnState ADT shape">

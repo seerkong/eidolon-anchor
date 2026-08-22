@@ -1,0 +1,104 @@
+<Track #fix-compacted-resource-visible-coverage version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "ContextResourceLoadDecision 识别已压缩/持久化引用为可见覆盖，消除跨 turn 压缩导致的重复重读循环。" description = "deriveVisibleResourceCoverage 不再只认\"当前 content 与完整 outputText 字符串全等\"：delivered_and_compacted 视为已可见（复用 deliveries 原始 range），pending_first_delivery_compacted 不可见；already-visible 引用附恢复路径提示；按 range 精确判定。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-05T10:34:57Z" updated_at = "2026-08-05T11:10:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_fix-compacted-resource-visible-coverage { name = "fix-compacted-resource-visible-coverage" } (
+    <Description ?01M05F1PPDRMKPWXT979DS905W>
+    让已压缩/持久化引用在可见性判定中正确复用，修复大文件场景的 repeat-read 循环。
+    </?01M05F1PPDRMKPWXT979DS905W>
+    <SubNodes [
+      <TaskGroup #P1 { name = "可见性判定识别压缩引用" status = "DONE" order = 0 } (
+        <Description ?01M05F1PPDRMKPWXT979DS905X>
+        修改 deriveVisibleResourceCoverage，识别 compacted/persisted 引用为可见覆盖。
+        </?01M05F1PPDRMKPWXT979DS905X>
+        <Gate [
+          <Criterion ?01M05F1PPDRMKPWXT979DS905Y>
+          delivered_and_compacted 视为可见；pending_first_delivery_compacted 不可见。
+          </?01M05F1PPDRMKPWXT979DS905Y>
+          <Criterion ?01M05F1PPDRMKPWXT979DS905Z>
+          按 range 精确判定，不做"压缩过就整文件可见"的粗粒度。
+          </?01M05F1PPDRMKPWXT979DS905Z>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "识别 delivered_and_compacted 为可见" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PPDRMKPWXT979DS9060>
+            在 ContextResourceLoadDecision.deriveVisibleResourceCoverage 中：当 message.content 匹配 isCompactedResult 且 status=delivered_and_compacted 时，认为该 toolCallId 覆盖 resource fact deliveries 里记录的原始 range；返回 already-visible。
+            </?01M05F1PPDRMKPWXT979DS9060>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PPDRMKPWXT979DS9061>
+              delivered_and_compacted 引用被视为可见覆盖，不再触发重复投递。
+              </?01M05F1PPDRMKPWXT979DS9061>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PPDRMKPWXT979DS9062>
+              可见性判定复用 deliveries 中的原始 range（追加式保留，compaction 不删）。
+              </?01M05F1PPDRMKPWXT979DS9062>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "区分 pending_first_delivery_compacted" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PPDRMKPWXT979DS9063>
+            pending_first_delivery_compacted 表示正文在首次投递前就被 spill 到 artifact，模型从未看过正文，必须视为不可见。
+            </?01M05F1PPDRMKPWXT979DS9063>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PPDRMKPWXT979DS9064>
+              pending_first_delivery_compacted 不贡献可见覆盖。
+              </?01M05F1PPDRMKPWXT979DS9064>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PPDRMKPWXT979DS9065>
+              此类请求仍能拿到内容（引导模型读 artifact 或重新投递）。
+              </?01M05F1PPDRMKPWXT979DS9065>
+            ]>
+          )>
+          <Task { id = "T1.3" name = "already-visible 引用附恢复路径提示" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PPDRMKPWXT979DS9066>
+            命中 already-visible 且原始 delivery 是 compacted 时，引用中附 `Full output persisted at: &lt;path&gt;` 提示（decision D），模型需要原文时可去 read artifact。
+            </?01M05F1PPDRMKPWXT979DS9066>
+            <Acceptance [
+              <Criterion { id = "T1.3-AC1" checked = true } ?01M05F1PPDRMKPWXT979DS9067>
+              already-visible 引用在可恢复时携带持久化路径提示。
+              </?01M05F1PPDRMKPWXT979DS9067>
+              <Criterion { id = "T1.3-AC2" checked = true } ?01M05F1PPDRMKPWXT979DS9068>
+              模型需要原文时能据提示读取 artifact。
+              </?01M05F1PPDRMKPWXT979DS9068>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "验证与收口" status = "DONE" order = 1 } (
+        <Description ?01M05F1PPDRMKPWXT979DS9069>
+        补充或更新可见性判定测试，验证压缩引用复用与 repeat-read 循环消除。
+        </?01M05F1PPDRMKPWXT979DS9069>
+        <Gate [
+          <Criterion ?01M05F1PPDRMKPWXT979DS906A>
+          跨 turn 压缩后同一 range 不重复投递正文。
+          </?01M05F1PPDRMKPWXT979DS906A>
+          <Criterion ?01M05F1PPDRMKPWXT979DS906B>
+          严格 codument 与 decisions 校验通过。
+          </?01M05F1PPDRMKPWXT979DS906B>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "补测试并验证循环消除" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PPDRMKPWXT979DS906C>
+            更新 ContextResourceLoadDecision 与 loader 相关测试，覆盖 compacted/persisted 引用复用、pending_first_delivery 行为与恢复路径提示。
+            </?01M05F1PPDRMKPWXT979DS906C>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PPDRMKPWXT979DS906D>
+              delivered_and_compacted 引用返回 already-visible 测试通过。
+              </?01M05F1PPDRMKPWXT979DS906D>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PPDRMKPWXT979DS906E>
+              pending_first_delivery_compacted 重新交付/引导读 artifact 测试通过。
+              </?01M05F1PPDRMKPWXT979DS906E>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1PPDRMKPWXT979DS906F>
+              strict track/decisions validation 通过。
+              </?01M05F1PPDRMKPWXT979DS906F>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

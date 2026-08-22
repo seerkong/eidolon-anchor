@@ -1,36 +1,62 @@
-# behavior delta 编写规范（std/spec/behavior-delta.md）
+# Behavior delta 编写规范
 
-> 口径：旧称 spec / spec_deltas，现统一为 **behavior**。每个 pending 或 active track 在 `tracks/{pending,active}/<id>/behavior_deltas/<capability>/delta.xml` 声明对行为登记表（`codument/behaviors/`，见 `behavior-registry.md`）的增删改。
+每个 pending 或 active track 在 `behavior_deltas/<capability>/delta.xnl` 声明对 `codument/behaviors/` 的增删改。新文件必须先由 CLI 生成当前 Kind 版本骨架：
 
-## 形态
-
-```xml
-<behavior-patch capability="csv-export" version="1">
-  <upsert selector="behavior://csv-export/requirements/export-endpoint">
-    <requirement id="export-endpoint">
-      <statement>系统 SHALL 提供 GET /reports/export.csv，复用报表查询过滤条件，以 RFC 4180 CSV 流式返回。</statement>
-      <suite name="csv-export">
-        <case name="过滤条件一致">
-          <given>报表页应用了过滤条件 F</given>
-          <when>请求 /reports/export.csv 携带 F</when>
-          <then>导出行集与在线视图在 F 下一致</then>
-        </case>
-      </suite>
-    </requirement>
-  </upsert>
-</behavior-patch>
+```bash
+codument behavior-patch create <track-id> <capability>
 ```
 
-## 规则
+AI 随后在骨架中编写 mutation 与行为正文；不得自行猜测或复制 `apiVersion`。
 
-- 根节点 `<behavior-patch capability="<capability>" version="1">`；一个 capability 一个 delta 目录。
-- **mutation = wrapper 标签 + `selector`**：`<upsert|delete|move selector="behavior://...">`；`selector` 用 **`behavior://`** 虚拟路径定位行为登记表中的节点（取代旧 `spec://`）；`move` 还必须带 `to="behavior://..."`。
-- **行为用例用可嵌套 `<suite>` / `<case>`**（given/when/then），与各语言单测库的多层级、场景嵌套对齐；单个 delta 变长可拆为同名文件夹多文件。
-- `<requirement>` / `<statement>` 承载行为陈述；`<suite>/<case>` 承载可执行验收。
-- 节点要对拆分友好：`capability` → `requirement` → `statement` / `suite`，便于 single-file ↔ same-name-folder 演化。
+## Canonical DSL
 
-## 与 track / 归档的关系
+下例是 `codument behavior-patch create` 生成骨架后的填写结果。`#id`、`apiVersion` 与 `version` 来自 CLI scaffold，不能从示例复制。
 
-- track 的 `<Ports>` 把 `behavior_deltas/`（input 物料，`domain="behavior"`）与 `codument/behaviors/`（output `name="behavior"`）显式接起来。
-- 归档时（`codument-archive-track`）按 `<upsert|delete|move>` wrapper + `behavior://` selector 把 delta 应用进 `codument/behaviors/`（见 `behavior-registry.md`）。
-- 行为用例 `<suite>/<case>` 指导测试编写，是 `codument-verify` 的验收依据之一。
+```xnl
+<BehaviorPatch #track.add-csv-export.behavior_patch.csv-export apiVersion="codument.tech/v1alpha1" version="1" {
+  capability = "csv-export"
+} (
+  <Mutations [
+    <Upsert { selector = "behavior://csv-export/requirements/export-endpoint" } (
+      <Requirement #export-endpoint (
+        <Statement ?>系统 SHALL 提供 GET /reports/export.csv，并以 RFC 4180 CSV 流式返回。</?>
+        <Suites [
+          <Suite #csv-export { name = "CSV export" } (
+            <Cases [
+              <Case #same-filter (
+                <Given ?>报表页应用了过滤条件 F</?>
+                <When ?>请求 /reports/export.csv 携带 F</?>
+                <Then ?>导出行集与在线视图在 F 下一致</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Delete { selector = "behavior://csv-export/requirements/obsolete" }>
+    <Move {
+      selector = "behavior://csv-export/requirements/export-endpoint"
+      to = "behavior://reporting/requirements/export-endpoint"
+    }>
+  ]>
+)>
+```
+
+## 通道与结构规则
+
+- `#id` 是资源 identity；`apiVersion`、`version` 是系统 metadata；`capability`、`selector`、`to` 是普通属性，放 `{}`。
+- `<Mutations []>` 是 mutation 集合，只允许 `Upsert|Delete|Move`。
+- `<Upsert>` 恰有一个目标行为节点，因此目标放 `()`；`Delete` 无正文；`Move` 必须有 `to`。
+- selector 使用 `behavior://<capability>/requirements/<id>/suites/<id>/cases/<id>`，可按层级截短。
+- 行为层级使用 `Requirement/Statement/Suites/Suite/Cases/Case/Given/When/Then/Ands/And`；单值子域放 `()`，集合放 `[]`。
+- `Requirement`、`Suite`、`Case` 可各自包含一个 singleton `<KnowledgeHint { target = "docs-profile" href = "vfs://..." strength = "hint" }>`。它只建立到建模/工程文档 profile 的弱关联；目标暂时不可解析时只报告 warning，不阻断行为归档。
+- 规范性需求使用 SHALL / MUST。每个 capability 至少一个 Requirement，每个可测试需求至少一个 Case。
+- 普通节点属性放 `{}`。合法 XNL word id 使用 `#id`；无法作为 word 的历史 id 可用 `{ id = "原值" }` 无损承载。
+
+## 生命周期与兼容
+
+- Track 的 `Ports` 把 `behavior_deltas/` input 与 `codument/behaviors/` output 显式连接。
+- validate、show、verify、gap-loop 与 archive 均以 `delta.xnl` 为 canonical 输入。
+- 归档按 mutation 顺序在 transaction staging 中更新 Behavior registry，全部 registry 验证成功后统一 commit。
+- legacy `behavior_deltas/**/*.xml` 与 `<behavior-patch>` 仍可读取和程序化迁移，但新 track 不得创建 XML patch。
+- `upgrade-workspace` 先备份再迁移；程序化转换失败时保留原文件并返回 `review-required`，由 AI 按本规范 review 和修正。

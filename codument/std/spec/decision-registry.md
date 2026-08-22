@@ -6,7 +6,6 @@
 
 ```text
 codument/decisions/
-  registry.xnl
   <owner-or-topic>.xnl
   <owner-or-topic>/
     index.xnl
@@ -54,7 +53,9 @@ archive、migration、serializer 和 merge 直接操作 XNL AST，不得通过�
 - 相同 id 且完整 AST 语义等价：幂等，不产生重复节点。
 - 相同 id 且不等价：在没有可信 base 时保守报告 conflict，不静默覆盖。
 - 同一 decision tree 默认保持在同一 owner file；已存在 id 保持原 owner。
-- 来自 track / mission 根 `decisions.xnl` 的新 tree 可进入稳定根 owner（当前约定为 `registry.xnl`）；来自递归 `decisions/**/*.xnl` 的新 tree 保留其相对 owner path。
+- 来自递归 `decisions/**/*.xnl` 的新 tree 保留其相对业务 owner path。
+- track / mission 根 `decisions.xnl` 只承载过程决策；其中出现待晋升 durable tree 时，因为缺少业务 owner，archive 与 migration 必须返回 AI review，不得猜测路径或回退到 `registry.xnl`。
+- owner path 必须表达业务或知识归属，不得使用日期 bucket、archive id 或 track id 代替业务分类。
 - owner file 可以演化，但 stable id、URI、tree hierarchy 和节点语义必须保持稳定。
 
 ## 6. Archive transaction
@@ -78,4 +79,4 @@ collect all deltas and decision sources
 
 `codument decisions validate` 对目录执行递归 XNL registry validation；对 track / mission id 同时验证根 `decisions.xnl` 和递归 `decisions/**/*.xnl`。校验至少覆盖 syntax、stable/duplicate id、hierarchy、dependency/activation/derived_from reference，并报告 file、decision id、layer/reason。
 
-显式传入历史 Markdown 文件时可执行 legacy validation。历史 registry 升级必须走 `codument-migrate decisions`：先 inventory、backup、manifest，优先从 archive 恢复完整 XNL；没有可恢复 source 时才保真转换 Markdown，并保留 raw content、provenance 与 ambiguity。详见 `std/actions/migrate.md` 和 migrate skill 的 decision migration reference。
+显式传入历史 Markdown 文件时可执行 legacy validation。历史 registry 升级统一运行 `codument upgrade-resource <path> --json`；CLI 负责 inventory、backup、staging、verify 与 rollback。返回 `review-required` 时，AI 才按 Decision 规范补齐业务 owner、保真语义、provenance 与 ambiguity，再重跑同一命令。详见 `std/operations/migrate.md`。

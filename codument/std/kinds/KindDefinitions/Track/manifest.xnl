@@ -1,0 +1,15 @@
+<KindDefinition #codument.resource_kind.Track apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  resourceKind = "Track"
+  sourceShapes = ["directory"]
+  currentApiVersion = "codument.tech/v1alpha1"
+  supportedApiVersions = ["codument.tech/v1alpha1"]
+  description = "Codument change track resource contract"
+} (
+  <DescriptorContract (
+    <RequiredFiles [
+      <File { name = "proposal.md" }>
+      <File { name = "design.md" }>
+    ]>
+  )>
+)>

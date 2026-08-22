@@ -1,0 +1,204 @@
+<Track #refactor-chat-completions-effect-bundles version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Compose OpenAI official Chat and DeepSeek official Chat from one pure Chat Completions core through two explicit effect bundles." description = "Replace provider heuristics and mutable mixed-responsibility stream logic with explicit official bundles, a pure reducer, and an effect shell." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-04T16:53:10Z" updated_at = "2026-08-04T19:20:36Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "state" name = "analysis" domain = "track" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-chat-completions-effect-bundles { name = "refactor-chat-completions-effect-bundles" } (
+    <Description ?01M05F1P8AZMENP50Y7HM1ESRA>
+    Characterize, migrate into the AI domain, extract and explicitly compose provider-specific Chat Completions effects without changing observable provider behavior.
+    </?01M05F1P8AZMENP50Y7HM1ESRA>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Behavior and architecture characterization" status = "DONE" order = 0 } (
+        <Description ?01M05F1P8AZMENP50Y7HM1ESRB>
+        Freeze provider selection, request projection, stream events and continuation behavior before refactoring.
+        </?01M05F1P8AZMENP50Y7HM1ESRB>
+        <Gate [
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESRC>
+          Characterization tests cover explicit OpenAI/DeepSeek selection and current common stream semantics.
+          </?01M05F1P8AZMENP50Y7HM1ESRC>
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESRD>
+          Tests fail for URL/model heuristic dependence or missing effect bundle contracts before production integration.
+          </?01M05F1P8AZMENP50Y7HM1ESRD>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add effect bundle and pure-core characterization tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P8AZMENP50Y7HM1ESRE>
+            Add focused tests for explicit end-to-end driver bundle selection, OpenAI isolation, DeepSeek continuation, Responses normalized-stream isolation, pure reducer determinism, event ordering and AI-domain package ownership.
+            </?01M05F1P8AZMENP50Y7HM1ESRE>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRF>
+              Tests require OpenAI and DeepSeek drivers to expose distinct explicit official bundles.
+              </?01M05F1P8AZMENP50Y7HM1ESRF>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRG>
+              Tests freeze common content/tool-call/think event ordering and final message behavior.
+              </?01M05F1P8AZMENP50Y7HM1ESRG>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRH>
+              Tests require adapter selection to remain stable when model or Base URL strings are misleading.
+              </?01M05F1P8AZMENP50Y7HM1ESRH>
+              <Criterion { id = "T1.1-AC4" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRJ>
+              Existing DeepSeek reasoning roundtrip regressions remain in the focused suite.
+              </?01M05F1P8AZMENP50Y7HM1ESRJ>
+              <Criterion { id = "T1.1-AC5" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRK>
+              Tests prove the selected driver binding reaches ingress for main/child actor and provider-switch paths without stream-side adapter-type selection.
+              </?01M05F1P8AZMENP50Y7HM1ESRK>
+              <Criterion { id = "T1.1-AC6" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRM>
+              Package-boundary tests reject provider, reasoning and tool-call protocol ownership in symbiont-logic.
+              </?01M05F1P8AZMENP50Y7HM1ESRM>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Pure Chat Completions core" status = "DONE" order = 1 } (
+        <Description ?01M05F1P8AZMENP50Y7HM1ESRN>
+        Extract deterministic stream projection and reduction into the AI domain, leaving symbiont with provider-neutral stream/runtime primitives.
+        </?01M05F1P8AZMENP50Y7HM1ESRN>
+        <Gate [
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESRP>
+          Reducer tests pass without OutputStream or network dependencies.
+          </?01M05F1P8AZMENP50Y7HM1ESRP>
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESRQ>
+          The compatibility facade produces the same ingress events and assistant messages.
+          </?01M05F1P8AZMENP50Y7HM1ESRQ>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Extract pure stream reducer and effect descriptions" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P8AZMENP50Y7HM1ESRR>
+            Introduce AI-domain stream state and pure functions for chunk projection, fingerprinting, reasoning/content segmentation, tool-call reduction and message finalization; move the existing class facade/export into ai-organ-logic and migrate workspace imports without creating a symbiont reverse dependency.
+            </?01M05F1P8AZMENP50Y7HM1ESRR>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRS>
+              Repeated input state/chunk values produce structurally equal reducer results.
+              </?01M05F1P8AZMENP50Y7HM1ESRS>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRT>
+              The reducer does not read environment state or write OutputStreams.
+              </?01M05F1P8AZMENP50Y7HM1ESRT>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRV>
+              Empty/mirrored reasoning, split think tags and incremental tool arguments preserve existing behavior.
+              </?01M05F1P8AZMENP50Y7HM1ESRV>
+              <Criterion { id = "T2.1-AC4" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRW>
+              The existing class name and ai-organ-logic public export remain available; workspace symbiont deep imports are migrated.
+              </?01M05F1P8AZMENP50Y7HM1ESRW>
+              <Criterion { id = "T2.1-AC5" checked = true } ?01M05F1P8AZMENP50Y7HM1ESRX>
+              symbiont-logic no longer owns or exports code that interprets provider reasoning or tool-call fields.
+              </?01M05F1P8AZMENP50Y7HM1ESRX>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Official effect bundle composition" status = "DONE" order = 2 } (
+        <Description ?01M05F1P8AZMENP50Y7HM1ESRY>
+        Define the provider contract and compose the common transport with explicit OpenAI and DeepSeek official implementations.
+        </?01M05F1P8AZMENP50Y7HM1ESRY>
+        <Gate [
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESRZ>
+          Both official drivers select their bundle explicitly.
+          </?01M05F1P8AZMENP50Y7HM1ESRZ>
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESS0>
+          No model/Base URL heuristic controls DeepSeek protocol behavior.
+          </?01M05F1P8AZMENP50Y7HM1ESS0>
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESS1>
+          Responses API remains on its independent driver.
+          </?01M05F1P8AZMENP50Y7HM1ESS1>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Add official effect bundle contract and implementations" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P8AZMENP50Y7HM1ESS2>
+            Add an AI-domain contract-level Chat Completions effect bundle shape and OpenAI/DeepSeek official logic implementations for endpoint, message/request projection and stream reasoning policy.
+            </?01M05F1P8AZMENP50Y7HM1ESS2>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1P8AZMENP50Y7HM1ESS3>
+              Contract and logic ownership follow existing contract/logic package boundaries.
+              </?01M05F1P8AZMENP50Y7HM1ESS3>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1P8AZMENP50Y7HM1ESS4>
+              OpenAI official bundle excludes DeepSeek compatibility fields.
+              </?01M05F1P8AZMENP50Y7HM1ESS4>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1P8AZMENP50Y7HM1ESS5>
+              DeepSeek official bundle preserves real reasoning and repairs only missing historical tool-call fields.
+              </?01M05F1P8AZMENP50Y7HM1ESS5>
+              <Criterion { id = "T3.1-AC4" checked = true } ?01M05F1P8AZMENP50Y7HM1ESS6>
+              Bundle implementations reuse the shared core instead of copying its state machine.
+              </?01M05F1P8AZMENP50Y7HM1ESS6>
+              <Criterion { id = "T3.1-AC5" checked = true } ?01M05F1P8AZMENP50Y7HM1ESS7>
+              Bundle contract and implementations introduce no ai-organ reverse dependency from symbiont packages.
+              </?01M05F1P8AZMENP50Y7HM1ESS7>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "Integrate drivers and remove provider heuristics" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1P8AZMENP50Y7HM1ESS8>
+            Inject the official bundles from OpenAIChatDriver and DeepSeekDriver, pass the current request's actual adapter/driver binding through executor and terminal stream callbacks into ingress, and remove isDeepseekRequest plus stream-side adapter-type inference.
+            </?01M05F1P8AZMENP50Y7HM1ESS8>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1P8AZMENP50Y7HM1ESS9>
+              ProviderDriverRegistry selection is the only source of OpenAI-versus-DeepSeek protocol semantics.
+              </?01M05F1P8AZMENP50Y7HM1ESS9>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSA>
+              Misleading model/Base URL strings do not switch the configured bundle.
+              </?01M05F1P8AZMENP50Y7HM1ESSA>
+              <Criterion { id = "T3.2-AC3" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSB>
+              Explicit `adapter: deepseek` works with third-party compatible Base URLs.
+              </?01M05F1P8AZMENP50Y7HM1ESSB>
+              <Criterion { id = "T3.2-AC4" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSC>
+              OpenAI Responses, Anthropic and Claude Code driver paths are unchanged.
+              </?01M05F1P8AZMENP50Y7HM1ESSC>
+              <Criterion { id = "T3.2-AC5" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSD>
+              Normal provider runtime execution passes the exact selected driver bundle to stream reduction and never reconstructs it from llmClient.type or adapter strings.
+              </?01M05F1P8AZMENP50Y7HM1ESSD>
+              <Criterion { id = "T3.2-AC6" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSE>
+              Mocks and legacy direct entries either inject an explicit bundle or use the documented OpenAI-only compatibility default.
+              </?01M05F1P8AZMENP50Y7HM1ESSE>
+              <Criterion { id = "T3.2-AC7" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSF>
+              Responses native request/history/endpoint logic remains outside both Chat Completions bundles while its normalized ingress projection stays compatible.
+              </?01M05F1P8AZMENP50Y7HM1ESSF>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Cross-provider verification" status = "DONE" order = 3 } (
+        <Description ?01M05F1P8AZMENP50Y7HM1ESSG>
+        Run focused and architecture regressions, review boundaries and record migration evidence.
+        </?01M05F1P8AZMENP50Y7HM1ESSG>
+        <Gate [
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESSH>
+          Focused stream, transport, driver registry, executor/terminal binding, ingress and DeepSeek continuation tests pass.
+          </?01M05F1P8AZMENP50Y7HM1ESSH>
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESSJ>
+          Strict Codument and decision validation pass.
+          </?01M05F1P8AZMENP50Y7HM1ESSJ>
+          <Criterion ?01M05F1P8AZMENP50Y7HM1ESSK>
+          Diff review confirms no session rewrite and no Responses protocol merge.
+          </?01M05F1P8AZMENP50Y7HM1ESSK>
+        ]>
+        <SubNodes [
+          <Task { id = "T4.1" name = "Verify provider bundle boundaries and regressions" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P8AZMENP50Y7HM1ESSM>
+            Add architecture guards, run the relevant package and terminal tests/type checks, and document objective evidence and any environment limitations.
+            </?01M05F1P8AZMENP50Y7HM1ESSM>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSN>
+              Focused OpenAI/DeepSeek transport and stream tests pass.
+              </?01M05F1P8AZMENP50Y7HM1ESSN>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSP>
+              Provider registry, ingress semantic shape and package-boundary tests pass.
+              </?01M05F1P8AZMENP50Y7HM1ESSP>
+              <Criterion { id = "T4.1-AC3" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSQ>
+              No production URL/model heuristic remains for DeepSeek bundle selection.
+              </?01M05F1P8AZMENP50Y7HM1ESSQ>
+              <Criterion { id = "T4.1-AC4" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSR>
+              Strict track and decisions validation pass.
+              </?01M05F1P8AZMENP50Y7HM1ESSR>
+              <Criterion { id = "T4.1-AC5" checked = true } ?01M05F1P8AZMENP50Y7HM1ESSS>
+              No production stream path selects Chat Completions bundle semantics from adapter type or duplicates provider policy across symbiont and ai-organ.
+              </?01M05F1P8AZMENP50Y7HM1ESSS>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

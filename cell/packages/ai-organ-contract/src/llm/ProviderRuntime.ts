@@ -4,6 +4,11 @@ import type {
   NormalizedChatCompletionsStreamBinding,
 } from "./ChatCompletionsEffectBundle";
 import type { ProviderSceneCaptureHook } from "../observability/Observability";
+import type {
+  ProviderToolSchemaCoverageObservation,
+  ProviderToolSchemaProjectionAuthority,
+  ProviderToolSchemaProjector,
+} from "./ProviderToolSchemaProjection";
 
 export type ProviderRequestObservationCaptureLayer =
   "provider_transport_before_send" | "provider_runtime_before_driver";
@@ -30,6 +35,7 @@ export type ProviderTransportRequestObservationInput = Readonly<{
   url?: string;
   method?: string;
   requestPlan?: ProviderRequestPlanObservation;
+  toolSchemaCoverage?: ProviderToolSchemaCoverageObservation;
 }>;
 
 export type ProviderTransportOutcomeObservationInput = Readonly<{
@@ -80,6 +86,7 @@ export type ProviderRequestObservationData = Readonly<{
   previousResponseIdDecision: ProviderRequestPlanObservation["previousResponseIdDecision"] | null;
   previousResponseId: string | null;
   previousResponseIdDecisionReason: string | null;
+  toolSchemaCoverage?: ProviderToolSchemaCoverageObservation;
   /** @deprecated Compatibility envelope for ledger v1 readers. */
   requestContract: Readonly<Record<string, unknown>>;
 }>;
@@ -317,12 +324,19 @@ export type RuntimePreparedProviderRequest = {
   requestOptions: Record<string, unknown>;
   extraBody: Record<string, unknown>;
   continuation: ResponsesContinuationConfig;
+  toolSchemaProjectionAuthority?: ProviderToolSchemaProjectionAuthority;
 };
+
+export type ProviderDriverPreparedRequest = Readonly<{
+  contract: ProviderRequestContract;
+  toolSchemaProjectionAuthority?: ProviderToolSchemaProjectionAuthority;
+}>;
 
 export type ProviderDriverDefinition = {
   name: string;
   adapterNames: string[];
   chatCompletionsEffectBundle?: ChatCompletionsEffectBundle;
+  toolSchemaProjector?: ProviderToolSchemaProjector;
   normalizedChatCompletionsStreamBinding?: NormalizedChatCompletionsStreamBinding;
   createStream: (
     params: ProviderDriverStreamParams,
@@ -330,10 +344,14 @@ export type ProviderDriverDefinition = {
     stream: AsyncIterable<unknown>;
     toolContext?: unknown;
     providerOutput?: Promise<unknown | undefined>;
+    outputObserved?: () => boolean;
   }>;
   buildRequest?: (
     params: ProviderDriverRequestParams,
   ) => ProviderRequestContract;
+  prepareRequest?: (
+    params: ProviderDriverRequestParams,
+  ) => ProviderDriverPreparedRequest;
   createMessage?: (
     params: ProviderDriverStreamParams,
   ) => Promise<NormalizedLLMResponse>;
@@ -358,4 +376,5 @@ export type ProviderDriverStreamParams = ProviderDriverRequestParams & {
    * Responses continuation state is carried only by `providerRequestContext`.
    */
   sessionKey?: string;
+  toolSchemaProjectionAuthority?: ProviderToolSchemaProjectionAuthority;
 };

@@ -1,0 +1,91 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_1_5_-_0_5_0_0_-_i_m_p_l_e_m_e_n_t_-_w_i_n_d_o_w_s_-_s_a_n_d_b_o_x_-_a_c_c_o_u_n_t.behavior_patch.windows-sandbox-account apiVersion="codument.tech/v1alpha1" version="1" { capability = "windows-sandbox-account" } (
+  <Mutations [
+    <Upsert { selector = "behavior://windows-sandbox-account/requirements/isolated-account" } (
+      <Requirement #isolated-account (
+        <Statement ?01M05F1PTDBWKJQ0W7EEJ3V28D>
+        Windows 沙箱 SHALL 由独立受限本地账号（eidolon-sandbox，USER_PRIV_USER）提供进程级隔离：setup（elevated）SHALL 用 NetUserAdd 创建账号、DPAPI 加密存储密码并写 setup marker；runner SHALL 以 LogonUserW 获取账号 token 并用 CreateProcessAsUserW 启动命令；workspace SHALL 对该账号 SID 授权写（保留继承）；network_access=disabled 时 SHALL 由 WFP 过滤拦截该账号出站连接。SandboxBackendRuntime SHALL 在 setup 完成且 runner 存在时默认 elevated（账号沙箱），否则降级 disabled。Cygwin/MSYS 工具与 Bun SHALL 在账号下正常运行（账号是全新普通用户，非特权令牌降级）。
+        </?01M05F1PTDBWKJQ0W7EEJ3V28D>
+        <Suites [
+          <Suite #isolated-account { name = "Isolated account sandbox" } (
+            <Cases [
+              <Case #account-created [
+                <Then ?01M05F1PTDBWKJQ0W7EEJ3V28E>
+                SHALL 用 NetUserAdd 创建 eidolon-sandbox（USER_PRIV_USER）
+                </?01M05F1PTDBWKJQ0W7EEJ3V28E>
+                <Then ?01M05F1PTDBWKJQ0W7EEJ3V28F>
+                SHALL DPAPI 加密存储密码并写 setup marker
+                </?01M05F1PTDBWKJQ0W7EEJ3V28F>
+              ] (
+                <Given ?01M05F1PTDBWKJQ0W7EEJ3V28G>
+                setup 以 elevated 运行
+                </?01M05F1PTDBWKJQ0W7EEJ3V28G>
+                <When ?01M05F1PTDBWKJQ0W7EEJ3V28H>
+                创建沙箱账号
+                </?01M05F1PTDBWKJQ0W7EEJ3V28H>
+              )>
+              <Case #command-runs-under-account [
+                <Then ?01M05F1PTDBWKJQ0W7EEJ3V28J>
+                SHALL 用 LogonUserW + CreateProcessAsUserW 以账号 token 启动
+                </?01M05F1PTDBWKJQ0W7EEJ3V28J>
+                <Then ?01M05F1PTDBWKJQ0W7EEJ3V28K>
+                SHALL Cygwin/MSYS 工具（find/ls/grep）与 Bun 正常运行
+                </?01M05F1PTDBWKJQ0W7EEJ3V28K>
+              ] (
+                <Given ?01M05F1PTDBWKJQ0W7EEJ3V28M>
+                runner 启动命令
+                </?01M05F1PTDBWKJQ0W7EEJ3V28M>
+                <When ?01M05F1PTDBWKJQ0W7EEJ3V28N>
+                以沙箱账号执行
+                </?01M05F1PTDBWKJQ0W7EEJ3V28N>
+              )>
+              <Case #account-cannot-write-outside (
+                <Given ?01M05F1PTDBWKJQ0W7EEJ3V28P>
+                受限进程（账号下）尝试写 workspace 外
+                </?01M05F1PTDBWKJQ0W7EEJ3V28P>
+                <When ?01M05F1PTDBWKJQ0W7EEJ3V28Q>
+                写入受限进程
+                </?01M05F1PTDBWKJQ0W7EEJ3V28Q>
+                <Then ?01M05F1PTDBWKJQ0W7EEJ3V28R>
+                SHALL 因账号无权限失败
+                </?01M05F1PTDBWKJQ0W7EEJ3V28R>
+              )>
+              <Case #network-disabled-blocks-account (
+                <Given ?01M05F1PTDBWKJQ0W7EEJ3V28S>
+                network_access=disabled 且 setup 完成
+                </?01M05F1PTDBWKJQ0W7EEJ3V28S>
+                <When ?01M05F1PTDBWKJQ0W7EEJ3V28T>
+                账号进程发起出站连接
+                </?01M05F1PTDBWKJQ0W7EEJ3V28T>
+                <Then ?01M05F1PTDBWKJQ0W7EEJ3V28V>
+                SHALL 被 WFP 过滤拦截
+                </?01M05F1PTDBWKJQ0W7EEJ3V28V>
+              )>
+              <Case #default-elevated-when-ready (
+                <Given ?01M05F1PTDBWKJQ0W7EEJ3V28W>
+                setup 完成且 runner 存在
+                </?01M05F1PTDBWKJQ0W7EEJ3V28W>
+                <When ?01M05F1PTDBWKJQ0W7EEJ3V28X>
+                解析 Windows sandbox level
+                </?01M05F1PTDBWKJQ0W7EEJ3V28X>
+                <Then ?01M05F1PTDBWKJQ0W7EEJ3V28Y>
+                SHALL 为 elevated（账号沙箱）
+                </?01M05F1PTDBWKJQ0W7EEJ3V28Y>
+              )>
+              <Case #fallback-disabled-when-not-ready (
+                <Given ?01M05F1PTDBWKJQ0W7EEJ3V28Z>
+                setup 未完成或 runner 缺失
+                </?01M05F1PTDBWKJQ0W7EEJ3V28Z>
+                <When ?01M05F1PTDBWKJQ0W7EEJ3V290>
+                解析 Windows sandbox level
+                </?01M05F1PTDBWKJQ0W7EEJ3V290>
+                <Then ?01M05F1PTDBWKJQ0W7EEJ3V291>
+                SHALL 为 disabled（直接执行 + 文件校验）
+                </?01M05F1PTDBWKJQ0W7EEJ3V291>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

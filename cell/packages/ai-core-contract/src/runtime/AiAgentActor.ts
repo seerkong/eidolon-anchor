@@ -134,6 +134,7 @@ export type ProfileSystemPromptProvenance = {
 };
 
 export type ActorToolPolicy = {
+  allowedToolsMode: "all" | "exact";
   allowedTools: string[];
   enabledToolKeys: string[];
   disabledToolKeys: string[];

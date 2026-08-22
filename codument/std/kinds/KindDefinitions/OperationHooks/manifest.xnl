@@ -1,0 +1,8 @@
+<KindDefinition #codument.resource_kind.OperationHooks apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  resourceKind = "OperationHooks"
+  sourceShapes = ["single-file"]
+  currentApiVersion = "codument.tech/v1alpha1"
+  supportedApiVersions = ["codument.tech/v1alpha1"]
+  description = "Codument command lifecycle hook configuration"
+}>

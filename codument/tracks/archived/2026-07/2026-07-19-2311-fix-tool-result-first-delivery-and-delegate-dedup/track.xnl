@@ -1,0 +1,131 @@
+<Track #fix-tool-result-first-delivery-and-delegate-dedup version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "保证新工具结果至少完整进入一次成功的 provider request，并阻止同一父 actor 重复派发等价 detached delegate" description = "修复 cheap compaction 抢在首次 provider delivery 前外置结果而形成递归 artifact 链的问题，并为 detached delegate 建立可显式扩展的单飞复用语义。" question_mode = "decision-tree" question_severity = "light" commit_mode = "manual" created_at = "2026-07-19T18:22:43Z" updated_at = "2026-07-19T20:11:37Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_fix-tool-result-first-delivery-and-delegate-dedup { name = "fix-tool-result-first-delivery-and-delegate-dedup" } (
+    <Description ?01M05F1PME8M9G5JQCZQV4V5VB>
+    以持久 delivery fact 保护尚未交付的工具结果，并以 detached task single-flight 约束重复子代理。
+    </?01M05F1PME8M9G5JQCZQV4V5VB>
+    <SubNodes [
+      <TaskGroup #P1 { name = "首次交付与 artifact 收敛" status = "DONE" order = 0 } (
+        <Description ?01M05F1PME8M9G5JQCZQV4V5VC>
+        建立普通工具结果的 provider delivery 生命周期，在 streaming/cooperative 两条路径上保护首次交付并阻断递归 artifact 化。
+        </?01M05F1PME8M9G5JQCZQV4V5VC>
+        <Gate [
+          <Criterion ?01M05F1PME8M9G5JQCZQV4V5VD>
+          新产生的工具结果在成功 provider completion 前不得被标记为已交付
+          </?01M05F1PME8M9G5JQCZQV4V5VD>
+          <Criterion ?01M05F1PME8M9G5JQCZQV4V5VE>
+          cheap compaction 只外置已成功交付或 legacy 无 delivery fact 的结果
+          </?01M05F1PME8M9G5JQCZQV4V5VE>
+          <Criterion ?01M05F1PME8M9G5JQCZQV4V5VF>
+          读取持久 artifact 不会在首次可见前生成嵌套 artifact 链
+          </?01M05F1PME8M9G5JQCZQV4V5VF>
+          <Criterion ?01M05F1PME8M9G5JQCZQV4V5VG>
+          provider system instructions 与稳定 cache 前缀不承载 delivery 动态状态
+          </?01M05F1PME8M9G5JQCZQV4V5VG>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "实现 delivery-aware tool result compaction" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PME8M9G5JQCZQV4V5VH>
+            先补 live executor 失败测试，再为新提交的普通 tool call/result 建立可持久恢复的 pending/delivered fact；provider request 成功后才确认其中的 pending pair，失败或中止保持 pending；让 cheap compaction 和 micro compaction 保护 pending tool_call_id，并覆盖 streaming/cooperative 两条路径。
+            </?01M05F1PME8M9G5JQCZQV4V5VH>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PME8M9G5JQCZQV4V5VJ>
+              累计旧历史超过 cheap compaction 阈值时，新产生的大工具结果仍完整出现在下一次 provider request
+              </?01M05F1PME8M9G5JQCZQV4V5VJ>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PME8M9G5JQCZQV4V5VK>
+              成功 completion 后该结果可按既有预算外置，provider 失败或中止后仍保持首次交付资格
+              </?01M05F1PME8M9G5JQCZQV4V5VK>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1PME8M9G5JQCZQV4V5VM>
+              delivery fact 经 conversation persistence/recovery round-trip 保持，legacy 无 fact 的历史结果继续兼容
+              </?01M05F1PME8M9G5JQCZQV4V5VM>
+              <Criterion { id = "T1.1-AC4" checked = true } ?01M05F1PME8M9G5JQCZQV4V5VN>
+              streaming 与 cooperative executor 共享同一确认 helper，且未把动态 delivery 状态写入 system instructions 或 cache key
+              </?01M05F1PME8M9G5JQCZQV4V5VN>
+              <Criterion { id = "T1.1-AC5" checked = true } ?01M05F1PME8M9G5JQCZQV4V5VP>
+              读取一个已持久化的大文本 artifact 时，所选内容至少完整交付一次且不会在交付前再外置成下一层 artifact
+              </?01M05F1PME8M9G5JQCZQV4V5VP>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Delegate 单飞与事故回归" status = "DONE" order = 1 } (
+        <Description ?01M05F1PME8M9G5JQCZQV4V5VQ>
+        限制 detached delegate 的默认在途并发，并用真实事故形态验证主 agent 能消费既有结果后收敛。
+        </?01M05F1PME8M9G5JQCZQV4V5VQ>
+        <Gate [
+          <Criterion ?01M05F1PME8M9G5JQCZQV4V5VR>
+          默认 detached scope 的重复调用复用现有 task_id，不创建第二个 child actor
+          </?01M05F1PME8M9G5JQCZQV4V5VR>
+          <Criterion ?01M05F1PME8M9G5JQCZQV4V5VS>
+          调用者可用显式 task_key 开启合法并行，sync_wait 行为保持
+          </?01M05F1PME8M9G5JQCZQV4V5VS>
+          <Criterion ?01M05F1PME8M9G5JQCZQV4V5VT>
+          事故形态回归证明结果首次可见且重复 delegate 数量有确定上界
+          </?01M05F1PME8M9G5JQCZQV4V5VT>
+          <Criterion ?01M05F1PME8M9G5JQCZQV4V5VV>
+          受影响包聚焦测试、类型检查和 diff spot-check 通过，或记录明确基线失败
+          </?01M05F1PME8M9G5JQCZQV4V5VV>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "实现 detached delegate single-flight" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PME8M9G5JQCZQV4V5VW>
+            先补 registry/tool 失败测试，再为 detached RunDelegateActor 建立 parent actor + agent type + task_key 的确定性单飞索引；缺省 task_key 使用 default slot，pending/running/suspended 调用返回现有 task_id 与 reused 状态，终态释放槽位；不同显式 task_key 可并行，sync_wait 不受影响。
+            </?01M05F1PME8M9G5JQCZQV4V5VW>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PME8M9G5JQCZQV4V5VX>
+              同一父 actor 与 agent type 在 default slot 已有在途任务时，后续 detached 调用不创建 child actor
+              </?01M05F1PME8M9G5JQCZQV4V5VX>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PME8M9G5JQCZQV4V5VY>
+              复用响应包含稳定 task_id、当前 status 和 reused=true，便于模型等待或读取既有结果
+              </?01M05F1PME8M9G5JQCZQV4V5VY>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1PME8M9G5JQCZQV4V5VZ>
+              不同父 actor、agent type 或显式 task_key 的 detached 调用仍可独立运行
+              </?01M05F1PME8M9G5JQCZQV4V5VZ>
+              <Criterion { id = "T2.1-AC4" checked = true } ?01M05F1PME8M9G5JQCZQV4V5W0>
+              任务完成、失败或取消后单飞索引不会泄漏，snapshot/recovery 语义有覆盖或明确兼容策略
+              </?01M05F1PME8M9G5JQCZQV4V5W0>
+              <Criterion { id = "T2.1-AC5" checked = true } ?01M05F1PME8M9G5JQCZQV4V5W1>
+              工具 schema/prompt 明确 task_key 的并行语义，未引入模糊文本相似度或通用循环次数守卫
+              </?01M05F1PME8M9G5JQCZQV4V5W1>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "执行事故形态回归与全量 spot-check" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PME8M9G5JQCZQV4V5W2>
+            构造旧历史超过预算、新 delegate 返回约 26KB 总结、主 agent 下一轮消费结果以及重复 detached 调用的组合回归；运行受影响包测试与类型检查，审查 provider cache 形状、artifact 数量、child actor 数量并把证据写入 findings。
+            </?01M05F1PME8M9G5JQCZQV4V5W2>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PME8M9G5JQCZQV4V5W3>
+              事故形态中 delegate 总结完整出现在首次成功 provider request，不需要通过嵌套 artifact 读取恢复
+              </?01M05F1PME8M9G5JQCZQV4V5W3>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PME8M9G5JQCZQV4V5W4>
+              首次 provider delivery 前不生成该结果的递归 artifact 链
+              </?01M05F1PME8M9G5JQCZQV4V5W4>
+              <Criterion { id = "T2.2-AC3" checked = true } ?01M05F1PME8M9G5JQCZQV4V5W5>
+              同一 default scope 的重复 detached 调用至多产生一个在途 child actor，显式不同 task_key 可产生多个
+              </?01M05F1PME8M9G5JQCZQV4V5W5>
+              <Criterion { id = "T2.2-AC4" checked = true } ?01M05F1PME8M9G5JQCZQV4V5W6>
+              provider request 的稳定 instructions/cache 前缀与修复前等价，动态事实只位于 runtime/domain metadata
+              </?01M05F1PME8M9G5JQCZQV4V5W6>
+              <Criterion { id = "T2.2-AC5" checked = true } ?01M05F1PME8M9G5JQCZQV4V5W7>
+              验证命令、结果、diff 结论和残余风险写入 analysis/findings.md
+              </?01M05F1PME8M9G5JQCZQV4V5W7>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

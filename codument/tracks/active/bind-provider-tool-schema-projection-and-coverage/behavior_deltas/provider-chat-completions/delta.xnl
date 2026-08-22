@@ -1,0 +1,40 @@
+<BehaviorPatch #track.bind-provider-tool-schema-projection-and-coverage.behavior_patch.provider-chat-completions apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-chat-completions" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-chat-completions/requirements/tool-schema-projection-owner" } (
+      <Requirement #tool-schema-projection-owner (
+        <Statement ?>Each configured Chat Completions provider bundle SHALL own an explicit pure tool-schema projection compiler that prepares one opaque tool-projection authority per provider call; request preview and every real transport attempt SHALL reuse it, while the coverage gate alone creates an opaque admitted capability for each concrete serialized body, and generic fetch code SHALL accept no canonical tools or structural request lookalikes and SHALL NOT infer provider policy from model names, base URLs, provider labels, tool names, or schema text.</?>
+        <Suites [
+          <Suite #chat-tool-schema-owner { name = "Chat tool-schema projection ownership" } (
+            <Cases [
+              <Case #configured-bundle-selects-projector (
+                <Given ?>an explicitly configured ordinary OpenAI Chat or DeepSeek Chat driver</?>
+                <When ?>the runtime builds and sends a request containing canonical tools</?>
+                <Then ?>the selected driver bundle SHALL prepare one tool-projection authority and every concrete transport body SHALL be admitted from that authority before transport</?>
+              )>
+              <Case #generic-fetch-has-no-dialect-routing (
+                <Given ?>a projected provider request admitted by the compatibility gate</?>
+                <When ?>the generic fetch effect serializes and sends it</?>
+                <Then ?>it SHALL NOT branch on model, URL, provider label, tool name, or natural-language/schema keyword content</?>
+              )>
+              <Case #rejected-projection-never-reaches-effect (
+                <Given ?>a tool projection with incomplete coverage or an unsupported transformation</?>
+                <When ?>request admission is evaluated</?>
+                <Then ?>request observation and network effects SHALL remain uncalled and a stable typed diagnostic SHALL be returned</?>
+              )>
+              <Case #preview-send-single-admission (
+                <Given ?>an admitted provider request produced by the configured bundle</?>
+                <When ?>the request is previewed and then sent through createStream</?>
+                <Then ?>both SHALL consume the same admitted artifact and instrumentation SHALL observe no second projection or provider re-selection</?>
+              )>
+              <Case #unadmitted-request-cannot-cross-effect-boundary (
+                <Given ?>a structural lookalike request or a caller mutation after a valid request was admitted</?>
+                <When ?>transport validates the capability and serialized-body digest before request observation</?>
+                <Then ?>it SHALL reject the request and network invocation SHALL remain zero</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

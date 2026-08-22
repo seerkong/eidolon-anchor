@@ -1,4 +1,7 @@
 <artifact-config version="1">
+  <Metadata>
+    <ApiVersion>codument.tech/v1alpha1</ApiVersion>
+  </Metadata>
   <resources>
     <agent id="artifact-sync-agent" executor="fresh-subagent" />
     <attractor-profile id="docs-knowledge-profile" name="docs" />

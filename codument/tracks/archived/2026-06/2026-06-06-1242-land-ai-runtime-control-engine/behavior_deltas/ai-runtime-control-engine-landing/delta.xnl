@@ -1,0 +1,159 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_6_-_1_2_4_2_-_l_a_n_d_-_a_i_-_r_u_n_t_i_m_e_-_c_o_n_t_r_o_l_-_e_n_g_i_n_e.behavior_patch.ai-runtime-control-engine-landing apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-control-engine-landing" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-control-engine-landing/requirements/owned-mode-recovery-gate" } (
+      <Requirement #owned-mode-recovery-gate (
+        <Statement ?01M05F1PG2KN67Y21PC74THY91>
+        系统 SHALL require an owned runtime-control checkpoint before recovering an AI runtime session in production load or resume paths.
+        </?01M05F1PG2KN67Y21PC74THY91>
+        <Suites [
+          <Suite #owned-recovery { name = "Owned recovery gate" } (
+            <Cases [
+              <Case #upgraded-clean-session-loads (
+                <Given ?01M05F1PG2KN67Y21PC74THY92>
+                A session contains runtime-control upgrade metadata, a checkpoint commit marker, matching real durable heads, and clean effect evidence
+                </?01M05F1PG2KN67Y21PC74THY92>
+                <When ?01M05F1PG2KN67Y21PC74THY93>
+                The runtime loads or resumes the session
+                </?01M05F1PG2KN67Y21PC74THY93>
+                <Then ?01M05F1PG2KN67Y21PC74THY94>
+                The system SHALL pass the recovery gate and continue VM recovery
+                </?01M05F1PG2KN67Y21PC74THY94>
+              )>
+              <Case #old-session-rejected (
+                <Given ?01M05F1PG2KN67Y21PC74THY95>
+                A materialized old session has no runtime-control upgrade metadata or checkpoint marker
+                </?01M05F1PG2KN67Y21PC74THY95>
+                <When ?01M05F1PG2KN67Y21PC74THY96>
+                The runtime attempts production load or resume without running session-upgrade
+                </?01M05F1PG2KN67Y21PC74THY96>
+                <Then ?01M05F1PG2KN67Y21PC74THY97>
+                The system SHALL reject recovery with an explicit upgrade-required error
+                </?01M05F1PG2KN67Y21PC74THY97>
+              )>
+              <Case #dirty-session-rejected (
+                <Given ?01M05F1PG2KN67Y21PC74THY98>
+                A session has mismatched heads, orphaned tool output, dirty effect evidence, or removed handler evidence
+                </?01M05F1PG2KN67Y21PC74THY98>
+                <When ?01M05F1PG2KN67Y21PC74THY99>
+                The runtime attempts load or resume
+                </?01M05F1PG2KN67Y21PC74THY99>
+                <Then ?01M05F1PG2KN67Y21PC74THY9A>
+                The system SHALL reject recovery and expose recovery blockers
+                </?01M05F1PG2KN67Y21PC74THY9A>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-control-engine-landing/requirements/engine-owned-checkpoint-save" } (
+      <Requirement #engine-owned-checkpoint-save (
+        <Statement ?01M05F1PG2KN67Y21PC74THY9B>
+        系统 SHALL make the runtime-control engine the owner of AI runtime checkpoint save consistency.
+        </?01M05F1PG2KN67Y21PC74THY9B>
+        <Suites [
+          <Suite #checkpoint-save { name = "Engine-owned checkpoint save" } (
+            <Cases [
+              <Case #concrete-writes-are-support-effects [
+                <Then ?01M05F1PG2KN67Y21PC74THY9C>
+                The system SHALL submit a runtime-control checkpoint command/effect
+                </?01M05F1PG2KN67Y21PC74THY9C>
+                <Then ?01M05F1PG2KN67Y21PC74THY9D>
+                The system SHALL run concrete conversation, transcript, snapshot, and manifest writes only as support effects
+                </?01M05F1PG2KN67Y21PC74THY9D>
+                <Then ?01M05F1PG2KN67Y21PC74THY9E>
+                The system SHALL commit the checkpoint cohort only after real heads match the written files
+                </?01M05F1PG2KN67Y21PC74THY9E>
+              ] (
+                <Given ?01M05F1PG2KN67Y21PC74THY9F>
+                The runtime reaches a snapshot safepoint
+                </?01M05F1PG2KN67Y21PC74THY9F>
+                <When ?01M05F1PG2KN67Y21PC74THY9G>
+                The runtime saves checkpoint data
+                </?01M05F1PG2KN67Y21PC74THY9G>
+              )>
+              <Case #non-safepoint-does-not-commit (
+                <Given ?01M05F1PG2KN67Y21PC74THY9H>
+                The runtime has mandatory mailbox work, half-started tool call, or unpaired completion work
+                </?01M05F1PG2KN67Y21PC74THY9H>
+                <When ?01M05F1PG2KN67Y21PC74THY9J>
+                A checkpoint save is requested
+                </?01M05F1PG2KN67Y21PC74THY9J>
+                <Then ?01M05F1PG2KN67Y21PC74THY9K>
+                The system SHALL NOT write a new authoritative checkpoint commit marker
+                </?01M05F1PG2KN67Y21PC74THY9K>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-control-engine-landing/requirements/effect-lifecycle-owned-by-engine" } (
+      <Requirement #effect-lifecycle-owned-by-engine (
+        <Statement ?01M05F1PG2KN67Y21PC74THY9M>
+        系统 SHALL route runtime effect lifecycle evidence through the runtime-control engine facade and SHALL NOT let executor or support code directly own evidence persistence.
+        </?01M05F1PG2KN67Y21PC74THY9M>
+        <Suites [
+          <Suite #effect-lifecycle { name = "Effect lifecycle ownership" } (
+            <Cases [
+              <Case #effect-request-result-paired [
+                <Then ?01M05F1PG2KN67Y21PC74THY9N>
+                The system SHALL record request/result/waiting evidence through the runtime-control facade
+                </?01M05F1PG2KN67Y21PC74THY9N>
+                <Then ?01M05F1PG2KN67Y21PC74THY9P>
+                Recovery SHALL classify unpaired result evidence as orphaned or dirty
+                </?01M05F1PG2KN67Y21PC74THY9P>
+              ] (
+                <Given ?01M05F1PG2KN67Y21PC74THY9Q>
+                A provider, tool, MCP, bash, permission, questionnaire, or async completion event occurs
+                </?01M05F1PG2KN67Y21PC74THY9Q>
+                <When ?01M05F1PG2KN67Y21PC74THY9R>
+                The runtime records the event
+                </?01M05F1PG2KN67Y21PC74THY9R>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-control-engine-landing/requirements/projection-journal-boundary" } (
+      <Requirement #projection-journal-boundary (
+        <Statement ?01M05F1PG2KN67Y21PC74THY9S>
+        系统 SHALL keep rebuildable projections and append-only journal sinks outside the authoritative checkpoint cohort unless a future spec explicitly changes their role.
+        </?01M05F1PG2KN67Y21PC74THY9S>
+        <Suites [
+          <Suite #projection-journal { name = "Projection and journal boundary" } (
+            <Cases [
+              <Case #derived-indexes-are-cache (
+                <Given ?01M05F1PG2KN67Y21PC74THY9T>
+                Derived indexes are missing, stale, or partially written
+                </?01M05F1PG2KN67Y21PC74THY9T>
+                <When ?01M05F1PG2KN67Y21PC74THY9V>
+                The runtime recovers from a clean owned checkpoint
+                </?01M05F1PG2KN67Y21PC74THY9V>
+                <Then ?01M05F1PG2KN67Y21PC74THY9W>
+                The system SHALL treat derived indexes as projection cache and rebuild or refresh them without failing recovery
+                </?01M05F1PG2KN67Y21PC74THY9W>
+              )>
+              <Case #logs-are-journal-sinks [
+                <Then ?01M05F1PG2KN67Y21PC74THY9X>
+                The system SHALL NOT block checkpoint recovery solely because journal sink event counts differ
+                </?01M05F1PG2KN67Y21PC74THY9X>
+                <Then ?01M05F1PG2KN67Y21PC74THY9Y>
+                Session upgrade SHALL preserve existing journal sink files without converting them into checkpoint-owned records
+                </?01M05F1PG2KN67Y21PC74THY9Y>
+              ] (
+                <Given ?01M05F1PG2KN67Y21PC74THY9Z>
+                Ingress or diagnostics XNL logs contain entries beyond or outside a checkpoint
+                </?01M05F1PG2KN67Y21PC74THY9Z>
+                <When ?01M05F1PG2KN67Y21PC74THYA0>
+                The runtime evaluates checkpoint consistency
+                </?01M05F1PG2KN67Y21PC74THYA0>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

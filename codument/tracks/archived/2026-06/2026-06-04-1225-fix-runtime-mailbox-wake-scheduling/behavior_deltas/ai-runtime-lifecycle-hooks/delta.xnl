@@ -1,0 +1,59 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_4_-_1_2_2_5_-_f_i_x_-_r_u_n_t_i_m_e_-_m_a_i_l_b_o_x_-_w_a_k_e_-_s_c_h_e_d_u_l_i_n_g.behavior_patch.ai-runtime-lifecycle-hooks apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-lifecycle-hooks" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-lifecycle-hooks/requirements/idle-hook-mailbox-preemption" } (
+      <Requirement #idle-hook-mailbox-preemption (
+        <Statement ?01M05F1PFB9N7X1QXQJN0KCZVP>
+        系统 SHALL prevent `actor.idle.before` hooks from running as idle continuation while any wake-capable actor mailbox has pending work.
+        </?01M05F1PFB9N7X1QXQJN0KCZVP>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-runtime-lifecycle-hooks/idle-hook-mailbox-preemption" strength = "hint" }>
+        <Suites [
+          <Suite #idle-preemption { name = "Idle hook mailbox preemption" } (
+            <Cases [
+              <Case #all-wake-mailboxes-block-idle [
+                <Then ?01M05F1PFB9N7X1QXQJN0KCZVQ>
+                The producer SHALL treat the actor as non-idle
+                </?01M05F1PFB9N7X1QXQJN0KCZVQ>
+                <Then ?01M05F1PFB9N7X1QXQJN0KCZVR>
+                The dispatch SHALL stop before goal continuation or other idle effects are produced
+                </?01M05F1PFB9N7X1QXQJN0KCZVR>
+              ] (
+                <Given ?01M05F1PFB9N7X1QXQJN0KCZVS>
+                An actor has pending `control`, `toolResult`, `asyncCompletion`, `childDone`, `memberCoordination`, `humanInput`, `memberChatInbox`, or `heartbeat` entries
+                </?01M05F1PFB9N7X1QXQJN0KCZVS>
+                <When ?01M05F1PFB9N7X1QXQJN0KCZVT>
+                The runtime evaluates `actor.idle.before`
+                </?01M05F1PFB9N7X1QXQJN0KCZVT>
+              )>
+              <Case #idle-recheck-reports-pending-mailboxes [
+                <Then ?01M05F1PFB9N7X1QXQJN0KCZVV>
+                The diagnostic SHOULD include the pending mailbox kinds that made the actor non-idle
+                </?01M05F1PFB9N7X1QXQJN0KCZVV>
+                <Then ?01M05F1PFB9N7X1QXQJN0KCZVW>
+                Repeated equivalent diagnostics SHOULD be throttled or coalesced to avoid flooding orchestration history
+                </?01M05F1PFB9N7X1QXQJN0KCZVW>
+              ] (
+                <Given ?01M05F1PFB9N7X1QXQJN0KCZVX>
+                An idle hook dispatch is skipped because lifecycle state is no longer current
+                </?01M05F1PFB9N7X1QXQJN0KCZVX>
+                <When ?01M05F1PFB9N7X1QXQJN0KCZVY>
+                The runtime emits hook diagnostics
+                </?01M05F1PFB9N7X1QXQJN0KCZVY>
+              )>
+              <Case #background-watchdog-drains-before-idle-hook (
+                <Given ?01M05F1PFB9N7X1QXQJN0KCZVZ>
+                The background watchdog observes a ready fiber or pending wake mailbox work
+                </?01M05F1PFB9N7X1QXQJN0KCZVZ>
+                <When ?01M05F1PFB9N7X1QXQJN0KCZW0>
+                It performs a background tick
+                </?01M05F1PFB9N7X1QXQJN0KCZW0>
+                <Then ?01M05F1PFB9N7X1QXQJN0KCZW1>
+                The runtime SHALL attempt scheduler drain before producing lower-priority idle continuation effects
+                </?01M05F1PFB9N7X1QXQJN0KCZW1>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

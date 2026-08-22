@@ -17,6 +17,7 @@ export {
 export {
   AnthropicNodejsFetchLlmAdapter,
   ClaudeNodejsFetchLlmAdapter,
+  createProviderDiagnosticsCollector,
   defaultProviderConfigPath,
   extractProviderOptions,
   flattenModelConfig,
@@ -78,6 +79,7 @@ export {
   subscribeConversationSession,
   synchronizeConversationDomainActorFromPersistence,
   synchronizeConversationDomainSessionFromPersistence,
+  synchronizeProviderContextEpochToConversationDomainRuntime,
   teeConversationHistoryStream,
   teeConversationPromptStream,
   teeConversationSessionStream,

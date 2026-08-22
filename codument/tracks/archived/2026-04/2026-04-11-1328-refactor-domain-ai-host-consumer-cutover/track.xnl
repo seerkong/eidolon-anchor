@@ -1,0 +1,75 @@
+<Track #refactor-domain-ai-host-consumer-cutover version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 `@cell/domain-ai-contract` / `@cell/domain-ai-logic` 成为 AI-specific contract/logic 的默认消费入口。" commit_mode = "manual" created_at = "2026-04-11T13:05:00Z" updated_at = "2026-04-11T13:28:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-domain-ai-host-consumer-cutover { name = "refactor-domain-ai-host-consumer-cutover" } (
+    <Description ?01M05F1PCJH7D73JYC9KZT5276>
+    将 domain-ai 显式宿主推进为默认消费入口
+    </?01M05F1PCJH7D73JYC9KZT5276>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Consumer Ownership Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PCJH7D73JYC9KZT5277>
+        冻结哪些 consumer 应优先切到 domain-ai host。
+        </?01M05F1PCJH7D73JYC9KZT5277>
+        <SubNodes [
+          <Task { id = "T1.1" name = "定义 consumer cutover ownership 表" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCJH7D73JYC9KZT5278>
+            明确哪些 composer/mod/shell/test 调用方应切到 `domain-ai-*`。
+            </?01M05F1PCJH7D73JYC9KZT5278>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PCJH7D73JYC9KZT5279>
+              cutover 范围明确
+              </?01M05F1PCJH7D73JYC9KZT5279>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PCJH7D73JYC9KZT527A>
+              不引入第二真相源
+              </?01M05F1PCJH7D73JYC9KZT527A>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Consumer Cutover" status = "DONE" order = 1 } (
+        <Description ?01M05F1PCJH7D73JYC9KZT527B>
+        完成第一批默认消费入口切换。
+        </?01M05F1PCJH7D73JYC9KZT527B>
+        <SubNodes [
+          <Task { id = "T2.1" name = "切换 domain-ai contract/logic consumer" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCJH7D73JYC9KZT527C>
+            调整 composer/mod/shell/test 入口优先消费 `@cell/domain-ai-contract` / `@cell/domain-ai-logic`。
+            </?01M05F1PCJH7D73JYC9KZT527C>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PCJH7D73JYC9KZT527D>
+              第一批 consumer 已切换
+              </?01M05F1PCJH7D73JYC9KZT527D>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PCJH7D73JYC9KZT527E>
+              历史入口未形成回流
+              </?01M05F1PCJH7D73JYC9KZT527E>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Focused Verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PCJH7D73JYC9KZT527F>
+        验证默认消费入口与 ownership 不回归。
+        </?01M05F1PCJH7D73JYC9KZT527F>
+        <SubNodes [
+          <Task { id = "T3.1" name = "运行 domain-ai host focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCJH7D73JYC9KZT527G>
+            覆盖 package surface、runtime composer、shell adoption 等关键面。
+            </?01M05F1PCJH7D73JYC9KZT527G>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PCJH7D73JYC9KZT527H>
+              focused tests 通过
+              </?01M05F1PCJH7D73JYC9KZT527H>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PCJH7D73JYC9KZT527J>
+              domain-ai host 成为默认入口
+              </?01M05F1PCJH7D73JYC9KZT527J>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

@@ -1,0 +1,82 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_1_3_-_1_1_3_5_-_u_n_i_f_y_-_t_u_i_-_t_u_r_n_-_p_r_o_j_e_c_t_i_o_n_-_a_n_d_-_w_o_r_k_s_p_a_c_e_-_s_c_o_p_e.behavior_patch.runtime-projection-surfaces apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-projection-surfaces" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-projection-surfaces/requirements/unified-turn-surface-projection" } (
+      <Requirement #unified-turn-surface-projection (
+        <Statement ?01M05F1PT8CZVSB0PX6S29HV3Z>
+        TUI SHALL 由单一 turn surface projector 消费 typed control、chunk、history 与 completion observations；prompt、slash command 和 questionnaire continuation SHALL 复用同一投影状态机，SHALL NOT 各自维护平行的类别、buffer、tool part 或 reconciliation 逻辑。
+        </?01M05F1PT8CZVSB0PX6S29HV3Z>
+        <Suites [
+          <Suite #entry-equivalence { name = "三入口投影等价" } (
+            <Cases [
+              <Case #same-semantic-sequence-same-cards [
+                <Then ?01M05F1PT916PH8NPSVHP0FMVC>
+                三条入口 SHALL 产生类别与身份等价的可见卡片
+                </?01M05F1PT916PH8NPSVHP0FMVC>
+                <Then ?01M05F1PT916PH8NPSVHP0FMVD>
+                turn/toolcall/result/done 文本 MUST NOT 出现在 assistant 卡片
+                </?01M05F1PT916PH8NPSVHP0FMVD>
+                <Then ?01M05F1PT916PH8NPSVHP0FMVE>
+                think 只 SHALL 出现在 thinking 卡片，assist 只 SHALL 出现在 assistant 卡片
+                </?01M05F1PT916PH8NPSVHP0FMVE>
+              ] (
+                <Given ?01M05F1PT916PH8NPSVHP0FMVF>
+                相同 semantic sequence 分别经 prompt、slash command 与 questionnaire continuation 到达 TUI
+                </?01M05F1PT916PH8NPSVHP0FMVF>
+                <When ?01M05F1PT916PH8NPSVHP0FMVG>
+                surface projector 处理这些 observations
+                </?01M05F1PT916PH8NPSVHP0FMVG>
+              )>
+            ]>
+          )>
+          <Suite #identity-reconciliation { name = "稳定身份消重" } (
+            <Cases [
+              <Case #live-and-durable-tool-merge [
+                <Then ?01M05F1PT916PH8NPSVHP0FMVH>
+                surface SHALL 以 actorId+toolCallId 合并为一个 TOOL 卡片
+                </?01M05F1PT916PH8NPSVHP0FMVH>
+                <Then ?01M05F1PT916PH8NPSVHP0FMVJ>
+                durable reconciliation SHALL 更新现有 identity，MUST NOT 清空并创建随机新 identity
+                </?01M05F1PT916PH8NPSVHP0FMVJ>
+              ] (
+                <Given ?01M05F1PT916PH8NPSVHP0FMVK>
+                同一 tool call 同时由 live history observation 和 durable conversation history 提供
+                </?01M05F1PT916PH8NPSVHP0FMVK>
+                <When ?01M05F1PT916PH8NPSVHP0FMVM>
+                TUI 完成 continuation 或重新 hydration
+                </?01M05F1PT916PH8NPSVHP0FMVM>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://runtime-projection-surfaces/requirements/exhaustive-conversation-role-projection" } (
+      <Requirement #exhaustive-conversation-role-projection (
+        <Statement ?01M05F1PT916PH8NPSVHP0FMVN>
+        TUI conversation projection SHALL exhaustive-map user、assistant、tool 与 system/internal role；仅 user SHALL 投影为 USER，tool SHALL 重建为 ToolPart/card，system/internal SHALL 隐藏或进入显式 diagnostic/context surface，MUST NOT 回退为 USER。
+        </?01M05F1PT916PH8NPSVHP0FMVN>
+        <Suites [
+          <Suite #role-map { name = "角色投影" } (
+            <Cases [
+              <Case #tool-and-system-never-user [
+                <Then ?01M05F1PT916PH8NPSVHP0FMVP>
+                tool 与 system 消息 MUST NOT 出现在 USER 卡片
+                </?01M05F1PT916PH8NPSVHP0FMVP>
+                <Then ?01M05F1PT916PH8NPSVHP0FMVQ>
+                tool SHALL 保留 toolCallId 形成结构化 ToolPart
+                </?01M05F1PT916PH8NPSVHP0FMVQ>
+              ] (
+                <Given ?01M05F1PT916PH8NPSVHP0FMVR>
+                durable conversation 包含 tool 与 system 消息
+                </?01M05F1PT916PH8NPSVHP0FMVR>
+                <When ?01M05F1PT916PH8NPSVHP0FMVS>
+                TUI hydrate 或 reconcile history
+                </?01M05F1PT916PH8NPSVHP0FMVS>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

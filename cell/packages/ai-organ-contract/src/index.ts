@@ -9,6 +9,7 @@ export * from "./conversation/LocalConversationSession";
 export * from "./llm/ProviderConfig";
 export * from "./llm/ProviderRuntime";
 export * from "./llm/ChatCompletionsEffectBundle";
+export * from "./llm/ProviderToolSchemaProjection";
 export * from "./llm/ResponsesReplay";
 export * from "./organization/MemberRole";
 export * from "./observability/Observability";

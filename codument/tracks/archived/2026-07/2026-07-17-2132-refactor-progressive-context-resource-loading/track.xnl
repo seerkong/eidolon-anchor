@@ -1,0 +1,164 @@
+<Track #refactor-progressive-context-resource-loading version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "建立 Skill 与普通文本共享的 content-addressed 渐进上下文资源加载机制" description = "复用 context asset 与 LLM Context owner，按 revision、fragment 和 provider visibility 决定复用或重交付。" question_mode = "decision-tree" question_severity = "light" commit_mode = "manual" created_at = "2026-07-17T18:17:18Z" updated_at = "2026-07-17T18:32:06Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-progressive-context-resource-loading { name = "refactor-progressive-context-resource-loading" } (
+    <Description ?01M05F1PKGF7VSM5EJQ86T39EC>
+    实现工具无关的本地文本资源事实、渐进交付和提示词所有权。
+    </?01M05F1PKGF7VSM5EJQ86T39EC>
+    <SubNodes [
+      <TaskGroup #P1 { name = "资源事实与决策核心" status = "DONE" order = 0 } (
+        <Description ?01M05F1PKGF7VSM5EJQ86T39ED>
+        扩展 context asset contract，并以 TDD 实现 revision、coverage、visibility 与持久恢复逻辑。
+        </?01M05F1PKGF7VSM5EJQ86T39ED>
+        <Gate [
+          <Criterion ?01M05F1PKGF7VSM5EJQ86T39EE>
+          资源事实不依赖 Skill 工具名称
+          </?01M05F1PKGF7VSM5EJQ86T39EE>
+          <Criterion ?01M05F1PKGF7VSM5EJQ86T39EF>
+          revision、fragment coverage、compaction visibility 和 recovery 均有聚焦测试
+          </?01M05F1PKGF7VSM5EJQ86T39EF>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "定义资源事实契约与兼容持久化" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PKGF7VSM5EJQ86T39EG>
+            先补失败测试，再扩展 context asset contract 与 Session-domain 命令，表达 canonical resource、revision、fragment 和 delivery；旧 session 字段缺失时兼容恢复。
+            </?01M05F1PKGF7VSM5EJQ86T39EG>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PKGF7VSM5EJQ86T39EH>
+              Context resource fact contract 不含 Skill-specific loaded 状态
+              </?01M05F1PKGF7VSM5EJQ86T39EH>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PKGF7VSM5EJQ86T39EJ>
+              资源事实经现有 conversation persistence round-trip 保持
+              </?01M05F1PKGF7VSM5EJQ86T39EJ>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1PKGF7VSM5EJQ86T39EK>
+              旧 context asset 数据仍可加载
+              </?01M05F1PKGF7VSM5EJQ86T39EK>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "实现 revision coverage 与可见性决策" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PKGF7VSM5EJQ86T39EM>
+            实现纯决策逻辑：SHA-256 revision、行范围 union/subtract、toolCall delivery 可见性、compacted/persisted wrapper 失效以及 reload decision。
+            </?01M05F1PKGF7VSM5EJQ86T39EM>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PKGF7VSM5EJQ86T39EN>
+              同 revision 完整 visible coverage 返回 already-visible
+              </?01M05F1PKGF7VSM5EJQ86T39EN>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PKGF7VSM5EJQ86T39EP>
+              内容变化使旧 coverage 失效
+              </?01M05F1PKGF7VSM5EJQ86T39EP>
+              <Criterion { id = "T1.2-AC3" checked = true } ?01M05F1PKGF7VSM5EJQ86T39EQ>
+              压缩、移除和部分覆盖产生正确 missing ranges
+              </?01M05F1PKGF7VSM5EJQ86T39EQ>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "本地读取与提示词接入" status = "DONE" order = 1 child_mode = "dag" } (
+        <Description ?01M05F1PKGF7VSM5EJQ86T39ER>
+        让 read 与 Skill resolver 共享 resource loader，并收回 terminal 的产品提示词语义。
+        </?01M05F1PKGF7VSM5EJQ86T39ER>
+        <Gate [
+          <Criterion ?01M05F1PKGF7VSM5EJQ86T39ES>
+          read 与 Skill 使用同一资源决策组件
+          </?01M05F1PKGF7VSM5EJQ86T39ES>
+          <Criterion ?01M05F1PKGF7VSM5EJQ86T39ET>
+          terminal 不再注入 Skill 加载语义
+          </?01M05F1PKGF7VSM5EJQ86T39ET>
+          <Criterion ?01M05F1PKGF7VSM5EJQ86T39EV>
+          未增加通用重复调用守卫
+          </?01M05F1PKGF7VSM5EJQ86T39EV>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "接入普通本地文本 read" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PKGF7VSM5EJQ86T39EW>
+            建立本地 text resource loader 并接入 read；保持目录 listing 与输入 schema，文件读取按 visible coverage 渐进交付且保持行号。
+            </?01M05F1PKGF7VSM5EJQ86T39EW>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PKGF7VSM5EJQ86T39EX>
+              read 首次加载、重复可见、范围扩展和文件变化测试通过
+              </?01M05F1PKGF7VSM5EJQ86T39EX>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PKGF7VSM5EJQ86T39EY>
+              目录读取行为与权限检查保持
+              </?01M05F1PKGF7VSM5EJQ86T39EY>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "接入 Skill resolver 并清理 prompt ownership" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PKGF7VSM5EJQ86T39EZ>
+            让 Skill 名称只解析到统一文本 loader；移除 Skill-specific loaded 协议与无条件重复义务，停止 terminal skillsDescription 文案进入 kernel prompt。
+            </?01M05F1PKGF7VSM5EJQ86T39EZ>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PKGF7VSM5EJQ86T39F0>
+              Skill 与 read 的资源事实和通用输出协议一致
+              </?01M05F1PKGF7VSM5EJQ86T39F0>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PKGF7VSM5EJQ86T39F1>
+              kernel 规则基于 revision/fragment/visibility 而非 Skill call count
+              </?01M05F1PKGF7VSM5EJQ86T39F1>
+              <Criterion { id = "T2.2-AC3" checked = true } ?01M05F1PKGF7VSM5EJQ86T39F2>
+              terminal-composed prompt 不含每轮重新读取 Skill 文案
+              </?01M05F1PKGF7VSM5EJQ86T39F2>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "恢复与回归验收" status = "DONE" order = 2 } (
+        <Description ?01M05F1PKGF7VSM5EJQ86T39F3>
+        覆盖恢复与压缩现场，执行聚焦测试和受影响包回归并记录证据。
+        </?01M05F1PKGF7VSM5EJQ86T39F3>
+        <Gate [
+          <Criterion ?01M05F1PKGF7VSM5EJQ86T39F4>
+          behavior delta 全部 case 有可执行覆盖
+          </?01M05F1PKGF7VSM5EJQ86T39F4>
+          <Criterion ?01M05F1PKGF7VSM5EJQ86T39F5>
+          受影响包聚焦测试与类型检查通过，或记录明确的既有失败
+          </?01M05F1PKGF7VSM5EJQ86T39F5>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "完成恢复压缩回归与全量 spot-check" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PKGF7VSM5EJQ86T39F6>
+            补恢复后复用、原结果压缩后重交付、Skill/read 等价和 terminal prompt 回归；运行受影响测试、typecheck 和 diff 审查。
+            </?01M05F1PKGF7VSM5EJQ86T39F6>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PKGF7VSM5EJQ86T39F7>
+              snapshot/recovery 后资源事实与可见性联合判定正确
+              </?01M05F1PKGF7VSM5EJQ86T39F7>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PKGF7VSM5EJQ86T39F8>
+              真实事故形态的重复 Skill/read 不再重复交付未变化且仍可见的文本
+              </?01M05F1PKGF7VSM5EJQ86T39F8>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1PKGF7VSM5EJQ86T39F9>
+              未引入工具次数或循环检测逻辑
+              </?01M05F1PKGF7VSM5EJQ86T39F9>
+              <Criterion { id = "T3.1-AC4" checked = true } ?01M05F1PKGF7VSM5EJQ86T39FA>
+              验证命令、diff 结论和残余风险写入 findings
+              </?01M05F1PKGF7VSM5EJQ86T39FA>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "P2" } [
+      <Node { id = "T2.2" } [
+        <After { ref = "T2.1" }>
+      ]>
+    ]>
+    <Parallel { max_concurrent = 2 spot_check = true }>
+  ]>
+)>

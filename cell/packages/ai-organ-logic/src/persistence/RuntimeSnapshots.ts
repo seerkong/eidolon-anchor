@@ -45,12 +45,15 @@ import {
 } from "./RecoveryReadPort"
 import { aiAgentCooperativeStep } from "../exec/AiAgentExecutor"
 import {
+  appendLiveHistoryMessageToConversationDomainRuntime,
   bindActorConversationProjectionToVm,
   ensureVmConversationDomainRuntime,
   getConversationActorRawStateFromVm,
   getConversationSessionRawStateFromVm,
+  getConversationVisibleMessagesFromVm,
   injectConversationActorRawState,
   injectConversationSessionRawState,
+  registerPendingToolResultDeliveryToConversationDomainRuntime,
 } from "../conversation/ConversationDomainRuntime"
 import {
   createAiAgentOrchestratorDriver,
@@ -456,6 +459,146 @@ async function closeSupersededRuntimeControlPendingEffects(params: {
       },
     })
   }
+}
+
+type SupersededToolEffect = {
+  effectId: string
+  toolCallId: string
+  error: string
+}
+
+function readToolCallIdFromEffectPayload(payload: unknown): string | null {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null
+  const descriptor = Object.getOwnPropertyDescriptor(payload, "toolCallId")
+  if (!descriptor || !("value" in descriptor) || typeof descriptor.value !== "string") return null
+  const toolCallId = descriptor.value.trim()
+  return toolCallId || null
+}
+
+function collectSupersededToolEffects(
+  effectEvidence: readonly AiRuntimeEffectLifecycleEvent[],
+): SupersededToolEffect[] {
+  const toolCallIdsByEffectId = new Map<string, string>()
+  const supersededByToolCallId = new Map<string, SupersededToolEffect>()
+  for (const event of effectEvidence) {
+    if (
+      event.kind === "request"
+      && (event.effectKind === "tool_call"
+        || event.effectKind === "bash"
+        || event.effectKind === "mcp_tool"
+        || event.effectKind === "questionnaire")
+    ) {
+      const toolCallId = readToolCallIdFromEffectPayload(event.payload)
+      if (toolCallId) toolCallIdsByEffectId.set(event.effectId, toolCallId)
+      continue
+    }
+    if (
+      event.kind !== "failed"
+      || event.effectKind !== "tool_call"
+      || event.handlerKey !== "tool:superseded"
+    ) {
+      continue
+    }
+    const toolCallId = toolCallIdsByEffectId.get(event.effectId)
+    if (!toolCallId) continue
+    const existing = supersededByToolCallId.get(toolCallId)
+    if (existing && existing.effectId !== event.effectId) {
+      throw new Error(`superseded_tool_lineage_conflict:duplicate_effect:${toolCallId}`)
+    }
+    supersededByToolCallId.set(toolCallId, {
+      effectId: event.effectId,
+      toolCallId,
+      error: event.error,
+    })
+  }
+  return [...supersededByToolCallId.values()]
+}
+
+function messageContainsToolCall(message: unknown, toolCallId: string): boolean {
+  if (!message || typeof message !== "object" || Array.isArray(message)) return false
+  if ((message as { role?: unknown }).role !== "assistant") return false
+  const candidate = message as {
+    toolCalls?: unknown
+    rawToolCalls?: unknown
+    tool_calls?: unknown
+  }
+  for (const toolCalls of [candidate.toolCalls, candidate.rawToolCalls, candidate.tool_calls]) {
+    if (Array.isArray(toolCalls) && toolCalls.some((toolCall) =>
+      !!toolCall
+      && typeof toolCall === "object"
+      && !Array.isArray(toolCall)
+      && (toolCall as { id?: unknown }).id === toolCallId
+    )) {
+      return true
+    }
+  }
+  return false
+}
+
+function messageIsToolResult(message: unknown, toolCallId: string): boolean {
+  if (!message || typeof message !== "object" || Array.isArray(message)) return false
+  if ((message as { role?: unknown }).role !== "tool") return false
+  const candidate = message as { tool_call_id?: unknown; toolCallId?: unknown }
+  return candidate.tool_call_id === toolCallId || candidate.toolCallId === toolCallId
+}
+
+function reconcileSupersededToolLineageOnRecovery(params: {
+  vm: AiAgentVm
+  actors: Record<string, AiAgentActor>
+  sessionId: string
+  effectEvidence: readonly AiRuntimeEffectLifecycleEvent[]
+  occurredAt: number
+}): string[] {
+  const domain = getVmToolCallDomain(params.vm)
+  if (!domain) return []
+  const repairedToolCallIds: string[] = []
+  for (const superseded of collectSupersededToolEffects(params.effectEvidence)) {
+    const record = domain.getRecord(superseded.toolCallId)
+    if (!record || (record.status !== "dispatched" && record.status !== "executing")) continue
+    const actor = params.actors[record.actorKey]
+    if (!actor) {
+      throw new Error(`superseded_tool_lineage_conflict:missing_actor:${superseded.toolCallId}`)
+    }
+    const messages = getConversationVisibleMessagesFromVm({
+      vm: params.vm,
+      actorKey: actor.key,
+    })
+    const hasCall = messages.some((message) => messageContainsToolCall(message, superseded.toolCallId))
+    const hasResult = messages.some((message) => messageIsToolResult(message, superseded.toolCallId))
+    if (hasResult) {
+      throw new Error(`superseded_tool_lineage_conflict:existing_result:${superseded.toolCallId}`)
+    }
+    const outputText = superseded.error || "Error: tool call was superseded before recovery"
+    domain.recordFailure({
+      toolCallId: superseded.toolCallId,
+      failureKind: "aborted",
+      outputText,
+      at: params.occurredAt,
+    })
+    if (hasCall) {
+      const occurredAt = new Date(params.occurredAt).toISOString()
+      registerPendingToolResultDeliveryToConversationDomainRuntime({
+        runtime: ensureVmConversationDomainRuntime(params.vm),
+        sessionId: params.sessionId,
+        actorKey: actor.key,
+        toolCallId: superseded.toolCallId,
+        occurredAt,
+      })
+      appendLiveHistoryMessageToConversationDomainRuntime({
+        vm: params.vm,
+        actorKey: actor.key,
+        actorId: actor.id,
+        message: {
+          role: "tool",
+          content: outputText,
+          tool_call_id: superseded.toolCallId,
+        } as any,
+        occurredAt,
+      })
+    }
+    repairedToolCallIds.push(superseded.toolCallId)
+  }
+  return repairedToolCallIds
 }
 
 function hasPendingAiGeneratedForInflight(actor: AiAgentActor, execState: any | null): boolean {
@@ -1646,6 +1789,21 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
   for (const actor of Object.values(actors)) {
     bindActorConversationProjectionToVm(vm, actor)
   }
+
+  // A runtime-control checkpoint may close an abandoned tool effect after a
+  // later turn has already advanced the fiber. In that shape there is no
+  // recovered inflight operation to replay, so reconcile the two durable
+  // domain owners directly before any provider projection can observe the
+  // conversation. Effect evidence supplies only the terminal/link fact;
+  // ToolCallDomain owns lifecycle state and Conversation owns the paired
+  // provider-visible result.
+  reconcileSupersededToolLineageOnRecovery({
+    vm,
+    actors,
+    sessionId: params.sessionId,
+    effectEvidence,
+    occurredAt: conversationHydratedAt,
+  })
 
   const controlActor = getControlActor(vm)
   if (!controlActor) {

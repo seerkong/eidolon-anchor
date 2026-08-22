@@ -1,0 +1,43 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_2_6_-_1_8_5_0_-_m_i_g_r_a_t_e_-_c_e_l_l_-_d_a_t_a_-_g_r_a_p_h_-_f_o_u_n_d_a_t_i_o_n_s.behavior_patch.vendor-data-graph-modular-node-identity apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-data-graph-modular-node-identity" } (
+  <Mutations [
+    <Upsert { selector = "behavior://vendor-data-graph-modular-node-identity/requirements/cell-stage-graph-unified-consumer-contract" } (
+      <Requirement #cell-stage-graph-unified-consumer-contract (
+        <Statement ?01M05F1PMR4DWDX5TY3KN6B7VD>
+        Cell stage graph foundations SHALL use the unified DataGraph consumer contract while preserving lexical-to-syntactic-to-semantic event ordering, callback delivery, module identity, and focused runtime behavior.
+        </?01M05F1PMR4DWDX5TY3KN6B7VD>
+        <Suites [
+          <Suite #stage-consumer-migration { name = "Stage consumer migration" } (
+            <Cases [
+              <Case #consumer-callbacks-read-current-state-through-unified-contract [
+                <Then ?01M05F1PMR4DWDX5TY3KN6B7VE>
+                consumer callbacks SHALL NOT rely on the removed callback ctx.get shape
+                </?01M05F1PMR4DWDX5TY3KN6B7VE>
+                <Then ?01M05F1PMR4DWDX5TY3KN6B7VF>
+                they SHALL read the intended current graph state through the supported unified graph contract
+                </?01M05F1PMR4DWDX5TY3KN6B7VF>
+              ] (
+                <Given ?01M05F1PMR4DWDX5TY3KN6B7VG>
+                ReferenceAlignedStageDataGraph registers consumers for lexical, syntactic, and semantic state transitions
+                </?01M05F1PMR4DWDX5TY3KN6B7VG>
+                <When ?01M05F1PMR4DWDX5TY3KN6B7VH>
+                the graph runs on depa-data-graph 1.0.1
+                </?01M05F1PMR4DWDX5TY3KN6B7VH>
+              )>
+              <Case #stage-pipeline-focused-behavior-remains-stable (
+                <Given ?01M05F1PMR4DWDX5TY3KN6B7VJ>
+                existing live/replay stage and semantic stream fixtures
+                </?01M05F1PMR4DWDX5TY3KN6B7VJ>
+                <When ?01M05F1PMR4DWDX5TY3KN6B7VK>
+                the unified consumer callbacks process lexical input
+                </?01M05F1PMR4DWDX5TY3KN6B7VK>
+                <Then ?01M05F1PMR4DWDX5TY3KN6B7VM>
+                they SHALL retain ordered stage outputs and callback-visible events
+                </?01M05F1PMR4DWDX5TY3KN6B7VM>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

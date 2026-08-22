@@ -1,0 +1,48 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_1_-_0_8_0_0_-_r_e_f_a_c_t_o_r_-_d_u_r_a_b_l_e_-_a_c_t_o_r_-_c_o_n_t_r_o_l_-_s_i_g_n_a_l_s.behavior_patch.ai-agent-vm-rx-data-plane apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-agent-vm-rx-data-plane" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-agent-vm-rx-data-plane/requirements/control-signal-stream-and-scheduler-signal" } (
+      <Requirement #control-signal-stream-and-scheduler-signal (
+        <Statement ?01M05F1PEMGK457J9K4621G1WS>
+        系统 SHALL expose durable control-signal events as stream data and current scheduler readiness as signal/projection data without mixing the two.
+        </?01M05F1PEMGK457J9K4621G1WS>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-agent-vm-rx-data-plane/control-signal-stream-and-scheduler-signal" strength = "hint" }>
+        <Suites [
+          <Suite #stream-signal-separation { name = "Control data-plane separation" } (
+            <Cases [
+              <Case #control-events-are-stream [
+                <Then ?01M05F1PEMGK457J9K4621G1WT>
+                The facts SHALL be represented as ordered control event stream records
+                </?01M05F1PEMGK457J9K4621G1WT>
+                <Then ?01M05F1PEMGK457J9K4621G1WV>
+                They SHALL carry causation id, correlation id, fiber id, actor key, mailbox kind, priority, and idempotency key where applicable
+                </?01M05F1PEMGK457J9K4621G1WV>
+              ] (
+                <Given ?01M05F1PEMGK457J9K4621G1WW>
+                The runtime emits mailbox enqueue, control interrupt, async completion, resume, suspend, or cancellation facts
+                </?01M05F1PEMGK457J9K4621G1WW>
+                <When ?01M05F1PEMGK457J9K4621G1WX>
+                These facts enter the data plane
+                </?01M05F1PEMGK457J9K4621G1WX>
+              )>
+              <Case #readiness-is-signal [
+                <Then ?01M05F1PEMGK457J9K4621G1WY>
+                The current state SHALL be exposed as signal or signal projection
+                </?01M05F1PEMGK457J9K4621G1WY>
+                <Then ?01M05F1PEMGK457J9K4621G1WZ>
+                The runtime SHALL NOT encode current readiness by appending fake semantic events
+                </?01M05F1PEMGK457J9K4621G1WZ>
+              ] (
+                <Given ?01M05F1PEMGK457J9K4621G1X0>
+                The scheduler derives whether a fiber is ready, running, suspended, interrupted, or blocked
+                </?01M05F1PEMGK457J9K4621G1X0>
+                <When ?01M05F1PEMGK457J9K4621G1X1>
+                The public runtime data plane exposes current scheduler state
+                </?01M05F1PEMGK457J9K4621G1X1>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

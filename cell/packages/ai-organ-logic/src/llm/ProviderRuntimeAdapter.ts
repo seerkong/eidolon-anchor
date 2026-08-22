@@ -24,7 +24,7 @@ import {
 } from "./ProviderOptions";
 import { getProviderDriver } from "./ProviderDriverRegistry";
 import { emitProviderDiagnostic } from "./ProviderDiagnostics";
-import { executeWithProviderRetry } from "./ProviderErrors";
+import { createProviderStreamWithRetry } from "./ProviderErrors";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
 
 export type ProviderRuntimeLlmAdapterSettings = {
@@ -119,16 +119,18 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
       runtime,
       providerRequestContext: options.providerRequestContext,
     };
+    const driverPrepared = this.driver.prepareRequest?.(requestParams);
     return {
       driver: this.driver,
       runtime,
-      contract: this.driver.buildRequest?.(requestParams) ?? {
-        body: { model: options.model },
-      },
+      contract: driverPrepared?.contract ?? this.driver.buildRequest?.(requestParams) ?? {
+          body: { model: options.model },
+        },
       connectionOptions,
       requestOptions,
       extraBody,
       continuation: split.continuation,
+      toolSchemaProjectionAuthority: driverPrepared?.toolSchemaProjectionAuthority,
     };
   }
 
@@ -140,69 +142,71 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
       providerCallOrdinal,
     );
     let providerAttemptOrdinal = 0;
-    try {
-      const result = await executeWithProviderRetry(
-        () => {
-          providerAttemptOrdinal += 1;
-          const identity: ProviderAttemptIdentity = {
-            providerCallId,
-            providerCallOrdinal,
-            providerAttemptOrdinal,
-          };
-          const transportRequestObserver =
-            createProviderTransportRequestObserver(prepared, options, identity);
-          captureProviderScene(prepared, "request", undefined, identity);
-          return this.driver.createStream({
-            model: options.model,
-            messages: options.messages,
-            tools: options.tools,
-            requestOptions: prepared.requestOptions,
-            extraBody: prepared.extraBody,
-            connectionOptions: prepared.connectionOptions,
-            runtime: prepared.runtime,
-            providerRequestContext: options.providerRequestContext,
-            signal: options.signal,
-            transportRequestObserver,
-            // Provider correlation identity: prefer the per-turn key from the
-            // caller, otherwise derive one from the explicit runtime.
-            sessionKey:
-              options.sessionKey || deriveRuntimeSessionKey(prepared.runtime),
-          }) as Promise<LlmStreamResult>;
+    const result = createProviderStreamWithRetry(
+      async (attemptNumber) => {
+        providerAttemptOrdinal = attemptNumber;
+        const identity: ProviderAttemptIdentity = {
+          providerCallId,
+          providerCallOrdinal,
+          providerAttemptOrdinal,
+        };
+        const transportRequestObserver =
+          createProviderTransportRequestObserver(prepared, options, identity);
+        captureProviderScene(prepared, "request", undefined, identity);
+        return await this.driver.createStream({
+          model: options.model,
+          messages: options.messages,
+          tools: options.tools,
+          requestOptions: prepared.requestOptions,
+          extraBody: prepared.extraBody,
+          connectionOptions: prepared.connectionOptions,
+          runtime: prepared.runtime,
+          providerRequestContext: options.providerRequestContext,
+          signal: options.signal,
+          transportRequestObserver,
+          toolSchemaProjectionAuthority: prepared.toolSchemaProjectionAuthority,
+          // Provider correlation identity: prefer the per-turn key from the
+          // caller, otherwise derive one from the explicit runtime.
+          sessionKey:
+            options.sessionKey || deriveRuntimeSessionKey(prepared.runtime),
+        });
+      },
+      {
+        stage: "stream",
+        providerId: this.runtime.providerId,
+        selectedModel: this.runtime.selectedModel,
+        signal: options.signal,
+        onDiagnostic: (event) => {
+          emitProviderDiagnostic(prepared.runtime.diagnostics, "retry", {
+            ...event,
+            agentName:
+              prepared.runtime.providerId ||
+              prepared.runtime.adapterName ||
+              "provider",
+            actorId: prepared.runtime.actorId,
+            sessionId: prepared.runtime.sessionId,
+            turnId: prepared.runtime.turnId,
+            traceId: prepared.runtime.traceId,
+            eventType: "provider_retry_diagnostic",
+          });
         },
-        {
-          stage: "stream",
-          providerId: this.runtime.providerId,
-          selectedModel: this.runtime.selectedModel,
-          onDiagnostic: (event) => {
-            emitProviderDiagnostic(prepared.runtime.diagnostics, "retry", {
-              ...event,
-              agentName:
-                prepared.runtime.providerId ||
-                prepared.runtime.adapterName ||
-                "provider",
-              actorId: prepared.runtime.actorId,
-              sessionId: prepared.runtime.sessionId,
-              turnId: prepared.runtime.turnId,
-              traceId: prepared.runtime.traceId,
-              eventType: "provider_retry_diagnostic",
-            });
-          },
-        },
+      },
+    );
+    if (result.providerOutput) {
+      void result.providerOutput.then(
+        () => captureProviderScene(prepared, "response", undefined, {
+          providerCallId,
+          providerCallOrdinal,
+          providerAttemptOrdinal,
+        }),
+        (error) => captureProviderScene(prepared, "error", error, {
+          providerCallId,
+          providerCallOrdinal,
+          providerAttemptOrdinal,
+        }),
       );
-      captureProviderScene(prepared, "response", undefined, {
-        providerCallId,
-        providerCallOrdinal,
-        providerAttemptOrdinal,
-      });
-      return result;
-    } catch (error) {
-      captureProviderScene(prepared, "error", error, {
-        providerCallId,
-        providerCallOrdinal,
-        providerAttemptOrdinal,
-      });
-      throw error;
     }
+    return result;
   }
 }
 
@@ -295,6 +299,9 @@ function createProviderTransportRequestObserver(
         previousResponseId: input.requestPlan?.previousResponseId ?? null,
         previousResponseIdDecisionReason:
           input.requestPlan?.previousResponseIdDecisionReason ?? null,
+        ...(input.toolSchemaCoverage
+          ? { toolSchemaCoverage: input.toolSchemaCoverage }
+          : {}),
         requestContract: copied.requestContract,
       };
       port.append(observation);

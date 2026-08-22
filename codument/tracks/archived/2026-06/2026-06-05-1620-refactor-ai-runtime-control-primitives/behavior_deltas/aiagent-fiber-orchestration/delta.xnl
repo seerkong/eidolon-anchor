@@ -1,0 +1,32 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_5_-_1_6_2_0_-_r_e_f_a_c_t_o_r_-_a_i_-_r_u_n_t_i_m_e_-_c_o_n_t_r_o_l_-_p_r_i_m_i_t_i_v_e_s.behavior_patch.aiagent-fiber-orchestration apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-fiber-orchestration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-fiber-orchestration/requirements/runtime-control-barrier-consumers" } (
+      <Requirement #runtime-control-barrier-consumers (
+        <Statement ?01M05F1PFW9M8GF000Z1HAB6P8>
+        系统 SHALL let runtime coordination consumers use AI runtime control barrier APIs instead of duplicating mailbox and cooperative-state classification.
+        </?01M05F1PFW9M8GF000Z1HAB6P8>
+        <Suites [
+          <Suite #coordinator-save-before-progress { name = "Coordinator Save Before Progress" } (
+            <Cases [
+              <Case #coordinator-uses-runtime-control-barrier [
+                <Then ?01M05F1PFW9M8GF000Z1HAB6P9>
+                The coordinator SHALL inspect the AI runtime control barrier
+                </?01M05F1PFW9M8GF000Z1HAB6P9>
+                <Then ?01M05F1PFW9M8GF000Z1HAB6PA>
+                The coordinator SHALL NOT import safepoint implementation from persistence code
+                </?01M05F1PFW9M8GF000Z1HAB6PA>
+              ] (
+                <Given ?01M05F1PFW9M8GF000Z1HAB6PB>
+                The runtime coordinator is about to save a snapshot after queued work
+                </?01M05F1PFW9M8GF000Z1HAB6PB>
+                <When ?01M05F1PFW9M8GF000Z1HAB6PC>
+                It decides whether foreground progress is needed first
+                </?01M05F1PFW9M8GF000Z1HAB6PC>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,171 @@
+<Track #refactor-aiagent-actorization-residual-cleanup version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "进一步收口 coordination 兼容缓存、organization projection fallback 与术语漂移，让 actor-owned truth 边界更严格一致。" commit_mode = "manual" created_at = "2026-03-31T00:00:00Z" updated_at = "2026-03-31T23:59:59Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-aiagent-actorization-residual-cleanup { name = "refactor-aiagent-actorization-residual-cleanup" } (
+    <Description ?01M05F1P9NA56A04AM6NG9ZKP1>
+    收口 AIAgent actorization 残余兼容层与术语漂移
+    </?01M05F1P9NA56A04AM6NG9ZKP1>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Track Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1P9NA56A04AM6NG9ZKP2>
+        固化 residual cleanup 的 spec / proposal / design / plan 边界。
+        </?01M05F1P9NA56A04AM6NG9ZKP2>
+        <SubNodes [
+          <Task { id = "T1.1" name = "编写 proposal.md" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKP3>
+            将 actorization follow-up 中的 residual cleanup 目标收敛为自包含 proposal。
+            </?01M05F1P9NA56A04AM6NG9ZKP3>
+          )>
+          <Task { id = "T1.2" name = "编写 spec.md" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKP4>
+            把 coordination fallback、organization actor query 与术语同步写成可验证 requirement。
+            </?01M05F1P9NA56A04AM6NG9ZKP4>
+          )>
+          <Task { id = "T1.3" name = "编写 design.md 与 plan.xml" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKP5>
+            固化 cleanup 策略、兼容边界、风险与执行计划。
+            </?01M05F1P9NA56A04AM6NG9ZKP5>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Coordination Truth Cleanup" status = "DONE" order = 1 } (
+        <Description ?01M05F1P9NA56A04AM6NG9ZKP6>
+        让 coordination legacy store 退出默认 live truth 判定路径。
+        </?01M05F1P9NA56A04AM6NG9ZKP6>
+        <SubNodes [
+          <Task { id = "T2.1" name = "收口 CoordinationEngine store-only fallback 语义" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKP7>
+            将 legacy store 明确降级为诊断/兼容缓存，不再把 store-only record 当作默认 actor-owned live truth。
+            </?01M05F1P9NA56A04AM6NG9ZKP7>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1P9NA56A04AM6NG9ZKP8>
+              没有 actor owner、也没有 pending mailbox 的 request，不再被默认解释为 live coordination state
+              </?01M05F1P9NA56A04AM6NG9ZKP8>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1P9NA56A04AM6NG9ZKP9>
+              如仍保留 store-only record，可见输出会显式表明其 degraded/unowned 语义
+              </?01M05F1P9NA56A04AM6NG9ZKP9>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "收口 recovery 后 coordination index 回灌语义" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKPA>
+            调整 recovery 与 status query，让 derived index 回灌只作为兼容诊断输入，而不是 live truth fallback。
+            </?01M05F1P9NA56A04AM6NG9ZKPA>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPB>
+              recovery 后 coordination 可见性优先来自 actor-owned state 或 pending mailbox
+              </?01M05F1P9NA56A04AM6NG9ZKPB>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPC>
+              focused tests 能区分 live truth 与 degraded cache 路径
+              </?01M05F1P9NA56A04AM6NG9ZKPC>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Organization Query Cleanup" status = "DONE" order = 2 } (
+        <Description ?01M05F1P9NA56A04AM6NG9ZKPD>
+        让 collective / formation 的正式 query/status 路径优先暴露真实 actor。
+        </?01M05F1P9NA56A04AM6NG9ZKPD>
+        <SubNodes [
+          <Task { id = "T3.1" name = "收口 organization actor 解析路径" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKPE>
+            调整 `_resolveActorTarget` 与相关工具，使 manager 已确保 actor 存在后优先返回真实 organization actor。
+            </?01M05F1P9NA56A04AM6NG9ZKPE>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPF>
+              正式 query/status/watch 路径默认命中真实 collective / formation actor，而不是 `type:null` synthetic subject
+              </?01M05F1P9NA56A04AM6NG9ZKPF>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPG>
+              synthetic projection 只保留在显式 degraded/兼容路径
+              </?01M05F1P9NA56A04AM6NG9ZKPG>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "收口 ActorStatus 与 typed wrapper 的 organization 输出" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKPH>
+            让 ActorStatus / CollectiveStatus / FormationStatus 优先基于 actor-owned state 计算 task summary、watch state 与 identity。
+            </?01M05F1P9NA56A04AM6NG9ZKPH>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPJ>
+              organization status 输出不再依赖 control taskTree projection 作为默认 summary 来源
+              </?01M05F1P9NA56A04AM6NG9ZKPJ>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPK>
+              focused tests 能明确断言 organization query 命中真实 actor
+              </?01M05F1P9NA56A04AM6NG9ZKPK>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Docs And Prompt Alignment" status = "DONE" order = 3 } (
+        <Description ?01M05F1P9NA56A04AM6NG9ZKPM>
+        同步 vendor 文档与 runtime prompt 到当前正式术语。
+        </?01M05F1P9NA56A04AM6NG9ZKPM>
+        <SubNodes [
+          <Task { id = "T4.1" name = "更新 vendor actor 指南" status = "DONE" order = 0 priority = "P1" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKPN>
+            补齐 `coordination` mailbox 与当前正式 assign surface，消除 vendor 文档中的术语遗漏。
+            </?01M05F1P9NA56A04AM6NG9ZKPN>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPP>
+              vendor 指南已明确包含 coordination mailbox
+              </?01M05F1P9NA56A04AM6NG9ZKPP>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPQ>
+              assign surface 表述与当前正式实现一致
+              </?01M05F1P9NA56A04AM6NG9ZKPQ>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "更新 runtime prompt 与帮助文案" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKPR>
+            同步 runtime prompt 与帮助文案，使其与当前正式 assign surface 对齐，并保留 `assign:r` 作为显式 final 写法。
+            </?01M05F1P9NA56A04AM6NG9ZKPR>
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPS>
+              runtime prompt 与帮助文案对 `assign`、`assign:r`、`assign:n`、`assign:s` 的展示与正式 surface 一致
+              </?01M05F1P9NA56A04AM6NG9ZKPS>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPT>
+              受影响 tests / fixtures 已同步更新
+              </?01M05F1P9NA56A04AM6NG9ZKPT>
+            ]>
+          )>
+          <Task { id = "T4.3" name = "回写 track 文档中的 assign:r 正式边界" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKPV>
+            修正 proposal/spec/design 中把 `assign:r` 误写为待删除旧写法的描述，明确其为正式显式 final 写法。
+            </?01M05F1P9NA56A04AM6NG9ZKPV>
+            <Acceptance [
+              <Criterion { id = "T4.3-AC1" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPW>
+              track 文档明确 `assign:r` 是正式命令面的一部分
+              </?01M05F1P9NA56A04AM6NG9ZKPW>
+              <Criterion { id = "T4.3-AC2" checked = true } ?01M05F1P9NA56A04AM6NG9ZKPX>
+              track 文档不再把保留 `assign:r` 视为偏差
+              </?01M05F1P9NA56A04AM6NG9ZKPX>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Verification" status = "DONE" order = 4 } (
+        <Description ?01M05F1P9NA56A04AM6NG9ZKPY>
+        通过 focused tests 与 strict validation 锁定 residual cleanup。
+        </?01M05F1P9NA56A04AM6NG9ZKPY>
+        <SubNodes [
+          <Task { id = "T5.1" name = "补充 coordination 与 organization residual cleanup focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKPZ>
+            为 store-only coordination、organization actor query、prompt/doc 对齐补 focused tests 与断言。
+            </?01M05F1P9NA56A04AM6NG9ZKPZ>
+          )>
+          <Task { id = "T5.2" name = "执行 strict validation 与回归验证" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKQ0>
+            运行 `codument validate --strict` 与受影响 focused tests，确认 residual cleanup 收口。
+            </?01M05F1P9NA56A04AM6NG9ZKQ0>
+          )>
+          <Task { id = "T5.3" name = "补充 assign:r 术语对齐 focused tests" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1P9NA56A04AM6NG9ZKQ1>
+            为 runtime prompt、slash help / parser 对 `assign:r` 的正式可见性补 focused tests，避免后续再次误收口。
+            </?01M05F1P9NA56A04AM6NG9ZKQ1>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

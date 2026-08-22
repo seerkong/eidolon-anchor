@@ -1,0 +1,146 @@
+<Behavior #replace-apply-patch-tool apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #applypatch-shall-support-the-structured-patch-dsl (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFET>
+      The tool SHALL accept a complete patch document with `*** Begin Patch` and `*** End Patch` markers and SHALL support these operations:
+      - `*** Add File: path`
+      - `*** Update File: path`
+      - `*** Delete File: path`
+      - `*** Move to: new/path` under update operations
+      </?01M05F1P31HTTVZR7CRTDDYFET>
+      <Suites [
+        <Suite { name = "applypatch-shall-support-the-structured-patch-dsl" } (
+          <Cases [
+            <Case #apply-an-update-patch { name = "Apply an update patch" }>
+            <Case #reject-malformed-patch-envelope { name = "Reject malformed patch envelope" }>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #update-hunks-shall-support-real-named-anchors (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFEV>
+      The tool SHALL parse `@@` hunk headers as anchors. A hunk MAY contain one or more consecutive `@@ ...` anchor lines before its body. Non-empty anchor text SHALL be used to locate the hunk's search region in order.
+      </?01M05F1P31HTTVZR7CRTDDYFEV>
+      <Suites [
+        <Suite { name = "update-hunks-shall-support-real-named-anchors" } (
+          <Cases [
+            <Case #use-a-function-anchor { name = "Use a function anchor" }>
+            <Case #multiple-anchors-narrow-the-search-region { name = "Multiple anchors narrow the search region" }>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #hunk-matching-shall-be-safe-and-resilient (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFEW>
+      The tool SHALL attempt hunk matching in a controlled order:
+      1. exact line sequence matching
+      2. anchored exact matching when anchors are present
+      3. normalized matching that ignores trailing whitespace differences
+      4. fuzzy whitespace-collapsed matching
+      If normalized or fuzzy matching finds multiple candidate locations, the tool SHALL fail closed instead of guessing.
+      </?01M05F1P31HTTVZR7CRTDDYFEW>
+      <Suites [
+        <Suite { name = "hunk-matching-shall-be-safe-and-resilient" } (
+          <Cases [
+            <Case #match-despite-trailing-whitespace-drift { name = "Match despite trailing whitespace drift" }>
+            <Case #reject-ambiguous-fuzzy-match { name = "Reject ambiguous fuzzy match" }>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #file-writes-shall-be-staged-and-guarded (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFEX>
+      The tool SHALL validate all operations before committing filesystem changes where practical. It SHALL guard against unsafe file operations:
+      - Add file SHALL fail if the target file already exists.
+      - Delete file SHALL fail if the target is missing or a directory.
+      - Update file SHALL fail if the source is missing or a directory.
+      - Move SHALL fail if the destination already exists.
+      - A single patch SHALL fail if it touches the same resolved path multiple times.
+      </?01M05F1P31HTTVZR7CRTDDYFEX>
+      <Suites [
+        <Suite { name = "file-writes-shall-be-staged-and-guarded" } (
+          <Cases [
+            <Case #add-existing-file-is-rejected { name = "Add existing file is rejected" }>
+            <Case #move-onto-existing-file-is-rejected { name = "Move onto existing file is rejected" }>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #path-resolution-and-permissions-shall-follow-this-project-s-governance (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFEY>
+      The implementation SHALL preserve this project's accepted path semantics and local permission flow. Relative paths, absolute paths, home-relative paths, and traversal-like inputs SHALL be resolved by existing path helpers and SHALL go through existing permission/workspace access gates before mutation.
+      </?01M05F1P31HTTVZR7CRTDDYFEY>
+      <Suites [
+        <Suite { name = "path-resolution-and-permissions-shall-follow-this-project-s-governance" } (
+          <Cases [
+            <Case #permission-denied-blocks-mutation { name = "Permission denied blocks mutation" }>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #output-shall-preserve-diff-compatibility-and-add-structured-metadata (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFEZ>
+      On success, the tool SHALL keep the current unified diff output compatibility and SHALL add structured metadata where applicable:
+      - `ok`
+      - `touched_files`
+      - `touched_files_absolute`
+      - `added_count`
+      - `updated_count`
+      - `deleted_count`
+      - `moved_count`
+      - `match_modes_used`
+      - `context_refresh_hint` when files changed
+      - any invalidated read-cache entries if the project supports such tracking
+      On failure, the tool SHALL return structured error data with actionable diagnostics.
+      </?01M05F1P31HTTVZR7CRTDDYFEZ>
+      <Suites [
+        <Suite { name = "output-shall-preserve-diff-compatibility-and-add-structured-metadata" } (
+          <Cases [
+            <Case #successful-update-returns-diff-and-metadata { name = "Successful update returns diff and metadata" }>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #failure-diagnostics-shall-guide-recovery (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFF0>
+      When hunk application fails, the tool SHALL report enough information for an agent to recover:
+      - hunk label / anchor label
+      - expected old snippet summary
+      - nearest current line when available
+      - reason for failure
+      - retry hint recommending fresh read and smaller/named-anchor hunks
+      </?01M05F1P31HTTVZR7CRTDDYFF0>
+      <Suites [
+        <Suite { name = "failure-diagnostics-shall-guide-recovery" } (
+          <Cases [
+            <Case #stale-hunk-fails-with-useful-detail { name = "Stale hunk fails with useful detail" }>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #applypatch-shall-integrate-with-freshness-context-refresh-when-available (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFF1>
+      The tool SHALL check available read freshness/cache mechanisms before writing and SHALL invalidate affected file context after writing. If the project does not already provide a compatible read cache, the implementation SHALL provide the smallest project-appropriate adapter or explicitly document the boundary while still returning a context refresh hint for touched files.
+      </?01M05F1P31HTTVZR7CRTDDYFF1>
+      <Suites [
+        <Suite { name = "applypatch-shall-integrate-with-freshness-context-refresh-when-available" } (
+          <Cases [
+            <Case #earlier-read-context-becomes-stale-after-patch { name = "Earlier read context becomes stale after patch" }>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #prompt-tool-descriptions-shall-instruct-patch-first-editing (
+      <Statement ?01M05F1P31HTTVZR7CRTDDYFF2>
+      The ApplyPatch tool detail and relevant coding-agent prompt guidance SHALL instruct agents to prefer ApplyPatch for normal text edits, use small hunks, prefer named anchors, reread after failures, and avoid shell-simulated editing for ordinary text changes.
+      </?01M05F1P31HTTVZR7CRTDDYFF2>
+      <Suites [
+        <Suite { name = "prompt-tool-descriptions-shall-instruct-patch-first-editing" } (
+          <Cases [
+            <Case #tool-detail-documents-named-anchor-usage { name = "Tool detail documents named anchor usage" }>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

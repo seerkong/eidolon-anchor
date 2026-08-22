@@ -2,7 +2,7 @@
 
 > `codument/engineering/` 是项目的**长期工程知识真源**：实现方式、维护操作、工程规则、示例、参考、排障、runbook、code map。它与 `codument/modeling/` 正交：modeling 答“系统结构真相是什么”，engineering 答“人和 AI 应该如何实现、维护、排障”。
 >
-> 仅当 `codument/config/engineering.xml` 的 engineering profile `enabled` 时启用；默认关，存量项目无感。
+> 仅当 `codument/config/engineering.xnl` 的 engineering profile `enabled` 时启用；默认关，存量项目无感。
 >
 > XNL 语法权威见 [std/spec/xnl-format.md](./xnl-format.md)。
 
@@ -10,7 +10,7 @@
 
 ```text
 codument/engineering/
-├── <plane>/                       global/backend/surface/runtime/storage/agents/actions/...
+├── <plane>/                       global/backend/surface/runtime/storage/agents/operations/...
 │   └── <category>/                overview/howto/rules/examples/reference/troubleshooting/runbooks/code-map
 │       ├── <topic>.xnl            小主题单文件
 │       └── <topic>/               变大后同名文件夹演化

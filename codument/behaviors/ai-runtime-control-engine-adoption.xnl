@@ -1,0 +1,343 @@
+<Behavior #ai-runtime-control-engine-adoption apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #domain-wrapper (
+      <Statement ?01M05F1P0NYA5Y8H5VEHJSJDWQ>
+      AI runtime SHALL 通过 AI 领域 wrapper 采用 runtime control engine，将 mailbox、conversation、snapshot、tool/effect result、ingress 和 diagnostics 映射为 vendor 层 command、effect 和 durable head，并通过 depa-actor@0.2.0 CommandDequeGroup 表达内部 command worklist。
+      </?01M05F1P0NYA5Y8H5VEHJSJDWQ>
+      <Suites [
+        <Suite #domain-mapping { name = "领域映射" } (
+          <Cases [
+            <Case #vendor-hidden-from-ai-runtime-callers (
+              <Given ?01M05F1P0NYA5Y8H5VEHJSJDWR>
+              AI runtime 需要提交 human input、tool result 或 snapshot 相关操作
+              </?01M05F1P0NYA5Y8H5VEHJSJDWR>
+              <When ?01M05F1P0NYA5Y8H5VEHJSJDWS>
+              业务代码调用 runtime-control 能力
+              </?01M05F1P0NYA5Y8H5VEHJSJDWS>
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDWT>
+              业务代码 SHALL 调用 AI 领域语义化 primitive，而不是直接拼装 vendor durable cohort 细节
+              </?01M05F1P0NYA5Y8H5VEHJSJDWT>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #adopt-after-engine-validation (
+      <Statement ?01M05F1P0NYA5Y8H5VEHJSJDWV>
+      AI runtime SHALL NOT 用未独立验证的 runtime control engine 替换现有编排路径；替换前必须通过 vendor engine conformance tests 和 AI session recovery adoption tests。
+      </?01M05F1P0NYA5Y8H5VEHJSJDWV>
+      <Suites [
+        <Suite #replacement-gate { name = "替换门禁" } (
+          <Cases [
+            <Case #test-before-runtime-replacement (
+              <Given ?01M05F1P0NYA5Y8H5VEHJSJDWW>
+              runtime control engine 设计或实现已完成
+              </?01M05F1P0NYA5Y8H5VEHJSJDWW>
+              <When ?01M05F1P0NYA5Y8H5VEHJSJDWX>
+              准备替换 AI runtime 的 session 编排和持久化路径
+              </?01M05F1P0NYA5Y8H5VEHJSJDWX>
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDWY>
+              系统 SHALL 先通过 crash recovery、dirty head classification、long-running effect wait 和 cohort commit 测试
+              </?01M05F1P0NYA5Y8H5VEHJSJDWY>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #real-session-head-adapters (
+      <Statement ?01M05F1P0NYA5Y8H5VEHJSJDWZ>
+      系统 SHALL map real AI session persistence sources into ai-runtime-control-composer durable heads before the composer can replace old runtime persistence.
+      </?01M05F1P0NYA5Y8H5VEHJSJDWZ>
+      <Suites [
+        <Suite #head-mapping { name = "真实 session head 映射" } (
+          <Cases [
+            <Case #snapshot-conversation-transcript-mailbox-logs [
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDX0>
+              The system SHALL represent each source as a named durable head with sequence and buffered state
+              </?01M05F1P0NYA5Y8H5VEHJSJDX0>
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDX1>
+              The system SHALL commit those heads only through a cohort commit marker
+              </?01M05F1P0NYA5Y8H5VEHJSJDX1>
+            ] (
+              <Given ?01M05F1P0NYA5Y8H5VEHJSJDX2>
+              A session contains runtime snapshot, conversation files, actor transcript, mailbox state, ingress logs, and diagnostics logs
+              </?01M05F1P0NYA5Y8H5VEHJSJDX2>
+              <When ?01M05F1P0NYA5Y8H5VEHJSJDX3>
+              The runtime control composer prepares a checkpoint cohort
+              </?01M05F1P0NYA5Y8H5VEHJSJDX3>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #effect-lifecycle-adapters (
+      <Statement ?01M05F1P0NYA5Y8H5VEHJSJDX4>
+      系统 SHALL route real tool, MCP, bash, permission, questionnaire, and provider completion lifecycles through composer effect request/result commands before replacing old orchestration.
+      </?01M05F1P0NYA5Y8H5VEHJSJDX4>
+      <Suites [
+        <Suite #effect-pairing { name = "副作用配对" } (
+          <Cases [
+            <Case #tool-output-paired (
+              <Given ?01M05F1P0NYA5Y8H5VEHJSJDX5>
+              A tool output, async completion, or permission result arrives
+              </?01M05F1P0NYA5Y8H5VEHJSJDX5>
+              <When ?01M05F1P0NYA5Y8H5VEHJSJDX6>
+              The composer records the event
+              </?01M05F1P0NYA5Y8H5VEHJSJDX6>
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDX7>
+              The system SHALL require a matching effect request or classify the result as orphaned or dirty
+              </?01M05F1P0NYA5Y8H5VEHJSJDX7>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #recovery-classification (
+      <Statement ?01M05F1P0NYA5Y8H5VEHJSJDX8>
+      系统 SHALL classify real session directories using composer recovery rules and SHALL NOT silently resume dirty state.
+      </?01M05F1P0NYA5Y8H5VEHJSJDX8>
+      <Suites [
+        <Suite #historical-incidents { name = "历史现场回归" } (
+          <Cases [
+            <Case #dirty-session-rejected (
+              <Given ?01M05F1P0NYA5Y8H5VEHJSJDX9>
+              A historical session has unpaired tool messages, duplicate human input, stale removed-tool calls, or inconsistent durable heads
+              </?01M05F1P0NYA5Y8H5VEHJSJDX9>
+              <When ?01M05F1P0NYA5Y8H5VEHJSJDXA>
+              The runtime loads the session through composer recovery
+              </?01M05F1P0NYA5Y8H5VEHJSJDXA>
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDXB>
+              The system SHALL classify the session as orphaned or dirty unless a valid repair produces a clean cohort
+              </?01M05F1P0NYA5Y8H5VEHJSJDXB>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #gap-until-replaceable (
+      <Statement ?01M05F1P0NYA5Y8H5VEHJSJDXC>
+      系统 SHALL run repeated replacement-readiness gap scans after implementation and SHALL extend this track until no remaining blocker prevents using ai-runtime-control-composer as the runtime persistence/control engine.
+      </?01M05F1P0NYA5Y8H5VEHJSJDXC>
+      <Suites [
+        <Suite #readiness-loop { name = "替换就绪扫描" } (
+          <Cases [
+            <Case #no-gap-before-replacement [
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDXD>
+              The track SHALL record every remaining blocker as new tasks
+              </?01M05F1P0NYA5Y8H5VEHJSJDXD>
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDXE>
+              The track SHALL NOT be considered complete until the scan reports no replacement blocker
+              </?01M05F1P0NYA5Y8H5VEHJSJDXE>
+            ] (
+              <Given ?01M05F1P0NYA5Y8H5VEHJSJDXF>
+              The planned implementation tasks are complete
+              </?01M05F1P0NYA5Y8H5VEHJSJDXF>
+              <When ?01M05F1P0NYA5Y8H5VEHJSJDXG>
+              A fresh gap scan compares composer adoption against old runtime responsibilities
+              </?01M05F1P0NYA5Y8H5VEHJSJDXG>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #concrete-writer-ownership (
+      <Statement ?01M05F1P0NYA5Y8H5VEHJSJDXH>
+      系统 SHALL drive concrete AI runtime file writes through ai-runtime-control-composer before claiming full replacement of the old runtime persistence writer path.
+      </?01M05F1P0NYA5Y8H5VEHJSJDXH>
+      <Suites [
+        <Suite #composer-concrete-checkpoint { name = "Composer concrete checkpoint 写入" } (
+          <Cases [
+            <Case #composer-drives-concrete-files [
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDXJ>
+              The system SHALL enqueue a composer concrete checkpoint write effect instead of directly calling each concrete writer from RuntimeSnapshots
+              </?01M05F1P0NYA5Y8H5VEHJSJDXJ>
+              <Then ?01M05F1P0NYA5Y8H5VEHJSJDXK>
+              The composer SHALL execute the concrete writer support, read real session heads, buffer durable heads, and commit the checkpoint cohort in that order
+              </?01M05F1P0NYA5Y8H5VEHJSJDXK>
+            ] (
+              <Given ?01M05F1P0NYA5Y8H5VEHJSJDXM>
+              A runtime reaches a snapshot safepoint and has VM, actor, fiber, conversation, transcript, derived index, and manifest data ready to persist
+              </?01M05F1P0NYA5Y8H5VEHJSJDXM>
+              <When ?01M05F1P0NYA5Y8H5VEHJSJDXN>
+              The runtime saves the checkpoint
+              </?01M05F1P0NYA5Y8H5VEHJSJDXN>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #control-engine-consistency-owner (
+      <Statement ?01M05F1P0PM5Y2NS8KW5DC7621>
+      系统 SHALL treat ai-runtime-control as the owner of runtime consistency boundaries, with old concrete writers invoked only as support effects or explicitly classified projection/journal sinks.
+      </?01M05F1P0PM5Y2NS8KW5DC7621>
+      <Suites [
+        <Suite #control-owner-boundaries { name = "Control engine 一致性边界" } (
+          <Cases [
+            <Case #checkpoint-has-no-pre-composer-write (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC7622>
+              A runtime reaches a snapshot safepoint
+              </?01M05F1P0PM5Y2NS8KW5DC7622>
+              <When ?01M05F1P0PM5Y2NS8KW5DC7623>
+              The runtime saves a checkpoint
+              </?01M05F1P0PM5Y2NS8KW5DC7623>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC7624>
+              The system SHALL NOT write conversation, transcript, snapshot, manifest, or checkpoint-owned derived files before submitting the checkpoint to ai-runtime-control-composer
+              </?01M05F1P0PM5Y2NS8KW5DC7624>
+            )>
+            <Case #effect-evidence-through-control-facade (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC7625>
+              A provider, tool, permission, questionnaire, or async completion lifecycle event is observed
+              </?01M05F1P0PM5Y2NS8KW5DC7625>
+              <When ?01M05F1P0PM5Y2NS8KW5DC7626>
+              The runtime records the lifecycle event
+              </?01M05F1P0PM5Y2NS8KW5DC7626>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC7627>
+              The system SHALL submit the event through a runtime-control composer facade rather than directly writing runtime-control files from executor code
+              </?01M05F1P0PM5Y2NS8KW5DC7627>
+            )>
+            <Case #recovery-gate-before-support-load (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC7628>
+              A session directory exists on disk
+              </?01M05F1P0PM5Y2NS8KW5DC7628>
+              <When ?01M05F1P0PM5Y2NS8KW5DC7629>
+              The runtime attempts to recover the session
+              </?01M05F1P0PM5Y2NS8KW5DC7629>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762A>
+              The system SHALL run the runtime-control recovery gate before reading old snapshot repository data as support detail
+              </?01M05F1P0PM5Y2NS8KW5DC762A>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #irreversible-session-upgrade (
+      <Statement ?01M05F1P0PM5Y2NS8KW5DC762B>
+      系统 SHALL provide an explicit irreversible session-file upgrade path before enabling owned-mode runtime recovery for old sessions.
+      </?01M05F1P0PM5Y2NS8KW5DC762B>
+      <Suites [
+        <Suite #session-upgrade { name = "Session 文件升级" } (
+          <Cases [
+            <Case #upgrade-writes-owned-checkpoint (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC762C>
+              An old session has valid runtime files but no runtime-control owned checkpoint
+              </?01M05F1P0PM5Y2NS8KW5DC762C>
+              <When ?01M05F1P0PM5Y2NS8KW5DC762D>
+              The migration runs the session upgrade
+              </?01M05F1P0PM5Y2NS8KW5DC762D>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762E>
+              The system SHALL read real session heads, buffer those heads, commit the checkpoint cohort, and write an irreversible upgrade manifest
+              </?01M05F1P0PM5Y2NS8KW5DC762E>
+            )>
+            <Case #dirty-existing-checkpoint-rejected (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC762F>
+              A session already has a runtime-control checkpoint marker but current heads or effect evidence classify as dirty or orphaned
+              </?01M05F1P0PM5Y2NS8KW5DC762F>
+              <When ?01M05F1P0PM5Y2NS8KW5DC762G>
+              The migration attempts to upgrade the session
+              </?01M05F1P0PM5Y2NS8KW5DC762G>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762H>
+              The system SHALL reject the upgrade rather than overwriting the dirty state with a new marker
+              </?01M05F1P0PM5Y2NS8KW5DC762H>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #session-upgrade-cli-entry (
+      <Statement ?01M05F1P0PM5Y2NS8KW5DC762J>
+      系统 SHALL provide a single-session migration entry that can dry-run upgrade readiness without writes and apply an irreversible owned checkpoint only when explicitly requested.
+      </?01M05F1P0PM5Y2NS8KW5DC762J>
+      <Suites [
+        <Suite #session-upgrade-entry { name = "Session upgrade dry-run/apply 入口" } (
+          <Cases [
+            <Case #dry-run-is-read-only [
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762K>
+              The system SHALL read upgrade marker, checkpoint marker, real heads, and effect evidence
+              </?01M05F1P0PM5Y2NS8KW5DC762K>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762M>
+              The system SHALL output JSON classification, blockers, canUpgrade, and plannedHeads without writing files
+              </?01M05F1P0PM5Y2NS8KW5DC762M>
+            ] (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC762N>
+              An operator runs session upgrade without --apply
+              </?01M05F1P0PM5Y2NS8KW5DC762N>
+              <When ?01M05F1P0PM5Y2NS8KW5DC762P>
+              The CLI inspects the session directory
+              </?01M05F1P0PM5Y2NS8KW5DC762P>
+            )>
+            <Case #apply-reuses-dry-run (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC762Q>
+              An operator runs session upgrade with --apply
+              </?01M05F1P0PM5Y2NS8KW5DC762Q>
+              <When ?01M05F1P0PM5Y2NS8KW5DC762R>
+              The session is already upgraded, dirty, orphaned, or otherwise blocked by effect evidence
+              </?01M05F1P0PM5Y2NS8KW5DC762R>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762S>
+              The system SHALL return already_upgraded or rejected rather than writing a replacement checkpoint marker
+              </?01M05F1P0PM5Y2NS8KW5DC762S>
+            )>
+            <Case #apply-commits-clean-session (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC762T>
+              An old session has no blocking evidence other than a missing checkpoint marker
+              </?01M05F1P0PM5Y2NS8KW5DC762T>
+              <When ?01M05F1P0PM5Y2NS8KW5DC762V>
+              The operator runs session upgrade with --apply
+              </?01M05F1P0PM5Y2NS8KW5DC762V>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762W>
+              The system SHALL commit a checkpoint cohort, write the irreversible upgrade manifest, and verify recovery classification is clean
+              </?01M05F1P0PM5Y2NS8KW5DC762W>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #tui-session-upgrade-entry (
+      <Statement ?01M05F1P0PM5Y2NS8KW5DC762X>
+      系统 SHALL let users upgrade an old session from the TUI session picker before recovery, using the same runtime-control session-upgrade dry-run/apply semantics as the CLI.
+      </?01M05F1P0PM5Y2NS8KW5DC762X>
+      <Suites [
+        <Suite #tui-session-upgrade { name = "TUI session upgrade 入口" } (
+          <Cases [
+            <Case #confirm-before-apply [
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762Y>
+              The TUI SHALL ask the user to confirm the irreversible upgrade before applying it
+              </?01M05F1P0PM5Y2NS8KW5DC762Y>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC762Z>
+              The TUI SHALL call the same session-upgrade apply facade after confirmation
+              </?01M05F1P0PM5Y2NS8KW5DC762Z>
+            ] (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC7630>
+              A user opens the TUI session list and selects an old session that has no runtime-control checkpoint marker
+              </?01M05F1P0PM5Y2NS8KW5DC7630>
+              <When ?01M05F1P0PM5Y2NS8KW5DC7631>
+              The dry-run result has canUpgrade=true
+              </?01M05F1P0PM5Y2NS8KW5DC7631>
+            )>
+            <Case #blocked-session-not-loaded (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC7632>
+              The selected session dry-run returns dirty, orphaned, or other blocking evidence
+              </?01M05F1P0PM5Y2NS8KW5DC7632>
+              <When ?01M05F1P0PM5Y2NS8KW5DC7633>
+              The user attempts to load the session from TUI
+              </?01M05F1P0PM5Y2NS8KW5DC7633>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC7634>
+              The TUI SHALL show the blockers and SHALL NOT navigate into the session route
+              </?01M05F1P0PM5Y2NS8KW5DC7634>
+            )>
+            <Case #upgraded-session-loads-directly (
+              <Given ?01M05F1P0PM5Y2NS8KW5DC7635>
+              The selected session is already upgraded and has a clean checkpoint
+              </?01M05F1P0PM5Y2NS8KW5DC7635>
+              <When ?01M05F1P0PM5Y2NS8KW5DC7636>
+              The user loads the session from TUI
+              </?01M05F1P0PM5Y2NS8KW5DC7636>
+              <Then ?01M05F1P0PM5Y2NS8KW5DC7637>
+              The TUI SHALL load the session without asking for another upgrade confirmation
+              </?01M05F1P0PM5Y2NS8KW5DC7637>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

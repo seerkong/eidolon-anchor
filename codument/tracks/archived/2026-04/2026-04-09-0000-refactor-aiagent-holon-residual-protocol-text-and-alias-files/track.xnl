@@ -1,0 +1,21 @@
+<Track #refactor-aiagent-holon-residual-protocol-text-and-alias-files version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Legacy archived track migrated with invalid source plan.xml." description = "Original plan.xml could not be parsed during migration: mismatched tag: line 29, column 84" commit_mode = "manual" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-aiagent-holon-residual-protocol-text-and-alias-files { name = "refactor-aiagent-holon-residual-protocol-text-and-alias-files" } (
+    <Description ?01M05F1PB503RNK2BJJ6DNTR82>
+    Legacy invalid plan preserved under codument/legacy/archive/.
+    </?01M05F1PB503RNK2BJJ6DNTR82>
+    <SubNodes [
+      <TaskGroup #P1 { name = "legacy-plan-preserved" status = "DONE" order = 0 } (
+        <Description ?01M05F1PB503RNK2BJJ6DNTR83>
+        Source plan.xml was invalid XML and was preserved for audit.
+        </?01M05F1PB503RNK2BJJ6DNTR83>
+        <SubNodes>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

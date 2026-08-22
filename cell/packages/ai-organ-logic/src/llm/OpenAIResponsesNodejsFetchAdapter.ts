@@ -5,7 +5,6 @@ import type {
 } from "@cell/ai-core-contract/LlmTypes";
 import type { ProviderOptions } from "./ProviderPlugins";
 import { ProviderExecutionError } from "./ProviderErrors";
-import { stripOpenAICompatibleUnsupportedSchemaKeys } from "./OpenAIChatHelpers";
 import { appendFileSync, mkdirSync } from "fs";
 import path from "path";
 import codexInstructionsPrompt from "./plugin/prompt/GptInstructionsV5-1.md" with { type: "text" };
@@ -25,6 +24,18 @@ import type {
   ResponsesTransportResult,
 } from "@cell/ai-organ-contract/llm/ResponsesReplay";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
+import type {
+  AdmittedProviderRequest,
+  ProviderToolSchemaProjectionAuthority,
+} from "@cell/ai-organ-contract/llm/ProviderToolSchemaProjection";
+import { openAIResponsesToolSchemaProjector } from "./tool-schema/OpenAIResponsesToolSchemaProjector";
+import {
+  admitProviderRequest,
+  assertProviderToolSchemaProtocol,
+  prepareProviderToolSchemaProjection,
+  readAdmittedProviderRequest,
+  readProviderToolSchemaProjection,
+} from "./tool-schema/ProviderRequestAdmission";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
 import {
   assembleOpenAIResponsesInstructions,
@@ -52,6 +63,11 @@ type OpenAIResponsesNodejsFetchAdapterSettings = {
   providerOptions?: ProviderOptions;
   requestObserver?: ProviderTransportRequestObserver;
 };
+
+type AdmittedResponsesGenerateOptions = Omit<
+  LlmGenerateOptions,
+  "tools" | "providerToolSchemaProjectionAuthority"
+>;
 
 function buildResponsesUrl(baseUrl?: string): string {
   let base = baseUrl || "https://api.openai.com/v1";
@@ -194,6 +210,7 @@ function openResponsesWebsocketEvents(params: {
   requestObserver?: ProviderTransportRequestObserver;
   onRequestObserved?: (observer: ProviderTransportOutcomeObserver | undefined) => void;
   requestPlanObservation: ProviderRequestPlanObservation;
+  admittedRequest: AdmittedProviderRequest;
 }): Promise<AsyncIterable<any>> {
   const {
     url,
@@ -205,7 +222,13 @@ function openResponsesWebsocketEvents(params: {
     requestObserver,
     onRequestObserved,
     requestPlanObservation,
+    admittedRequest,
   } = params;
+  // Capability authenticity and serialized-body integrity are checked before
+  // creating any transport resource. Callbacks only consume this fixed snapshot.
+  const admittedSnapshot = readAdmittedProviderRequest(admittedRequest);
+  const serializedBody = admittedSnapshot.serializedBody;
+  const toolSchemaCoverage = admittedSnapshot.coverageObservation;
 
   return new Promise<AsyncIterable<any>>((resolveOpen, rejectOpen) => {
     let opened = false;
@@ -328,13 +351,13 @@ function openResponsesWebsocketEvents(params: {
     ws.onopen = () => {
       opened = true;
       try {
-        const serializedBody = JSON.stringify(body);
         const outcomeObserver = observeProviderTransportRequest(requestObserver, {
           transportType: "websocket",
           requestBody: serializedBody,
           url,
           method: "SEND",
           requestPlan: requestPlanObservation,
+          toolSchemaCoverage,
         });
         onRequestObserved?.(outcomeObserver);
         ws.send(serializedBody);
@@ -597,6 +620,7 @@ export async function* responsesEventsToChunks(
   events: AsyncIterable<any> | Iterable<any>,
   onResponseId?: (id: string) => void,
   onProviderOutput?: (decision: ResponsesNativeOutputCompletenessDecision | undefined) => void,
+  outputObservation?: { observed: boolean },
 ): AsyncIterable<any> {
   let emittedText = false;
   let responseId: string | undefined;
@@ -656,7 +680,7 @@ export async function* responsesEventsToChunks(
         }
         continue;
       }
-    if (event.type === "response.output_text.delta") {
+      if (event.type === "response.output_text.delta") {
       const delta =
         typeof event.delta === "string"
           ? event.delta
@@ -665,6 +689,7 @@ export async function* responsesEventsToChunks(
             : "";
       if (delta) {
         emittedText = true;
+        if (outputObservation) outputObservation.observed = true;
         yield { choices: [{ delta: { content: delta } }] };
       }
       continue;
@@ -678,15 +703,17 @@ export async function* responsesEventsToChunks(
             : "";
       if (text && !emittedText) {
         emittedText = true;
+        if (outputObservation) outputObservation.observed = true;
         yield { choices: [{ delta: { content: text } }] };
       }
       continue;
     }
-    if (
-      event.type === "response.output_item.added" &&
-      event.item && typeof event.item === "object" && !Array.isArray(event.item)
-    ) {
-      const outputIndex = Number(event.output_index);
+      if (
+        event.type === "response.output_item.added" &&
+        event.item && typeof event.item === "object" && !Array.isArray(event.item)
+      ) {
+        if (outputObservation) outputObservation.observed = true;
+        const outputIndex = Number(event.output_index);
       addedItems.push({
         ...(Number.isSafeInteger(outputIndex) && outputIndex >= 0 ? { outputIndex } : {}),
         item: event.item as ResponsesNativeItem,
@@ -834,6 +861,7 @@ async function* streamToOpenAIChunks(
   response: Response,
   onResponseId?: (id: string) => void,
   onProviderOutput?: (decision: ResponsesNativeOutputCompletenessDecision | undefined) => void,
+  outputObservation?: { observed: boolean },
 ): AsyncIterable<any> {
   if (!response.body) {
     onProviderOutput?.(undefined);
@@ -843,6 +871,7 @@ async function* streamToOpenAIChunks(
     responsesSseEvents(response),
     onResponseId,
     onProviderOutput,
+    outputObservation,
   );
 }
 
@@ -916,7 +945,7 @@ function makeLegacyStatelessPlan(params: {
       : createResponsesStablePromptCacheKey({
           providerId: "openai-responses",
           model: params.model,
-          instructions: params.instructions,
+          stableInstructions: params.instructions,
           tools: params.tools,
         });
   return {
@@ -1099,7 +1128,19 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
   }
 
   async createStream(options: LlmGenerateOptions): Promise<LlmStreamResult> {
-    const { model, messages, tools, extraBody, signal } = options;
+    const authority = prepareProviderToolSchemaProjection(
+      openAIResponsesToolSchemaProjector,
+      options.tools ?? [],
+    );
+    const { tools: _tools, providerToolSchemaProjectionAuthority: _authority, ...admittedOptions } = options;
+    return this.createAdmittedStream(admittedOptions, authority);
+  }
+
+  async createAdmittedStream(
+    options: AdmittedResponsesGenerateOptions,
+    toolSchemaProjectionAuthority: ProviderToolSchemaProjectionAuthority,
+  ): Promise<LlmStreamResult> {
+    const { model, messages, extraBody, signal } = options;
     const providerOptions = this.providerOptions;
     const supportsWebsockets =
       providerOptions.supports_websockets === true ||
@@ -1126,17 +1167,9 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
         messages,
         configuredInstructions: normalizedExtraBody.instructions,
       });
-    const toolSpecs = Array.isArray(tools)
-      ? tools.map((tool) => ({
-          type: "function",
-          name: tool.function.name,
-          description: tool.function.description,
-          strict: false,
-          parameters: stripOpenAICompatibleUnsupportedSchemaKeys(
-            tool.function.parameters || {},
-          ),
-        }))
-      : [];
+    const toolProjection = readProviderToolSchemaProjection(toolSchemaProjectionAuthority);
+    assertProviderToolSchemaProtocol(toolProjection.protocol, "openai-responses");
+    const toolSpecs = [...toolProjection.tools];
     const legacyStatelessPlan = makeLegacyStatelessPlan({
       model,
       messages,
@@ -1160,6 +1193,9 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       extraBody: normalizedExtraBody,
       persistResponse: isWebsocketTransport,
     });
+    const initialAdmission = admitProviderRequest(toolSchemaProjectionAuthority, body);
+    const initialAdmittedRequest = readAdmittedProviderRequest(initialAdmission);
+    const admittedBody = JSON.parse(initialAdmittedRequest.serializedBody) as Record<string, any>;
     const url = buildResponsesUrl(
       (providerOptions.baseURL as string | undefined) || this.baseUrl,
     );
@@ -1179,8 +1215,8 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
     if (process.env.MINIMAX_DEBUG === "1") {
       const debugPayload = {
         url,
-        body,
-        previous_response_id: body.previous_response_id,
+        body: admittedBody,
+        previous_response_id: admittedBody.previous_response_id,
       };
       console.log("[codex] request", JSON.stringify(redactCanonicalImages(debugPayload), null, 2));
     }
@@ -1189,11 +1225,11 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       event: "request",
       url,
       model,
-      body_bytes: JSON.stringify(body).length,
+      body_bytes: initialAdmittedRequest.serializedBody.length,
       instructions_length:
-        typeof body.instructions === "string" ? body.instructions.length : 0,
-      input_text_lengths: Array.isArray(body.input)
-        ? body.input.map((item) =>
+        typeof admittedBody.instructions === "string" ? admittedBody.instructions.length : 0,
+      input_text_lengths: Array.isArray(admittedBody.input)
+        ? admittedBody.input.map((item) =>
             typeof item === "object" &&
             item &&
             Array.isArray((item as any).content)
@@ -1212,17 +1248,17 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
         selectedPlan.kind === "stateful_incremental"
           ? selectedPlan.previousResponseId
           : undefined,
-      input_types: Array.isArray(body.input)
-        ? body.input.map((item) =>
+      input_types: Array.isArray(admittedBody.input)
+        ? admittedBody.input.map((item) =>
             typeof item === "object" && item
               ? (item as any).type || (item as any).role
               : typeof item,
           )
-        : typeof body.input,
-      tool_count: Array.isArray(body.tools) ? body.tools.length : 0,
-      store: body.store,
-      tool_choice: body.tool_choice,
-      parallel_tool_calls: body.parallel_tool_calls,
+        : typeof admittedBody.input,
+      tool_count: Array.isArray(admittedBody.tools) ? admittedBody.tools.length : 0,
+      store: admittedBody.store,
+      tool_choice: admittedBody.tool_choice,
+      parallel_tool_calls: admittedBody.parallel_tool_calls,
     });
 
     const fetchFn = providerOptions.fetch || fetch;
@@ -1230,9 +1266,13 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       payload: Record<string, unknown>;
       plan: ResponsesStatelessReplayPlan;
       fallbackUsed: boolean;
+      admittedRequest?: AdmittedProviderRequest;
     }) => {
       const { payload, plan, fallbackUsed } = params;
-      const serializedBody = JSON.stringify(payload);
+      const admittedSnapshot = readAdmittedProviderRequest(
+        params.admittedRequest ?? admitProviderRequest(toolSchemaProjectionAuthority, payload),
+      );
+      const serializedBody = admittedSnapshot.serializedBody;
       const outcomeObserver = observeProviderTransportRequest(this.requestObserver, {
         transportType: "http",
         requestBody: serializedBody,
@@ -1251,6 +1291,7 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
               ? "transport_unsupported"
               : "stateless_plan",
         },
+        toolSchemaCoverage: admittedSnapshot.coverageObservation,
       });
       try {
         const response = await fetchFn(url, {
@@ -1281,6 +1322,7 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
       persistResponse = false,
       fallbackUsed = false,
     ): Promise<LlmStreamResult> => {
+      const outputObservation = { observed: false };
       const httpSseBody = materializeResponsesBody({
         model,
         plan,
@@ -1293,6 +1335,9 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
         payload: httpSseBody,
         plan,
         fallbackUsed,
+        ...(plan === selectedPlan && fallbackUsed === false
+          ? { admittedRequest: initialAdmission }
+          : {}),
       });
 
       if (!res.ok) {
@@ -1340,8 +1385,10 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
             fallbackUsed,
             signal,
           }),
+          outputObservation,
         ),
         providerOutput: providerOutput.promise,
+        outputObserved: () => outputObservation.observed,
       };
     };
 
@@ -1381,10 +1428,12 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
         signal,
         requestObserver: this.requestObserver,
         requestPlanObservation: responsesRequestPlanObservation(selectedPlan),
+        admittedRequest: initialAdmission,
         onRequestObserved: (observer) => {
           websocketOutcomeObserver = observer;
         },
       });
+      const outputObservation = { observed: false };
       return {
         stream: responsesEventsToChunks(
           events,
@@ -1398,8 +1447,10 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
             fallbackUsed: false,
             signal,
           }),
+          outputObservation,
         ),
         providerOutput: providerOutput.promise,
+        outputObserved: () => outputObservation.observed,
       };
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
@@ -1430,5 +1481,21 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
         true,
       );
     }
+  }
+}
+
+/** Capability-only transport boundary used by the configured Responses driver. */
+export class OpenAIResponsesAdmittedFetchTransport {
+  private readonly compatibilityAdapter: OpenAIResponsesNodejsFetchLlmAdapter;
+
+  constructor(settings: OpenAIResponsesNodejsFetchAdapterSettings) {
+    this.compatibilityAdapter = new OpenAIResponsesNodejsFetchLlmAdapter(settings);
+  }
+
+  createStream(
+    options: AdmittedResponsesGenerateOptions,
+    authority: ProviderToolSchemaProjectionAuthority,
+  ): Promise<LlmStreamResult> {
+    return this.compatibilityAdapter.createAdmittedStream(options, authority);
   }
 }

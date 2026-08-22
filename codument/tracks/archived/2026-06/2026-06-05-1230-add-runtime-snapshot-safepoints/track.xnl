@@ -1,0 +1,338 @@
+<Track #add-runtime-snapshot-safepoints version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" description = "为 runtime 快照保存引入 safepoint 语义，确保保存完成后进程可立即崩溃并恢复到可用状态；同时消费 tool-call 协议关键 continuation。" commit_mode = "manual" created_at = "2026-06-04T16:00:00Z" updated_at = "2026-06-05T04:30:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-runtime-snapshot-safepoints { name = "add-runtime-snapshot-safepoints" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "复现与规格化 Safepoint 判定" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task { id = "T1.1" name = "编写非 safepoint tool-call 快照回归测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30CX>
+            构造 assistant tool call 已入 history 但 `start_tool` 尚未创建 durable tool operation 的状态，验证它不能作为 latest recoverable snapshot。
+            </?01M05F1PFR055V1X4CHYTE30CX>
+            <Acceptance [
+              <Criterion #AC-start-tool-fixture { checked = true } ?01M05F1PFR055V1X4CHYTE30CY>
+              测试 fixture 覆盖 `ready + start_tool + unmatched assistant tool call + no durable tool op`
+              </?01M05F1PFR055V1X4CHYTE30CY>
+              <Criterion #AC-current-fails { checked = true } ?01M05F1PFR055V1X4CHYTE30CZ>
+              在实现前测试能暴露当前行为缺口
+              </?01M05F1PFR055V1X4CHYTE30CZ>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "实现 snapshot safepoint checker" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30D0>
+            新增可测试的 safepoint 判定逻辑，报告 blocking fiber、phase、reason 和协议一致性问题。
+            </?01M05F1PFR055V1X4CHYTE30D0>
+            <Acceptance [
+              <Criterion #AC-checker-detects-start-tool { checked = true } ?01M05F1PFR055V1X4CHYTE30D1>
+              checker 能识别 `start_tool` 半步状态为非 safepoint
+              </?01M05F1PFR055V1X4CHYTE30D1>
+              <Criterion #AC-checker-allows-durable-tool-wait { checked = true } ?01M05F1PFR055V1X4CHYTE30D2>
+              checker 允许已有 durable tool operation 或 typed wait 的 tool-call 状态
+              </?01M05F1PFR055V1X4CHYTE30D2>
+              <Criterion #AC-diagnostics-bounded { checked = true } ?01M05F1PFR055V1X4CHYTE30D3>
+              safepoint blocker 不包含 provider-private content 或大 payload
+              </?01M05F1PFR055V1X4CHYTE30D3>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "保存路径与调度边界改造" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task { id = "T2.1" name = "接入 safepoint-aware snapshot save" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30D4>
+            修改 snapshot save 流程：保存前校验 safepoint，非 safepoint 时受限推进，仍不安全则跳过保存并保留 previous known-good snapshot。
+            </?01M05F1PFR055V1X4CHYTE30D4>
+            <Acceptance [
+              <Criterion #AC-save-guards-latest { checked = true } ?01M05F1PFR055V1X4CHYTE30D5>
+              非 safepoint 状态不会覆盖 latest recoverable snapshot
+              </?01M05F1PFR055V1X4CHYTE30D5>
+              <Criterion #AC-progress-or-skip { checked = true } ?01M05F1PFR055V1X4CHYTE30D6>
+              保存路径会受限推进或跳过保存，不会无限等待
+              </?01M05F1PFR055V1X4CHYTE30D6>
+              <Criterion #AC-diagnostic-emitted { checked = true } ?01M05F1PFR055V1X4CHYTE30D7>
+              跳过或延迟保存时返回明确 safepoint blocker
+              </?01M05F1PFR055V1X4CHYTE30D7>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "调整 mandatory continuation settling" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30D8>
+            让 foreground/all-lane settle 在 snapshot 语义下消费 `start_tool` 等 mandatory continuation，直到 durable operation 或 typed wait。
+            </?01M05F1PFR055V1X4CHYTE30D8>
+            <Acceptance [
+              <Criterion #AC-ready-start-tool-not-settled { checked = true } ?01M05F1PFR055V1X4CHYTE30D9>
+              `ready + start_tool` 不再被视为 snapshot-safe settled
+              </?01M05F1PFR055V1X4CHYTE30D9>
+              <Criterion #AC-agent-step-consumed { checked = true } ?01M05F1PFR055V1X4CHYTE30DA>
+              settle 会继续调度必需 `agent_step` 到 durable tool operation 或 typed wait
+              </?01M05F1PFR055V1X4CHYTE30DA>
+              <Criterion #AC-mailbox-results-drained { checked = true } ?01M05F1PFR055V1X4CHYTE30DB>
+              会影响 scheduling 的 queued `fiber_result` / `resume_fiber` 在 safepoint 判断前被消费或表示为 durable work
+              </?01M05F1PFR055V1X4CHYTE30DB>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "协议兼容与历史现场验证" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task { id = "T3.1" name = "纳入 OpenAI Responses tool-output 配对修复验证" status = "DONE" order = 0 priority = "P1" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30DC>
+            把当前未提交的 OpenAI Responses input-item/tool-output 配对相关修复纳入验证，确保恢复后的 provider 输入满足工具调用协议。
+            </?01M05F1PFR055V1X4CHYTE30DC>
+            <Acceptance [
+              <Criterion #AC-related-diff-reviewed { checked = true } ?01M05F1PFR055V1X4CHYTE30DD>
+              已审查相关未提交文件并确认纳入范围
+              </?01M05F1PFR055V1X4CHYTE30DD>
+              <Criterion #AC-provider-tests-pass { checked = true } ?01M05F1PFR055V1X4CHYTE30DE>
+              OpenAI Responses input-item 相关测试通过
+              </?01M05F1PFR055V1X4CHYTE30DE>
+              <Criterion #AC-no-orphan-tool-output { checked = true } ?01M05F1PFR055V1X4CHYTE30DF>
+              恢复后不会生成 orphan tool output 或 unmatched assistant tool call 的 provider 输入
+              </?01M05F1PFR055V1X4CHYTE30DF>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "验证历史坏 session 的加载行为" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30DG>
+            使用问题现场 session 或 repository-level 历史坏快照 fixture 验证历史 `ready + start_tool` 坏快照能被诊断或修复，并且不会重新产生相同坏快照。
+            </?01M05F1PFR055V1X4CHYTE30DG>
+            <Acceptance [
+              <Criterion #AC-session-diagnosed { checked = true } ?01M05F1PFR055V1X4CHYTE30DH>
+              历史坏 session 加载时能得到明确诊断或受控修复
+              </?01M05F1PFR055V1X4CHYTE30DH>
+              <Criterion #AC-session-can-continue { checked = true } ?01M05F1PFR055V1X4CHYTE30DJ>
+              修复后的 session 可以继续运行到稳定状态
+              </?01M05F1PFR055V1X4CHYTE30DJ>
+              <Criterion #AC-no-new-bad-snapshot { checked = true } ?01M05F1PFR055V1X4CHYTE30DK>
+              继续运行后不会保存新的 `start_tool` 半步快照
+              </?01M05F1PFR055V1X4CHYTE30DK>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "同步项目知识文档" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30DM>
+            根据 feature.json 中配置的 knowledgeSync targets 和对应 attractor，判断并同步受影响的知识目录。
+            </?01M05F1PFR055V1X4CHYTE30DM>
+            <Acceptance [
+              <Criterion #AC-read-attractor { checked = true } ?01M05F1PFR055V1X4CHYTE30DN>
+              已读取目标 knowledge attractor
+              </?01M05F1PFR055V1X4CHYTE30DN>
+              <Criterion #AC-decide-sync { checked = true } ?01M05F1PFR055V1X4CHYTE30DP>
+              已判断是否需要同步 docs 或外部知识目录
+              </?01M05F1PFR055V1X4CHYTE30DP>
+              <Criterion #AC-log-reason { checked = true } ?01M05F1PFR055V1X4CHYTE30DQ>
+              已记录未同步的理由或已完成同步
+              </?01M05F1PFR055V1X4CHYTE30DQ>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Attractor 对齐整改" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task { id = "T4.1" name = "将 safepoint 推进移出 snapshot writer" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30DR>
+            让 `saveAiAgentRuntimeSnapshot` 只做 safepoint 判定与持久化/跳过；由 runtime coordinator 在保存前显式执行受限 foreground settle。
+            </?01M05F1PFR055V1X4CHYTE30DR>
+            <Acceptance [
+              <Criterion #AC-writer-no-scheduling { checked = true } ?01M05F1PFR055V1X4CHYTE30DS>
+              snapshot writer 不再调用 foreground/background tick 或调度接口
+              </?01M05F1PFR055V1X4CHYTE30DS>
+              <Criterion #AC-coordinator-progresses { checked = true } ?01M05F1PFR055V1X4CHYTE30DT>
+              runtime coordinator 在保存前推进 mandatory continuation 到 safepoint
+              </?01M05F1PFR055V1X4CHYTE30DT>
+              <Criterion #AC-direct-save-skips { checked = true } ?01M05F1PFR055V1X4CHYTE30DV>
+              直接调用 snapshot writer 遇到非 safepoint 时结构化跳过并保留 previous known-good snapshot
+              </?01M05F1PFR055V1X4CHYTE30DV>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "结构化保存结果和非 VM 契约诊断" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30DW>
+            为 snapshot save 结果和 safepoint blocker 建模；不扩展 `AiAgentVm` / `VmRuntimeContext` 契约保存诊断字段。
+            </?01M05F1PFR055V1X4CHYTE30DW>
+            <Acceptance [
+              <Criterion #AC-save-result-structured { checked = true } ?01M05F1PFR055V1X4CHYTE30DX>
+              `saveAiAgentRuntimeSnapshot` 返回 `saved` / `skipped_non_safepoint` 结构化结果
+              </?01M05F1PFR055V1X4CHYTE30DX>
+              <Criterion #AC-diagnostics-modeled { checked = true } ?01M05F1PFR055V1X4CHYTE30DY>
+              safepoint blocker 由保存结果和 safepoint checker 返回，不写入 VM 契约字段
+              </?01M05F1PFR055V1X4CHYTE30DY>
+              <Criterion #AC-tests-no-any-diagnostic { checked = true } ?01M05F1PFR055V1X4CHYTE30DZ>
+              测试通过结构化返回值断言 blocker，且不泄露 tool args/payload
+              </?01M05F1PFR055V1X4CHYTE30DZ>
+            ]>
+          )>
+          <Task { id = "T4.3" name = "更新文档并验证 attractor 对齐" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30E0>
+            更新 runtime safepoint 实现文档，说明职责边界、结构化结果和 VM 契约边界；运行相关测试和 Codument 校验。
+            </?01M05F1PFR055V1X4CHYTE30E0>
+            <Acceptance [
+              <Criterion #AC-doc-updated { checked = true } ?01M05F1PFR055V1X4CHYTE30E1>
+              docs 说明 persistence writer 与 coordinator 的职责边界
+              </?01M05F1PFR055V1X4CHYTE30E1>
+              <Criterion #AC-tests-pass { checked = true } ?01M05F1PFR055V1X4CHYTE30E2>
+              runtime safepoint / recovery / durable signal / OpenAI Responses 相关测试通过
+              </?01M05F1PFR055V1X4CHYTE30E2>
+              <Criterion #AC-codument-valid { checked = true } ?01M05F1PFR055V1X4CHYTE30E3>
+              `codument validate add-runtime-snapshot-safepoints --strict` 通过
+              </?01M05F1PFR055V1X4CHYTE30E3>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Conversation 联合 Safepoint 持久化" status = "DONE" order = 4 } (
+        <SubNodes [
+          <Task { id = "T5.1" name = "将 conversation 文件写入改为 safepoint flush" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30E4>
+            禁止 message history append 直接推进 conversation history 文件；conversation domain 先保留在 VM 内存中，snapshot writer 在 safepoint 通过后统一写入 conversation repository。
+            </?01M05F1PFR055V1X4CHYTE30E4>
+            <Acceptance [
+              <Criterion #AC-no-immediate-conversation-write { checked = true } ?01M05F1PFR055V1X4CHYTE30E5>
+              `MessageHistoryEffects.appendMessage` 不再即时写 `conversation/history-generations`、`history.index.json`、`session.index.json`
+              </?01M05F1PFR055V1X4CHYTE30E5>
+              <Criterion #AC-snapshot-flushes-conversation { checked = true } ?01M05F1PFR055V1X4CHYTE30E6>
+              `saveAiAgentRuntimeSnapshot` 在 safepoint 通过后 flush VM 内存中的 conversation raw state
+              </?01M05F1PFR055V1X4CHYTE30E6>
+              <Criterion #AC-non-safepoint-buffers { checked = true } ?01M05F1PFR055V1X4CHYTE30E7>
+              非 safepoint 保存跳过时 conversation 文件不会被推进到 post-snapshot tail
+              </?01M05F1PFR055V1X4CHYTE30E7>
+            ]>
+          )>
+          <Task { id = "T5.2" name = "修复 durable mailbox 恢复去重" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30E8>
+            恢复 pending durable control signal 时，如果 actor mailbox 已包含同 payload，不重复投递，但仍消费 signal 并记录 recovered delivery。
+            </?01M05F1PFR055V1X4CHYTE30E8>
+            <Acceptance [
+              <Criterion #AC-human-input-dedup { checked = true } ?01M05F1PFR055V1X4CHYTE30E9>
+              `humanInput` 已在 mailbox 中时恢复不会再次插入相同 payload
+              </?01M05F1PFR055V1X4CHYTE30E9>
+              <Criterion #AC-signal-consumed { checked = true } ?01M05F1PFR055V1X4CHYTE30EA>
+              去重后的 durable signal 会被消费，避免下次恢复重复处理
+              </?01M05F1PFR055V1X4CHYTE30EA>
+            ]>
+          )>
+          <Task { id = "T5.3" name = "补充联合 safepoint 回归测试和文档" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30EB>
+            新增测试覆盖 non-safepoint conversation buffering、safepoint flush 和 humanInput redelivery 去重，并更新 runtime safepoint 文档。
+            </?01M05F1PFR055V1X4CHYTE30EB>
+            <Acceptance [
+              <Criterion #AC-tests-pass { checked = true } ?01M05F1PFR055V1X4CHYTE30EC>
+              runtime safepoint / recovery / durable signal / OpenAI Responses 相关测试通过
+              </?01M05F1PFR055V1X4CHYTE30EC>
+              <Criterion #AC-doc-updated { checked = true } ?01M05F1PFR055V1X4CHYTE30ED>
+              文档说明 conversation、transcript、runtime snapshot 的联合 safepoint 边界
+              </?01M05F1PFR055V1X4CHYTE30ED>
+              <Criterion #AC-codument-valid { checked = true } ?01M05F1PFR055V1X4CHYTE30EE>
+              `codument validate add-runtime-snapshot-safepoints --strict` 通过
+              </?01M05F1PFR055V1X4CHYTE30EE>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P6 { name = "Wake Mailbox Safepoint 分类" status = "DONE" order = 5 } (
+        <SubNodes [
+          <Task { id = "T6.1" name = "统一梳理 wake mailbox 分类边界" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30EF>
+            检查 actor mailbox 类型和 executor 消费路径，区分 completion 类 mandatory work 与可恢复外部输入。
+            </?01M05F1PFR055V1X4CHYTE30EF>
+            <Acceptance [
+              <Criterion #AC-mailboxes-enumerated { checked = true } ?01M05F1PFR055V1X4CHYTE30EG>
+              覆盖 `control`、`toolResult`、`asyncCompletion`、`childDone`、`memberCoordination`、`humanInput`、`memberChatInbox`、`heartbeat`
+              </?01M05F1PFR055V1X4CHYTE30EG>
+              <Criterion #AC-questionnaire-marker-excluded { checked = true } ?01M05F1PFR055V1X4CHYTE30EH>
+              `control.questionnaire_pending` 作为人类等待 marker，不单独阻塞 safepoint
+              </?01M05F1PFR055V1X4CHYTE30EH>
+            ]>
+          )>
+          <Task { id = "T6.2" name = "实现 pending completion mailbox safepoint blocker" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30EJ>
+            在 AI runtime safepoint checker 中识别已到达且匹配当前 inflight/同步等待的 completion mailbox work，保存前由 coordinator 推进；snapshot writer 仍只判定/跳过。
+            </?01M05F1PFR055V1X4CHYTE30EJ>
+            <Acceptance [
+              <Criterion #AC-async-completion-blocks { checked = true } ?01M05F1PFR055V1X4CHYTE30EK>
+              `ready + wait_llm + asyncCompletion` 不再被视为 snapshot-safe
+              </?01M05F1PFR055V1X4CHYTE30EK>
+              <Criterion #AC-all-wake-mailboxes-classified { checked = true } ?01M05F1PFR055V1X4CHYTE30EM>
+              所有 wake mailbox 类型都经过分类，普通外部输入仍可作为恢复输入保存
+              </?01M05F1PFR055V1X4CHYTE30EM>
+              <Criterion #AC-no-vm-mailbox-schema-expansion { checked = true } ?01M05F1PFR055V1X4CHYTE30EN>
+              `AiAgentVm` / `VmRuntimeContext` 不新增 mailbox 类型、payload 或诊断字段
+              </?01M05F1PFR055V1X4CHYTE30EN>
+            ]>
+          )>
+          <Task { id = "T6.3" name = "补充回归测试与文档" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30EP>
+            新增参数化测试覆盖 wake mailbox safepoint blocker 和 coordinator 消费已到达 asyncCompletion 的场景，并同步实现文档。
+            </?01M05F1PFR055V1X4CHYTE30EP>
+            <Acceptance [
+              <Criterion #AC-tests-pass { checked = true } ?01M05F1PFR055V1X4CHYTE30EQ>
+              runtime safepoint 相关测试通过
+              </?01M05F1PFR055V1X4CHYTE30EQ>
+              <Criterion #AC-doc-updated { checked = true } ?01M05F1PFR055V1X4CHYTE30ER>
+              文档说明 pending mailbox work 和 VM 契约边界
+              </?01M05F1PFR055V1X4CHYTE30ER>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P7 { name = "原语化预备边界整理" status = "DONE" order = 6 } (
+        <SubNodes [
+          <Task { id = "T7.1" name = "提取 runtime safepoint 控制面 helper" status = "DONE" order = 0 priority = "P1" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30ES>
+            将 safepoint blocker 类型、AI wake mailbox 分类和 checker 从 `RuntimeSnapshots` 移到 runtime 控制面 helper；snapshot writer 只消费判定结果。
+            </?01M05F1PFR055V1X4CHYTE30ES>
+            <Acceptance [
+              <Criterion #AC-persistence-consumes-result { checked = true } ?01M05F1PFR055V1X4CHYTE30ET>
+              `RuntimeSnapshots` 不再承载 safepoint/mailbox 分类实现，只负责保存/跳过和 durable head 写入
+              </?01M05F1PFR055V1X4CHYTE30ET>
+              <Criterion #AC-coordinator-imports-runtime-helper { checked = true } ?01M05F1PFR055V1X4CHYTE30EV>
+              `AiAgentRuntimeCoordinator` 从 runtime 控制面 helper 获取 safepoint 判定
+              </?01M05F1PFR055V1X4CHYTE30EV>
+              <Criterion #AC-no-new-package { checked = true } ?01M05F1PFR055V1X4CHYTE30EW>
+              当前 track 不创建 `depa-actor-control` 或 `ai-runtime-control-*` 包
+              </?01M05F1PFR055V1X4CHYTE30EW>
+            ]>
+          )>
+          <Task { id = "T7.2" name = "记录后续双层原语化草案入口" status = "DONE" order = 1 priority = "P2" } (
+            <Description ?01M05F1PFR055V1X4CHYTE30EX>
+            创建仅包含 proposal/design 的后续 track 草案，记录 `depa-actor-control` 与 `ai-runtime-control-contract/logic` 的双层抽象方向。
+            </?01M05F1PFR055V1X4CHYTE30EX>
+            <Acceptance [
+              <Criterion #AC-draft-track-created { checked = true } ?01M05F1PFR055V1X4CHYTE30EY>
+              已创建后续原语化草案 track
+              </?01M05F1PFR055V1X4CHYTE30EY>
+              <Criterion #AC-current-track-docs-updated { checked = true } ?01M05F1PFR055V1X4CHYTE30EZ>
+              当前 track 文档说明本次只做迁移前置边界整理
+              </?01M05F1PFR055V1X4CHYTE30EZ>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

@@ -1,0 +1,32 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_2_6_-_1_9_4_9_-_m_i_g_r_a_t_e_-_t_u_i_-_u_n_i_f_i_e_d_-_d_a_t_a_-_g_r_a_p_h_-_i_n_t_e_g_r_a_t_i_o_n.behavior_patch.vendor-data-graph-tui-projection apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-data-graph-tui-projection" } (
+  <Mutations [
+    <Upsert { selector = "behavior://vendor-data-graph-tui-projection/requirements/unified-computed-projection" } (
+      <Requirement #unified-computed-projection (
+        <Statement ?01M05F1PN4F4838EMS43BQZ5FM>
+        TuiA1StateGraph SHALL derive all projection signals through the unified DataGraph computed runtime and preserve projection values, updates, and TUI graph behavior.
+        </?01M05F1PN4F4838EMS43BQZ5FM>
+        <Suites [
+          <Suite #tui-projection (
+            <Cases [
+              <Case #computed-reads [
+                <Then ?01M05F1PN4F4838EMS43BQZ5FN>
+                their getters SHALL use runtime.graph.get and SHALL NOT use ctx.get
+                </?01M05F1PN4F4838EMS43BQZ5FN>
+                <Then ?01M05F1PN4F4838EMS43BQZ5FP>
+                focused TUI graph and integration tests SHALL pass
+                </?01M05F1PN4F4838EMS43BQZ5FP>
+              ] (
+                <Given ?01M05F1PN4F4838EMS43BQZ5FQ>
+                the TUI graph has a snapshot and derived projection signals
+                </?01M05F1PN4F4838EMS43BQZ5FQ>
+                <When ?01M05F1PN4F4838EMS43BQZ5FR>
+                the projections are read or snapshot state changes
+                </?01M05F1PN4F4838EMS43BQZ5FR>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

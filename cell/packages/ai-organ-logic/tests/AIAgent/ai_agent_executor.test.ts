@@ -6,6 +6,7 @@ import path from "path";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry";
 import type { ToolDef } from "@cell/ai-core-contract/types";
+import { projectInputContentText } from "@shared/composer";
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { createVM, ensureVmRxData } from "@cell/ai-core-logic/runtime/runtime";
@@ -279,6 +280,24 @@ describe("ai_agent_loop_streaming", () => {
       "bash",
       "grep",
     ]);
+  });
+
+  it("distinguishes an exact empty tool set from the all-tools policy", () => {
+    const tools = [
+      { function: { name: "Skill" } },
+      { function: { name: "WorkflowStatus" } },
+    ];
+    const unrestricted = createActor({ key: "unrestricted" });
+    const exactEmpty = createActor({
+      key: "exact-empty",
+      toolPolicy: { allowedToolsMode: "exact", allowedTools: [] },
+    });
+
+    expect(resolveProviderToolsetForActor(unrestricted, tools).map((tool) => tool.function.name)).toEqual([
+      "Skill",
+      "WorkflowStatus",
+    ]);
+    expect(resolveProviderToolsetForActor(exactEmpty, tools)).toEqual([]);
   });
 
   it("blocks write tools at execution time in plan mode", async () => {
@@ -1112,7 +1131,7 @@ describe("ai_agent_loop_streaming", () => {
 
     expect(result.stopReason).toBe("no_tool_calls");
     expect(
-      result.messages.some((m: any) => m?.role === "user" && m?.content === "hello from queue"),
+      result.messages.some((m: any) => m?.role === "user" && projectInputContentText(m?.content) === "hello from queue"),
     ).toBe(true);
     const toolMsgs = result.messages.filter((m: any) => m?.role === "tool" && (m?.tool_call_id ?? m?.toolCallId) === "tc-wait-1");
     expect(toolMsgs.length).toBeGreaterThan(0);
@@ -1671,11 +1690,13 @@ describe("ai_agent_loop_streaming", () => {
     });
 
     expect(result.stopReason).toBe("no_tool_calls");
-    // P7: result.messages is the read-only domain projection; compare the
-    // normalized role/content shape rather than raw object identity.
-    expect(
-      result.messages.slice(0, 4).map((message: any) => [String(message.role), String(message.content)]),
-    ).toEqual(compressedSeed.map((message: any) => [String(message.role), String(message.content)]));
+    // P7: compaction changes the provider prompt generation, not the
+    // append-only conversation transcript returned by the loop.
+    expect(result.messages.map((message: any) => [String(message.role), projectInputContentText(message.content)]))
+      .toEqual([
+        ["user", "seed"],
+        ["assistant", "final"],
+      ]);
   });
 
   it("persists prompt/history/session conversation state when compression rewrites the active context", async () => {
@@ -1830,7 +1851,7 @@ describe("ai_agent_loop_streaming", () => {
       ),
     ).toBe(true);
     expect(
-      result.messages.some((m: any) => m?.role === "user" && m?.content === "fix the bug"),
+      result.messages.some((m: any) => m?.role === "user" && projectInputContentText(m?.content) === "fix the bug"),
     ).toBe(true);
   });
 });

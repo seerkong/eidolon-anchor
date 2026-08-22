@@ -1,0 +1,54 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_0_1_-_1_8_2_5_-_a_d_d_-_b_a_s_h_-_r_i_s_k_-_f_a_l_l_b_a_c_k.behavior_patch.bash-permission-approval apiVersion="codument.tech/v1alpha1" version="1" { capability = "bash-permission-approval" } (
+  <Mutations [
+    <Upsert { selector = "behavior://bash-permission-approval/requirements/unsupported-risk-fallback" } (
+      <Requirement #unsupported-risk-fallback (
+        <Statement ?01M05F1PK8BYCYJZRMF54Q7RNK>
+        The system SHALL classify parser-unsupported bash commands by deterministic risk before requiring human approval.
+        </?01M05F1PK8BYCYJZRMF54Q7RNK>
+        <Suites [
+          <Suite #readonly-fallback { name = "Readonly Unsupported Fallback" } (
+            <Cases [
+              <Case #readonly-command-substitution (
+                <Given ?01M05F1PK8BYCYJZRMF54Q7RNM>
+                A bash command uses unsupported shell syntax but only performs readonly inspection commands
+                </?01M05F1PK8BYCYJZRMF54Q7RNM>
+                <When ?01M05F1PK8BYCYJZRMF54Q7RNN>
+                The parser cannot normalize the command
+                </?01M05F1PK8BYCYJZRMF54Q7RNN>
+                <Then ?01M05F1PK8BYCYJZRMF54Q7RNP>
+                The evaluator SHALL allow the command when the classifier determines the command is low-risk readonly
+                </?01M05F1PK8BYCYJZRMF54Q7RNP>
+              )>
+              <Case #readonly-python-inspection (
+                <Given ?01M05F1PK8BYCYJZRMF54Q7RNQ>
+                A parser-unsupported bash command embeds a Python script that only reads files and prints diagnostics
+                </?01M05F1PK8BYCYJZRMF54Q7RNQ>
+                <When ?01M05F1PK8BYCYJZRMF54Q7RNR>
+                The Python script has no obvious write, network, subprocess, or shell side effects
+                </?01M05F1PK8BYCYJZRMF54Q7RNR>
+                <Then ?01M05F1PK8BYCYJZRMF54Q7RNS>
+                The evaluator SHALL classify it as low-risk readonly
+                </?01M05F1PK8BYCYJZRMF54Q7RNS>
+              )>
+            ]>
+          )>
+          <Suite #dangerous-fallback { name = "Dangerous Unsupported Fallback" } (
+            <Cases [
+              <Case #dangerous-command-remains-ask-or-deny (
+                <Given ?01M05F1PK8BYCYJZRMF54Q7RNT>
+                A parser-unsupported bash command contains destructive, write, privilege, network-execute, or protected-config behavior
+                </?01M05F1PK8BYCYJZRMF54Q7RNT>
+                <When ?01M05F1PK8BYCYJZRMF54Q7RNV>
+                The evaluator classifies the command
+                </?01M05F1PK8BYCYJZRMF54Q7RNV>
+                <Then ?01M05F1PK8BYCYJZRMF54Q7RNW>
+                The evaluator MUST NOT silently allow the command
+                </?01M05F1PK8BYCYJZRMF54Q7RNW>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

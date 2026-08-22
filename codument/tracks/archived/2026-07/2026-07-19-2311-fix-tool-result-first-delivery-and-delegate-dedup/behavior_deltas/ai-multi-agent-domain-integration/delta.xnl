@@ -1,0 +1,167 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_9_-_2_3_1_1_-_f_i_x_-_t_o_o_l_-_r_e_s_u_l_t_-_f_i_r_s_t_-_d_e_l_i_v_e_r_y_-_a_n_d_-_d_e_l_e_g_a_t_e_-_d_e_d_u_p.behavior_patch.ai-multi-agent-domain-integration apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-multi-agent-domain-integration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-multi-agent-domain-integration/requirements/detached-delegate-single-flight" } (
+      <Requirement #detached-delegate-single-flight (
+        <Statement ?01M05F1PMB3NKJWFCMSB9X3C0Y>
+        系统 SHALL 为 detached delegate 建立由 parent actor、agent type 与可选 task_key 确定的 active single-flight scope；缺省 task_key SHALL 使用 default scope，同 scope 已存在 pending、running 或 suspended task 时 SHALL 复用其 task_id 而不是创建新 child actor；调用者 MAY 以不同显式 task_key 表达合法并行，completed、failed、cancelled 或 interrupted task SHALL 不占有 active scope，sync_wait SHALL 保持既有语义。
+        </?01M05F1PMB3NKJWFCMSB9X3C0Y>
+        <Suites [
+          <Suite #detached-delegate-concurrency { name = "Detached delegate single-flight concurrency" } (
+            <Cases [
+              <Case #default-scope-reuses-active-task [
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C0Z>
+                系统 SHALL 返回原 task_id、当前状态与 reused=true
+                </?01M05F1PMB3NKJWFCMSB9X3C0Z>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C10>
+                系统 SHALL NOT 创建第二个 child actor 或重复调度工作
+                </?01M05F1PMB3NKJWFCMSB9X3C10>
+              ] (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C11>
+                同一 parent actor 与 agent type 的 default scope 已有 pending、running 或 suspended detached task
+                </?01M05F1PMB3NKJWFCMSB9X3C11>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C12>
+                父 actor 再次调用 detached delegate 且未提供 task_key
+                </?01M05F1PMB3NKJWFCMSB9X3C12>
+              )>
+              <Case #explicit-task-key-allows-parallelism (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C13>
+                同一 parent actor 需要多个同类型 delegate 执行彼此独立的工作
+                </?01M05F1PMB3NKJWFCMSB9X3C13>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C14>
+                调用者为每项工作提供不同的显式 task_key
+                </?01M05F1PMB3NKJWFCMSB9X3C14>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C15>
+                系统 SHALL 允许这些 scope 各自创建并运行 detached task
+                </?01M05F1PMB3NKJWFCMSB9X3C15>
+              )>
+              <Case #scope-isolated-by-owner-and-agent (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C16>
+                不同 parent actor、不同 agent type 或不同 task_key 发起 detached 调用
+                </?01M05F1PMB3NKJWFCMSB9X3C16>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C17>
+                registry 查询 active single-flight scope
+                </?01M05F1PMB3NKJWFCMSB9X3C17>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C18>
+                这些调用 SHALL NOT 错误复用彼此的 task
+                </?01M05F1PMB3NKJWFCMSB9X3C18>
+              )>
+              <Case #terminal-task-releases-scope (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C19>
+                single-flight scope 对应 task 完成、失败或取消
+                </?01M05F1PMB3NKJWFCMSB9X3C19>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C1A>
+                终态事件被处理一次或重复处理
+                </?01M05F1PMB3NKJWFCMSB9X3C1A>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C1B>
+                scope SHALL 被幂等释放，后续同 scope 调用 MAY 创建新 task
+                </?01M05F1PMB3NKJWFCMSB9X3C1B>
+              )>
+              <Case #recovery-preserves-resumable-active-ownership (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C1C>
+                runtime snapshot 恢复出一个仍可续跑且状态为 pending、running 或 suspended 的 detached task
+                </?01M05F1PMB3NKJWFCMSB9X3C1C>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C1D>
+                父 actor 在恢复后调用相同 scope
+                </?01M05F1PMB3NKJWFCMSB9X3C1D>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C1E>
+                系统 SHALL 重建或保留 single-flight ownership 并复用恢复的 task
+                </?01M05F1PMB3NKJWFCMSB9X3C1E>
+              )>
+              <Case #recovery-releases-interrupted-ownership [
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C1F>
+                系统 SHALL 保留旧 task、scope 与 interrupted 状态供审计查询
+                </?01M05F1PMB3NKJWFCMSB9X3C1F>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C1G>
+                系统 SHALL 释放旧 active ownership，创建新的 detached task，并返回 reused=false
+                </?01M05F1PMB3NKJWFCMSB9X3C1G>
+              ] (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C1H>
+                runtime snapshot 中的 detached task 无法续跑并被恢复为 interrupted
+                </?01M05F1PMB3NKJWFCMSB9X3C1H>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C1J>
+                父 actor 在恢复后调用相同 scope
+                </?01M05F1PMB3NKJWFCMSB9X3C1J>
+              )>
+              <Case #sync-wait-unchanged (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C1K>
+                调用者使用 sync_wait delegate 模式
+                </?01M05F1PMB3NKJWFCMSB9X3C1K>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C1M>
+                系统执行 delegate
+                </?01M05F1PMB3NKJWFCMSB9X3C1M>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C1N>
+                既有等待、结果交付与错误语义 SHALL 保持，不受 detached default scope 限制
+                </?01M05F1PMB3NKJWFCMSB9X3C1N>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-multi-agent-domain-integration/requirements/asynchronous-conversation-message-first-delivery" } (
+      <Requirement #asynchronous-conversation-message-first-delivery (
+        <Statement ?01M05F1PMB3NKJWFCMSB9X3C1P>
+        系统 SHALL 把 detached completion 等异步注入父 Conversation 的 committed message 首次 provider delivery 建模为工具无关、可持久恢复的显式生命周期：History message SHALL 具有跨 compaction 稳定的 message id，Session domain fact SHALL 以独立 delivery id 持有 pending/delivered；provider materialization SHALL 收集 request 实际包含的 pending message id，并只在成功 completion 后确认对应 delivery；provider failure、abort 与 recovery SHALL 保持 pending，通用摘要压缩 SHALL 原子保留受保护 message，且 message id、delivery fact 与状态 SHALL NOT 进入 provider-visible message、稳定 instructions 或 cache key。
+        </?01M05F1PMB3NKJWFCMSB9X3C1P>
+        <Suites [
+          <Suite #asynchronous-message-delivery-lifecycle { name = "Asynchronous Conversation message first provider delivery" } (
+            <Cases [
+              <Case #detached-completion-survives-failure-recovery-and-summary [
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C1Q>
+                Session delivery fact SHALL 保持 pending，且受保护 message 的稳定 message id 与完整正文 SHALL 跨恢复和压缩原子保留
+                </?01M05F1PMB3NKJWFCMSB9X3C1Q>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C1R>
+                摘要 provider request SHALL NOT 包含该 completion，系统 SHALL NOT 在首次成功交付前生成其 artifact 或 summary 替代
+                </?01M05F1PMB3NKJWFCMSB9X3C1R>
+              ] (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C1S>
+                detached childDone 向父 Conversation 提交一个约 26KB completion message，首次包含它的父 provider call 失败
+                </?01M05F1PMB3NKJWFCMSB9X3C1S>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C1T>
+                系统持久化并恢复 Conversation，追加输入触发通用摘要压缩，再构造下一 provider request
+                </?01M05F1PMB3NKJWFCMSB9X3C1T>
+              )>
+              <Case #success-confirms-only-included-asynchronous-messages (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C1V>
+                provider request 实际包含一个或多个 pending asynchronous message id
+                </?01M05F1PMB3NKJWFCMSB9X3C1V>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C1W>
+                provider completion 成功
+                </?01M05F1PMB3NKJWFCMSB9X3C1W>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C1X>
+                系统 SHALL 只确认该 request 实际包含的 delivery id 为 delivered
+                </?01M05F1PMB3NKJWFCMSB9X3C1X>
+              )>
+              <Case #failure-and-abort-keep-asynchronous-message-pending (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C1Y>
+                包含 pending asynchronous message 的 provider call 失败、中止或未形成成功 completion
+                </?01M05F1PMB3NKJWFCMSB9X3C1Y>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C1Z>
+                系统重试 provider call 或恢复 Conversation
+                </?01M05F1PMB3NKJWFCMSB9X3C1Z>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C20>
+                该 message SHALL 保持 pending，并继续拥有首次完整交付资格
+                </?01M05F1PMB3NKJWFCMSB9X3C20>
+              )>
+              <Case #asynchronous-delivery-metadata-remains-runtime-only [
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C21>
+                message id、delivery id、delivery fact 与状态 SHALL 只存在于 History/Session/runtime materialization metadata
+                </?01M05F1PMB3NKJWFCMSB9X3C21>
+                <Then ?01M05F1PMB3NKJWFCMSB9X3C22>
+                这些动态事实 SHALL NOT 出现在 provider-visible messages、稳定 instructions 或 cache key
+                </?01M05F1PMB3NKJWFCMSB9X3C22>
+              ] (
+                <Given ?01M05F1PMB3NKJWFCMSB9X3C23>
+                不同轮次具有不同 pending/delivered asynchronous message 集合
+                </?01M05F1PMB3NKJWFCMSB9X3C23>
+                <When ?01M05F1PMB3NKJWFCMSB9X3C24>
+                系统构造普通 provider request、摘要 provider request与稳定 cache identity
+                </?01M05F1PMB3NKJWFCMSB9X3C24>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

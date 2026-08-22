@@ -225,12 +225,14 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     ...params.ctrlOptions,
   };
 
+  const allowedTools = [...(params.toolPolicy?.allowedTools ?? [])];
   const toolPolicy: ActorToolPolicy = {
-    allowedTools: [],
-    enabledToolKeys: [],
-    disabledToolKeys: [],
-    computedDisabledTools: [],
-    ...params.toolPolicy,
+    allowedToolsMode: params.toolPolicy?.allowedToolsMode
+      ?? (allowedTools.length > 0 ? "exact" : "all"),
+    allowedTools,
+    enabledToolKeys: [...(params.toolPolicy?.enabledToolKeys ?? [])],
+    disabledToolKeys: [...(params.toolPolicy?.disabledToolKeys ?? [])],
+    computedDisabledTools: [...(params.toolPolicy?.computedDisabledTools ?? [])],
   };
 
   const contextPolicy: ActorContextPolicy = {

@@ -1,0 +1,88 @@
+<Track #refactor-platform-kernel-wave5-platform-composer-uplift version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "将 `@cell/composer` 的根装配器提升为平台 capability composition engine，并把 AI runtime assembly 明确收口为其上的 facet。" commit_mode = "manual" created_at = "2026-04-11T09:18:00Z" updated_at = "2026-04-11T09:42:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-platform-kernel-wave5-platform-composer-uplift { name = "refactor-platform-kernel-wave5-platform-composer-uplift" } (
+    <Description ?01M05F1PC8RP0D6BZ023N4YSS8>
+    实施平台微内核 Wave 5 的 platform composer uplift
+    </?01M05F1PC8RP0D6BZ023N4YSS8>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Platform Root Contract Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PC8RP0D6BZ023N4YSS9>
+        冻结 platform-first composer 的 contract 边界。
+        </?01M05F1PC8RP0D6BZ023N4YSS9>
+        <SubNodes [
+          <Task { id = "T1.1" name = "定义 platform root assembly contract" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PC8RP0D6BZ023N4YSSA>
+            明确 platform root assembly 的 context/state/result 与 AI facet 的扩展关系。
+            </?01M05F1PC8RP0D6BZ023N4YSSA>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PC8RP0D6BZ023N4YSSB>
+              platform root contract 与 ai facet contract 的分层明确
+              </?01M05F1PC8RP0D6BZ023N4YSSB>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PC8RP0D6BZ023N4YSSC>
+              根装配器不再以 AI facet 作为唯一真相模型
+              </?01M05F1PC8RP0D6BZ023N4YSSC>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Composer Engine Uplift" status = "DONE" order = 1 } (
+        <Description ?01M05F1PC8RP0D6BZ023N4YSSD>
+        调整 `@cell/composer` 的主装配引擎为 platform-first。
+        </?01M05F1PC8RP0D6BZ023N4YSSD>
+        <SubNodes [
+          <Task { id = "T2.1" name = "重构 assembleRuntimeProfile 为 platform-first 装配入口" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PC8RP0D6BZ023N4YSSE>
+            让主装配入口先处理 platform assembly，再由 AI facet 完成 domain-specific finalize。
+            </?01M05F1PC8RP0D6BZ023N4YSSE>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PC8RP0D6BZ023N4YSSF>
+              `assembleRuntimeProfile()` 的根依赖已回到 platform contract
+              </?01M05F1PC8RP0D6BZ023N4YSSF>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PC8RP0D6BZ023N4YSSG>
+              AI facet 仍可正确提供 runtime/tooling/catalog/support/slash 资产
+              </?01M05F1PC8RP0D6BZ023N4YSSG>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Focused Verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PC8RP0D6BZ023N4YSSH>
+        验证 platform-first composer uplift 后 profile 与 shell adoption 不回归。
+        </?01M05F1PC8RP0D6BZ023N4YSSH>
+        <SubNodes [
+          <Task { id = "T3.1" name = "运行 composer/profile focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PC8RP0D6BZ023N4YSSJ>
+            验证 platform-only、ai-kernel、ai-coding 的 layering 与 ownership。
+            </?01M05F1PC8RP0D6BZ023N4YSSJ>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PC8RP0D6BZ023N4YSSK>
+              platform-only 不依赖隐式 AI 默认状态
+              </?01M05F1PC8RP0D6BZ023N4YSSK>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PC8RP0D6BZ023N4YSSM>
+              ai-kernel / ai-coding layering 仍然成立
+              </?01M05F1PC8RP0D6BZ023N4YSSM>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "验证 shell/tui adoption 主路径" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PC8RP0D6BZ023N4YSSN>
+            确认 terminal/tui 继续通过 assembly result 消费 AI facet 资产。
+            </?01M05F1PC8RP0D6BZ023N4YSSN>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PC8RP0D6BZ023N4YSSP>
+              terminal/tui focused tests 通过
+              </?01M05F1PC8RP0D6BZ023N4YSSP>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PC8RP0D6BZ023N4YSSQ>
+              不重新产生第二套 assembly truth
+              </?01M05F1PC8RP0D6BZ023N4YSSQ>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

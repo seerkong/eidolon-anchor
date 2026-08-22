@@ -1,0 +1,8 @@
+<KindDefinition #codument.resource_kind.Behavior apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  resourceKind = "Behavior"
+  sourceShapes = ["single-file"]
+  currentApiVersion = "codument.tech/v1alpha1"
+  supportedApiVersions = ["codument.tech/v1alpha1"]
+  description = "Codument capability behavior contract registry"
+}>

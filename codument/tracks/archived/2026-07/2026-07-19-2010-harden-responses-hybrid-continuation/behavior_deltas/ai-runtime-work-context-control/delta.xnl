@@ -1,0 +1,65 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_9_-_2_0_1_0_-_h_a_r_d_e_n_-_r_e_s_p_o_n_s_e_s_-_h_y_b_r_i_d_-_c_o_n_t_i_n_u_a_t_i_o_n.behavior_patch.ai-runtime-work-context-control apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-work-context-control" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-work-context-control/requirements/cache-stable-overlay" } (
+      <Requirement #cache-stable-overlay (
+        <Statement ?01M05F1PM27FXXVSE9080E5VD4>
+        系统 SHALL keep work mode、task phase 与 mutable provider projections compact and outside stable provider prefix content，并 SHALL 把它们放在 stable system prefix 与 chronological conversation history 之间的固定语义锚点；动态状态 MUST NOT 随最后一条 user/tool message 移动或追加到 provider request 尾部。
+        </?01M05F1PM27FXXVSE9080E5VD4>
+        <Suites [
+          <Suite #prompt-cache { name = "Prompt cache stability" } (
+            <Cases [
+              <Case #fixed-conversation-boundary [
+                <Then ?01M05F1PM27FXXVSE9080E5VD5>
+                system prompts SHALL 在最前
+                </?01M05F1PM27FXXVSE9080E5VD5>
+                <Then ?01M05F1PM27FXXVSE9080E5VD6>
+                当前 dynamic overlays SHALL 以稳定顺序紧随 stable system prefix
+                </?01M05F1PM27FXXVSE9080E5VD6>
+                <Then ?01M05F1PM27FXXVSE9080E5VD7>
+                user/assistant/tool history SHALL 保持原 chronological 顺序并位于 overlays 之后
+                </?01M05F1PM27FXXVSE9080E5VD7>
+              ] (
+                <Given ?01M05F1PM27FXXVSE9080E5VD8>
+                system prompts、动态 overlays 与多轮 chronological history 同时存在
+                </?01M05F1PM27FXXVSE9080E5VD8>
+                <When ?01M05F1PM27FXXVSE9080E5VD9>
+                Conversation materializer 构造 provider context
+                </?01M05F1PM27FXXVSE9080E5VD9>
+              )>
+              <Case #new-user-does-not-relocate-overlay [
+                <Then ?01M05F1PM27FXXVSE9080E5VDA>
+                overlay 的语义锚点 SHALL 保持不变
+                </?01M05F1PM27FXXVSE9080E5VDA>
+                <Then ?01M05F1PM27FXXVSE9080E5VDB>
+                既有 provider prefix SHALL 保持可做 exact-prefix replay/cache matching
+                </?01M05F1PM27FXXVSE9080E5VDB>
+              ] (
+                <Given ?01M05F1PM27FXXVSE9080E5VDC>
+                动态状态 revision/content 未变化
+                </?01M05F1PM27FXXVSE9080E5VDC>
+                <When ?01M05F1PM27FXXVSE9080E5VDD>
+                新的 user 或 tool message 追加到 History
+                </?01M05F1PM27FXXVSE9080E5VDD>
+              )>
+              <Case #dynamic-revision-invalidates-continuation [
+                <Then ?01M05F1PM27FXXVSE9080E5VDE>
+                旧 continuation baseline SHALL 失效
+                </?01M05F1PM27FXXVSE9080E5VDE>
+                <Then ?01M05F1PM27FXXVSE9080E5VDF>
+                新 full request SHALL 在固定锚点只包含当前 revision
+                </?01M05F1PM27FXXVSE9080E5VDF>
+              ] (
+                <Given ?01M05F1PM27FXXVSE9080E5VDG>
+                work context 或 mutable projection revision/content 变化
+                </?01M05F1PM27FXXVSE9080E5VDG>
+                <When ?01M05F1PM27FXXVSE9080E5VDH>
+                系统构造下一 provider request
+                </?01M05F1PM27FXXVSE9080E5VDH>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

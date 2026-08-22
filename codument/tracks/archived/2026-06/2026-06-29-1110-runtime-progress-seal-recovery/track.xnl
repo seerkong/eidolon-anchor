@@ -1,0 +1,120 @@
+<Track #runtime-progress-seal-recovery version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Enable production-safe completed-progress seal and forward-only conversation recovery for long mandatory-continuation turns." description = "Persist sealed conversation progress on unsettled timeout and resume from it without unsafe VM snapshots." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-06-29T08:04:06Z" updated_at = "2026-06-29T08:10:55Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_runtime-progress-seal-recovery { name = "runtime-progress-seal-recovery" } (
+    <Description ?01M05F1PJY7DNBW180BTH6X7W3>
+    Implement production-safe timeout progress sealing and recovery relay.
+    </?01M05F1PJY7DNBW180BTH6X7W3>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Recovery scanner policy" status = "DONE" order = 0 } (
+        <Description ?01M05F1PJY7DNBW180BTH6X7W4>
+        Add explicit forward-only conversation head recovery semantics.
+        </?01M05F1PJY7DNBW180BTH6X7W4>
+        <Gate [
+          <Criterion ?01M05F1PJY7DNBW180BTH6X7W5>
+          Scanner tests cover forward, backward, missing, and non-conversation mismatch.
+          </?01M05F1PJY7DNBW180BTH6X7W5>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add forward-only conversation recovery tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PJY7DNBW180BTH6X7W6>
+            Update recovery scanner coverage for the new head policy.
+            </?01M05F1PJY7DNBW180BTH6X7W6>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PJY7DNBW180BTH6X7W7>
+              Forward-only conversation mismatch classifies clean.
+              </?01M05F1PJY7DNBW180BTH6X7W7>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PJY7DNBW180BTH6X7W8>
+              Backward or missing conversation mismatch remains dirty.
+              </?01M05F1PJY7DNBW180BTH6X7W8>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "Implement forward-only recovery policy" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PJY7DNBW180BTH6X7W9>
+            Change recovery classification with a narrow conversation-only forward policy.
+            </?01M05F1PJY7DNBW180BTH6X7W9>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PJY7DNBW180BTH6X7WA>
+              Non-conversation authoritative head mismatch remains dirty.
+              </?01M05F1PJY7DNBW180BTH6X7WA>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Production seal wiring" status = "DONE" order = 1 } (
+        <Description ?01M05F1PJY7DNBW180BTH6X7WB>
+        Bind the existing completed-progress seal callback in production runtime creation paths.
+        </?01M05F1PJY7DNBW180BTH6X7WB>
+        <Gate [
+          <Criterion ?01M05F1PJY7DNBW180BTH6X7WC>
+          Production runtime coordinator receives a real seal callback.
+          </?01M05F1PJY7DNBW180BTH6X7WC>
+          <Criterion ?01M05F1PJY7DNBW180BTH6X7WD>
+          Timeout path still does not save an unsafe VM snapshot.
+          </?01M05F1PJY7DNBW180BTH6X7WD>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Wire seal callback in shell and terminal runtime" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PJY7DNBW180BTH6X7WE>
+            Pass `sealCompletedConversationProgress` to coordinator creation in production runtime paths.
+            </?01M05F1PJY7DNBW180BTH6X7WE>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PJY7DNBW180BTH6X7WF>
+              Shell runtime bootstrap exposes a real `sealCompletedProgress` callback.
+              </?01M05F1PJY7DNBW180BTH6X7WF>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PJY7DNBW180BTH6X7WG>
+              Terminal runtime passes a real `sealCompletedProgress` callback.
+              </?01M05F1PJY7DNBW180BTH6X7WG>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Runtime integration verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PJY7DNBW180BTH6X7WH>
+        Prove settled-then-timeout recovery resumes from sealed conversation progress.
+        </?01M05F1PJY7DNBW180BTH6X7WH>
+        <Gate [
+          <Criterion ?01M05F1PJY7DNBW180BTH6X7WJ>
+          Timed-out progress tests pass.
+          </?01M05F1PJY7DNBW180BTH6X7WJ>
+          <Criterion ?01M05F1PJY7DNBW180BTH6X7WK>
+          Snapshot safepoint regression tests pass.
+          </?01M05F1PJY7DNBW180BTH6X7WK>
+        ]>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Flip deferred production recovery test" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PJY7DNBW180BTH6X7WM>
+            Update the deferred test to assert recovered messages include sealed timeout progress.
+            </?01M05F1PJY7DNBW180BTH6X7WM>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PJY7DNBW180BTH6X7WN>
+              Settled-then-timeout recovery includes sealed progress.
+              </?01M05F1PJY7DNBW180BTH6X7WN>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PJY7DNBW180BTH6X7WP>
+              Unsafe snapshot guard remains covered.
+              </?01M05F1PJY7DNBW180BTH6X7WP>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Hooks>
+)>

@@ -18,7 +18,7 @@ codument/modeling/
 ```
 
 - `domain` 是唯一 canonical plane。
-- derived plane 只描述投影差异，并用 `derived_from="modeling://domain/<context>/<id>"` 指回最近的 canonical 父节点。
+- derived plane 只描述投影差异，并在属性块写 `{ derived_from = "modeling://domain/<context>/<id>" }` 指回最近的 canonical 父节点。
 - context 是 plane 内的边界单元；节点通过 `<not-owned-here ?>... </?>` 或等价描述明确相邻边界。
 - 不创建 Markdown `index.md`、frontmatter、glossary 目录树或旧 docs 建模目录的兼容副本。
 

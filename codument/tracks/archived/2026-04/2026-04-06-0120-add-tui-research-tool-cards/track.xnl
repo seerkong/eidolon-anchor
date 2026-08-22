@@ -1,0 +1,131 @@
+<Track #add-tui-research-tool-cards version="1" apiVersion="codument.tech/v1alpha1" { status = "in_progress" goal = "让 prototype TUI 为 webfetch、codesearch、websearch 启用 dedicated cards，同时保持 coding cards 与 generic fallback 不回归" commit_mode = "manual" created_at = "2026-04-05T16:01:16Z" updated_at = "2026-04-06T01:20:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-tui-research-tool-cards { name = "add-tui-research-tool-cards" } (
+    <Description ?01M05F1PA6ATVVM19YXAB04V4Z>
+    接入 TUI research 工具卡片
+    </?01M05F1PA6ATVVM19YXAB04V4Z>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Discovery And Routing Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PA6ATVVM19YXAB04V50>
+        冻结 research cards 的接入边界，避免误伤 coding 主链
+        </?01M05F1PA6ATVVM19YXAB04V50>
+        <SubNodes [
+          <Task { id = "T1.1" name = "冻结 research/coding/fallback 三类路由边界" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA6ATVVM19YXAB04V51>
+            明确 research cards 的工具范围、与 coding allowlist 的关系，以及 unsupported tool fallback 规则。
+            </?01M05F1PA6ATVVM19YXAB04V51>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PA6ATVVM19YXAB04V52>
+              明确 `webfetch`、`codesearch`、`websearch` 为 research 类 dedicated cards
+              </?01M05F1PA6ATVVM19YXAB04V52>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PA6ATVVM19YXAB04V53>
+              明确 unsupported tools 继续走 `GenericTool`
+              </?01M05F1PA6ATVVM19YXAB04V53>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Research Card Routing" status = "DONE" order = 1 } (
+        <Description ?01M05F1PA6ATVVM19YXAB04V54>
+        启用 research cards，同时不重做既有 structured tool part 主链
+        </?01M05F1PA6ATVVM19YXAB04V54>
+        <SubNodes [
+          <Task { id = "T2.1" name = "扩展 dedicated tool 路由以支持 research cards" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA6ATVVM19YXAB04V55>
+            调整 registry 路由，使 `webfetch`、`codesearch`、`websearch` 命中其专用卡片，而不是 `GenericTool`。
+            </?01M05F1PA6ATVVM19YXAB04V55>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PA6ATVVM19YXAB04V56>
+              三类 research tools 命中 dedicated cards
+              </?01M05F1PA6ATVVM19YXAB04V56>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PA6ATVVM19YXAB04V57>
+              实现不需要重做 runtime `ToolPart` projection
+              </?01M05F1PA6ATVVM19YXAB04V57>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "确保 coding cards 与 unsupported fallback 无回归" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA6ATVVM19YXAB04V58>
+            在路由逻辑更新后，继续保证 coding cards 与 generic fallback 的既有行为不被破坏。
+            </?01M05F1PA6ATVVM19YXAB04V58>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PA6ATVVM19YXAB04V59>
+              `edit`、`write`、`patch` 等 coding tools 仍命中原 dedicated cards
+              </?01M05F1PA6ATVVM19YXAB04V59>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PA6ATVVM19YXAB04V5A>
+              unknown tool 仍命中 `GenericTool`
+              </?01M05F1PA6ATVVM19YXAB04V5A>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PA6ATVVM19YXAB04V5B>
+        通过测试与手工点验验证 research card 接入结果
+        </?01M05F1PA6ATVVM19YXAB04V5B>
+        <SubNodes [
+          <Task { id = "T3.1" name = "更新兼容性测试断言" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA6ATVVM19YXAB04V5C>
+            把 research tools 从 fallback 断言切换为 dedicated card 断言，并保留 coding/fallback 回归检查。
+            </?01M05F1PA6ATVVM19YXAB04V5C>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PA6ATVVM19YXAB04V5D>
+              research tools 的 dedicated card 选择逻辑有自动化测试
+              </?01M05F1PA6ATVVM19YXAB04V5D>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PA6ATVVM19YXAB04V5E>
+              coding tools 与 unknown tool 的回归断言仍保留
+              </?01M05F1PA6ATVVM19YXAB04V5E>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "运行 terminal TUI 测试并做手工点验" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PA6ATVVM19YXAB04V5F>
+            执行 terminal TUI 测试，并手工检查 research cards 的界面语义是否生效。
+            </?01M05F1PA6ATVVM19YXAB04V5F>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PA6ATVVM19YXAB04V5G>
+              至少运行一次 terminal TUI 相关测试命令
+              </?01M05F1PA6ATVVM19YXAB04V5G>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PA6ATVVM19YXAB04V5H>
+              手工点验覆盖三类 research tools 与一类 fallback/coding 回归场景
+              </?01M05F1PA6ATVVM19YXAB04V5H>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Real Runtime Activation Verification" status = "DONE" order = 3 } (
+        <Description ?01M05F1PA6ATVVM19YXAB04V5J>
+        确认 research cards 不只是 registry 命中，而且在真实 runtime tool part 主链贯通后真正生效
+        </?01M05F1PA6ATVVM19YXAB04V5J>
+        <SubNodes [
+          <Task { id = "T4.1" name = "验证 research cards 依赖的 runtime `ToolPart` 已真实到达 TUI" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PA6ATVVM19YXAB04V5K>
+            在 coding tool part 真正接通 runtime bridge 后，确认 webfetch、codesearch、websearch 不再只是在 router 层可选，而是能被真实消息区命中。
+            </?01M05F1PA6ATVVM19YXAB04V5K>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1PA6ATVVM19YXAB04V5M>
+              research tools 在真实 runtime session 中命中 dedicated cards，而不是 assistant 文本或 generic fallback
+              </?01M05F1PA6ATVVM19YXAB04V5M>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1PA6ATVVM19YXAB04V5N>
+              research card 的关键信息至少能展示 URL/query，并在可得时展示结果数量
+              </?01M05F1PA6ATVVM19YXAB04V5N>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

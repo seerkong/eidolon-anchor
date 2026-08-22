@@ -1,0 +1,43 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_2_6_-_1_8_2_7_-_m_i_g_r_a_t_e_-_m_e_s_s_a_g_e_-_h_i_s_t_o_r_y_-_u_n_i_f_i_e_d_-_d_a_t_a_-_g_r_a_p_h.behavior_patch.vendor-data-graph-stream-foundations apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-data-graph-stream-foundations" } (
+  <Mutations [
+    <Upsert { selector = "behavior://vendor-data-graph-stream-foundations/requirements/message-history-unified-state-projection" } (
+      <Requirement #message-history-unified-state-projection (
+        <Statement ?01M05F1PMMEA8S956WKWS7VE2Y>
+        MessageHistoryGraph SHALL project its append-only semantic input through the unified DataGraph stream-driven state-signal contract, without retaining removed ReducerProjection APIs, while preserving transcript, committed-message, anomaly, completion, and disposal behavior.
+        </?01M05F1PMMEA8S956WKWS7VE2Y>
+        <Suites [
+          <Suite #projection-contract { name = "Message history projection contract" } (
+            <Cases [
+              <Case #history-reducer-uses-unified-state-node [
+                <Then ?01M05F1PMMEA8S956WKWS7VE2Z>
+                it SHALL register the log stream as a DataGraph source and read a stream-driven state-signal handle output
+                </?01M05F1PMMEA8S956WKWS7VE2Z>
+                <Then ?01M05F1PMMEA8S956WKWS7VE30>
+                it SHALL NOT import or reference ReducerProjection or createReducerProjection
+                </?01M05F1PMMEA8S956WKWS7VE30>
+              ] (
+                <Given ?01M05F1PMMEA8S956WKWS7VE31>
+                MessageHistoryGraph receives semantic events through its ordered input log
+                </?01M05F1PMMEA8S956WKWS7VE31>
+                <When ?01M05F1PMMEA8S956WKWS7VE32>
+                it reduces a transcript state and exposes listener notifications
+                </?01M05F1PMMEA8S956WKWS7VE32>
+              )>
+              <Case #history-fixtures-and-lifecycle-remain-stable (
+                <Given ?01M05F1PMMEA8S956WKWS7VE33>
+                existing history transcript fixtures and listener lifecycle tests
+                </?01M05F1PMMEA8S956WKWS7VE33>
+                <When ?01M05F1PMMEA8S956WKWS7VE34>
+                the unified projection receives semantic events, completion, or disposal
+                </?01M05F1PMMEA8S956WKWS7VE34>
+                <Then ?01M05F1PMMEA8S956WKWS7VE35>
+                they SHALL preserve current emitted records and committed messages, stop after completion, and dispose graph subscriptions without disposing the independently owned input log twice
+                </?01M05F1PMMEA8S956WKWS7VE35>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

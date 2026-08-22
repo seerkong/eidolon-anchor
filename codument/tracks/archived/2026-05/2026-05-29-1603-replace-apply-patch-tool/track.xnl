@@ -1,0 +1,11 @@
+<Track #replace-apply-patch-tool version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" description = "Replace this project’s existing ApplyPatch tool with a more complete apply_patch implementation, including related editing lifecycle mechanisms." commit_mode = "manual" created_at = "2026-05-29T15:40:36Z" updated_at = "2026-05-29T16:03:59Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_replace-apply-patch-tool { name = "replace-apply-patch-tool" } (
+    <SubNodes>
+  )>
+  <Schedule>
+)>

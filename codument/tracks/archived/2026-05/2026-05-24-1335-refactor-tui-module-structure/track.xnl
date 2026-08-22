@@ -1,0 +1,226 @@
+<Track #refactor-tui-module-structure version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" description = "重组 terminal/packages/tui 目录结构，收集疑似未启用功能，最终移除 TUI-local import alias 和兼容残留。" commit_mode = "manual" created_at = "2026-05-24T11:22:50Z" updated_at = "2026-05-24T13:35:04Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-tui-module-structure { name = "refactor-tui-module-structure" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Inventory and Safety Baseline" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task { id = "T1.1" name = "Create feature and unused-code inventory" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5S8>
+            Collect potentially unused or inactive code paths in the TUI package, including LSP, support utilities, compatibility exports, and dead entry points.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5S8>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5S9>
+              Track-local inventory exists and lists each candidate with references and keep/remove recommendation.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5S9>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SA>
+              LSP-related code is explicitly evaluated.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SA>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "Capture structural baseline checks" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5SB>
+            Record current file counts, alias usages, package entry exports, and existing test commands before moving files.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5SB>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SC>
+              Baseline alias and deep-path scan is recorded.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SC>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SD>
+              Relevant TUI tests or smoke checks are identified.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SD>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Entry Runtime and Support Reorganization" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task { id = "T2.1" name = "Move startup entry files into entry area" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5SE>
+            Move index, cli bridge, thread command, preload, and TuiA1 main startup code into the new entry structure while preserving exports and package scripts.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5SE>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SF>
+              Existing CLI/dev startup behavior remains available.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SF>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SG>
+              Package exports and scripts point to the new entry locations.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SG>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "Separate runtime adapter from UI code" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5SH>
+            Reorganize runtime facade files under runtime subareas and ensure runtime code does not import UI components.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5SH>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SJ>
+              Runtime files are grouped by client/catalog/bridge/mock responsibility.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SJ>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SK>
+              No runtime-to-UI dependency is introduced.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SK>
+            ]>
+          )>
+          <Task { id = "T2.3" name = "Repair direct package source imports" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5SM>
+            Replace direct imports from sibling package source paths with package exports or update exports where necessary.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5SM>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SN>
+              No TUI source imports `../../organ-support/src` directly.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SN>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "UI Provider and TuiA1 Feature Reorganization" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task { id = "T3.1" name = "Move reusable UI primitives and dialogs" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5SP>
+            Consolidate reusable dialog, toast, selection, primitive, and prompt components under the reusable UI area.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5SP>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SQ>
+              Reusable UI code does not import TuiA1 app implementation.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SQ>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SR>
+              Existing dialog behavior remains covered by tests or smoke checks.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SR>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "Move providers to generic or app-owned areas" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5SS>
+            Separate generic providers from TuiA1 state-dependent providers and eliminate generic-to-app reverse dependencies.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5SS>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5ST>
+              Top-level providers do not import `app/tui_a1` internals.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5ST>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SV>
+              TuiA1-specific sync/local/route providers live under app ownership.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SV>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "Replace vague materials directories" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5SW>
+            Move `materials` directories into explicit feature, provider, state, route, or logic directories.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5SW>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SX>
+              No source path under TUI uses a `materials` directory for active code.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SX>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "TuiA1 Root Split and Behavior Preservation" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task { id = "T4.1" name = "Split TuiA1 root orchestration file" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5SY>
+            Extract app root, view/layout, runtime effects, and dialog wiring from the current large TuiA1 root file.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5SY>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5SZ>
+              TuiA1 root file is focused on composition rather than mixed feature logic.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5SZ>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5T0>
+              Streaming, composer, session list, message list, and system dialogs continue to work.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5T0>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "Add or adjust targeted regression tests" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5T1>
+            Add or update tests that protect startup, provider wiring, dialog wiring, and stream/message rendering paths affected by file moves.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5T1>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5T2>
+              Tests fail if key wiring paths are broken.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5T2>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5T3>
+              TUI package test command passes.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5T3>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Alias Compatibility and Unused Feature Cleanup" status = "DONE" order = 4 } (
+        <SubNodes [
+          <Task { id = "T5.1" name = "Remove TUI-local import aliases" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5T4>
+            Replace TUI-local alias imports with final non-alias imports and update TypeScript path configuration accordingly.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5T4>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5T5>
+              No `@tui/` imports remain in `terminal/packages/tui/src`.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5T5>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5T6>
+              No `@/` imports remain in `terminal/packages/tui/src`.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5T6>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5T7>
+              TUI-local alias config is removed or no longer applicable to source imports.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5T7>
+            ]>
+          )>
+          <Task { id = "T5.2" name = "Remove migration-only compatibility code" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5T8>
+            Remove temporary re-export files, old path barrels, empty directories, and compatibility code created only for the migration.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5T8>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5T9>
+              No migration-only compatibility shims remain.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5T9>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5TA>
+              Old directory names do not remain as empty shells.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5TA>
+            ]>
+          )>
+          <Task { id = "T5.3" name = "Apply unused-feature decisions" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5TB>
+            Keep, relocate, or delete inventory candidates based on recorded evidence and decisions.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5TB>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5TC>
+              Each inventory item has a final decision and outcome.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5TC>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5TD>
+              Removed items have validation evidence that behavior was not regressed.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5TD>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P6 { name = "Final Verification" status = "DONE" order = 5 } (
+        <SubNodes [
+          <Task { id = "T6.1" name = "Run final structural scans and tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE4RT0WB7S2W5Q3Z5TE>
+            Run final tests, import alias scans, direct package source import scans, and file tree review.
+            </?01M05F1PE4RT0WB7S2W5Q3Z5TE>
+            <Acceptance [
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5TF>
+              TUI tests pass.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5TF>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5TG>
+              Alias scan passes with zero TUI-local alias imports.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5TG>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5TH>
+              Direct sibling package source import scan passes.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5TH>
+              <Criterion { checked = true } ?01M05F1PE4RT0WB7S2W5Q3Z5TJ>
+              Feature inventory is closed with decisions.
+              </?01M05F1PE4RT0WB7S2W5Q3Z5TJ>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

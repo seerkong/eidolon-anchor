@@ -1,0 +1,67 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_2_-_1_2_4_7_-_f_i_x_-_c_o_n_v_e_r_s_a_t_i_o_n_-_g_e_n_e_r_a_t_i_o_n_-_s_e_q_u_e_n_c_e_-_r_e_p_l_a_y.behavior_patch.conversation-history-replay apiVersion="codument.tech/v1alpha1" version="1" { capability = "conversation-history-replay" } (
+  <Mutations [
+    <Upsert { selector = "behavior://conversation-history-replay/requirements/generation-sequence-is-canonical" } (
+      <Requirement #generation-sequence-is-canonical (
+        <Statement ?01M05F1PN9EJXP20DY6ZFYJ8AT>
+        系统 SHALL 以持久化 HistoryMessage.sequence 作为 conversation generation 内消息的权威回放顺序；当 generation 具有完整 sequence metadata 时，系统 SHALL NOT 使用 committedAt 对消息二次重排。
+        </?01M05F1PN9EJXP20DY6ZFYJ8AT>
+        <Suites [
+          <Suite #generation-replay { name = "Conversation generation replay" } (
+            <Cases [
+              <Case #compacted-timestamp-followed-by-live-ordinal [
+                <Then ?01M05F1PN9EJXP20DY6ZFYJ8AV>
+                消息 SHALL 按 sequence 呈现为 user → assistant/tool progress
+                </?01M05F1PN9EJXP20DY6ZFYJ8AV>
+                <Then ?01M05F1PN9EJXP20DY6ZFYJ8AW>
+                TUI 与 runtime projection SHALL 在最后用户输入之后显示已持久化的 assistant/tool progress
+                </?01M05F1PN9EJXP20DY6ZFYJ8AW>
+              ] (
+                <Given ?01M05F1PN9EJXP20DY6ZFYJ8AX>
+                一个 compacted generation 的最后用户消息保留毫秒时间戳 committedAt，后续 assistant/tool live appends 使用 ordinal committedAt，并且所有记录具有连续 sequence
+                </?01M05F1PN9EJXP20DY6ZFYJ8AX>
+                <When ?01M05F1PN9EJXP20DY6ZFYJ8AY>
+                共享 conversation persistence reader 重建 generation
+                </?01M05F1PN9EJXP20DY6ZFYJ8AY>
+              )>
+              <Case #legacy-generation-without-complete-sequence (
+                <Given ?01M05F1PN9EJXP20DY6ZFYJ8AZ>
+                一个 legacy generation 不具备完整 sequence metadata
+                </?01M05F1PN9EJXP20DY6ZFYJ8AZ>
+                <When ?01M05F1PN9EJXP20DY6ZFYJ8B0>
+                共享 reader 重建 generation
+                </?01M05F1PN9EJXP20DY6ZFYJ8B0>
+                <Then ?01M05F1PN9EJXP20DY6ZFYJ8B1>
+                系统 SHALL 使用确定性的 committedAt 与 record-id fallback
+                </?01M05F1PN9EJXP20DY6ZFYJ8B1>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://conversation-history-replay/requirements/generation-freshness-from-newest-record" } (
+      <Requirement #generation-freshness-from-newest-record (
+        <Statement ?01M05F1PN9EJXP20DY6ZFYJ8B2>
+        系统 SHALL 从 generation 的最新适用持久化记录重建 updatedAt，SHALL NOT 因读取第一条记录而把 generation freshness 回退到旧时间。
+        </?01M05F1PN9EJXP20DY6ZFYJ8B2>
+        <Suites [
+          <Suite #generation-freshness { name = "Conversation generation freshness" } (
+            <Cases [
+              <Case #later-appends-advance-updated-at (
+                <Given ?01M05F1PN9EJXP20DY6ZFYJ8B3>
+                同一 generation 的后续 HistoryMessage 携带更晚的 generationUpdatedAt
+                </?01M05F1PN9EJXP20DY6ZFYJ8B3>
+                <When ?01M05F1PN9EJXP20DY6ZFYJ8B4>
+                reader 重建 generation metadata
+                </?01M05F1PN9EJXP20DY6ZFYJ8B4>
+                <Then ?01M05F1PN9EJXP20DY6ZFYJ8B5>
+                重建的 updatedAt SHALL 等于最新有效 generationUpdatedAt
+                </?01M05F1PN9EJXP20DY6ZFYJ8B5>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

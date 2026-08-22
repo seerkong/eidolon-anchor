@@ -1,0 +1,75 @@
+<Track #refactor-platform-kernel-wave7-platform-kernel-baseline-and-support-seeding version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "建立第一版真实平台 kernel baseline，并让 `platform-support` 承接首批跨领域环境实现。" commit_mode = "manual" created_at = "2026-04-11T10:05:00Z" updated_at = "2026-04-11T11:28:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-platform-kernel-wave7-platform-kernel-baseline-and-support-seeding { name = "refactor-platform-kernel-wave7-platform-kernel-baseline-and-support-seeding" } (
+    <Description ?01M05F1PCB3G7X3SD6EBQWSZNE>
+    实施平台微内核 Wave 7 的 platform kernel baseline and support seeding
+    </?01M05F1PCB3G7X3SD6EBQWSZNE>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Baseline Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PCB3G7X3SD6EBQWSZNF>
+        冻结第一批平台 baseline capability 与 support ownership。
+        </?01M05F1PCB3G7X3SD6EBQWSZNF>
+        <SubNodes [
+          <Task { id = "T1.1" name = "定义 platform kernel baseline 最小能力集" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCB3G7X3SD6EBQWSZNG>
+            明确 `platform-only` 与 `mod-platform-kernel` 首批承接的 capability。
+            </?01M05F1PCB3G7X3SD6EBQWSZNG>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PCB3G7X3SD6EBQWSZNH>
+              platform baseline 能力集明确
+              </?01M05F1PCB3G7X3SD6EBQWSZNH>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PCB3G7X3SD6EBQWSZNJ>
+              不含 AI 领域语义
+              </?01M05F1PCB3G7X3SD6EBQWSZNJ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Baseline Implementation" status = "DONE" order = 1 } (
+        <Description ?01M05F1PCB3G7X3SD6EBQWSZNK>
+        落地平台 baseline 与第一批 platform-support capability。
+        </?01M05F1PCB3G7X3SD6EBQWSZNK>
+        <SubNodes [
+          <Task { id = "T2.1" name = "实现 mod-platform-kernel 与非空 platform-only" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCB3G7X3SD6EBQWSZNM>
+            建立真实平台 baseline，并保持 profile layering 稳定。
+            </?01M05F1PCB3G7X3SD6EBQWSZNM>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PCB3G7X3SD6EBQWSZNN>
+              platform-only 不再为空 profile
+              </?01M05F1PCB3G7X3SD6EBQWSZNN>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PCB3G7X3SD6EBQWSZNP>
+              `ai-kernel` / `ai-coding` layering 保持成立
+              </?01M05F1PCB3G7X3SD6EBQWSZNP>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Focused Verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PCB3G7X3SD6EBQWSZNQ>
+        验证平台 baseline 和 support ownership。
+        </?01M05F1PCB3G7X3SD6EBQWSZNQ>
+        <SubNodes [
+          <Task { id = "T3.1" name = "运行 platform/profile focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCB3G7X3SD6EBQWSZNR>
+            验证 platform capability、profile order 与 support ownership。
+            </?01M05F1PCB3G7X3SD6EBQWSZNR>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PCB3G7X3SD6EBQWSZNS>
+              focused tests 通过
+              </?01M05F1PCB3G7X3SD6EBQWSZNS>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PCB3G7X3SD6EBQWSZNT>
+              platform-support ownership 成立
+              </?01M05F1PCB3G7X3SD6EBQWSZNT>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

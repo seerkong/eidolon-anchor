@@ -1,0 +1,236 @@
+<Behavior #ai-runtime-observability-rx-sinks apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #xnl-file-sink-record-streams (
+      <Statement ?01M05F1P0W0KS086TET0Q7W5E9>
+      系统 SHALL persist observability XNL file sinks according to the same append-only versus replace-state classification used by session persistence.
+      </?01M05F1P0W0KS086TET0Q7W5E9>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-runtime-observability-rx-sinks/xnl-file-sink-record-streams" strength = "hint" }>
+      <Suites [
+        <Suite #trace-xnl { name = "Trace XNL sinks" } (
+          <Cases [
+            <Case #session-trace-xnl-append-only [
+              <Then ?01M05F1P0W0KS086TET0Q7W5EA>
+              The sink SHALL append one complete top-level `TraceEntry` XNL trace record per event
+              </?01M05F1P0W0KS086TET0Q7W5EA>
+              <Then ?01M05F1P0W0KS086TET0Q7W5EB>
+              The sink SHALL NOT rewrite a growing root wrapper for trace history
+              </?01M05F1P0W0KS086TET0Q7W5EB>
+              <Then ?01M05F1P0W0KS086TET0Q7W5EC>
+              `TraceEntry` SHALL include `traceKind` metadata to distinguish observability trace from graph trace when both producers share the tag
+              </?01M05F1P0W0KS086TET0Q7W5EC>
+              <Then ?01M05F1P0W0KS086TET0Q7W5ED>
+              Single typed children such as `Payload`, `Error`, or `Value` SHALL use `()`; multiple typed children SHALL use `[]`
+              </?01M05F1P0W0KS086TET0Q7W5ED>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5EE>
+              An observability trace sink writes records to `sessions/&amp;amp;amp;lt;sessionId&amp;amp;amp;gt;/trace.xnl` or a caller-provided `trace.xnl` path
+              </?01M05F1P0W0KS086TET0Q7W5EE>
+              <When ?01M05F1P0W0KS086TET0Q7W5EF>
+              A trace record is flushed
+              </?01M05F1P0W0KS086TET0Q7W5EF>
+            )>
+          ]>
+        )>
+        <Suite #scene-xnl { name = "Scene XNL sinks" } (
+          <Cases [
+            <Case #scene-store-location [
+              <Then ?01M05F1P0W0KS086TET0Q7W5EG>
+              The files SHALL be placed under `.eidolon/scenes/&amp;amp;amp;lt;sessionId&amp;amp;amp;gt;/`
+              </?01M05F1P0W0KS086TET0Q7W5EG>
+              <Then ?01M05F1P0W0KS086TET0Q7W5EH>
+              The store SHALL NOT create workspace-root `scenes/` data directories as normal project output
+              </?01M05F1P0W0KS086TET0Q7W5EH>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5EJ>
+              A SceneStore persists replay or observability XNL files in a project workspace
+              </?01M05F1P0W0KS086TET0Q7W5EJ>
+              <When ?01M05F1P0W0KS086TET0Q7W5EK>
+              The store resolves its root directory
+              </?01M05F1P0W0KS086TET0Q7W5EK>
+            )>
+            <Case #scene-events-xnl-append-only [
+              <Then ?01M05F1P0W0KS086TET0Q7W5EM>
+              The event SHALL be appended as one complete top-level `SceneMessage` XNL element
+              </?01M05F1P0W0KS086TET0Q7W5EM>
+              <Then ?01M05F1P0W0KS086TET0Q7W5EN>
+              `SceneMessage` SHALL include `version`, `sequence`, `id`, `sessionId`, and `role` metadata
+              </?01M05F1P0W0KS086TET0Q7W5EN>
+              <Then ?01M05F1P0W0KS086TET0Q7W5EP>
+              Ordered `TextPart` and `ToolCall` children SHALL use `[]` even when a message currently has one text part
+              </?01M05F1P0W0KS086TET0Q7W5EP>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5EQ>
+              A scene store records turn or scene events
+              </?01M05F1P0W0KS086TET0Q7W5EQ>
+              <When ?01M05F1P0W0KS086TET0Q7W5ER>
+              An event is persisted to `.eidolon/scenes/&amp;amp;amp;lt;sessionId&amp;amp;amp;gt;/events.xnl`
+              </?01M05F1P0W0KS086TET0Q7W5ER>
+            )>
+            <Case #scene-manifest-xnl-replace-state [
+              <Then ?01M05F1P0W0KS086TET0Q7W5ES>
+              The manifest MAY be replace-written as a `SceneManifest` because it is bounded scene state rather than event history
+              </?01M05F1P0W0KS086TET0Q7W5ES>
+              <Then ?01M05F1P0W0KS086TET0Q7W5ET>
+              The manifest SHALL NOT contain the growing event log
+              </?01M05F1P0W0KS086TET0Q7W5ET>
+              <Then ?01M05F1P0W0KS086TET0Q7W5EV>
+              `SceneManifest` SHALL contain typed children such as `SystemPrompt` and `ToolDefs` using `[]`
+              </?01M05F1P0W0KS086TET0Q7W5EV>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5EW>
+              A scene store persists `.eidolon/scenes/&amp;amp;amp;lt;sessionId&amp;amp;amp;gt;/manifest.xnl`
+              </?01M05F1P0W0KS086TET0Q7W5EW>
+              <When ?01M05F1P0W0KS086TET0Q7W5EX>
+              The manifest is saved
+              </?01M05F1P0W0KS086TET0Q7W5EX>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #provider-request-sqlite-ledger (
+      <Statement ?01M05F1P0W0KS086TET0Q7W5EY>
+      系统 SHALL 在显式启用时，把每次真实 provider request attempt 作为独立、append-only、可查询的 SQLite 诊断事实持久化，且该 sink SHALL NOT 参与或改变 live AI loop。
+      </?01M05F1P0W0KS086TET0Q7W5EY>
+      <Suites [
+        <Suite #attempt-capture { name = "Provider request attempt capture" } (
+          <Cases [
+            <Case #one-row-per-real-attempt [
+              <Then ?01M05F1P0W0KS086TET0Q7W5EZ>
+              系统 SHALL 在每个真实发送动作前持久化恰好一条 request observation
+              </?01M05F1P0W0KS086TET0Q7W5EZ>
+              <Then ?01M05F1P0W0KS086TET0Q7W5F0>
+              observation SHALL 保留脱敏后的 exact request body、transport type/ordinal、source provider messages/tools 以及 session/actor/turn/provider-call/provider-attempt identity
+              </?01M05F1P0W0KS086TET0Q7W5F0>
+              <Then ?01M05F1P0W0KS086TET0Q7W5F1>
+              只执行 prompt build、估算或 preflight 而未调用 provider 时 SHALL NOT 写入 request observation
+              </?01M05F1P0W0KS086TET0Q7W5F1>
+              <Then ?01M05F1P0W0KS086TET0Q7W5F2>
+              WebSocket 失败后发送不同 HTTP fallback body 时 SHALL 记录同一 provider attempt 下两个有序 transport observations
+              </?01M05F1P0W0KS086TET0Q7W5F2>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5F3>
+              provider runtime 即将执行一次真实 transport attempt，包括 retry 内的 WebSocket、HTTP 或 fallback attempt
+              </?01M05F1P0W0KS086TET0Q7W5F3>
+              <When ?01M05F1P0W0KS086TET0Q7W5F4>
+              最终 request body 已完成所有 adapter-specific 变换且即将执行 fetch 或 WebSocket send
+              </?01M05F1P0W0KS086TET0Q7W5F4>
+            )>
+            <Case #observation-does-not-mutate-request [
+              <Then ?01M05F1P0W0KS086TET0Q7W5F5>
+              原 provider request 的结构、顺序、字段和值 SHALL 保持不变
+              </?01M05F1P0W0KS086TET0Q7W5F5>
+              <Then ?01M05F1P0W0KS086TET0Q7W5F6>
+              启用或关闭 observation SHALL 产生相同的 provider 调用次数和输入
+              </?01M05F1P0W0KS086TET0Q7W5F6>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5F7>
+              runtime 已生成将要发送的 messages、tools 和 request contract
+              </?01M05F1P0W0KS086TET0Q7W5F7>
+              <When ?01M05F1P0W0KS086TET0Q7W5F8>
+              系统复制并持久化 observation
+              </?01M05F1P0W0KS086TET0Q7W5F8>
+            )>
+          ]>
+        )>
+        <Suite #security-and-failure { name = "Security and failure isolation" } (
+          <Cases [
+            <Case #credential-redaction [
+              <Then ?01M05F1P0W0KS086TET0Q7W5F9>
+              认证字段和 connection options SHALL NOT 以明文写入数据库
+              </?01M05F1P0W0KS086TET0Q7W5F9>
+              <Then ?01M05F1P0W0KS086TET0Q7W5FA>
+              数据库文件 SHALL 仅允许当前用户读写
+              </?01M05F1P0W0KS086TET0Q7W5FA>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5FB>
+              request 配置包含 authorization、API key、cookie、token、secret 或 connection options
+              </?01M05F1P0W0KS086TET0Q7W5FB>
+              <When ?01M05F1P0W0KS086TET0Q7W5FC>
+              系统构造 SQLite observation 副本
+              </?01M05F1P0W0KS086TET0Q7W5FC>
+            )>
+            <Case #sqlite-failure-is-fail-open [
+              <Then ?01M05F1P0W0KS086TET0Q7W5FD>
+              系统 SHALL 产生有界诊断并继续原 provider attempt
+              </?01M05F1P0W0KS086TET0Q7W5FD>
+              <Then ?01M05F1P0W0KS086TET0Q7W5FE>
+              系统 SHALL NOT 因 observation 失败而取消、重试或改变 provider 结果
+              </?01M05F1P0W0KS086TET0Q7W5FE>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5FF>
+              SQLite open、schema、lock、write 或 disk 操作失败
+              </?01M05F1P0W0KS086TET0Q7W5FF>
+              <When ?01M05F1P0W0KS086TET0Q7W5FG>
+              provider attempt 到达 observation port
+              </?01M05F1P0W0KS086TET0Q7W5FG>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #provider-request-plan-outcome-ledger (
+      <Statement ?01M05F1P0W0KS086TET0Q7W5FH>
+      显式启用 provider request capture 时，系统 SHALL 以同一 attempt identity 分别持久化 send-before request plan/wire observation 与 response-after terminal outcome；SQLite sink MUST 保持 app 顶层 support effect、fail-open、append-only，且 MUST NOT 参与 planning 或改变 live loop。
+      </?01M05F1P0W0KS086TET0Q7W5FH>
+      <Suites [
+        <Suite #plan-and-outcome { name = "Request plan and outcome correlation" } (
+          <Cases [
+            <Case #request-row-records-decision [
+              <Then ?01M05F1P0W0KS086TET0Q7W5FJ>
+              observation SHALL 显式记录 plan kind、可空 replay source、previous-id 采用或拒绝及 reason
+              </?01M05F1P0W0KS086TET0Q7W5FJ>
+              <Then ?01M05F1P0W0KS086TET0Q7W5FK>
+              wire body、transport 与 attempt identity SHALL 来自同一个实际发送动作
+              </?01M05F1P0W0KS086TET0Q7W5FK>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5FM>
+              logic 已生成真实 transport attempt 的 request plan 与最终 wire body
+              </?01M05F1P0W0KS086TET0Q7W5FM>
+              <When ?01M05F1P0W0KS086TET0Q7W5FN>
+              send-before observation 写入 ledger
+              </?01M05F1P0W0KS086TET0Q7W5FN>
+            )>
+            <Case #outcome-row-records-actual-result [
+              <Then ?01M05F1P0W0KS086TET0Q7W5FP>
+              outcome SHALL 以 attempt identity 关联 request row，并记录 terminal state、实际 fallback 与 output completeness decision
+              </?01M05F1P0W0KS086TET0Q7W5FP>
+              <Then ?01M05F1P0W0KS086TET0Q7W5FQ>
+              `fallback_used` SHALL 表示真实发生的 fallback，而非配置意图
+              </?01M05F1P0W0KS086TET0Q7W5FQ>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5FR>
+              一个 provider/transport attempt 完成、失败、中止或发生 WS→HTTP fallback
+              </?01M05F1P0W0KS086TET0Q7W5FR>
+              <When ?01M05F1P0W0KS086TET0Q7W5FS>
+              response-after outcome 写入 ledger
+              </?01M05F1P0W0KS086TET0Q7W5FS>
+            )>
+          ]>
+        )>
+        <Suite #effect-boundary { name = "SQLite effect boundary" } (
+          <Cases [
+            <Case #support-owned-schema-evolution [
+              <Then ?01M05F1P0W0KS086TET0Q7W5FT>
+              schema SHALL 非破坏迁移并保留旧 request rows
+              </?01M05F1P0W0KS086TET0Q7W5FT>
+              <Then ?01M05F1P0W0KS086TET0Q7W5FV>
+              认证字段 SHALL 继续脱敏，SQLite 失败 SHALL fail-open
+              </?01M05F1P0W0KS086TET0Q7W5FV>
+              <Then ?01M05F1P0W0KS086TET0Q7W5FW>
+              core/logic SHALL NOT 存储 SQLite，terminal/organ SHALL 只绑定 port 与 lifecycle
+              </?01M05F1P0W0KS086TET0Q7W5FW>
+            ] (
+              <Given ?01M05F1P0W0KS086TET0Q7W5FX>
+              旧 session 的 ledger 使用较早 schema
+              </?01M05F1P0W0KS086TET0Q7W5FX>
+              <When ?01M05F1P0W0KS086TET0Q7W5FY>
+              顶层 support sink 打开并追加新 observation
+              </?01M05F1P0W0KS086TET0Q7W5FY>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

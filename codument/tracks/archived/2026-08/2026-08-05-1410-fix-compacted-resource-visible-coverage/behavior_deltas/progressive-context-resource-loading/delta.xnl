@@ -1,0 +1,91 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_5_-_1_4_1_0_-_f_i_x_-_c_o_m_p_a_c_t_e_d_-_r_e_s_o_u_r_c_e_-_v_i_s_i_b_l_e_-_c_o_v_e_r_a_g_e.behavior_patch.progressive-context-resource-loading apiVersion="codument.tech/v1alpha1" version="1" { capability = "progressive-context-resource-loading" } (
+  <Mutations [
+    <Upsert { selector = "behavior://progressive-context-resource-loading/requirements/revision-and-visible-coverage" } (
+      <Requirement #revision-and-visible-coverage (
+        <Statement ?01M05F1PPAFWEZ076MVRTCEFWE>
+        系统 SHALL 仅在 resource revision 未变化、requested fragment 被 visible deliveries 完全覆盖且对应结果仍完整存在于 materialized provider context 时复用已加载内容；否则 SHALL 重新交付变化或缺失的内容。已被持久化或压缩包裹替换的 tool result，若其包裹状态为 delivered_and_compacted，则该 delivery SHALL 仍按原始投递 range 贡献 visible coverage；若为 pending_first_delivery_compacted，则该 delivery SHALL NOT 贡献 visible coverage。
+        </?01M05F1PPAFWEZ076MVRTCEFWE>
+        <Suites [
+          <Suite #load-decision { name = "加载决策" } (
+            <Cases [
+              <Case #same-revision-visible-range-reused (
+                <Given ?01M05F1PPAFWEZ076MVRTCEFWF>
+                同一 revision 的 delivery 覆盖 requested line range 且完整 tool result 仍在 provider context
+                </?01M05F1PPAFWEZ076MVRTCEFWF>
+                <When ?01M05F1PPAFWEZ076MVRTCEFWG>
+                任一 resolver 再次请求该范围
+                </?01M05F1PPAFWEZ076MVRTCEFWG>
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWH>
+                系统 SHALL 返回通用 already-visible 引用而不重复正文
+                </?01M05F1PPAFWEZ076MVRTCEFWH>
+              )>
+              <Case #changed-resource-reloaded [
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWJ>
+                系统 SHALL 创建新 revision 并交付新 revision 的所需内容
+                </?01M05F1PPAFWEZ076MVRTCEFWJ>
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWK>
+                旧 revision coverage SHALL NOT 被当作新 revision coverage
+                </?01M05F1PPAFWEZ076MVRTCEFWK>
+              ] (
+                <Given ?01M05F1PPAFWEZ076MVRTCEFWM>
+                canonical resource id 相同但完整内容摘要已变化
+                </?01M05F1PPAFWEZ076MVRTCEFWM>
+                <When ?01M05F1PPAFWEZ076MVRTCEFWN>
+                再次请求任一范围
+                </?01M05F1PPAFWEZ076MVRTCEFWN>
+              )>
+              <Case #compacted-delivery-reused [
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWP>
+                该 delivery SHALL 按原始投递 range 贡献 visible coverage
+                </?01M05F1PPAFWEZ076MVRTCEFWP>
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWQ>
+                系统 SHALL 返回 already-visible 引用而不重复投递正文
+                </?01M05F1PPAFWEZ076MVRTCEFWQ>
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWR>
+                引用 SHALL 携带恢复路径提示（如持久化 artifact 路径）以便模型需要原文时读取
+                </?01M05F1PPAFWEZ076MVRTCEFWR>
+              ] (
+                <Given ?01M05F1PPAFWEZ076MVRTCEFWS>
+                同一 revision 的 tool result 已被 compacted 或 persisted wrapper 替换，且包裹状态为 delivered_and_compacted（正文曾完整投递）
+                </?01M05F1PPAFWEZ076MVRTCEFWS>
+                <When ?01M05F1PPAFWEZ076MVRTCEFWT>
+                再次请求该 delivery 覆盖的原始范围
+                </?01M05F1PPAFWEZ076MVRTCEFWT>
+              )>
+              <Case #pending-first-delivery-not-visible [
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWV>
+                该 delivery SHALL NOT 贡献 visible coverage
+                </?01M05F1PPAFWEZ076MVRTCEFWV>
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWW>
+                系统 SHALL 引导模型读取 artifact 或重新交付所需正文
+                </?01M05F1PPAFWEZ076MVRTCEFWW>
+              ] (
+                <Given ?01M05F1PPAFWEZ076MVRTCEFWX>
+                tool result 在首次投递前即被 spill 到 artifact，包裹状态为 pending_first_delivery_compacted（模型从未看过正文）
+                </?01M05F1PPAFWEZ076MVRTCEFWX>
+                <When ?01M05F1PPAFWEZ076MVRTCEFWY>
+                再次请求该范围
+                </?01M05F1PPAFWEZ076MVRTCEFWY>
+              )>
+              <Case #progressive-range-delivery [
+                <Then ?01M05F1PPAFWEZ076MVRTCEFWZ>
+                系统 SHALL 仅交付未被 visible coverage 覆盖的行范围
+                </?01M05F1PPAFWEZ076MVRTCEFWZ>
+                <Then ?01M05F1PPAFWEZ076MVRTCEFX0>
+                输出 SHALL 保留稳定原始行号
+                </?01M05F1PPAFWEZ076MVRTCEFX0>
+              ] (
+                <Given ?01M05F1PPAFWEZ076MVRTCEFX1>
+                同一 revision 只有 requested range 的一部分仍可见
+                </?01M05F1PPAFWEZ076MVRTCEFX1>
+                <When ?01M05F1PPAFWEZ076MVRTCEFX2>
+                请求更大的 line range
+                </?01M05F1PPAFWEZ076MVRTCEFX2>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,15 @@
+<KindDefinition #codument.resource_kind.Mission apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable"
+  resourceKind = "Mission"
+  sourceShapes = ["directory"]
+  currentApiVersion = "codument.tech/v1alpha1"
+  supportedApiVersions = ["codument.tech/v1alpha1"]
+  description = "Codument long-running mission resource contract"
+} (
+  <DescriptorContract (
+    <RequiredFiles [
+      <File { name = "proposal.md" }>
+      <File { name = "design.md" }>
+    ]>
+  )>
+)>

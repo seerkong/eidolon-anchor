@@ -1,0 +1,30 @@
+<Behavior #vendor-data-graph-tui-projection apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #unified-computed-projection (
+      <Statement ?01M05F1P47Y52DEWWYG34WVD96>
+      TuiA1StateGraph SHALL derive all projection signals through the unified DataGraph computed runtime and preserve projection values, updates, and TUI graph behavior.
+      </?01M05F1P47Y52DEWWYG34WVD96>
+      <Suites [
+        <Suite #tui-projection (
+          <Cases [
+            <Case #computed-reads [
+              <Then ?01M05F1P47Y52DEWWYG34WVD97>
+              their getters SHALL use runtime.graph.get and SHALL NOT use ctx.get
+              </?01M05F1P47Y52DEWWYG34WVD97>
+              <Then ?01M05F1P47Y52DEWWYG34WVD98>
+              focused TUI graph and integration tests SHALL pass
+              </?01M05F1P47Y52DEWWYG34WVD98>
+            ] (
+              <Given ?01M05F1P47Y52DEWWYG34WVD99>
+              the TUI graph has a snapshot and derived projection signals
+              </?01M05F1P47Y52DEWWYG34WVD99>
+              <When ?01M05F1P47Y52DEWWYG34WVD9A>
+              the projections are read or snapshot state changes
+              </?01M05F1P47Y52DEWWYG34WVD9A>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

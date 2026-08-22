@@ -1,0 +1,54 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_9_-_1_9_2_5_-_p_r_o_p_a_g_a_t_e_-_t_o_o_l_-_e_x_e_c_u_t_i_o_n_-_o_u_t_c_o_m_e_s.behavior_patch.sandbox-backend-permission-runtime apiVersion="codument.tech/v1alpha1" version="1" { capability = "sandbox-backend-permission-runtime" } (
+  <Mutations [
+    <Upsert { selector = "behavior://sandbox-backend-permission-runtime/requirements/process-outcome-preservation" } (
+      <Requirement #process-outcome-preservation (
+        <Statement ?01M05F1PKWG88G62P8SJW2AGD8>
+        Bash command execution SHALL preserve the sandbox process outcome through the generic tool execution contract; non-zero exit, timeout, abort, signal termination, and spawn failure SHALL be explicit failed outcomes while preserving bounded stdout/stderr diagnostics for the model.
+        </?01M05F1PKWG88G62P8SJW2AGD8>
+        <Suites [
+          <Suite #bash-process-outcome { name = "Bash process outcome preservation" } (
+            <Cases [
+              <Case #nonzero-exit-is-failure [
+                <Then ?01M05F1PKWG88G62P8SJW2AGD9>
+                the result SHALL retain the test output and exit-code diagnostic
+                </?01M05F1PKWG88G62P8SJW2AGD9>
+                <Then ?01M05F1PKWG88G62P8SJW2AGDA>
+                the generic tool outcome SHALL be failed without an executor Bash-name branch
+                </?01M05F1PKWG88G62P8SJW2AGDA>
+              ] (
+                <Given ?01M05F1PKWG88G62P8SJW2AGDB>
+                a Bash command starts successfully, emits ordinary test failure text, and exits with code 1
+                </?01M05F1PKWG88G62P8SJW2AGDB>
+                <When ?01M05F1PKWG88G62P8SJW2AGDC>
+                the Bash tool returns to the agent runtime
+                </?01M05F1PKWG88G62P8SJW2AGDC>
+              )>
+              <Case #zero-exit-is-complete (
+                <Given ?01M05F1PKWG88G62P8SJW2AGDD>
+                a Bash command exits with code 0
+                </?01M05F1PKWG88G62P8SJW2AGDD>
+                <When ?01M05F1PKWG88G62P8SJW2AGDE>
+                the Bash tool returns its result
+                </?01M05F1PKWG88G62P8SJW2AGDE>
+                <Then ?01M05F1PKWG88G62P8SJW2AGDF>
+                the generic tool outcome SHALL be completed
+                </?01M05F1PKWG88G62P8SJW2AGDF>
+              )>
+              <Case #timeout-and-abort-are-classified (
+                <Given ?01M05F1PKWG88G62P8SJW2AGDG>
+                a Bash process times out or is aborted
+                </?01M05F1PKWG88G62P8SJW2AGDG>
+                <When ?01M05F1PKWG88G62P8SJW2AGDH>
+                the process outcome is mapped into the tool contract
+                </?01M05F1PKWG88G62P8SJW2AGDH>
+                <Then ?01M05F1PKWG88G62P8SJW2AGDJ>
+                the failed outcome SHALL use timeout or aborted failureKind respectively
+                </?01M05F1PKWG88G62P8SJW2AGDJ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

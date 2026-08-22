@@ -49,6 +49,7 @@ export {
   subscribeConversationSession,
   synchronizeConversationDomainActorFromPersistence,
   synchronizeConversationDomainSessionFromPersistence,
+  synchronizeProviderContextEpochToConversationDomainRuntime,
   teeConversationHistoryStream,
   teeConversationPromptStream,
   teeConversationSessionStream,

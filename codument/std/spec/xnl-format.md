@@ -9,6 +9,7 @@ XNL（Extensible Notation Language）
 - 数组块：`[ item1 item2 <child> ]` → 存入 `body`（元素可为值或子节点）。
 - 唯一子节点块（extend）：`( <child1> <child2> )` → 存入 `extend`，同名覆盖旧值并警告，保持出现顺序。
 - 文本块：`<name metadata {attr} ?marker> ... </?marker>`，允许 metadata/`{}`，禁止 `[]`/`()`；标记可选但必须首尾一致。
+- ⚠️ **文本块闭合永远是 `</?>`**：不要写 XML 风格的 `</tagname>` 对称闭合（解析器不识别，会导致 extend/body 结构错乱）。❌ `<description ?>…</description>`；✅ `<description ?>…</?>`。文本内容中也不要出现 `</?` 字面量（会被当成提前闭合）。
 - 无其它块时直接以 `>` 结束节点。
 
 ## metadata 与 attributes 的语义边界
@@ -46,10 +47,10 @@ XNL 的 `()` 与 `[]` 也不是随意替换的“子节点容器”：
 - `decision://<id>` 只表达 stable identity，与 owner file、目录、archive 时间戳无关；duplicate id 必须 fail closed。
 - legacy Markdown 和 summary 只作显式兼容/迁移输入或派生视图，不参与 XNL registry merge/index。完整规则见 `std/spec/decision-registry.md`。
 
-决策树示例：
+决策树示例（展示 `codument decisions create` 生成骨架后的填写结果；`apiVersion` 保留 CLI receipt 值，不从示例复制）：
 
 ```xnl
-<decision #track.foo.root {
+<decision #track.foo.root apiVersion="codument.tech/v1alpha1" {
   status = "pending"
   priority = "P0"
   blocks = ["design.md"]
@@ -102,13 +103,13 @@ XNL 的 `()` 与 `[]` 也不是随意替换的“子节点容器”：
 ]>
 ```
 
-示例：
+已解决记录示例（同样保留 `codument decisions create` 写入的版本字段）：
 
 ```xnl
-<decision #track.add_help_gate.upgrade_workspace_help {
+<decision #track.add_help_gate.upgrade_workspace_help apiVersion="codument.tech/v1alpha1" {
   priority = "P0"
   status = "accepted"
-  blocks = ["track.xml" "implementation" "tests"]
+  blocks = ["track.xnl" "implementation" "tests"]
 }
 (
   <question ?>upgrade-workspace --help 是否必须短路且无副作用？</?>
@@ -242,7 +243,7 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
 ```xnl
 <doc [
   <no_body_node1>
-  <no_body_node2 a=[1] b={c=3}>
+  <no_body_node2 { a=[1] b={c=3} }>
   <system_metadata_demo1 xnl_tool="demo" {
     a = 'abc'
     b = "tt\t\n"
@@ -251,7 +252,7 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
     'string as key2' = 3.4
   }>
   <list_body1 [
-    1 2 <item id="x" count=3 active=true note="hi">
+    1 2 <item #x { count=3 active=true note="hi" }>
   ]>
   <has_extend1 (
     <a {v=1}>
@@ -313,7 +314,7 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
 #### ❌ 错误示例
 
 ```xnl
-<SetVariable id="SetVariable-a" {
+<SetVariable #SetVariable-a {
   name="SetVariable"
   assignTo = "sum"
 ]>  ❌ 错误！`{` 对应 `}`，不是 `]`
@@ -322,7 +323,7 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
 #### ✅ 正确示例
 
 ```xnl
-<SetVariable id="SetVariable-a" {
+<SetVariable #SetVariable-a {
   name="SetVariable"
   assignTo = "sum"
 }>  ✅ 正确！ `{` 对应 `}`
@@ -332,14 +333,14 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
 #### ❌ 错误示例1
 
 ```xnl
-<div id="" ?>
+<div ?>
 </div> ❌ 错误！文本标签的结束，如果没有自定义marker，应当用`</?>`，不是 `</div>`
 ```
 
 #### ❌ 错误示例2
 
 ```xnl
-<div id="" ?>
+<div ?>
 </?>
 </div> ❌ 错误! 前面已经通过</?>，闭合了标签，不能再添加类似xml的结束标签
 ```
@@ -347,7 +348,7 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
 #### ✅ 正确示例
 
 ```xnl
-<div id="" ?>
+<div ?>
 </?>
 ```
 
@@ -356,7 +357,7 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
 #### ❌ 错误示例
 
 ```xnl
-<my_text id="" ?ttt>
+<my_text #example ?ttt>
   content
 </?qqq>
 ❌ 错误！文本标签的结束，如果有marker，应当与开始节点一致`</?ttt>`，不能是其他marker，例如本例中错误的 `</?qqq>`
@@ -365,7 +366,7 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
 #### ✅ 正确示例
 
 ```xnl
-<my_text id="" ?ttt>
+<my_text #example ?ttt>
   content
 </?ttt>
 ```
@@ -393,18 +394,18 @@ XNL 元素标签名**禁含冒号**。命名空间 / 领域前缀（如 codument
 #### ❌ 不推荐（accepted-but-discouraged）
 
 ```xnl
-<component #place_order_proc { kind = "component" } [
+<component #place_order_proc { kind = "component" } (
   <types { role = "runtime" } ?r>type Runtime = { clock: Clock }</?r>
-]>
+)>
 ```
 
 #### ✅ 推荐（canonical）
 
 ```xnl
-<component #place_order_proc { kind = "component" } [
+<component #place_order_proc { kind = "component" } (
   <runtime ?r>type Runtime = { clock: Clock }</?r>
   <input ?i>interface Input { cartId: string }</?i>
   <config ?c>interface Config { maxLines: number }</?c>
   <output ?o>interface Output { orderId: string }</?o>
-]>
+)>
 ```

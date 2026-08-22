@@ -1,0 +1,41 @@
+<Behavior #runtime-session-persistence apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #provider-secret-redaction (
+      <Statement ?01M05F1P3ES3WPB71RRNWR7R8G>
+      Durable runtime snapshot SHALL 保留 actor 的 provider/model/capability 选择，但 MUST NOT 以明文保存 provider API key、authorization、token、secret 或嵌套 connection credential；恢复时脱敏占位符 MUST NOT 被当作有效凭据，真实凭据 SHALL 从当前 provider 配置重新注入。
+      </?01M05F1P3ES3WPB71RRNWR7R8G>
+      <Suites [
+        <Suite #actor-snapshot-secrets { name = "Actor snapshot 凭据安全" } (
+          <Cases [
+            <Case #actor-json-redacts-provider-key [
+              <Then ?01M05F1P3ES3WPB71RRNWR7R8H>
+              actor.json MUST NOT 包含任一原始 secret
+              </?01M05F1P3ES3WPB71RRNWR7R8H>
+              <Then ?01M05F1P3ES3WPB71RRNWR7R8J>
+              非敏感 provider、model、base URL、limits 与 capabilities SHALL 保持可恢复
+              </?01M05F1P3ES3WPB71RRNWR7R8J>
+            ] (
+              <Given ?01M05F1P3ES3WPB71RRNWR7R8K>
+              actor modelConfig 与嵌套 options 含 provider API key/authorization/token
+              </?01M05F1P3ES3WPB71RRNWR7R8K>
+              <When ?01M05F1P3ES3WPB71RRNWR7R8M>
+              runtime 写入 actors/*/actor.json
+              </?01M05F1P3ES3WPB71RRNWR7R8M>
+            )>
+            <Case #recovery-rehydrates-current-credential (
+              <Given ?01M05F1P3ES3WPB71RRNWR7R8N>
+              session actor snapshot 的凭据已经脱敏且当前 provider 配置含有效凭据
+              </?01M05F1P3ES3WPB71RRNWR7R8N>
+              <When ?01M05F1P3ES3WPB71RRNWR7R8P>
+              runtime 恢复 actor 并创建 provider adapter
+              </?01M05F1P3ES3WPB71RRNWR7R8P>
+              <Then ?01M05F1P3ES3WPB71RRNWR7R8Q>
+              脱敏值 MUST NOT 覆盖当前配置，provider/model 选择 SHALL 保持，adapter SHALL 使用当前配置凭据
+              </?01M05F1P3ES3WPB71RRNWR7R8Q>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

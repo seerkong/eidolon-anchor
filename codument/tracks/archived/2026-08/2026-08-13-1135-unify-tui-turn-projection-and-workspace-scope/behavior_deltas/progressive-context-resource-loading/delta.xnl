@@ -1,0 +1,58 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_1_3_-_1_1_3_5_-_u_n_i_f_y_-_t_u_i_-_t_u_r_n_-_p_r_o_j_e_c_t_i_o_n_-_a_n_d_-_w_o_r_k_s_p_a_c_e_-_s_c_o_p_e.behavior_patch.progressive-context-resource-loading apiVersion="codument.tech/v1alpha1" version="1" { capability = "progressive-context-resource-loading" } (
+  <Mutations [
+    <Upsert { selector = "behavior://progressive-context-resource-loading/requirements/context-resource-surface-projection" } (
+      <Requirement #context-resource-surface-projection (
+        <Statement ?01M05F1PT76JER7PRCFKN54CFR>
+        Runtime/tool projection SHALL 向 surface 提供 typed context resource metadata；TUI SHALL 以折叠 CONTEXT/read 卡片显示 resource id、revision、range、size 与 status，SHALL NOT 把 `&lt;context-resource&gt;` raw wrapper 显示为 USER，也 SHALL NOT 在 UI 以正则或模糊文本匹配恢复语义。
+        </?01M05F1PT76JER7PRCFKN54CFR>
+        <Suites [
+          <Suite #context-card { name = "上下文资源卡片" } (
+            <Cases [
+              <Case #loaded-resource-collapsed [
+                <Then ?01M05F1PT76JER7PRCFKN54CFS>
+                surface SHALL 显示 workspace-relative resource、行范围、大小与 revision 摘要
+                </?01M05F1PT76JER7PRCFKN54CFS>
+                <Then ?01M05F1PT76JER7PRCFKN54CFT>
+                正文 SHALL 可按需展开而非默认占满 USER 卡片
+                </?01M05F1PT76JER7PRCFKN54CFT>
+              ] (
+                <Given ?01M05F1PT76JER7PRCFKN54CFV>
+                read tool 交付一个 loaded context resource
+                </?01M05F1PT76JER7PRCFKN54CFV>
+                <When ?01M05F1PT76JER7PRCFKN54CFW>
+                TUI 投影其 tool result
+                </?01M05F1PT76JER7PRCFKN54CFW>
+              )>
+              <Case #already-visible-is-weak (
+                <Given ?01M05F1PT76JER7PRCFKN54CFX>
+                context resource status 为 already-visible
+                </?01M05F1PT76JER7PRCFKN54CFX>
+                <When ?01M05F1PT76JER7PRCFKN54CFY>
+                TUI 投影结果
+                </?01M05F1PT76JER7PRCFKN54CFY>
+                <Then ?01M05F1PT76JER7PRCFKN54CFZ>
+                surface SHALL 弱化或隐藏重复正文提示，同时保留可检查 metadata
+                </?01M05F1PT76JER7PRCFKN54CFZ>
+              )>
+              <Case #cold-hydration-preserves-context-card [
+                <Then ?01M05F1PT76JER7PRCFKN54CG0>
+                surface SHALL 从 committed tool result 的 typed metadata 恢复 CONTEXT/read 卡片
+                </?01M05F1PT76JER7PRCFKN54CG0>
+                <Then ?01M05F1PT76JER7PRCFKN54CG1>
+                surface MUST NOT 解析 raw context-resource XML 或建立第二个 persistence authority
+                </?01M05F1PT76JER7PRCFKN54CG1>
+              ] (
+                <Given ?01M05F1PT76JER7PRCFKN54CG2>
+                read tool result 已通过既有 conversation persistence 持久化并发生进程重启
+                </?01M05F1PT76JER7PRCFKN54CG2>
+                <When ?01M05F1PT76JER7PRCFKN54CG3>
+                TUI 通过 ConversationProjectionReadPort 冷启动 hydrate history
+                </?01M05F1PT76JER7PRCFKN54CG3>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

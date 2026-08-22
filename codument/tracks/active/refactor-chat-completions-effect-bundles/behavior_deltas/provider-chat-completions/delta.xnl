@@ -1,0 +1,107 @@
+<BehaviorPatch #track.refactor-chat-completions-effect-bundles.behavior_patch.provider-chat-completions apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-chat-completions" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-chat-completions/requirements/official-effect-bundle-composition" } (
+      <Requirement #official-effect-bundle-composition (
+        <Statement ?01M05F1P88VC0CC7C9TH6F7DPZ>
+        The system SHALL implement OpenAI official Chat Completions and DeepSeek official Chat Completions as two explicit effect bundles composed with one shared Chat Completions core; provider selection MUST come from the configured driver and MUST NOT be inferred from model or URL strings.
+        </?01M05F1P88VC0CC7C9TH6F7DPZ>
+        <Suites [
+          <Suite #bundle-selection { name = "Official provider effect bundle selection" } (
+            <Cases [
+              <Case #openai-official-selection [
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQ0>
+                the OpenAI official effect bundle SHALL be used
+                </?01M05F1P88VC0CC7C9TH6F7DQ0>
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQ1>
+                DeepSeek-only reasoning compatibility fields MUST NOT be injected
+                </?01M05F1P88VC0CC7C9TH6F7DQ1>
+              ] (
+                <Given ?01M05F1P88VC0CC7C9TH6F7DQ2>
+                the configured provider driver is OpenAI Chat Completions
+                </?01M05F1P88VC0CC7C9TH6F7DQ2>
+                <When ?01M05F1P88VC0CC7C9TH6F7DQ3>
+                a request and stream are processed
+                </?01M05F1P88VC0CC7C9TH6F7DQ3>
+              )>
+              <Case #deepseek-official-selection [
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQ4>
+                the DeepSeek official effect bundle SHALL be used independently of model and Base URL naming
+                </?01M05F1P88VC0CC7C9TH6F7DQ4>
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQ5>
+                DeepSeek reasoning continuation SHALL remain protocol-correct
+                </?01M05F1P88VC0CC7C9TH6F7DQ5>
+              ] (
+                <Given ?01M05F1P88VC0CC7C9TH6F7DQ6>
+                the configured provider driver is DeepSeek
+                </?01M05F1P88VC0CC7C9TH6F7DQ6>
+                <When ?01M05F1P88VC0CC7C9TH6F7DQ7>
+                a request and stream are processed against an official or explicitly configured compatible endpoint
+                </?01M05F1P88VC0CC7C9TH6F7DQ7>
+              )>
+              <Case #shared-stream-behavior [
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQ8>
+                both bundles SHALL reuse the same pure stream core
+                </?01M05F1P88VC0CC7C9TH6F7DQ8>
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQ9>
+                content, tool-call and ingress event behavior SHALL remain compatible with the existing adapter
+                </?01M05F1P88VC0CC7C9TH6F7DQ9>
+              ] (
+                <Given ?01M05F1P88VC0CC7C9TH6F7DQA>
+                OpenAI and DeepSeek streams use Chat Completions delta framing
+                </?01M05F1P88VC0CC7C9TH6F7DQA>
+                <When ?01M05F1P88VC0CC7C9TH6F7DQB>
+                content and tool-call deltas are reduced
+                </?01M05F1P88VC0CC7C9TH6F7DQB>
+              )>
+              <Case #end-to-end-driver-binding [
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQC>
+                the same driver bundle binding SHALL control request and stream semantics
+                </?01M05F1P88VC0CC7C9TH6F7DQC>
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQD>
+                the stream path MUST NOT reselect a provider bundle from adapter type, model or Base URL strings
+                </?01M05F1P88VC0CC7C9TH6F7DQD>
+              ] (
+                <Given ?01M05F1P88VC0CC7C9TH6F7DQE>
+                a provider driver has been selected for the current request
+                </?01M05F1P88VC0CC7C9TH6F7DQE>
+                <When ?01M05F1P88VC0CC7C9TH6F7DQF>
+                the response stream is passed through executor, terminal runtime and ingress reduction
+                </?01M05F1P88VC0CC7C9TH6F7DQF>
+              )>
+              <Case #ai-domain-ownership [
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQG>
+                their contracts and logic SHALL reside in AI domain contract and logic packages
+                </?01M05F1P88VC0CC7C9TH6F7DQG>
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQH>
+                the symbiont layer MUST remain limited to provider-neutral stream and runtime primitives
+                </?01M05F1P88VC0CC7C9TH6F7DQH>
+              ] (
+                <Given ?01M05F1P88VC0CC7C9TH6F7DQJ>
+                Chat Completions reduction interprets provider reasoning and tool-call protocol fields
+                </?01M05F1P88VC0CC7C9TH6F7DQJ>
+                <When ?01M05F1P88VC0CC7C9TH6F7DQK>
+                the shared core and official bundles are packaged
+                </?01M05F1P88VC0CC7C9TH6F7DQK>
+              )>
+              <Case #responses-isolation [
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQM>
+                the Responses driver and continuation model SHALL remain outside the Chat Completions effect bundles
+                </?01M05F1P88VC0CC7C9TH6F7DQM>
+                <Then ?01M05F1P88VC0CC7C9TH6F7DQN>
+                any reuse of normalized ingress reduction MUST NOT invoke OpenAI Chat request, endpoint or history projection
+                </?01M05F1P88VC0CC7C9TH6F7DQN>
+              ] (
+                <Given ?01M05F1P88VC0CC7C9TH6F7DQP>
+                the configured provider uses OpenAI Responses API
+                </?01M05F1P88VC0CC7C9TH6F7DQP>
+                <When ?01M05F1P88VC0CC7C9TH6F7DQQ>
+                the provider driver is selected
+                </?01M05F1P88VC0CC7C9TH6F7DQQ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,118 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_1_5_-_2_2_3_0_-_r_e_f_a_c_t_o_r_-_a_i_-_t_u_r_n_-_t_o_o_l_-_p_r_o_v_i_d_e_r_-_l_i_f_e_c_y_c_l_e.behavior_patch.provider-call-domain-lifecycle apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-call-domain-lifecycle" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-call-domain-lifecycle/requirements/provider-call-record" } (
+      <Requirement #provider-call-record (
+        <Statement ?01M05F1PHSCRT6X69KCSAWDVJT>
+        每次发往 provider 的请求 SHALL 在 ProviderCallDomain 落一条 ProviderCallRecord 记录：包含 actorKey、turnId、modelRef、temperature 等模型参数、tool schemas snapshot、prompt generation 引用、startedAt；该记录 SHALL 是该次 provider 请求的事实真相，runtime-control evidence 与 cooperative state.inflight 中相关字段 SHALL 退化为该记录的引用。
+        </?01M05F1PHSCRT6X69KCSAWDVJT>
+        <Suites [
+          <Suite #record { name = "ProviderCallRecord" } (
+            <Cases [
+              <Case #record-created-on-create-stream [
+                <Then ?01M05F1PHSCRT6X69KCSAWDVJV>
+                ProviderCallDomain SHALL 已写入一条 ProviderCallRecord 含完整请求元数据
+                </?01M05F1PHSCRT6X69KCSAWDVJV>
+                <Then ?01M05F1PHSCRT6X69KCSAWDVJW>
+                state.inflight.kind="llm" 的 opId SHALL 与该 ProviderCallRecord 一一对应
+                </?01M05F1PHSCRT6X69KCSAWDVJW>
+              ] (
+                <Given ?01M05F1PHSCRT6X69KCSAWDVJX>
+                buildProviderPromptForActorTurn 完成 + LLM adapter createStream 即将调用
+                </?01M05F1PHSCRT6X69KCSAWDVJX>
+                <When ?01M05F1PHSCRT6X69KCSAWDVJY>
+                检查运行时
+                </?01M05F1PHSCRT6X69KCSAWDVJY>
+              )>
+              <Case #metadata-not-scattered [
+                <Then ?01M05F1PHSCRT6X69KCSAWDVJZ>
+                SHALL 通过 ProviderCallDomain ProviderCallRecord 找到
+                </?01M05F1PHSCRT6X69KCSAWDVJZ>
+                <Then ?01M05F1PHSCRT6X69KCSAWDVK0>
+                SHALL NOT 仅靠 PromptPlanData 或 effect evidence 拼出来
+                </?01M05F1PHSCRT6X69KCSAWDVK0>
+              ] (
+                <Given ?01M05F1PHSCRT6X69KCSAWDVK1>
+                需要查询某次 provider 请求的 temperature 或 tool schemas
+                </?01M05F1PHSCRT6X69KCSAWDVK1>
+                <When ?01M05F1PHSCRT6X69KCSAWDVK2>
+                定位事实源
+                </?01M05F1PHSCRT6X69KCSAWDVK2>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://provider-call-domain-lifecycle/requirements/reasoning-vs-content" } (
+      <Requirement #reasoning-vs-content (
+        <Statement ?01M05F1PHSCRT6X69KCSAWDVK3>
+        assistant message 的 reasoning_content 与 final content SHALL 在 ProviderCallDomain 中作为两个独立事实记录；下游消费者（MessageAssembly、TUI cards、observability）SHALL 通过显式字段读取，不再依赖 on-the-fly merge 进 content_parts 的隐式约定。
+        </?01M05F1PHSCRT6X69KCSAWDVK3>
+        <Suites [
+          <Suite #reasoning-fact { name = "Reasoning as separate fact" } (
+            <Cases [
+              <Case #two-distinct-facts [
+                <Then ?01M05F1PHSCRT6X69KCSAWDVK4>
+                SHALL 分别记录 reasoning fact 与 content fact，各带 emittedAt
+                </?01M05F1PHSCRT6X69KCSAWDVK4>
+                <Then ?01M05F1PHSCRT6X69KCSAWDVK5>
+                SHALL NOT 仅以合并后的 content_parts 数组形式保存
+                </?01M05F1PHSCRT6X69KCSAWDVK5>
+              ] (
+                <Given ?01M05F1PHSCRT6X69KCSAWDVK6>
+                provider 返回的 assistant message 同时含 reasoning_content 与 content
+                </?01M05F1PHSCRT6X69KCSAWDVK6>
+                <When ?01M05F1PHSCRT6X69KCSAWDVK7>
+                ProviderCallDomain 记录响应
+                </?01M05F1PHSCRT6X69KCSAWDVK7>
+              )>
+              <Case #downstream-explicit-access [
+                <Then ?01M05F1PHSCRT6X69KCSAWDVK8>
+                SHALL 通过 ProviderCallDomain reasoning fact 查询
+                </?01M05F1PHSCRT6X69KCSAWDVK8>
+                <Then ?01M05F1PHSCRT6X69KCSAWDVK9>
+                SHALL NOT 通过 content_parts.find(type==="reasoning") 隐式约定
+                </?01M05F1PHSCRT6X69KCSAWDVK9>
+              ] (
+                <Given ?01M05F1PHSCRT6X69KCSAWDVKA>
+                TUI think card 或 observability 需要 reasoning
+                </?01M05F1PHSCRT6X69KCSAWDVKA>
+                <When ?01M05F1PHSCRT6X69KCSAWDVKB>
+                读取事实
+                </?01M05F1PHSCRT6X69KCSAWDVKB>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://provider-call-domain-lifecycle/requirements/failure-classification" } (
+      <Requirement #failure-classification (
+        <Statement ?01M05F1PHSCRT6X69KCSAWDVKC>
+        provider 请求失败 SHALL 在 ProviderCallDomain 显式分类为：network_error / provider_rate_limit / provider_invalid_response / aborted_by_user / timeout 等枚举类型；SHALL NOT 仅以"Error: ..."字符串前缀承载错误语义。
+        </?01M05F1PHSCRT6X69KCSAWDVKC>
+        <Suites [
+          <Suite #failures { name = "Failure classification" } (
+            <Cases [
+              <Case #classified-failure [
+                <Then ?01M05F1PHSCRT6X69KCSAWDVKD>
+                SHALL 写入显式 failureKind 枚举字段
+                </?01M05F1PHSCRT6X69KCSAWDVKD>
+                <Then ?01M05F1PHSCRT6X69KCSAWDVKE>
+                SHALL 同时保留原始 error 字符串作为 audit 字段
+                </?01M05F1PHSCRT6X69KCSAWDVKE>
+              ] (
+                <Given ?01M05F1PHSCRT6X69KCSAWDVKF>
+                provider 调用失败
+                </?01M05F1PHSCRT6X69KCSAWDVKF>
+                <When ?01M05F1PHSCRT6X69KCSAWDVKG>
+                ProviderCallDomain 记录失败
+                </?01M05F1PHSCRT6X69KCSAWDVKG>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,182 @@
+<Behavior #aiagent-reference-aligned-stage-streaming apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #requirement-1 (
+      <Statement ?01M05F1P1JKSSF9VF4QQBPD5KK>
+      系统应当（SHALL）在本项目中完整新建与参考项目完全对齐的 lexical、syntactic、semantic 三层事件契约。
+      </?01M05F1P1JKSSF9VF4QQBPD5KK>
+      <Suites [
+        <Suite { name = "requirement-1" } (
+          <Cases [
+            <Case #lexical-syntactic-semantic { name = "lexical/syntactic/semantic 定义完全对齐" } [
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5KM>
+              事件名称、字段名称、构造语义必须与参考项目完全对齐
+              </?01M05F1P1JKSSF9VF4QQBPD5KM>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5KN>
+              不得以保留当前压缩版旧事件面作为正式主契约替代
+              </?01M05F1P1JKSSF9VF4QQBPD5KN>
+            ] (
+              <Given ?01M05F1P1JKSSF9VF4QQBPD5KP>
+              参考项目中已有 lexical、syntactic、semantic 三层事件定义
+              </?01M05F1P1JKSSF9VF4QQBPD5KP>
+              <When ?01M05F1P1JKSSF9VF4QQBPD5KQ>
+              在本项目中创建新事件契约
+              </?01M05F1P1JKSSF9VF4QQBPD5KQ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #datagraph (
+      <Statement ?01M05F1P1JKSSF9VF4QQBPD5KR>
+      系统应当（SHALL）保留本项目 `DataGraph` 作为阶段执行和投影内核，而非回退到参考项目的 Rx / stream object 模型。
+      </?01M05F1P1JKSSF9VF4QQBPD5KR>
+      <Suites [
+        <Suite { name = "datagraph" } (
+          <Cases [
+            <Case #datagraph { name = "新阶段流水线使用 DataGraph 建模" } [
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5KS>
+              各阶段应以 `DataGraph` 的 signal、consumer、batch、projection 机制建模
+              </?01M05F1P1JKSSF9VF4QQBPD5KS>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5KT>
+              不得将主执行模型退回为 Rx/stream object 驱动
+              </?01M05F1P1JKSSF9VF4QQBPD5KT>
+            ] (
+              <Given ?01M05F1P1JKSSF9VF4QQBPD5KV>
+              参考项目的阶段模型更成熟，但执行承载方式不同
+              </?01M05F1P1JKSSF9VF4QQBPD5KV>
+              <When ?01M05F1P1JKSSF9VF4QQBPD5KW>
+              在本项目中实现 lexical -&gt; syntactic -&gt; semantic 流水线
+              </?01M05F1P1JKSSF9VF4QQBPD5KW>
+            )>
+            <Case #live-runtime-canonical-replay-stage-kernel { name = "live runtime 与 canonical replay 共享同一套 stage kernel" } [
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5KX>
+              它必须先适配为 lexical events
+              </?01M05F1P1JKSSF9VF4QQBPD5KX>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5KY>
+              再喂给与 canonical replay 共享的 stage-based `DataGraph` 内核
+              </?01M05F1P1JKSSF9VF4QQBPD5KY>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5KZ>
+              不得在 `LiveLLMStagePipeline` 内长期保留独立的 syntactic / semantic parser 实现
+              </?01M05F1P1JKSSF9VF4QQBPD5KZ>
+            ] (
+              <Given ?01M05F1P1JKSSF9VF4QQBPD5M0>
+              runtime 主链路从 provider ingress 增量接收流式输入
+              </?01M05F1P1JKSSF9VF4QQBPD5M0>
+              <When ?01M05F1P1JKSSF9VF4QQBPD5M1>
+              live/runtime 路径把输入接入阶段流水线
+              </?01M05F1P1JKSSF9VF4QQBPD5M1>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #runtime-terminal-semantic-canonical-source (
+      <Statement ?01M05F1P1JKSSF9VF4QQBPD5M2>
+      系统应当（SHALL）让 runtime bus、terminal bridge 与上层消费共同使用同一条 semantic canonical event 链路，而不是并行从 ingress 重建多份 semantic 事件。
+      </?01M05F1P1JKSSF9VF4QQBPD5M2>
+      <Suites [
+        <Suite { name = "runtime-terminal-semantic-canonical-source" } (
+          <Cases [
+            <Case #terminal-canonical-semantic-source { name = "terminal 只消费 canonical semantic source" } [
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5M3>
+              它们必须消费同一条 canonical semantic event 链路
+              </?01M05F1P1JKSSF9VF4QQBPD5M3>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5M4>
+              不得再为 direct terminal output 额外并行重跑一套独立 semantic 生成路径
+              </?01M05F1P1JKSSF9VF4QQBPD5M4>
+            ] (
+              <Given ?01M05F1P1JKSSF9VF4QQBPD5M5>
+              runtime 已经从 ingress 构建出 semantic canonical events
+              </?01M05F1P1JKSSF9VF4QQBPD5M5>
+              <When ?01M05F1P1JKSSF9VF4QQBPD5M6>
+              terminal、notification bridge 或其他上层消费入口订阅流式事件
+              </?01M05F1P1JKSSF9VF4QQBPD5M6>
+            )>
+            <Case #direct-slash-canonical-semantic-history { name = "direct slash 可见输出也进入 canonical semantic/history 链路" } [
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5M7>
+              结果必须经由 runtime semantic bus 发出并再由 terminal projection 消费
+              </?01M05F1P1JKSSF9VF4QQBPD5M7>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5M8>
+              不得只在 terminal bridge 内部直接构造可见内容而绕过 event bus / history
+              </?01M05F1P1JKSSF9VF4QQBPD5M8>
+            ] (
+              <Given ?01M05F1P1JKSSF9VF4QQBPD5M9>
+              terminal runtime 支持 `/actor`、`/member`、`/holon` 等 direct slash 命令
+              </?01M05F1P1JKSSF9VF4QQBPD5M9>
+              <When ?01M05F1P1JKSSF9VF4QQBPD5MA>
+              这些命令产生命令执行结果并向用户显示
+              </?01M05F1P1JKSSF9VF4QQBPD5MA>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #requirement-4 (
+      <Statement ?01M05F1P1JKSSF9VF4QQBPD5MB>
+      系统应当（SHALL）在迁移完成后的正式真相中，保持 lexical、syntactic、semantic、TUI projection、Textual projection、TuiCard/TuiText projection 的完整测试闭环。
+      </?01M05F1P1JKSSF9VF4QQBPD5MB>
+      <Suites [
+        <Suite { name = "requirement-4" } (
+          <Cases [
+            <Case #fixtures { name = "新链路通过完整 fixtures 和测试" } [
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5MC>
+              lexical、syntactic、semantic、TUI projection、Textual projection、TuiCard/TuiText projection 测试必须全部通过
+              </?01M05F1P1JKSSF9VF4QQBPD5MC>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5MD>
+              `default`、`chunked-markers`、`quote-chunked`、`content-unquote`、`toolcall-delta`、`toolcall-multiple`、`toolcall-alt-format`、`tui-turn-events`、`questionnaire`、`plan-approval`、`shutdown`、`background-result` 等场景必须形成稳定 fixtures
+              </?01M05F1P1JKSSF9VF4QQBPD5MD>
+            ] (
+              <Given ?01M05F1P1JKSSF9VF4QQBPD5ME>
+              新链路已经完成事件契约、DataGraph 和消费图实现
+              </?01M05F1P1JKSSF9VF4QQBPD5ME>
+              <When ?01M05F1P1JKSSF9VF4QQBPD5MF>
+              执行正式验证
+              </?01M05F1P1JKSSF9VF4QQBPD5MF>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #tui-textual (
+      <Statement ?01M05F1P1JKSSF9VF4QQBPD5MG>
+      系统应当（SHALL）同时为 TUI 与 Textual 提供正式消费图和独立测试面。
+      </?01M05F1P1JKSSF9VF4QQBPD5MG>
+      <Suites [
+        <Suite { name = "tui-textual" } (
+          <Cases [
+            <Case #case-7 { name = "两种终端消费图都可独立重放" } [
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5MH>
+              两者都必须具备独立 projector、fixtures 和测试
+              </?01M05F1P1JKSSF9VF4QQBPD5MH>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5MJ>
+              两者都必须能稳定重放 actor 切换、streaming、tool result、questionnaire、plan approval、shutdown 等关键场景
+              </?01M05F1P1JKSSF9VF4QQBPD5MJ>
+            ] (
+              <Given ?01M05F1P1JKSSF9VF4QQBPD5MK>
+              新 semantic / projection graph 已经生成规范事件
+              </?01M05F1P1JKSSF9VF4QQBPD5MK>
+              <When ?01M05F1P1JKSSF9VF4QQBPD5MM>
+              TUI 和 Textual 两种终端消费图处理这些事件
+              </?01M05F1P1JKSSF9VF4QQBPD5MM>
+            )>
+            <Case #tui-textual { name = "TUI 与 Textual 都具备正式运行时入口" } [
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5MN>
+              两者都必须通过正式 runtime bridge 接到对应 projection
+              </?01M05F1P1JKSSF9VF4QQBPD5MN>
+              <Then ?01M05F1P1JKSSF9VF4QQBPD5MP>
+              不得只有测试内部 graph 能消费 Textual，而正式 runtime 入口无法选择
+              </?01M05F1P1JKSSF9VF4QQBPD5MP>
+            ] (
+              <Given ?01M05F1P1JKSSF9VF4QQBPD5MQ>
+              terminal runtime 已切到 semantic-first 新链路
+              </?01M05F1P1JKSSF9VF4QQBPD5MQ>
+              <When ?01M05F1P1JKSSF9VF4QQBPD5MR>
+              不同终端入口选择 TUI 或 Textual 投影
+              </?01M05F1P1JKSSF9VF4QQBPD5MR>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

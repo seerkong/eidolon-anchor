@@ -1,0 +1,58 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_8_-_0_5_-_1_3_5_5_-_a_l_i_g_n_-_r_e_a_d_-_t_o_o_l_-_c_l_a_u_d_e_-_c_o_d_e_-_s_e_m_a_n_t_i_c_s.behavior_patch.progressive-context-resource-loading apiVersion="codument.tech/v1alpha1" version="1" { capability = "progressive-context-resource-loading" } (
+  <Mutations [
+    <Upsert { selector = "behavior://progressive-context-resource-loading/requirements/large-file-truncation-and-total-lines" } (
+      <Requirement #large-file-truncation-and-total-lines (
+        <Statement ?01M05F1PP4RSD4JER2C3MMWA6V>
+        系统 SHALL 对 read 工具提供统一的默认读取范围语义：文件与目录默认 limit 一致（2000），offset 1 起始；超长文本资源 SHALL 截断到前 limit 行而非整文件投递；资源投递 header SHALL 报告 total-lines 元信息（文件总行数 / 目录总条目数），文件与目录 SHALL NOT 使用不同的隐式默认。
+        </?01M05F1PP4RSD4JER2C3MMWA6V>
+        <Suites [
+          <Suite #truncation-and-metadata { name = "截断与元信息" } (
+            <Cases [
+              <Case #large-file-truncated [
+                <Then ?01M05F1PP4RSD4JER2C3MMWA6W>
+                系统 SHALL 只投递请求 offset 起的至多 limit 行正文
+                </?01M05F1PP4RSD4JER2C3MMWA6W>
+                <Then ?01M05F1PP4RSD4JER2C3MMWA6X>
+                header SHALL 报告 total-lines 总行数
+                </?01M05F1PP4RSD4JER2C3MMWA6X>
+              ] (
+                <Given ?01M05F1PP4RSD4JER2C3MMWA6Y>
+                目标文本文件总行数超过默认 limit（2000 行）
+                </?01M05F1PP4RSD4JER2C3MMWA6Y>
+                <When ?01M05F1PP4RSD4JER2C3MMWA6Z>
+                任一 resolver 请求该文件
+                </?01M05F1PP4RSD4JER2C3MMWA6Z>
+              )>
+              <Case #directory-default-aligned [
+                <Then ?01M05F1PP4RSD4JER2C3MMWA70>
+                默认 limit SHALL 与文件读取一致
+                </?01M05F1PP4RSD4JER2C3MMWA70>
+                <Then ?01M05F1PP4RSD4JER2C3MMWA71>
+                header SHALL 报告目录总条目数元信息
+                </?01M05F1PP4RSD4JER2C3MMWA71>
+              ] (
+                <Given ?01M05F1PP4RSD4JER2C3MMWA72>
+                read 读取目录
+                </?01M05F1PP4RSD4JER2C3MMWA72>
+                <When ?01M05F1PP4RSD4JER2C3MMWA73>
+                返回目录条目列表
+                </?01M05F1PP4RSD4JER2C3MMWA73>
+              )>
+              <Case #total-lines-in-already-visible (
+                <Given ?01M05F1PP4RSD4JER2C3MMWA74>
+                同一 revision 的资源已经可见
+                </?01M05F1PP4RSD4JER2C3MMWA74>
+                <When ?01M05F1PP4RSD4JER2C3MMWA75>
+                返回 already-visible 引用
+                </?01M05F1PP4RSD4JER2C3MMWA75>
+                <Then ?01M05F1PP4RSD4JER2C3MMWA76>
+                引用 SHALL 保留 total-lines 元信息
+                </?01M05F1PP4RSD4JER2C3MMWA76>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

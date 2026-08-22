@@ -1,0 +1,150 @@
+<Track #refactor-ai-agent-vm-runtime-shape version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "按 actors、holonRuntime、inner/outer ctx、snapshots 与 rx data 分类建立 AiAgentVm 标准字段设计" commit_mode = "manual" created_at = "2026-04-26T14:17:03Z" updated_at = "2026-04-27T00:00:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-ai-agent-vm-runtime-shape { name = "refactor-ai-agent-vm-runtime-shape" } (
+    <Description ?01M05F1PDEE890WY2WMMKXEENX>
+    重构 AiAgentVm 标准运行时字段形态
+    </?01M05F1PDEE890WY2WMMKXEENX>
+    <SubNodes [
+      <TaskGroup #P1 { name = "字段现状测试与边界确认" status = "DONE" order = 0 } (
+        <Description ?01M05F1PDEE890WY2WMMKXEENY>
+        用测试锁定 createVM 与 ensure helpers 的兼容行为
+        </?01M05F1PDEE890WY2WMMKXEENY>
+        <SubNodes [
+          <Task { id = "T1.1" name = "补充 AiAgentVm 兼容行为测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEENZ>
+            覆盖 aiFacet、sessionState、runtimeContext 与 holonRuntime 的同源关系。
+            </?01M05F1PDEE890WY2WMMKXEENZ>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEP0>
+              测试能在重构前表达现有兼容预期
+              </?01M05F1PDEE890WY2WMMKXEEP0>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "确认字段 ownership 分类" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEP1>
+            更新或扩展 AI_AGENT_VM_FACET_OWNERSHIP，表达 actors、holonRuntime、runtime knobs、non-rx data、rx data。
+            </?01M05F1PDEE890WY2WMMKXEEP1>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEP2>
+              ownership 可覆盖新一级分类并预留 rx 字段类别
+              </?01M05F1PDEE890WY2WMMKXEEP2>
+            ]>
+          )>
+          <Task { id = "T1.3" name = "补充 innerCtx 兼容行为测试" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEP3>
+            覆盖 registries、mcpManager、recovery 与 innerCtx 的同源关系。
+            </?01M05F1PDEE890WY2WMMKXEEP3>
+            <Acceptance [
+              <Criterion { id = "T1.3-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEP4>
+              旧字段访问与 innerCtx 返回同源对象
+              </?01M05F1PDEE890WY2WMMKXEEP4>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "实现字段形态重构" status = "DONE" order = 1 } (
+        <Description ?01M05F1PDEE890WY2WMMKXEEP5>
+        调整 AiAgentVm 类型与 createVM 初始化，使 holonRuntime/innerCtx/snapshots 与兼容 facade 同源
+        </?01M05F1PDEE890WY2WMMKXEEP5>
+        <SubNodes [
+          <Task { id = "T2.1" name = "新增 AiHolonRuntime 与 AiRuntimeInnerCtx 类型" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEP6>
+            定义 holonRuntime 与 innerCtx，迁移 session/runtime context 和 registries/MCP/recovery 的主归属。
+            </?01M05F1PDEE890WY2WMMKXEEP6>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEP7>
+              TypeScript 类型检查通过
+              </?01M05F1PDEE890WY2WMMKXEEP7>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "新增 runtime snapshot 与 rx seam 字段" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEP8>
+            定义 AiRuntimeImmutableSnapshot、AiRuntimeMutableSnapshot、public/private RxData 与 binding 的字段 seam；private binding 统一命名为 privateRxBinding。
+            </?01M05F1PDEE890WY2WMMKXEEP8>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEP9>
+              VM 创建后 snapshot 与 rx seam 字段存在且类型稳定
+              </?01M05F1PDEE890WY2WMMKXEEP9>
+            ]>
+          )>
+          <Task { id = "T2.2a" name = "按现状扩充 innerCtx 与 snapshots 首批字段" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEPA>
+            根据当前 runtime.ts 与相邻调用点，把新增字段按 innerCtx、immutableSnapshot、mutableSnapshot 生命周期边界归类。
+            </?01M05F1PDEE890WY2WMMKXEEPA>
+            <Acceptance [
+              <Criterion { id = "T2.2a-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEPB>
+              新增字段均有明确类别，不形成无边界 controller runtime
+              </?01M05F1PDEE890WY2WMMKXEEPB>
+            ]>
+          )>
+          <Task { id = "T2.3" name = "重构 AiAgentVm 类型定义" status = "DONE" order = 3 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEPC>
+            按 actors、holonRuntime、runtime knobs、non-rx data、rx data 表达字段。
+            </?01M05F1PDEE890WY2WMMKXEEPC>
+            <Acceptance [
+              <Criterion { id = "T2.3-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEPD>
+              TypeScript 类型检查通过
+              </?01M05F1PDEE890WY2WMMKXEEPD>
+            ]>
+          )>
+          <Task { id = "T2.4" name = "更新 createVM 与 ensure helpers" status = "DONE" order = 4 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEPE>
+            确保 helper 不会产生分叉状态。
+            </?01M05F1PDEE890WY2WMMKXEEPE>
+            <Acceptance [
+              <Criterion { id = "T2.4-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEPF>
+              兼容测试通过
+              </?01M05F1PDEE890WY2WMMKXEEPF>
+            ]>
+          )>
+          <Task { id = "T2.5" name = "拆分 ai-core-contract 与 ai-core-logic 数据/逻辑边界" status = "DONE" order = 5 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEPG>
+            将 AiAgentVm、runtime ctx/snapshot、registry dataclass 与 persisted snapshot 类型迁移到 ai-core-contract，ai-core-logic 仅保留静态 registry 逻辑类、createVM 与 ensure helpers。
+            </?01M05F1PDEE890WY2WMMKXEEPG>
+            <Acceptance [
+              <Criterion { id = "T2.5-AC1" checked = true } ?01M05F1PDEE890WY2WMMKXEEPH>
+              ai-core-contract 不依赖也不 import ai-core-logic
+              </?01M05F1PDEE890WY2WMMKXEEPH>
+              <Criterion { id = "T2.5-AC2" checked = true } ?01M05F1PDEE890WY2WMMKXEEPJ>
+              ai-core-logic 的 VM、registry 与 runtime snapshot 类型复用 contract 包契约
+              </?01M05F1PDEE890WY2WMMKXEEPJ>
+              <Criterion { id = "T2.5-AC3" checked = true } ?01M05F1PDEE890WY2WMMKXEEPK>
+              相关 runtime 与 organ logic 测试通过
+              </?01M05F1PDEE890WY2WMMKXEEPK>
+              <Criterion { id = "T2.5-AC4" checked = true } ?01M05F1PDEE890WY2WMMKXEEPM>
+              registry 原实例方法迁移为以 dataclass 为第一个参数的 logic 静态方法
+              </?01M05F1PDEE890WY2WMMKXEEPM>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "验证与收口" status = "DONE" order = 2 } (
+        <Description ?01M05F1PDEE890WY2WMMKXEEPN>
+        验证 runtime 与 organ 依赖调用点仍兼容
+        </?01M05F1PDEE890WY2WMMKXEEPN>
+        <SubNodes [
+          <Task { id = "T3.1" name = "运行 ai-core-logic 定向测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEPP>
+            运行 runtime 相关测试。
+            </?01M05F1PDEE890WY2WMMKXEEPP>
+          )>
+          <Task { id = "T3.2" name = "运行 ai-organ-logic 相关测试" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PDEE890WY2WMMKXEEPQ>
+            覆盖 ensureVmRuntimeContext 调用点。
+            </?01M05F1PDEE890WY2WMMKXEEPQ>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

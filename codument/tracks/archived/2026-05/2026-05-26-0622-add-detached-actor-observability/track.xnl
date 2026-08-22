@@ -1,0 +1,223 @@
+<Track #add-detached-actor-observability version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" description = "Add scoped running-time observability and terminal result queries for detached bash and detached delegate actor tasks." commit_mode = "manual" created_at = "2026-05-26T00:00:00Z" updated_at = "2026-05-26T06:22:48Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-detached-actor-observability { name = "add-detached-actor-observability" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Observability Model And Query Contracts" status = "DONE" order = 0 } (
+        <Description ?01M05F1PE7GKJQHKYE64AZW2CE>
+        Define bounded detached log/message/result data model and query tool contracts.
+        </?01M05F1PE7GKJQHKYE64AZW2CE>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add observability model tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2CF>
+            Write failing tests for per-task ring buffer sequencing, source filtering, byte/entry limits, and dropped metadata.
+            </?01M05F1PE7GKJQHKYE64AZW2CF>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CG>
+              Tests cover stdout/stderr filtering and monotonic sequence cursors.
+              </?01M05F1PE7GKJQHKYE64AZW2CG>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CH>
+              Tests cover rolling discard metadata when retention limits are exceeded.
+              </?01M05F1PE7GKJQHKYE64AZW2CH>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "Implement detached observability store" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2CJ>
+            Add in-runtime structures and helpers for detached log chunks, message entries, result snapshots, and bounded retention.
+            </?01M05F1PE7GKJQHKYE64AZW2CJ>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CK>
+              Detached observability helpers append and query by task id.
+              </?01M05F1PE7GKJQHKYE64AZW2CK>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CM>
+              Overflow behavior preserves newest entries and reports dropped metadata.
+              </?01M05F1PE7GKJQHKYE64AZW2CM>
+            ]>
+          )>
+          <Task { id = "T1.3" name = "Add query tool contract tests" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2CN>
+            Write failing tests for DetachedActorLogs, DetachedActorMessages, and DetachedActorResult tool schemas and empty/not-found behavior.
+            </?01M05F1PE7GKJQHKYE64AZW2CN>
+            <Acceptance [
+              <Criterion { id = "T1.3-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CP>
+              Query tools validate missing and unknown task ids.
+              </?01M05F1PE7GKJQHKYE64AZW2CP>
+              <Criterion { id = "T1.3-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CQ>
+              Query tools support source, role, kind, range, and limit parameters.
+              </?01M05F1PE7GKJQHKYE64AZW2CQ>
+            ]>
+          )>
+          <Task { id = "T1.4" name = "Implement query tools" status = "DONE" order = 3 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2CR>
+            Add tools for detached logs, detached messages, and detached terminal results while preserving DetachedActorStatus compatibility.
+            </?01M05F1PE7GKJQHKYE64AZW2CR>
+            <Acceptance [
+              <Criterion { id = "T1.4-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CS>
+              DetachedActorLogs returns scoped log chunks and cursor metadata.
+              </?01M05F1PE7GKJQHKYE64AZW2CS>
+              <Criterion { id = "T1.4-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CT>
+              DetachedActorMessages returns scoped message entries and cursor metadata.
+              </?01M05F1PE7GKJQHKYE64AZW2CT>
+              <Criterion { id = "T1.4-AC3" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CV>
+              DetachedActorResult returns terminal state and not-terminal responses.
+              </?01M05F1PE7GKJQHKYE64AZW2CV>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Streaming Detached Bash" status = "DONE" order = 1 } (
+        <Description ?01M05F1PE7GKJQHKYE64AZW2CW>
+        Make RunDetachedBash observable while running through streaming stdout/stderr capture.
+        </?01M05F1PE7GKJQHKYE64AZW2CW>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Add streaming bash tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2CX>
+            Write failing tests showing RunDetachedBash stdout/stderr can be queried while the command is still running and after it exits.
+            </?01M05F1PE7GKJQHKYE64AZW2CX>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CY>
+              Running RunDetachedBash exposes stdout tail before completion.
+              </?01M05F1PE7GKJQHKYE64AZW2CY>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2CZ>
+              Running RunDetachedBash exposes stderr tail separately before completion.
+              </?01M05F1PE7GKJQHKYE64AZW2CZ>
+              <Criterion { id = "T2.1-AC3" checked = true } ?01M05F1PE7GKJQHKYE64AZW2D0>
+              Completed RunDetachedBash result includes terminal status and bounded stdout/stderr tail.
+              </?01M05F1PE7GKJQHKYE64AZW2D0>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "Implement streaming sandboxed bash backend" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2D1>
+            Add a streaming process backend that shares permission and sandbox selection semantics with existing bash execution.
+            </?01M05F1PE7GKJQHKYE64AZW2D1>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2D2>
+              Streaming backend appends stdout and stderr chunks with source metadata.
+              </?01M05F1PE7GKJQHKYE64AZW2D2>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2D3>
+              Timeout, process error, exit code, and signal are reflected in task result.
+              </?01M05F1PE7GKJQHKYE64AZW2D3>
+            ]>
+          )>
+          <Task { id = "T2.3" name = "Wire RunDetachedBash to streaming execution" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2D4>
+            Route RunDetachedBash through the streaming backend while keeping task id creation and background scheduling behavior stable.
+            </?01M05F1PE7GKJQHKYE64AZW2D4>
+            <Acceptance [
+              <Criterion { id = "T2.3-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2D5>
+              RunDetachedBash still returns a parseable task id immediately.
+              </?01M05F1PE7GKJQHKYE64AZW2D5>
+              <Criterion { id = "T2.3-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2D6>
+              RunDetachedBash logs are queryable by source while running.
+              </?01M05F1PE7GKJQHKYE64AZW2D6>
+              <Criterion { id = "T2.3-AC3" checked = true } ?01M05F1PE7GKJQHKYE64AZW2D7>
+              Existing detached bash tests continue to pass or are updated to the new observability contract.
+              </?01M05F1PE7GKJQHKYE64AZW2D7>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Detached Delegate Messages And Results" status = "DONE" order = 2 } (
+        <Description ?01M05F1PE7GKJQHKYE64AZW2D8>
+        Expose recent messages and terminal results for RunDelegateActor detached tasks.
+        </?01M05F1PE7GKJQHKYE64AZW2D8>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Add delegate message observability tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2D9>
+            Write failing tests for querying assistant messages, tool call starts, tool results, errors, range cursors, and retention metadata from detached delegate actors.
+            </?01M05F1PE7GKJQHKYE64AZW2D9>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DA>
+              Tests cover role-filtered assistant message queries.
+              </?01M05F1PE7GKJQHKYE64AZW2DA>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DB>
+              Tests cover kind-filtered tool event queries.
+              </?01M05F1PE7GKJQHKYE64AZW2DB>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DC>
+              Tests verify system prompts and hidden reasoning are not exposed.
+              </?01M05F1PE7GKJQHKYE64AZW2DC>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "Capture delegate actor entries" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2DD>
+            Add executor/orchestrator taps that append message and tool event entries to the detached observability store for child fibers.
+            </?01M05F1PE7GKJQHKYE64AZW2DD>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DE>
+              Assistant output, tool call start, tool result, failure, cancellation, and completion entries are captured.
+              </?01M05F1PE7GKJQHKYE64AZW2DE>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DF>
+              Entries are associated with the correct task id and child actor/fiber identifiers.
+              </?01M05F1PE7GKJQHKYE64AZW2DF>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "Implement delegate result queries" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2DG>
+            Return terminal status, final assistant result, and optional bounded message tail for completed detached delegate actors.
+            </?01M05F1PE7GKJQHKYE64AZW2DG>
+            <Acceptance [
+              <Criterion { id = "T3.3-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DH>
+              Completed delegate result includes final assistant text.
+              </?01M05F1PE7GKJQHKYE64AZW2DH>
+              <Criterion { id = "T3.3-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DJ>
+              Non-terminal delegate result reports current status unless partial results are requested.
+              </?01M05F1PE7GKJQHKYE64AZW2DJ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Compatibility And Verification" status = "DONE" order = 3 } (
+        <Description ?01M05F1PE7GKJQHKYE64AZW2DK>
+        Preserve existing detached status, background result events, and recovery semantics while validating the new observability path.
+        </?01M05F1PE7GKJQHKYE64AZW2DK>
+        <SubNodes [
+          <Task { id = "T4.1" name = "Add compatibility regression tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2DM>
+            Verify DetachedActorStatus, DetachedActorList, semantic background result events, and existing detached task completion behavior remain compatible.
+            </?01M05F1PE7GKJQHKYE64AZW2DM>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DN>
+              Existing status/list JSON shape remains compatible.
+              </?01M05F1PE7GKJQHKYE64AZW2DN>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DP>
+              Background result events still emit terminal results.
+              </?01M05F1PE7GKJQHKYE64AZW2DP>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "Run focused test suites" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2DQ>
+            Run the smallest relevant Bun test targets for detached bash, detached status, orchestration, sandbox backend, and terminal projection behavior.
+            </?01M05F1PE7GKJQHKYE64AZW2DQ>
+            <Acceptance [
+              <Criterion { id = "T4.2-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DR>
+              Focused detached actor and sandbox tests pass.
+              </?01M05F1PE7GKJQHKYE64AZW2DR>
+              <Criterion { id = "T4.2-AC2" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DS>
+              No regression is introduced in terminal background result projection tests.
+              </?01M05F1PE7GKJQHKYE64AZW2DS>
+            ]>
+          )>
+          <Task { id = "T4.3" name = "Document implementation notes" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PE7GKJQHKYE64AZW2DT>
+            Update track analysis notes with final defaults, caveats, and any deferred durability work.
+            </?01M05F1PE7GKJQHKYE64AZW2DT>
+            <Acceptance [
+              <Criterion { id = "T4.3-AC1" checked = true } ?01M05F1PE7GKJQHKYE64AZW2DV>
+              Track analysis documents default retention limits and known tradeoffs.
+              </?01M05F1PE7GKJQHKYE64AZW2DV>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

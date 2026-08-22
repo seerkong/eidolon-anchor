@@ -18,6 +18,8 @@ import { resolveDelegateLane } from "../lane/AiAgentLane"
 import { resolveDelegateWorkload } from "../lane/AiAgentWorkload"
 import { getActorWorkContext } from "../runtime/ContextControlPlane"
 import { TASK_PHASES } from "@cell/ai-core-contract/runtime/ContextControl"
+import type { AgentConfig, AgentSeedMessage } from "@cell/ai-core-contract/runtime/AgentConfig"
+import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 
 function makeTaskId(): string {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -36,12 +38,18 @@ export async function spawnChildExecutionActor(
     parentToolName?: string
     detachedActorKind?: DetachedActorKind
     additionalSystemPrompts?: readonly string[]
+    resolvedConfig?: AgentConfig
   },
 ): Promise<string> {
-  const config = AgentRegistry.get(vm.registries.agentRegistry, params.agentType)
+  const config = params.resolvedConfig ?? AgentRegistry.get(vm.registries.agentRegistry, params.agentType)
   if (!config) {
     throw new Error(`Unknown agent type '${params.agentType}'`)
   }
+  if (config.name !== params.agentType) {
+    throw new Error(`Resolved Agent config name '${config.name}' does not match '${params.agentType}'`)
+  }
+  validateExactAgentTools(vm, config)
+  const seedMessages = normalizeAgentSeedMessages(config)
 
   const mode = normalizeDelegateRunMode(params.mode)
   const taskKind = mode === "detached"
@@ -72,13 +80,24 @@ export async function spawnChildExecutionActor(
 
   const taskId = mode === "detached" ? makeTaskId() : ""
   const allowedTools = config.tools === "*" ? [] : [...config.tools]
+  const allowedToolsMode = config.tools === "*" ? "all" : "exact"
 
+  const configuredInstructions = seedMessages
+    ? seedMessages
+        .filter((message) => message.role === "system" || message.role === "developer")
+        .map((message) => message.content)
+    : config.prompt
+  const configuredConversation = seedMessages
+    ? seedMessages
+        .filter((message) => message.role === "user" || message.role === "assistant")
+        .map((message) => ({ role: message.role as "user" | "assistant", content: message.content }))
+    : []
   const buildSystemMessages = vm.callbacks.buildSystemMessages
   const systemMessages = buildSystemMessages
-    ? buildSystemMessages(config.prompt)
+    ? buildSystemMessages(configuredInstructions)
         .filter((m: any) => m?.role === "system")
         .map((m: any) => ({ role: "system" as const, content: String(m.content ?? "") }))
-    : config.prompt.map((p) => ({ role: "system" as const, content: p }))
+    : configuredInstructions.map((content) => ({ role: "system" as const, content }))
   systemMessages.push(...(params.additionalSystemPrompts ?? []).map((content) => ({
     role: "system" as const,
     content,
@@ -96,7 +115,7 @@ export async function spawnChildExecutionActor(
     llmClient: parentActor.llmClient,
     modelConfig: parentActor.modelConfig,
     systemPrompts: systemMessages.map((m) => m.content),
-    messages: [...systemMessages, { role: "user", content: params.prompt }],
+    messages: [...systemMessages, ...configuredConversation, { role: "user", content: params.prompt }],
     ctrlOptions: shouldStopAfterSingleTool
       ? {
           stopAfterFirstTool: true,
@@ -104,6 +123,7 @@ export async function spawnChildExecutionActor(
         }
       : undefined,
     toolPolicy: {
+      allowedToolsMode,
       allowedTools,
       enabledToolKeys: parentActor.toolPolicy.enabledToolKeys,
       disabledToolKeys: parentActor.toolPolicy.disabledToolKeys,
@@ -243,5 +263,43 @@ export async function spawnChildExecutionActor(
         vm.actorRuntime.unregister(actor.key)
       }
     }
+  }
+}
+
+function normalizeAgentSeedMessages(config: AgentConfig): readonly AgentSeedMessage[] | undefined {
+  if (config.seedMessages === undefined) return undefined
+  if (!Array.isArray(config.seedMessages)) {
+    throw new Error("Agent seedMessages must be an ordered array")
+  }
+  let conversationStarted = false
+  return Object.freeze(config.seedMessages.map((message, index) => {
+    if (typeof message !== "object" || message === null || Array.isArray(message)) {
+      throw new Error(`Agent seedMessages[${index}] must be an object`)
+    }
+    const role = message.role
+    if (role !== "system" && role !== "developer" && role !== "user" && role !== "assistant") {
+      throw new Error(`Agent seedMessages[${index}] has unsupported role '${String(role)}'`)
+    }
+    if (typeof message.content !== "string" || !message.content.trim()) {
+      throw new Error(`Agent seedMessages[${index}] requires non-empty content`)
+    }
+    if (role === "user" || role === "assistant") {
+      conversationStarted = true
+    } else if (conversationStarted) {
+      throw new Error("Agent seed instructions must precede conversation messages")
+    }
+    return Object.freeze({ role, content: message.content })
+  }))
+}
+
+function validateExactAgentTools(vm: AiAgentVm, config: AgentConfig): void {
+  if (config.requireExactTools !== true || config.tools === "*") return
+  const mcpTools = new Set(
+    vm.mcpManager?.getOpenaiTools?.().map((tool) => tool.function.name) ?? [],
+  )
+  const toolRegistry = vm.registries.toolRegistry
+  for (const toolName of config.tools) {
+    if ((toolRegistry && ToolFuncRegistry.get(toolRegistry, toolName)) || mcpTools.has(toolName)) continue
+    throw new Error(`Agent '${config.name}' requires unavailable exact tool '${toolName}'`)
   }
 }

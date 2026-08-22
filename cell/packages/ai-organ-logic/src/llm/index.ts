@@ -7,6 +7,15 @@ export type {
 export { OpenAILlmAdapter } from "./OpenaiAdapter";
 export { OpenAICompletionsNodejsFetchLlmAdapter } from "./OpenAICompletionsNodejsFetchAdapter";
 export {
+  compileConversationDeltaToResponsesInput,
+  compileConversationToResponsesCanonicalReplay,
+} from "./ResponsesCanonicalReplayCompiler";
+export type { ResponsesCanonicalReplay } from "./ResponsesCanonicalReplayCompiler";
+export {
+  ResponsesProjectionCoverageError,
+} from "./ResponsesCanonicalReplayCompiler";
+export type { ResponsesProjectionCoverageProof } from "./ResponsesCanonicalReplayCompiler";
+export {
   deepSeekOfficialChatEffectBundle,
   openAIOfficialChatEffectBundle,
 } from "./ChatCompletionsEffectBundles";
@@ -80,16 +89,28 @@ export {
   findOpenAIReplaySafeMessagePrefix,
   normalizeOpenAIChatMessages,
   repairOpenAIChatToolCallAdjacency,
-  stripOpenAICompatibleUnsupportedSchemaKeys,
 } from "./OpenAIChatHelpers";
 export {
+  deepSeekChatToolSchemaProjector,
+  openAIChatToolSchemaProjector,
+} from "./tool-schema/ChatToolSchemaProjectors";
+export { openAIResponsesToolSchemaProjector } from "./tool-schema/OpenAIResponsesToolSchemaProjector";
+export {
+  admitProviderRequest,
+  prepareProviderToolSchemaProjection,
+  readAdmittedProviderRequest,
+  readProviderToolSchemaProjection,
+} from "./tool-schema/ProviderRequestAdmission";
+export {
   classifyProviderRetry,
+  createProviderStreamWithRetry,
   DEFAULT_PROVIDER_RETRY_POLICY,
   executeWithProviderRetry,
   FIRST_EVENT_TIMEOUT_PROVIDER_RETRY_POLICY,
   ProviderExecutionError,
   resolveProviderRetryPolicy,
   resolveProviderRetryDelay,
+  providerStreamChunkHasVisibleOutput,
   RESPONSES_TOOL_CONTEXT_RECOVERY_POLICY,
   toProviderExecutionError,
 } from "./ProviderErrors";
@@ -165,6 +186,7 @@ export {
 export {
   createResponsesProviderOutputSnapshot,
   decideResponsesCallLineage,
+  decideResponsesRequestLineage,
   decideResponsesNativeOutputCompleteness,
   isValidResponsesCallLineageProof,
   isValidResponsesNativeOutputCompletenessProof,

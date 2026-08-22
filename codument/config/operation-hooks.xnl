@@ -1,0 +1,25 @@
+<OperationHooks #codument.config.operation_hooks apiVersion="codument.tech/v1alpha1" version="1" (
+  <Operations [
+    <Operation #track (
+      <Hooks [
+        <Hook { on = "track:after-design" } (
+          <AttractorCheck { use = "coding" }>
+        )>
+      ]>
+    )>
+    <Operation #archive (
+      <Hooks [
+        <Hook { on = "archive:after" } (
+          <ArtifactSync { use = "docs" }>
+        )>
+      ]>
+    )>
+    <Operation #revise-track (
+      <Hooks [
+        <Hook { on = "revise:before" } (
+          <AttractorCheck { use = "coding" }>
+        )>
+      ]>
+    )>
+  ]>
+)>

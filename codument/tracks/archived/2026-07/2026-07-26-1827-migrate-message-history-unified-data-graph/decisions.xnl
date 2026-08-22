@@ -1,14 +1,19 @@
-<decision #migrate-message-history-unified-data-graph.projection {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>How should MessageHistoryGraph replace its removed reducer projection?</?>
-  <answer { }
-  (
-    <raw-answer ?>Use the upstream state-node replacement.</?>
-    <decision-text ?>Use one DataGraph source over inputLog.stream and addStreamDrivenStateSignalNode, reading handle.output.</?>
-    <rationale ?>It preserves stream input with synchronous current state and graph-owned lifecycle.</?>
-    <evidence ?>Upstream migration guide and focused package-load failure.</?>
+<decision #migrate-message-history-unified-data-graph.projection apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PMNAVA4C2J2H8SX7Y03>
+  How should MessageHistoryGraph replace its removed reducer projection?
+  </?01M05F1PMNAVA4C2J2H8SX7Y03>
+  <answer {  } (
+    <raw-answer ?01M05F1PMNAVA4C2J2H8SX7Y04>
+    Use the upstream state-node replacement.
+    </?01M05F1PMNAVA4C2J2H8SX7Y04>
+    <decision-text ?01M05F1PMNAVA4C2J2H8SX7Y05>
+    Use one DataGraph source over inputLog.stream and addStreamDrivenStateSignalNode, reading handle.output.
+    </?01M05F1PMNAVA4C2J2H8SX7Y05>
+    <rationale ?01M05F1PMNAVA4C2J2H8SX7Y06>
+    It preserves stream input with synchronous current state and graph-owned lifecycle.
+    </?01M05F1PMNAVA4C2J2H8SX7Y06>
+    <evidence ?01M05F1PMNAVA4C2J2H8SX7Y07>
+    Upstream migration guide and focused package-load failure.
+    </?01M05F1PMNAVA4C2J2H8SX7Y07>
   )>
 )>

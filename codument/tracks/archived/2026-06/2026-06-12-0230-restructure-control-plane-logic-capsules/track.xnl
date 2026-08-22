@@ -1,0 +1,174 @@
+<Track #restructure-control-plane-logic-capsules version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Fully restructure the three control-plane clusters into capsule form with contract-hosted derivation contracts, behavior-preserved under the predecessor conformance." description = "在 runtime-control-component-boundaries 的契约与 conformance 保护下，把 engine、coordinator、driver 三集群重构为 capsule（coreLogic/adapterRegistry/adapters/internals，类型留在 contract 包），reducer/projection 提升为 derivation contract；AiRuntimeTurnSupervisor 经前提修正后保留并冻结（移除归入 refactor-ai-turn-tool-provider-lifecycle，见决策 3）。" commit_mode = "manual" created_at = "2026-06-11T16:00:00Z" updated_at = "2026-06-11T18:30:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_restructure-control-plane-logic-capsules { name = "restructure-control-plane-logic-capsules" } (
+    <Description ?01M05F1PHEN8CZRK2DQE66CG5F>
+    Restructure Control Plane Logic Capsules
+    </?01M05F1PHEN8CZRK2DQE66CG5F>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Derivation Contracts And Flow Wiring Inventory" status = "DONE" order = 0 } (
+        <Description ?01M05F1PHEN8CZRK2DQE66CG5G>
+        定义三集群 derivation contract 与断言机制；盘点流转布线可复用的 vendor 原语。
+        </?01M05F1PHEN8CZRK2DQE66CG5G>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Inventory vendor primitives for flow wiring" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG5H>
+            盘点 depa-data-graph / depa-actor 既有 stream/signal/reducer projection 原语能否承载 reduce-project-effects 流转；结论写入 analysis/findings.md。仅在确认缺失后允许后续任务在 platform 侧加薄 glue。
+            </?01M05F1PHEN8CZRK2DQE66CG5H>
+            <Acceptance [
+              <Criterion { id = "AC-T1.1-inventory" checked = true } ?01M05F1PHEN8CZRK2DQE66CG5J>
+              analysis 记录了可复用原语清单与缺口结论，glue 范围被明确限定或排除。
+              </?01M05F1PHEN8CZRK2DQE66CG5J>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "Add failing tests for derivation contracts" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG5K>
+            为 EngineCommandDerivation、SchedulerDerivation、CoordinatorDerivation 的类型与运行时断言写失败测试（缺方法实现注入即报方法名）。
+            </?01M05F1PHEN8CZRK2DQE66CG5K>
+            <Acceptance [
+              <Criterion { id = "AC-T1.2-tests-red" checked = true } ?01M05F1PHEN8CZRK2DQE66CG5M>
+              测试覆盖三个 derivation contract 的方法集合与断言行为。
+              </?01M05F1PHEN8CZRK2DQE66CG5M>
+            ]>
+          )>
+          <Task { id = "T1.3" name = "Implement derivation contract types and assertions" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG5N>
+            按宿主分层实现：通用断言机制在 platform-contract，engine derivation 类型在 ai-runtime-control-contract，driver/coordinator derivation 类型在 ai-core-contract。
+            </?01M05F1PHEN8CZRK2DQE66CG5N>
+            <Acceptance [
+              <Criterion { id = "AC-T1.3-contracts" checked = true } ?01M05F1PHEN8CZRK2DQE66CG5P>
+              三个 derivation contract 可被 logic 实现复用，断言测试全绿。
+              </?01M05F1PHEN8CZRK2DQE66CG5P>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Engine Capsule" status = "DONE" order = 1 } (
+        <Description ?01M05F1PHEN8CZRK2DQE66CG5Q>
+        把 runtime_control_engine 重构为 capsule，derivation 实现注入。
+        </?01M05F1PHEN8CZRK2DQE66CG5Q>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Add failing capsule structure tests for the engine" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG5R>
+            新增 engine capsule 结构 conformance 失败测试：coreLogic 入口、adapter registry 枚举解析、internals 不被外部 import、类型不在 logic 包重复定义。
+            </?01M05F1PHEN8CZRK2DQE66CG5R>
+            <Acceptance [
+              <Criterion { id = "AC-T2.1-tests-red" checked = true } ?01M05F1PHEN8CZRK2DQE66CG5S>
+              capsule 结构 conformance 以失败状态就位。
+              </?01M05F1PHEN8CZRK2DQE66CG5S>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "Restructure the engine into engineCapsule" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG5T>
+            纯 reducer 平移为 EngineCommandDerivation 实现 + coreLogic；ports 适配轴入 adapterRegistry；保留既有导出为兼容出口；更新 boundary declaration 与 encapsulation conformance 源码映射。
+            </?01M05F1PHEN8CZRK2DQE66CG5T>
+            <Acceptance [
+              <Criterion { id = "AC-T2.2-capsule" checked = true } ?01M05F1PHEN8CZRK2DQE66CG5V>
+              engine capsule 结构 conformance 全绿。
+              </?01M05F1PHEN8CZRK2DQE66CG5V>
+              <Criterion { id = "AC-T2.2-preserved" checked = true } ?01M05F1PHEN8CZRK2DQE66CG5W>
+              前置 track 五个 conformance 套件全绿，失败基线不增。
+              </?01M05F1PHEN8CZRK2DQE66CG5W>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Coordinator Capsule" status = "DONE" order = 2 } (
+        <Description ?01M05F1PHEN8CZRK2DQE66CG5X>
+        把 snapshot_coordinator 重构为 capsule，writer 与决策按边界声明切分落位。
+        </?01M05F1PHEN8CZRK2DQE66CG5X>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Add failing capsule structure tests for the coordinator" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG5Y>
+            coordinator capsule 结构 conformance 失败测试，含 writer 只持久化、决策经 CoordinatorDerivation 的结构断言。
+            </?01M05F1PHEN8CZRK2DQE66CG5Y>
+            <Acceptance [
+              <Criterion { id = "AC-T3.1-tests-red" checked = true } ?01M05F1PHEN8CZRK2DQE66CG5Z>
+              capsule 结构 conformance 以失败状态就位。
+              </?01M05F1PHEN8CZRK2DQE66CG5Z>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "Restructure the coordinator into coordinatorCapsule" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG60>
+            决策 derivation 入 coreLogic；RuntimeSnapshots.ts 的 writer 与恢复重建拆为 adapters；persistence support 配置入 internals；保留 saveAiAgentRuntimeSnapshot/recoverAiAgentRuntime 等兼容出口；同步更新声明与映射。
+            </?01M05F1PHEN8CZRK2DQE66CG60>
+            <Acceptance [
+              <Criterion { id = "AC-T3.2-capsule" checked = true } ?01M05F1PHEN8CZRK2DQE66CG61>
+              coordinator capsule 结构 conformance 全绿。
+              </?01M05F1PHEN8CZRK2DQE66CG61>
+              <Criterion { id = "AC-T3.2-preserved" checked = true } ?01M05F1PHEN8CZRK2DQE66CG62>
+              前置 conformance 全绿，失败基线不增，依赖方导出面不破坏。
+              </?01M05F1PHEN8CZRK2DQE66CG62>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Driver Capsule And Supervisor Disposition" status = "DONE" order = 3 } (
+        <Description ?01M05F1PHEN8CZRK2DQE66CG63>
+        把 orchestrator_driver 重构为 capsule，并记录 AiRuntimeTurnSupervisor 的处置（前提修正后保留并冻结）。
+        </?01M05F1PHEN8CZRK2DQE66CG63>
+        <SubNodes [
+          <Task { id = "T4.1" name = "Add failing capsule structure tests for the driver" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG64>
+            driver capsule 结构 conformance 失败测试，含 SchedulerDerivation 纯实现、scheduler signal 经 derivation project 的结构断言。
+            </?01M05F1PHEN8CZRK2DQE66CG64>
+            <Acceptance [
+              <Criterion { id = "AC-T4.1-tests-red" checked = true } ?01M05F1PHEN8CZRK2DQE66CG65>
+              capsule 结构 conformance 以失败状态就位。
+              </?01M05F1PHEN8CZRK2DQE66CG65>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "Restructure the driver into orchestratorCapsule" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG66>
+            调度状态机为 SchedulerDerivation 纯实现；mailbox/tick 为 outer；detached/childDone 记账入 internals；createAiAgentOrchestratorDriver* 保留兼容出口；同步更新声明与映射。
+            </?01M05F1PHEN8CZRK2DQE66CG66>
+            <Acceptance [
+              <Criterion { id = "AC-T4.2-capsule" checked = true } ?01M05F1PHEN8CZRK2DQE66CG67>
+              driver capsule 结构 conformance 全绿。
+              </?01M05F1PHEN8CZRK2DQE66CG67>
+              <Criterion { id = "AC-T4.2-preserved" checked = true } ?01M05F1PHEN8CZRK2DQE66CG68>
+              前置 conformance 全绿，失败基线不增（含 terminal/organ 套件对照），executor/TerminalRuntime 调用面不破坏。
+              </?01M05F1PHEN8CZRK2DQE66CG68>
+            ]>
+          )>
+          <Task { id = "T4.3" name = "Record supervisor disposition after premise falsified" status = "DONE" order = 2 priority = "P1" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG69>
+            原任务为删除"未接线"的 AiRuntimeTurnSupervisor；实施中证实其已接线进 live turn 主路径（TerminalRuntime hint 注入与 continuation 循环），删除属行为变更。经用户重确认（decisions.md 决策 3 = B），本 track 保留且不扩展，移除归入 refactor-ai-turn-tool-provider-lifecycle 的输入。
+            </?01M05F1PHEN8CZRK2DQE66CG69>
+            <Acceptance [
+              <Criterion { id = "AC-T4.3-removed" checked = true } ?01M05F1PHEN8CZRK2DQE66CG6A>
+              前提修正与处置已记录于 decisions/design/proposal/spec delta；supervisor 行为保持原样未扩展。
+              </?01M05F1PHEN8CZRK2DQE66CG6A>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Closure" status = "DONE" order = 4 } (
+        <Description ?01M05F1PHEN8CZRK2DQE66CG6B>
+        跨集群收口：声明与映射最终一致，全量回归与基线对照。
+        </?01M05F1PHEN8CZRK2DQE66CG6B>
+        <SubNodes [
+          <Task { id = "T5.1" name = "Final declaration-map sweep and full regression" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PHEN8CZRK2DQE66CG6C>
+            核对三集群 boundary declaration、encapsulation conformance 映射与最终文件布局一致；运行全部相关套件并与既有失败基线对照；在 analysis 记录最终基线。
+            </?01M05F1PHEN8CZRK2DQE66CG6C>
+            <Acceptance [
+              <Criterion { id = "AC-T5.1-closure" checked = true } ?01M05F1PHEN8CZRK2DQE66CG6D>
+              声明/映射/布局三者一致，全量失败集合为基线子集。
+              </?01M05F1PHEN8CZRK2DQE66CG6D>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

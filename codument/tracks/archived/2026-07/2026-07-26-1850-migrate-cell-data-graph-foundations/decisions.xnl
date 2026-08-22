@@ -1,13 +1,19 @@
-<decision #migrate-cell-data-graph-foundations.consumer-read {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>How should stage consumers read declared dependencies under 1.0.1?</?>
-  <answer { }(
-    <raw-answer ?>Through the owning DataGraph.</?>
-    <decision-text ?>Replace callback ctx.get(ref) reads with supported graph reads over the same module refs.</?>
-    <rationale ?>The target consumer callback is an effect trigger, not an ambient graph reader.</?>
-    <evidence ?>G5 verification and upstream unified graph tests.</?>
+<decision #migrate-cell-data-graph-foundations.consumer-read apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PMSWCQ90PAHDQ5YF73C>
+  How should stage consumers read declared dependencies under 1.0.1?
+  </?01M05F1PMSWCQ90PAHDQ5YF73C>
+  <answer {  } (
+    <raw-answer ?01M05F1PMSWCQ90PAHDQ5YF73D>
+    Through the owning DataGraph.
+    </?01M05F1PMSWCQ90PAHDQ5YF73D>
+    <decision-text ?01M05F1PMSWCQ90PAHDQ5YF73E>
+    Replace callback ctx.get(ref) reads with supported graph reads over the same module refs.
+    </?01M05F1PMSWCQ90PAHDQ5YF73E>
+    <rationale ?01M05F1PMSWCQ90PAHDQ5YF73F>
+    The target consumer callback is an effect trigger, not an ambient graph reader.
+    </?01M05F1PMSWCQ90PAHDQ5YF73F>
+    <evidence ?01M05F1PMSWCQ90PAHDQ5YF73G>
+    G5 verification and upstream unified graph tests.
+    </?01M05F1PMSWCQ90PAHDQ5YF73G>
   )>
 )>

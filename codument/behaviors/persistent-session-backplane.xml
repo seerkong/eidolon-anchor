@@ -1,4 +1,7 @@
 <capability id="persistent-session-backplane" version="1">
+  <Metadata>
+    <ApiVersion>codument.tech/v1alpha1</ApiVersion>
+  </Metadata>
   <requirement id="backplane-package-boundary">
     <statement>session 持久化与恢复（checkpoint snapshot、effect-evidence journal、derived index、conversation persistence）SHALL 由一个专用的 data/persistence 包拥有写入与读取边界；ai-organ-logic 的 live 执行逻辑 SHALL NOT 内联 repository / journal 文件 I/O，只能通过注入的端口与该包交互。</statement>
     <suite id="package-boundary" name="Backplane package boundary">

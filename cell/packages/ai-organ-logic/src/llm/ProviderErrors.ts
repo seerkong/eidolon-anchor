@@ -1,3 +1,5 @@
+import type { LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
+
 export class ProviderExecutionError extends Error {
   readonly providerErrorCode: string;
   readonly retryAfterSeconds?: number;
@@ -296,6 +298,131 @@ export async function executeWithProviderRetry<T>(
       await (options.sleep ?? ((seconds) => new Promise<void>((resolve) => setTimeout(resolve, seconds * 1000))))(delay.delaySeconds);
     }
   }
+}
+
+export function createProviderStreamWithRetry(
+  createAttempt: (attemptNumber: number) => Promise<LlmStreamResult>,
+  options: {
+    stage: string;
+    providerId: string;
+    selectedModel: string;
+    signal?: AbortSignal;
+    policy?: Partial<ProviderRetryPolicy>;
+    sleep?: (delaySeconds: number) => Promise<void>;
+    now?: () => number;
+    random?: () => number;
+    onDiagnostic?: (event: ProviderRetryDiagnostic) => void;
+  },
+): LlmStreamResult {
+  let resolveProviderOutput: (value: unknown | undefined) => void = () => {};
+  let rejectProviderOutput: (error: unknown) => void = () => {};
+  const providerOutput = new Promise<unknown | undefined>((resolve, reject) => {
+    resolveProviderOutput = resolve;
+    rejectProviderOutput = reject;
+  });
+  const startedAt = (options.now ?? (() => Date.now() / 1000))();
+  let currentAttempt: LlmStreamResult | undefined;
+
+  const stream = (async function* () {
+    let attemptNumber = 0;
+    try {
+      while (true) {
+        attemptNumber += 1;
+        let outputObserved = false;
+        try {
+          currentAttempt = await createAttempt(attemptNumber);
+          for await (const chunk of currentAttempt.stream) {
+            if (!outputObserved && (
+              currentAttempt.outputObserved?.() === true
+              || providerStreamChunkHasVisibleOutput(chunk)
+            )) {
+              outputObserved = true;
+            }
+            yield chunk;
+          }
+          const output = currentAttempt.providerOutput
+            ? await currentAttempt.providerOutput
+            : undefined;
+          resolveProviderOutput(output);
+          return;
+        } catch (error) {
+          void currentAttempt?.providerOutput?.catch(() => undefined);
+          currentAttempt = undefined;
+          if (options.signal?.aborted) throw error;
+
+          const classification = classifyProviderRetry(error);
+          const policy = {
+            ...resolveProviderRetryPolicy(classification.classificationReason),
+            ...(options.policy ?? {}),
+          };
+          const elapsedSeconds = Math.max(
+            0,
+            (options.now ?? (() => Date.now() / 1000))() - startedAt,
+          );
+          const retryCount = Math.max(0, attemptNumber);
+          const retrySafety = outputObserved
+            ? "indeterminate_after_accept"
+            : classification.replaySafety ?? "safe_same_contract";
+          const delay = outputObserved
+            ? { delaySeconds: 0, terminationReason: "indeterminate_after_accept" }
+            : classification.retryable
+              ? resolveProviderRetryDelay({
+                  retryNumber: retryCount,
+                  policy,
+                  elapsedSeconds,
+                  overrideSeconds: extractProviderRetryDelayOverrideSeconds(error),
+                  random: options.random,
+                })
+              : { delaySeconds: 0, terminationReason: "non_retryable" };
+          options.onDiagnostic?.({
+            providerId: options.providerId,
+            selectedModel: options.selectedModel,
+            stage: options.stage,
+            attemptNumber,
+            retryCount,
+            maxRetries: policy.maxRetries,
+            delaySeconds: delay.delaySeconds,
+            elapsedSeconds,
+            error: error instanceof Error ? error.message : String(error),
+            classificationReason: classification.classificationReason,
+            classificationLayer: classification.layer,
+            classificationPhase: classification.phase,
+            retryScope: classification.retryScope,
+            replaySafety: retrySafety,
+            terminationReason: delay.terminationReason,
+          });
+          if (
+            outputObserved
+            || !classification.retryable
+            || delay.terminationReason !== "retry_scheduled"
+          ) {
+            throw error;
+          }
+          await (options.sleep ?? ((seconds) => new Promise<void>((resolve) => setTimeout(resolve, seconds * 1000))))(
+            delay.delaySeconds,
+          );
+        }
+      }
+    } catch (error) {
+      rejectProviderOutput(error);
+      throw error;
+    }
+  })();
+
+  return { stream, providerOutput };
+}
+
+export function providerStreamChunkHasVisibleOutput(chunk: unknown): boolean {
+  if (!chunk || typeof chunk !== "object") return false;
+  const choices = (chunk as any).choices;
+  if (!Array.isArray(choices)) return false;
+  return choices.some((choice: any) => {
+    const delta = choice?.delta ?? choice?.message ?? {};
+    if (typeof delta?.content === "string" && delta.content.length > 0) return true;
+    if (typeof delta?.reasoning_content === "string" && delta.reasoning_content.length > 0) return true;
+    if (typeof delta?.reasoning === "string" && delta.reasoning.length > 0) return true;
+    return Array.isArray(delta?.tool_calls) && delta.tool_calls.length > 0;
+  });
 }
 
 export function toProviderExecutionError(error: unknown, fallbackCode = "provider_error"): ProviderExecutionError {

@@ -1,0 +1,54 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_2_9_-_1_1_1_8_-_h_e_a_d_l_e_s_s_-_p_a_u_s_e_d_-_p_r_o_g_r_e_s_s_-_e_x_i_t.behavior_patch.terminal-headless-runtime-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-headless-runtime-cli" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-headless-runtime-cli/requirements/paused-progress-exit" } (
+      <Requirement #paused-progress-exit (
+        <Statement ?01M05F1PK0Z7C63XTHKQCCH7AW>
+        Headless exec SHALL distinguish a resumable `runtime_turn_unsettled:*` timeout from hard failures by returning `paused_with_progress`; it SHALL NOT write `--output-last-message` for paused results; trace `session_end` SHALL record `paused_with_progress`.
+        </?01M05F1PK0Z7C63XTHKQCCH7AW>
+        <Suites [
+          <Suite #headless-paused-progress { name = "Headless paused progress protocol" } (
+            <Cases [
+              <Case #runtime-unsettled-pauses [
+                <Then ?01M05F1PK0Z7C63XTHKQCCH7AX>
+                result status SHALL be `paused_with_progress`
+                </?01M05F1PK0Z7C63XTHKQCCH7AX>
+                <Then ?01M05F1PK0Z7C63XTHKQCCH7AY>
+                trace session_end status SHALL be `paused_with_progress`
+                </?01M05F1PK0Z7C63XTHKQCCH7AY>
+              ] (
+                <Given ?01M05F1PK0Z7C63XTHKQCCH7AZ>
+                runtime turn throws `runtime_turn_unsettled:mandatory_continuation`
+                </?01M05F1PK0Z7C63XTHKQCCH7AZ>
+                <When ?01M05F1PK0Z7C63XTHKQCCH7B0>
+                headless exec handles the turn result
+                </?01M05F1PK0Z7C63XTHKQCCH7B0>
+              )>
+              <Case #paused-does-not-write-last-message (
+                <Given ?01M05F1PK0Z7C63XTHKQCCH7B1>
+                an existing `--output-last-message` file exists
+                </?01M05F1PK0Z7C63XTHKQCCH7B1>
+                <When ?01M05F1PK0Z7C63XTHKQCCH7B2>
+                headless exec returns `paused_with_progress`
+                </?01M05F1PK0Z7C63XTHKQCCH7B2>
+                <Then ?01M05F1PK0Z7C63XTHKQCCH7B3>
+                the file SHALL NOT be overwritten
+                </?01M05F1PK0Z7C63XTHKQCCH7B3>
+              )>
+              <Case #provider-failure-remains-failed (
+                <Given ?01M05F1PK0Z7C63XTHKQCCH7B4>
+                provider initialization or stream fails
+                </?01M05F1PK0Z7C63XTHKQCCH7B4>
+                <When ?01M05F1PK0Z7C63XTHKQCCH7B5>
+                headless exec handles the error
+                </?01M05F1PK0Z7C63XTHKQCCH7B5>
+                <Then ?01M05F1PK0Z7C63XTHKQCCH7B6>
+                result status SHALL remain `failed`
+                </?01M05F1PK0Z7C63XTHKQCCH7B6>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

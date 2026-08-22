@@ -29,6 +29,7 @@ export type ChatCompletionsRequestProjectionInput = Readonly<{
   messages: readonly unknown[];
   tools?: readonly unknown[];
   extraBody?: Readonly<Record<string, unknown>>;
+  toolSchemaProjectionAuthority?: ProviderToolSchemaProjectionAuthority;
 }>;
 
 export type NormalizedChatCompletionsStreamBinding = Readonly<{
@@ -40,8 +41,13 @@ export type NormalizedChatCompletionsStreamBinding = Readonly<{
 export type ChatCompletionsEffectBundle = NormalizedChatCompletionsStreamBinding & Readonly<{
   id: "openai-official-chat" | "deepseek-official-chat";
   resolveEndpoint: (baseUrl?: string) => string;
+  toolSchemaProjector: ProviderToolSchemaProjector;
   projectMessages: (messages: readonly unknown[]) => unknown[];
   projectRequest: (
     input: ChatCompletionsRequestProjectionInput,
   ) => Record<string, unknown>;
 }>;
+import type {
+  ProviderToolSchemaProjectionAuthority,
+  ProviderToolSchemaProjector,
+} from "./ProviderToolSchemaProjection";

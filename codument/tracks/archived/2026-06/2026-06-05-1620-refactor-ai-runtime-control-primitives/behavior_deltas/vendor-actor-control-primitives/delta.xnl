@@ -1,0 +1,137 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_5_-_1_6_2_0_-_r_e_f_a_c_t_o_r_-_a_i_-_r_u_n_t_i_m_e_-_c_o_n_t_r_o_l_-_p_r_i_m_i_t_i_v_e_s.behavior_patch.vendor-actor-control-primitives apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-actor-control-primitives" } (
+  <Mutations [
+    <Upsert { selector = "behavior://vendor-actor-control-primitives/requirements/vendor-actor-control-package" } (
+      <Requirement #vendor-actor-control-package (
+        <Statement ?01M05F1PFYRPEGSC6BT18HMGG1>
+        系统 SHALL provide a business-neutral `depa-actor-control` vendor package under the project root `vendor/` directory.
+        </?01M05F1PFYRPEGSC6BT18HMGG1>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/vendor-actor-control-primitives/package-boundary" strength = "hint" }>
+        <Suites [
+          <Suite #package-boundary { name = "Package Boundary" } (
+            <Cases [
+              <Case #no-ai-domain-semantics [
+                <Then ?01M05F1PFYRPEGSC6BT18HMGG2>
+                The package SHALL NOT contain AI, LLM, tool-call, questionnaire, member, delegate, or holon domain names
+                </?01M05F1PFYRPEGSC6BT18HMGG2>
+                <Then ?01M05F1PFYRPEGSC6BT18HMGG3>
+                The package SHALL depend only on business-neutral dependencies
+                </?01M05F1PFYRPEGSC6BT18HMGG3>
+              ] (
+                <Given ?01M05F1PFYRPEGSC6BT18HMGG4>
+                The vendor package defines actor control primitives
+                </?01M05F1PFYRPEGSC6BT18HMGG4>
+                <When ?01M05F1PFYRPEGSC6BT18HMGG5>
+                A maintainer reviews exported types and tests
+                </?01M05F1PFYRPEGSC6BT18HMGG5>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://vendor-actor-control-primitives/requirements/control-operation" } (
+      <Requirement #control-operation (
+        <Statement ?01M05F1PFYRPEGSC6BT18HMGG6>
+        系统 SHALL model actor control operations as data with target identity, causality, idempotency, and expected barrier metadata.
+        </?01M05F1PFYRPEGSC6BT18HMGG6>
+        <Suites [
+          <Suite #operation-shape { name = "Operation Shape" } (
+            <Cases [
+              <Case #operation-is-data [
+                <Then ?01M05F1PFYRPEGSC6BT18HMGG7>
+                The operation SHALL be represented as serializable data
+                </?01M05F1PFYRPEGSC6BT18HMGG7>
+                <Then ?01M05F1PFYRPEGSC6BT18HMGG8>
+                The operation SHALL NOT directly invoke an actor implementation
+                </?01M05F1PFYRPEGSC6BT18HMGG8>
+              ] (
+                <Given ?01M05F1PFYRPEGSC6BT18HMGG9>
+                A control operation targets an actor or fiber
+                </?01M05F1PFYRPEGSC6BT18HMGG9>
+                <When ?01M05F1PFYRPEGSC6BT18HMGGA>
+                The operation is created
+                </?01M05F1PFYRPEGSC6BT18HMGGA>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://vendor-actor-control-primitives/requirements/mailbox-work-classification" } (
+      <Requirement #mailbox-work-classification (
+        <Statement ?01M05F1PFYRPEGSC6BT18HMGGB>
+        系统 SHALL classify pending mailbox work using business-neutral work classes.
+        </?01M05F1PFYRPEGSC6BT18HMGGB>
+        <Suites [
+          <Suite #classification { name = "Classification" } (
+            <Cases [
+              <Case #stable-work-classes (
+                <Given ?01M05F1PFYRPEGSC6BT18HMGGC>
+                A mailbox entry is inspected by a domain classifier
+                </?01M05F1PFYRPEGSC6BT18HMGGC>
+                <When ?01M05F1PFYRPEGSC6BT18HMGGD>
+                The classifier returns a work class
+                </?01M05F1PFYRPEGSC6BT18HMGGD>
+                <Then ?01M05F1PFYRPEGSC6BT18HMGGE>
+                The work class SHALL be one of recoverable input, mandatory completion, interrupt, control marker, low priority continuation, timer wake, or an explicitly named extension
+                </?01M05F1PFYRPEGSC6BT18HMGGE>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://vendor-actor-control-primitives/requirements/control-barrier" } (
+      <Requirement #control-barrier (
+        <Statement ?01M05F1PFYRPEGSC6BT18HMGGF>
+        系统 SHALL provide control barrier result types that describe whether an actor control boundary may advance.
+        </?01M05F1PFYRPEGSC6BT18HMGGF>
+        <Suites [
+          <Suite #barrier-result { name = "Barrier Result" } (
+            <Cases [
+              <Case #blocked-barrier-is-bounded [
+                <Then ?01M05F1PFYRPEGSC6BT18HMGGG>
+                The blocker list SHALL include bounded metadata such as participant id, work class, phase, and reason
+                </?01M05F1PFYRPEGSC6BT18HMGGG>
+                <Then ?01M05F1PFYRPEGSC6BT18HMGGH>
+                The blocker list SHALL NOT require large payloads to explain the block
+                </?01M05F1PFYRPEGSC6BT18HMGGH>
+              ] (
+                <Given ?01M05F1PFYRPEGSC6BT18HMGGJ>
+                A barrier is blocked
+                </?01M05F1PFYRPEGSC6BT18HMGGJ>
+                <When ?01M05F1PFYRPEGSC6BT18HMGGK>
+                The barrier result is returned to a caller
+                </?01M05F1PFYRPEGSC6BT18HMGGK>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://vendor-actor-control-primitives/requirements/durable-head-cohort" } (
+      <Requirement #durable-head-cohort (
+        <Statement ?01M05F1PFYRPEGSC6BT18HMGGM>
+        系统 SHALL model durable head cohorts as groups of recovery truth heads that advance only after a matching control barrier is safe.
+        </?01M05F1PFYRPEGSC6BT18HMGGM>
+        <Suites [
+          <Suite #cohort-advance { name = "Cohort Advance" } (
+            <Cases [
+              <Case #no-partial-head-advance (
+                <Given ?01M05F1PFYRPEGSC6BT18HMGGN>
+                A durable head cohort contains multiple heads
+                </?01M05F1PFYRPEGSC6BT18HMGGN>
+                <When ?01M05F1PFYRPEGSC6BT18HMGGP>
+                The associated barrier is not safe
+                </?01M05F1PFYRPEGSC6BT18HMGGP>
+                <Then ?01M05F1PFYRPEGSC6BT18HMGGQ>
+                The cohort SHALL NOT advance any recoverable head as the latest truth
+                </?01M05F1PFYRPEGSC6BT18HMGGQ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

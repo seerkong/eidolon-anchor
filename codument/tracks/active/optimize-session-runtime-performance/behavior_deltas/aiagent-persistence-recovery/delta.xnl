@@ -1,0 +1,43 @@
+<BehaviorPatch #track.optimize-session-runtime-performance.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/bounded-vm-snapshot-and-incremental-writes" } (
+      <Requirement #bounded-vm-snapshot-and-incremental-writes (
+        <Statement ?01M05F1P82B549RN3B3G5WESCZ>
+        VM 快照写入 SHALL 保持有界：toolCallDomain 持久化记录 SHALL 受保留窗口约束（活跃 + 最近 N 条终态），大工具输出 SHALL 外部化到 artifact store 并以引用形式进入快照；连续快照间未变化的 actor/fiber 文件 SHALL NOT 被重写（增量写）。
+        </?01M05F1P82B549RN3B3G5WESCZ>
+        <Suites [
+          <Suite #bounded-snapshot { name = "Bounded VM snapshot and incremental writes" } (
+            <Cases [
+              <Case #toolcall-domain-bounded [
+                <Then ?01M05F1P82B549RN3B3G5WESD0>
+                toolCallDomain SHALL 仅含活跃 + 最近 N 条终态记录
+                </?01M05F1P82B549RN3B3G5WESD0>
+                <Then ?01M05F1P82B549RN3B3G5WESD1>
+                大 outputText SHALL 以 artifact 引用而非全文进入快照
+                </?01M05F1P82B549RN3B3G5WESD1>
+              ] (
+                <Given ?01M05F1P82B549RN3B3G5WESD2>
+                session 已产生数千条已完结工具调用
+                </?01M05F1P82B549RN3B3G5WESD2>
+                <When ?01M05F1P82B549RN3B3G5WESD3>
+                序列化 vm.json
+                </?01M05F1P82B549RN3B3G5WESD3>
+              )>
+              <Case #unchanged-files-not-rewritten (
+                <Given ?01M05F1P82B549RN3B3G5WESD4>
+                两次连续快照之间某 actor/fiber 未变化
+                </?01M05F1P82B549RN3B3G5WESD4>
+                <When ?01M05F1P82B549RN3B3G5WESD5>
+                执行第二次快照写
+                </?01M05F1P82B549RN3B3G5WESD5>
+                <Then ?01M05F1P82B549RN3B3G5WESD6>
+                该 actor/fiber 文件 SHALL NOT 被重写
+                </?01M05F1P82B549RN3B3G5WESD6>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

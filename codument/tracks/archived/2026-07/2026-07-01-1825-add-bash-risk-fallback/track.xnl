@@ -1,0 +1,99 @@
+<Track #add-bash-risk-fallback version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "Reduce unsupported bash approval noise with deterministic low-risk readonly fallback." description = "Classify parser-unsupported bash commands by risk before asking for human approval." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-07-01T15:19:39Z" updated_at = "2026-07-01T15:25:54Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-bash-risk-fallback { name = "add-bash-risk-fallback" } (
+    <Description ?01M05F1PK9X1MS6W79GW0H5HY2>
+    Add deterministic risk fallback for parser-unsupported bash commands.
+    </?01M05F1PK9X1MS6W79GW0H5HY2>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Fallback tests" status = "DONE" order = 0 } (
+        <Description ?01M05F1PK9X1MS6W79GW0H5HY3>
+        Add failing tests for low-risk readonly unsupported commands and dangerous unsupported commands.
+        </?01M05F1PK9X1MS6W79GW0H5HY3>
+        <Gate [
+          <Criterion ?01M05F1PK9X1MS6W79GW0H5HY4>
+          Tests distinguish low-risk readonly, dangerous, protected-config, and unknown commands.
+          </?01M05F1PK9X1MS6W79GW0H5HY4>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "Add unsupported fallback tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PK9X1MS6W79GW0H5HY5>
+            Extend local permission evaluator tests with session-derived unsupported command samples.
+            </?01M05F1PK9X1MS6W79GW0H5HY5>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PK9X1MS6W79GW0H5HY6>
+              Readonly command substitution sample is allowed when no rule matches.
+              </?01M05F1PK9X1MS6W79GW0H5HY6>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PK9X1MS6W79GW0H5HY7>
+              Dangerous unsupported command is not silently allowed.
+              </?01M05F1PK9X1MS6W79GW0H5HY7>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1PK9X1MS6W79GW0H5HY8>
+              Protected permission config reference remains blocked.
+              </?01M05F1PK9X1MS6W79GW0H5HY8>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Fallback implementation" status = "DONE" order = 1 } (
+        <Description ?01M05F1PK9X1MS6W79GW0H5HY9>
+        Implement explicit risk classifier for unsupported bash syntax.
+        </?01M05F1PK9X1MS6W79GW0H5HY9>
+        <Gate [
+          <Criterion ?01M05F1PK9X1MS6W79GW0H5HYA>
+          Unsupported high-risk commands still ask or deny.
+          </?01M05F1PK9X1MS6W79GW0H5HYA>
+        ]>
+        <SubNodes [
+          <Task { id = "T2.1" name = "Implement risk classifier" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PK9X1MS6W79GW0H5HYB>
+            Add low-risk readonly fallback below protected config checks and above generic ask.
+            </?01M05F1PK9X1MS6W79GW0H5HYB>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PK9X1MS6W79GW0H5HYC>
+              Low-risk readonly unsupported commands return allow.
+              </?01M05F1PK9X1MS6W79GW0H5HYC>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PK9X1MS6W79GW0H5HYD>
+              Unknown unsupported commands still return ask.
+              </?01M05F1PK9X1MS6W79GW0H5HYD>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PK9X1MS6W79GW0H5HYE>
+        Run targeted local permission evaluator tests and update mission report.
+        </?01M05F1PK9X1MS6W79GW0H5HYE>
+        <SubNodes [
+          <Task { id = "T3.1" name = "Run targeted test" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PK9X1MS6W79GW0H5HYF>
+            Run permission evaluator tests after fallback implementation.
+            </?01M05F1PK9X1MS6W79GW0H5HYF>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PK9X1MS6W79GW0H5HYG>
+              Targeted local permission evaluator tests pass.
+              </?01M05F1PK9X1MS6W79GW0H5HYG>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Hooks>
+)>

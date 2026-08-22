@@ -4,6 +4,16 @@ import type {
 } from "@cell/ai-organ-contract/llm/ChatCompletionsEffectBundle";
 import { chatCompletionsStreamCoreBinding } from "../stream/ChatCompletionsStreamCore";
 import { normalizeOpenAIChatMessages } from "./OpenAIChatHelpers";
+import {
+  deepSeekChatToolSchemaProjector,
+  openAIChatToolSchemaProjector,
+} from "./tool-schema/ChatToolSchemaProjectors";
+import {
+  assertProviderToolSchemaProtocol,
+  prepareProviderToolSchemaProjection,
+  readProviderToolSchemaProjection,
+} from "./tool-schema/ProviderRequestAdmission";
+import type { ProviderToolSchemaProjector } from "@cell/ai-organ-contract/llm/ProviderToolSchemaProjection";
 
 const OPENAI_BASE_URL = "https://api.openai.com/v1";
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com";
@@ -44,6 +54,7 @@ function projectDeepSeekMessages(messages: readonly unknown[]): unknown[] {
 function projectRequest(
   input: ChatCompletionsRequestProjectionInput,
   projectMessages: (messages: readonly unknown[]) => unknown[],
+  toolSchemaProjector: ProviderToolSchemaProjector,
 ): Record<string, unknown> {
   const request: Record<string, unknown> = {
     ...input.extraBody,
@@ -51,8 +62,13 @@ function projectRequest(
     messages: projectMessages(input.messages),
     stream: true,
   };
-  if (input.tools && input.tools.length > 0) {
-    request.tools = [...input.tools];
+  const authority = input.toolSchemaProjectionAuthority
+    ?? prepareProviderToolSchemaProjection(toolSchemaProjector, input.tools ?? []);
+  const projection = readProviderToolSchemaProjection(authority);
+  assertProviderToolSchemaProtocol(projection.protocol, toolSchemaProjector.protocol);
+  const projectedTools = projection.tools;
+  if (projectedTools.length > 0) {
+    request.tools = projectedTools;
   } else {
     delete request.tools;
   }
@@ -62,12 +78,13 @@ function projectRequest(
 export const openAIOfficialChatEffectBundle: ChatCompletionsEffectBundle =
   Object.freeze({
     id: "openai-official-chat",
+    toolSchemaProjector: openAIChatToolSchemaProjector,
     resolveEndpoint(baseUrl?: string) {
       return resolveChatCompletionsEndpoint(baseUrl, OPENAI_BASE_URL, false);
     },
     projectMessages: projectOpenAIMessages,
     projectRequest(input) {
-      return projectRequest(input, projectOpenAIMessages);
+      return projectRequest(input, projectOpenAIMessages, openAIChatToolSchemaProjector);
     },
     streamReasoningPolicy: Object.freeze({
       reasoningContent: "ignore",
@@ -80,12 +97,13 @@ export const openAIOfficialChatEffectBundle: ChatCompletionsEffectBundle =
 export const deepSeekOfficialChatEffectBundle: ChatCompletionsEffectBundle =
   Object.freeze({
     id: "deepseek-official-chat",
+    toolSchemaProjector: deepSeekChatToolSchemaProjector,
     resolveEndpoint(baseUrl?: string) {
       return resolveChatCompletionsEndpoint(baseUrl, DEEPSEEK_BASE_URL, true);
     },
     projectMessages: projectDeepSeekMessages,
     projectRequest(input) {
-      return projectRequest(input, projectDeepSeekMessages);
+      return projectRequest(input, projectDeepSeekMessages, deepSeekChatToolSchemaProjector);
     },
     streamReasoningPolicy: Object.freeze({
       reasoningContent: "preserve",

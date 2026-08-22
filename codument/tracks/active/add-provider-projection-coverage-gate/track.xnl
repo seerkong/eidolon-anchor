@@ -1,0 +1,23 @@
+<Track #add-provider-projection-coverage-gate apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Require a typed coverage proof before canonical Responses replay can be planned or sent." description = "Compare source provider materialization tool facts with emitted native items and fail closed on silent projection loss." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-19T19:15:12.461Z" updated_at = "2026-08-19T19:17:21.240Z" modeling_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0" engineering_base_commit = "da0f0691b7782ecc6585702c2036a86ad9b59aa0" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_add-provider-projection-coverage-gate { name = "add-provider-projection-coverage-gate" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "coverage proof" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "emit and enforce Responses projection coverage proof" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0DQ99FTVC0V3BS0PP4AP0DT>
+              Proof records source and emitted function call/output ids.
+              </?01M0DQ99FTVC0V3BS0PP4AP0DT>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0DQ99FTVC0V3BS0PP4AP0DV>
+              Missing source facts fail before request planning.
+              </?01M0DQ99FTVC0V3BS0PP4AP0DV>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

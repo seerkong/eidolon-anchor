@@ -1,0 +1,331 @@
+<Behavior #terminal-headless-runtime-cli apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #headless-terminal-command-entry (
+      <Statement ?01M05F1P3N4YY3FGJG6CB2Z97T>
+      系统应当（SHALL）在 `terminal/packages/cli` 中提供无头命令入口，用于执行单轮或脚本式 terminal 调用，而不启动 OpenTUI。
+      </?01M05F1P3N4YY3FGJG6CB2Z97T>
+      <Suites [
+        <Suite { name = "headless-terminal-command-entry" } (
+          <Cases [
+            <Case #run-headless-terminal-turn-without-tui { name = "Run headless terminal turn without TUI" } [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z97V>
+              系统直接输出模型返回内容
+              </?01M05F1P3N4YY3FGJG6CB2Z97V>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z97W>
+              不进入 OpenTUI 界面
+              </?01M05F1P3N4YY3FGJG6CB2Z97W>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z97X>
+              用户在项目根或其子目录调用 terminal 命令
+              </?01M05F1P3N4YY3FGJG6CB2Z97X>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z97Y>
+              用户执行无头命令并提供 prompt
+              </?01M05F1P3N4YY3FGJG6CB2Z97Y>
+            )>
+            <Case #run-exec-from-workspace-root-with-stdin-prompt { name = "Run exec from workspace root with stdin prompt" } [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z97Z>
+              系统使用 `&amp;amp;amp;lt;workspace&amp;amp;amp;gt;` 作为 headless runtime 的工作根
+              </?01M05F1P3N4YY3FGJG6CB2Z97Z>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z980>
+              将 stdin 内容作为本轮初始输入执行
+              </?01M05F1P3N4YY3FGJG6CB2Z980>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z981>
+              不启动 OpenTUI
+              </?01M05F1P3N4YY3FGJG6CB2Z981>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z982>
+              调用方以 `exec -C &amp;amp;amp;lt;workspace&amp;amp;amp;gt; --output-last-message &amp;amp;amp;lt;file&amp;amp;amp;gt; -` 形式启动命令
+              </?01M05F1P3N4YY3FGJG6CB2Z982>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z983>
+              stdin 提供初始 prompt 内容
+              </?01M05F1P3N4YY3FGJG6CB2Z983>
+            )>
+            <Case #accept-the-polybench-relevant-codex-exec-flag-subset { name = "Accept the PolyBench-relevant Codex exec flag subset" } [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z984>
+              系统对受支持参数应用稳定且文档化的兼容语义
+              </?01M05F1P3N4YY3FGJG6CB2Z984>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z985>
+              不要求实现 Codex 全量命令面
+              </?01M05F1P3N4YY3FGJG6CB2Z985>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z986>
+              不允许对未支持参数产生静默误解析
+              </?01M05F1P3N4YY3FGJG6CB2Z986>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z987>
+              调用方传入 `--full-auto`、`--dangerously-bypass-approvals-and-sandbox`、`--ephemeral`、`--add-dir`、`-m`、`-p` 或 `-c mcp_servers={}`
+              </?01M05F1P3N4YY3FGJG6CB2Z987>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z988>
+              系统解析 `exec` 命令
+              </?01M05F1P3N4YY3FGJG6CB2Z988>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #execprotocolgraph-as-parallel-headless-protocol-truth (
+      <Statement ?01M05F1P3N4YY3FGJG6CB2Z989>
+      系统应当（SHALL）新增并维护与 `PrototypeStateGraph` 并列的 `ExecProtocolGraph`，作为 headless `exec` 协议状态的正式真相源，而不是在 prototype graph 上叠加补丁式 reducer。
+      </?01M05F1P3N4YY3FGJG6CB2Z989>
+      <Suites [
+        <Suite { name = "execprotocolgraph-as-parallel-headless-protocol-truth" } (
+          <Cases [
+            <Case #exec-protocol-state-is-projected-from-runtime-events { name = "Exec protocol state is projected from runtime events" } [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98A>
+              `ExecProtocolGraph` 应对这些输入进行 reducer projection
+              </?01M05F1P3N4YY3FGJG6CB2Z98A>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98B>
+              产出最终消息、可见输出、运行状态、warning 与 failure 摘要
+              </?01M05F1P3N4YY3FGJG6CB2Z98B>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98C>
+              这些 headless exec 协议状态不依赖 `PrototypeStateGraph`
+              </?01M05F1P3N4YY3FGJG6CB2Z98C>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z98D>
+              headless exec 运行期间持续产生 runtime event、history event、tool 状态与 warning/failure 信号
+              </?01M05F1P3N4YY3FGJG6CB2Z98D>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z98E>
+              系统需要决定 stdout、最终消息和退出状态
+              </?01M05F1P3N4YY3FGJG6CB2Z98E>
+            )>
+            <Case #successful-turn-writes-the-final-assistant-message { name = "Successful turn writes the final assistant message" } [
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z98F>
+              调用方传入 `--output-last-message &amp;amp;amp;lt;file&amp;amp;amp;gt;`
+              </?01M05F1P3N4YY3FGJG6CB2Z98F>
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z98G>
+              本轮 headless exec 正常完成并产出最终 assistant 消息
+              </?01M05F1P3N4YY3FGJG6CB2Z98G>
+            ] (
+              <When ?01M05F1P3N4YY3FGJG6CB2Z98H>
+              命令进入最终输出阶段
+              </?01M05F1P3N4YY3FGJG6CB2Z98H>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98J>
+              系统将最后一条最终 assistant 消息写入该文件
+              </?01M05F1P3N4YY3FGJG6CB2Z98J>
+            )>
+            <Case #failed-turn-does-not-clobber-an-existing-last-message-file { name = "Failed turn does not clobber an existing last-message file" } [
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z98K>
+              调用方传入 `--output-last-message &amp;amp;amp;lt;file&amp;amp;amp;gt;`
+              </?01M05F1P3N4YY3FGJG6CB2Z98K>
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z98M>
+              该文件已存在旧内容
+              </?01M05F1P3N4YY3FGJG6CB2Z98M>
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z98N>
+              当前 turn 失败或未形成有效最终 assistant 消息
+              </?01M05F1P3N4YY3FGJG6CB2Z98N>
+            ] (
+              <When ?01M05F1P3N4YY3FGJG6CB2Z98P>
+              命令结束
+              </?01M05F1P3N4YY3FGJG6CB2Z98P>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98Q>
+              系统不应以失败 turn 的空结果覆盖该文件
+              </?01M05F1P3N4YY3FGJG6CB2Z98Q>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #headless-exec-output-is-short-and-deterministic (
+      <Statement ?01M05F1P3N4YY3FGJG6CB2Z98R>
+      系统应当（SHALL）让 `exec` 命令的用户可见输出保持简短、稳定且面向最终结果，而不是输出 TUI 专属界面状态或手工 patch 文本。
+      </?01M05F1P3N4YY3FGJG6CB2Z98R>
+      <Suites [
+        <Suite { name = "headless-exec-output-is-short-and-deterministic" } (
+          <Cases [
+            <Case #exec-emits-concise-visible-output { name = "Exec emits concise visible output" } [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98S>
+              系统输出用户可见的 assistant 结果与必要 warning/failure 摘要
+              </?01M05F1P3N4YY3FGJG6CB2Z98S>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98T>
+              不打印手工 patch 文本
+              </?01M05F1P3N4YY3FGJG6CB2Z98T>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98V>
+              不要求调用方理解 TUI 卡片或 benchmark 专属状态结构
+              </?01M05F1P3N4YY3FGJG6CB2Z98V>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z98W>
+              headless exec 正在运行
+              </?01M05F1P3N4YY3FGJG6CB2Z98W>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z98X>
+              调用方收集该命令的终端输出
+              </?01M05F1P3N4YY3FGJG6CB2Z98X>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #shared-runtime-for-tui-and-headless-commands (
+      <Statement ?01M05F1P3N4YY3FGJG6CB2Z98Y>
+      系统应当（SHALL）将 TUI、现有 headless `run` 命令与新的 `exec` 兼容命令共用同一套 runtime 初始化与 turn 执行基础能力，而不是让 `exec` 重新复制一条平行运行链。
+      </?01M05F1P3N4YY3FGJG6CB2Z98Y>
+      <Suites [
+        <Suite { name = "shared-runtime-for-tui-and-headless-commands" } (
+          <Cases [
+            <Case #run-and-exec-reuse-the-same-runtime-foundation { name = "Run and exec reuse the same runtime foundation" } [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z98Z>
+              它们复用同一套公共运行时逻辑
+              </?01M05F1P3N4YY3FGJG6CB2Z98Z>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z990>
+              `exec` 只在协议投影、参数兼容和输出语义层面增加行为
+              </?01M05F1P3N4YY3FGJG6CB2Z990>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z991>
+              `run` 与新的 `exec` 都需要创建 session runtime、执行单轮 turn 并消费流式结果
+              </?01M05F1P3N4YY3FGJG6CB2Z991>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z992>
+              两种无头入口初始化运行时
+              </?01M05F1P3N4YY3FGJG6CB2Z992>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #project-root-resolution-for-headless-and-tui-entry (
+      <Statement ?01M05F1P3N4YY3FGJG6CB2Z993>
+      系统应当（SHALL）在未显式传入项目路径时，自动向上查找最近的 `.eidolon` 目录作为项目根。
+      </?01M05F1P3N4YY3FGJG6CB2Z993>
+      <Suites [
+        <Suite { name = "project-root-resolution-for-headless-and-tui-entry" } (
+          <Cases [
+            <Case #resolve-project-root-from-nested-package-directory { name = "Resolve project root from nested package directory" } [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z994>
+              系统向上查找最近的 `.eidolon` 所在目录
+              </?01M05F1P3N4YY3FGJG6CB2Z994>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z995>
+              使用该目录作为 terminal runtime 的工作目录
+              </?01M05F1P3N4YY3FGJG6CB2Z995>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z996>
+              命令从 `terminal/packages/tui` 之类的嵌套目录启动
+              </?01M05F1P3N4YY3FGJG6CB2Z996>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z997>
+              用户没有显式传入项目路径
+              </?01M05F1P3N4YY3FGJG6CB2Z997>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #auto-resume-paused-progress (
+      <Statement ?01M05F1P3N4YY3FGJG6CB2Z998>
+      Headless exec SHALL provide an explicit bounded auto-resume mode for resumable `paused_with_progress` turns; internal continuations MUST NOT append new user input.
+      </?01M05F1P3N4YY3FGJG6CB2Z998>
+      <Suites [
+        <Suite #auto-resume { name = "Headless auto-resume" } (
+          <Cases [
+            <Case #explicit-auto-resume-reaches-final [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z999>
+              the runtime SHALL be resumed without adding a new user message
+              </?01M05F1P3N4YY3FGJG6CB2Z999>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z99A>
+              headless exec SHALL continue until final output, hard failure, no-progress pause, or the continuation limit
+              </?01M05F1P3N4YY3FGJG6CB2Z99A>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z99B>
+              a turn pauses with `runtime_turn_unsettled:*` after making progress
+              </?01M05F1P3N4YY3FGJG6CB2Z99B>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z99C>
+              headless exec is run with auto-resume enabled
+              </?01M05F1P3N4YY3FGJG6CB2Z99C>
+            )>
+            <Case #default-paused-behavior-remains (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z99D>
+              a turn pauses with `runtime_turn_unsettled:*` after making progress
+              </?01M05F1P3N4YY3FGJG6CB2Z99D>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z99E>
+              headless exec is run without auto-resume
+              </?01M05F1P3N4YY3FGJG6CB2Z99E>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z99F>
+              the result SHALL remain `paused_with_progress`
+              </?01M05F1P3N4YY3FGJG6CB2Z99F>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #provider-request-capture-option (
+      <Statement ?01M05F1P3N4YY3FGJG6CB2Z99G>
+      `eidolon exec` SHALL 提供显式 provider request capture 选项，把当前 session 的完整请求现场写入独立 SQLite，而不改变 headless runtime 行为。
+      </?01M05F1P3N4YY3FGJG6CB2Z99G>
+      <Suites [
+        <Suite #capture-option { name = "Headless request capture option" } (
+          <Cases [
+            <Case #capture-disabled-by-default (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z99H>
+              调用方未传 provider request capture 选项
+              </?01M05F1P3N4YY3FGJG6CB2Z99H>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z99J>
+              系统执行 headless turn
+              </?01M05F1P3N4YY3FGJG6CB2Z99J>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z99K>
+              系统 SHALL NOT 创建完整 provider request SQLite ledger
+              </?01M05F1P3N4YY3FGJG6CB2Z99K>
+            )>
+            <Case #capture-to-session-ledger [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z99M>
+              系统 SHALL 把账本写入该 session 的独立 observability SQLite 文件
+              </?01M05F1P3N4YY3FGJG6CB2Z99M>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z99N>
+              terminal SHALL 只绑定 capability、session path 和 support port，SHALL NOT 读取或组装 provider messages
+              </?01M05F1P3N4YY3FGJG6CB2Z99N>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z99P>
+              调用方传入 `--capture-provider-requests` 和一个持久化 session
+              </?01M05F1P3N4YY3FGJG6CB2Z99P>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z99Q>
+              系统执行或恢复该 session
+              </?01M05F1P3N4YY3FGJG6CB2Z99Q>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #paused-progress-exit (
+      <Statement ?01M05F1P3N4YY3FGJG6CB2Z99R>
+      Headless exec SHALL distinguish a resumable `runtime_turn_unsettled:*` timeout from hard failures by returning `paused_with_progress`; it SHALL NOT write `--output-last-message` for paused results; trace `session_end` SHALL record `paused_with_progress`.
+      </?01M05F1P3N4YY3FGJG6CB2Z99R>
+      <Suites [
+        <Suite #headless-paused-progress { name = "Headless paused progress protocol" } (
+          <Cases [
+            <Case #runtime-unsettled-pauses [
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z99S>
+              result status SHALL be `paused_with_progress`
+              </?01M05F1P3N4YY3FGJG6CB2Z99S>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z99T>
+              trace session_end status SHALL be `paused_with_progress`
+              </?01M05F1P3N4YY3FGJG6CB2Z99T>
+            ] (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z99V>
+              runtime turn throws `runtime_turn_unsettled:mandatory_continuation`
+              </?01M05F1P3N4YY3FGJG6CB2Z99V>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z99W>
+              headless exec handles the turn result
+              </?01M05F1P3N4YY3FGJG6CB2Z99W>
+            )>
+            <Case #paused-does-not-write-last-message (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z99X>
+              an existing `--output-last-message` file exists
+              </?01M05F1P3N4YY3FGJG6CB2Z99X>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z99Y>
+              headless exec returns `paused_with_progress`
+              </?01M05F1P3N4YY3FGJG6CB2Z99Y>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z99Z>
+              the file SHALL NOT be overwritten
+              </?01M05F1P3N4YY3FGJG6CB2Z99Z>
+            )>
+            <Case #provider-failure-remains-failed (
+              <Given ?01M05F1P3N4YY3FGJG6CB2Z9A0>
+              provider initialization or stream fails
+              </?01M05F1P3N4YY3FGJG6CB2Z9A0>
+              <When ?01M05F1P3N4YY3FGJG6CB2Z9A1>
+              headless exec handles the error
+              </?01M05F1P3N4YY3FGJG6CB2Z9A1>
+              <Then ?01M05F1P3N4YY3FGJG6CB2Z9A2>
+              result status SHALL remain `failed`
+              </?01M05F1P3N4YY3FGJG6CB2Z9A2>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

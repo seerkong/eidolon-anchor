@@ -1,0 +1,41 @@
+<Behavior #vendor-data-graph-observability apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #unified-computed-runtime-contract (
+      <Statement ?01M05F1P43WG8JGEJ2AD2QCB9G>
+      Cell and terminal organ diagnostic observability SHALL use the unified DataGraph computed-node runtime contract and SHALL preserve diagnostic summary values, graph lifecycle, and trace behavior.
+      </?01M05F1P43WG8JGEJ2AD2QCB9G>
+      <Suites [
+        <Suite #diagnostic-summary-runtime { name = "Diagnostic summary runtime" } (
+          <Cases [
+            <Case #computed-summary-reads-dependencies [
+              <Then ?01M05F1P43WG8JGEJ2AD2QCB9H>
+              the computed callback SHALL read dependencies through runtime.graph.get and SHALL NOT use the removed ctx.get callback API
+              </?01M05F1P43WG8JGEJ2AD2QCB9H>
+              <Then ?01M05F1P43WG8JGEJ2AD2QCB9J>
+              the summary SHALL report the current tool, retry, compaction, turn, and model values
+              </?01M05F1P43WG8JGEJ2AD2QCB9J>
+            ] (
+              <Given ?01M05F1P43WG8JGEJ2AD2QCB9K>
+              diagnostic signal nodes are mounted in a DataGraph upgraded to 1.0.1
+              </?01M05F1P43WG8JGEJ2AD2QCB9K>
+              <When ?01M05F1P43WG8JGEJ2AD2QCB9M>
+              their computed summary is read after signals are updated
+              </?01M05F1P43WG8JGEJ2AD2QCB9M>
+            )>
+            <Case #observable-graph-computed-contract (
+              <Given ?01M05F1P43WG8JGEJ2AD2QCB9N>
+              a terminal observable graph owns a simple computed signal
+              </?01M05F1P43WG8JGEJ2AD2QCB9N>
+              <When ?01M05F1P43WG8JGEJ2AD2QCB9P>
+              the signal is read with debug middleware enabled
+              </?01M05F1P43WG8JGEJ2AD2QCB9P>
+              <Then ?01M05F1P43WG8JGEJ2AD2QCB9Q>
+              the computation SHALL succeed through the unified runtime contract without breaking graph disposal or tracing
+              </?01M05F1P43WG8JGEJ2AD2QCB9Q>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

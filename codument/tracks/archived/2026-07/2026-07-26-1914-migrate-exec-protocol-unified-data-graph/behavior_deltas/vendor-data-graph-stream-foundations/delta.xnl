@@ -1,0 +1,32 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_2_6_-_1_9_1_4_-_m_i_g_r_a_t_e_-_e_x_e_c_-_p_r_o_t_o_c_o_l_-_u_n_i_f_i_e_d_-_d_a_t_a_-_g_r_a_p_h.behavior_patch.vendor-data-graph-stream-foundations apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-data-graph-stream-foundations" } (
+  <Mutations [
+    <Upsert { selector = "behavior://vendor-data-graph-stream-foundations/requirements/exec-protocol-unified-state-projection" } (
+      <Requirement #exec-protocol-unified-state-projection (
+        <Statement ?01M05F1PMWYMZF4B8QNM6JDE7S>
+        ExecProtocolGraph SHALL use a unified DataGraph stream-driven state-signal projection instead of removed ReducerProjection APIs, preserving snapshots, listeners, completion and disposal behavior.
+        </?01M05F1PMWYMZF4B8QNM6JDE7S>
+        <Suites [
+          <Suite #exec-projection (
+            <Cases [
+              <Case #exec-snapshot-contract [
+                <Then ?01M05F1PMWYMZF4B8QNM6JDE7T>
+                it SHALL read the state-node handle output and SHALL NOT import removed projection APIs
+                </?01M05F1PMWYMZF4B8QNM6JDE7T>
+                <Then ?01M05F1PMWYMZF4B8QNM6JDE7V>
+                existing exec protocol focused tests SHALL preserve observable snapshots and lifecycle
+                </?01M05F1PMWYMZF4B8QNM6JDE7V>
+              ] (
+                <Given ?01M05F1PMWYMZF4B8QNM6JDE7W>
+                terminal execution protocol events append to an ordered log
+                </?01M05F1PMWYMZF4B8QNM6JDE7W>
+                <When ?01M05F1PMWYMZF4B8QNM6JDE7X>
+                the graph derives its current snapshot
+                </?01M05F1PMWYMZF4B8QNM6JDE7X>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

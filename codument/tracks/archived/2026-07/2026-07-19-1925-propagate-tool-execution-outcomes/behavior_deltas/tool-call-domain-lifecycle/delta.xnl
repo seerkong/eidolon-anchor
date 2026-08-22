@@ -1,0 +1,58 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_9_-_1_9_2_5_-_p_r_o_p_a_g_a_t_e_-_t_o_o_l_-_e_x_e_c_u_t_i_o_n_-_o_u_t_c_o_m_e_s.behavior_patch.tool-call-domain-lifecycle apiVersion="codument.tech/v1alpha1" version="1" { capability = "tool-call-domain-lifecycle" } (
+  <Mutations [
+    <Upsert { selector = "behavior://tool-call-domain-lifecycle/requirements/explicit-execution-outcome" } (
+      <Requirement #explicit-execution-outcome (
+        <Statement ?01M05F1PKYY1GTJP6D8XPHQ7Z0>
+        工具运行结果 SHALL 能以工具无关的显式 outcome 表达 completed 或 failed；failed outcome SHALL 携带 failureKind，并由共享执行管线原样传播到 ToolCallDomain、semantic history、runtime evidence 与恢复投影，而不是依赖 output 文本或工具名称推断。
+        </?01M05F1PKYY1GTJP6D8XPHQ7Z0>
+        <Suites [
+          <Suite #outcome-propagation { name = "Explicit tool execution outcome" } (
+            <Cases [
+              <Case #explicit-failure-is-authoritative [
+                <Then ?01M05F1PKYY1GTJP6D8XPHQ7Z1>
+                ToolCallDomain SHALL 记录 failed 与对应 failureKind
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z1>
+                <Then ?01M05F1PKYY1GTJP6D8XPHQ7Z2>
+                semantic tool result 与终端 history SHALL 标记 isError=true
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z2>
+              ] (
+                <Given ?01M05F1PKYY1GTJP6D8XPHQ7Z3>
+                任意工具返回 failed outcome，但其可见 output 不以 `Error:` 开头
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z3>
+                <When ?01M05F1PKYY1GTJP6D8XPHQ7Z4>
+                streaming 或 cooperative executor 处理该结果
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z4>
+              )>
+              <Case #legacy-string-remains-compatible [
+                <Then ?01M05F1PKYY1GTJP6D8XPHQ7Z5>
+                系统 SHALL 保持现有 `Error:` 前缀兼容推断
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z5>
+                <Then ?01M05F1PKYY1GTJP6D8XPHQ7Z6>
+                显式 outcome 存在时 SHALL 优先使用显式事实
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z6>
+              ] (
+                <Given ?01M05F1PKYY1GTJP6D8XPHQ7Z7>
+                尚未迁移的工具返回纯字符串结果
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z7>
+                <When ?01M05F1PKYY1GTJP6D8XPHQ7Z8>
+                共享执行管线处理结果
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z8>
+              )>
+              <Case #recovery-preserves-failure (
+                <Given ?01M05F1PKYY1GTJP6D8XPHQ7Z9>
+                failed tool call 已写入 ToolCallDomain 并在 session 恢复后重建结果
+                </?01M05F1PKYY1GTJP6D8XPHQ7Z9>
+                <When ?01M05F1PKYY1GTJP6D8XPHQ7ZA>
+                cooperative completion 或 conversation history 被恢复
+                </?01M05F1PKYY1GTJP6D8XPHQ7ZA>
+                <Then ?01M05F1PKYY1GTJP6D8XPHQ7ZB>
+                恢复结果 SHALL 保持 isError=true 与原 failureKind
+                </?01M05F1PKYY1GTJP6D8XPHQ7ZB>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

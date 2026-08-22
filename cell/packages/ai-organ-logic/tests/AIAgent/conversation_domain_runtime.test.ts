@@ -6,6 +6,7 @@ import {
   emitConversationDomainEvent,
   recordConversationTranscriptEvidenceInRuntime,
   subscribeConversationHistory,
+  synchronizeProviderContextEpochToConversationDomainRuntime,
   teeConversationHistoryStream,
   setConversationDomainPersistHooks,
   materializeConversationHistoryMessagesFromVm,
@@ -389,5 +390,91 @@ describe("conversation domain runtime", () => {
         }),
       }),
     ]);
+  });
+
+  it("advances the provider context epoch and removes replay state on a history-head move", () => {
+    const runtime = createConversationDomainRuntime();
+    emitConversationDomainEvent(runtime, {
+      type: "local_conversation_session_created",
+      sessionId: "ses-epoch",
+      session: {
+        version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+        sessionId: "ses-epoch",
+        activeActorKey: "main",
+        actorBindings: {
+          main: {
+            actorKey: "main",
+            actorId: "actor-main",
+            contextEpoch: 2,
+          },
+        },
+        contextAssetRegistry: {
+          version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+          assetIds: ["responses-replay:main"],
+          updatedAt: new Date(1).toISOString(),
+        },
+        contextAssets: [{
+          assetId: "responses-replay:main",
+          kind: "note",
+          source: { kind: "note", ownerId: "main" },
+          replayCheckpoint: { baselineEpoch: 7 } as any,
+          createdAt: new Date(1).toISOString(),
+          updatedAt: new Date(1).toISOString(),
+        }],
+        activeSelection: null,
+        createdAt: new Date(1).toISOString(),
+        updatedAt: new Date(1).toISOString(),
+      },
+      occurredAt: new Date(1).toISOString(),
+    });
+
+    emitConversationDomainEvent(runtime, {
+      type: "actor_history_head_moved",
+      sessionId: "ses-epoch",
+      actorKey: "main",
+      activeGenerationId: "main__rewound",
+      occurredAt: new Date(2).toISOString(),
+    });
+
+    const session = runtime.sessionStateSignal.get()["ses-epoch"];
+    expect(session?.actorBindings.main?.contextEpoch).toBe(8);
+    expect(session?.contextAssets).toEqual([]);
+    expect(session?.contextAssetRegistry?.assetIds).toEqual([]);
+  });
+
+  it("persists epoch zero and invalidates an asset-only session fork", () => {
+    const runtime = createConversationDomainRuntime();
+    synchronizeProviderContextEpochToConversationDomainRuntime({
+      runtime,
+      sessionId: "ses-fork-epoch",
+      actorKey: "main",
+      contextEpoch: 0,
+      occurredAt: new Date(1).toISOString(),
+    });
+    expect(runtime.sessionStateSignal.get()["ses-fork-epoch"]?.actorBindings.main?.contextEpoch).toBe(0);
+
+    emitConversationDomainEvent(runtime, {
+      type: "local_conversation_context_asset_registered",
+      sessionId: "ses-fork-epoch",
+      assetId: "responses-replay:main",
+      asset: {
+        assetId: "responses-replay:main",
+        kind: "note",
+        source: { kind: "note", ownerId: "main" },
+        replayCheckpoint: { baselineEpoch: 7 } as any,
+        createdAt: new Date(1).toISOString(),
+        updatedAt: new Date(1).toISOString(),
+      },
+      occurredAt: new Date(1).toISOString(),
+    });
+    emitConversationDomainEvent(runtime, {
+      type: "local_conversation_session_forked",
+      sessionId: "ses-fork-epoch",
+      occurredAt: new Date(2).toISOString(),
+    });
+
+    const session = runtime.sessionStateSignal.get()["ses-fork-epoch"];
+    expect(session?.actorBindings.main?.contextEpoch).toBe(8);
+    expect(session?.contextAssets).toEqual([]);
   });
 });

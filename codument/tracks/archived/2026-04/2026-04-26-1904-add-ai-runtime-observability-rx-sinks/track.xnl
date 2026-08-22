@@ -1,0 +1,103 @@
+<Track #add-ai-runtime-observability-rx-sinks version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "从 public RxData 派生可观测数据面并提供隔离的 sinks" commit_mode = "manual" created_at = "2026-04-26T14:17:03Z" updated_at = "2026-04-26T19:04:38Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-ai-runtime-observability-rx-sinks { name = "add-ai-runtime-observability-rx-sinks" } (
+    <Description ?01M05F1PD6SCHEVNKBDJV4HV9T>
+    增加 AI runtime 响应式可观测 sinks 与扩展事实
+    </?01M05F1PD6SCHEVNKBDJV4HV9T>
+    <SubNodes [
+      <TaskGroup #P1 { name = "可观测契约与测试" status = "DONE" order = 0 } (
+        <Description ?01M05F1PD6SCHEVNKBDJV4HV9V>
+        定义 ObservabilityRxData、sink protocol 与失败隔离测试
+        </?01M05F1PD6SCHEVNKBDJV4HV9V>
+        <SubNodes [
+          <Task { id = "T1.1" name = "编写 observability rx stream 测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HV9W>
+            验证 privateRxData 可写 observability stream、publicRxData 只读 observability stream，以及多来源 records 均符合标准 envelope。
+            </?01M05F1PD6SCHEVNKBDJV4HV9W>
+          )>
+          <Task { id = "T1.2" name = "编写 sink 失败隔离测试" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HV9X>
+            失败 sink 不影响其他 sink 和用户协议。
+            </?01M05F1PD6SCHEVNKBDJV4HV9X>
+          )>
+          <Task { id = "T1.3" name = "编写 observability-only extension fact 测试" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HV9Y>
+            验证 extension fact helper 写入 private observability stream，不写 SemanticEvent union，但可经 public stream 被 sinks 消费。
+            </?01M05F1PD6SCHEVNKBDJV4HV9Y>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "实现 sinks" status = "DONE" order = 1 } (
+        <Description ?01M05F1PD6SCHEVNKBDJV4HV9Z>
+        实现 log sink 与 session trace artifact sink
+        </?01M05F1PD6SCHEVNKBDJV4HV9Z>
+        <SubNodes [
+          <Task { id = "T2.1" name = "扩展 VM RxData observability stream" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HVA0>
+            在 contract 与 logic rxData 中新增 private writable / public readonly observability records/errors stream。
+            </?01M05F1PD6SCHEVNKBDJV4HVA0>
+          )>
+          <Task { id = "T2.2" name = "实现 ObservabilityRxData factory" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HVA1>
+            从 public observability stream 派生 records/errors；如需 usage/traceSummary 则读取常规 public signals。
+            </?01M05F1PD6SCHEVNKBDJV4HVA1>
+          )>
+          <Task { id = "T2.3" name = "实现 log sink" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HVA2>
+            输出 channel-aware structured log。
+            </?01M05F1PD6SCHEVNKBDJV4HVA2>
+          )>
+          <Task { id = "T2.4" name = "实现 session trace artifact sink" status = "DONE" order = 3 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HVA3>
+            通过注入 writer 或 sink options 按 session/request 写入 timeline artifact。
+            </?01M05F1PD6SCHEVNKBDJV4HVA3>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "扩展事实与 provider capture" status = "DONE" order = 2 } (
+        <Description ?01M05F1PD6SCHEVNKBDJV4HVA4>
+        提供受控事实写入与 provider scene capture 层间边界
+        </?01M05F1PD6SCHEVNKBDJV4HVA4>
+        <SubNodes [
+          <Task { id = "T3.1" name = "新增 observability-only extension fact envelope/helper" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HVA5>
+            扩展可受控写入观测事实，不拿 private writer，也不写 SemanticEvent union。
+            </?01M05F1PD6SCHEVNKBDJV4HVA5>
+          )>
+          <Task { id = "T3.2" name = "新增 provider scene capture hook" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HVA6>
+            contract 定义 hook，provider runtime 调用 hook，外层注入副作用实现，并可转为 observability-only fact。
+            </?01M05F1PD6SCHEVNKBDJV4HVA6>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "验证" status = "DONE" order = 3 } (
+        <Description ?01M05F1PD6SCHEVNKBDJV4HVA7>
+        验证可观测链路不影响用户协议输出
+        </?01M05F1PD6SCHEVNKBDJV4HVA7>
+        <SubNodes [
+          <Task { id = "T4.1" name = "运行 observability 定向测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HVA8>
+            覆盖 projection、sinks、extension facts。
+            </?01M05F1PD6SCHEVNKBDJV4HVA8>
+          )>
+          <Task { id = "T4.2" name = "运行协议绑定相邻测试" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PD6SCHEVNKBDJV4HVA9>
+            确认 sink 失败不影响协议输出。
+            </?01M05F1PD6SCHEVNKBDJV4HVA9>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

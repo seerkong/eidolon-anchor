@@ -1,0 +1,95 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_1_9_-_2_3_1_1_-_f_i_x_-_t_o_o_l_-_r_e_s_u_l_t_-_f_i_r_s_t_-_d_e_l_i_v_e_r_y_-_a_n_d_-_d_e_l_e_g_a_t_e_-_d_e_d_u_p.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/tool-result-first-provider-delivery" } (
+      <Requirement #tool-result-first-provider-delivery (
+        <Statement ?01M05F1PMDCQ466H1QZ2J0JS72>
+        系统 SHALL 把新提交的 assistant tool call 与 matching tool result 的首次 provider delivery 建模为可持久恢复的显式事实；在该 pair 实际进入一次成功 provider request 之前，任何 compaction 或 persistence SHALL NOT 把结果替换为声称模型已经收到正文的 wrapper；provider failure、abort 与 recovery SHALL 保持其 pending，而 History、ToolCallDomain 和稳定 prompt/cache 前缀 SHALL 保持各自既有所有权。
+        </?01M05F1PMDCQ466H1QZ2J0JS72>
+        <Suites [
+          <Suite #tool-result-delivery-lifecycle { name = "Tool result first provider delivery lifecycle" } (
+            <Cases [
+              <Case #fresh-large-result-survives-preflight-compaction [
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS73>
+                matching assistant tool call 与完整 tool result SHALL 保留在该 provider request
+                </?01M05F1PMDCQ466H1QZ2J0JS73>
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS74>
+                系统 SHALL NOT 生成声称该 pending 结果已被模型收到的 artifact wrapper
+                </?01M05F1PMDCQ466H1QZ2J0JS74>
+              ] (
+                <Given ?01M05F1PMDCQ466H1QZ2J0JS75>
+                旧历史已超过 cheap compaction 阈值，且当前轮刚产生一个仍可装入 provider 上限的大工具结果
+                </?01M05F1PMDCQ466H1QZ2J0JS75>
+                <When ?01M05F1PMDCQ466H1QZ2J0JS76>
+                executor 在下一次 provider call 前应用 compaction
+                </?01M05F1PMDCQ466H1QZ2J0JS76>
+              )>
+              <Case #success-confirms-only-included-pairs [
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS77>
+                系统 SHALL 只确认该 request 实际包含的 pending pair 为 delivered
+                </?01M05F1PMDCQ466H1QZ2J0JS77>
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS78>
+                后续 compaction MAY 按既有预算外置这些 delivered 结果
+                </?01M05F1PMDCQ466H1QZ2J0JS78>
+              ] (
+                <Given ?01M05F1PMDCQ466H1QZ2J0JS79>
+                provider request 实际包含一个或多个 pending tool call/result pair
+                </?01M05F1PMDCQ466H1QZ2J0JS79>
+                <When ?01M05F1PMDCQ466H1QZ2J0JS7A>
+                provider completion 成功
+                </?01M05F1PMDCQ466H1QZ2J0JS7A>
+              )>
+              <Case #failure-keeps-delivery-pending (
+                <Given ?01M05F1PMDCQ466H1QZ2J0JS7B>
+                包含 pending pair 的 provider call 失败、中止或未形成成功 completion
+                </?01M05F1PMDCQ466H1QZ2J0JS7B>
+                <When ?01M05F1PMDCQ466H1QZ2J0JS7C>
+                系统再次构造 provider request或从 snapshot 恢复
+                </?01M05F1PMDCQ466H1QZ2J0JS7C>
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS7D>
+                该 pair SHALL 仍有首次完整交付资格并继续受 compaction 保护
+                </?01M05F1PMDCQ466H1QZ2J0JS7D>
+              )>
+              <Case #artifact-read-converges (
+                <Given ?01M05F1PMDCQ466H1QZ2J0JS7E>
+                模型读取一个已持久化的大文本 artifact，read 产生新的工具结果
+                </?01M05F1PMDCQ466H1QZ2J0JS7E>
+                <When ?01M05F1PMDCQ466H1QZ2J0JS7F>
+                下一次 provider request 构造前应用 compaction
+                </?01M05F1PMDCQ466H1QZ2J0JS7F>
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS7G>
+                read 结果 SHALL 至少完整交付一次，且 SHALL NOT 在首次交付前再次外置为下一层 artifact
+                </?01M05F1PMDCQ466H1QZ2J0JS7G>
+              )>
+              <Case #legacy-history-remains-compatible (
+                <Given ?01M05F1PMDCQ466H1QZ2J0JS7H>
+                恢复的 legacy Conversation 含没有 delivery fact 的旧 tool result
+                </?01M05F1PMDCQ466H1QZ2J0JS7H>
+                <When ?01M05F1PMDCQ466H1QZ2J0JS7J>
+                系统应用上下文预算
+                </?01M05F1PMDCQ466H1QZ2J0JS7J>
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS7K>
+                旧结果 MAY 按既有 compaction 语义处理，系统 SHALL NOT 强制重投全部 legacy 历史
+                </?01M05F1PMDCQ466H1QZ2J0JS7K>
+              )>
+              <Case #cache-prefix-remains-stable [
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS7M>
+                delivery 动态状态 SHALL 只影响 late conversation materialization 或 runtime metadata
+                </?01M05F1PMDCQ466H1QZ2J0JS7M>
+                <Then ?01M05F1PMDCQ466H1QZ2J0JS7N>
+                系统 SHALL NOT 把该状态写入稳定 system instructions 或 provider cache key
+                </?01M05F1PMDCQ466H1QZ2J0JS7N>
+              ] (
+                <Given ?01M05F1PMDCQ466H1QZ2J0JS7P>
+                不同轮次具有不同 pending/delivered tool result 集合
+                </?01M05F1PMDCQ466H1QZ2J0JS7P>
+                <When ?01M05F1PMDCQ466H1QZ2J0JS7Q>
+                系统构造 stateless provider request
+                </?01M05F1PMDCQ466H1QZ2J0JS7Q>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

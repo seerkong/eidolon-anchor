@@ -1,0 +1,75 @@
+<Track #refactor-platform-kernel-wave8-shell-bridge-and-ai-slash-decoupling version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 shell 更接近平台无关 bridge，并将 AI slash/direct-action contract 下沉到 AI domain kernel。" commit_mode = "manual" created_at = "2026-04-11T10:05:00Z" updated_at = "2026-04-11T12:05:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-platform-kernel-wave8-shell-bridge-and-ai-slash-decoupling { name = "refactor-platform-kernel-wave8-shell-bridge-and-ai-slash-decoupling" } (
+    <Description ?01M05F1PCD6ZVBWZ84AQVKNTTS>
+    实施平台微内核 Wave 8 的 shell bridge and AI slash decoupling
+    </?01M05F1PCD6ZVBWZ84AQVKNTTS>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Ownership Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PCD6ZVBWZ84AQVKNTTT>
+        冻结 shell bridge 与 AI slash contract 的 ownership。
+        </?01M05F1PCD6ZVBWZ84AQVKNTTT>
+        <SubNodes [
+          <Task { id = "T1.1" name = "定义 shell 与 AI slash ownership 表" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCD6ZVBWZ84AQVKNTTV>
+            明确哪些能力留在 terminal/core，哪些下沉到 AI domain kernel。
+            </?01M05F1PCD6ZVBWZ84AQVKNTTV>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PCD6ZVBWZ84AQVKNTTW>
+              ownership 表明确
+              </?01M05F1PCD6ZVBWZ84AQVKNTTW>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PCD6ZVBWZ84AQVKNTTX>
+              shell 反模式被显式禁止
+              </?01M05F1PCD6ZVBWZ84AQVKNTTX>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Slash And Shell Cutover" status = "DONE" order = 1 } (
+        <Description ?01M05F1PCD6ZVBWZ84AQVKNTTY>
+        完成 shell bridge 与 AI slash contract 的第一轮 cutover。
+        </?01M05F1PCD6ZVBWZ84AQVKNTTY>
+        <SubNodes [
+          <Task { id = "T2.1" name = "下沉 AI slash contract 并收紧 shell 入口" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCD6ZVBWZ84AQVKNTTZ>
+            将 AI slash/direct action truth 从 terminal/core 下沉，并减少 shell 对 AI internals 的直接依赖。
+            </?01M05F1PCD6ZVBWZ84AQVKNTTZ>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PCD6ZVBWZ84AQVKNTV0>
+              AI slash truth 已回到 AI domain kernel
+              </?01M05F1PCD6ZVBWZ84AQVKNTV0>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PCD6ZVBWZ84AQVKNTV1>
+              shell 更接近 capability-port consumer
+              </?01M05F1PCD6ZVBWZ84AQVKNTV1>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Focused Verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PCD6ZVBWZ84AQVKNTV2>
+        验证 slash/runtime adoption 不回归。
+        </?01M05F1PCD6ZVBWZ84AQVKNTV2>
+        <SubNodes [
+          <Task { id = "T3.1" name = "运行 slash/runtime focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCD6ZVBWZ84AQVKNTV3>
+            覆盖 grammar/help/prompt expansion 与 terminal/tui adoption。
+            </?01M05F1PCD6ZVBWZ84AQVKNTV3>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PCD6ZVBWZ84AQVKNTV4>
+              focused tests 通过
+              </?01M05F1PCD6ZVBWZ84AQVKNTV4>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PCD6ZVBWZ84AQVKNTV5>
+              无第二真相源回流
+              </?01M05F1PCD6ZVBWZ84AQVKNTV5>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

@@ -1,7 +1,5 @@
 import { projectOpenAIChatUserContent } from "./CanonicalImageProjection";
 
-const OPENAI_COMPATIBLE_SCHEMA_UNSUPPORTED_KEYS = new Set(["allOf", "anyOf", "not", "oneOf"]);
-
 function parseToolCallArguments(input: unknown): string {
   if (typeof input === "string") return input;
   if (input === undefined || input === null) return "{}";
@@ -78,17 +76,6 @@ function hasOpenAIReasoningContent(message: any): boolean {
 
 function isPlaceholderOpenAIToolCall(toolCall: any): boolean {
   return String(toolCall?.function?.name ?? "") === String(toolCall?.id ?? "") && String(toolCall?.function?.arguments ?? "") === "{}";
-}
-
-export function stripOpenAICompatibleUnsupportedSchemaKeys(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map((item) => stripOpenAICompatibleUnsupportedSchemaKeys(item));
-  if (!value || typeof value !== "object") return value;
-  const output: Record<string, unknown> = {};
-  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-    if (OPENAI_COMPATIBLE_SCHEMA_UNSUPPORTED_KEYS.has(key)) continue;
-    output[key] = stripOpenAICompatibleUnsupportedSchemaKeys(entry);
-  }
-  return output;
 }
 
 function updatePendingToolCallIds(

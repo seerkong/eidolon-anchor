@@ -1,0 +1,74 @@
+<BehaviorPatch #track.optimize-session-runtime-performance.behavior_patch.runtime-session-robustness apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-session-robustness" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-session-robustness/requirements/journal-head-accounting-and-rotation" } (
+      <Requirement #journal-head-accounting-and-rotation (
+        <Statement ?01M05F1P83XGGKZ6JS57HNMTMP>
+        系统 SHALL 以持久化 head/计数（runtime-control/heads/）承载 ingress、diagnostics 观测日志与 effect-evidence 日志的计数与 last 信息；读取 head 或取 effect 序号 SHALL NOT 全量 readFile+parseXnl 整个日志文件；旧会话无 head 文件时 SHALL 以有界尾部窗口（从合法 XNL 节点起始行开始解析）回退。观测日志 SHALL 按大小轮转（默认 64MB/段，保留近 2 段），SHALL NOT 无界增长到数百 MB。
+        </?01M05F1P83XGGKZ6JS57HNMTMP>
+        <Suites [
+          <Suite #head-accounting { name = "Head accounting and rotation" } (
+            <Cases [
+              <Case #head-read-is-bounded (
+                <Given ?01M05F1P83XGGKZ6JS57HNMTMQ>
+                session 存在 ingress/diagnostics/effect-evidence 的持久化 head
+                </?01M05F1P83XGGKZ6JS57HNMTMQ>
+                <When ?01M05F1P83XGGKZ6JS57HNMTMR>
+                读取 real session durable heads 或 effect 序号
+                </?01M05F1P83XGGKZ6JS57HNMTMR>
+                <Then ?01M05F1P83XGGKZ6JS57HNMTMS>
+                SHALL 只读 head 文件，SHALL NOT 读取整个日志正文
+                </?01M05F1P83XGGKZ6JS57HNMTMS>
+              )>
+              <Case #legacy-tail-fallback-correct (
+                <Given ?01M05F1P83XGGKZ6JS57HNMTMT>
+                旧 session 无 head 文件且日志很大
+                </?01M05F1P83XGGKZ6JS57HNMTMT>
+                <When ?01M05F1P83XGGKZ6JS57HNMTMV>
+                读取 durable heads
+                </?01M05F1P83XGGKZ6JS57HNMTMV>
+                <Then ?01M05F1P83XGGKZ6JS57HNMTMW>
+                SHALL 以有界尾部窗口（从合法 XNL 节点起始行起 parseXnl）得到 count 与 last 信息
+                </?01M05F1P83XGGKZ6JS57HNMTMW>
+              )>
+              <Case #rotation-by-size (
+                <Given ?01M05F1P83XGGKZ6JS57HNMTMX>
+                观测日志超过 64MB
+                </?01M05F1P83XGGKZ6JS57HNMTMX>
+                <When ?01M05F1P83XGGKZ6JS57HNMTMY>
+                继续 append
+                </?01M05F1P83XGGKZ6JS57HNMTMY>
+                <Then ?01M05F1P83XGGKZ6JS57HNMTMZ>
+                SHALL 轮转切段并保留近 2 段，head 计数跨段保持正确
+                </?01M05F1P83XGGKZ6JS57HNMTMZ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://runtime-session-robustness/requirements/long-session-memory-bound" } (
+      <Requirement #long-session-memory-bound (
+        <Statement ?01M05F1P83XGGKZ6JS57HNMTN0>
+        长会话运行期的内存保留 SHALL 有界：ingress 时间线、语义事件图、消息历史图等过程性保留点 SHALL 按已完成回合/容量上限裁剪，进程内存 SHALL NOT 随会话运行天数无界线性增长。
+        </?01M05F1P83XGGKZ6JS57HNMTN0>
+        <Suites [
+          <Suite #memory-bound { name = "Bounded in-memory retention" } (
+            <Cases [
+              <Case #timeline-pruned (
+                <Given ?01M05F1P83XGGKZ6JS57HNMTN1>
+                长会话已运行多天且产生大量 ingress/语义事件
+                </?01M05F1P83XGGKZ6JS57HNMTN1>
+                <When ?01M05F1P83XGGKZ6JS57HNMTN2>
+                检查 ingress 时间线与语义事件图保留
+                </?01M05F1P83XGGKZ6JS57HNMTN2>
+                <Then ?01M05F1P83XGGKZ6JS57HNMTN3>
+                SHALL 只保留有界窗口（已结算事件可裁剪）
+                </?01M05F1P83XGGKZ6JS57HNMTN3>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

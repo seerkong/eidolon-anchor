@@ -1,0 +1,441 @@
+<Behavior #aiagent-questionnaire apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #questionnaire-confirm (
+      <Statement ?01M05F1P1G6687N829B23H4WP2>
+      系统 MUST 使用 `QuestionnaireRequest` 与 `QuestionnaireResult` 事件替代 `ConfirmRequest` 与 `ConfirmResult`。
+      </?01M05F1P1G6687N829B23H4WP2>
+      <Suites [
+        <Suite { name = "questionnaire-confirm" } (
+          <Cases [
+            <Case #ai { name = "AI 发起问卷请求并进入等待" } [
+              <Then ?01M05F1P1G6687N829B23H4WP3>
+              事件流中产生 `QuestionnaireRequest`（结构化）
+              </?01M05F1P1G6687N829B23H4WP3>
+              <Then ?01M05F1P1G6687N829B23H4WP4>
+              执行器停止原因为 `questionnaire_wait`
+              </?01M05F1P1G6687N829B23H4WP4>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WP5>
+              AIAgent 在一次工具调用链路中需要用户输入
+              </?01M05F1P1G6687N829B23H4WP5>
+              <When ?01M05F1P1G6687N829B23H4WP6>
+              AI 发起 `Questionnaire` 工具调用
+              </?01M05F1P1G6687N829B23H4WP6>
+            )>
+            <Case #case-2 { name = "用户回答后继续执行" } [
+              <Then ?01M05F1P1G6687N829B23H4WP7>
+              系统产生 `QuestionnaireResult`（结构化答案）
+              </?01M05F1P1G6687N829B23H4WP7>
+              <Then ?01M05F1P1G6687N829B23H4WP8>
+              AIAgent 获得结构化答案并继续下一轮执行
+              </?01M05F1P1G6687N829B23H4WP8>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WP9>
+              系统处于 `questionnaire_wait`
+              </?01M05F1P1G6687N829B23H4WP9>
+              <When ?01M05F1P1G6687N829B23H4WPA>
+              用户用文本回答问卷
+              </?01M05F1P1G6687N829B23H4WPA>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #questionnairerequest-schema (
+      <Statement ?01M05F1P1G6687N829B23H4WPB>
+      系统 MUST 定义结构化 `QuestionnaireRequest`，至少包含：
+      - `questionnaireId`
+      - `toolCallId`
+      - `kind`
+      - `title` / `intro`
+      - `questions[]`
+      - `suspendPolicy`
+      </?01M05F1P1G6687N829B23H4WPB>
+      <Suites [
+        <Suite { name = "questionnairerequest-schema" } (
+          <Cases [
+            <Case #case-3 { name = "结构化表单问卷" } [
+              <Then ?01M05F1P1G6687N829B23H4WPC>
+              请求包含多个 `questions`
+              </?01M05F1P1G6687N829B23H4WPC>
+              <Then ?01M05F1P1G6687N829B23H4WPD>
+              每个问题都有 `id`、`prompt`、`type`
+              </?01M05F1P1G6687N829B23H4WPD>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WPE>
+              AI 需要用户填写多题表单
+              </?01M05F1P1G6687N829B23H4WPE>
+              <When ?01M05F1P1G6687N829B23H4WPF>
+              AI 发出 `QuestionnaireRequest(kind=form)`
+              </?01M05F1P1G6687N829B23H4WPF>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #questionnaireresult (
+      <Statement ?01M05F1P1G6687N829B23H4WPG>
+      系统 MUST 定义结构化 `QuestionnaireResult`，至少包含：
+      - `questionnaireId`
+      - `toolCallId`
+      - `rawText`
+      - `answers`
+      - `status`
+      - `errors`
+      </?01M05F1P1G6687N829B23H4WPG>
+      <Suites [
+        <Suite { name = "questionnaireresult" } (
+          <Cases [
+            <Case #case-4 { name = "结构化答案可用于后续决策" } (
+              <Given ?01M05F1P1G6687N829B23H4WPH>
+              用户已回答问卷
+              </?01M05F1P1G6687N829B23H4WPH>
+              <When ?01M05F1P1G6687N829B23H4WPJ>
+              产生 `QuestionnaireResult(status=ok)`
+              </?01M05F1P1G6687N829B23H4WPJ>
+              <Then ?01M05F1P1G6687N829B23H4WPK>
+              AIAgent 可直接使用 `answers` 做后续决策
+              </?01M05F1P1G6687N829B23H4WPK>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #requirement-4 (
+      <Statement ?01M05F1P1G6687N829B23H4WPM>
+      系统 MUST 提供 `parseQuestionnaireAnswer()`，通过一次 LLM 调用，将 `QuestionnaireRequest` 与用户文本回答解析为 `QuestionnaireResult` 所需的结构化答案。
+      </?01M05F1P1G6687N829B23H4WPM>
+      <Suites [
+        <Suite { name = "requirement-4" } (
+          <Cases [
+            <Case #case-5 { name = "解析成功" } [
+              <Then ?01M05F1P1G6687N829B23H4WPN>
+              返回 `status=ok`
+              </?01M05F1P1G6687N829B23H4WPN>
+              <Then ?01M05F1P1G6687N829B23H4WPP>
+              给出完整 `answers`
+              </?01M05F1P1G6687N829B23H4WPP>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WPQ>
+              一个 `QuestionnaireRequest` 与用户文本回答
+              </?01M05F1P1G6687N829B23H4WPQ>
+              <When ?01M05F1P1G6687N829B23H4WPR>
+              调用 `parseQuestionnaireAnswer()`
+              </?01M05F1P1G6687N829B23H4WPR>
+            )>
+            <Case #case-6 { name = "解析失败后触发再次问卷" } [
+              <Then ?01M05F1P1G6687N829B23H4WPS>
+              系统产生新的 `QuestionnaireRequest(kind=clarification)`
+              </?01M05F1P1G6687N829B23H4WPS>
+              <Then ?01M05F1P1G6687N829B23H4WPT>
+              原始文本与失败原因可被追踪
+              </?01M05F1P1G6687N829B23H4WPT>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WPV>
+              用户回答不完整或无法解析
+              </?01M05F1P1G6687N829B23H4WPV>
+              <When ?01M05F1P1G6687N829B23H4WPW>
+              `parseQuestionnaireAnswer()` 返回 `status=invalid`
+              </?01M05F1P1G6687N829B23H4WPW>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #protocol-aligned-multi-question-questionnaire-presentation (
+      <Statement ?01M05F1P1G6687N829B23H4WPX>
+      系统应当（SHALL）让问卷的文本协议对齐 `codument/std/protocols.md` 中的 `ask-multi-question-free`，在多题场景下使用稳定的 `Q1` / `Q2` / `Q3` 题号与 `A` / `B` / `C`... 选项编号。
+      </?01M05F1P1G6687N829B23H4WPX>
+      <Suites [
+        <Suite { name = "protocol-aligned-multi-question-questionnaire-presentation" } (
+          <Cases [
+            <Case #render-recommendation-intake-as-numbered-multi-question-form { name = "Render recommendation intake as numbered multi-question form" } [
+              <Then ?01M05F1P1G6687N829B23H4WPY>
+              每个问题都带有 `Q1` / `Q2` / `Q3` 题号
+              </?01M05F1P1G6687N829B23H4WPY>
+              <Then ?01M05F1P1G6687N829B23H4WPZ>
+              每个候选答案都带有顺序字母编号
+              </?01M05F1P1G6687N829B23H4WPZ>
+              <Then ?01M05F1P1G6687N829B23H4WQ0>
+              文本协议遵循 `ask-multi-question-free`
+              </?01M05F1P1G6687N829B23H4WQ0>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WQ1>
+              agent 需要一次性向用户确认多个关键条件
+              </?01M05F1P1G6687N829B23H4WQ1>
+              <When ?01M05F1P1G6687N829B23H4WQ2>
+              系统生成并展示 questionnaire
+              </?01M05F1P1G6687N829B23H4WQ2>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #always-preserve-a-free-text-option-as-the-last-choice (
+      <Statement ?01M05F1P1G6687N829B23H4WQ3>
+      系统应当（SHALL）在带候选选项的问题中始终保留最后一个可自由填写的选项，并为它分配顺序中的最后一个字母编号。
+      </?01M05F1P1G6687N829B23H4WQ3>
+      <Suites [
+        <Suite { name = "always-preserve-a-free-text-option-as-the-last-choice" } (
+          <Cases [
+            <Case #keep-a-protocol-visible-free-text-branch-for-text-view-answering { name = "Keep a protocol-visible free-text branch for text view answering" } [
+              <Then ?01M05F1P1G6687N829B23H4WQ4>
+              最后一个选项保留给用户自由填写
+              </?01M05F1P1G6687N829B23H4WQ4>
+              <Then ?01M05F1P1G6687N829B23H4WQ5>
+              该自由填写选项拥有和其他选项相同的顺序字母编号
+              </?01M05F1P1G6687N829B23H4WQ5>
+              <Then ?01M05F1P1G6687N829B23H4WQ6>
+              用户可以用该字母后接文本内容作答
+              </?01M05F1P1G6687N829B23H4WQ6>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WQ7>
+              一个问题存在 `A` / `B` / `C` 等候选选项
+              </?01M05F1P1G6687N829B23H4WQ7>
+              <When ?01M05F1P1G6687N829B23H4WQ8>
+              系统为 text view 或 TUI 渲染该问题
+              </?01M05F1P1G6687N829B23H4WQ8>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #textual-questionnaire-answers-support-question-labels-and-option-letters (
+      <Statement ?01M05F1P1G6687N829B23H4WQ9>
+      系统应当（SHALL）接受按题号与选项字母作答的自由文本格式，而不要求用户必须逐题点击 UI。
+      </?01M05F1P1G6687N829B23H4WQ9>
+      <Suites [
+        <Suite { name = "textual-questionnaire-answers-support-question-labels-and-option-letters" } (
+          <Cases [
+            <Case #parse-compact-coded-answers-across-multiple-questions { name = "Parse compact coded answers across multiple questions" } [
+              <Then ?01M05F1P1G6687N829B23H4WQA>
+              系统正确识别题号与选项字母
+              </?01M05F1P1G6687N829B23H4WQA>
+              <Then ?01M05F1P1G6687N829B23H4WQB>
+              产生结构化 `answers`
+              </?01M05F1P1G6687N829B23H4WQB>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WQC>
+              问卷使用 `Q1` / `Q2` / `Q3` 与字母编号展示
+              </?01M05F1P1G6687N829B23H4WQC>
+              <When ?01M05F1P1G6687N829B23H4WQD>
+              用户输入 `q1: a ; q2: b`
+              </?01M05F1P1G6687N829B23H4WQD>
+            )>
+            <Case #parse-free-text-answers-from-the-last-option-label { name = "Parse free-text answers from the last option label" } [
+              <Then ?01M05F1P1G6687N829B23H4WQE>
+              系统将 `D` 识别为自由填写分支
+              </?01M05F1P1G6687N829B23H4WQE>
+              <Then ?01M05F1P1G6687N829B23H4WQF>
+              将 `balabala` 作为该题的文本答案保留下来
+              </?01M05F1P1G6687N829B23H4WQF>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WQG>
+              某题的最后一个选项保留给自由填写
+              </?01M05F1P1G6687N829B23H4WQG>
+              <When ?01M05F1P1G6687N829B23H4WQH>
+              用户输入 `q3: D balabala`
+              </?01M05F1P1G6687N829B23H4WQH>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #data-graph-questionnaire (
+      <Statement ?01M05F1P1G6687N829B23H4WQJ>
+      系统 MUST 在底层通用 data graph 中将"提出问卷/回答问卷"建模为两类结构化事件：`QuestionnaireRequest` 与 `QuestionnaireResult`。
+      </?01M05F1P1G6687N829B23H4WQJ>
+      <Suites [
+        <Suite { name = "data-graph-questionnaire" } (
+          <Cases [
+            <Case #case-11 { name = "历史记录包含问卷请求与结果" } [
+              <Then ?01M05F1P1G6687N829B23H4WQK>
+              历史中存在可回放的结构化记录
+              </?01M05F1P1G6687N829B23H4WQK>
+              <Then ?01M05F1P1G6687N829B23H4WQM>
+              记录包含 request 与 result 的 payload
+              </?01M05F1P1G6687N829B23H4WQM>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WQN>
+              系统产生问卷请求与结果事件
+              </?01M05F1P1G6687N829B23H4WQN>
+              <When ?01M05F1P1G6687N829B23H4WQP>
+              写入消息历史
+              </?01M05F1P1G6687N829B23H4WQP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #tui-projection (
+      <Statement ?01M05F1P1G6687N829B23H4WQQ>
+      系统 MUST 通过正式的 semantic terminal projection surface 将 `QuestionnaireRequest` 的结构化数据转换为适于终端展示的格式化文本；当前 TUI 路径由 `terminal/packages/organ/src/stream/TuiProjectionGraph.ts` 消费 `semantic_questionnaire_request` 并生成可见文本。对于多题问卷，该文本格式必须对齐 `ask-multi-question-free` 协议，并保留题号、选项编号和自由填写选项。
+      </?01M05F1P1G6687N829B23H4WQQ>
+      <Suites [
+        <Suite { name = "tui-projection" } (
+          <Cases [
+            <Case #case-12 { name = "终端可读问卷文本" } [
+              <Then ?01M05F1P1G6687N829B23H4WQR>
+              输出包含标题、说明、`Q1/Q2/...` 题号与 `A/B/C/...` 选项提示
+              </?01M05F1P1G6687N829B23H4WQR>
+              <Then ?01M05F1P1G6687N829B23H4WQS>
+              对于可自由填写的问题，最后一个选项为可填写分支
+              </?01M05F1P1G6687N829B23H4WQS>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WQT>
+              一个包含多题的 `QuestionnaireRequest`
+              </?01M05F1P1G6687N829B23H4WQT>
+              <When ?01M05F1P1G6687N829B23H4WQV>
+              TUI 消费该事件
+              </?01M05F1P1G6687N829B23H4WQV>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #shell (
+      <Statement ?01M05F1P1G6687N829B23H4WQW>
+      系统 MUST 在终端 shell 中显式展示问卷文本，并收集用户以文本形式的回答。对于多题问卷，系统必须接受以题号和选项字母组合的文本格式作答。
+      </?01M05F1P1G6687N829B23H4WQW>
+      <Suites [
+        <Suite { name = "shell" } (
+          <Cases [
+            <Case #case-13 { name = "用户以协议化文本回答多题" } [
+              <Then ?01M05F1P1G6687N829B23H4WQX>
+              系统将该文本交给问卷解析器
+              </?01M05F1P1G6687N829B23H4WQX>
+              <Then ?01M05F1P1G6687N829B23H4WQY>
+              解析器按题号、选项字母和自由填写分支得到结构化答案
+              </?01M05F1P1G6687N829B23H4WQY>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WQZ>
+              TUI 已展示符合协议的多题问卷文本
+              </?01M05F1P1G6687N829B23H4WQZ>
+              <When ?01M05F1P1G6687N829B23H4WR0>
+              用户输入 `Q1: A ; Q2: B` 或 `Q3: D balabala`
+              </?01M05F1P1G6687N829B23H4WR0>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #questionnaire-projection-preserves-full-question-structure (
+      <Statement ?01M05F1P1G6687N829B23H4WR1>
+      系统应当（SHALL）在 semantic、history、runtime client 与 TUI projection 链路中保留完整的 `questions[]` 结构，而不是把问卷压扁成首题或单个 `text` 占位。
+      </?01M05F1P1G6687N829B23H4WR1>
+      <Suites [
+        <Suite { name = "questionnaire-projection-preserves-full-question-structure" } (
+          <Cases [
+            <Case #multi-question-questionnaire-survives-semantic-and-history-projection { name = "Multi-question questionnaire survives semantic and history projection" } [
+              <Then ?01M05F1P1G6687N829B23H4WR2>
+              完整的题目数量、题号顺序、类型与选项都被保留
+              </?01M05F1P1G6687N829B23H4WR2>
+              <Then ?01M05F1P1G6687N829B23H4WR3>
+              TUI 不会退化为单题 `q1`
+              </?01M05F1P1G6687N829B23H4WR3>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WR4>
+              runtime 发出包含多个问题的 `QuestionnaireRequest`
+              </?01M05F1P1G6687N829B23H4WR4>
+              <When ?01M05F1P1G6687N829B23H4WR5>
+              该请求经过 semantic projection、message history projection 与 TUI runtime client
+              </?01M05F1P1G6687N829B23H4WR5>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #recommendation-intake-uses-domain-aware-structured-questionnaires (
+      <Statement ?01M05F1P1G6687N829B23H4WR6>
+      系统应当（SHALL）让推荐类场景优先生成领域化的结构化 intake 问卷，而不是默认退化成单个自由文本问题。
+      </?01M05F1P1G6687N829B23H4WR6>
+      <Suites [
+        <Suite { name = "recommendation-intake-uses-domain-aware-structured-questionnaires" } (
+          <Cases [
+            <Case #travel-recommendation-starts-with-a-structured-intake-round { name = "Travel recommendation starts with a structured intake round" } [
+              <Then ?01M05F1P1G6687N829B23H4WR7>
+              系统优先生成 2-4 个高信息量问题的结构化 intake
+              </?01M05F1P1G6687N829B23H4WR7>
+              <Then ?01M05F1P1G6687N829B23H4WR8>
+              问题优先使用 `single_select` / `multi_select` / `number` / `text` 的合理组合
+              </?01M05F1P1G6687N829B23H4WR8>
+              <Then ?01M05F1P1G6687N829B23H4WR9>
+              不退化为单个"请描述你的需求"的自由文本问题，除非用户意图本身极度模糊
+              </?01M05F1P1G6687N829B23H4WR9>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WRA>
+              用户请求旅行推荐或类似的行程规划建议
+              </?01M05F1P1G6687N829B23H4WRA>
+              <When ?01M05F1P1G6687N829B23H4WRB>
+              agent 决定先发起 questionnaire
+              </?01M05F1P1G6687N829B23H4WRB>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #requirement-13 (
+      <Statement ?01M05F1P1G6687N829B23H4WRC>
+      系统 MUST 支持 `pause_all` 与 `continue_others` 两种控制策略，并由每个 `QuestionnaireRequest` 通过 `suspendPolicy` 指定。
+      </?01M05F1P1G6687N829B23H4WRC>
+      <Suites [
+        <Suite { name = "requirement-13" } (
+          <Cases [
+            <Case #pause-all-actor { name = "pause_all 暂停所有 actor" } [
+              <Then ?01M05F1P1G6687N829B23H4WRD>
+              调度层不再推进其他 actor
+              </?01M05F1P1G6687N829B23H4WRD>
+              <Then ?01M05F1P1G6687N829B23H4WRE>
+              用户反馈后，所有挂起链路恢复推进
+              </?01M05F1P1G6687N829B23H4WRE>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WRF>
+              主 actor 与多个 sub actor 同时存在可推进任务
+              </?01M05F1P1G6687N829B23H4WRF>
+              <When ?01M05F1P1G6687N829B23H4WRG>
+              任意 actor 发出 `QuestionnaireRequest(suspendPolicy=pause_all)` 并进入等待
+              </?01M05F1P1G6687N829B23H4WRG>
+            )>
+            <Case #continue-others-actor { name = "continue_others 允许其他 actor 继续" } (
+              <Given ?01M05F1P1G6687N829B23H4WRH>
+              主 actor 与多个 sub actor 同时存在可推进任务
+              </?01M05F1P1G6687N829B23H4WRH>
+              <When ?01M05F1P1G6687N829B23H4WRJ>
+              任意 actor 发出 `QuestionnaireRequest(suspendPolicy=continue_others)` 并进入等待
+              </?01M05F1P1G6687N829B23H4WRJ>
+              <Then ?01M05F1P1G6687N829B23H4WRK>
+              其他 actor 仍可继续被推进
+              </?01M05F1P1G6687N829B23H4WRK>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #confirm (
+      <Statement ?01M05F1P1G6687N829B23H4WRM>
+      系统 SHALL 不再产生 `ConfirmRequest` / `ConfirmResult` 事件，也 SHALL 不再使用 `confirm_wait` 停止原因。
+      </?01M05F1P1G6687N829B23H4WRM>
+      <Suites [
+        <Suite { name = "confirm" } (
+          <Cases [
+            <Case #confirm { name = "不再发出 Confirm 事件" } [
+              <Then ?01M05F1P1G6687N829B23H4WRN>
+              事件为 `QuestionnaireRequest` / `QuestionnaireResult`
+              </?01M05F1P1G6687N829B23H4WRN>
+              <Then ?01M05F1P1G6687N829B23H4WRP>
+              不出现 `ConfirmRequest` / `ConfirmResult`
+              </?01M05F1P1G6687N829B23H4WRP>
+            ] (
+              <Given ?01M05F1P1G6687N829B23H4WRQ>
+              工具调用链路需要用户输入
+              </?01M05F1P1G6687N829B23H4WRQ>
+              <When ?01M05F1P1G6687N829B23H4WRR>
+              系统发出问卷
+              </?01M05F1P1G6687N829B23H4WRR>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

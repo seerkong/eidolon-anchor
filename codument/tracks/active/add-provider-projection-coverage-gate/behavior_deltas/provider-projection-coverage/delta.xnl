@@ -1,0 +1,20 @@
+<BehaviorPatch #track.add-provider-projection-coverage-gate.behavior_patch.provider-projection-coverage apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-projection-coverage" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-projection-coverage/requirements/send-before-coverage-proof" } (
+      <Requirement #send-before-coverage-proof (
+        <Statement ?>Responses canonical projection SHALL prove that every source function call and tool output is emitted before request planning; unaccounted loss SHALL fail closed.</?>
+        <Suites [
+          <Suite #coverage-cases { name = "Projection coverage" } (
+            <Cases [
+              <Case #complete-proof [
+                <Given ?>Canonical materialization contains completed tool rounds.</?>
+                <When ?>Responses replay is compiled.</?>
+                <Then ?>The projection SHALL include a typed source/emitted call-output coverage proof.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

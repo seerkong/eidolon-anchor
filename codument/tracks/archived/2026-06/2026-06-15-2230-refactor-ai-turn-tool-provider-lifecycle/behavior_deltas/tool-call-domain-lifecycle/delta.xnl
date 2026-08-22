@@ -1,0 +1,168 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_1_5_-_2_2_3_0_-_r_e_f_a_c_t_o_r_-_a_i_-_t_u_r_n_-_t_o_o_l_-_p_r_o_v_i_d_e_r_-_l_i_f_e_c_y_c_l_e.behavior_patch.tool-call-domain-lifecycle apiVersion="codument.tech/v1alpha1" version="1" { capability = "tool-call-domain-lifecycle" } (
+  <Mutations [
+    <Upsert { selector = "behavior://tool-call-domain-lifecycle/requirements/single-owner" } (
+      <Requirement #single-owner (
+        <Statement ?01M05F1PHVGXAP6W5Q0436FWGC>
+        tool call 的全生命周期事实 SHALL 由 ToolCallDomain 单独拥有；其它模块（executor 隐式 state、cooperative pendingAiGenerated、runtime-control effect evidence）SHALL NOT 持有事实真相，只能持有派生信号或 audit 副本。
+        </?01M05F1PHVGXAP6W5Q0436FWGC>
+        <Suites [
+          <Suite #ownership { name = "Lifecycle ownership" } (
+            <Cases [
+              <Case #lifecycle-events-owned [
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGD>
+                SHALL 在 ToolCallDomain 找到唯一权威记录
+                </?01M05F1PHVGXAP6W5Q0436FWGD>
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGE>
+                runtime-control evidence SHALL 仅包含 request_id 与对 ToolCallDomain 的引用，不重复持有 outputText 或 args 全文
+                </?01M05F1PHVGXAP6W5Q0436FWGE>
+              ] (
+                <Given ?01M05F1PHVGXAP6W5Q0436FWGF>
+                一次 tool call 从 LLM 产出 tool_calls 到最终 tool_result 进入 History 域
+                </?01M05F1PHVGXAP6W5Q0436FWGF>
+                <When ?01M05F1PHVGXAP6W5Q0436FWGG>
+                追溯每个生命周期事实（planned / dispatched / gate decision / executed-or-skipped / result / failed）
+                </?01M05F1PHVGXAP6W5Q0436FWGG>
+              )>
+              <Case #executor-state-derived [
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGH>
+                SHALL 从 ToolCallDomain 读取（domain 提供 derived view）
+                </?01M05F1PHVGXAP6W5Q0436FWGH>
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGJ>
+                SHALL NOT 通过 executor 私有 pending 数组比对
+                </?01M05F1PHVGXAP6W5Q0436FWGJ>
+              ] (
+                <Given ?01M05F1PHVGXAP6W5Q0436FWGK>
+                cooperative 主循环需要判断 inflight tool 是否完成
+                </?01M05F1PHVGXAP6W5Q0436FWGK>
+                <When ?01M05F1PHVGXAP6W5Q0436FWGM>
+                读取信号
+                </?01M05F1PHVGXAP6W5Q0436FWGM>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://tool-call-domain-lifecycle/requirements/pairing-by-tool-call-id" } (
+      <Requirement #pairing-by-tool-call-id (
+        <Statement ?01M05F1PHVGXAP6W5Q0436FWGN>
+        tool_call 与 tool_result 的配对 SHALL 通过 LLM 提供的 tool_call_id 作为透明唯一标识完成；不依赖数组位置、消息排列或其它隐式约定；ToolCallDomain SHALL 拒绝出现两次相同 tool_call_id 的 result 提交。
+        </?01M05F1PHVGXAP6W5Q0436FWGN>
+        <Suites [
+          <Suite #pairing { name = "Tool call pairing" } (
+            <Cases [
+              <Case #opaque-id-pairing [
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGP>
+                SHALL 仅依据 tool_call_id 匹配回所属 tool_call
+                </?01M05F1PHVGXAP6W5Q0436FWGP>
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGQ>
+                SHALL NOT 依据数组下标或时间序
+                </?01M05F1PHVGXAP6W5Q0436FWGQ>
+              ] (
+                <Given ?01M05F1PHVGXAP6W5Q0436FWGR>
+                LLM 产出 N 个 tool_calls 各带不同 tool_call_id
+                </?01M05F1PHVGXAP6W5Q0436FWGR>
+                <When ?01M05F1PHVGXAP6W5Q0436FWGS>
+                tool result 陆续到达
+                </?01M05F1PHVGXAP6W5Q0436FWGS>
+              )>
+              <Case #no-duplicate-result (
+                <Given ?01M05F1PHVGXAP6W5Q0436FWGT>
+                同一 tool_call_id 已有 result（含 deny/defer 的合成 result）
+                </?01M05F1PHVGXAP6W5Q0436FWGT>
+                <When ?01M05F1PHVGXAP6W5Q0436FWGV>
+                第二次 result 试图提交
+                </?01M05F1PHVGXAP6W5Q0436FWGV>
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGW>
+                SHALL 被 ToolCallDomain 拒绝并标记为协议违例
+                </?01M05F1PHVGXAP6W5Q0436FWGW>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://tool-call-domain-lifecycle/requirements/gate-decision-as-fact" } (
+      <Requirement #gate-decision-as-fact (
+        <Statement ?01M05F1PHVGXAP6W5Q0436FWGX>
+        ToolExecutionGateDecision（allow / deny / defer）的结果 SHALL 作为 ToolCallDomain 的一等公民事实存储；下游的 stopAfterTools 判断、conversation history 写入、effect evidence 记录 SHALL 通过读取该事实做决策，而非由 executor 局部计算后传递。
+        </?01M05F1PHVGXAP6W5Q0436FWGX>
+        <Suites [
+          <Suite #gate-fact { name = "Gate decision as fact" } (
+            <Cases [
+              <Case #decision-stored-in-domain [
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGY>
+                ToolCallDomain SHALL 持久保存该决策（含 kind, reason, waitingFor 若有）
+                </?01M05F1PHVGXAP6W5Q0436FWGY>
+                <Then ?01M05F1PHVGXAP6W5Q0436FWGZ>
+                SHALL NOT 仅作为 tool_done event 的瞬时字段传递
+                </?01M05F1PHVGXAP6W5Q0436FWGZ>
+              ] (
+                <Given ?01M05F1PHVGXAP6W5Q0436FWH0>
+                start_tool 触发 evaluateToolExecutionGates
+                </?01M05F1PHVGXAP6W5Q0436FWH0>
+                <When ?01M05F1PHVGXAP6W5Q0436FWH1>
+                评估完成
+                </?01M05F1PHVGXAP6W5Q0436FWH1>
+              )>
+              <Case #downstream-reads-domain [
+                <Then ?01M05F1PHVGXAP6W5Q0436FWH2>
+                SHALL 通过 ToolCallDomain 读取 gate decision
+                </?01M05F1PHVGXAP6W5Q0436FWH2>
+                <Then ?01M05F1PHVGXAP6W5Q0436FWH3>
+                SHALL NOT 通过字符串 outputText 匹配或私有标志位推断
+                </?01M05F1PHVGXAP6W5Q0436FWH3>
+              ] (
+                <Given ?01M05F1PHVGXAP6W5Q0436FWH4>
+                stopAfterTools 判断、emit semantic_tool_call_result、appendRuntimeControlLifecycleEvidence 等下游操作
+                </?01M05F1PHVGXAP6W5Q0436FWH4>
+                <When ?01M05F1PHVGXAP6W5Q0436FWH5>
+                需要确认 tool 是否实际运行
+                </?01M05F1PHVGXAP6W5Q0436FWH5>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://tool-call-domain-lifecycle/requirements/evidence-as-audit-only" } (
+      <Requirement #evidence-as-audit-only (
+        <Statement ?01M05F1PHVGXAP6W5Q0436FWH6>
+        runtime-control effect evidence 在 tool 生命周期中 SHALL 仅承担 audit / 恢复辅助角色：记录 request_id、handler key、对应 ToolCallDomain 事实的引用即可；SHALL NOT 复制 outputText 或 args 全文，SHALL NOT 作为下次 turn 判断 tool 是否完成的依据。
+        </?01M05F1PHVGXAP6W5Q0436FWH6>
+        <Suites [
+          <Suite #evidence-boundary { name = "Evidence boundary" } (
+            <Cases [
+              <Case #evidence-payload-shape [
+                <Then ?01M05F1PHVGXAP6W5Q0436FWH7>
+                SHALL 包含 effectId / handlerKey / 对应 ToolCallDomain entry 引用
+                </?01M05F1PHVGXAP6W5Q0436FWH7>
+                <Then ?01M05F1PHVGXAP6W5Q0436FWH8>
+                SHALL NOT 包含全文 outputText 与 args（仅可保留尺寸/校验和等审计元数据）
+                </?01M05F1PHVGXAP6W5Q0436FWH8>
+              ] (
+                <Given ?01M05F1PHVGXAP6W5Q0436FWH9>
+                appendRuntimeControlLifecycleEvidenceFromVm 被调用记录 tool result
+                </?01M05F1PHVGXAP6W5Q0436FWH9>
+                <When ?01M05F1PHVGXAP6W5Q0436FWHA>
+                检查 payload
+                </?01M05F1PHVGXAP6W5Q0436FWHA>
+              )>
+              <Case #recovery-reads-domain (
+                <Given ?01M05F1PHVGXAP6W5Q0436FWHB>
+                session 恢复后重建运行时
+                </?01M05F1PHVGXAP6W5Q0436FWHB>
+                <When ?01M05F1PHVGXAP6W5Q0436FWHC>
+                判断 tool 是否完成
+                </?01M05F1PHVGXAP6W5Q0436FWHC>
+                <Then ?01M05F1PHVGXAP6W5Q0436FWHD>
+                SHALL 从 ToolCallDomain 读取，不从 effect evidence 重建 tool result 内容
+                </?01M05F1PHVGXAP6W5Q0436FWHD>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

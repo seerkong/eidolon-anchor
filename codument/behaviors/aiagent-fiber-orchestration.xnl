@@ -1,0 +1,348 @@
+<Behavior #aiagent-fiber-orchestration apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #durable-control-signal-scheduling (
+      <Statement ?01M05F1P16CM3W7M9TKB7EKSZP>
+      系统 SHALL make durable control signals the source of truth for fiber wake, resume, and interrupt scheduling while keeping signal payloads bounded and separate from message history.
+      </?01M05F1P16CM3W7M9TKB7EKSZP>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/durable-control-signal-scheduling" strength = "hint" }>
+      <Suites [
+        <Suite #mailbox-enqueue-scheduling { name = "Mailbox enqueue scheduling" } (
+          <Cases [
+            <Case #wake-signal-uses-bounded-payload [
+              <Then ?01M05F1P16CM3W7M9TKB7EKSZQ>
+              The signal SHALL include scheduling metadata sufficient for wake/resume recovery
+              </?01M05F1P16CM3W7M9TKB7EKSZQ>
+              <Then ?01M05F1P16CM3W7M9TKB7EKSZR>
+              The signal SHALL NOT duplicate unbounded mailbox payloads that are owned by actor mailbox, transcript, conversation, or artifact persistence
+              </?01M05F1P16CM3W7M9TKB7EKSZR>
+            ] (
+              <Given ?01M05F1P16CM3W7M9TKB7EKSZS>
+              A wake message such as LLM done, tool done, child done, human input, or heartbeat arrives
+              </?01M05F1P16CM3W7M9TKB7EKSZS>
+              <When ?01M05F1P16CM3W7M9TKB7EKSZT>
+              The runtime persists the durable control signal
+              </?01M05F1P16CM3W7M9TKB7EKSZT>
+            )>
+            <Case #pending-signal-redelivery-with-payload-ref [
+              <Then ?01M05F1P16CM3W7M9TKB7EKSZV>
+              The runtime SHALL redeliver the intended mailbox message using the actor mailbox snapshot or payload reference
+              </?01M05F1P16CM3W7M9TKB7EKSZV>
+              <Then ?01M05F1P16CM3W7M9TKB7EKSZW>
+              The fiber SHALL continue without transcript-tail inference
+              </?01M05F1P16CM3W7M9TKB7EKSZW>
+            ] (
+              <Given ?01M05F1P16CM3W7M9TKB7EKSZX>
+              A signal is pending when the process exits
+              </?01M05F1P16CM3W7M9TKB7EKSZX>
+              <When ?01M05F1P16CM3W7M9TKB7EKSZY>
+              The runtime recovers the session
+              </?01M05F1P16CM3W7M9TKB7EKSZY>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #cooperative-interrupt-control (
+      <Statement ?01M05F1P16CM3W7M9TKB7EKSZZ>
+      系统 SHALL model interrupt-capable messages as high-priority control signals that enter actor mailboxes and cooperatively abort current in-flight work.
+      </?01M05F1P16CM3W7M9TKB7EKSZZ>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/cooperative-interrupt-control" strength = "hint" }>
+      <Suites [
+        <Suite #cancel-semantics { name = "Cancel semantics" } (
+          <Cases [
+            <Case #cancel-running-llm [
+              <Then ?01M05F1P16CM3W7M9TKB7EKT00>
+              The signal SHALL be persisted and enqueued in the actor control mailbox with interrupt priority
+              </?01M05F1P16CM3W7M9TKB7EKT00>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT01>
+              The runtime SHALL abort the active LLM operation when an abort controller is available
+              </?01M05F1P16CM3W7M9TKB7EKT01>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT02>
+              The fiber SHALL observe cancellation at a safe boundary and terminate or suspend according to the cancel policy
+              </?01M05F1P16CM3W7M9TKB7EKT02>
+            ] (
+              <Given ?01M05F1P16CM3W7M9TKB7EKT03>
+              A fiber is running or suspended with an in-flight LLM operation
+              </?01M05F1P16CM3W7M9TKB7EKT03>
+              <When ?01M05F1P16CM3W7M9TKB7EKT04>
+              A cancel control signal arrives
+              </?01M05F1P16CM3W7M9TKB7EKT04>
+            )>
+            <Case #cancel-running-tool [
+              <Then ?01M05F1P16CM3W7M9TKB7EKT05>
+              The runtime SHALL mark the in-flight operation as cancelled
+              </?01M05F1P16CM3W7M9TKB7EKT05>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT06>
+              The runtime SHALL abort the tool when it supports AbortSignal
+              </?01M05F1P16CM3W7M9TKB7EKT06>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT07>
+              Any late tool completion SHALL be ignored or recorded as a cancelled observation using op id and epoch checks
+              </?01M05F1P16CM3W7M9TKB7EKT07>
+            ] (
+              <Given ?01M05F1P16CM3W7M9TKB7EKT08>
+              A fiber is waiting on a tool operation
+              </?01M05F1P16CM3W7M9TKB7EKT08>
+              <When ?01M05F1P16CM3W7M9TKB7EKT09>
+              A cancel control signal arrives
+              </?01M05F1P16CM3W7M9TKB7EKT09>
+            )>
+            <Case #interrupt-does-not-reenter-actor [
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0A>
+              The runtime SHALL NOT re-enter the actor handler concurrently
+              </?01M05F1P16CM3W7M9TKB7EKT0A>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0B>
+              The runtime SHALL set an interrupt state that the current execution observes cooperatively
+              </?01M05F1P16CM3W7M9TKB7EKT0B>
+            ] (
+              <Given ?01M05F1P16CM3W7M9TKB7EKT0C>
+              An actor is currently inside a handler execution
+              </?01M05F1P16CM3W7M9TKB7EKT0C>
+              <When ?01M05F1P16CM3W7M9TKB7EKT0D>
+              An interrupt-capable message arrives
+              </?01M05F1P16CM3W7M9TKB7EKT0D>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #typed-wait-reasons (
+      <Statement ?01M05F1P16CM3W7M9TKB7EKT0E>
+      系统 SHALL use typed wait reasons for cooperative async boundaries and reserve generic external waiting for true idle or external-human waits.
+      </?01M05F1P16CM3W7M9TKB7EKT0E>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/typed-wait-reasons" strength = "hint" }>
+      <Suites [
+        <Suite #wait-reason-classification { name = "Wait reason classification" } (
+          <Cases [
+            <Case #llm-tool-compress-waits-typed [
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0F>
+              The fiber SHALL contain a typed waitingReason describing the awaited event class
+              </?01M05F1P16CM3W7M9TKB7EKT0F>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0G>
+              The cooperative exec state SHALL contain the matching op id or durable wait condition when applicable
+              </?01M05F1P16CM3W7M9TKB7EKT0G>
+            ] (
+              <Given ?01M05F1P16CM3W7M9TKB7EKT0H>
+              A cooperative step suspends for LLM, tool, compression, questionnaire parsing, child completion, or human input
+              </?01M05F1P16CM3W7M9TKB7EKT0H>
+              <When ?01M05F1P16CM3W7M9TKB7EKT0J>
+              The fiber snapshot is written
+              </?01M05F1P16CM3W7M9TKB7EKT0J>
+            )>
+            <Case #external-not-internal-async (
+              <Given ?01M05F1P16CM3W7M9TKB7EKT0K>
+              A fiber is suspended on an internal async operation
+              </?01M05F1P16CM3W7M9TKB7EKT0K>
+              <When ?01M05F1P16CM3W7M9TKB7EKT0M>
+              The runtime records the suspension
+              </?01M05F1P16CM3W7M9TKB7EKT0M>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0N>
+              The runtime SHALL NOT use generic external as the only wait reason
+              </?01M05F1P16CM3W7M9TKB7EKT0N>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #mailbox-wake-scheduling-consistency (
+      <Statement ?01M05F1P16CM3W7M9TKB7EKT0P>
+      系统 SHALL treat pending wake-capable actor mailbox entries as scheduler wake truth even when the matching durable control signal has already been consumed.
+      </?01M05F1P16CM3W7M9TKB7EKT0P>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/mailbox-wake-scheduling-consistency" strength = "hint" }>
+      <Suites [
+        <Suite #mailbox-priority-wake { name = "Mailbox priority wake scheduling" } (
+          <Cases [
+            <Case #async-completion-before-human-input [
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0Q>
+              The fiber SHALL first continue the cooperative async boundary represented by `asyncCompletion` according to actor mailbox priority
+              </?01M05F1P16CM3W7M9TKB7EKT0Q>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0R>
+              The user input SHALL remain queued until the higher-priority async completion has been processed
+              </?01M05F1P16CM3W7M9TKB7EKT0R>
+            ] (
+              <Given ?01M05F1P16CM3W7M9TKB7EKT0S>
+              An actor has pending `asyncCompletion` and pending `humanInput` entries
+              </?01M05F1P16CM3W7M9TKB7EKT0S>
+              <When ?01M05F1P16CM3W7M9TKB7EKT0T>
+              The runtime schedules the owning fiber
+              </?01M05F1P16CM3W7M9TKB7EKT0T>
+            )>
+            <Case #heartbeat-does-not-preempt-wake-work [
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0V>
+              The runtime SHALL NOT treat the actor as idle
+              </?01M05F1P16CM3W7M9TKB7EKT0V>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT0W>
+              The lower-priority `heartbeat` continuation SHALL NOT preempt existing wake work
+              </?01M05F1P16CM3W7M9TKB7EKT0W>
+            ] (
+              <Given ?01M05F1P16CM3W7M9TKB7EKT0X>
+              An actor has pending `asyncCompletion`, `toolResult`, `childDone`, `memberCoordination`, `humanInput`, `memberChatInbox`, or `control` work
+              </?01M05F1P16CM3W7M9TKB7EKT0X>
+              <When ?01M05F1P16CM3W7M9TKB7EKT0Y>
+              A goal continuation or other idle hook wants to enqueue `heartbeat` work
+              </?01M05F1P16CM3W7M9TKB7EKT0Y>
+            )>
+            <Case #ready-fiber-with-mailbox-wake-runs-agent-step (
+              <Given ?01M05F1P16CM3W7M9TKB7EKT0Z>
+              A fiber is `ready` and its actor has pending wake-capable mailbox work
+              </?01M05F1P16CM3W7M9TKB7EKT0Z>
+              <When ?01M05F1P16CM3W7M9TKB7EKT10>
+              The foreground or background scheduler settles the runtime
+              </?01M05F1P16CM3W7M9TKB7EKT10>
+              <Then ?01M05F1P16CM3W7M9TKB7EKT11>
+              The scheduler SHALL execute an `agent_step` for that fiber or keep settling until the wake work is consumed
+              </?01M05F1P16CM3W7M9TKB7EKT11>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #cooperative-wait-state-normalization (
+      <Statement ?01M05F1P172K8CTJYXTSCCHQXJ>
+      系统 SHALL normalize or actively schedule fibers whose cooperative exec state is waiting on async work while the fiber record is not suspended on the matching typed wait reason.
+      </?01M05F1P172K8CTJYXTSCCHQXJ>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/cooperative-wait-state-normalization" strength = "hint" }>
+      <Suites [
+        <Suite #ready-wait-state { name = "Ready fiber cooperative wait state" } (
+          <Cases [
+            <Case #ready-wait-llm-with-completion [
+              <Then ?01M05F1P172K8CTJYXTSCCHQXK>
+              Its cooperative exec state is `wait_llm` with inflight op id `X`
+              </?01M05F1P172K8CTJYXTSCCHQXK>
+              <Then ?01M05F1P172K8CTJYXTSCCHQXM>
+              The actor mailbox contains `asyncCompletion` for op id `X`
+              </?01M05F1P172K8CTJYXTSCCHQXM>
+              <Then ?01M05F1P172K8CTJYXTSCCHQXN>
+              The runtime SHALL either normalize the fiber to `suspended + wait_llm_result` before waiting
+              </?01M05F1P172K8CTJYXTSCCHQXN>
+              <Then ?01M05F1P172K8CTJYXTSCCHQXP>
+              Or SHALL schedule an `agent_step` that drains the matching async completion
+              </?01M05F1P172K8CTJYXTSCCHQXP>
+            ] (
+              <Given ?01M05F1P172K8CTJYXTSCCHQXQ>
+              A fiber record is `ready` with `waitingReason` unset
+              </?01M05F1P172K8CTJYXTSCCHQXQ>
+              <When ?01M05F1P172K8CTJYXTSCCHQXR>
+              The runtime saves, recovers, or settles the scheduler
+              </?01M05F1P172K8CTJYXTSCCHQXR>
+            )>
+            <Case #ready-wait-tool-with-completion [
+              <Then ?01M05F1P172K8CTJYXTSCCHQXS>
+              The runtime SHALL NOT leave the fiber indefinitely idle
+              </?01M05F1P172K8CTJYXTSCCHQXS>
+              <Then ?01M05F1P172K8CTJYXTSCCHQXT>
+              The matching tool completion SHALL be consumed or the fiber SHALL be normalized to the typed wait state
+              </?01M05F1P172K8CTJYXTSCCHQXT>
+            ] (
+              <Given ?01M05F1P172K8CTJYXTSCCHQXV>
+              A fiber record is `ready` with cooperative exec state `wait_tool` and matching pending completion work
+              </?01M05F1P172K8CTJYXTSCCHQXV>
+              <When ?01M05F1P172K8CTJYXTSCCHQXW>
+              The runtime saves, recovers, or settles the scheduler
+              </?01M05F1P172K8CTJYXTSCCHQXW>
+            )>
+            <Case #inflight-async-detection-covers-ready-wait (
+              <Given ?01M05F1P172K8CTJYXTSCCHQXX>
+              A cooperative exec state has `wait_llm`, `wait_tool`, or `wait_questionnaire_parse` with inflight work
+              </?01M05F1P172K8CTJYXTSCCHQXX>
+              <When ?01M05F1P172K8CTJYXTSCCHQXY>
+              The scheduler checks whether async work is still outstanding
+              </?01M05F1P172K8CTJYXTSCCHQXY>
+              <Then ?01M05F1P172K8CTJYXTSCCHQXZ>
+              The check SHALL include both suspended typed waits and ready fibers with cooperative wait state
+              </?01M05F1P172K8CTJYXTSCCHQXZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #mandatory-continuation-settling (
+      <Statement ?01M05F1P172K8CTJYXTSCCHQY0>
+      系统 SHALL treat protocol-critical cooperative continuations as mandatory work that must be consumed before a foreground or all-lane settle operation reports a snapshot-safe boundary.
+      </?01M05F1P172K8CTJYXTSCCHQY0>
+      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/mandatory-continuation-settling" strength = "hint" }>
+      <Suites [
+        <Suite #foreground-settle-boundary { name = "Foreground settle boundary" } (
+          <Cases [
+            <Case #start-tool-is-mandatory-continuation [
+              <Then ?01M05F1P172K8CTJYXTSCCHQY1>
+              The actor history has an assistant tool call awaiting runtime tool startup
+              </?01M05F1P172K8CTJYXTSCCHQY1>
+              <Then ?01M05F1P172K8CTJYXTSCCHQY2>
+              The scheduler SHALL continue executing `agent_step` work until `start_tool` creates durable tool operation state or reaches a typed wait
+              </?01M05F1P172K8CTJYXTSCCHQY2>
+              <Then ?01M05F1P172K8CTJYXTSCCHQY3>
+              The scheduler SHALL NOT report a snapshot-safe settled state while the `start_tool` continuation remains unconsumed
+              </?01M05F1P172K8CTJYXTSCCHQY3>
+            ] (
+              <Given ?01M05F1P172K8CTJYXTSCCHQY4>
+              A foreground fiber is `ready` with cooperative exec state `start_tool`
+              </?01M05F1P172K8CTJYXTSCCHQY4>
+              <When ?01M05F1P172K8CTJYXTSCCHQY5>
+              The foreground scheduler settles the runtime for snapshot or turn completion
+              </?01M05F1P172K8CTJYXTSCCHQY5>
+            )>
+            <Case #settled-distinguishes-idle-from-unsafe-ready [
+              <Then ?01M05F1P172K8CTJYXTSCCHQY6>
+              A ready fiber still has mandatory continuation work
+              </?01M05F1P172K8CTJYXTSCCHQY6>
+              <Then ?01M05F1P172K8CTJYXTSCCHQY7>
+              The runtime SHALL classify the lane as not settled for snapshot purposes
+              </?01M05F1P172K8CTJYXTSCCHQY7>
+              <Then ?01M05F1P172K8CTJYXTSCCHQY8>
+              The runtime SHALL either schedule the continuation or surface a diagnostic if progress is impossible
+              </?01M05F1P172K8CTJYXTSCCHQY8>
+            ] (
+              <Given ?01M05F1P172K8CTJYXTSCCHQY9>
+              No fiber is currently running
+              </?01M05F1P172K8CTJYXTSCCHQY9>
+              <When ?01M05F1P172K8CTJYXTSCCHQYA>
+              The runtime evaluates whether the foreground lane is settled
+              </?01M05F1P172K8CTJYXTSCCHQYA>
+            )>
+          ]>
+        )>
+        <Suite #mailbox-drain-observability { name = "Mailbox drain observability" } (
+          <Cases [
+            <Case #fiber-result-drained-before-safepoint (
+              <Given ?01M05F1P172K8CTJYXTSCCHQYB>
+              A fiber actor has returned `yield` and posted `fiber_result` to the orchestrator mailbox
+              </?01M05F1P172K8CTJYXTSCCHQYB>
+              <When ?01M05F1P172K8CTJYXTSCCHQYC>
+              The scheduler checks for a snapshot-safe boundary
+              </?01M05F1P172K8CTJYXTSCCHQYC>
+              <Then ?01M05F1P172K8CTJYXTSCCHQYD>
+              The runtime SHALL ensure queued orchestrator results that affect scheduling have been delivered or are represented as recoverable durable work
+              </?01M05F1P172K8CTJYXTSCCHQYD>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #runtime-control-barrier-consumers (
+      <Statement ?01M05F1P172K8CTJYXTSCCHQYE>
+      系统 SHALL let runtime coordination consumers use AI runtime control barrier APIs instead of duplicating mailbox and cooperative-state classification.
+      </?01M05F1P172K8CTJYXTSCCHQYE>
+      <Suites [
+        <Suite #coordinator-save-before-progress { name = "Coordinator Save Before Progress" } (
+          <Cases [
+            <Case #coordinator-uses-runtime-control-barrier [
+              <Then ?01M05F1P172K8CTJYXTSCCHQYF>
+              The coordinator SHALL inspect the AI runtime control barrier
+              </?01M05F1P172K8CTJYXTSCCHQYF>
+              <Then ?01M05F1P172K8CTJYXTSCCHQYG>
+              The coordinator SHALL NOT import safepoint implementation from persistence code
+              </?01M05F1P172K8CTJYXTSCCHQYG>
+            ] (
+              <Given ?01M05F1P172K8CTJYXTSCCHQYH>
+              The runtime coordinator is about to save a snapshot after queued work
+              </?01M05F1P172K8CTJYXTSCCHQYH>
+              <When ?01M05F1P172K8CTJYXTSCCHQYJ>
+              It decides whether foreground progress is needed first
+              </?01M05F1P172K8CTJYXTSCCHQYJ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

@@ -1,0 +1,45 @@
+<BehaviorPatch #track.bind-provider-tool-schema-projection-and-coverage.behavior_patch.provider-projection-coverage apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-projection-coverage" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-projection-coverage/requirements/tool-declaration-coverage-proof" } (
+      <Requirement #tool-declaration-coverage-proof (
+        <Statement ?>Before any provider request effect, a typed coverage gate SHALL normalize every canonical and emitted schema keyword, value, branch and constraint into kind/path/valueDigest facts, prove an exact fact double-entry mapping or one versioned compatible consume/produce transformation for every changed fact, and exclusively create an opaque admitted capability that binds defensive-copied exact serialized bytes and their body digest.</?>
+        <Suites [
+          <Suite #tool-declaration-coverage { name = "Tool declaration coverage proof" } (
+            <Cases [
+              <Case #complete-projection-receipt (
+                <Given ?>a deterministic provider projection that preserves or explicitly transforms every canonical tool-schema fact</?>
+                <When ?>the send-before coverage gate compares source, emitted declarations, and serialized body</?>
+                <Then ?>it SHALL issue a bounded immutable receipt with source/emitted fact-set digests and counts plus versioned transformation facts, while the internal gate retains the complete fact relation needed to prove values as well as paths</?>
+              )>
+              <Case #missing-tool-or-branch (
+                <Given ?>a projection missing a canonical tool, branch, or constrained schema path</?>
+                <When ?>coverage is evaluated</?>
+                <Then ?>the gate SHALL reject with a stable diagnostic and SHALL NOT expose or send a provider request</?>
+              )>
+              <Case #serialized-body-mismatch (
+                <Given ?>an admitted emitted-tool projection and a serialized body whose tool declarations differ from it</?>
+                <When ?>request admission performs final readback</?>
+                <Then ?>the gate SHALL reject before request observation and network I/O</?>
+              )>
+              <Case #admitted-body-is-immutable-authority (
+                <Given ?>an authentic admitted capability and a caller that later mutates its source request or byte input</?>
+                <When ?>transport verifies the private fixed bytes and serialized-body digest</?>
+                <Then ?>the sent bytes SHALL remain the originally admitted bytes, or any authenticity/digest mismatch SHALL reject before observation and I/O</?>
+              )>
+              <Case #coverage-domain-separation (
+                <Given ?>existing conversation function-call and function-output coverage evidence</?>
+                <When ?>tool declaration compatibility is verified</?>
+                <Then ?>declaration coverage SHALL require its own proof and SHALL NOT be inferred from conversation replay coverage</?>
+              )>
+              <Case #same-path-different-value (
+                <Given ?>source and emitted schemas with the same paths but a changed required member, enum value, nested type, or additional-property policy</?>
+                <When ?>fact coverage compares their value digests without an applicable versioned transformation</?>
+                <Then ?>the projection SHALL be rejected before an admitted request is produced</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

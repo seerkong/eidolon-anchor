@@ -1,5 +1,5 @@
 <tool {
   name = "RunDelegateActor"
   namespace = "SysBuiltIn"
-  description = "Spawn a temporary delegate actor for a focused subtask. In AI-agent terminology, delegate is the subagent alias."
+  description = "Spawn a temporary delegate actor for a focused subtask. In AI-agent terminology, delegate is the subagent alias. 只有用独立上下文运行任务有优势时，再使用本工具，不可不分条件的乱用"
 }>

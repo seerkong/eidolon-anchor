@@ -1,0 +1,61 @@
+<Track #propagate-tool-execution-outcomes version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让工具执行的 completed/failed 事实无损贯通 ToolCallDomain、History、恢复与终端观测" description = "扩展通用 ToolExecutionResultEnvelope outcome，统一两条 executor 路径，并让 Bash 保留非零进程退出事实。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-07-19T00:32:03+03:00" updated_at = "2026-07-19T19:25:31+03:00" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_propagate-tool-execution-outcomes { name = "propagate-tool-execution-outcomes" } (
+    <Description ?01M05F1PM0KPDMAWNVNFAQZRHZ>
+    以 TDD 建立显式工具 outcome，并贯通 Bash process fact 与 runtime lifecycle。
+    </?01M05F1PM0KPDMAWNVNFAQZRHZ>
+    <SubNodes [
+      <TaskGroup #P1 { name = "工具 outcome contract 与端到端传播" status = "DONE" order = 0 } (
+        <Description ?01M05F1PM0KPDMAWNVNFAQZRJ0>
+        在通用 contract 上实现 outcome，统一 streaming/cooperative/recovery，并验证 Bash 非零退出。
+        </?01M05F1PM0KPDMAWNVNFAQZRJ0>
+        <Gate [
+          <Criterion ?01M05F1PM0KPDMAWNVNFAQZRJ1>
+          显式 outcome 优先于文本推断，旧字符串工具保持兼容
+          </?01M05F1PM0KPDMAWNVNFAQZRJ1>
+          <Criterion ?01M05F1PM0KPDMAWNVNFAQZRJ2>
+          两条 executor 路径、ToolCallDomain、History、effect evidence 与 recovery 一致
+          </?01M05F1PM0KPDMAWNVNFAQZRJ2>
+          <Criterion ?01M05F1PM0KPDMAWNVNFAQZRJ3>
+          fresh coding E2E 的失败测试事件标记 isError=true，修复后仍正常完成
+          </?01M05F1PM0KPDMAWNVNFAQZRJ3>
+        ]>
+        <SubNodes [
+          <Task { id = "T1.1" name = "实现并验证显式工具执行 outcome" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PM0KPDMAWNVNFAQZRJ4>
+            先补显式失败 outcome、Bash 非零退出与 recovery 的 RED 测试；最小扩展 ToolExecutionResultEnvelope 和共享 executor leaf，贯通 streaming/cooperative/domain/history/evidence/recovery；迁移 Bash process mapping，并运行定向回归与 fresh headless smoke。
+            </?01M05F1PM0KPDMAWNVNFAQZRJ4>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PM0KPDMAWNVNFAQZRJ5>
+              通用 typed outcome 能表达 completed/failed+failureKind，显式事实优先且纯字符串兼容
+              </?01M05F1PM0KPDMAWNVNFAQZRJ5>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PM0KPDMAWNVNFAQZRJ6>
+              streaming 与 cooperative 对同一显式失败产生一致 ToolCallDomain failed、history isError 与 failed evidence
+              </?01M05F1PM0KPDMAWNVNFAQZRJ6>
+              <Criterion { id = "T1.1-AC3" checked = true } ?01M05F1PM0KPDMAWNVNFAQZRJ7>
+              Bash exit 1/timeout/abort 被分类失败，exit 0 完成，并保留输出与退出诊断
+              </?01M05F1PM0KPDMAWNVNFAQZRJ7>
+              <Criterion { id = "T1.1-AC4" checked = true } ?01M05F1PM0KPDMAWNVNFAQZRJ8>
+              snapshot/recovery 保持失败 status/failureKind，不重新依赖文本猜测
+              </?01M05F1PM0KPDMAWNVNFAQZRJ8>
+              <Criterion { id = "T1.1-AC5" checked = true } ?01M05F1PM0KPDMAWNVNFAQZRJ9>
+              实现无 Bash/Skill/TaskTree/Read/mission executor 名称特例，无 terminal prompt 或循环纠偏
+              </?01M05F1PM0KPDMAWNVNFAQZRJ9>
+              <Criterion { id = "T1.1-AC6" checked = true } ?01M05F1PM0KPDMAWNVNFAQZRJA>
+              定向测试、strict validate、diff check 与 fresh coding E2E 通过
+              </?01M05F1PM0KPDMAWNVNFAQZRJA>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

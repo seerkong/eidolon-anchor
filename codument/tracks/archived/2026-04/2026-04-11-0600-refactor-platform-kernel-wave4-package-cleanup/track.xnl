@@ -1,0 +1,81 @@
+<Track #refactor-platform-kernel-wave4-package-cleanup version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "清理旧 runtime profile alias，只保留正式 profile naming，并保持 terminal/tui/headless 主路径连续可运行。" commit_mode = "manual" created_at = "2026-04-11T05:55:48Z" updated_at = "2026-04-11T06:00:03Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-platform-kernel-wave4-package-cleanup { name = "refactor-platform-kernel-wave4-package-cleanup" } (
+    <Description ?01M05F1PC0Q7T7SWKKNBF7G9DB>
+    实施平台微内核 Wave 4 的 package cleanup
+    </?01M05F1PC0Q7T7SWKKNBF7G9DB>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Alias Cleanup" status = "DONE" order = 0 } (
+        <Description ?01M05F1PC0Q7T7SWKKNBF7G9DC>
+        移除旧 profile alias，并将剩余调用方切到正式命名。
+        </?01M05F1PC0Q7T7SWKKNBF7G9DC>
+        <SubNodes [
+          <Task { id = "T1.1" name = "移除 default-coding 兼容导出" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PC0Q7T7SWKKNBF7G9DD>
+            从 `@cell/mod-profiles` 删除旧 alias，只保留正式 profile naming。
+            </?01M05F1PC0Q7T7SWKKNBF7G9DD>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PC0Q7T7SWKKNBF7G9DE>
+              `defaultCodingRuntimeProfile` 已删除
+              </?01M05F1PC0Q7T7SWKKNBF7G9DE>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PC0Q7T7SWKKNBF7G9DF>
+              `assembleDefaultCodingRuntimeProfile` 已删除
+              </?01M05F1PC0Q7T7SWKKNBF7G9DF>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "更新剩余测试与调用方到正式 naming" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PC0Q7T7SWKKNBF7G9DG>
+            将所有残留引用切到 `ai-coding` 正式导出。
+            </?01M05F1PC0Q7T7SWKKNBF7G9DG>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PC0Q7T7SWKKNBF7G9DH>
+              代码与测试不再引用旧 alias
+              </?01M05F1PC0Q7T7SWKKNBF7G9DH>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PC0Q7T7SWKKNBF7G9DJ>
+              focused tests 改为验证正式 naming
+              </?01M05F1PC0Q7T7SWKKNBF7G9DJ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Focused Verification" status = "DONE" order = 1 } (
+        <Description ?01M05F1PC0Q7T7SWKKNBF7G9DK>
+        通过 focused verification 锁定别名清理后主路径仍可运行。
+        </?01M05F1PC0Q7T7SWKKNBF7G9DK>
+        <SubNodes [
+          <Task { id = "T2.1" name = "运行 runtime/profile focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PC0Q7T7SWKKNBF7G9DM>
+            验证 profile layering、runtime adoption 与正式 naming 断言。
+            </?01M05F1PC0Q7T7SWKKNBF7G9DM>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PC0Q7T7SWKKNBF7G9DN>
+              runtime/profile focused tests 全部通过
+              </?01M05F1PC0Q7T7SWKKNBF7G9DN>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PC0Q7T7SWKKNBF7G9DP>
+              正式 naming 断言通过
+              </?01M05F1PC0Q7T7SWKKNBF7G9DP>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "验证 terminal/tui/headless smoke tests" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PC0Q7T7SWKKNBF7G9DQ>
+            确认主路径在别名清理后未被打断。
+            </?01M05F1PC0Q7T7SWKKNBF7G9DQ>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PC0Q7T7SWKKNBF7G9DR>
+              terminal/headless 主路径测试通过
+              </?01M05F1PC0Q7T7SWKKNBF7G9DR>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PC0Q7T7SWKKNBF7G9DS>
+              tui semantic 主路径测试通过
+              </?01M05F1PC0Q7T7SWKKNBF7G9DS>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

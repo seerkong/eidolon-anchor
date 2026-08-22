@@ -1,0 +1,75 @@
+<Track #refactor-platform-kernel-wave9-domain-ai-contract-logic-explicitization version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "让 AI 领域微内核的 contract/logic 边界显式存在，并继续收紧 `composer/ai-contract` 为更薄的 AI facet。" commit_mode = "manual" created_at = "2026-04-11T10:05:00Z" updated_at = "2026-04-11T12:33:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-platform-kernel-wave9-domain-ai-contract-logic-explicitization { name = "refactor-platform-kernel-wave9-domain-ai-contract-logic-explicitization" } (
+    <Description ?01M05F1PCF1S4R9Q8RRHJSJW5K>
+    实施平台微内核 Wave 9 的 domain-ai contract/logic explicitization
+    </?01M05F1PCF1S4R9Q8RRHJSJW5K>
+    <SubNodes [
+      <TaskGroup #P1 { name = "Domain Ownership Freeze" status = "DONE" order = 0 } (
+        <Description ?01M05F1PCF1S4R9Q8RRHJSJW5M>
+        冻结 AI domain contract/logic 的正式 ownership。
+        </?01M05F1PCF1S4R9Q8RRHJSJW5M>
+        <SubNodes [
+          <Task { id = "T1.1" name = "定义 AI domain ownership 表" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCF1S4R9Q8RRHJSJW5N>
+            明确历史 `core-*` / `organ-*` 中哪些能力目标迁往 AI domain package。
+            </?01M05F1PCF1S4R9Q8RRHJSJW5N>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PCF1S4R9Q8RRHJSJW5P>
+              AI domain ownership 表明确
+              </?01M05F1PCF1S4R9Q8RRHJSJW5P>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PCF1S4R9Q8RRHJSJW5Q>
+              与平台 ownership 不冲突
+              </?01M05F1PCF1S4R9Q8RRHJSJW5Q>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Domain Explicitization" status = "DONE" order = 1 } (
+        <Description ?01M05F1PCF1S4R9Q8RRHJSJW5R>
+        建立显式 AI domain 宿主与更薄的 AI facet。
+        </?01M05F1PCF1S4R9Q8RRHJSJW5R>
+        <SubNodes [
+          <Task { id = "T2.1" name = "引入最小 domain-ai contract/logic 宿主并收紧 ai-contract" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCF1S4R9Q8RRHJSJW5S>
+            让 AI 领域微内核在正式包或等价真相源上显式存在。
+            </?01M05F1PCF1S4R9Q8RRHJSJW5S>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PCF1S4R9Q8RRHJSJW5T>
+              AI domain 边界显式存在
+              </?01M05F1PCF1S4R9Q8RRHJSJW5T>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PCF1S4R9Q8RRHJSJW5V>
+              `composer/ai-contract` 变得更薄
+              </?01M05F1PCF1S4R9Q8RRHJSJW5V>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Focused Verification" status = "DONE" order = 2 } (
+        <Description ?01M05F1PCF1S4R9Q8RRHJSJW5W>
+        验证 domain explicitization 不回归。
+        </?01M05F1PCF1S4R9Q8RRHJSJW5W>
+        <SubNodes [
+          <Task { id = "T3.1" name = "运行 contract/logic ownership focused tests" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PCF1S4R9Q8RRHJSJW5X>
+            验证 AI domain ownership、composer facet 与 profile adoption。
+            </?01M05F1PCF1S4R9Q8RRHJSJW5X>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PCF1S4R9Q8RRHJSJW5Y>
+              focused tests 通过
+              </?01M05F1PCF1S4R9Q8RRHJSJW5Y>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PCF1S4R9Q8RRHJSJW5Z>
+              无第二真相源回流
+              </?01M05F1PCF1S4R9Q8RRHJSJW5Z>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

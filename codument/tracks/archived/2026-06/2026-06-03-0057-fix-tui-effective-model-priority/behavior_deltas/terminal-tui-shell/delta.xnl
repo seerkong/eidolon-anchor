@@ -1,0 +1,122 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_3_-_0_0_5_7_-_f_i_x_-_t_u_i_-_e_f_f_e_c_t_i_v_e_-_m_o_d_e_l_-_p_r_i_o_r_i_t_y.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/effective-model-priority" } (
+      <Requirement #effective-model-priority (
+        <Statement ?01M05F1PF7SFT7FR2E0XDM7SGG>
+        系统 SHALL 在 terminal TUI 中以 source-aware 方式解析并展示当前有效模型，避免人工选择、启动参数、agent 默认、runtime 历史和配置默认之间互相拍平覆盖。
+        </?01M05F1PF7SFT7FR2E0XDM7SGG>
+        <Suites [
+          <Suite #priority-resolution { name = "有效模型优先级" } (
+            <Cases [
+              <Case #manual-dialog-selection-wins [
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SGH>
+                系统 SHALL 保持人工选择作为当前有效模型
+                </?01M05F1PF7SFT7FR2E0XDM7SGH>
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SGJ>
+                系统 SHALL 在状态条展示该人工选择后的 provider/model
+                </?01M05F1PF7SFT7FR2E0XDM7SGJ>
+              ] (
+                <Given ?01M05F1PF7SFT7FR2E0XDM7SGK>
+                用户在 TUI 模型 dialog 中人工选择 provider/model
+                </?01M05F1PF7SFT7FR2E0XDM7SGK>
+                <When ?01M05F1PF7SFT7FR2E0XDM7SGM>
+                agent 默认模型同步、runtime 历史投影或 recent model 随后产生不同模型候选
+                </?01M05F1PF7SFT7FR2E0XDM7SGM>
+              )>
+              <Case #cli-model-wins-over-config [
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SGN>
+                系统 SHALL 使用启动参数模型作为有效模型
+                </?01M05F1PF7SFT7FR2E0XDM7SGN>
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SGP>
+                该模型 SHALL 低于后续人工 dialog 选择的优先级
+                </?01M05F1PF7SFT7FR2E0XDM7SGP>
+              ] (
+                <Given ?01M05F1PF7SFT7FR2E0XDM7SGQ>
+                启动参数指定了 provider/model，且配置默认或 recent model 指向另一个模型
+                </?01M05F1PF7SFT7FR2E0XDM7SGQ>
+                <When ?01M05F1PF7SFT7FR2E0XDM7SGR>
+                TUI 初始化当前会话选择状态
+                </?01M05F1PF7SFT7FR2E0XDM7SGR>
+              )>
+              <Case #agent-memory-wins-over-agent-default [
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SGS>
+                系统 SHALL 优先使用 agent 用户记忆中的模型覆盖值
+                </?01M05F1PF7SFT7FR2E0XDM7SGS>
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SGT>
+                agent definition 默认模型 SHALL 只在缺少更高优先级来源时生效
+                </?01M05F1PF7SFT7FR2E0XDM7SGT>
+              ] (
+                <Given ?01M05F1PF7SFT7FR2E0XDM7SGV>
+                当前 agent 具有用户记忆中的 provider/model 覆盖值，且 agent definition 也声明默认模型
+                </?01M05F1PF7SFT7FR2E0XDM7SGV>
+                <When ?01M05F1PF7SFT7FR2E0XDM7SGW>
+                系统解析当前有效模型
+                </?01M05F1PF7SFT7FR2E0XDM7SGW>
+              )>
+              <Case #priority-order-is-stable (
+                <Given ?01M05F1PF7SFT7FR2E0XDM7SGX>
+                多个模型来源同时存在
+                </?01M05F1PF7SFT7FR2E0XDM7SGX>
+                <When ?01M05F1PF7SFT7FR2E0XDM7SGY>
+                系统解析当前有效模型
+                </?01M05F1PF7SFT7FR2E0XDM7SGY>
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SGZ>
+                系统 SHALL 按 user-explicit、cli-arg、agent-memory、agent-default、runtime-config、recent、provider-default 的顺序选择第一个有效模型
+                </?01M05F1PF7SFT7FR2E0XDM7SGZ>
+              )>
+            ]>
+          )>
+          <Suite #projection-and-display { name = "投影与展示" } (
+            <Cases [
+              <Case #runtime-history-does-not-overwrite-explicit-source [
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SH0>
+                系统 SHALL 只记录或使用 runtime 历史作为低优先级候选
+                </?01M05F1PF7SFT7FR2E0XDM7SH0>
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SH1>
+                系统 SHALL NOT 用 runtime 历史覆盖更高优先级的有效模型
+                </?01M05F1PF7SFT7FR2E0XDM7SH1>
+              ] (
+                <Given ?01M05F1PF7SFT7FR2E0XDM7SH2>
+                runtime 历史消息中包含 provider/model 信息
+                </?01M05F1PF7SFT7FR2E0XDM7SH2>
+                <When ?01M05F1PF7SFT7FR2E0XDM7SH3>
+                当前 selection 已有更高优先级来源
+                </?01M05F1PF7SFT7FR2E0XDM7SH3>
+              )>
+              <Case #status-line-shows-effective-model [
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SH4>
+                系统 SHALL 展示 effective model resolver 的输出
+                </?01M05F1PF7SFT7FR2E0XDM7SH4>
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SH5>
+                系统 SHALL NOT 直接展示未解析的拍平 selection 值
+                </?01M05F1PF7SFT7FR2E0XDM7SH5>
+              ] (
+                <Given ?01M05F1PF7SFT7FR2E0XDM7SH6>
+                当前 TUI 有多个模型候选来源
+                </?01M05F1PF7SFT7FR2E0XDM7SH6>
+                <When ?01M05F1PF7SFT7FR2E0XDM7SH7>
+                composer/input 底部状态条渲染 provider/model
+                </?01M05F1PF7SFT7FR2E0XDM7SH7>
+              )>
+              <Case #agent-switch-recomputes-without-model-only-overwrite-loop [
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SH8>
+                系统 SHALL 响应 agent identity 变化重新解析候选模型
+                </?01M05F1PF7SFT7FR2E0XDM7SH8>
+                <Then ?01M05F1PF7SFT7FR2E0XDM7SH9>
+                系统 SHALL NOT 因 provider/model-only 变化误触发 agent 默认模型覆盖人工选择
+                </?01M05F1PF7SFT7FR2E0XDM7SH9>
+              ] (
+                <Given ?01M05F1PF7SFT7FR2E0XDM7SHA>
+                用户切换当前 agent
+                </?01M05F1PF7SFT7FR2E0XDM7SHA>
+                <When ?01M05F1PF7SFT7FR2E0XDM7SHB>
+                系统根据新 agent 重新计算有效模型
+                </?01M05F1PF7SFT7FR2E0XDM7SHB>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

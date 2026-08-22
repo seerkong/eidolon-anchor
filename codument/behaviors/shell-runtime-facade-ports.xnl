@@ -1,0 +1,82 @@
+<Behavior #shell-runtime-facade-ports apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #shell-runtime-must-prefer-narrow-domain-facade-ports (
+      <Statement ?01M05F1P3KP15BT2D07J1CG3SD>
+      系统应当让 shell/runtime entry 优先消费更窄的 domain runtime facade port，而不是继续直接拼接过多 AI orchestration internals。
+      </?01M05F1P3KP15BT2D07J1CG3SD>
+      <Suites [
+        <Suite { name = "shell-runtime-must-prefer-narrow-domain-facade-ports" } (
+          <Cases [
+            <Case #terminal-runtime-consumes-narrowed-domain-facade { name = "Terminal runtime consumes narrowed domain facade" } [
+              <Then ?01M05F1P3KP15BT2D07J1CG3SE>
+              它应优先通过更窄的 domain facade port 获得能力
+              </?01M05F1P3KP15BT2D07J1CG3SE>
+              <Then ?01M05F1P3KP15BT2D07J1CG3SF>
+              不应继续直接持有过多 orchestrator/coordinator/organization 真相
+              </?01M05F1P3KP15BT2D07J1CG3SF>
+            ] (
+              <Given ?01M05F1P3KP15BT2D07J1CG3SG>
+              `TerminalRuntime` 需要执行 turn bridge、projection bridge 与 runtime lifecycle glue
+              </?01M05F1P3KP15BT2D07J1CG3SG>
+              <When ?01M05F1P3KP15BT2D07J1CG3SH>
+              完成本能力
+              </?01M05F1P3KP15BT2D07J1CG3SH>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #shell-facade-cutover-must-preserve-adoption-behavior (
+      <Statement ?01M05F1P3KP15BT2D07J1CG3SJ>
+      系统应当在 shell facade 收紧后继续保持 terminal/tui/headless adoption 主路径不回归。
+      </?01M05F1P3KP15BT2D07J1CG3SJ>
+      <Suites [
+        <Suite { name = "shell-facade-cutover-must-preserve-adoption-behavior" } (
+          <Cases [
+            <Case #shell-adoption-still-works-after-facade-narrowing { name = "Shell adoption still works after facade narrowing" } [
+              <Then ?01M05F1P3KP15BT2D07J1CG3SK>
+              focused tests 应继续通过
+              </?01M05F1P3KP15BT2D07J1CG3SK>
+              <Then ?01M05F1P3KP15BT2D07J1CG3SM>
+              shell 不得回退到本地默认 AI 语义
+              </?01M05F1P3KP15BT2D07J1CG3SM>
+            ] (
+              <Given ?01M05F1P3KP15BT2D07J1CG3SN>
+              terminal/tui/headless 当前已消费 assembly result 与 runtime bridge
+              </?01M05F1P3KP15BT2D07J1CG3SN>
+              <When ?01M05F1P3KP15BT2D07J1CG3SP>
+              完成本能力
+              </?01M05F1P3KP15BT2D07J1CG3SP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #shell-runtime-facade-exposes-runtime-context-control-views (
+      <Statement ?01M05F1P3KP15BT2D07J1CG3SQ>
+      系统应当让 shell/runtime facade 暴露正式的 work context、continuation baseline 与 prompt/context 相关 runtime-first 视图，而不是要求 terminal 侧散读底层状态。
+      </?01M05F1P3KP15BT2D07J1CG3SQ>
+      <Suites [
+        <Suite { name = "shell-runtime-facade-exposes-runtime-context-control-views" } (
+          <Cases [
+            <Case #terminal-facing-shell-facade-can-read-runtime-context-control-state { name = "Terminal-facing shell facade can read runtime context control state" } [
+              <Then ?01M05F1P3KP15BT2D07J1CG3SR>
+              facade SHALL 提供稳定的 runtime-first 读取入口
+              </?01M05F1P3KP15BT2D07J1CG3SR>
+              <Then ?01M05F1P3KP15BT2D07J1CG3SS>
+              调用方不应继续直接拼接底层 actor/runtime 真相
+              </?01M05F1P3KP15BT2D07J1CG3SS>
+            ] (
+              <Given ?01M05F1P3KP15BT2D07J1CG3ST>
+              terminal、headless 或 shell bridge 需要读取当前 session 的 work context、continuation baseline 或相关 prompt state
+              </?01M05F1P3KP15BT2D07J1CG3ST>
+              <When ?01M05F1P3KP15BT2D07J1CG3SV>
+              它们通过 shell runtime facade 获取这些信息
+              </?01M05F1P3KP15BT2D07J1CG3SV>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

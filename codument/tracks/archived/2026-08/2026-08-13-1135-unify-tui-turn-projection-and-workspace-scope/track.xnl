@@ -1,0 +1,177 @@
+<Track #unify-tui-turn-projection-and-workspace-scope version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "统一 TUI 三入口的 typed turn 投影与 durable reconciliation，并用显式 scope intent 避免 workspace 父目录过宽授权" description = "修复 assistant/tool/context 重复或错卡，以及 workspace 文件操作误触发父级目录授权" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-13T07:47:24Z" updated_at = "2026-08-13T08:35:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "input" name = "tui-runtime" domain = "code" path = "vfs://@/terminal/packages/tui/" }>
+    <MaterialBundle { role = "input" name = "local-permissions" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/permissions/" }>
+    <MaterialBundle { role = "output" name = "implementation" domain = "code" path = "vfs://@/" }>
+  ]>
+  <TaskSpace #space_unify-tui-turn-projection-and-workspace-scope { name = "unify-tui-turn-projection-and-workspace-scope" } (
+    <Description ?01M05F1PTBQS2R025B07RP955Z>
+    以测试先行方式统一 surface 投影、历史角色/context resource 与 workspace scope 权限
+    </?01M05F1PTBQS2R025B07RP955Z>
+    <SubNodes [
+      <TaskGroup #P1 { name = "冻结三入口投影契约" status = "DONE" order = 0 } (
+        <Description ?01M05F1PTBQS2R025B07RP9560>
+        建立 prompt、command、questionnaire continuation 的等价行为与重复问题回归测试
+        </?01M05F1PTBQS2R025B07RP9560>
+        <SubNodes [
+          <Task { id = "T1.1" name = "编写三入口 category 与 identity 失败测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PTBQS2R025B07RP9561>
+            参数化同一 semantic sequence，验证隐藏类别、thinking/assistant 分流、单一 tool identity 与 continuation onControl
+            </?01M05F1PTBQS2R025B07RP9561>
+            <Acceptance [
+              <Criterion { id = "T1.1-AC1" checked = true } ?01M05F1PTBQS2R025B07RP9562>
+              测试能复现 continuation 把 turn/tool/result 写入 assistant 的现状
+              </?01M05F1PTBQS2R025B07RP9562>
+              <Criterion { id = "T1.1-AC2" checked = true } ?01M05F1PTBQS2R025B07RP9563>
+              测试覆盖 prompt、slash command、questionnaire continuation 三入口等价
+              </?01M05F1PTBQS2R025B07RP9563>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "实现单一 turn surface projector" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PTBQS2R025B07RP9564>
+            抽取 typed projector/state owner 并让三入口共同委托 control/chunk/history/final reconciliation，删除重复逻辑
+            </?01M05F1PTBQS2R025B07RP9564>
+            <Acceptance [
+              <Criterion { id = "T1.2-AC1" checked = true } ?01M05F1PTBQS2R025B07RP9565>
+              三入口共享同一个 projector factory/adapter，无三份 assistant/tool state machine
+              </?01M05F1PTBQS2R025B07RP9565>
+              <Criterion { id = "T1.2-AC2" checked = true } ?01M05F1PTBQS2R025B07RP9566>
+              Starting turn、tool args/results、done 不进入 assistant，think/assist 分类正确
+              </?01M05F1PTBQS2R025B07RP9566>
+              <Criterion { id = "T1.2-AC3" checked = true } ?01M05F1PTBQS2R025B07RP9567>
+              同一 actorId+toolCallId 仅一个 ToolPart，live 与 durable 可合并
+              </?01M05F1PTBQS2R025B07RP9567>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion ?01M05F1PTBQS2R025B07RP9568>
+          P1 所有任务 DONE，三入口投影测试通过
+          </?01M05F1PTBQS2R025B07RP9568>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "修复历史角色与 context resource 投影" status = "DONE" order = 1 } (
+        <Description ?01M05F1PTBQS2R025B07RP9569>
+        让 durable history 保持稳定 identity，并阻止 tool/system/context 被投为 USER
+        </?01M05F1PTBQS2R025B07RP9569>
+        <SubNodes [
+          <Task { id = "T2.1" name = "编写 role、resync 与 context card 失败测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PTBQS2R025B07RP956A>
+            覆盖 user/assistant/tool/system exhaustive mapping、重复 resync 稳定 id、loaded/already-visible context metadata
+            </?01M05F1PTBQS2R025B07RP956A>
+            <Acceptance [
+              <Criterion { id = "T2.1-AC1" checked = true } ?01M05F1PTBQS2R025B07RP956B>
+              tool/system 不得成为 USER 的回归测试先失败
+              </?01M05F1PTBQS2R025B07RP956B>
+              <Criterion { id = "T2.1-AC2" checked = true } ?01M05F1PTBQS2R025B07RP956C>
+              context-resource raw XML 不得成为 USER，且有折叠 context/read metadata 测试
+              </?01M05F1PTBQS2R025B07RP956C>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "实现稳定 history mapper 与 context projection" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PTBQS2R025B07RP956D>
+            用 message/tool/resource identity 增量 reconcile，tool role 重建 ToolPart，system/internal 隐藏，context metadata 进入折叠卡片
+            </?01M05F1PTBQS2R025B07RP956D>
+            <Acceptance [
+              <Criterion { id = "T2.2-AC1" checked = true } ?01M05F1PTBQS2R025B07RP956E>
+              重复 hydrate/resync 不创建新随机 identity 或重复卡片
+              </?01M05F1PTBQS2R025B07RP956E>
+              <Criterion { id = "T2.2-AC2" checked = true } ?01M05F1PTBQS2R025B07RP956F>
+              仅 user role 显示为 USER；tool 保留 toolCallId
+              </?01M05F1PTBQS2R025B07RP956F>
+              <Criterion { id = "T2.2-AC3" checked = true } ?01M05F1PTBQS2R025B07RP956G>
+              UI 不含 context-resource XML 解析或 provider 名称分支
+              </?01M05F1PTBQS2R025B07RP956G>
+              <Criterion { id = "T2.2-AC4" checked = true } ?01M05F1PTBQS2R025B07RP956H>
+              typed context metadata 经既有 conversation persistence/read port 在冷启动 hydration 后仍可恢复
+              </?01M05F1PTBQS2R025B07RP956H>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion ?01M05F1PTBQS2R025B07RP956J>
+          P2 所有任务 DONE，history/context projection 测试通过
+          </?01M05F1PTBQS2R025B07RP956J>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "收紧 workspace 文件访问意图" status = "DONE" order = 2 } (
+        <Description ?01M05F1PTBQS2R025B07RP956K>
+        引入 scopeIntent 并区分 one-time/persistent grant，消除误传父目录导致的过宽授权
+        </?01M05F1PTBQS2R025B07RP956K>
+        <SubNodes [
+          <Task { id = "T3.1" name = "编写 scope intent 与 grant mode 失败测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PTBQS2R025B07RP956M>
+            覆盖默认 workspace 越界不问卷、explicit external 才问卷、one-time 不持久化、read-write advanced
+            </?01M05F1PTBQS2R025B07RP956M>
+            <Acceptance [
+              <Criterion { id = "T3.1-AC1" checked = true } ?01M05F1PTBQS2R025B07RP956N>
+              父目录请求在默认 workspace intent 下返回可恢复诊断且无 approvalGrant
+              </?01M05F1PTBQS2R025B07RP956N>
+              <Criterion { id = "T3.1-AC2" checked = true } ?01M05F1PTBQS2R025B07RP956P>
+              explicit external 保持现有 permission authority 与 replay
+              </?01M05F1PTBQS2R025B07RP956P>
+              <Criterion { id = "T3.1-AC3" checked = true } ?01M05F1PTBQS2R025B07RP956Q>
+              one-time read 不写 workspace-access.json
+              </?01M05F1PTBQS2R025B07RP956Q>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "实现 scopeIntent 与最小权限问卷" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PTBQS2R025B07RP956R>
+            更新文件工具 schema/types/payload、permission evaluator/runtime 与 questionnaire choices
+            </?01M05F1PTBQS2R025B07RP956R>
+            <Acceptance [
+              <Criterion { id = "T3.2-AC1" checked = true } ?01M05F1PTBQS2R025B07RP956S>
+              文件工具默认 workspace，ls/glob/grep 省略 path 使用点号语义
+              </?01M05F1PTBQS2R025B07RP956S>
+              <Criterion { id = "T3.2-AC2" checked = true } ?01M05F1PTBQS2R025B07RP956T>
+              workspace intent 越界 fail closed 且不创建授权问卷
+              </?01M05F1PTBQS2R025B07RP956T>
+              <Criterion { id = "T3.2-AC3" checked = true } ?01M05F1PTBQS2R025B07RP956V>
+              external grant 支持 one-time read、persistent read、advanced read-write、deny
+              </?01M05F1PTBQS2R025B07RP956V>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion ?01M05F1PTBQS2R025B07RP956W>
+          P3 所有任务 DONE，permission 与 file tool tests 通过
+          </?01M05F1PTBQS2R025B07RP956W>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "跨 surface 回归与方向审查" status = "DONE" order = 3 } (
+        <Description ?01M05F1PTBQS2R025B07RP956X>
+        验证没有新增 authority、provider 分支、模糊匹配或 headless 行为变化
+        </?01M05F1PTBQS2R025B07RP956X>
+        <SubNodes [
+          <Task { id = "T4.1" name = "运行目标回归与架构扫描" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PTBQS2R025B07RP956Y>
+            运行 TUI、questionnaire、permission、context resource、cross-surface tests 与静态边界扫描
+            </?01M05F1PTBQS2R025B07RP956Y>
+            <Acceptance [
+              <Criterion { id = "T4.1-AC1" checked = true } ?01M05F1PTBQS2R025B07RP956Z>
+              目标测试全部通过，已有 baseline failure 明确归因并在范围内修复
+              </?01M05F1PTBQS2R025B07RP956Z>
+              <Criterion { id = "T4.1-AC2" checked = true } ?01M05F1PTBQS2R025B07RP9570>
+              源码无 provider name 路由、context XML 正则/模糊解析或第二套 runtime/session truth
+              </?01M05F1PTBQS2R025B07RP9570>
+              <Criterion { id = "T4.1-AC3" checked = true } ?01M05F1PTBQS2R025B07RP9571>
+              CLI/headless domain 等价测试保持通过
+              </?01M05F1PTBQS2R025B07RP9571>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion ?01M05F1PTBQS2R025B07RP9572>
+          全部 phase/task DONE，严格校验与目标回归通过
+          </?01M05F1PTBQS2R025B07RP9572>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+)>

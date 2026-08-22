@@ -1,0 +1,74 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_8_-_0_8_0_0_-_d_e_s_i_g_n_-_r_u_n_t_i_m_e_-_c_o_n_t_r_o_l_-_e_n_g_i_n_e.behavior_patch.vendor-runtime-control-primitives apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-runtime-control-primitives" } (
+  <Mutations [
+    <Upsert { selector = "behavior://vendor-runtime-control-primitives/requirements/vendor-substrate" } (
+      <Requirement #vendor-substrate (
+        <Statement ?01M05F1PGJ9X8NC9Z0ZN9A92YE>
+        runtime control engine SHALL 优先复用 vendor 原语：使用本地 link 的 depa-actor@0.2.0 承载 actor loop、priority mailbox、selective receive、fiber scheduling、CommandDequeGroup、stack/frame、instruction dispatch 和 command group reducer helpers；使用 depa-processor 承载标准化 effect handler dispatch。
+        </?01M05F1PGJ9X8NC9Z0ZN9A92YE>
+        <Suites [
+          <Suite #no-duplicate-substrate { name = "不重复构造底层原语" } (
+            <Cases [
+              <Case #reuse-actor-scheduler (
+                <Given ?01M05F1PGJ9X8NC9Z0ZN9A92YF>
+                engine 需要调度 command、tick、resume、cancel、effect-result、commit 或 maintenance work
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YF>
+                <When ?01M05F1PGJ9X8NC9Z0ZN9A92YG>
+                实现控制循环
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YG>
+                <Then ?01M05F1PGJ9X8NC9Z0ZN9A92YH>
+                engine SHALL 基于 depa-actor@0.2.0 的 actor/fiber/mailbox 和 CommandDequeGroup 能力实现，而不是自建平行 scheduler 或 command worklist
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YH>
+              )>
+              <Case #reuse-local-execution-kernel (
+                <Given ?01M05F1PGJ9X8NC9Z0ZN9A92YJ>
+                engine 需要 actor-local command worklist、stack/frame 或 instruction dispatch
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YJ>
+                <When ?01M05F1PGJ9X8NC9Z0ZN9A92YK>
+                实现 runtime control engine 的本地解释执行层
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YK>
+                <Then ?01M05F1PGJ9X8NC9Z0ZN9A92YM>
+                engine SHALL reuse depa-actor@0.2.0 CommandDequeGroup、CommandDeque、InstructionStack、OperandStack、dispatchInstructions 和 group reducer helpers
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YM>
+              )>
+              <Case #reuse-processor-dispatch (
+                <Given ?01M05F1PGJ9X8NC9Z0ZN9A92YN>
+                engine 需要调用外部副作用 handler
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YN>
+                <When ?01M05F1PGJ9X8NC9Z0ZN9A92YP>
+                effect request 需要路由到实现
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YP>
+                <Then ?01M05F1PGJ9X8NC9Z0ZN9A92YQ>
+                engine SHALL 基于 depa-processor 的标准组件或 dispatch 协议实现 handler selection
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YQ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://vendor-runtime-control-primitives/requirements/generic-extension-boundary" } (
+      <Requirement #generic-extension-boundary (
+        <Statement ?01M05F1PGJ9X8NC9Z0ZN9A92YR>
+        vendor 层新增能力 SHALL 保持领域无关；在 depa-actor@0.2.0 已提供 local execution kernel 后，新增控制能力应聚焦 effect lifecycle、durable cohort、safepoint、recovery、processor adapter 和 conformance harness 等通用控制概念。
+        </?01M05F1PGJ9X8NC9Z0ZN9A92YR>
+        <Suites [
+          <Suite #domain-neutrality { name = "领域无关" } (
+            <Cases [
+              <Case #no-ai-terms (
+                <Given ?01M05F1PGJ9X8NC9Z0ZN9A92YS>
+                新增 vendor control primitive 类型、函数、文件或文档
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YS>
+                <When ?01M05F1PGJ9X8NC9Z0ZN9A92YT>
+                审查命名和职责
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YT>
+                <Then ?01M05F1PGJ9X8NC9Z0ZN9A92YV>
+                vendor 层 SHALL NOT 使用 AI runtime 领域术语表达通用控制能力
+                </?01M05F1PGJ9X8NC9Z0ZN9A92YV>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

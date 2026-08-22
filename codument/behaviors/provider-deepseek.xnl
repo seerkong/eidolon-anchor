@@ -1,0 +1,56 @@
+<Behavior #provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #v4-flash-capabilities (
+      <Statement ?01M05F1P2XR8NJ19CPHHVX9NXQ>
+      DeepSeek adapter SHALL 支持模型 id `deepseek-v4-flash` 及其官方 Chat Completions 文本、thinking、reasoning effort、stream 与 tool-call contract；截至 2026-08-02，该模型 SHALL 声明为 text-only，系统 MUST NOT 把官方不支持的 image/file content 发送后当作识图成功。
+      </?01M05F1P2XR8NJ19CPHHVX9NXQ>
+      <Suites [
+        <Suite #v4-flash-routing { name = "DeepSeek V4 Flash 接入" } (
+          <Cases [
+            <Case #uses-current-model-id-and-endpoint [
+              <Then ?01M05F1P2XR8NJ19CPHHVX9NXR>
+              请求 SHALL 使用配置的 DeepSeek base URL、`/chat/completions` endpoint 与原始模型 id
+              </?01M05F1P2XR8NJ19CPHHVX9NXR>
+              <Then ?01M05F1P2XR8NJ19CPHHVX9NXS>
+              stream、tools、thinking 与受支持 reasoning effort SHALL 继续工作
+              </?01M05F1P2XR8NJ19CPHHVX9NXS>
+            ] (
+              <Given ?01M05F1P2XR8NJ19CPHHVX9NXT>
+              provider adapter 为 deepseek 且模型配置为 deepseek-v4-flash
+              </?01M05F1P2XR8NJ19CPHHVX9NXT>
+              <When ?01M05F1P2XR8NJ19CPHHVX9NXV>
+              系统构造 Chat Completions 请求
+              </?01M05F1P2XR8NJ19CPHHVX9NXV>
+            )>
+            <Case #official-limits-are-configurable (
+              <Given ?01M05F1P2XR8NJ19CPHHVX9NXW>
+              示例或用户配置选择 DeepSeek V4 Flash
+              </?01M05F1P2XR8NJ19CPHHVX9NXW>
+              <When ?01M05F1P2XR8NJ19CPHHVX9NXX>
+              provider catalog 解析模型
+              </?01M05F1P2XR8NJ19CPHHVX9NXX>
+              <Then ?01M05F1P2XR8NJ19CPHHVX9NXY>
+              context/output limits SHALL 可按官方 1M/384K 值配置并传播到 runtime capability
+              </?01M05F1P2XR8NJ19CPHHVX9NXY>
+            )>
+            <Case #image-is-rejected-not-placeholdered [
+              <Then ?01M05F1P2XR8NJ19CPHHVX9NXZ>
+              系统 SHALL 在 I/O 前以 unsupported image modality 拒绝请求
+              </?01M05F1P2XR8NJ19CPHHVX9NXZ>
+              <Then ?01M05F1P2XR8NJ19CPHHVX9NY0>
+              系统 MUST NOT 发送 input_image 让服务端替换为 placeholder，也 MUST NOT 声称已识别图片
+              </?01M05F1P2XR8NJ19CPHHVX9NY0>
+            ] (
+              <Given ?01M05F1P2XR8NJ19CPHHVX9NY1>
+              当前模型为 deepseek-v4-flash 且 prompt 含 image part
+              </?01M05F1P2XR8NJ19CPHHVX9NY1>
+              <When ?01M05F1P2XR8NJ19CPHHVX9NY2>
+              系统准备 provider 请求
+              </?01M05F1P2XR8NJ19CPHHVX9NY2>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

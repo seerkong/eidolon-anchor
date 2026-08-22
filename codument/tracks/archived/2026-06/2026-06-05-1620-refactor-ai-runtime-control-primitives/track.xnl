@@ -1,0 +1,270 @@
+<Track #refactor-ai-runtime-control-primitives version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" description = "将 actor 控制面一致性抽象为 vendor/depa-actor-control 底层原语和 ai-runtime-control-contract/logic AI 领域原语，并迁移 safepoint 热路径。" commit_mode = "manual" created_at = "2026-06-05T05:54:02Z" updated_at = "2026-06-05T08:20:00Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_refactor-ai-runtime-control-primitives { name = "refactor-ai-runtime-control-primitives" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Vendor Actor Control 原语" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task { id = "T1.1" name = "编写 vendor 原语契约测试" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ5C>
+            为 `vendor/depa-actor-control` 的 operation、mailbox classification、barrier 和 durable head cohort 编写最小单元测试。
+            </?01M05F1PG1CYE36RC7RKKRSQ5C>
+            <Acceptance [
+              <Criterion #AC-operation-data-tested { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5D>
+              测试证明 control operation 是可序列化数据而非直接命令调用
+              </?01M05F1PG1CYE36RC7RKKRSQ5D>
+              <Criterion #AC-work-classes-tested { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5E>
+              测试覆盖基础 mailbox work classes
+              </?01M05F1PG1CYE36RC7RKKRSQ5E>
+              <Criterion #AC-barrier-bounded-tested { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5F>
+              测试证明 blocked barrier 只返回 bounded metadata
+              </?01M05F1PG1CYE36RC7RKKRSQ5F>
+            ]>
+          )>
+          <Task { id = "T1.2" name = "实现 vendor/depa-actor-control package" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ5G>
+            创建 `vendor/depa-actor-control` package、导出核心类型和纯函数 helper，并接入 workspace。
+            </?01M05F1PG1CYE36RC7RKKRSQ5G>
+            <Acceptance [
+              <Criterion #AC-package-created { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5H>
+              `vendor/depa-actor-control/package.json` 和 `src/index.ts` 存在
+              </?01M05F1PG1CYE36RC7RKKRSQ5H>
+              <Criterion #AC-workspace-includes-vendor { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5J>
+              root workspace 包含 `vendor/*` 或等价配置
+              </?01M05F1PG1CYE36RC7RKKRSQ5J>
+              <Criterion #AC-no-ai-domain-names { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5K>
+              vendor package 不包含 AI/LLM/tool/questionnaire/member/delegate/holon 语义命名
+              </?01M05F1PG1CYE36RC7RKKRSQ5K>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "AI Runtime Control Contract 与 Logic" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task { id = "T2.1" name = "编写 AI runtime control contract 测试和类型期望" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ5M>
+            为 AI mailbox policy、AI turn barrier、AI control operation 和 AI durable head cohort 建立类型与行为期望。
+            </?01M05F1PG1CYE36RC7RKKRSQ5M>
+            <Acceptance [
+              <Criterion #AC-contract-surface-tested { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5N>
+              contract package surface 可被逻辑层和 organ 层导入
+              </?01M05F1PG1CYE36RC7RKKRSQ5N>
+              <Criterion #AC-ai-barrier-types-tested { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5P>
+              AI turn barrier 类型表达 snapshot/idle/heartbeat/recovery/TUI settled 等 consumer
+              </?01M05F1PG1CYE36RC7RKKRSQ5P>
+            ]>
+          )>
+          <Task { id = "T2.2" name = "实现 ai-runtime-control-contract package" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ5Q>
+            创建 `cell/packages/ai-runtime-control-contract`，定义 AI 控制面 contract，不包含实现。
+            </?01M05F1PG1CYE36RC7RKKRSQ5Q>
+            <Acceptance [
+              <Criterion #AC-contract-package-created { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5R>
+              contract package 创建并导出类型
+              </?01M05F1PG1CYE36RC7RKKRSQ5R>
+              <Criterion #AC-contract-no-organ-dependency { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5S>
+              contract package 不依赖 `@cell/ai-organ-logic`
+              </?01M05F1PG1CYE36RC7RKKRSQ5S>
+            ]>
+          )>
+          <Task { id = "T2.3" name = "编写 AI mailbox policy 和 safepoint checker 测试" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ5T>
+            迁移前先在 `ai-runtime-control-logic` 层测试 matching asyncCompletion、childDone.sync_wait、start_tool mandatory continuation 和 ordinary inputs。
+            </?01M05F1PG1CYE36RC7RKKRSQ5T>
+            <Acceptance [
+              <Criterion #AC-async-completion-tested { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5V>
+              matching asyncCompletion 被分类为 mandatory completion
+              </?01M05F1PG1CYE36RC7RKKRSQ5V>
+              <Criterion #AC-child-done-tested { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5W>
+              childDone.sync_wait 被分类为 mandatory completion
+              </?01M05F1PG1CYE36RC7RKKRSQ5W>
+              <Criterion #AC-ordinary-inputs-tested { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5X>
+              humanInput/memberChat/heartbeat 等不会被一刀切阻塞 snapshot
+              </?01M05F1PG1CYE36RC7RKKRSQ5X>
+            ]>
+          )>
+          <Task { id = "T2.4" name = "实现 ai-runtime-control-logic package" status = "DONE" order = 3 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ5Y>
+            创建 `cell/packages/ai-runtime-control-logic`，依赖 vendor control primitives 和 AI contract，实现 mailbox policy 与 safepoint checker。
+            </?01M05F1PG1CYE36RC7RKKRSQ5Y>
+            <Acceptance [
+              <Criterion #AC-logic-package-created { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ5Z>
+              logic package 创建并导出 safepoint/barrier API
+              </?01M05F1PG1CYE36RC7RKKRSQ5Z>
+              <Criterion #AC-logic-uses-vendor { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ60>
+              logic package 使用 `depa-actor-control` 的 work classification/barrier 类型
+              </?01M05F1PG1CYE36RC7RKKRSQ60>
+              <Criterion #AC-logic-no-organ-dependency { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ61>
+              logic package 不依赖 `@cell/ai-organ-logic`
+              </?01M05F1PG1CYE36RC7RKKRSQ61>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Safepoint 热路径迁移" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task { id = "T3.1" name = "迁移 safepoint helper 到 AI runtime control logic" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ62>
+            将 `ai-organ-logic/src/runtime/AiRuntimeSnapshotSafepoint.ts` 的实现迁移到 `ai-runtime-control-logic`，并删除旧 shim/re-export。
+            </?01M05F1PG1CYE36RC7RKKRSQ62>
+            <Acceptance [
+              <Criterion #AC-helper-migrated { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ63>
+              safepoint 实现在 AI runtime control logic 中
+              </?01M05F1PG1CYE36RC7RKKRSQ63>
+              <Criterion #AC-old-path-removed { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ64>
+              旧 helper 路径被删除，不保留 re-export、shim 或兼容 adapter
+              </?01M05F1PG1CYE36RC7RKKRSQ64>
+              <Criterion #AC-no-vm-contract-change { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ65>
+              不新增 `AiAgentVm` / `VmRuntimeContext` 字段
+              </?01M05F1PG1CYE36RC7RKKRSQ65>
+            ]>
+          )>
+          <Task { id = "T3.2" name = "更新 RuntimeSnapshots 和 Coordinator 调用方" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ66>
+            让 persistence writer 和 runtime coordinator 通过 package name 消费 AI runtime control layer 的 safepoint/barrier API。
+            </?01M05F1PG1CYE36RC7RKKRSQ66>
+            <Acceptance [
+              <Criterion #AC-persistence-consumes-ai-control { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ67>
+              `RuntimeSnapshots` 从 AI runtime control layer 获取 safepoint result
+              </?01M05F1PG1CYE36RC7RKKRSQ67>
+              <Criterion #AC-coordinator-consumes-ai-control { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ68>
+              `AiAgentRuntimeCoordinator` 从 AI runtime control layer 判断保存前推进需求
+              </?01M05F1PG1CYE36RC7RKKRSQ68>
+              <Criterion #AC-no-cross-package-src-import { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ69>
+              相关调用方不通过相对路径导入其他 package 的 `src`
+              </?01M05F1PG1CYE36RC7RKKRSQ69>
+              <Criterion #AC-runtime-snapshot-no-compat-export { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6A>
+              `RuntimeSnapshots` 不再兼容导出 safepoint API
+              </?01M05F1PG1CYE36RC7RKKRSQ6A>
+            ]>
+          )>
+          <Task { id = "T3.3" name = "运行 runtime safepoint/recovery 回归测试" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ6B>
+            运行现有 safepoint、durable signal、runtime recovery 和 OpenAI Responses input-item 回归测试。
+            </?01M05F1PG1CYE36RC7RKKRSQ6B>
+            <Acceptance [
+              <Criterion #AC-safepoint-tests-pass { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6C>
+              runtime_snapshot_safepoints 测试通过
+              </?01M05F1PG1CYE36RC7RKKRSQ6C>
+              <Criterion #AC-durable-signal-tests-pass { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6D>
+              durable_control_signal 测试通过
+              </?01M05F1PG1CYE36RC7RKKRSQ6D>
+              <Criterion #AC-recovery-tests-pass { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6E>
+              runtime_recovery 测试通过
+              </?01M05F1PG1CYE36RC7RKKRSQ6E>
+              <Criterion #AC-provider-tests-pass { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6F>
+              openai_responses_input_items 测试通过
+              </?01M05F1PG1CYE36RC7RKKRSQ6F>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "文档与验证" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task { id = "T4.1" name = "更新实现文档和迁移说明" status = "DONE" order = 0 priority = "P1" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ6G>
+            更新 runtime control/safepoint 实现文档，说明 vendor、AI runtime control 和 organ 层边界。
+            </?01M05F1PG1CYE36RC7RKKRSQ6G>
+            <Acceptance [
+              <Criterion #AC-doc-boundaries { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6H>
+              文档明确三层边界和 not-owned-here
+              </?01M05F1PG1CYE36RC7RKKRSQ6H>
+              <Criterion #AC-followup-seams { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6J>
+              文档记录 heartbeat/questionnaire/actor surface 后续迁移 seam
+              </?01M05F1PG1CYE36RC7RKKRSQ6J>
+            ]>
+          )>
+          <Task #T-sync-knowledge-docs { name = "同步项目知识文档" status = "DONE" order = 1 priority = "P1" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ6K>
+            根据 feature.json 中配置的 knowledgeSync targets 和对应 attractor，判断并同步受影响的知识目录。
+            </?01M05F1PG1CYE36RC7RKKRSQ6K>
+            <Acceptance [
+              <Criterion #AC-read-attractor { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6M>
+              已读取目标 knowledge attractor
+              </?01M05F1PG1CYE36RC7RKKRSQ6M>
+              <Criterion #AC-decide-sync { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6N>
+              已判断是否需要同步 docs 或外部知识目录
+              </?01M05F1PG1CYE36RC7RKKRSQ6N>
+              <Criterion #AC-log-reason { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6P>
+              已记录未同步的理由或已完成同步
+              </?01M05F1PG1CYE36RC7RKKRSQ6P>
+            ]>
+          )>
+          <Task { id = "T4.2" name = "执行 Codument 与代码校验" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ6Q>
+            运行 Codument strict validate、相关测试和 diff 检查，确认 track 可归档。
+            </?01M05F1PG1CYE36RC7RKKRSQ6Q>
+            <Acceptance [
+              <Criterion #AC-codument-valid { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6R>
+              `codument validate refactor-ai-runtime-control-primitives --strict` 通过
+              </?01M05F1PG1CYE36RC7RKKRSQ6R>
+              <Criterion #AC-diff-check { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6S>
+              `git diff --check` 通过
+              </?01M05F1PG1CYE36RC7RKKRSQ6S>
+              <Criterion #AC-related-tests-pass { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6T>
+              相关 runtime control/safepoint 测试通过
+              </?01M05F1PG1CYE36RC7RKKRSQ6T>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Wake Mailbox 原子性修正" status = "DONE" order = 4 } (
+        <SubNodes [
+          <Task { id = "T5.1" name = "修复 ready fiber wake 调度" status = "DONE" order = 0 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ6V>
+            修复 ready fiber 收到 wake/resume 后只进入 pendingResumes 而没有可执行 agent_step 的问题。
+            </?01M05F1PG1CYE36RC7RKKRSQ6V>
+            <Acceptance [
+              <Criterion #AC-ready-wake-installs-step { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6W>
+              ready fiber 收到 humanInput wake signal 后会被调度到 agent_step
+              </?01M05F1PG1CYE36RC7RKKRSQ6W>
+              <Criterion #AC-human-input-drained { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6X>
+              回归测试证明 humanInput mailbox 被 drain 到 actor messages
+              </?01M05F1PG1CYE36RC7RKKRSQ6X>
+            ]>
+          )>
+          <Task { id = "T5.2" name = "修复 wake mailbox safepoint 判定" status = "DONE" order = 1 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ6Y>
+            将未 drain 的 wake mailbox 作为 snapshot barrier blocker，避免保存 mailbox 有工作但 control signal 已消费的不可恢复状态。
+            </?01M05F1PG1CYE36RC7RKKRSQ6Y>
+            <Acceptance [
+              <Criterion #AC-wake-mailbox-blocks-snapshot { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ6Z>
+              humanInput、member inbox、toolResult、heartbeat 等待处理 wake mailbox 会阻止 snapshot save
+              </?01M05F1PG1CYE36RC7RKKRSQ6Z>
+              <Criterion #AC-bounded-blocker { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ70>
+              blocker 只包含 mailbox kind/work class 等 bounded metadata，不包含 payload
+              </?01M05F1PG1CYE36RC7RKKRSQ70>
+            ]>
+          )>
+          <Task { id = "T5.3" name = "验证 wake mailbox 原子性修复" status = "DONE" order = 2 priority = "P0" } (
+            <Description ?01M05F1PG1CYE36RC7RKKRSQ71>
+            运行 orchestrator driver 与 runtime snapshot safepoint 相关测试。
+            </?01M05F1PG1CYE36RC7RKKRSQ71>
+            <Acceptance [
+              <Criterion #AC-orchestrator-test-pass { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ72>
+              orchestrator driver wake mailbox 回归测试通过
+              </?01M05F1PG1CYE36RC7RKKRSQ72>
+              <Criterion #AC-safepoint-test-pass { checked = true } ?01M05F1PG1CYE36RC7RKKRSQ73>
+              runtime snapshot safepoints 回归测试通过
+              </?01M05F1PG1CYE36RC7RKKRSQ73>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule>
+)>

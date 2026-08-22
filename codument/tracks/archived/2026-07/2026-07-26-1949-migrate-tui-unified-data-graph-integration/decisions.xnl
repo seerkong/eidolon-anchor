@@ -1,14 +1,19 @@
-<decision #migrate-tui-unified-data-graph-integration.runtime {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>How is the TUI projection contract migrated?</?>
-  <answer { }
-  (
-    <raw-answer ?>Use the unified computed runtime.</?>
-    <decision-text ?>Replace ctx.get with runtime.graph.get for every TuiA1StateGraph projection.</?>
-    <rationale ?>It matches the public 1.0.1 contract and prior host tracks.</?>
-    <evidence ?>Repository inventory and upstream unified foundation tests.</?>
+<decision #migrate-tui-unified-data-graph-integration.runtime apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PN5S7C4SZXNKRFWZTG6>
+  How is the TUI projection contract migrated?
+  </?01M05F1PN5S7C4SZXNKRFWZTG6>
+  <answer {  } (
+    <raw-answer ?01M05F1PN5S7C4SZXNKRFWZTG7>
+    Use the unified computed runtime.
+    </?01M05F1PN5S7C4SZXNKRFWZTG7>
+    <decision-text ?01M05F1PN5S7C4SZXNKRFWZTG8>
+    Replace ctx.get with runtime.graph.get for every TuiA1StateGraph projection.
+    </?01M05F1PN5S7C4SZXNKRFWZTG8>
+    <rationale ?01M05F1PN5S7C4SZXNKRFWZTG9>
+    It matches the public 1.0.1 contract and prior host tracks.
+    </?01M05F1PN5S7C4SZXNKRFWZTG9>
+    <evidence ?01M05F1PN5S7C4SZXNKRFWZTGA>
+    Repository inventory and upstream unified foundation tests.
+    </?01M05F1PN5S7C4SZXNKRFWZTGA>
   )>
 )>

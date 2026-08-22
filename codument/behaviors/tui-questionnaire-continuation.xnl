@@ -1,0 +1,140 @@
+<Behavior #tui-questionnaire-continuation apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #continue-after-questionnaire (
+      <Statement ?01M05F1P3V7ND4WRCCABVTQSZB>
+      TUI questionnaire replies SHALL continue the unblocked runtime turn rather than treating mailbox submission as final completion.
+      </?01M05F1P3V7ND4WRCCABVTQSZB>
+      <Suites [
+        <Suite #reply-continuation { name = "Reply continuation" } (
+          <Cases [
+            <Case #facade-submit-resumes-turn (
+              <Given ?01M05F1P3V7ND4WRCCABVTQSZC>
+              A runtime bridge supports submitQuestionnaireResponse and resumeTurn
+              </?01M05F1P3V7ND4WRCCABVTQSZC>
+              <When ?01M05F1P3V7ND4WRCCABVTQSZD>
+              The user replies to a pending questionnaire
+              </?01M05F1P3V7ND4WRCCABVTQSZD>
+              <Then ?01M05F1P3V7ND4WRCCABVTQSZE>
+              The TUI SHALL submit the answer and then call resumeTurn on the same runtime session
+              </?01M05F1P3V7ND4WRCCABVTQSZE>
+            )>
+            <Case #continuation-output-visible (
+              <Given ?01M05F1P3V7ND4WRCCABVTQSZF>
+              The resumed runtime emits assistant output after questionnaire approval
+              </?01M05F1P3V7ND4WRCCABVTQSZF>
+              <When ?01M05F1P3V7ND4WRCCABVTQSZG>
+              The answer is submitted through the TUI question bridge
+              </?01M05F1P3V7ND4WRCCABVTQSZG>
+              <Then ?01M05F1P3V7ND4WRCCABVTQSZH>
+              The TUI SHALL synchronize and expose the assistant output before returning the session to idle
+              </?01M05F1P3V7ND4WRCCABVTQSZH>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #human-wait-boundary (
+      <Statement ?01M05F1P3V7ND4WRCCABVTQSZJ>
+      Foreground runtime execution SHALL return control promptly when a questionnaire reaches a human wait boundary, without classifying the wait as an unsettled timeout.
+      </?01M05F1P3V7ND4WRCCABVTQSZJ>
+      <Suites [
+        <Suite #foreground-human-wait { name = "Foreground human wait" } (
+          <Cases [
+            <Case #pause-all-questionnaire-stops-foreground (
+              <Given ?01M05F1P3V7ND4WRCCABVTQSZK>
+              A foreground fiber is suspended for human input with pause_all and retains a questionnaire_pending control marker
+              </?01M05F1P3V7ND4WRCCABVTQSZK>
+              <When ?01M05F1P3V7ND4WRCCABVTQSZM>
+              The foreground runtime is driven until settled
+              </?01M05F1P3V7ND4WRCCABVTQSZM>
+              <Then ?01M05F1P3V7ND4WRCCABVTQSZN>
+              The runtime SHALL return at the human wait boundary without repeatedly resuming the marker
+              </?01M05F1P3V7ND4WRCCABVTQSZN>
+            )>
+            <Case #continue-others-marker-is-not-wake-work (
+              <Given ?01M05F1P3V7ND4WRCCABVTQSZP>
+              A foreground fiber is suspended for human input with continue_others and its only pending wake item is the questionnaire_pending marker
+              </?01M05F1P3V7ND4WRCCABVTQSZP>
+              <When ?01M05F1P3V7ND4WRCCABVTQSZQ>
+              No other foreground fiber has runnable work
+              </?01M05F1P3V7ND4WRCCABVTQSZQ>
+              <Then ?01M05F1P3V7ND4WRCCABVTQSZR>
+              The runtime SHALL return at the human wait boundary without repeatedly resuming the marker
+              </?01M05F1P3V7ND4WRCCABVTQSZR>
+            )>
+            <Case #background-does-not-delay-human-boundary (
+              <Given ?01M05F1P3V7ND4WRCCABVTQSZS>
+              A foreground questionnaire is waiting for a human while unrelated background work remains registered
+              </?01M05F1P3V7ND4WRCCABVTQSZS>
+              <When ?01M05F1P3V7ND4WRCCABVTQSZT>
+              The interactive turn reaches the questionnaire wait
+              </?01M05F1P3V7ND4WRCCABVTQSZT>
+              <Then ?01M05F1P3V7ND4WRCCABVTQSZV>
+              The foreground turn SHALL return without waiting for the unrelated background work
+              </?01M05F1P3V7ND4WRCCABVTQSZV>
+            )>
+            <Case #human-wait-is-explicit-result (
+              <Given ?01M05F1P3V7ND4WRCCABVTQSZW>
+              The interactive coordinator observes a main or pause_all foreground human wait
+              </?01M05F1P3V7ND4WRCCABVTQSZW>
+              <When ?01M05F1P3V7ND4WRCCABVTQSZX>
+              The runtime may or may not be at a snapshot safepoint
+              </?01M05F1P3V7ND4WRCCABVTQSZX>
+              <Then ?01M05F1P3V7ND4WRCCABVTQSZY>
+              The coordinator SHALL report blocked_on_human with the actual safepoint state and SHALL NOT report timeout_unsettled
+              </?01M05F1P3V7ND4WRCCABVTQSZY>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #questionnaire-answer-history (
+      <Statement ?01M05F1P3V7ND4WRCCABVTQSZZ>
+      TUI conversation history SHALL expose the user's questionnaire answer rather than the internal tool-result envelope.
+      </?01M05F1P3V7ND4WRCCABVTQSZZ>
+      <Suites [
+        <Suite #answer-projection { name = "Answer projection" } (
+          <Cases [
+            <Case #raw-answer-visible (
+              <Given ?01M05F1P3V7ND4WRCCABVTQT00>
+              A questionnaire tool result contains canonical JSON with questionnaireId and rawText
+              </?01M05F1P3V7ND4WRCCABVTQT00>
+              <When ?01M05F1P3V7ND4WRCCABVTQT01>
+              The TUI projects conversation history
+              </?01M05F1P3V7ND4WRCCABVTQT01>
+              <Then ?01M05F1P3V7ND4WRCCABVTQT02>
+              The visible text SHALL be rawText while the canonical JSON remains available to runtime/provider history
+              </?01M05F1P3V7ND4WRCCABVTQT02>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #continuation-uses-typed-turn-projection (
+      <Statement ?01M05F1P3V7ND4WRCCABVTQT03>
+      Questionnaire continuation SHALL 把 `resumeTurn` 的 `onControl`、`onChunk` 与 runtime history 全部交给通用 turn surface projector，并在 durable resync 时按稳定 identity reconciliation；continuation MUST NOT 把全部 chunk 硬编码为 assist。
+      </?01M05F1P3V7ND4WRCCABVTQT03>
+      <Suites [
+        <Suite #typed-resume { name = "结构化恢复" } (
+          <Cases [
+            <Case #resume-preserves-categories-and-tool-identity [
+              <Then ?01M05F1P3V7ND4WRCCABVTQT04>
+              类别 SHALL 进入各自 surface，且同一 tool call 只 SHALL 有一个 ToolPart
+              </?01M05F1P3V7ND4WRCCABVTQT04>
+              <Then ?01M05F1P3V7ND4WRCCABVTQT05>
+              恢复完成后的 conversation resync MUST NOT 复制已显示卡片
+              </?01M05F1P3V7ND4WRCCABVTQT05>
+            ] (
+              <Given ?01M05F1P3V7ND4WRCCABVTQT06>
+              问卷恢复后的 turn 发出 turn、think、toolcall、result、assist 与 done 类别以及同一 toolCallId 的 history events
+              </?01M05F1P3V7ND4WRCCABVTQT06>
+              <When ?01M05F1P3V7ND4WRCCABVTQT07>
+              TUI 调用 resumeTurn
+              </?01M05F1P3V7ND4WRCCABVTQT07>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

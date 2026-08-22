@@ -1,14 +1,19 @@
-<decision #migrate-observability-unified-data-graph.computed-runtime {
-  status = "accepted"
-  priority = "P0"
-}
-(
-  <question ?>How will observability summaries migrate from ctx.get?</?>
-  <answer { }
-  (
-    <raw-answer ?>Use the unified runtime graph access.</?>
-    <decision-text ?>Replace each computed callback read with runtime.graph.get and retain its dependency list.</?>
-    <rationale ?>This is the 1.0.1 public contract and preserves DataGraph-owned invalidation.</?>
-    <evidence ?>Focused terminal failures and upstream unified-graph foundation tests.</?>
+<decision #migrate-observability-unified-data-graph.computed-runtime apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" } (
+  <question ?01M05F1PN26JTMANJJHJ3RK2VK>
+  How will observability summaries migrate from ctx.get?
+  </?01M05F1PN26JTMANJJHJ3RK2VK>
+  <answer {  } (
+    <raw-answer ?01M05F1PN26JTMANJJHJ3RK2VM>
+    Use the unified runtime graph access.
+    </?01M05F1PN26JTMANJJHJ3RK2VM>
+    <decision-text ?01M05F1PN26JTMANJJHJ3RK2VN>
+    Replace each computed callback read with runtime.graph.get and retain its dependency list.
+    </?01M05F1PN26JTMANJJHJ3RK2VN>
+    <rationale ?01M05F1PN26JTMANJJHJ3RK2VP>
+    This is the 1.0.1 public contract and preserves DataGraph-owned invalidation.
+    </?01M05F1PN26JTMANJJHJ3RK2VP>
+    <evidence ?01M05F1PN26JTMANJJHJ3RK2VQ>
+    Focused terminal failures and upstream unified-graph foundation tests.
+    </?01M05F1PN26JTMANJJHJ3RK2VQ>
   )>
 )>

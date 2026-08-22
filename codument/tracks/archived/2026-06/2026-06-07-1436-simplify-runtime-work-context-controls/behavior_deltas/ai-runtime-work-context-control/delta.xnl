@@ -1,0 +1,174 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_7_-_1_4_3_6_-_s_i_m_p_l_i_f_y_-_r_u_n_t_i_m_e_-_w_o_r_k_-_c_o_n_t_e_x_t_-_c_o_n_t_r_o_l_s.behavior_patch.ai-runtime-work-context-control apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-work-context-control" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-work-context-control/requirements/manual-work-mode" } (
+      <Requirement #manual-work-mode (
+        <Statement ?01M05F1PGC6ZK4JHJ9A8X64KGA>
+        系统 SHALL expose AI runtime work mode as a user-controlled state with exactly `build` and `plan` values.
+        </?01M05F1PGC6ZK4JHJ9A8X64KGA>
+        <Suites [
+          <Suite #slash-command { name = "Manual work mode slash command" } (
+            <Cases [
+              <Case #default-build (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KGB>
+                A new or migrated AI runtime actor has no explicit manual work mode state
+                </?01M05F1PGC6ZK4JHJ9A8X64KGB>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KGC>
+                The actor work context is initialized
+                </?01M05F1PGC6ZK4JHJ9A8X64KGC>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KGD>
+                The system SHALL set work mode to `build`
+                </?01M05F1PGC6ZK4JHJ9A8X64KGD>
+              )>
+              <Case #set-build-plan [
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KGE>
+                The system SHALL update actor work mode to the requested value
+                </?01M05F1PGC6ZK4JHJ9A8X64KGE>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KGF>
+                The command SHALL NOT be appended as semantic LLM conversation history
+                </?01M05F1PGC6ZK4JHJ9A8X64KGF>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KGG>
+                The command SHALL NOT trigger a provider completion request
+                </?01M05F1PGC6ZK4JHJ9A8X64KGG>
+              ] (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KGH>
+                The user enters `/work-mode plan` or `/work-mode build`
+                </?01M05F1PGC6ZK4JHJ9A8X64KGH>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KGJ>
+                The runtime consumes the input
+                </?01M05F1PGC6ZK4JHJ9A8X64KGJ>
+              )>
+              <Case #plan-is-permission-boundary (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KGK>
+                The current work mode is `plan`
+                </?01M05F1PGC6ZK4JHJ9A8X64KGK>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KGM>
+                The model attempts a file write, patch, edit, or destructive shell command
+                </?01M05F1PGC6ZK4JHJ9A8X64KGM>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KGN>
+                The system SHALL block or route the operation through the explicit permission policy before execution
+                </?01M05F1PGC6ZK4JHJ9A8X64KGN>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-work-context-control/requirements/model-task-phase" } (
+      <Requirement #model-task-phase (
+        <Statement ?01M05F1PGC6ZK4JHJ9A8X64KGP>
+        系统 SHALL expose AI runtime task phase as a model-declared state with exactly `normal` and `answer` values.
+        </?01M05F1PGC6ZK4JHJ9A8X64KGP>
+        <Suites [
+          <Suite #task-phase-tool { name = "Task phase control tool" } (
+            <Cases [
+              <Case #default-normal (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KGQ>
+                A new user turn starts
+                </?01M05F1PGC6ZK4JHJ9A8X64KGQ>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KGR>
+                The runtime prepares actor work context
+                </?01M05F1PGC6ZK4JHJ9A8X64KGR>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KGS>
+                The system SHALL set task phase to `normal` unless a task phase tool call changes it
+                </?01M05F1PGC6ZK4JHJ9A8X64KGS>
+              )>
+              <Case #model-sets-answer [
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KGT>
+                The system SHALL set actor task phase to `answer`
+                </?01M05F1PGC6ZK4JHJ9A8X64KGT>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KGV>
+                The tool SHALL NOT change work mode
+                </?01M05F1PGC6ZK4JHJ9A8X64KGV>
+              ] (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KGW>
+                The model is ready to stop tool-driven work and produce a final answer
+                </?01M05F1PGC6ZK4JHJ9A8X64KGW>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KGX>
+                The model calls the task phase control tool with `phase=answer`
+                </?01M05F1PGC6ZK4JHJ9A8X64KGX>
+              )>
+              <Case #tool-after-answer-resets-normal (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KGY>
+                The current task phase is `answer`
+                </?01M05F1PGC6ZK4JHJ9A8X64KGY>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KGZ>
+                The model calls a normal non-control tool
+                </?01M05F1PGC6ZK4JHJ9A8X64KGZ>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KH0>
+                The system SHALL reset task phase to `normal` for that continued tool-driven work
+                </?01M05F1PGC6ZK4JHJ9A8X64KH0>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-work-context-control/requirements/remove-legacy-inference" } (
+      <Requirement #remove-legacy-inference (
+        <Statement ?01M05F1PGC6ZK4JHJ9A8X64KH1>
+        系统 SHALL remove legacy automatic work mode and task phase inference paths that conflict with explicit runtime control.
+        </?01M05F1PGC6ZK4JHJ9A8X64KH1>
+        <Suites [
+          <Suite #legacy-removal { name = "Legacy inference removal" } (
+            <Cases [
+              <Case #old-enums-removed [
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KH2>
+                The system SHALL normalize them to `build` and `normal`
+                </?01M05F1PGC6ZK4JHJ9A8X64KH2>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KH3>
+                The system SHALL NOT expose old enum values to prompt planning or runtime policy
+                </?01M05F1PGC6ZK4JHJ9A8X64KH3>
+              ] (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KH4>
+                Runtime work context data is serialized, recovered, or migrated
+                </?01M05F1PGC6ZK4JHJ9A8X64KH4>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KH5>
+                Old work mode or task phase values are encountered
+                </?01M05F1PGC6ZK4JHJ9A8X64KH5>
+              )>
+              <Case #no-call-count-switching (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KH6>
+                The model repeatedly calls tools, reads files, runs checks, or continues a turn
+                </?01M05F1PGC6ZK4JHJ9A8X64KH6>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KH7>
+                The runtime updates work context
+                </?01M05F1PGC6ZK4JHJ9A8X64KH7>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KH8>
+                The system SHALL NOT switch work mode or task phase based on call counts, repeated tool counts, or iteration counts
+                </?01M05F1PGC6ZK4JHJ9A8X64KH8>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-work-context-control/requirements/cache-stable-overlay" } (
+      <Requirement #cache-stable-overlay (
+        <Statement ?01M05F1PGC6ZK4JHJ9A8X64KH9>
+        系统 SHALL keep work mode and task phase prompt guidance compact and outside stable provider prefix content.
+        </?01M05F1PGC6ZK4JHJ9A8X64KH9>
+        <Suites [
+          <Suite #prompt-cache { name = "Prompt cache stability" } (
+            <Cases [
+              <Case #deepseek-stable-prefix [
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KHA>
+                The system SHALL NOT include those dynamic values in the stable prefix hash
+                </?01M05F1PGC6ZK4JHJ9A8X64KHA>
+                <Then ?01M05F1PGC6ZK4JHJ9A8X64KHB>
+                The system SHALL materialize only a compact late runtime overlay for work mode and task phase
+                </?01M05F1PGC6ZK4JHJ9A8X64KHB>
+              ] (
+                <Given ?01M05F1PGC6ZK4JHJ9A8X64KHC>
+                A DeepSeek-family model uses provider-managed prefix cache
+                </?01M05F1PGC6ZK4JHJ9A8X64KHC>
+                <When ?01M05F1PGC6ZK4JHJ9A8X64KHD>
+                Work mode or task phase changes
+                </?01M05F1PGC6ZK4JHJ9A8X64KHD>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

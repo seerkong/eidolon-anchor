@@ -1,0 +1,175 @@
+<Mission #upgrade-depa-data-graph-unified-api version="1" apiVersion="codument.tech/v1alpha1" { status = "completed" goal = "将 host workspace 的 depa-data-graph 升级到上游 966f26bac5a8cfebb4b3f30e7ff24f7407aee12c 对应的 unified 1.0.1 API，并迁移 Cell 的 graph foundations、投影与 framework consumer。" description = "先建立版本与 API 基线，再分别迁移 Cell runtime/stream、observability、历史和 terminal 投影，最后验证所有受影响的 core 与 Solid consumer。" question_mode = "decision-tree" question_severity = "auto" revision = 11 created_at = "2026-07-26T14:25:16Z" updated_at = "2026-07-26T16:55:00Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+    <ProjectRef #depa-data-graph { kind = "external" }>
+  ]>
+  <ActorSets { default = "host-upgrade-loop" } [
+    <ActorSet #host-upgrade-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZH4>
+        根据 host 的 compiler、测试与 import inventory，将升级范围切为可独立验收的 host tracks。
+        </?01M05F1P68ASFNW20199ER4ZH4>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZH5>
+        观察 package manifests、lockfile、生产 import、focused tests 和工作区基线，报告实际升级状态。
+        </?01M05F1P68ASFNW20199ER4ZH5>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZH6>
+        比较 unified API 目标与 host 实际行为，决定继续、增加 track、等待 external evidence 或请求人工决策。
+        </?01M05F1P68ASFNW20199ER4ZH6>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZH7>
+        创建、执行、验证和归档 host tracks，并只在 track 范围内修改依赖、实现与测试。
+        </?01M05F1P68ASFNW20199ER4ZH7>
+      )>
+    ]>
+    <ActorSet #library-evidence-loop [
+      <Actor { role = "MissionPlanner" project_ref = "depa-data-graph" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZH8>
+        将上游 release、migration guide 和 tests 转化为 host 可验证的 API 迁移约束。
+        </?01M05F1P68ASFNW20199ER4ZH8>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "depa-data-graph" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZH9>
+        观察目标提交的 public exports、package versions、state-node lifecycle 和 framework adapter contracts。
+        </?01M05F1P68ASFNW20199ER4ZH9>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "depa-data-graph" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHA>
+        判断 host 发现的是使用迁移问题、上游 contract 漂移，还是需要新的兼容决策。
+        </?01M05F1P68ASFNW20199ER4ZHA>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "depa-data-graph" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHB>
+        为 host tracks 记录可复现的 library evidence；不在本 mission 中修改 external repository。
+        </?01M05F1P68ASFNW20199ER4ZHB>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_upgrade-depa-data-graph-unified-api { name = "upgrade-depa-data-graph-unified-api" child_mode = "dag" } (
+    <Description ?01M05F1P68ASFNW20199ER4ZHC>
+    Unified data-graph dependency upgrade control plane.
+    </?01M05F1P68ASFNW20199ER4ZHC>
+    <SubNodes [
+      <TaskGroup #G1 { name = "上游与 host 基线" status = "DONE" order = 0 actor_set = "library-evidence-loop" } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHD>
+        确认上游 1.0.1 contract、host 依赖解析和所有已删除/受影响 surface。
+        </?01M05F1P68ASFNW20199ER4ZHD>
+        <SubNodes [
+          <Task #G1-T1 { name = "复核目标提交的 public exports、migration guide 和 state-node lifecycle" status = "DONE" order = 0 }>
+          <Task #G1-T2 { name = "生成 host package/import/compiler 基线，并分类 removed API 与 supported API 风险" status = "DONE" order = 1 }>
+          <Task #G1-T3 { name = "根据基线确认候选 track 边界与验收口径" status = "DONE" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "依赖与 API 基线升级" status = "DONE" order = 1 } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHE>
+        将所有直接 manifest 和 lockfile 切换到 1.0.1，并建立删除 API 与 adapter surface 的编译/测试护栏。
+        </?01M05F1P68ASFNW20199ER4ZHE>
+        <SubNodes [
+          <Task #G2-T1 { name = "创建并执行 package baseline track" status = "DONE" order = 0 } (
+            <TrackLink #upgrade-depa-data-graph-package-baseline { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3-cell-foundations { name = "Cell runtime 与 stream foundations 迁移" status = "DONE" order = 2 } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHF>
+        迁移或逐项验证 VM RxData、event/semantic logs、stage graph modules 与 symbiont timeline 的 unified graph protocol、lifecycle 和 disposal 语义。
+        </?01M05F1P68ASFNW20199ER4ZHF>
+        <SubNodes [
+          <Task #G3-cell-foundations-T1 { name = "创建并执行 Cell graph foundations migration track" status = "DONE" order = 0 } (
+            <TrackLink #migrate-cell-data-graph-foundations { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4-cell-observability { name = "Cell 与 terminal observability graph 迁移" status = "DONE" order = 3 } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHG>
+        迁移或逐项验证 Cell 与 terminal organ 的 observable graph、middleware、diagnostic subgraph、plugins、trace log/timeline 与 persist lifecycle；terminal TUI projection 留给 G7 integration。
+        </?01M05F1P68ASFNW20199ER4ZHG>
+        <SubNodes [
+          <Task #G4-cell-observability-T1 { name = "创建并执行 Cell 与 terminal observability graph migration track" status = "DONE" order = 0 } (
+            <TrackLink #migrate-observability-unified-data-graph { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G5-history { name = "历史投影迁移" status = "DONE" order = 4 } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHH>
+        把 MessageHistoryGraph 的 append-only reducer projection 迁至 unified DataGraph 的 stream-driven state signal；在 package baseline 后优先执行，以恢复 Cell package aggregation 的可加载性。
+        </?01M05F1P68ASFNW20199ER4ZHH>
+        <SubNodes [
+          <Task #G5-history-T1 { name = "创建并执行 message-history projection migration track" status = "DONE" order = 0 } (
+            <TrackLink #migrate-message-history-unified-data-graph { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G6-terminal { name = "Terminal 协议投影迁移" status = "DONE" order = 5 } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHJ>
+        把 ExecProtocolGraph 的 append-only reducer projection 迁至 unified DataGraph，并保留 terminal 生命周期边界。
+        </?01M05F1P68ASFNW20199ER4ZHJ>
+        <SubNodes [
+          <Task #G6-terminal-T1 { name = "创建并执行 exec-protocol projection migration track" status = "DONE" order = 0 } (
+            <TrackLink #migrate-exec-protocol-unified-data-graph { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G7 { name = "TUI 迁移与跨包兼容验证" status = "DONE" order = 6 } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHK>
+        迁移 TuiA1StateGraph 的 unified computed runtime callback，并验证 core/terminal/TUI graph surface、行为回归和 executable integration。
+        </?01M05F1P68ASFNW20199ER4ZHK>
+        <SubNodes [
+          <Task #G7-T1 { name = "创建并执行 TUI unified integration migration track" status = "DONE" order = 0 } (
+            <TrackLink #migrate-tui-unified-data-graph-integration { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G8 { name = "Mission 收敛验证" status = "DONE" order = 7 } (
+        <Description ?01M05F1P68ASFNW20199ER4ZHM>
+        独立确认所有 host tracks 的证据、依赖解析和残余风险是否满足 mission 目标。
+        </?01M05F1P68ASFNW20199ER4ZHM>
+        <SubNodes [
+          <Task #G8-T1 { name = "运行 mission-level verification 并记录最终报告" status = "DONE" order = 0 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_upgrade-depa-data-graph-unified-api" } [
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3-cell-foundations [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4-cell-observability [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G5-history [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G6-terminal [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G7 [
+        <After { ref = "G3-cell-foundations" }>
+        <After { ref = "G4-cell-observability" }>
+        <After { ref = "G5-history" }>
+        <After { ref = "G6-terminal" }>
+      ]>
+      <Node #G8 [
+        <After { ref = "G7" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_rounds = 3 on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

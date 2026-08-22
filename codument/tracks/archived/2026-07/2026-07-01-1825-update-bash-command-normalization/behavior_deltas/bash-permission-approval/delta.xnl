@@ -1,0 +1,43 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_7_-_0_1_-_1_8_2_5_-_u_p_d_a_t_e_-_b_a_s_h_-_c_o_m_m_a_n_d_-_n_o_r_m_a_l_i_z_a_t_i_o_n.behavior_patch.bash-permission-approval apiVersion="codument.tech/v1alpha1" version="1" { capability = "bash-permission-approval" } (
+  <Mutations [
+    <Upsert { selector = "behavior://bash-permission-approval/requirements/command-normalization" } (
+      <Requirement #command-normalization (
+        <Statement ?01M05F1PKBF2783194FSNVQDQY>
+        The system SHALL normalize common low-risk shell command shapes before deciding that bash syntax requires human approval.
+        </?01M05F1PKBF2783194FSNVQDQY>
+        <Suites [
+          <Suite #multiline-segments { name = "Multiline Command Segments" } (
+            <Cases [
+              <Case #readonly-newline-segments (
+                <Given ?01M05F1PKBF2783194FSNVQDQZ>
+                A bash command contains multiple top-level lines that each parse as supported command segments
+                </?01M05F1PKBF2783194FSNVQDQZ>
+                <When ?01M05F1PKBF2783194FSNVQDR0>
+                The local permission evaluator parses the command
+                </?01M05F1PKBF2783194FSNVQDR0>
+                <Then ?01M05F1PKBF2783194FSNVQDR1>
+                The evaluator SHALL treat the newline as a segment boundary and apply existing per-segment rules
+                </?01M05F1PKBF2783194FSNVQDR1>
+              )>
+            ]>
+          )>
+          <Suite #python-heredoc { name = "Python Heredoc Normalization" } (
+            <Cases [
+              <Case #python-stdin-heredoc (
+                <Given ?01M05F1PKBF2783194FSNVQDR2>
+                A bash command invokes python through stdin heredoc with or without an explicit dash argument
+                </?01M05F1PKBF2783194FSNVQDR2>
+                <When ?01M05F1PKBF2783194FSNVQDR3>
+                The heredoc prefix is otherwise supported
+                </?01M05F1PKBF2783194FSNVQDR3>
+                <Then ?01M05F1PKBF2783194FSNVQDR4>
+                The evaluator SHALL normalize the command to a python stdin segment such as `python3 -`
+                </?01M05F1PKBF2783194FSNVQDR4>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

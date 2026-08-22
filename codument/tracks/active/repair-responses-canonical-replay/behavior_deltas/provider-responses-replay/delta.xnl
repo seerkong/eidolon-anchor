@@ -1,0 +1,25 @@
+<BehaviorPatch #track.repair-responses-canonical-replay.behavior_patch.provider-responses-replay apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-responses-replay" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-responses-replay/requirements/complete-canonical-replay" } (
+      <Requirement #complete-canonical-replay (
+        <Statement ?>Responses canonical replay SHALL emit all canonical assistant function calls and matching tool outputs in chronological order, independent of Chat Completions adjacency repair.</?>
+        <Suites [
+          <Suite #replay-cases { name = "Complete replay" } (
+            <Cases [
+              <Case #all-tool-pairs-replayed [
+                <Given ?>Conversation history contains multiple completed tool rounds.</?>
+                <When ?>Responses canonical input is compiled.</?>
+                <Then ?>Every closed function call/output pair SHALL be present in native input order.</?>
+              ]>
+              <Case #frontier-stable [
+                <Given ?>An assistant function call is followed by its tool result.</?>
+                <When ?>The provider frontier is compared before and after the result is committed.</?>
+                <Then ?>The prior frontier SHALL remain an exact prefix of the new canonical message projection.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

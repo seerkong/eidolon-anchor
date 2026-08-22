@@ -1,0 +1,37 @@
+<Behavior #windows-platform-awareness apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #platform-injection (
+      <Statement ?01M05F1P4BVZWGE7TEX0NK6X0X>
+      Agent 系统提示词与 outerCtx.metadata SHALL 携带运行平台信息（platform、shell、路径分隔符、命令替代提示），主 agent 与 delegate SHALL 均能感知，并在 Windows 上选择正确的命令与路径形式。tui_a1 不传 metadata 时 SHALL 有合理默认（sandbox_permissions=workspace-write、exec_protocol.mode=full-auto、platform=win32）。
+      </?01M05F1P4BVZWGE7TEX0NK6X0X>
+      <Suites [
+        <Suite #platform-awareness { name = "Platform awareness" } (
+          <Cases [
+            <Case #system-prompt-platform-block (
+              <Given ?01M05F1P4BVZWGE7TEX0NK6X0Y>
+              运行平台是 win32
+              </?01M05F1P4BVZWGE7TEX0NK6X0Y>
+              <When ?01M05F1P4BVZWGE7TEX0NK6X0Z>
+              构造主 agent 或 delegate 的系统提示词
+              </?01M05F1P4BVZWGE7TEX0NK6X0Z>
+              <Then ?01M05F1P4BVZWGE7TEX0NK6X10>
+              系统提示词 SHALL 包含平台信息块（platform/shell/路径分隔符/命令替代提示）
+              </?01M05F1P4BVZWGE7TEX0NK6X10>
+            )>
+            <Case #metadata-defaults (
+              <Given ?01M05F1P4BVZWGE7TEX0NK6X11>
+              tui_a1 启动且未传 metadata
+              </?01M05F1P4BVZWGE7TEX0NK6X11>
+              <When ?01M05F1P4BVZWGE7TEX0NK6X12>
+              normalizeTerminalRuntimeMetadata 规范化 metadata
+              </?01M05F1P4BVZWGE7TEX0NK6X12>
+              <Then ?01M05F1P4BVZWGE7TEX0NK6X13>
+              metadata SHALL 包含 platform=win32、sandbox_permissions.sandbox_mode=workspace-write、exec_protocol.mode=full-auto
+              </?01M05F1P4BVZWGE7TEX0NK6X13>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

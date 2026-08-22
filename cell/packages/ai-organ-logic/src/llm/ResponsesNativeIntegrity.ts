@@ -458,6 +458,45 @@ export function decideResponsesCallLineage(
   });
 }
 
+/**
+ * Request-side lineage must be closed: provider output snapshots may end with
+ * an unanswered function_call, but a request sent after tool execution may
+ * not. Keep this stricter check separate from decideResponsesCallLineage so
+ * native output snapshots remain valid before their tools run.
+ */
+export function decideResponsesRequestLineage(
+  items: readonly ResponsesNativeItem[],
+): ResponsesCallLineageDecision {
+  const lineage = decideResponsesCallLineage(items);
+  if (lineage.status !== "valid") return lineage;
+
+  const calls = new Map<string, number>();
+  const outputs = new Set<string>();
+  for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+    const item = items[itemIndex];
+    const id = callId(item);
+    if (item.type === "function_call") {
+      calls.set(id, itemIndex);
+    } else if (item.type === "function_call_output") {
+      outputs.add(id);
+    }
+  }
+
+  for (const [id, itemIndex] of calls) {
+    if (outputs.has(id)) continue;
+    return Object.freeze({
+      schemaVersion: 1,
+      kind: "responses_call_lineage_decision",
+      status: "invalid",
+      reason: "unresolved_function_call",
+      itemIndex,
+      callId: id,
+    });
+  }
+
+  return lineage;
+}
+
 export function isValidResponsesCallLineageProof(
   value: unknown,
   items: readonly ResponsesNativeItem[],

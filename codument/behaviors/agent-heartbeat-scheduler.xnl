@@ -1,0 +1,465 @@
+<Behavior #agent-heartbeat-scheduler apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #agent-heartbeat-scheduler (
+      <Statement ?01M05F1P0668FVH4MXK3TJH398>
+      系统 SHALL 提供 Agent Heartbeat Scheduler，用于注册一次性 timeout 与周期性 interval，并在到期后触发新的 actor/fiber turn，而不是阻塞当前 LLM 调用轮次。
+      </?01M05F1P0668FVH4MXK3TJH398>
+      <Suites [
+        <Suite { name = "agent-heartbeat-scheduler" } (
+          <Cases [
+            <Case #timeout-turn { name = "timeout 创建后当前 turn 可结束" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH399>
+              scheduler SHALL 记录该 timeout
+              </?01M05F1P0668FVH4MXK3TJH399>
+              <Then ?01M05F1P0668FVH4MXK3TJH39A>
+              创建 API SHALL 立即返回调度句柄
+              </?01M05F1P0668FVH4MXK3TJH39A>
+              <Then ?01M05F1P0668FVH4MXK3TJH39B>
+              当前 LLM turn SHALL NOT 因等待该 timeout 而阻塞
+              </?01M05F1P0668FVH4MXK3TJH39B>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH39C>
+              actor 正在等待后台任务、外部状态变化或未来检查点
+              </?01M05F1P0668FVH4MXK3TJH39C>
+              <When ?01M05F1P0668FVH4MXK3TJH39D>
+              actor 创建一个 timeout
+              </?01M05F1P0668FVH4MXK3TJH39D>
+            )>
+            <Case #interval { name = "interval 创建后周期性触发" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH39E>
+              scheduler SHALL 按配置间隔重复触发唤醒
+              </?01M05F1P0668FVH4MXK3TJH39E>
+              <Then ?01M05F1P0668FVH4MXK3TJH39F>
+              每次触发 SHALL 进入新的 actor/fiber turn 或 mailbox item
+              </?01M05F1P0668FVH4MXK3TJH39F>
+              <Then ?01M05F1P0668FVH4MXK3TJH39G>
+              当前 LLM turn SHALL NOT 通过 sleep 或 polling loop 保持占用
+              </?01M05F1P0668FVH4MXK3TJH39G>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH39H>
+              actor 需要周期性检查某项状态
+              </?01M05F1P0668FVH4MXK3TJH39H>
+              <When ?01M05F1P0668FVH4MXK3TJH39J>
+              actor 创建一个 interval
+              </?01M05F1P0668FVH4MXK3TJH39J>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #timeout-api-settimeout (
+      <Statement ?01M05F1P0668FVH4MXK3TJH39K>
+      系统 SHALL 提供 `create_timeout` API，语义类似 JavaScript `setTimeout`：在指定延迟后触发一次唤醒事件。
+      </?01M05F1P0668FVH4MXK3TJH39K>
+      <Suites [
+        <Suite { name = "timeout-api-settimeout" } (
+          <Cases [
+            <Case #timeout { name = "创建合法 timeout" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH39M>
+              系统 SHALL 创建一个 `timeout` 类型调度项
+              </?01M05F1P0668FVH4MXK3TJH39M>
+              <Then ?01M05F1P0668FVH4MXK3TJH39N>
+              返回稳定 `schedule_id`
+              </?01M05F1P0668FVH4MXK3TJH39N>
+              <Then ?01M05F1P0668FVH4MXK3TJH39P>
+              该调度项 SHALL 在触发一次后自动进入 completed 状态
+              </?01M05F1P0668FVH4MXK3TJH39P>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH39Q>
+              调用方提供 `name`、`description`、`delay_seconds` 与唤醒 payload
+              </?01M05F1P0668FVH4MXK3TJH39Q>
+              <When ?01M05F1P0668FVH4MXK3TJH39R>
+              调用 `create_timeout`
+              </?01M05F1P0668FVH4MXK3TJH39R>
+            )>
+            <Case #timeout-2 { name = "timeout 缺少名称或详细描述" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH39S>
+              系统 SHALL 拒绝创建
+              </?01M05F1P0668FVH4MXK3TJH39S>
+              <Then ?01M05F1P0668FVH4MXK3TJH39T>
+              返回明确的参数错误
+              </?01M05F1P0668FVH4MXK3TJH39T>
+              <Then ?01M05F1P0668FVH4MXK3TJH39V>
+              不得产生半创建的调度项
+              </?01M05F1P0668FVH4MXK3TJH39V>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH39W>
+              调用方未提供 `name`，或未提供足够说明唤醒目的、检查动作、完成条件的 `description`
+              </?01M05F1P0668FVH4MXK3TJH39W>
+              <When ?01M05F1P0668FVH4MXK3TJH39X>
+              调用 `create_timeout`
+              </?01M05F1P0668FVH4MXK3TJH39X>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #interval-api-setinterval (
+      <Statement ?01M05F1P0668FVH4MXK3TJH39Y>
+      系统 SHALL 提供 `create_interval` API，语义类似 JavaScript `setInterval`：按固定间隔重复触发唤醒事件，直到被取消、完成、过期或达到系统限制。
+      </?01M05F1P0668FVH4MXK3TJH39Y>
+      <Suites [
+        <Suite { name = "interval-api-setinterval" } (
+          <Cases [
+            <Case #interval-2 { name = "创建合法 interval" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH39Z>
+              系统 SHALL 创建一个 `interval` 类型调度项
+              </?01M05F1P0668FVH4MXK3TJH39Z>
+              <Then ?01M05F1P0668FVH4MXK3TJH3A0>
+              返回稳定 `schedule_id`
+              </?01M05F1P0668FVH4MXK3TJH3A0>
+              <Then ?01M05F1P0668FVH4MXK3TJH3A1>
+              该调度项 SHALL 在每个间隔到期时触发一次唤醒
+              </?01M05F1P0668FVH4MXK3TJH3A1>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3A2>
+              调用方提供 `name`、`description`、`interval_seconds` 与唤醒 payload
+              </?01M05F1P0668FVH4MXK3TJH3A2>
+              <When ?01M05F1P0668FVH4MXK3TJH3A3>
+              调用 `create_interval`
+              </?01M05F1P0668FVH4MXK3TJH3A3>
+            )>
+            <Case #interval-3 { name = "interval 参数非法" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3A4>
+              系统 SHALL 拒绝创建
+              </?01M05F1P0668FVH4MXK3TJH3A4>
+              <Then ?01M05F1P0668FVH4MXK3TJH3A5>
+              错误信息 SHALL 说明缺失字段或允许的时间范围
+              </?01M05F1P0668FVH4MXK3TJH3A5>
+              <Then ?01M05F1P0668FVH4MXK3TJH3A6>
+              不得产生半创建的调度项
+              </?01M05F1P0668FVH4MXK3TJH3A6>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3A7>
+              调用方缺少 `name` 或 `description`，或提供超出系统允许范围的 `interval_seconds`
+              </?01M05F1P0668FVH4MXK3TJH3A7>
+              <When ?01M05F1P0668FVH4MXK3TJH3A8>
+              调用 `create_interval`
+              </?01M05F1P0668FVH4MXK3TJH3A8>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #requirement-4 (
+      <Statement ?01M05F1P0668FVH4MXK3TJH3A9>
+      系统 SHALL 为每个 timeout / interval 保存可审计元数据，至少包含 id、kind、name、description、owner actor、target actor、状态、创建时间、下次触发时间、触发次数与取消信息。
+      </?01M05F1P0668FVH4MXK3TJH3A9>
+      <Suites [
+        <Suite { name = "requirement-4" } (
+          <Cases [
+            <Case #list-timeout-interval { name = "list 返回 timeout 与 interval 元数据" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3AA>
+              返回结果 SHALL 同时包含 timeout 与 interval 列表
+              </?01M05F1P0668FVH4MXK3TJH3AA>
+              <Then ?01M05F1P0668FVH4MXK3TJH3AB>
+              每个条目 SHALL 包含 `schedule_id`、`kind`、`name`、`description`、`status`、`next_fire_at` 与 `fire_count`
+              </?01M05F1P0668FVH4MXK3TJH3AB>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3AC>
+              scheduler 中存在 pending timeout 与 active interval
+              </?01M05F1P0668FVH4MXK3TJH3AC>
+              <When ?01M05F1P0668FVH4MXK3TJH3AD>
+              调用 `list_schedules`
+              </?01M05F1P0668FVH4MXK3TJH3AD>
+            )>
+            <Case #case-8 { name = "默认列表隐藏终态项" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3AE>
+              系统 SHALL 默认只返回未终止的调度项
+              </?01M05F1P0668FVH4MXK3TJH3AE>
+              <Then ?01M05F1P0668FVH4MXK3TJH3AF>
+              调用方 SHALL 能通过参数请求包含 cancelled / completed / expired 历史项
+              </?01M05F1P0668FVH4MXK3TJH3AF>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3AG>
+              scheduler 中存在 active、cancelled、completed 与 expired 调度项
+              </?01M05F1P0668FVH4MXK3TJH3AG>
+              <When ?01M05F1P0668FVH4MXK3TJH3AH>
+              调用 `list_schedules` 且未要求包含历史项
+              </?01M05F1P0668FVH4MXK3TJH3AH>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #cancel-api (
+      <Statement ?01M05F1P0668FVH4MXK3TJH3AJ>
+      系统 SHALL 提供 `cancel_schedule` API，用于按 `schedule_id` 取消 timeout 或 interval。
+      </?01M05F1P0668FVH4MXK3TJH3AJ>
+      <Suites [
+        <Suite { name = "cancel-api" } (
+          <Cases [
+            <Case #active-interval { name = "取消 active interval" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3AK>
+              系统 SHALL 将该 interval 标记为 cancelled
+              </?01M05F1P0668FVH4MXK3TJH3AK>
+              <Then ?01M05F1P0668FVH4MXK3TJH3AM>
+              后续 SHALL NOT 再触发该 interval
+              </?01M05F1P0668FVH4MXK3TJH3AM>
+              <Then ?01M05F1P0668FVH4MXK3TJH3AN>
+              list API SHALL 能展示其取消状态或在默认列表中隐藏它
+              </?01M05F1P0668FVH4MXK3TJH3AN>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3AP>
+              存在 active interval
+              </?01M05F1P0668FVH4MXK3TJH3AP>
+              <When ?01M05F1P0668FVH4MXK3TJH3AQ>
+              调用 `cancel_schedule` 并传入该 interval 的 `schedule_id`
+              </?01M05F1P0668FVH4MXK3TJH3AQ>
+            )>
+            <Case #pending-timeout { name = "取消 pending timeout" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3AR>
+              系统 SHALL 将该 timeout 标记为 cancelled
+              </?01M05F1P0668FVH4MXK3TJH3AR>
+              <Then ?01M05F1P0668FVH4MXK3TJH3AS>
+              到期后 SHALL NOT 投递唤醒事件
+              </?01M05F1P0668FVH4MXK3TJH3AS>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3AT>
+              存在尚未触发的 pending timeout
+              </?01M05F1P0668FVH4MXK3TJH3AT>
+              <When ?01M05F1P0668FVH4MXK3TJH3AV>
+              调用 `cancel_schedule`
+              </?01M05F1P0668FVH4MXK3TJH3AV>
+            )>
+            <Case #case-11 { name = "取消不存在的调度项" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3AW>
+              系统 SHALL 返回明确的 not found 错误
+              </?01M05F1P0668FVH4MXK3TJH3AW>
+              <Then ?01M05F1P0668FVH4MXK3TJH3AX>
+              不得影响其他调度项
+              </?01M05F1P0668FVH4MXK3TJH3AX>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3AY>
+              调用方传入不存在的 `schedule_id`
+              </?01M05F1P0668FVH4MXK3TJH3AY>
+              <When ?01M05F1P0668FVH4MXK3TJH3AZ>
+              调用 `cancel_schedule`
+              </?01M05F1P0668FVH4MXK3TJH3AZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #actor-mailbox-fiber-orchestration (
+      <Statement ?01M05F1P0668FVH4MXK3TJH3B0>
+      系统 SHALL 在 timeout / interval 到期时，通过 actor mailbox 与 depa-actor fiber orchestration 主链投递唤醒事件，不得绕开 actor loop 直接调用模型。
+      </?01M05F1P0668FVH4MXK3TJH3B0>
+      <Suites [
+        <Suite { name = "actor-mailbox-fiber-orchestration" } (
+          <Cases [
+            <Case #timeout-item { name = "timeout 到期投递唤醒 item" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3B1>
+              系统 SHALL 向目标 actor 投递 heartbeat wake item 或等价 control item
+              </?01M05F1P0668FVH4MXK3TJH3B1>
+              <Then ?01M05F1P0668FVH4MXK3TJH3B2>
+              该 item SHALL 携带 `schedule_id`、`kind`、`name`、`description`、`message`、`payload` 与 `fire_count`
+              </?01M05F1P0668FVH4MXK3TJH3B2>
+              <Then ?01M05F1P0668FVH4MXK3TJH3B3>
+              actor/fiber loop SHALL 在新 turn 中处理该 item
+              </?01M05F1P0668FVH4MXK3TJH3B3>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3B4>
+              某 timeout 到期且仍处于 pending 状态
+              </?01M05F1P0668FVH4MXK3TJH3B4>
+              <When ?01M05F1P0668FVH4MXK3TJH3B5>
+              scheduler 处理到期事件
+              </?01M05F1P0668FVH4MXK3TJH3B5>
+            )>
+            <Case #interval-actor { name = "interval 到期时目标 actor 正忙" } [
+              <Given ?01M05F1P0668FVH4MXK3TJH3B6>
+              某 interval 到期
+              </?01M05F1P0668FVH4MXK3TJH3B6>
+              <Given ?01M05F1P0668FVH4MXK3TJH3B7>
+              目标 actor 当前已有 active foreground turn 或队列繁忙
+              </?01M05F1P0668FVH4MXK3TJH3B7>
+              <Then ?01M05F1P0668FVH4MXK3TJH3B8>
+              系统 SHALL 按策略跳过、延后或合并该次触发
+              </?01M05F1P0668FVH4MXK3TJH3B8>
+              <Then ?01M05F1P0668FVH4MXK3TJH3B9>
+              SHALL 记录 skip/defer/coalesce diagnostics
+              </?01M05F1P0668FVH4MXK3TJH3B9>
+              <Then ?01M05F1P0668FVH4MXK3TJH3BA>
+              不得并发启动多个互相冲突的同一 actor heartbeat turn
+              </?01M05F1P0668FVH4MXK3TJH3BA>
+            ] (
+              <When ?01M05F1P0668FVH4MXK3TJH3BB>
+              scheduler 尝试触发
+              </?01M05F1P0668FVH4MXK3TJH3BB>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #heartbeat (
+      <Statement ?01M05F1P0668FVH4MXK3TJH3BC>
+      系统 SHALL 将 timeout / interval / list / cancel 工具纳入 actor tool policy、builtin tool registry 与执行器防御性校验，避免不合适的上下文暴露长期调度能力。
+      </?01M05F1P0668FVH4MXK3TJH3BC>
+      <Suites [
+        <Suite { name = "heartbeat" } (
+          <Cases [
+            <Case #heartbeat { name = "允许的后台或长期任务上下文可创建 heartbeat" } (
+              <Given ?01M05F1P0668FVH4MXK3TJH3BD>
+              actor 正在执行允许后台等待的 invocation、detached task 或明确允许调度的上下文
+              </?01M05F1P0668FVH4MXK3TJH3BD>
+              <When ?01M05F1P0668FVH4MXK3TJH3BE>
+              tool policy 允许 heartbeat 调度
+              </?01M05F1P0668FVH4MXK3TJH3BE>
+              <Then ?01M05F1P0668FVH4MXK3TJH3BF>
+              模型工具列表 MAY 暴露 `create_timeout`、`create_interval`、`list_schedules`、`cancel_schedule`
+              </?01M05F1P0668FVH4MXK3TJH3BF>
+            )>
+            <Case #api { name = "不允许调度的上下文隐藏创建 API" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3BG>
+              `create_timeout` 与 `create_interval` SHALL 被隐藏
+              </?01M05F1P0668FVH4MXK3TJH3BG>
+              <Then ?01M05F1P0668FVH4MXK3TJH3BH>
+              tool executor SHALL 对 stale tool call 做防御性拒绝
+              </?01M05F1P0668FVH4MXK3TJH3BH>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3BJ>
+              当前 tool policy 或 runtime context 不允许创建 heartbeat 调度
+              </?01M05F1P0668FVH4MXK3TJH3BJ>
+              <When ?01M05F1P0668FVH4MXK3TJH3BK>
+              系统构建工具列表
+              </?01M05F1P0668FVH4MXK3TJH3BK>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #scheduler (
+      <Statement ?01M05F1P0668FVH4MXK3TJH3BM>
+      系统 SHALL 对 heartbeat 调度提供最小间隔、最大间隔、最大 active 数、触发次数限制、过期清理与重复触发保护。
+      </?01M05F1P0668FVH4MXK3TJH3BM>
+      <Suites [
+        <Suite { name = "scheduler" } (
+          <Cases [
+            <Case #active { name = "创建过多 active 调度项" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3BN>
+              系统 SHALL 拒绝创建
+              </?01M05F1P0668FVH4MXK3TJH3BN>
+              <Then ?01M05F1P0668FVH4MXK3TJH3BP>
+              错误信息 SHALL 指出当前上限
+              </?01M05F1P0668FVH4MXK3TJH3BP>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3BQ>
+              某 actor 或 session 已达到 active schedule 数量上限
+              </?01M05F1P0668FVH4MXK3TJH3BQ>
+              <When ?01M05F1P0668FVH4MXK3TJH3BR>
+              调用方继续创建 timeout 或 interval
+              </?01M05F1P0668FVH4MXK3TJH3BR>
+            )>
+            <Case #interval-4 { name = "interval 达到最大触发次数" } [
+              <Then ?01M05F1P0668FVH4MXK3TJH3BS>
+              系统 SHALL 自动停止该 interval
+              </?01M05F1P0668FVH4MXK3TJH3BS>
+              <Then ?01M05F1P0668FVH4MXK3TJH3BT>
+              将其状态标记为 completed 或 expired
+              </?01M05F1P0668FVH4MXK3TJH3BT>
+            ] (
+              <Given ?01M05F1P0668FVH4MXK3TJH3BV>
+              某 interval 配置或系统默认限制了最大触发次数
+              </?01M05F1P0668FVH4MXK3TJH3BV>
+              <When ?01M05F1P0668FVH4MXK3TJH3BW>
+              该 interval 达到最大触发次数
+              </?01M05F1P0668FVH4MXK3TJH3BW>
+            )>
+            <Case #tick { name = "重复 tick 不导致重复投递" } (
+              <Given ?01M05F1P0668FVH4MXK3TJH3BX>
+              scheduler 恢复或 tick 循环重复扫描同一个到期调度项
+              </?01M05F1P0668FVH4MXK3TJH3BX>
+              <When ?01M05F1P0668FVH4MXK3TJH3BY>
+              同一个 fire attempt 已被处理
+              </?01M05F1P0668FVH4MXK3TJH3BY>
+              <Then ?01M05F1P0668FVH4MXK3TJH3BZ>
+              系统 SHALL 通过 fire token、状态版本或等价机制避免重复投递
+              </?01M05F1P0668FVH4MXK3TJH3BZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #heartbeat-2 (
+      <Statement ?01M05F1P0668FVH4MXK3TJH3C0>
+      系统 SHALL 为 schedule 创建、触发、跳过、取消、完成、失败和恢复记录 trace / diagnostics，并通过既有 observability surface 暴露可消费事实。
+      </?01M05F1P0668FVH4MXK3TJH3C0>
+      <Suites [
+        <Suite { name = "heartbeat-2" } (
+          <Cases [
+            <Case #trace { name = "创建调度项记录 trace" } (
+              <Given ?01M05F1P0668FVH4MXK3TJH3C1>
+              调用方成功创建 timeout 或 interval
+              </?01M05F1P0668FVH4MXK3TJH3C1>
+              <When ?01M05F1P0668FVH4MXK3TJH3C2>
+              scheduler 持久化该调度项
+              </?01M05F1P0668FVH4MXK3TJH3C2>
+              <Then ?01M05F1P0668FVH4MXK3TJH3C3>
+              trace SHALL 记录 owner actor、target actor、schedule_id、kind、name 与 next_fire_at
+              </?01M05F1P0668FVH4MXK3TJH3C3>
+            )>
+            <Case #diagnostics { name = "触发失败记录 diagnostics" } [
+              <Given ?01M05F1P0668FVH4MXK3TJH3C4>
+              scheduler 到期触发某调度项
+              </?01M05F1P0668FVH4MXK3TJH3C4>
+              <Given ?01M05F1P0668FVH4MXK3TJH3C5>
+              投递 mailbox 或恢复 fiber 调度失败
+              </?01M05F1P0668FVH4MXK3TJH3C5>
+              <Then ?01M05F1P0668FVH4MXK3TJH3C6>
+              diagnostics SHALL 记录 schedule_id、失败原因与下一步状态
+              </?01M05F1P0668FVH4MXK3TJH3C6>
+              <Then ?01M05F1P0668FVH4MXK3TJH3C7>
+              interval SHALL 按失败策略 retry、defer 或停止
+              </?01M05F1P0668FVH4MXK3TJH3C7>
+            ] (
+              <When ?01M05F1P0668FVH4MXK3TJH3C8>
+              系统处理该失败
+              </?01M05F1P0668FVH4MXK3TJH3C8>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #heartbeat-3 (
+      <Statement ?01M05F1P073WDC061B65H8809N>
+      系统 SHALL 在第一阶段支持单机持久化恢复，使 shell/runtime 重启后能恢复未完成的 timeout 与 interval，或按过期策略处理它们。
+      </?01M05F1P073WDC061B65H8809N>
+      <Suites [
+        <Suite { name = "heartbeat-3" } (
+          <Cases [
+            <Case #runtime-pending-timeout { name = "runtime 重启恢复 pending timeout" } [
+              <Then ?01M05F1P073WDC061B65H8809P>
+              系统 SHALL 恢复该 timeout
+              </?01M05F1P073WDC061B65H8809P>
+              <Then ?01M05F1P073WDC061B65H8809Q>
+              若其已过期，系统 SHALL 按 missed-fire 策略触发、跳过或标记 expired
+              </?01M05F1P073WDC061B65H8809Q>
+            ] (
+              <Given ?01M05F1P073WDC061B65H8809R>
+              runtime 关闭前存在 pending timeout
+              </?01M05F1P073WDC061B65H8809R>
+              <When ?01M05F1P073WDC061B65H8809S>
+              runtime 重启并加载 scheduler state
+              </?01M05F1P073WDC061B65H8809S>
+            )>
+            <Case #runtime-active-interval { name = "runtime 重启恢复 active interval" } [
+              <Then ?01M05F1P073WDC061B65H8809T>
+              系统 SHALL 恢复该 interval 的下一次触发计划
+              </?01M05F1P073WDC061B65H8809T>
+              <Then ?01M05F1P073WDC061B65H8809V>
+              不得一次性补发无限数量的历史 missed ticks
+              </?01M05F1P073WDC061B65H8809V>
+            ] (
+              <Given ?01M05F1P073WDC061B65H8809W>
+              runtime 关闭前存在 active interval
+              </?01M05F1P073WDC061B65H8809W>
+              <When ?01M05F1P073WDC061B65H8809X>
+              runtime 重启并加载 scheduler state
+              </?01M05F1P073WDC061B65H8809X>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

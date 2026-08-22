@@ -1,0 +1,380 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_1_2_-_0_8_0_0_-_r_e_f_a_c_t_o_r_-_a_i_-_s_e_m_a_n_t_i_c_-_c_o_n_v_e_r_s_a_t_i_o_n_-_s_p_i_n_e.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/single-in-memory-truth" } (
+      <Requirement #single-in-memory-truth (
+        <Statement ?01M05F1PHH21WGTS9DP6CAQ0RT>
+        会话运行期间，Conversation 三域（History、LLM Context、Session）SHALL 是唯一可写的内存事实真源；providerMessages SHALL 由三阶段 materialize（Session 选择、History active tail、Context 变换/overlay）从三域纯投影产出；SHALL NOT 存在与三域平行演化的 provider 消息数组真相；actor.messages SHALL 是 History 域的只读投影视图，SHALL NOT 可写。
+        </?01M05F1PHH21WGTS9DP6CAQ0RT>
+        <Suites [
+          <Suite #truth { name = "Single in-memory truth" } (
+            <Cases [
+              <Case #provider-context-from-materialize-only [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0RV>
+                消息列表 SHALL 来自 MaterializationDerivation 对三域状态的投影
+                </?01M05F1PHH21WGTS9DP6CAQ0RV>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0RW>
+                SHALL NOT 从裸消息数组、文件、journal 或 snapshot 取数
+                </?01M05F1PHH21WGTS9DP6CAQ0RW>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0RX>
+                一轮对话需要构造 provider 请求
+                </?01M05F1PHH21WGTS9DP6CAQ0RX>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0RY>
+                系统组装消息列表
+                </?01M05F1PHH21WGTS9DP6CAQ0RY>
+              )>
+              <Case #writes-via-semantic-events [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0RZ>
+                输入 SHALL 以 semantic 事件进入规范事件流（语义级注入，不经 lexical/syntactic）
+                </?01M05F1PHH21WGTS9DP6CAQ0RZ>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0S0>
+                三域写入 SHALL 只发生在消费该流的 Reducer/MessageAssembly，SHALL NOT 直接 push 任何旁路数组或绕过流直写域
+                </?01M05F1PHH21WGTS9DP6CAQ0S0>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0S1>
+                用户输入、工具结果或 childDone 结果需要进入对话历史
+                </?01M05F1PHH21WGTS9DP6CAQ0S1>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0S2>
+                消息进入系统
+                </?01M05F1PHH21WGTS9DP6CAQ0S2>
+              )>
+              <Case #compaction-in-domain [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0S3>
+                SHALL 通过域 compaction 命令产生 compact generation 与 summary transform
+                </?01M05F1PHH21WGTS9DP6CAQ0S3>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0S4>
+                SHALL NOT 原地重写消息数组
+                </?01M05F1PHH21WGTS9DP6CAQ0S4>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0S5>
+                上下文需要压缩
+                </?01M05F1PHH21WGTS9DP6CAQ0S5>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0S6>
+                压缩执行
+                </?01M05F1PHH21WGTS9DP6CAQ0S6>
+              )>
+              <Case #equivalence-gate [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0S7>
+                两者产出的 providerMessages SHALL 逐消息等价
+                </?01M05F1PHH21WGTS9DP6CAQ0S7>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0S8>
+                等价闸门通过后旧路径 SHALL 被删除
+                </?01M05F1PHH21WGTS9DP6CAQ0S8>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0S9>
+                真源切换实施中，新旧两条组装路径并存
+                </?01M05F1PHH21WGTS9DP6CAQ0S9>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0SA>
+                以同一脚本化输入序列驱动两条路径
+                </?01M05F1PHH21WGTS9DP6CAQ0SA>
+              )>
+              <Case #mirror-eliminated [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SB>
+                actor.messages SHALL 是 History 域 active tail 的只读冻结投影（facade getter）
+                </?01M05F1PHH21WGTS9DP6CAQ0SB>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SC>
+                SHALL NOT 存在任何对该视图的写入路径；SHALL NOT 存在从该视图进入 provider 组装的路径（含 prompt-plan 系统通道）；系统提示来源 SHALL 为 actor.systemPrompts 经域命令入 Context 域
+                </?01M05F1PHH21WGTS9DP6CAQ0SC>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0SD>
+                真源切换与镜像收口完成后检查 actor 表面
+                </?01M05F1PHH21WGTS9DP6CAQ0SD>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0SE>
+                访问 actor.messages 或检查其写入与消费路径
+                </?01M05F1PHH21WGTS9DP6CAQ0SE>
+              )>
+              <Case #writes-via-eventbus-only [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SF>
+                appendLiveHistoryMessageToConversationDomainRuntime 的调用点 SHALL 只存在于 MessageHistoryGraph 的 onCommittedMessage 旁路
+                </?01M05F1PHH21WGTS9DP6CAQ0SF>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SG>
+                SHALL NOT 存在 injectSemanticEventsIntoConversationDomain、deliveredViaSemanticStream、emittedOnSemanticStream、committedViaSemanticStream、conversationCommitGraphAttachCount 等旁路与 fence 符号
+                </?01M05F1PHH21WGTS9DP6CAQ0SG>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SH>
+                任何 commit SHALL 由一个前置的 vm.eventBus emit 触发
+                </?01M05F1PHH21WGTS9DP6CAQ0SH>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0SJ>
+                三域写入入口被收口（P8 single-writer pipeline）
+                </?01M05F1PHH21WGTS9DP6CAQ0SJ>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0SK>
+                检查全仓源码与运行时
+                </?01M05F1PHH21WGTS9DP6CAQ0SK>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/single-writer-pipeline" } (
+      <Requirement #single-writer-pipeline (
+        <Statement ?01M05F1PHH21WGTS9DP6CAQ0SM>
+        vm.eventBus SHALL 是 semantic 事件在 vm 上的唯一传输；MessageHistoryGraph SHALL 是 vm 上唯一的 commit 入口（消费 eventBus 并写 History 域）；graph SHALL 在 conversation runtime 初始化时常驻 attach，SHALL NOT 以 actor 类型作为 attach 决策依据；非流式来源（childDone、member chat、member coordination、heartbeat、种子、effect 回放）SHALL 通过在 eventBus 上发出合法 semantic 事件序列进入域，SHALL NOT 经任何 inject 旁路直接写域。
+        </?01M05F1PHH21WGTS9DP6CAQ0SM>
+        <Suites [
+          <Suite #single-writer { name = "Single-writer pipeline" } (
+            <Cases [
+              <Case #graph-resident-attach [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SN>
+                graph SHALL 处于 attach 状态且其生命周期与 vm 一致
+                </?01M05F1PHH21WGTS9DP6CAQ0SN>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SP>
+                SHALL NOT 以 isHistoryTrackedActor 或类似判断 gate attach 决策
+                </?01M05F1PHH21WGTS9DP6CAQ0SP>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0SQ>
+                conversation runtime 初始化完成
+                </?01M05F1PHH21WGTS9DP6CAQ0SQ>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0SR>
+                检查 MessageHistoryGraph 的 attach 状态
+                </?01M05F1PHH21WGTS9DP6CAQ0SR>
+              )>
+              <Case #non-streaming-via-eventbus [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SS>
+                SHALL 以 vm.eventBus emit 出合法 semantic 事件序列
+                </?01M05F1PHH21WGTS9DP6CAQ0SS>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0ST>
+                SHALL NOT 直接调用 messageAssemblyDerivation 或 appendLiveHistoryMessageToConversationDomainRuntime
+                </?01M05F1PHH21WGTS9DP6CAQ0ST>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0SV>
+                一个非流式来源的事件（childDone / member chat / coordination / heartbeat / 种子 / effect 回放）需要进入域
+                </?01M05F1PHH21WGTS9DP6CAQ0SV>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0SW>
+                该事件被派发
+                </?01M05F1PHH21WGTS9DP6CAQ0SW>
+              )>
+              <Case #persistence-side-effect-gate-preserved [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SX>
+                commit 写域 SHALL 对所有 actor 类型一致生效
+                </?01M05F1PHH21WGTS9DP6CAQ0SX>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0SY>
+                history persistence 副作用（appendMessage、transcript evidence）SHALL 仍按既有 actor 类型 gate（与写域路径解耦）
+                </?01M05F1PHH21WGTS9DP6CAQ0SY>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0SZ>
+                graph 常驻 attach 后，detached / delegate actor 的事件也经过 graph
+                </?01M05F1PHH21WGTS9DP6CAQ0SZ>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0T0>
+                graph 处理这些事件
+                </?01M05F1PHH21WGTS9DP6CAQ0T0>
+              )>
+              <Case #eventbus-required [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0T1>
+                SHALL 抛出显式错误并指明缺失原因
+                </?01M05F1PHH21WGTS9DP6CAQ0T1>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0T2>
+                SHALL NOT 静默走任何 inject 旁路
+                </?01M05F1PHH21WGTS9DP6CAQ0T2>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0T3>
+                conversation runtime 在缺失 vm.eventBus 的环境中尝试初始化
+                </?01M05F1PHH21WGTS9DP6CAQ0T3>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0T4>
+                初始化执行
+                </?01M05F1PHH21WGTS9DP6CAQ0T4>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/stage-pipeline-contracts" } (
+      <Requirement #stage-pipeline-contracts (
+        <Statement ?01M05F1PHH21WGTS9DP6CAQ0T5>
+        流式加工 pipeline（ingress、lexical、syntactic、semantic）SHALL 保持现有 stage 逻辑不变并获得 DataSubgraphContract；MessageAssembly SHALL 是 semantic 事件到 committed 消息的唯一提交边界；TUI 与观测 SHALL 只读订阅 semantic 流。
+        </?01M05F1PHH21WGTS9DP6CAQ0T5>
+        <Suites [
+          <Suite #pipeline { name = "Stage pipeline contracts" } (
+            <Cases [
+              <Case #stage-components-declared (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0T6>
+                runtime data subgraph registry 构建完成
+                </?01M05F1PHH21WGTS9DP6CAQ0T6>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0T7>
+                查询 stage 组件
+                </?01M05F1PHH21WGTS9DP6CAQ0T7>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0T8>
+                ingress_stage、lexical_syntactic_stage、semantic_event SHALL 各有 owner 边界与 Not Owned Here
+                </?01M05F1PHH21WGTS9DP6CAQ0T8>
+              )>
+              <Case #message-assembly-single-commit-boundary [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0T9>
+                提交 SHALL 只经 MessageAssemblyDerivation 的归并产物
+                </?01M05F1PHH21WGTS9DP6CAQ0T9>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TA>
+                SHALL NOT 存在第二个 assistant 消息写入路径
+                </?01M05F1PHH21WGTS9DP6CAQ0TA>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0TB>
+                semantic 流产出 assistant 消息内容
+                </?01M05F1PHH21WGTS9DP6CAQ0TB>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0TC>
+                消息提交进入 History 域
+                </?01M05F1PHH21WGTS9DP6CAQ0TC>
+              )>
+              <Case #observability-two-levels [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TD>
+                流式输出类关注（delta、tool 卡片、actor 消息）SHALL 从 semantic 事件流衍生
+                </?01M05F1PHH21WGTS9DP6CAQ0TD>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TE>
+                committed/世代级关注（正式历史、压缩、heads）SHALL 从 MessageAssembly 产物或 History 域衍生，SHALL NOT 混用层级
+                </?01M05F1PHH21WGTS9DP6CAQ0TE>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0TF>
+                一个可观测性或 TUI 关注点需要取数
+                </?01M05F1PHH21WGTS9DP6CAQ0TF>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0TG>
+                选择衍生来源
+                </?01M05F1PHH21WGTS9DP6CAQ0TG>
+              )>
+              <Case #projector-not-reads-parser-state [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TH>
+                SHALL 订阅 semantic 事件流
+                </?01M05F1PHH21WGTS9DP6CAQ0TH>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TJ>
+                SHALL NOT 直读 lexical/syntactic parser state
+                </?01M05F1PHH21WGTS9DP6CAQ0TJ>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0TK>
+                semantic 层之外的 projector 需要展示流式内容
+                </?01M05F1PHH21WGTS9DP6CAQ0TK>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0TM>
+                projector 取数
+                </?01M05F1PHH21WGTS9DP6CAQ0TM>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/recovery-one-way-handoff" } (
+      <Requirement #recovery-one-way-handoff (
+        <Statement ?01M05F1PHH21WGTS9DP6CAQ0TN>
+        恢复 SHALL 是显式阶段的单向交接：唯一恢复源为会话文件；一次性水合内存三域；到达切换点后文件 SHALL 退出 live 路径；SHALL NOT 将内存消息反灌三域，SHALL NOT 在 live 运行中回读会话文件，双源 SHALL NOT 同时生效。
+        </?01M05F1PHH21WGTS9DP6CAQ0TN>
+        <Suites [
+          <Suite #recovery { name = "One-way recovery handoff" } (
+            <Cases [
+              <Case #hydrate-once-then-memory-only [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TP>
+                所有读取 SHALL 来自内存三域
+                </?01M05F1PHH21WGTS9DP6CAQ0TP>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TQ>
+                任何 live 路径读会话文件 SHALL 视为违例
+                </?01M05F1PHH21WGTS9DP6CAQ0TQ>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0TR>
+                session 从会话文件完成三域水合并到达切换点
+                </?01M05F1PHH21WGTS9DP6CAQ0TR>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0TS>
+                live 循环继续运行
+                </?01M05F1PHH21WGTS9DP6CAQ0TS>
+              )>
+              <Case #no-bootstrap-backfill (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0TT>
+                恢复完成后内存中存在消息状态
+                </?01M05F1PHH21WGTS9DP6CAQ0TT>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0TV>
+                检查三域写入来源
+                </?01M05F1PHH21WGTS9DP6CAQ0TV>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TW>
+                SHALL NOT 存在从消息数组向三域的 bootstrap 反灌路径
+                </?01M05F1PHH21WGTS9DP6CAQ0TW>
+              )>
+              <Case #single-recovery-source [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TX>
+                恢复 SHALL 只读会话文件
+                </?01M05F1PHH21WGTS9DP6CAQ0TX>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0TY>
+                SHALL NOT 存在任何 fallback 来源
+                </?01M05F1PHH21WGTS9DP6CAQ0TY>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0TZ>
+                会话文件与其他持久化产物同时存在
+                </?01M05F1PHH21WGTS9DP6CAQ0TZ>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0V0>
+                选择恢复来源
+                </?01M05F1PHH21WGTS9DP6CAQ0V0>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/transcript-complete-removal" } (
+      <Requirement #transcript-complete-removal (
+        <Statement ?01M05F1PHH21WGTS9DP6CAQ0V1>
+        actor transcript SHALL 被彻底删除：store、contract、写入效应、恢复 fallback、recovery report 来源字段以及 session-upgrade 内的 legacy transcript 读取；SHALL NOT 保留任何演进兼容遗留；仅含 transcript 的旧 session 在升级或恢复时 SHALL 返回显式拒绝错误。
+        </?01M05F1PHH21WGTS9DP6CAQ0V1>
+        <Suites [
+          <Suite #removal { name = "Transcript complete removal" } (
+            <Cases [
+              <Case #no-transcript-symbols (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0V2>
+                本 track 完成后检查运行时与工具源码
+                </?01M05F1PHH21WGTS9DP6CAQ0V2>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0V3>
+                全仓搜索 transcript 符号
+                </?01M05F1PHH21WGTS9DP6CAQ0V3>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0V4>
+                ActorTranscript contract、LocalFileActorTranscriptStore、transcript 写入与读取调用 SHALL 不存在
+                </?01M05F1PHH21WGTS9DP6CAQ0V4>
+              )>
+              <Case #transcript-only-session-rejected [
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0V5>
+                系统 SHALL 返回显式拒绝错误并说明原因
+                </?01M05F1PHH21WGTS9DP6CAQ0V5>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0V6>
+                SHALL NOT 静默转换或部分恢复
+                </?01M05F1PHH21WGTS9DP6CAQ0V6>
+              ] (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0V7>
+                一个旧 session 只有 legacy transcript 没有会话文件
+                </?01M05F1PHH21WGTS9DP6CAQ0V7>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0V8>
+                尝试升级或恢复
+                </?01M05F1PHH21WGTS9DP6CAQ0V8>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/conversation-capsule" } (
+      <Requirement #conversation-capsule (
+        <Statement ?01M05F1PHH21WGTS9DP6CAQ0V9>
+        Conversation runtime SHALL 全量 capsule 化：conversationCapsule 含 coreLogic、adapterRegistry、adapters、internals；持久化实现 SHALL 作为按枚举 id 注册的 adapter；三个 derivation contract（ConversationReducer、MessageAssembly、Materialization）SHALL 在 contract 包声明并运行时断言；capsule SHALL NOT 定义 contract 同名类型。
+        </?01M05F1PHH21WGTS9DP6CAQ0V9>
+        <Suites [
+          <Suite #capsule { name = "Conversation capsule" } (
+            <Cases [
+              <Case #capsule-structure-holds (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0VA>
+                conversationCapsule 完成重构
+                </?01M05F1PHH21WGTS9DP6CAQ0VA>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0VB>
+                运行结构 conformance
+                </?01M05F1PHH21WGTS9DP6CAQ0VB>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0VC>
+                coreLogic 稳定入口、adapter 枚举布线、internals 隔离、类型留在 contract SHALL 全部成立
+                </?01M05F1PHH21WGTS9DP6CAQ0VC>
+              )>
+              <Case #derivations-asserted-and-pure (
+                <Given ?01M05F1PHH21WGTS9DP6CAQ0VD>
+                三个 conversation derivation 实现被注入
+                </?01M05F1PHH21WGTS9DP6CAQ0VD>
+                <When ?01M05F1PHH21WGTS9DP6CAQ0VE>
+                断言与源码纯度检查
+                </?01M05F1PHH21WGTS9DP6CAQ0VE>
+                <Then ?01M05F1PHH21WGTS9DP6CAQ0VF>
+                缺方法 SHALL 报方法名；实现 SHALL 无直接 IO
+                </?01M05F1PHH21WGTS9DP6CAQ0VF>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

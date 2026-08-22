@@ -1,0 +1,266 @@
+<Behavior #llm-multimodal-input apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #structured-input-ingress (
+      <Statement ?01M05F1P2HTN5G2TKMMB563CE9>
+      系统 SHALL 以 provider-neutral canonical content parts 保存 text、image 与 file-reference user input，并 SHALL 从 TUI prompt、actor mailbox、Conversation materialization 到 provider request projection 保持 part 顺序、MIME、identity 和内容；任何中间层 MUST NOT 只提取文本而静默丢弃附件。
+      </?01M05F1P2HTN5G2TKMMB563CE9>
+      <Suites [
+        <Suite #runtime-flow { name = "结构化输入链路" } (
+          <Cases [
+            <Case #tui-parts-reach-conversation (
+              <Given ?01M05F1P2HTN5G2TKMMB563CEA>
+              Composer 提交文本与一个或多个附件 part
+              </?01M05F1P2HTN5G2TKMMB563CEA>
+              <When ?01M05F1P2HTN5G2TKMMB563CEB>
+              TUI client 建立 user message 并触发 interactive turn
+              </?01M05F1P2HTN5G2TKMMB563CEB>
+              <Then ?01M05F1P2HTN5G2TKMMB563CEC>
+              runtime message events、actor humanInput mailbox 与 canonical Conversation SHALL 保留有序 structured parts
+              </?01M05F1P2HTN5G2TKMMB563CEC>
+            )>
+            <Case #legacy-text-remains-compatible (
+              <Given ?01M05F1P2HTN5G2TKMMB563CED>
+              headless、slash 或旧 session caller 提供纯 string input
+              </?01M05F1P2HTN5G2TKMMB563CED>
+              <When ?01M05F1P2HTN5G2TKMMB563CEE>
+              runtime 规范化输入
+              </?01M05F1P2HTN5G2TKMMB563CEE>
+              <Then ?01M05F1P2HTN5G2TKMMB563CEF>
+              字符串 SHALL 成为单个 text part 且既有纯文本 provider body 语义不变
+              </?01M05F1P2HTN5G2TKMMB563CEF>
+            )>
+            <Case #recovery-preserves-image-content [
+              <Then ?01M05F1P2HTN5G2TKMMB563CEG>
+              图片 MIME、data URL、filename 与相对顺序 SHALL 保持一致
+              </?01M05F1P2HTN5G2TKMMB563CEG>
+              <Then ?01M05F1P2HTN5G2TKMMB563CEH>
+              conversation 与 diagnostic XNL SHALL 只保存安全引用/摘要，完整图片 bytes SHALL 存在独立 content-addressed asset 文件中
+              </?01M05F1P2HTN5G2TKMMB563CEH>
+            ] (
+              <Given ?01M05F1P2HTN5G2TKMMB563CEJ>
+              包含图片 part 的 session 被持久化并重新加载
+              </?01M05F1P2HTN5G2TKMMB563CEJ>
+              <When ?01M05F1P2HTN5G2TKMMB563CEK>
+              Conversation 再次物化 provider messages
+              </?01M05F1P2HTN5G2TKMMB563CEK>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #model-modality-gate (
+      <Statement ?01M05F1P2HTN5G2TKMMB563CEM>
+      系统 SHALL 从 provider catalog 的 `modalities.input/output` 解析并传播模型输入能力，并 SHALL 在 provider observation 和网络 I/O 前拒绝模型未声明支持的 content modality；系统 MUST NOT 根据 provider 名称、模型名或 TUI 默认值猜测 image 支持。
+      </?01M05F1P2HTN5G2TKMMB563CEM>
+      <Suites [
+        <Suite #capability-validation { name = "模型能力门控" } (
+          <Cases [
+            <Case #configured-vision-model-accepts-image (
+              <Given ?01M05F1P2HTN5G2TKMMB563CEN>
+              模型配置声明 `modalities.input` 同时包含 text 与 image
+              </?01M05F1P2HTN5G2TKMMB563CEN>
+              <When ?01M05F1P2HTN5G2TKMMB563CEP>
+              用户提交受支持 MIME/大小的图片 part
+              </?01M05F1P2HTN5G2TKMMB563CEP>
+              <Then ?01M05F1P2HTN5G2TKMMB563CEQ>
+              请求 planner SHALL 允许该图片进入对应 provider projection
+              </?01M05F1P2HTN5G2TKMMB563CEQ>
+            )>
+            <Case #text-only-model-rejects-image-before-send [
+              <Then ?01M05F1P2HTN5G2TKMMB563CER>
+              系统 SHALL 在 provider I/O 前返回可操作的 unsupported-modality 错误
+              </?01M05F1P2HTN5G2TKMMB563CER>
+              <Then ?01M05F1P2HTN5G2TKMMB563CES>
+              Composer SHALL 在提交 immutable prompt snapshot 后立即清空 live 草稿和附件；原提交 SHALL 保留在 prompt history 中，以便切换模型或删除附件后恢复重试
+              </?01M05F1P2HTN5G2TKMMB563CES>
+              <Then ?01M05F1P2HTN5G2TKMMB563CET>
+              系统 SHALL 发布脱敏 `unsupported_modality` semantic diagnostic，且 provider network call 数 SHALL 为零
+              </?01M05F1P2HTN5G2TKMMB563CET>
+            ] (
+              <Given ?01M05F1P2HTN5G2TKMMB563CEV>
+              模型配置未声明 image input
+              </?01M05F1P2HTN5G2TKMMB563CEV>
+              <When ?01M05F1P2HTN5G2TKMMB563CEW>
+              用户提交含图片的 prompt
+              </?01M05F1P2HTN5G2TKMMB563CEW>
+            )>
+            <Case #catalog-does-not-invent-capabilities (
+              <Given ?01M05F1P2HTN5G2TKMMB563CEX>
+              provider catalog 中某模型只声明 text input
+              </?01M05F1P2HTN5G2TKMMB563CEX>
+              <When ?01M05F1P2HTN5G2TKMMB563CEY>
+              TUI 展示模型能力并校验附件
+              </?01M05F1P2HTN5G2TKMMB563CEY>
+              <Then ?01M05F1P2HTN5G2TKMMB563CEZ>
+              TUI SHALL NOT 把该模型投影为 image 或 pdf capable
+              </?01M05F1P2HTN5G2TKMMB563CEZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #local-file-materialization (
+      <Statement ?01M05F1P2HTN5G2TKMMB563CF0>
+      `file_reference` SHALL 是 local-only ingress part；文件存在性、权限、stat/read、MIME sniff、大小限制与 snapshot 编码 SHALL 由注入式 terminal-support attachment resolver effect 执行。受支持图片 SHALL 解析为 canonical image snapshot，受支持文本 SHALL 解析为带 basename 与 source digest 的 canonical text material；绝对路径 MUST NOT 进入 provider-visible content、request observation 或日志。
+      </?01M05F1P2HTN5G2TKMMB563CF0>
+      <Suites [
+        <Suite #resolver-boundary { name = "本地文件解析边界" } (
+          <Cases [
+            <Case #composer-uses-injected-resolver [
+              <Then ?01M05F1P2HTN5G2TKMMB563CF1>
+              纯 tokenizer/normalizer SHALL 不访问文件系统
+              </?01M05F1P2HTN5G2TKMMB563CF1>
+              <Then ?01M05F1P2HTN5G2TKMMB563CF2>
+              stat/read/MIME/encoding SHALL 通过注入式 AttachmentResolverPort 执行并可由 mock runtime 验证
+              </?01M05F1P2HTN5G2TKMMB563CF2>
+            ] (
+              <Given ?01M05F1P2HTN5G2TKMMB563CF3>
+              Composer 由文件选择或显式文件引用入口建立 file_reference
+              </?01M05F1P2HTN5G2TKMMB563CF3>
+              <When ?01M05F1P2HTN5G2TKMMB563CF4>
+              系统解析附件内容
+              </?01M05F1P2HTN5G2TKMMB563CF4>
+            )>
+            <Case #text-file-materializes-without-absolute-path [
+              <Then ?01M05F1P2HTN5G2TKMMB563CF5>
+              snapshot SHALL 包含 basename、source digest 与文本内容
+              </?01M05F1P2HTN5G2TKMMB563CF5>
+              <Then ?01M05F1P2HTN5G2TKMMB563CF6>
+              provider message、observation 与日志 SHALL 不包含绝对本地路径
+              </?01M05F1P2HTN5G2TKMMB563CF6>
+            ] (
+              <Given ?01M05F1P2HTN5G2TKMMB563CF7>
+              file_reference 指向允许、可读且大小合规的文本文件
+              </?01M05F1P2HTN5G2TKMMB563CF7>
+              <When ?01M05F1P2HTN5G2TKMMB563CF8>
+              resolver 生成 canonical snapshot
+              </?01M05F1P2HTN5G2TKMMB563CF8>
+            )>
+            <Case #unsafe-file-fails-closed [
+              <Then ?01M05F1P2HTN5G2TKMMB563CF9>
+              系统 SHALL 在 actor/provider I/O 前失败；已清空的 live Composer SHALL 可从 prompt history 恢复原文本与附件 snapshot
+              </?01M05F1P2HTN5G2TKMMB563CF9>
+              <Then ?01M05F1P2HTN5G2TKMMB563CFA>
+              系统 MUST NOT 发送路径、占位文本或部分文件内容
+              </?01M05F1P2HTN5G2TKMMB563CFA>
+            ] (
+              <Given ?01M05F1P2HTN5G2TKMMB563CFB>
+              file_reference 不可读、超限、被拒绝或是未支持的二进制 MIME
+              </?01M05F1P2HTN5G2TKMMB563CFB>
+              <When ?01M05F1P2HTN5G2TKMMB563CFC>
+              resolver 尝试物化附件
+              </?01M05F1P2HTN5G2TKMMB563CFC>
+            )>
+            <Case #snapshot-replay-does-not-require-path (
+              <Given ?01M05F1P2HTN5G2TKMMB563CFD>
+              已物化的 text/image snapshot 随 session 持久化
+              </?01M05F1P2HTN5G2TKMMB563CFD>
+              <When ?01M05F1P2HTN5G2TKMMB563CFE>
+              session 恢复并重放 provider context
+              </?01M05F1P2HTN5G2TKMMB563CFE>
+              <Then ?01M05F1P2HTN5G2TKMMB563CFF>
+              重放 SHALL 使用持久化 snapshot，不依赖或暴露原始绝对路径
+              </?01M05F1P2HTN5G2TKMMB563CFF>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #attachment-asset-persistence (
+      <Statement ?01M05F1P2HTN5G2TKMMB563CFG>
+      附件正文与 image data URL MUST NOT 内联写入 conversation、diagnostic 或 runtime evidence XNL；系统 SHALL 将 attachment-derived text/image 内容写入 session-scoped content-addressed asset 文件，并在日志中只保存 asset id、kind、MIME、basename、size 与 digest 等有界元数据。
+      </?01M05F1P2HTN5G2TKMMB563CFG>
+      <Suites [
+        <Suite #durable-asset-reference { name = "附件资产引用持久化" } (
+          <Cases [
+            <Case #large-image-is-externalized [
+              <Then ?01M05F1P2HTN5G2TKMMB563CFH>
+              XNL SHALL 不包含 data URL 或 base64 payload
+              </?01M05F1P2HTN5G2TKMMB563CFH>
+              <Then ?01M05F1P2HTN5G2TKMMB563CFJ>
+              独立 asset 文件 SHALL 保存原始 bytes，恢复后的 canonical image SHALL 与原内容一致
+              </?01M05F1P2HTN5G2TKMMB563CFJ>
+            ] (
+              <Given ?01M05F1P2HTN5G2TKMMB563CFK>
+              canonical user message 包含较大的 image data URL
+              </?01M05F1P2HTN5G2TKMMB563CFK>
+              <When ?01M05F1P2HTN5G2TKMMB563CFM>
+              conversation history 与 semantic diagnostic 被持久化
+              </?01M05F1P2HTN5G2TKMMB563CFM>
+            )>
+            <Case #text-attachment-is-externalized (
+              <Given ?01M05F1P2HTN5G2TKMMB563CFN>
+              canonical text part 带 attachment filename/source digest
+              </?01M05F1P2HTN5G2TKMMB563CFN>
+              <When ?01M05F1P2HTN5G2TKMMB563CFP>
+              session 持久化并恢复
+              </?01M05F1P2HTN5G2TKMMB563CFP>
+              <Then ?01M05F1P2HTN5G2TKMMB563CFQ>
+              附件正文 SHALL 不进入 XNL，恢复 SHALL 从 asset reference 重建 text part
+              </?01M05F1P2HTN5G2TKMMB563CFQ>
+            )>
+            <Case #missing-asset-fails-closed (
+              <Given ?01M05F1P2HTN5G2TKMMB563CFR>
+              history 引用的 attachment asset 缺失或 digest 不匹配
+              </?01M05F1P2HTN5G2TKMMB563CFR>
+              <When ?01M05F1P2HTN5G2TKMMB563CFS>
+              session 尝试恢复
+              </?01M05F1P2HTN5G2TKMMB563CFS>
+              <Then ?01M05F1P2HTN5G2TKMMB563CFT>
+              系统 SHALL 报告明确的数据完整性错误且 MUST NOT 静默构造空附件
+              </?01M05F1P2HTN5G2TKMMB563CFT>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #openai-image-projection (
+      <Statement ?01M05F1P2HTN5G2TKMMB563CFV>
+      对显式支持 image input 的 OpenAI-compatible provider，Chat Completions adapter SHALL 把 canonical image 投影为 `image_url` content，Responses adapter SHALL 投影为 `input_image` content；两种 projection SHALL 与 full replay、incremental replay、continuation digest 和 request observation 使用同一 canonical source，并 MUST NOT 在日志中暴露完整 base64 payload。
+      </?01M05F1P2HTN5G2TKMMB563CFV>
+      <Suites [
+        <Suite #wire-projection { name = "OpenAI 图片请求投影" } (
+          <Cases [
+            <Case #chat-completions-image-url (
+              <Given ?01M05F1P2HTN5G2TKMMB563CFW>
+              视觉模型收到有序 text 与 image canonical parts
+              </?01M05F1P2HTN5G2TKMMB563CFW>
+              <When ?01M05F1P2HTN5G2TKMMB563CFX>
+              OpenAI-compatible Chat Completions adapter 构造 user message
+              </?01M05F1P2HTN5G2TKMMB563CFX>
+              <Then ?01M05F1P2HTN5G2TKMMB563CFY>
+              content SHALL 是保持原顺序的 text 与 image_url 数组
+              </?01M05F1P2HTN5G2TKMMB563CFY>
+            )>
+            <Case #responses-input-image (
+              <Given ?01M05F1P2HTN5G2TKMMB563CFZ>
+              视觉模型收到有序 text 与 image canonical parts
+              </?01M05F1P2HTN5G2TKMMB563CFZ>
+              <When ?01M05F1P2HTN5G2TKMMB563CG0>
+              OpenAI Responses adapter 构造 input items
+              </?01M05F1P2HTN5G2TKMMB563CG0>
+              <Then ?01M05F1P2HTN5G2TKMMB563CG1>
+              user message content SHALL 是保持原顺序的 input_text 与 input_image 数组
+              </?01M05F1P2HTN5G2TKMMB563CG1>
+            )>
+            <Case #image-replay-is-stable-and-redacted [
+              <Then ?01M05F1P2HTN5G2TKMMB563CG2>
+              图片语义 SHALL 不丢失、不重复且参与 provider-visible context digest
+              </?01M05F1P2HTN5G2TKMMB563CG2>
+              <Then ?01M05F1P2HTN5G2TKMMB563CG3>
+              日志与错误 SHALL 只记录 MIME、大小和安全摘要，不记录完整 data URL/base64
+              </?01M05F1P2HTN5G2TKMMB563CG3>
+            ] (
+              <Given ?01M05F1P2HTN5G2TKMMB563CG4>
+              含图片的对话经历 stateless replay、stateful continuation 或 request observation
+              </?01M05F1P2HTN5G2TKMMB563CG4>
+              <When ?01M05F1P2HTN5G2TKMMB563CG5>
+              系统构造或记录请求
+              </?01M05F1P2HTN5G2TKMMB563CG5>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

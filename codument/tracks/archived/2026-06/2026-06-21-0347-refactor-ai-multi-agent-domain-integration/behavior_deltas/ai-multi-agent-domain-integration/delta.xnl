@@ -1,0 +1,121 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_2_1_-_0_3_4_7_-_r_e_f_a_c_t_o_r_-_a_i_-_m_u_l_t_i_-_a_g_e_n_t_-_d_o_m_a_i_n_-_i_n_t_e_g_r_a_t_i_o_n.behavior_patch.ai-multi-agent-domain-integration apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-multi-agent-domain-integration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-multi-agent-domain-integration/requirements/member-holon-data-components" } (
+      <Requirement #member-holon-data-components (
+        <Statement ?01M05F1PJ7NG5566E27CD9DDMR>
+        member / holon / detached-actor（delegate/subagent）的运行时状态 SHALL 由一个 MemberHolonDataComponents DataSubgraphContract 治理：member roster、holon governance、detached tasks 各自有声明的单一 owner 与 owned fact nodes；该 contract SHALL 经 Not-Owned-Here 显式声明它**不**拥有 conversation / history / LLM-context / turn 真源。member/holon/detached 状态的写入 SHALL 经该 contract 的 writeCommands（单写），SHALL NOT 由多个 ad-hoc 写入点直接改运行时状态。对应 gate G-control-depa-actor。
+        </?01M05F1PJ7NG5566E27CD9DDMR>
+        <Suites [
+          <Suite #contract-shape { name = "MemberHolon data components contract" } (
+            <Cases [
+              <Case #contract-declares-owned-and-not-owned [
+                <Then ?01M05F1PJ7NG5566E27CD9DDMS>
+                SHALL 声明 member roster / holon governance / detached tasks 的 owned fact nodes 与单一 owner
+                </?01M05F1PJ7NG5566E27CD9DDMS>
+                <Then ?01M05F1PJ7NG5566E27CD9DDMT>
+                SHALL 在 Not-Owned-Here 显式列出 History / LlmContext / ToolCall / TurnState 的 owned facts（这些不归 member/holon 拥有）
+                </?01M05F1PJ7NG5566E27CD9DDMT>
+              ] (
+                <Given ?01M05F1PJ7NG5566E27CD9DDMV>
+                MemberHolonDataComponents DataSubgraphContract
+                </?01M05F1PJ7NG5566E27CD9DDMV>
+                <When ?01M05F1PJ7NG5566E27CD9DDMW>
+                检查其 fact 治理
+                </?01M05F1PJ7NG5566E27CD9DDMW>
+              )>
+              <Case #state-writes-through-write-commands (
+                <Given ?01M05F1PJ7NG5566E27CD9DDMX>
+                member roster / holon governance / detached tasks 状态变更
+                </?01M05F1PJ7NG5566E27CD9DDMX>
+                <When ?01M05F1PJ7NG5566E27CD9DDMY>
+                运行时改写该状态
+                </?01M05F1PJ7NG5566E27CD9DDMY>
+                <Then ?01M05F1PJ7NG5566E27CD9DDMZ>
+                SHALL 经 contract 声明的 writeCommands（单写 owner），SHALL NOT 由多个 ad-hoc 直写点绕过 contract
+                </?01M05F1PJ7NG5566E27CD9DDMZ>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-multi-agent-domain-integration/requirements/extension-not-conversation-owner" } (
+      <Requirement #extension-not-conversation-owner (
+        <Statement ?01M05F1PJ7NG5566E27CD9DDN0>
+        member / holon / delegate / subagent 作为 AI domain extension，SHALL NOT 写入或拥有 conversation / history / LLM-context 真源；它们对 Conversation / LLM Context 的读取与贡献 SHALL 经 domain protocol（声明的 readViews 与 spine 单写语义管线），SHALL NOT 直达 conversation domain 内部写入器或运行时内部状态。对应 005「delegate/subagent 不成为 conversation truth owner」「member/holon 经 domain protocol 接入」。
+        </?01M05F1PJ7NG5566E27CD9DDN0>
+        <Suites [
+          <Suite #domain-protocol-access { name = "Extension accesses conversation via domain protocol" } (
+            <Cases [
+              <Case #no-extension-conversation-writes [
+                <Then ?01M05F1PJ7NG5566E27CD9DDN1>
+                SHALL NOT 调用 conversation domain 写入器（appendLiveHistory… / recordPromptRequest… / writeHistory/Prompt/SessionIndex / applyConversationCompaction / ConversationDomainRuntime 写）
+                </?01M05F1PJ7NG5566E27CD9DDN1>
+                <Then ?01M05F1PJ7NG5566E27CD9DDN2>
+                对 Conversation/LLM Context 的贡献 SHALL 经 spine 单写语义管线注入，读取 SHALL 经声明的 readViews
+                </?01M05F1PJ7NG5566E27CD9DDN2>
+              ] (
+                <Given ?01M05F1PJ7NG5566E27CD9DDN3>
+                member/holon/delegate/subagent 代码路径
+                </?01M05F1PJ7NG5566E27CD9DDN3>
+                <When ?01M05F1PJ7NG5566E27CD9DDN4>
+                边界检查其对 conversation/history/llm-context 的访问
+                </?01M05F1PJ7NG5566E27CD9DDN4>
+              )>
+              <Case #member-holon-protocol-read (
+                <Given ?01M05F1PJ7NG5566E27CD9DDN5>
+                member/holon 需要读取 Conversation / LLM Context
+                </?01M05F1PJ7NG5566E27CD9DDN5>
+                <When ?01M05F1PJ7NG5566E27CD9DDN6>
+                访问这些真源
+                </?01M05F1PJ7NG5566E27CD9DDN6>
+                <Then ?01M05F1PJ7NG5566E27CD9DDN7>
+                SHALL 经 domain-protocol readViews（只读视图），SHALL NOT 直达 runtime 内部
+                </?01M05F1PJ7NG5566E27CD9DDN7>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-multi-agent-domain-integration/requirements/delegate-completion-mailbox-injection" } (
+      <Requirement #delegate-completion-mailbox-injection (
+        <Statement ?01M05F1PJ7NG5566E27CD9DDN8>
+        delegate / subagent 的完成结果 SHALL 经 actor mailbox 注入回父 actor，注入唤醒等级 SHALL 遵循已确立的 wake-class 分流：sync_wait（同步等待）完成走高优先 mandatory_completion，detached（后台）完成走 low_priority_continuation（不打断主循环）。完成注入 SHALL NOT 由 delegate/subagent 直接写父 actor 的 conversation truth。对应 gate G-ai-turn-state / G-ai-tool-result。
+        </?01M05F1PJ7NG5566E27CD9DDN8>
+        <Suites [
+          <Suite #mailbox-injection { name = "Delegate/subagent completion via mailbox" } (
+            <Cases [
+              <Case #completion-enqueues-via-mailbox (
+                <Given ?01M05F1PJ7NG5566E27CD9DDN9>
+                delegate/subagent 完成
+                </?01M05F1PJ7NG5566E27CD9DDN9>
+                <When ?01M05F1PJ7NG5566E27CD9DDNA>
+                把完成结果交回父 actor
+                </?01M05F1PJ7NG5566E27CD9DDNA>
+                <Then ?01M05F1PJ7NG5566E27CD9DDNB>
+                SHALL 经 mailbox enqueue 完成事件（childDone / semantic_background_result），SHALL NOT 直接写父 actor conversation/history 真源
+                </?01M05F1PJ7NG5566E27CD9DDNB>
+              )>
+              <Case #wake-class-split-pinned [
+                <Then ?01M05F1PJ7NG5566E27CD9DDNC>
+                sync_wait 完成 SHALL 用 mandatory_completion（高优先）
+                </?01M05F1PJ7NG5566E27CD9DDNC>
+                <Then ?01M05F1PJ7NG5566E27CD9DDND>
+                detached 完成 SHALL 用 low_priority_continuation（低优先，不打断主循环）
+                </?01M05F1PJ7NG5566E27CD9DDND>
+              ] (
+                <Given ?01M05F1PJ7NG5566E27CD9DDNE>
+                完成的等待类型
+                </?01M05F1PJ7NG5566E27CD9DDNE>
+                <When ?01M05F1PJ7NG5566E27CD9DDNF>
+                决定注入唤醒等级
+                </?01M05F1PJ7NG5566E27CD9DDNF>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

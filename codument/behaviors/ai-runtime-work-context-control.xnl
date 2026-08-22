@@ -1,0 +1,199 @@
+<Behavior #ai-runtime-work-context-control apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #manual-work-mode (
+      <Statement ?01M05F1P1093G707CRMJZ28RB1>
+      系统 SHALL expose AI runtime work mode as a user-controlled state with exactly `build` and `plan` values.
+      </?01M05F1P1093G707CRMJZ28RB1>
+      <Suites [
+        <Suite #slash-command { name = "Manual work mode slash command" } (
+          <Cases [
+            <Case #default-build (
+              <Given ?01M05F1P1093G707CRMJZ28RB2>
+              A new or migrated AI runtime actor has no explicit manual work mode state
+              </?01M05F1P1093G707CRMJZ28RB2>
+              <When ?01M05F1P1093G707CRMJZ28RB3>
+              The actor work context is initialized
+              </?01M05F1P1093G707CRMJZ28RB3>
+              <Then ?01M05F1P1093G707CRMJZ28RB4>
+              The system SHALL set work mode to `build`
+              </?01M05F1P1093G707CRMJZ28RB4>
+            )>
+            <Case #set-build-plan [
+              <Then ?01M05F1P1093G707CRMJZ28RB5>
+              The system SHALL update actor work mode to the requested value
+              </?01M05F1P1093G707CRMJZ28RB5>
+              <Then ?01M05F1P1093G707CRMJZ28RB6>
+              The command SHALL NOT be appended as semantic LLM conversation history
+              </?01M05F1P1093G707CRMJZ28RB6>
+              <Then ?01M05F1P1093G707CRMJZ28RB7>
+              The command SHALL NOT trigger a provider completion request
+              </?01M05F1P1093G707CRMJZ28RB7>
+            ] (
+              <Given ?01M05F1P1093G707CRMJZ28RB8>
+              The user enters `/work-mode plan` or `/work-mode build`
+              </?01M05F1P1093G707CRMJZ28RB8>
+              <When ?01M05F1P1093G707CRMJZ28RB9>
+              The runtime consumes the input
+              </?01M05F1P1093G707CRMJZ28RB9>
+            )>
+            <Case #plan-is-permission-boundary (
+              <Given ?01M05F1P1093G707CRMJZ28RBA>
+              The current work mode is `plan`
+              </?01M05F1P1093G707CRMJZ28RBA>
+              <When ?01M05F1P1093G707CRMJZ28RBB>
+              The model attempts a file write, patch, edit, or destructive shell command
+              </?01M05F1P1093G707CRMJZ28RBB>
+              <Then ?01M05F1P1093G707CRMJZ28RBC>
+              The system SHALL block or route the operation through the explicit permission policy before execution
+              </?01M05F1P1093G707CRMJZ28RBC>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #model-task-phase (
+      <Statement ?01M05F1P1093G707CRMJZ28RBD>
+      系统 SHALL expose AI runtime task phase as a model-declared state with exactly `normal` and `answer` values.
+      </?01M05F1P1093G707CRMJZ28RBD>
+      <Suites [
+        <Suite #task-phase-tool { name = "Task phase control tool" } (
+          <Cases [
+            <Case #default-normal (
+              <Given ?01M05F1P1093G707CRMJZ28RBE>
+              A new user turn starts
+              </?01M05F1P1093G707CRMJZ28RBE>
+              <When ?01M05F1P1093G707CRMJZ28RBF>
+              The runtime prepares actor work context
+              </?01M05F1P1093G707CRMJZ28RBF>
+              <Then ?01M05F1P1093G707CRMJZ28RBG>
+              The system SHALL set task phase to `normal` unless a task phase tool call changes it
+              </?01M05F1P1093G707CRMJZ28RBG>
+            )>
+            <Case #model-sets-answer [
+              <Then ?01M05F1P1093G707CRMJZ28RBH>
+              The system SHALL set actor task phase to `answer`
+              </?01M05F1P1093G707CRMJZ28RBH>
+              <Then ?01M05F1P1093G707CRMJZ28RBJ>
+              The tool SHALL NOT change work mode
+              </?01M05F1P1093G707CRMJZ28RBJ>
+            ] (
+              <Given ?01M05F1P1093G707CRMJZ28RBK>
+              The model is ready to stop tool-driven work and produce a final answer
+              </?01M05F1P1093G707CRMJZ28RBK>
+              <When ?01M05F1P1093G707CRMJZ28RBM>
+              The model calls the task phase control tool with `phase=answer`
+              </?01M05F1P1093G707CRMJZ28RBM>
+            )>
+            <Case #tool-after-answer-resets-normal (
+              <Given ?01M05F1P1093G707CRMJZ28RBN>
+              The current task phase is `answer`
+              </?01M05F1P1093G707CRMJZ28RBN>
+              <When ?01M05F1P1093G707CRMJZ28RBP>
+              The model calls a normal non-control tool
+              </?01M05F1P1093G707CRMJZ28RBP>
+              <Then ?01M05F1P1093G707CRMJZ28RBQ>
+              The system SHALL reset task phase to `normal` for that continued tool-driven work
+              </?01M05F1P1093G707CRMJZ28RBQ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #remove-legacy-inference (
+      <Statement ?01M05F1P1093G707CRMJZ28RBR>
+      系统 SHALL remove legacy automatic work mode and task phase inference paths that conflict with explicit runtime control.
+      </?01M05F1P1093G707CRMJZ28RBR>
+      <Suites [
+        <Suite #legacy-removal { name = "Legacy inference removal" } (
+          <Cases [
+            <Case #old-enums-removed [
+              <Then ?01M05F1P1093G707CRMJZ28RBS>
+              The system SHALL normalize them to `build` and `normal`
+              </?01M05F1P1093G707CRMJZ28RBS>
+              <Then ?01M05F1P1093G707CRMJZ28RBT>
+              The system SHALL NOT expose old enum values to prompt planning or runtime policy
+              </?01M05F1P1093G707CRMJZ28RBT>
+            ] (
+              <Given ?01M05F1P1093G707CRMJZ28RBV>
+              Runtime work context data is serialized, recovered, or migrated
+              </?01M05F1P1093G707CRMJZ28RBV>
+              <When ?01M05F1P1093G707CRMJZ28RBW>
+              Old work mode or task phase values are encountered
+              </?01M05F1P1093G707CRMJZ28RBW>
+            )>
+            <Case #no-call-count-switching (
+              <Given ?01M05F1P1093G707CRMJZ28RBX>
+              The model repeatedly calls tools, reads files, runs checks, or continues a turn
+              </?01M05F1P1093G707CRMJZ28RBX>
+              <When ?01M05F1P1093G707CRMJZ28RBY>
+              The runtime updates work context
+              </?01M05F1P1093G707CRMJZ28RBY>
+              <Then ?01M05F1P1093G707CRMJZ28RBZ>
+              The system SHALL NOT switch work mode or task phase based on call counts, repeated tool counts, or iteration counts
+              </?01M05F1P1093G707CRMJZ28RBZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #cache-stable-overlay (
+      <Statement ?01M05F1P1093G707CRMJZ28RC0>
+      系统 SHALL keep work mode、task phase 与 mutable provider projections compact and outside stable provider prefix content，并 SHALL 把它们放在 stable system prefix 与 chronological conversation history 之间的固定语义锚点；动态状态 MUST NOT 随最后一条 user/tool message 移动或追加到 provider request 尾部。
+      </?01M05F1P1093G707CRMJZ28RC0>
+      <Suites [
+        <Suite #prompt-cache { name = "Prompt cache stability" } (
+          <Cases [
+            <Case #fixed-conversation-boundary [
+              <Then ?01M05F1P1093G707CRMJZ28RC1>
+              system prompts SHALL 在最前
+              </?01M05F1P1093G707CRMJZ28RC1>
+              <Then ?01M05F1P1093G707CRMJZ28RC2>
+              当前 dynamic overlays SHALL 以稳定顺序紧随 stable system prefix
+              </?01M05F1P1093G707CRMJZ28RC2>
+              <Then ?01M05F1P1093G707CRMJZ28RC3>
+              user/assistant/tool history SHALL 保持原 chronological 顺序并位于 overlays 之后
+              </?01M05F1P1093G707CRMJZ28RC3>
+            ] (
+              <Given ?01M05F1P1093G707CRMJZ28RC4>
+              system prompts、动态 overlays 与多轮 chronological history 同时存在
+              </?01M05F1P1093G707CRMJZ28RC4>
+              <When ?01M05F1P1093G707CRMJZ28RC5>
+              Conversation materializer 构造 provider context
+              </?01M05F1P1093G707CRMJZ28RC5>
+            )>
+            <Case #new-user-does-not-relocate-overlay [
+              <Then ?01M05F1P1093G707CRMJZ28RC6>
+              overlay 的语义锚点 SHALL 保持不变
+              </?01M05F1P1093G707CRMJZ28RC6>
+              <Then ?01M05F1P1093G707CRMJZ28RC7>
+              既有 provider prefix SHALL 保持可做 exact-prefix replay/cache matching
+              </?01M05F1P1093G707CRMJZ28RC7>
+            ] (
+              <Given ?01M05F1P1093G707CRMJZ28RC8>
+              动态状态 revision/content 未变化
+              </?01M05F1P1093G707CRMJZ28RC8>
+              <When ?01M05F1P1093G707CRMJZ28RC9>
+              新的 user 或 tool message 追加到 History
+              </?01M05F1P1093G707CRMJZ28RC9>
+            )>
+            <Case #dynamic-revision-invalidates-continuation [
+              <Then ?01M05F1P1093G707CRMJZ28RCA>
+              旧 continuation baseline SHALL 失效
+              </?01M05F1P1093G707CRMJZ28RCA>
+              <Then ?01M05F1P1093G707CRMJZ28RCB>
+              新 full request SHALL 在固定锚点只包含当前 revision
+              </?01M05F1P1093G707CRMJZ28RCB>
+            ] (
+              <Given ?01M05F1P1093G707CRMJZ28RCC>
+              work context 或 mutable projection revision/content 变化
+              </?01M05F1P1093G707CRMJZ28RCC>
+              <When ?01M05F1P1093G707CRMJZ28RCD>
+              系统构造下一 provider request
+              </?01M05F1P1093G707CRMJZ28RCD>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

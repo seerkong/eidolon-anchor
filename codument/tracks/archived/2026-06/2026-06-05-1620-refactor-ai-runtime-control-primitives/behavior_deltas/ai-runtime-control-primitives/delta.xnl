@@ -1,0 +1,142 @@
+<BehaviorPatch #track.r_2_0_2_6_-_0_6_-_0_5_-_1_6_2_0_-_r_e_f_a_c_t_o_r_-_a_i_-_r_u_n_t_i_m_e_-_c_o_n_t_r_o_l_-_p_r_i_m_i_t_i_v_e_s.behavior_patch.ai-runtime-control-primitives apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-control-primitives" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-control-primitives/requirements/package-layering" } (
+      <Requirement #package-layering (
+        <Statement ?01M05F1PFT5Q1MXFQ0Y7YQJ3TQ>
+        系统 SHALL provide AI runtime control contract and logic packages separated as `ai-runtime-control-contract` and `ai-runtime-control-logic`.
+        </?01M05F1PFT5Q1MXFQ0Y7YQJ3TQ>
+        <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-runtime-control-primitives/package-layering" strength = "hint" }>
+        <Suites [
+          <Suite #dependency-direction { name = "Dependency Direction" } (
+            <Cases [
+              <Case #logic-does-not-depend-on-organ [
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3TR>
+                The logic package SHALL NOT depend on `@cell/ai-organ-logic`
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3TR>
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3TS>
+                The organ logic package MAY depend on the AI runtime control logic package
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3TS>
+              ] (
+                <Given ?01M05F1PFT5Q1MXFQ0Y7YQJ3TT>
+                The AI runtime control logic package is implemented
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3TT>
+                <When ?01M05F1PFT5Q1MXFQ0Y7YQJ3TV>
+                Package dependencies are inspected
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3TV>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-control-primitives/requirements/ai-mailbox-policy" } (
+      <Requirement #ai-mailbox-policy (
+        <Statement ?01M05F1PFT5Q1MXFQ0Y7YQJ3TW>
+        系统 SHALL map AI mailbox entries and cooperative execution state to vendor actor-control work classifications.
+        </?01M05F1PFT5Q1MXFQ0Y7YQJ3TW>
+        <Suites [
+          <Suite #wake-mailbox-policy { name = "Wake Mailbox Policy" } (
+            <Cases [
+              <Case #completion-work-classification (
+                <Given ?01M05F1PFT5Q1MXFQ0Y7YQJ3TX>
+                An actor is waiting on an inflight LLM or synchronous child result
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3TX>
+                <When ?01M05F1PFT5Q1MXFQ0Y7YQJ3TY>
+                The matching completion mailbox entry is pending
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3TY>
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3TZ>
+                The AI mailbox policy SHALL classify the entry as mandatory completion
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3TZ>
+              )>
+              <Case #ordinary-input-classification [
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3V0>
+                The entry SHALL remain recoverable input, control marker, timer wake, or low priority continuation according to AI semantics
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V0>
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3V1>
+                The classification SHALL NOT force every pending mailbox into mandatory completion
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V1>
+              ] (
+                <Given ?01M05F1PFT5Q1MXFQ0Y7YQJ3V2>
+                An actor has pending human input, member chat, member coordination, ordinary control, ordinary tool result, or heartbeat mailbox work
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V2>
+                <When ?01M05F1PFT5Q1MXFQ0Y7YQJ3V3>
+                The AI mailbox policy classifies the entry
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V3>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-control-primitives/requirements/ai-turn-barrier" } (
+      <Requirement #ai-turn-barrier (
+        <Statement ?01M05F1PFT5Q1MXFQ0Y7YQJ3V4>
+        系统 SHALL expose an AI turn barrier that can be reused by snapshot save, idle preemption, heartbeat eligibility, recovery scheduling, and TUI settled checks.
+        </?01M05F1PFT5Q1MXFQ0Y7YQJ3V4>
+        <Suites [
+          <Suite #snapshot-barrier { name = "Snapshot Barrier" } (
+            <Cases [
+              <Case #safepoint-result-compatible [
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3V5>
+                The returned result SHALL preserve the existing safepoint safe/blocker semantics
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V5>
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3V6>
+                The result SHALL NOT require `AiAgentVm` contract expansion
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V6>
+              ] (
+                <Given ?01M05F1PFT5Q1MXFQ0Y7YQJ3V7>
+                The current runtime is evaluated for snapshot safety
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V7>
+                <When ?01M05F1PFT5Q1MXFQ0Y7YQJ3V8>
+                The AI turn barrier is inspected
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V8>
+              )>
+              <Case #wake-mailbox-before-snapshot [
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3V9>
+                The actor has not drained that mailbox entry into conversation or cooperative state
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3V9>
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3VA>
+                The barrier SHALL report the runtime as unsafe
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3VA>
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3VB>
+                The blocker metadata SHALL NOT include raw mailbox payloads
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3VB>
+              ] (
+                <Given ?01M05F1PFT5Q1MXFQ0Y7YQJ3VC>
+                A wake mailbox entry has been delivered to an actor
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3VC>
+                <When ?01M05F1PFT5Q1MXFQ0Y7YQJ3VD>
+                The snapshot barrier is evaluated
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3VD>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-control-primitives/requirements/ai-durable-head-cohort" } (
+      <Requirement #ai-durable-head-cohort (
+        <Statement ?01M05F1PFT5Q1MXFQ0Y7YQJ3VE>
+        系统 SHALL model AI runtime durable heads as a cohort guarded by AI turn barriers.
+        </?01M05F1PFT5Q1MXFQ0Y7YQJ3VE>
+        <Suites [
+          <Suite #first-cohort { name = "First Cohort" } (
+            <Cases [
+              <Case #snapshot-and-conversation-heads (
+                <Given ?01M05F1PFT5Q1MXFQ0Y7YQJ3VF>
+                A runtime snapshot and conversation head are both recoverable truth heads
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3VF>
+                <When ?01M05F1PFT5Q1MXFQ0Y7YQJ3VG>
+                The runtime has not reached the snapshot barrier
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3VG>
+                <Then ?01M05F1PFT5Q1MXFQ0Y7YQJ3VH>
+                The AI durable head cohort SHALL prevent advancing the latest recoverable conversation head independently from the runtime snapshot
+                </?01M05F1PFT5Q1MXFQ0Y7YQJ3VH>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

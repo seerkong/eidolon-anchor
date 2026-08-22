@@ -1,0 +1,625 @@
+<Behavior #ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #single-in-memory-truth (
+      <Statement ?01M05F1P12XCPT243VD2RC7BHN>
+      会话运行期间，Conversation 三域（History、LLM Context、Session）SHALL 是唯一可写的内存事实真源；providerMessages SHALL 由三阶段 materialize（Session 选择、History active tail、Context 变换/overlay）从三域纯投影产出；SHALL NOT 存在与三域平行演化的 provider 消息数组真相；actor.messages SHALL 是 History 域的只读投影视图，SHALL NOT 可写。
+      </?01M05F1P12XCPT243VD2RC7BHN>
+      <Suites [
+        <Suite #truth { name = "Single in-memory truth" } (
+          <Cases [
+            <Case #provider-context-from-materialize-only [
+              <Then ?01M05F1P12XCPT243VD2RC7BHP>
+              消息列表 SHALL 来自 MaterializationDerivation 对三域状态的投影
+              </?01M05F1P12XCPT243VD2RC7BHP>
+              <Then ?01M05F1P12XCPT243VD2RC7BHQ>
+              SHALL NOT 从裸消息数组、文件、journal 或 snapshot 取数
+              </?01M05F1P12XCPT243VD2RC7BHQ>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BHR>
+              一轮对话需要构造 provider 请求
+              </?01M05F1P12XCPT243VD2RC7BHR>
+              <When ?01M05F1P12XCPT243VD2RC7BHS>
+              系统组装消息列表
+              </?01M05F1P12XCPT243VD2RC7BHS>
+            )>
+            <Case #writes-via-semantic-events [
+              <Then ?01M05F1P12XCPT243VD2RC7BHT>
+              输入 SHALL 以 semantic 事件进入规范事件流（语义级注入，不经 lexical/syntactic）
+              </?01M05F1P12XCPT243VD2RC7BHT>
+              <Then ?01M05F1P12XCPT243VD2RC7BHV>
+              三域写入 SHALL 只发生在消费该流的 Reducer/MessageAssembly，SHALL NOT 直接 push 任何旁路数组或绕过流直写域
+              </?01M05F1P12XCPT243VD2RC7BHV>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BHW>
+              用户输入、工具结果或 childDone 结果需要进入对话历史
+              </?01M05F1P12XCPT243VD2RC7BHW>
+              <When ?01M05F1P12XCPT243VD2RC7BHX>
+              消息进入系统
+              </?01M05F1P12XCPT243VD2RC7BHX>
+            )>
+            <Case #compaction-in-domain [
+              <Then ?01M05F1P12XCPT243VD2RC7BHY>
+              SHALL 通过域 compaction 命令产生 compact generation 与 summary transform
+              </?01M05F1P12XCPT243VD2RC7BHY>
+              <Then ?01M05F1P12XCPT243VD2RC7BHZ>
+              SHALL NOT 原地重写消息数组
+              </?01M05F1P12XCPT243VD2RC7BHZ>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BJ0>
+              上下文需要压缩
+              </?01M05F1P12XCPT243VD2RC7BJ0>
+              <When ?01M05F1P12XCPT243VD2RC7BJ1>
+              压缩执行
+              </?01M05F1P12XCPT243VD2RC7BJ1>
+            )>
+            <Case #equivalence-gate [
+              <Then ?01M05F1P12XCPT243VD2RC7BJ2>
+              两者产出的 providerMessages SHALL 逐消息等价
+              </?01M05F1P12XCPT243VD2RC7BJ2>
+              <Then ?01M05F1P12XCPT243VD2RC7BJ3>
+              等价闸门通过后旧路径 SHALL 被删除
+              </?01M05F1P12XCPT243VD2RC7BJ3>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BJ4>
+              真源切换实施中，新旧两条组装路径并存
+              </?01M05F1P12XCPT243VD2RC7BJ4>
+              <When ?01M05F1P12XCPT243VD2RC7BJ5>
+              以同一脚本化输入序列驱动两条路径
+              </?01M05F1P12XCPT243VD2RC7BJ5>
+            )>
+            <Case #mirror-eliminated [
+              <Then ?01M05F1P12XCPT243VD2RC7BJ6>
+              actor.messages SHALL 是 History 域 active tail 的只读冻结投影（facade getter）
+              </?01M05F1P12XCPT243VD2RC7BJ6>
+              <Then ?01M05F1P12XCPT243VD2RC7BJ7>
+              SHALL NOT 存在任何对该视图的写入路径；SHALL NOT 存在从该视图进入 provider 组装的路径（含 prompt-plan 系统通道）；系统提示来源 SHALL 为 actor.systemPrompts 经域命令入 Context 域
+              </?01M05F1P12XCPT243VD2RC7BJ7>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BJ8>
+              真源切换与镜像收口完成后检查 actor 表面
+              </?01M05F1P12XCPT243VD2RC7BJ8>
+              <When ?01M05F1P12XCPT243VD2RC7BJ9>
+              访问 actor.messages 或检查其写入与消费路径
+              </?01M05F1P12XCPT243VD2RC7BJ9>
+            )>
+            <Case #writes-via-eventbus-only [
+              <Then ?01M05F1P12XCPT243VD2RC7BJA>
+              appendLiveHistoryMessageToConversationDomainRuntime 的调用点 SHALL 只存在于 MessageHistoryGraph 的 onCommittedMessage 旁路
+              </?01M05F1P12XCPT243VD2RC7BJA>
+              <Then ?01M05F1P12XCPT243VD2RC7BJB>
+              SHALL NOT 存在 injectSemanticEventsIntoConversationDomain、deliveredViaSemanticStream、emittedOnSemanticStream、committedViaSemanticStream、conversationCommitGraphAttachCount 等旁路与 fence 符号
+              </?01M05F1P12XCPT243VD2RC7BJB>
+              <Then ?01M05F1P12XCPT243VD2RC7BJC>
+              任何 commit SHALL 由一个前置的 vm.eventBus emit 触发
+              </?01M05F1P12XCPT243VD2RC7BJC>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BJD>
+              三域写入入口被收口（P8 single-writer pipeline）
+              </?01M05F1P12XCPT243VD2RC7BJD>
+              <When ?01M05F1P12XCPT243VD2RC7BJE>
+              检查全仓源码与运行时
+              </?01M05F1P12XCPT243VD2RC7BJE>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #single-writer-pipeline (
+      <Statement ?01M05F1P12XCPT243VD2RC7BJF>
+      vm.eventBus SHALL 是 semantic 事件在 vm 上的唯一传输；MessageHistoryGraph SHALL 是 vm 上唯一的 commit 入口（消费 eventBus 并写 History 域）；graph SHALL 在 conversation runtime 初始化时常驻 attach，SHALL NOT 以 actor 类型作为 attach 决策依据；非流式来源（childDone、member chat、member coordination、heartbeat、种子、effect 回放）SHALL 通过在 eventBus 上发出合法 semantic 事件序列进入域，SHALL NOT 经任何 inject 旁路直接写域。
+      </?01M05F1P12XCPT243VD2RC7BJF>
+      <Suites [
+        <Suite #single-writer { name = "Single-writer pipeline" } (
+          <Cases [
+            <Case #graph-resident-attach [
+              <Then ?01M05F1P12XCPT243VD2RC7BJG>
+              graph SHALL 处于 attach 状态且其生命周期与 vm 一致
+              </?01M05F1P12XCPT243VD2RC7BJG>
+              <Then ?01M05F1P12XCPT243VD2RC7BJH>
+              SHALL NOT 以 isHistoryTrackedActor 或类似判断 gate attach 决策
+              </?01M05F1P12XCPT243VD2RC7BJH>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BJJ>
+              conversation runtime 初始化完成
+              </?01M05F1P12XCPT243VD2RC7BJJ>
+              <When ?01M05F1P12XCPT243VD2RC7BJK>
+              检查 MessageHistoryGraph 的 attach 状态
+              </?01M05F1P12XCPT243VD2RC7BJK>
+            )>
+            <Case #non-streaming-via-eventbus [
+              <Then ?01M05F1P12XCPT243VD2RC7BJM>
+              SHALL 以 vm.eventBus emit 出合法 semantic 事件序列
+              </?01M05F1P12XCPT243VD2RC7BJM>
+              <Then ?01M05F1P12XCPT243VD2RC7BJN>
+              SHALL NOT 直接调用 messageAssemblyDerivation 或 appendLiveHistoryMessageToConversationDomainRuntime
+              </?01M05F1P12XCPT243VD2RC7BJN>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BJP>
+              一个非流式来源的事件（childDone / member chat / coordination / heartbeat / 种子 / effect 回放）需要进入域
+              </?01M05F1P12XCPT243VD2RC7BJP>
+              <When ?01M05F1P12XCPT243VD2RC7BJQ>
+              该事件被派发
+              </?01M05F1P12XCPT243VD2RC7BJQ>
+            )>
+            <Case #persistence-side-effect-gate-preserved [
+              <Then ?01M05F1P12XCPT243VD2RC7BJR>
+              commit 写域 SHALL 对所有 actor 类型一致生效
+              </?01M05F1P12XCPT243VD2RC7BJR>
+              <Then ?01M05F1P12XCPT243VD2RC7BJS>
+              history persistence 副作用（appendMessage、transcript evidence）SHALL 仍按既有 actor 类型 gate（与写域路径解耦）
+              </?01M05F1P12XCPT243VD2RC7BJS>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BJT>
+              graph 常驻 attach 后，detached / delegate actor 的事件也经过 graph
+              </?01M05F1P12XCPT243VD2RC7BJT>
+              <When ?01M05F1P12XCPT243VD2RC7BJV>
+              graph 处理这些事件
+              </?01M05F1P12XCPT243VD2RC7BJV>
+            )>
+            <Case #eventbus-required [
+              <Then ?01M05F1P12XCPT243VD2RC7BJW>
+              SHALL 抛出显式错误并指明缺失原因
+              </?01M05F1P12XCPT243VD2RC7BJW>
+              <Then ?01M05F1P12XCPT243VD2RC7BJX>
+              SHALL NOT 静默走任何 inject 旁路
+              </?01M05F1P12XCPT243VD2RC7BJX>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BJY>
+              conversation runtime 在缺失 vm.eventBus 的环境中尝试初始化
+              </?01M05F1P12XCPT243VD2RC7BJY>
+              <When ?01M05F1P12XCPT243VD2RC7BJZ>
+              初始化执行
+              </?01M05F1P12XCPT243VD2RC7BJZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #stage-pipeline-contracts (
+      <Statement ?01M05F1P12XCPT243VD2RC7BK0>
+      流式加工 pipeline（ingress、lexical、syntactic、semantic）SHALL 保持现有 stage 逻辑不变并获得 DataSubgraphContract；MessageAssembly SHALL 是 semantic 事件到 committed 消息的唯一提交边界；TUI 与观测 SHALL 只读订阅 semantic 流。
+      </?01M05F1P12XCPT243VD2RC7BK0>
+      <Suites [
+        <Suite #pipeline { name = "Stage pipeline contracts" } (
+          <Cases [
+            <Case #stage-components-declared (
+              <Given ?01M05F1P12XCPT243VD2RC7BK1>
+              runtime data subgraph registry 构建完成
+              </?01M05F1P12XCPT243VD2RC7BK1>
+              <When ?01M05F1P12XCPT243VD2RC7BK2>
+              查询 stage 组件
+              </?01M05F1P12XCPT243VD2RC7BK2>
+              <Then ?01M05F1P12XCPT243VD2RC7BK3>
+              ingress_stage、lexical_syntactic_stage、semantic_event SHALL 各有 owner 边界与 Not Owned Here
+              </?01M05F1P12XCPT243VD2RC7BK3>
+            )>
+            <Case #message-assembly-single-commit-boundary [
+              <Then ?01M05F1P12XCPT243VD2RC7BK4>
+              提交 SHALL 只经 MessageAssemblyDerivation 的归并产物
+              </?01M05F1P12XCPT243VD2RC7BK4>
+              <Then ?01M05F1P12XCPT243VD2RC7BK5>
+              SHALL NOT 存在第二个 assistant 消息写入路径
+              </?01M05F1P12XCPT243VD2RC7BK5>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BK6>
+              semantic 流产出 assistant 消息内容
+              </?01M05F1P12XCPT243VD2RC7BK6>
+              <When ?01M05F1P12XCPT243VD2RC7BK7>
+              消息提交进入 History 域
+              </?01M05F1P12XCPT243VD2RC7BK7>
+            )>
+            <Case #observability-two-levels [
+              <Then ?01M05F1P12XCPT243VD2RC7BK8>
+              流式输出类关注（delta、tool 卡片、actor 消息）SHALL 从 semantic 事件流衍生
+              </?01M05F1P12XCPT243VD2RC7BK8>
+              <Then ?01M05F1P12XCPT243VD2RC7BK9>
+              committed/世代级关注（正式历史、压缩、heads）SHALL 从 MessageAssembly 产物或 History 域衍生，SHALL NOT 混用层级
+              </?01M05F1P12XCPT243VD2RC7BK9>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BKA>
+              一个可观测性或 TUI 关注点需要取数
+              </?01M05F1P12XCPT243VD2RC7BKA>
+              <When ?01M05F1P12XCPT243VD2RC7BKB>
+              选择衍生来源
+              </?01M05F1P12XCPT243VD2RC7BKB>
+            )>
+            <Case #projector-not-reads-parser-state [
+              <Then ?01M05F1P12XCPT243VD2RC7BKC>
+              SHALL 订阅 semantic 事件流
+              </?01M05F1P12XCPT243VD2RC7BKC>
+              <Then ?01M05F1P12XCPT243VD2RC7BKD>
+              SHALL NOT 直读 lexical/syntactic parser state
+              </?01M05F1P12XCPT243VD2RC7BKD>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BKE>
+              semantic 层之外的 projector 需要展示流式内容
+              </?01M05F1P12XCPT243VD2RC7BKE>
+              <When ?01M05F1P12XCPT243VD2RC7BKF>
+              projector 取数
+              </?01M05F1P12XCPT243VD2RC7BKF>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #recovery-one-way-handoff (
+      <Statement ?01M05F1P12XCPT243VD2RC7BKG>
+      恢复 SHALL 是显式阶段的单向交接：唯一恢复源为会话文件；一次性水合内存三域；到达切换点后文件 SHALL 退出 live 路径；SHALL NOT 将内存消息反灌三域，SHALL NOT 在 live 运行中回读会话文件，双源 SHALL NOT 同时生效。
+      </?01M05F1P12XCPT243VD2RC7BKG>
+      <Suites [
+        <Suite #recovery { name = "One-way recovery handoff" } (
+          <Cases [
+            <Case #hydrate-once-then-memory-only [
+              <Then ?01M05F1P12XCPT243VD2RC7BKH>
+              所有读取 SHALL 来自内存三域
+              </?01M05F1P12XCPT243VD2RC7BKH>
+              <Then ?01M05F1P12XCPT243VD2RC7BKJ>
+              任何 live 路径读会话文件 SHALL 视为违例
+              </?01M05F1P12XCPT243VD2RC7BKJ>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BKK>
+              session 从会话文件完成三域水合并到达切换点
+              </?01M05F1P12XCPT243VD2RC7BKK>
+              <When ?01M05F1P12XCPT243VD2RC7BKM>
+              live 循环继续运行
+              </?01M05F1P12XCPT243VD2RC7BKM>
+            )>
+            <Case #no-bootstrap-backfill (
+              <Given ?01M05F1P12XCPT243VD2RC7BKN>
+              恢复完成后内存中存在消息状态
+              </?01M05F1P12XCPT243VD2RC7BKN>
+              <When ?01M05F1P12XCPT243VD2RC7BKP>
+              检查三域写入来源
+              </?01M05F1P12XCPT243VD2RC7BKP>
+              <Then ?01M05F1P12XCPT243VD2RC7BKQ>
+              SHALL NOT 存在从消息数组向三域的 bootstrap 反灌路径
+              </?01M05F1P12XCPT243VD2RC7BKQ>
+            )>
+            <Case #single-recovery-source [
+              <Then ?01M05F1P12XCPT243VD2RC7BKR>
+              恢复 SHALL 只读会话文件
+              </?01M05F1P12XCPT243VD2RC7BKR>
+              <Then ?01M05F1P12XCPT243VD2RC7BKS>
+              SHALL NOT 存在任何 fallback 来源
+              </?01M05F1P12XCPT243VD2RC7BKS>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BKT>
+              会话文件与其他持久化产物同时存在
+              </?01M05F1P12XCPT243VD2RC7BKT>
+              <When ?01M05F1P12XCPT243VD2RC7BKV>
+              选择恢复来源
+              </?01M05F1P12XCPT243VD2RC7BKV>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #transcript-complete-removal (
+      <Statement ?01M05F1P12XCPT243VD2RC7BKW>
+      actor transcript SHALL 被彻底删除：store、contract、写入效应、恢复 fallback、recovery report 来源字段以及 session-upgrade 内的 legacy transcript 读取；SHALL NOT 保留任何演进兼容遗留；仅含 transcript 的旧 session 在升级或恢复时 SHALL 返回显式拒绝错误。
+      </?01M05F1P12XCPT243VD2RC7BKW>
+      <Suites [
+        <Suite #removal { name = "Transcript complete removal" } (
+          <Cases [
+            <Case #no-transcript-symbols (
+              <Given ?01M05F1P12XCPT243VD2RC7BKX>
+              本 track 完成后检查运行时与工具源码
+              </?01M05F1P12XCPT243VD2RC7BKX>
+              <When ?01M05F1P12XCPT243VD2RC7BKY>
+              全仓搜索 transcript 符号
+              </?01M05F1P12XCPT243VD2RC7BKY>
+              <Then ?01M05F1P12XCPT243VD2RC7BKZ>
+              ActorTranscript contract、LocalFileActorTranscriptStore、transcript 写入与读取调用 SHALL 不存在
+              </?01M05F1P12XCPT243VD2RC7BKZ>
+            )>
+            <Case #transcript-only-session-rejected [
+              <Then ?01M05F1P12XCPT243VD2RC7BM0>
+              系统 SHALL 返回显式拒绝错误并说明原因
+              </?01M05F1P12XCPT243VD2RC7BM0>
+              <Then ?01M05F1P12XCPT243VD2RC7BM1>
+              SHALL NOT 静默转换或部分恢复
+              </?01M05F1P12XCPT243VD2RC7BM1>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BM2>
+              一个旧 session 只有 legacy transcript 没有会话文件
+              </?01M05F1P12XCPT243VD2RC7BM2>
+              <When ?01M05F1P12XCPT243VD2RC7BM3>
+              尝试升级或恢复
+              </?01M05F1P12XCPT243VD2RC7BM3>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #conversation-capsule (
+      <Statement ?01M05F1P12XCPT243VD2RC7BM4>
+      Conversation runtime SHALL 全量 capsule 化：conversationCapsule 含 coreLogic、adapterRegistry、adapters、internals；持久化实现 SHALL 作为按枚举 id 注册的 adapter；三个 derivation contract（ConversationReducer、MessageAssembly、Materialization）SHALL 在 contract 包声明并运行时断言；capsule SHALL NOT 定义 contract 同名类型。
+      </?01M05F1P12XCPT243VD2RC7BM4>
+      <Suites [
+        <Suite #capsule { name = "Conversation capsule" } (
+          <Cases [
+            <Case #capsule-structure-holds (
+              <Given ?01M05F1P12XCPT243VD2RC7BM5>
+              conversationCapsule 完成重构
+              </?01M05F1P12XCPT243VD2RC7BM5>
+              <When ?01M05F1P12XCPT243VD2RC7BM6>
+              运行结构 conformance
+              </?01M05F1P12XCPT243VD2RC7BM6>
+              <Then ?01M05F1P12XCPT243VD2RC7BM7>
+              coreLogic 稳定入口、adapter 枚举布线、internals 隔离、类型留在 contract SHALL 全部成立
+              </?01M05F1P12XCPT243VD2RC7BM7>
+            )>
+            <Case #derivations-asserted-and-pure (
+              <Given ?01M05F1P12XCPT243VD2RC7BM8>
+              三个 conversation derivation 实现被注入
+              </?01M05F1P12XCPT243VD2RC7BM8>
+              <When ?01M05F1P12XCPT243VD2RC7BM9>
+              断言与源码纯度检查
+              </?01M05F1P12XCPT243VD2RC7BM9>
+              <Then ?01M05F1P12XCPT243VD2RC7BMA>
+              缺方法 SHALL 报方法名；实现 SHALL 无直接 IO
+              </?01M05F1P12XCPT243VD2RC7BMA>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #tool-result-first-provider-delivery (
+      <Statement ?01M05F1P12XCPT243VD2RC7BMB>
+      系统 SHALL 把新提交的 assistant tool call 与 matching tool result 的首次 provider delivery 建模为可持久恢复的显式事实；在该 pair 实际进入一次成功 provider request 之前，任何 compaction 或 persistence SHALL NOT 把结果替换为声称模型已经收到正文的 wrapper；provider failure、abort 与 recovery SHALL 保持其 pending，而 History、ToolCallDomain 和稳定 prompt/cache 前缀 SHALL 保持各自既有所有权。
+      </?01M05F1P12XCPT243VD2RC7BMB>
+      <Suites [
+        <Suite #tool-result-delivery-lifecycle { name = "Tool result first provider delivery lifecycle" } (
+          <Cases [
+            <Case #fresh-large-result-survives-preflight-compaction [
+              <Then ?01M05F1P12XCPT243VD2RC7BMC>
+              matching assistant tool call 与完整 tool result SHALL 保留在该 provider request
+              </?01M05F1P12XCPT243VD2RC7BMC>
+              <Then ?01M05F1P12XCPT243VD2RC7BMD>
+              系统 SHALL NOT 生成声称该 pending 结果已被模型收到的 artifact wrapper
+              </?01M05F1P12XCPT243VD2RC7BMD>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BME>
+              旧历史已超过 cheap compaction 阈值，且当前轮刚产生一个仍可装入 provider 上限的大工具结果
+              </?01M05F1P12XCPT243VD2RC7BME>
+              <When ?01M05F1P12XCPT243VD2RC7BMF>
+              executor 在下一次 provider call 前应用 compaction
+              </?01M05F1P12XCPT243VD2RC7BMF>
+            )>
+            <Case #success-confirms-only-included-pairs [
+              <Then ?01M05F1P12XCPT243VD2RC7BMG>
+              系统 SHALL 只确认该 request 实际包含的 pending pair 为 delivered
+              </?01M05F1P12XCPT243VD2RC7BMG>
+              <Then ?01M05F1P12XCPT243VD2RC7BMH>
+              后续 compaction MAY 按既有预算外置这些 delivered 结果
+              </?01M05F1P12XCPT243VD2RC7BMH>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BMJ>
+              provider request 实际包含一个或多个 pending tool call/result pair
+              </?01M05F1P12XCPT243VD2RC7BMJ>
+              <When ?01M05F1P12XCPT243VD2RC7BMK>
+              provider completion 成功
+              </?01M05F1P12XCPT243VD2RC7BMK>
+            )>
+            <Case #failure-keeps-delivery-pending (
+              <Given ?01M05F1P12XCPT243VD2RC7BMM>
+              包含 pending pair 的 provider call 失败、中止或未形成成功 completion
+              </?01M05F1P12XCPT243VD2RC7BMM>
+              <When ?01M05F1P12XCPT243VD2RC7BMN>
+              系统再次构造 provider request或从 snapshot 恢复
+              </?01M05F1P12XCPT243VD2RC7BMN>
+              <Then ?01M05F1P12XCPT243VD2RC7BMP>
+              该 pair SHALL 仍有首次完整交付资格并继续受 compaction 保护
+              </?01M05F1P12XCPT243VD2RC7BMP>
+            )>
+            <Case #artifact-read-converges (
+              <Given ?01M05F1P12XCPT243VD2RC7BMQ>
+              模型读取一个已持久化的大文本 artifact，read 产生新的工具结果
+              </?01M05F1P12XCPT243VD2RC7BMQ>
+              <When ?01M05F1P12XCPT243VD2RC7BMR>
+              下一次 provider request 构造前应用 compaction
+              </?01M05F1P12XCPT243VD2RC7BMR>
+              <Then ?01M05F1P12XCPT243VD2RC7BMS>
+              read 结果 SHALL 至少完整交付一次，且 SHALL NOT 在首次交付前再次外置为下一层 artifact
+              </?01M05F1P12XCPT243VD2RC7BMS>
+            )>
+            <Case #legacy-history-remains-compatible (
+              <Given ?01M05F1P12XCPT243VD2RC7BMT>
+              恢复的 legacy Conversation 含没有 delivery fact 的旧 tool result
+              </?01M05F1P12XCPT243VD2RC7BMT>
+              <When ?01M05F1P12XCPT243VD2RC7BMV>
+              系统应用上下文预算
+              </?01M05F1P12XCPT243VD2RC7BMV>
+              <Then ?01M05F1P12XCPT243VD2RC7BMW>
+              旧结果 MAY 按既有 compaction 语义处理，系统 SHALL NOT 强制重投全部 legacy 历史
+              </?01M05F1P12XCPT243VD2RC7BMW>
+            )>
+            <Case #cache-prefix-remains-stable [
+              <Then ?01M05F1P12XCPT243VD2RC7BMX>
+              delivery 动态状态 SHALL 只影响 late conversation materialization 或 runtime metadata
+              </?01M05F1P12XCPT243VD2RC7BMX>
+              <Then ?01M05F1P12XCPT243VD2RC7BMY>
+              系统 SHALL NOT 把该状态写入稳定 system instructions 或 provider cache key
+              </?01M05F1P12XCPT243VD2RC7BMY>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BMZ>
+              不同轮次具有不同 pending/delivered tool result 集合
+              </?01M05F1P12XCPT243VD2RC7BMZ>
+              <When ?01M05F1P12XCPT243VD2RC7BN0>
+              系统构造 stateless provider request
+              </?01M05F1P12XCPT243VD2RC7BN0>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #provider-context-state-projection (
+      <Statement ?01M05F1P12XCPT243VD2RC7BN1>
+      系统 SHALL 让工具产生的可变上下文状态通过工具无关的 projection key、revision 与 source delivery 生命周期进入 provider view；History 与 ToolCallDomain SHALL 保留完整工具事实，而 provider materialization SHALL 在 source call/result 成功交付一次且已有当前 projection 承接后按 tool_call_id 整体消隐旧配对，并且每个 logical key SHALL 只投影当前 revision。
+      </?01M05F1P12XCPT243VD2RC7BN1>
+      <Suites [
+        <Suite #projection-lifecycle { name = "Provider context projection lifecycle" } (
+          <Cases [
+            <Case #first-delivery-retains-pair [
+              <Then ?01M05F1P12XCPT243VD2RC7BN2>
+              provider messages SHALL 保留完整匹配的 assistant tool call 与 tool result
+              </?01M05F1P12XCPT243VD2RC7BN2>
+              <Then ?01M05F1P12XCPT243VD2RC7BN3>
+              系统 SHALL 同时 materialize 当前 projection revision
+              </?01M05F1P12XCPT243VD2RC7BN3>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BN4>
+              一个工具结果首次产生 mutable projection 且 source tool call 尚未被成功 provider completion 消费
+              </?01M05F1P12XCPT243VD2RC7BN4>
+              <When ?01M05F1P12XCPT243VD2RC7BN5>
+              系统构造下一次 provider request
+              </?01M05F1P12XCPT243VD2RC7BN5>
+            )>
+            <Case #delivered-pair-elided-as-unit [
+              <Then ?01M05F1P12XCPT243VD2RC7BN6>
+              系统 SHALL 按 tool_call_id 同时消隐 assistant tool call 与 matching tool result
+              </?01M05F1P12XCPT243VD2RC7BN6>
+              <Then ?01M05F1P12XCPT243VD2RC7BN7>
+              系统 SHALL NOT 修改 History、ToolCallDomain 或审计 effect
+              </?01M05F1P12XCPT243VD2RC7BN7>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BN8>
+              source tool call/result 已随一次成功 provider request 完成交付，且当前 projection 仍可用
+              </?01M05F1P12XCPT243VD2RC7BN8>
+              <When ?01M05F1P12XCPT243VD2RC7BN9>
+              系统构造后续 provider request
+              </?01M05F1P12XCPT243VD2RC7BN9>
+            )>
+            <Case #mixed-tool-call-message-preserved [
+              <Then ?01M05F1P12XCPT243VD2RC7BNA>
+              系统 SHALL 保留其他 tool call、matching result 以及 assistant content/reasoning
+              </?01M05F1P12XCPT243VD2RC7BNA>
+              <Then ?01M05F1P12XCPT243VD2RC7BNB>
+              provider messages SHALL NOT 产生孤儿 tool result 或无结果 tool call
+              </?01M05F1P12XCPT243VD2RC7BNB>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BNC>
+              一个 assistant message 同时包含已投影 source call 与普通 tool call
+              </?01M05F1P12XCPT243VD2RC7BNC>
+              <When ?01M05F1P12XCPT243VD2RC7BND>
+              provider materializer 消隐已投影 source pair
+              </?01M05F1P12XCPT243VD2RC7BND>
+            )>
+            <Case #revision-replaces-current-projection [
+              <Then ?01M05F1P12XCPT243VD2RC7BNE>
+              系统 SHALL 只 materialize 新 revision，并 SHALL NOT 累积旧 revision state message
+              </?01M05F1P12XCPT243VD2RC7BNE>
+              <Then ?01M05F1P12XCPT243VD2RC7BNF>
+              projection SHALL 位于 cache-friendly late dynamic insertion boundary
+              </?01M05F1P12XCPT243VD2RC7BNF>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BNG>
+              同一 actor 和 logical projection key 产生新 revision
+              </?01M05F1P12XCPT243VD2RC7BNG>
+              <When ?01M05F1P12XCPT243VD2RC7BNH>
+              系统构造 provider context
+              </?01M05F1P12XCPT243VD2RC7BNH>
+            )>
+            <Case #provider-failure-does-not-confirm-delivery (
+              <Given ?01M05F1P12XCPT243VD2RC7BNJ>
+              包含 undelivered source pair 的 provider call 失败或被中止
+              </?01M05F1P12XCPT243VD2RC7BNJ>
+              <When ?01M05F1P12XCPT243VD2RC7BNK>
+              系统再次构造 provider request
+              </?01M05F1P12XCPT243VD2RC7BNK>
+              <Then ?01M05F1P12XCPT243VD2RC7BNM>
+              该 source pair SHALL 仍被视为 undelivered 并再次完整交付
+              </?01M05F1P12XCPT243VD2RC7BNM>
+            )>
+            <Case #tool-independent-materializer [
+              <Then ?01M05F1P12XCPT243VD2RC7BNN>
+              处理逻辑 SHALL 只依赖 projection contract、revision 和 tool_call_id
+              </?01M05F1P12XCPT243VD2RC7BNN>
+              <Then ?01M05F1P12XCPT243VD2RC7BNP>
+              SHALL NOT 按 TaskTreeWrite、Skill、Read 或其他具体工具名分支
+              </?01M05F1P12XCPT243VD2RC7BNP>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BNQ>
+              不同工具 producer 发布同一种 mutable projection effect
+              </?01M05F1P12XCPT243VD2RC7BNQ>
+              <When ?01M05F1P12XCPT243VD2RC7BNR>
+              executor 和 provider materializer 处理这些 effect
+              </?01M05F1P12XCPT243VD2RC7BNR>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #recovered-profile-prompt-reconciliation (
+      <Statement ?01M05F1P12XCPT243VD2RC7BNS>
+      系统 SHALL 在恢复 shell control actor 时，以显式 profile-owned prompt slot/provenance 把该 slot 协调为当前 runtime profile assembly 的 system prompt，同时 SHALL 保留 actor/session/model/work/task/mailbox/History、其他 actor 以及非 profile-owned 自定义 prompt；terminal SHALL NOT 拥有提示词正文或迁移语义。
+      </?01M05F1P12XCPT243VD2RC7BNS>
+      <Suites [
+        <Suite #owner-aware-recovery { name = "Owner-aware recovered prompt reconciliation" } (
+          <Cases [
+            <Case #owned-profile-slot-refreshes [
+              <Then ?01M05F1P12XCPT243VD2RC7BNT>
+              系统 SHALL 只把该 owned slot 替换为当前 profile prompt 并更新 provenance
+              </?01M05F1P12XCPT243VD2RC7BNT>
+              <Then ?01M05F1P12XCPT243VD2RC7BNV>
+              其他 system prompts 与 actor/runtime/conversation 状态 SHALL 保持不变
+              </?01M05F1P12XCPT243VD2RC7BNV>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BNW>
+              snapshot 含 profile-owned prompt slot，且 persisted digest 与 slot 内容匹配
+              </?01M05F1P12XCPT243VD2RC7BNW>
+              <When ?01M05F1P12XCPT243VD2RC7BNX>
+              shell runtime 使用当前 profile assembly 恢复 control actor
+              </?01M05F1P12XCPT243VD2RC7BNX>
+            )>
+            <Case #legacy-empty-or-single-migrates [
+              <Then ?01M05F1P12XCPT243VD2RC7BNY>
+              空 prompt SHALL 插入当前 profile prompt；单 prompt SHALL 被认领为 legacy profile baseline 后替换
+              </?01M05F1P12XCPT243VD2RC7BNY>
+              <Then ?01M05F1P12XCPT243VD2RC7BNZ>
+              迁移后 SHALL 写入明确的 profile ownership provenance
+              </?01M05F1P12XCPT243VD2RC7BNZ>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BP0>
+              legacy shell control actor 没有 prompt provenance，且 system prompts 为空或恰好一条
+              </?01M05F1P12XCPT243VD2RC7BP0>
+              <When ?01M05F1P12XCPT243VD2RC7BP1>
+              系统恢复 snapshot
+              </?01M05F1P12XCPT243VD2RC7BP1>
+            )>
+            <Case #legacy-multiple-prompts-preserved [
+              <Then ?01M05F1P12XCPT243VD2RC7BP2>
+              系统 SHALL 保留全部 prompt，不得猜测 owner 或覆盖内容
+              </?01M05F1P12XCPT243VD2RC7BP2>
+              <Then ?01M05F1P12XCPT243VD2RC7BP3>
+              系统 SHALL 发出可观测诊断以提示需要显式迁移
+              </?01M05F1P12XCPT243VD2RC7BP3>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BP4>
+              legacy shell control actor 没有 provenance 且包含多条 system prompts
+              </?01M05F1P12XCPT243VD2RC7BP4>
+              <When ?01M05F1P12XCPT243VD2RC7BP5>
+              系统恢复 snapshot
+              </?01M05F1P12XCPT243VD2RC7BP5>
+            )>
+            <Case #workspace-session-resumes-exact-snapshot [
+              <Then ?01M05F1P12XCPT243VD2RC7BP6>
+              系统 SHALL 恢复该 session 的 control actor、History、TaskTree 和 mailboxes，而不是创建新 session
+              </?01M05F1P12XCPT243VD2RC7BP6>
+              <Then ?01M05F1P12XCPT243VD2RC7BP7>
+              当前 profile-owned prompt SHALL 按上述规则协调后进入 provider context
+              </?01M05F1P12XCPT243VD2RC7BP7>
+            ] (
+              <Given ?01M05F1P12XCPT243VD2RC7BP8>
+              CLI 指定存在的 workspace 与 session id，snapshot schema 可恢复且 fiber 位于 idle external boundary
+              </?01M05F1P12XCPT243VD2RC7BP8>
+              <When ?01M05F1P12XCPT243VD2RC7BP9>
+              headless exec 启动 runtime turn
+              </?01M05F1P12XCPT243VD2RC7BP9>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

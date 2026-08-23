@@ -1,0 +1,51 @@
+<decision #track.execute-ai-agent-resources-through-eidolon-runtime.generic-runtime apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP4KTKXCEQSN5Z070SW66H>
+  What runtime executes a resource-backed Agent?
+  </?01M0QP4KTKXCEQSN5Z070SW66H>
+  <answer (
+    <raw-answer ?01M0QP4KTMHVFQEFWMKJPY0594>
+    The existing Eidolon delegate actor runtime.
+    </?01M0QP4KTMHVFQEFWMKJPY0594>
+    <decision-text ?01M0QP4KTMHVFQEFWMKJPY0595>
+    Resource Agents SHALL materialize to generic AgentConfig and execute through AgentRegistry, spawnChildExecutionActor, existing provider/tool policies and the Conversation Domain.
+    </?01M0QP4KTMHVFQEFWMKJPY0595>
+    <rationale ?01M0QP4KTMHVFQEFWMKJPY0596>
+    A resource-specific actor or session path would duplicate the platform and violate the mission boundary.
+    </?01M0QP4KTMHVFQEFWMKJPY0596>
+    <evidence ?01M0QP4KTMHVFQEFWMKJPY0597>
+    Generic actor runtime integration and recovery tests.
+    </?01M0QP4KTMHVFQEFWMKJPY0597>
+  )>
+  <confidence ?01M0QP4KTMHVFQEFWMKJPY0598>
+  0.99
+  </?01M0QP4KTMHVFQEFWMKJPY0598>
+  <reversibility ?01M0QP4KTMHVFQEFWMKJPY0599>
+  low
+  </?01M0QP4KTMHVFQEFWMKJPY0599>
+)>
+
+<decision #track.execute-ai-agent-resources-through-eidolon-runtime.freeze-fact apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP4KTMHVFQEFWMKJPY059A>
+  What must be persisted before workflow Agent dispatch?
+  </?01M0QP4KTMHVFQEFWMKJPY059A>
+  <answer (
+    <raw-answer ?01M0QP4KTMHVFQEFWMKJPY059B>
+    The depa receipt and immutable host execution plan.
+    </?01M0QP4KTMHVFQEFWMKJPY059B>
+    <decision-text ?01M0QP4KTMHVFQEFWMKJPY059C>
+    WorkflowFactStore SHALL persist a task/effect-bound execution fact before dispatch; recovery SHALL use its frozen generic config without rereading the live package.
+    </?01M0QP4KTMHVFQEFWMKJPY059C>
+    <rationale ?01M0QP4KTMHVFQEFWMKJPY059D>
+    A digest receipt alone cannot recreate prompt text after the source disappears, while a second registry is unnecessary.
+    </?01M0QP4KTMHVFQEFWMKJPY059D>
+    <evidence ?01M0QP4KTMHVFQEFWMKJPY059E>
+    Durable effect evidence and source-removal recovery tests.
+    </?01M0QP4KTMHVFQEFWMKJPY059E>
+  )>
+  <confidence ?01M0QP4KTMHVFQEFWMKJPY059F>
+  0.98
+  </?01M0QP4KTMHVFQEFWMKJPY059F>
+  <reversibility ?01M0QP4KTMHVFQEFWMKJPY059G>
+  moderate
+  </?01M0QP4KTMHVFQEFWMKJPY059G>
+)>

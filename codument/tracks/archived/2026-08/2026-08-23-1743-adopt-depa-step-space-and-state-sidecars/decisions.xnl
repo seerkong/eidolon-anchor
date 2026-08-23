@@ -1,0 +1,51 @@
+<decision #track.adopt-depa-step-space-and-state-sidecars.physical-owner apiVersion="codument.tech/v1alpha1" {
+  priority = "P0"
+  status = "accepted"
+} (
+  <question ?>Eidolon 是否应拥有 StepSpace sidecar 的物理 record/tree/head 协议？</?>
+  <options [
+    <option { key = "depa-owner" recommended = true } (<title ?>DEPA 单一物理 owner</?><description ?>Eidolon 只注入 support root、profile authority 与 codec registry，物理事务完全委托 published DEPA store。</?><tradeoff ?>Eidolon 调试面必须通过逻辑 projection，而不能直接依赖目录布局。</?>)>
+    <option { key = "eidolon-store" } (<title ?>Eidolon 平行 store</?><description ?>在 host 内复制 sidecar/Merkle 协议。</?><tradeoff ?>形成第二 authority并使恢复和升级分叉。</?>)>
+  ]>
+  <recommendation ?>选择 depa-owner。</?>
+  <answer (
+    <raw-answer ?>沿用前序 mission 与用户确认：不得破坏 depa 的 Definition/Instance/Run 与 state owner设计。</?>
+    <decision-text ?>Eidolon 不实现或解释物理 sidecar布局；所有写入和恢复使用 published DEPA owner。</?>
+    <rationale ?>单一 checkpoint、CAS、root-last 与 Merkle durability已经由 depa实现并独立验证，复制只会降低一致性。</?>
+    <evidence ?>depa archived track add-flow-step-space-and-state-sidecars final verification 34/34；当前 Eidolon 已使用 WorkflowDepaPersistence 单一 checkpoint。</?>
+  )>
+)>
+<decision #track.adopt-depa-step-space-and-state-sidecars.codec-authority apiVersion="codument.tech/v1alpha1" {
+  priority = "P0"
+  status = "accepted"
+} (
+  <question ?>Extension codec 与其 schema/value 应分别由谁拥有？</?>
+  <options [
+    <option { key = "runtime-port" recommended = true } (<title ?>Runtime-only codec port</?><description ?>冻结 descriptor/schema/normalized value，函数由长生命周期 runtime registry提供。</?><tradeoff ?>fresh runtime必须显式重建相同 codec registry。</?>)>
+    <option { key = "persist-function" } (<title ?>持久化 codec</?><description ?>把执行实现写入定义或checkpoint。</?><tradeoff ?>函数跨数据边界，无法形成closed fact与稳定恢复。</?>)>
+  ]>
+  <recommendation ?>选择 runtime-port。</?>
+  <answer (
+    <raw-answer ?>遵循 DEPA Processor/runtime boundary。</?>
+    <decision-text ?>Codec 函数只存在于 runtime port；定义和checkpoint只保存closed descriptor、schemaRef、revision与normalized value。</?>
+    <rationale ?>这样既保留可扩展性，又不把副作用实现或host路径变成durable事实。</?>
+    <evidence ?>flow-step-space-contract@0.1.1 DefinitionStepExtensionCodecRegistryPort、ai-workflow-logic@0.1.7 profile authority 与 authored mutation contract。</?>
+  )>
+)>
+<decision #track.adopt-depa-step-space-and-state-sidecars.product-surface apiVersion="codument.tech/v1alpha1" {
+  priority = "P1"
+  status = "accepted"
+} (
+  <question ?>产品 API 是否暴露物理 sidecar 文件以便调试和局部修改？</?>
+  <options [
+    <option { key = "logical-only" recommended = true } (<title ?>逻辑 API</?><description ?>只暴露 step/extension identity、logical revision/value与checkpoint facts。</?><tradeoff ?>底层检查需使用明确的诊断工具或测试receipt。</?>)>
+    <option { key = "physical-path" } (<title ?>物理路径 API</?><description ?>把record/tree/head路径返回调用方。</?><tradeoff ?>泄露host布局并使调用方绕过owner写入。</?>)>
+  ]>
+  <recommendation ?>选择 logical-only。</?>
+  <answer (
+    <raw-answer ?>用户要求保留 DEPA 标准化 Processor，并反对重新发明存储布局。</?>
+    <decision-text ?>作者态和运行态公共 API 只使用逻辑 refs/selectors；物理文件由 DEPA owner保持opaque。</?>
+    <rationale ?>逻辑 API 可类型化且跨后端稳定，同时局部性仍可由owner receipt验证。</?>
+    <evidence ?>现有 Eidolon status/summary/replay 已承诺不暴露物理bundle路径；mission要求单一authority与可检查性同时成立。</?>
+  )>
+)>

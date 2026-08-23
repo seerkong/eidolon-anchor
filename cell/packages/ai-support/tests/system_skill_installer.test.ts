@@ -51,10 +51,10 @@ describe("bundled system skills", () => {
 
   test("derives the exact four patch-versioned identities without a payload identity descriptor", () => {
     expect(EXPECTED_EIDOLON_SYSTEM_SKILL_SET.map(({ name, version }) => ({ name, version }))).toEqual([
-      { name: "sys-eidolon-anchor-run", version: "1.0.0" },
+      { name: "sys-eidolon-anchor-run", version: "1.0.5" },
       { name: "sys-halfcode-resource-dsl", version: "1.0.0" },
-      { name: "sys-eidolon-anchor-authoring", version: "1.0.7" },
-      { name: "sys-eidolon-anchor-devops", version: "1.0.8" },
+      { name: "sys-eidolon-anchor-authoring", version: "1.0.25" },
+      { name: "sys-eidolon-anchor-devops", version: "1.0.29" },
     ])
     expect(EXPECTED_EIDOLON_SYSTEM_SKILL_SET.flatMap((skill) => skill.files.map((file) => file.path)))
       .not.toContain("system-skill.xnl")
@@ -485,25 +485,31 @@ describe("bundled system skills", () => {
     }
   })
 
-  test("loads only the two exact split DevOps files for each explicit stage", async () => {
+  test("loads the exact DevOps stage and coding Authoring entry resources", async () => {
     const globalRoot = await mkdtemp(path.join(os.tmpdir(), "eidolon-global-"))
     await installBundledSystemSkills({ globalRoot })
 
     const planning = await loadAiWorkflowStageContext({ globalRoot, stage: "planning" })
     const coding = await loadAiWorkflowStageContext({ globalRoot, stage: "coding" })
     const deploying = await loadAiWorkflowStageContext({ globalRoot, stage: "deploying" })
+    const operating = await loadAiWorkflowStageContext({ globalRoot, stage: "operating" })
     const improving = await loadAiWorkflowStageContext({ globalRoot, stage: "improving" })
 
     expect(planning).toContain("Planning system context")
-    expect(coding).toContain('skill: "sys-eidolon-anchor-authoring"')
-    expect(coding).toContain('resource: "operations/index.md"')
-    expect(deploying).toContain('skill: "sys-eidolon-anchor-run"')
+    expect(coding).toContain("already includes the Authoring root")
+    expect(coding).toContain("do not load either again")
+    expect(deploying).toContain("sys-eidolon-anchor-run")
+    expect(operating).toContain("# Run operations")
+    expect(operating).toContain("operations/resolve-entrypoint.md")
     expect(improving).toContain("Improving system context")
     expect(coding).not.toContain("L1 foundation")
     expect(coding).not.toContain("AICtrlWorkflow")
     expect(coding).not.toContain("AIDataWorkflow")
     expect(coding.match(/<!-- sys-eidolon-anchor-devops\/coding\//g)).toHaveLength(2)
+    expect(coding.match(/<!-- sys-eidolon-anchor-authoring\//g)).toHaveLength(2)
     expect(deploying.match(/<!-- sys-eidolon-anchor-devops\/deploying\//g)).toHaveLength(2)
+    expect(deploying.match(/<!-- sys-eidolon-anchor-run\//g)).toHaveLength(2)
+    expect(operating.match(/<!-- sys-eidolon-anchor-run\//g)).toHaveLength(2)
   })
 
   test("keeps fresh-create routing in DevOps and detailed edits in Authoring operations", async () => {
@@ -527,6 +533,11 @@ describe("bundled system skills", () => {
       skillName: "sys-eidolon-anchor-authoring",
       relativePath: "operations/open-resource-package.md",
     })
+    const createPackage = await readInstalledSystemSkillResource({
+      globalRoot,
+      skillName: "sys-eidolon-anchor-authoring",
+      relativePath: "operations/create-resource-package.md",
+    })
     const inspect = await readInstalledSystemSkillResource({
       globalRoot,
       skillName: "sys-eidolon-anchor-authoring",
@@ -547,6 +558,8 @@ describe("bundled system skills", () => {
     expect(openPackage).toContain("do not call workspace `describe`, `tree`, or `read_selection`")
     expect(openPackage).toContain("do not search or read those KindDefinition paths again")
     expect(openPackage).toContain("Do not call read on /work")
+    expect(createPackage).toContain("WorkflowCreateResourcePackageSession")
+    expect(createPackage).toContain("does not synthesize KindDefinitions")
     expect(inspect).toContain("standalone `read_selection` operation is a recovery fallback")
     expect(inspect).toContain("next provider completion")
   })

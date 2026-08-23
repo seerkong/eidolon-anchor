@@ -18,6 +18,23 @@ const dataSource = `<AIDataWorkflow #local.workflow.Data apiVersion="depa.flows/
 ]>
 `
 
+const modularDataSources = {
+  "manifest.xnl": `<AIDataWorkflow #local.workflow.ModularData apiVersion="depa.flows/v1" version="1.0.0" (
+    <FlowContract #local.workflow.ModularData { inputPorts = ["input"] outputPorts = ["result"] }>
+    <StepSpaceRef { src = "step-space/step-space.xnl" }>
+  )>`,
+  "step-space/step-space.xnl": `<StepSpace #local.workflow.ModularDataSteps apiVersion="depa.flows/v1" version="1" [
+    <StepRef #entry { src = "step-space/steps/entry/step.xnl" }>
+    <StepRef #return { src = "step-space/steps/return/step.xnl" }>
+  ]>`,
+  "step-space/steps/entry/step.xnl": `<Step #entry (
+    <Core [<EntryNode #entry>]>
+    <Extensions [<ExtensionRef { kind = "local.review-policy" src = "step-space/steps/entry/review-policy.xnl" schema = "schema://local.review-policy/v1" }>]>
+  )>`,
+  "step-space/steps/entry/review-policy.xnl": `<StepExtension #entry-review-policy { kind = "local.review-policy" schema = "schema://local.review-policy/v1" value = { reviewDepth = 1 } }>`,
+  "step-space/steps/return/step.xnl": `<Step #return (<Core [<ReturnNode #return { inputs = { result = "flow-port://#entry/input" } }>]>)>`,
+} as const
+
 describe("WorkflowResourceLoader", () => {
   it("loads both canonical AI workflow forms through depa-flows bindings", () => {
     const loader = new WorkflowResourceLoader()
@@ -64,6 +81,48 @@ describe("WorkflowResourceLoader", () => {
         }),
       ]),
     )
+  })
+
+  it("uses one runtime codec registry for modular authoring admission", () => {
+    const codecs = Object.freeze({
+      resolve: (kind: string) => kind === "local.review-policy"
+        ? Object.freeze({
+            schemaRef: "schema://local.review-policy/v1",
+            codec: Object.freeze({ normalize: (value: unknown) => value }),
+          })
+        : undefined,
+    })
+    const accepted = new WorkflowResourceLoader(codecs).load({
+      form: "AIDataWorkflow",
+      sources: modularDataSources,
+    })
+    expect(accepted.diagnostics).toEqual([])
+    expect(accepted.binding?.definition).toMatchObject({
+      fqn: "local.workflow.ModularData",
+      definitionStepForest: {
+        stepOrder: ["entry", "return"],
+      },
+    })
+
+    const missing = new WorkflowResourceLoader().load({
+      form: "AIDataWorkflow",
+      sources: modularDataSources,
+    })
+    expect(missing.binding).toBeUndefined()
+    expect(missing.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "step-extension-kind-undeclared" }),
+    ]))
+
+    const wrongSchema = new WorkflowResourceLoader(Object.freeze({
+      resolve: () => Object.freeze({
+        schemaRef: "schema://local.review-policy/v2",
+        codec: Object.freeze({ normalize: (value: unknown) => value }),
+      }),
+    })).load({ form: "AIDataWorkflow", sources: modularDataSources })
+    expect(wrongSchema.binding).toBeUndefined()
+    expect(wrongSchema.diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: "step-extension-schema-mismatch" }),
+    ]))
   })
 
   it("proves deterministic ctrl and data drafts through the canonical loaders", () => {

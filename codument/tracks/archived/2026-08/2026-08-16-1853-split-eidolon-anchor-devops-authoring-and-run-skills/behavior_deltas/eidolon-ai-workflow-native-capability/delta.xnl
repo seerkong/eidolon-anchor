@@ -1,0 +1,10 @@
+<BehaviorPatch #track.split-eidolon-anchor-devops-authoring-and-run-skills.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/split-stage-skill-authority" } (
+      <Requirement #split-stage-skill-authority (
+        <Statement ?>Workflow stage context SHALL delegate exact authoring and run operations through the split system Skills without host-owned natural-language routing or eager loading of the complete Flow DSL corpus.</?>
+        <Suites [<Suite #split-stage-authority { name = "Split stage authority" } (<Cases [<Case #split-stage-progressive-routing (<Given ?>a workflow stage needs an authoring or run operation</?> <When ?>stage context is loaded</?> <Then ?>the actor SHALL receive the exact Skill resources and allowed generic tools for that stage</?>)>]>)>]>
+      )>
+    )>
+  ]>
+)>

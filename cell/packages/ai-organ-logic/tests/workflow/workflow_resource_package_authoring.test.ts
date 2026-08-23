@@ -10,6 +10,7 @@ import {
   createWorkflowComponent,
   type WorkflowAuthoringBinaryFile,
 } from "../../src/workflow"
+import { buildWorkflowCreateResourcePackageSessionToolDef } from "../../src/workflow/tools/WorkflowAuthoringTools"
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "resource-native-authoring-package")
 const temporaryRoots: string[] = []
@@ -236,6 +237,146 @@ describe("whole ResourcePackage authoring and proof", () => {
         files: [...entries, { path: "../outside.xnl", bytes: new TextEncoder().encode("outside") }],
       },
     })).rejects.toThrow("unsafe")
+  })
+
+  it("exposes fresh complete text-package creation through the model-visible authoring tool", async () => {
+    const roots = await temporaryFixture()
+    const entries = await readBinaryTree(roots.workspacePackageRoot)
+    const emptyLiveRoot = path.join(roots.parent, "fresh-workspace-resources")
+    const runtime = {
+      vm: {
+        outerCtx: {
+          workDir: roots.parent,
+          metadata: {
+            aiWorkflow: { roots: { workspaceRoot: roots.authoringRoot } },
+            resourcePackages: { layers: [{ id: "workspace", rootDir: emptyLiveRoot }] },
+          },
+        },
+      },
+      actor: {},
+    } as any
+    const tool = buildWorkflowCreateResourcePackageSessionToolDef()
+    const result = JSON.parse(await tool.run(runtime, {
+      session_id: "fresh-explicit-package",
+      files: entries.map((entry) => ({
+        path: entry.path,
+        content: new TextDecoder("utf-8", { fatal: true }).decode(entry.bytes),
+      })),
+      selected_resource_refs: ["resource://eidolon.fixture.SummaryWorkflow"],
+    }, {}))
+
+    expect(result).toMatchObject({
+      ok: true,
+      artifactKind: "resource-package",
+      sessionId: "fresh-explicit-package",
+      target: {
+        kind: "workspace-resource-package",
+        packageId: "eidolon.fixture.resource_native_authoring",
+      },
+      selection: {
+        selectedResourceRefs: ["resource://eidolon.fixture.SummaryWorkflow"],
+        truncated: false,
+      },
+      workflow_progress: {
+        kind: "workflow.domainProgressFact",
+        schemaVersion: "workflow.domain-progress-fact/v1",
+        owner: "workflow.authoring",
+        transition: "workspace_opened",
+      },
+    })
+    await expect(readFile(path.join(emptyLiveRoot, "manifest.xnl"), "utf8")).rejects.toThrow()
+  })
+
+  it("returns bounded canonical diagnostics for a fresh invalid package without creating live authority", async () => {
+    const roots = await temporaryFixture()
+    const emptyLiveRoot = path.join(roots.parent, "invalid-fresh-workspace-resources")
+    const runtime = {
+      vm: {
+        outerCtx: {
+          workDir: roots.parent,
+          metadata: {
+            aiWorkflow: { roots: { workspaceRoot: roots.authoringRoot } },
+            resourcePackages: { layers: [{ id: "workspace", rootDir: emptyLiveRoot }] },
+          },
+        },
+      },
+      actor: {},
+    } as any
+    const result = JSON.parse(await buildWorkflowCreateResourcePackageSessionToolDef().run(runtime, {
+      session_id: "invalid-fresh-package",
+      files: [{
+        path: "manifest.xnl",
+        content: `<ResourcePackage #invalid.package apiVersion="halfcode.resources/v1" version="1.0.0" (
+          <Catalogs [<Catalog #apps { kind = "AIWorkflowAppBundle" shape = "single-file" root = "vfs://./Apps/" }>]>
+        )>`,
+      }, {
+        path: "Apps/Summary.xnl",
+        content: `<AIWorkflowAppBundle #invalid.app apiVersion="depa.flows/v1" version="1.0.0">`,
+      }],
+    }, {}))
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "validation_failed",
+      effectDispatched: false,
+      workflow_progress: {
+        owner: "workflow.authoring",
+        transition: "candidate_diagnostic",
+        subjectId: "invalid-fresh-package",
+      },
+    })
+    expect(result.diagnostics.length).toBeGreaterThan(0)
+    expect(result.diagnostics.length).toBeLessThanOrEqual(20)
+    expect(result.diagnostics[0]).toEqual({
+      code: expect.any(String),
+      location: expect.any(String),
+      message: expect.any(String),
+    })
+    await expect(readFile(path.join(emptyLiveRoot, "manifest.xnl"), "utf8")).rejects.toThrow()
+  })
+
+  it("returns a bounded VFS diagnostic when a complete package references a missing source file", async () => {
+    const roots = await temporaryFixture()
+    const entries = (await readBinaryTree(roots.workspacePackageRoot))
+      .filter((entry) => entry.path !== "Workflows/flow-code/agent.ts")
+    const emptyLiveRoot = path.join(roots.parent, "missing-source-workspace-resources")
+    const runtime = {
+      vm: {
+        outerCtx: {
+          workDir: roots.parent,
+          metadata: {
+            aiWorkflow: { roots: { workspaceRoot: roots.authoringRoot } },
+            resourcePackages: { layers: [{ id: "workspace", rootDir: emptyLiveRoot }] },
+          },
+        },
+      },
+      actor: {},
+    } as any
+    const result = JSON.parse(await buildWorkflowCreateResourcePackageSessionToolDef().run(runtime, {
+      session_id: "missing-source-package",
+      files: entries.map((entry) => ({
+        path: entry.path,
+        content: new TextDecoder("utf-8", { fatal: true }).decode(entry.bytes),
+      })),
+      selected_resource_refs: ["resource://eidolon.fixture.SummaryWorkflow"],
+    }, {}))
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: "validation_failed",
+      effectDispatched: false,
+      diagnostics: [{
+        code: "WORKFLOW_AUTHORING_VFS_NOT_FOUND",
+        location: "/work/Workflows/flow-code/agent.ts",
+        message: "read expected file, found missing",
+      }],
+      workflow_progress: {
+        owner: "workflow.authoring",
+        transition: "candidate_diagnostic",
+        subjectId: "missing-source-package",
+      },
+    })
+    await expect(readFile(path.join(emptyLiveRoot, "manifest.xnl"), "utf8")).rejects.toThrow()
   })
 
   it("builds bounded Halfcode/depa proof for one revision and invalidates it on candidate or live-base drift", async () => {

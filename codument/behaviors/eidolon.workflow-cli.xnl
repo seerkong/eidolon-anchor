@@ -1,136 +1,213 @@
 <Behavior #eidolon.workflow-cli apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #component-backed-authoring (
-      <Statement ?01M05F1P2ESDVHJWW49M2QPD80>
+      <Statement ?01M0QPC3R0JKP2B7KRPK8PXS6M>
       The Eidolon CLI SHALL expose workflow authoring commands that reuse the Eidolon workflow component/service instead of implementing independent workflow core logic.
-      </?01M05F1P2ESDVHJWW49M2QPD80>
+      </?01M0QPC3R0JKP2B7KRPK8PXS6M>
       <Suites [
         <Suite #workflow-init { name = "Workflow init" } (
           <Cases [
             <Case #init-writes-controlled-draft (
-              <Given ?01M05F1P2ESDVHJWW49M2QPD81>
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS6N>
               a user runs `eidolon workflow init ai-data demo`
-              </?01M05F1P2ESDVHJWW49M2QPD81>
-              <When ?01M05F1P2ESDVHJWW49M2QPD82>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6N>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS6P>
               the command creates files
-              </?01M05F1P2ESDVHJWW49M2QPD82>
-              <Then ?01M05F1P2ESDVHJWW49M2QPD83>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6P>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS6Q>
               the CLI SHALL obtain the bundle draft from the workflow component and write the returned files under the selected `.eidolon` target root
-              </?01M05F1P2ESDVHJWW49M2QPD83>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6Q>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-roots-metadata (
-      <Statement ?01M05F1P2ESDVHJWW49M2QPD84>
+      <Statement ?01M0QPC3R0JKP2B7KRPK8PXS6R>
       Headless Eidolon runtime metadata SHALL include AI workflow roots so native workflow tools can detect workspace/global workflow roots during CLI conversations.
-      </?01M05F1P2ESDVHJWW49M2QPD84>
+      </?01M0QPC3R0JKP2B7KRPK8PXS6R>
       <Suites [
         <Suite #exec-runtime-metadata { name = "Exec runtime metadata" } (
           <Cases [
             <Case #inject-aiworkflow-roots (
-              <Given ?01M05F1P2ESDVHJWW49M2QPD85>
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS6S>
               headless exec runtime metadata is built
-              </?01M05F1P2ESDVHJWW49M2QPD85>
-              <When ?01M05F1P2ESDVHJWW49M2QPD86>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6S>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS6T>
               WorkflowInspectCapability runs in that runtime
-              </?01M05F1P2ESDVHJWW49M2QPD86>
-              <Then ?01M05F1P2ESDVHJWW49M2QPD87>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6T>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS6V>
               the tool SHALL report workflowRootsInjected=true
-              </?01M05F1P2ESDVHJWW49M2QPD87>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6V>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #heredoc-session-continuation (
-      <Statement ?01M05F1P2ESDVHJWW49M2QPD88>
+      <Statement ?01M0QPC3R0JKP2B7KRPK8PXS6W>
       The Eidolon workflow CLI MUST accept explicit heredoc-backed user instructions and MUST continue the same Eidolon conversation across independent CLI processes when a session key is supplied.
-      </?01M05F1P2ESDVHJWW49M2QPD88>
+      </?01M0QPC3R0JKP2B7KRPK8PXS6W>
       <Suites [
         <Suite #workflow-agent-input { name = "Workflow agent input" } (
           <Cases [
             <Case #explicit-stdin-source (
-              <Given ?01M05F1P2ESDVHJWW49M2QPD89>
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS6X>
               A user invokes `eidolon-cli workflow agent /dev/stdin` or `eidolon-cli workflow agent -` with a shell heredoc
-              </?01M05F1P2ESDVHJWW49M2QPD89>
-              <When ?01M05F1P2ESDVHJWW49M2QPD8A>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6X>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS6Y>
               The workflow agent resolves the requirement
-              </?01M05F1P2ESDVHJWW49M2QPD8A>
-              <Then ?01M05F1P2ESDVHJWW49M2QPD8B>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6Y>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS6Z>
               The complete multi-line stdin body MUST become the ordinary-language request without treating the source token as text
-              </?01M05F1P2ESDVHJWW49M2QPD8B>
+              </?01M0QPC3R0JKP2B7KRPK8PXS6Z>
             )>
             <Case #positional-compatible (
-              <Given ?01M05F1P2ESDVHJWW49M2QPD8C>
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS70>
               A user supplies an ordinary single-line requirement positionally
-              </?01M05F1P2ESDVHJWW49M2QPD8C>
-              <When ?01M05F1P2ESDVHJWW49M2QPD8D>
+              </?01M0QPC3R0JKP2B7KRPK8PXS70>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS71>
               The workflow agent resolves the requirement
-              </?01M05F1P2ESDVHJWW49M2QPD8D>
-              <Then ?01M05F1P2ESDVHJWW49M2QPD8E>
+              </?01M0QPC3R0JKP2B7KRPK8PXS71>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS72>
               The original positional behavior MUST remain unchanged and MUST NOT wait for stdin
-              </?01M05F1P2ESDVHJWW49M2QPD8E>
+              </?01M0QPC3R0JKP2B7KRPK8PXS72>
             )>
           ]>
         )>
         <Suite #installed-continuation { name = "Installed CLI continuation" } (
           <Cases [
             <Case #three-process-journey (
-              <Given ?01M05F1P2ESDVHJWW49M2QPD8F>
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS73>
               A locally installed Eidolon CLI and one stable session key
-              </?01M05F1P2ESDVHJWW49M2QPD8F>
-              <When ?01M05F1P2ESDVHJWW49M2QPD8G>
+              </?01M0QPC3R0JKP2B7KRPK8PXS73>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS74>
               three independent heredoc calls create, authorize publication, then authorize execution of a public multi-source workflow
-              </?01M05F1P2ESDVHJWW49M2QPD8G>
-              <Then ?01M05F1P2ESDVHJWW49M2QPD8H>
+              </?01M0QPC3R0JKP2B7KRPK8PXS74>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS75>
               The CLI MUST recover one Eidolon conversation and return a report grounded in the requested public sources without merging publication and execution authorization
-              </?01M05F1P2ESDVHJWW49M2QPD8H>
+              </?01M0QPC3R0JKP2B7KRPK8PXS75>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #unified-eidolon-executable (
-      <Statement ?01M05F1P2ESDVHJWW49M2QPD8J>
+      <Statement ?01M0QPC3R0JKP2B7KRPK8PXS76>
       The project SHALL ship one eidolon executable that owns the interactive TUI and all headless, workflow and global CLI subcommands.
-      </?01M05F1P2ESDVHJWW49M2QPD8J>
+      </?01M0QPC3R0JKP2B7KRPK8PXS76>
       <Suites [
         <Suite #unified-entry { name = "Unified executable entry" } (
           <Cases [
             <Case #default-tui (
-              <Given ?01M05F1P2ESDVHJWW49M2QPD8K>
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS77>
               A user invokes `eidolon` with no subcommand or with a project path
-              </?01M05F1P2ESDVHJWW49M2QPD8K>
-              <When ?01M05F1P2ESDVHJWW49M2QPD8M>
+              </?01M0QPC3R0JKP2B7KRPK8PXS77>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS78>
               The unified command parses the invocation
-              </?01M05F1P2ESDVHJWW49M2QPD8M>
-              <Then ?01M05F1P2ESDVHJWW49M2QPD8N>
+              </?01M0QPC3R0JKP2B7KRPK8PXS78>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS79>
               It SHALL launch the interactive TUI
-              </?01M05F1P2ESDVHJWW49M2QPD8N>
+              </?01M0QPC3R0JKP2B7KRPK8PXS79>
             )>
             <Case #shared-subcommands (
-              <Given ?01M05F1P2ESDVHJWW49M2QPD8P>
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS7A>
               A user invokes `eidolon workflow`, `eidolon global`, `eidolon exec` or another registered headless subcommand
-              </?01M05F1P2ESDVHJWW49M2QPD8P>
-              <When ?01M05F1P2ESDVHJWW49M2QPD8Q>
+              </?01M0QPC3R0JKP2B7KRPK8PXS7A>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS7B>
               The unified command parses the invocation
-              </?01M05F1P2ESDVHJWW49M2QPD8Q>
-              <Then ?01M05F1P2ESDVHJWW49M2QPD8R>
+              </?01M0QPC3R0JKP2B7KRPK8PXS7B>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS7C>
               It SHALL execute that subcommand from the same compiled program
-              </?01M05F1P2ESDVHJWW49M2QPD8R>
+              </?01M0QPC3R0JKP2B7KRPK8PXS7C>
             )>
             <Case #no-parallel-cli-distribution (
-              <Given ?01M05F1P2ESDVHJWW49M2QPD8S>
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS7D>
               The project build and install surfaces are inspected
-              </?01M05F1P2ESDVHJWW49M2QPD8S>
-              <When ?01M05F1P2ESDVHJWW49M2QPD8T>
+              </?01M0QPC3R0JKP2B7KRPK8PXS7D>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS7E>
               Terminal artifacts are produced
-              </?01M05F1P2ESDVHJWW49M2QPD8T>
-              <Then ?01M05F1P2ESDVHJWW49M2QPD8V>
+              </?01M0QPC3R0JKP2B7KRPK8PXS7E>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS7F>
               There MUST be no eidolon-cli command, headless-only entry, package build script or install script
-              </?01M05F1P2ESDVHJWW49M2QPD8V>
+              </?01M0QPC3R0JKP2B7KRPK8PXS7F>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #resource-package-publication-receipts (
+      <Statement ?01M0QPC3R0JKP2B7KRPK8PXS7G>
+      The unified Eidolon CLI SHALL expose component-derived ResourcePackage authoring/publication receipts and SHALL distinguish registry-backed resource refs from legacy VFS workflow refs.
+      </?01M0QPC3R0JKP2B7KRPK8PXS7G>
+      <Suites [
+        <Suite #machine-readable-publication { name = "Machine-readable publication facts" } (
+          <Cases [
+            <Case #registry-readback-json (
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS7H>
+              a resource-package publication succeeds
+              </?01M0QPC3R0JKP2B7KRPK8PXS7H>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS7J>
+              the CLI returns JSON or text output
+              </?01M0QPC3R0JKP2B7KRPK8PXS7J>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS7K>
+              it SHALL report the package/artifact/registry revisions and exact readback App, entrypoint Workflow, Agent and Material refs from the shared component
+              </?01M0QPC3R0JKP2B7KRPK8PXS7K>
+            )>
+            <Case #legacy-vfs-honesty (
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS7M>
+              a legacy workflow bundle is published under the workflow authoring root
+              </?01M0QPC3R0JKP2B7KRPK8PXS7M>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS7N>
+              the CLI/native receipt is projected
+              </?01M0QPC3R0JKP2B7KRPK8PXS7N>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS7P>
+              create/open/publish/resolve/capture/freeze and CLI read models SHALL preserve the same canonical vfs workflow ref and MUST NOT construct or claim any resource ref
+              </?01M0QPC3R0JKP2B7KRPK8PXS7P>
+            )>
+            <Case #outer-session-continuation (
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS7Q>
+              independent CLI invocations share one explicit outer Eidolon session
+              </?01M0QPC3R0JKP2B7KRPK8PXS7Q>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS7R>
+              fresh WorkflowFulfill children perform create, publication and execution turns
+              </?01M0QPC3R0JKP2B7KRPK8PXS7R>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS7S>
+              the CLI SHALL hand off a closed authoring/publication/execution continuation union, validate its ids against durable stores, preserve separate authorization booleans and avoid both ordinary-language reconstruction and child-history reuse
+              </?01M0QPC3R0JKP2B7KRPK8PXS7S>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #resource-native-agent-continuation (
+      <Statement ?01M0QPC3R0JKP2B7KRPK8PXS7T>
+      The unified workflow CLI SHALL continue one durable natural-language session across create, publication and execution turns and SHALL expose stable machine-readable identities without implementing a second workflow lifecycle.
+      </?01M0QPC3R0JKP2B7KRPK8PXS7T>
+      <Suites [
+        <Suite #session-continuation { name = "Durable CLI continuation" } (
+          <Cases [
+            <Case #three-turn-session (
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS7V>
+              a caller supplies one explicit session id to workflow agent
+              </?01M0QPC3R0JKP2B7KRPK8PXS7V>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS7W>
+              create, publication and execution are requested in separate invocations
+              </?01M0QPC3R0JKP2B7KRPK8PXS7W>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS7X>
+              only the outer generic CLI session SHALL continue; each workflow child may be fresh and SHALL receive typed durable authoring/publication/run handoff facts rather than prior child conversation or history
+              </?01M0QPC3R0JKP2B7KRPK8PXS7X>
+            )>
+            <Case #json-evidence (
+              <Given ?01M0QPC3R0JKP2B7KRPK8PXS7Y>
+              the caller requests JSON output
+              </?01M0QPC3R0JKP2B7KRPK8PXS7Y>
+              <When ?01M0QPC3R0JKP2B7KRPK8PXS7Z>
+              a lifecycle turn returns
+              </?01M0QPC3R0JKP2B7KRPK8PXS7Z>
+              <Then ?01M0QPC3R0JKP2B7KRPK8PXS80>
+              output SHALL expose stable session and lifecycle receipt identities without credentials, raw reasoning or machine-specific authority paths
+              </?01M0QPC3R0JKP2B7KRPK8PXS80>
             )>
           ]>
         )>

@@ -12,6 +12,7 @@ import {
 } from "@cell/ai-support/system-skill/SystemSkillInstaller"
 
 const ROOT_RESOURCE = "SKILL.md"
+const MAX_RESOURCE_BATCH = 8
 
 function exactResourceIssue(resource: string): string | undefined {
   if (!resource) return "must be a non-empty relative path"
@@ -61,6 +62,31 @@ async function readOrdinarySkillResource(skillDir: string, resource: string): Pr
   }
 }
 
+function requestedResources(input: SkillInnerInput): string[] | string {
+  if (input.resource !== undefined && input.resources !== undefined) {
+    return "Error: Skill resource and resources are mutually exclusive"
+  }
+  if (input.resources === undefined) {
+    return [input.resource === undefined ? ROOT_RESOURCE : String(input.resource)]
+  }
+  if (!Array.isArray(input.resources) || input.resources.length < 1 || input.resources.length > MAX_RESOURCE_BATCH) {
+    return `Error: Skill resources must contain between 1 and ${MAX_RESOURCE_BATCH} exact paths`
+  }
+  if (Object.getOwnPropertySymbols(input.resources).length > 0 || Object.keys(input.resources).length !== input.resources.length) {
+    return "Error: Skill resources must be a dense plain data array"
+  }
+  const resources: string[] = []
+  for (let index = 0; index < input.resources.length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(input.resources, String(index))
+    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable || typeof descriptor.value !== "string") {
+      return "Error: Skill resources must be a dense plain data array of strings"
+    }
+    resources.push(descriptor.value)
+  }
+  if (new Set(resources).size !== resources.length) return "Error: Skill resources must be unique"
+  return resources
+}
+
 export const skillCoreLogic: StdInnerLogic<SkillInnerRuntime, SkillInnerInput, SkillInnerConfig, SkillInnerOutput> = async (
   runtime,
   input,
@@ -81,41 +107,48 @@ export const skillCoreLogic: StdInnerLogic<SkillInnerRuntime, SkillInnerInput, S
     const available = SkillRegistry.keys(runtime.vm.registries.skillRegistry).join(", ") || "none"
     return `Error: Unknown skill '${input.skill}'. Available: ${available}`
   }
-  const resource = input.resource === undefined ? ROOT_RESOURCE : String(input.resource)
-  const issue = exactResourceIssue(resource)
-  if (issue) return `Error: Skill resource '${resource}' ${issue}`
-  if (resource !== ROOT_RESOURCE && !skill.resources?.includes(resource)) {
-    return `Error: Skill resource '${resource}' is not declared by '${skillName}'`
-  }
-
-  const globalRoot = resolveEidolonGlobalRootFromOuterContext(runtime.vm.outerCtx)
-  let fullPath = path.resolve(skill.dir, ...resource.split("/"))
-  let sourceText: string
-  let sizeBytes: number
-  if (skillName.startsWith("sys-")) {
-    const installedText = await readInstalledSystemSkillResource({
-      globalRoot,
-      skillName,
-      relativePath: resource,
-    })
-    sourceText = resource === ROOT_RESOURCE
-      ? SkillRegistry.getSkillContent(runtime.vm.registries.skillRegistry, skillName) ?? installedText
-      : installedText
-    sizeBytes = Buffer.byteLength(sourceText)
-  } else {
-    try {
-      const ordinary = await readOrdinarySkillResource(skill.dir, resource)
-      fullPath = ordinary.fullPath
-      sourceText = resource === ROOT_RESOURCE
-        ? SkillRegistry.getSkillContent(runtime.vm.registries.skillRegistry, skillName) ?? ordinary.sourceText
-        : ordinary.sourceText
-      sizeBytes = Buffer.byteLength(sourceText)
-    } catch (error) {
-      return `Error: ${error instanceof Error ? error.message : String(error)}`
+  const selectedResources = requestedResources(input)
+  if (typeof selectedResources === "string") return selectedResources
+  for (const resource of selectedResources) {
+    const issue = exactResourceIssue(resource)
+    if (issue) return `Error: Skill resource '${resource}' ${issue}`
+    if (resource !== ROOT_RESOURCE && !skill.resources?.includes(resource)) {
+      return `Error: Skill resource '${resource}' is not declared by '${skillName}'`
     }
   }
 
-  return loadLocalTextResource({
+  const globalRoot = resolveEidolonGlobalRootFromOuterContext(runtime.vm.outerCtx)
+  const resolved: Array<{ resource: string; fullPath: string; sourceText: string; sizeBytes: number }> = []
+  for (const resource of selectedResources) {
+    let fullPath = path.resolve(skill.dir, ...resource.split("/"))
+    let sourceText: string
+    let sizeBytes: number
+    if (skillName.startsWith("sys-")) {
+      const installedText = await readInstalledSystemSkillResource({
+        globalRoot,
+        skillName,
+        relativePath: resource,
+      })
+      sourceText = resource === ROOT_RESOURCE
+        ? SkillRegistry.getSkillContent(runtime.vm.registries.skillRegistry, skillName) ?? installedText
+        : installedText
+      sizeBytes = Buffer.byteLength(sourceText)
+    } else {
+      try {
+        const ordinary = await readOrdinarySkillResource(skill.dir, resource)
+        fullPath = ordinary.fullPath
+        sourceText = resource === ROOT_RESOURCE
+          ? SkillRegistry.getSkillContent(runtime.vm.registries.skillRegistry, skillName) ?? ordinary.sourceText
+          : ordinary.sourceText
+        sizeBytes = Buffer.byteLength(sourceText)
+      } catch (error) {
+        return `Error: ${error instanceof Error ? error.message : String(error)}`
+      }
+    }
+    resolved.push({ resource, fullPath, sourceText, sizeBytes })
+  }
+
+  return resolved.map(({ resource, fullPath, sourceText, sizeBytes }) => loadLocalTextResource({
     vm: runtime.vm,
     actorKey: runtime.actor.key,
     actorId: runtime.actor.id,
@@ -128,5 +161,5 @@ export const skillCoreLogic: StdInnerLogic<SkillInnerRuntime, SkillInnerInput, S
     offset: input.offset,
     limit: input.limit,
     sizeBytes,
-  })
+  })).join("\n\n")
 }

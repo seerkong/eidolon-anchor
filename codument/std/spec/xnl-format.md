@@ -8,8 +8,11 @@ XNL（Extensible Notation Language）
 - 属性块：`{ key = value ... }` → 存入 `attributes`。
 - 数组块：`[ item1 item2 <child> ]` → 存入 `body`（元素可为值或子节点）。
 - 唯一子节点块（extend）：`( <child1> <child2> )` → 存入 `extend`，同名覆盖旧值并警告，保持出现顺序。
-- 文本块：`<name metadata {attr} ?marker> ... </?marker>`，允许 metadata/`{}`，禁止 `[]`/`()`；标记可选但必须首尾一致。
-- ⚠️ **文本块闭合永远是 `</?>`**：不要写 XML 风格的 `</tagname>` 对称闭合（解析器不识别，会导致 extend/body 结构错乱）。❌ `<description ?>…</description>`；✅ `<description ?>…</?>`。文本内容中也不要出现 `</?` 字面量（会被当成提前闭合）。
+- 文本块：`<name metadata {attr} ?marker> ... </?marker>`，允许 metadata/`{}`，禁止 `[]`/`()`；标记可选但**必须首尾逐字相同**。
+- ⚠️ **文本块闭合规则（硬约束）**：
+  1. 没有自定义 marker 时，闭合永远是 `</?>`，不能用 XML 风格 `</tagname>`。
+  2. 有自定义 marker 时，opening `?marker` 与 closing `</?marker>` 必须逐字相同；禁止 `<desc ?foo>...</desc>` 这类“前半有 marker、后半回退 XML 标签名”的混合写法。
+  3. 文本内容中也不要出现 `</?` 字面量（会被当成提前闭合）。
 - 无其它块时直接以 `>` 结束节点。
 
 ## metadata 与 attributes 的语义边界
@@ -352,6 +355,41 @@ export type XnlNode = ValueLiteral | ContainerNode | CommentNode;
 </?>
 ```
 
+
+### 文本节点开头有 marker、结尾回退成 XML 标签名
+#### ❌ 错误示例
+
+```xnl
+<description ?>
+  内容
+</description>
+```
+
+❌ 错误！开头没有自定义 marker 时，结尾必须用 `</?>`；写成 `</description>` 是 XML 风格闭合，解析器不识别。
+
+#### ❌ 错误示例（带 marker 但结尾仍用 XML 标签名）
+
+```xnl
+<description ?d>
+  内容
+</description>
+```
+
+❌ 错误！开头声明了 `?d`，结尾必须用 `</?d>`；这里后半句回退成 XML 标签名，属于 marker 不一致。
+
+#### ✅ 正确示例
+
+```xnl
+<description ?>
+  内容
+</?>
+
+<!-- 或带 marker -->
+
+<description ?d>
+  内容
+</?d>
+```
 
 ### 文本节点自定义的marker不匹配
 #### ❌ 错误示例

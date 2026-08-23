@@ -1,11 +1,12 @@
 import { describe, expect, it } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { access, mkdtemp, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor"
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { createVM } from "@cell/ai-core-logic/runtime/runtime"
+import { readRuntimeControlEffectEvidence } from "@cell/ai-file-store-logic"
 import { composeToolRegistry } from "../../src/composer/AIAgent/ToolFuncComposer"
 import { appendLiveHistoryMessageToConversationDomainRuntime } from "../../src/conversation/ConversationDomainRuntime"
 import { EidolonWorkflowEffectProvider } from "../../src/workflow/effects/EidolonWorkflowEffectProvider"
@@ -109,9 +110,15 @@ describe("Eidolon workflow effect provider contract", () => {
     })).rejects.toThrow("does not match active runtime run authority")
   })
 
-  it("persists and reuses a frozen resource Agent plan before the existing delegate actor runs", async () => {
+  for (const workflowForm of ["AICtrlWorkflow", "AIDataWorkflow"] as const) {
+  it(`reuses generic lifecycle evidence for one ${workflowForm} resource Agent effect`, async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-agent-fact-"))
     try {
+      let providerCalls = 0
+      let releaseProvider!: () => void
+      let markProviderStarted!: () => void
+      const providerStarted = new Promise<void>((resolve) => { markProviderStarted = resolve })
+      const providerRelease = new Promise<void>((resolve) => { releaseProvider = resolve })
       const parent = createActor({
         key: "main",
         id: "parent-resource-workflow",
@@ -126,6 +133,9 @@ describe("Eidolon workflow effect provider contract", () => {
         callbacks: {
           buildToolset: () => [],
           processStream: async (vm, actor) => {
+            providerCalls += 1
+            markProviderStarted()
+            await providerRelease
             const message = { role: "assistant" as const, content: "resource workflow result" }
             appendLiveHistoryMessageToConversationDomainRuntime({
               vm,
@@ -145,6 +155,7 @@ describe("Eidolon workflow effect provider contract", () => {
           agentRegistry: new AgentRegistry({}),
         },
       })
+      ;(vm as any).outerCtx = { metadata: { sessionDir: root } }
       const facts = new WorkflowFactStore(root)
       let prepareCalls = 0
       const prepared = {
@@ -157,6 +168,16 @@ describe("Eidolon workflow effect provider contract", () => {
           messages: Object.freeze([]),
           toolResourceIds: Object.freeze([]),
           requiresWorkflowTask: true,
+          executionContract: Object.freeze({
+            schemaVersion: "eidolon.agent-execution-contract/v1" as const,
+            input: Object.freeze({
+              schemaVersion: "eidolon.agent-execution-input/v1" as const,
+              payload: Object.freeze({ request: "perform the task" }),
+              materials: Object.freeze([]),
+            }),
+            messageSchemas: Object.freeze([]),
+            effectPolicy: Object.freeze({ toolMode: "declared-only" as const }),
+          }),
           agentConfig: Object.freeze({
             name: "resource://eidolon.fixture.SupportAgent",
             description: "frozen resource Agent",
@@ -164,12 +185,22 @@ describe("Eidolon workflow effect provider contract", () => {
             prompt: Object.freeze([]) as string[],
             seedMessages: Object.freeze([{ role: "system" as const, content: "frozen instruction" }]),
             requireExactTools: true,
+            executionContract: Object.freeze({
+              schemaVersion: "eidolon.agent-execution-contract/v1" as const,
+              input: Object.freeze({
+                schemaVersion: "eidolon.agent-execution-input/v1" as const,
+                payload: Object.freeze({ request: "perform the task" }),
+                materials: Object.freeze([]),
+              }),
+              messageSchemas: Object.freeze([]),
+              effectPolicy: Object.freeze({ toolMode: "declared-only" as const }),
+            }),
           }),
         }),
         receipt: Object.freeze({
           schemaVersion: "ai-workflow.run-resource-freeze/v1" as const,
           task: Object.freeze({
-            workflowKind: "AICtrlWorkflow" as const,
+            workflowKind: workflowForm,
             workflowRef: "resource://demo.workflow.Active" as const,
             nodeId: "agent-node",
             agentDefinitionRef: "resource://eidolon.fixture.SupportAgent" as const,
@@ -186,7 +217,7 @@ describe("Eidolon workflow effect provider contract", () => {
         undefined,
         () => ACTIVE_RUN,
         {
-          workflowForm: "AICtrlWorkflow",
+          workflowForm,
           resourceRegistry: {
             async prepareWorkflowAgentExecution() {
               prepareCalls += 1
@@ -203,38 +234,45 @@ describe("Eidolon workflow effect provider contract", () => {
         nodeId: "agent-node",
         input: {
           agentDefinitionRef: "resource://eidolon.fixture.SupportAgent",
-          prompt: "perform the task",
+          payload: { request: "perform the task" },
         },
       } as const
 
-      expect(await provider.invoke(request as any)).toBe("resource workflow result")
-      expect(await provider.invoke(request as any)).toBe("resource workflow result")
-      expect(prepareCalls).toBe(1)
-      const persisted = await facts.loadAgentExecutionFact("active-run", 3, "agent-effect")
-      expect(persisted).toMatchObject({
-        schemaVersion: "eidolon.workflow-agent-execution-fact/v1",
-        runId: "active-run",
-        generation: 3,
-        effectId: "agent-effect",
-        nodeId: "agent-node",
-        agentDefinitionRef: "resource://eidolon.fixture.SupportAgent",
-        plan: { agentConfig: { name: "resource://eidolon.fixture.SupportAgent" } },
-        resourceReceipt: { semanticFingerprint: "sha256:semantic" },
-      })
-      expect(Object.isFrozen(persisted)).toBe(true)
-      expect(Object.isFrozen(persisted?.plan.agentConfig)).toBe(true)
-
-      const conflicting = structuredClone(persisted!) as any
-      conflicting.agentDefinitionRef = "resource://eidolon.fixture.OtherAgent"
-      await expect(facts.saveAgentExecutionFact(conflicting)).rejects.toThrow(
-        "Workflow Agent execution fact collision",
+      const firstExecution = provider.invoke(request as any)
+      await providerStarted
+      const sameProviderPending = provider.invoke(request as any)
+      const reconstructedProvider = new EidolonWorkflowEffectProvider(
+        { vm, actor: parent } as any,
+        {} as any,
+        facts,
+        undefined,
+        () => ACTIVE_RUN,
+        {
+          workflowForm,
+          resourceRegistry: {
+            async prepareWorkflowAgentExecution() {
+              throw new Error("recovered execution must not read the live package")
+            },
+          } as any,
+        },
       )
-      expect((await facts.loadAgentExecutionFact("active-run", 3, "agent-effect"))?.agentDefinitionRef)
-        .toBe("resource://eidolon.fixture.SupportAgent")
+      const recoveredWhilePending = reconstructedProvider.invoke(request as any)
+      releaseProvider()
+      expect(await Promise.all([firstExecution, sameProviderPending, recoveredWhilePending]))
+        .toEqual(["resource workflow result", "resource workflow result", "resource workflow result"])
+      expect(await reconstructedProvider.invoke(request as any)).toBe("resource workflow result")
+      expect(prepareCalls).toBe(1)
+      expect(providerCalls).toBe(1)
+      expect(await readRuntimeControlEffectEvidence(root)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: "request", effectId: "agent-effect", handlerKey: "workflow:ai.agent" }),
+        expect.objectContaining({ kind: "result", effectId: "agent-effect", handlerKey: "workflow:ai.agent" }),
+      ]))
+      await expect(access(path.join(root, "agent-executions", "active-run"))).rejects.toMatchObject({ code: "ENOENT" })
     } finally {
       await rm(root, { recursive: true, force: true })
     }
   })
+  }
 
   it("requires resource workflows to provide an exact agentDefinitionRef without legacy fallback", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-agent-ref-"))

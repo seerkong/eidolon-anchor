@@ -144,6 +144,37 @@ describe("workspace ResourcePackage publication", () => {
     expect(bounded.files).toHaveLength(1)
     await expect(component.sessions.readResourcePackageSelection("native-resource-package", 25))
       .rejects.toThrow("between 1 and 24")
+
+    const defaultOpened = JSON.parse(await buildWorkflowOpenAuthoringSessionToolDef().run(
+      runtime,
+      {
+        artifact_kind: "resource-package",
+        source_kind: "workspace-layer",
+        session_id: "native-resource-package-default-selection",
+      },
+      {},
+    ))
+    expect(defaultOpened.target.selectedResourceRefs).toEqual([
+      "resource://eidolon.fixture.SummaryAgent",
+      "resource://eidolon.fixture.SummaryApp",
+    ])
+    expect(defaultOpened.selection).toMatchObject({ truncated: false })
+    expect(defaultOpened.selection.resourceRefs).toEqual(expect.arrayContaining([
+      "resource://eidolon.fixture.SummaryAgent",
+      "resource://eidolon.fixture.SummaryApp",
+      "resource://eidolon.fixture.SummaryWorkflow",
+    ]))
+
+    const implicitOpened = JSON.parse(await buildWorkflowOpenAuthoringSessionToolDef().run(
+      runtime,
+      {},
+      {},
+    ))
+    expect(implicitOpened.artifactKind).toBe("resource-package")
+    expect(implicitOpened.target.selectedResourceRefs).toEqual([
+      "resource://eidolon.fixture.SummaryAgent",
+      "resource://eidolon.fixture.SummaryApp",
+    ])
   })
 
   it("derives selected KindDefinition paths from effective registry facts without a kind inventory", async () => {
@@ -240,9 +271,11 @@ describe("workspace ResourcePackage publication", () => {
       expected_revision: "sha256:stale",
       proof_receipt_ids: proofReceiptIds,
     })).rejects.toThrow("WORKFLOW_FULFILL_CONTINUATION_REVISION_CONFLICT")
+    runtime.actor.workflowProgress = {
+      activeAuthoringSessionId: opened.sessionId,
+      activeAuthoringRevision: prepared.revision,
+    }
     const readyOutput = JSON.parse(await buildWorkflowCompleteAuthoringToolDef().run(runtime, {
-      session_id: opened.sessionId,
-      expected_revision: prepared.revision,
       stage: "testing",
       outcome: "ready",
     }, {}))
@@ -278,9 +311,10 @@ describe("workspace ResourcePackage publication", () => {
         proof_receipt_ids: ["model-truncated-id"],
       },
     })).toEqual(readyOutput.continuation)
+    runtime.actor.workflowProgress = undefined
     const preparedThroughTool = JSON.parse(await buildWorkflowPreparePublicationToolDef().run(
       runtime,
-      { session_id: opened.sessionId },
+      {},
       {},
     ))
     expect(preparedThroughTool).toMatchObject({
@@ -835,7 +869,7 @@ describe("workspace ResourcePackage publication", () => {
       operations: [{
         kind: "update",
         path: "/work/Workflows/flow-code/agent.ts",
-        content: dependency.replace('effectId: "summary-agent"', 'effectId: "published-summary-agent"'),
+        content: `${dependency}\n// publication candidate marker\n`,
       }],
     })
     await component.sessions.prepareResourcePackagePublication({ sessionId: opened.sessionId })
@@ -896,7 +930,7 @@ describe("workspace ResourcePackage publication", () => {
       expect(await readFile(
         path.join(roots.resourceRoot, "Workflows", "flow-code", "agent.ts"),
         "utf8",
-      )).toContain('effectId: "published-summary-agent"')
+      )).toContain("// publication candidate marker")
     } finally {
       enterFence.resolve()
       finishReadback.resolve()

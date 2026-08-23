@@ -86,12 +86,16 @@ export class WorkflowDefinitionRepository {
           `Workflow ${logicalRef} has resource kind ${resourceSource.resource.kind}, expected AICtrlWorkflow or AIDataWorkflow`,
         )
       }
-      const sources: Record<string, string> = { "manifest.xnl": resourceSource.source }
-      const loaded = this.loader.load({
-        form: resourceSource.resource.kind,
-        sources,
-        baseUri: resourceSource.baseUri,
-      })
+      const profile = await this.registry.loadEffectiveProfile(resourceSource, ({ sources, stepSources }) => (
+        this.loader.load({
+          form: resourceSource.resource.kind as AiWorkflowForm,
+          sources,
+          stepSources,
+          baseUri: resourceSource.baseUri,
+        })
+      ))
+      const sources: Record<string, string> = { ...profile.sources }
+      const loaded = profile.result
       if (!loaded.binding) {
         const details = loaded.diagnostics.map((item) => `${item.code}: ${item.message}`).join("; ")
         throw new Error(`Workflow resource ${logicalRef} is invalid${details ? `: ${details}` : ""}`)
@@ -101,8 +105,17 @@ export class WorkflowDefinitionRepository {
           `Workflow resource identity mismatch: registry '${resourceId}', definition '${loaded.binding.definition.fqn}'`,
         )
       }
-      for (const relativePath of executableDependencyPaths(loaded.binding)) {
-        sources[relativePath] = await this.registry.readEffectiveDependencySource(resourceSource, relativePath)
+      for (const dependency of executableDependencies(loaded.binding)) {
+        const content = dependency.scope === "package"
+          ? await this.registry.readEffectivePackageDependencySource(resourceSource, dependency.sourcePath)
+          : await this.registry.readEffectiveDependencySource(resourceSource, dependency.sourcePath)
+        const existing = sources[dependency.frozenPath]
+        if (existing !== undefined && existing !== content) {
+          throw new Error(
+            `Workflow executable refs resolve different authorities to frozen path '${dependency.frozenPath}'`,
+          )
+        }
+        sources[dependency.frozenPath] = content
       }
       resolved = {
         workflowRef: logicalRef,
@@ -192,7 +205,7 @@ export class WorkflowDefinitionRepository {
     const files = Object.fromEntries(input.files.map((file) => [file.path, file.content]))
     const manifest = files["manifest.xnl"]
     if (!manifest) throw new Error(`Workflow source ${input.sourceBundlePath} has no manifest.xnl`)
-    const loaded = this.loader.load({ form: input.form, sources: { "manifest.xnl": manifest } })
+    const loaded = this.loader.load({ form: input.form, sources: workflowProfileSources(files) })
     if (!loaded.binding) {
       const details = loaded.diagnostics.map((item) => `${item.code}: ${item.message}`).join("; ")
       throw new Error(`Workflow source ${input.sourceBundlePath} is invalid${details ? `: ${details}` : ""}`)
@@ -211,8 +224,7 @@ export class WorkflowDefinitionRepository {
   resolveFrozen(snapshot: WorkflowDefinitionRevision, bundleRoot: string): ResolvedWorkflowDefinition {
     const loaded = this.loader.load({
       form: snapshot.form,
-      sources: { "manifest.xnl": snapshot.files["manifest.xnl"]! },
-      baseUri: bundleRoot,
+      sources: workflowProfileSources(snapshot.files),
     })
     if (!loaded.binding) {
       const details = loaded.diagnostics.map((item) => `${item.code}: ${item.message}`).join("; ")
@@ -221,13 +233,17 @@ export class WorkflowDefinitionRepository {
     if (loaded.binding.definition.fqn !== snapshot.fqn || loaded.binding.kind !== snapshot.form) {
       throw new Error(`Frozen workflow revision identity mismatch: ${snapshot.revision}`)
     }
+    const binding = {
+      ...loaded.binding,
+      definition: { ...loaded.binding.definition, baseUri: bundleRoot },
+    } as AIWorkflowDefinitionBinding
     return {
       workflowRef: snapshot.workflowRef,
       manifestPath: "manifest.xnl",
       bundlePath: bundleRoot,
       baseUri: bundleRoot,
       sources: snapshot.files,
-      binding: loaded.binding,
+      binding,
       resourceReceipt: snapshot.resourceReceipt,
     }
   }
@@ -255,20 +271,40 @@ function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0
 }
 
-function executableDependencyPaths(binding: AIWorkflowDefinitionBinding): readonly string[] {
-  const refs: string[] = []
+function workflowProfileSources(files: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(Object.entries(files).filter(([filePath]) => (
+    filePath.endsWith(".xnl") && !filePath.startsWith(".agent-resources/")
+  )))
+}
+
+type ExecutableDependency = {
+  readonly scope: "resource" | "package"
+  readonly sourcePath: string
+  readonly frozenPath: string
+}
+
+function executableDependencies(binding: AIWorkflowDefinitionBinding): readonly ExecutableDependency[] {
+  const refs: ExecutableDependency[] = []
   const add = (value: unknown, location: string): void => {
     if (value === undefined) return
     if (typeof value !== "string" || !value || value !== value.trim()) {
       throw new Error(`Workflow executable ref ${location} must be an exact non-empty string`)
     }
-    const prefix = "vfs://./"
-    if (!value.startsWith(prefix)) return
+    const resourcePrefix = "vfs://./"
+    const packagePrefix = "vfs://@/"
+    const scope = value.startsWith(resourcePrefix)
+      ? "resource" as const
+      : value.startsWith(packagePrefix)
+        ? "package" as const
+        : undefined
+    if (!scope) return
+    const prefix = scope === "resource" ? resourcePrefix : packagePrefix
     const fragmentIndex = value.indexOf("#", prefix.length)
     if (fragmentIndex <= prefix.length || fragmentIndex === value.length - 1) {
       throw new Error(`Workflow executable ref ${location} must contain an exact file and export fragment`)
     }
-    refs.push(value.slice(prefix.length, fragmentIndex))
+    const sourcePath = value.slice(prefix.length, fragmentIndex)
+    refs.push(Object.freeze({ scope, sourcePath, frozenPath: sourcePath }))
   }
 
   if (binding.kind === "AICtrlWorkflow") {
@@ -291,5 +327,17 @@ function executableDependencyPaths(binding: AIWorkflowDefinitionBinding): readon
       add("impl" in node ? node.impl : undefined, `${String(node.id ?? node.tag ?? "node")}.impl`)
     }
   }
-  return Object.freeze([...new Set(refs)].sort(compareCodeUnits))
+  const byIdentity = new Map<string, ExecutableDependency>()
+  for (const ref of refs) byIdentity.set(`${ref.scope}\u0000${ref.sourcePath}`, ref)
+  return Object.freeze([...byIdentity.values()].sort((left, right) => (
+    compareCodeUnits(left.frozenPath, right.frozenPath)
+    || compareCodeUnits(left.scope, right.scope)
+  )))
+}
+
+export function normalizeFrozenWorkflowCodeReference(reference: string): string {
+  const prefix = "vfs://@/"
+  return reference.startsWith(prefix)
+    ? `vfs://./${reference.slice(prefix.length)}`
+    : reference
 }

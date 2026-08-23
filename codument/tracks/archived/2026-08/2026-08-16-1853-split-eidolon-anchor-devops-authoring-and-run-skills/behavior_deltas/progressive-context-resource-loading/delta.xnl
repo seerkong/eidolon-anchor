@@ -1,0 +1,10 @@
+<BehaviorPatch #track.split-eidolon-anchor-devops-authoring-and-run-skills.behavior_patch.progressive-context-resource-loading apiVersion="codument.tech/v1alpha1" version="1" { capability = "progressive-context-resource-loading" } (
+  <Mutations [
+    <Upsert { selector = "behavior://progressive-context-resource-loading/requirements/split-skill-exact-fragments" } (
+      <Requirement #split-skill-exact-fragments (
+        <Statement ?>The generic Skill tool SHALL load declared exact resource fragments with bounded offsets and limits, using manifest-bound digest readback for managed Skills and containment for ordinary Skills.</?>
+        <Suites [<Suite #split-fragments { name = "Exact progressive fragments" } (<Cases [<Case #split-fragment-reject-undeclared (<Given ?>an undeclared or escaping resource path</?> <When ?>the Skill tool resolves it</?> <Then ?>resolution SHALL fail closed without fuzzy search</?>)>]>)>]>
+      )>
+    )>
+  ]>
+)>

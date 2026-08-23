@@ -1,0 +1,158 @@
+<decision #resource-package-publication-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M0QPAV7GHVH6TJZ66NCDMRG1>
+  What is the canonical authoring and publication unit for a resource-native App?
+  </?01M0QPAV7GHVH6TJZ66NCDMRG1>
+  <recommendation ?01M0QPAV7GHVH6TJZ66NCDMRG2>
+  Use the complete workspace ResourcePackage candidate and publish it only through a target-wide transaction followed by registry refresh/readback.
+  </?01M0QPAV7GHVH6TJZ66NCDMRG2>
+  <options {  } [
+    <option { key = "whole-package" recommended = true } (
+      <title ?01M0QPAV7GHVH6TJZ66NCDMRG3>
+      Whole workspace ResourcePackage
+      </?01M0QPAV7GHVH6TJZ66NCDMRG3>
+      <description ?01M0QPAV7GHVH6TJZ66NCDMRG4>
+      The session edits one complete package and preserves all unrelated resources.
+      </?01M0QPAV7GHVH6TJZ66NCDMRG4>
+      <tradeoff ?01M0QPAV7GHVH6TJZ66NCDMRG5>
+      Publication replaces a larger tree and therefore needs exact CAS and recovery.
+      </?01M0QPAV7GHVH6TJZ66NCDMRG5>
+    )>
+    <option { key = "leaf-bundle" recommended = false } (
+      <title ?01M0QPAV7GHVH6TJZ66NCDMRG6>
+      Leaf workflow bundle
+      </?01M0QPAV7GHVH6TJZ66NCDMRG6>
+      <description ?01M0QPAV7GHVH6TJZ66NCDMRG7>
+      Continue publishing only one workflow directory.
+      </?01M0QPAV7GHVH6TJZ66NCDMRG7>
+      <tradeoff ?01M0QPAV7GHVH6TJZ66NCDMRG8>
+      It cannot become authority in the separate Halfcode resource root and loses App/Agent/Material closure.
+      </?01M0QPAV7GHVH6TJZ66NCDMRG8>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M0QPAV7GHVH6TJZ66NCDMRG9>
+    The mission and plan review require genuine whole-package publication.
+    </?01M0QPAV7GHVH6TJZ66NCDMRG9>
+    <decision-text ?01M0QPAV7GHVH6TJZ66NCDMRGA>
+    Resource-native authoring SHALL use the complete workspace ResourcePackage as its candidate/publication unit; resource refs SHALL come from post-commit registry readback.
+    </?01M0QPAV7GHVH6TJZ66NCDMRGA>
+    <rationale ?01M0QPAV7GHVH6TJZ66NCDMRGB>
+    Halfcode loads one explicit workspace package, while current leaf publication writes to another root and fabricates identity.
+    </?01M0QPAV7GHVH6TJZ66NCDMRGB>
+    <evidence ?01M0QPAV7GHVH6TJZ66NCDMRGC>
+    WorkflowAuthoringSessionStore, runtime root bindings, EidolonAppResourceRegistryAdapter and the prerequisite plan review.
+    </?01M0QPAV7GHVH6TJZ66NCDMRGC>
+  )>
+  <confidence ?01M0QPAV7GHVH6TJZ66NCDMRGD>
+  1.0
+  </?01M0QPAV7GHVH6TJZ66NCDMRGD>
+  <reversibility ?01M0QPAV7GHVH6TJZ66NCDMRGE>
+  low
+  </?01M0QPAV7GHVH6TJZ66NCDMRGE>
+)>
+
+<decision #legacy-vfs-reference-honesty apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M0QPAV7GHVH6TJZ66NCDMRGF>
+  How should legacy workflow bundle publication remain compatible?
+  </?01M0QPAV7GHVH6TJZ66NCDMRGF>
+  <recommendation ?01M0QPAV7GHVH6TJZ66NCDMRGG>
+  Keep the explicit VFS path and return only its actual vfs ref.
+  </?01M0QPAV7GHVH6TJZ66NCDMRGG>
+  <options {  } [
+    <option { key = "vfs-only" recommended = true } (
+      <title ?01M0QPAV7GHVH6TJZ66NCDMRGH>
+      Honest VFS compatibility
+      </?01M0QPAV7GHVH6TJZ66NCDMRGH>
+      <description ?01M0QPAV7GHVH6TJZ66NCDMRGJ>
+      Legacy bundles remain under the workflow root and resolve only through the explicit VFS repository path.
+      </?01M0QPAV7GHVH6TJZ66NCDMRGJ>
+      <tradeoff ?01M0QPAV7GHVH6TJZ66NCDMRGK>
+      Callers that need resource authority must migrate to package mode.
+      </?01M0QPAV7GHVH6TJZ66NCDMRGK>
+    )>
+    <option { key = "resource-alias" recommended = false } (
+      <title ?01M0QPAV7GHVH6TJZ66NCDMRGM>
+      Construct a resource alias
+      </?01M0QPAV7GHVH6TJZ66NCDMRGM>
+      <description ?01M0QPAV7H4Y8MR1EWDTFC9ARB>
+      Format the workflow FQN as resource URI.
+      </?01M0QPAV7H4Y8MR1EWDTFC9ARB>
+      <tradeoff ?01M0QPAV7H4Y8MR1EWDTFC9ARC>
+      The URI is absent from Halfcode registry and creates false authority.
+      </?01M0QPAV7H4Y8MR1EWDTFC9ARC>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M0QPAV7H4Y8MR1EWDTFC9ARD>
+    Compatibility must be honest and must not claim resource authority.
+    </?01M0QPAV7H4Y8MR1EWDTFC9ARD>
+    <decision-text ?01M0QPAV7H4Y8MR1EWDTFC9ARE>
+    Legacy draft/publication receipts SHALL expose vfs refs only and SHALL never construct resource refs.
+    </?01M0QPAV7H4Y8MR1EWDTFC9ARE>
+    <rationale ?01M0QPAV7H4Y8MR1EWDTFC9ARF>
+    URI scheme is an authority boundary, not an interchangeable presentation.
+    </?01M0QPAV7H4Y8MR1EWDTFC9ARF>
+    <evidence ?01M0QPAV7H4Y8MR1EWDTFC9ARG>
+    The legacy artifact remains physically under .eidolon/workflows and is not loaded by the resource registry.
+    </?01M0QPAV7H4Y8MR1EWDTFC9ARG>
+  )>
+  <confidence ?01M0QPAV7H4Y8MR1EWDTFC9ARH>
+  1.0
+  </?01M0QPAV7H4Y8MR1EWDTFC9ARH>
+  <reversibility ?01M0QPAV7H4Y8MR1EWDTFC9ARJ>
+  low
+  </?01M0QPAV7H4Y8MR1EWDTFC9ARJ>
+)>
+
+<decision #fixture-kind-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M0QPAV7H4Y8MR1EWDTFC9ARK>
+  How can tests cover a self-contained package without creating a second Kind authority?
+  </?01M0QPAV7H4Y8MR1EWDTFC9ARK>
+  <recommendation ?01M0QPAV7H4Y8MR1EWDTFC9ARM>
+  Use a complete physical ResourcePackage as explicit fixture input and keep every KindDefinition out of production constants/catalogs.
+  </?01M0QPAV7H4Y8MR1EWDTFC9ARM>
+  <options {  } [
+    <option { key = "explicit-package" recommended = true } (
+      <title ?01M0QPAV7H4Y8MR1EWDTFC9ARN>
+      Explicit package input
+      </?01M0QPAV7H4Y8MR1EWDTFC9ARN>
+      <description ?01M0QPAV7H4Y8MR1EWDTFC9ARP>
+      The fixture carries its manifest, actual KindDefinitions and resources as the package under test.
+      </?01M0QPAV7H4Y8MR1EWDTFC9ARP>
+      <tradeoff ?01M0QPAV7H4Y8MR1EWDTFC9ARQ>
+      Fixture files must be maintained as a coherent input package.
+      </?01M0QPAV7H4Y8MR1EWDTFC9ARQ>
+    )>
+    <option { key = "production-kind-builder" recommended = false } (
+      <title ?01M0QPAV7H4Y8MR1EWDTFC9ARR>
+      Production Kind builder
+      </?01M0QPAV7H4Y8MR1EWDTFC9ARR>
+      <description ?01M0QPAV7H4Y8MR1EWDTFC9ARS>
+      Eidolon code generates the KindDefinitions required by a package.
+      </?01M0QPAV7H4Y8MR1EWDTFC9ARS>
+      <tradeoff ?01M0QPAV7H4Y8MR1EWDTFC9ART>
+      This duplicates Halfcode/depa authority and turns test convenience into production semantics.
+      </?01M0QPAV7H4Y8MR1EWDTFC9ART>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M0QPAV7H4Y8MR1EWDTFC9ARV>
+    Published modules or explicit ResourcePackage inputs own the resource standards; Eidolon does not.
+    </?01M0QPAV7H4Y8MR1EWDTFC9ARV>
+    <decision-text ?01M0QPAV7H4Y8MR1EWDTFC9ARW>
+    The canonical fixture SHALL be an explicit complete package, while production SHALL only load caller/live packages through Halfcode and depa projections.
+    </?01M0QPAV7H4Y8MR1EWDTFC9ARW>
+    <rationale ?01M0QPAV7H4Y8MR1EWDTFC9ARX>
+    A fixture is test input; a production builder/catalog would be a competing authority.
+    </?01M0QPAV7H4Y8MR1EWDTFC9ARX>
+    <evidence ?01M0QPAV7H4Y8MR1EWDTFC9ARY>
+    Halfcode loadResourceTree contract, depa projection APIs and current hand-built registry fixture gap.
+    </?01M0QPAV7H4Y8MR1EWDTFC9ARY>
+  )>
+  <confidence ?01M0QPAV7H4Y8MR1EWDTFC9ARZ>
+  0.99
+  </?01M0QPAV7H4Y8MR1EWDTFC9ARZ>
+  <reversibility ?01M0QPAV7H4Y8MR1EWDTFC9AS0>
+  moderate
+  </?01M0QPAV7H4Y8MR1EWDTFC9AS0>
+)>

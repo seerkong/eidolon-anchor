@@ -5,7 +5,8 @@ Refresh the managed Codument standards and installed skill shells in an existing
 ```bash
 codument upgrade-workspace
 codument upgrade-workspace --agent codex
+codument upgrade-workspace --agent claude
 codument upgrade-workspace --skills-dir .agents/skills
 ```
 
-The command creates a timestamped backup under `.tmp/codument/`, refreshes `codument/std/`, migrates known legacy standard paths, updates the managed root `AGENTS.md` block, and removes deprecated skill directories. Review the printed backup location if a project-specific standard customization needs to be recovered.
+The command creates a timestamped backup under `.tmp/codument/`, refreshes `codument/std/`, migrates known legacy standard paths, updates the managed root `AGENTS.md` block, and removes deprecated skill directories. When the selected agent configuration includes Claude, it also creates or refreshes the same managed block in root `CLAUDE.md` while preserving user-owned content. Review the printed backup location if a project-specific standard customization needs to be recovered.

@@ -60,3 +60,4 @@ export type AiWorkflowResourceRefGuard = {
 }
 
 export * from "./EidolonWorkflowEffectProvider"
+export * from "./WorkflowStepExtensionAuthoredFacade"

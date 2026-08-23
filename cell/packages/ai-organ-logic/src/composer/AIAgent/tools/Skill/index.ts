@@ -17,7 +17,7 @@ export function buildSkillToolDef(): ToolDef<SkillOuterInput, SkillOuterOutput, 
     function: {
       name: "Skill",
       description:
-        "Resolve a named skill to its local instruction resource using revision- and visibility-aware delivery.",
+        "Resolve one or a bounded batch of exact declared resources from one named skill using revision- and visibility-aware delivery.",
       parameters: {
         type: "object",
         properties: {
@@ -28,6 +28,14 @@ export function buildSkillToolDef(): ToolDef<SkillOuterInput, SkillOuterOutput, 
           resource: {
             type: "string",
             description: "Exact declared relative resource; defaults to SKILL.md",
+          },
+          resources: {
+            type: "array",
+            minItems: 1,
+            maxItems: 8,
+            uniqueItems: true,
+            items: { type: "string" },
+            description: "Bounded ordered exact declared resources; mutually exclusive with resource",
           },
           offset: { type: "integer", minimum: 1, default: 1 },
           limit: { type: "integer", minimum: 1, default: 2000 },

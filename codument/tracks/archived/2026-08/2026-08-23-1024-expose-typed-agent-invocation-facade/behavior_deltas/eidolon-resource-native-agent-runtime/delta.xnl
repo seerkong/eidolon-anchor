@@ -1,0 +1,30 @@
+<BehaviorPatch #track.expose-typed-agent-invocation-facade.behavior_patch.eidolon-resource-native-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-agent-runtime" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-agent-runtime/requirements/typed-agent-effect-bridge" } (
+      <Requirement #typed-agent-effect-bridge (
+        <Statement ?>Eidolon SHALL bind depa typed Agent Processors to the generic resource Agent lifecycle without creating a workflow-specific actor, session, history or result authority.</?>
+        <Suites [
+          <Suite #frozen-task-binding { name = "Frozen task and checkpoint binding" } (
+            <Cases [
+              <Case #authentic-proof (<Given ?>a Ctrl or Data node is admitted from a frozen complete ResourcePackage closure</?><When ?>the typed Agent facade is bound in a fresh process</?><Then ?>it SHALL rebuild Halfcode/depa projections and an authentic task proof from immutable instance bytes plus the canonical profile.ai owner; live registry bytes and structural lookalikes SHALL not be accepted</?>)>
+              <Case #opaque-runtime-facts (<Given ?>an Agent call transitions pending or completed</?><When ?>profile.ai is persisted</?><Then ?>only stable instance/name/session references and exact receipts SHALL enter the checkpoint, never conversation history, provider transcript, compaction or actor state</?>)>
+            ]>
+          )>
+          <Suite #durable-convergence { name = "Pending and completed convergence" } (
+            <Cases [
+              <Case #pending-reconstruction (<Given ?>one Agent child is still pending</?><When ?>a second call arrives through a reconstructed provider or service</?><Then ?>both calls SHALL converge on the same generic lifecycle result and no second child SHALL be created</?>)>
+              <Case #completed-repetition (<Given ?>a matching Agent call already has a completed checkpoint receipt and generic runtime result</?><When ?>the call is repeated after fresh reconstruction</?><Then ?>the same instance and output SHALL be returned without another provider dispatch</?>)>
+              <Case #semantic-drift (<Given ?>task, selector, input, config, Material refs, policy or invocation metadata differs from the durable pending or completed fact</?><When ?>recovery is attempted</?><Then ?>the mismatch SHALL fail before host dispatch and SHALL not overwrite accepted facts</?>)>
+              <Case #addressed-continuity (<Given ?>two different invocation keys target the same run-local Agent instance by name or id</?><When ?>the second call occurs in-process or after reconstruction</?><Then ?>the generic runtime SHALL invoke or resume the same actor/session identity and SHALL not create a replacement child</?>)>
+            ]>
+          )>
+          <Suite #typed-only-boundary { name = "Typed public boundary" } (
+            <Cases [
+              <Case #internal-dispatcher-only (<Given ?>Eidolon retains a generic effect dispatcher internally</?><When ?>authored runtime types and generated code are projected</?><Then ?>Agent execution SHALL expose only runAgent and runTargetedAgent; generic invoke SHALL not be an authored Agent capability</?>)>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

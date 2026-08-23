@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { access, mkdtemp, readFile, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
@@ -11,6 +11,10 @@ import { composeToolRegistry } from "../../src/composer/AIAgent"
 import { getWorkflowRuntimeService } from "../../src/workflow"
 
 const roots: string[] = []
+
+async function exists(filePath: string): Promise<boolean> {
+  return access(filePath).then(() => true, () => false)
+}
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
@@ -93,6 +97,11 @@ describe("Eidolon AI Ctrl Workflow runtime", () => {
       terminal: true,
     })
     expect(started.nodes.map((node: any) => node.nodeId)).toEqual(["prepare", "done"])
+    const ownerRoot = path.join(runtime.sessionDir, "workflow-runtime")
+    expect(await exists(path.join(ownerRoot, "instances", started.instance_id, "instance.json"))).toBe(true)
+    expect(await exists(path.join(ownerRoot, "instances", started.instance_id, "runs", started.run_id, "checkpoint.json"))).toBe(true)
+    expect(await exists(path.join(ownerRoot, "ctrl", `${started.run_id}.json`))).toBe(false)
+    expect(await exists(path.join(ownerRoot, "ai-state", started.run_id))).toBe(false)
 
     const recoveredRuntime = await makeRuntime({
       workspaceRoot: runtime.workspaceRoot,
@@ -157,13 +166,70 @@ describe("Eidolon AI Ctrl Workflow runtime", () => {
     expect(rejected).toMatchObject({ status: "Failed", terminal: true, resumed: true })
   })
 
+  it("preserves a closed AI profile carrier through a Ctrl transition and fresh load", async () => {
+    const runtime = await makeRuntime()
+    await publish(runtime, "Carrier Ctrl", "demo.ctrl.Carrier", [
+      `<AICtrlWorkflow #demo.ctrl.Carrier apiVersion="depa.flows/v1" version="1.0.0" (`,
+      `  <FlowContract #demo.ctrl.Carrier>`,
+      `) [`,
+      `  <ExternalJob #review { signalKind = "agent.done" signalKey = "review" }>`,
+      `  <Return #done { src = "vfs://./flow-code/index.ts#identity" }>`,
+      `]>`,
+    ].join("\n"))
+    const started = await start(runtime, "vfs://./carrier-ctrl/manifest.xnl", { message: "review" })
+    expect(started.status).toBe("Waiting")
+    const service = getWorkflowRuntimeService(runtime as any)
+    const current = await service.depa.checkpointRuntime.checkpointStore.load({
+      instanceId: started.instance_id,
+      runId: started.run_id,
+    })
+    expect(current?.profile.kind).toBe("AICtrlWorkflow")
+    const carrier = {
+      schemaVersion: "depa.ai-agent-state/v1" as const,
+      instancesById: {
+        "agent-instance-1": {
+          authority: "eidolon.session",
+          instanceId: "agent-instance-1",
+          instanceName: "reviewer",
+          sessionId: "session-ref-1",
+          agentDefinitionRef: "resource://demo.agent.Reviewer" as const,
+          metadata: { scope: "flow" },
+        },
+      },
+      instanceIdByName: { reviewer: "agent-instance-1" },
+      invocationsByKey: {},
+    }
+    await service.depa.checkpointRuntime.checkpointStore.commit({
+      expectedVersion: current!.version,
+      checkpoint: {
+        ...current!,
+        version: current!.version + 1,
+        profile: { ...current!.profile as any, ai: carrier },
+      },
+    })
+    expect(await call(runtime, "WorkflowResolve", {
+      run_id: started.run_id,
+      payload: { approved: true },
+    })).toMatchObject({ status: "Completed" })
+
+    const recovered = await makeRuntime({ workspaceRoot: runtime.workspaceRoot, sessionDir: runtime.sessionDir })
+    const accepted = await getWorkflowRuntimeService(recovered as any).depa.checkpointRuntime.checkpointStore.load({
+      instanceId: started.instance_id,
+      runId: started.run_id,
+    })
+    expect((accepted?.profile as any).ai).toEqual(carrier)
+    const ownerRoot = path.join(runtime.sessionDir, "workflow-runtime")
+    expect(await exists(path.join(ownerRoot, "ai-state", started.run_id))).toBe(false)
+    expect(await exists(path.join(ownerRoot, "agent-executions", started.run_id))).toBe(false)
+  })
+
   it("runs embedded material effects and records workflow plus Eidolon lifecycle evidence", async () => {
     const runtime = await makeRuntime()
     await publish(runtime, "Effect Ctrl", "demo.ctrl.Effect", [
       `<AICtrlWorkflow #demo.ctrl.Effect apiVersion="depa.flows/v1" version="1.0.0" (`,
       `  <FlowContract #demo.ctrl.Effect>`,
       `) [`,
-      `  <Run #write { src = "vfs://./flow-code/index.ts#invokeEffect" config = { operation = "material.write" nodeId = "write" } }>`,
+      `  <Run #write { src = "vfs://./flow-code/index.ts#writeMaterial" config = { nodeId = "write" } }>`,
       `  <Return #done { src = "vfs://./flow-code/index.ts#identity" }>`,
       `]>`,
     ].join("\n"))

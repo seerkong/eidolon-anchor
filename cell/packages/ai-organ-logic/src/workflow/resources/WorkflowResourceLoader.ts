@@ -1,10 +1,18 @@
 import type {
-  AiWorkflowForm,
   AIWorkflowDefinitionBinding,
+  AIWorkflowKind as AiWorkflowForm,
   AIWorkflowSubstrate,
-} from "@cell/ai-workflow-contract"
+} from "ai-workflow-contract"
 import { loadAICtrlWorkflowSources } from "ai-ctrl-workflow-logic"
-import { loadAIDataWorkflowSources } from "ai-data-workflow-logic"
+import { loadAIDataWorkflow } from "ai-data-workflow-logic"
+import type {
+  DefinitionStepExtensionCodecRegistryPort,
+  DefinitionStepSourceReadPort,
+} from "flow-step-space-contract"
+import {
+  assembleDefinitionStepProfile,
+  createDefinitionStepSourceRuntime,
+} from "flow-step-space-logic"
 
 export type WorkflowSourceCollection = Readonly<Record<string, string>>
 
@@ -19,6 +27,7 @@ export type WorkflowResourceDiagnostic = {
 export type WorkflowResourceLoadInput = {
   form?: AiWorkflowForm
   sources: WorkflowSourceCollection
+  stepSources?: DefinitionStepSourceReadPort
   baseUri?: string
 }
 
@@ -60,33 +69,105 @@ function normalizeDiagnostics(
   })
 }
 
-function loadCtrl(sources: WorkflowSourceCollection, baseUri?: string): WorkflowResourceLoadResult {
-  const loaded = loadAICtrlWorkflowSources({ ...sources }, baseUri ? { baseUri } : {})
+const EMPTY_EXTENSION_CODECS: DefinitionStepExtensionCodecRegistryPort = Object.freeze({
+  resolve: () => undefined,
+})
+
+function loadCtrl(
+  sources: WorkflowSourceCollection,
+  extensionCodecs: DefinitionStepExtensionCodecRegistryPort,
+  stepSources?: DefinitionStepSourceReadPort,
+  baseUri?: string,
+): WorkflowResourceLoadResult {
+  const sourceEntries = Object.entries(sources).map(([ref, content]) => ({ ref, content }))
+  const assembled = assembleDefinitionStepProfile(
+    stepSources
+      ? { sources: stepSources, extensionCodecs }
+      : createDefinitionStepSourceRuntime(sourceEntries, extensionCodecs),
+    { sources: sourceEntries },
+    { profileRoot: "AICtrlWorkflow" },
+  )
+  if (assembled.diagnostics.length > 0) {
+    return {
+      form: "AICtrlWorkflow",
+      substrate: "WorkCtrlFlow",
+      diagnostics: normalizeDiagnostics("AICtrlWorkflow", assembled.diagnostics),
+    }
+  }
+  const projectedSources = Object.fromEntries(
+    Array.isArray(assembled.sources)
+      ? assembled.sources.map((source) => ["ref" in source ? source.ref : source.name, source.content])
+      : Object.entries(assembled.sources),
+  )
+  const loaded = loadAICtrlWorkflowSources(projectedSources, baseUri ? { baseUri } : {})
+  const binding = loaded.binding && assembled.forest
+    ? {
+        ...loaded.binding,
+        definition: { ...loaded.binding.definition, definitionStepForest: assembled.forest },
+      }
+    : loaded.binding
   return {
     form: "AICtrlWorkflow",
     substrate: "WorkCtrlFlow",
-    ...(loaded.binding ? { binding: loaded.binding } : {}),
+    ...(binding ? { binding } : {}),
     diagnostics: normalizeDiagnostics("AICtrlWorkflow", loaded.diagnostics),
   }
 }
 
-function loadData(sources: WorkflowSourceCollection, baseUri?: string): WorkflowResourceLoadResult {
-  const loaded = loadAIDataWorkflowSources({ ...sources }, baseUri ? { baseUri } : {})
+function loadData(
+  sources: WorkflowSourceCollection,
+  extensionCodecs: DefinitionStepExtensionCodecRegistryPort,
+  stepSources?: DefinitionStepSourceReadPort,
+  baseUri?: string,
+): WorkflowResourceLoadResult {
+  const sourceEntries = Object.entries(sources).map(([ref, content]) => ({ ref, content }))
+  const assembled = assembleDefinitionStepProfile(
+    stepSources
+      ? { sources: stepSources, extensionCodecs }
+      : createDefinitionStepSourceRuntime(sourceEntries, extensionCodecs),
+    { sources: sourceEntries },
+    { profileRoot: "AIDataWorkflow" },
+  )
+  if (assembled.diagnostics.length > 0) return {
+    form: "AIDataWorkflow",
+    substrate: "EagerDataFlow",
+    diagnostics: normalizeDiagnostics("AIDataWorkflow", assembled.diagnostics),
+  }
+  const projectedSources = Object.fromEntries(
+    Array.isArray(assembled.sources)
+      ? assembled.sources.map((source) => ["ref" in source ? source.ref : source.name, source.content])
+      : Object.entries(assembled.sources),
+  )
+  const loaded = loadAIDataWorkflow(
+    { extensionCodecs },
+    { sources: projectedSources },
+    baseUri ? { baseUri } : {},
+  )
+  const binding = loaded.binding && assembled.forest
+    ? {
+        ...loaded.binding,
+        definition: { ...loaded.binding.definition, definitionStepForest: assembled.forest },
+      }
+    : loaded.binding
   return {
     form: "AIDataWorkflow",
     substrate: "EagerDataFlow",
-    ...(loaded.binding ? { binding: loaded.binding } : {}),
+    ...(binding ? { binding } : {}),
     diagnostics: normalizeDiagnostics("AIDataWorkflow", loaded.diagnostics),
   }
 }
 
 export class WorkflowResourceLoader {
-  load(input: WorkflowResourceLoadInput): WorkflowResourceLoadResult {
-    if (input.form === "AICtrlWorkflow") return loadCtrl(input.sources, input.baseUri)
-    if (input.form === "AIDataWorkflow") return loadData(input.sources, input.baseUri)
+  constructor(
+    private readonly extensionCodecs: DefinitionStepExtensionCodecRegistryPort = EMPTY_EXTENSION_CODECS,
+  ) {}
 
-    const ctrl = loadCtrl(input.sources, input.baseUri)
-    const data = loadData(input.sources, input.baseUri)
+  load(input: WorkflowResourceLoadInput): WorkflowResourceLoadResult {
+    if (input.form === "AICtrlWorkflow") return loadCtrl(input.sources, this.extensionCodecs, input.stepSources, input.baseUri)
+    if (input.form === "AIDataWorkflow") return loadData(input.sources, this.extensionCodecs, input.stepSources, input.baseUri)
+
+    const ctrl = loadCtrl(input.sources, this.extensionCodecs, input.stepSources, input.baseUri)
+    const data = loadData(input.sources, this.extensionCodecs, input.stepSources, input.baseUri)
     const successful = [ctrl, data].filter((result) => result.binding)
     if (successful.length === 1) return successful[0]
     return {

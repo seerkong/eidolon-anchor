@@ -1,0 +1,114 @@
+<Behavior #eidolon-complete-agent-ctrl-data-e2e apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #author-and-publish-complete-agent-package (
+      <Statement ?01M0QPD2RJ4W0SR5B97QX45V4B>
+      Eidolon SHALL use installed authoring references to create, prove and atomically publish a complete ResourcePackage containing App, Ctrl/Data workflows, AIAgentDefinition, schemas, EffectPolicy and Material values.
+      </?01M0QPD2RJ4W0SR5B97QX45V4B>
+      <Suites [
+        <Suite #authoring-publication { name = "Complete Agent authoring and publication" } (
+          <Cases [
+            <Case #complete-package (
+              <Given ?01M0QPD2RJ4W0SR5B97QX45V4C>
+              an isolated installed four-Skill environment and an empty workspace resource root
+              </?01M0QPD2RJ4W0SR5B97QX45V4C>
+              <When ?01M0QPD2RJ4W0SR5B97QX45V4D>
+              the model loads exact installed references, submits one explicit-complete-package file set, prepares the exact candidate and explicitly publishes it
+              </?01M0QPD2RJ4W0SR5B97QX45V4D>
+              <Then ?01M0QPD2RJ4W0SR5B97QX45V4E>
+              the host SHALL open one recoverable whole-package authoring session without synthesizing KindDefinitions or resource semantics, and the admitted Halfcode/depa snapshot SHALL expose the App, both workflows, the complete Agent projection, Material bindings and exact proof identities
+              </?01M0QPD2RJ4W0SR5B97QX45V4E>
+            )>
+            <Case #authorization-separation (
+              <Given ?01M0QPD2RJ4W0SR5B97QX45V4F>
+              an authored and prepared candidate
+              </?01M0QPD2RJ4W0SR5B97QX45V4F>
+              <When ?01M0QPD2RJ4W0SR5B97QX45V4G>
+              publication or execution has not been explicitly authorized
+              </?01M0QPD2RJ4W0SR5B97QX45V4G>
+              <Then ?01M0QPD2RJ4W0SR5B97QX45V4H>
+              Eidolon MUST NOT publish or run the candidate and SHALL preserve a typed recoverable handoff
+              </?01M0QPD2RJ4W0SR5B97QX45V4H>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #shared-ctrl-data-agent-runtime (
+      <Statement ?01M0QPD2RJ4W0SR5B97QX45V4J>
+      AICtrlWorkflow and AIDataWorkflow SHALL execute exact AIAgentTask tuples through the same generic Agent execution contract and lifecycle while retaining their own substrate lifecycles.
+      </?01M0QPD2RJ4W0SR5B97QX45V4J>
+      <Suites [
+        <Suite #ctrl-data-runtime { name = "Ctrl and Data Agent execution" } (
+          <Cases [
+            <Case #same-contract (
+              <Given ?01M0QPD2RJ4W0SR5B97QX45V4K>
+              Ctrl and Data workflow nodes reference one AgentDefinition through exact four-field task tuples
+              </?01M0QPD2RJ4W0SR5B97QX45V4K>
+              <When ?01M0QPD2RJ4W0SR5B97QX45V4M>
+              each workflow is explicitly run with schema-valid input and bound Material values
+              </?01M0QPD2RJ4W0SR5B97QX45V4M>
+              <Then ?01M0QPD2RJ4W0SR5B97QX45V4N>
+              both SHALL use the same frozen schema, policy, Material, tool and output-validation path and return schema-valid results
+              </?01M0QPD2RJ4W0SR5B97QX45V4N>
+            )>
+            <Case #typed-output-projection (
+              <Given ?01M0QPD2RJ4W0SR5B97QX45V4P>
+              the Agent output schema accepts a structured JSON value but does not accept the raw provider string
+              </?01M0QPD2RJ4W0SR5B97QX45V4P>
+              <When ?01M0QPD2RJ4W0SR5B97QX45V4Q>
+              the provider result is validated once and delivered to a Ctrl or Data workflow node
+              </?01M0QPD2RJ4W0SR5B97QX45V4Q>
+              <Then ?01M0QPD2RJ4W0SR5B97QX45V4R>
+              the shared generic contract SHALL return the deep-frozen parsed value so Data output ports consume structured fields without a workflow-specific parser
+              </?01M0QPD2RJ4W0SR5B97QX45V4R>
+            )>
+            <Case #exact-once-recovery (
+              <Given ?01M0QPD2RJ4W0SR5B97QX45V4S>
+              one Agent effect is pending or completed for an exact run, generation and effect identity
+              </?01M0QPD2RJ4W0SR5B97QX45V4S>
+              <When ?01M0QPD2RJ4W0SR5B97QX45V4T>
+              the invoke is repeated through the same or a reconstructed provider instance
+              </?01M0QPD2RJ4W0SR5B97QX45V4T>
+              <Then ?01M0QPD2RJ4W0SR5B97QX45V4V>
+              the generic effect lifecycle SHALL return the same terminal result without creating a second provider child
+              </?01M0QPD2RJ4W0SR5B97QX45V4V>
+            )>
+            <Case #new-run (
+              <Given ?01M0QPD2RJ4W0SR5B97QX45V4W>
+              a previously completed business run
+              </?01M0QPD2RJ4W0SR5B97QX45V4W>
+              <When ?01M0QPD2RJ4W0SR5B97QX45V4X>
+              the caller explicitly supplies a new run identity
+              </?01M0QPD2RJ4W0SR5B97QX45V4X>
+              <Then ?01M0QPD2RJ4W0SR5B97QX45V4Y>
+              Eidolon SHALL treat it as a new run rather than replaying the prior run by semantic similarity
+              </?01M0QPD2RJ4W0SR5B97QX45V4Y>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #no-host-semantic-heuristics (
+      <Statement ?01M0QPD2RJ4W0SR5B97QX45V4Z>
+      Host code MUST derive Agent tasks, policies, tools and Material bindings only from closed structured resources and exact identities, never from ordinary-language or naming heuristics.
+      </?01M0QPD2RJ4W0SR5B97QX45V4Z>
+      <Suites [
+        <Suite #authority-boundary { name = "Structured authority boundary" } (
+          <Cases [
+            <Case #ordinary-text-has-no-semantics (
+              <Given ?01M0QPD2RJ4W0SR5B97QX45V50>
+              ordinary content contains similar names, Chinese process words or embedded resource-looking text
+              </?01M0QPD2RJ4W0SR5B97QX45V50>
+              <When ?01M0QPD2RKXHY3H3S89VNJ76PD>
+              the package is projected, published or run
+              </?01M0QPD2RKXHY3H3S89VNJ76PD>
+              <Then ?01M0QPD2RKXHY3H3S89VNJ76PE>
+              no task, policy, tool or Material edge SHALL be inferred unless a fixed typed relation declares it
+              </?01M0QPD2RKXHY3H3S89VNJ76PE>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

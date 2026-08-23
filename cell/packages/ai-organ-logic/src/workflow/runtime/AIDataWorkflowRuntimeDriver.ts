@@ -8,21 +8,33 @@ import type {
 } from "@cell/ai-workflow-contract"
 import {
   applyAIDataWorkflowGraphPatch,
+  commitAIDataWorkflowCheckpoint,
+  createAIDataWorkflowCheckpoint,
+  createAIDataWorkflowAgentNodeRuntimeBinder,
   createAIDataWorkflowRunGraph,
   createAIDataWorkflowRuntime,
   createAIDataWorkflowSemanticFingerprint,
   findReusableAIDataWorkflowNodeResult,
   listReadyAIDataWorkflowNodes,
+  loadAIDataWorkflowCheckpoint,
   projectAIDataWorkflowRunState,
   recordAIDataWorkflowNodeResult,
   restoreAIDataWorkflowRunGraph,
 } from "ai-data-workflow-logic"
+import type { FlowClosedValue, FrozenAIAgentTaskBinding } from "ai-workflow-contract"
 import { createFilesystemCodeResolver } from "eager-data-flow-logic"
 import type { WorkflowAuthoringWorkspace } from "../authoring"
-import { EidolonWorkflowEffectProvider, StoreBackedWorkflowMaterialAccess } from "../effects"
+import {
+  EidolonWorkflowEffectProvider,
+  StoreBackedWorkflowMaterialAccess,
+  bindWorkflowStepExtensionAuthoredRuntime,
+  type WorkflowStepExtensionAuthoredFacade,
+} from "../effects"
 import type { ResolvedWorkflowDefinition } from "./WorkflowDefinitionRepository"
 import type { WorkflowFactStore, WorkflowRunDescriptor } from "./WorkflowFactStore"
+import { EMPTY_AI_WORKFLOW_DURABLE_STATE, type WorkflowDepaPersistence } from "./WorkflowDepaPersistence"
 import type { EidolonAppResourceRegistryAdapter } from "../../resources"
+import { normalizeFrozenWorkflowCodeReference } from "./WorkflowDefinitionRepository"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
 
@@ -51,6 +63,17 @@ function record(value: unknown): Record<string, unknown> {
     : {}
 }
 
+function canonicalJson(value: unknown): string {
+  const normalize = (nested: unknown): unknown => {
+    if (Array.isArray(nested)) return nested.map(normalize)
+    if (typeof nested !== "object" || nested === null) return nested
+    return Object.fromEntries(Object.entries(nested as Record<string, unknown>)
+      .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([key, item]) => [key, normalize(item)]))
+  }
+  return JSON.stringify(normalize(value))
+}
+
 function exactOutput(value: unknown, outputs: readonly string[], label: string): Record<string, unknown> {
   const output = record(value)
   const actual = Object.keys(output)
@@ -75,35 +98,60 @@ export class AIDataWorkflowRuntimeDriver {
   private activeRunAuthority: AIWorkflowRunRef
   private readonly code = createFilesystemCodeResolver<any>((specifier) => import(specifier))
   private readonly aiRuntime: ReturnType<typeof createAIDataWorkflowRuntime>
+  private readonly bindAgentNode?: ReturnType<typeof createAIDataWorkflowAgentNodeRuntimeBinder>
 
   constructor(
     private readonly runtime: WorkflowRuntime,
     private readonly workspace: WorkflowAuthoringWorkspace,
     private readonly facts: WorkflowFactStore,
+    private readonly depa: WorkflowDepaPersistence,
     private readonly descriptor: WorkflowRunDescriptor,
     private readonly definition: ResolvedWorkflowDefinition,
     roots: { globalRoot: string; workspaceRoot: string },
     onMaterialWrite?: ConstructorParameters<typeof EidolonWorkflowEffectProvider>[3],
     resourceRegistry?: EidolonAppResourceRegistryAdapter,
+    taskProofs: Readonly<Record<string, FrozenAIAgentTaskBinding>> = {},
+    stepExtensions?: WorkflowStepExtensionAuthoredFacade,
   ) {
     this.activeRunAuthority = this.runRef(descriptor.generation)
+    const agentEffects = new EidolonWorkflowEffectProvider(
+      runtime,
+      new StoreBackedWorkflowMaterialAccess(workspace.store),
+      facts,
+      onMaterialWrite,
+      () => this.activeRunAuthority,
+      resourceRegistry ? { workflowForm: descriptor.form, resourceRegistry } : undefined,
+      stepExtensions,
+    )
     this.aiRuntime = createAIDataWorkflowRuntime({
       ai: {
         roots,
-        stateStore: facts,
-        effects: new EidolonWorkflowEffectProvider(
-          runtime,
-          new StoreBackedWorkflowMaterialAccess(workspace.store),
-          facts,
-          onMaterialWrite,
-          () => this.activeRunAuthority,
-          resourceRegistry
-            ? { workflowForm: descriptor.form, resourceRegistry }
-            : undefined,
-        ),
-        metadata: { run: this.activeRunAuthority },
+        stateStore: depa.stateProjection(descriptor.instanceId),
+        effects: agentEffects,
+        metadata: { run: this.activeRunAuthority, flowInstanceId: descriptor.instanceId },
       },
     })
+    if (definition.resourceReceipt && resourceRegistry) {
+      const bindAgentNode = createAIDataWorkflowAgentNodeRuntimeBinder({
+        flowInstanceId: descriptor.instanceId,
+        runId: descriptor.runId,
+        checkpointRuntime: depa.checkpointRuntime,
+        effects: agentEffects,
+        workflowRef: descriptor.workflowRef as `resource://${string}`,
+        taskProofs,
+        generationForNode: (nodeId) => this.graph?.nodes[nodeId]?.generation ?? descriptor.generation,
+      })
+      this.bindAgentNode = (nodeRuntime, identity) => {
+        if (!taskProofs[identity.nodeId]) return nodeRuntime
+        const bound = bindAgentNode(nodeRuntime, identity)
+        return stepExtensions
+          ? Object.freeze({
+              ...bound,
+              ai: bindWorkflowStepExtensionAuthoredRuntime(bound.ai, stepExtensions),
+            })
+          : bound
+      }
+    }
   }
 
   async start(input: unknown): Promise<DataRunProjection> {
@@ -112,15 +160,38 @@ export class AIDataWorkflowRuntimeDriver {
       binding: this.definition.binding,
       runId: this.descriptor.runId,
     })
-    await this.facts.saveDataGraph(this.graph)
+    const instance = this.depa.load(this.descriptor.instanceId)
+    await createAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+      instanceId: this.descriptor.instanceId,
+      definition: instance.descriptor.definition,
+      graph: this.durableGraph(),
+      input: record(input) as FlowClosedValue,
+      config: { requestFingerprint: this.descriptor.requestFingerprint },
+      state: { status: "Pending", generation: 0 },
+      output: null,
+      controllerSidecars: { status: "Pending" },
+      nodeSidecars: this.nodeSidecars(),
+      ai: EMPTY_AI_WORKFLOW_DURABLE_STATE,
+      stepExtensions: this.depa.initialStepExtensions(
+        this.descriptor.instanceId,
+        instance.descriptor.definition,
+        "AIDataWorkflow",
+      ),
+    })
     await this.advance(record(input))
     return this.project("workflow.run")
   }
 
   async restore(): Promise<boolean> {
-    const stored = await this.facts.loadDataGraph(this.descriptor.runId)
+    const stored = await loadAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+      instanceId: this.descriptor.instanceId,
+      runId: this.descriptor.runId,
+    })
     if (!stored) return false
-    let graph = restoreAIDataWorkflowRunGraph(stored)
+    let graph = restoreAIDataWorkflowRunGraph({
+      ...stored.profile.runGraph,
+      binding: this.definition.binding.kind === "AIDataWorkflow" ? this.definition.binding : stored.profile.runGraph.binding,
+    })
     for (const node of Object.values(graph.nodes)) {
       if (node.status === "Running" && node.nodeType !== "manual") {
         graph = recordAIDataWorkflowNodeResult(graph, node.id, {
@@ -131,7 +202,7 @@ export class AIDataWorkflowRuntimeDriver {
       }
     }
     this.graph = graph
-    if (graph !== stored) await this.persist()
+    if (Object.values(graph.nodes).some((node) => node.status === "Running" && node.nodeType !== "manual")) await this.persist()
     return true
   }
 
@@ -262,18 +333,20 @@ export class AIDataWorkflowRuntimeDriver {
       if (node.tag === "EntryNode") {
         output = exactOutput(input, node.outputs, node.id)
       } else if (node.tag === "ReturnNode") {
+        if (this.definition.binding.kind !== "AIDataWorkflow") throw new Error("Expected AIDataWorkflow binding")
         output = exactOutput(input, this.definition.binding.definition.contract.outputPorts, node.id)
       } else if (node.tag === "TransformNode" || node.tag === "SinkNode") {
+        if (this.definition.binding.kind !== "AIDataWorkflow") throw new Error("Expected AIDataWorkflow binding")
         const planNode = this.definition.binding.definition.nodeById[node.id] as any
         const reference = planNode?.src ?? planNode?.impl ?? node.config.src ?? node.config.impl
         if (typeof reference !== "string") throw new Error(`${node.id} has no EagerDataFlow code binding`)
         const fn = await this.code({
-          reference,
+          reference: normalizeFrozenWorkflowCodeReference(reference),
           flowId: this.definition.binding.definition.fqn,
           nodeId: node.id,
           baseUri: this.definition.binding.definition.baseUri,
         })
-        const result = await fn(this.runtimeForGeneration(generation), input, node.config)
+        const result = await fn(this.runtimeForGeneration(generation, node.id), input, node.config)
         output = node.tag === "SinkNode" ? undefined : exactOutput(result, node.outputs, node.id)
       } else {
         throw new Error(`Unsupported AIDataWorkflow node tag: ${node.tag}`)
@@ -290,7 +363,6 @@ export class AIDataWorkflowRuntimeDriver {
         nodeId: node.id,
         generation,
         status: "Failed",
-        output: { error: String((error as Error)?.message ?? error) },
         semanticFingerprint: fingerprint,
       })
     }
@@ -322,9 +394,9 @@ export class AIDataWorkflowRuntimeDriver {
     })
   }
 
-  private runtimeForGeneration(generation: number): ReturnType<typeof createAIDataWorkflowRuntime> {
+  private runtimeForGeneration(generation: number, nodeId?: string) {
     this.activeRunAuthority = this.runRef(generation)
-    return {
+    const runtime = {
       ...this.aiRuntime,
       ai: {
         ...this.aiRuntime.ai,
@@ -334,15 +406,57 @@ export class AIDataWorkflowRuntimeDriver {
         },
       },
     }
+    return this.bindAgentNode && nodeId ? this.bindAgentNode(runtime, { nodeId }) : runtime
   }
 
   private async persist(): Promise<void> {
-    await this.facts.saveDataGraph(this.graph!)
-    const state = projectAIDataWorkflowRunState(this.graph!, workflowRef(this.descriptor, this.definition))
-    await this.facts.saveRunState({
-      ...state,
-      status: this.statusValue() === "Waiting" ? "Waiting" : state.status,
+    const current = await loadAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+      instanceId: this.descriptor.instanceId,
+      runId: this.descriptor.runId,
     })
+    if (!current) throw new Error(`AIDataWorkflow checkpoint missing for ${this.descriptor.runId}`)
+    if ((current.controllerSidecars.status === "Succeeded" || current.controllerSidecars.status === "Failed")
+      && canonicalJson(current.profile.runGraph) === canonicalJson(this.durableGraph())) {
+      return
+    }
+    const checkpointStatus = this.statusValue() === "Waiting" ? "Running" : this.statusValue()
+    await commitAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+      expectedVersion: current.version,
+      checkpoint: {
+        ...current,
+        version: current.version + 1,
+        state: { status: checkpointStatus, generation: this.graph!.currentGeneration },
+        output: this.checkpointOutput(),
+        controllerSidecars: { status: checkpointStatus },
+        nodeSidecars: this.nodeSidecars(),
+        profile: { ...current.profile, runGraph: this.durableGraph() },
+      },
+    })
+  }
+
+  private durableGraph(): AIDataWorkflowRunGraph {
+    const graph = this.graph!
+    const {
+      baseUri: _baseUri,
+      definitionStepForest: _definitionStepForest,
+      ...definition
+    } = graph.binding.definition
+    return { ...graph, binding: { ...graph.binding, definition } }
+  }
+
+  private nodeSidecars(): Record<string, FlowClosedValue> {
+    return Object.fromEntries(this.graph!.declarationOrder.map((nodeId) => [nodeId, {
+      status: this.graph!.nodes[nodeId]!.status,
+      generation: this.graph!.nodes[nodeId]!.generation,
+    }]))
+  }
+
+  private checkpointOutput(): FlowClosedValue {
+    if (this.statusValue() !== "Succeeded") return null
+    const returnNode = this.graph!.declarationOrder
+      .map((nodeId) => this.graph!.nodes[nodeId])
+      .find((node) => node?.tag === "ReturnNode")
+    return returnNode?.result?.output as FlowClosedValue ?? null
   }
 
   private statusValue(): string {

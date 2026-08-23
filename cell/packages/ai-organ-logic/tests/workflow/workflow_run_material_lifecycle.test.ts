@@ -8,6 +8,7 @@ import { createVM } from "@cell/ai-core-logic/runtime/runtime"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { composeToolRegistry } from "../../src/composer/AIAgent"
 import { getWorkflowRuntimeService } from "../../src/workflow"
+import { computeFlowBundleDigest } from "work-ctrl-flow-logic"
 import contract from "./fixtures/workflow-run-material-contract.json"
 
 const roots: string[] = []
@@ -132,6 +133,26 @@ describe("workflow run and Material lifecycle", () => {
       subjectId: "instance-stable",
       revision: prepared.instance.definitionRevision,
     })
+    const ownerRoot = path.join(runtime.sessionDir, "workflow-runtime")
+    const instanceRoot = path.join(ownerRoot, "instances", "instance-stable")
+    const descriptor = JSON.parse(await readFile(path.join(instanceRoot, "instance.json"), "utf8"))
+    expect(descriptor).toEqual({
+      schemaVersion: "depa.flow-instance/v1",
+      instanceId: "instance-stable",
+      definition: {
+        revision: prepared.instance.definitionRevision,
+        digest: computeFlowBundleDigest(path.join(instanceRoot, "definition")),
+        provenance: {
+          authority: "eidolon.workflow-definition-repository",
+          artifactRef: "vfs://./frozen-lifecycle/manifest.xnl",
+        },
+      },
+      materializedAtMs: expect.any(Number),
+    })
+    expect(await readFile(path.join(instanceRoot, "definition", "manifest.xnl"), "utf8"))
+      .toBe(manifest("frozen_v1"))
+    expect(await readFile(path.join(instanceRoot, "definition", "flow-code", "index.ts"), "utf8"))
+      .toBe(await readFile(path.join(runtime.workspaceRoot, "frozen-lifecycle", "flow-code", "index.ts"), "utf8"))
     const idempotent = await call(runtime, "WorkflowCreateInstance", {
       workflow_ref: "vfs://./frozen-lifecycle/manifest.xnl",
       idempotency_key: "prepare-stable",
@@ -211,6 +232,20 @@ describe("workflow run and Material lifecycle", () => {
       confirmed: true,
     })
     expect(repeated).toMatchObject({ status: "Completed", run_id: "run-stable" })
+
+    const second = await call(recoveredRuntime, "WorkflowRun", {
+      instance_id: "instance-stable",
+      run_id: "run-from-frozen-owner",
+      confirmed: true,
+    })
+    expect(second).toMatchObject({
+      status: "Completed",
+      run_id: "run-from-frozen-owner",
+      definition_revision: prepared.instance.definitionRevision,
+    })
+    expect(second.nodes.map((node: any) => node.nodeId)).toEqual(["frozen_v1", "done"])
+    expect(await access(path.join(instanceRoot, "runs", "run-from-frozen-owner", "checkpoint.json")).then(() => true))
+      .toBe(true)
   })
 
   it("imports exact immutable Material revisions and replays receipts without latest resolution", async () => {

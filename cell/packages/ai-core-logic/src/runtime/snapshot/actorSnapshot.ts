@@ -1,6 +1,7 @@
 import { createRecoveryHooks, createSnapshotCodec } from "depa-actor";
 
 import { createActor, type AiAgentActor, type CreateActorParams } from "../actor";
+import { cloneAndFreezeAgentExecutionContract } from "../AgentExecutionContract";
 import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   type RuntimeSnapshotActor,
@@ -46,6 +47,9 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
         computedDisabledTools: [...actor.toolPolicy.computedDisabledTools],
       },
       contextPolicy: { ...actor.contextPolicy },
+      executionContract: actor.executionContract
+        ? cloneAndFreezeAgentExecutionContract(actor.executionContract)
+        : undefined,
       modelConfig: { ...actor.modelConfig },
       ctrlOptions: {
         stopAfterFirstTool: actor.ctrlOptions.stopAfterFirstTool,
@@ -115,6 +119,9 @@ function hydrateActorFromSnapshot(
     contextPolicy: snapshot.contextPolicy
       ? { ...snapshot.contextPolicy }
       : { historyCompaction: "auto" },
+    executionContract: snapshot.executionContract
+      ? cloneAndFreezeAgentExecutionContract(snapshot.executionContract)
+      : undefined,
     modelConfig: { ...snapshot.modelConfig },
     ctrlOptions: {
       stopAfterFirstTool: snapshot.ctrlOptions.stopAfterFirstTool,

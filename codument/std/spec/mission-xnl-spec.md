@@ -82,6 +82,8 @@ missions/<state>/<id>/
 
 Mission 状态：`pending | active | completed | cancelled | superseded | archived`。节点状态：`NOT_STARTED | ACTIVE | DONE | BLOCKED | ABANDONED | SUPERSEDED`。
 
+根状态是可恢复的生命周期状态，不是永久锁。`completed | cancelled | superseded | archived` Mission 在用户明确续跑或补充任务时，可运行 `codument mission transition <id> active` 恢复；若唯一 authority 已归档，CLI 将其移动回 `missions/active/<id>/` 并递增 revision。恢复不会撤销此前归档产生的 durable 产物；再次进入 `completed` 仍必须通过当前任务树的 completion gate。若 archived 中存在多个同 id authority，CLI 必须拒绝猜测并要求先消除歧义。
+
 ## 4. ProjectRefs 与 ActorSets
 
 - ProjectRef 只保存逻辑 id 与 `kind = "host|external"`，不得持久化 workspace path；路径由当前 session 的 WorkspaceBinding 提供。

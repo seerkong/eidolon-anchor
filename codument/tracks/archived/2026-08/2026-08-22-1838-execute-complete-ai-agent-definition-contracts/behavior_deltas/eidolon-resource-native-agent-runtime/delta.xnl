@@ -1,0 +1,34 @@
+<BehaviorPatch #track.execute-complete-ai-agent-definition-contracts.behavior_patch.eidolon-resource-native-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-agent-runtime" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-agent-runtime/requirements/complete-agent-definition-execution" } (
+      <Requirement #complete-agent-definition-execution (
+        <Statement ?>Eidolon SHALL execute the complete depa AIAgentDefinition projection through the generic actor runtime, including schemas, exact effect policy, ordered Material values, durable recovery and validated output.</?>
+        <Suites [
+          <Suite #generic-contract { name = "Generic durable execution contract" } (
+            <Cases [
+              <Case #persist-complete-contract (<Given ?>an admitted Agent execution plan contains payload, schema, policy and ordered Material facts</?><When ?>the child actor is created or restored</?><Then ?>the same closed contract SHALL be present in generic actor state and file snapshots without reconstructing it from conversation history</?>)>
+              <Case #pre-provider-validation (<Given ?>a resource message, payload or Material value violates its exact schema</?><When ?>execution is prepared</?><Then ?>Eidolon SHALL reject before provider or tool dispatch and SHALL emit only bounded typed diagnostics</?>)>
+            ]>
+          )>
+          <Suite #exact-effect-policy { name = "Exact effect policy" } (
+            <Cases [
+              <Case #declared-only (<Given ?>EffectPolicy is declared-only</?><When ?>the child toolset is built</?><Then ?>only exact ToolRefs present in the registered tool set SHALL be exposed</?>)>
+              <Case #none (<Given ?>EffectPolicy is none</?><When ?>the definition also has no ToolRefs</?><Then ?>the child SHALL receive no tools; a nonempty ToolRefs conflict SHALL fail closed</?>)>
+            ]>
+          )>
+          <Suite #validated-result { name = "Validated result delivery" } (
+            <Cases [
+              <Case #common-output-seam (<Given ?>a child completes in immediate, orchestrated or resumed mode</?><When ?>an output schema exists</?><Then ?>the shared completion seam SHALL validate the raw string or one parsed JSON value before any parent result, workflow completion event or success fact is written</?>)>
+            ]>
+          )>
+          <Suite #ctrl-data-integration { name = "Ctrl and Data integration" } (
+            <Cases [
+              <Case #shared-agent-effect (<Given ?>an AICtrlWorkflow Run and an AIDataWorkflow TransformNode reference the same Agent definition</?><When ?>each node invokes the explicit ai.agent effect</?><Then ?>both SHALL use the same adapter, frozen fact, generic actor, exact tools and result validator while preserving their own substrate lifecycle</?>)>
+              <Case #no-fuzzy-routing (<Given ?>resource names or descriptions contain arbitrary ordinary-language text</?><When ?>the host selects Agent, Tool, Port, Material or policy semantics</?><Then ?>selection SHALL depend only on exact typed refs and closed fields, never regex, keyword, substring, alias or ordered text rules</?>)>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

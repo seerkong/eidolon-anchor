@@ -1,0 +1,49 @@
+<BehaviorPatch #track.adopt-depa-ai-workflow-instance-run-persistence.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/definition-instance-run-persistence" } (
+      <Requirement #definition-instance-run-persistence (
+        <Statement ?>Eidolon SHALL materialize each selected AI Workflow definition as a frozen depa Flow instance and SHALL persist every run through one canonical depa FlowRunCheckpoint.</?>
+        <Suites [
+          <Suite #frozen-instance { name = "Frozen instance authority" } (
+            <Cases [
+              <Case #definition-to-instance [
+                <Then ?>it SHALL copy the complete definition bundle with canonical source revision, digest and provenance into the depa-owned instance layout before any node executes</?>
+                <Then ?>a later live-definition edit, deletion or invalid package SHALL NOT alter or block that existing instance or its later runs</?>
+              ] (
+                <Given ?>a Resource-native Ctrl or Data Workflow definition and a new instance id</?>
+                <When ?>Eidolon creates the instance</?>
+              )>
+            ]>
+          )>
+          <Suite #single-run-checkpoint { name = "Single run checkpoint authority" } (
+            <Cases [
+              <Case #ctrl-data-checkpoint [
+                <Then ?>input, config, state, output, controller and node sidecars, Ctrl snapshot or Data RunGraph and AI profile state SHALL be committed atomically through the same canonical checkpoint owner</?>
+                <Then ?>the first version SHALL exist before the first node effect and accepted node results SHALL not be replayed after recovery</?>
+              ] (
+                <Given ?>a Ctrl or Data run under a frozen instance</?>
+                <When ?>the run starts, waits, resumes, patches, completes or is reconstructed by a fresh process</?>
+              )>
+              <Case #inspectable-capsule (
+                <Given ?>an operator inspects an instance directory</?>
+                <When ?>the instance has one or more runs</?>
+                <Then ?>the frozen bundle and every run checkpoint SHALL be colocated under that instance using the depa-owned filesystem layout</?>
+              )>
+            ]>
+          )>
+          <Suite #legacy-migration { name = "Legacy fact migration" } (
+            <Cases [
+              <Case #one-way-migration [
+                <Then ?>the migration SHALL be durable, idempotent and recoverable and SHALL produce at most one canonical instance/run identity</?>
+                <Then ?>new execution SHALL write only the depa checkpoint authority; legacy facts SHALL remain read-only and SHALL NOT be dual-written</?>
+              ] (
+                <Given ?>a historical Eidolon run stored in flat workflow fact directories</?>
+                <When ?>the runtime migrates or resumes it</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

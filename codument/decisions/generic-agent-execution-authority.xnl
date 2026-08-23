@@ -1,0 +1,211 @@
+<decision #generic-agent-execution-contract apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M0QPCXADKVHDQK5Y0QDAMJKV>
+  Where should complete AIAgentDefinition execution semantics live in Eidolon?
+  </?01M0QPCXADKVHDQK5Y0QDAMJKV>
+  <recommendation ?01M0QPCXADKVHDQK5Y0QDAMJKW>
+  Use one optional pure-data contract on the generic AgentConfig/actor snapshot.
+  </?01M0QPCXADKVHDQK5Y0QDAMJKW>
+  <options {  } [
+    <option { key = "generic-contract" recommended = true } (
+      <title ?01M0QPCXADKVHDQK5Y0QDAMJKX>
+      Generic actor contract
+      </?01M0QPCXADKVHDQK5Y0QDAMJKX>
+      <description ?01M0QPCXADKVHDQK5Y0QDAMJKY>
+      All actors can carry the same schema, policy and input facts.
+      </?01M0QPCXADKVHDQK5Y0QDAMJKY>
+      <tradeoff ?01M0QPCXADKVHDQK5Y0QDAMJKZ>
+      Generic runtime gains a bounded additive contract.
+      </?01M0QPCXADKVHDQK5Y0QDAMJKZ>
+    )>
+    <option { key = "workflow-actor" recommended = false } (
+      <title ?01M0QPCXADKVHDQK5Y0QDAMJM0>
+      Workflow-specific actor
+      </?01M0QPCXADKVHDQK5Y0QDAMJM0>
+      <description ?01M0QPCXADKVHDQK5Y0QDAMJM1>
+      Create another actor/provider/session implementation.
+      </?01M0QPCXADKVHDQK5Y0QDAMJM1>
+      <tradeoff ?01M0QPCXADKVHDQK5Y0QDAMJM2>
+      Duplicates the common runtime and violates the mission boundary.
+      </?01M0QPCXADKVHDQK5Y0QDAMJM2>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M0QPCXADKVHDQK5Y0QDAMJM3>
+    The user requires reuse of Eidolon common mechanisms.
+    </?01M0QPCXADKVHDQK5Y0QDAMJM3>
+    <decision-text ?01M0QPCXADKVHDQK5Y0QDAMJM4>
+    Complete Agent execution SHALL be represented as an additive generic AgentExecutionContract and persisted in ordinary actor snapshots.
+    </?01M0QPCXADKVHDQK5Y0QDAMJM4>
+    <rationale ?01M0QPCXADKVHDQK5Y0QDAMJM5>
+    Schema, exact tools and output validation are agent semantics, not workflow substrate semantics.
+    </?01M0QPCXADKVHDQK5Y0QDAMJM5>
+    <evidence ?01M0QPCXADKVHDQK5Y0QDAMJM6>
+    Current DelegateActor, AgentConfig, actor snapshots and WorkflowAgentExecutionFact.
+    </?01M0QPCXADKVHDQK5Y0QDAMJM6>
+  )>
+  <confidence ?01M0QPCXADKVHDQK5Y0QDAMJM7>
+  1.0
+  </?01M0QPCXADKVHDQK5Y0QDAMJM7>
+  <reversibility ?01M0QPCXADKVHDQK5Y0QDAMJM8>
+  moderate
+  </?01M0QPCXADKVHDQK5Y0QDAMJM8>
+)>
+
+<decision #explicit-agent-task-integration apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M0QPCXADKVHDQK5Y0QDAMJM9>
+  How do Ctrl and Data workflows select an AIAgentDefinition?
+  </?01M0QPCXADKVHDQK5Y0QDAMJM9>
+  <recommendation ?01M0QPCXADKVHDQK5Y0QDAMJMA>
+  Use the existing explicit ai.agent effect and exact task tuple from ordinary profile nodes.
+  </?01M0QPCXADKVHDQK5Y0QDAMJMA>
+  <options {  } [
+    <option { key = "ordinary-node-effect" recommended = true } (
+      <title ?01M0QPCXADKVHDQK5Y0QDAMJMB>
+      Ordinary node plus explicit effect
+      </?01M0QPCXADKVHDQK5Y0QDAMJMB>
+      <description ?01M0QPCXADKVHDQK5Y0QDAMJMC>
+      Run and TransformNode call the same typed effect.
+      </?01M0QPCXADKVHDQK5Y0QDAMJMC>
+      <tradeoff ?01M0QPCXADKVHDQK5Y0QDAMJMD>
+      Flow code remains responsible for explicit selection.
+      </?01M0QPCXADKVHDQK5Y0QDAMJMD>
+    )>
+    <option { key = "agent-task-node" recommended = false } (
+      <title ?01M0QPCXADKVHDQK5Y0QDAMJME>
+      New AIAgentTask node
+      </?01M0QPCXADKVHDQK5Y0QDAMJME>
+      <description ?01M0QPCXADKVHDQK5Y0QDAMJMF>
+      Add a new substrate grammar node.
+      </?01M0QPCXADKVHDQK5Y0QDAMJMF>
+      <tradeoff ?01M0QPCXADKVHDQK5Y0QDAMJMG>
+      Conflicts with WorkCtrlFlow and duplicates the existing task reference.
+      </?01M0QPCXADKVHDQK5Y0QDAMJMG>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M0QPCXADKVHDQK5Y0QDAMJMH>
+    depa already defines the task as a four-field resource selection contract.
+    </?01M0QPCXADKVHDQK5Y0QDAMJMH>
+    <decision-text ?01M0QPCXADKVHDQK5Y0QDAMJMJ>
+    AICtrlWorkflow Run and AIDataWorkflow TransformNode SHALL invoke the same ai.agent effect with an exact agentDefinitionRef and payload; no AIAgentTask substrate node is introduced.
+    </?01M0QPCXADKVHDQK5Y0QDAMJMJ>
+    <rationale ?01M0QPCXADKVHDQK5Y0QDAMJMK>
+    This preserves substrate generality and shares one host execution path.
+    </?01M0QPCXADKVHDQK5Y0QDAMJMK>
+    <evidence ?01M0QPCXADKVHDQK5Y0QDAMJMM>
+    depa Flow DSL and existing EidolonWorkflowEffectProvider.
+    </?01M0QPCXADKVHDQK5Y0QDAMJMM>
+  )>
+  <confidence ?01M0QPCXADKVHDQK5Y0QDAMJMN>
+  1.0
+  </?01M0QPCXADKVHDQK5Y0QDAMJMN>
+  <reversibility ?01M0QPCXADKVHDQK5Y0QDAMJMP>
+  low
+  </?01M0QPCXADKVHDQK5Y0QDAMJMP>
+)>
+
+<decision #closed-effect-policy apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M0QPCXADKVHDQK5Y0QDAMJMQ>
+  How should EffectPolicy control tool exposure?
+  </?01M0QPCXADKVHDQK5Y0QDAMJMQ>
+  <recommendation ?01M0QPCXADKVHDQK5Y0QDAMJMR>
+  Support only declared-only and none with exact ToolRefs.
+  </?01M0QPCXADKVHDQK5Y0QDAMJMR>
+  <options {  } [
+    <option { key = "closed-modes" recommended = true } (
+      <title ?01M0QPCXAE43BWA49VX25B5PRV>
+      Closed policy modes
+      </?01M0QPCXAE43BWA49VX25B5PRV>
+      <description ?01M0QPCXAE43BWA49VX25B5PRW>
+      Tool admission follows exact typed resource facts.
+      </?01M0QPCXAE43BWA49VX25B5PRW>
+      <tradeoff ?01M0QPCXAE43BWA49VX25B5PRX>
+      New modes require explicit depa and host revisions.
+      </?01M0QPCXAE43BWA49VX25B5PRX>
+    )>
+    <option { key = "text-policy" recommended = false } (
+      <title ?01M0QPCXAE43BWA49VX25B5PRY>
+      Interpret policy text
+      </?01M0QPCXAE43BWA49VX25B5PRY>
+      <description ?01M0QPCXAE43BWA49VX25B5PRZ>
+      Infer tool behavior from names or prose.
+      </?01M0QPCXAE43BWA49VX25B5PRZ>
+      <tradeoff ?01M0QPCXAE43BWA49VX25B5PS0>
+      Creates prohibited fuzzy semantic routing.
+      </?01M0QPCXAE43BWA49VX25B5PS0>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M0QPCXAE43BWA49VX25B5PS1>
+    Semantic routing must never rely on text matching in code.
+    </?01M0QPCXAE43BWA49VX25B5PS1>
+    <decision-text ?01M0QPCXAE43BWA49VX25B5PS2>
+    The host SHALL implement only exact declared-only and none modes and SHALL reject unsupported or conflicting policy facts.
+    </?01M0QPCXAE43BWA49VX25B5PS2>
+    <rationale ?01M0QPCXAE43BWA49VX25B5PS3>
+    Closed values are auditable and deterministic.
+    </?01M0QPCXAE43BWA49VX25B5PS3>
+    <evidence ?01M0QPCXAE43BWA49VX25B5PS4>
+    User architecture constraint and depa EffectPolicy projection.
+    </?01M0QPCXAE43BWA49VX25B5PS4>
+  )>
+  <confidence ?01M0QPCXAE43BWA49VX25B5PS5>
+  1.0
+  </?01M0QPCXAE43BWA49VX25B5PS5>
+  <reversibility ?01M0QPCXAE43BWA49VX25B5PS6>
+  moderate
+  </?01M0QPCXAE43BWA49VX25B5PS6>
+)>
+
+<decision #result-validation-seam apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M0QPCXAE43BWA49VX25B5PS7>
+  Where must output schema validation occur?
+  </?01M0QPCXAE43BWA49VX25B5PS7>
+  <recommendation ?01M0QPCXAE43BWA49VX25B5PS8>
+  At the shared generic child completion seam before any success delivery.
+  </?01M0QPCXAE43BWA49VX25B5PS8>
+  <options {  } [
+    <option { key = "common-completion" recommended = true } (
+      <title ?01M0QPCXAE43BWA49VX25B5PS9>
+      Common completion seam
+      </?01M0QPCXAE43BWA49VX25B5PS9>
+      <description ?01M0QPCXAE43BWA49VX25B5PSA>
+      Immediate and orchestrated paths share one validator.
+      </?01M0QPCXAE43BWA49VX25B5PSA>
+      <tradeoff ?01M0QPCXAE43BWA49VX25B5PSB>
+      Requires a careful common-runtime change.
+      </?01M0QPCXAE43BWA49VX25B5PSB>
+    )>
+    <option { key = "workflow-postprocess" recommended = false } (
+      <title ?01M0QPCXAE43BWA49VX25B5PSC>
+      Workflow-only postprocess
+      </?01M0QPCXAE43BWA49VX25B5PSC>
+      <description ?01M0QPCXAE43BWA49VX25B5PSD>
+      Validate after effect success in workflow code.
+      </?01M0QPCXAE43BWA49VX25B5PSD>
+      <tradeoff ?01M0QPCXAE43BWA49VX25B5PSE>
+      Invalid output may already have escaped and other actors diverge.
+      </?01M0QPCXAE43BWA49VX25B5PSE>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M0QPCXAE43BWA49VX25B5PSF>
+    Validation must precede durable success and result delivery.
+    </?01M0QPCXAE43BWA49VX25B5PSF>
+    <decision-text ?01M0QPCXAE43BWA49VX25B5PSG>
+    Output validation SHALL occur in the common actor completion path before parent tool results, workflow completed events or success facts are written.
+    </?01M0QPCXAE43BWA49VX25B5PSG>
+    <rationale ?01M0QPCXAE43BWA49VX25B5PSH>
+    This is the only seam shared by immediate, orchestrated and resumed execution.
+    </?01M0QPCXAE43BWA49VX25B5PSH>
+    <evidence ?01M0QPCXAE43BWA49VX25B5PSJ>
+    DelegateActor/result delivery and workflow effect lifecycle.
+    </?01M0QPCXAE43BWA49VX25B5PSJ>
+  )>
+  <confidence ?01M0QPCXAE43BWA49VX25B5PSK>
+  1.0
+  </?01M0QPCXAE43BWA49VX25B5PSK>
+  <reversibility ?01M0QPCXAE43BWA49VX25B5PSM>
+  moderate
+  </?01M0QPCXAE43BWA49VX25B5PSM>
+)>

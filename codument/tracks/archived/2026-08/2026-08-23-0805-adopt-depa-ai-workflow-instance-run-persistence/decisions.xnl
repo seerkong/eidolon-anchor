@@ -1,0 +1,29 @@
+<decision #persistence-owner apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>Eidolon 的 AI Workflow instance/run 持久化由谁定义目录、schema 与 transition authority？</?>
+  <answer (
+    <raw-answer ?>直接消费 depa-flows 已发布的 Definition→Instance→Run materializer 与 checkpoint store；Eidolon只绑定host root和generic runtime。</?>
+    <decision-text ?>The published depa filesystem instance and FlowRunCheckpoint contracts SHALL be the single persistence authority. Eidolon SHALL NOT maintain a parallel writable Ctrl, Data, AI state or workflow-specific actor store.</?>
+    <rationale ?>复用领域 owner 才能保持 frozen instance、single checkpoint、CAS/recovery和Ctrl/Data profile不变量，并避免再次形成按fact类型平铺的双authority。</?>
+    <evidence ?>Root mission accepted decisions definition-instance-run-authority and legacy-workflow-fact-migration; published depa runtime patch consumer receipts; current WorkflowFactStore flat directories.</?>
+  )>
+)>
+
+<decision #legacy-cutover apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>如何兼容现有 WorkflowFactStore 历史数据？</?>
+  <answer (
+    <raw-answer ?>只允许显式只读或一次性幂等迁移；新运行只写canonical checkpoint。</?>
+    <decision-text ?>Legacy flat facts SHALL be migration input or explicit read-only compatibility data. Migration SHALL use a durable attempt and exact receipt, resume after interruption, and never dual-write legacy and canonical authorities.</?>
+    <rationale ?>双写无法裁决Ctrl snapshot、Data graph、AI state与Agent receipt之间的漂移，也会让fresh recovery选择不同真源。</?>
+    <evidence ?>Mission design persistence boundary; current ctrl/runs/ai-state/data-graphs/agent-executions paths; depa legacy conversion and filesystem CAS APIs.</?>
+  )>
+)>
+
+<decision #runtime-ref-boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>Agent execution的哪些事实可以进入Flow checkpoint？</?>
+  <answer (
+    <raw-answer ?>只保存稳定opaque refs和typed receipts，实际actor/session/provider状态仍由Eidolon通用runtime拥有。</?>
+    <decision-text ?>The AI Workflow profile MAY persist stable actor, session and Agent instance references plus exact execution receipts. It SHALL NOT persist conversation history, provider transcripts, compaction state or a workflow-specific actor lifecycle.</?>
+    <rationale ?>Flow需要跨节点和fresh process恢复引用，但不能复制通用actor authority或把workflow checkpoint变成第二conversation store。</?>
+    <evidence ?>Mission agent-instance-selector-state decision; existing generic runtime-control effect evidence and Agent execution lifecycle.</?>
+  )>
+)>

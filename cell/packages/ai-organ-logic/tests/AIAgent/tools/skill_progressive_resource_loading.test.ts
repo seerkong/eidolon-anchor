@@ -55,7 +55,7 @@ function makeHarness() {
 
   async function skill(
     toolCallId: string,
-    input: { skill: string; resource?: string; offset?: number; limit?: number } = { skill: "demo" },
+    input: { skill: string; resource?: string; resources?: string[]; offset?: number; limit?: number } = { skill: "demo" },
   ): Promise<string> {
     toolCallDomain.planTool({
       toolCallId,
@@ -131,12 +131,46 @@ describe("Skill progressive local text resource loading", () => {
       properties: {
         skill: { type: "string", description: "Exact name of the skill to load" },
         resource: { type: "string", description: "Exact declared relative resource; defaults to SKILL.md" },
+        resources: {
+          type: "array",
+          minItems: 1,
+          maxItems: 8,
+          uniqueItems: true,
+          items: { type: "string" },
+          description: "Bounded ordered exact declared resources; mutually exclusive with resource",
+        },
         offset: { type: "integer", minimum: 1, default: 1 },
         limit: { type: "integer", minimum: 1, default: 2000 },
       },
       required: ["skill"],
       additionalProperties: false,
     });
+  });
+
+  it("loads a bounded exact resource batch through one generic delivery call", async () => {
+    const harness = makeHarness();
+    const firstPath = path.join(harness.skillDir, "operations", "first.md");
+    const secondPath = path.join(harness.skillDir, "operations", "second.md");
+    fs.mkdirSync(path.dirname(firstPath), { recursive: true });
+    fs.writeFileSync(firstPath, "first resource\n");
+    fs.writeFileSync(secondPath, "second resource\n");
+
+    const output = await harness.skill("resource-batch", {
+      skill: "demo",
+      resources: ["operations/first.md", "operations/second.md"],
+    });
+    expect(output).toContain("first resource");
+    expect(output).toContain("second resource");
+    expect(output.match(/<context-resource status="loaded"/g)).toHaveLength(2);
+    expect(await harness.skill("resource-batch-conflict", {
+      skill: "demo",
+      resource: "operations/first.md",
+      resources: ["operations/second.md"],
+    })).toContain("mutually exclusive");
+    expect(await harness.skill("resource-batch-duplicate", {
+      skill: "demo",
+      resources: ["operations/first.md", "operations/first.md"],
+    })).toContain("must be unique");
   });
 
   it("loads exact ordinary resources and reuses visible fragments from one revision", async () => {

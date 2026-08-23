@@ -1,0 +1,49 @@
+<decision #processor-facade-naming apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>Eidolon authored runtime 应如何映射 depa 的 runtime-first Agent Processor？</?>
+  <answer (
+    <raw-answer ?>底层和闭包 facade 都统一叫 runAgent/runTargetedAgent；只在 facade 隐去 runtime。</?>
+    <decision-text ?>The canonical Processors SHALL retain runAgent(agentRuntime,input,config) and runTargetedAgent(agentRuntime,selector,invocation,config). The authored runtime SHALL expose closure-bound methods with the same names. Generic invoke MAY remain internal but SHALL NOT be the authored Agent API.</?>
+    <rationale ?>同名投影保持 DEPA Processor 公式、TypeScript 推断和调用 DX 一致，同时不把 runtime authority 从底层实现移除。</?>
+    <evidence ?>Root mission decisions processor-facade-contract and design section Agent invocation Processor; published depa typed Agent packages.</?>
+  )>
+)>
+
+<decision #selector-state-owner apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>Agent instance selector 与 name/id index 由谁持久化和解析？</?>
+  <answer (
+    <raw-answer ?>只使用同一 Flow run checkpoint 的 profile.ai；Eidolon 通用 actor/session 只被 opaque ref引用。</?>
+    <decision-text ?>AIAgentSelector SHALL remain the exact closed union {byInstanceId}|{byInstanceName}. Resolution and uniqueness SHALL be owned by the same run's canonical profile.ai. Eidolon SHALL NOT scan actor sessions, infer aliases from text or create a second selector index.</?>
+    <rationale ?>selector 是 Flow 领域的运行级引用，必须随 checkpoint CAS/recovery；actor/session stores 仍只拥有通用执行生命周期。</?>
+    <evidence ?>Root mission agent-instance-selector-state decision; completed depa typed invocation track; completed Eidolon persistence track.</?>
+  )>
+)>
+
+<decision #generic-lifecycle-bridge apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>pending/completed Agent 调用如何在进程重建后复用？</?>
+  <answer (
+    <raw-answer ?>depa checkpoint持有typed pending/completed facts，Eidolon generic runtime-control持有child/effect request-result evidence，两者按精确identity桥接。</?>
+    <decision-text ?>The depa Processor SHALL own Agent profile transitions and the existing generic Eidolon runtime-control lifecycle SHALL own child dispatch/result recovery. A provider-instance map MAY optimize waiting but SHALL NOT be correctness authority; no workflow-specific actor/session/result store is permitted.</?>
+    <rationale ?>这让 Flow checkpoint与actor runtime各守其authority，同时使same-process、pending reconstruction和completed repetition收敛。</?>
+    <evidence ?>Existing EidolonWorkflowEffectProvider generic lifecycle recovery; completed complete-Agent track; depa invocation semantic facts and CAS convergence.</?>
+  )>
+)>
+
+<decision #publication-proof-boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>如何阻止 authored code 继续使用 generic Agent invoke？</?>
+  <answer (
+    <raw-answer ?>bootstrap类型、generated code和publication AST/type proof必须在同一track切换；不是仅靠文档或字符串扫描。</?>
+    <decision-text ?>Bootstrap types, generated physical packages and publication AST/type proof SHALL recognize only the typed Agent methods for authored Agent execution. Admission SHALL reject generic Agent invoke and malformed runtime-first exports before publication mutation, while internal non-authored dispatch remains available.</?>
+    <rationale ?>只改 runtime 或 Skill 会让作者态、编译态和发布态继续漂移；AST/type proof才能精确区分 authored boundary 与内部 dispatcher。</?>
+    <evidence ?>Root mission EIDOLON_TYPED_AGENT_FACADE ownership; current WorkflowAuthoringSessionStore effect proof and generated fixture wrappers.</?>
+  )>
+)>
+
+<decision #frozen-agent-closure-and-addressed-owner apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>fresh recovery 如何取得真实 task proof，并让 targeted call 继续同一个 Agent 运行实例？</?>
+  <answer (
+    <raw-answer ?>冻结完整 ResourcePackage/closure，fresh 时通过真实 loader/freeze 重建认证；generic runtime提供addressed actor/session create/invoke/resume。</?>
+    <decision-text ?>Resource instance admission SHALL freeze the complete selected Agent dependency closure and fresh processes SHALL rebuild authentic task proof through the real Halfcode/depa projection path. Targeted calls SHALL resolve an opaque generic runtime-owned actor/session reference and invoke or resume that same owner across invocation keys and process reconstruction. The Flow checkpoint SHALL not serialize authenticity brands or own actor state.</?>
+    <rationale ?>当前 manifest/code capsule不足以离线重建Agent closure，当前ephemeral child也不能提供真正instance continuity；两项必须同时补齐且各自保持authority边界。</?>
+    <evidence ?>Fresh plan AttractorCheck; WorkflowDefinitionRepository capture; depa WeakSet authenticity projector; DelegateActor ephemeral child lifecycle; root mission selector/state decisions.</?>
+  )>
+)>

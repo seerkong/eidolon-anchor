@@ -1,1123 +1,1697 @@
 <Behavior #eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #native-workflow-capability (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6V75>
+      <Statement ?01M0QPDW10AQDPJRZCSCWVYN9F>
       The system SHALL expose AI workflow as an Eidolon-native capability through contract, tool, effect and profile boundaries.
-      </?01M05F1P2884BMD3KQS1ZT6V75>
+      </?01M0QPDW10AQDPJRZCSCWVYN9F>
       <Suites [
         <Suite #native-registration { name = "Native registration" } (
           <Cases [
             <Case #tool-registry-visible (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V76>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYN9G>
               The AI kernel runtime composes built-in native tools
-              </?01M05F1P2884BMD3KQS1ZT6V76>
-              <When ?01M05F1P2884BMD3KQS1ZT6V77>
+              </?01M0QPDW10AQDPJRZCSCWVYN9G>
+              <When ?01M0QPDW10AQDPJRZCSCWVYN9H>
               The tool registry and model-visible tool schemas are inspected
-              </?01M05F1P2884BMD3KQS1ZT6V77>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V78>
+              </?01M0QPDW10AQDPJRZCSCWVYN9H>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYN9J>
               The system SHALL include native workflow tools without requiring MCP fallback
-              </?01M05F1P2884BMD3KQS1ZT6V78>
+              </?01M0QPDW10AQDPJRZCSCWVYN9J>
             )>
             <Case #workflow-owned-directory (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V79>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYN9K>
               Workflow tool implementations are added
-              </?01M05F1P2884BMD3KQS1ZT6V79>
-              <When ?01M05F1P2884BMD3KQS1ZT6V7A>
+              </?01M0QPDW10AQDPJRZCSCWVYN9K>
+              <When ?01M0QPDW10AQDPJRZCSCWVYN9M>
               The source layout is inspected
-              </?01M05F1P2884BMD3KQS1ZT6V7A>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V7B>
+              </?01M0QPDW10AQDPJRZCSCWVYN9M>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYN9N>
               The implementation SHALL live under `ai-organ-logic/src/workflow/tools`, with composer code limited to bundle registration
-              </?01M05F1P2884BMD3KQS1ZT6V7B>
+              </?01M0QPDW10AQDPJRZCSCWVYN9N>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-fact-contract (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6V7C>
+      <Statement ?01M0QPDW10AQDPJRZCSCWVYN9P>
       The system SHALL declare workflow-owned orchestration facts without taking ownership of existing Eidolon runtime facts.
-      </?01M05F1P2884BMD3KQS1ZT6V7C>
+      </?01M0QPDW10AQDPJRZCSCWVYN9P>
       <Suites [
         <Suite #fact-boundary { name = "Fact boundary" } (
           <Cases [
             <Case #data-subgraph-additive (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V7D>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYN9Q>
               Eidolon runtime data-subgraph contracts are loaded
-              </?01M05F1P2884BMD3KQS1ZT6V7D>
-              <When ?01M05F1P2884BMD3KQS1ZT6V7E>
+              </?01M0QPDW10AQDPJRZCSCWVYN9Q>
+              <When ?01M0QPDW10AQDPJRZCSCWVYN9R>
               The workflow contract package is imported
-              </?01M05F1P2884BMD3KQS1ZT6V7E>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V7F>
+              </?01M0QPDW10AQDPJRZCSCWVYN9R>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYN9S>
               The workflow data-subgraph SHALL be additive and SHALL explicitly disown actor, session, conversation, tool, provider, runtime-control, checkpoint, member, holon and detached-task facts
-              </?01M05F1P2884BMD3KQS1ZT6V7F>
+              </?01M0QPDW10AQDPJRZCSCWVYN9S>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #minimal-tool-operations (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6V7G>
+      <Statement ?01M0QPDW10AQDPJRZCSCWVYN9T>
       The system SHALL provide a minimal native workflow tool surface that can be called by Eidolon agents.
-      </?01M05F1P2884BMD3KQS1ZT6V7G>
+      </?01M0QPDW10AQDPJRZCSCWVYN9T>
       <Suites [
         <Suite #tool-operations { name = "Tool operations" } (
           <Cases [
             <Case #inspect-capability (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V7H>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYN9V>
               An agent calls the workflow capability inspection tool
-              </?01M05F1P2884BMD3KQS1ZT6V7H>
-              <When ?01M05F1P2884BMD3KQS1ZT6V7J>
+              </?01M0QPDW10AQDPJRZCSCWVYN9V>
+              <When ?01M0QPDW10AQDPJRZCSCWVYN9W>
               The tool runs inside an Eidolon runtime
-              </?01M05F1P2884BMD3KQS1ZT6V7J>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V7K>
+              </?01M0QPDW10AQDPJRZCSCWVYN9W>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYN9X>
               The tool SHALL return available workflow forms, fact owner boundaries and whether workflow roots are injected
-              </?01M05F1P2884BMD3KQS1ZT6V7K>
+              </?01M0QPDW10AQDPJRZCSCWVYN9X>
             )>
             <Case #validate-resource-ref (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V7M>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYN9Y>
               An agent calls the workflow resource reference validation tool
-              </?01M05F1P2884BMD3KQS1ZT6V7M>
-              <When ?01M05F1P2884BMD3KQS1ZT6V7N>
+              </?01M0QPDW10AQDPJRZCSCWVYN9Y>
+              <When ?01M0QPDW10AQDPJRZCSCWVYN9Z>
               The ref uses an allowed workflow resource scheme
-              </?01M05F1P2884BMD3KQS1ZT6V7N>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V7P>
+              </?01M0QPDW10AQDPJRZCSCWVYN9Z>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNA0>
               The tool SHALL return a structured accepted result; unsafe refs SHALL be rejected
-              </?01M05F1P2884BMD3KQS1ZT6V7P>
+              </?01M0QPDW10AQDPJRZCSCWVYNA0>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #canonical-core-binding (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6V7Q>
+      <Statement ?01M0QPDW10AQDPJRZCSCWVYNA1>
       The system SHALL consume depa-flows AI workflow contracts and profile source loaders as the authority for workflow kinds, substrates, resource refs, definition bindings and XNL diagnostics.
-      </?01M05F1P2884BMD3KQS1ZT6V7Q>
+      </?01M0QPDW10AQDPJRZCSCWVYNA1>
       <Suites [
         <Suite #canonical-binding { name = "Canonical core binding" } (
           <Cases [
             <Case #canonical-contracts (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V7R>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNA2>
               Eidolon workflow contracts are imported
-              </?01M05F1P2884BMD3KQS1ZT6V7R>
-              <When ?01M05F1P2884BMD3KQS1ZT6V7S>
+              </?01M0QPDW10AQDPJRZCSCWVYNA2>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNA3>
               Workflow kinds, substrates, reuse policies or definition bindings are inspected
-              </?01M05F1P2884BMD3KQS1ZT6V7S>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V7T>
+              </?01M0QPDW10AQDPJRZCSCWVYNA3>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNA4>
               The values and types SHALL come from depa-flows while Eidolon-specific fact ownership remains additive
-              </?01M05F1P2884BMD3KQS1ZT6V7T>
+              </?01M0QPDW10AQDPJRZCSCWVYNA4>
             )>
             <Case #canonical-source-loaders (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V7V>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNA5>
               Named XNL sources contain an AICtrlWorkflow or AIDataWorkflow definition
-              </?01M05F1P2884BMD3KQS1ZT6V7V>
-              <When ?01M05F1P2884BMD3KQS1ZT6V7W>
+              </?01M0QPDW10AQDPJRZCSCWVYNA5>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNA6>
               The Eidolon workflow resource loader validates the sources
-              </?01M05F1P2884BMD3KQS1ZT6V7W>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V7X>
+              </?01M0QPDW10AQDPJRZCSCWVYNA6>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNA7>
               The loader SHALL invoke the corresponding depa-flows profile loader and return its typed binding and structured diagnostics
-              </?01M05F1P2884BMD3KQS1ZT6V7X>
+              </?01M0QPDW10AQDPJRZCSCWVYNA7>
             )>
             <Case #canonical-draft-roundtrip (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V7Y>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNA8>
               The WorkflowCommandService creates a deterministic bundle draft
-              </?01M05F1P2884BMD3KQS1ZT6V7Y>
-              <When ?01M05F1P2884BMD3KQS1ZT6V7Z>
+              </?01M0QPDW10AQDPJRZCSCWVYNA8>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNA9>
               The draft XNL is loaded through the workflow resource loader
-              </?01M05F1P2884BMD3KQS1ZT6V7Z>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V80>
+              </?01M0QPDW10AQDPJRZCSCWVYNA9>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNAA>
               The draft SHALL produce a canonical definition binding without diagnostics
-              </?01M05F1P2884BMD3KQS1ZT6V80>
+              </?01M0QPDW10AQDPJRZCSCWVYNAA>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #shared-authoring-workspace (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6V81>
+      <Statement ?01M0QPDW10AQDPJRZCSCWVYNAB>
       The system SHALL expose one containment-safe workflow authoring workspace through the native component, and CLI/TUI surfaces MUST use that component for physical resource transitions.
-      </?01M05F1P2884BMD3KQS1ZT6V81>
+      </?01M0QPDW10AQDPJRZCSCWVYNAB>
       <Suites [
         <Suite #authoring-authority { name = "Shared authoring authority" } (
           <Cases [
             <Case #runtime-bound-tool-write (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V82>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNAC>
               An Eidolon agent calls a workflow authoring tool inside TUI or headless runtime
-              </?01M05F1P2884BMD3KQS1ZT6V82>
-              <When ?01M05F1P2884BMD3KQS1ZT6V83>
+              </?01M0QPDW10AQDPJRZCSCWVYNAC>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNAD>
               The tool creates or edits a workflow resource
-              </?01M05F1P2884BMD3KQS1ZT6V83>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V84>
+              </?01M0QPDW10AQDPJRZCSCWVYNAD>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNAE>
               The component SHALL bind the injected workflow workspace root and perform a canonical validate-write-validate transition
-              </?01M05F1P2884BMD3KQS1ZT6V84>
+              </?01M0QPDW10AQDPJRZCSCWVYNAE>
             )>
             <Case #cli-component-write (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V85>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNAF>
               A user invokes an `eidolon workflow` authoring command
-              </?01M05F1P2884BMD3KQS1ZT6V85>
-              <When ?01M05F1P2884BMD3KQS1ZT6V86>
+              </?01M0QPDW10AQDPJRZCSCWVYNAF>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNAG>
               The command publishes workflow resources
-              </?01M05F1P2884BMD3KQS1ZT6V86>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V87>
+              </?01M0QPDW10AQDPJRZCSCWVYNAG>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNAH>
               The CLI SHALL invoke the same component command and SHALL NOT implement a private filesystem write loop
-              </?01M05F1P2884BMD3KQS1ZT6V87>
+              </?01M0QPDW10AQDPJRZCSCWVYNAH>
             )>
             <Case #containment-and-atomicity (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V88>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNAJ>
               An authoring operation contains resource-relative paths
-              </?01M05F1P2884BMD3KQS1ZT6V88>
-              <When ?01M05F1P2884BMD3KQS1ZT6V89>
+              </?01M0QPDW10AQDPJRZCSCWVYNAJ>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNAK>
               The workspace applies the transition
-              </?01M05F1P2884BMD3KQS1ZT6V89>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V8A>
+              </?01M0QPDW10AQDPJRZCSCWVYNAK>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNAM>
               Traversal and absolute paths SHALL be rejected and file replacement SHALL be atomic within the workspace root
-              </?01M05F1P2884BMD3KQS1ZT6V8A>
+              </?01M0QPDW10AQDPJRZCSCWVYNAM>
             )>
             <Case #authoring-primitives (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V8B>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNAN>
               A natural-language coordinator needs to inspect or modify a workflow
-              </?01M05F1P2884BMD3KQS1ZT6V8B>
-              <When ?01M05F1P2884BMD3KQS1ZT6V8C>
+              </?01M0QPDW10AQDPJRZCSCWVYNAN>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNAP>
               It uses the component authoring workspace
-              </?01M05F1P2884BMD3KQS1ZT6V8C>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V8D>
+              </?01M0QPDW10AQDPJRZCSCWVYNAP>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNAQ>
               The workspace SHALL provide read, tree, search, diff, write/edit, delete, validate, dry-run and publish primitives with revision evidence
-              </?01M05F1P2884BMD3KQS1ZT6V8D>
+              </?01M0QPDW10AQDPJRZCSCWVYNAQ>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #natural-language-authoring (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6V8E>
+      <Statement ?01M0QPDW10AQDPJRZCSCWVYNAR>
       The system SHALL let humans create, edit and run canonical AI workflows in ordinary language by loading the system-owned AI Workflow Skill into a dedicated Eidolon workflow actor, while deterministic code only validates and applies explicit structured operations.
-      </?01M05F1P2884BMD3KQS1ZT6V8E>
+      </?01M0QPDW10AQDPJRZCSCWVYNAR>
       <Suites [
         <Suite #skill-authority { name = "System AI Workflow Skill authority" } (
           <Cases [
             <Case #global-skill-location (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V8F>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNAS>
               An Eidolon installation resolves its global directory, defaulting to `~/.eidolon`
-              </?01M05F1P2884BMD3KQS1ZT6V8F>
-              <When ?01M05F1P2884BMD3KQS1ZT6V8G>
+              </?01M0QPDW10AQDPJRZCSCWVYNAS>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNAT>
               The user runs `eidolon global init` and the AI Workflow capability is later composed
-              </?01M05F1P2884BMD3KQS1ZT6V8G>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V8H>
+              </?01M0QPDW10AQDPJRZCSCWVYNAT>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNAV>
               The command SHALL install or replace the managed canonical Skill at `skills/sys-ai-workflow`, and runtime SHALL resolve it from that global directory
-              </?01M05F1P2884BMD3KQS1ZT6V8H>
+              </?01M0QPDW10AQDPJRZCSCWVYNAV>
             )>
             <Case #global-init-extensible-system-skill-set (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V8J>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNAW>
               An Eidolon release bundles one or more versioned `sys-*` Skills
-              </?01M05F1P2884BMD3KQS1ZT6V8J>
-              <When ?01M05F1P2884BMD3KQS1ZT6V8K>
+              </?01M0QPDW10AQDPJRZCSCWVYNAW>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNAX>
               The user runs `eidolon global init` repeatedly or upgrades Eidolon and runs it again
-              </?01M05F1P2884BMD3KQS1ZT6V8K>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V8M>
+              </?01M0QPDW10AQDPJRZCSCWVYNAX>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNAY>
               The command SHALL stage, validate and atomically reconcile every managed system Skill listed in `.system-skills.xnl` while preserving unmanaged user Skills
-              </?01M05F1P2884BMD3KQS1ZT6V8M>
+              </?01M0QPDW10AQDPJRZCSCWVYNAY>
             )>
             <Case #system-skill-cannot-be-shadowed (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V8N>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNAZ>
               A workspace contains a skill with the same `sys-ai-workflow` identity as the global system Skill
-              </?01M05F1P2884BMD3KQS1ZT6V8N>
-              <When ?01M05F1P2884BMD3KQS1ZT6V8P>
+              </?01M0QPDW10AQDPJRZCSCWVYNAZ>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNB0>
               The workflow product composes its actor
-              </?01M05F1P2884BMD3KQS1ZT6V8P>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V8Q>
+              </?01M0QPDW10AQDPJRZCSCWVYNB0>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNB1>
               The system MUST use the global system installation or report an installation error and MUST NOT allow the workspace skill to shadow it
-              </?01M05F1P2884BMD3KQS1ZT6V8Q>
+              </?01M0QPDW10AQDPJRZCSCWVYNB1>
             )>
             <Case #model-owned-semantics (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V8R>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNB2>
               A user supplies an ordinary-language workflow goal
-              </?01M05F1P2884BMD3KQS1ZT6V8R>
-              <When ?01M05F1P2884BMD3KQS1ZT6V8S>
+              </?01M0QPDW10AQDPJRZCSCWVYNB2>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNB3>
               The system decides whether and how to author or run a workflow
-              </?01M05F1P2884BMD3KQS1ZT6V8S>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V8T>
+              </?01M0QPDW10AQDPJRZCSCWVYNB3>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNB4>
               The dedicated workflow actor SHALL interpret the request through `sys-ai-workflow` and SHALL choose the native tools, workflow form, starting facts and workspace edits
-              </?01M05F1P2884BMD3KQS1ZT6V8T>
+              </?01M0QPDW10AQDPJRZCSCWVYNB4>
             )>
             <Case #no-code-fuzzy-routing (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V8V>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNB5>
               AI Workflow production source is inspected
-              </?01M05F1P2884BMD3KQS1ZT6V8V>
-              <When ?01M05F1P2884BMD3KQS1ZT6V8W>
+              </?01M0QPDW10AQDPJRZCSCWVYNB5>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNB6>
               Natural-language intent, scenario, authorization or workflow topology is determined
-              </?01M05F1P2884BMD3KQS1ZT6V8W>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V8X>
+              </?01M0QPDW10AQDPJRZCSCWVYNB6>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNB7>
               The system MUST NOT use regex, keyword matching, substring matching or ordered heuristic rules in deterministic code to make that semantic decision
-              </?01M05F1P2884BMD3KQS1ZT6V8X>
+              </?01M0QPDW10AQDPJRZCSCWVYNB7>
             )>
             <Case #structured-component-boundary (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V8Y>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNB8>
               The workflow actor calls a native workflow tool with explicit structured arguments
-              </?01M05F1P2884BMD3KQS1ZT6V8Y>
-              <When ?01M05F1P2884BMD3KQS1ZT6V8Z>
+              </?01M0QPDW10AQDPJRZCSCWVYNB8>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNB9>
               The WorkflowComponent handles the call
-              </?01M05F1P2884BMD3KQS1ZT6V8Z>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V90>
+              </?01M0QPDW10AQDPJRZCSCWVYNB9>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNBA>
               The component SHALL validate schemas, resource refs, paths, revisions, proofs and authorization gates without reinterpreting the original natural language
-              </?01M05F1P2884BMD3KQS1ZT6V90>
+              </?01M0QPDW10AQDPJRZCSCWVYNBA>
             )>
           ]>
         )>
         <Suite #prompt-composition { name = "DevOps-stage progressive prompt composition" } (
           <Cases [
             <Case #devops-directory-structure (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V91>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNBB>
               The installed `sys-ai-workflow` Skill is inspected on disk
-              </?01M05F1P2884BMD3KQS1ZT6V91>
-              <When ?01M05F1P2884BMD3KQS1ZT6V92>
+              </?01M0QPDW10AQDPJRZCSCWVYNBB>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNBC>
               Its lifecycle resources are enumerated
-              </?01M05F1P2884BMD3KQS1ZT6V92>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V93>
+              </?01M0QPDW10AQDPJRZCSCWVYNBC>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNBD>
               The Skill SHALL expose `planning`, `coding`, `building`, `testing`, `releasing`, `deploying`, `operating` and `monitoring` parent directories, each with stage-owned system instructions and protocol
-              </?01M05F1P2884BMD3KQS1ZT6V93>
+              </?01M0QPDW10AQDPJRZCSCWVYNBD>
             )>
             <Case #router-versus-generation-kernel (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V94>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNBE>
               The dedicated actor enters the coding stage
-              </?01M05F1P2884BMD3KQS1ZT6V94>
-              <When ?01M05F1P2884BMD3KQS1ZT6V95>
+              </?01M0QPDW10AQDPJRZCSCWVYNBE>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNBF>
               Its system context is assembled
-              </?01M05F1P2884BMD3KQS1ZT6V95>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V96>
+              </?01M0QPDW10AQDPJRZCSCWVYNBF>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNBG>
               The system SHALL include `coding/system.md` and the full `coding/generation-kernel.md`; a navigation-only root `SKILL.md` MUST NOT substitute for the generation kernel
-              </?01M05F1P2884BMD3KQS1ZT6V96>
+              </?01M0QPDW10AQDPJRZCSCWVYNBG>
             )>
             <Case #non-coding-prompt-isolation (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V97>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNBH>
               The dedicated actor enters building, testing, releasing, deploying, operating or monitoring
-              </?01M05F1P2884BMD3KQS1ZT6V97>
-              <When ?01M05F1P2884BMD3KQS1ZT6V98>
+              </?01M0QPDW10AQDPJRZCSCWVYNBH>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNBJ>
               Its system context and tool policy are assembled
-              </?01M05F1P2884BMD3KQS1ZT6V98>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V99>
+              </?01M0QPDW10AQDPJRZCSCWVYNBJ>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNBK>
               The system SHALL load only the selected lifecycle stage resources without the coding generation kernel and SHALL expose only tools valid for that stage
-              </?01M05F1P2884BMD3KQS1ZT6V99>
+              </?01M0QPDW10AQDPJRZCSCWVYNBK>
             )>
             <Case #prompt-body-not-in-code (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V9A>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNBM>
               AI Workflow prompt layers and scenario guidance are inspected
-              </?01M05F1P2884BMD3KQS1ZT6V9A>
-              <When ?01M05F1P2884BMD3KQS1ZT6V9B>
+              </?01M0QPDW10AQDPJRZCSCWVYNBM>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNBN>
               The runtime composes a stage system prompt
-              </?01M05F1P2884BMD3KQS1ZT6V9B>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V9C>
+              </?01M0QPDW10AQDPJRZCSCWVYNBN>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNBP>
               Prompt prose SHALL come from the installed global Skill resources while code only selects named layers from an explicit stage
-              </?01M05F1P2884BMD3KQS1ZT6V9C>
+              </?01M0QPDW10AQDPJRZCSCWVYNBP>
             )>
           ]>
         )>
         <Suite #stage-products { name = "Separated authoring and run products" } (
           <Cases [
             <Case #authoring-stage (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V9D>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNBQ>
               A user asks to create or edit a workflow
-              </?01M05F1P2884BMD3KQS1ZT6V9D>
-              <When ?01M05F1P2884BMD3KQS1ZT6V9E>
+              </?01M0QPDW10AQDPJRZCSCWVYNBQ>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNBR>
               The AI Workflow Skill handles the authoring stage
-              </?01M05F1P2884BMD3KQS1ZT6V9E>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V9F>
+              </?01M0QPDW10AQDPJRZCSCWVYNBR>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNBS>
               The actor SHALL produce or modify canonical flow DSL in one recoverable workspace, then diff, validate and dry-run the exact revision before requesting publication confirmation
-              </?01M05F1P2884BMD3KQS1ZT6V9F>
+              </?01M0QPDW10AQDPJRZCSCWVYNBS>
             )>
             <Case #run-stage (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V9G>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNBT>
               A published workflow revision exists
-              </?01M05F1P2884BMD3KQS1ZT6V9G>
-              <When ?01M05F1P2884BMD3KQS1ZT6V9H>
+              </?01M0QPDW10AQDPJRZCSCWVYNBT>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNBV>
               The user asks to prepare, execute or continue it
-              </?01M05F1P2884BMD3KQS1ZT6V9H>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V9J>
+              </?01M0QPDW10AQDPJRZCSCWVYNBV>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNBW>
               The AI Workflow Skill SHALL enter a distinct run-stage interaction that resolves inputs and Materials, previews the immutable revision and requires independent execution authorization
-              </?01M05F1P2884BMD3KQS1ZT6V9J>
+              </?01M0QPDW10AQDPJRZCSCWVYNBW>
             )>
             <Case #flow-dsl-knowledge (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V9K>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNBX>
               The workflow actor authors canonical workflow files
-              </?01M05F1P2884BMD3KQS1ZT6V9K>
-              <When ?01M05F1P2884BMD3KQS1ZT6V9M>
+              </?01M0QPDW10AQDPJRZCSCWVYNBX>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNBY>
               It needs flow DSL structure or profile-specific AI workflow semantics
-              </?01M05F1P2884BMD3KQS1ZT6V9M>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V9N>
+              </?01M0QPDW10AQDPJRZCSCWVYNBY>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNBZ>
               The installed Skill SHALL provide under `coding/flow-dsl` a self-contained, provenance-tracked `foundation/std/spec` tree containing the L1 foundation, EagerDataFlow/WorkCtrlFlow substrate and AI Workflow profile skeleton required to generate canonical files without inventing syntax
-              </?01M05F1P2884BMD3KQS1ZT6V9N>
+              </?01M0QPDW10AQDPJRZCSCWVYNBZ>
             )>
             <Case #fresh-proof-after-edit (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V9P>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNC0>
               An authoring workspace revision has previously passed validation and dry-run
-              </?01M05F1P2884BMD3KQS1ZT6V9P>
-              <When ?01M05F1P2884BMD3KQS1ZT6V9Q>
+              </?01M0QPDW10AQDPJRZCSCWVYNC0>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNC1>
               The actor changes any file in the mutable workspace
-              </?01M05F1P2884BMD3KQS1ZT6V9Q>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V9R>
+              </?01M0QPDW10AQDPJRZCSCWVYNC1>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNC2>
               The system SHALL invalidate the old proof and MUST require validation and dry-run of the new exact revision before publication
-              </?01M05F1P2884BMD3KQS1ZT6V9R>
+              </?01M0QPDW10AQDPJRZCSCWVYNC2>
             )>
             <Case #runtime-facts-do-not-rewrite-definition (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V9S>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNC3>
               An AICtrlWorkflow snapshot or AIDataWorkflow RunGraph changes during execution
-              </?01M05F1P2884BMD3KQS1ZT6V9S>
-              <When ?01M05F1P2884BMD3KQS1ZT6V9T>
+              </?01M0QPDW10AQDPJRZCSCWVYNC3>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNC4>
               The runtime persists progress, decisions, patches, generations or invalidations
-              </?01M05F1P2884BMD3KQS1ZT6V9T>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V9V>
+              </?01M0QPDW10AQDPJRZCSCWVYNC4>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNC5>
               The system MUST keep those facts in the runtime owner and MUST NOT rewrite the published XNL definition or authoring layout
-              </?01M05F1P2884BMD3KQS1ZT6V9V>
+              </?01M0QPDW10AQDPJRZCSCWVYNC5>
             )>
           ]>
         )>
         <Suite #devops-lifecycle { name = "AI Workflow DevOps lifecycle" } (
           <Cases [
             <Case #actor-selects-stage (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V9W>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNC6>
               A user request and current workflow facts enter the dedicated actor
-              </?01M05F1P2884BMD3KQS1ZT6V9W>
-              <When ?01M05F1P2884BMD3KQS1ZT6V9X>
+              </?01M0QPDW10AQDPJRZCSCWVYNC6>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNC7>
               The next lifecycle action is selected
-              </?01M05F1P2884BMD3KQS1ZT6V9X>
-              <Then ?01M05F1P2884BMD3KQS1ZT6V9Y>
+              </?01M0QPDW10AQDPJRZCSCWVYNC7>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNC8>
               The actor SHALL select planning, coding, building, testing, releasing, deploying, operating or monitoring, while host code MUST NOT infer that stage from natural-language keywords
-              </?01M05F1P2884BMD3KQS1ZT6V9Y>
+              </?01M0QPDW10AQDPJRZCSCWVYNC8>
             )>
             <Case #stage-fact-ownership (
-              <Given ?01M05F1P2884BMD3KQS1ZT6V9Z>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNC9>
               A workflow advances across the DevOps lifecycle
-              </?01M05F1P2884BMD3KQS1ZT6V9Z>
-              <When ?01M05F1P2884BMD3KQS1ZT6VA0>
+              </?01M0QPDW10AQDPJRZCSCWVYNC9>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNCA>
               definition, proof, publication, instance, run or monitoring facts change
-              </?01M05F1P2884BMD3KQS1ZT6VA0>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VA1>
+              </?01M0QPDW10AQDPJRZCSCWVYNCA>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNCB>
               Each stage SHALL consume and produce only its declared facts, and runtime or monitoring facts MUST NOT rewrite the definition
-              </?01M05F1P2884BMD3KQS1ZT6VA1>
+              </?01M0QPDW10AQDPJRZCSCWVYNCB>
             )>
           ]>
         )>
         <Suite #cross-surface-authoring { name = "Cross-surface natural-language authoring" } (
           <Cases [
             <Case #conversation-authoring (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VA2>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNCC>
               A user describes a workflow in ordinary language during an Eidolon conversation
-              </?01M05F1P2884BMD3KQS1ZT6VA2>
-              <When ?01M05F1P2884BMD3KQS1ZT6VA3>
+              </?01M0QPDW10AQDPJRZCSCWVYNCC>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNCD>
               The AI kernel routes the request to the workflow product
-              </?01M05F1P2884BMD3KQS1ZT6VA3>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VA4>
+              </?01M0QPDW10AQDPJRZCSCWVYNCD>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNCE>
               The same dedicated workflow actor and global Skill SHALL perform semantic authoring through native component tools
-              </?01M05F1P2884BMD3KQS1ZT6VA4>
+              </?01M0QPDW10AQDPJRZCSCWVYNCE>
             )>
             <Case #cli-authoring (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VA5>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNCF>
               A user invokes an `eidolon workflow` command with ordinary language
-              </?01M05F1P2884BMD3KQS1ZT6VA5>
-              <When ?01M05F1P2884BMD3KQS1ZT6VA6>
+              </?01M0QPDW10AQDPJRZCSCWVYNCF>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNCG>
               The command enters the in-process Eidolon runtime
-              </?01M05F1P2884BMD3KQS1ZT6VA6>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VA7>
+              </?01M0QPDW10AQDPJRZCSCWVYNCG>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNCH>
               The command SHALL use the same dedicated workflow actor and global Skill without invoking an external AI CLI
-              </?01M05F1P2884BMD3KQS1ZT6VA7>
+              </?01M0QPDW10AQDPJRZCSCWVYNCH>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #ai-ctrl-runtime (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6VA8>
+      <Statement ?01M0QPDW10AQDPJRZCSCWVYNCJ>
       The system SHALL execute AICtrlWorkflow through the canonical WorkCtrlFlow controller while using Eidolon actor/tool/material/session authorities for effects and recovery.
-      </?01M05F1P2884BMD3KQS1ZT6VA8>
+      </?01M0QPDW10AQDPJRZCSCWVYNCJ>
       <Suites [
         <Suite #ctrl-runtime { name = "AICtrlWorkflow runtime" } (
           <Cases [
             <Case #real-graph-run (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VA9>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNCK>
               A canonical AICtrlWorkflow resource exists
-              </?01M05F1P2884BMD3KQS1ZT6VA9>
-              <When ?01M05F1P2884BMD3KQS1ZT6VAA>
+              </?01M0QPDW10AQDPJRZCSCWVYNCK>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNCM>
               WorkflowRun starts it
-              </?01M05F1P2884BMD3KQS1ZT6VAA>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VAB>
+              </?01M0QPDW10AQDPJRZCSCWVYNCM>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNCN>
               The system SHALL load its binding and execute stable nodes through WorkCtrlFlow instead of delegating one opaque prompt
-              </?01M05F1P2884BMD3KQS1ZT6VAB>
+              </?01M0QPDW10AQDPJRZCSCWVYNCN>
             )>
             <Case #wait-resume (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VAC>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNCP>
               A ctrl run opens an ExternalJob wait handle
-              </?01M05F1P2884BMD3KQS1ZT6VAC>
-              <When ?01M05F1P2884BMD3KQS1ZT6VAD>
+              </?01M0QPDW10AQDPJRZCSCWVYNCP>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNCQ>
               WorkflowResume receives the matching signal and resume token
-              </?01M05F1P2884BMD3KQS1ZT6VAD>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VAE>
+              </?01M0QPDW10AQDPJRZCSCWVYNCQ>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNCR>
               The persisted snapshot SHALL resume idempotently and project stable node/invocation status
-              </?01M05F1P2884BMD3KQS1ZT6VAE>
+              </?01M0QPDW10AQDPJRZCSCWVYNCR>
             )>
             <Case #effect-authority (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VAF>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNCS>
               Flow code invokes an embedded AI workflow effect
-              </?01M05F1P2884BMD3KQS1ZT6VAF>
-              <When ?01M05F1P2884BMD3KQS1ZT6VAG>
+              </?01M0QPDW10AQDPJRZCSCWVYNCS>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNCT>
               The host handles it
-              </?01M05F1P2884BMD3KQS1ZT6VAG>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VAH>
+              </?01M0QPDW10AQDPJRZCSCWVYNCT>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNCV>
               The effect SHALL use existing Eidolon actor/tool/material adapters and runtime-control evidence without copying their owned facts into workflow state
-              </?01M05F1P2884BMD3KQS1ZT6VAH>
+              </?01M0QPDW10AQDPJRZCSCWVYNCV>
             )>
             <Case #session-recovery (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VAJ>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNCW>
               A VM is reconstructed for the same session
-              </?01M05F1P2884BMD3KQS1ZT6VAJ>
-              <When ?01M05F1P2884BMD3KQS1ZT6VAK>
+              </?01M0QPDW10AQDPJRZCSCWVYNCW>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNCX>
               Status or resume loads a prior run
-              </?01M05F1P2884BMD3KQS1ZT6VAK>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VAM>
+              </?01M0QPDW10AQDPJRZCSCWVYNCX>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNCY>
               The controller SHALL be rebuilt from its descriptor and persisted workflow snapshot
-              </?01M05F1P2884BMD3KQS1ZT6VAM>
+              </?01M0QPDW10AQDPJRZCSCWVYNCY>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #ai-data-runtime (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6VAN>
+      <Statement ?01M0QPDW10AQDPJRZCSCWVYNCZ>
       The system SHALL execute AIDataWorkflow as a persisted, per-run mutable DAG over canonical EagerDataFlow and AIDataWorkflow RunGraph semantics.
-      </?01M05F1P2884BMD3KQS1ZT6VAN>
+      </?01M0QPDW10AQDPJRZCSCWVYNCZ>
       <Suites [
         <Suite #data-runtime { name = "AIDataWorkflow runtime" } (
           <Cases [
             <Case #node-state (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VAP>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYND0>
               A canonical AIDataWorkflow resource exists
-              </?01M05F1P2884BMD3KQS1ZT6VAP>
-              <When ?01M05F1P2884BMD3KQS1ZT6VAQ>
+              </?01M0QPDW10AQDPJRZCSCWVYND0>
+              <When ?01M0QPDW10AQDPJRZCSCWVYND1>
               WorkflowRun starts it
-              </?01M05F1P2884BMD3KQS1ZT6VAQ>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VAR>
+              </?01M0QPDW10AQDPJRZCSCWVYND1>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYND2>
               The system SHALL persist stable nodes with inputs, outputs, config, status, results and generation
-              </?01M05F1P2884BMD3KQS1ZT6VAR>
+              </?01M0QPDW10AQDPJRZCSCWVYND2>
             )>
             <Case #graph-patch (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VAS>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYND3>
               A completed or waiting run graph
-              </?01M05F1P2884BMD3KQS1ZT6VAS>
-              <When ?01M05F1P2884BMD3KQS1ZT6VAT>
+              </?01M0QPDW10AQDPJRZCSCWVYND3>
+              <When ?01M0QPDW10AQDPJRZCSCWVYND4>
               A structurally valid GraphPatch is applied
-              </?01M05F1P2884BMD3KQS1ZT6VAT>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VAV>
+              </?01M0QPDW10AQDPJRZCSCWVYND4>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYND5>
               The system SHALL create a new generation, record the patch and transitively invalidate affected nodes
-              </?01M05F1P2884BMD3KQS1ZT6VAV>
+              </?01M0QPDW10AQDPJRZCSCWVYND5>
             )>
             <Case #semantic-reuse (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VAW>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYND6>
               An invalidated machine node has unchanged semantic input, config, material revisions and effect policy in the same run
-              </?01M05F1P2884BMD3KQS1ZT6VAW>
-              <When ?01M05F1P2884BMD3KQS1ZT6VAX>
+              </?01M0QPDW10AQDPJRZCSCWVYND6>
+              <When ?01M0QPDW10AQDPJRZCSCWVYND7>
               The new generation advances
-              </?01M05F1P2884BMD3KQS1ZT6VAX>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VAY>
+              </?01M0QPDW10AQDPJRZCSCWVYND7>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYND8>
               The system SHALL reuse the prior result without re-executing the node and SHALL retain reuse provenance
-              </?01M05F1P2884BMD3KQS1ZT6VAY>
+              </?01M0QPDW10AQDPJRZCSCWVYND8>
             )>
             <Case #never-policy (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VAZ>
+              <Given ?01M0QPDW10AQDPJRZCSCWVYND9>
               A manual node or explicit node policy resolves to never
-              </?01M05F1P2884BMD3KQS1ZT6VAZ>
-              <When ?01M05F1P2884BMD3KQS1ZT6VB0>
+              </?01M0QPDW10AQDPJRZCSCWVYND9>
+              <When ?01M0QPDW10AQDPJRZCSCWVYNDA>
               A new generation advances
-              </?01M05F1P2884BMD3KQS1ZT6VB0>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VB1>
+              </?01M0QPDW10AQDPJRZCSCWVYNDA>
+              <Then ?01M0QPDW10AQDPJRZCSCWVYNDB>
               The system SHALL execute or wait again and SHALL record the policy source
-              </?01M05F1P2884BMD3KQS1ZT6VB1>
+              </?01M0QPDW10AQDPJRZCSCWVYNDB>
             )>
-            <Case #recovery (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VB2>
+            <Case #data-graph-recovery (
+              <Given ?01M0QPDW10AQDPJRZCSCWVYNDC>
               A persisted graph contains completed and waiting facts
-              </?01M05F1P2884BMD3KQS1ZT6VB2>
-              <When ?01M05F1P2884BMD3KQS1ZT6VB3>
+              </?01M0QPDW10AQDPJRZCSCWVYNDC>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12H7>
               A fresh Eidolon VM queries or resumes it
-              </?01M05F1P2884BMD3KQS1ZT6VB3>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VB4>
+              </?01M0QPDW11NQMZT4TRQ3YC12H7>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12H8>
               The system SHALL restore the RunGraph and continue from stable node identities
-              </?01M05F1P2884BMD3KQS1ZT6VB4>
+              </?01M0QPDW11NQMZT4TRQ3YC12H8>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #cross-surface-runtime-acceptance (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6VB5>
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12H9>
       The system SHALL expose workflow authoring and runtime lifecycle behavior through the same native component and tool contracts across Eidolon conversation and CLI surfaces.
-      </?01M05F1P2884BMD3KQS1ZT6VB5>
+      </?01M0QPDW11NQMZT4TRQ3YC12H9>
       <Suites [
         <Suite #cross-surface { name = "Workflow cross-surface acceptance" } (
           <Cases [
             <Case #cli-runtime (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VB6>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12HA>
               A workflow resource and an Eidolon workspace
-              </?01M05F1P2884BMD3KQS1ZT6VB6>
-              <When ?01M05F1P2884BMD3KQS1ZT6VB7>
+              </?01M0QPDW11NQMZT4TRQ3YC12HA>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12HB>
               A human invokes workflow run, status, events, result, resume, or graph-patch from the CLI
-              </?01M05F1P2884BMD3KQS1ZT6VB7>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VB8>
+              </?01M0QPDW11NQMZT4TRQ3YC12HB>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12HC>
               The CLI SHALL invoke the corresponding native workflow tool in a recoverable Eidolon session
-              </?01M05F1P2884BMD3KQS1ZT6VB8>
+              </?01M0QPDW11NQMZT4TRQ3YC12HC>
             )>
             <Case #conversation-routing (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VB9>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12HD>
               A human describes workflow creation, execution, inspection, resume, or correction in ordinary language
-              </?01M05F1P2884BMD3KQS1ZT6VB9>
-              <When ?01M05F1P2884BMD3KQS1ZT6VBA>
+              </?01M0QPDW11NQMZT4TRQ3YC12HD>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12HE>
               The request is handled by TUI or headless conversation
-              </?01M05F1P2884BMD3KQS1ZT6VBA>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VBB>
+              </?01M0QPDW11NQMZT4TRQ3YC12HE>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12HF>
               The AI SHALL route it to the high-level native workflow tools without requiring XNL, internal paths, MCP, or an external agent CLI
-              </?01M05F1P2884BMD3KQS1ZT6VBB>
+              </?01M0QPDW11NQMZT4TRQ3YC12HF>
             )>
             <Case #single-authority (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VBC>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12HG>
               Multiple terminal surfaces use workflow capability
-              </?01M05F1P2884BMD3KQS1ZT6VBC>
-              <When ?01M05F1P2884BMD3KQS1ZT6VBD>
+              </?01M0QPDW11NQMZT4TRQ3YC12HG>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12HH>
               They read or mutate workflow resources and runs
-              </?01M05F1P2884BMD3KQS1ZT6VBD>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VBE>
+              </?01M0QPDW11NQMZT4TRQ3YC12HH>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12HJ>
               No surface SHALL implement a private parser, runtime, fact store, or unrestricted file-writing path
-              </?01M05F1P2884BMD3KQS1ZT6VBE>
+              </?01M0QPDW11NQMZT4TRQ3YC12HJ>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-authoring-lifecycle (
-      <Statement ?01M05F1P2884BMD3KQS1ZT6VBF>
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12HK>
       The system MUST provide a complete native workflow authoring lifecycle using canonical XNL, depa-flows semantics, injected Eidolon roots and native tools.
-      </?01M05F1P2884BMD3KQS1ZT6VBF>
+      </?01M0QPDW11NQMZT4TRQ3YC12HK>
       <Suites [
         <Suite #capability-coverage { name = "Capability coverage" } (
           <Cases [
             <Case #requirement-evidence (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VBG>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12HM>
               A workflow authoring capability is implemented or claimed complete
-              </?01M05F1P2884BMD3KQS1ZT6VBG>
-              <When ?01M05F1P2884BMD3KQS1ZT6VBH>
+              </?01M0QPDW11NQMZT4TRQ3YC12HM>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12HN>
               Its acceptance evidence is inspected
-              </?01M05F1P2884BMD3KQS1ZT6VBH>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VBJ>
+              </?01M0QPDW11NQMZT4TRQ3YC12HN>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12HP>
               The evidence MUST identify the required behavior, implementation evidence, architecture boundary and executable acceptance test
-              </?01M05F1P2884BMD3KQS1ZT6VBJ>
+              </?01M0QPDW11NQMZT4TRQ3YC12HP>
             )>
           ]>
         )>
         <Suite #authoring-session { name = "Recoverable authoring session" } (
           <Cases [
             <Case #four-mount-vfs (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VBK>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12HQ>
               A user or author actor creates or edits a workflow
-              </?01M05F1P2884BMD3KQS1ZT6VBK>
-              <When ?01M05F1P2884BMD3KQS1ZT6VBM>
+              </?01M0QPDW11NQMZT4TRQ3YC12HQ>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12HR>
               The WorkflowComponent opens an authoring session
-              </?01M05F1P2884BMD3KQS1ZT6VBM>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VBN>
+              </?01M0QPDW11NQMZT4TRQ3YC12HR>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12HS>
               The session MUST expose read-only base and refs mounts plus writable work and out mounts through containment-safe native operations
-              </?01M05F1P2884BMD3KQS1ZT6VBN>
+              </?01M0QPDW11NQMZT4TRQ3YC12HS>
             )>
             <Case #audit-and-recovery (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VBP>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12HT>
               An authoring session has mutations, validation or dry-run facts
-              </?01M05F1P2884BMD3KQS1ZT6VBP>
-              <When ?01M05F1P2884BMD3KQS1ZT6VBQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12HT>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12HV>
               A later turn reloads the session
-              </?01M05F1P2884BMD3KQS1ZT6VBQ>
-              <Then ?01M05F1P2884BMD3KQS1ZT6VBR>
+              </?01M0QPDW11NQMZT4TRQ3YC12HV>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12HW>
               The system MUST recover its identity, mounts, current revision, proof state, target and ordered audit facts without guessing from host paths
-              </?01M05F1P2884BMD3KQS1ZT6VBR>
+              </?01M0QPDW11NQMZT4TRQ3YC12HW>
             )>
           ]>
         )>
         <Suite #proof-and-publication { name = "Proof and publication" } (
           <Cases [
             <Case #proof-loop (
-              <Given ?01M05F1P2884BMD3KQS1ZT6VBS>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12HX>
               The editable work mount contains a workflow draft
-              </?01M05F1P2884BMD3KQS1ZT6VBS>
-              <When ?01M05F1P2884BMD3KQS1ZT6VBT>
+              </?01M0QPDW11NQMZT4TRQ3YC12HX>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12HY>
               The authoring lifecycle proves it
-              </?01M05F1P2884BMD3KQS1ZT6VBT>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9TE>
+              </?01M0QPDW11NQMZT4TRQ3YC12HY>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12HZ>
               The system MUST perform diff, canonical validate and static dry-run for one content revision and MUST support repair before publication
-              </?01M05F1P29ETX2WJ0B9T04Q9TE>
+              </?01M0QPDW11NQMZT4TRQ3YC12HZ>
             )>
             <Case #stale-validation (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9TF>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12J0>
               A validated draft is modified
-              </?01M05F1P29ETX2WJ0B9T04Q9TF>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9TG>
+              </?01M0QPDW11NQMZT4TRQ3YC12J0>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12J1>
               Publication is requested with the prior validation revision
-              </?01M05F1P29ETX2WJ0B9T04Q9TG>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9TH>
+              </?01M0QPDW11NQMZT4TRQ3YC12J1>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12J2>
               The system MUST reject publication until the current revision is validated and dry-run again
-              </?01M05F1P29ETX2WJ0B9T04Q9TH>
+              </?01M0QPDW11NQMZT4TRQ3YC12J2>
             )>
             <Case #separate-authorization (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9TJ>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12J3>
               A draft has current successful proof
-              </?01M05F1P29ETX2WJ0B9T04Q9TJ>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9TK>
+              </?01M0QPDW11NQMZT4TRQ3YC12J3>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12J4>
               Publication is not explicitly authorized
-              </?01M05F1P29ETX2WJ0B9T04Q9TK>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9TM>
+              </?01M0QPDW11NQMZT4TRQ3YC12J4>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12J5>
               The system MUST retain the draft and MUST NOT publish or execute it
-              </?01M05F1P29ETX2WJ0B9T04Q9TM>
+              </?01M0QPDW11NQMZT4TRQ3YC12J5>
             )>
           ]>
         )>
         <Suite #human-authoring { name = "Human authoring surface" } (
           <Cases [
             <Case #business-language-only (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9TN>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12J6>
               A person describes a durable business task in ordinary language
-              </?01M05F1P29ETX2WJ0B9T04Q9TN>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9TP>
+              </?01M0QPDW11NQMZT4TRQ3YC12J6>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12J7>
               Eidolon authors a workflow
-              </?01M05F1P29ETX2WJ0B9T04Q9TP>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9TQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12J7>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12J8>
               The person MUST NOT be required to choose a workflow form, nodes, ports, reuse policy, XNL syntax or storage path
-              </?01M05F1P29ETX2WJ0B9T04Q9TQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12J8>
             )>
             <Case #exact-business-payload (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9TR>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12J9>
               A request mixes authoring instructions with one unambiguous contiguous business payload
-              </?01M05F1P29ETX2WJ0B9T04Q9TR>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9TS>
+              </?01M0QPDW11NQMZT4TRQ3YC12J9>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12JA>
               The workflow task input is authored
-              </?01M05F1P29ETX2WJ0B9T04Q9TS>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9TT>
+              </?01M0QPDW11NQMZT4TRQ3YC12JA>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12JB>
               The system MUST preserve exactly that business payload while keeping authoring and lifecycle clauses outside the task
-              </?01M05F1P29ETX2WJ0B9T04Q9TT>
+              </?01M0QPDW11NQMZT4TRQ3YC12JB>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #human-product-journey (
-      <Statement ?01M05F1P29ETX2WJ0B9T04Q9TV>
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12JC>
       The system SHALL turn an ordinary business goal into a controlled direct, AI Ctrl, AI Data or composite journey without requiring the person to understand workflow internals.
-      </?01M05F1P29ETX2WJ0B9T04Q9TV>
+      </?01M0QPDW11NQMZT4TRQ3YC12JC>
       <Suites [
         <Suite #routing { name = "Business intent routing" } (
           <Cases [
             <Case #automatic-route (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9TW>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12JD>
               A person states a business goal in ordinary language
-              </?01M05F1P29ETX2WJ0B9T04Q9TW>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9TX>
+              </?01M0QPDW11NQMZT4TRQ3YC12JD>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12JE>
               The native workflow experience coordinator evaluates it
-              </?01M05F1P29ETX2WJ0B9T04Q9TX>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9TY>
+              </?01M0QPDW11NQMZT4TRQ3YC12JE>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12JF>
               The system SHALL choose direct handling, AI Ctrl, AI Data or composition and SHALL select the closest installed business scenario without asking for form, nodes, ports, policies, XNL or paths
-              </?01M05F1P29ETX2WJ0B9T04Q9TY>
+              </?01M0QPDW11NQMZT4TRQ3YC12JF>
             )>
             <Case #direct-not-forced (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9TZ>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12JG>
               A request is a small direct task without durable orchestration signals
-              </?01M05F1P29ETX2WJ0B9T04Q9TZ>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9V0>
+              </?01M0QPDW11NQMZT4TRQ3YC12JG>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12JH>
               The coordinator routes it
-              </?01M05F1P29ETX2WJ0B9T04Q9V0>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9V1>
+              </?01M0QPDW11NQMZT4TRQ3YC12JH>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12JJ>
               The system SHALL return it to the current Eidolon agent and SHALL NOT create a workflow merely to use workflow capability
-              </?01M05F1P29ETX2WJ0B9T04Q9V1>
+              </?01M0QPDW11NQMZT4TRQ3YC12JJ>
             )>
           ]>
         )>
         <Suite #journey { name = "Controlled product journey" } (
           <Cases [
             <Case #author-infer-run (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9V2>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12JK>
               A business goal warrants a workflow
-              </?01M05F1P29ETX2WJ0B9T04Q9V2>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9V3>
+              </?01M0QPDW11NQMZT4TRQ3YC12JK>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12JM>
               The high-level native tool fulfills it
-              </?01M05F1P29ETX2WJ0B9T04Q9V3>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9V4>
+              </?01M0QPDW11NQMZT4TRQ3YC12JM>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12JN>
               The system SHALL coordinate scenario context, authoring proof, input and Material inference, publication, Instance creation, execution preview and confirmed execution through existing native authorities
-              </?01M05F1P29ETX2WJ0B9T04Q9V4>
+              </?01M0QPDW11NQMZT4TRQ3YC12JN>
             )>
             <Case #independent-gates (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9V5>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12JP>
               Authoring proof succeeds
-              </?01M05F1P29ETX2WJ0B9T04Q9V5>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9V6>
+              </?01M0QPDW11NQMZT4TRQ3YC12JP>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12JQ>
               publication or execution was not independently authorized
-              </?01M05F1P29ETX2WJ0B9T04Q9V6>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9V7>
+              </?01M0QPDW11NQMZT4TRQ3YC12JQ>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12JR>
               The system SHALL preserve a recoverable state at the corresponding gate and SHALL NOT infer the missing authorization
-              </?01M05F1P29ETX2WJ0B9T04Q9V7>
+              </?01M0QPDW11NQMZT4TRQ3YC12JR>
             )>
           ]>
         )>
         <Suite #human-surface { name = "Human surface" } (
           <Cases [
             <Case #business-reporting (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9V8>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12JS>
               A normal human surface reports journey progress or completion
-              </?01M05F1P29ETX2WJ0B9T04Q9V8>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9V9>
+              </?01M0QPDW11NQMZT4TRQ3YC12JS>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12JT>
               The result is rendered
-              </?01M05F1P29ETX2WJ0B9T04Q9V9>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9VA>
+              </?01M0QPDW11NQMZT4TRQ3YC12JT>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12JV>
               The response SHALL describe business purpose, progress, required confirmation, waits and result without exposing form, node, port, reuse policy, XNL, FQN, fact paths or physical storage paths
-              </?01M05F1P29ETX2WJ0B9T04Q9VA>
+              </?01M0QPDW11NQMZT4TRQ3YC12JV>
             )>
             <Case #shared-entry (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9VB>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12JW>
               The same business goal is submitted through Eidolon conversation or `eidolon workflow agent`
-              </?01M05F1P29ETX2WJ0B9T04Q9VB>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9VC>
+              </?01M0QPDW11NQMZT4TRQ3YC12JW>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12JX>
               The journey begins
-              </?01M05F1P29ETX2WJ0B9T04Q9VC>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9VD>
+              </?01M0QPDW11NQMZT4TRQ3YC12JX>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12JY>
               Both surfaces SHALL invoke the same native high-level tool and component-backed lifecycle rather than separate workflow logic
-              </?01M05F1P29ETX2WJ0B9T04Q9VD>
+              </?01M0QPDW11NQMZT4TRQ3YC12JY>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-product-acceptance (
-      <Statement ?01M05F1P29ETX2WJ0B9T04Q9VE>
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12JZ>
       The system MUST provide executable end-to-end evidence for the complete Eidolon workflow lifecycle across architecture, human surfaces, distribution and recovery.
-      </?01M05F1P29ETX2WJ0B9T04Q9VE>
+      </?01M0QPDW11NQMZT4TRQ3YC12JZ>
       <Suites [
         <Suite #coverage { name = "Requirement coverage" } (
           <Cases [
             <Case #matrix-closed (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9VF>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12K0>
               The final implementation matrix is inspected
-              </?01M05F1P29ETX2WJ0B9T04Q9VF>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9VG>
+              </?01M0QPDW11NQMZT4TRQ3YC12K0>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12K1>
               Each required behavior is evaluated
-              </?01M05F1P29ETX2WJ0B9T04Q9VG>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9VH>
+              </?01M0QPDW11NQMZT4TRQ3YC12K1>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12K2>
               Every row MUST identify implementation evidence, an explicit architecture boundary and executable verification with no unexplained missing or partial state
-              </?01M05F1P29ETX2WJ0B9T04Q9VH>
+              </?01M0QPDW11NQMZT4TRQ3YC12K2>
             )>
           ]>
         )>
         <Suite #distribution { name = "Compiled and installed distribution" } (
           <Cases [
             <Case #shared-installed-entry (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9VJ>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12K3>
               Production CLI and TUI artifacts are built and installed into an isolated target
-              </?01M05F1P29ETX2WJ0B9T04Q9VJ>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9VK>
+              </?01M0QPDW11NQMZT4TRQ3YC12K3>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12K4>
               Conversation and workflow CLI capabilities are inspected or exercised
-              </?01M05F1P29ETX2WJ0B9T04Q9VK>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9VM>
+              </?01M0QPDW11NQMZT4TRQ3YC12K4>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12K5>
               Both MUST expose the same native WorkflowFulfill journey and component-backed lifecycle without MCP or an external agent CLI
-              </?01M05F1P29ETX2WJ0B9T04Q9VM>
+              </?01M0QPDW11NQMZT4TRQ3YC12K5>
             )>
           ]>
         )>
-        <Suite #recovery { name = "Durable recovery" } (
+        <Suite #cross-surface-recovery { name = "Durable recovery" } (
           <Cases [
             <Case #fresh-runtime-recovery (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9VN>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12K6>
               Authoring, Ctrl and Data runs have persisted facts
-              </?01M05F1P29ETX2WJ0B9T04Q9VN>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9VP>
+              </?01M0QPDW11NQMZT4TRQ3YC12K6>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12K7>
               A fresh Eidolon runtime reads, resumes or replays them
-              </?01M05F1P29ETX2WJ0B9T04Q9VP>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9VQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12K7>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12K8>
               The product MUST recover from frozen workflow facts and Eidolon-owned runtime facts without locating state by mutable graph position or host path
-              </?01M05F1P29ETX2WJ0B9T04Q9VQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12K8>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #real-tui-human-journey (
-      <Statement ?01M05F1P29ETX2WJ0B9T04Q9VR>
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12K9>
       The system MUST prove the ordinary-language workflow product through a real TUI local-runtime multi-turn journey using multiple independent public network sources before claiming the human experience complete.
-      </?01M05F1P29ETX2WJ0B9T04Q9VR>
+      </?01M0QPDW11NQMZT4TRQ3YC12K9>
       <Suites [
         <Suite #network-trend-report { name = "Public multi-source trend report journey" } (
           <Cases [
             <Case #author-confirm-publish-confirm-run (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9VS>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12KA>
               A person asks in ordinary language for a reusable workflow that reads at least three explicit URLs on different real public domains and produces a combined AI trend report
-              </?01M05F1P29ETX2WJ0B9T04Q9VS>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9VT>
+              </?01M0QPDW11NQMZT4TRQ3YC12KA>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12KB>
               The person separately confirms publication and later confirms execution through TUI conversation
-              </?01M05F1P29ETX2WJ0B9T04Q9VT>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9VV>
+              </?01M0QPDW11NQMZT4TRQ3YC12KB>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12KC>
               The system MUST preserve a proven draft before publication, MUST publish without network access after the first confirmation, and MUST access every public source and return dynamically grounded evidence only after the second confirmation
-              </?01M05F1P29ETX2WJ0B9T04Q9VV>
+              </?01M0QPDW11NQMZT4TRQ3YC12KC>
             )>
             <Case #real-shared-path (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9VW>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12KD>
               The TUI journey is under automated acceptance
-              </?01M05F1P29ETX2WJ0B9T04Q9VW>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9VX>
+              </?01M0QPDW11NQMZT4TRQ3YC12KD>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12KE>
               The test submits and observes the conversation
-              </?01M05F1P29ETX2WJ0B9T04Q9VX>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9VY>
+              </?01M0QPDW11NQMZT4TRQ3YC12KE>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12KF>
               The test MUST use TuiRuntimeClient local-runtime, WorkflowFulfill, native authoring/runtime tools, persisted workflow facts, Eidolon effect execution and standard network tools rather than localhost fixtures, component-only calls or prompt-string assertions
-              </?01M05F1P29ETX2WJ0B9T04Q9VY>
+              </?01M0QPDW11NQMZT4TRQ3YC12KF>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-agent-runtime-reliability (
-      <Statement ?01M05F1P29ETX2WJ0B9T04Q9VZ>
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12KG>
       The system SHALL complete AI Workflow actor journeys with authoritative terminal state, lossless tool-call identity, bounded observable progress and a non-empty structured result.
-      </?01M05F1P29ETX2WJ0B9T04Q9VZ>
+      </?01M0QPDW11NQMZT4TRQ3YC12KG>
       <Suites [
         <Suite #terminal-semantics { name = "Authoritative terminal semantics" } (
           <Cases [
             <Case #provider-failure-propagates (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9W0>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12KH>
               A workflow delegate provider completion fails or exhausts its retry policy
-              </?01M05F1P29ETX2WJ0B9T04Q9W0>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9W1>
+              </?01M0QPDW11NQMZT4TRQ3YC12KH>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12KJ>
               The delegate reaches a terminal state
-              </?01M05F1P29ETX2WJ0B9T04Q9W1>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9W2>
+              </?01M0QPDW11NQMZT4TRQ3YC12KJ>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12KK>
               The child fiber and parent workflow tool SHALL observe a structured failure and MUST NOT report completed
-              </?01M05F1P29ETX2WJ0B9T04Q9W2>
+              </?01M0QPDW11NQMZT4TRQ3YC12KK>
             )>
             <Case #domain-materialized-output (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9W3>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12KM>
               A workflow delegate completes with assistant history in the Conversation Domain
-              </?01M05F1P29ETX2WJ0B9T04Q9W3>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9W4>
+              </?01M0QPDW11NQMZT4TRQ3YC12KM>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12KN>
               The orchestrator emits child-done output to the parent
-              </?01M05F1P29ETX2WJ0B9T04Q9W4>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9W5>
+              </?01M0QPDW11NQMZT4TRQ3YC12KN>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12KP>
               The output SHALL be materialized from the authoritative Conversation Domain rather than a compatibility message mirror
-              </?01M05F1P29ETX2WJ0B9T04Q9W5>
+              </?01M0QPDW11NQMZT4TRQ3YC12KP>
             )>
             <Case #reject-empty-success (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9W6>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12KQ>
               A child has no business result, wait status, proof status or structured failure
-              </?01M05F1P29ETX2WJ0B9T04Q9W6>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9W7>
+              </?01M0QPDW11NQMZT4TRQ3YC12KQ>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12KR>
               The high-level workflow tool resolves
-              </?01M05F1P29ETX2WJ0B9T04Q9W7>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9W8>
+              </?01M0QPDW11NQMZT4TRQ3YC12KR>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12KS>
               The system MUST reject the result as incomplete instead of returning an empty success
-              </?01M05F1P29ETX2WJ0B9T04Q9W8>
+              </?01M0QPDW11NQMZT4TRQ3YC12KS>
             )>
           ]>
         )>
         <Suite #tool-stream { name = "Lossless tool-call streaming" } (
           <Cases [
             <Case #parallel-same-name-calls (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9W9>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12KT>
               A provider streams multiple parallel calls to the same workflow tool
-              </?01M05F1P29ETX2WJ0B9T04Q9W9>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9WA>
+              </?01M0QPDW11NQMZT4TRQ3YC12KT>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12KV>
               The Chat Completions stream reducer reconstructs tool calls
-              </?01M05F1P29ETX2WJ0B9T04Q9WA>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9WB>
+              </?01M0QPDW11NQMZT4TRQ3YC12KV>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12KW>
               Each call SHALL retain a distinct identity, name and JSON argument stream without concatenation
-              </?01M05F1P29ETX2WJ0B9T04Q9WB>
+              </?01M0QPDW11NQMZT4TRQ3YC12KW>
             )>
             <Case #missing-index-contract (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9WC>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12KX>
               A provider omits or conflicts on a parallel tool-call index
-              </?01M05F1P29ETX2WJ0B9T04Q9WC>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9WD>
+              </?01M0QPDW11NQMZT4TRQ3YC12KX>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12KY>
               The adapter cannot establish an unambiguous call identity
-              </?01M05F1P29ETX2WJ0B9T04Q9WD>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9WE>
+              </?01M0QPDW11NQMZT4TRQ3YC12KY>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12KZ>
               The system SHALL apply a documented provider-specific normalization or return a structured protocol error and MUST NOT merge calls silently
-              </?01M05F1P29ETX2WJ0B9T04Q9WE>
+              </?01M0QPDW11NQMZT4TRQ3YC12KZ>
             )>
           ]>
         )>
         <Suite #bounded-progress { name = "Bounded workflow progress" } (
           <Cases [
             <Case #authoring-progress-budget (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9WF>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12M0>
               A workflow actor is authoring a definition
-              </?01M05F1P29ETX2WJ0B9T04Q9WF>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9WG>
+              </?01M0QPDW11NQMZT4TRQ3YC12M0>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12M1>
               model turns continue without workspace revision, proof, wait or result progress
-              </?01M05F1P29ETX2WJ0B9T04Q9WG>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9WH>
+              </?01M0QPDW11NQMZT4TRQ3YC12M1>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12M2>
               The journey SHALL stop within a configured stage budget and return structured diagnostics
-              </?01M05F1P29ETX2WJ0B9T04Q9WH>
+              </?01M0QPDW11NQMZT4TRQ3YC12M2>
             )>
             <Case #structured-stage-outcome (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9WJ>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12M3>
               A workflow authoring or run actor completes a model turn
-              </?01M05F1P29ETX2WJ0B9T04Q9WJ>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9WK>
+              </?01M0QPDW11NQMZT4TRQ3YC12M3>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12M4>
               No native tool effect was produced
-              </?01M05F1P29ETX2WJ0B9T04Q9WK>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9WM>
+              </?01M0QPDW11NQMZT4TRQ3YC12M4>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12M5>
               The actor SHALL return a non-empty structured stage outcome and MUST NOT treat free-form empty text as completion
-              </?01M05F1P29ETX2WJ0B9T04Q9WM>
+              </?01M0QPDW11NQMZT4TRQ3YC12M5>
             )>
             <Case #bounded-proof-repair (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9WN>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12M6>
               Definition validation or dry-run returns diagnostics
-              </?01M05F1P29ETX2WJ0B9T04Q9WN>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9WP>
+              </?01M0QPDW11NQMZT4TRQ3YC12M6>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12M7>
               The workflow actor attempts correction
-              </?01M05F1P29ETX2WJ0B9T04Q9WP>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9WQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12M7>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12M8>
               The repair loop SHALL obey an explicit attempt limit and stage deadline and SHALL return the preserved workspace plus diagnostics when exhausted
-              </?01M05F1P29ETX2WJ0B9T04Q9WQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12M8>
             )>
             <Case #interactive-timeout-budget (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9WR>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12M9>
               A provider first-event timeout occurs during an interactive workflow stage
-              </?01M05F1P29ETX2WJ0B9T04Q9WR>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9WS>
+              </?01M0QPDW11NQMZT4TRQ3YC12M9>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12MA>
               The retry policy is evaluated
-              </?01M05F1P29ETX2WJ0B9T04Q9WS>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9WT>
+              </?01M0QPDW11NQMZT4TRQ3YC12MA>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12MB>
               The effective retry and stage deadline SHALL remain within the workflow product latency budget
-              </?01M05F1P29ETX2WJ0B9T04Q9WT>
+              </?01M0QPDW11NQMZT4TRQ3YC12MB>
             )>
             <Case #four-mount-contract (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9WV>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12MC>
               An authoring session exposes `/base`, `/refs`, `/work` and `/out`
-              </?01M05F1P29ETX2WJ0B9T04Q9WV>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9WW>
+              </?01M0QPDW11NQMZT4TRQ3YC12MC>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12MD>
               A mount is empty or inspected with the wrong operation
-              </?01M05F1P29ETX2WJ0B9T04Q9WW>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9WX>
+              </?01M0QPDW11NQMZT4TRQ3YC12MD>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12ME>
               The native workspace tool SHALL return a consistent empty-directory or structured operation diagnostic instead of an unexplained missing-path failure
-              </?01M05F1P29ETX2WJ0B9T04Q9WX>
+              </?01M0QPDW11NQMZT4TRQ3YC12ME>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-fulfill-terminal-continuation (
-      <Statement ?01M05F1P29ETX2WJ0B9T04Q9WY>
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12MF>
       The system SHALL preserve provider/actor terminal authority and continue multi-turn WorkflowFulfill business context without deterministic semantic routing.
-      </?01M05F1P29ETX2WJ0B9T04Q9WY>
+      </?01M0QPDW11NQMZT4TRQ3YC12MF>
       <Suites [
         <Suite #terminal-authority { name = "Terminal authority" } (
           <Cases [
             <Case #failure-after-partial-content (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9WZ>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12MG>
               A workflow child has emitted partial assistant content and its next provider completion fails
-              </?01M05F1P29ETX2WJ0B9T04Q9WZ>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9X0>
+              </?01M0QPDW11NQMZT4TRQ3YC12MG>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12MH>
               The child reaches terminal processing
-              </?01M05F1P29ETX2WJ0B9T04Q9X0>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9X1>
+              </?01M0QPDW11NQMZT4TRQ3YC12MH>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12MJ>
               The child and parent tool MUST report structured failure; the partial content MUST NOT become a successful final result
-              </?01M05F1P29ETX2WJ0B9T04Q9X1>
+              </?01M0QPDW11NQMZT4TRQ3YC12MJ>
             )>
             <Case #sync-wait-single-writer (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9X2>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12MK>
               A synchronous WorkflowFulfill child is still running
-              </?01M05F1P29ETX2WJ0B9T04Q9X2>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9X3>
+              </?01M0QPDW11NQMZT4TRQ3YC12MK>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12MM>
               The spawn command returns its wait control marker
-              </?01M05F1P29ETX2WJ0B9T04Q9X3>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9X4>
+              </?01M0QPDW11NQMZT4TRQ3YC12MM>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12MN>
               The marker MUST NOT commit an empty tool result and childDone SHALL be the sole terminal writer
-              </?01M05F1P29ETX2WJ0B9T04Q9X4>
+              </?01M0QPDW11NQMZT4TRQ3YC12MN>
             )>
             <Case #business-failure-projection (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9X5>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12MP>
               The workflow child terminal message is failed or cancelled
-              </?01M05F1P29ETX2WJ0B9T04Q9X5>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9X6>
+              </?01M0QPDW11NQMZT4TRQ3YC12MP>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12MQ>
               The parent and CLI project the business journey result
-              </?01M05F1P29ETX2WJ0B9T04Q9X6>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9X7>
+              </?01M0QPDW11NQMZT4TRQ3YC12MQ>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12MR>
               The result MUST contain a non-empty failure and MUST NOT report completed with a null failure summary
-              </?01M05F1P29ETX2WJ0B9T04Q9X7>
+              </?01M0QPDW11NQMZT4TRQ3YC12MR>
             )>
           ]>
         )>
         <Suite #continuation { name = "Multi-turn continuation" } (
           <Cases [
             <Case #prior-business-context (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9X8>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12MS>
               A later WorkflowFulfill turn confirms or adjusts a plan from earlier conversation
-              </?01M05F1P29ETX2WJ0B9T04Q9X8>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9X9>
+              </?01M0QPDW11NQMZT4TRQ3YC12MS>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12MT>
               A fresh dedicated workflow actor is spawned
-              </?01M05F1P29ETX2WJ0B9T04Q9X9>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9XA>
+              </?01M0QPDW11NQMZT4TRQ3YC12MT>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12MV>
               The actor SHALL receive a bounded role-ordered projection of prior business conversation from Conversation Domain
-              </?01M05F1P29ETX2WJ0B9T04Q9XA>
+              </?01M0QPDW11NQMZT4TRQ3YC12MV>
             )>
             <Case #authorization-not-inherited (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9XB>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12MW>
               Prior conversation includes discussion of publication or execution
-              </?01M05F1P29ETX2WJ0B9T04Q9XB>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9XC>
+              </?01M0QPDW11NQMZT4TRQ3YC12MW>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12MX>
               The current structured invocation has publication or execution authorization false
-              </?01M05F1P29ETX2WJ0B9T04Q9XC>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9XD>
+              </?01M0QPDW11NQMZT4TRQ3YC12MX>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12MY>
               The actor MUST treat the current structured booleans as authoritative and MUST NOT inherit authorization from historical text
-              </?01M05F1P29ETX2WJ0B9T04Q9XD>
+              </?01M0QPDW11NQMZT4TRQ3YC12MY>
             )>
             <Case #no-host-semantics (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9XE>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12MZ>
               Host code prepares continuation context
-              </?01M05F1P29ETX2WJ0B9T04Q9XE>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9XF>
+              </?01M0QPDW11NQMZT4TRQ3YC12MZ>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12N0>
               It selects and bounds prior messages
-              </?01M05F1P29ETX2WJ0B9T04Q9XF>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9XG>
+              </?01M0QPDW11NQMZT4TRQ3YC12N0>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12N1>
               It MUST use structural role/order/size rules and MUST NOT use regex, keyword or fuzzy business matching
-              </?01M05F1P29ETX2WJ0B9T04Q9XG>
+              </?01M0QPDW11NQMZT4TRQ3YC12N1>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-effect-capability-authority (
-      <Statement ?01M05F1P29ETX2WJ0B9T04Q9XH>
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12N2>
       The AI Workflow Skill SHALL expose exact runtime effect capabilities while the model owns semantic tool and workflow design.
-      </?01M05F1P29ETX2WJ0B9T04Q9XH>
+      </?01M0QPDW11NQMZT4TRQ3YC12N2>
       <Suites [
         <Suite #effect-capability { name = "Exact effect capability authority" } (
           <Cases [
             <Case #model-owned-effect-design (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9XJ>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12N3>
               A workflow needs an external business effect
-              </?01M05F1P29ETX2WJ0B9T04Q9XJ>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9XK>
+              </?01M0QPDW11NQMZT4TRQ3YC12N3>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12N4>
               The workflow actor authors dynamic flow code
-              </?01M05F1P29ETX2WJ0B9T04Q9XK>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9XM>
+              </?01M0QPDW11NQMZT4TRQ3YC12N4>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12N5>
               The model SHALL select the tool, arguments, parsing and failure policy from the system Skill without host natural-language matching
-              </?01M05F1P29ETX2WJ0B9T04Q9XM>
+              </?01M0QPDW11NQMZT4TRQ3YC12N5>
             )>
             <Case #exact-runtime-operations (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9XN>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12N6>
               Dynamic flow code invokes the Eidolon effect provider
-              </?01M05F1P29ETX2WJ0B9T04Q9XN>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9XP>
+              </?01M0QPDW11NQMZT4TRQ3YC12N6>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12N7>
               The runtime dispatches the request
-              </?01M05F1P29ETX2WJ0B9T04Q9XP>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9XQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12N7>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12N8>
               The operation MUST be one of identity, tool.call, ai.agent, material.read or material.write; registered web access SHALL use tool.call with webfetch
-              </?01M05F1P29ETX2WJ0B9T04Q9XQ>
+              </?01M0QPDW11NQMZT4TRQ3YC12N8>
             )>
             <Case #honest-all-source-failure (
-              <Given ?01M05F1P29ETX2WJ0B9T04Q9XR>
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12N9>
               A multi-source workflow permits partial source degradation
-              </?01M05F1P29ETX2WJ0B9T04Q9XR>
-              <When ?01M05F1P29ETX2WJ0B9T04Q9XS>
+              </?01M0QPDW11NQMZT4TRQ3YC12N9>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12NA>
               All required sources fail
-              </?01M05F1P29ETX2WJ0B9T04Q9XS>
-              <Then ?01M05F1P29ETX2WJ0B9T04Q9XT>
+              </?01M0QPDW11NQMZT4TRQ3YC12NA>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12NB>
               The workflow MUST enter Failed and MUST NOT render an empty or fabricated success report
-              </?01M05F1P29ETX2WJ0B9T04Q9XT>
+              </?01M0QPDW11NQMZT4TRQ3YC12NB>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #modular-step-space-authoring (
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12NC>
+      Eidolon authoring and publication SHALL support depa modular StepSpace and schema-bound extensions without flattening them into host-private workflow code or state schemas.
+      </?01M0QPDW11NQMZT4TRQ3YC12NC>
+      <Suites [
+        <Suite #authoring-proof { name = "Authoring and publication proof" } (
+          <Cases [
+            <Case #explicit-refs (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12ND>
+              an authored ResourcePackage contains StepSpaceRef, StepRef, StepGroupRef or ExtensionRef
+              </?01M0QPDW11NQMZT4TRQ3YC12ND>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12NE>
+              the package is opened, patched, proved and published
+              </?01M0QPDW11NQMZT4TRQ3YC12NE>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12NF>
+              membership SHALL follow exact virtual refs and unreferenced directory entries SHALL not be discovered semantically
+              </?01M0QPDW11NQMZT4TRQ3YC12NF>
+            )>
+            <Case #proof-before-publication (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12NG>
+              a step closure escapes containment, uses a symlink, has malformed XNL, mismatched identity/schema or an unavailable codec
+              </?01M0QPDW11NQMZT4TRQ3YC12NG>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12NH>
+              publication proof runs
+              </?01M0QPDW11NQMZT4TRQ3YC12NH>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12NJ>
+              the operation SHALL fail before changing the live package, registry snapshot, instance, checkpoint or receipt
+              </?01M0QPDW11NQMZT4TRQ3YC12NJ>
+            )>
+            <Case #local-authoring-change (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12NK>
+              one authored step core or extension changes
+              </?01M0QPDW11NQMZT4TRQ3YC12NK>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12NM>
+              the candidate revision is produced
+              </?01M0QPDW11NQMZT4TRQ3YC12NM>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12NN>
+              unrelated authored files SHALL retain their exact bytes and the frozen closure digest SHALL change deterministically
+              </?01M0QPDW11NQMZT4TRQ3YC12NN>
+            )>
+          ]>
+        )>
+        <Suite #typed-runtime-and-skills { name = "Typed runtime and generated guidance" } (
+          <Cases [
+            <Case #processor-surface (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12NP>
+              authored Ctrl or Data code updates a run step extension
+              </?01M0QPDW11NQMZT4TRQ3YC12NP>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12NQ>
+              it is type-checked and executed
+              </?01M0QPDW11NQMZT4TRQ3YC12NQ>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12NR>
+              the bottom call SHALL use the explicit-runtime Processor form and the bound facade SHALL retain the same typed operation name
+              </?01M0QPDW11NQMZT4TRQ3YC12NR>
+            )>
+            <Case #generated-reference (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12NS>
+              the published Flow DSL reference contains StepSpace and sidecar semantics
+              </?01M0QPDW11NQMZT4TRQ3YC12NS>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12NT>
+              Eidolon system Skills are generated and installed
+              </?01M0QPDW11NQMZT4TRQ3YC12NT>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12NV>
+              Authoring and Run guidance SHALL load the exact reference progressively and SHALL not copy a competing storage protocol
+              </?01M0QPDW11NQMZT4TRQ3YC12NV>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #split-stage-skill-authority (
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12NW>
+      Workflow stage context SHALL delegate exact authoring and run operations through the split system Skills without host-owned natural-language routing or eager loading of the complete Flow DSL corpus.
+      </?01M0QPDW11NQMZT4TRQ3YC12NW>
+      <Suites [
+        <Suite #split-stage-authority { name = "Split stage authority" } (
+          <Cases [
+            <Case #split-stage-progressive-routing (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12NX>
+              a workflow stage needs an authoring or run operation
+              </?01M0QPDW11NQMZT4TRQ3YC12NX>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12NY>
+              stage context is loaded
+              </?01M0QPDW11NQMZT4TRQ3YC12NY>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12NZ>
+              the actor SHALL receive the exact Skill resources and allowed generic tools for that stage
+              </?01M0QPDW11NQMZT4TRQ3YC12NZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #resource-package-authoring-publication (
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12P0>
+      Eidolon SHALL author and publish a resource-native AI App as one complete workspace ResourcePackage candidate, and SHALL expose resource identities only after Halfcode/depa validation and registry readback.
+      </?01M0QPDW11NQMZT4TRQ3YC12P0>
+      <Suites [
+        <Suite #whole-package-session { name = "Whole-package recoverable authoring" } (
+          <Cases [
+            <Case #preserve-baseline-resources (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12P1>
+              the workspace ResourcePackage already contains an exact AIAgentDefinition, Prompt, KindDefinitions and other resources
+              </?01M0QPDW11NQMZT4TRQ3YC12P1>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12P2>
+              a resource-native App authoring session is opened and patched
+              </?01M0QPDW11NQMZT4TRQ3YC12P2>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12P3>
+              the session SHALL clone the complete package into base/work and SHALL preserve every unmodified baseline file byte-for-byte
+              </?01M0QPDW11NQMZT4TRQ3YC12P3>
+            )>
+            <Case #explicit-package-input (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12P4>
+              the caller supplies a complete ResourcePackage with its own KindDefinitions
+              </?01M0QPDW11NQMZT4TRQ3YC12P4>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12P5>
+              Eidolon opens resource-package authoring
+              </?01M0QPDW11NQMZT4TRQ3YC12P5>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12P6>
+              Halfcode SHALL load that package as input and production code MUST NOT synthesize a generic KindDefinition catalog
+              </?01M0QPDW11NQMZT4TRQ3YC12P6>
+            )>
+          ]>
+        )>
+        <Suite #exact-package-proof { name = "Exact ResourcePackage proof" } (
+          <Cases [
+            <Case #halfcode-depa-proof (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12P7>
+              one working revision contains a complete candidate package
+              </?01M0QPDW11NQMZT4TRQ3YC12P7>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12P8>
+              publication preparation runs
+              </?01M0QPDW11NQMZT4TRQ3YC12P8>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12P9>
+              proof SHALL bind Halfcode package/content/registry revisions, depa App/Workflow/Agent/Material projections, exact workflow profile validation and dependency freeze facts to that revision without running real effects
+              </?01M0QPDW11NQMZT4TRQ3YC12P9>
+            )>
+            <Case #stale-proof-invalidated (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12PA>
+              a prepared candidate or its live base changes
+              </?01M0QPDW11NQMZT4TRQ3YC12PA>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12PB>
+              publication is requested with the prior proof or base revision
+              </?01M0QPDW11NQMZT4TRQ3YC12PB>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12PC>
+              publication MUST fail with a structured revision conflict and MUST preserve the recoverable session and live package
+              </?01M0QPDW11NQMZT4TRQ3YC12PC>
+            )>
+          ]>
+        )>
+        <Suite #separate-authorizations { name = "Separated authoring, publication and runtime authority" } (
+          <Cases [
+            <Case #publication-only (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12PD>
+              the exact candidate is prepared and publication is independently authorized
+              </?01M0QPDW11NQMZT4TRQ3YC12PD>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12PE>
+              the workspace package publication commits
+              </?01M0QPDW11NQMZT4TRQ3YC12PE>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12PF>
+              the result SHALL contain registry-readback App/Workflow/Agent/Material refs, SHALL record publicationEffectDispatched=true and runtimeEffectDispatched=false, and MUST NOT create an instance, run or workflow runtime effect
+              </?01M0QPDW11NQMZT4TRQ3YC12PF>
+            )>
+            <Case #typed-fresh-child-handoff (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12PG>
+              an outer CLI/TUI session continues in a later turn
+              </?01M0QPDW11NQMZT4TRQ3YC12PG>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12PH>
+              a fresh WorkflowFulfill child handles publication or execution
+              </?01M0QPDW11NQMZT4TRQ3YC12PH>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12PJ>
+              continuation SHALL use a closed typed handoff discriminated as authoring, publication or execution, SHALL validate its exact ids against durable stores, and MUST NOT require reuse of child conversation history or ordinary-language reconstruction
+              </?01M0QPDW11NQMZT4TRQ3YC12PJ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #resource-native-app-lifecycle-acceptance (
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12PK>
+      Eidolon SHALL let one ordinary-language workflow session create a resource-native App, stop at independent publication and execution gates, then run and recover through shared Halfcode, depa, native component and generic actor/session authorities without host semantic heuristics.
+      </?01M0QPDW11NQMZT4TRQ3YC12PK>
+      <Suites [
+        <Suite #isolated-real-provider { name = "Isolated compiled-product journey" } (
+          <Cases [
+            <Case #fresh-current-provider (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12PM>
+              a current compiled Eidolon, current provider preset and new isolated HOME/global/workspace
+              </?01M0QPDW11NQMZT4TRQ3YC12PM>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12PN>
+              global init and the natural-language lifecycle run
+              </?01M0QPDW11NQMZT4TRQ3YC12PN>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12PP>
+              exactly four managed Skills SHALL be used and no credential or real user asset SHALL enter durable acceptance evidence
+              </?01M0QPDW11NQMZT4TRQ3YC12PP>
+            )>
+            <Case #lifecycle-independent-gates (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12PQ>
+              one explicit durable workflow session
+              </?01M0QPDW11NQMZT4TRQ3YC12PQ>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12PR>
+              three ordinary-language turns grant create, publication and execution authority in order
+              </?01M0QPDW11NQMZT4TRQ3YC12PR>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12PS>
+              create SHALL leave a recoverable un-published revision, publication authorization SHALL publish without execution, and execution authorization SHALL alone create the run
+              </?01M0QPDW11NQMZT4TRQ3YC12PS>
+            )>
+          ]>
+        )>
+        <Suite #resource-runtime-closure { name = "Resource and runtime evidence closure" } (
+          <Cases [
+            <Case #typed-resource-freeze [
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12PT>
+              the published App, Workflow, exact AIAgentDefinition, Material bindings and dependency snapshot SHALL resolve through Halfcode and depa typed projections
+              </?01M0QPDW11NQMZT4TRQ3YC12PT>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12PV>
+              run facts SHALL remain separate from immutable source and publication facts
+              </?01M0QPDW11NQMZT4TRQ3YC12PV>
+            ] (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12PW>
+              an exact prepared resource-native App revision
+              </?01M0QPDW11NQMZT4TRQ3YC12PW>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12PX>
+              it is published, instantiated and run
+              </?01M0QPDW11NQMZT4TRQ3YC12PX>
+            )>
+            <Case #shared-cross-surface-evidence (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12PY>
+              a terminal session, publication receipt, instance and run exist
+              </?01M0QPDW11NQMZT4TRQ3YC12PY>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12PZ>
+              CLI, TUI and native read paths inspect them
+              </?01M0QPDW11NQMZT4TRQ3YC12PZ>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12Q0>
+              all surfaces SHALL observe the same registry revision, identities, result, events and replay evidence
+              </?01M0QPDW11NQMZT4TRQ3YC12Q0>
+            )>
+          ]>
+        )>
+        <Suite #fact-driven-responsiveness { name = "Fact-driven recovery and responsiveness" } (
+          <Cases [
+            <Case #timing-authority (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12Q1>
+              a real provider turn completes or fails
+              </?01M0QPDW11NQMZT4TRQ3YC12Q1>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12Q2>
+              responsiveness is evaluated
+              </?01M0QPDW11NQMZT4TRQ3YC12Q2>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12Q3>
+              wall, provider wait/generation, tool and product-owned durations SHALL be reported separately from existing domain timestamps
+              </?01M0QPDW11NQMZT4TRQ3YC12Q3>
+            )>
+            <Case #no-semantic-fallback [
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12Q4>
+              repairs MUST NOT add regex, keyword, substring, ordered, fuzzy or alias routing from natural language, node labels or App/workflow names
+              </?01M0QPDW11NQMZT4TRQ3YC12Q4>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12Q5>
+              provider limitations SHALL remain explicit provider facts rather than fabricated workflow success
+              </?01M0QPDW11NQMZT4TRQ3YC12Q5>
+            ] (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12Q6>
+              the journey reports a stable provider, tool or runtime diagnostic
+              </?01M0QPDW11NQMZT4TRQ3YC12Q6>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12Q7>
+              the product is corrected or the run is classified
+              </?01M0QPDW11NQMZT4TRQ3YC12Q7>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #definition-instance-run-persistence (
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12Q8>
+      Eidolon SHALL materialize each selected AI Workflow definition as a frozen depa Flow instance and SHALL persist every run through one canonical depa FlowRunCheckpoint.
+      </?01M0QPDW11NQMZT4TRQ3YC12Q8>
+      <Suites [
+        <Suite #frozen-instance { name = "Frozen instance authority" } (
+          <Cases [
+            <Case #definition-to-instance [
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12Q9>
+              it SHALL copy the complete definition bundle with canonical source revision, digest and provenance into the depa-owned instance layout before any node executes
+              </?01M0QPDW11NQMZT4TRQ3YC12Q9>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12QA>
+              a later live-definition edit, deletion or invalid package SHALL NOT alter or block that existing instance or its later runs
+              </?01M0QPDW11NQMZT4TRQ3YC12QA>
+            ] (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12QB>
+              a Resource-native Ctrl or Data Workflow definition and a new instance id
+              </?01M0QPDW11NQMZT4TRQ3YC12QB>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12QC>
+              Eidolon creates the instance
+              </?01M0QPDW11NQMZT4TRQ3YC12QC>
+            )>
+          ]>
+        )>
+        <Suite #single-run-checkpoint { name = "Single run checkpoint authority" } (
+          <Cases [
+            <Case #ctrl-data-checkpoint [
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12QD>
+              input, config, state, output, controller and node sidecars, Ctrl snapshot or Data RunGraph and AI profile state SHALL be committed atomically through the same canonical checkpoint owner
+              </?01M0QPDW11NQMZT4TRQ3YC12QD>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12QE>
+              the first version SHALL exist before the first node effect and accepted node results SHALL not be replayed after recovery
+              </?01M0QPDW11NQMZT4TRQ3YC12QE>
+            ] (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12QF>
+              a Ctrl or Data run under a frozen instance
+              </?01M0QPDW11NQMZT4TRQ3YC12QF>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12QG>
+              the run starts, waits, resumes, patches, completes or is reconstructed by a fresh process
+              </?01M0QPDW11NQMZT4TRQ3YC12QG>
+            )>
+            <Case #inspectable-capsule (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12QH>
+              an operator inspects an instance directory
+              </?01M0QPDW11NQMZT4TRQ3YC12QH>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12QJ>
+              the instance has one or more runs
+              </?01M0QPDW11NQMZT4TRQ3YC12QJ>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12QK>
+              the frozen bundle and every run checkpoint SHALL be colocated under that instance using the depa-owned filesystem layout
+              </?01M0QPDW11NQMZT4TRQ3YC12QK>
+            )>
+          ]>
+        )>
+        <Suite #legacy-migration { name = "Legacy fact migration" } (
+          <Cases [
+            <Case #one-way-migration [
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12QM>
+              the migration SHALL be durable, idempotent and recoverable and SHALL produce at most one canonical instance/run identity
+              </?01M0QPDW11NQMZT4TRQ3YC12QM>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12QN>
+              new execution SHALL write only the depa checkpoint authority; legacy facts SHALL remain read-only and SHALL NOT be dual-written
+              </?01M0QPDW11NQMZT4TRQ3YC12QN>
+            ] (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12QP>
+              a historical Eidolon run stored in flat workflow fact directories
+              </?01M0QPDW11NQMZT4TRQ3YC12QP>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12QQ>
+              the runtime migrates or resumes it
+              </?01M0QPDW11NQMZT4TRQ3YC12QQ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #typed-agent-authored-api (
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12QR>
+      Authored Ctrl and Data workflow code SHALL call Agent effects through typed runAgent or runTargetedAgent methods whose underlying Processors retain the explicit runtime parameter.
+      </?01M0QPDW11NQMZT4TRQ3YC12QR>
+      <Suites [
+        <Suite #processor-and-facade { name = "Runtime-first Processor and bound facade" } (
+          <Cases [
+            <Case #runtime-first (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12QS>
+              a flow module defines an Agent-calling Processor
+              </?01M0QPDW11NQMZT4TRQ3YC12QS>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12QT>
+              the module is type-checked and admitted
+              </?01M0QPDW11NQMZT4TRQ3YC12QT>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12QV>
+              the exported Processor SHALL retain runtime as its first parameter while the runtime-bound facade SHALL expose the same runAgent or runTargetedAgent name
+              </?01M0QPDW11NQMZT4TRQ3YC12QV>
+            )>
+            <Case #no-authored-generic-invoke (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12QW>
+              new authored flow code calls runtime.ai.effects.invoke for Agent execution
+              </?01M0QPDW11NQMZT4TRQ3YC12QW>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12QX>
+              publication proof inspects the frozen package
+              </?01M0QPDW11NQMZT4TRQ3YC12QX>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12QY>
+              admission SHALL fail before publication and SHALL direct the author to the typed named methods
+              </?01M0QPDW11NQMZT4TRQ3YC12QY>
+            )>
+          ]>
+        )>
+        <Suite #selector-dx { name = "Closed Agent instance selector" } (
+          <Cases [
+            <Case #by-id-or-name (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12QZ>
+              a later Ctrl or Data node targets an earlier Agent instance
+              </?01M0QPDW11NQMZT4TRQ3YC12QZ>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12R0>
+              runTargetedAgent receives a selector
+              </?01M0QPDW11NQMZT4TRQ3YC12R0>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12R1>
+              the selector SHALL be exactly one of byInstanceId or byInstanceName and SHALL resolve from the same run checkpoint
+              </?01M0QPDW11NQMZT4TRQ3YC12R1>
+            )>
+            <Case #selector-fail-closed (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12R2>
+              the selector is missing, empty, ambiguous, unknown or conflicts with the run-local index
+              </?01M0QPDW11NQMZT4TRQ3YC12R2>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12R3>
+              the invocation is prepared
+              </?01M0QPDW11NQMZT4TRQ3YC12R3>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12R4>
+              the call SHALL fail before provider dispatch and SHALL NOT create a new Agent instance
+              </?01M0QPDW11NQMZT4TRQ3YC12R4>
+            )>
+          ]>
+        )>
+        <Suite #ctrl-data-authored-code { name = "Ctrl and Data authored integration" } (
+          <Cases [
+            <Case #typed-physical-packages (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12R5>
+              physical Ctrl and Data ResourcePackages contain typed Agent nodes
+              </?01M0QPDW11NQMZT4TRQ3YC12R5>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12R6>
+              they are proved, published and executed
+              </?01M0QPDW11NQMZT4TRQ3YC12R6>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12R7>
+              both forms SHALL compile and execute through the same typed facade while preserving their substrate lifecycle
+              </?01M0QPDW11NQMZT4TRQ3YC12R7>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #typed-targeted-agent-skill-guidance (
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12R8>
+      Eidolon system Skills SHALL teach authored Ctrl/Data Processors to use the typed Agent facade and exact instance selector while preserving generic runtime ownership.
+      </?01M0QPDW11NQMZT4TRQ3YC12R8>
+      <Suites [
+        <Suite #authoring-api { name = "Typed Agent authoring" } (
+          <Cases [
+            <Case #runtime-first-methods (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12R9>
+              The model loads the Authoring Agent operation and exact Flow DSL references
+              </?01M0QPDW11NQMZT4TRQ3YC12R9>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12RA>
+              It authors an ordinary Ctrl or Data Processor that invokes an Agent
+              </?01M0QPDW11NQMZT4TRQ3YC12RA>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12RB>
+              The Skill SHALL preserve runtime as the first Processor parameter and SHALL use direct runAgent or runTargetedAgent without an authored Agent invoke envelope
+              </?01M0QPDW11NQMZT4TRQ3YC12RB>
+            )>
+            <Case #closed-selector (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12RC>
+              A later node targets an Agent instance in the same run
+              </?01M0QPDW11NQMZT4TRQ3YC12RC>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12RD>
+              The model selects that instance by authored name or returned id
+              </?01M0QPDW11NQMZT4TRQ3YC12RD>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12RE>
+              The Skill SHALL use exactly one non-empty byInstanceName or byInstanceId field and SHALL NOT invent selector aliases or host text routing
+              </?01M0QPDW11NQMZT4TRQ3YC12RE>
+            )>
+          ]>
+        )>
+        <Suite #runtime-authority { name = "Instance continuity and state authority" } (
+          <Cases [
+            <Case #same-generic-owner (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12RF>
+              Different invocation keys target the same accepted Agent instance
+              </?01M0QPDW11NQMZT4TRQ3YC12RF>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12RG>
+              The run continues or is reconstructed
+              </?01M0QPDW11NQMZT4TRQ3YC12RG>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12RH>
+              The Skill SHALL preserve the stable instance/session references and SHALL describe generic runtime snapshot recovery rather than child conversation history reuse
+              </?01M0QPDW11NQMZT4TRQ3YC12RH>
+            )>
+            <Case #flow-state-boundary (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12RJ>
+              The workflow checkpoint records Agent invocation state
+              </?01M0QPDW11NQMZT4TRQ3YC12RJ>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12RK>
+              The Skill explains inspect, replay or recovery
+              </?01M0QPDW11NQMZT4TRQ3YC12RK>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12RM>
+              It SHALL keep only closed instance indexes, invocation receipts and opaque runtime refs in profile.ai and SHALL keep actor, conversation, provider and compaction facts in generic runtime authority
+              </?01M0QPDW11NQMZT4TRQ3YC12RM>
+            )>
+          ]>
+        )>
+        <Suite #reference-distribution { name = "Generated reference and Skill distribution" } (
+          <Cases [
+            <Case #published-reference (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12RN>
+              The Authoring capsule includes Flow DSL references
+              </?01M0QPDW11NQMZT4TRQ3YC12RN>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12RP>
+              The system generates the Skill distribution plan
+              </?01M0QPDW11NQMZT4TRQ3YC12RP>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12RQ>
+              The references SHALL be mapped byte-for-byte from the exact published depa reference module with Halfcode provenance and SHALL NOT be manually copied
+              </?01M0QPDW11NQMZT4TRQ3YC12RQ>
+            )>
+            <Case #global-readback (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12RR>
+              The updated managed Skills pass build and content verification
+              </?01M0QPDW11NQMZT4TRQ3YC12RR>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12RS>
+              Global init updates an isolated or actual global root
+              </?01M0QPDW11NQMZT4TRQ3YC12RS>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12RT>
+              It SHALL atomically admit the exact four-Skill closure, preserve ordinary Skills and expose the new Authoring/Run/DevOps patch versions
+              </?01M0QPDW11NQMZT4TRQ3YC12RT>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #instance-agent-reuse-e2e (
+      <Statement ?01M0QPDW11NQMZT4TRQ3YC12RV>
+      The product SHALL prove complete ResourcePackage execution and same-instance Agent targeting across Ctrl/Data runs and fresh reconstruction.
+      </?01M0QPDW11NQMZT4TRQ3YC12RV>
+      <Suites [
+        <Suite #physical-e2e { name = "Frozen instance and targeted Agent continuity" } (
+          <Cases [
+            <Case #ctrl-data-complete (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12RW>
+              One published App binds complete Ctrl and Data workflows, Agent schema/policy/material resources and exact task bindings
+              </?01M0QPDW11NQMZT4TRQ3YC12RW>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12RX>
+              Both profiles run from their frozen instances
+              </?01M0QPDW11NQMZT4TRQ3YC12RX>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12RY>
+              Both SHALL return OutputSchema-valid structured results and durable canonical checkpoints without legacy flat writes
+              </?01M0QPDW11NQMZT4TRQ3YC12RY>
+            )>
+            <Case #target-name-id-recovery (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12RZ>
+              A first Agent call returns a named instance and generic session reference
+              </?01M0QPDW11NQMZT4TRQ3YC12RZ>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12S0>
+              Each Ctrl and Data profile uses different later invocation keys to target it by name, then after snapshot reconstruction by returned id
+              </?01M0QPDW11NQMZT4TRQ3YC12S0>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12S1>
+              Pending and completed repetitions plus all targeted calls SHALL use one generic actor/session and SHALL NOT create a second Agent instance
+              </?01M0QPDW11NQMZT4TRQ3YC12S1>
+            )>
+            <Case #owner-readback (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12S2>
+              A targeted run has been reconstructed and completed
+              </?01M0QPDW11NQMZT4TRQ3YC12S2>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12S3>
+              The canonical checkpoint and generic runtime snapshot are independently read
+              </?01M0QPDW11NQMZT4TRQ3YC12S3>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12S4>
+              The checkpoint SHALL contain only instance indexes, stable refs and invocation receipts while actor/session/conversation/provider state SHALL remain solely in the generic snapshot owner
+              </?01M0QPDW11NQMZT4TRQ3YC12S4>
+            )>
+            <Case #frozen-source (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12S5>
+              The complete ResourcePackage closure was frozen during instance admission
+              </?01M0QPDW11NQMZT4TRQ3YC12S5>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12S6>
+              Live resource roots are changed or removed before fresh reconstruction
+              </?01M0QPDW11NQMZT4TRQ3YC12S6>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12S7>
+              Execution SHALL use only frozen bytes, canonical checkpoint facts and generic runtime snapshots
+              </?01M0QPDW11NQMZT4TRQ3YC12S7>
+            )>
+          ]>
+        )>
+        <Suite #installed-readback { name = "Installed product acceptance" } (
+          <Cases [
+            <Case #binary-and-skills (
+              <Given ?01M0QPDW11NQMZT4TRQ3YC12S8>
+              The reviewed unified binary and four-Skill plan passed their gates
+              </?01M0QPDW11NQMZT4TRQ3YC12S8>
+              <When ?01M0QPDW11NQMZT4TRQ3YC12S9>
+              The locally installed binary and actual global manifest are read
+              </?01M0QPDW11NQMZT4TRQ3YC12S9>
+              <Then ?01M0QPDW11NQMZT4TRQ3YC12SA>
+              They SHALL resolve to the reviewed dist and exact managed Skill identities, versions and closure digest
+              </?01M0QPDW11NQMZT4TRQ3YC12SA>
             )>
           ]>
         )>

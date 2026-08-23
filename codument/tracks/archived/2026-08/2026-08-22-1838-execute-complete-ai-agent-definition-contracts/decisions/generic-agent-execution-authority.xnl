@@ -1,0 +1,43 @@
+<decision #generic-agent-execution-contract apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>Where should complete AIAgentDefinition execution semantics live in Eidolon?</?>
+  <recommendation ?>Use one optional pure-data contract on the generic AgentConfig/actor snapshot.</?>
+  <options {} [
+    <option { key = "generic-contract" recommended = true } (<title ?>Generic actor contract</?><description ?>All actors can carry the same schema, policy and input facts.</?><tradeoff ?>Generic runtime gains a bounded additive contract.</?>)>
+    <option { key = "workflow-actor" recommended = false } (<title ?>Workflow-specific actor</?><description ?>Create another actor/provider/session implementation.</?><tradeoff ?>Duplicates the common runtime and violates the mission boundary.</?>)>
+  ]>
+  <answer (<raw-answer ?>The user requires reuse of Eidolon common mechanisms.</?><decision-text ?>Complete Agent execution SHALL be represented as an additive generic AgentExecutionContract and persisted in ordinary actor snapshots.</?><rationale ?>Schema, exact tools and output validation are agent semantics, not workflow substrate semantics.</?><evidence ?>Current DelegateActor, AgentConfig, actor snapshots and WorkflowAgentExecutionFact.</?>)>
+  <confidence ?>1.0</?><reversibility ?>moderate</?>
+)>
+
+<decision #explicit-agent-task-integration apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>How do Ctrl and Data workflows select an AIAgentDefinition?</?>
+  <recommendation ?>Use the existing explicit ai.agent effect and exact task tuple from ordinary profile nodes.</?>
+  <options {} [
+    <option { key = "ordinary-node-effect" recommended = true } (<title ?>Ordinary node plus explicit effect</?><description ?>Run and TransformNode call the same typed effect.</?><tradeoff ?>Flow code remains responsible for explicit selection.</?>)>
+    <option { key = "agent-task-node" recommended = false } (<title ?>New AIAgentTask node</?><description ?>Add a new substrate grammar node.</?><tradeoff ?>Conflicts with WorkCtrlFlow and duplicates the existing task reference.</?>)>
+  ]>
+  <answer (<raw-answer ?>depa already defines the task as a four-field resource selection contract.</?><decision-text ?>AICtrlWorkflow Run and AIDataWorkflow TransformNode SHALL invoke the same ai.agent effect with an exact agentDefinitionRef and payload; no AIAgentTask substrate node is introduced.</?><rationale ?>This preserves substrate generality and shares one host execution path.</?><evidence ?>depa Flow DSL and existing EidolonWorkflowEffectProvider.</?>)>
+  <confidence ?>1.0</?><reversibility ?>low</?>
+)>
+
+<decision #closed-effect-policy apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>How should EffectPolicy control tool exposure?</?>
+  <recommendation ?>Support only declared-only and none with exact ToolRefs.</?>
+  <options {} [
+    <option { key = "closed-modes" recommended = true } (<title ?>Closed policy modes</?><description ?>Tool admission follows exact typed resource facts.</?><tradeoff ?>New modes require explicit depa and host revisions.</?>)>
+    <option { key = "text-policy" recommended = false } (<title ?>Interpret policy text</?><description ?>Infer tool behavior from names or prose.</?><tradeoff ?>Creates prohibited fuzzy semantic routing.</?>)>
+  ]>
+  <answer (<raw-answer ?>Semantic routing must never rely on text matching in code.</?><decision-text ?>The host SHALL implement only exact declared-only and none modes and SHALL reject unsupported or conflicting policy facts.</?><rationale ?>Closed values are auditable and deterministic.</?><evidence ?>User architecture constraint and depa EffectPolicy projection.</?>)>
+  <confidence ?>1.0</?><reversibility ?>moderate</?>
+)>
+
+<decision #result-validation-seam apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>Where must output schema validation occur?</?>
+  <recommendation ?>At the shared generic child completion seam before any success delivery.</?>
+  <options {} [
+    <option { key = "common-completion" recommended = true } (<title ?>Common completion seam</?><description ?>Immediate and orchestrated paths share one validator.</?><tradeoff ?>Requires a careful common-runtime change.</?>)>
+    <option { key = "workflow-postprocess" recommended = false } (<title ?>Workflow-only postprocess</?><description ?>Validate after effect success in workflow code.</?><tradeoff ?>Invalid output may already have escaped and other actors diverge.</?>)>
+  ]>
+  <answer (<raw-answer ?>Validation must precede durable success and result delivery.</?><decision-text ?>Output validation SHALL occur in the common actor completion path before parent tool results, workflow completed events or success facts are written.</?><rationale ?>This is the only seam shared by immediate, orchestrated and resumed execution.</?><evidence ?>DelegateActor/result delivery and workflow effect lifecycle.</?>)>
+  <confidence ?>1.0</?><reversibility ?>moderate</?>
+)>

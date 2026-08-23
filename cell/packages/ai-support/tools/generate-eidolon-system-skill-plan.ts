@@ -39,11 +39,13 @@ const expectedAuthoringOperations = [
   "operations/index.md",
   "operations/create-open.md",
   "operations/open-resource-package.md",
+  "operations/create-resource-package.md",
   "operations/legacy-vfs-workflow.md",
   "operations/inspect.md",
   "operations/batch-patch.md",
   "operations/validate-prepare.md",
   "operations/publish.md",
+  "operations/agent-definition.md",
 ] as const
 
 const expectedRunOperations = [
@@ -54,11 +56,22 @@ const expectedRunOperations = [
   "operations/resume-waits.md",
   "operations/observe.md",
   "operations/replay-evidence.md",
+  "operations/agent-execution.md",
 ] as const
+
+const flowDslReferenceModule = loadAIWorkflowFlowDslReferenceModule()
+const flowDslProvenance = JSON.parse(await readFile(
+  path.join(flowDslReferenceModule.resourceRootDir, "content", ".depa-flow-dsl-provenance.json"),
+  "utf8",
+)) as {
+  readonly packageName: string
+  readonly packageVersion: string
+  readonly files: readonly { readonly path: string; readonly contentDigest: string }[]
+}
 
 const modules = [
   loadHalfcodeResourceDslSystemSkillModule(),
-  loadAIWorkflowFlowDslReferenceModule(),
+  flowDslReferenceModule,
   EIDOLON_ANCHOR_SYSTEM_SKILL_MODULE,
 ] as const
 
@@ -104,9 +117,9 @@ function assertCanonicalPlan(): void {
   }
   const expectedVersions: Readonly<Record<string, string>> = {
     "Halfcode.ResourceDsl.Skill.System": "1.0.0",
-    "Eidolon.Anchor.Skill.Run": "1.0.0",
-    "Eidolon.Anchor.Skill.Authoring": "1.0.7",
-    "Eidolon.Anchor.Skill.DevOps": "1.0.8",
+    "Eidolon.Anchor.Skill.Run": "1.0.5",
+    "Eidolon.Anchor.Skill.Authoring": "1.0.25",
+    "Eidolon.Anchor.Skill.DevOps": "1.0.29",
   }
   for (const capsule of plan.capsules) {
     if (capsule.identity.version !== expectedVersions[capsule.identity.fqn]) {
@@ -122,8 +135,8 @@ function assertCanonicalPlan(): void {
     "Eidolon.Anchor.Skill.Authoring": ["Halfcode.ResourceDsl.Skill.System@1.0.0"],
     "Eidolon.Anchor.Skill.Run": [],
     "Eidolon.Anchor.Skill.DevOps": [
-      "Eidolon.Anchor.Skill.Authoring@1.0.7",
-      "Eidolon.Anchor.Skill.Run@1.0.0",
+      "Eidolon.Anchor.Skill.Authoring@1.0.25",
+      "Eidolon.Anchor.Skill.Run@1.0.5",
     ],
   }
   for (const [fqn, dependencies] of Object.entries(expectedDependencies)) {
@@ -135,8 +148,15 @@ function assertCanonicalPlan(): void {
     .filter((file) => file.skillFqn === "Eidolon.Anchor.Skill.Authoring")
     .map((file) => file.capsuleRelativePath)
   const flowTargets = authoringTargets.filter((target) => target.startsWith("references/flow-dsl/"))
-  if (flowTargets.length !== 30 || !flowTargets.includes("references/flow-dsl/.depa-flow-dsl-provenance.json")) {
-    throw new Error(`EIDOLON_SYSTEM_SKILL_PLAN_INVALID: expected 29 Flow DSL pages plus package provenance, received ${flowTargets.length}`)
+  const expectedFlowTargets = [
+    "references/flow-dsl/.depa-flow-dsl-provenance.json",
+    ...flowDslProvenance.files.map((file) => `references/flow-dsl/${file.path}`),
+  ].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
+  const actualFlowTargets = [...flowTargets].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
+  if (flowDslProvenance.packageName !== "ai-workflow-flow-dsl-reference"
+    || flowDslProvenance.packageVersion !== "0.1.5"
+    || JSON.stringify(actualFlowTargets) !== JSON.stringify(expectedFlowTargets)) {
+    throw new Error("EIDOLON_SYSTEM_SKILL_PLAN_INVALID: Flow DSL targets differ from the published module provenance")
   }
   for (const operation of expectedAuthoringOperations) {
     if (!authoringTargets.includes(operation)) {

@@ -104,6 +104,8 @@ export function enterWorkflowActorStage(input: {
     maxProofRepairAttempts: input.config.maxProofRepairAttempts,
     lastProgressAt: now,
     lastOutcome: "stage_selected",
+    activeAuthoringSessionId: current.activeAuthoringSessionId,
+    activeAuthoringRevision: current.activeAuthoringRevision,
   }
 }
 
@@ -146,6 +148,7 @@ function outputIndicatesFailure(outputText: string | undefined): boolean {
 const PROGRESS_OUTCOME_BY_TRANSITION: Readonly<Record<WorkflowDomainProgressTransition, string>> = {
   workspace_opened: "workspace_opened",
   workspace_revision_changed: "workspace_changed",
+  candidate_diagnostic: "candidate_diagnostic",
   proof_prepared: "proof",
   lifecycle_completed: "lifecycle_changed",
   publication_created: "published",
@@ -187,10 +190,29 @@ export function recordWorkflowActorToolOutcome(input: {
   if (!fact) return
   const outcome = PROGRESS_OUTCOME_BY_TRANSITION[fact.transition]
 
+  if (fact.transition === "candidate_diagnostic") {
+    progress.proofRepairAttempts += 1
+    progress.lastDiagnostic = input.outputText
+    if (progress.proofRepairAttempts > progress.maxProofRepairAttempts) {
+      throw new WorkflowActorBudgetError(
+        "workflow_proof_repair_exhausted",
+        `stage=${progress.stageId ?? "coding"} exhausted ${progress.maxProofRepairAttempts} candidate repair attempts`,
+      )
+    }
+    progress.turnsSinceProgress = 0
+    progress.lastProgressAt = now
+    progress.lastOutcome = outcome
+    return
+  }
+
   progress.turnsSinceProgress = 0
   progress.lastProgressAt = now
   progress.lastOutcome = outcome
   progress.lastDiagnostic = undefined
+  if (fact.owner === "workflow.authoring") {
+    progress.activeAuthoringSessionId = fact.subjectId
+    progress.activeAuthoringRevision = fact.revision
+  }
   if (outcome === "proof") progress.proofRepairAttempts = 0
 }
 

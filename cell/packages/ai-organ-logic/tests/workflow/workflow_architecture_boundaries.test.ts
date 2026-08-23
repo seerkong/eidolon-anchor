@@ -25,6 +25,50 @@ async function typescriptFiles(root: string): Promise<string[]> {
 }
 
 describe("Eidolon workflow architecture boundaries", () => {
+  it("binds the published DEPA persistence closure with exact package identities", async () => {
+    const organ = JSON.parse(await source("cell/packages/ai-organ-logic/package.json")) as {
+      dependencies: Record<string, string>
+    }
+    const contract = JSON.parse(await source("cell/packages/ai-workflow-contract/package.json")) as {
+      dependencies: Record<string, string>
+    }
+    const support = JSON.parse(await source("cell/packages/ai-support/package.json")) as {
+      dependencies: Record<string, string>
+    }
+    const organClosure = {
+      "ai-ctrl-workflow-logic": "0.1.7",
+      "ai-data-workflow-contract": "0.1.4",
+      "ai-data-workflow-logic": "0.1.9",
+      "ai-workflow-contract": "0.1.7",
+      "ai-workflow-logic": "0.1.8",
+      "eager-data-flow-logic": "0.1.4",
+      "flow-step-space-contract": "0.1.1",
+      "flow-step-space-logic": "0.1.1",
+      "instant-ctrl-flow-logic": "0.1.5",
+      "work-ctrl-flow-contract": "0.1.3",
+      "work-ctrl-flow-logic": "0.1.4",
+    }
+    const contractClosure = {
+      "ai-ctrl-workflow-contract": "0.1.4",
+      "ai-data-workflow-contract": "0.1.4",
+      "ai-workflow-contract": "0.1.7",
+      "ai-workflow-logic": "0.1.8",
+      "flow-step-space-contract": "0.1.1",
+    }
+    expect(organ.dependencies).toMatchObject(organClosure)
+    expect(contract.dependencies).toMatchObject(contractClosure)
+    expect(support.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.1.5")
+    expect(organ.dependencies["halfcode-compiler.xnl"]).toBe("0.2.2")
+    expect(support.dependencies["halfcode-compiler.xnl"]).toBe("0.2.3")
+    for (const version of [
+      ...Object.values(organClosure),
+      ...Object.values(contractClosure),
+      support.dependencies["ai-workflow-flow-dsl-reference"],
+    ]) {
+      expect(version).not.toMatch(/^(?:workspace:|file:|link:|[~^*><=])/)
+    }
+  })
+
   it("keeps executable workflow source on canonical XNL, native roots and in-process effects", async () => {
     const violations: string[] = []
     for (const filePath of await typescriptFiles(workflowRoot)) {
@@ -140,7 +184,8 @@ describe("Eidolon workflow architecture boundaries", () => {
     const repository = await source("cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowDefinitionRepository.ts")
     expect(repository).not.toContain("workspace.tree()")
     expect(repository).not.toContain('endsWith("/manifest.xnl")')
-    expect(repository).toContain("executableDependencyPaths(loaded.binding)")
+    expect(repository).toContain("executableDependencies(loaded.binding)")
+    expect(repository).toContain('scope: "resource" | "package"')
     expect(repository).toContain("node?.attrs?.src")
     expect(repository).toContain("node?.attrs?.when")
     expect(repository).toContain('"src" in node ? node.src')
@@ -159,8 +204,10 @@ describe("Eidolon workflow architecture boundaries", () => {
     expect(registry).toContain('from "ai-workflow-logic"')
     expect(registry).toContain("safePathLexicalIssue(value, \"relative-path\")")
     expect(registry).toContain("new WeakMap<")
-    expect(registry).not.toContain("readdir")
-    expect(registry).not.toContain("manifest.xnl")
+    expect(registry).toContain("captureFrozenLayer")
+    expect(registry).toContain("withFileTypes: true")
+    expect(registry).not.toContain('endsWith("/manifest.xnl")')
+    expect(registry).toContain('target[`${prefix}/manifest.xnl`]')
   })
 
   it("separates whole-package registry publication from honest legacy VFS drafts", async () => {
@@ -175,6 +222,10 @@ describe("Eidolon workflow architecture boundaries", () => {
     const drafts = await source("cell/packages/ai-organ-logic/src/workflow/component/WorkflowCommandService.ts")
     expect(drafts).toContain('const workflowRef = `vfs://./${slug}/manifest.xnl`')
     expect(drafts).toContain('workflowDefinitionRef = "vfs://./manifest.xnl"')
+    expect(drafts).toContain("runtime.ai.effects.runAgent<Input, Output>(input, config)")
+    expect(drafts).toContain("runtime.ai.effects.runTargetedAgent<Input, Output>(selector, invocation, config)")
+    expect(drafts).toContain('operation: "material.write"')
+    expect(drafts).not.toContain('operation: "ai.agent"')
     expect(drafts).not.toContain('`resource://${command.fqn}`')
     expect(drafts).not.toContain("workflowResourceRef")
   })

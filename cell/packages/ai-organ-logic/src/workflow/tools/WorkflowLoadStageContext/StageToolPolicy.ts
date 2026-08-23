@@ -31,6 +31,7 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
     "WorkflowListAuthoringSessions",
     "WorkflowGetAuthoringSummary",
     "WorkflowOpenAuthoringSession",
+    "WorkflowCreateResourcePackageSession",
     "WorkflowWorkspace",
     "WorkflowInspectCapability",
     "WorkflowValidateResourceRef",
@@ -91,6 +92,7 @@ export const AI_WORKFLOW_STAGE_TOOL_POLICY: Readonly<Record<AiWorkflowStageId, r
     "WorkflowResolve",
     "WorkflowReject",
     "WorkflowApplyGraphPatch",
+    "WorkflowMutateStepExtension",
   ],
   monitoring: [
     LOAD,

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
@@ -8,8 +8,14 @@ import { createVM } from "@cell/ai-core-logic/runtime/runtime"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { readRuntimeControlEffectEvidence } from "@cell/ai-file-store-logic"
 import { composeToolRegistry } from "../../src/composer/AIAgent"
+import { computeFlowBundleDigest } from "work-ctrl-flow-logic"
+import { getWorkflowRuntimeService } from "../../src/workflow"
 
 const roots: string[] = []
+
+async function exists(filePath: string): Promise<boolean> {
+  return access(filePath).then(() => true, () => false)
+}
 
 afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
@@ -82,6 +88,54 @@ function simpleManifest(fqn: string, middle: string[]): string {
 }
 
 describe("Eidolon AI Data Workflow runtime", () => {
+  it("runs new Data runs only from the admitted frozen instance after live source changes", async () => {
+    const runtime = await makeRuntime()
+    const fqn = "demo.data.OwnerFirst"
+    const original = simpleManifest(fqn, [
+      `  <TransformNode #transform { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] src = "vfs://./flow-code/index.ts#identity" }>`,
+    ])
+    await publish(runtime, "Data Owner", fqn, original)
+    const prepared = await call(runtime, "WorkflowCreateInstance", {
+      workflow_ref: "vfs://./data-owner/manifest.xnl",
+      instance_id: "data-owner-instance",
+      input: { value: "frozen" },
+    })
+    expect(prepared.ok).toBe(true)
+    const instanceRoot = path.join(runtime.sessionDir, "workflow-runtime", "instances", "data-owner-instance")
+    const descriptor = JSON.parse(await readFile(path.join(instanceRoot, "instance.json"), "utf8"))
+    expect(descriptor.definition).toEqual({
+      revision: prepared.instance.definitionRevision,
+      digest: computeFlowBundleDigest(path.join(instanceRoot, "definition")),
+      provenance: {
+        authority: "eidolon.workflow-definition-repository",
+        artifactRef: "vfs://./data-owner/manifest.xnl",
+      },
+    })
+    expect(await readFile(path.join(instanceRoot, "definition", "manifest.xnl"), "utf8")).toBe(original)
+    expect(await readFile(path.join(instanceRoot, "definition", "flow-code", "index.ts"), "utf8"))
+      .toBe(await readFile(path.join(runtime.workspaceRoot, "data-owner", "flow-code", "index.ts"), "utf8"))
+
+    await writeFile(path.join(runtime.workspaceRoot, "data-owner", "manifest.xnl"), simpleManifest(fqn, [
+      `  <TransformNode #live_transform { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] src = "vfs://./flow-code/index.ts#identity" }>`,
+    ]), "utf8")
+    const first = await call(runtime, "WorkflowRun", {
+      instance_id: "data-owner-instance",
+      run_id: "data-owner-run-one",
+      confirmed: true,
+    })
+    expect(first.nodes.map((node: any) => node.id)).toEqual(["entry", "transform", "return"])
+
+    await rm(path.join(runtime.workspaceRoot, "data-owner"), { recursive: true, force: true })
+    const recovered = await makeRuntime({ workspaceRoot: runtime.workspaceRoot, sessionDir: runtime.sessionDir })
+    const second = await call(recovered, "WorkflowRun", {
+      instance_id: "data-owner-instance",
+      run_id: "data-owner-run-two",
+      confirmed: true,
+    })
+    expect(second).toMatchObject({ status: "Succeeded", definition_revision: prepared.instance.definitionRevision })
+    expect(second.nodes.map((node: any) => node.id)).toEqual(["entry", "transform", "return"])
+  })
+
   it("executes canonical EagerDataFlow nodes and persists node I/O/config/status", async () => {
     const runtime = await makeRuntime()
     await publish(runtime, "Data Complete", "demo.data.Complete", simpleManifest("demo.data.Complete", [
@@ -109,6 +163,11 @@ describe("Eidolon AI Data Workflow runtime", () => {
       result: { output: { value: "hello" } },
       reusePolicy: { policy: "semantic-hash", source: "node" },
     })
+    const ownerRoot = path.join(runtime.sessionDir, "workflow-runtime")
+    expect(await exists(path.join(ownerRoot, "instances", started.instance_id, "instance.json"))).toBe(true)
+    expect(await exists(path.join(ownerRoot, "instances", started.instance_id, "runs", started.run_id, "checkpoint.json"))).toBe(true)
+    expect(await exists(path.join(ownerRoot, "data-graphs", `${started.run_id}.json`))).toBe(false)
+    expect(await exists(path.join(ownerRoot, "ai-state", started.run_id))).toBe(false)
   })
 
   it("restores a manual wait in a fresh VM and resumes by stable node id", async () => {
@@ -146,7 +205,60 @@ describe("Eidolon AI Data Workflow runtime", () => {
     })
   })
 
-  it("creates generations, invalidates transitively, reuses semantic nodes and reruns never nodes", async () => {
+  it("preserves a closed AI profile carrier through a Data transition and fresh load", async () => {
+    const runtime = await makeRuntime()
+    await publish(runtime, "Data Carrier", "demo.data.Carrier", simpleManifest("demo.data.Carrier", [
+      `  <TransformNode #transform { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] src = "vfs://./flow-code/index.ts#identity" config = { node_type = "manual" } }>`,
+    ]))
+    const started = await start(runtime, "vfs://./data-carrier/manifest.xnl", { value: "draft" })
+    expect(started.status).toBe("Waiting")
+    const service = getWorkflowRuntimeService(runtime as any)
+    const current = await service.depa.checkpointRuntime.checkpointStore.load({
+      instanceId: started.instance_id,
+      runId: started.run_id,
+    })
+    expect(current?.profile.kind).toBe("AIDataWorkflow")
+    const carrier = {
+      schemaVersion: "depa.ai-agent-state/v1" as const,
+      instancesById: {
+        "agent-instance-2": {
+          authority: "eidolon.session",
+          instanceId: "agent-instance-2",
+          instanceName: "analyst",
+          sessionId: "session-ref-2",
+          agentDefinitionRef: "resource://demo.agent.Analyst" as const,
+          metadata: { scope: "flow" },
+        },
+      },
+      instanceIdByName: { analyst: "agent-instance-2" },
+      invocationsByKey: {},
+    }
+    await service.depa.checkpointRuntime.checkpointStore.commit({
+      expectedVersion: current!.version,
+      checkpoint: {
+        ...current!,
+        version: current!.version + 1,
+        profile: { ...current!.profile as any, ai: carrier },
+      },
+    })
+    expect(await call(runtime, "WorkflowResume", {
+      run_id: started.run_id,
+      node_id: "transform",
+      output: { value: "accepted" },
+    })).toMatchObject({ status: "Succeeded" })
+
+    const recovered = await makeRuntime({ workspaceRoot: runtime.workspaceRoot, sessionDir: runtime.sessionDir })
+    const accepted = await getWorkflowRuntimeService(recovered as any).depa.checkpointRuntime.checkpointStore.load({
+      instanceId: started.instance_id,
+      runId: started.run_id,
+    })
+    expect((accepted?.profile as any).ai).toEqual(carrier)
+    const ownerRoot = path.join(runtime.sessionDir, "workflow-runtime")
+    expect(await exists(path.join(ownerRoot, "ai-state", started.run_id))).toBe(false)
+    expect(await exists(path.join(ownerRoot, "agent-executions", started.run_id))).toBe(false)
+  })
+
+  it("keeps a terminal Data checkpoint immutable when a later patch is requested", async () => {
     const runtime = await makeRuntime()
     await publish(runtime, "Data Reuse", "demo.data.Reuse", simpleManifest("demo.data.Reuse", [
       `  <TransformNode #transform { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] src = "vfs://./flow-code/index.ts#identity" }>`,
@@ -166,32 +278,8 @@ describe("Eidolon AI Data Workflow runtime", () => {
       },
     })
     expect(patched).toMatchObject({
-      ok: true,
-      kind: "workflow.graphPatch",
-      generation: 1,
-      status: "Succeeded",
-    })
-    expect(patched.graph.patchHistory).toMatchObject([
-      { patchId: "retry-same-semantics", generation: 1 },
-    ])
-    expect(patched.graph.invalidations.map((item: any) => item.nodeId)).toEqual([
-      "transform",
-      "fresh",
-      "return",
-    ])
-    expect(patched.nodes.find((node: any) => node.id === "transform")).toMatchObject({
-      generation: 1,
-      status: "Reused",
-      result: { status: "Reused", reusedFrom: { generation: 0 } },
-    })
-    expect(patched.nodes.find((node: any) => node.id === "fresh")).toMatchObject({
-      generation: 1,
-      status: "Succeeded",
-      reusePolicy: { policy: "never", source: "node" },
-    })
-    expect(patched.nodes.find((node: any) => node.id === "return")).toMatchObject({
-      generation: 1,
-      status: "Reused",
+      ok: false,
+      error: expect.stringContaining("Terminal checkpoint status Succeeded"),
     })
   })
 
@@ -202,7 +290,7 @@ describe("Eidolon AI Data Workflow runtime", () => {
       `  <FlowContract #demo.data.Effect { inputPorts = ["path" "content"] outputPorts = ["path"] }>`,
       `) [`,
       `  <EntryNode #entry>`,
-      `  <TransformNode #write { inputs = { path = "flow-port://#entry/path" content = "flow-port://#entry/content" } outputs = ["path" "revision"] src = "vfs://./flow-code/index.ts#invokeEffect" config = { operation = "material.write" nodeId = "write" reuse_policy = "never" } }>`,
+      `  <TransformNode #write { inputs = { path = "flow-port://#entry/path" content = "flow-port://#entry/content" } outputs = ["path" "revision"] src = "vfs://./flow-code/index.ts#writeMaterial" config = { nodeId = "write" reuse_policy = "never" } }>`,
       `  <ReturnNode #return { inputs = { path = "flow-port://#write/path" } }>`,
       `]>`,
     ].join("\n"))
@@ -229,18 +317,17 @@ describe("Eidolon AI Data Workflow runtime", () => {
         }],
       },
     })
-    expect(patched).toMatchObject({ generation: 1, status: "Succeeded" })
+    expect(patched).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("Terminal checkpoint status Succeeded"),
+    })
 
     const events = await call(runtime, "WorkflowEvents", { run_id: started.run_id })
     expect(events.entries.map((event: any) => [event.type, event.generation])).toEqual([
       ["workflow.effect.requested", 0],
       ["workflow.effect.completed", 0],
-      ["workflow.effect.requested", 1],
-      ["workflow.effect.completed", 1],
     ])
     expect(await readRuntimeControlEffectEvidence(runtime.sessionDir)).toEqual([
-      expect.objectContaining({ kind: "request", handlerKey: "workflow:material.write" }),
-      expect.objectContaining({ kind: "result", handlerKey: "workflow:material.write" }),
       expect.objectContaining({ kind: "request", handlerKey: "workflow:material.write" }),
       expect.objectContaining({ kind: "result", handlerKey: "workflow:material.write" }),
     ])
@@ -252,6 +339,6 @@ describe("Eidolon AI Data Workflow runtime", () => {
         reason: "must fail validation",
         operations: [{ op: "update-node", nodeId: "missing", changes: { config: {} } }],
       },
-    })).toMatchObject({ ok: false, error: expect.stringMatching(/missing|unknown/i) })
+    })).toMatchObject({ ok: false, error: expect.stringMatching(/missing|Terminal checkpoint status Succeeded/) })
   })
 })

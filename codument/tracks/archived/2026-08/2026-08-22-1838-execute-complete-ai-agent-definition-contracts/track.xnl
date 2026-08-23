@@ -1,0 +1,174 @@
+<Track #execute-complete-ai-agent-definition-contracts apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "在 Eidolon 通用 actor runtime 中完整执行 depa AIAgentDefinition，并让 AICtrlWorkflow 与 AIDataWorkflow 共用同一资源、effect、恢复和结果验证链路。" description = "消费已发布的 depa executable projection，建立 generic AgentExecutionContract、schema/effect policy/material delivery、frozen recovery 与 Ctrl/Data E2E，不复制资源 authority 或模糊语义判断。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-22T00:00:00Z" updated_at = "2026-08-22T15:38:15.043Z" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #mission_authority { role = "input" name = "mission-authority" domain = "docs" path = "vfs://@/codument/missions/active/establish-eidolon-anchor-resource-native-app-and-skills/" }>
+    <MaterialBundle #depa_contract { role = "input" name = "depa-contract" domain = "code" path = "vfs://@/../depa-flows.ts/packages/ai-workflow-contract/" }>
+    <MaterialBundle #agent_runtime { role = "output" name = "agent-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/agent/" }>
+    <MaterialBundle #resource_runtime { role = "output" name = "resource-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/resources/" }>
+    <MaterialBundle #workflow_runtime { role = "output" name = "workflow-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+    <MaterialBundle #tests { role = "output" name = "tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/" }>
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_execute-complete-ai-agent-definition-contracts { name = "execute-complete-ai-agent-definition-contracts" version = "1" child_mode = "dag" } (
+    <Description ?01M0N1W5G08DJTRMKFKEVA99TD>
+    先冻结通用执行契约和失败基线，再投影完整资源语义，随后接入generic actor/result seam，最后用Ctrl/Data真实资源fixture完成产品验证。
+    </?01M0N1W5G08DJTRMKFKEVA99TD>
+    <SubNodes [
+      <TaskGroup #P1 { name = "冻结 generic execution contract 与 RED baseline" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "升级精确依赖并建立边界基线" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TE>
+              Eidolon精确消费ai-workflow-contract/logic 0.1.3与Flow DSL reference 0.1.1，lock无workspace/file替代且不指定registry。
+              </?01M0N1W5G08DJTRMKFKEVA99TE>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TF>
+              边界用例先证明当前host拒绝schema/effect policy且Material只冻结identity，失败可归因于本track缺口。
+              </?01M0N1W5G08DJTRMKFKEVA99TF>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TG>
+              Ctrl与Data fixture均使用显式task四元组和ai.agent effect，不引入AIAgentTask substrate node。
+              </?01M0N1W5G08DJTRMKFKEVA99TG>
+            ]>
+          )>
+          <Task #P1-T2 { name = "定义可持久化 AgentExecutionContract" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TH>
+              Contract是generic actor可选纯数据字段，包含payload、ordered materials、message/input/output schemas和closed effect policy。
+              </?01M0N1W5G08DJTRMKFKEVA99TH>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TJ>
+              closed plain-data normalization拒绝accessor、symbol、稀疏数组、cycle、非有限数与非普通prototype，canonical key使用显式UTF-16顺序。
+              </?01M0N1W5G08DJTRMKFKEVA99TJ>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TK>
+              actor snapshot serialize/hydrate与文件repository roundtrip保留contract；旧snapshot缺字段按undefined兼容。
+              </?01M0N1W5G08DJTRMKFKEVA99TK>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TM>
+          完整Agent语义已有一个不含workflow专用actor/session的generic durable contract。
+          </?01M0N1W5G08DJTRMKFKEVA99TM>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "投影 schema、policy、payload 与 Material values" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "构建 exact resource execution plan" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TN>
+              Adapter只从同一admitted snapshot与depa projection/freeze receipt构建plan，不重读或复制Halfcode registry。
+              </?01M0N1W5G08DJTRMKFKEVA99TN>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TP>
+              Message Prompt内容、message/input/output schema、policy、port顺序、binding顺序和Material values均被完整冻结。
+              </?01M0N1W5G08DJTRMKFKEVA99TP>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TQ>
+              input/message/material在provider前验证；invalid或mutable drift稳定拒绝且不创建child/provider call。
+              </?01M0N1W5G08DJTRMKFKEVA99TQ>
+            ]>
+          )>
+          <Task #P2-T2 { name = "执行 exact tool policy 与 frozen fact" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TR>
+              declared-only只暴露ToolRefs exact ids；none暴露空工具且与非空ToolRefs冲突时fail closed。
+              </?01M0N1W5G08DJTRMKFKEVA99TR>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TS>
+              WorkflowAgentExecutionFact保存完整contract与receipt；同run/generation/effect重试复用该fact且不重投影live package。
+              </?01M0N1W5G08DJTRMKFKEVA99TS>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TT>
+              plan/task/payload/material/receipt不一致拒绝，不生成第二fact或第二provider child。
+              </?01M0N1W5G08DJTRMKFKEVA99TT>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P2-G1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TV>
+          resource Agent execution在effect dispatch前已有完整、冻结、可验证的输入authority。
+          </?01M0N1W5G08DJTRMKFKEVA99TV>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "接入 generic actor completion 与结果验证" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "注入 canonical payload/material conversation" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TW>
+              资源Agent只从ordered definition messages与canonical {payload,materials}输入启动，不接受自由prompt覆盖。
+              </?01M0N1W5G08DJTRMKFKEVA99TW>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TX>
+              既有Conversation Domain、tool registry、delegate actor与first-delivery机制被复用，不创建workflow compactor/provider loop。
+              </?01M0N1W5G08DJTRMKFKEVA99TX>
+            ]>
+          )>
+          <Task #P3-T2 { name = "在公共 completion seam 验证 output" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TY>
+              raw string先验证；仅失败后做一次JSON parse并验证，均失败则在父actor/result/effect success写入前拒绝。
+              </?01M0N1W5G08DJTRMKFKEVA99TY>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99TZ>
+              immediate与orchestrated delegate共用同一validator，diagnostics bounded且不持久化prompt/material/output正文。
+              </?01M0N1W5G08DJTRMKFKEVA99TZ>
+              <Criterion #P3-T2-AC3 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V0>
+              provider/tool等待后的snapshot恢复仍使用原contract并保持exact工具与结果语义。
+              </?01M0N1W5G08DJTRMKFKEVA99V0>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V1>
+          generic actor完整执行AIAgentDefinition input、tools、materials和output contract。
+          </?01M0N1W5G08DJTRMKFKEVA99V1>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Ctrl/Data E2E 与产品收口" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "执行 Ctrl 与 Data resource E2E" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V2>
+              真实Halfcode package中AICtrlWorkflow Run与AIDataWorkflow TransformNode分别通过同一ai.agent provider链路成功并返回schema-valid结果。
+              </?01M0N1W5G08DJTRMKFKEVA99V2>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V3>
+              覆盖input/message/material/output异常、none/declared-only、missing tool、package drift、retry/restart与exact-once fact。
+              </?01M0N1W5G08DJTRMKFKEVA99V3>
+              <Criterion #P4-T1-AC3 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V4>
+              两个profile共享同一adapter/effect/fact/actor/result validator，仅substrate lifecycle不同。
+              </?01M0N1W5G08DJTRMKFKEVA99V4>
+            ]>
+          )>
+          <Task #P4-T2 { name = "更新Skills、构建与架构终审" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V5>
+              Authoring/DevOps/Run相关内容只按1.0.x最小patch增长，generated plan/global init readback一致。
+              </?01M0N1W5G08DJTRMKFKEVA99V5>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V6>
+              relevant suites、actor snapshot、workflow suites、generator、server/TUI build、compiled local init与diff checks通过。
+              </?01M0N1W5G08DJTRMKFKEVA99V6>
+              <Criterion #P4-T2-AC3 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V7>
+              production无模糊语义匹配、第二registry、workflow专用actor/session/history/compactor；fresh coding AttractorCheck无P0/P1。
+              </?01M0N1W5G08DJTRMKFKEVA99V7>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P4-G1 { checked = true } ?01M0N1W5G08DJTRMKFKEVA99V8>
+          完整AIAgentDefinition在Ctrl与Data两个产品profile中E2E可用。
+          </?01M0N1W5G08DJTRMKFKEVA99V8>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_execute-complete-ai-agent-definition-contracts" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

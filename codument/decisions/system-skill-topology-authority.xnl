@@ -1,0 +1,129 @@
+<decision #track.split-eidolon-anchor-devops-authoring-and-run-skills.plan-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP9VGT235KPA1DYAJ3724G>
+  How is the final managed system Skill set compiled?
+  </?01M0QP9VGT235KPA1DYAJ3724G>
+  <answer (
+    <raw-answer ?01M0QP9VGT235KPA1DYAJ3724H>
+    One Halfcode ApplicationAssembly and one complete distribution plan.
+    </?01M0QP9VGT235KPA1DYAJ3724H>
+    <decision-text ?01M0QP9VGT235KPA1DYAJ3724J>
+    Eidolon SHALL combine the published Halfcode Resource DSL module, the published depa Flow DSL reference module and one Eidolon-owned three-capsule module, then plan from DevOps as the only root.
+    </?01M0QP9VGT235KPA1DYAJ3724J>
+    <rationale ?01M0QP9VGT235KPA1DYAJ3724K>
+    This makes Halfcode the single dependency, topology, mapping, collision, planned-byte and provenance authority.
+    </?01M0QP9VGT235KPA1DYAJ3724K>
+    <evidence ?01M0QP9VGT235KPA1DYAJ3724M>
+    Halfcode 0.2.3 and ai-workflow-flow-dsl-reference 0.1.0 are published; the current installer still appends a builtin projection to a separate Halfcode plan.
+    </?01M0QP9VGT235KPA1DYAJ3724M>
+  )>
+  <confidence ?01M0QP9VGT235KPA1DYAJ3724N>
+  0.99
+  </?01M0QP9VGT235KPA1DYAJ3724N>
+  <reversibility ?01M0QP9VGT235KPA1DYAJ3724P>
+  low
+  </?01M0QP9VGT235KPA1DYAJ3724P>
+)>
+
+<decision #track.split-eidolon-anchor-devops-authoring-and-run-skills.skill-topology apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP9VGT235KPA1DYAJ3724Q>
+  Which Skill identities and dependencies form the installed product?
+  </?01M0QP9VGT235KPA1DYAJ3724Q>
+  <answer (
+    <raw-answer ?01M0QP9VGT235KPA1DYAJ3724R>
+    Four 1.0.x Skills: Halfcode Resource DSL plus Eidolon DevOps, Authoring and Run.
+    </?01M0QP9VGT235KPA1DYAJ3724R>
+    <decision-text ?01M0QP9VGT235KPA1DYAJ3724S>
+    DevOps depends exactly on Authoring and Run; Authoring depends exactly on Halfcode Resource DSL; the depa reference module remains a mapping source and does not create a fifth Skill.
+    </?01M0QP9VGT235KPA1DYAJ3724S>
+    <rationale ?01M0QP9VGT235KPA1DYAJ3724T>
+    This implements the approved responsibility split while keeping general and domain standards with their owners.
+    </?01M0QP9VGT235KPA1DYAJ3724T>
+    <evidence ?01M0QP9VGT235KPA1DYAJ3724V>
+    Mission design and user decisions; published modules expose the required source resources.
+    </?01M0QP9VGT235KPA1DYAJ3724V>
+  )>
+  <confidence ?01M0QP9VGT235KPA1DYAJ3724W>
+  0.99
+  </?01M0QP9VGT235KPA1DYAJ3724W>
+  <reversibility ?01M0QP9VGT235KPA1DYAJ3724X>
+  low
+  </?01M0QP9VGT235KPA1DYAJ3724X>
+)>
+
+<decision #track.split-eidolon-anchor-devops-authoring-and-run-skills.context-loading apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP9VGT235KPA1DYAJ3724Y>
+  How are operations and generated references loaded progressively?
+  </?01M0QP9VGT235KPA1DYAJ3724Y>
+  <answer (
+    <raw-answer ?01M0QP9VGT235KPA1DYAJ3724Z>
+    Extend the generic Skill tool with exact resource and line fragment input.
+    </?01M0QP9VGT235KPA1DYAJ3724Z>
+    <decision-text ?01M0QP9VGT235KPA1DYAJ37250>
+    Skill SHALL accept exact resource, offset and limit, validate the resource against the selected catalog entry and authority boundary, then reuse LocalTextResourceLoader revision and visibility facts.
+    </?01M0QP9VGT235KPA1DYAJ37250>
+    <rationale ?01M0QP9VGT235KPA1DYAJ37251>
+    This serves system and ordinary Skills without a workflow-specific loader or another loaded-state authority.
+    </?01M0QP9VGT235KPA1DYAJ37251>
+    <evidence ?01M0QP9VGT235KPA1DYAJ37252>
+    LocalTextResourceLoader already owns fragment, revision, persistence and surface projection; Skill currently always loads the entire root document.
+    </?01M0QP9VGT235KPA1DYAJ37252>
+  )>
+  <confidence ?01M0QP9VGT235KPA1DYAJ37253>
+  0.98
+  </?01M0QP9VGT235KPA1DYAJ37253>
+  <reversibility ?01M0QP9VGT235KPA1DYAJ37254>
+  moderate
+  </?01M0QP9VGT235KPA1DYAJ37254>
+)>
+
+<decision #track.split-eidolon-anchor-devops-authoring-and-run-skills.legacy-identity apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP9VGT235KPA1DYAJ37255>
+  Is sys-ai-workflow retained as an alias or compatibility Skill?
+  </?01M0QP9VGT235KPA1DYAJ37255>
+  <answer (
+    <raw-answer ?01M0QP9VGT235KPA1DYAJ37256>
+    No.
+    </?01M0QP9VGT235KPA1DYAJ37256>
+    <decision-text ?01M0QP9VGT235KPA1DYAJ37257>
+    The old identity SHALL leave the managed set only after the complete new candidate passes readback; runtime SHALL then require sys-eidolon-anchor-devops and report global-init remediation if it is missing.
+    </?01M0QP9VGT235KPA1DYAJ37257>
+    <rationale ?01M0QP9VGT235KPA1DYAJ37258>
+    An alias, symlink or compatibility payload would preserve two semantic authorities and defeat the split.
+    </?01M0QP9VGT235KPA1DYAJ37258>
+    <evidence ?01M0QP9VGT235KPA1DYAJ37259>
+    The whole-root installer already provides rollback and drops unlisted sys-* paths after a successful replacement.
+    </?01M0QP9VGT235KPA1DYAJ37259>
+  )>
+  <confidence ?01M0QP9VGT235KPA1DYAJ3725A>
+  0.99
+  </?01M0QP9VGT235KPA1DYAJ3725A>
+  <reversibility ?01M0QP9VGT235KPA1DYAJ3725B>
+  low
+  </?01M0QP9VGT235KPA1DYAJ3725B>
+)>
+
+<decision #track.split-eidolon-anchor-devops-authoring-and-run-skills.runtime-admission apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP9VGT235KPA1DYAJ3725C>
+  How does a new binary decide whether an installed managed Skill manifest is admissible?
+  </?01M0QP9VGT235KPA1DYAJ3725C>
+  <answer (
+    <raw-answer ?01M0QP9VGT235KPA1DYAJ3725D>
+    Compare it with the expected projection derived from the generated Halfcode plan before exposing any system Skill.
+    </?01M0QP9VGT235KPA1DYAJ3725D>
+    <decision-text ?01M0QP9VGT235KPA1DYAJ3725E>
+    Runtime SHALL validate exact identity, version, capsule FQN, closure digest and file digests against the generated plan projection, fail closed on any old, missing, extra or drifted managed entry, and preserve ordinary non-system Skills.
+    </?01M0QP9VGT235KPA1DYAJ3725E>
+    <rationale ?01M0QP9VGT235KPA1DYAJ3725F>
+    The installed manifest is derived readback, not authority; accepting arbitrary manifest identities would let the retired monolith re-enter runtime after a binary upgrade.
+    </?01M0QP9VGT235KPA1DYAJ3725F>
+    <evidence ?01M0QP9VGT235KPA1DYAJ3725G>
+    Plan AttractorCheck 001 found that current admission relies on BUNDLED_SYSTEM_SKILLS, which this track removes.
+    </?01M0QP9VGT235KPA1DYAJ3725G>
+  )>
+  <confidence ?01M0QP9VGT235KPA1DYAJ3725H>
+  0.99
+  </?01M0QP9VGT235KPA1DYAJ3725H>
+  <reversibility ?01M0QP9VGT235KPA1DYAJ3725J>
+  low
+  </?01M0QP9VGT235KPA1DYAJ3725J>
+)>

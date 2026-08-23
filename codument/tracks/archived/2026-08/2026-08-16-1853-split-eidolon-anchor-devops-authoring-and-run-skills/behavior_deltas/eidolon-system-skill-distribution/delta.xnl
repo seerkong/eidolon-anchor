@@ -1,0 +1,10 @@
+<BehaviorPatch #track.split-eidolon-anchor-devops-authoring-and-run-skills.behavior_patch.eidolon-system-skill-distribution apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-system-skill-distribution" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-system-skill-distribution/requirements/split-four-skill-closure" } (
+      <Requirement #split-four-skill-closure (
+        <Statement ?>Eidolon SHALL install the Halfcode Resource DSL Skill and the DevOps, Authoring and Run Skills from one verified Halfcode distribution closure, while retiring the legacy sys-ai-workflow authority.</?>
+        <Suites [<Suite #split-closure { name = "Four-Skill closure" } (<Cases [<Case #split-closure-readback (<Given ?>the generated four-Skill plan</?> <When ?>global init installs and runtime admits managed Skills</?> <Then ?>the exact four identities, versions, closure and file digests SHALL match before any sys-* entry is exposed</?>)>]>)>]>
+      )>
+    )>
+  ]>
+)>

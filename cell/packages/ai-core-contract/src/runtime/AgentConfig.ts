@@ -1,4 +1,5 @@
 import type { ActorContextPolicy } from "./AiAgentActor"
+import type { AgentExecutionContract } from "./AgentExecutionContract"
 
 export type AgentSeedMessageRole = "system" | "developer" | "user" | "assistant"
 
@@ -15,4 +16,5 @@ export type AgentConfig = {
   seedMessages?: readonly AgentSeedMessage[]
   requireExactTools?: boolean
   contextPolicy?: Partial<ActorContextPolicy>
+  executionContract?: AgentExecutionContract
 }

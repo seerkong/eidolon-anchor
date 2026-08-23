@@ -1,0 +1,31 @@
+<BehaviorPatch #track.adopt-depa-step-space-and-state-sidecars.behavior_patch.workflow-run-material-lifecycle apiVersion="codument.tech/v1alpha1" version="1" { capability = "workflow-run-material-lifecycle" } (
+  <Mutations [
+    <Upsert { selector = "behavior://workflow-run-material-lifecycle/requirements/step-space-and-sidecar-authority" } (
+      <Requirement #step-space-and-sidecar-authority (
+        <Statement ?>Eidolon SHALL preserve depa StepSpace definition authority and profile-aware run sidecars inside the existing frozen Instance and single FlowRunCheckpoint lifecycle.</?>
+        <Suites [
+          <Suite #frozen-step-space { name = "Frozen StepSpace authority" } (
+            <Cases [
+              <Case #complete-closure (<Given ?>a ResourcePackage declares a Ctrl or Data StepSpace with step groups and extensions</?><When ?>an instance is admitted</?><Then ?>the complete explicit closure, descriptors and normalized initial extension values SHALL be frozen with exact source revision, digest and provenance</?>)>
+              <Case #fresh-owner-first (<Given ?>a materialized instance and a later live source modification, deletion or corruption</?><When ?>a fresh runtime loads or resumes the run</?><Then ?>profile authority and extension membership SHALL be reconstructed only from the frozen instance bytes</?>)>
+            ]>
+          )>
+          <Suite #single-checkpoint-sidecar { name = "Single logical checkpoint and local update" } (
+            <Cases [
+              <Case #same-logical-truth (<Given ?>Ctrl or Data core state and custom step extension state change</?><When ?>the transition is admitted</?><Then ?>both SHALL remain one closed FlowRunCheckpoint truth and SHALL NOT create a second Eidolon sidecar store</?>)>
+              <Case #targeted-locality (<Given ?>one non-terminal step extension is selected by logical identity</?><When ?>the runtime-first mutation Processor succeeds</?><Then ?>exactly that extension revision SHALL advance through one checkpoint CAS while unrelated logical state remains equal and physical layout remains depa-owned</?>)>
+              <Case #fresh-recovery (<Given ?>an accepted local extension update and an interrupted or reconstructed process</?><When ?>the run is loaded again</?><Then ?>the same logical extension value, revision, checkpoint version and run result SHALL recover without replaying accepted effects</?>)>
+            ]>
+          )>
+          <Suite #authority-boundaries { name = "Authority and compatibility boundaries" } (
+            <Cases [
+              <Case #runtime-codec-only (<Given ?>a schema-bound custom extension</?><When ?>definition or run facts are persisted</?><Then ?>codec functions and host paths SHALL remain runtime-only and unknown or mismatched codecs SHALL fail before mutation</?>)>
+              <Case #logical-native-reads (<Given ?>native status, summary, result, replay or evidence is requested</?><When ?>the component projects a run</?><Then ?>it SHALL read the logical checkpoint and SHALL NOT expose physical record, tree, receipt, head or bundle paths</?>)>
+              <Case #no-dual-write (<Given ?>a new or migrated Ctrl/Data run uses StepSpace sidecars</?><When ?>the run changes</?><Then ?>Eidolon SHALL NOT write legacy Ctrl, AI state, Data graph or Agent execution authorities</?>)>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

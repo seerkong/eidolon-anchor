@@ -1,0 +1,44 @@
+<BehaviorPatch #track.verify-ai-workflow-instance-agent-reuse-e2e.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/instance-agent-reuse-e2e" } (
+      <Requirement #instance-agent-reuse-e2e (
+        <Statement ?>The product SHALL prove complete ResourcePackage execution and same-instance Agent targeting across Ctrl/Data runs and fresh reconstruction.</?>
+        <Suites [
+          <Suite #physical-e2e { name = "Frozen instance and targeted Agent continuity" } (
+            <Cases [
+              <Case #ctrl-data-complete (
+                <Given ?>One published App binds complete Ctrl and Data workflows, Agent schema/policy/material resources and exact task bindings</?>
+                <When ?>Both profiles run from their frozen instances</?>
+                <Then ?>Both SHALL return OutputSchema-valid structured results and durable canonical checkpoints without legacy flat writes</?>
+              )>
+              <Case #target-name-id-recovery (
+                <Given ?>A first Agent call returns a named instance and generic session reference</?>
+                <When ?>Each Ctrl and Data profile uses different later invocation keys to target it by name, then after snapshot reconstruction by returned id</?>
+                <Then ?>Pending and completed repetitions plus all targeted calls SHALL use one generic actor/session and SHALL NOT create a second Agent instance</?>
+              )>
+              <Case #owner-readback (
+                <Given ?>A targeted run has been reconstructed and completed</?>
+                <When ?>The canonical checkpoint and generic runtime snapshot are independently read</?>
+                <Then ?>The checkpoint SHALL contain only instance indexes, stable refs and invocation receipts while actor/session/conversation/provider state SHALL remain solely in the generic snapshot owner</?>
+              )>
+              <Case #frozen-source (
+                <Given ?>The complete ResourcePackage closure was frozen during instance admission</?>
+                <When ?>Live resource roots are changed or removed before fresh reconstruction</?>
+                <Then ?>Execution SHALL use only frozen bytes, canonical checkpoint facts and generic runtime snapshots</?>
+              )>
+            ]>
+          )>
+          <Suite #installed-readback { name = "Installed product acceptance" } (
+            <Cases [
+              <Case #binary-and-skills (
+                <Given ?>The reviewed unified binary and four-Skill plan passed their gates</?>
+                <When ?>The locally installed binary and actual global manifest are read</?>
+                <Then ?>They SHALL resolve to the reviewed dist and exact managed Skill identities, versions and closure digest</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

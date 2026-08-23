@@ -1,0 +1,164 @@
+<Behavior #eidolon-system-skill-distribution apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #halfcode-backed-global-init (
+      <Statement ?01M0QP9VANEPVE6NAMREWEJAHJ>
+      Eidolon SHALL consume canonical Halfcode Skill distribution plans through one whole-root global Skill transaction, preserve non-managed user assets, and expose exact manifest-bound system Skill reads without duplicating capsule dependency or content authority.
+      </?01M0QP9VANEPVE6NAMREWEJAHJ>
+      <Suites [
+        <Suite #plan-consumption { name = "Canonical generated Skill consumption" } (
+          <Cases [
+            <Case #resource-dsl-plan [
+              <Then ?01M0QP9VANEPVE6NAMREWEJAHK>
+              Eidolon SHALL invoke the Halfcode plan/applier in an isolated output root and install the receipt-proven `sys-halfcode-resource-dsl` identity
+              </?01M0QP9VANEPVE6NAMREWEJAHK>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAHM>
+              Eidolon MUST NOT copy the Resource DSL source tree or reimplement dependency topology, collision, target or content validation
+              </?01M0QP9VANEPVE6NAMREWEJAHM>
+            ] (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAHN>
+              Halfcode 0.2.2 provides the immutable Resource DSL system Skill distribution plan
+              </?01M0QP9VANEPVE6NAMREWEJAHN>
+              <When ?01M0QP9VANEPVE6NAMREWEJAHP>
+              the user runs `eidolon global init`
+              </?01M0QP9VANEPVE6NAMREWEJAHP>
+            )>
+            <Case #transitional-eidolon-skill (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAHQ>
+              the final Eidolon Anchor Skill split has not yet been applied
+              </?01M0QP9VANEPVE6NAMREWEJAHQ>
+              <When ?01M0QP9VANEPVE6NAMREWEJAHR>
+              the managed candidate set is assembled
+              </?01M0QP9VANEPVE6NAMREWEJAHR>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAHS>
+              `sys-ai-workflow` SHALL remain installed on the `1.0.x` line as a transitional host-owned source
+              </?01M0QP9VANEPVE6NAMREWEJAHS>
+            )>
+          ]>
+        )>
+        <Suite #whole-root-transaction { name = "Whole Skill tree transaction" } (
+          <Cases [
+            <Case #single-visible-swap [
+              <Then ?01M0QP9VANEPVE6NAMREWEJAHT>
+              Eidolon SHALL materialize and read back a complete same-parent candidate before replacing the live `skills` root once
+              </?01M0QP9VANEPVE6NAMREWEJAHT>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAHV>
+              ordinary non-managed assets SHALL be preserved and previous managed versions SHALL not remain visible
+              </?01M0QP9VANEPVE6NAMREWEJAHV>
+            ] (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAHW>
+              the live Skill root contains managed system Skills and ordinary user assets
+              </?01M0QP9VANEPVE6NAMREWEJAHW>
+              <When ?01M0QP9VANEPVE6NAMREWEJAHX>
+              global init installs the candidate managed set
+              </?01M0QP9VANEPVE6NAMREWEJAHX>
+            )>
+            <Case #interrupted-reconciliation [
+              <Then ?01M0QP9VANEPVE6NAMREWEJAHY>
+              the previous complete live tree SHALL remain byte-identical or be restored from a retained diagnosable backup
+              </?01M0QP9VANEPVE6NAMREWEJAHY>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAHZ>
+              the installer MUST NOT report success with a mixed managed set or silently discard restoration evidence
+              </?01M0QP9VANEPVE6NAMREWEJAHZ>
+            ] (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAJ0>
+              a controlled interruption occurs during plan application, candidate readback, live swap or final readback
+              </?01M0QP9VANEPVE6NAMREWEJAJ0>
+              <When ?01M0QP9VANEPVE6NAMREWEJAJ1>
+              the installer exits with an error
+              </?01M0QP9VANEPVE6NAMREWEJAJ1>
+            )>
+            <Case #repeat-idempotence (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAJ2>
+              the installed tree already equals the current managed plans
+              </?01M0QP9VANEPVE6NAMREWEJAJ2>
+              <When ?01M0QP9VANEPVE6NAMREWEJAJ3>
+              global init runs again
+              </?01M0QP9VANEPVE6NAMREWEJAJ3>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAJ4>
+              the resulting managed files, manifest and preserved user assets SHALL be byte-equivalent
+              </?01M0QP9VANEPVE6NAMREWEJAJ4>
+            )>
+          ]>
+        )>
+        <Suite #manifest-authority { name = "Installed system Skill readback" } (
+          <Cases [
+            <Case #exact-manifest-bound-read [
+              <Then ?01M0QP9VANEPVE6NAMREWEJAJ5>
+              the identity and path SHALL be present in `.system-skills.xnl` and the read bytes SHALL match its recorded digest
+              </?01M0QP9VANEPVE6NAMREWEJAJ5>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAJ6>
+              unknown identities, duplicate entries, unsafe paths and digest drift SHALL fail closed
+              </?01M0QP9VANEPVE6NAMREWEJAJ6>
+            ] (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAJ7>
+              a caller requests a system Skill resource by exact identity and relative path
+              </?01M0QP9VANEPVE6NAMREWEJAJ7>
+              <When ?01M0QP9VANEPVE6NAMREWEJAJ8>
+              the generic system Skill loader reads the resource
+              </?01M0QP9VANEPVE6NAMREWEJAJ8>
+            )>
+            <Case #compatibility-stage-wrapper (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAJ9>
+              the AI Workflow actor requests an explicit DevOps stage
+              </?01M0QP9VANEPVE6NAMREWEJAJ9>
+              <When ?01M0QP9VANEPVE6NAMREWEJAJA>
+              the compatibility stage wrapper composes context
+              </?01M0QP9VANEPVE6NAMREWEJAJA>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAJB>
+              it SHALL delegate exact file reads to the generic manifest-bound loader and preserve current stage isolation
+              </?01M0QP9VANEPVE6NAMREWEJAJB>
+            )>
+            <Case #global-authority [
+              <Then ?01M0QP9VANEPVE6NAMREWEJAJC>
+              only exact identities declared by the installed global manifest SHALL enter the runtime Skill registry
+              </?01M0QP9VANEPVE6NAMREWEJAJC>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAJD>
+              unlisted global identities and every workspace `sys-*` entry MUST NOT enter system authority
+              </?01M0QP9VANEPVE6NAMREWEJAJD>
+            ] (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAJE>
+              global or workspace Skill roots contain a `sys-*` identity
+              </?01M0QP9VANEPVE6NAMREWEJAJE>
+              <When ?01M0QP9VANEPVE6NAMREWEJAJF>
+              runtime loads Skill entries
+              </?01M0QP9VANEPVE6NAMREWEJAJF>
+            )>
+            <Case #physical-managed-root (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAJG>
+              a managed Skill root or declared file is replaced by a symbolic link or escapes the physical global Skill root
+              </?01M0QP9VANEPVE6NAMREWEJAJG>
+              <When ?01M0QP9VANEPVE6NAMREWEJAJH>
+              runtime or the manifest-bound resource loader reads that Skill
+              </?01M0QP9VANEPVE6NAMREWEJAJH>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAJJ>
+              the read SHALL fail closed before returning Skill content
+              </?01M0QP9VANEPVE6NAMREWEJAJJ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #split-four-skill-closure (
+      <Statement ?01M0QP9VANEPVE6NAMREWEJAJK>
+      Eidolon SHALL install the Halfcode Resource DSL Skill and the DevOps, Authoring and Run Skills from one verified Halfcode distribution closure, while retiring the legacy sys-ai-workflow authority.
+      </?01M0QP9VANEPVE6NAMREWEJAJK>
+      <Suites [
+        <Suite #split-closure { name = "Four-Skill closure" } (
+          <Cases [
+            <Case #split-closure-readback (
+              <Given ?01M0QP9VANEPVE6NAMREWEJAJM>
+              the generated four-Skill plan
+              </?01M0QP9VANEPVE6NAMREWEJAJM>
+              <When ?01M0QP9VANEPVE6NAMREWEJAJN>
+              global init installs and runtime admits managed Skills
+              </?01M0QP9VANEPVE6NAMREWEJAJN>
+              <Then ?01M0QP9VANEPVE6NAMREWEJAJP>
+              the exact four identities, versions, closure and file digests SHALL match before any sys-* entry is exposed
+              </?01M0QP9VANEPVE6NAMREWEJAJP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

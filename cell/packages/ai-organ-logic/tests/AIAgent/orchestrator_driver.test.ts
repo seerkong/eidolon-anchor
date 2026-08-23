@@ -10,6 +10,7 @@ import {
 } from "@cell/ai-organ-logic/OrchestratorDriver";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import type { ToolDef } from "@cell/ai-core-contract/types";
+import { appendLiveHistoryMessageToConversationDomainRuntime } from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime";
 
 async function flushMicrotasks(): Promise<void> {
   // ActorSystem drains mailboxes via queueMicrotask; allow a few turns.
@@ -19,6 +20,62 @@ async function flushMicrotasks(): Promise<void> {
 }
 
 describe("AiAgentOrchestratorDriver", () => {
+  it("rejects schema-invalid delegate output before orchestrated child result delivery", async () => {
+    const parent = createActor({ key: "main", id: "parent-output-validation" });
+    const child = createActor({
+      key: "child",
+      id: "child-output-validation",
+      type: "delegate",
+      executionContract: {
+        schemaVersion: "eidolon.agent-execution-contract/v1",
+        input: { schemaVersion: "eidolon.agent-execution-input/v1", payload: null, materials: [] },
+        messageSchemas: [],
+        outputSchema: { type: "object", properties: { ok: { const: true } }, required: ["ok"] },
+        effectPolicy: { toolMode: "declared-only" },
+      },
+    });
+    const vm = createVM({
+      controlActorKey: parent.key,
+      actors: { [parent.key]: parent, [child.key]: child },
+    });
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: child.key,
+      actorId: child.id,
+      message: { role: "assistant", content: JSON.stringify({ ok: false }) },
+    });
+    const parentFiberId = `${parent.key}:${parent.id}`;
+    const childFiberId = `${child.key}:${child.id}`;
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId: parentFiberId, vm, actor: parent, messages: [], basePriority: 1 }],
+      runStep: async (ctx) => ctx.actor.key === child.key
+        ? { kind: "complete" }
+        : { kind: "suspend", reason: "idle_external" },
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    });
+    driver.spawnFiber({
+      fiberId: childFiberId,
+      vm,
+      actor: child,
+      messages: [],
+      basePriority: 1,
+      parentFiberId,
+      kind: "delegate",
+      onDone: { parentFiberId, mode: "sync_wait", toolCallId: "agent-call" },
+    });
+
+    driver.resumeFiber(childFiberId, 1);
+    await driver.tickUntilForegroundSettled({ now: 1, maxTicks: 20, maxWallMs: 2_000 });
+    await flushMicrotasks();
+    expect(parent.peekMailbox("childDone")).toEqual([
+      expect.objectContaining({
+        childActorKey: "child",
+        status: "failed",
+        error: expect.stringContaining("AGENT_EXECUTION_OUTPUT_SCHEMA_MISMATCH"),
+      }),
+    ]);
+  });
+
   it("mounts vm runtime context through the vendor actor runtime facet", () => {
     const main = createActor({ key: "main" });
     const vm = createVM({

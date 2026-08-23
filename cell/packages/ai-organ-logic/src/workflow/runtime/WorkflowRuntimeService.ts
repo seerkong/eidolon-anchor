@@ -1,21 +1,42 @@
 import { createHash, randomUUID } from "node:crypto"
+import { existsSync } from "node:fs"
 import path from "node:path"
 
 import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
 import type { AIDataWorkflowGraphPatch, AIWorkflowRunRef } from "@cell/ai-workflow-contract"
 import {
+  createAICtrlWorkflowAgentNodeRuntimeBinder,
+  createAICtrlWorkflowCheckpointStore,
   createAICtrlWorkflowController,
   getAICtrlWorkflowRunRecord,
+  projectAICtrlWorkflowRunRecord,
   resumeAICtrlWorkflowRun,
   startAICtrlWorkflowRun,
 } from "ai-ctrl-workflow-logic"
+import type {
+  AIWorkflowAgentTaskRef,
+  AIWorkflowAuthoredRuntimeContext,
+  FrozenAIAgentTaskBinding,
+} from "ai-workflow-contract"
+import type { DefinitionStepExtensionCodecRegistryPort } from "flow-step-space-contract"
 import { createFilesystemFlowCodeResolver } from "instant-ctrl-flow-logic"
 import type { ResumeSignal } from "work-ctrl-flow-contract"
-import type { WorkflowAuthoringWorkspace } from "../authoring"
+import { hashWorkflowSources, type WorkflowAuthoringWorkspace } from "../authoring"
 import { createWorkflowComponentForRuntime } from "../component"
+import { EidolonAppResourceRegistryAdapter } from "../../resources"
 import { EidolonWorkflowEffectProvider, StoreBackedWorkflowMaterialAccess } from "../effects"
+import {
+  bindWorkflowStepExtensionAuthoredRuntime,
+  createWorkflowStepExtensionAuthoredFacade,
+} from "../effects/WorkflowStepExtensionAuthoredFacade"
 import { AIDataWorkflowRuntimeDriver } from "./AIDataWorkflowRuntimeDriver"
-import { WorkflowDefinitionRepository, type ResolvedWorkflowDefinition } from "./WorkflowDefinitionRepository"
+import { EMPTY_AI_WORKFLOW_DURABLE_STATE, WorkflowDepaPersistence } from "./WorkflowDepaPersistence"
+import { WorkflowLegacyMigration } from "./WorkflowLegacyMigration"
+import {
+  normalizeFrozenWorkflowCodeReference,
+  WorkflowDefinitionRepository,
+  type ResolvedWorkflowDefinition,
+} from "./WorkflowDefinitionRepository"
 import { WorkflowFactStore, type WorkflowRunDescriptor } from "./WorkflowFactStore"
 import type {
   WorkflowDefinitionRevision,
@@ -74,6 +95,67 @@ function nestedRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {}
 }
 
+function effectOwnerNodeId(request: { nodeId?: unknown; config?: unknown }): string {
+  if (typeof request.nodeId === "string" && request.nodeId.trim()) return request.nodeId
+  const configured = nestedRecord(request.config).nodeId
+  return typeof configured === "string" && configured.trim() ? configured : "effect"
+}
+
+function durableCtrlValue(value: unknown): unknown {
+  if (value instanceof Error) return { name: value.name, message: value.message }
+  if (Array.isArray(value)) return value.map(durableCtrlValue)
+  if (typeof value !== "object" || value === null) return value
+  return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+    .filter(([, nested]) => nested !== undefined)
+    .map(([key, nested]) => [key, durableCtrlValue(nested)]))
+}
+
+function discoverAgentTasks(
+  descriptor: WorkflowRunDescriptor,
+  definition: ResolvedWorkflowDefinition,
+): readonly AIWorkflowAgentTaskRef[] {
+  if (!definition.resourceReceipt) return []
+  const tasks = new Map<string, AIWorkflowAgentTaskRef>()
+  const visited = new WeakSet<object>()
+  const visit = (value: unknown): void => {
+    if (typeof value !== "object" || value === null || visited.has(value)) return
+    visited.add(value)
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item)
+      return
+    }
+    const record = value as Record<string, unknown>
+    const attrs = nestedRecord(record.attrs)
+    const directConfig = nestedRecord(record.config)
+    const authoredConfig = nestedRecord(attrs.config)
+    const config = typeof directConfig.agentDefinitionRef === "string" ? directConfig
+      : typeof authoredConfig.agentDefinitionRef === "string" ? authoredConfig
+        : attrs
+    const nodeId = typeof record.id === "string" ? record.id
+      : typeof record.nodeId === "string" ? record.nodeId
+      : typeof record.Key === "string" ? record.Key
+        : typeof record.key === "string" ? record.key : undefined
+    if (typeof nodeId === "string"
+      && typeof config.agentDefinitionRef === "string"
+      && config.agentDefinitionRef.startsWith("resource://")) {
+      const task: AIWorkflowAgentTaskRef = Object.freeze({
+        workflowKind: descriptor.form,
+        workflowRef: descriptor.workflowRef as `resource://${string}`,
+        nodeId,
+        agentDefinitionRef: config.agentDefinitionRef as `resource://${string}`,
+      })
+      const prior = tasks.get(task.nodeId)
+      if (prior && prior.agentDefinitionRef !== task.agentDefinitionRef) {
+        throw new Error(`Frozen workflow node ${task.nodeId} declares conflicting Agent definitions`)
+      }
+      tasks.set(task.nodeId, task)
+    }
+    for (const nested of Object.values(record)) visit(nested)
+  }
+  visit(definition.binding.definition)
+  return Object.freeze([...tasks.values()].sort((left, right) => left.nodeId < right.nodeId ? -1 : left.nodeId > right.nodeId ? 1 : 0))
+}
+
 function runtimeRoots(runtime: WorkflowRuntime, workspaceRoot: string) {
   const aiWorkflow = nestedRecord(metadata(runtime).aiWorkflow)
   const roots = nestedRecord(aiWorkflow.roots)
@@ -88,6 +170,15 @@ function factRoot(runtime: WorkflowRuntime, workspaceRoot: string): string {
   return typeof value === "string" && path.isAbsolute(value)
     ? path.join(value, "workflow-runtime")
     : path.join(workspaceRoot, ".runtime")
+}
+
+function stepExtensionCodecs(runtime: WorkflowRuntime): DefinitionStepExtensionCodecRegistryPort {
+  const aiWorkflow = nestedRecord(metadata(runtime).aiWorkflow)
+  const candidate = aiWorkflow.extensionCodecs
+  if (candidate && typeof candidate === "object" && typeof (candidate as { resolve?: unknown }).resolve === "function") {
+    return candidate as DefinitionStepExtensionCodecRegistryPort
+  }
+  return Object.freeze({ resolve: () => undefined })
 }
 
 function runRef(
@@ -107,11 +198,15 @@ function runRef(
 export class WorkflowRuntimeService {
   readonly facts: WorkflowFactStore
   readonly materials: WorkflowMaterialService
+  readonly depa: WorkflowDepaPersistence
+  readonly legacyMigration: WorkflowLegacyMigration
   private readonly repository: WorkflowDefinitionRepository
   private readonly controllers = new Map<string, CtrlController>()
+  private readonly ctrlNodeOrder = new Map<string, ReadonlyMap<string, number>>()
   private readonly dataDrivers = new Map<string, AIDataWorkflowRuntimeDriver>()
   private readonly workspace: WorkflowAuthoringWorkspace
   private readonly catalog: ReturnType<typeof createWorkflowComponentForRuntime>["catalog"]
+  private readonly resourceRegistry: EidolonAppResourceRegistryAdapter
 
   constructor(private readonly runtime: WorkflowRuntime) {
     const component = createWorkflowComponentForRuntime(runtime)
@@ -119,8 +214,12 @@ export class WorkflowRuntimeService {
     if (!component.repository) throw new Error("Workflow definition repository is not bound")
     this.workspace = component.authoring
     this.catalog = component.catalog
+    this.resourceRegistry = component.resourceRegistry
     this.repository = component.repository
-    this.facts = new WorkflowFactStore(factRoot(runtime, component.authoring.store.rootPath))
+    const supportRoot = factRoot(runtime, component.authoring.store.rootPath)
+    this.facts = new WorkflowFactStore(supportRoot)
+    this.depa = new WorkflowDepaPersistence(supportRoot, stepExtensionCodecs(runtime))
+    this.legacyMigration = new WorkflowLegacyMigration(supportRoot, this.depa)
     this.materials = new WorkflowMaterialService(component.authoring, this.facts)
   }
 
@@ -138,7 +237,7 @@ export class WorkflowRuntimeService {
     initialInput?: unknown
     idempotencyKey?: string
   }): Promise<WorkflowInstance> {
-    const frozen = await this.repository.capture(input.workflowRef)
+    const frozen = await this.captureInstanceDefinition(input.workflowRef)
     await this.facts.saveDefinitionRevision(frozen)
     const requestFingerprint = fingerprint({
       workflowRef: frozen.workflowRef,
@@ -158,6 +257,7 @@ export class WorkflowRuntimeService {
     const existing = await this.facts.loadInstance(instanceId)
     if (existing) {
       if (existing.requestFingerprint !== requestFingerprint) throw new Error(`Instance id conflict: ${instanceId}`)
+      this.materializeInstance(existing.instanceId, frozen)
       return existing
     }
     const now = Date.now()
@@ -175,8 +275,21 @@ export class WorkflowRuntimeService {
       createdAt: now,
       updatedAt: now,
     }
+    this.materializeInstance(instanceId, frozen)
     await this.facts.saveInstance(instance)
     return instance
+  }
+
+  private async captureInstanceDefinition(workflowRef: string): Promise<WorkflowDefinitionRevision> {
+    const frozen = await this.repository.capture(workflowRef)
+    if (!frozen.resourceReceipt) return frozen
+    const closure = await this.resourceRegistry.captureFrozenResourceClosure()
+    const files = { ...frozen.files, ...closure }
+    return {
+      ...frozen,
+      files,
+      revision: hashWorkflowSources(Object.entries(files).map(([filePath, content]) => ({ path: filePath, content }))),
+    }
   }
 
   async createInstanceFromPrebuilt(input: {
@@ -209,6 +322,7 @@ export class WorkflowRuntimeService {
     const existing = await this.facts.loadInstance(instanceId)
     if (existing) {
       if (existing.requestFingerprint !== requestFingerprint) throw new Error(`Instance id conflict: ${instanceId}`)
+      this.materializeInstance(existing.instanceId, frozen)
       return existing
     }
     const now = Date.now()
@@ -226,6 +340,7 @@ export class WorkflowRuntimeService {
       createdAt: now,
       updatedAt: now,
     }
+    this.materializeInstance(instanceId, frozen)
     await this.facts.saveInstance(instance)
     return instance
   }
@@ -234,13 +349,42 @@ export class WorkflowRuntimeService {
     return this.facts.loadInstance(instanceId)
   }
 
-  listInstances(): Promise<WorkflowInstance[]> {
-    return this.facts.listInstances()
+  async listInstances(): Promise<WorkflowInstance[]> {
+    const instances = await this.facts.listInstances()
+    return Promise.all(instances.map(async (instance) => {
+      const states = (await Promise.all(instance.runIds.map((runId) => this.status(runId))))
+        .filter((value): value is Record<string, unknown> => Boolean(value))
+      if (states.length === 0) return instance
+      const status = states.some((value) => value.status === "Running" || value.status === "Waiting")
+        ? "Running"
+        : states.some((value) => value.status === "Failed") ? "Failed" : "Completed"
+      return { ...instance, status }
+    }))
+  }
+
+  mutateRunStepExtension(input: {
+    instanceId: string
+    runId: string
+    stepId: string
+    kind: string
+    expectedRevision: number
+    value: import("ai-workflow-contract").FlowClosedValue
+  }) {
+    return this.stepExtensionFacade().mutateRunStepExtension(
+      { instanceId: input.instanceId, runId: input.runId, stepId: input.stepId, kind: input.kind },
+      { expectedRevision: input.expectedRevision, value: input.value },
+      {},
+    )
+  }
+
+  private stepExtensionFacade() {
+    return createWorkflowStepExtensionAuthoredFacade(this.depa.stepExtensionRuntime)
   }
 
   async flowSummary(runId: string): Promise<Record<string, unknown> | undefined> {
     const descriptor = await this.facts.loadDescriptor(runId)
     if (!descriptor) return undefined
+    const checkpoint = await this.ensureCanonicalCheckpoint(descriptor)
     const { bundlePath: _physicalBundlePath, ...portableDescriptor } = descriptor
     return {
       ok: true,
@@ -249,6 +393,15 @@ export class WorkflowRuntimeService {
       descriptor: portableDescriptor,
       instance: descriptor.instanceId ? await this.facts.loadInstance(descriptor.instanceId) : undefined,
       receipt: await this.facts.loadRunReceipt(runId),
+      receipt_authority: "derived-read-only",
+      checkpoint: checkpoint ? {
+        schemaVersion: checkpoint.schemaVersion,
+        version: checkpoint.version,
+        status: nestedRecord(checkpoint.state).status,
+        profileKind: checkpoint.profile.kind,
+        stepExtensions: checkpoint.stepExtensions,
+      } : undefined,
+      migration: this.legacyMigration.readReceipt({ instanceId: descriptor.instanceId, runId }),
     }
   }
 
@@ -336,10 +489,13 @@ export class WorkflowRuntimeService {
         },
       }
     }
-    if (instance.status !== "Prepared") throw new Error(`Instance has already started: ${instance.instanceId}`)
+    if (instance.status === "Running") throw new Error(`Instance already has an active run: ${instance.instanceId}`)
     const frozen = await this.facts.loadDefinitionRevision(instance.definitionRevision)
     if (!frozen) throw new Error(`Frozen definition revision not found: ${instance.definitionRevision}`)
-    const definition = this.repository.resolveFrozen(frozen, this.facts.frozenDefinitionRoot(frozen.revision))
+    const definition = this.repository.resolveFrozen(
+      frozen,
+      this.depa.load(instance.instanceId).definitionDir,
+    )
     const descriptor: WorkflowRunDescriptor = {
       runId: requestedRunId || `workflow-${randomUUID()}`,
       form: definition.binding.kind,
@@ -387,21 +543,49 @@ export class WorkflowRuntimeService {
 
   async status(runId: string): Promise<any | undefined> {
     const descriptor = await this.facts.loadDescriptor(runId)
+    let checkpoint: any
+    if (descriptor) {
+      checkpoint = await this.ensureCanonicalCheckpoint(descriptor)
+      if (checkpoint?.profile.kind === "WorkCtrlFlow" || checkpoint?.profile.kind === "AICtrlWorkflow") {
+        if (!this.ctrlNodeOrder.has(descriptor.runId)) await this.loadController(descriptor.runId)
+        const snapshot = checkpoint.profile.snapshot as any
+        return {
+          ...this.project(
+          "workflow.runStatus",
+          descriptor,
+          projectAICtrlWorkflowRunRecord(snapshot),
+          snapshot,
+          ),
+          checkpoint_version: checkpoint.version,
+          step_extensions: checkpoint.stepExtensions,
+        }
+      }
+    }
     if (descriptor?.form === "AIDataWorkflow") {
       const result = await (await this.loadDataDriver(descriptor))?.status()
-      return result && this.attachDescriptor(descriptor, result)
+      return result && {
+        ...this.attachDescriptor(descriptor, result),
+        checkpoint_version: checkpoint?.version,
+        step_extensions: checkpoint?.stepExtensions,
+      }
     }
     const loaded = await this.loadController(runId)
     if (!loaded) return undefined
     const record = await getAICtrlWorkflowRunRecord(loaded.controller, runId)
-    return record ? this.project("workflow.runStatus", loaded.descriptor, record, await this.facts.load(runId)) : undefined
+    return record ? this.project("workflow.runStatus", loaded.descriptor, record, await loaded.controller.store.load(runId)) : undefined
   }
 
   async resume(runId: string, signal: ResumeSignal): Promise<WorkflowRunProjection | undefined> {
     const loaded = await this.loadController(runId)
     if (!loaded) return undefined
     const record = await resumeAICtrlWorkflowRun(loaded.controller, runId, signal)
-    const projected = this.project("workflow.runResume", loaded.descriptor, record, await this.facts.load(runId))
+    const snapshot = await loaded.controller.store.load(runId)
+    const checkpoint = await this.ensureCanonicalCheckpoint(loaded.descriptor)
+    const projected = {
+      ...this.project("workflow.runResume", loaded.descriptor, record, snapshot),
+      checkpoint_version: checkpoint?.version,
+      step_extensions: checkpoint?.stepExtensions,
+    }
     await this.synchronizeInstanceStatus(runId, projected)
     return projected
   }
@@ -424,6 +608,7 @@ export class WorkflowRuntimeService {
   async events(runId: string) {
     const descriptor = await this.facts.loadDescriptor(runId)
     if (!descriptor) return undefined
+    const checkpoint = await this.ensureCanonicalCheckpoint(descriptor)
     return {
       ok: true,
       kind: "workflow.runEvents" as const,
@@ -437,14 +622,25 @@ export class WorkflowRuntimeService {
       run_id: descriptor.runId,
       generation: descriptor.generation,
       entries: await this.facts.readRunEvents(runId),
+      evidence_authority: "derived-read-only" as const,
+      checkpoint: checkpoint ? {
+        version: checkpoint.version,
+        stepExtensions: checkpoint.stepExtensions,
+      } : undefined,
+      migration: this.legacyMigration.readReceipt({ instanceId: descriptor.instanceId, runId }),
     }
   }
 
   async result(runId: string, allowPartial = false): Promise<any | undefined> {
     const descriptor = await this.facts.loadDescriptor(runId)
+    const checkpoint = descriptor ? await this.ensureCanonicalCheckpoint(descriptor) : undefined
     if (descriptor?.form === "AIDataWorkflow") {
       const result = await (await this.loadDataDriver(descriptor))?.result(allowPartial)
-      return result && this.attachDescriptor(descriptor, result)
+      return result && {
+        ...this.attachDescriptor(descriptor, result),
+        checkpoint_version: checkpoint?.version,
+        step_extensions: checkpoint?.stepExtensions,
+      }
     }
     const status = await this.status(runId)
     if (!status) return undefined
@@ -461,6 +657,10 @@ export class WorkflowRuntimeService {
   }
 
   async replay(input: { runId: string; newRunId?: string; confirmed?: boolean }): Promise<any> {
+    const descriptor = await this.facts.loadDescriptor(input.runId)
+    if (!descriptor) throw new Error(`Run descriptor not found: ${input.runId}`)
+    const checkpoint = await this.ensureCanonicalCheckpoint(descriptor)
+    if (!checkpoint) throw new Error(`Canonical checkpoint not found: ${input.runId}`)
     const receipt = await this.facts.loadRunReceipt(input.runId)
     if (!receipt) throw new Error(`Run receipt not found: ${input.runId}`)
     if (input.confirmed !== true) {
@@ -472,9 +672,14 @@ export class WorkflowRuntimeService {
         preview: {
           replay_of: receipt.runId,
           definition_revision: receipt.definitionRevision,
-          input: receipt.input,
+          input: checkpoint.input,
           material_bindings: receipt.inputMaterials,
           requested_run_id: input.newRunId ?? null,
+          source_checkpoint: {
+            version: checkpoint.version,
+            profile_kind: checkpoint.profile.kind,
+            step_extensions: checkpoint.stepExtensions,
+          },
         },
       }
     }
@@ -485,14 +690,17 @@ export class WorkflowRuntimeService {
       ...prior,
       instanceId,
       status: "Prepared",
-      input: receipt.input,
+      input: checkpoint.input,
       bindingIds: [],
       runIds: [],
       idempotencyKey: undefined,
-      requestFingerprint: fingerprint({ definitionRevision: receipt.definitionRevision, input: receipt.input, replayOf: receipt.runId }),
+      requestFingerprint: fingerprint({ definitionRevision: receipt.definitionRevision, input: checkpoint.input, replayOf: receipt.runId }),
       createdAt: now,
       updatedAt: now,
     }
+    const frozen = await this.facts.loadDefinitionRevision(receipt.definitionRevision)
+    if (!frozen) throw new Error(`Frozen definition revision not found: ${receipt.definitionRevision}`)
+    this.materializeInstance(instanceId, frozen)
     await this.facts.saveInstance(replayInstance)
     const replayBindingIds: string[] = []
     for (const source of receipt.inputMaterials) {
@@ -506,7 +714,15 @@ export class WorkflowRuntimeService {
       replayBindingIds.push(binding.bindingId)
     }
     await this.facts.saveInstance({ ...replayInstance, bindingIds: replayBindingIds })
-    return this.start({ instanceId, runId: input.newRunId, confirmed: true, replayOf: receipt.runId })
+    const replay = await this.start({ instanceId, runId: input.newRunId, confirmed: true, replayOf: receipt.runId })
+    return {
+      ...replay,
+      replay_source_checkpoint: {
+        version: checkpoint.version,
+        profile_kind: checkpoint.profile.kind,
+        step_extensions: checkpoint.stepExtensions,
+      },
+    }
   }
 
   async recordMaterialOutput(runId: string, material: WorkflowMaterialRevisionRef): Promise<WorkflowRunReceipt> {
@@ -526,56 +742,156 @@ export class WorkflowRuntimeService {
 
   private async execute(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition, input: unknown): Promise<any> {
     if (descriptor.form === "AIDataWorkflow") {
-      const driver = this.createDataDriver(descriptor, definition)
+      const driver = await this.createDataDriver(descriptor, definition)
       this.dataDrivers.set(descriptor.runId, driver)
       return this.attachDescriptor(descriptor, await driver.start(input))
     }
-    const controller = this.createController(descriptor, definition)
+    const controller = await this.createController(descriptor, definition)
     this.controllers.set(descriptor.runId, controller)
     const record = await startAICtrlWorkflowRun(controller, descriptor.runId, { input: nestedRecord(input) })
-    return this.project("workflow.run", descriptor, record, await this.facts.load(descriptor.runId))
+    return this.project("workflow.run", descriptor, record, await controller.store.load(descriptor.runId))
   }
 
-  private createController(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): CtrlController {
+  private async createController(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): Promise<CtrlController> {
     if (definition.binding.kind !== "AICtrlWorkflow") throw new Error("Expected AICtrlWorkflow binding")
     const component = createWorkflowComponentForRuntime(this.runtime)
     if (!component.authoring) throw new Error("Workflow authoring workspace is not bound")
     const activeRunAuthority = runRef(descriptor, definition)
+    const filesystemCode = createFilesystemFlowCodeResolver()
+    const declarationOrder: string[] = []
+    const visit = (node: any): void => {
+      if (typeof node?.id === "string") declarationOrder.push(node.id)
+      for (const child of node?.children ?? []) visit(child)
+      for (const section of Object.values(node?.sections ?? {})) visit(section)
+    }
+    for (const statement of definition.binding.definition.statements ?? []) visit(statement)
+    this.ctrlNodeOrder.set(descriptor.runId, new Map(declarationOrder.map((nodeId, index) => [nodeId, index])))
+    const instance = this.depa.load(descriptor.instanceId)
+    const canonicalCheckpointStore = createAICtrlWorkflowCheckpointStore(
+      this.depa.checkpointRuntime,
+      {
+        instanceId: descriptor.instanceId,
+        definition: instance.descriptor.definition,
+        config: { requestFingerprint: descriptor.requestFingerprint },
+        ai: EMPTY_AI_WORKFLOW_DURABLE_STATE,
+        initialStepExtensions: this.depa.initialStepExtensions(
+          descriptor.instanceId,
+          instance.descriptor.definition,
+          "AICtrlWorkflow",
+        ),
+      },
+    )
+    const checkpointStore: typeof canonicalCheckpointStore = {
+      load: (treeId) => canonicalCheckpointStore.load(treeId),
+      save: (snapshot) => canonicalCheckpointStore.save(durableCtrlValue(snapshot) as typeof snapshot),
+      remove: (treeId) => canonicalCheckpointStore.remove(treeId),
+    }
+    const frozenRegistry = this.frozenAgentRegistry(descriptor.instanceId)
+    const taskProofs = frozenRegistry
+      ? await this.frozenAgentTaskProofs(descriptor, definition, frozenRegistry)
+      : {}
+    const agentEffects = new EidolonWorkflowEffectProvider(
+      this.runtime,
+      new StoreBackedWorkflowMaterialAccess(component.authoring.store),
+      this.facts,
+      (request, output) => this.captureMaterialOutput(request.run.runId, effectOwnerNodeId(request), output.path),
+      () => activeRunAuthority,
+      frozenRegistry ? { workflowForm: descriptor.form, resourceRegistry: frozenRegistry } : undefined,
+      this.stepExtensionFacade(),
+    )
+    const bindAgentNode = definition.resourceReceipt
+      ? createAICtrlWorkflowAgentNodeRuntimeBinder({
+          flowInstanceId: descriptor.instanceId,
+          checkpointRuntime: this.depa.checkpointRuntime,
+          effects: agentEffects,
+          workflowRef: descriptor.workflowRef as `resource://${string}`,
+          taskProofs,
+        })
+      : undefined
     return createAICtrlWorkflowController({
       binding: definition.binding,
-      store: this.facts,
-      resolveCode: createFilesystemFlowCodeResolver(),
+      store: checkpointStore,
+      resolveCode: (input) => filesystemCode({
+        ...input,
+        reference: normalizeFrozenWorkflowCodeReference(input.reference),
+      }),
+      ...(bindAgentNode ? {
+        bindNodeRuntime: (nodeRuntime, identity) => {
+          if (!taskProofs[identity.nodeId]) return nodeRuntime
+          const bound = bindAgentNode(nodeRuntime, identity)
+          const authoredAi = bound.ai as AIWorkflowAuthoredRuntimeContext
+          const facade = this.stepExtensionFacade()
+          return Object.freeze({
+            ...bound,
+            ai: bindWorkflowStepExtensionAuthoredRuntime(authoredAi, facade),
+          })
+        },
+      } : {}),
       ai: {
         roots: runtimeRoots(this.runtime, component.authoring.store.rootPath),
-        stateStore: this.facts,
-        effects: new EidolonWorkflowEffectProvider(
-          this.runtime,
-          new StoreBackedWorkflowMaterialAccess(component.authoring.store),
-          this.facts,
-          (request, output) => this.captureMaterialOutput(request.run.runId, request.nodeId ?? "effect", output.path),
-          () => activeRunAuthority,
-          {
-            workflowForm: descriptor.form,
-            resourceRegistry: component.resourceRegistry,
-          },
-        ),
-        metadata: { run: activeRunAuthority },
+        stateStore: this.depa.stateProjection(descriptor.instanceId),
+        effects: agentEffects,
+        metadata: { run: activeRunAuthority, flowInstanceId: descriptor.instanceId },
       },
     })
   }
 
-  private createDataDriver(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): AIDataWorkflowRuntimeDriver {
+  private async createDataDriver(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): Promise<AIDataWorkflowRuntimeDriver> {
     const component = createWorkflowComponentForRuntime(this.runtime)
+    const frozenRegistry = this.frozenAgentRegistry(descriptor.instanceId)
+    const taskProofs = frozenRegistry
+      ? await this.frozenAgentTaskProofs(descriptor, definition, frozenRegistry)
+      : {}
     return new AIDataWorkflowRuntimeDriver(
       this.runtime,
       this.workspace,
       this.facts,
+      this.depa,
       descriptor,
       definition,
       runtimeRoots(this.runtime, this.workspace.store.rootPath),
-      (request, output) => this.captureMaterialOutput(request.run.runId, request.nodeId ?? "effect", output.path),
-      component.resourceRegistry,
+      (request, output) => this.captureMaterialOutput(request.run.runId, effectOwnerNodeId(request), output.path),
+      frozenRegistry,
+      taskProofs,
+      this.stepExtensionFacade(),
     )
+  }
+
+  private frozenAgentRegistry(instanceId: string): EidolonAppResourceRegistryAdapter | undefined {
+    const definitionDir = this.depa.load(instanceId).definitionDir
+    const layers = (["global", "workspace"] as const).flatMap((id) => {
+      const rootDir = path.join(definitionDir, ".agent-resources", id)
+      return existsSync(rootDir) ? [{ id, rootDir }] : []
+    })
+    return layers.length > 0 ? new EidolonAppResourceRegistryAdapter({ layers }) : undefined
+  }
+
+  private async frozenAgentTaskProofs(
+    descriptor: WorkflowRunDescriptor,
+    definition: ResolvedWorkflowDefinition,
+    registry: EidolonAppResourceRegistryAdapter,
+  ): Promise<Readonly<Record<string, FrozenAIAgentTaskBinding>>> {
+    const discovered = discoverAgentTasks(descriptor, definition)
+    const declared = await registry.listWorkflowAgentTasks(descriptor.workflowRef)
+    const tasksByNodeId = new Map<string, AIWorkflowAgentTaskRef>()
+    for (const task of [...declared, ...discovered]) {
+      const prior = tasksByNodeId.get(task.nodeId)
+      if (prior && (prior.workflowKind !== task.workflowKind
+        || prior.workflowRef !== task.workflowRef
+        || prior.agentDefinitionRef !== task.agentDefinitionRef)) {
+        throw new Error(`Frozen Agent task ${task.nodeId} has conflicting declared and discovered identities`)
+      }
+      tasksByNodeId.set(task.nodeId, task)
+    }
+    const tasks = [...tasksByNodeId.values()].sort((left, right) => left.nodeId < right.nodeId ? -1 : left.nodeId > right.nodeId ? 1 : 0)
+    const proofs: Record<string, FrozenAIAgentTaskBinding> = {}
+    for (const task of tasks) {
+      if (task.workflowKind !== descriptor.form) {
+        throw new Error(`Frozen Agent task ${task.nodeId} declares workflow kind ${task.workflowKind}, expected ${descriptor.form}`)
+      }
+      proofs[task.nodeId] = await registry.freezeWorkflowAgentTaskBinding(task)
+    }
+    return Object.freeze(proofs)
   }
 
   private async loadFrozenDefinition(
@@ -588,17 +904,59 @@ export class WorkflowRuntimeService {
     const frozen = await this.facts.loadDefinitionRevision(descriptor.definitionRevision)
     if (!frozen) throw new Error(`Frozen definition revision not found: ${descriptor.definitionRevision}`)
     if (frozen.form !== expectedForm) throw new Error(`Frozen workflow form mismatch: ${descriptor.definitionRevision}`)
-    return this.repository.resolveFrozen(frozen, this.facts.frozenDefinitionRoot(frozen.revision))
+    return this.repository.resolveFrozen(frozen, this.depa.load(descriptor.instanceId).definitionDir)
+  }
+
+  private materializeInstance(instanceId: string, frozen: WorkflowDefinitionRevision): void {
+    this.depa.materialize(
+      instanceId,
+      frozen,
+      this.facts.frozenDefinitionRoot(frozen.revision),
+      () => {
+        const validated = this.repository.captureSources({
+          files: Object.entries(frozen.files).map(([filePath, content]) => ({ path: filePath, content })),
+          form: frozen.form,
+          sourceBundlePath: `frozen:${frozen.revision}`,
+          workflowRef: frozen.workflowRef,
+        })
+        if (validated.fqn !== frozen.fqn || validated.form !== frozen.form) {
+          throw new Error(`Frozen workflow definition identity mismatch: ${frozen.revision}`)
+        }
+      },
+    )
   }
 
   private async loadDataDriver(descriptor: WorkflowRunDescriptor): Promise<AIDataWorkflowRuntimeDriver | undefined> {
     let driver = this.dataDrivers.get(descriptor.runId)
     if (!driver) {
-      driver = this.createDataDriver(descriptor, await this.loadFrozenDefinition(descriptor, "AIDataWorkflow"))
+      driver = await this.createDataDriver(descriptor, await this.loadFrozenDefinition(descriptor, "AIDataWorkflow"))
       if (!await driver.restore()) return undefined
       this.dataDrivers.set(descriptor.runId, driver)
     }
     return driver
+  }
+
+  private async ensureCanonicalCheckpoint(descriptor: WorkflowRunDescriptor) {
+    const key = { instanceId: descriptor.instanceId, runId: descriptor.runId }
+    if (existsSync(this.depa.instanceDirectory(descriptor.instanceId))) {
+      const existing = await this.depa.checkpointRuntime.checkpointStore.load(key)
+      if (existing) {
+        if (this.legacyMigration.readReceipt(key)) {
+          await this.legacyMigration.migrate({
+            legacyRunId: descriptor.runId,
+            targetInstanceId: descriptor.instanceId,
+            targetRunId: descriptor.runId,
+          })
+        }
+        return existing
+      }
+    }
+    await this.legacyMigration.migrate({
+      legacyRunId: descriptor.runId,
+      targetInstanceId: descriptor.instanceId,
+      targetRunId: descriptor.runId,
+    })
+    return this.depa.checkpointRuntime.checkpointStore.load(key)
   }
 
   private async loadController(runId: string): Promise<{ descriptor: WorkflowRunDescriptor; controller: CtrlController } | undefined> {
@@ -606,7 +964,7 @@ export class WorkflowRuntimeService {
     if (!descriptor || descriptor.form !== "AICtrlWorkflow") return undefined
     let controller = this.controllers.get(runId)
     if (!controller) {
-      controller = this.createController(descriptor, await this.loadFrozenDefinition(descriptor, "AICtrlWorkflow"))
+      controller = await this.createController(descriptor, await this.loadFrozenDefinition(descriptor, "AICtrlWorkflow"))
       this.controllers.set(runId, controller)
     }
     return { descriptor, controller }
@@ -631,7 +989,10 @@ export class WorkflowRuntimeService {
       generation: descriptor.generation,
       status: record.status,
       terminal,
-      nodes: record.nodes,
+      nodes: [...record.nodes].sort((left: any, right: any) => (
+        (this.ctrlNodeOrder.get(descriptor.runId)?.get(left.nodeId) ?? Number.MAX_SAFE_INTEGER)
+        - (this.ctrlNodeOrder.get(descriptor.runId)?.get(right.nodeId) ?? Number.MAX_SAFE_INTEGER)
+      )),
       open_wait_handles: record.openWaitHandles,
       ...(snapshot ? { vars: snapshot.vars } : {}),
     }

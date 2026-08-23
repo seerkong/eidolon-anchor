@@ -51,6 +51,7 @@ function expectWorkflowRuntimeToolNames(names: string[]) {
 
 function schemaAccepts(value: unknown, schema: any): boolean {
   if (schema.oneOf) return schema.oneOf.filter((branch: unknown) => schemaAccepts(value, branch)).length === 1
+  if (schema.anyOf && !schema.anyOf.some((branch: unknown) => schemaAccepts(value, branch))) return false
   if (schema.const !== undefined) return Object.is(value, schema.const)
   if (schema.enum) return schema.enum.includes(value)
   if (schema.type === "string") return typeof value === "string"
@@ -131,13 +132,25 @@ describe("native AI workflow tools", () => {
     expect(prepare).toBeDefined()
     expect(prepare!.schema.function.parameters).toEqual({
       type: "object",
-      properties: { session_id: { type: "string" } },
-      required: ["session_id"],
+      properties: {},
+      required: [],
+      additionalProperties: false,
+    })
+    const complete = buildWorkflowNativeToolDefs().find(
+      (def) => def.schema.function.name === "WorkflowCompleteAuthoring",
+    )
+    expect(complete!.schema.function.parameters).toEqual({
+      type: "object",
+      properties: {
+        stage: { type: "string", enum: ["coding", "testing", "releasing"] },
+        outcome: { type: "string", enum: ["ready", "published", "waiting", "failed"] },
+      },
+      required: ["stage", "outcome"],
       additionalProperties: false,
     })
   })
 
-  it("publishes disjoint ResourcePackage and legacy open-session parameter branches", () => {
+  it("publishes disjoint default, existing, fresh ResourcePackage and legacy open-session parameter branches", () => {
     const open = buildWorkflowNativeToolDefs().find(
       (def) => def.schema.function.name === "WorkflowOpenAuthoringSession",
     )
@@ -149,12 +162,46 @@ describe("native AI workflow tools", () => {
         {
           type: "object",
           properties: {
+            session_id: { type: "string" },
+            selected_resource_refs: { type: "array", items: { type: "string" }, minItems: 1 },
+          },
+          required: [],
+          additionalProperties: false,
+        },
+        {
+          type: "object",
+          properties: {
             artifact_kind: { type: "string", enum: ["resource-package"] },
             source_kind: { type: "string", enum: ["workspace-layer"] },
             session_id: { type: "string" },
             selected_resource_refs: { type: "array", items: { type: "string" }, minItems: 1 },
           },
           required: ["artifact_kind", "source_kind"],
+          additionalProperties: false,
+        },
+        {
+          type: "object",
+          properties: {
+            artifact_kind: { type: "string", enum: ["resource-package"] },
+            source_kind: { type: "string", enum: ["explicit-complete-package"] },
+            session_id: { type: "string" },
+            files: {
+              type: "array",
+              minItems: 1,
+              maxItems: 128,
+              items: {
+                type: "object",
+                properties: {
+                  path: { type: "string" },
+                  content: { type: "string" },
+                },
+                required: ["path", "content"],
+                additionalProperties: false,
+              },
+            },
+            selected_resource_refs: { type: "array", items: { type: "string" }, minItems: 1 },
+          },
+          required: ["artifact_kind", "source_kind", "files"],
           additionalProperties: false,
         },
         {
@@ -171,16 +218,37 @@ describe("native AI workflow tools", () => {
             },
             target: { type: "object", additionalProperties: true },
           },
-          required: [],
+          anyOf: [
+            { type: "object", required: ["form"] },
+            { type: "object", required: ["template_id"] },
+            { type: "object", required: ["prebuilt_id"] },
+            { type: "object", required: ["workflow_ref"] },
+          ],
           additionalProperties: false,
         },
       ],
     })
+    expect(schemaAccepts({}, parameters)).toBe(true)
+    expect(schemaAccepts({ session_id: "resource-default" }, parameters)).toBe(true)
     expect(schemaAccepts({
       artifact_kind: "resource-package",
       source_kind: "workspace-layer",
       selected_resource_refs: ["resource://eidolon.fixture.SummaryWorkflow"],
     }, parameters)).toBe(true)
+    expect(schemaAccepts({
+      artifact_kind: "resource-package",
+      source_kind: "explicit-complete-package",
+      files: [{ path: "manifest.xnl", content: "<ResourcePackage #example>" }],
+    }, parameters)).toBe(true)
+    expect(schemaAccepts({
+      artifact_kind: "resource-package",
+      source_kind: "explicit-complete-package",
+    }, parameters)).toBe(false)
+    expect(schemaAccepts({
+      artifact_kind: "resource-package",
+      source_kind: "explicit-complete-package",
+      files: [{ path: "manifest.xnl", bytes: [1, 2, 3] }],
+    }, parameters)).toBe(false)
     expect(schemaAccepts({
       artifact_kind: "resource-package",
       source_kind: "workspace-layer",
@@ -192,6 +260,7 @@ describe("native AI workflow tools", () => {
       target: { path: "demo" },
     }, parameters)).toBe(true)
     expect(schemaAccepts({ form: "ai-data" }, parameters)).toBe(true)
+    expect(schemaAccepts({ artifact_kind: "legacy-vfs-workflow-bundle" }, parameters)).toBe(false)
   })
 
   it("keeps the authoring schema on the explicit DeepSeek Chat request path and outside Responses", async () => {
@@ -225,7 +294,37 @@ describe("native AI workflow tools", () => {
 
     expect(emitted).toEqual(open.schema.function.parameters)
     expect(emitted.type).toBe("object")
-    expect(emitted.oneOf).toHaveLength(2)
+    expect(emitted.oneOf).toHaveLength(4)
+  })
+
+  it("exposes fresh ResourcePackage creation as one directly discoverable closed tool", () => {
+    const create = buildWorkflowNativeToolDefs().find(
+      (def) => def.schema.function.name === "WorkflowCreateResourcePackageSession",
+    )
+    expect(create).toBeDefined()
+    expect(create!.schema.function.parameters).toEqual({
+      type: "object",
+      properties: {
+        session_id: { type: "string" },
+        files: {
+          type: "array",
+          minItems: 1,
+          maxItems: 128,
+          items: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              content: { type: "string" },
+            },
+            required: ["path", "content"],
+            additionalProperties: false,
+          },
+        },
+        selected_resource_refs: { type: "array", items: { type: "string" }, minItems: 1 },
+      },
+      required: ["files"],
+      additionalProperties: false,
+    })
   })
 
   it("exposes one bounded multi-file read for a recoverable authoring session", () => {
@@ -242,6 +341,12 @@ describe("native AI workflow tools", () => {
       maxItems: 12,
       items: { type: "string" },
     })
+    expect(parameters.properties.patch).toBeUndefined()
+    expect(parameters.properties.operations).toMatchObject({
+      type: "array",
+      minItems: 1,
+      description: "Required when operation is patch. Atomic full-content operations restricted to /work.",
+    })
   })
 
   it("exposes workflow tools through model-visible built-in schemas", () => {
@@ -255,6 +360,7 @@ describe("native AI workflow tools", () => {
     expect(baseNames).toContain("WorkflowListApps")
     expect(baseNames).toContain("WorkflowGetApp")
     expect(baseNames).toContain("WorkflowOpenAuthoringSession")
+    expect(baseNames).toContain("WorkflowCreateResourcePackageSession")
     expect(baseNames).toContain("WorkflowPublishAuthoringSession")
     expect(baseNames).toContain("WorkflowValidateResourceRef")
     expect(baseNames).toContain("WorkflowCreateBundle")
@@ -271,6 +377,7 @@ describe("native AI workflow tools", () => {
     expect(allNames).toContain("WorkflowListApps")
     expect(allNames).toContain("WorkflowGetApp")
     expect(allNames).toContain("WorkflowOpenAuthoringSession")
+    expect(allNames).toContain("WorkflowCreateResourcePackageSession")
     expect(allNames).toContain("WorkflowPublishAuthoringSession")
     expect(allNames).toContain("WorkflowValidateResourceRef")
     expect(allNames).toContain("WorkflowCreateBundle")

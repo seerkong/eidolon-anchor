@@ -304,8 +304,10 @@ export class LocalFileRuntimeSnapshotRepository {
         systemPrompts: actor.systemPrompts,
         profileSystemPromptProvenance: actor.profileSystemPromptProvenance,
         identity: actor.identity,
+        agentName: actor.agentName,
         toolPolicy: actor.toolPolicy,
         contextPolicy: actor.contextPolicy,
+        executionContract: actor.executionContract,
         modelConfig: redactProviderSecrets(actor.modelConfig),
         ctrlOptions: actor.ctrlOptions,
       },
@@ -357,6 +359,7 @@ export class LocalFileRuntimeSnapshotRepository {
       systemPrompts: Array.isArray(actorJson.systemPrompts) ? actorJson.systemPrompts : [],
       profileSystemPromptProvenance: actorJson.profileSystemPromptProvenance,
       identity: actorJson.identity,
+      agentName: typeof actorJson.agentName === "string" ? actorJson.agentName : undefined,
       planApproval: stateJson.planApproval,
       shutdownCoordination: stateJson.shutdownCoordination,
       toolPolicy: actorJson.toolPolicy ?? {
@@ -367,6 +370,7 @@ export class LocalFileRuntimeSnapshotRepository {
         computedDisabledTools: [],
       },
       contextPolicy: actorJson.contextPolicy ?? { historyCompaction: "auto" },
+      executionContract: actorJson.executionContract,
       modelConfig: removePersistedProviderSecrets(actorJson.modelConfig ?? {}) as RuntimeSnapshotActor["modelConfig"],
       ctrlOptions: actorJson.ctrlOptions ?? {
         stopAfterFirstTool: false,

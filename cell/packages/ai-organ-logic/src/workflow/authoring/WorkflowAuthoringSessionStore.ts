@@ -1053,7 +1053,7 @@ function assertResourcePackageTarget(target: unknown): WorkflowResourcePackageTa
 }
 
 function safeRelative(value: string, allowRoot = false): string {
-  const normalized = value.trim().replaceAll("\\", "/").replace(/^\.\//, "")
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\//, "")
   if ((!normalized && !allowRoot) || normalized.startsWith("/") || (normalized !== "" && normalized.split("/").some((part) => part === ".." || part === ""))) {
     throw new Error(`unsafe workflow authoring path: ${value}`)
   }
@@ -1198,6 +1198,12 @@ function propertySegments(expression: ts.Expression): string[] | undefined {
   return undefined
 }
 
+function isDirectPropertyPath(expression: ts.Expression): boolean {
+  const current = unwrapExpression(expression)
+  return ts.isIdentifier(current)
+    || (ts.isPropertyAccessExpression(current) && isDirectPropertyPath(current.expression))
+}
+
 function objectPropertyName(property: ts.ObjectLiteralElementLike): string | undefined {
   if (!property.name) return undefined
   if (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) || ts.isNumericLiteral(property.name)) {
@@ -1243,20 +1249,45 @@ function validateEffectInvocationContracts(files: readonly WorkflowAuthoringFile
     const sourceFile = ts.createSourceFile(file.path, file.content, ts.ScriptTarget.Latest, true, scriptKind)
     const effectAliases = new Map<ts.FunctionLikeDeclaration, Map<string, string[]>>()
     const runAuthorityAliases = new Map<ts.FunctionLikeDeclaration, Map<string, string[]>>()
+    const memberAliases = new Map<ts.FunctionLikeDeclaration, Map<string, "invoke" | "runAgent" | "runTargetedAgent">>()
 
     const collectAliases = (node: ts.Node): void => {
-      if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer) {
+      if (ts.isVariableDeclaration(node) && node.initializer) {
         const segments = propertySegments(node.initializer)
         const scope = enclosingFunctionScope(node)
-        if (scope && segments?.slice(-2).join(".") === "ai.effects") {
+        const aliasedOwner = scope && segments?.length && effectAliases.get(scope)?.get(segments[0]!)
+        const resolvedSegments = aliasedOwner ? [...aliasedOwner, ...segments!.slice(1)] : segments
+        if (scope && ts.isIdentifier(node.name) && resolvedSegments?.slice(-2).join(".") === "ai.effects") {
           const aliases = effectAliases.get(scope) ?? new Map<string, string[]>()
-          aliases.set(node.name.text, segments)
+          aliases.set(node.name.text, resolvedSegments)
           effectAliases.set(scope, aliases)
         }
-        if (scope && segments?.slice(-3).join(".") === "ai.metadata.run") {
+        if (scope && ts.isIdentifier(node.name) && resolvedSegments?.slice(-3).join(".") === "ai.metadata.run") {
           const aliases = runAuthorityAliases.get(scope) ?? new Map<string, string[]>()
-          aliases.set(node.name.text, segments)
+          aliases.set(node.name.text, resolvedSegments)
           runAuthorityAliases.set(scope, aliases)
+        }
+        const member = resolvedSegments?.at(-1)
+        if (scope && ts.isIdentifier(node.name)
+          && resolvedSegments?.slice(-3, -1).join(".") === "ai.effects"
+          && (member === "invoke" || member === "runAgent" || member === "runTargetedAgent")) {
+          const aliases = memberAliases.get(scope) ?? new Map<string, "invoke" | "runAgent" | "runTargetedAgent">()
+          aliases.set(node.name.text, member)
+          memberAliases.set(scope, aliases)
+        }
+        if (scope && ts.isObjectBindingPattern(node.name)
+          && resolvedSegments?.slice(-2).join(".") === "ai.effects") {
+          const aliases = memberAliases.get(scope) ?? new Map<string, "invoke" | "runAgent" | "runTargetedAgent">()
+          for (const element of node.name.elements) {
+            if (!ts.isIdentifier(element.name)) continue
+            const property = element.propertyName && (ts.isIdentifier(element.propertyName) || ts.isStringLiteral(element.propertyName))
+              ? element.propertyName.text
+              : element.name.text
+            if (property === "invoke" || property === "runAgent" || property === "runTargetedAgent") {
+              aliases.set(element.name.text, property)
+            }
+          }
+          memberAliases.set(scope, aliases)
         }
       }
       ts.forEachChild(node, collectAliases)
@@ -1264,8 +1295,99 @@ function validateEffectInvocationContracts(files: readonly WorkflowAuthoringFile
     collectAliases(sourceFile)
 
     const inspectCalls = (node: ts.Node): void => {
+      if (ts.isPropertyAccessExpression(node) || ts.isElementAccessExpression(node)) {
+        const member = ts.isPropertyAccessExpression(node)
+          ? node.name.text
+          : node.argumentExpression && (ts.isStringLiteral(unwrapExpression(node.argumentExpression))
+            || ts.isNoSubstitutionTemplateLiteral(unwrapExpression(node.argumentExpression)))
+            ? (unwrapExpression(node.argumentExpression) as ts.StringLiteralLike).text
+            : undefined
+        const isSensitiveMember = member === "invoke" || member === "runAgent" || member === "runTargetedAgent"
+          || ts.isElementAccessExpression(node)
+        if (isSensitiveMember) {
+          const scope = enclosingFunctionScope(node)
+          const owner = unwrapExpression(node.expression)
+          const ownerSegments = propertySegments(owner)
+          const aliasedOwnerSegments = scope && ts.isIdentifier(owner)
+            ? effectAliases.get(scope)?.get(owner.text)
+            : undefined
+          const candidateOwnerSegments = aliasedOwnerSegments ?? ownerSegments
+          const isDirectCall = ts.isCallExpression(node.parent)
+            && unwrapExpression(node.parent.expression) === node
+          if (candidateOwnerSegments?.slice(-2).join(".") === "ai.effects" && !isDirectCall) {
+            const location = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+            diagnostics.push(
+              `${member === "invoke" ? "data-code-effect-contract" : "data-code-agent-contract"}: ${file.path}:${location.line + 1}:${location.character + 1} ${member ?? "computed effect capability"} must be called directly and cannot be captured, returned, or passed as an alias`,
+            )
+          }
+        }
+      }
       if (ts.isCallExpression(node)) {
         const callee = unwrapExpression(node.expression)
+        const scope = enclosingFunctionScope(node)
+        if (ts.isElementAccessExpression(callee)) {
+          const owner = unwrapExpression(callee.expression)
+          const ownerSegments = propertySegments(owner)
+          const aliasedOwnerSegments = ts.isIdentifier(owner)
+            ? effectAliases.get(scope!)?.get(owner.text)
+            : undefined
+          const candidateOwnerSegments = aliasedOwnerSegments ?? ownerSegments
+          if (candidateOwnerSegments?.slice(-2).join(".") === "ai.effects") {
+            const argument = callee.argumentExpression && unwrapExpression(callee.argumentExpression)
+            const member = argument && (ts.isStringLiteral(argument) || ts.isNoSubstitutionTemplateLiteral(argument))
+              ? argument.text
+              : undefined
+            const location = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+            diagnostics.push(
+              `${member === "invoke" ? "data-code-effect-contract" : "data-code-agent-contract"}: ${file.path}:${location.line + 1}:${location.character + 1} runtime.ai.effects element access is not an authored invocation surface; use a direct named capability`,
+            )
+            ts.forEachChild(node, inspectCalls)
+            return
+          }
+        }
+        const aliasedMember = ts.isIdentifier(callee) ? memberAliases.get(scope!)?.get(callee.text) : undefined
+        if (aliasedMember) {
+          const location = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+          diagnostics.push(
+            `${aliasedMember === "invoke" ? "data-code-effect-contract" : "data-code-agent-contract"}: ${file.path}:${location.line + 1}:${location.character + 1} ${aliasedMember} must be called as a direct runtime.ai.effects capability and cannot be invoked through an alias`,
+          )
+          ts.forEachChild(node, inspectCalls)
+          return
+        }
+        const directTypedMethod = ts.isPropertyAccessExpression(callee)
+          && (callee.name.text === "runAgent" || callee.name.text === "runTargetedAgent")
+          ? callee.name.text
+          : undefined
+        const computedTypedMethod = ts.isElementAccessExpression(callee)
+          && callee.argumentExpression !== undefined
+          && ts.isStringLiteral(unwrapExpression(callee.argumentExpression))
+          && (["runAgent", "runTargetedAgent"] as const).includes(
+            (unwrapExpression(callee.argumentExpression) as ts.StringLiteral).text as "runAgent" | "runTargetedAgent",
+          )
+          ? (unwrapExpression(callee.argumentExpression) as ts.StringLiteral).text as "runAgent" | "runTargetedAgent"
+          : undefined
+        const typedMethod = directTypedMethod ?? computedTypedMethod
+        if (typedMethod) {
+          const runtimeParameter = runtimeParameterName(scope)
+          const owner = ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)
+            ? unwrapExpression(callee.expression)
+            : undefined
+          const ownerSegments = owner ? propertySegments(owner) : undefined
+          const location = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
+          if (computedTypedMethod || !owner || !isDirectPropertyPath(owner) || !runtimeParameter
+            || !isRuntimeCapabilityPath(ownerSegments, runtimeParameter, ["ai", "effects"])) {
+            diagnostics.push(
+              `data-code-agent-contract: ${file.path}:${location.line + 1}:${location.character + 1} ${typedMethod} must be a direct runtime.ai.effects capability of the first Processor parameter`,
+            )
+          } else {
+            const expectedArguments = typedMethod === "runAgent" ? 2 : 3
+            if (node.arguments.length !== expectedArguments) {
+              diagnostics.push(
+                `data-code-agent-contract: ${file.path}:${location.line + 1}:${location.character + 1} ${typedMethod} requires exactly ${expectedArguments} authored arguments`,
+              )
+            }
+          }
+        }
         const isComputedInvoke = ts.isElementAccessExpression(callee)
           && callee.argumentExpression !== undefined
           && ts.isStringLiteral(unwrapExpression(callee.argumentExpression))
@@ -1276,7 +1398,6 @@ function validateEffectInvocationContracts(files: readonly WorkflowAuthoringFile
             ? callee.expression
             : undefined
         if (invokeOwner) {
-          const scope = enclosingFunctionScope(node)
           const runtimeParameter = runtimeParameterName(scope)
           const owner = unwrapExpression(invokeOwner)
           const ownerSegments = propertySegments(owner)
@@ -1285,41 +1406,59 @@ function validateEffectInvocationContracts(files: readonly WorkflowAuthoringFile
             : undefined
           const candidateOwnerSegments = aliasedOwnerSegments ?? ownerSegments
           const looksLikeEffectProvider = candidateOwnerSegments?.slice(-2).join(".") === "ai.effects"
-          const isEffectProvider = runtimeParameter !== undefined && (
-            isRuntimeCapabilityPath(ownerSegments, runtimeParameter, ["ai", "effects"])
-            || isRuntimeCapabilityPath(aliasedOwnerSegments, runtimeParameter, ["ai", "effects"])
-          )
           if (looksLikeEffectProvider) {
             const location = sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile))
-            if (isComputedInvoke) {
-              diagnostics.push(
-                `data-code-effect-contract: ${file.path}:${location.line + 1}:${location.character + 1} effects.invoke must use the canonical direct member capability`,
-              )
-              ts.forEachChild(node, inspectCalls)
-              return
-            }
-            if (!isEffectProvider) {
-              diagnostics.push(
-                `data-code-effect-contract: ${file.path}:${location.line + 1}:${location.character + 1} effects.invoke provider must originate from the current function runtime parameter`,
-              )
-              ts.forEachChild(node, inspectCalls)
-              return
-            }
             const request = node.arguments[0] ? unwrapExpression(node.arguments[0]) : undefined
+            const requestProperties = request && ts.isObjectLiteralExpression(request) ? request.properties : undefined
+            const requestPropertyNames = requestProperties?.map(objectPropertyName)
+            const hasSpread = requestProperties?.some(ts.isSpreadAssignment) ?? false
+            const expectedRequestFields = ["operation", "run", "effectId", "input", "config"] as const
+            const hasDuplicateCriticalField = ["operation", "run", "effectId", "input", "config"]
+              .some((name) => requestPropertyNames?.filter((candidate) => candidate === name).length !== 1)
+            const isClosedRequest = node.arguments.length === 1
+              && requestProperties?.length === expectedRequestFields.length
+              && requestPropertyNames?.every((name) => name !== undefined && expectedRequestFields.includes(name as typeof expectedRequestFields[number]))
+            if (hasSpread || hasDuplicateCriticalField || !isClosedRequest) {
+              diagnostics.push(
+                `data-code-effect-contract: ${file.path}:${location.line + 1}:${location.character + 1} fixed non-Agent effects.invoke requires one closed request object with exactly one direct operation, run, effectId, input, and config field`,
+              )
+              ts.forEachChild(node, inspectCalls)
+              return
+            }
+            const operationProperty = request && ts.isObjectLiteralExpression(request)
+              ? request.properties.find((property) => objectPropertyName(property) === "operation")
+              : undefined
+            const operation = operationProperty && ts.isPropertyAssignment(operationProperty)
+              ? unwrapExpression(operationProperty.initializer)
+              : undefined
+            const fixedNonAgentOperation = operation && ts.isStringLiteral(operation)
+              && operation.text !== "ai.agent"
+            if (!fixedNonAgentOperation) {
+              diagnostics.push(
+                `data-code-agent-contract: ${file.path}:${location.line + 1}:${location.character + 1} effects.invoke is internal-only for fixed non-Agent operations; authored Agent code must use runAgent or runTargetedAgent`,
+              )
+              ts.forEachChild(node, inspectCalls)
+              return
+            }
+            if (isComputedInvoke || !runtimeParameter || !isDirectPropertyPath(owner)
+              || !isRuntimeCapabilityPath(ownerSegments, runtimeParameter, ["ai", "effects"])) {
+              diagnostics.push(
+                `data-code-effect-contract: ${file.path}:${location.line + 1}:${location.character + 1} fixed non-Agent effects.invoke must be a direct capability of the first Processor runtime parameter`,
+              )
+              ts.forEachChild(node, inspectCalls)
+              return
+            }
             const runProperty = request && ts.isObjectLiteralExpression(request)
               ? request.properties.find((property) => objectPropertyName(property) === "run")
               : undefined
             const hasAuthoritativeRun = (() => {
-              if (!runProperty || !scope || !runtimeParameter) return false
-              if (ts.isShorthandPropertyAssignment(runProperty)) {
-                return isRuntimeCapabilityPath(
-                  runAuthorityAliases.get(scope)?.get(runProperty.name.text),
-                  runtimeParameter,
-                  ["ai", "metadata", "run"],
-                )
-              }
-              if (!ts.isPropertyAssignment(runProperty)) return false
-              const runExpression = unwrapExpression(runProperty.initializer)
+              if (!runProperty || !scope) return false
+              const runExpression = ts.isShorthandPropertyAssignment(runProperty)
+                ? runProperty.name
+                : ts.isPropertyAssignment(runProperty)
+                  ? unwrapExpression(runProperty.initializer)
+                  : undefined
+              if (!runExpression) return false
               const segments = propertySegments(runExpression)
               const aliasedSegments = ts.isIdentifier(runExpression)
                 ? runAuthorityAliases.get(scope)?.get(runExpression.text)
@@ -1329,9 +1468,11 @@ function validateEffectInvocationContracts(files: readonly WorkflowAuthoringFile
             })()
             if (!hasAuthoritativeRun) {
               diagnostics.push(
-                `data-code-effect-contract: ${file.path}:${location.line + 1}:${location.character + 1} effects.invoke request run must originate from runtime.ai.metadata.run`,
+                `data-code-effect-contract: ${file.path}:${location.line + 1}:${location.character + 1} fixed non-Agent effects.invoke run must originate from runtime.ai.metadata.run`,
               )
             }
+            ts.forEachChild(node, inspectCalls)
+            return
           }
         }
       }
@@ -1589,7 +1730,7 @@ export class WorkflowAuthoringSessionStore {
   }
 
   private resolve(sessionId: string, logicalPath: string): ResolvedLogicalPath {
-    const normalized = logicalPath.trim().replaceAll("\\", "/")
+    const normalized = logicalPath.trim().replace(/\\/g, "/")
     if (!normalized.startsWith("/") || normalized.includes("//")) {
       throw new Error(`unsafe workflow authoring VFS path: ${logicalPath}`)
     }
@@ -1857,7 +1998,12 @@ export class WorkflowAuthoringSessionStore {
     sessionId?: string
     source: WorkflowResourcePackageSource
     selectedResourceRefs?: readonly string[]
-  }): Promise<WorkflowAuthoringSession & { artifactKind: "resource-package"; target: WorkflowResourcePackageTarget }> {
+    includeSelection?: boolean
+  }): Promise<WorkflowAuthoringSession & {
+    artifactKind: "resource-package"
+    target: WorkflowResourcePackageTarget
+    selection?: WorkflowResourcePackageSelectionRead
+  }> {
     const sessionId = safeSessionId(input.sessionId?.trim() || `resource-package-${randomUUID()}`)
     try {
       await this.store.read(this.metadataPath(sessionId))
@@ -1867,7 +2013,7 @@ export class WorkflowAuthoringSessionStore {
     }
     const authority = this.resourcePackageBinding()
     const workspace = this.workspaceResourceLayer()
-    const selectedResourceRefs = (input.selectedResourceRefs ?? []).map(exactResourceRef)
+    let selectedResourceRefs = (input.selectedResourceRefs ?? []).map(exactResourceRef)
     if (new Set(selectedResourceRefs).size !== selectedResourceRefs.length) {
       throw new Error("Workflow resource-package selection contains duplicate exact refs")
     }
@@ -1898,6 +2044,16 @@ export class WorkflowAuthoringSessionStore {
       const candidateSnapshot = await authority.registry.loadIsolatedSnapshot({
         layers: this.candidateLayers(candidateRoot),
       })
+      if (selectedResourceRefs.length === 0) {
+        selectedResourceRefs = sortedUnique([
+          ...candidateSnapshot.appBundles
+            .filter((item) => candidateSnapshot.registry.byId.get(item.resource.resourceId)?.effectiveOrigin?.layerId === "workspace")
+            .map((item) => resourceRef(item.resource.resourceId)),
+          ...candidateSnapshot.agentResources.agentDefinitions
+            .filter((item) => candidateSnapshot.registry.byId.get(item.resource.resourceId)?.effectiveOrigin?.layerId === "workspace")
+            .map((item) => resourceRef(item.resource.resourceId)),
+        ])
+      }
       for (const ref of selectedResourceRefs) {
         const id = ref.slice("resource://".length)
         const selected = candidateSnapshot.registry.byId.get(id)
@@ -1952,7 +2108,10 @@ export class WorkflowAuthoringSessionStore {
         baseRegistryRevision: target.baseRegistryRevision,
         selectedResourceRefs,
       })
-      return session
+      const selection = input.includeSelection
+        ? await this.readResourcePackageSelection(sessionId)
+        : undefined
+      return selection ? { ...session, selection } : session
     } catch (error) {
       await this.store.delete(this.root(sessionId))
       throw error
@@ -3109,11 +3268,16 @@ export class WorkflowAuthoringSessionStore {
     for (const [workflowRef, workflowKind] of [...workflowForms].sort(([left], [right]) => compareCodeUnits(left, right))) {
       const resourceId = workflowRef.slice("resource://".length)
       const source = await authority.registry.readEffectiveSource(resourceId, snapshot)
-      const loadedWorkflow = this.resources.load({
-        form: workflowKind,
-        sources: { "manifest.xnl": source.source },
-        baseUri: source.baseUri,
-      })
+      const loadedWorkflow = (await authority.registry.loadEffectiveProfile(
+        source,
+        ({ sources, stepSources }) => this.resources.load({
+          form: workflowKind,
+          sources,
+          stepSources,
+          baseUri: source.baseUri,
+        }),
+        snapshot,
+      )).result
       if (
         !loadedWorkflow.binding
         || loadedWorkflow.diagnostics.length > 0

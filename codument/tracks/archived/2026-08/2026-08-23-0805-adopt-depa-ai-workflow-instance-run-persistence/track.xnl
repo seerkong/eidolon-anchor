@@ -1,0 +1,125 @@
+<Track #adopt-depa-ai-workflow-instance-run-persistence apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让 Eidolon 以 depa-flows 的 frozen Instance 与单一 FlowRunCheckpoint 作为 AI Workflow 持久化 authority。" description = "升级并接入已发布 depa runtime，迁移 WorkflowFactStore flat facts，统一 Ctrl/Data fresh-process recovery 与可检查 instance capsule。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-23T03:26:52.143Z" updated_at = "2026-08-23T05:05:41.987Z" modeling_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" engineering_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "implementation" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/" }>
+    <MaterialBundle { role = "output" name = "verification" domain = "test" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_adopt-depa-ai-workflow-instance-run-persistence { name = "adopt-depa-ai-workflow-instance-run-persistence" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Published contract binding and boundary baseline" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Bind exact depa runtime package identities" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0PD7Q2JN54Y5BQXCHK1HT5J>
+              Direct production dependencies resolve to the published terminal-smallest depa versions listed in design, with no registry, workspace, file, link or range substitute.
+              </?01M0PD7Q2JN54Y5BQXCHK1HT5J>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZ4>
+              Frozen install and a fresh package consumer load the materializer, checkpoint store and Ctrl/Data filesystem surfaces.
+              </?01M0PD7Q2KJTW26YHEA899XTZ4>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Establish neutral boundary baselines" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZ5>
+              Tests demonstrate that current flat Ctrl/Data/AI state paths are multiple writable authorities and that fresh recovery can depend on live definition bytes.
+              </?01M0PD7Q2KJTW26YHEA899XTZ5>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZ6>
+              Tests freeze the required no-dual-write, complete frozen bundle, v0-before-effect, path containment and opaque runtime-ref boundaries.
+              </?01M0PD7Q2KJTW26YHEA899XTZ6>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Canonical instance and checkpoint adapter" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Materialize and load frozen workflow instances" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZ7>
+              A new resource or explicit-vfs definition is copied as a complete depa instance bundle with exact revision, digest and provenance before its first run.
+              </?01M0PD7Q2KJTW26YHEA899XTZ7>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZ8>
+              Existing instance and second-run paths load owner-first from frozen bytes after live definition modification, deletion or invalidation.
+              </?01M0PD7Q2KJTW26YHEA899XTZ8>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Cut Ctrl and Data runtime to one checkpoint owner" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZ9>
+              Ctrl and Data start, wait, resume, patch, terminal result and fresh reconstruction all use the same filesystem checkpoint store and satisfy closed profile/envelope projection.
+              </?01M0PD7Q2KJTW26YHEA899XTZ9>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZA>
+              Version 0 is committed before the first node effect; accepted completed Data nodes are not re-dispatched after fresh recovery, and every transition preserves the closed profile.ai carrier for the subsequent typed Agent facade track.
+              </?01M0PD7Q2KJTW26YHEA899XTZA>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Legacy cutover and native read surfaces" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Implement durable one-way legacy migration" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZB>
+              Closed legacy inventory converts Ctrl/Data/AI facts into one canonical instance/run with an exact durable receipt; repeated and interrupted migration converge.
+              </?01M0PD7Q2KJTW26YHEA899XTZB>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZC>
+              Conflicts, malformed facts, symlink/traversal and CAS races fail before admission; new runtime writes no legacy Ctrl, AI state, Data graph or Agent execution file.
+              </?01M0PD7Q2KJTW26YHEA899XTZC>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Project query, CLI and tool results from canonical state" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZD>
+              Status, result, replay, evidence, list and summary surfaces share the component-owned checkpoint snapshot and never expose physical host paths.
+              </?01M0PD7Q2KJTW26YHEA899XTZD>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZE>
+              Legacy-only runs remain explicitly readable or migratable, while migrated and new runs have one authority and one instance/run identity.
+              </?01M0PD7Q2KJTW26YHEA899XTZE>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Recovery, compatibility and independent verification" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "Verify Ctrl and Data fresh-process lifecycle" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZF>
+              Physical resource fixtures complete Ctrl and Data create-instance, v0, wait/partial progress, fresh resume and terminal idempotence using the inspectable instance capsule.
+              </?01M0PD7Q2KJTW26YHEA899XTZF>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZG>
+              A second run under the same instance uses the same frozen definition and a distinct run checkpoint without duplicating mutable instance state.
+              </?01M0PD7Q2KJTW26YHEA899XTZG>
+            ]>
+          )>
+          <Task #P4-T2 { name = "Run compatibility, build and authority gates" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZH>
+              Focused and workflow suites, type/build, frozen install, package identity, strict Codument, XNL/XML and diff checks pass.
+              </?01M0PD7Q2KJTW26YHEA899XTZH>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0PD7Q2KJTW26YHEA899XTZJ>
+              Static checks find no production dual write, second checkpoint/profile schema, workflow-specific actor/history store, host fuzzy semantic routing or registry override.
+              </?01M0PD7Q2KJTW26YHEA899XTZJ>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Node #P1>
+    <Node #P2 [
+      <After { ref = "P1" }>
+    ]>
+    <Node #P3 [
+      <After { ref = "P2" }>
+    ]>
+    <Node #P4 [
+      <After { ref = "P3" }>
+    ]>
+  ]>
+  <Hooks []>
+)>

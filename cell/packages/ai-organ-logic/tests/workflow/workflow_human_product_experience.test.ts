@@ -240,6 +240,7 @@ describe("workflow human product experience", () => {
     }
     const coding = applyAiWorkflowStageToolPolicy(actor, "coding")
     expect(coding).toContain("WorkflowWorkspace")
+    expect(coding).toContain("WorkflowCreateResourcePackageSession")
     expect(coding).toContain("Skill")
     expect(coding).not.toContain("WorkflowRun")
     const monitoring = applyAiWorkflowStageToolPolicy(actor, "monitoring")

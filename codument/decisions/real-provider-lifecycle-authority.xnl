@@ -1,0 +1,103 @@
+<decision #track.verify-eidolon-resource-native-app-lifecycle.real-provider apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QPC3W6FS2X1VCHA5B0RDA4>
+  What proves the terminal lifecycle is usable?
+  </?01M0QPC3W6FS2X1VCHA5B0RDA4>
+  <answer (
+    <raw-answer ?01M0QPC3W6FS2X1VCHA5B0RDA5>
+    A fresh journey through the current compiled product and current provider preset.
+    </?01M0QPC3W6FS2X1VCHA5B0RDA5>
+    <decision-text ?01M0QPC3W6FS2X1VCHA5B0RDA6>
+    The terminal acceptance SHALL use compiled eidolon workflow agent without a model override; deterministic providers may reproduce boundaries but cannot replace the final journey.
+    </?01M0QPC3W6FS2X1VCHA5B0RDA6>
+    <rationale ?01M0QPC3W6FS2X1VCHA5B0RDA7>
+    The reported failure concerned real provider latency and tool payload behavior.
+    </?01M0QPC3W6FS2X1VCHA5B0RDA7>
+    <evidence ?01M0QPC3W6FS2X1VCHA5B0RDA8>
+    The mission preserves the prior 142.956-second and invalid_tool_call_payload incident facts; the ephemeral original sessions no longer exist.
+    </?01M0QPC3W6FS2X1VCHA5B0RDA8>
+  )>
+  <confidence ?01M0QPC3W6FS2X1VCHA5B0RDA9>
+  0.99
+  </?01M0QPC3W6FS2X1VCHA5B0RDA9>
+  <reversibility ?01M0QPC3W6FS2X1VCHA5B0RDAA>
+  moderate
+  </?01M0QPC3W6FS2X1VCHA5B0RDAA>
+)>
+
+<decision #track.verify-eidolon-resource-native-app-lifecycle.isolation apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QPC3W6FS2X1VCHA5B0RDAB>
+  How can the real provider be used without modifying user state?
+  </?01M0QPC3W6FS2X1VCHA5B0RDAB>
+  <answer (
+    <raw-answer ?01M0QPC3W6FS2X1VCHA5B0RDAC>
+    Run with mktemp HOME/global/workspace and copy only the two current provider configuration files into the temporary HOME.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAC>
+    <decision-text ?01M0QPC3W6FS2X1VCHA5B0RDAD>
+    The harness SHALL initialize and mutate only isolated roots, redact credentials from all durable evidence, and leave the real ~/.eidolon untouched.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAD>
+    <rationale ?01M0QPC3W6FS2X1VCHA5B0RDAE>
+    Provider configuration is required for realism; user assets and secrets are not acceptance outputs.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAE>
+    <evidence ?01M0QPC3W6FS2X1VCHA5B0RDAF>
+    Local config resolution supports project-or-HOME `.eidolon/llm-provider.json` and `agent-present.json`, while global init accepts an explicit root.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAF>
+  )>
+  <confidence ?01M0QPC3W6FS2X1VCHA5B0RDAG>
+  0.98
+  </?01M0QPC3W6FS2X1VCHA5B0RDAG>
+  <reversibility ?01M0QPC3W6FS2X1VCHA5B0RDAH>
+  high
+  </?01M0QPC3W6FS2X1VCHA5B0RDAH>
+)>
+
+<decision #track.verify-eidolon-resource-native-app-lifecycle.authorization apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QPC3W6FS2X1VCHA5B0RDAJ>
+  How are publication and execution separated?
+  </?01M0QPC3W6FS2X1VCHA5B0RDAJ>
+  <answer (
+    <raw-answer ?01M0QPC3W6FS2X1VCHA5B0RDAK>
+    Three explicit turns in one durable session.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAK>
+    <decision-text ?01M0QPC3W6FS2X1VCHA5B0RDAM>
+    Create SHALL not publish or run; the second turn SHALL authorize publication only; the third SHALL authorize execution and bind input.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAM>
+    <rationale ?01M0QPC3W6FS2X1VCHA5B0RDAN>
+    Proof, publication authorization and execution authorization are separate product facts.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAN>
+    <evidence ?01M0QPC3W6FS2X1VCHA5B0RDAP>
+    Existing workflow CLI and native tools expose separate authoring, publication, instance and run transitions.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAP>
+  )>
+  <confidence ?01M0QPC3W6FS2X1VCHA5B0RDAQ>
+  0.99
+  </?01M0QPC3W6FS2X1VCHA5B0RDAQ>
+  <reversibility ?01M0QPC3W6FS2X1VCHA5B0RDAR>
+  low
+  </?01M0QPC3W6FS2X1VCHA5B0RDAR>
+)>
+
+<decision #track.verify-eidolon-resource-native-app-lifecycle.fact-driven-repair apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QPC3W6FS2X1VCHA5B0RDAS>
+  How may a failed journey be repaired?
+  </?01M0QPC3W6FS2X1VCHA5B0RDAS>
+  <answer (
+    <raw-answer ?01M0QPC3W6FS2X1VCHA5B0RDAT>
+    Only from stable provider/tool/runtime facts in the owning generic component.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAT>
+    <decision-text ?01M0QPC3W6FS2X1VCHA5B0RDAV>
+    No repair may add natural-language, node-name, App/workflow-name or alias heuristics, nor a workflow-specific actor/session/compactor/resource authority.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAV>
+    <rationale ?01M0QPC3W6FS2X1VCHA5B0RDAW>
+    Model-owned semantics and deterministic structured components are a non-negotiable architecture boundary.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAW>
+    <evidence ?01M0QPC3W6FS2X1VCHA5B0RDAX>
+    The mission and completed architecture tracks explicitly prohibit fuzzy host routing and parallel authorities.
+    </?01M0QPC3W6FS2X1VCHA5B0RDAX>
+  )>
+  <confidence ?01M0QPC3W6FS2X1VCHA5B0RDAY>
+  1.0
+  </?01M0QPC3W6FS2X1VCHA5B0RDAY>
+  <reversibility ?01M0QPC3W6FS2X1VCHA5B0RDAZ>
+  low
+  </?01M0QPC3W6FS2X1VCHA5B0RDAZ>
+)>

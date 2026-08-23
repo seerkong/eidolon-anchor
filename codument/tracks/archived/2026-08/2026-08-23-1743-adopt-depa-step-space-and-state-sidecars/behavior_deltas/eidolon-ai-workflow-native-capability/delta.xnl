@@ -1,0 +1,24 @@
+<BehaviorPatch #track.adopt-depa-step-space-and-state-sidecars.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/modular-step-space-authoring" } (
+      <Requirement #modular-step-space-authoring (
+        <Statement ?>Eidolon authoring and publication SHALL support depa modular StepSpace and schema-bound extensions without flattening them into host-private workflow code or state schemas.</?>
+        <Suites [
+          <Suite #authoring-proof { name = "Authoring and publication proof" } (
+            <Cases [
+              <Case #explicit-refs (<Given ?>an authored ResourcePackage contains StepSpaceRef, StepRef, StepGroupRef or ExtensionRef</?><When ?>the package is opened, patched, proved and published</?><Then ?>membership SHALL follow exact virtual refs and unreferenced directory entries SHALL not be discovered semantically</?>)>
+              <Case #proof-before-publication (<Given ?>a step closure escapes containment, uses a symlink, has malformed XNL, mismatched identity/schema or an unavailable codec</?><When ?>publication proof runs</?><Then ?>the operation SHALL fail before changing the live package, registry snapshot, instance, checkpoint or receipt</?>)>
+              <Case #local-authoring-change (<Given ?>one authored step core or extension changes</?><When ?>the candidate revision is produced</?><Then ?>unrelated authored files SHALL retain their exact bytes and the frozen closure digest SHALL change deterministically</?>)>
+            ]>
+          )>
+          <Suite #typed-runtime-and-skills { name = "Typed runtime and generated guidance" } (
+            <Cases [
+              <Case #processor-surface (<Given ?>authored Ctrl or Data code updates a run step extension</?><When ?>it is type-checked and executed</?><Then ?>the bottom call SHALL use the explicit-runtime Processor form and the bound facade SHALL retain the same typed operation name</?>)>
+              <Case #generated-reference (<Given ?>the published Flow DSL reference contains StepSpace and sidecar semantics</?><When ?>Eidolon system Skills are generated and installed</?><Then ?>Authoring and Run guidance SHALL load the exact reference progressively and SHALL not copy a competing storage protocol</?>)>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,77 +1,158 @@
 <Behavior #eidolon.ai-workflow-native-component apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #shared-component-authority (
-      <Statement ?01M05F1P2DC5G7HC8B3AZD75H8>
+      <Statement ?01M0QPAV4RB742TB91QMBCT3XZ>
       Eidolon AI workflow tools SHALL delegate workflow inspection, validation and authoring commands to a shared workflow component/service instead of implementing independent tool-local workflow logic.
-      </?01M05F1P2DC5G7HC8B3AZD75H8>
+      </?01M0QPAV4RB742TB91QMBCT3XZ>
       <Suites [
         <Suite #tool-service-sharing { name = "Tool service sharing" } (
           <Cases [
             <Case #inspect-and-validate-use-component (
-              <Given ?01M05F1P2DC5G7HC8B3AZD75H9>
+              <Given ?01M0QPAV4RB742TB91QMBCT3Y0>
               WorkflowInspectCapability and WorkflowValidateResourceRef are registered as Eidolon native tools
-              </?01M05F1P2DC5G7HC8B3AZD75H9>
-              <When ?01M05F1P2DC5G7HC8B3AZD75HA>
+              </?01M0QPAV4RB742TB91QMBCT3Y0>
+              <When ?01M0QPAV4RB742TB91QMBCT3Y1>
               the tools execute
-              </?01M05F1P2DC5G7HC8B3AZD75HA>
-              <Then ?01M05F1P2DC5G7HC8B3AZD75HB>
+              </?01M0QPAV4RB742TB91QMBCT3Y1>
+              <Then ?01M0QPAV4RB742TB91QMBCT3Y2>
               they SHALL use the shared workflow component/service command or query boundary
-              </?01M05F1P2DC5G7HC8B3AZD75HB>
+              </?01M0QPAV4RB742TB91QMBCT3Y2>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #controlled-authoring-tools (
-      <Statement ?01M05F1P2DC5G7HC8B3AZD75HC>
+      <Statement ?01M0QPAV4RB742TB91QMBCT3Y3>
       Eidolon SHALL expose controlled workflow authoring tools that create or patch XNL workflow bundles through the workflow component write boundary.
-      </?01M05F1P2DC5G7HC8B3AZD75HC>
+      </?01M0QPAV4RB742TB91QMBCT3Y3>
       <Suites [
         <Suite #authoring-resource-safety { name = "Authoring resource safety" } (
           <Cases [
             <Case #create-bundle-validates-resource-refs (
-              <Given ?01M05F1P2DC5G7HC8B3AZD75HD>
+              <Given ?01M0QPAV4RB742TB91QMBCT3Y4>
               a workflow create request contains bundle resource references
-              </?01M05F1P2DC5G7HC8B3AZD75HD>
-              <When ?01M05F1P2DC5G7HC8B3AZD75HE>
+              </?01M0QPAV4RB742TB91QMBCT3Y4>
+              <When ?01M0QPAV4RB742TB91QMBCT3Y5>
               the workflow component prepares the bundle draft
-              </?01M05F1P2DC5G7HC8B3AZD75HE>
-              <Then ?01M05F1P2DC5G7HC8B3AZD75HF>
+              </?01M0QPAV4RB742TB91QMBCT3Y5>
+              <Then ?01M0QPAV4RB742TB91QMBCT3Y6>
               the component SHALL validate resource refs and reject host absolute paths, traversal, naked relative paths, file refs and http refs
-              </?01M05F1P2DC5G7HC8B3AZD75HF>
+              </?01M0QPAV4RB742TB91QMBCT3Y6>
             )>
             <Case #authoring-output-is-structured (
-              <Given ?01M05F1P2DC5G7HC8B3AZD75HG>
+              <Given ?01M0QPAV4RB742TB91QMBCT3Y7>
               an AI agent asks to create or patch a workflow
-              </?01M05F1P2DC5G7HC8B3AZD75HG>
-              <When ?01M05F1P2DC5G7HC8B3AZD75HH>
+              </?01M0QPAV4RB742TB91QMBCT3Y7>
+              <When ?01M0QPAV4RB742TB91QMBCT3Y8>
               the corresponding tool completes
-              </?01M05F1P2DC5G7HC8B3AZD75HH>
-              <Then ?01M05F1P2DC5G7HC8B3AZD75HJ>
+              </?01M0QPAV4RB742TB91QMBCT3Y8>
+              <Then ?01M0QPAV4RB742TB91QMBCT3Y9>
               the tool SHALL return structured JSON evidence describing files, refs and validation diagnostics
-              </?01M05F1P2DC5G7HC8B3AZD75HJ>
+              </?01M0QPAV4RB742TB91QMBCT3Y9>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #no-mcp-in-eidolon-integration (
-      <Statement ?01M05F1P2DC5G7HC8B3AZD75HK>
+      <Statement ?01M0QPAV4RB742TB91QMBCT3YA>
       Eidolon AI workflow integration SHALL NOT add an MCP adapter or MCP tool surface in this track.
-      </?01M05F1P2DC5G7HC8B3AZD75HK>
+      </?01M0QPAV4RB742TB91QMBCT3YA>
       <Suites [
         <Suite #surface-scope { name = "Surface scope" } (
           <Cases [
             <Case #only-native-tools (
-              <Given ?01M05F1P2DC5G7HC8B3AZD75HM>
+              <Given ?01M0QPAV4RB742TB91QMBCT3YB>
               workflow native component and tools are added to Eidolon
-              </?01M05F1P2DC5G7HC8B3AZD75HM>
-              <When ?01M05F1P2DC5G7HC8B3AZD75HN>
+              </?01M0QPAV4RB742TB91QMBCT3YB>
+              <When ?01M0QPAV4RB742TB91QMBCT3YC>
               the integration surface is inspected
-              </?01M05F1P2DC5G7HC8B3AZD75HN>
-              <Then ?01M05F1P2DC5G7HC8B3AZD75HP>
+              </?01M0QPAV4RB742TB91QMBCT3YC>
+              <Then ?01M0QPAV4RB742TB91QMBCT3YD>
               the added surface SHALL be Eidolon native tools only; MCP remains out of scope
-              </?01M05F1P2DC5G7HC8B3AZD75HP>
+              </?01M0QPAV4RB742TB91QMBCT3YD>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #workspace-resource-package-publication-transaction (
+      <Statement ?01M0QPAV4RB742TB91QMBCT3YE>
+      The shared WorkflowComponent SHALL publish one complete prepared workspace ResourcePackage with target-wide CAS, recoverable same-parent atomic replacement and same-component registry refresh/readback.
+      </?01M0QPAV4RB742TB91QMBCT3YE>
+      <Suites [
+        <Suite #atomic-publication { name = "Recoverable publication transaction" } (
+          <Cases [
+            <Case #cas-and-swap (
+              <Given ?01M0QPAV4RB742TB91QMBCT3YF>
+              a session records an exact live-base revision and current complete proof
+              </?01M0QPAV4RB742TB91QMBCT3YF>
+              <When ?01M0QPAV4RB742TB91QMBCT3YG>
+              publication is explicitly authorized
+              </?01M0QPAV4RB742TB91QMBCT3YG>
+              <Then ?01M0QPAV4RB742TB91QMBCT3YH>
+              the component SHALL lock the workspace resource target, recheck the live base, preflight a same-parent candidate and atomically replace the whole root or leave the prior root intact
+              </?01M0QPAV4RB742TB91QMBCT3YH>
+            )>
+            <Case #recovery-and-idempotence (
+              <Given ?01M0QPAV4RB742TB91QMBCT3YJ>
+              a publication is repeated, interrupted or resumed
+              </?01M0QPAV4RB742TB91QMBCT3YJ>
+              <When ?01M0QPAV4RB742TB91QMBCT3YK>
+              the same target is recovered under its persistent attempt journal
+              </?01M0QPAV4RB742TB91QMBCT3YK>
+              <Then ?01M0QPAV4RB742TB91QMBCT3YM>
+              the same session/revision SHALL return one stable receipt, a competing revision SHALL conflict, and staging/backup state SHALL recover deterministically
+              </?01M0QPAV4RB742TB91QMBCT3YM>
+            )>
+            <Case #refresh-readback (
+              <Given ?01M0QPAV4RB742TB91QMBCT3YN>
+              the candidate becomes the live workspace resource root
+              </?01M0QPAV4RB742TB91QMBCT3YN>
+              <When ?01M0QPAV4RB742TB91QMBCT3YP>
+              the publication transaction performs readback
+              </?01M0QPAV4RB742TB91QMBCT3YP>
+              <Then ?01M0QPAV4RB742TB91QMBCT3YQ>
+              a component-owned publication fence SHALL isolate candidate loading from current readers, coordinate snapshot/source reads and ordinary refresh generations, admit the candidate snapshot only after exact live-root verification, and SHALL roll back without exposing it if readback fails
+              </?01M0QPAV4RB742TB91QMBCT3YQ>
+            )>
+            <Case #concurrent-reader-admission (
+              <Given ?01M0QPAV4RB742TB91QMBCT3YR>
+              ordinary snapshot, source-read or refresh work is in flight while publication swaps the live root
+              </?01M0QPAV4RB742TB91QMBCT3YR>
+              <When ?01M0QPAV4RB742TB91QMBCT3YS>
+              the publication fence advances or rolls back
+              </?01M0QPAV4RB742TB91QMBCT3YS>
+              <Then ?01M0QPAV4RB742TB91QMBCT3YT>
+              readers SHALL observe the prior admitted snapshot, the newly admitted verified snapshot, or a stable retryable diagnostic, and MUST NOT observe an unverified candidate or reuse a stale loading promise
+              </?01M0QPAV4RB742TB91QMBCT3YT>
+            )>
+          ]>
+        )>
+        <Suite #single-authority-boundaries { name = "Single resource authority" } (
+          <Cases [
+            <Case #no-parallel-resource-manager (
+              <Given ?01M0QPAV4RB742TB91QMBCT3YV>
+              the authoring and publication implementation is inspected
+              </?01M0QPAV4RB742TB91QMBCT3YV>
+              <When ?01M0QPAV4RB742TB91QMBCT3YW>
+              resource semantics are resolved
+              </?01M0QPAV4RB742TB91QMBCT3YW>
+              <Then ?01M0QPAV4RB742TB91QMBCT3YX>
+              Eidolon MUST delegate package/catalog/Kind/layer/content/dependency logic to Halfcode and App/Agent/Material semantics to depa, without another scanner, catalog or resolver
+              </?01M0QPAV4RB742TB91QMBCT3YX>
+            )>
+            <Case #no-host-semantic-routing (
+              <Given ?01M0QPAV4RB742TB91QMBCT3YY>
+              a structured authoring or publication tool call is handled
+              </?01M0QPAV4RB742TB91QMBCT3YY>
+              <When ?01M0QPAV4RB742TB91QMBCT3YZ>
+              mode, operation, resource or authorization is selected
+              </?01M0QPAV4RB742TB91QMBCT3YZ>
+              <Then ?01M0QPAV4RB742TB91QMBCT3Z0>
+              host code MUST use closed typed fields and MUST NOT use natural-language, name, regex, keyword, substring, fuzzy, alias or ordered heuristics
+              </?01M0QPAV4RB742TB91QMBCT3Z0>
             )>
           ]>
         )>

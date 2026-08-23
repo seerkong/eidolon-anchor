@@ -5,13 +5,9 @@ description: <%= metadata.description %>
 
 # <%= metadata.title %>
 
-Use exact structured authoring operations. Start with:
+Use exact structured authoring operations. The coding stage context already includes this Skill root and `operations/index.md`; do not load them again.
 
-```json
-{ "skill": "sys-eidolon-anchor-authoring", "resource": "operations/index.md" }
-```
-
-For an existing workspace ResourcePackage, establish recoverable state before reading grammar: load this Skill and `operations/index.md`, query only the App and reusable-Agent identities that are still missing, then call `WorkflowOpenAuthoringSession` in the next provider completion. Do not query templates or prebuilt workflows for an in-place package update. Opening the complete package is deterministic and does not choose its semantic topology.
+Call `WorkflowOpenAuthoringSession` immediately without querying App, reusable-Agent, template or prebuilt lists. Its deterministic default opens an existing workspace ResourcePackage. If the exact result says that no complete workspace package exists, load `operations/create-resource-package.md` with only the exact required grammar references and call `WorkflowCreateResourcePackageSession` with one complete file set. Do not fall back to `WorkflowCreateBundle`. Opening or creating the complete package does not choose semantic topology.
 
 After the session exists, load `sys-halfcode-resource-dsl` for the generic XNL resource contract. For workflow Kind/profile semantics, first read `references/flow-dsl/README.md`, then load only the exact declared reference needed for the selected Kind or profile. Use `WorkflowWorkspace(operation=read_selection)` before requesting further source files.
 

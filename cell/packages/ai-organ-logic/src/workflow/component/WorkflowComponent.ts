@@ -1,4 +1,5 @@
 import path from "node:path"
+import type { DefinitionStepExtensionCodecRegistryPort } from "flow-step-space-contract"
 
 import {
   EidolonAppResourceRegistryAdapter,
@@ -74,6 +75,7 @@ export type WorkflowComponentOptions = {
   candidateHarness?: WorkflowCandidateAcceptanceHarness
   resourceLayers?: readonly ResourcePackageLayerBinding[]
   resourceRegistry?: EidolonAppResourceRegistryAdapter
+  extensionCodecs?: DefinitionStepExtensionCodecRegistryPort
 }
 
 export type WorkflowComponentRuntimeLike = {
@@ -120,8 +122,21 @@ function runtimeResourcePackageLayers(runtime: WorkflowComponentRuntimeLike): re
   })
 }
 
+function runtimeStepExtensionCodecs(
+  runtime: WorkflowComponentRuntimeLike,
+): DefinitionStepExtensionCodecRegistryPort | undefined {
+  const metadata = record(runtime.vm?.outerCtx?.metadata)
+  const aiWorkflow = record(metadata?.aiWorkflow)
+  const candidate = aiWorkflow?.extensionCodecs
+  return candidate
+    && typeof candidate === "object"
+    && typeof (candidate as { resolve?: unknown }).resolve === "function"
+    ? candidate as DefinitionStepExtensionCodecRegistryPort
+    : undefined
+}
+
 export function createWorkflowComponent(options: WorkflowComponentOptions = {}): WorkflowComponent {
-  const resources = options.resources ?? new WorkflowResourceLoader()
+  const resources = options.resources ?? new WorkflowResourceLoader(options.extensionCodecs)
   const store = options.store
     ?? (options.workspaceRoot ? new NodeWorkflowAuthoringStore(options.workspaceRoot) : undefined)
   const effectiveStore = store ?? new NodeWorkflowAuthoringStore(path.resolve(process.cwd(), ".eidolon", "workflows"))
@@ -190,6 +205,7 @@ export function createWorkflowComponentForRuntimeBinding(
     ...options,
     workspaceRoot: runtimeWorkspaceRoot(runtime),
     resourceLayers: options.resourceLayers ?? runtimeResourcePackageLayers(runtime),
+    extensionCodecs: options.extensionCodecs ?? runtimeStepExtensionCodecs(runtime),
   })
 }
 

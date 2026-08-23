@@ -21,7 +21,7 @@
     "@cell/symbiont-logic": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",
     "@cell/ai-organ-logic": "workspace:*",
-    "ai-workflow-flow-dsl-reference": "0.1.0",
+    "ai-workflow-flow-dsl-reference": "0.1.5",
     "halfcode-compiler.xnl": "0.2.3",
     "xnl-core": "^0.1.10"
   }

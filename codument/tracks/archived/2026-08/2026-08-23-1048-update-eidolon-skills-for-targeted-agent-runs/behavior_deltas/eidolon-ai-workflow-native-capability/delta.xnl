@@ -1,0 +1,53 @@
+<BehaviorPatch #track.update-eidolon-skills-for-targeted-agent-runs.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/typed-targeted-agent-skill-guidance" } (
+      <Requirement #typed-targeted-agent-skill-guidance (
+        <Statement ?>Eidolon system Skills SHALL teach authored Ctrl/Data Processors to use the typed Agent facade and exact instance selector while preserving generic runtime ownership.</?>
+        <Suites [
+          <Suite #authoring-api { name = "Typed Agent authoring" } (
+            <Cases [
+              <Case #runtime-first-methods (
+                <Given ?>The model loads the Authoring Agent operation and exact Flow DSL references</?>
+                <When ?>It authors an ordinary Ctrl or Data Processor that invokes an Agent</?>
+                <Then ?>The Skill SHALL preserve runtime as the first Processor parameter and SHALL use direct runAgent or runTargetedAgent without an authored Agent invoke envelope</?>
+              )>
+              <Case #closed-selector (
+                <Given ?>A later node targets an Agent instance in the same run</?>
+                <When ?>The model selects that instance by authored name or returned id</?>
+                <Then ?>The Skill SHALL use exactly one non-empty byInstanceName or byInstanceId field and SHALL NOT invent selector aliases or host text routing</?>
+              )>
+            ]>
+          )>
+          <Suite #runtime-authority { name = "Instance continuity and state authority" } (
+            <Cases [
+              <Case #same-generic-owner (
+                <Given ?>Different invocation keys target the same accepted Agent instance</?>
+                <When ?>The run continues or is reconstructed</?>
+                <Then ?>The Skill SHALL preserve the stable instance/session references and SHALL describe generic runtime snapshot recovery rather than child conversation history reuse</?>
+              )>
+              <Case #flow-state-boundary (
+                <Given ?>The workflow checkpoint records Agent invocation state</?>
+                <When ?>The Skill explains inspect, replay or recovery</?>
+                <Then ?>It SHALL keep only closed instance indexes, invocation receipts and opaque runtime refs in profile.ai and SHALL keep actor, conversation, provider and compaction facts in generic runtime authority</?>
+              )>
+            ]>
+          )>
+          <Suite #reference-distribution { name = "Generated reference and Skill distribution" } (
+            <Cases [
+              <Case #published-reference (
+                <Given ?>The Authoring capsule includes Flow DSL references</?>
+                <When ?>The system generates the Skill distribution plan</?>
+                <Then ?>The references SHALL be mapped byte-for-byte from the exact published depa reference module with Halfcode provenance and SHALL NOT be manually copied</?>
+              )>
+              <Case #global-readback (
+                <Given ?>The updated managed Skills pass build and content verification</?>
+                <When ?>Global init updates an isolated or actual global root</?>
+                <Then ?>It SHALL atomically admit the exact four-Skill closure, preserve ordinary Skills and expose the new Authoring/Run/DevOps patch versions</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

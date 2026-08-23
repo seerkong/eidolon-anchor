@@ -136,6 +136,7 @@ export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"
   shutdownCoordination?: AiAgentActorContract["shutdownCoordination"];
   toolPolicy: ActorToolPolicy;
   contextPolicy?: AiAgentActorContract["contextPolicy"];
+  executionContract?: AiAgentActorContract["executionContract"];
   modelConfig: ActorModelConfig;
   ctrlOptions: ActorCtrlOptions;
   taskTree: TaskTree;

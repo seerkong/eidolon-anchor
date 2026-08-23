@@ -2,6 +2,7 @@ import type { AiAgentOneActorRuntime, ToolDef } from "@cell/ai-core-contract/typ
 import type { AiWorkflowForm } from "@cell/ai-workflow-contract"
 import { createWorkflowComponentForRuntime } from "../component"
 import {
+  hashWorkflowBinaryFiles,
   projectWorkflowAuthoringSessionPage,
   projectWorkflowAuthoringSummary,
 } from "../authoring"
@@ -26,9 +27,123 @@ function form(value: unknown): AiWorkflowForm {
   throw new Error("workflow form is required")
 }
 
+function explicitCompletePackageFiles(value: unknown): Array<{ path: string; bytes: Uint8Array }> {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 128) {
+    throw new Error("ResourcePackage explicit files must contain between 1 and 128 entries")
+  }
+  const files: Array<{ path: string; bytes: Uint8Array }> = []
+  for (let index = 0; index < value.length; index += 1) {
+    const arrayDescriptor = Object.getOwnPropertyDescriptor(value, String(index))
+    if (!arrayDescriptor || !("value" in arrayDescriptor) || !arrayDescriptor.enumerable) {
+      throw new Error(`ResourcePackage explicit files[${index}] must be one dense data entry`)
+    }
+    const entry = arrayDescriptor.value
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+      throw new Error(`ResourcePackage explicit files[${index}] must be one plain object`)
+    }
+    const prototype = Object.getPrototypeOf(entry)
+    if (prototype !== Object.prototype && prototype !== null) {
+      throw new Error(`ResourcePackage explicit files[${index}] must be one plain object`)
+    }
+    if (Object.getOwnPropertySymbols(entry).length > 0) {
+      throw new Error(`ResourcePackage explicit files[${index}] contains unsupported fields`)
+    }
+    const names = Object.getOwnPropertyNames(entry)
+    if (names.length !== 2 || !names.includes("path") || !names.includes("content")) {
+      throw new Error(`ResourcePackage explicit files[${index}] fields must be path and content`)
+    }
+    const pathDescriptor = Object.getOwnPropertyDescriptor(entry, "path")
+    const contentDescriptor = Object.getOwnPropertyDescriptor(entry, "content")
+    if (
+      !pathDescriptor || !("value" in pathDescriptor) || !pathDescriptor.enumerable
+      || !contentDescriptor || !("value" in contentDescriptor) || !contentDescriptor.enumerable
+    ) {
+      throw new Error(`ResourcePackage explicit files[${index}] fields must be enumerable data fields`)
+    }
+    const filePath = text(pathDescriptor.value, `files[${index}].path`)
+    if (typeof contentDescriptor.value !== "string") {
+      throw new Error(`files[${index}].content must be a string`)
+    }
+    files.push({ path: filePath, bytes: new TextEncoder().encode(contentDescriptor.value) })
+  }
+  return files
+}
+
+function boundedResourceDiagnostics(error: unknown): Array<{ code: string; location: string; message: string }> | undefined {
+  if (typeof error !== "object" || error === null) return undefined
+  const descriptor = Object.getOwnPropertyDescriptor(error, "diagnostics")
+  if (descriptor && "value" in descriptor && Array.isArray(descriptor.value)) {
+    const diagnostics: Array<{ code: string; location: string; message: string }> = []
+    for (let index = 0; index < Math.min(descriptor.value.length, 20); index += 1) {
+      const item = descriptor.value[index]
+      if (typeof item !== "object" || item === null || Array.isArray(item)) continue
+      const code = Object.getOwnPropertyDescriptor(item, "code")
+      const location = Object.getOwnPropertyDescriptor(item, "location")
+      const message = Object.getOwnPropertyDescriptor(item, "message")
+      if (
+        !code || !("value" in code) || typeof code.value !== "string"
+        || !location || !("value" in location) || typeof location.value !== "string"
+        || !message || !("value" in message) || typeof message.value !== "string"
+      ) continue
+      diagnostics.push({ code: code.value, location: location.value, message: message.value })
+    }
+    return diagnostics.length > 0 ? diagnostics : undefined
+  }
+
+  const vfsDescriptor = Object.getOwnPropertyDescriptor(error, "diagnostic")
+  if (!vfsDescriptor || !("value" in vfsDescriptor)) return undefined
+  const diagnostic = vfsDescriptor.value
+  if (typeof diagnostic !== "object" || diagnostic === null || Array.isArray(diagnostic)) return undefined
+  const kind = Object.getOwnPropertyDescriptor(diagnostic, "kind")
+  const code = Object.getOwnPropertyDescriptor(diagnostic, "code")
+  const operation = Object.getOwnPropertyDescriptor(diagnostic, "operation")
+  const filePath = Object.getOwnPropertyDescriptor(diagnostic, "path")
+  const expected = Object.getOwnPropertyDescriptor(diagnostic, "expected")
+  const actual = Object.getOwnPropertyDescriptor(diagnostic, "actual")
+  if (
+    !kind || !("value" in kind) || kind.value !== "workflow.authoringVfsDiagnostic"
+    || !code || !("value" in code) || (code.value !== "not_found" && code.value !== "operation_mismatch")
+    || !operation || !("value" in operation) || typeof operation.value !== "string"
+    || !filePath || !("value" in filePath) || typeof filePath.value !== "string"
+    || !expected || !("value" in expected) || typeof expected.value !== "string"
+    || !actual || !("value" in actual) || typeof actual.value !== "string"
+  ) return undefined
+  return [{
+    code: `WORKFLOW_AUTHORING_VFS_${String(code.value).toUpperCase()}`,
+    location: filePath.value,
+    message: `${operation.value} expected ${expected.value}, found ${actual.value}`,
+  }]
+}
+
 function outerSessionId(runtime: AiAgentOneActorRuntime): string | undefined {
   const value = (runtime.vm.outerCtx?.metadata as Record<string, unknown> | undefined)?.sessionId
   return typeof value === "string" && value.trim() ? value.trim() : undefined
+}
+
+async function activeAuthoringIdentity(
+  runtime: AiAgentOneActorRuntime,
+  input: { session_id?: unknown; expected_revision?: unknown },
+  component: ReturnType<typeof createWorkflowComponentForRuntime>,
+): Promise<{ sessionId: string; revision?: string }> {
+  const progress = runtime.actor.workflowProgress
+  let sessionId = input.session_id === undefined
+    ? progress?.activeAuthoringSessionId
+    : text(input.session_id, "session_id")
+  let revision = input.expected_revision === undefined
+    ? progress?.activeAuthoringRevision
+    : text(input.expected_revision, "expected_revision")
+  if (!sessionId) {
+    const outerId = outerSessionId(runtime)
+    const continuation = outerId
+      ? await component.sessions.readFulfillmentContinuation(outerId)
+      : undefined
+    if (continuation?.kind === "authoring") {
+      sessionId = continuation.authoring_session_id
+      revision ??= continuation.expected_revision
+    }
+  }
+  if (!sessionId) throw new Error("active workflow authoring session is not available")
+  return { sessionId, revision }
 }
 
 function tool(
@@ -113,10 +228,19 @@ export function buildWorkflowListReusableAgentsToolDef(): JsonTool {
 export function buildWorkflowOpenAuthoringSessionToolDef(): JsonTool {
   return toolWithParameters(
     "WorkflowOpenAuthoringSession",
-    "Open a recoverable four-mount workflow authoring session from an empty, template or prebuilt starting fact.",
+    "Open the current workspace ResourcePackage by default, create one from an explicit complete text file set, or explicitly open a recoverable legacy workflow authoring session.",
     {
       type: "object",
       oneOf: [
+        {
+          type: "object",
+          properties: {
+            session_id: { type: "string" },
+            selected_resource_refs: { type: "array", items: { type: "string" }, minItems: 1 },
+          },
+          required: [],
+          additionalProperties: false,
+        },
         {
           type: "object",
           properties: {
@@ -131,6 +255,31 @@ export function buildWorkflowOpenAuthoringSessionToolDef(): JsonTool {
         {
           type: "object",
           properties: {
+            artifact_kind: { type: "string", enum: ["resource-package"] },
+            source_kind: { type: "string", enum: ["explicit-complete-package"] },
+            session_id: { type: "string" },
+            files: {
+              type: "array",
+              minItems: 1,
+              maxItems: 128,
+              items: {
+                type: "object",
+                properties: {
+                  path: { type: "string" },
+                  content: { type: "string" },
+                },
+                required: ["path", "content"],
+                additionalProperties: false,
+              },
+            },
+            selected_resource_refs: { type: "array", items: { type: "string" }, minItems: 1 },
+          },
+          required: ["artifact_kind", "source_kind", "files"],
+          additionalProperties: false,
+        },
+        {
+          type: "object",
+          properties: {
             artifact_kind: { type: "string", enum: ["legacy-vfs-workflow-bundle"] },
             session_id: { type: "string" },
             form: { type: "string", enum: ["AICtrlWorkflow", "AIDataWorkflow", "ai-ctrl", "ai-data"] },
@@ -139,14 +288,49 @@ export function buildWorkflowOpenAuthoringSessionToolDef(): JsonTool {
             workflow_ref: { type: "string", description: "Published logical resource or VFS ref to import into /base and /work." },
             target: { type: "object", additionalProperties: true },
           },
-          required: [],
+          anyOf: [
+            { type: "object", required: ["form"] },
+            { type: "object", required: ["template_id"] },
+            { type: "object", required: ["prebuilt_id"] },
+            { type: "object", required: ["workflow_ref"] },
+          ],
           additionalProperties: false,
         },
       ],
     },
     async (runtime, input) => {
       const component = createWorkflowComponentForRuntime(runtime)
-      if (input.artifact_kind === "resource-package") {
+      if (input.artifact_kind === "resource-package" && input.source_kind === "explicit-complete-package") {
+        if (input.selected_resource_refs !== undefined && !Array.isArray(input.selected_resource_refs)) {
+          throw new Error("ResourcePackage authoring selected_resource_refs must be an array")
+        }
+        const session = await component.sessions.openResourcePackage({
+          sessionId: input.session_id,
+          source: {
+            kind: "explicit-complete-package",
+            files: explicitCompletePackageFiles(input.files),
+          },
+          selectedResourceRefs: input.selected_resource_refs,
+        })
+        const opened = {
+          ...session,
+          selection: await component.sessions.readResourcePackageSelection(session.sessionId),
+        }
+        return withWorkflowDomainProgress(opened, {
+          owner: "workflow.authoring",
+          transition: "workspace_opened",
+          subjectId: session.sessionId,
+          revision: session.workingRevision,
+        })
+      }
+      const opensWorkspaceResourcePackage = input.artifact_kind === "resource-package"
+        || (input.artifact_kind === undefined
+          && input.form === undefined
+          && input.template_id === undefined
+          && input.prebuilt_id === undefined
+          && input.workflow_ref === undefined
+          && input.target === undefined)
+      if (opensWorkspaceResourcePackage) {
         if (input.template_id || input.prebuilt_id || input.workflow_ref || input.form || input.target) {
           throw new Error("ResourcePackage authoring does not accept legacy workflow starting facts")
         }
@@ -161,9 +345,10 @@ export function buildWorkflowOpenAuthoringSessionToolDef(): JsonTool {
           source: { kind: "workspace-layer" },
           selectedResourceRefs: input.selected_resource_refs,
         })
-        const opened = input.selected_resource_refs === undefined
-          ? session
-          : { ...session, selection: await component.sessions.readResourcePackageSelection(session.sessionId) }
+        const opened = {
+          ...session,
+          selection: await component.sessions.readResourcePackageSelection(session.sessionId),
+        }
         return withWorkflowDomainProgress(opened, {
           owner: "workflow.authoring",
           transition: "workspace_opened",
@@ -234,6 +419,79 @@ export function buildWorkflowOpenAuthoringSessionToolDef(): JsonTool {
         target: input.target,
       })
       return withWorkflowDomainProgress(session, {
+        owner: "workflow.authoring",
+        transition: "workspace_opened",
+        subjectId: session.sessionId,
+        revision: session.workingRevision,
+      })
+    },
+  )
+}
+
+export function buildWorkflowCreateResourcePackageSessionToolDef(): JsonTool {
+  return toolWithParameters(
+    "WorkflowCreateResourcePackageSession",
+    "Create one recoverable ResourcePackage authoring session from a complete model-authored UTF-8 file set. This does not publish or run the package.",
+    {
+      type: "object",
+      properties: {
+        session_id: { type: "string" },
+        files: {
+          type: "array",
+          minItems: 1,
+          maxItems: 128,
+          items: {
+            type: "object",
+            properties: {
+              path: { type: "string" },
+              content: { type: "string" },
+            },
+            required: ["path", "content"],
+            additionalProperties: false,
+          },
+        },
+        selected_resource_refs: { type: "array", items: { type: "string" }, minItems: 1 },
+      },
+      required: ["files"],
+      additionalProperties: false,
+    },
+    async (runtime, input) => {
+      const component = createWorkflowComponentForRuntime(runtime)
+      if (input.selected_resource_refs !== undefined && !Array.isArray(input.selected_resource_refs)) {
+        throw new Error("ResourcePackage authoring selected_resource_refs must be an array")
+      }
+      const files = explicitCompletePackageFiles(input.files)
+      let session: Awaited<ReturnType<typeof component.sessions.openResourcePackage>>
+      try {
+        session = await component.sessions.openResourcePackage({
+          sessionId: input.session_id,
+          source: { kind: "explicit-complete-package", files },
+          selectedResourceRefs: input.selected_resource_refs,
+          includeSelection: true,
+        })
+      } catch (error) {
+        const diagnostics = boundedResourceDiagnostics(error)
+        if (!diagnostics) throw error
+        return withWorkflowDomainProgress({
+          status: "validation_failed",
+          diagnostics,
+          diagnosticCount: diagnostics.length,
+          truncated: ((error as { diagnostics?: readonly unknown[] }).diagnostics?.length ?? 0) > diagnostics.length,
+          effectDispatched: false,
+        }, {
+          owner: "workflow.authoring",
+          transition: "candidate_diagnostic",
+          subjectId: typeof input.session_id === "string" && input.session_id.trim()
+            ? input.session_id.trim()
+            : "fresh-resource-package-candidate",
+          revision: hashWorkflowBinaryFiles(files),
+        })
+      }
+      const opened = {
+        ...session,
+        selection: session.selection,
+      }
+      return withWorkflowDomainProgress(opened, {
         owner: "workflow.authoring",
         transition: "workspace_opened",
         subjectId: session.sessionId,
@@ -356,11 +614,11 @@ export function buildWorkflowPreparePublicationToolDef(): JsonTool {
   return tool(
     "WorkflowPreparePublication",
     "Deterministically produce the complete exact-revision diff, validation, static projection, build and component-derived acceptance-disposition receipt set without publishing or running real effects.",
-    { session_id: { type: "string" } },
-    ["session_id"],
+    {},
+    [],
     async (runtime, input) => {
       const component = createWorkflowComponentForRuntime(runtime)
-      const sessionId = text(input.session_id, "session_id")
+      const { sessionId } = await activeAuthoringIdentity(runtime, input, component)
       const session = await component.sessions.describe(sessionId)
       const result = await (session.artifactKind === "resource-package"
         ? component.sessions.prepareResourcePackagePublication({ sessionId })
@@ -380,17 +638,17 @@ export function buildWorkflowCompleteAuthoringToolDef(): JsonTool {
     "WorkflowCompleteAuthoring",
     "Request a terminal authoring transition; the component generates the authoritative typed receipt from persisted session and proof facts.",
     {
-      session_id: { type: "string" },
-      expected_revision: { type: "string" },
       stage: { type: "string", enum: ["coding", "testing", "releasing"] },
       outcome: { type: "string", enum: ["ready", "published", "waiting", "failed"] },
     },
-    ["session_id", "expected_revision", "stage", "outcome"],
+    ["stage", "outcome"],
     async (runtime, input) => {
       const component = createWorkflowComponentForRuntime(runtime)
+      const identity = await activeAuthoringIdentity(runtime, input, component)
+      if (!identity.revision) throw new Error("active workflow authoring revision is not available")
       const receipt = await component.sessions.createAuthoringReceipt({
-        sessionId: text(input.session_id, "session_id"),
-        expectedWorkingRevision: text(input.expected_revision, "expected_revision"),
+        sessionId: identity.sessionId,
+        expectedWorkingRevision: identity.revision,
         stage: input.stage,
         outcome: input.outcome,
       })
@@ -455,6 +713,7 @@ export function buildWorkflowAuthoringToolDefs(): JsonTool[] {
     buildWorkflowListPrebuiltWorkflowsToolDef(),
     buildWorkflowListReusableAgentsToolDef(),
     buildWorkflowOpenAuthoringSessionToolDef(),
+    buildWorkflowCreateResourcePackageSessionToolDef(),
     buildWorkflowValidateAuthoringSessionToolDef(),
     buildWorkflowDryRunAuthoringSessionToolDef(),
     buildWorkflowPreparePublicationToolDef(),

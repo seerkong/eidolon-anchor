@@ -133,25 +133,145 @@ describe("workflow publication proof pipeline", () => {
       {
         suffix: "misplaced-runtime",
         exportName: "misplacedRuntime",
+        diagnostic: "data-code-agent-contract",
         source: `export async function misplacedRuntime(input: any, runtime: any, config: any) {
-  const result = await runtime.ai.effects.invoke({ run: runtime.ai.metadata.run, effectId: "invalid", operation: "identity", input, config })
+  const result = await runtime.ai.effects.runAgent(input, config)
   return { result }
 }\n`,
       },
       {
         suffix: "computed-capability",
         exportName: "computedCapability",
+        diagnostic: "data-code-agent-contract",
         source: `export async function computedCapability(runtime: any, input: any, config: any) {
-  const fake = { ai: { metadata: { run: runtime.ai.metadata.run } } }
-  const result = await runtime["ai"]["effects"].invoke({ run: fake["ai"]["metadata"]["run"], effectId: "invalid", operation: "identity", input, config })
+  const result = await runtime["ai"]["effects"].runAgent(input, config)
   return { result }
 }\n`,
       },
       {
         suffix: "computed-invoke",
         exportName: "computedInvoke",
+        diagnostic: "data-code-effect-contract",
         source: `export async function computedInvoke(runtime: any, input: any, config: any) {
   const result = await runtime.ai.effects["invoke"]({ run: runtime.ai.metadata.run, effectId: "invalid", operation: "identity", input, config })
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "aliased-agent-capability",
+        exportName: "aliasedAgentCapability",
+        diagnostic: "data-code-agent-contract",
+        source: `export async function aliasedAgentCapability(runtime: any, input: any, config: any) {
+  const runAgent = runtime.ai.effects.runAgent
+  const result = await runAgent(input, config)
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "aliased-invoke-capability",
+        exportName: "aliasedInvokeCapability",
+        diagnostic: "data-code-effect-contract",
+        source: `export async function aliasedInvokeCapability(runtime: any, input: any, config: any) {
+  const invoke = runtime.ai.effects.invoke
+  const result = await invoke({ run: runtime.ai.metadata.run, effectId: "invalid", operation: "ai.agent", input, config })
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "destructured-agent-capability",
+        exportName: "destructuredAgentCapability",
+        diagnostic: "data-code-agent-contract",
+        source: `export async function destructuredAgentCapability(runtime: any, input: any, config: any) {
+  const { runTargetedAgent: targeted } = runtime.ai.effects
+  const result = await targeted({ byInstanceName: "shared" }, { input }, config)
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "dynamic-agent-capability",
+        exportName: "dynamicAgentCapability",
+        diagnostic: "data-code-agent-contract",
+        source: `export async function dynamicAgentCapability(runtime: any, input: any, config: any) {
+  const method = "runAgent"
+  const result = await runtime.ai.effects[method](input, config)
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "template-targeted-capability",
+        exportName: "templateTargetedCapability",
+        diagnostic: "data-code-agent-contract",
+        source: `export async function templateTargetedCapability(runtime: any, input: any, config: any) {
+  const result = await runtime.ai.effects[\`runTargetedAgent\`]({ byInstanceName: "shared" }, { input }, config)
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "spread-invoke-request",
+        exportName: "spreadInvokeRequest",
+        diagnostic: "data-code-effect-contract",
+        source: `export async function spreadInvokeRequest(runtime: any, input: any, config: any) {
+  const result = await runtime.ai.effects.invoke({ operation: "identity", run: runtime.ai.metadata.run, effectId: "fixed", input, config, ...config })
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "captured-dynamic-capability",
+        exportName: "capturedDynamicCapability",
+        diagnostic: "data-code-agent-contract",
+        source: `export async function capturedDynamicCapability(runtime: any, input: any, config: any) {
+  const method = "runAgent"
+  const fn = runtime.ai.effects[method]
+  const result = await fn(input, config)
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "captured-owner-alias-capability",
+        exportName: "capturedOwnerAliasCapability",
+        diagnostic: "data-code-agent-contract",
+        source: `export async function capturedOwnerAliasCapability(runtime: any, input: any, config: any) {
+  const effects = runtime.ai.effects
+  const method = "runTargetedAgent"
+  const fn = effects[method]
+  const result = await fn({ byInstanceName: "shared" }, { input }, config)
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "duplicate-invoke-field",
+        exportName: "duplicateInvokeField",
+        diagnostic: "data-code-effect-contract",
+        source: `export async function duplicateInvokeField(runtime: any, input: any, config: any) {
+  const result = await runtime.ai.effects.invoke({ operation: "identity", operation: "material.write", run: runtime.ai.metadata.run, effectId: "fixed", input, config })
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "missing-invoke-field",
+        exportName: "missingInvokeField",
+        diagnostic: "data-code-effect-contract",
+        source: `export async function missingInvokeField(runtime: any, input: any, config: any) {
+  const result = await runtime.ai.effects.invoke({ operation: "identity", run: runtime.ai.metadata.run, effectId: "fixed", input })
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "dynamic-invoke-operation",
+        exportName: "dynamicInvokeOperation",
+        diagnostic: "data-code-agent-contract",
+        source: `export async function dynamicInvokeOperation(runtime: any, input: any, config: any) {
+  const operation = "identity"
+  const result = await runtime.ai.effects.invoke({ operation, run: runtime.ai.metadata.run, effectId: "fixed", input, config })
+  return { result }
+}\n`,
+      },
+      {
+        suffix: "extra-invoke-field",
+        exportName: "extraInvokeField",
+        diagnostic: "data-code-effect-contract",
+        source: `export async function extraInvokeField(runtime: any, input: any, config: any) {
+  const result = await runtime.ai.effects.invoke({ operation: "identity", run: runtime.ai.metadata.run, effectId: "fixed", input, config, extra: true })
   return { result }
 }\n`,
       },
@@ -184,8 +304,36 @@ describe("workflow publication proof pipeline", () => {
       })
 
       await expect(component.sessions.preparePublication({ sessionId: session.sessionId }))
-        .rejects.toThrow("data-code-effect-contract")
+        .rejects.toThrow(item.diagnostic)
     }
+  })
+
+  it("admits runtime-first typed Agent methods with exact authored arity", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-proof-typed-agent-"))
+    const component = createWorkflowComponent({ workspaceRoot: root })
+    const session = await component.sessions.open({
+      sessionId: "typed-agent-contract",
+      form: "AIDataWorkflow",
+      source: [
+        { path: "manifest.xnl", content: MANIFEST },
+        {
+          path: "flow-code/index.ts",
+          content: `export function runAgent(runtime: any, input: any, config: any) {
+  return runtime.ai.effects.runAgent(input, config)
+}
+export function runTargetedAgent(runtime: any, selector: any, invocation: any, config: any) {
+  return runtime.ai.effects.runTargetedAgent(selector, invocation, config)
+}
+export function writeMaterial(runtime: any, input: any, config: any) {
+  return runtime.ai.effects.invoke({ operation: "material.write", run: runtime.ai.metadata.run, effectId: "material", input, config })
+}\n`,
+        },
+      ],
+      target: { path: "typed-agent-contract" },
+    })
+
+    await expect(component.sessions.preparePublication({ sessionId: session.sessionId }))
+      .resolves.toMatchObject({ proofSet: { validationReceipt: { diagnosticCount: 0 } } })
   })
 
   it("rejects local-helper flow-code return maps that disagree with declared node outputs", async () => {

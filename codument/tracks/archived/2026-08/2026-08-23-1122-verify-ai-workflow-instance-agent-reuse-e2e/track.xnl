@@ -1,0 +1,71 @@
+<Track #verify-ai-workflow-instance-agent-reuse-e2e apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "独立验证完整 ResourcePackage 的 Ctrl/Data Definition→Instance→Run 与 by-name/by-id Agent 复用在 fresh reconstruction 后真实可用。" description = "运行物理 E2E、snapshot/checkpoint authority、installed binary/global Skills readback 与 fresh issues-first verification。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-23T07:50:07.373Z" updated_at = "2026-08-23T08:22:24.210Z" modeling_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" engineering_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #product { role = "input" name = "product" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/" }>
+    <MaterialBundle #terminal { role = "input" name = "terminal" domain = "code" path = "vfs://@/terminal/" }>
+    <MaterialBundle #verification { role = "output" name = "verification" domain = "test" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_verify-ai-workflow-instance-agent-reuse-e2e { name = "verify-ai-workflow-instance-agent-reuse-e2e" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Physical Ctrl/Data acceptance" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Verify frozen package and same Agent instance continuity" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0PT0MPF48H0QM7Q19SYWKT0>
+              Physical ResourcePackage authoring/proof/publication and both Ctrl and Data executions each complete runAgent → byInstanceName → new-VM recovery → byInstanceId with OutputSchema-valid structured results.
+              </?01M0PT0MPF48H0QM7Q19SYWKT0>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0PT0MPF48H0QM7Q19SYWKT1>
+              For each profile, pending concurrency and completed repetition reuse one accepted instance/result; all different invocation keys retain the same generic actor/session after live roots are unavailable and do not create a second owner.
+              </?01M0PT0MPF48H0QM7Q19SYWKT1>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M0PT0MPF48H0QM7Q19SYWKT2>
+              Filesystem readback proves the canonical checkpoint contains only instance indexes, stable actor/session refs and invocation receipts, while the generic runtime snapshot contains actor/session/conversation/provider state; recovery preserves matching identities without a second authority.
+              </?01M0PT0MPF48H0QM7Q19SYWKT2>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Installed product readback" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Verify installed binary, global Skills and static owners" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0PT0MPF48H0QM7Q19SYWKT3>
+              Installed eidolon resolves to current dist; global manifest exact four Skill versions and closure digest match reviewed plan; manifest-bound reads pass.
+              </?01M0PT0MPF48H0QM7Q19SYWKT3>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0PT0MPF48H0QM7Q19SYWKT4>
+              Static and runtime readback find no authored Agent generic invoke, second workflow actor store, host selector text routing, canonical writes under legacy flat agent-executions or ai-state paths, npmrc or registry override change.
+              </?01M0PT0MPF48H0QM7Q19SYWKT4>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Fresh independent verification" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Write issues-first final verify report" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0PT0MPF48H0QM7Q19SYWKT5>
+              Fresh verifier independently runs the bounded gates and records PASS/FAIL for every criterion without repairing implementation; it labels the current deterministic physical E2E and installed readback separately from the cited historical real-provider structured-output evidence and does not claim a new provider run.
+              </?01M0PT0MPF48H0QM7Q19SYWKT5>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0PT0MPF48H0QM7Q19SYWKT6>
+              Strict Codument, decisions when present, diff and final coding AttractorCheck report no P0/P1.
+              </?01M0PT0MPF48H0QM7Q19SYWKT6>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Node #P1>
+    <Node #P2 [
+      <After { ref = "P1" }>
+    ]>
+    <Node #P3 [
+      <After { ref = "P2" }>
+    ]>
+  ]>
+  <Hooks []>
+)>

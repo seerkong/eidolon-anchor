@@ -9,6 +9,7 @@ import type {
   ContinuationBaselineData,
 } from "@cell/ai-core-contract/runtime/ContextControl";
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
+import { cloneAndFreezeAgentExecutionContract } from "./AgentExecutionContract";
 import type {
   ActorContext,
   ActorContextPolicy,
@@ -151,6 +152,7 @@ export type CreateActorParams = {
   shutdownCoordination?: AiAgentActor["shutdownCoordination"];
   toolPolicy?: Partial<ActorToolPolicy>;
   contextPolicy?: Partial<ActorContextPolicy>;
+  executionContract?: AiAgentActor["executionContract"];
   modelConfig?: ActorModelConfig;
   llmClient?: object | null;
   stream?: XStream<any> | null;
@@ -284,6 +286,9 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     shutdownCoordination: params.shutdownCoordination,
     toolPolicy,
     contextPolicy,
+    executionContract: params.executionContract
+      ? cloneAndFreezeAgentExecutionContract(params.executionContract)
+      : undefined,
     modelConfig: params.modelConfig ?? {},
     llmClient: params.llmClient ?? null,
     stream: params.stream ?? null,

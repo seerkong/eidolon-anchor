@@ -9,6 +9,7 @@ import { buildWorkflowPatchBundleToolDef } from "./WorkflowPatchBundle"
 import {
   buildWorkflowEventsToolDef,
   buildWorkflowApplyGraphPatchToolDef,
+  buildWorkflowMutateStepExtensionToolDef,
   buildWorkflowResultToolDef,
   buildWorkflowResumeToolDef,
   buildWorkflowResolveToolDef,
@@ -31,6 +32,7 @@ export { buildWorkflowPatchBundleToolDef } from "./WorkflowPatchBundle"
 export {
   buildWorkflowEventsToolDef,
   buildWorkflowApplyGraphPatchToolDef,
+  buildWorkflowMutateStepExtensionToolDef,
   buildWorkflowResultToolDef,
   buildWorkflowResumeToolDef,
   buildWorkflowResolveToolDef,
@@ -54,6 +56,7 @@ export const WORKFLOW_NATIVE_TOOL_NAMES = [
   "WorkflowListPrebuiltWorkflows",
   "WorkflowListReusableAgents",
   "WorkflowOpenAuthoringSession",
+  "WorkflowCreateResourcePackageSession",
   "WorkflowValidateAuthoringSession",
   "WorkflowDryRunAuthoringSession",
   "WorkflowPreparePublication",
@@ -89,6 +92,7 @@ export const WORKFLOW_NATIVE_TOOL_NAMES = [
   "WorkflowResolve",
   "WorkflowReject",
   "WorkflowApplyGraphPatch",
+  "WorkflowMutateStepExtension",
 ] as const
 
 export function buildWorkflowNativeToolDefs(): AnyToolDef[] {
@@ -112,5 +116,6 @@ export function buildWorkflowNativeToolDefs(): AnyToolDef[] {
     buildWorkflowResolveToolDef(),
     buildWorkflowRejectToolDef(),
     buildWorkflowApplyGraphPatchToolDef(),
+    buildWorkflowMutateStepExtensionToolDef(),
   ]
 }

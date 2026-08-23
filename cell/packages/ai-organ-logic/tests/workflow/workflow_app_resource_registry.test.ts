@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor"
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { createVM } from "@cell/ai-core-logic/runtime/runtime"
+import { readRuntimeControlEffectEvidence } from "@cell/ai-file-store-logic"
 import { composeToolRegistry } from "../../src/composer/AIAgent/ToolFuncComposer"
 import { appendLiveHistoryMessageToConversationDomainRuntime } from "../../src/conversation/ConversationDomainRuntime"
 import {
@@ -45,6 +46,11 @@ async function writePackage(root: string, variant: "global" | "workspace"): Prom
     <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>
     <Catalog #prompts { kind = "Prompt" shape = "single-file" root = "vfs://./Prompts/" }>
     <Catalog #tools { kind = "Tool" shape = "single-file" root = "vfs://./Tools/" }>
+    <Catalog #schemas { kind = "MessageSchema" shape = "single-file" root = "vfs://./Schemas/" }>
+    <Catalog #policies { kind = "EffectPolicy" shape = "single-file" root = "vfs://./Policies/" }>
+    <Catalog #ports { kind = "MaterialPort" shape = "single-file" root = "vfs://./Ports/" }>
+    <Catalog #bindings { kind = "MaterialBinding" shape = "single-file" root = "vfs://./Bindings/" }>
+    <Catalog #request_materials { kind = "RequestMaterial" shape = "single-file" root = "vfs://./RequestMaterials/" }>
   ]>
 )>
 `,
@@ -54,6 +60,11 @@ async function writePackage(root: string, variant: "global" | "workspace"): Prom
     "KindDefinitions/AIAgentDefinition/manifest.xnl": kindDefinition("AIAgentDefinition"),
     "KindDefinitions/Prompt/manifest.xnl": kindDefinition("Prompt"),
     "KindDefinitions/Tool/manifest.xnl": kindDefinition("Tool"),
+    "KindDefinitions/MessageSchema/manifest.xnl": kindDefinition("MessageSchema"),
+    "KindDefinitions/EffectPolicy/manifest.xnl": kindDefinition("EffectPolicy"),
+    "KindDefinitions/MaterialPort/manifest.xnl": kindDefinition("MaterialPort"),
+    "KindDefinitions/MaterialBinding/manifest.xnl": kindDefinition("MaterialBinding"),
+    "KindDefinitions/RequestMaterial/manifest.xnl": kindDefinition("RequestMaterial"),
     "Apps/Support.xnl": `<AIWorkflowAppBundle #eidolon.fixture.SupportApp apiVersion="depa.flows/v1" version="1.0.0" {
   lifecycle = "Active"
   description = "${description}"
@@ -112,6 +123,9 @@ async function writePackage(root: string, variant: "global" | "workspace"): Prom
     await mkdir(path.dirname(target), { recursive: true })
     await writeFile(target, content, "utf8")
   }
+  for (const catalogRoot of ["Schemas", "Policies", "Ports", "Bindings", "RequestMaterials"]) {
+    await mkdir(path.join(root, catalogRoot), { recursive: true })
+  }
 }
 
 function kindDefinition(resourceKind: string): string {
@@ -154,6 +168,64 @@ function deferred<T = void>(): {
 }
 
 describe("Eidolon Halfcode App resource registry", () => {
+  it("freezes the exact union of declared and discovered Agent tasks", async () => {
+    const frozenTasks: string[] = []
+    const registry = {
+      async listWorkflowAgentTasks() {
+        return [{
+          workflowKind: "AICtrlWorkflow",
+          workflowRef: "resource://eidolon.fixture.MixedCtrl",
+          nodeId: "declared-agent",
+          agentDefinitionRef: "resource://eidolon.fixture.SupportAgent",
+        }]
+      },
+      async freezeWorkflowAgentTaskBinding(task: { nodeId: string }) {
+        frozenTasks.push(task.nodeId)
+        return Object.freeze({ task })
+      },
+    }
+    const descriptor = {
+      form: "AICtrlWorkflow",
+      workflowRef: "resource://eidolon.fixture.MixedCtrl",
+    }
+    const definition = {
+      resourceReceipt: { resourceId: "eidolon.fixture.MixedCtrl" },
+      binding: {
+        definition: {
+          nodes: [{
+            id: "discovered-agent",
+            config: { agentDefinitionRef: "resource://eidolon.fixture.SupportAgent" },
+          }],
+        },
+      },
+    }
+
+    const proofs = await (WorkflowRuntimeService.prototype as any).frozenAgentTaskProofs(
+      descriptor,
+      definition,
+      registry,
+    )
+
+    expect(Object.keys(proofs)).toEqual(["declared-agent", "discovered-agent"])
+    expect(frozenTasks).toEqual(["declared-agent", "discovered-agent"])
+
+    await expect((WorkflowRuntimeService.prototype as any).frozenAgentTaskProofs(
+      descriptor,
+      {
+        ...definition,
+        binding: {
+          definition: {
+            nodes: [{
+              id: "declared-agent",
+              config: { agentDefinitionRef: "resource://eidolon.fixture.OtherAgent" },
+            }],
+          },
+        },
+      },
+      registry,
+    )).rejects.toThrow("conflicting declared and discovered identities")
+  })
+
   it("loads explicit layers and projects Apps, workflows and reusable Agents from one snapshot", async () => {
     const adapter = new EidolonAppResourceRegistryAdapter({ layers: await fixtureLayers() })
     const snapshot = await adapter.snapshot()
@@ -274,6 +346,36 @@ describe("Eidolon Halfcode App resource registry", () => {
       "resource://eidolon.fixture.SupportAgent",
       { scope: "standalone" },
     )).rejects.toThrow("EIDOLON_RESOURCE_AGENT_PROMPT_CONTENT_UNSUPPORTED")
+  })
+
+  it("enforces the closed none tool policy without textual or alias routing", async () => {
+    const layers = await fixtureLayers()
+    const workspaceRoot = layers.find((layer) => layer.id === "workspace")!.rootDir
+    await writeFile(
+      path.join(workspaceRoot, "Policies", "None.xnl"),
+      `<EffectPolicy #eidolon.fixture.NonePolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "none" }>`,
+    )
+    const agentPath = path.join(workspaceRoot, "Agents", "Support.xnl")
+    const original = await Bun.file(agentPath).text()
+    await writeFile(agentPath, original.replace(
+      "  <MaterialPortRefs []>",
+      `  <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.NonePolicy" }>\n  <MaterialPortRefs []>`,
+    ))
+    await expect(new EidolonAppResourceRegistryAdapter({ layers }).materializeAgentExecutionPlan(
+      "resource://eidolon.fixture.SupportAgent",
+      { scope: "standalone" },
+    )).rejects.toThrow("EIDOLON_RESOURCE_AGENT_EFFECT_POLICY_CONFLICT")
+
+    await writeFile(agentPath, (await Bun.file(agentPath).text()).replace(
+      /  <ToolRefs \[[\s\S]*?  <MaterialPortRefs/,
+      "  <ToolRefs []>\n  <EffectPolicyRef { kind = \"EffectPolicy\" ref = \"resource://eidolon.fixture.NonePolicy\" }>\n  <MaterialPortRefs",
+    ))
+    const plan = await new EidolonAppResourceRegistryAdapter({ layers }).materializeAgentExecutionPlan(
+      "resource://eidolon.fixture.SupportAgent",
+      { scope: "standalone" },
+    )
+    expect(plan.executionContract.effectPolicy).toEqual({ toolMode: "none" })
+    expect(plan.agentConfig.tools).toEqual([])
   })
 
   it("merges standalone resource Agents by exact ref and reuses the prebound component", async () => {
@@ -728,15 +830,10 @@ describe("Eidolon Halfcode App resource registry", () => {
     const workspacePackage = layers.find((layer) => layer.id === "workspace")!.rootDir
     const flowCode = [
       `export async function invokeAgent(runtime: any, input: unknown, config: Record<string, unknown> = {}) {`,
-      `  const run = runtime.ai.metadata.run`,
-      `  return runtime.ai.effects.invoke({`,
-      `    effectId: String(config.effectId),`,
-      `    operation: "ai.agent",`,
-      `    input,`,
-      `    config,`,
-      `    run,`,
-      `    nodeId: String(config.nodeId)`,
+      `  const result = await runtime.ai.effects.runAgent(input, {`,
+      `    agentDefinitionRef: String(config.agentDefinitionRef),`,
       `  })`,
+      `  return result.output`,
       `}`,
       `export async function invokeDataAgent(runtime: any, input: unknown, config: Record<string, unknown> = {}) {`,
       `  return { value: await invokeAgent(runtime, input, config) }`,
@@ -744,14 +841,14 @@ describe("Eidolon Halfcode App resource registry", () => {
       `export function identity(_runtime: any, input: unknown) { return input }`,
       ``,
     ].join("\n")
+    await mkdir(path.join(workspacePackage, "flow-code"), { recursive: true })
     await mkdir(path.join(workspacePackage, "CtrlWorkflows", "flow-code"), { recursive: true })
     await mkdir(path.join(workspacePackage, "DataWorkflows", "flow-code"), { recursive: true })
-    await writeFile(path.join(workspacePackage, "CtrlWorkflows", "flow-code", "agent.ts"), flowCode)
+    await writeFile(path.join(workspacePackage, "flow-code", "agent.ts"), flowCode)
     await writeFile(
       path.join(workspacePackage, "CtrlWorkflows", "flow-code", "nested.ts"),
       "export function always() { return true }\nexport function identity(_runtime: any, input: unknown) { return input }\n",
     )
-    await writeFile(path.join(workspacePackage, "DataWorkflows", "flow-code", "agent.ts"), flowCode)
     await writeFile(
       path.join(workspacePackage, "Agents", "Support.xnl"),
       `<AIAgentDefinition #eidolon.fixture.SupportAgent apiVersion="depa.flows/v1" version="1.0.0" {
@@ -759,26 +856,55 @@ describe("Eidolon Halfcode App resource registry", () => {
   description = "workspace reusable support agent"
 } (
   <Messages [
-    <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>
+    <Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" } (
+      <SchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.ResponseSchema" }>
+    )>
   ]>
+  <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.InputSchema" }>
+  <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.ResponseSchema" }>
   <ToolRefs []>
-  <MaterialPortRefs []>
+  <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.SafePolicy" }>
+  <MaterialPortRefs [
+    <MaterialPortRef #request { kind = "MaterialPort" ref = "resource://eidolon.fixture.RequestPort" }>
+  ]>
 )>
 `,
     )
+    await mkdir(path.join(workspacePackage, "Schemas"), { recursive: true })
+    await mkdir(path.join(workspacePackage, "Policies"), { recursive: true })
+    await mkdir(path.join(workspacePackage, "Ports"), { recursive: true })
+    await mkdir(path.join(workspacePackage, "Bindings"), { recursive: true })
+    await mkdir(path.join(workspacePackage, "RequestMaterials"), { recursive: true })
+    await writeFile(path.join(workspacePackage, "Schemas", "Input.xnl"), `<MessageSchema #eidolon.fixture.InputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`)
+    await writeFile(path.join(workspacePackage, "Schemas", "Response.xnl"), `<MessageSchema #eidolon.fixture.ResponseSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "string" } }>`)
+    await writeFile(path.join(workspacePackage, "Policies", "Safe.xnl"), `<EffectPolicy #eidolon.fixture.SafePolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "declared-only" }>`)
+    await writeFile(path.join(workspacePackage, "Ports", "Request.xnl"), `<MaterialPort #eidolon.fixture.RequestPort apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" } (
+  <SchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.InputSchema" }>
+)>`)
+    await writeFile(path.join(workspacePackage, "RequestMaterials", "Request.xnl"), `<RequestMaterial #eidolon.fixture.RequestMaterial apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" value = { request = "material request" } }>`)
+    await writeFile(path.join(workspacePackage, "Bindings", "Ctrl.xnl"), `<MaterialBinding #eidolon.fixture.CtrlBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+  <AgentTaskRef { workflowKind = "AICtrlWorkflow" workflowRef = "resource://eidolon.fixture.SupportCtrl" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" }>
+  <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.RequestPort" }>
+  <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.RequestMaterial" }>
+)>`)
+    await writeFile(path.join(workspacePackage, "Bindings", "Data.xnl"), `<MaterialBinding #eidolon.fixture.DataBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+  <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.SupportData" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" }>
+  <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.RequestPort" }>
+  <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.RequestMaterial" }>
+)>`)
     await writeFile(
       path.join(workspacePackage, "CtrlWorkflows", "Support.xnl"),
       `<AICtrlWorkflow #eidolon.fixture.SupportCtrl apiVersion="depa.flows/v1" version="1.0.0" (
   <FlowContract #eidolon.fixture.SupportCtrl>
 ) [
-  <Run #agent-node { src = "vfs://./flow-code/agent.ts#invokeAgent" config = { effectId = "ctrl-agent-effect" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" } }>
+  <Run #agent-node { src = "vfs://@/flow-code/agent.ts#invokeAgent" config = { effectId = "ctrl-agent-effect" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" } }>
   <If #route (
     <Branches [
       <Branch #complete { when = "vfs://./flow-code/nested.ts#always" } [
         <Return #done { src = "vfs://./flow-code/nested.ts#identity" }>
       ]>
       <Otherwise [
-        <Return #fallback { src = "vfs://./flow-code/agent.ts#identity" }>
+        <Return #fallback { src = "vfs://@/flow-code/agent.ts#identity" }>
       ]>
     ]>
   )>
@@ -791,7 +917,7 @@ describe("Eidolon Halfcode App resource registry", () => {
   <FlowContract #eidolon.fixture.SupportData { inputPorts = ["value"] outputPorts = ["value"] }>
 ) [
   <EntryNode #entry>
-  <TransformNode #agent-node { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] impl = "vfs://./flow-code/agent.ts#invokeDataAgent" config = { effectId = "data-agent-effect" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" reuse_policy = "never" } }>
+  <TransformNode #agent-node { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] impl = "vfs://@/flow-code/agent.ts#invokeDataAgent" config = { effectId = "data-agent-effect" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" reuse_policy = "never" } }>
   <ReturnNode #return { inputs = { value = "flow-port://#agent-node/value" } }>
 ]>
 `,
@@ -851,20 +977,36 @@ describe("Eidolon Halfcode App resource registry", () => {
     })
     const ctrlFrozen = await service.facts.loadDefinitionRevision(ctrlInstance.definitionRevision)
     const dataFrozen = await service.facts.loadDefinitionRevision(dataInstance.definitionRevision)
-    expect(Object.keys(ctrlFrozen?.files ?? {}).sort()).toEqual([
+    const ordered = (values: string[]) => values.sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
+    const ctrlPaths = Object.keys(ctrlFrozen?.files ?? {})
+    const dataPaths = Object.keys(dataFrozen?.files ?? {})
+    const ctrlClosurePaths = ordered(ctrlPaths.filter((filePath) => filePath.startsWith(".agent-resources/")))
+    const dataClosurePaths = ordered(dataPaths.filter((filePath) => filePath.startsWith(".agent-resources/")))
+    expect(ctrlClosurePaths.length).toBeGreaterThan(0)
+    expect(ctrlClosurePaths).toEqual(dataClosurePaths)
+    expect(ordered(ctrlPaths.filter((filePath) => !filePath.startsWith(".agent-resources/")))).toEqual(ordered([
       "flow-code/agent.ts",
       "flow-code/nested.ts",
       "manifest.xnl",
-    ])
-    expect(Object.keys(dataFrozen?.files ?? {}).sort()).toEqual(["flow-code/agent.ts", "manifest.xnl"])
+    ]))
+    expect(ordered(dataPaths.filter((filePath) => !filePath.startsWith(".agent-resources/")))).toEqual(ordered([
+      "flow-code/agent.ts",
+      "manifest.xnl",
+    ]))
 
     const ctrlResult = await service.start({ instanceId: ctrlInstance.instanceId, runId: "resource-agent-ctrl-run", confirmed: true })
     const dataResult = await service.start({ instanceId: dataInstance.instanceId, runId: "resource-agent-data-run", confirmed: true })
     expect(ctrlResult).toMatchObject({ status: "Completed" })
     expect(dataResult).toMatchObject({ status: "Succeeded", output: { value: "resource Agent completed" } })
-    expect(await service.facts.loadAgentExecutionFact("resource-agent-ctrl-run", 0, "ctrl-agent-effect"))
-      .toMatchObject({ workflowForm: "AICtrlWorkflow", agentDefinitionRef: "resource://eidolon.fixture.SupportAgent" })
-    expect(await service.facts.loadAgentExecutionFact("resource-agent-data-run", 0, "data-agent-effect"))
-      .toMatchObject({ workflowForm: "AIDataWorkflow", agentDefinitionRef: "resource://eidolon.fixture.SupportAgent" })
+    const lifecycle = await readRuntimeControlEffectEvidence(path.join(parent, "resource-agent-session"))
+    expect(lifecycle).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "result", effectId: expect.stringMatching(/^agent:resource-agent-ctrl:resource-agent-ctrl-run:agent-node#\d+$/), handlerKey: "workflow:ai.agent" }),
+      expect.objectContaining({ kind: "result", effectId: expect.stringMatching(/^agent:resource-agent-data:resource-agent-data-run:agent-node#\d+$/), handlerKey: "workflow:ai.agent" }),
+    ]))
+    for (const runId of ["resource-agent-ctrl-run", "resource-agent-data-run"]) {
+      await expect(access(path.join(
+        parent, "resource-agent-session", "workflow-runtime", "agent-executions", runId,
+      ))).rejects.toMatchObject({ code: "ENOENT" })
+    }
   })
 })

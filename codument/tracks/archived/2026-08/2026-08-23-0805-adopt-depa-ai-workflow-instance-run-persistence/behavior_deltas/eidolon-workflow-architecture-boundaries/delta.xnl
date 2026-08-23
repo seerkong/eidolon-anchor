@@ -1,0 +1,30 @@
+<BehaviorPatch #track.adopt-depa-ai-workflow-instance-run-persistence.behavior_patch.eidolon-workflow-architecture-boundaries apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-workflow-architecture-boundaries" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-workflow-architecture-boundaries/requirements/depa-instance-run-owner" } (
+      <Requirement #depa-instance-run-owner (
+        <Statement ?>Eidolon SHALL bind depa-flows storage and runtime ports without reimplementing Definition, Instance, Run, checkpoint, Ctrl snapshot or Data RunGraph authority.</?>
+        <Suites [
+          <Suite #authority-boundary { name = "Persistence authority boundary" } (
+            <Cases [
+              <Case #host-binds-not-redefines (
+                <Given ?>Eidolon constructs its workflow component</?>
+                <When ?>it binds filesystem roots and generic actor/session/effect runtime</?>
+                <Then ?>the host SHALL consume published depa materialization and checkpoint contracts and SHALL NOT define a parallel filesystem layout, checkpoint schema, transition validator or scheduler</?>
+              )>
+              <Case #opaque-runtime-references (
+                <Given ?>a workflow invokes an Agent through Eidolon generic runtime</?>
+                <When ?>the Flow checkpoint records the durable execution binding</?>
+                <Then ?>it SHALL contain only stable opaque actor/session/instance references and typed receipts and SHALL NOT contain conversation history, provider transcript, compaction or actor-owned mutable state</?>
+              )>
+              <Case #closed-invalid-input (
+                <Given ?>a malformed descriptor, checkpoint, migration record, symlinked root or conflicting CAS candidate</?>
+                <When ?>the host loads or commits workflow persistence</?>
+                <Then ?>it SHALL fail closed before live mutation or runtime dispatch and SHALL preserve the last admitted instance/run authority</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

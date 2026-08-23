@@ -4,6 +4,7 @@ export type SkillOuterRuntime = AiAgentOneActorRuntime
 export type SkillOuterInput = {
   skill: string
   resource?: string
+  resources?: string[]
   offset?: number
   limit?: number
 }

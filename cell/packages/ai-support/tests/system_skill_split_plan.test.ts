@@ -16,7 +16,7 @@ describe("Eidolon Anchor system Skill split plan", () => {
   test("pins the two published authoring modules exactly", async () => {
     const manifest = JSON.parse(await readFile(path.join(supportRoot, "package.json"), "utf8"))
     expect(manifest.dependencies["halfcode-compiler.xnl"]).toBe("0.2.3")
-    expect(manifest.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.1.0")
+    expect(manifest.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.1.5")
   })
 
   test("uses a generated complete plan instead of a builtin-plus-plan merge", async () => {
@@ -65,8 +65,8 @@ describe("Eidolon Anchor system Skill split plan", () => {
       "Halfcode.ResourceDsl.Skill.System": [],
       "Eidolon.Anchor.Skill.Authoring": ["Halfcode.ResourceDsl.Skill.System@1.0.0"],
       "Eidolon.Anchor.Skill.DevOps": [
-        "Eidolon.Anchor.Skill.Authoring@1.0.7",
-        "Eidolon.Anchor.Skill.Run@1.0.0",
+        "Eidolon.Anchor.Skill.Authoring@1.0.25",
+        "Eidolon.Anchor.Skill.Run@1.0.5",
       ],
     })
     expect(EXPECTED_EIDOLON_SYSTEM_SKILL_SET.map((entry) => entry.capsuleFqn)).toEqual(plan.topology)
@@ -83,8 +83,9 @@ describe("Eidolon Anchor system Skill split plan", () => {
       files: readonly { path: string; contentDigest: string }[]
     }
     expect(provenance.packageName).toBe("ai-workflow-flow-dsl-reference")
-    expect(provenance.packageVersion).toBe("0.1.0")
-    expect(provenance.files).toHaveLength(29)
+    expect(provenance.packageVersion).toBe("0.1.5")
+    expect(provenance.files).toHaveLength(30)
+    expect(provenance.files.map((file) => file.path)).toContain("spec/flow-core/instance-run.md")
 
     for (const source of [
       { path: ".depa-flow-dsl-provenance.json", bytes: provenanceBytes },
@@ -111,7 +112,7 @@ describe("Eidolon Anchor system Skill split plan", () => {
     expect(Object.isFrozen(plan.capsules)).toBe(true)
   })
 
-  test("separates DevOps stages from Authoring and Run operations", () => {
+  test("separates DevOps stages from Authoring and Run operations", async () => {
     const plan = loadEidolonSystemSkillDistributionPlan()
     const filesFor = (fqn: string) => plan.files
       .filter((file) => file.skillFqn === fqn)
@@ -137,12 +138,21 @@ describe("Eidolon Anchor system Skill split plan", () => {
     expect(authoring).toContain("operations/index.md")
     expect(authoring).toContain("operations/create-open.md")
     expect(authoring).toContain("operations/open-resource-package.md")
+    expect(authoring).toContain("operations/create-resource-package.md")
     expect(authoring).toContain("operations/legacy-vfs-workflow.md")
     expect(authoring).toContain("operations/inspect.md")
     expect(authoring).toContain("operations/batch-patch.md")
     expect(authoring).toContain("operations/validate-prepare.md")
     expect(authoring).toContain("operations/publish.md")
-    expect(authoring.filter((file) => file.startsWith("references/flow-dsl/"))).toHaveLength(30)
+    expect(authoring).toContain("operations/step-space.md")
+    const module = loadAIWorkflowFlowDslReferenceModule()
+    const provenance = JSON.parse(await Bun.file(path.join(
+      module.resourceRootDir,
+      "content",
+      ".depa-flow-dsl-provenance.json",
+    )).text()) as { files: readonly unknown[] }
+    expect(authoring.filter((file) => file.startsWith("references/flow-dsl/")))
+      .toHaveLength(provenance.files.length + 1)
 
     const run = filesFor("Eidolon.Anchor.Skill.Run")
     expect(run).toContain("operations/index.md")
@@ -152,6 +162,7 @@ describe("Eidolon Anchor system Skill split plan", () => {
     expect(run).toContain("operations/resume-waits.md")
     expect(run).toContain("operations/observe.md")
     expect(run).toContain("operations/replay-evidence.md")
+    expect(run).toContain("operations/step-extension.md")
 
     expect(plan.files.some((file) => file.capsuleRelativePath.startsWith("actions/"))).toBe(false)
     expect(plan.files.some((file) => file.capsuleRelativePath === "system-skill.xnl")).toBe(false)
@@ -169,24 +180,39 @@ describe("Eidolon Anchor system Skill split plan", () => {
       read("sys-eidolon-anchor-devops/coding/system.md"),
       read("sys-eidolon-anchor-devops/coding/protocol.md"),
     ].join("\n")
-    expect(coding).toContain('skill: "sys-eidolon-anchor-authoring"')
-    expect(coding).toContain('resource: "operations/index.md"')
+    expect(coding).toContain("already contains the Authoring root")
+    expect(coding).toContain("do not load either again")
+    expect(coding).toContain("first post-stage provider completion")
+    expect(coding).toContain("WorkflowOpenAuthoringSession")
+    expect(coding).toContain("WorkflowCreateResourcePackageSession")
     expect(coding).not.toContain("L1 foundation")
     expect(coding).not.toContain("AICtrlWorkflow")
     expect(coding).not.toContain("AIDataWorkflow")
+
+    const devopsRoot = read("sys-eidolon-anchor-devops/SKILL.md")
+    expect(devopsRoot).toContain("first execution with no exact instance fact")
+    expect(devopsRoot).toContain("select `deploying`")
+    expect(devopsRoot).toContain("Select `operating` only when an exact instance or run identity already exists")
+    expect(devopsRoot).toContain("Do not load either again")
 
     for (const stage of ["deploying", "operating", "monitoring"]) {
       const content = [
         read(`sys-eidolon-anchor-devops/${stage}/system.md`),
         read(`sys-eidolon-anchor-devops/${stage}/protocol.md`),
       ].join("\n")
-      expect(content).toContain('skill: "sys-eidolon-anchor-run"')
+      expect(content).toContain("already contains the Run Skill root and operation index")
     }
+    const deploying = read("sys-eidolon-anchor-devops/deploying/protocol.md")
+    expect(deploying).toContain("do not return a final response from `deploying`")
+    expect(deploying).toContain('WorkflowLoadStageContext({ stage: "operating" })')
+    expect(deploying).toContain("exact instance receipt")
 
     const authoring = read("sys-eidolon-anchor-authoring/operations/index.md")
     expect(authoring).toContain("open-resource-package.md")
+    expect(authoring).toContain("create-resource-package.md")
     expect(authoring).toContain("open -> bounded inspect -> batch patch -> validate/prepare")
-    expect(authoring).toContain("load `batch-patch.md`, `validate-prepare.md`, and the exact generated Flow DSL reference in parallel")
+    expect(authoring).toContain("one generic `Skill` call with `resources:")
+    expect(authoring).toContain('"operations/batch-patch.md", "operations/validate-prepare.md", "operations/agent-definition.md"')
     expect(authoring).toContain("WorkflowPreparePublication")
     expect(authoring).toContain("WorkflowPublishAuthoringSession")
     expect(authoring).toContain("publication authorization")
@@ -201,6 +227,11 @@ describe("Eidolon Anchor system Skill split plan", () => {
     expect(openResourcePackage).toContain("do not search or read those KindDefinition paths again")
     expect(openResourcePackage).toContain("Do not call read on /work")
 
+    const createResourcePackage = read("sys-eidolon-anchor-authoring/operations/create-resource-package.md")
+    expect(createResourcePackage).toContain("WorkflowCreateResourcePackageSession")
+    expect(createResourcePackage).toContain("complete valid ResourcePackage file set")
+    expect(createResourcePackage).toContain("does not synthesize KindDefinitions")
+
     const inspect = read("sys-eidolon-anchor-authoring/operations/inspect.md")
     expect(inspect).toContain("standalone `read_selection` operation is a recovery fallback")
     expect(inspect).toContain("next provider completion")
@@ -209,6 +240,33 @@ describe("Eidolon Anchor system Skill split plan", () => {
     expect(batchPatch).toContain('"kind": "add|update|delete"')
     expect(batchPatch).not.toContain('"op": "add|update|delete"')
 
+    const agentDefinition = read("sys-eidolon-anchor-authoring/operations/agent-definition.md")
+    expect(agentDefinition).toContain("runtime.ai.effects.runAgent(input, config)")
+    expect(agentDefinition).toContain("runtime.ai.effects.runTargetedAgent(selector, invocation, config)")
+    expect(agentDefinition).toContain("{ byInstanceName: \"requirements-reviewer\" }")
+    expect(agentDefinition).toContain("{ byInstanceId: previous.instance.instanceId }")
+    expect(agentDefinition).not.toContain('operation: "ai.agent"')
+    expect(agentDefinition).not.toContain("runtime.ai.effects.invoke")
+
+    const agentExecution = read("sys-eidolon-anchor-run/operations/agent-execution.md")
+    expect(agentExecution).toContain("different invocation keys")
+    expect(agentExecution).toContain("same generic runtime-owned actor/session")
+    expect(agentExecution).toContain("profile.ai")
+    expect(agentExecution).toContain("byInstanceName")
+    expect(agentExecution).toContain("byInstanceId")
+    expect(agentExecution).toContain("do not depend on child conversation history")
+    expect(agentDefinition).toContain("fn(runtime, input, config)")
+    expect(agentDefinition).toContain("export async function runAgent")
+    expect(agentDefinition).toContain("<Content ?>Return only JSON.</?>")
+    expect(agentDefinition).toContain("a `content` property is metadata")
+    expect(agentDefinition).toContain("an indirect phrase such as \"matching the output schema\" is insufficient")
+    expect(agentDefinition).not.toContain("function invokeAgent(input")
+    expect(agentDefinition).toContain("validates the rendered Prompt content")
+    expect(agentDefinition).toContain("do not reuse an object-valued Agent input schema")
+    expect(agentDefinition).toContain("must explicitly state the exact required fields")
+    expect(agentDefinition).toContain("invocation.payload")
+    expect(agentDefinition).toContain("this exact object satisfies the Agent `InputSchemaRef`")
+
     const run = read("sys-eidolon-anchor-run/operations/index.md")
     expect(run).toContain("WorkflowRun")
     expect(run).toContain("WorkflowResume")
@@ -216,5 +274,6 @@ describe("Eidolon Anchor system Skill split plan", () => {
     expect(run).toContain("WorkflowReject")
     expect(run).toContain("WorkflowResult")
     expect(run).not.toContain("WorkflowCancel")
+    expect(run).toContain('resources: ["operations/resolve-entrypoint.md", "operations/instance-binding.md", "operations/start.md", "operations/agent-execution.md"]')
   })
 })

@@ -11,6 +11,8 @@ Stages are `planning`, `coding`, `building`, `testing`, `releasing`, `deploying`
 
 In `coding`, load the exact sibling `sys-eidolon-anchor-authoring`. For an existing workspace ResourcePackage, load the Authoring root and operation index while querying only missing App and reusable-Agent identities, then open a recoverable authoring session in the next provider completion. Load exact grammar references only after that durable boundary exists. Do not query templates or prebuilt workflows for an in-place package update and do not preload a full reference tree.
 
-In `deploying`, `operating`, and `monitoring`, load the exact sibling `sys-eidolon-anchor-run`. Load its root and operation index first, then ask for an exact declared resource only when needed.
+For an explicitly requested first execution with no exact instance fact, select `deploying`; that stage creates the instance and binds inputs before any run starts. Select `operating` only when an exact instance or run identity already exists. Select `monitoring` only to inspect an existing run or its evidence.
+
+In `deploying`, `operating`, and `monitoring`, the stage context already supplies the exact sibling `sys-eidolon-anchor-run` root and operation index. Do not load either again. Ask for the required exact operation resources through one bounded `Skill.resources` call.
 
 Authoring proof, publication authorization, execution authorization, deployment binding, and run evidence are separate facts. Never infer one from another. SkillCapsule dependencies remain the installation topology authority; this document supplies routing semantics only.

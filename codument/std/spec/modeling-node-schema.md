@@ -73,6 +73,8 @@ orders/
 > - ✅ canonical：`<runtime ?r>…</?r>` / `<input ?i>…</?i>` / `<config ?c>…</?c>` / `<output ?o>…</?o>`
 > - ⚠️ 兼容：`validate` 也接受 `<types { role = "runtime" }>`（及 `role = "input"`/`"config"`/`"output"`）这类 role 写法作兼容（accepted-but-discouraged），但**裸标签为推荐形式**，新建模请用裸标签。
 > 完整 Good 示例见 §7。
+>
+> **TextElement marker 一致性（硬约束）**：`?marker` 只是免转义 id，**不承载语义角色**；opening `?marker` 与 closing `</?marker>` 必须逐字相同。未使用自定义 marker 时闭合必须是 `</?>`；禁止 XML 风格 `</tagname>`，也禁止 `<desc ?foo>...</desc>` 这类“开头有 marker、结尾回退 XML 标签名”的混合写法。
 
 ## 4. 事实源（DEPA，entity 必备）
 

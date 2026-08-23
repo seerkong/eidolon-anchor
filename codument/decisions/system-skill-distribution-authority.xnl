@@ -1,0 +1,77 @@
+<decision #track.adopt-halfcode-system-skill-distribution.authority-boundary apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP5HAWRC290VBRG8SHWF3G>
+  Which system owns generated Skill dependency and which system owns the global installation transaction?
+  </?01M0QP5HAWRC290VBRG8SHWF3G>
+  <answer (
+    <raw-answer ?01M0QP5HAWRC290VBRG8SHWF3H>
+    Halfcode owns distribution semantics; Eidolon owns the host tree transaction.
+    </?01M0QP5HAWRC290VBRG8SHWF3H>
+    <decision-text ?01M0QP5HAWRC290VBRG8SHWF3J>
+    Eidolon SHALL invoke the Halfcode plan/applier in isolation and SHALL NOT reproduce capsule dependency, topology, collision or content validation. Eidolon SHALL own only global path binding, ordinary asset preservation, unified manifest and whole-root replacement.
+    </?01M0QP5HAWRC290VBRG8SHWF3J>
+    <rationale ?01M0QP5HAWRC290VBRG8SHWF3K>
+    This keeps generic resource standards in Halfcode while preserving host-specific filesystem policy in Eidolon.
+    </?01M0QP5HAWRC290VBRG8SHWF3K>
+    <evidence ?01M0QP5HAWRC290VBRG8SHWF3M>
+    Halfcode 0.2.2 exposes an immutable Resource DSL Skill plan and atomic output-root applier; the current Eidolon installer swaps each Skill separately.
+    </?01M0QP5HAWRC290VBRG8SHWF3M>
+  )>
+  <confidence ?01M0QP5HAWRC290VBRG8SHWF3N>
+  0.99
+  </?01M0QP5HAWRC290VBRG8SHWF3N>
+  <reversibility ?01M0QP5HAWRC290VBRG8SHWF3P>
+  low
+  </?01M0QP5HAWRC290VBRG8SHWF3P>
+)>
+
+<decision #track.adopt-halfcode-system-skill-distribution.transaction-scope apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP5HAWRC290VBRG8SHWF3Q>
+  What is the atomic visibility boundary for global init?
+  </?01M0QP5HAWRC290VBRG8SHWF3Q>
+  <answer (
+    <raw-answer ?01M0QP5HAWRC290VBRG8SHWF3R>
+    The entire global `skills` root.
+    </?01M0QP5HAWRC290VBRG8SHWF3R>
+    <decision-text ?01M0QP5HAWRC290VBRG8SHWF3S>
+    The installer SHALL build and verify a same-parent complete candidate, then replace the live `skills` root once with recoverable backup handling.
+    </?01M0QP5HAWRC290VBRG8SHWF3S>
+    <rationale ?01M0QP5HAWRC290VBRG8SHWF3T>
+    Per-Skill replacement permits a mixed managed set and separates the manifest from the installed tree.
+    </?01M0QP5HAWRC290VBRG8SHWF3T>
+    <evidence ?01M0QP5HAWRC290VBRG8SHWF3V>
+    Current production loops over managed Skills and swaps each directory before writing `.system-skills.xnl`.
+    </?01M0QP5HAWRC290VBRG8SHWF3V>
+  )>
+  <confidence ?01M0QP5HAWRC290VBRG8SHWF3W>
+  0.99
+  </?01M0QP5HAWRC290VBRG8SHWF3W>
+  <reversibility ?01M0QP5HAWRC290VBRG8SHWF3X>
+  moderate
+  </?01M0QP5HAWRC290VBRG8SHWF3X>
+)>
+
+<decision #track.adopt-halfcode-system-skill-distribution.read-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M0QP5HAWRC290VBRG8SHWF3Y>
+  How does runtime read an installed generated system Skill without a hardcoded generated inventory?
+  </?01M0QP5HAWRC290VBRG8SHWF3Y>
+  <answer (
+    <raw-answer ?01M0QP5HAWRC290VBRG8SHWF3Z>
+    Through exact entries and file digests in the unified installed manifest.
+    </?01M0QP5HAWRC290VBRG8SHWF3Z>
+    <decision-text ?01M0QP5HAWRC290VBRG8SHWF40>
+    Generic system Skill resource reads SHALL require an exact `.system-skills.xnl` identity/path entry and verify the file digest; product wrappers may select explicit paths but cannot infer semantic routing.
+    </?01M0QP5HAWRC290VBRG8SHWF40>
+    <rationale ?01M0QP5HAWRC290VBRG8SHWF41>
+    The installed manifest is the host readback of current plans and avoids duplicating Halfcode identity constants in runtime code.
+    </?01M0QP5HAWRC290VBRG8SHWF41>
+    <evidence ?01M0QP5HAWRC290VBRG8SHWF42>
+    The existing reader only validates known bundled Skills and otherwise reads arbitrary relative paths without a manifest digest check.
+    </?01M0QP5HAWRC290VBRG8SHWF42>
+  )>
+  <confidence ?01M0QP5HAWRC290VBRG8SHWF43>
+  0.97
+  </?01M0QP5HAWRC290VBRG8SHWF43>
+  <reversibility ?01M0QP5HAWRC290VBRG8SHWF44>
+  moderate
+  </?01M0QP5HAWRC290VBRG8SHWF44>
+)>

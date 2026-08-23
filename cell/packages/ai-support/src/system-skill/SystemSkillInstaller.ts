@@ -948,9 +948,26 @@ export async function loadAiWorkflowStageContext(input: {
   if (!AI_WORKFLOW_STAGE_IDS.includes(input.stage)) {
     throw new Error(`Unknown AI Workflow stage: ${input.stage}`);
   }
-  return loadSystemSkillContext({
+  const stageContext = await loadSystemSkillContext({
     globalRoot: input.globalRoot,
     skillName: "sys-eidolon-anchor-devops",
     relativePaths: [`${input.stage}/system.md`, `${input.stage}/protocol.md`],
   });
+  if (input.stage === "coding") {
+    const authoringEntry = await loadSystemSkillContext({
+      globalRoot: input.globalRoot,
+      skillName: "sys-eidolon-anchor-authoring",
+      relativePaths: ["SKILL.md", "operations/index.md"],
+    });
+    return `${stageContext}\n\n${authoringEntry}`;
+  }
+  if (input.stage === "deploying" || input.stage === "operating" || input.stage === "monitoring") {
+    const runEntry = await loadSystemSkillContext({
+      globalRoot: input.globalRoot,
+      skillName: "sys-eidolon-anchor-run",
+      relativePaths: ["SKILL.md", "operations/index.md"],
+    });
+    return `${stageContext}\n\n${runEntry}`;
+  }
+  return stageContext;
 }

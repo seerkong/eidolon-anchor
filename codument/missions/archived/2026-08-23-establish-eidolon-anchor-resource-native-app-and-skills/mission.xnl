@@ -1,0 +1,448 @@
+<Mission #establish-eidolon-anchor-resource-native-app-and-skills version="1" apiVersion="codument.tech/v1alpha1" { status = "archived" goal = "以 Halfcode 为资源 authority、depa-flows 为 workflow runtime authority，建立保留 Definition→Instance→Run 不变量并支持 Agent 实例复用的 Eidolon Anchor App 平台。" description = "跨 Halfcode、depa-flows 与 Eidolon，以真实 tracks 继续修正 workflow instance/run 持久化、typed Agent invocation、Ctrl/Data DSL、host adapters、系统 Skill、端到端验收与可扩展状态性能。" question_mode = "decision-tree" question_severity = "auto" revision = 109 created_at = "2026-08-15T16:12:37Z" updated_at = "2026-08-23T16:14:51.420Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #eidolon-anchor { kind = "host" }>
+    <ProjectRef #halfcode-compiler { kind = "external" }>
+    <ProjectRef #depa-flows { kind = "external" }>
+    <ProjectRef #sparrow-python-reference { kind = "external" }>
+  ]>
+  <ActorSets { default = "eidolon-resource-app-loop" } [
+    <ActorSet #eidolon-resource-app-loop [
+      <Actor { role = "MissionPlanner" project_ref = "eidolon-anchor" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T1>
+        依据资源 authority、系统 Skill 拆分和跨入口验收证据切分或修订 Eidolon 侧 tracks。
+        </?01M05F1P5K8SG2THGBC1HAK9T1>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "eidolon-anchor" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T2>
+        观察 Eidolon resource adapters、actor/runtime、global init、Skill 安装树、TUI/CLI tests 与关联 track 实际态。
+        </?01M05F1P5K8SG2THGBC1HAK9T2>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "eidolon-anchor" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T3>
+        比较 Resource-native App 与四 Skill 期望态，区分 Eidolon 可推进工作、外部库依赖和需要受控重规划的 drift。
+        </?01M05F1P5K8SG2THGBC1HAK9T3>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "eidolon-anchor" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T4>
+        创建、执行、验证或归档一个 Eidolon 侧 track，并在验证明确且无偏差时继续 mission 控制环。
+        </?01M05F1P5K8SG2THGBC1HAK9T4>
+      )>
+    ]>
+    <ActorSet #halfcode-resource-loop [
+      <Actor { role = "MissionPlanner" project_ref = "halfcode-compiler" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T5>
+        把通用 layered resource、Skill dependency/distribution 与 Resource DSL capsule 缺口切为 Halfcode-owned tracks。
+        </?01M05F1P5K8SG2THGBC1HAK9T5>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "halfcode-compiler" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T6>
+        观察 Halfcode ResourceTree、KindDefinition、application assembly、SkillCapsule compiler、published API 和目标项目 track 状态。
+        </?01M05F1P5K8SG2THGBC1HAK9T6>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "halfcode-compiler" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T7>
+        判断需求是现有 API、兼容扩展还是新的通用 contract，拒绝为 Eidolon 写入专用分支。
+        </?01M05F1P5K8SG2THGBC1HAK9T7>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "halfcode-compiler" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T8>
+        按 Halfcode 当前 Codument authority 创建和执行通用资源 tracks，并向 host 回传公开 API、版本与验证证据。
+        </?01M05F1P5K8SG2THGBC1HAK9T8>
+      )>
+    ]>
+    <ActorSet #depa-workflow-resource-loop [
+      <Actor { role = "MissionPlanner" project_ref = "depa-flows" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9T9>
+        把 workflow resource projection、AIAgentDefinition、Material 与 run freeze 语义切为 depa-flows-owned tracks。
+        </?01M05F1P5K8SG2THGBC1HAK9T9>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "depa-flows" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TA>
+        观察 AI workflow contracts/loaders/runtime、flow-dsl docs/examples、Halfcode integration seam 与目标项目 track 状态。
+        </?01M05F1P5K8SG2THGBC1HAK9TA>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "depa-flows" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TB>
+        保持 workflow 领域语义内聚，识别并移除 generic catalog/scanner authority，同时保护既有 consumer compatibility。
+        </?01M05F1P5K8SG2THGBC1HAK9TB>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "depa-flows" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TC>
+        按 depa-flows 当前 Codument authority创建和执行领域 tracks，并向 Eidolon 返回可发布的 contracts、docs 与 tests。
+        </?01M05F1P5K8SG2THGBC1HAK9TC>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_establish-eidolon-anchor-resource-native-app-and-skills { name = "establish-eidolon-anchor-resource-native-app-and-skills" child_mode = "dag" } (
+    <Description ?01M05F1P5K8SG2THGBC1HAK9TD>
+    Resource-native App、跨项目资源 authority 与系统 Skill 架构 mission。
+    </?01M05F1P5K8SG2THGBC1HAK9TD>
+    <SubNodes [
+      <TaskGroup #BASELINE { name = "跨项目证据基线与契约冻结" status = "DONE" order = 0 } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TE>
+        盘点三个项目当前 public API、Codument authority、working tree、published versions、现有 consumers 与旧 sys-ai-workflow 行为，冻结首批 track contract。
+        </?01M05F1P5K8SG2THGBC1HAK9TE>
+        <SubNodes [
+          <Task #BASELINE-T1 { name = "盘点 Halfcode resource/SkillCapsule 能力与缺口" status = "DONE" order = 0 }>
+          <Task #BASELINE-T2 { name = "盘点 depa-flows generic-resource 重叠与 workflow domain 缺口" status = "DONE" order = 1 }>
+          <Task #BASELINE-T3 { name = "盘点 Eidolon resource discovery、agent bridge、system Skill 与 installer 实际态" status = "DONE" order = 2 }>
+          <Task #BASELINE-T4 { name = "记录 API/version/consumer compatibility matrix 与首批 acceptance fixtures" status = "DONE" order = 3 }>
+        ]>
+      )>
+      <TaskGroup #HALFCODE_RESOURCE { name = "Halfcode layered resource 与依赖闭包" status = "DONE" order = 1 actor_set = "halfcode-resource-loop" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TF>
+        补齐 App 迁移真正需要的通用 global/workspace layer、content/dependency revision 和 normalized effective registry，不引入 Eidolon 专用概念。
+        </?01M05F1P5K8SG2THGBC1HAK9TF>
+        <SubNodes [
+          <Task #HALFCODE_RESOURCE-T1 { name = "创建并执行 layered resource registry 与 dependency closure track" status = "DONE" order = 0 } (
+            <TrackLink #add-layered-resource-registry-and-dependency-closure { state = "bound" project_ref = "halfcode-compiler" }>
+          )>
+          <Task #HALFCODE_RESOURCE-T2 { name = "验证 precedence、shadow/tombstone、revision、provenance 与 legacy consumer compatibility" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #HALFCODE_SKILLS { name = "Halfcode 多 Skill dependency 与 distribution" status = "DONE" order = 2 actor_set = "halfcode-resource-loop" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TG>
+        让 ResourcePackage 中多个 SkillCapsule 显式声明 sibling dependency，形成有版本、有 digest、冲突预检且可原子消费的 distribution plan。
+        </?01M05F1P5K8SG2THGBC1HAK9TG>
+        <SubNodes [
+          <Task #HALFCODE_SKILLS-T1 { name = "创建并执行 multi-Skill capsule dependency/distribution track" status = "DONE" order = 0 } (
+            <TrackLink #add-multi-skill-capsule-dependency-distribution { state = "bound" project_ref = "halfcode-compiler" }>
+          )>
+          <Task #HALFCODE_SKILLS-T2 { name = "验证 dependency closure、version binding、collision preflight 与 deterministic output" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #HALFCODE_RELEASE { name = "Halfcode content identity adapter 与补丁发布" status = "DONE" order = 3 actor_set = "halfcode-resource-loop" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TH>
+        把当前仅存在于源码的 layered registry、typed dependency snapshot 与 loader-owned content identity 能力准备成新的不可变补丁版本；不得在已发布 0.2.1 下替换内容。
+        </?01M05F1P5K8SG2THGBC1HAK9TH>
+        <SubNodes [
+          <Task #HALFCODE_RELEASE-T1 { name = "创建并执行 loader content identity 与 0.2.2 release preparation track" status = "DONE" order = 0 } (
+            <TrackLink #expose-loader-content-identities-and-prepare-0-2-2 { state = "bound" project_ref = "halfcode-compiler" }>
+          )>
+          <Task #HALFCODE_RELEASE-T2 { name = "验证 public tarball 的 layered/snapshot/content-identity API、legacy compatibility 与 package identity" status = "DONE" order = 1 }>
+          <Task #HALFCODE_RELEASE-T3 { name = "取得明确发布 authority 后发布或绑定 registry 0.2.2 receipt" status = "DONE" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #HALFCODE_DSL { name = "发布 Halfcode Resource DSL 系统 Skill" status = "DONE" order = 4 actor_set = "halfcode-resource-loop" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TJ>
+        从 canonical resource-dsl docs 生成面向消费者的 sys-halfcode-resource-dsl，不直接安装仓库维护者 Skill。
+        </?01M05F1P5K8SG2THGBC1HAK9TJ>
+        <SubNodes [
+          <Task #HALFCODE_DSL-T1 { name = "创建并执行 Resource DSL consumer SkillCapsule track" status = "DONE" order = 0 } (
+            <TrackLink #publish-halfcode-resource-dsl-system-skill { state = "bound" project_ref = "halfcode-compiler" }>
+          )>
+          <Task #HALFCODE_DSL-T2 { name = "验证标准覆盖、渐进加载、provenance、1.0.x version 与无 host-specific 操作" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #DEPA_RESOURCES { name = "depa-flows workflow resource domain" status = "DONE" order = 5 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TK>
+        移除 generic package/catalog authority，基于 Halfcode ResourceRecord 补齐 workflow App、Agent、Material 和 freeze 领域投影。
+        </?01M05F1P5K8SG2THGBC1HAK9TK>
+        <SubNodes [
+          <Task #DEPA_RESOURCES-T1 { name = "创建并执行 Halfcode-aligned AI workflow resource boundary track" status = "DONE" order = 0 } (
+            <TrackLink #align-ai-workflow-resource-boundary-with-halfcode { state = "bound" project_ref = "depa-flows" }>
+          )>
+          <Task #DEPA_RESOURCES-T2 { name = "在 Halfcode 0.2.2 registry receipt 后创建并执行 AIAgentDefinition、Material 与 run freeze track" status = "DONE" order = 1 } (
+            <TrackLink #add-ai-agent-definition-material-and-run-freeze-resources { state = "bound" project_ref = "depa-flows" }>
+          )>
+          <Task #DEPA_RESOURCES-T3 { name = "验证 workflow KindDefinitions、resource refs、ordered messages、fingerprints 与无第二资源管理器" status = "DONE" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #DEPA_RELEASE { name = "depa-flows AI resource packages patch publication" status = "DONE" order = 6 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TM>
+        把已完成并验证的 Agent/Material/App projection 与 run-freeze public API 作为新的 immutable 0.1.2 packages 发布；0.1.1 因无效 workspace dependency metadata 已 deprecated，Eidolon 不得使用 source/file import。
+        </?01M05F1P5K8SG2THGBC1HAK9TM>
+        <SubNodes [
+          <Task #DEPA_RELEASE-T1 { name = "冻结 ai-workflow-contract 与 ai-workflow-logic 0.1.2 package candidates" status = "DONE" order = 0 }>
+          <Task #DEPA_RELEASE-T2 { name = "取得明确发布 authority 后按依赖顺序发布并绑定 registry receipts" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #EIDOLON_RESOURCE { name = "Eidolon Resource-native App adapters" status = "DONE" order = 7 } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TN>
+        让 TUI、CLI 和 native tools 共享 Halfcode-backed App registry，并把标准 Agent resource 投影到现有 actor runtime。
+        </?01M05F1P5K8SG2THGBC1HAK9TN>
+        <SubNodes [
+          <Task #EIDOLON_RESOURCE-T1 { name = "创建并执行 Halfcode ResourceTree/App registry adoption track" status = "DONE" order = 0 } (
+            <TrackLink #adopt-halfcode-resource-tree-for-eidolon-apps { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #EIDOLON_RESOURCE-T2 { name = "创建并执行 AIAgentDefinition 到通用 actor runtime bridge track" status = "DONE" order = 1 } (
+            <TrackLink #execute-ai-agent-resources-through-eidolon-runtime { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #EIDOLON_RESOURCE-T3 { name = "验证无 manifest 全树扫描、无硬编码 reusable agent inventory、无 workflow-specific actor/session" status = "DONE" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #EIDOLON_SKILLS { name = "Eidolon 系统 Skill 分发与拆分" status = "DONE" order = 8 } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TP>
+        先让 global init 消费 Halfcode distribution plan 和通用 system Skill context loader，再发布可组合的 Halfcode/depa source modules，最后迁移四 Skill 内容与旧 identity。
+        </?01M05F1P5K8SG2THGBC1HAK9TP>
+        <SubNodes [
+          <Task #EIDOLON_SKILLS-T1 { name = "创建并执行 Halfcode-backed system Skill distribution track" status = "DONE" order = 0 } (
+            <TrackLink #adopt-halfcode-system-skill-distribution { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #EIDOLON_SKILLS-T1A { name = "发布可组合的 Halfcode Resource DSL authoring module patch" status = "DONE" order = 1 } (
+            <TrackLink #expose-halfcode-resource-dsl-authoring-module { state = "bound" project_ref = "halfcode-compiler" }>
+          )>
+          <Task #EIDOLON_SKILLS-T1B { name = "发布 depa-flows versioned Flow DSL reference module patch" status = "DONE" order = 2 } (
+            <TrackLink #publish-ai-workflow-flow-dsl-reference-module { state = "bound" project_ref = "depa-flows" }>
+          )>
+          <Task #EIDOLON_SKILLS-T2 { name = "创建并执行 Eidolon Anchor system Skill split/migration track" status = "DONE" order = 3 } (
+            <TrackLink #split-eidolon-anchor-devops-authoring-and-run-skills { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #EIDOLON_SKILLS-T3 { name = "验证 operations 目录、sibling delegation、generated references、atomic global init 与旧 Skill 退出" status = "DONE" order = 4 }>
+        ]>
+      )>
+      <TaskGroup #EIDOLON_RESOURCE_PUBLICATION { name = "Eidolon ResourcePackage 原生 authoring 与发布" status = "DONE" order = 9 } (
+        <Description ?01M05F2A100000000000000001>
+        修复 workflow bundle publication 与 Halfcode workspace ResourcePackage authority 之间的断层，以完整 package candidate、proof、CAS、整根原子替换和 registry readback 产生真实 resource publication receipt。
+        </?01M05F2A100000000000000001>
+        <SubNodes [
+          <Task #EIDOLON_RESOURCE_PUBLICATION-T1 { name = "创建并执行 Resource-native App package authoring/publication track" status = "DONE" order = 0 } (
+            <TrackLink #publish-resource-native-app-packages-from-authoring { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #EIDOLON_RESOURCE_PUBLICATION-T2 { name = "验证 package CAS、whole-root recovery、registry refresh/readback 与 legacy VFS 引用诚实性" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #ACCEPTANCE { name = "Resource-native App 跨入口验收" status = "DONE" order = 10 } (
+        <Description ?01M05F1P5K8SG2THGBC1HAK9TQ>
+        用已构建并本地安装的 Eidolon，从自然语言完成 App authoring、release、deploy/run 和 evidence readback，独立审计 authority 与无模糊 host routing。
+        </?01M05F1P5K8SG2THGBC1HAK9TQ>
+        <SubNodes [
+          <Task #ACCEPTANCE-T1 { name = "创建并执行 Resource-native App lifecycle acceptance track" status = "DONE" order = 0 } (
+            <TrackLink #verify-eidolon-resource-native-app-lifecycle { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #ACCEPTANCE-T2 { name = "执行 global init 幂等/失败回滚、TUI/CLI authoring、publish、run 与 recovery journey" status = "DONE" order = 1 }>
+          <Task #ACCEPTANCE-T3 { name = "扫描无平行 resource authority、无手工 Flow DSL 副本、无自然语言 host heuristic" status = "DONE" order = 2 }>
+          <Task #ACCEPTANCE-T4 { name = "对照 mission 成功判据收口或基于 evidence 受控重规划" status = "DONE" order = 3 }>
+        ]>
+      )>
+      <TaskGroup #DEPA_AGENT_EXECUTION { name = "depa-flows 完整 Agent 可执行契约" status = "DONE" order = 11 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M0MXTCVDKQ22A7R03B6313FJ>
+        把 Message/Input/Output schema、EffectPolicy 与 Material value delivery 从 opaque refs 收敛为 closed executable projections，并保持 Halfcode generic authority 与 Ctrl/Data task tuple 不变。
+        </?01M0MXTCVDKQ22A7R03B6313FJ>
+        <SubNodes [
+          <Task #DEPA_AGENT_EXECUTION-T1 { name = "创建并执行完整 AIAgentDefinition executable contract track" status = "DONE" order = 0 } (
+            <TrackLink #complete-ai-agent-definition-executable-contracts { state = "bound" project_ref = "depa-flows" }>
+          )>
+          <Task #DEPA_AGENT_EXECUTION-T2 { name = "验证 schema、policy、Material value、fingerprint 与 Ctrl/Data task integration" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #DEPA_AGENT_EXECUTION_RELEASE { name = "depa-flows 完整 Agent contract 补丁发布" status = "DONE" order = 12 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M0MXTCVDKQ22A7R03B6313FK>
+        以末端最小补丁版本发布 contract、logic 与生成 Flow DSL reference，禁止 registry override、source/file dependency 或同版本替换。
+        </?01M0MXTCVDKQ22A7R03B6313FK>
+        <SubNodes [
+          <Task #DEPA_AGENT_EXECUTION_RELEASE-T1 { name = "构建、发布并回读最小 patch packages" status = "DONE" order = 0 }>
+          <Task #DEPA_AGENT_EXECUTION_RELEASE-T2 { name = "fresh registry consumer 验证 executable projections 与 authoring references" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #EIDOLON_AGENT_EXECUTION { name = "Eidolon 完整 Agent 通用 runtime" status = "DONE" order = 13 } (
+        <Description ?01M0MXTCVDKQ22A7R03B6313FM>
+        消费已发布 depa contract，以通用 Agent/actor/tool/session seams执行 schema、effect policy 与 Material delivery，并覆盖 Ctrl/Data workflow recovery。
+        </?01M0MXTCVDKQ22A7R03B6313FM>
+        <SubNodes [
+          <Task #EIDOLON_AGENT_EXECUTION-T1 { name = "创建并执行完整 AIAgentDefinition runtime track" status = "DONE" order = 0 } (
+            <TrackLink #execute-complete-ai-agent-definition-contracts { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #EIDOLON_AGENT_EXECUTION-T2 { name = "验证 generic enforcement、frozen recovery 与无 workflow-specific runtime" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #COMPLETE_AGENT_ACCEPTANCE { name = "完整 Agent Ctrl/Data E2E 验收" status = "DONE" order = 14 } (
+        <Description ?01M0MXTCVDKQ22A7R03B6313FN>
+        从 installed authoring references 创建并发布含完整 Agent contract 的 ResourcePackage，分别运行 Ctrl/Data workflow并验证结果、Material、policy、schema、重试与恢复。
+        </?01M0MXTCVDKQ22A7R03B6313FN>
+        <SubNodes [
+          <Task #COMPLETE_AGENT_ACCEPTANCE-T1 { name = "创建并执行完整 Agent Ctrl/Data E2E track" status = "DONE" order = 0 } (
+            <TrackLink #verify-complete-ai-agent-definition-ctrl-data-e2e { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #COMPLETE_AGENT_ACCEPTANCE-T2 { name = "对照完整 mission 成功判据收口" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #HISTORICAL_RUNTIME_RECONCILIATION { name = "历史设计证据恢复与偏差重规划" status = "DONE" order = 15 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M0N0RUNTIME00000000000001>
+        从当前任务的完整用户消息记录、Python workflow fixture/host persistence 和 depa-flows canonical examples 恢复被压缩丢失的 Definition、Instance、Run、state 与 Agent invocation 不变量；已完成旧 groups 不重写，只追加纠偏 DAG。
+        </?01M0N0RUNTIME00000000000001>
+        <SubNodes [
+          <Task #HISTORICAL_RUNTIME_RECONCILIATION-T1 { name = "提取已接受、已否决和仍待实现的历史约束" status = "DONE" order = 0 }>
+          <Task #HISTORICAL_RUNTIME_RECONCILIATION-T2 { name = "对照 depa/Eidolon executable truth 分类 authority drift" status = "DONE" order = 1 }>
+          <Task #HISTORICAL_RUNTIME_RECONCILIATION-T3 { name = "原子重新激活 mission 并保留既有 DONE 历史" status = "DONE" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #DEPA_INSTANCE_RUN_AUTHORITY { name = "depa-flows Definition、Instance 与 Run authority" status = "DONE" order = 16 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M0N0RUNTIME00000000000002>
+        把 definition 冻结物化、instance capsule、run-local checkpoint、input/config/state/output 与 controller/profile sidecars 收敛为一个可恢复事实模型；修正 fresh resume 重新读取 definition 和 flat snapshot 物理布局。
+        </?01M0N0RUNTIME00000000000002>
+        <SubNodes [
+          <Task #DEPA_INSTANCE_RUN_AUTHORITY-T1 { name = "创建并执行 Definition→Instance→Run authority track" status = "DONE" order = 0 } (
+            <TrackLink #restore-ai-workflow-definition-instance-run-authority { state = "bound" project_ref = "depa-flows" }>
+          )>
+          <Task #DEPA_INSTANCE_RUN_AUTHORITY-T2 { name = "验证 Ctrl snapshot、Data RunGraph 与 profile state 只有一个 run checkpoint owner" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #DEPA_TYPED_AGENT_INVOCATION { name = "depa-flows typed Agent invocation 与实例选择" status = "DONE" order = 17 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M0N0RUNTIME00000000000003>
+        建立标准 Processor `runAgent`/`runTargetedAgent`、同名 runtime-bound facade、closed selector、稳定返回引用和 Ctrl/Data DSL binding；内部 generic dispatch 不再作为 authored Flow API。
+        </?01M0N0RUNTIME00000000000003>
+        <SubNodes [
+          <Task #DEPA_TYPED_AGENT_INVOCATION-T1 { name = "创建并执行 typed Agent invocation 与 instance selector track" status = "DONE" order = 0 } (
+            <TrackLink #add-typed-agent-invocation-and-instance-selection { state = "bound" project_ref = "depa-flows" }>
+          )>
+          <Task #DEPA_TYPED_AGENT_INVOCATION-T2 { name = "验证 selector 互斥、run-local name 唯一性、精确未找到或冲突诊断、Ctrl/Data DSL 与恢复" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #DEPA_RUNTIME_RELEASE { name = "depa-flows runtime contract 补丁发布" status = "DONE" order = 18 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M0N0RUNTIME00000000000004>
+        以末端最小补丁版本发布 instance/run store、typed invocation 与生成 Flow DSL reference；不得指定 registry、不得使用 source/file substitute 或替换已发布版本内容。
+        </?01M0N0RUNTIME00000000000004>
+        <SubNodes [
+          <Task #DEPA_RUNTIME_RELEASE-T1 { name = "构建、发布并回读 depa runtime 最小 patch packages" status = "DONE" order = 0 }>
+          <Task #DEPA_RUNTIME_RELEASE-T2 { name = "fresh registry consumer 验证 store、Processor API 与 DSL references" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #EIDOLON_INSTANCE_RUN_PERSISTENCE { name = "Eidolon depa-native instance/run persistence" status = "DONE" order = 19 } (
+        <Description ?01M0N0RUNTIME00000000000005>
+        让 WorkflowRuntimeService 通过公开 depa store port 绑定 definitions/instances/runs，单向迁移旧 flat WorkflowFactStore，并保留 generic actor/session authority；禁止双写双 authority。
+        </?01M0N0RUNTIME00000000000005>
+        <SubNodes [
+          <Task #EIDOLON_INSTANCE_RUN_PERSISTENCE-T1 { name = "创建并执行 depa instance/run persistence adoption track" status = "DONE" order = 0 } (
+            <TrackLink #adopt-depa-ai-workflow-instance-run-persistence { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #EIDOLON_INSTANCE_RUN_PERSISTENCE-T2 { name = "验证旧事实单向迁移、fresh process recovery 与可检查 instance capsule" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #EIDOLON_TYPED_AGENT_FACADE { name = "Eidolon typed Agent effect facade" status = "DONE" order = 20 } (
+        <Description ?01M0N0RUNTIME00000000000006>
+        将 depa Processor 绑定到 Eidolon 通用 Agent/effect lifecycle，在 authored flow runtime 暴露 typed `runAgent`/`runTargetedAgent`；同一 track 负责 bootstrap typings、generated flow-code 与 publication AST/type proof，禁止新 authored ResourcePackage 继续暴露 generic `invoke`。Flow checkpoint 只记录稳定 actor/session/instance references 与 receipts。
+        </?01M0N0RUNTIME00000000000006>
+        <SubNodes [
+          <Task #EIDOLON_TYPED_AGENT_FACADE-T1 { name = "创建并执行 typed Agent facade 与 generic runtime bridge track" status = "DONE" order = 0 } (
+            <TrackLink #expose-typed-agent-invocation-facade { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #EIDOLON_TYPED_AGENT_FACADE-T2 { name = "验证 bootstrap typings、generated code 与 publication proof 只接受 typed Agent APIs" status = "DONE" order = 1 }>
+          <Task #EIDOLON_TYPED_AGENT_FACADE-T3 { name = "验证 pending/completed/recovery exact-once 与无 workflow-specific actor store" status = "DONE" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #EIDOLON_TARGETED_AGENT_SKILLS { name = "Eidolon targeted Agent authoring/run Skill 更新" status = "DONE" order = 21 } (
+        <Description ?01M0N0RUNTIME00000000000007>
+        从发布后的 depa Flow DSL reference 生成 Authoring/Run operations，指导模型使用 typed Processor、selector、Ctrl/Data DSL 与 instance/run state；不手工复制标准或增加 host 语义表。
+        </?01M0N0RUNTIME00000000000007>
+        <SubNodes [
+          <Task #EIDOLON_TARGETED_AGENT_SKILLS-T1 { name = "创建并执行 targeted Agent Skill/reference update track" status = "DONE" order = 0 } (
+            <TrackLink #update-eidolon-skills-for-targeted-agent-runs { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #INSTANCE_AGENT_REUSE_ACCEPTANCE { name = "Definition/Instance/Run 与 Agent 复用 E2E" status = "DONE" order = 22 } (
+        <Description ?01M0N0RUNTIME00000000000008>
+        用 installed Eidolon 创建并发布 ResourcePackage，分别在 Ctrl/Data workflow 中先创建具名 Agent instance、再按 name/id 复用；验证实例目录、checkpoint、恢复、schema/policy/material 与 generic actor facts。
+        </?01M0N0RUNTIME00000000000008>
+        <SubNodes [
+          <Task #INSTANCE_AGENT_REUSE_ACCEPTANCE-T1 { name = "创建并执行 instance/run/targeted-Agent E2E track" status = "DONE" order = 0 } (
+            <TrackLink #verify-ai-workflow-instance-agent-reuse-e2e { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #INSTANCE_AGENT_REUSE_ACCEPTANCE-T2 { name = "独立验证历史不变量和所有原定新行为并交接性能后续" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #FLOW_STATE_SIDECAR_OPTIMIZATION { name = "Flow StepSpace、state sidecar 与 Eidolon 采用" status = "DONE" order = 23 actor_set = "depa-workflow-resource-loop" } (
+        <Description ?01M0PG5VXVSZ436K4TXTR00E3M>
+        在原定 Definition/Instance/Run、typed Agent、Skill 与 E2E 任务全部完成后，使用 depa-expert 对节点通用状态、自定义扩展状态与 canonical checkpoint 的写放大进行 package×module 深度分析；参考 depa task-manager/BPCtrlFlow 的独立任务森林与精确桥接、Codument Track/Mission TaskSpace 的递归 DSL 和受控状态写入，建立对应的 StepSpace/StepForest 与 extension sidecar 协议，在单一 authority、atomic/CAS 与 fresh recovery 不变量下取得修改速度和可检查性的折中。
+        </?01M0PG5VXVSZ436K4TXTR00E3M>
+        <SubNodes [
+          <Task #FLOW_STATE_SIDECAR_OPTIMIZATION-T1 { name = "原定验收完成后创建并执行 StepSpace 与 state sidecar track" status = "DONE" order = 0 } (
+            <TrackLink #add-flow-step-space-and-state-sidecars { state = "bound" project_ref = "depa-flows" }>
+          )>
+          <Task #FLOW_STATE_SIDECAR_OPTIMIZATION-T2 { name = "创建并执行 Eidolon StepSpace 与 sidecar public API adoption track" status = "DONE" order = 1 } (
+            <TrackLink #adopt-depa-step-space-and-state-sidecars { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+          <Task #FLOW_STATE_SIDECAR_OPTIMIZATION-T3 { name = "独立验证 authority 单一、局部更新速度、atomic/CAS、恢复与 installed Eidolon" status = "DONE" order = 2 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_establish-eidolon-anchor-resource-native-app-and-skills" } [
+      <Node #HALFCODE_RESOURCE [
+        <After { ref = "BASELINE" }>
+      ]>
+      <Node #HALFCODE_SKILLS [
+        <After { ref = "BASELINE" }>
+      ]>
+      <Node #HALFCODE_RELEASE [
+        <After { ref = "HALFCODE_RESOURCE" }>
+        <After { ref = "HALFCODE_SKILLS" }>
+      ]>
+      <Node #HALFCODE_DSL [
+        <After { ref = "HALFCODE_SKILLS" }>
+      ]>
+      <Node #DEPA_RESOURCES [
+        <After { ref = "HALFCODE_RESOURCE" }>
+      ]>
+      <Node #DEPA_RELEASE [
+        <After { ref = "HALFCODE_RELEASE" }>
+        <After { ref = "DEPA_RESOURCES" }>
+      ]>
+      <Node #EIDOLON_RESOURCE [
+        <After { ref = "DEPA_RELEASE" }>
+      ]>
+      <Node #EIDOLON_SKILLS [
+        <After { ref = "HALFCODE_RELEASE" }>
+        <After { ref = "HALFCODE_DSL" }>
+        <After { ref = "EIDOLON_RESOURCE" }>
+      ]>
+      <Node #EIDOLON_RESOURCE_PUBLICATION [
+        <After { ref = "EIDOLON_SKILLS" }>
+      ]>
+      <Node #ACCEPTANCE [
+        <After { ref = "EIDOLON_RESOURCE_PUBLICATION" }>
+      ]>
+      <Node #DEPA_AGENT_EXECUTION [
+        <After { ref = "ACCEPTANCE" }>
+      ]>
+      <Node #DEPA_AGENT_EXECUTION_RELEASE [
+        <After { ref = "DEPA_AGENT_EXECUTION" }>
+      ]>
+      <Node #EIDOLON_AGENT_EXECUTION [
+        <After { ref = "DEPA_AGENT_EXECUTION_RELEASE" }>
+      ]>
+      <Node #COMPLETE_AGENT_ACCEPTANCE [
+        <After { ref = "EIDOLON_AGENT_EXECUTION" }>
+      ]>
+      <Node #HISTORICAL_RUNTIME_RECONCILIATION [
+        <After { ref = "COMPLETE_AGENT_ACCEPTANCE" }>
+      ]>
+      <Node #DEPA_INSTANCE_RUN_AUTHORITY [
+        <After { ref = "HISTORICAL_RUNTIME_RECONCILIATION" }>
+      ]>
+      <Node #DEPA_TYPED_AGENT_INVOCATION [
+        <After { ref = "DEPA_INSTANCE_RUN_AUTHORITY" }>
+      ]>
+      <Node #DEPA_RUNTIME_RELEASE [
+        <After { ref = "DEPA_TYPED_AGENT_INVOCATION" }>
+      ]>
+      <Node #EIDOLON_INSTANCE_RUN_PERSISTENCE [
+        <After { ref = "DEPA_RUNTIME_RELEASE" }>
+      ]>
+      <Node #EIDOLON_TYPED_AGENT_FACADE [
+        <After { ref = "EIDOLON_INSTANCE_RUN_PERSISTENCE" }>
+      ]>
+      <Node #EIDOLON_TARGETED_AGENT_SKILLS [
+        <After { ref = "EIDOLON_TYPED_AGENT_FACADE" }>
+      ]>
+      <Node #INSTANCE_AGENT_REUSE_ACCEPTANCE [
+        <After { ref = "EIDOLON_TARGETED_AGENT_SKILLS" }>
+      ]>
+      <Node #FLOW_STATE_SIDECAR_OPTIMIZATION [
+        <After { ref = "INSTANCE_AGENT_REUSE_ACCEPTANCE" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

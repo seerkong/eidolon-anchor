@@ -1,0 +1,88 @@
+<Track #update-eidolon-skills-for-targeted-agent-runs apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让 Eidolon Authoring/Run Skills 精确指导 typed 与 targeted Agent Processor，并更新可验证的四 Skill 分发闭包。" description = "修订 Agent authoring/run operations、selector/instance recovery guidance、generated Flow DSL references 与 SkillCapsule patch versions，执行生成、构建、隔离安装和 fresh 验收。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-23T07:25:52.212Z" updated_at = "2026-08-23T07:48:34.626Z" modeling_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" engineering_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #skill_source { role = "input" name = "skill-source" domain = "docs" path = "vfs://@/cell/packages/ai-support/src/system-skill/resource-package/" }>
+    <MaterialBundle #generated_plan { role = "output" name = "generated-plan" domain = "artifact" path = "vfs://@/cell/packages/ai-support/src/system-skill/generated/" }>
+    <MaterialBundle #verification { role = "output" name = "verification" domain = "test" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_update-eidolon-skills-for-targeted-agent-runs { name = "update-eidolon-skills-for-targeted-agent-runs" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze Skill contract and RED baseline" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Freeze published references and current stale guidance" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0PRM68VX3RCY1PQW3GXF9X4>
+              Tests pin ai-workflow-flow-dsl-reference@0.1.2, exact mapped file bytes/provenance and current three Skill identities without a registry override.
+              </?01M0PRM68VX3RCY1PQW3GXF9X4>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0PRM68WT65GP5SFX4VB21W1>
+              Neutral RED tests show Authoring still documents generic Agent invoke and Run lacks exact by-name/by-id continuity and checkpoint authority guidance.
+              </?01M0PRM68WT65GP5SFX4VB21W1>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Update typed Agent Skill resources" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Revise Authoring and Run operations" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0PRM68WT65GP5SFX4VB21W2>
+              Authoring examples preserve runtime-first Processors and use direct runAgent/runTargetedAgent with the exact selector shapes in Ctrl and Data ordinary nodes.
+              </?01M0PRM68WT65GP5SFX4VB21W2>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0PRM68WT65GP5SFX4VB21W3>
+              Run guidance explains returned-id and unique authored-name reuse, profile.ai opaque facts, generic actor/session ownership and pending/completed/fresh recovery without child-history dependence.
+              </?01M0PRM68WT65GP5SFX4VB21W3>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Regenerate exact Skill closure" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0PRM68X34905JWAW3CJN1KS>
+              Authoring=1.0.23, Run=1.0.3 and DevOps=1.0.27 with exact sibling dependencies; the plan contains exactly the existing four Skills in dependency-first order.
+              </?01M0PRM68X34905JWAW3CJN1KS>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0PRM68X34905JWAW3CJN1KT>
+              Generated Flow DSL references remain byte-identical to the published module and the plan/provenance is deterministic across repeated generation.
+              </?01M0PRM68X34905JWAW3CJN1KT>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Product and distribution verification" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Verify authored guidance and physical fixtures" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0PRM68YARB5A283NWHGCGEE>
+              Focused Skill/workflow tests and physical Ctrl/Data TypeScript/publication proof accept typed methods and reject authored Agent generic/computed/aliased invocation.
+              </?01M0PRM68YARB5A283NWHGCGEE>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0PRM68YARB5A283NWHGCGEF>
+              Static checks find no copied Flow DSL authority, workflow-specific actor/history store, selector text routing, actions directory, registry option or npmrc change.
+              </?01M0PRM68YARB5A283NWHGCGEF>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Build and update global managed Skills" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0PRM68YARB5A283NWHGCGEG>
+              Generator check, frozen install, unified build, strict Codument, diff and isolated compiled global init/readback pass while preserving ordinary Skills.
+              </?01M0PRM68YARB5A283NWHGCGEG>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0PRM68YARB5A283NWHGCGEH>
+              After all gates pass, the actual global root is updated idempotently to the same exact four identities/versions/closure digest and manifest-bound reads succeed.
+              </?01M0PRM68YARB5A283NWHGCGEH>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Node #P1>
+    <Node #P2 [
+      <After { ref = "P1" }>
+    ]>
+    <Node #P3 [
+      <After { ref = "P2" }>
+    ]>
+  ]>
+  <Hooks []>
+)>

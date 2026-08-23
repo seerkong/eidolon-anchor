@@ -110,6 +110,8 @@ tracks/
 | `gap_round` | 可选非负整数；gap-loop 父层运行 `codument track gap-round`，由 CLI 维护 |
 | `modeling_base_commit` / `engineering_base_commit` | 可选归档基线 |
 
+根状态是可恢复的生命周期状态，不是永久锁。`completed | cancelled` Track 在用户明确续跑或补充任务时，可运行 `codument track transition <id> in_progress` 恢复；若唯一 authority 已归档，CLI 将其移动回 `tracks/active/<id>/`。恢复不会撤销归档时已提升的 behavior、modeling、engineering、decision 或 artifact；再次进入 `completed` 仍必须通过当前任务树的 completion gate。若 archived 中存在多个同 id authority，CLI 必须拒绝猜测并要求先消除歧义。
+
 ## 4. 结构轴
 
 `TaskSpace` 的 `SubNodes` 第一层 `TaskGroup` 即 phase。`TaskGroup` 与 `Task` 可以递归嵌套，id 在单个 Track 内全局唯一。

@@ -9,6 +9,7 @@ export type WorkflowDomainProgressOwner =
 export type WorkflowDomainProgressTransition =
   | "workspace_opened"
   | "workspace_revision_changed"
+  | "candidate_diagnostic"
   | "proof_prepared"
   | "lifecycle_completed"
   | "publication_created"
@@ -35,6 +36,7 @@ const OWNERS = new Set<WorkflowDomainProgressOwner>([
 const TRANSITIONS = new Set<WorkflowDomainProgressTransition>([
   "workspace_opened",
   "workspace_revision_changed",
+  "candidate_diagnostic",
   "proof_prepared",
   "lifecycle_completed",
   "publication_created",

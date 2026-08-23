@@ -6,7 +6,7 @@
 
 ## 0. 前置
 
-- mission 必须位于 `codument/missions/pending/<id>/` 或 `codument/missions/active/<id>/`。
+- mission authority 可位于 `pending/`、`active/` 或 `archived/`；显式执行已收口 Mission 时先通过 lifecycle CLI 恢复到 active。
 - `mission.xnl` 是状态真源。
 - `analysis/` 和 `reports/` 是执行期外部记忆，默认不进 git。
 - 不依赖 chat history 作为状态。
@@ -50,6 +50,11 @@
 ---- #step ?load
 定位 mission：优先读取 active/<id>/；若只存在 pending/<id>/，执行 start-mission（见 §3）后立即重新读取 active/<id>/。
 ---- /?load
+---- #if ?archived_resume cond="用户显式要求执行该 mission，且 authority 只存在于 archived"
+------ #step ?restore
+运行 `codument mission transition <id> active`，使用 CLI receipt 的 directory 重新加载 mission.xnl，然后进入 observe/reconcile。
+------ /?restore
+---- /?archived_resume
 ---- #if ?pending_start cond="mission 位于 pending/<id>/"
 ------ #call ?start target="start-mission(pending/<id>)"
 ------ /?start
@@ -119,6 +124,8 @@ MissionApplier 写 reports/replan-XXX.md 并更新 TaskSpace/Schedule 的语义�
 2. 本次入口是 `codument-impl-mission <id>` 或用户要求实现/续跑时，视为已授权启动；用户明确要求只检查时保持 pending。
 3. 运行 `codument mission transition <id> active`。CLI 验证 lifecycle、目标目录、revision 与更新时间并原子移动 authority。
 4. 从命令返回的 active 路径重新加载，然后继续主循环；启动本身不结束 invocation。
+
+用户明确要求续跑、补充任务或恢复已收口 Mission 时，即使其为 `completed`、`cancelled`、`superseded` 或已归档，也应运行 `codument mission transition <id> active`。CLI 会恢复唯一 archived authority；随后必须从返回的 active 路径重新加载 Mission 并 observe/reconcile。不要手工移动目录或直接改根状态，也不要回滚此前归档已提升的 durable 产物。
 
 ## 4. ready node 处理
 

@@ -53,18 +53,18 @@
 @delimiter: --
 -- #sequence ?select
 ---- #step ?s1
-运行 `codument list --json` 取得 active Track 与状态；若由 codument-impl-mission 调用且存在刚创建的候选，先按 §1.4 激活再重新运行 list。无有效 authority 时向 mission 返回缺失事实并由 mission reconcile，独立调用时才向用户报告
+若由 codument-impl-mission 调用且存在刚创建的候选，先按 §1.4 激活。未提供 track-id 时运行 `codument list --json` 取得 active Track 与状态；无有效 authority 时向 mission 返回缺失事实并由 mission reconcile，独立调用时才向用户报告
 ---- /?s1
 ---- #if ?s2 cond="用户提供了 track 名称参数"
 ------ #sequence ?named
 -------- #step ?m1
-对 track-id 做精确、不区分大小写匹配
+运行 `codument track transition <track-id> in_progress`，由 CLI 在 pending、active 和 archived 中按资源 id 唯一定位 authority；使用 receipt 的 directory
 -------- /?m1
 -------- #if ?m2 cond="精确且唯一匹配"
-直接选中并继续，不需用户确认
+从 active 路径重新加载并继续，不需用户确认
 -------- /?m2
 -------- #else ?m3
-无匹配或多个候选 → ask-single-question-free 请求澄清
+CLI 报无匹配或多个 archived authority → ask-single-question-free 请求澄清
 -------- /?m3
 ------ /?named
 ---- /?s2
@@ -77,6 +77,8 @@
 ```
 
 未选出任何 track 则通知用户并等待指示（`ask-single-question-free`）；mission 语境下则向 MissionApplier 返回“无可激活 track”+ 原因，由 mission 决定重规划 / 阻塞，不默认提问。
+
+用户明确要求续跑、补充任务或恢复已收口 Track 时，即使其为 `completed`、`cancelled` 或已归档，也按上述流程恢复。不要手工移动目录或直接改根状态，也不要回滚此前归档已提升的 durable 产物。
 
 ### 1.4 mission 语境候选激活
 当本 `codument-impl-track` 由 `codument-impl-mission` 调用且 ready operation 是 candidate TrackLink 时，MissionApplier 先运行 `codument track transition <track-id> in_progress` 激活 pending Track，再运行 `codument mission bind-track <mission-id> <task-id> <track-id>` 写入绑定与 report。命令成功后立即进入实现；只有显式确认 gate 才停在激活点。

@@ -65,6 +65,15 @@ type WorkflowGraphPatchInput = WorkflowRunIdInput & {
   }
 }
 
+type WorkflowStepExtensionMutationInput = {
+  instance_id: string
+  run_id: string
+  step_id: string
+  extension_kind: string
+  expected_revision: number
+  value: unknown
+}
+
 const RUNTIME_ID = "eidolon.detached_actor" as const
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"])
@@ -558,6 +567,69 @@ export function buildWorkflowApplyGraphPatchToolDef(): ToolDef<WorkflowGraphPatc
           ok: false,
           error: String((error as Error)?.message ?? error),
           run_id: runId,
+        })
+      }
+    },
+  }
+}
+
+export function buildWorkflowMutateStepExtensionToolDef(): ToolDef<WorkflowStepExtensionMutationInput, string, ToolConfig> {
+  return {
+    schema: {
+      type: "function",
+      function: {
+        name: "WorkflowMutateStepExtension",
+        description: "Mutate one admitted logical Step extension by exact instance/run/step/kind identity and expected revision.",
+        parameters: {
+          type: "object",
+          properties: {
+            instance_id: { type: "string" },
+            run_id: { type: "string" },
+            step_id: { type: "string" },
+            extension_kind: { type: "string" },
+            expected_revision: { type: "number" },
+            value: {},
+          },
+          required: ["instance_id", "run_id", "step_id", "extension_kind", "expected_revision", "value"],
+          additionalProperties: false,
+        },
+      },
+    },
+    briefPromptXnl: "",
+    detailPromptXnl: "",
+    run: async (runtime, input) => {
+      try {
+        const checkpoint = await getWorkflowRuntimeService(runtime as any).mutateRunStepExtension({
+          instanceId: input.instance_id,
+          runId: input.run_id,
+          stepId: input.step_id,
+          kind: input.extension_kind,
+          expectedRevision: input.expected_revision,
+          value: input.value as import("ai-workflow-contract").FlowClosedValue,
+        })
+        const fact = checkpoint.stepExtensions?.byStepId[input.step_id]?.[input.extension_kind]
+        if (!fact) throw new Error("Accepted checkpoint omitted the selected Step extension fact")
+        return JSON.stringify({
+          ok: true,
+          kind: "workflow.stepExtensionMutation",
+          instance_id: checkpoint.instanceId,
+          run_id: checkpoint.runId,
+          step_id: input.step_id,
+          extension_kind: input.extension_kind,
+          checkpoint_version: checkpoint.version,
+          revision: fact.revision,
+          ...(fact.schemaRef === undefined ? {} : { schema_ref: fact.schemaRef }),
+          value: fact.value,
+        })
+      } catch (error) {
+        return JSON.stringify({
+          ok: false,
+          kind: "workflow.stepExtensionMutation",
+          instance_id: input.instance_id,
+          run_id: input.run_id,
+          step_id: input.step_id,
+          extension_kind: input.extension_kind,
+          error: String((error as Error)?.message ?? error),
         })
       }
     },

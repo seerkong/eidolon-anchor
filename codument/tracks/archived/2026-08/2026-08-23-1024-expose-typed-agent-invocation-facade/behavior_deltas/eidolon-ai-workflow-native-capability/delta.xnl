@@ -1,0 +1,28 @@
+<BehaviorPatch #track.expose-typed-agent-invocation-facade.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/typed-agent-authored-api" } (
+      <Requirement #typed-agent-authored-api (
+        <Statement ?>Authored Ctrl and Data workflow code SHALL call Agent effects through typed runAgent or runTargetedAgent methods whose underlying Processors retain the explicit runtime parameter.</?>
+        <Suites [
+          <Suite #processor-and-facade { name = "Runtime-first Processor and bound facade" } (
+            <Cases [
+              <Case #runtime-first (<Given ?>a flow module defines an Agent-calling Processor</?><When ?>the module is type-checked and admitted</?><Then ?>the exported Processor SHALL retain runtime as its first parameter while the runtime-bound facade SHALL expose the same runAgent or runTargetedAgent name</?>)>
+              <Case #no-authored-generic-invoke (<Given ?>new authored flow code calls runtime.ai.effects.invoke for Agent execution</?><When ?>publication proof inspects the frozen package</?><Then ?>admission SHALL fail before publication and SHALL direct the author to the typed named methods</?>)>
+            ]>
+          )>
+          <Suite #selector-dx { name = "Closed Agent instance selector" } (
+            <Cases [
+              <Case #by-id-or-name (<Given ?>a later Ctrl or Data node targets an earlier Agent instance</?><When ?>runTargetedAgent receives a selector</?><Then ?>the selector SHALL be exactly one of byInstanceId or byInstanceName and SHALL resolve from the same run checkpoint</?>)>
+              <Case #selector-fail-closed (<Given ?>the selector is missing, empty, ambiguous, unknown or conflicts with the run-local index</?><When ?>the invocation is prepared</?><Then ?>the call SHALL fail before provider dispatch and SHALL NOT create a new Agent instance</?>)>
+            ]>
+          )>
+          <Suite #ctrl-data-authored-code { name = "Ctrl and Data authored integration" } (
+            <Cases [
+              <Case #typed-physical-packages (<Given ?>physical Ctrl and Data ResourcePackages contain typed Agent nodes</?><When ?>they are proved, published and executed</?><Then ?>both forms SHALL compile and execute through the same typed facade while preserving their substrate lifecycle</?>)>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

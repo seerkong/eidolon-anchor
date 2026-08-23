@@ -1,0 +1,61 @@
+<decision #track.adopt-halfcode-resource-tree-for-eidolon-apps.root-separation apiVersion="codument.tech/v1alpha1" {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+} (
+  <question ?>How are ResourcePackage roots related to the workflow authoring workspace?</?>
+  <answer (
+    <raw-answer ?>They are separate authorities.</?>
+    <decision-text ?>Eidolon binds optional global/workspace ResourcePackage roots under `.eidolon/resources`; `.eidolon/workflows` remains the mutable workflow authoring/session root and is not implicitly scanned or converted.</?>
+    <rationale ?>Treating the current directory of independent workflow manifests as a package would invent a host Catalog and merge authoring with the normalized read model.</?>
+    <evidence ?>Resource registry architecture and integration tests.</?>
+  )>
+  <confidence ?>0.98</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.adopt-halfcode-resource-tree-for-eidolon-apps.single-generic-authority apiVersion="codument.tech/v1alpha1" {
+  priority = "P0"
+  status = "accepted"
+  durable_candidate = true
+} (
+  <question ?>Which layer owns resource discovery, layering and content identity?</?>
+  <answer (
+    <raw-answer ?>Halfcode exclusively.</?>
+    <decision-text ?>The Eidolon adapter SHALL call Halfcode public load/compose/content-identity APIs and SHALL NOT walk package roots, parse Catalogs, implement shadow rules or compute a competing registry revision.</?>
+    <rationale ?>A host-specific generic registry would recreate the Sparrow-era resource manager and violate the mission boundary.</?>
+    <evidence ?>Halfcode adapter and static authority scans.</?>
+  )>
+  <confidence ?>0.99</?>
+  <reversibility ?>low</?>
+)>
+
+<decision #track.adopt-halfcode-resource-tree-for-eidolon-apps.exact-resolution apiVersion="codument.tech/v1alpha1" {
+  priority = "P0"
+  status = "accepted"
+} (
+  <question ?>How does the workflow runtime resolve definitions during migration?</?>
+  <answer (
+    <raw-answer ?>Exact resource identity for discovery; explicit VFS only for compatibility.</?>
+    <decision-text ?>`resource://` resolution and Type listing SHALL use only effective Halfcode records and selected origin facts. `vfs://` MAY read one explicit authoring path but SHALL NOT participate in discovery.</?>
+    <rationale ?>This removes the full manifest scan without breaking explicit authoring/edit flows before the later ResourcePackage authoring migration.</?>
+    <evidence ?>Exact resource resolution and VFS compatibility tests.</?>
+  )>
+  <confidence ?>0.96</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #track.adopt-halfcode-resource-tree-for-eidolon-apps.shared-surface apiVersion="codument.tech/v1alpha1" {
+  priority = "P0"
+  status = "accepted"
+} (
+  <question ?>How do TUI, CLI and native tools observe Apps?</?>
+  <answer (
+    <raw-answer ?>Through the existing shared component and native tool runner.</?>
+    <decision-text ?>WorkflowComponent SHALL own the App registry adapter; native list/detail tools query it, the unified CLI calls those tools, and TUI uses the same built-in registration.</?>
+    <rationale ?>Surface-local resource logic would create inconsistent read authorities.</?>
+    <evidence ?>Shared component, native tool and CLI integration tests.</?>
+  )>
+  <confidence ?>0.98</?>
+  <reversibility ?>moderate</?>
+)>

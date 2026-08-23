@@ -102,7 +102,19 @@ describe("Runtime snapshot repository", () => {
     const worker = createActor({
       key: "worker",
       type: "delegate" as any,
+      agentName: "resource://eidolon.fixture.RecoverableAgent",
       contextPolicy: { historyCompaction: "disabled" },
+      executionContract: {
+        schemaVersion: "eidolon.agent-execution-contract/v1",
+        input: {
+          schemaVersion: "eidolon.agent-execution-input/v1",
+          payload: { request: "snapshot" },
+          materials: [],
+        },
+        messageSchemas: [],
+        outputSchema: { type: "string" },
+        effectPolicy: { toolMode: "declared-only" },
+      },
       workflowProgress: {
         stageId: "coding",
         stageStartedAt: 1,
@@ -174,8 +186,10 @@ describe("Runtime snapshot repository", () => {
     expect(Object.keys(manifest?.actorFiles ?? {})).toContain(root.key)
     const loaded = await repository.loadSnapshot()
     expect(loaded?.actors.worker?.profileSystemPromptProvenance).toEqual(actorSnapshot.profileSystemPromptProvenance)
+    expect(loaded?.actors.worker?.agentName).toBe("resource://eidolon.fixture.RecoverableAgent")
     expect(loaded?.actors.worker?.continuationBaseline?.contextDigest).toBe("sha256:provider-visible-context")
     expect(loaded?.actors.worker?.contextPolicy).toEqual({ historyCompaction: "disabled" })
+    expect(loaded?.actors.worker?.executionContract).toEqual(actorSnapshot.executionContract)
     expect(loaded?.actors.worker?.workflowProgress?.stageId).toBe("coding")
     const recoveredWorker = hydrateActor(loaded!.actors.worker!)
     expect(recoveredWorker.continuationBaseline).toEqual(expect.objectContaining({
@@ -183,6 +197,8 @@ describe("Runtime snapshot repository", () => {
       latestResponseId: "resp-snapshot-4",
       contextDigest: "sha256:provider-visible-context",
     }))
+    expect(recoveredWorker.executionContract).toEqual(actorSnapshot.executionContract)
+    expect(recoveredWorker.agentName).toBe("resource://eidolon.fixture.RecoverableAgent")
     expect(loaded?.questionnaires.map((row) => row.questionnaireId)).toEqual(["q1"])
     const questionnaireXnl = fs.readFileSync(path.join(rootDir, "questionnaires.xnl"), "utf8").trim()
     expect(questionnaireXnl.startsWith("<QuestionnaireRow")).toBe(true)

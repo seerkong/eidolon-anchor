@@ -45,7 +45,7 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     const parameters = JSON.parse(fetchedBody).tools[0].function.parameters;
     expect(parameters).toEqual(workflowOpen.schema.function.parameters);
     expect(parameters.type).toBe("object");
-    expect(parameters.oneOf).toHaveLength(2);
+    expect(parameters.oneOf).toHaveLength(3);
     expect(fetchedBody).not.toContain('"type":null');
   });
 

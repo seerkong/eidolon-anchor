@@ -46,6 +46,7 @@ import { getDetachedActorObservabilityStore } from "../../detached/DetachedActor
 import { AI_AGENT_ORCHESTRATOR_TICK_SCOPES, AI_AGENT_FIBER_RESULT_KINDS } from "./constants";
 import { materializeConversationHistoryMessagesFromVm } from "../../conversation/ConversationDomainRuntime";
 import { getVmProviderCallDomain } from "../../runtime/ProviderCallDomainRuntime";
+import { validateAgentExecutionOutput } from "../../agent/AgentExecutionContract";
 import {
   applyResumeFiber,
   createInitialOrchestratorState,
@@ -1054,11 +1055,18 @@ function createFiberActor(fiberId: string): ActorDef<AiAgentOrchestratorRuntime,
           const done = runtime.childDoneMap.get(fiberId);
           if (done) {
             const parentCtx = runtime.fiberIndex.get(done.parentFiberId);
-            const outputText = resolveDetachedChildOutputText(done, ctx.vm, ctx.actor, isChildExecution);
+            let outputText = resolveDetachedChildOutputText(done, ctx.vm, ctx.actor, isChildExecution);
+            let outputValidationError: string | undefined;
+            try {
+              outputText = validateAgentExecutionOutput(ctx.actor.executionContract, outputText);
+            } catch (error) {
+              outputValidationError = String((error as Error)?.message ?? error);
+            }
             const emptySuccess = isChildExecution
               && (!outputText.trim() || outputText === "(delegate actor returned no text)");
-            if (emptySuccess) {
-              const error = "delegate_empty_success: delegate completed without an authoritative assistant outcome";
+            if (emptySuccess || outputValidationError) {
+              const error = outputValidationError
+                ?? "delegate_empty_success: delegate completed without an authoritative assistant outcome";
               if (parentCtx) {
                 emitChildDoneToParent({
                   runtime,

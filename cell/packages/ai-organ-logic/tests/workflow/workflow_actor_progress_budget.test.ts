@@ -180,6 +180,18 @@ describe("workflow actor progress budget", () => {
       now: 1_002,
       config: traceBudget,
     })
+    expect(actor.workflowProgress).toMatchObject({
+      activeAuthoringSessionId: "authoring-session-1",
+      activeAuthoringRevision: "sha256:current",
+    })
+
+    enterWorkflowActorStage({ actor, stageId: "testing", now: 1_002, config: traceBudget })
+    expect(actor.workflowProgress).toMatchObject({
+      stageId: "testing",
+      activeAuthoringSessionId: "authoring-session-1",
+      activeAuthoringRevision: "sha256:current",
+    })
+    enterWorkflowActorStage({ actor, stageId: "coding", now: 1_002, config: traceBudget })
 
     beginWorkflowActorTurn({ actor, now: 1_003, config: traceBudget })
     toolSequence.push("Skill")
@@ -250,6 +262,42 @@ describe("workflow actor progress budget", () => {
     })).toThrow(/workflow_proof_repair_exhausted/)
     expect(actor.workflowProgress?.lastDiagnostic).toBe("still invalid")
     expect(actor.workContext.summary).toBe("workspace revision 7")
+  })
+
+  it("treats owner-issued fresh-package diagnostics as bounded repair progress without claiming a session", () => {
+    const actor = workflowActor()
+    enterWorkflowActorStage({ actor, stageId: "coding", now: 1_000, config: budget })
+    beginWorkflowActorTurn({ actor, now: 1_001, config: budget })
+    recordWorkflowActorToolOutcome({
+      actor,
+      toolName: "WorkflowCreateResourcePackageSession",
+      outputText: progressOutput("candidate_diagnostic"),
+      isError: false,
+      now: 1_002,
+      config: budget,
+    })
+    expect(actor.workflowProgress).toMatchObject({
+      turnsSinceProgress: 0,
+      proofRepairAttempts: 1,
+      lastOutcome: "candidate_diagnostic",
+      activeAuthoringSessionId: undefined,
+    })
+    recordWorkflowActorToolOutcome({
+      actor,
+      toolName: "WorkflowCreateResourcePackageSession",
+      outputText: progressOutput("candidate_diagnostic"),
+      isError: false,
+      now: 1_003,
+      config: budget,
+    })
+    expect(() => recordWorkflowActorToolOutcome({
+      actor,
+      toolName: "WorkflowCreateResourcePackageSession",
+      outputText: progressOutput("candidate_diagnostic"),
+      isError: false,
+      now: 1_004,
+      config: budget,
+    })).toThrow(/workflow_proof_repair_exhausted/)
   })
 
   it("persists the active budget across actor snapshots", () => {

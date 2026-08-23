@@ -1,11 +1,16 @@
 import path from "node:path"
-import { readFile, realpath, stat } from "node:fs/promises"
+import { lstatSync, readFileSync, realpathSync } from "node:fs"
+import { lstat, readFile, readdir, realpath, stat } from "node:fs/promises"
+import type { DefinitionStepSourceReadPort } from "flow-step-space-contract"
 
 import {
   projectAIWorkflowAgentResources,
   projectAIWorkflowAppBundles,
 } from "ai-workflow-logic"
-import { freezeAIWorkflowRunResources } from "ai-workflow-logic/run-freeze"
+import {
+  freezeAIWorkflowRunResources,
+  projectFrozenAIAgentTaskBinding,
+} from "ai-workflow-logic/run-freeze"
 import type {
   AIAgentDefinitionProjection,
   AIAgentMessageRole,
@@ -13,8 +18,20 @@ import type {
   AIWorkflowAgentResourceProjection,
   AIWorkflowAppBundleProjection,
   AIWorkflowRunResourceFreezeReceipt,
+  FrozenAIAgentTaskBinding,
 } from "ai-workflow-contract"
 import type { AgentConfig } from "@cell/ai-core-contract/runtime/AgentConfig"
+import type {
+  AgentExecutionContract,
+  AgentExecutionMaterialPortInput,
+  AgentExecutionSchema,
+} from "@cell/ai-core-contract/runtime/AgentExecutionContract"
+import {
+  normalizeAgentExecutionSchema,
+  normalizeAgentExecutionValue,
+  validateAgentExecutionInput,
+  validateAgentExecutionMessages,
+} from "../agent/AgentExecutionContract"
 import {
   composeLayeredResourceRegistry,
   buildResourceDependencySnapshot,
@@ -103,6 +120,7 @@ export type EidolonResourceAgentResolvedMessage = {
   readonly promptResourceId: string
   readonly contentDigest: string
   readonly content: string
+  readonly schema?: AgentExecutionSchema
 }
 
 export type EidolonResourceAgentExecutionPlan = {
@@ -114,6 +132,7 @@ export type EidolonResourceAgentExecutionPlan = {
   readonly messages: readonly EidolonResourceAgentResolvedMessage[]
   readonly toolResourceIds: readonly string[]
   readonly requiresWorkflowTask: boolean
+  readonly executionContract: AgentExecutionContract
   readonly agentConfig: AgentConfig
 }
 
@@ -320,6 +339,7 @@ export class EidolonAppResourceRegistryAdapter {
         resourceRef(agent.resource.resourceId),
         "standalone",
         snapshot,
+        { payload: null },
       ))
     }
     return Object.freeze(plans)
@@ -336,25 +356,47 @@ export class EidolonAppResourceRegistryAdapter {
         "Agent execution scope must be 'standalone' or 'workflow'.",
       )
     }
-    return this.materializeAgentExecutionPlanFromSnapshot(exactRef, options.scope, await this.snapshot())
+    return this.materializeAgentExecutionPlanFromSnapshot(exactRef, options.scope, await this.snapshot(), { payload: null })
   }
 
   async prepareWorkflowAgentExecution(
     task: AIWorkflowAgentTaskRef,
+    input: { readonly payload?: unknown } = {},
   ): Promise<EidolonPreparedWorkflowAgentExecution> {
     const snapshot = await this.snapshot()
-    const plan = this.materializeAgentExecutionPlanFromSnapshot(
-      exactResourceRef(task.agentDefinitionRef),
-      "workflow",
-      snapshot,
-    )
     const receipt = freezeAIWorkflowRunResources({
       registry: snapshot.registry,
       projection: snapshot.agentResources,
       task,
       contentIdentities: snapshot.contentIdentities,
     })
+    const plan = this.materializeAgentExecutionPlanFromSnapshot(
+      exactResourceRef(task.agentDefinitionRef),
+      "workflow",
+      snapshot,
+      { task, receipt, payload: input.payload ?? null },
+    )
     return Object.freeze({ plan, receipt })
+  }
+
+  async freezeWorkflowAgentTaskBinding(task: AIWorkflowAgentTaskRef): Promise<FrozenAIAgentTaskBinding> {
+    const snapshot = await this.snapshot()
+    return projectFrozenAIAgentTaskBinding(freezeAIWorkflowRunResources({
+      registry: snapshot.registry,
+      projection: snapshot.agentResources,
+      task,
+      contentIdentities: snapshot.contentIdentities,
+    }))
+  }
+
+  /** Captures the admitted physical layers as portable instance-owned bytes. */
+  async captureFrozenResourceClosure(): Promise<Readonly<Record<string, string>>> {
+    const snapshot = await this.snapshot()
+    const files: Record<string, string> = {}
+    for (const layer of snapshot.layers) {
+      await captureFrozenLayer(layer.rootDir, `.agent-resources/${layer.id}`, files)
+    }
+    return Object.freeze(files)
   }
 
   async listMaterialResourceRefsForWorkflow(workflowRef: string): Promise<readonly string[]> {
@@ -363,6 +405,14 @@ export class EidolonAppResourceRegistryAdapter {
       .filter((binding) => binding.task.workflowRef === workflowRef)
       .map((binding) => binding.material.ref)
     return Object.freeze([...new Set(refs)])
+  }
+
+  async listWorkflowAgentTasks(workflowRef: string): Promise<readonly AIWorkflowAgentTaskRef[]> {
+    const snapshot = await this.snapshot()
+    return Object.freeze(snapshot.agentResources.materialBindings
+      .map((binding) => binding.task)
+      .filter((task) => task.workflowRef === workflowRef)
+      .map((task) => Object.freeze({ ...task })))
   }
 
   async readEffectiveSource(
@@ -483,6 +533,129 @@ export class EidolonAppResourceRegistryAdapter {
     })
   }
 
+  /** Runs one profile parser against an exact, resource-local source port. */
+  async loadEffectiveProfile<T>(
+    owner: EidolonEffectiveResourceSource,
+    load: (input: {
+      readonly sources: Readonly<Record<string, string>>
+      readonly stepSources: DefinitionStepSourceReadPort
+    }) => T,
+    providedSnapshot?: EidolonResourceRegistrySnapshot,
+  ): Promise<{ readonly result: T; readonly sources: Readonly<Record<string, string>> }> {
+    const ownerSnapshot = this.effectiveSources.get(owner)
+    if (!ownerSnapshot) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_RESOURCE_DEPENDENCY_OWNER_INVALID",
+        "Workflow profile source reads require an effective source produced by this registry adapter.",
+      )
+    }
+    return this.withSourceRead(async () => {
+      if ((providedSnapshot ?? this.current) !== ownerSnapshot) {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_RESOURCE_DEPENDENCY_OWNER_STALE",
+          "Workflow profile source owner no longer belongs to the admitted registry snapshot.",
+          true,
+        )
+      }
+      const canonicalBase = await realpath(owner.baseUri)
+      const sources: Record<string, string> = { "manifest.xnl": owner.source }
+      const stepSources: DefinitionStepSourceReadPort = Object.freeze({
+        readSource: (refValue: string): Uint8Array => {
+          const ref = exactDependencyPath(refValue)
+          const existing = sources[ref]
+          if (existing !== undefined) return new TextEncoder().encode(existing)
+          const segments = ref.split("/")
+          let target = canonicalBase
+          for (const [index, segment] of segments.entries()) {
+            target = path.join(target, segment)
+            let metadata
+            try {
+              metadata = lstatSync(target)
+            } catch {
+              throw new EidolonResourceRegistryError(
+                "EIDOLON_RESOURCE_DEPENDENCY_NOT_FOUND",
+                `Workflow profile dependency '${ref}' does not exist.`,
+              )
+            }
+            const final = index === segments.length - 1
+            if (metadata.isSymbolicLink() || (final ? !metadata.isFile() : !metadata.isDirectory())) {
+              throw new EidolonResourceRegistryError(
+                "EIDOLON_RESOURCE_DEPENDENCY_ENTRY_INVALID",
+                `Workflow profile dependency '${ref}' must traverse directories to one regular non-symbolic-link file.`,
+              )
+            }
+          }
+          const canonicalTarget = realpathSync(target)
+          if (!isContained(canonicalBase, canonicalTarget)) {
+            throw new EidolonResourceRegistryError(
+              "EIDOLON_RESOURCE_DEPENDENCY_OUTSIDE_OWNER",
+              `Workflow profile dependency '${ref}' escapes its resource directory.`,
+            )
+          }
+          const bytes = readFileSync(canonicalTarget)
+          try {
+            sources[ref] = new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+          } catch {
+            throw new EidolonResourceRegistryError(
+              "EIDOLON_RESOURCE_DEPENDENCY_UTF8_INVALID",
+              `Workflow profile dependency '${ref}' is not valid UTF-8.`,
+            )
+          }
+          return bytes.slice()
+        },
+      })
+      const result = load({ sources, stepSources })
+      return Object.freeze({ result, sources: Object.freeze({ ...sources }) })
+    })
+  }
+
+  async readEffectivePackageDependencySource(
+    owner: EidolonEffectiveResourceSource,
+    packageRelativePath: string,
+  ): Promise<string> {
+    const ownerSnapshot = this.effectiveSources.get(owner)
+    if (!ownerSnapshot) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_RESOURCE_DEPENDENCY_OWNER_INVALID",
+        "Resource package dependency reads require an effective source produced by this registry adapter.",
+      )
+    }
+    const exactPath = exactDependencyPath(packageRelativePath)
+    return this.withSourceRead(async () => {
+      if (this.current !== ownerSnapshot) {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_RESOURCE_DEPENDENCY_OWNER_STALE",
+          "Resource package dependency owner no longer belongs to the admitted registry snapshot.",
+          true,
+        )
+      }
+      const layer = ownerSnapshot.layers.find((candidate) => candidate.id === owner.layerId)
+      if (!layer) {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_RESOURCE_LAYER_UNBOUND",
+          `Resource '${owner.resource.resourceId}' selected unknown layer '${owner.layerId}'.`,
+        )
+      }
+      const canonicalRoot = await realpath(layer.rootDir)
+      const canonicalTarget = await realpath(path.resolve(canonicalRoot, ...exactPath.split("/")))
+      if (!isContained(canonicalRoot, canonicalTarget)) {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_RESOURCE_DEPENDENCY_OUTSIDE_PACKAGE",
+          `Resource '${owner.resource.resourceId}' package dependency '${exactPath}' escapes layer '${layer.id}'.`,
+        )
+      }
+      const bytes = await readFile(canonicalTarget)
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+      } catch {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_RESOURCE_DEPENDENCY_UTF8_INVALID",
+          `Resource '${owner.resource.resourceId}' package dependency '${exactPath}' is not valid UTF-8.`,
+        )
+      }
+    })
+  }
+
   private enqueueRegistryOperation<T>(operation: () => Promise<T>): Promise<T> {
     const pending = this.registryOperationTail.then(operation, operation)
     this.registryOperationTail = pending.then(
@@ -557,6 +730,11 @@ export class EidolonAppResourceRegistryAdapter {
     agentDefinitionRef: `resource://${string}`,
     scope: EidolonResourceAgentExecutionScope,
     snapshot: EidolonResourceRegistrySnapshot,
+    execution: {
+      readonly task?: AIWorkflowAgentTaskRef
+      readonly receipt?: AIWorkflowRunResourceFreezeReceipt
+      readonly payload: unknown
+    },
   ): EidolonResourceAgentExecutionPlan {
     const agentId = agentDefinitionRef.slice("resource://".length)
     const agent = snapshot.agentResources.agentDefinitions.find(
@@ -566,12 +744,6 @@ export class EidolonAppResourceRegistryAdapter {
       throw new EidolonResourceRegistryError(
         "EIDOLON_RESOURCE_AGENT_NOT_FOUND",
         `AIAgentDefinition '${agentDefinitionRef}' is not present in registry ${snapshot.registryRevision}.`,
-      )
-    }
-    if (agent.inputSchema || agent.outputSchema || agent.effectPolicy || agent.messages.some((message) => message.schema)) {
-      throw new EidolonResourceRegistryError(
-        "EIDOLON_RESOURCE_AGENT_PROFILE_UNSUPPORTED",
-        `AIAgentDefinition '${agentDefinitionRef}' declares schema or effect-policy contracts that the generic actor runtime does not enforce.`,
       )
     }
     if (scope === "standalone" && agent.materialPorts.length > 0) {
@@ -603,6 +775,9 @@ export class EidolonAppResourceRegistryAdapter {
         promptResourceId: prompt.resourceId,
         contentDigest: identity.contentDigest,
         content: contentNode.text,
+        schema: message.schema
+          ? normalizeAgentExecutionSchema(message.schema.schema, `message.${message.id}.schema`)
+          : undefined,
       })
     }))
 
@@ -622,11 +797,45 @@ export class EidolonAppResourceRegistryAdapter {
         `AIAgentDefinition '${agentDefinitionRef}' declares a duplicate Tool reference.`,
       )
     }
-    const frozenToolResourceIds = Object.freeze(toolResourceIds) as string[]
+    const toolMode = agent.effectPolicy?.toolMode ?? "declared-only"
+    if (toolMode === "none" && toolResourceIds.length > 0) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_RESOURCE_AGENT_EFFECT_POLICY_CONFLICT",
+        `AIAgentDefinition '${agentDefinitionRef}' declares ToolRefs while EffectPolicy.toolMode is 'none'.`,
+      )
+    }
+    const admittedToolResourceIds = toolMode === "none" ? [] : toolResourceIds
+    const frozenToolResourceIds = Object.freeze(admittedToolResourceIds) as string[]
     const seedMessages = Object.freeze(messages.map((message) => Object.freeze({
       role: message.role,
       content: message.content,
     })))
+    const materialInputs = this.materializeAgentMaterialInputs({
+      agent,
+      snapshot,
+      task: execution.task,
+      receipt: execution.receipt,
+    })
+    const executionContract = Object.freeze({
+      schemaVersion: "eidolon.agent-execution-contract/v1",
+      input: Object.freeze({
+        schemaVersion: "eidolon.agent-execution-input/v1",
+        payload: normalizeAgentExecutionValue(execution.payload, "input.payload"),
+        materials: materialInputs,
+      }),
+      messageSchemas: Object.freeze(messages.flatMap((message) => message.schema
+        ? [Object.freeze({ messageId: message.id, schema: message.schema })]
+        : [])),
+      ...(agent.inputSchema
+        ? { inputSchema: normalizeAgentExecutionSchema(agent.inputSchema.schema, "agent.inputSchema") }
+        : {}),
+      ...(agent.outputSchema
+        ? { outputSchema: normalizeAgentExecutionSchema(agent.outputSchema.schema, "agent.outputSchema") }
+        : {}),
+      effectPolicy: Object.freeze({ toolMode }),
+    }) satisfies AgentExecutionContract
+    validateAgentExecutionMessages(executionContract, messages)
+    validateAgentExecutionInput(executionContract)
     const agentConfig = Object.freeze({
       name: agentDefinitionRef,
       description: agent.resource.description ?? agentDefinitionRef,
@@ -634,6 +843,7 @@ export class EidolonAppResourceRegistryAdapter {
       prompt: Object.freeze([]) as unknown as string[],
       seedMessages,
       requireExactTools: true,
+      executionContract,
     }) satisfies AgentConfig
     return Object.freeze({
       schemaVersion: "eidolon.resource-agent-execution-plan/v1",
@@ -644,8 +854,63 @@ export class EidolonAppResourceRegistryAdapter {
       messages,
       toolResourceIds: frozenToolResourceIds,
       requiresWorkflowTask: scope === "workflow",
+      executionContract,
       agentConfig,
     })
+  }
+
+  private materializeAgentMaterialInputs(input: {
+    readonly agent: AIAgentDefinitionProjection
+    readonly snapshot: EidolonResourceRegistrySnapshot
+    readonly task?: AIWorkflowAgentTaskRef
+    readonly receipt?: AIWorkflowRunResourceFreezeReceipt
+  }): readonly AgentExecutionMaterialPortInput[] {
+    if (input.agent.materialPorts.length === 0) return Object.freeze([])
+    if (!input.task || !input.receipt) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_RESOURCE_AGENT_WORKFLOW_TASK_REQUIRED",
+        `AIAgentDefinition '${input.agent.fqn}' requires an exact workflow task and freeze receipt.`,
+      )
+    }
+    const bindingsById = new Map(input.snapshot.agentResources.materialBindings.map((binding) => [binding.resource.resourceId, binding]))
+    const selectedBindings = input.receipt.bindingResourceIds.map((bindingId) => {
+      const binding = bindingsById.get(bindingId)
+      if (!binding) {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_RESOURCE_AGENT_MATERIAL_BINDING_MISSING",
+          `Freeze receipt selects unknown MaterialBinding '${bindingId}'.`,
+        )
+      }
+      return binding
+    })
+    return Object.freeze(input.agent.materialPorts.map((portRef) => {
+      const port = input.snapshot.agentResources.materialPorts.find(
+        (candidate) => candidate.resource.resourceId === portRef.resource.resourceId,
+      )
+      if (!port || port.resource !== portRef.resource) {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_RESOURCE_AGENT_MATERIAL_PORT_MISMATCH",
+          `Agent MaterialPort '${portRef.ref}' does not match the selected effective resource.`,
+        )
+      }
+      const values = selectedBindings
+        .filter((binding) => binding.port.resource.resourceId === port.resource.resourceId)
+        .map((binding) => Object.freeze({
+          bindingResourceId: binding.resource.resourceId,
+          materialResourceId: binding.material.resource.resourceId,
+          value: normalizeAgentExecutionValue(binding.material.value, `material.${binding.material.resource.resourceId}`),
+        }))
+      return Object.freeze({
+        portResourceId: port.resource.resourceId,
+        materialKind: port.materialKind,
+        required: port.required,
+        cardinality: port.cardinality,
+        ...(port.schema
+          ? { schema: normalizeAgentExecutionSchema(port.schema.schema, `materialPort.${port.resource.resourceId}.schema`) }
+          : {}),
+        values: Object.freeze(values),
+      })
+    }))
   }
 
   private async loadSnapshot(
@@ -678,6 +943,58 @@ export class EidolonAppResourceRegistryAdapter {
       agentResources: projectAIWorkflowAgentResources(registry),
       layers: Object.freeze(layers.map(({ binding }) => binding)),
     })
+  }
+}
+
+async function captureFrozenLayer(rootDir: string, prefix: string, target: Record<string, string>): Promise<void> {
+  const canonicalRoot = await realpath(rootDir)
+  const visit = async (directory: string, relative: string): Promise<void> => {
+    for (const entry of (await readdir(directory, { withFileTypes: true }))
+      .sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)) {
+      const absolute = path.join(directory, entry.name)
+      const nested = relative ? `${relative}/${entry.name}` : entry.name
+      if (entry.isSymbolicLink()) throw new EidolonResourceRegistryError(
+        "EIDOLON_FROZEN_RESOURCE_CLOSURE_LINK_UNSUPPORTED",
+        `Frozen resource closure entry '${nested}' cannot be a symbolic link.`,
+      )
+      const info = await lstat(absolute)
+      if (info.isDirectory()) {
+        await visit(absolute, nested)
+        continue
+      }
+      if (!info.isFile()) throw new EidolonResourceRegistryError(
+        "EIDOLON_FROZEN_RESOURCE_CLOSURE_ENTRY_UNSUPPORTED",
+        `Frozen resource closure entry '${nested}' must be a regular file.`,
+      )
+      const canonical = await realpath(absolute)
+      if (!isContained(canonicalRoot, canonical)) throw new EidolonResourceRegistryError(
+        "EIDOLON_FROZEN_RESOURCE_CLOSURE_OUTSIDE_LAYER",
+        `Frozen resource closure entry '${nested}' escapes its layer.`,
+      )
+      try {
+        target[`${prefix}/${nested}`] = new TextDecoder("utf-8", { fatal: true }).decode(await readFile(canonical))
+      } catch {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_FROZEN_RESOURCE_CLOSURE_UTF8_INVALID",
+          `Frozen resource closure entry '${nested}' is not valid UTF-8.`,
+        )
+      }
+    }
+  }
+  await visit(canonicalRoot, "")
+  const manifest = target[`${prefix}/manifest.xnl`]
+  if (manifest) {
+    for (const match of manifest.matchAll(/\broot\s*=\s*"vfs:\/\/\.\/([^"#?]+)"/g)) {
+      const catalogRoot = match[1]!.replace(/\/+$/, "")
+      if (!catalogRoot || path.posix.isAbsolute(catalogRoot)
+        || catalogRoot.split("/").some((segment) => !segment || segment === "." || segment === "..")) {
+        throw new EidolonResourceRegistryError(
+          "EIDOLON_FROZEN_RESOURCE_CATALOG_ROOT_INVALID",
+          `Frozen resource catalog root '${catalogRoot}' is not a portable relative path.`,
+        )
+      }
+      target[`${prefix}/${catalogRoot}/.eidolon-directory`] = "eidolon.frozen-catalog-root/v1\n"
+    }
   }
 }
 

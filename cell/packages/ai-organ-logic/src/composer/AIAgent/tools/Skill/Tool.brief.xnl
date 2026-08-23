@@ -1,5 +1,5 @@
 <tool {
   name = "Skill"
   namespace = "SysBuiltIn"
-  description = "Resolve one exact declared Skill resource and optional line fragment using revision- and visibility-aware delivery."
+  description = "Resolve one or a bounded ordered batch of exact declared Skill resources and optional shared line fragment using revision- and visibility-aware delivery."
 }>

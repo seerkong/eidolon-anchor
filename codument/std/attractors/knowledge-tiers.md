@@ -28,7 +28,7 @@
 | 候选工作 | `backlog/` | 跨 track 的下一步候选 + 自主度 | 活的·就地改 | "下一个该做什么"（非真源） |
 | 跨 track 路线 | `missions/{pending,active,archived}/<id>/mission.xnl` | 一组相关 track 的任务图、依赖、状态与进度证据 | 活的·就地改 | "多个 track 如何排布"（非行为真源） |
 | 迭代工作面 | `tracks/{pending,active}/<id>/` | proposal、design、discussion、`track.xnl`、`behavior_deltas/`、`analysis/`、`decisions*`、`reports/` | **带日期·迭代内可变** | "本次要建什么 / 怎么收口 / 发生了什么" |
-| 轨迹历史 | `tracks/archived/YYYY-MM/...` | 已完成 track | **带日期·归档后不可变** | "历史上做过什么" |
+| 轨迹历史 | `tracks/archived/YYYY-MM/...` | 已完成 track | **带日期·归档期间只读** | "历史上做过什么" |
 
 > 工具性目录（`std/`、`config/`、`workflows/`、`sop/`）不是知识层，不在晋升阶梯内。
 
@@ -87,7 +87,7 @@ tracks/{pending,active}/<id>/ ── proposal.md · design.md · discussion · b
 
 - **稳定 owner 层**（attractors / codument/modeling / codument/engineering / behaviors / decisions）：通过对应 delta 与归档合并维护，不因内容变化就新建带日期副本；registry 元数据与节点 schema 见 model-driven-docs.md 路由。
 - **decision owner 层**：canonical 内容只在 `codument/decisions/**/*.xnl`；物理 owner file 不是 identity，`decision://<id>` 通过全局 stable-id index 解析。历史 `decision.md` 与 archive `summary.md` 是兼容输入/派生视图，不参与 merge、index 或真源冲突裁决。
-- **迭代/轨迹层**（tracks/pending、tracks/active、tracks/archived / reports）：带日期；归档后不可变。
+- **迭代/轨迹层**（tracks/pending、tracks/active、tracks/archived / reports）：带日期；authority 留在 archived 时只读，需要补充工作时由 lifecycle CLI 整体恢复到 active 后再修改。
 - **新鲜度模式**：owner 文档标 `stale|unknown` 时，进入研究/对齐优先——不直接拿可执行真相去"修"文档、也不拿陈旧文档去"改"代码，先把漂移归类记录。
 
 ## 7. 路由

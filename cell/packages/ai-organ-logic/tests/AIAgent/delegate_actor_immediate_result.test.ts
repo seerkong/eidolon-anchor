@@ -261,4 +261,78 @@ describe("spawnChildExecutionActor immediate result", () => {
     })).rejects.toThrow("requires unavailable exact tool 'eidolon.fixture.LookupTool'")
     expect(Object.keys(vm.actors)).toEqual(["main"])
   })
+
+  it("validates generic execution input before provider dispatch and output before result delivery", async () => {
+    let providerCalls = 0
+    const parent = createActor({
+      key: "main",
+      id: "parent-execution-contract",
+      llmClient: {
+        type: "openai",
+        async createStream() {
+          async function* stream() { yield { ok: true } }
+          return { stream: stream() }
+        },
+      },
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async (vm, actor) => {
+          providerCalls += 1
+          const message = { role: "assistant" as const, content: JSON.stringify({ ok: false }) }
+          appendLiveHistoryMessageToConversationDomainRuntime({ vm, actorKey: actor.key, actorId: actor.id, message })
+          return message
+        },
+      },
+    })
+    const vm = createVM({
+      controlActorKey: parent.key,
+      actors: { [parent.key]: parent },
+      registries: { toolRegistry: composeToolRegistry(), agentRegistry: new AgentRegistry({}) },
+    })
+    const base = {
+      schemaVersion: "eidolon.agent-execution-contract/v1" as const,
+      input: {
+        schemaVersion: "eidolon.agent-execution-input/v1" as const,
+        payload: { request: "hello" },
+        materials: [],
+      },
+      messageSchemas: [],
+      inputSchema: { type: "object", properties: { request: { type: "string" } }, required: ["request"] },
+      outputSchema: { type: "object", properties: { ok: { const: true } }, required: ["ok"] },
+      effectPolicy: { toolMode: "declared-only" as const },
+    }
+    await expect(spawnChildExecutionActor(vm, parent, {
+      description: "invalid output",
+      prompt: "canonical input",
+      agentType: "resource://eidolon.fixture.ValidatedAgent",
+      resolvedConfig: {
+        name: "resource://eidolon.fixture.ValidatedAgent",
+        description: "validated Agent",
+        tools: [],
+        prompt: [],
+        requireExactTools: true,
+        executionContract: base as any,
+      },
+    })).rejects.toThrow("AGENT_EXECUTION_OUTPUT_SCHEMA_MISMATCH")
+    expect(providerCalls).toBe(1)
+
+    await expect(spawnChildExecutionActor(vm, parent, {
+      description: "invalid input",
+      prompt: "canonical input",
+      agentType: "resource://eidolon.fixture.InvalidInputAgent",
+      resolvedConfig: {
+        name: "resource://eidolon.fixture.InvalidInputAgent",
+        description: "invalid input Agent",
+        tools: [],
+        prompt: [],
+        requireExactTools: true,
+        executionContract: {
+          ...base,
+          input: { ...base.input, payload: {} },
+        } as any,
+      },
+    })).rejects.toThrow("AGENT_EXECUTION_SCHEMA_MISMATCH")
+    expect(providerCalls).toBe(1)
+  })
 })

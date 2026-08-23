@@ -1,0 +1,177 @@
+<Track #verify-complete-ai-agent-definition-ctrl-data-e2e apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "从已安装的作者态规范创建并发布完整 AIAgentDefinition ResourcePackage，分别执行 Ctrl/Data workflow并验证通用 runtime、恢复与产品可用性。" description = "补齐作者态到发布再到两种 workflow profile 的最终产品证据；保持 Halfcode/depa authority、exact task tuple、通用 actor/effect lifecycle 与无模糊 host 语义。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-22T15:38:33.717Z" updated_at = "2026-08-22T18:38:42.564Z" modeling_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" engineering_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #mission_authority { role = "input" name = "mission-authority" domain = "docs" path = "vfs://@/codument/missions/active/establish-eidolon-anchor-resource-native-app-and-skills/" }>
+    <MaterialBundle #runtime_track { role = "input" name = "runtime-track" domain = "docs" path = "vfs://@/codument/tracks/active/execute-complete-ai-agent-definition-contracts/" }>
+    <MaterialBundle #skills { role = "input" name = "installed-skills" domain = "artifact" path = "vfs://@/cell/packages/ai-support/src/system-skill/" }>
+    <MaterialBundle #workflow_tests { role = "output" name = "workflow-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/" }>
+    <MaterialBundle #product_tests { role = "output" name = "product-tests" domain = "test" path = "vfs://@/terminal/" }>
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #reports { role = "output" name = "reports" domain = "artifact" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_verify-complete-ai-agent-definition-ctrl-data-e2e { name = "verify-complete-ai-agent-definition-ctrl-data-e2e" version = "1" child_mode = "dag" } (
+    <Description ?01M0N2KW91SS5B7YJ675NPK6XK>
+    先锁定完整物理 ResourcePackage 与安装规范，再完成作者态 publication；随后分别执行 Ctrl/Data workflow与恢复路径，最后用 compiled product和独立方向审查收口。
+    </?01M0N2KW91SS5B7YJ675NPK6XK>
+    <SubNodes [
+      <TaskGroup #P1 { name = "冻结完整作者态 fixture 与产品基线" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "建立 installed-Skill 驱动的完整 ResourcePackage fixture" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XM>
+              fixture包含所需KindDefinitions、App、Ctrl/Data workflows、Agent ordered Messages、Input/Output schema、EffectPolicy、MaterialPort/Binding/value与flow-code。
+              </?01M0N2KW91SS5B7YJ675NPK6XM>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XN>
+              Authoring/Halfcode/Flow DSL安装内容可渐进读取并覆盖这些资源形状；不依赖旧sys-ai-workflow、手工Flow DSL副本或actions目录。
+              </?01M0N2KW91SS5B7YJ675NPK6XN>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XP>
+              Ctrl与Data节点各自声明exact四字段AIAgentTask tuple；相似名称与普通文本不产生额外语义边。
+              </?01M0N2KW91SS5B7YJ675NPK6XP>
+            ]>
+          )>
+          <Task #P1-T2 { name = "建立作者态、执行态与异常输入边界基线" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XQ>
+              测试先锁定create/prove不发布、publish不运行、Ctrl/Data run独立授权，以及owner-store typed handoff。
+              </?01M0N2KW91SS5B7YJ675NPK6XQ>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XR>
+              input/message/material/output schema、none/declared-only、missing tool、task mismatch、package drift均在正确owner fail closed。
+              </?01M0N2KW91SS5B7YJ675NPK6XR>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XS>
+              同effect pending/completed/recovery与显式new-run的语义被分别锁定，不以业务文本相似度复用。
+              </?01M0N2KW91SS5B7YJ675NPK6XS>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XT>
+          完整作者态fixture与产品边界基线可重复执行，并准确区分exact replay和new run。
+          </?01M0N2KW91SS5B7YJ675NPK6XT>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "完成作者态 publication 与 registry readback" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "从authoring workspace生成并准备完整package" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XV>
+              作者态按typed batch/CAS编辑完整package，opaque bytes保持，working revision与proof精确绑定。
+              </?01M0N2KW91SS5B7YJ675NPK6XV>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XW>
+              prepare生成App/Workflow/Agent/Material/workflow-profile/run-freeze receipts并核对Ctrl/Data task tuples。
+              </?01M0N2KW91SS5B7YJ675NPK6XW>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XX>
+              未授权时只返回可恢复authoring continuation，不产生publication或runtime effect。
+              </?01M0N2KW91SS5B7YJ675NPK6XX>
+            ]>
+          )>
+          <Task #P2-T2 { name = "原子发布并从同一registry快照回读" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XY>
+              显式publish执行whole-package CAS、publication fence、atomic swap与durable receipt，且runtimeEffectDispatched=false。
+              </?01M0N2KW91SS5B7YJ675NPK6XY>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6XZ>
+              admitted snapshot精确回读App、两个workflows、完整Agent projection、Material values与global dependency closure。
+              </?01M0N2KW91SS5B7YJ675NPK6XZ>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6Y0>
+              重复publication和恢复复用同一issuance authority；registry/source readers不观察未admit candidate。
+              </?01M0N2KW91SS5B7YJ675NPK6Y0>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P2-G1 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6Y1>
+          作者态完整ResourcePackage已作为真实resource authority发布，且未自动执行。
+          </?01M0N2KW91SS5B7YJ675NPK6Y1>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "执行 Ctrl/Data workflows 与恢复" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "通过同一generic Agent contract执行两个profile" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6Y2>
+              Ctrl Run与Data TransformNode分别通过同一adapter/freeze/effect/actor/tool/output seam成功并返回schema-valid结果。
+              </?01M0N2KW91SS5B7YJ675NPK6Y2>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6Y3>
+              provider前收到ordered Messages、validated payload、ordered Material values与exact effect policy；source definition不被runtime facts修改。
+              </?01M0N2KW91SS5B7YJ675NPK6Y3>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6Y4>
+              CLI/native/TUI read paths对publication、instance、run、result与registry identities一致。
+              </?01M0N2KW91SS5B7YJ675NPK6Y4>
+            ]>
+          )>
+          <Task #P3-T2 { name = "验证exact-once、snapshot recovery与new run" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6Y5>
+              同effect在等待中由新provider实例接续，并在完成后或进程恢复后返回同一result，provider child计数exact one。
+              </?01M0N2KW91SS5B7YJ675NPK6Y5>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6Y6>
+              actor snapshot roundtrip保持closed deep-frozen contract；malformed contract稳定拒绝且不进入provider。
+              </?01M0N2KW91SS5B7YJ675NPK6Y6>
+              <Criterion #P3-T2-AC3 { checked = true } ?01M0N2KW91SS5B7YJ675NPK6Y7>
+              显式新run identity创建新运行事实；不因相同输入、名称或普通语言自动复用旧run。
+              </?01M0N2KW91SS5B7YJ675NPK6Y7>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = true } ?01M0N2KW92EM4ZS78JET2M9QZN>
+          完整AIAgentDefinition在Ctrl/Data两种profile中通过同一通用runtime E2E可用并可恢复。
+          </?01M0N2KW92EM4ZS78JET2M9QZN>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "compiled product 与架构终审" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "运行隔离compiled product journey" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0N2KW92EM4ZS78JET2M9QZP>
+              最新统一eidolon build与local install成功，新隔离global init安装exact四Skill及当前1.0.x版本。
+              </?01M0N2KW92EM4ZS78JET2M9QZP>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0N2KW92EM4ZS78JET2M9QZQ>
+              至少一条fresh产品journey从空workspace资源根和installed references以explicit-complete-package建立可恢复作者态，完成prove/publish及Ctrl/Data显式run；报告脱敏且无credential/prompt/reasoning正文。
+              </?01M0N2KW92EM4ZS78JET2M9QZQ>
+              <Criterion #P4-T1-AC3 { checked = true } ?01M0N2KW92EM4ZS78JET2M9QZR>
+              focused/full相关tests、generator、frozen install、build、XNL/behavior、diff checks通过；外部provider等待与产品时延分开记录。
+              </?01M0N2KW92EM4ZS78JET2M9QZR>
+            ]>
+          )>
+          <Task #P4-T2 { name = "执行authority与无模糊语义终审" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0N2KW92EM4ZS78JET2M9QZS>
+              production无第二registry/scanner/dependency resolver、workflow-specific actor/session/history/compactor或手工Flow DSL/Skill authority。
+              </?01M0N2KW92EM4ZS78JET2M9QZS>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0N2KW92EM4ZS78JET2M9QZT>
+              production无基于普通语言、节点标签、App/workflow名称的regex/keyword/substring/fuzzy/ordered/alias决策分支。
+              </?01M0N2KW92EM4ZS78JET2M9QZT>
+              <Criterion #P4-T2-AC3 { checked = true } ?01M0N2KW92EM4ZS78JET2M9QZV>
+              fresh AttractorCheck(coding)对照track/implementation/tests/compiled product后无P0/P1。
+              </?01M0N2KW92EM4ZS78JET2M9QZV>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P4-G1 { checked = true } ?01M0N2KW92EM4ZS78JET2M9QZW>
+          产品证据与独立方向审查共同证明完整Agent作者态、Ctrl/Data集成及E2E可用。
+          </?01M0N2KW92EM4ZS78JET2M9QZW>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_verify-complete-ai-agent-definition-ctrl-data-e2e" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

@@ -100,7 +100,7 @@ describe("provider runtime driver registry", () => {
         workflowOpen.schema.function.parameters,
       );
       expect(body.tools[0].function.parameters.type).toBe("object");
-      expect(body.tools[0].function.parameters.oneOf).toHaveLength(2);
+      expect(body.tools[0].function.parameters.oneOf).toHaveLength(3);
       expect(body.model_capabilities).toEqual({
         family: "deepseek",
         cachePolicy: {

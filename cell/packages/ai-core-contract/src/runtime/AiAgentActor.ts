@@ -20,6 +20,7 @@ import type {
 import type { QuestionnaireRequestPayload } from "./Questionnaire";
 import type { HeartbeatWakePayload } from "./Heartbeat";
 import type { ChatMessage, InputContent, Logger, XStream } from "@shared/composer";
+import type { AgentExecutionContract } from "./AgentExecutionContract";
 
 export type ActorType = ActorExecutionKind;
 
@@ -99,6 +100,8 @@ export type WorkflowActorProgressState = {
   lastProgressAt: number;
   lastOutcome?: string;
   lastDiagnostic?: string;
+  activeAuthoringSessionId?: string;
+  activeAuthoringRevision?: string;
 };
 
 export type ActorModelConfig = {
@@ -288,6 +291,7 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
   };
   toolPolicy: ActorToolPolicy;
   contextPolicy: ActorContextPolicy;
+  executionContract?: AgentExecutionContract;
   modelConfig: ActorModelConfig;
   llmClient: object | null;
   stream: XStream<any> | null;

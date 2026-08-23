@@ -1,0 +1,126 @@
+<Track #adopt-depa-step-space-and-state-sidecars apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让 Eidolon 原生采用 published DEPA StepSpace、profile-aware state sidecar 与局部 extension mutation，同时保持 frozen Instance 和单一 FlowRunCheckpoint authority。" description = "升级 exact depa closure，接入 frozen profile authority、runtime codecs、作者态证明、Ctrl/Data fresh recovery、generated Skills，并完成最新本地 Eidolon 安装。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-23T12:50:52.959Z" updated_at = "2026-08-23T14:43:29.072Z" modeling_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" engineering_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "runtime-adoption" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/" }>
+    <MaterialBundle { role = "output" name = "bootstrap-and-skills" domain = "code" path = "vfs://@/cell/packages/ai-support/" }>
+    <MaterialBundle { role = "output" name = "verification" domain = "test" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_adopt-depa-step-space-and-state-sidecars { name = "adopt-depa-step-space-and-state-sidecars" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Published closure and adoption baseline" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Bind exact StepSpace release closure" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMMD>
+              Production direct imports and lock resolution match the 15 exact published versions in design, with no range, workspace/file/link substitute, registry override or npmrc change.
+              </?01M0QBG2P91AJVRQ0NCQ49CMMD>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMME>
+              Frozen install plus fresh runtime and strict type smoke load StepSpace, profile authority, extension mutation, Ctrl/Data filesystem and Flow DSL reference public APIs.
+              </?01M0QBG2P91AJVRQ0NCQ49CMME>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Establish neutral product boundary baselines" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMMF>
+              Boundary tests demonstrate that the current Eidolon store lacks profile authority/codecs and that modular StepSpace/extension facts are not yet preserved across Ctrl/Data transitions.
+              </?01M0QBG2P91AJVRQ0NCQ49CMMF>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMMG>
+              Tests freeze no-second-store, explicit membership, frozen owner-first recovery, runtime-only codec, logical API and no-physical-path constraints before implementation.
+              </?01M0QBG2P91AJVRQ0NCQ49CMMG>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Frozen profile authority and single checkpoint" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Freeze and reconstruct modular StepSpace authority" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMMH>
+              Resource publication and instance admission load explicit StepSpace/Step/Group/Extension refs with real Halfcode/depa loaders and freeze the complete exact closure with the existing Agent/Material resources.
+              </?01M0QBG2P91AJVRQ0NCQ49CMMH>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMMJ>
+              Fresh runtime reconstructs Ctrl/Data profile authority and codec registration only from materialized instance bytes after live source modification, deletion or invalidation.
+              </?01M0QBG2P91AJVRQ0NCQ49CMMJ>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Adopt profile-aware Ctrl and Data checkpoints" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMMK>
+              Ctrl and Data v0, transition, wait/manual pause, resume, patch and terminal flows preserve the same closed stepExtensions carrier through one component-owned filesystem checkpoint store.
+              </?01M0QBG2P91AJVRQ0NCQ49CMMK>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMMM>
+              Missing/wrong authority, unknown codec, schema mismatch, forged membership, stale revision and terminal reopening fail before effect or live checkpoint mutation.
+              </?01M0QBG2P91AJVRQ0NCQ49CMMM>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Typed mutation, authoring and generated guidance" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Expose logical targeted extension mutation" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0QBG2P91AJVRQ0NCQ49CMMN>
+              The bottom mutation remains mutateRunStepExtension(runtime, selector, invocation, config), and the runtime-bound authored facade keeps the same typed name without a generic operation envelope or physical path.
+              </?01M0QBG2P91AJVRQ0NCQ49CMMN>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0QBG2PAPCCPK068T7M9R3DD>
+              One accepted mutation advances one step/kind revision by one CAS; receipt evidence shows unrelated core/material reuse and a bounded new extension material, leaf and Merkle path.
+              </?01M0QBG2PAPCCPK068T7M9R3DD>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Bind authoring proof, references and Skills" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0QBG2PAPCCPK068T7M9R3DE>
+              Authoring open/tree/read/patch/proof/publication supports explicit modular StepSpace closure and rejects containment, symlink, malformed XNL, identity/schema/codec drift before publication mutation.
+              </?01M0QBG2PAPCCPK068T7M9R3DE>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0QBG2PAPCCPK068T7M9R3DF>
+              Flow DSL reference 0.1.5 and generated Authoring/Run Skills explain logical StepSpace and extension operations progressively, with no copied storage protocol or host semantic table.
+              </?01M0QBG2PAPCCPK068T7M9R3DF>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Product E2E, local install and independent direction check" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "Verify Ctrl and Data fresh product lifecycle" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0QBG2PAPCCPK068T7M9R3DG>
+              Physical Ctrl and Data ResourcePackages create/publish/instantiate/run, mutate a schema-bound extension, wait or partially complete, reconstruct a fresh service and finish from frozen bytes with stable Agent and StepSpace facts.
+              </?01M0QBG2PAPCCPK068T7M9R3DG>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0QBG2PAPCCPK068T7M9R3DH>
+              Status, result, summary, replay and evidence expose logical extension/checkpoint facts without host paths; new runs write no legacy Ctrl, AI state, Data graph or Agent execution authority.
+              </?01M0QBG2PAPCCPK068T7M9R3DH>
+            ]>
+          )>
+          <Task #P4-T2 { name = "Build, install and update global skills" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0QBG2PAPCCPK068T7M9R3DJ>
+              Focused/full workflow tests, strict type/build, generated plan check, frozen install, strict Codument, XNL/XML, diff and static authority gates pass.
+              </?01M0QBG2PAPCCPK068T7M9R3DJ>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0QBG2PAPCCPK068T7M9R3DK>
+              The latest unified Eidolon is built and locally installed through the canonical product path; global init installs the exact managed Skill closure idempotently, preserves ordinary Skills and supports manifest-bound readback.
+              </?01M0QBG2PAPCCPK068T7M9R3DK>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Node #P1>
+    <Node #P2 [
+      <After { ref = "P1" }>
+    ]>
+    <Node #P3 [
+      <After { ref = "P2" }>
+    ]>
+    <Node #P4 [
+      <After { ref = "P3" }>
+    ]>
+  ]>
+  <Hooks []>
+)>

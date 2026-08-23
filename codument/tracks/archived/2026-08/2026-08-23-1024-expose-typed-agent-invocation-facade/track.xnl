@@ -1,0 +1,126 @@
+<Track #expose-typed-agent-invocation-facade apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "在 Eidolon authored Ctrl/Data runtime 暴露 depa 标准 typed Agent facade，并以 canonical checkpoint 与 generic actor lifecycle 完成精确恢复。" description = "接入 runAgent/runTargetedAgent、closed selector、bootstrap typings、generated code 与 publication proof，移除 authored Agent generic invoke，验证 pending/completed/fresh recovery 收敛。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-23T05:06:42.786Z" updated_at = "2026-08-23T07:24:10.840Z" modeling_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" engineering_base_commit = "8a059721f1dcefb9d32a9cc3b75c78546210794c" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "runtime-bridge" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/" }>
+    <MaterialBundle { role = "output" name = "bootstrap-types" domain = "code" path = "vfs://@/cell/packages/ai-workflow-contract/" }>
+    <MaterialBundle { role = "output" name = "verification" domain = "test" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_expose-typed-agent-invocation-facade { name = "expose-typed-agent-invocation-facade" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Published contract and authored boundary baseline" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Bind exact typed Agent contracts" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0TYPEDFACADE000000000001>
+              Production imports resolve to the exact published depa versions and expose authentic frozen task binding, run-freeze projection, runAgent, runTargetedAgent, AIAgentSelector and bound facade contracts without registry, workspace, file, link or range substitution.
+              </?01M0TYPEDFACADE000000000001>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0TYPEDFACADE000000000002>
+              Frozen install and runtime/type smoke load the public contracts from the installed dependency graph without modifying npmrc or specifying a registry.
+              </?01M0TYPEDFACADE000000000002>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Freeze typed API and generic-invoke boundary" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0TYPEDFACADE000000000003>
+              Boundary tests prove the bottom Processors retain explicit runtime-first signatures while authored bound methods use the same runAgent and runTargetedAgent names and the exact selector union.
+              </?01M0TYPEDFACADE000000000003>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0TYPEDFACADE000000000004>
+              Tests prove current instances lack the complete Agent/Material dependency closure and current targeted dispatch creates an ephemeral child; existing authored Agent invoke fixtures fail the new admission baseline for the intended reason while internal generic dispatch remains available.
+              </?01M0TYPEDFACADE000000000004>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Runtime-first Agent bridge and canonical state" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Bind per-node Agent runtime to generic lifecycle" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0TYPEDFACADE000000000005>
+              Resource instance admission freezes the complete selected ResourcePackage/dependency closure; Ctrl and Data node binders reconstruct Halfcode/depa projections and an authentic task proof only from those immutable bytes plus the same canonical profile.ai owner.
+              </?01M0TYPEDFACADE000000000005>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0TYPEDFACADE000000000006>
+              The host callback maps one normalized Agent invocation to the generic resource Agent lifecycle; live package drift, structural proof copies, task drift and semantic fact drift fail before dispatch, while fresh recovery works after live source deletion.
+              </?01M0TYPEDFACADE000000000006>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Expose typed bound methods and selector resolution" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0TYPEDFACADE000000000007>
+              Authored runtime exposes generic runAgent and runTargetedAgent methods with independent input/output inference; no public Agent operation/effectId envelope is required.
+              </?01M0TYPEDFACADE000000000007>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0TYPEDFACADE000000000008>
+              byInstanceId and byInstanceName resolve only from the same run checkpoint; valid targets invoke the same generic runtime-owned actor/session across different invocation keys, while malformed, unresolved, duplicate or conflicting selectors fail without creating another Agent instance.
+              </?01M0TYPEDFACADE000000000008>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Bootstrap, generated code and publication proof" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Type bootstrap and generated flow code" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0TYPEDFACADE000000000009>
+              Bootstrap declarations and physical Ctrl/Data examples type-check runtime-first exported Processors whose bodies call the same-named typed bound facade.
+              </?01M0TYPEDFACADE000000000009>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0TYPEDFACADE00000000000A>
+              Generated minimal packages and current product fixtures use runAgent or runTargetedAgent and contain no authored Agent effects.invoke compatibility wrapper.
+              </?01M0TYPEDFACADE00000000000A>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Enforce static and publication admission" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0TYPEDFACADE00000000000B>
+              AST/type proof accepts direct named methods tied to the current runtime parameter and rejects missing runtime, computed aliases, generic Agent invoke and selector/task mismatch before publication mutation.
+              </?01M0TYPEDFACADE00000000000B>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0TYPEDFACADE00000000000C>
+              Invalid package proof leaves authoring candidate, live ResourcePackage, registry snapshot and durable receipts unchanged with bounded typed diagnostics.
+              </?01M0TYPEDFACADE00000000000C>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Recovery, physical E2E and independent verification" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "Verify pending and completed convergence" status = "DONE" order = 0 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0TYPEDFACADE00000000000D>
+              Same-process concurrency, reconstructed-provider pending recovery, completed repetition and completion-CAS convergence produce one generic child/provider call and one accepted instance/result; different targeted invocation keys reuse one addressed actor/session.
+              </?01M0TYPEDFACADE00000000000D>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0TYPEDFACADE00000000000E>
+              Fresh Ctrl/Data physical runs rebuild authentic proof from the frozen complete package, reuse the same actor/session by authored name and returned id after live source modification/deletion, and preserve stable output/checkpoint facts; changed invocation facts fail before dispatch.
+              </?01M0TYPEDFACADE00000000000E>
+            ]>
+          )>
+          <Task #P4-T2 { name = "Run build and authority gates" status = "DONE" order = 1 priority = "P0" } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0TYPEDFACADE00000000000F>
+              Focused and workflow tests, authored example type-check, frozen install, unified build, strict Codument, XNL/XML, generated plan, compiled isolated global init and diff checks pass.
+              </?01M0TYPEDFACADE00000000000F>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0TYPEDFACADE00000000000G>
+              Static checks find no authored Agent generic invoke, workflow-specific actor/session/history store, host text-based selector routing, duplicate Agent state authority, registry override or npmrc change.
+              </?01M0TYPEDFACADE00000000000G>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Node #P1>
+    <Node #P2 [
+      <After { ref = "P1" }>
+    ]>
+    <Node #P3 [
+      <After { ref = "P2" }>
+    ]>
+    <Node #P4 [
+      <After { ref = "P3" }>
+    ]>
+  ]>
+  <Hooks []>
+)>

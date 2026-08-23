@@ -3,7 +3,10 @@ import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { ensureVmRuntimeContext, type AiAgentVm } from "@cell/ai-core-logic/runtime/runtime"
 import { createAiAgentOrchestratorDriverWithCooperative } from "../OrchestratorDriver"
 import { seedConversationDomainFromActorSeedMessages } from "../exec/AiAgentExecutor"
-import { materializeConversationHistoryMessagesFromVm } from "../conversation/ConversationDomainRuntime"
+import {
+  appendLiveHistoryMessageToConversationDomainRuntime,
+  materializeConversationHistoryMessagesFromVm,
+} from "../conversation/ConversationDomainRuntime"
 import {
   DEFAULT_DETACHED_DELEGATE_TASK_KEY,
   DETACHED_ACTOR_KINDS,
@@ -20,6 +23,11 @@ import { getActorWorkContext } from "../runtime/ContextControlPlane"
 import { TASK_PHASES } from "@cell/ai-core-contract/runtime/ContextControl"
 import type { AgentConfig, AgentSeedMessage } from "@cell/ai-core-contract/runtime/AgentConfig"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
+import {
+  normalizeAgentExecutionContract,
+  validateAgentExecutionInput,
+  validateAgentExecutionOutput,
+} from "./AgentExecutionContract"
 
 function makeTaskId(): string {
   return `task-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -39,6 +47,8 @@ export async function spawnChildExecutionActor(
     detachedActorKind?: DetachedActorKind
     additionalSystemPrompts?: readonly string[]
     resolvedConfig?: AgentConfig
+    retainActor?: boolean
+    onActorCreated?: (actor: AiAgentActor) => void
   },
 ): Promise<string> {
   const config = params.resolvedConfig ?? AgentRegistry.get(vm.registries.agentRegistry, params.agentType)
@@ -49,6 +59,20 @@ export async function spawnChildExecutionActor(
     throw new Error(`Resolved Agent config name '${config.name}' does not match '${params.agentType}'`)
   }
   validateExactAgentTools(vm, config)
+  const executionContract = config.executionContract
+    ? normalizeAgentExecutionContract(config.executionContract)
+    : undefined
+  if (executionContract) {
+    validateAgentExecutionInput(executionContract)
+    if (executionContract.effectPolicy.toolMode === "none"
+      && (config.tools === "*" || config.tools.length > 0)) {
+      throw new Error(`Agent '${config.name}' effect policy 'none' requires an empty exact tool set`)
+    }
+    if (executionContract.effectPolicy.toolMode === "declared-only"
+      && (config.tools === "*" || config.requireExactTools !== true)) {
+      throw new Error(`Agent '${config.name}' effect policy 'declared-only' requires exact declared tools`)
+    }
+  }
   const seedMessages = normalizeAgentSeedMessages(config)
 
   const mode = normalizeDelegateRunMode(params.mode)
@@ -132,6 +156,7 @@ export async function spawnChildExecutionActor(
     contextPolicy: shouldStopAfterSingleTool
       ? { historyCompaction: "disabled" }
       : config.contextPolicy,
+    executionContract,
     callbacks: {
       buildToolset: parentActor.callbacks.buildToolset,
       processStream: parentActor.callbacks.processStream,
@@ -147,6 +172,7 @@ export async function spawnChildExecutionActor(
     },
   })
   vm.actors[actor.key] = actor
+  params.onActorCreated?.(actor)
   if (!vm.actorRuntime.has(actor.key)) {
     vm.actorRuntime.register(actor.key, actor)
   }
@@ -154,7 +180,7 @@ export async function spawnChildExecutionActor(
   // chain so the child's first provider materialization carries it (the raw
   // seed array is only the compatibility mirror).
   seedConversationDomainFromActorSeedMessages({ vm, actor, seedMessages: actor.messages })
-  let cleanupMode: "immediate" | "orchestrator_managed" | "retain" = "immediate"
+  let cleanupMode: "immediate" | "orchestrator_managed" | "retain" = params.retainActor ? "retain" : "immediate"
   try {
     const orch = ensureVmRuntimeContext(vm).currentOrchestrator
 
@@ -252,7 +278,7 @@ export async function spawnChildExecutionActor(
     for (let i = completedMessages.length - 1; i >= 0; i--) {
       const msg = completedMessages[i] as any
       if (msg?.role === "assistant") {
-        return msg.content ?? "(no content)"
+        return validateAgentExecutionOutput(actor.executionContract, String(msg.content ?? "(no content)"))
       }
     }
     return "(delegate actor returned no text)"
@@ -264,6 +290,94 @@ export async function spawnChildExecutionActor(
       }
     }
   }
+}
+
+export type AddressedChildExecutionReference = Readonly<{
+  authority: "eidolon.actor-runtime/v1"
+  actorKey: string
+  actorId: string
+  sessionId?: string
+  agentDefinitionRef: string
+}>
+
+export async function invokeAddressedChildExecutionActor(
+  vm: AiAgentVm,
+  parentActor: AiAgentActor,
+  params: {
+    description: string
+    prompt: string
+    agentType: string
+    toolCallId?: string
+    resolvedConfig: AgentConfig
+    target?: AddressedChildExecutionReference
+  },
+): Promise<{ output: string; reference: AddressedChildExecutionReference }> {
+  if (params.target) {
+    const actor = vm.actors[params.target.actorKey]
+    if (!actor || actor.id !== params.target.actorId) {
+      throw new Error("ADDRESSED_AGENT_OWNER_NOT_AVAILABLE: generic actor owner is not loaded")
+    }
+    if (params.target.authority !== "eidolon.actor-runtime/v1"
+      || params.target.agentDefinitionRef !== params.agentType
+      || actor.agentName !== params.agentType) {
+      throw new Error("ADDRESSED_AGENT_OWNER_CONFLICT: target does not match the Agent definition")
+    }
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: params.prompt },
+    })
+    const output = await runRetainedExecutionActor(vm, actor)
+    return { output, reference: params.target }
+  }
+  let created: AiAgentActor | undefined
+  const output = await spawnChildExecutionActor(vm, parentActor, {
+    description: params.description,
+    prompt: params.prompt,
+    agentType: params.agentType,
+    mode: "sync_wait",
+    toolCallId: params.toolCallId,
+    resolvedConfig: params.resolvedConfig,
+    retainActor: true,
+    onActorCreated: (actor) => { created = actor },
+  })
+  if (!created) throw new Error("ADDRESSED_AGENT_OWNER_MISSING: generic actor owner was not created")
+  const work = getActorWorkContext(created)
+  return {
+    output,
+    reference: Object.freeze({
+      authority: "eidolon.actor-runtime/v1",
+      actorKey: created.key,
+      actorId: created.id,
+      ...(work.sessionId ? { sessionId: work.sessionId } : {}),
+      agentDefinitionRef: params.agentType,
+    }),
+  }
+}
+
+async function runRetainedExecutionActor(vm: AiAgentVm, actor: AiAgentActor): Promise<string> {
+  const fiberId = `${actor.key}:${actor.id}:continued:${Date.now()}`
+  const messages = materializeConversationHistoryMessagesFromVm({ vm, actorKey: actor.key })
+  const driver = createAiAgentOrchestratorDriverWithCooperative({
+    fibers: [{ fiberId, vm, actor, messages, basePriority: 1 }],
+    options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+  })
+  const now = Date.now()
+  driver.resumeFiber(fiberId, now)
+  await driver.tickUntilBlocked({ now, maxTicks: 500 })
+  const terminal = driver.getState().fibers[fiberId]
+  if (terminal?.status !== "completed") {
+    throw new Error(terminal?.lastError || `Addressed Agent ${actor.key} did not complete (${terminal?.status ?? "missing"})`)
+  }
+  const completed = materializeConversationHistoryMessagesFromVm({ vm, actorKey: actor.key })
+  for (let index = completed.length - 1; index >= 0; index -= 1) {
+    const message = completed[index] as any
+    if (message?.role === "assistant") {
+      return validateAgentExecutionOutput(actor.executionContract, String(message.content ?? "(no content)"))
+    }
+  }
+  return "(delegate actor returned no text)"
 }
 
 function normalizeAgentSeedMessages(config: AgentConfig): readonly AgentSeedMessage[] | undefined {

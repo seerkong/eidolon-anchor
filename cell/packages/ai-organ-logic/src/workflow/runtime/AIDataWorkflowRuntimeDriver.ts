@@ -22,6 +22,7 @@ import {
   restoreAIDataWorkflowRunGraph,
 } from "ai-data-workflow-logic"
 import type { FlowClosedValue, FrozenAIAgentTaskBinding } from "ai-workflow-contract"
+import type { FrozenHolonTaskTarget } from "ai-workflow-contract"
 import { createFilesystemCodeResolver } from "eager-data-flow-logic"
 import type { WorkflowAuthoringWorkspace } from "../authoring"
 import {
@@ -37,6 +38,12 @@ import type { EidolonAppResourceRegistryAdapter } from "../../resources"
 import { normalizeFrozenWorkflowCodeReference } from "./WorkflowDefinitionRepository"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
+
+export type AIDataWorkflowHolonTaskFacade = Readonly<{
+  proofForNode(nodeId: string): FrozenHolonTaskTarget
+  openTask(input: unknown, config: unknown): Promise<unknown>
+  consumeTask(input: unknown, config: Readonly<Record<string, never>>): Promise<unknown>
+}>
 
 type DataRunProjection = {
   ok: true
@@ -112,6 +119,7 @@ export class AIDataWorkflowRuntimeDriver {
     resourceRegistry?: EidolonAppResourceRegistryAdapter,
     taskProofs: Readonly<Record<string, FrozenAIAgentTaskBinding>> = {},
     stepExtensions?: WorkflowStepExtensionAuthoredFacade,
+    private readonly holonTasks?: AIDataWorkflowHolonTaskFacade,
   ) {
     this.activeRunAuthority = this.runRef(descriptor.generation)
     const agentEffects = new EidolonWorkflowEffectProvider(
@@ -406,7 +414,10 @@ export class AIDataWorkflowRuntimeDriver {
         },
       },
     }
-    return this.bindAgentNode && nodeId ? this.bindAgentNode(runtime, { nodeId }) : runtime
+    const bound = this.bindAgentNode && nodeId ? this.bindAgentNode(runtime, { nodeId }) : runtime
+    return this.holonTasks
+      ? Object.freeze({ ...bound, holonTasks: this.holonTasks })
+      : bound
   }
 
   private async persist(): Promise<void> {

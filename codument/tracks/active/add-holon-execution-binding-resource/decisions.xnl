@@ -1,0 +1,19 @@
+<decision #track.add_holon_execution_binding_resource.kind_authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>What is the canonical HolonExecutionBinding resource identity and owner?</?>
+  <answer (
+    <raw-answer ?>Use the mission-approved Eidolon-owned KindDefinition and mechanical ResourcePackage inclusion.</?>
+    <decision-text ?>Kind HolonExecutionBinding, FQN Eidolon.AI.KindDefinition.HolonExecutionBinding, apiVersion eidolon.ai/v1, version 1.0.0. The public holarchy-eidolon-adapter library owns canonical contract bytes and projection/freeze; private @cell/ai-organ-contract and @cell/ai-organ-logic only re-export and wire the product integration.</?>
+    <rationale ?>The mapping is an Eidolon AI organization extension while Holon core remains neutral and Halfcode remains generic resource authority.</?>
+    <evidence ?>Parent mission accepted execution-binding decision and existing ai-organ/resource packages.</?>
+  )>
+)>
+
+<decision #track.add_holon_execution_binding_resource.adapter_union apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>How does one neutral Holon member bind to AI, human, service and hybrid execution without changing Holon master data?</?>
+  <answer (
+    <raw-answer ?>Use a closed Eidolon-owned adapter union inside HolonExecutionBinding; principalKind remains descriptive only.</?>
+    <decision-text ?>HolonMemberExecutionAdapter is exactly ai-agent, human-endpoint, service or hybrid. Each variant carries exact frozen Resource refs; hybrid selects among frozen candidate bindings by policy. TaskSpace and Coordinator share one typed dispatch envelope.</?>
+    <rationale ?>Execution varies by business system while the organization record stays neutral and the task protocol stays unified.</?>
+    <evidence ?>Stored architecture MemberRuntime forms and parent mission neutrality decision.</?>
+  )>
+)>

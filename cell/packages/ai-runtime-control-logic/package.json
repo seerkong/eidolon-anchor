@@ -13,7 +13,7 @@
     "@cell/ai-core-contract": "workspace:*",
     "@cell/ai-core-logic": "workspace:*",
     "@cell/ai-runtime-control-contract": "workspace:*",
-    "depa-actor": "^0.2.0",
+    "depa-actor": "0.2.2",
     "depa-actor-control": "workspace:*"
   }
 }

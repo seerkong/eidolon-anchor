@@ -1,0 +1,1 @@
+<HolonAuthorityRecord #record { apiVersion = "holarchy.file-xnl/v1" entity = "Member" rowId = "member-reviewer" valueJson = "{\"createdAt\":\"2026-01-01T00:00:00.000Z\",\"createdBy\":\"fixture-seed\",\"id\":\"member-reviewer\",\"subjectId\":\"subject-reviewer\"}" }>

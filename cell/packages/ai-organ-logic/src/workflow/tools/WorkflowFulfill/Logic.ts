@@ -26,6 +26,7 @@ function currentProofReceiptIds(session: WorkflowAuthoringSession): string[] {
       proof.registryProjectionReceipt.receiptId,
       proof.appProjectionReceipt.receiptId,
       proof.agentMaterialProjectionReceipt.receiptId,
+      ...proof.holonExecutionBindingReceipts.map((item) => item.receiptId),
       ...proof.workflowProfileReceipts.map((item) => item.receiptId),
       ...proof.runResourceReceipts.map((item) => item.receiptId),
       proof.buildReceipt.receiptId,

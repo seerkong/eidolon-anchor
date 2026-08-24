@@ -121,6 +121,7 @@ function proofReceiptIds(proof: WorkflowResourcePackagePublicationProofSet): str
     proof.registryProjectionReceipt.receiptId,
     proof.appProjectionReceipt.receiptId,
     proof.agentMaterialProjectionReceipt.receiptId,
+    ...proof.holonExecutionBindingReceipts.map((item) => item.receiptId),
     ...proof.workflowProfileReceipts.map((item) => item.receiptId),
     ...proof.runResourceReceipts.map((item) => item.receiptId),
     proof.buildReceipt.receiptId,
@@ -186,10 +187,11 @@ function exactProjection(snapshot: EidolonResourceRegistrySnapshot): {
   }
 }
 
-function assertExactProofSnapshot(
+async function assertExactProofSnapshot(
   proof: WorkflowResourcePackagePublicationProofSet,
   snapshot: EidolonResourceRegistrySnapshot,
-): ReturnType<typeof exactProjection> {
+  registry: EidolonAppResourceRegistryAdapter,
+): Promise<ReturnType<typeof exactProjection>> {
   if (
     snapshot.registry.compositionRevision !== proof.registryProjectionReceipt.compositionRevision
     || snapshot.registryRevision !== proof.registryProjectionReceipt.registryRevision
@@ -238,6 +240,48 @@ function assertExactProofSnapshot(
       throw new WorkflowResourcePackagePublicationError(
         "WORKFLOW_RESOURCE_PACKAGE_CLOSURE_PROOF_MISMATCH",
         `Effective dependency closure changed for ${receipt.task.workflowRef}#${receipt.task.nodeId}.`,
+      )
+    }
+  }
+  const projectedBindingRefs = sortedUnique(snapshot.holonExecutionBindings
+    .filter(({ resource }) => snapshot.registry.byId.get(resource.resourceId)?.effectiveOrigin?.layerId === "workspace")
+    .map(({ binding }) => binding.bindingRef))
+  const provedBindingRefs = proof.holonExecutionBindingReceipts.map(({ bindingRef }) => bindingRef)
+  if (JSON.stringify(projectedBindingRefs) !== JSON.stringify(provedBindingRefs)) {
+    throw new WorkflowResourcePackagePublicationError(
+      "WORKFLOW_RESOURCE_PACKAGE_HOLON_BINDING_PROJECTION_MISMATCH",
+      "Effective HolonExecutionBinding projection changed after publication preparation.",
+    )
+  }
+  for (const receipt of proof.holonExecutionBindingReceipts) {
+    const frozen = await registry.freezeHolonExecutionBinding(receipt.bindingRef, snapshot)
+    const observed = {
+      snapshotRef: frozen.snapshotRef,
+      snapshotTreeDigest: frozen.snapshotTreeDigest,
+      snapshotReceiptDigest: frozen.snapshotReceiptDigest,
+      bindingBytesDigest: frozen.bindingBytesDigest,
+      closureResourceRefs: frozen.closure.map(({ resourceId }) => exactResourceRef(resourceId)),
+      agentProofs: frozen.agentProofs.map((agent) => ({
+        agentDefinitionRef: agent.agentDefinitionRef,
+        agentContentDigest: agent.agentContentDigest,
+        closureResourceRefs: agent.closureResourceIds.map(exactResourceRef),
+        snapshotRevision: agent.snapshotRevision,
+      })),
+      semanticFingerprint: frozen.semanticFingerprint,
+    }
+    const expected = {
+      snapshotRef: receipt.snapshotRef,
+      snapshotTreeDigest: receipt.snapshotTreeDigest,
+      snapshotReceiptDigest: receipt.snapshotReceiptDigest,
+      bindingBytesDigest: receipt.bindingBytesDigest,
+      closureResourceRefs: receipt.closureResourceRefs,
+      agentProofs: receipt.agentProofs,
+      semanticFingerprint: receipt.semanticFingerprint,
+    }
+    if (JSON.stringify(observed) !== JSON.stringify(expected)) {
+      throw new WorkflowResourcePackagePublicationError(
+        "WORKFLOW_RESOURCE_PACKAGE_HOLON_BINDING_CLOSURE_PROOF_MISMATCH",
+        `Effective Holon execution closure changed for ${receipt.bindingRef}.`,
       )
     }
   }
@@ -578,7 +622,7 @@ export class WorkflowResourcePackagePublisher {
       const stagedSnapshot = await this.registry.loadIsolatedSnapshot({
         layers: this.candidateLayers(stagingRoot),
       })
-      assertExactProofSnapshot(candidate.proofSet, stagedSnapshot)
+      await assertExactProofSnapshot(candidate.proofSet, stagedSnapshot, this.registry)
       if (hashWorkflowBinaryFiles(await binaryTree(stagingRoot)) !== candidate.revision) {
         throw new WorkflowResourcePackagePublicationError(
           "WORKFLOW_RESOURCE_PACKAGE_STAGING_DIGEST_MISMATCH",
@@ -666,7 +710,7 @@ export class WorkflowResourcePackagePublisher {
           )
         }
         const loaded = await fence.loadCandidateSnapshot()
-        const projection = assertExactProofSnapshot(candidate.proofSet, loaded.snapshot)
+        const projection = await assertExactProofSnapshot(candidate.proofSet, loaded.snapshot, this.registry)
         const receiptPayload: WorkflowResourcePackagePublicationReceiptPayload = {
           kind: "workflow.resourcePackagePublicationReceipt",
           schemaVersion: "workflow.resource-package-publication-receipt/v1",

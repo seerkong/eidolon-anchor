@@ -1,0 +1,11 @@
+<BehaviorPatch #track.add-single-node-holon-member-runtime.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [<Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/holon-deployment-recovery" } (
+    <Requirement #holon-deployment-recovery (
+      <Statement ?>A fresh Eidolon process SHALL recover deployment, MemberRuntime logical identity and generic actor/session facts from the frozen local deployment authority without reading live Holon or App sources.</?>
+      <Suites [<Suite #recovery-cases { name = "Member recovery" } (<Cases [
+        <Case #live-source-deleted [<Given ?>A deployment was admitted and its live source resources are later deleted.</?><When ?>A fresh process resumes a member task.</?><Then ?>It SHALL use frozen definition bytes and the prior logical actor identity.</?>]>
+        <Case #no-actor-copy [<Given ?>Deployment runtime material is inspected after recovery.</?><When ?>Generic actor/session persistence is compared.</?><Then ?>Deployment SHALL contain only opaque refs/registration receipts and no copied mailbox, conversation or actor snapshot tree.</?>]>
+      ]>)>]>
+    )>
+  )>]>
+)>

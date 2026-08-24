@@ -276,7 +276,7 @@ function executionRecord(value: AgentExecutionValue | undefined, location: strin
   if (value === null || value === undefined || Array.isArray(value) || typeof value !== "object") {
     throw new AgentExecutionContractError("AGENT_EXECUTION_CONTRACT_INVALID", `${location} must be an object.`)
   }
-  return value
+  return value as AgentExecutionSchema
 }
 
 function exactKeys(

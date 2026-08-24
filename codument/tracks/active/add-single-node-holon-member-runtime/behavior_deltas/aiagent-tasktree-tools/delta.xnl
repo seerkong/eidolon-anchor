@@ -1,0 +1,10 @@
+<BehaviorPatch #track.add-single-node-holon-member-runtime.behavior_patch.aiagent-tasktree-tools apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-tasktree-tools" } (
+  <Mutations [<Upsert { selector = "behavior://aiagent-tasktree-tools/requirements/task-space-authority-migration" } (
+    <Requirement #task-space-authority-migration (
+      <Statement ?>Eidolon task tools SHALL project and mutate the canonical depa-flows TaskSpace; overlapping legacy TaskTree/Holon ownership facts SHALL be one-way migrated or read-only derived and SHALL NOT remain a second writable authority.</?>
+      <Suites [<Suite #migration-cases { name = "Task authority" } (<Cases [
+        <Case #no-dual-write [<Given ?>A migrated organization task changes state.</?><When ?>Production tools execute.</?><Then ?>Only TaskSpace SHALL be committed and any legacy view SHALL be rebuilt from its receipt.</?>]>
+      ]>)>]>
+    )>
+  )>]>
+)>

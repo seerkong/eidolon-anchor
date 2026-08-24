@@ -8,6 +8,7 @@ import { getOrganizationManager, writeHolonGovernance } from "./OrganizationMana
 import {
   parseHolonTaskScope,
 } from "./holonRuntimeProtocol";
+import { isCanonicalHolonTaskAuthority } from "./HolonLegacyTaskAuthority";
 
 export type AutonomousHolonTaskRunner = {
   tickOnce: () => Promise<void>;
@@ -181,6 +182,14 @@ export function createAutonomousHolonTaskRunner(_params: {
         vm: params.vm,
       })
       if (eligibleCollectiveRoster.length === 0) {
+        await params.driver.tickUntilBackgroundSettled({ now, maxTicks: 20, maxWallMs: 200 });
+        return;
+      }
+
+      const observedScope = parseHolonTaskScope(String(claimable.activeForm ?? ""))
+      if (observedScope && isCanonicalHolonTaskAuthority(
+        params.vm.actors[getOrganizationManager().getHolonActorKey(observedScope.holonId)],
+      )) {
         await params.driver.tickUntilBackgroundSettled({ now, maxTicks: 20, maxWallMs: 200 });
         return;
       }

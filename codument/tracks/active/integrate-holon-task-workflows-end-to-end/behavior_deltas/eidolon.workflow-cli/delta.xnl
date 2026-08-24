@@ -1,0 +1,10 @@
+<BehaviorPatch #track.integrate-holon-task-workflows-end-to-end.behavior_patch.eidolon.workflow-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon.workflow-cli" } (
+  <Mutations [<Upsert { selector = "behavior://eidolon.workflow-cli/requirements/holon-task-local-observability" } (
+    <Requirement #holon-task-local-observability (
+      <Statement ?>Workflow CLI/TUI SHALL expose bounded logical Holon deployment, Member, TaskSpace, workflow state and receipt identities while hiding physical authority paths, prompts, actor history and provider configuration.</?>
+      <Suites [<Suite #cli-cases { name = "Local observability" } (<Cases [
+        <Case #restart-status [<Given ?>A Holon organization task is waiting or completed after process restart.</?><When ?>CLI status is requested.</?><Then ?>It SHALL report canonical logical identities/revisions and no absolute local path.</?>]>
+      ]>)>]>
+    )>
+  )>]>
+)>

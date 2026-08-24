@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "eidolon.holon-e2e-resource/v1",
+  "scenarioId": "review-team",
+  "authorityId": "holarchy-file-xnl-fixture",
+  "revision": 1,
+  "sequence": 5,
+  "authorityStateDigest": "sha256:a17af6f052a26d30caf829e56ba62d436491c40f85dabd34c6b5990505849241",
+  "snapshotId": "holon-effective-snapshot:358c8fd2e960c81c3e3d72aad75a2eec3e1591938a29d7b5ac2b919276dbb8ec",
+  "snapshotTreeDigest": "sha256:c79f1c77530deb4507497647bd6b79e6f5c2420c9f08a6fc20cf8906ef90d22a",
+  "snapshotBytesDigest": "sha256:f090b57fe189e257a7c2a40ad5cd6fc89e688004134aa2e9386d5d2a5df4c07e",
+  "issuanceReceiptBytesDigest": "sha256:7a3440488ded03bab5cecde43c40171cf334e53a32ee7779b19cee3b88bad700",
+  "recordCount": 12
+}

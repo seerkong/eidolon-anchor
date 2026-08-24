@@ -1,0 +1,39 @@
+<decision #track.add_single_node_holon_member_runtime.runtime_reuse apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>When does Eidolon reuse or isolate MemberRuntime?</?>
+  <answer (
+    <raw-answer ?>Reuse one long-lived runtime per deployment/member by default; isolate only under an explicit closed policy.</?>
+    <decision-text ?>Omitted/shared policy resolves `(deploymentId,memberRef)`; isolated requires scope task-space|workflow-run plus isolationKey. Conflict or unavailable owner fails closed and never silently creates another runtime.</?>
+    <rationale ?>Shared continuity is the normal actor model while explicit task/session refs and isolation prevent context leakage.</?>
+    <evidence ?>Parent mission accepted runtime-reuse decision and existing generic addressed actor/session capability.</?>
+  )>
+)>
+
+<decision #track.add_single_node_holon_member_runtime.session_scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>Does default MemberRuntime reuse also imply one shared conversation/session for every task?</?>
+  <answer (
+    <raw-answer ?>No. Reuse the runtime address, default session scope to the exact task claim attempt, and make cross-invocation Agent continuity explicit through targeted selectors.</?>
+    <decision-text ?>Default is task-attempt session keyed by taskSpaceId/taskId/claimId/attempt. Explicit continuity uses runTargetedAgent with exactly one of {byInstanceId} or {byInstanceName}, authorized by the frozen binding. Only the generic actor/session owner stores conversation.</?>
+    <rationale ?>Long-lived member identity and safe conversation isolation are separate concerns; explicit targeted reuse preserves both.</?>
+    <evidence ?>Existing typed runAgent/runTargetedAgent design and parent mission MemberRuntime reuse decision.</?>
+  )>
+)>
+
+<decision #track.add_single_node_holon_member_runtime.deployment_owner apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>What may the Holon deployment file owner persist without duplicating generic actor/session authority?</?>
+  <answer (
+    <raw-answer ?>Persist frozen definition, coordinator control facts, opaque refs and registration receipts under a recoverable head-last owner; never copy actor mailbox/session/history trees.</?>
+    <decision-text ?>Deployment runtime uses records/trees/receipts/transactions plus approved lock/CAS/fsync/head-last protocol. Generic actor/session storage stays in its existing owner outside the deployment schema.</?>
+    <rationale ?>The deployment needs durable coordination and recovery but must not become a second Agent runtime store.</?>
+    <evidence ?>Parent mission file protocol and generic actor/session authority boundary.</?>
+  )>
+)>
+
+<decision #track.add_single_node_holon_member_runtime.coordination_owner apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>Who selects a MemberRuntime for a Holon-targeted ready task?</?>
+  <answer (
+    <raw-answer ?>Use one shared HolonRuntime/HolonCoordinatorActor per deployment/Holon.</?>
+    <decision-text ?>The coordinator evaluates the TaskSpace's frozen snapshot, Role/Policy and execution binding, proposes a typed assignment command and resolves the selected MemberRuntimeRef. Workflow cannot preselect a Member; TaskSpace owns assignment/claim/result.</?>
+    <rationale ?>This makes the Holon target operational without copying organization or task authority into the coordinator.</?>
+    <evidence ?>Parent mission coordination decision and stored architecture sections 6 and 12.</?>
+  )>
+)>

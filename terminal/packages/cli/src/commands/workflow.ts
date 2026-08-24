@@ -805,6 +805,44 @@ export function createWorkflowCommand(
           },
         })
         .command({
+          command: "holon-process <request>",
+          describe: "process one organization-owned TaskSpace task from a closed JSON request",
+          builder: (yargs) => withRuntimeOptions(yargs
+            .positional("request", { type: "string", describe: "closed WorkflowProcessHolonTask JSON request" })),
+          handler: async (args) => {
+            const runtimeArgs = args as WorkflowRuntimeArgs & { request?: string }
+            try {
+              const request = parseHumanValue(runtimeArgs.request)
+              if (typeof request !== "object" || request === null || Array.isArray(request)) {
+                throw new Error("workflow holon-process requires a JSON object")
+              }
+              await callRuntimeTool(deps, "WorkflowProcessHolonTask", request as Record<string, unknown>, runtimeArgs)
+            } catch (error) {
+              deps.reportError(error instanceof Error ? error.message : String(error))
+              setProcessExitCode(deps.processLike, 1)
+            }
+          },
+        })
+        .command({
+          command: "holon-replan <request>",
+          describe: "explicitly adopt a compatible organization snapshot from a closed JSON request",
+          builder: (yargs) => withRuntimeOptions(yargs
+            .positional("request", { type: "string", describe: "closed WorkflowReplanHolonTask JSON request" })),
+          handler: async (args) => {
+            const runtimeArgs = args as WorkflowRuntimeArgs & { request?: string }
+            try {
+              const request = parseHumanValue(runtimeArgs.request)
+              if (typeof request !== "object" || request === null || Array.isArray(request)) {
+                throw new Error("workflow holon-replan requires a JSON object")
+              }
+              await callRuntimeTool(deps, "WorkflowReplanHolonTask", request as Record<string, unknown>, runtimeArgs)
+            } catch (error) {
+              deps.reportError(error instanceof Error ? error.message : String(error))
+              setProcessExitCode(deps.processLike, 1)
+            }
+          },
+        })
+        .command({
           command: "edit <ref> <instruction>",
           describe: "edit an existing AI workflow from an ordinary-language instruction",
           builder: (yargs) => yargs
@@ -1047,7 +1085,6 @@ export function createWorkflowCommand(
                 })
                 const result = {
                   status: "session_opened",
-                  targetRoot,
                   startingFact: {
                     kind: startingFactKind,
                     id: startingFact.id,
@@ -1090,7 +1127,6 @@ export function createWorkflowCommand(
               })
               const result = {
                 status: "session_opened",
-                targetRoot,
                 draft,
                 session,
                 effectDispatched: false,

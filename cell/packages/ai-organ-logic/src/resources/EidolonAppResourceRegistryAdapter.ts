@@ -8,7 +8,9 @@ import {
   projectAIWorkflowAppBundles,
 } from "ai-workflow-logic"
 import {
+  freezeAIWorkflowHolonTaskTarget,
   freezeAIWorkflowRunResources,
+  projectFrozenHolonTaskTarget,
   projectFrozenAIAgentTaskBinding,
 } from "ai-workflow-logic/run-freeze"
 import type {
@@ -18,7 +20,9 @@ import type {
   AIWorkflowAgentResourceProjection,
   AIWorkflowAppBundleProjection,
   AIWorkflowRunResourceFreezeReceipt,
+  FrozenHolonTaskTarget,
   FrozenAIAgentTaskBinding,
+  HolonTaskTarget,
 } from "ai-workflow-contract"
 import type { AgentConfig } from "@cell/ai-core-contract/runtime/AgentConfig"
 import type {
@@ -44,6 +48,15 @@ import {
   type ResourceRecord,
 } from "halfcode-compiler.xnl/resource-core"
 import { safePathLexicalIssue } from "halfcode-compiler.xnl/resource-mapping"
+import {
+  freezeHolonExecutionBinding,
+  projectHolonExecutionBindings,
+  type EidolonHolonExecutionBindingFreezeReceipt,
+  type EidolonHolonExecutionBindingProjection,
+} from "./HolonExecutionBindingProjection"
+import { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
+
+export { EidolonResourceRegistryError } from "./EidolonResourceRegistryError"
 
 export type ResourcePackageLayerId = "global" | "workspace"
 
@@ -59,6 +72,7 @@ export type EidolonResourceRegistrySnapshot = {
   readonly registryRevision: string
   readonly appBundles: readonly AIWorkflowAppBundleProjection[]
   readonly agentResources: AIWorkflowAgentResourceProjection
+  readonly holonExecutionBindings: readonly EidolonHolonExecutionBindingProjection[]
   readonly layers: readonly ResourcePackageLayerBinding[]
 }
 
@@ -154,17 +168,6 @@ export type EidolonEffectiveResourceSource = {
   readonly registryRevision: string
   readonly authorityDigest: string
   readonly contentDigest: string
-}
-
-export class EidolonResourceRegistryError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string,
-    public readonly retryable = false,
-  ) {
-    super(`${code}: ${message}`)
-    this.name = "EidolonResourceRegistryError"
-  }
 }
 
 type LoadedLayer = {
@@ -330,6 +333,32 @@ export class EidolonAppResourceRegistryAdapter {
     )))
   }
 
+  async listHolonExecutionBindings(): Promise<readonly EidolonHolonExecutionBindingProjection[]> {
+    return (await this.snapshot()).holonExecutionBindings
+  }
+
+  async freezeHolonExecutionBinding(
+    bindingRef: string,
+    providedSnapshot?: EidolonResourceRegistrySnapshot,
+  ): Promise<EidolonHolonExecutionBindingFreezeReceipt> {
+    const exactRef = exactResourceRef(bindingRef)
+    const snapshot = providedSnapshot ?? await this.snapshot()
+    const projection = snapshot.holonExecutionBindings.find(
+      (candidate) => candidate.binding.bindingRef === exactRef,
+    )
+    if (!projection) throw new EidolonResourceRegistryError(
+      "EIDOLON_HOLON_BINDING_NOT_FOUND",
+      `HolonExecutionBinding '${exactRef}' is not present in registry ${snapshot.registryRevision}.`,
+    )
+    return freezeHolonExecutionBinding({
+      projection,
+      registry: snapshot.registry,
+      contentIdentities: snapshot.contentIdentities,
+      registryRevision: snapshot.registryRevision,
+      agentResources: snapshot.agentResources,
+    })
+  }
+
   async listStandaloneAgentExecutionPlans(): Promise<readonly EidolonResourceAgentExecutionPlan[]> {
     const snapshot = await this.snapshot()
     const plans: EidolonResourceAgentExecutionPlan[] = []
@@ -385,6 +414,15 @@ export class EidolonAppResourceRegistryAdapter {
       registry: snapshot.registry,
       projection: snapshot.agentResources,
       task,
+      contentIdentities: snapshot.contentIdentities,
+    }))
+  }
+
+  async freezeWorkflowHolonTaskTarget(target: HolonTaskTarget): Promise<FrozenHolonTaskTarget> {
+    const snapshot = await this.snapshot()
+    return projectFrozenHolonTaskTarget(freezeAIWorkflowHolonTaskTarget({
+      registry: snapshot.registry,
+      target,
       contentIdentities: snapshot.contentIdentities,
     }))
   }
@@ -934,6 +972,13 @@ export class EidolonAppResourceRegistryAdapter {
     const registryRevision = roots.length === 0
       ? registry.compositionRevision
       : buildResourceDependencySnapshot({ registry, roots, edges: [], contentIdentities }).registryRevision
+    const kindDefinitionAuthorityDigests = await readKindDefinitionAuthorityDigests(registry, layers)
+    const holonExecutionBindings = await projectHolonExecutionBindings({
+      registry,
+      contentIdentities,
+      kindDefinitionAuthorityDigests,
+      registryRevision,
+    })
     return Object.freeze({
       schemaVersion: "eidolon.resource-registry-snapshot/v1",
       registry,
@@ -941,9 +986,43 @@ export class EidolonAppResourceRegistryAdapter {
       registryRevision,
       appBundles: projectAIWorkflowAppBundles(registry),
       agentResources: projectAIWorkflowAgentResources(registry),
+      holonExecutionBindings,
       layers: Object.freeze(layers.map(({ binding }) => binding)),
     })
   }
+}
+
+async function readKindDefinitionAuthorityDigests(
+  registry: EffectiveResourceRegistry,
+  layers: readonly LoadedLayer[],
+): Promise<ReadonlyMap<string, `sha256:${string}`>> {
+  const digests = new Map<string, `sha256:${string}`>()
+  for (const [kind, effective] of registry.kindDefinitions) {
+    const documentUri = effective.definition.documentUri
+    if (!documentUri.startsWith("vfs://@/")) continue
+    const relative = documentUri.slice("vfs://@/".length)
+    const issue = safePathLexicalIssue(relative, "relative-path")
+    if (issue) throw new EidolonResourceRegistryError(
+      "EIDOLON_KIND_DEFINITION_PATH_INVALID",
+      `KindDefinition '${effective.definition.resourceId}' has an unsafe source path: ${issue}.`,
+    )
+    const origin = [...effective.origins]
+      .filter((candidate) => candidate.documentUri === documentUri)
+      .sort((left, right) => right.layerIndex - left.layerIndex)[0]
+    const layer = layers.find((candidate) => candidate.binding.id === origin?.layerId)
+    if (!origin || !layer) throw new EidolonResourceRegistryError(
+      "EIDOLON_KIND_DEFINITION_ORIGIN_MISSING",
+      `KindDefinition '${effective.definition.resourceId}' has no effective physical origin.`,
+    )
+    const canonicalRoot = await realpath(layer.binding.rootDir)
+    const canonicalTarget = await realpath(path.resolve(canonicalRoot, ...relative.split("/")))
+    if (!isContained(canonicalRoot, canonicalTarget)) throw new EidolonResourceRegistryError(
+      "EIDOLON_KIND_DEFINITION_ORIGIN_OUTSIDE_LAYER",
+      `KindDefinition '${effective.definition.resourceId}' escapes layer '${origin.layerId}'.`,
+    )
+    digests.set(kind, sha256Digest(await readFile(canonicalTarget)))
+  }
+  return digests
 }
 
 async function captureFrozenLayer(rootDir: string, prefix: string, target: Record<string, string>): Promise<void> {

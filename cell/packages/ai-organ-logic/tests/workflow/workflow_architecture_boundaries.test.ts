@@ -36,28 +36,36 @@ describe("Eidolon workflow architecture boundaries", () => {
       dependencies: Record<string, string>
     }
     const organClosure = {
-      "ai-ctrl-workflow-logic": "0.1.7",
-      "ai-data-workflow-contract": "0.1.4",
-      "ai-data-workflow-logic": "0.1.9",
-      "ai-workflow-contract": "0.1.7",
-      "ai-workflow-logic": "0.1.8",
-      "eager-data-flow-logic": "0.1.4",
+      "ai-ctrl-workflow-logic": "0.1.8",
+      "ai-data-workflow-contract": "0.1.5",
+      "ai-data-workflow-logic": "0.1.11",
+      "ai-workflow-contract": "0.1.8",
+      "ai-workflow-logic": "0.1.9",
+      "depa-actor": "0.2.2",
+      "depa-processor": "0.1.1",
+      "eager-data-flow-logic": "0.1.5",
       "flow-step-space-contract": "0.1.1",
       "flow-step-space-logic": "0.1.1",
+      "holarchy-core-contract": "0.1.1",
+      "holarchy-core-logic": "0.1.2",
+      "holarchy-eidolon-adapter": "0.1.1",
+      "holarchy-file-xnl-capsule": "0.2.0",
       "instant-ctrl-flow-logic": "0.1.5",
+      "task-manager-contract": "0.1.3",
+      "task-manager-logic": "0.1.6",
       "work-ctrl-flow-contract": "0.1.3",
       "work-ctrl-flow-logic": "0.1.4",
     }
     const contractClosure = {
-      "ai-ctrl-workflow-contract": "0.1.4",
-      "ai-data-workflow-contract": "0.1.4",
-      "ai-workflow-contract": "0.1.7",
-      "ai-workflow-logic": "0.1.8",
+      "ai-ctrl-workflow-contract": "0.1.5",
+      "ai-data-workflow-contract": "0.1.5",
+      "ai-workflow-contract": "0.1.8",
+      "ai-workflow-logic": "0.1.9",
       "flow-step-space-contract": "0.1.1",
     }
     expect(organ.dependencies).toMatchObject(organClosure)
     expect(contract.dependencies).toMatchObject(contractClosure)
-    expect(support.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.1.5")
+    expect(support.dependencies["ai-workflow-flow-dsl-reference"]).toBe("0.1.6")
     expect(organ.dependencies["halfcode-compiler.xnl"]).toBe("0.2.2")
     expect(support.dependencies["halfcode-compiler.xnl"]).toBe("0.2.3")
     for (const version of [
@@ -67,6 +75,20 @@ describe("Eidolon workflow architecture boundaries", () => {
     ]) {
       expect(version).not.toMatch(/^(?:workspace:|file:|link:|[~^*><=])/)
     }
+
+    for (const manifestPath of [
+      "backend/packages/core/package.json",
+      "cell/packages/ai-core-logic/package.json",
+      "cell/packages/ai-runtime-control-contract/package.json",
+      "cell/packages/ai-runtime-control-logic/package.json",
+      "cell/packages/symbiont-contract/package.json",
+    ]) {
+      const manifest = JSON.parse(await source(manifestPath)) as { dependencies: Record<string, string> }
+      expect(manifest.dependencies["depa-actor"]).toBe("0.2.2")
+    }
+
+    expect(Object.keys(organ.dependencies).filter((name) => /(?:depa-orm|sqlite)/i.test(name))).toEqual([])
+    expect(Object.keys(organ.dependencies).filter((name) => name.startsWith("holarchy-depa-"))).toEqual([])
   })
 
   it("keeps executable workflow source on canonical XNL, native roots and in-process effects", async () => {
@@ -224,7 +246,8 @@ describe("Eidolon workflow architecture boundaries", () => {
     expect(drafts).toContain('workflowDefinitionRef = "vfs://./manifest.xnl"')
     expect(drafts).toContain("runtime.ai.effects.runAgent<Input, Output>(input, config)")
     expect(drafts).toContain("runtime.ai.effects.runTargetedAgent<Input, Output>(selector, invocation, config)")
-    expect(drafts).toContain('operation: "material.write"')
+    expect(drafts).toContain("runtime.ai.effects.writeMaterial(input, config)")
+    expect(drafts).not.toContain("runtime.ai.effects.invoke")
     expect(drafts).not.toContain('operation: "ai.agent"')
     expect(drafts).not.toContain('`resource://${command.fqn}`')
     expect(drafts).not.toContain("workflowResourceRef")

@@ -10,6 +10,8 @@ import {
   buildWorkflowEventsToolDef,
   buildWorkflowApplyGraphPatchToolDef,
   buildWorkflowMutateStepExtensionToolDef,
+  buildWorkflowProcessHolonTaskToolDef,
+  buildWorkflowReplanHolonTaskToolDef,
   buildWorkflowResultToolDef,
   buildWorkflowResumeToolDef,
   buildWorkflowResolveToolDef,
@@ -33,6 +35,8 @@ export {
   buildWorkflowEventsToolDef,
   buildWorkflowApplyGraphPatchToolDef,
   buildWorkflowMutateStepExtensionToolDef,
+  buildWorkflowProcessHolonTaskToolDef,
+  buildWorkflowReplanHolonTaskToolDef,
   buildWorkflowResultToolDef,
   buildWorkflowResumeToolDef,
   buildWorkflowResolveToolDef,
@@ -93,6 +97,8 @@ export const WORKFLOW_NATIVE_TOOL_NAMES = [
   "WorkflowReject",
   "WorkflowApplyGraphPatch",
   "WorkflowMutateStepExtension",
+  "WorkflowProcessHolonTask",
+  "WorkflowReplanHolonTask",
 ] as const
 
 export function buildWorkflowNativeToolDefs(): AnyToolDef[] {
@@ -117,5 +123,7 @@ export function buildWorkflowNativeToolDefs(): AnyToolDef[] {
     buildWorkflowRejectToolDef(),
     buildWorkflowApplyGraphPatchToolDef(),
     buildWorkflowMutateStepExtensionToolDef(),
+    buildWorkflowProcessHolonTaskToolDef(),
+    buildWorkflowReplanHolonTaskToolDef(),
   ]
 }

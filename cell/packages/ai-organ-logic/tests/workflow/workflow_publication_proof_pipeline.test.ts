@@ -259,7 +259,7 @@ describe("workflow publication proof pipeline", () => {
       {
         suffix: "dynamic-invoke-operation",
         exportName: "dynamicInvokeOperation",
-        diagnostic: "data-code-agent-contract",
+        diagnostic: "data-code-effect-contract",
         source: `export async function dynamicInvokeOperation(runtime: any, input: any, config: any) {
   const operation = "identity"
   const result = await runtime.ai.effects.invoke({ operation, run: runtime.ai.metadata.run, effectId: "fixed", input, config })
@@ -325,7 +325,7 @@ export function runTargetedAgent(runtime: any, selector: any, invocation: any, c
   return runtime.ai.effects.runTargetedAgent(selector, invocation, config)
 }
 export function writeMaterial(runtime: any, input: any, config: any) {
-  return runtime.ai.effects.invoke({ operation: "material.write", run: runtime.ai.metadata.run, effectId: "material", input, config })
+  return runtime.ai.effects.writeMaterial(input, config)
 }\n`,
         },
       ],

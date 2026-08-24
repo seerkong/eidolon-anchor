@@ -430,6 +430,34 @@ describe("workflow command", () => {
     await invoke(["result", "workflow-1", "--allow-partial", "--session", "business-session"])
     await invoke(["resume", "workflow-1", "{\"value\":\"approved\"}", "--node-id", "review", "--session", "business-session"])
     await invoke(["graph-patch", "workflow-1", "{\"patchId\":\"p1\",\"operations\":[]}", "--session", "business-session"])
+    await invoke(["holon-process", JSON.stringify({
+      run_id: "workflow-1",
+      node_id: "delegate",
+      task_space_id: "task-space-1",
+      task_id: "task-1",
+      assignment_command_id: "assign-1",
+      start_command_id: "start-1",
+      settlement_command_id: "settle-1",
+      invocation_ref: "invoke-1",
+      claimed_at: "2026-01-01T00:00:00.000Z",
+      started_at: "2026-01-01T00:00:01.000Z",
+      settled_at: "2026-01-01T00:00:02.000Z",
+      lease_duration_ms: 30_000,
+      input: { work: "review" },
+    }), "--session", "business-session"])
+    await invoke(["holon-replan", JSON.stringify({
+      run_id: "workflow-1",
+      node_id: "delegate",
+      task_space_id: "task-space-1",
+      previous_task_id: "task-1",
+      successor_task_id: "task-2",
+      successor_task_name: "Review v2",
+      successor_effective_at: "2026-02-01T00:00:00.000Z",
+      cancel_command_id: "cancel-1",
+      replan_command_id: "replan-1",
+      plan_id: "plan-2",
+      replanned_at: "2026-02-01T00:00:01.000Z",
+    }), "--session", "business-session"])
 
     expect(calls.map((entry) => entry.toolName)).toEqual([
       "WorkflowCreateInstance",
@@ -439,6 +467,8 @@ describe("workflow command", () => {
       "WorkflowResult",
       "WorkflowResume",
       "WorkflowApplyGraphPatch",
+      "WorkflowProcessHolonTask",
+      "WorkflowReplanHolonTask",
     ])
     expect(calls[0]).toMatchObject({
       workDir,
@@ -453,6 +483,8 @@ describe("workflow command", () => {
       output: { value: "approved" },
     })
     expect(calls[6].input.patch).toEqual({ patchId: "p1", operations: [] })
+    expect(calls[7].input).toMatchObject({ task_space_id: "task-space-1", task_id: "task-1" })
+    expect(calls[8].input).toMatchObject({ previous_task_id: "task-1", successor_task_id: "task-2" })
   })
 
   test("derives a stable workspace-scoped workflow session key", () => {
@@ -483,6 +515,7 @@ describe("workflow command", () => {
     expect(result.draft.workflowRef).toBe("vfs://./demo-workflow/manifest.xnl")
     expect(result.effectDispatched).toBe(false)
     expect(result.session).toMatchObject({ status: "open", form: "AIDataWorkflow" })
+    expect(result.targetRoot).toBeUndefined()
     expect(result.publishEvidence).toBeUndefined()
     expect(errors).toEqual([])
     expect(processLike.exitCode).toBe(0)
@@ -523,6 +556,7 @@ describe("workflow command", () => {
       session: { sessionId: "template-session", status: "open" },
       effectDispatched: false,
     })
+    expect(fromTemplate.targetRoot).toBeUndefined()
 
     const fromPrebuilt = await invoke([
       "init", "--prebuilt", "durable-approval-flow", "--session-id", "prebuilt-session",
@@ -533,6 +567,7 @@ describe("workflow command", () => {
       session: { sessionId: "prebuilt-session", status: "open" },
       effectDispatched: false,
     })
+    expect(fromPrebuilt.targetRoot).toBeUndefined()
   })
 
   test("proves and publishes a session only through an independent confirmation command", async () => {

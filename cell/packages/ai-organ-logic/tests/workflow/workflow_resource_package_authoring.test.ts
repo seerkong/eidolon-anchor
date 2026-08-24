@@ -1,9 +1,19 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { loadResourceTree } from "halfcode-compiler.xnl/resource-core"
+import {
+  HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE,
+  canonicalHolonExecutionBindingBytes,
+} from "@cell/ai-organ-contract"
+import {
+  HOLON_EFFECTIVE_SNAPSHOT_KIND_DEFINITION_SOURCE,
+  canonicalHolonEffectiveSnapshotIssuanceReceiptBytes,
+} from "holarchy-core-contract"
+import { commitHolonAuthority } from "holarchy-core-logic"
+import { HolarchyFileXnlCapsule } from "holarchy-file-xnl-capsule"
 import {
   hashWorkflowBinaryFiles,
   NodeWorkflowAuthoringStore,
@@ -59,6 +69,125 @@ async function copyFixtureWithNamespace(source: string, target: string, namespac
     if (!file.path.endsWith(".xnl") && !file.path.endsWith(".ts")) continue
     const content = new TextDecoder().decode(file.bytes)
     await writeFile(path.join(target, file.path), content.replaceAll("eidolon.fixture", namespace))
+  }
+}
+
+async function augmentFixtureWithHolonBinding(root: string): Promise<{
+  sourceAuthorityId: string
+  sourceRevision: string
+  recordCount: number
+}> {
+  const created = { createdAt: "2026-01-01T00:00:00.000Z", createdBy: "seed" }
+  const selected = {
+    ...created,
+    effectiveDate: "2026-01-01",
+    effectiveState: true as const,
+    changeSetId: "seed",
+  }
+  const authorityRoot = await mkdtemp(path.join(os.tmpdir(), "eidolon-holarchy-file-authority-"))
+  temporaryRoots.push(authorityRoot)
+  const authorityId = "holarchy-file-xnl-main"
+  const writer = new HolarchyFileXnlCapsule({ root: authorityRoot, authorityId })
+  await writer.start()
+  await commitHolonAuthority({ store: writer.store }, {
+    expectedRevision: 0,
+    tables: {
+      OrganizationalSubject: [
+        { id: "subject-summary-team", subjectType: "holon" },
+        { id: "subject-summary-member", subjectType: "member" },
+      ],
+      Holon: [{ id: "holon-summary-team", subjectId: "subject-summary-team", code: "summary-team", ...created }],
+      HolonVersion: [{ id: "holon-summary-team:v1", holonId: "holon-summary-team", name: "Summary Team", purpose: "Summarize", boundary: "Articles", sequence: 1, ...selected }],
+      Member: [{ id: "member-summary", subjectId: "subject-summary-member", ...created }],
+      MemberVersion: [{ id: "member-summary:v1", memberId: "member-summary", displayName: "Summary Member", principalKind: "human", sequence: 2, ...selected }],
+      HolonMembership: [{ id: "membership-summary", ...created }],
+      HolonMembershipVersion: [{ id: "membership-summary:v1", membershipId: "membership-summary", parentHolonId: "holon-summary-team", subjectId: "subject-summary-member", mode: "primary", sequence: 3, ...selected }],
+    },
+  }, {
+    authorityId,
+    executionId: "seed-summary-organization",
+    executionInstant: "2026-01-01T00:00:00.000Z",
+  })
+  const issuer = new HolarchyFileXnlCapsule({
+    root: authorityRoot,
+    authorityId,
+    observedAt: () => "2026-01-01T00:00:01.000Z",
+  })
+  const issued = await issuer.projectOrganizationSnapshot({
+    rootHolonRef: "holon-summary-team",
+    effectiveAt: "2026-01-01T00:00:00.000Z",
+  }, {
+    maxDepth: 4,
+    maxRecords: 100,
+  })
+  const snapshot = issued.snapshot
+  const snapshotBytes = issued.canonicalBytes
+  const issuanceReceipt = issued.issuanceReceipt
+  await rm(authorityRoot, { recursive: true, force: true })
+  const binding = {
+    apiVersion: "eidolon.ai/v1",
+    kind: "HolonExecutionBinding",
+    bindingRef: "resource://eidolon.fixture.SummaryMemberBinding",
+    snapshotRef: "resource://eidolon.fixture.SummaryOrganizationSnapshot",
+    target: { kind: "member", memberRef: "member-summary" },
+    adapter: {
+      kind: "ai-agent",
+      agentDefinitionRef: "resource://eidolon.fixture.SummaryAgent",
+      runtimeProfileRef: "resource://eidolon.fixture.HolonRuntimeProfile",
+    },
+    policy: {
+      version: "1",
+      runtime: { mode: "shared-member-runtime" },
+      taskProfileRef: "resource://eidolon.fixture.HolonTaskProfile",
+      capabilityRefs: ["resource://eidolon.fixture.SummaryCapability"],
+      toolRefs: [],
+      materialRefs: ["resource://eidolon.fixture.Article"],
+    },
+  }
+  const manifestPath = path.join(root, "manifest.xnl")
+  const manifest = await readFile(manifestPath, "utf8")
+  await writeFile(manifestPath, manifest.replace(
+    "  ]>\n)>",
+    `    <Catalog #holon_snapshots { kind = "HolonEffectiveSnapshot" shape = "single-file" root = "vfs://./Organization/" }>
+    <Catalog #holon_bindings { kind = "HolonExecutionBinding" shape = "single-file" root = "vfs://./HolonBindings/" }>
+    <Catalog #holon_dependencies { kind = "HolonExecutionDependency" shape = "single-file" root = "vfs://./HolonDependencies/" }>
+  ]>
+)>`,
+  ))
+  const dependencyKind = `<KindDefinition #eidolon.fixture.kind.HolonExecutionDependency apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable" resourceKind = "HolonExecutionDependency" sourceShapes = ["single-file"]
+  currentApiVersion = "eidolon.ai/v1" supportedApiVersions = ["eidolon.ai/v1"]
+}>
+`
+  const files: Record<string, string> = {
+    "KindDefinitions/HolonExecutionBinding/manifest.xnl": HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE,
+    "KindDefinitions/HolonEffectiveSnapshot/manifest.xnl": HOLON_EFFECTIVE_SNAPSHOT_KIND_DEFINITION_SOURCE,
+    "KindDefinitions/HolonExecutionDependency/manifest.xnl": dependencyKind,
+    "Organization/Summary.xnl": `<HolonEffectiveSnapshot #eidolon.fixture.SummaryOrganizationSnapshot apiVersion="holon.workbench/v1" version="1.0.0" {
+  snapshotBytesBase64 = "${Buffer.from(snapshotBytes).toString("base64")}"
+  issuanceReceiptBytesBase64 = "${Buffer.from(canonicalHolonEffectiveSnapshotIssuanceReceiptBytes(issuanceReceipt, snapshot)).toString("base64")}"
+}>
+`,
+    "HolonBindings/Summary.xnl": `<HolonExecutionBinding #eidolon.fixture.SummaryMemberBinding apiVersion="eidolon.ai/v1" version="1.0.0" {
+  bindingBytesBase64 = "${Buffer.from(canonicalHolonExecutionBindingBytes(binding)).toString("base64")}"
+}>
+`,
+    "HolonDependencies/Runtime.xnl": `<HolonExecutionDependency #eidolon.fixture.HolonRuntimeProfile apiVersion="eidolon.ai/v1" version="1.0.0" { lifecycle = "Active" }>
+`,
+    "HolonDependencies/Task.xnl": `<HolonExecutionDependency #eidolon.fixture.HolonTaskProfile apiVersion="eidolon.ai/v1" version="1.0.0" { lifecycle = "Active" }>
+`,
+    "HolonDependencies/Capability.xnl": `<HolonExecutionDependency #eidolon.fixture.SummaryCapability apiVersion="eidolon.ai/v1" version="1.0.0" { lifecycle = "Active" }>
+`,
+  }
+  for (const [relative, content] of Object.entries(files)) {
+    const target = path.join(root, relative)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, content, "utf8")
+  }
+  return {
+    sourceAuthorityId: issuanceReceipt.sourceAuthorityId,
+    sourceRevision: issuanceReceipt.sourceRevision,
+    recordCount: snapshot.records.length,
   }
 }
 
@@ -484,6 +613,65 @@ describe("whole ResourcePackage authoring and proof", () => {
     )
     await expect(component.sessions.prepareResourcePackagePublication({ sessionId: session.sessionId }))
       .rejects.toThrow("live base revision conflict")
+  })
+
+  it("proves and publishes the exact Holon snapshot, binding and Agent closure without runtime dispatch", async () => {
+    const roots = await temporaryFixture()
+    const issuance = await augmentFixtureWithHolonBinding(roots.workspacePackageRoot)
+    expect(issuance).toEqual({
+      sourceAuthorityId: "holarchy-file-xnl-main",
+      sourceRevision: "1",
+      recordCount: 8,
+    })
+    const component = createWorkflowComponent({
+      workspaceRoot: roots.authoringRoot,
+      resourceLayers: [{ id: "workspace", rootDir: roots.workspacePackageRoot }],
+    })
+    const session = await component.sessions.openResourcePackage({
+      sessionId: "holon-binding-package",
+      source: { kind: "workspace-layer" },
+    })
+
+    const prepared = await component.sessions.prepareResourcePackagePublication({
+      sessionId: session.sessionId,
+    })
+    expect(prepared.proofSet.holonExecutionBindingReceipts).toHaveLength(1)
+    expect(prepared.proofSet.holonExecutionBindingReceipts[0]).toMatchObject({
+      kind: "workflow.resourceHolonExecutionBindingFreezeReceipt",
+      bindingRef: "resource://eidolon.fixture.SummaryMemberBinding",
+      snapshotRef: "resource://eidolon.fixture.SummaryOrganizationSnapshot",
+      snapshotTreeDigest: expect.stringMatching(/^sha256:/),
+      snapshotReceiptDigest: expect.stringMatching(/^sha256:/),
+      bindingBytesDigest: expect.stringMatching(/^sha256:/),
+      closureResourceRefs: expect.arrayContaining([
+        "resource://eidolon.fixture.SummaryMemberBinding",
+        "resource://eidolon.fixture.SummaryOrganizationSnapshot",
+        "resource://eidolon.fixture.SummaryAgent",
+        "resource://eidolon.fixture.Article",
+      ]),
+      agentProofs: [{
+        agentDefinitionRef: "resource://eidolon.fixture.SummaryAgent",
+        agentContentDigest: expect.stringMatching(/^sha256:/),
+        snapshotRevision: expect.stringMatching(/^sha256:/),
+      }],
+      semanticFingerprint: expect.stringMatching(/^sha256:/),
+    })
+    expect(prepared.proofSet.buildReceipt.effectDispatched).toBe(false)
+    expect(prepared.proofSet.buildReceipt.proofReceiptIds)
+      .toContain(prepared.proofSet.holonExecutionBindingReceipts[0]!.receiptId)
+
+    const published = await component.resourcePackagePublisher!.publish({
+      sessionId: session.sessionId,
+      expectedRevision: prepared.revision,
+      confirmed: true,
+    })
+    expect(published).toMatchObject({
+      status: "published",
+      publicationEffectDispatched: true,
+      runtimeEffectDispatched: false,
+    })
+    expect((await component.resourceRegistry.listHolonExecutionBindings()).map(({ binding }) => binding.bindingRef))
+      .toEqual(["resource://eidolon.fixture.SummaryMemberBinding"])
   })
 
   it("rejects a MaterialBinding task that drifts from the canonical workflow node configuration", async () => {

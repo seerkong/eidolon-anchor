@@ -12,6 +12,7 @@ export * from "./llm/ChatCompletionsEffectBundle";
 export * from "./llm/ProviderToolSchemaProjection";
 export * from "./llm/ResponsesReplay";
 export * from "./organization/MemberRole";
+export * from "./organization/HolonExecutionBinding";
 export * from "./observability/Observability";
 export * from "./permissions/LocalPermissionConfig";
 export * from "./persistence/conversation/ConversationArtifacts";

@@ -1,0 +1,105 @@
+<Track #add-single-node-holon-member-runtime apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Host multiple frozen Holons and Members in one Eidolon process through HolonRuntime coordination and recoverable logical MemberRuntime identities backed by depa-actor and Eidolon's generic actor/session authority." description = "Implement deployment capsules, one shared HolonCoordinator per Holon, policy-based TaskSpace assignment, default long-lived MemberRuntime reuse, explicit isolation and one-way retirement of parallel legacy task facts." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-23T18:40:48.356Z" updated_at = "2026-08-24T10:58:43.103Z" modeling_base_commit = "94436d0e142762fdadeb6fad22502bfdaca6956b" engineering_base_commit = "94436d0e142762fdadeb6fad22502bfdaca6956b" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_add-single-node-holon-member-runtime { name = "add-single-node-holon-member-runtime" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "deployment capsule and runtime registry" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "materialize frozen Holon deployment definition" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4K>
+              Definition contains exact organization snapshot, execution binding and resource closure; live-source changes do not alter it.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4K>
+            ]>
+          )>
+          <Task #P1-T2 { name = "define closed deployment transaction and HolonRuntime Coordinator Member lifecycle facts" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4M>
+              Deployment runtime uses closed records/trees/receipts/transactions, recoverable token-pid-inode lock, CAS, file+parent fsync, head-last readback and crash recovery.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4M>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4N>
+              Deployment stores only opaque generic actor/session refs and registration receipts; it contains no second mailbox, conversation or actor snapshot authority.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4N>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "shared reuse and explicit isolation" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "reuse one runtime per deployment and member by default" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4P>
+              Different tasks resolve the same logical MemberRuntime but default to distinct durable task-attempt sessions with explicit task, claim and workflow refs.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4P>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4Q>
+              Only the closed isolated policy with task-space/workflow-run scope and isolationKey creates a temporary runtime.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4Q>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4R>
+              Session continuity across invocations occurs only through exact mutually-exclusive byInstanceId/byInstanceName runTargetedAgent selectors authorized by the frozen binding.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4R>
+            ]>
+          )>
+          <Task #P2-T2 { name = "coordinate ready TaskSpaces and propose exact Member assignment" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4S>
+              One shared HolonRuntime/Coordinator per deployment/holon evaluates only the TaskSpace snapshot, frozen Role/Policy and execution binding, then proposes a typed TaskSpace assignment command.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4S>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4T>
+              Workflow cannot preselect a Member; TaskSpace owns accepted assignment/claim/result while Coordinator stores only coordination facts.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4T>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "depa-actor and generic Eidolon actor integration" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "route MemberRuntime through depa-actor logical addressing" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4V>
+              Flow/TaskSpace stores opaque stable refs only; generic actor/session store owns conversation and execution facts.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4V>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4W>
+              AI, human endpoint, service and hybrid adapters accept the same task/claim/invocation/result envelope; principalKind does not select an adapter.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4W>
+            ]>
+          )>
+          <Task #P3-T2 { name = "migrate legacy Holon team task facts one way" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4X>
+              Legacy facts are characterized/imported or retained as derived reads; no dual writable task or ownership tree remains.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4X>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "restart and multi-Holon verification" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "test multi-Holon multi-member shared and isolated journeys" status = "DONE" order = 0 }>
+          <Task #P4-T2 { name = "release exact dependency closure build product and recover logical identities" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4Y>
+              Fresh process recovers shared runtime identity without reading live Holon source and without creating a second actor/session.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4Y>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4Z>
+              Changed packages use minimum patch versions and exact internal dependencies; package metadata/commands contain no registry override or registry argument; fresh registry consumer runs the recovery journey.
+              </?01M0SHSHEMNS8KEBVPHGPW7W4Z>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_add-single-node-holon-member-runtime" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

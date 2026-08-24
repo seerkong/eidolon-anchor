@@ -74,6 +74,36 @@ type WorkflowStepExtensionMutationInput = {
   value: unknown
 }
 
+type WorkflowProcessHolonTaskInput = {
+  run_id: string
+  node_id: string
+  task_space_id: string
+  task_id: string
+  assignment_command_id: string
+  start_command_id: string
+  settlement_command_id: string
+  invocation_ref: string
+  claimed_at: string
+  started_at: string
+  settled_at: string
+  lease_duration_ms: number
+  input: unknown
+}
+
+type WorkflowReplanHolonTaskInput = {
+  run_id: string
+  node_id: string
+  task_space_id: string
+  previous_task_id: string
+  successor_task_id: string
+  successor_task_name: string
+  successor_effective_at: string
+  cancel_command_id: string
+  replan_command_id: string
+  plan_id: string
+  replanned_at: string
+}
+
 const RUNTIME_ID = "eidolon.detached_actor" as const
 
 const TERMINAL_STATUSES = new Set(["completed", "failed", "cancelled"])
@@ -629,6 +659,149 @@ export function buildWorkflowMutateStepExtensionToolDef(): ToolDef<WorkflowStepE
           run_id: input.run_id,
           step_id: input.step_id,
           extension_kind: input.extension_kind,
+          error: String((error as Error)?.message ?? error),
+        })
+      }
+    },
+  }
+}
+
+export function buildWorkflowProcessHolonTaskToolDef(): ToolDef<WorkflowProcessHolonTaskInput, string, ToolConfig> {
+  return {
+    schema: {
+      type: "function",
+      function: {
+        name: "WorkflowProcessHolonTask",
+        description: "Assign, claim, execute and settle one organization-owned TaskSpace task through its frozen Holon MemberRuntime.",
+        parameters: {
+          type: "object",
+          properties: {
+            run_id: { type: "string" },
+            node_id: { type: "string" },
+            task_space_id: { type: "string" },
+            task_id: { type: "string" },
+            assignment_command_id: { type: "string" },
+            start_command_id: { type: "string" },
+            settlement_command_id: { type: "string" },
+            invocation_ref: { type: "string" },
+            claimed_at: { type: "string" },
+            started_at: { type: "string" },
+            settled_at: { type: "string" },
+            lease_duration_ms: { type: "number" },
+            input: {},
+          },
+          required: [
+            "run_id", "node_id", "task_space_id", "task_id", "assignment_command_id",
+            "start_command_id", "settlement_command_id", "invocation_ref", "claimed_at",
+            "started_at", "settled_at", "lease_duration_ms", "input",
+          ],
+          additionalProperties: false,
+        },
+      },
+    },
+    briefPromptXnl: "",
+    detailPromptXnl: "",
+    run: async (runtime, input) => {
+      try {
+        const result = await getWorkflowRuntimeService(runtime as any).processHolonTask({
+          runId: input.run_id,
+          nodeId: input.node_id,
+          taskSpaceId: input.task_space_id,
+          taskId: input.task_id,
+          assignmentCommandId: input.assignment_command_id,
+          startCommandId: input.start_command_id,
+          settlementCommandId: input.settlement_command_id,
+          invocationRef: input.invocation_ref,
+          claimedAt: input.claimed_at,
+          startedAt: input.started_at,
+          settledAt: input.settled_at,
+          leaseDurationMs: input.lease_duration_ms,
+          input: input.input as import("holarchy-eidolon-adapter").ClosedValue,
+        })
+        return JSON.stringify({ ok: true, kind: "workflow.holonTaskSettlement", ...result })
+      } catch (error) {
+        return JSON.stringify({
+          ok: false,
+          kind: "workflow.holonTaskSettlement",
+          run_id: input.run_id,
+          task_space_id: input.task_space_id,
+          task_id: input.task_id,
+          error: String((error as Error)?.message ?? error),
+        })
+      }
+    },
+  }
+}
+
+export function buildWorkflowReplanHolonTaskToolDef(): ToolDef<WorkflowReplanHolonTaskInput, string, ToolConfig> {
+  return {
+    schema: {
+      type: "function",
+      function: {
+        name: "WorkflowReplanHolonTask",
+        description: "Explicitly adopt a newer issuer-owned organization snapshot for a successor TaskSpace task without mutating the frozen Flow instance.",
+        parameters: {
+          type: "object",
+          properties: {
+            run_id: { type: "string" },
+            node_id: { type: "string" },
+            task_space_id: { type: "string" },
+            previous_task_id: { type: "string" },
+            successor_task_id: { type: "string" },
+            successor_task_name: { type: "string" },
+            successor_effective_at: { type: "string" },
+            cancel_command_id: { type: "string" },
+            replan_command_id: { type: "string" },
+            plan_id: { type: "string" },
+            replanned_at: { type: "string" },
+          },
+          required: [
+            "run_id", "node_id", "task_space_id", "previous_task_id", "successor_task_id",
+            "successor_task_name", "successor_effective_at", "cancel_command_id",
+            "replan_command_id", "plan_id", "replanned_at",
+          ],
+          additionalProperties: false,
+        },
+      },
+    },
+    briefPromptXnl: "",
+    detailPromptXnl: "",
+    run: async (runtime, input) => {
+      try {
+        const result = await getWorkflowRuntimeService(runtime as any).replanHolonTask({
+          runId: input.run_id,
+          nodeId: input.node_id,
+          taskSpaceId: input.task_space_id,
+          previousTaskId: input.previous_task_id,
+          successorTaskId: input.successor_task_id,
+          successorTaskName: input.successor_task_name,
+          successorEffectiveAt: input.successor_effective_at,
+          cancelCommandId: input.cancel_command_id,
+          replanCommandId: input.replan_command_id,
+          planId: input.plan_id,
+          replannedAt: input.replanned_at,
+        })
+        return JSON.stringify({
+          ok: true,
+          kind: "workflow.holonTaskReplan",
+          run_id: input.run_id,
+          task_space_id: input.task_space_id,
+          previous_task_id: input.previous_task_id,
+          successor_task_id: input.successor_task_id,
+          task_space_revision: result.snapshot.revision,
+          receipt_id: result.receipt.receiptId,
+          replayed: result.replayed,
+          adoptionReceipt: result.adoptionReceipt,
+          successorSnapshotReceipt: result.successorSnapshotReceipt,
+        })
+      } catch (error) {
+        return JSON.stringify({
+          ok: false,
+          kind: "workflow.holonTaskReplan",
+          run_id: input.run_id,
+          task_space_id: input.task_space_id,
+          previous_task_id: input.previous_task_id,
+          successor_task_id: input.successor_task_id,
           error: String((error as Error)?.message ?? error),
         })
       }

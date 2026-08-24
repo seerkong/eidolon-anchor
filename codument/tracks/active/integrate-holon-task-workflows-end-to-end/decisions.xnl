@@ -1,0 +1,20 @@
+<decision #track.integrate_holon_task_workflows_end_to_end.cross_owner_handoff apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>How are TaskSpace settlement and Flow checkpoint completion coordinated?</?>
+  <answer (
+    <raw-answer ?>Use two owner commits joined by a durable typed receipt, not a fabricated cross-directory transaction.</?>
+    <decision-text ?>TaskSpace admits settlement first; FlowRunCheckpoint consumes that exact receipt under its own CAS. Stable command/receipt identities make interruption and repetition converge without duplicate task/run facts.</?>
+    <rationale ?>Filesystem atomicity is owner-local; typed receipt handoff preserves each authority and enables recovery.</?>
+    <evidence ?>Parent mission file protocol decision and established depa-flows checkpoint/StepSpace owner boundaries.</?>
+  )>
+)>
+<decision #track.integrate_holon_task_workflows_end_to_end.file_xnl_issuer apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?>What is the organization snapshot authority for the local-file product journey?</?>
+  <answer (
+    <raw-answer ?>Issue it from the real pure File-XNL capsule before ResourcePackage admission; never hand-build or read it from SQLite.</?>
+    <decision-text ?>P1 writes the organization through `holarchy-file-xnl-capsule@0.2.0`, reconstructs that file authority, and admits its canonical snapshot bytes plus issuance receipt into the ResourcePackage. Workflow execution consumes only the admitted immutable material. Live authority changes are visible only through explicit organization replan.</?>
+    <rationale ?>This closes Mission Replan 004: the product E2E must exercise the actual local-file owner and issuer while preserving Definition→Instance→Run freeze and keeping database migration outside the runtime closure.</?>
+    <evidence ?>Completed Track `separate-file-xnl-runtime-capsule-and-snapshot-port`; npm releases `holarchy-core-logic@0.1.2`, `holarchy-file-xnl-logic@0.1.1`, `holarchy-file-xnl-support@0.1.1`, `holarchy-file-xnl-capsule@0.2.0`.</?>
+  )>
+  <confidence ?>high</?>
+  <reversibility ?>moderate</?>
+)>

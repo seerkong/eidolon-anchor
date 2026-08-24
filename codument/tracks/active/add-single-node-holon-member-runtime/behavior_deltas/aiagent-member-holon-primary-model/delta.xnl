@@ -1,0 +1,28 @@
+<BehaviorPatch #track.add-single-node-holon-member-runtime.behavior_patch.aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-member-holon-primary-model" } (
+  <Mutations [<Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/member-runtime-reuse" } (
+    <Requirement #member-runtime-reuse (
+      <Statement ?>Within one deployment Eidolon SHALL reuse one long-lived MemberRuntime for each exact Member ref by default; only explicit task-space/workflow-run isolation with isolationKey SHALL create a temporary runtime.</?>
+      <Suites [<Suite #reuse-cases { name = "MemberRuntime lifecycle" } (<Cases [
+        <Case #shared-by-default [<Given ?>Two tasks target the same deployment and Member without isolation.</?><When ?>Both dispatch work.</?><Then ?>They SHALL resolve the same logical MemberRuntime while defaulting to distinct durable task-attempt sessions.</?>]>
+        <Case #explicit-isolation [<Given ?>A valid isolated policy names scope and isolationKey.</?><When ?>Work is dispatched.</?><Then ?>A distinct bounded runtime SHALL be created and SHALL NOT replace the shared runtime.</?>]>
+      ]>)>]>
+    )>
+  )>
+  <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/holon-runtime-coordination" } (
+    <Requirement #holon-runtime-coordination (
+      <Statement ?>Eidolon SHALL host one shared HolonRuntime/HolonCoordinatorActor per deployment/Holon to observe ready TaskSpaces and propose exact Member assignments from frozen snapshot, Role/Policy and execution binding; TaskSpace SHALL remain assignment/claim/result authority.</?>
+      <Suites [<Suite #coordination-cases { name = "Holon coordination" } (<Cases [
+        <Case #organization-target [<Given ?>A workflow targets a Holon and a TaskSpace becomes ready.</?><When ?>The coordinator evaluates eligible members.</?><Then ?>It SHALL propose a typed assignment and resolve the chosen MemberRuntime without workflow preselection.</?>]>
+      ]>)>]>
+    )>
+  )>
+  <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/member-session-and-adapter-boundary" } (
+    <Requirement #member-session-and-adapter-boundary (
+      <Statement ?>Shared MemberRuntime SHALL default to a distinct durable task-attempt generic session, SHALL reuse an Agent instance only through exact byInstanceId/byInstanceName targeted selection, and SHALL dispatch AI/human/service/hybrid adapters through one typed task envelope without routing from principalKind.</?>
+      <Suites [<Suite #session-adapter-cases { name = "Session and adapter boundary" } (<Cases [
+        <Case #default-session-isolation [<Given ?>Two unrelated tasks use the same shared MemberRuntime.</?><When ?>They invoke AI work without a target selector.</?><Then ?>They SHALL use distinct generic sessions and SHALL NOT see each other's conversation.</?>]>
+        <Case #targeted-continuity [<Given ?>A prior invocation returned an Agent instance id or admitted instance name.</?><When ?>A later task uses the exact selector.</?><Then ?>It SHALL address the same generic Agent instance without creating a workflow-specific session owner.</?>]>
+      ]>)>]>
+    )>
+  )>]>
+)>

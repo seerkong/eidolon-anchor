@@ -1,0 +1,10 @@
+<BehaviorPatch #track.integrate-holon-task-workflows-end-to-end.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [<Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/holon-task-target-execution" } (
+    <Requirement #holon-task-target-execution (
+      <Statement ?>Eidolon SHALL execute AI Ctrl and AI Data HolonTaskTarget nodes through canonical snapshots and receipts issued by an admitted File-XNL Holon authority, canonical TaskSpace, HolonCoordinator assignment and MemberRuntime capabilities with typed durable handoffs and no workflow-specific actor/session authority.</?>
+      <Suites [<Suite #journey-cases { name = "Holon workflow" } (<Cases [
+        <Case #ctrl-data [<Given ?>One ResourcePackage carries a File-XNL-issued Holon snapshot and defines Ctrl and Data workflows targeting that Holon.</?><When ?>Both execute and restart.</?><Then ?>Both SHALL settle through TaskSpace and reuse the same default MemberRuntime identity without consulting live organization source.</?>]>
+      ]>)>]>
+    )>
+  )>]>
+)>

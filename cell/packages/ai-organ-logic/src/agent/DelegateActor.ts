@@ -47,6 +47,7 @@ export async function spawnChildExecutionActor(
     detachedActorKind?: DetachedActorKind
     additionalSystemPrompts?: readonly string[]
     resolvedConfig?: AgentConfig
+    sessionId?: string
     retainActor?: boolean
     onActorCreated?: (actor: AiAgentActor) => void
   },
@@ -163,6 +164,7 @@ export async function spawnChildExecutionActor(
     },
     workContext: {
       ...parentWorkContext,
+      ...(params.sessionId === undefined ? {} : { sessionId: params.sessionId }),
       taskPhase: TASK_PHASES.normal,
       workModeSource: "parent_delegate",
       taskPhaseSource: "delegate_start",
@@ -309,6 +311,7 @@ export async function invokeAddressedChildExecutionActor(
     agentType: string
     toolCallId?: string
     resolvedConfig: AgentConfig
+    sessionId?: string
     target?: AddressedChildExecutionReference
   },
 ): Promise<{ output: string; reference: AddressedChildExecutionReference }> {
@@ -339,6 +342,7 @@ export async function invokeAddressedChildExecutionActor(
     mode: "sync_wait",
     toolCallId: params.toolCallId,
     resolvedConfig: params.resolvedConfig,
+    ...(params.sessionId === undefined ? {} : { sessionId: params.sessionId }),
     retainActor: true,
     onActorCreated: (actor) => { created = actor },
   })
@@ -350,7 +354,7 @@ export async function invokeAddressedChildExecutionActor(
       authority: "eidolon.actor-runtime/v1",
       actorKey: created.key,
       actorId: created.id,
-      ...(work.sessionId ? { sessionId: work.sessionId } : {}),
+      ...(params.sessionId ? { sessionId: params.sessionId } : work.sessionId ? { sessionId: work.sessionId } : {}),
       agentDefinitionRef: params.agentType,
     }),
   }

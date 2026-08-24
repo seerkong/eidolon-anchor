@@ -1,0 +1,11 @@
+<BehaviorPatch #track.add-holon-execution-binding-resource.behavior_patch.aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-member-holon-primary-model" } (
+  <Mutations [<Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/neutral-holon-execution-extension" } (
+    <Requirement #neutral-holon-execution-extension (
+      <Statement ?>Eidolon SHALL map frozen Holon Member/Role master-data refs through a closed HolonExecutionBinding adapter union (ai-agent, human-endpoint, service, hybrid) and SHALL NOT require execution fields in Holon core records or route from principalKind.</?>
+      <Suites [<Suite #neutrality-cases { name = "Holon neutrality" } (<Cases [
+        <Case #principal-not-routing [<Given ?>A Member principalKind is ai.</?><When ?>No exact execution binding exists.</?><Then ?>Eidolon SHALL fail closed rather than infer an AgentDefinition.</?>]>
+        <Case #common-envelope [<Given ?>Human, AI and service members receive organization tasks.</?><When ?>Their adapters are invoked.</?><Then ?>Each SHALL use the same typed task/claim/invocation/result envelope while adapter-specific state remains behind its owner.</?>]>
+      ]>)>]>
+    )>
+  )>]>
+)>

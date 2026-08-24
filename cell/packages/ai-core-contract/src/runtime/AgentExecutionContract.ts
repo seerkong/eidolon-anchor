@@ -1,12 +1,16 @@
+export interface AgentExecutionRecord {
+  readonly [key: string]: AgentExecutionValue
+}
+
 export type AgentExecutionValue =
   | null
   | boolean
   | number
   | string
   | readonly AgentExecutionValue[]
-  | Readonly<Record<string, AgentExecutionValue>>
+  | AgentExecutionRecord
 
-export type AgentExecutionSchema = Readonly<Record<string, AgentExecutionValue>>
+export type AgentExecutionSchema = AgentExecutionRecord
 
 export type AgentExecutionMaterialValue = {
   readonly bindingResourceId: string

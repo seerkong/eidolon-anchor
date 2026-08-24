@@ -1,0 +1,79 @@
+<Track #add-holon-execution-binding-resource apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Add the canonical HolonExecutionBinding Resource kind that maps frozen Holon Member/Role master-data references to exact AI, human endpoint, service or hybrid execution adapters and closed policy." description = "Own canonical KindDefinition bytes and reusable projection/freeze in holarchy-eidolon-adapter, retain private @cell product wiring, and enforce ResourcePackage authoring/publication proof without modifying Holon core models." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-23T18:40:48.345Z" updated_at = "2026-08-24T08:53:47.273Z" modeling_base_commit = "94436d0e142762fdadeb6fad22502bfdaca6956b" engineering_base_commit = "94436d0e142762fdadeb6fad22502bfdaca6956b" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_add-holon-execution-binding-resource { name = "add-holon-execution-binding-resource" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "canonical resource contract" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "define HolonExecutionBinding KindDefinition 1.0.0" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0SD4ZNFN6QXN9Z6N140SGNK>
+              Kind, FQN, eidolon.ai/v1 apiVersion and canonical bytes match the mission decision exactly.
+              </?01M0SD4ZNFN6QXN9Z6N140SGNK>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0SD4ZNFN6QXN9Z6N140SGNM>
+              Binding uses typed stable Holon member/role refs and the exact closed ai-agent|human-endpoint|service|hybrid adapter union; a carried snapshot must have the canonical HolonEffectiveSnapshot kind plus valid issuer receipt.
+              </?01M0SD4ZNFN6QXN9Z6N140SGNM>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M0SD4ZNFN6QXN9Z6N140SGNN>
+              principalKind never selects or rejects an adapter automatically; missing/ambiguous adapter refs and empty, duplicate, cyclic or unresolved hybrid candidates fail closed.
+              </?01M0SD4ZNFN6QXN9Z6N140SGNN>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "loader projection and freeze" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "load binding through the shared Halfcode registry" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0SD4ZNFN6QXN9Z6N140SGNP>
+              One component-owned resource registry verifies the external Holon snapshot KindDefinition/issuer receipt, resolves all adapter targets and resource closure, and creates no second scanner/catalog.
+              </?01M0SD4ZNFN6QXN9Z6N140SGNP>
+            ]>
+          )>
+          <Task #P2-T2 { name = "freeze binding with organization and Agent proof" status = "DONE" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "authoring publication and static proof" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "extend ResourcePackage authoring and publication proof" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0SD4ZNFN6QXN9Z6N140SGNQ>
+              Authored packages mechanically include canonical KindDefinition bytes and reject unknown Holon/Agent refs before publication.
+              </?01M0SD4ZNFN6QXN9Z6N140SGNQ>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0SD4ZNFN6QXN9Z6N140SGNR>
+              Publication readback proves exact binding, snapshot and Agent closure and creates no runtime effect.
+              </?01M0SD4ZNFN6QXN9Z6N140SGNR>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "fresh package verification" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "run focused resource authoring registry and type gates" status = "DONE" order = 0 }>
+          <Task #P4-T2 { name = "release minimum package versions and rebuild proof from a fresh registry consumer" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0SD4ZNFN6QXN9Z6N140SGNS>
+              New KindDefinition remains 1.0.0; changed npm packages use minimum patch versions, exact internal dependencies, no registry metadata override and no registry CLI argument.
+              </?01M0SD4ZNFN6QXN9Z6N140SGNS>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0SD4ZNFN6QXN9Z6N140SGNT>
+              A fresh consumer rebuilds identical AI/human/service/hybrid binding projections and rejects missing closure members.
+              </?01M0SD4ZNFN6QXN9Z6N140SGNT>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_add-holon-execution-binding-resource" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

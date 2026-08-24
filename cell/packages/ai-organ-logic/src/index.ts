@@ -45,6 +45,13 @@ export {
 export { loadMcpServers, MCPManager, setDebug } from "./mcp/McpSupport";
 
 export { getMemberManager } from "./organization/MemberManager";
+export * from "./organization/HolonDeploymentDefinition";
+export * from "./organization/HolonDeploymentRuntimeStore";
+export * from "./organization/HolonMemberRuntime";
+export * from "./organization/HolonCoordinator";
+export * from "./organization/HolonLocalActorRuntime";
+export * from "./organization/HolonLegacyTaskAuthority";
+export * from "./organization/HolonWorkflowTaskRuntime";
 export {
   createEmptyConversationProjection,
   reduceConversationDomainEvent,

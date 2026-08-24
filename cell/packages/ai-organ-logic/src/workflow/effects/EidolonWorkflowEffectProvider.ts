@@ -15,6 +15,8 @@ import type {
   AIAgentHostTargetedRunRequest,
   AIWorkflowRunEvent,
   AIWorkflowRunRef,
+  FlowClosedObject,
+  FlowClosedValue,
 } from "@cell/ai-workflow-contract"
 import {
   invokeAddressedChildExecutionActor,
@@ -44,6 +46,8 @@ export type WorkflowAgentResourceBinding = {
   readonly workflowForm: AiWorkflowForm
   readonly resourceRegistry: Pick<EidolonAppResourceRegistryAdapter, "prepareWorkflowAgentExecution">
 }
+
+export type WorkflowMaterialWriteResult = Readonly<{ path: string; revision: string }>
 
 function controlledMaterialPath(value: string): string {
   const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\//, "")
@@ -125,6 +129,26 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
 
   runTargetedAgent(request: AIAgentHostTargetedRunRequest): Promise<AIAgentHostRunResult> {
     return this.runTypedAgent(request, request.instance)
+  }
+
+  async writeMaterial(
+    input: FlowClosedValue,
+    config: FlowClosedObject = {},
+  ): Promise<WorkflowMaterialWriteResult> {
+    const run = this.resolveRunAuthority()
+    const nodeId = text(config.nodeId, "material-write")
+    const effectConfig = normalizeFlowClosedValue(
+      config,
+      "materialWrite.config",
+    ) as NonNullable<AIWorkflowEffectRequest["config"]>
+    return await this.invoke({
+      run,
+      nodeId,
+      effectId: text(config.effectId, `${run.runId}:${run.generation}:${nodeId}`),
+      operation: "material.write",
+      input,
+      config: effectConfig,
+    })
   }
 
   private async runTypedAgent(
@@ -396,6 +420,12 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       const target = targetValue === undefined
         ? undefined
         : addressedReference(targetValue, agentDefinitionRef)
+      const invocationMetadata = record(config.invocationMetadata)
+      const taskAttemptSessionId = typeof invocationMetadata.sessionRef === "string"
+        && invocationMetadata.sessionRef.trim() === invocationMetadata.sessionRef
+        && invocationMetadata.sessionRef.length > 0
+        ? invocationMetadata.sessionRef
+        : undefined
       const invoked = await invokeAddressedChildExecutionActor(this.runtime.vm, this.runtime.actor, {
         description: text(input.description, `Workflow node ${nodeId}`),
         prompt,
@@ -403,6 +433,9 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         resolvedConfig: prepared.plan.agentConfig,
         toolCallId: request.effectId,
         ...(target === undefined ? {} : { target }),
+        ...(target !== undefined || taskAttemptSessionId === undefined
+          ? {}
+          : { sessionId: taskAttemptSessionId }),
       })
       const output = projectAgentExecutionOutput(prepared.plan.executionContract, invoked.output)
       return {

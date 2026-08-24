@@ -9,10 +9,31 @@ import {
   createAICtrlWorkflowCheckpointStore,
   createAICtrlWorkflowController,
   getAICtrlWorkflowRunRecord,
+  observeAICtrlHolonTask,
+  openAICtrlHolonTask,
   projectAICtrlWorkflowRunRecord,
+  replanAICtrlHolonTask,
   resumeAICtrlWorkflowRun,
   startAICtrlWorkflowRun,
 } from "ai-ctrl-workflow-logic"
+import {
+  consumeAIDataHolonTask,
+  type AIDataHolonTaskMaterialValidationInput,
+} from "ai-data-workflow-logic"
+import {
+  holonTaskTargetFromNodeConfig,
+  normalizeHolonTaskSnapshotReceipt,
+  normalizeHolonTaskTarget,
+  type FrozenHolonTaskTarget,
+  type HolonTaskTarget,
+} from "ai-workflow-contract"
+import { runAgent } from "ai-workflow-logic"
+import { assertFrozenAIAgentTaskBinding } from "ai-workflow-logic/run-freeze"
+import {
+  canonicalHolonEffectiveSnapshotBytes,
+  canonicalHolonEffectiveSnapshotIssuanceReceiptBytes,
+} from "holarchy-core-contract"
+import { FileTaskSpaceOwner } from "task-manager-file-support"
 import type {
   AIWorkflowAgentTaskRef,
   AIWorkflowAuthoredRuntimeContext,
@@ -30,6 +51,11 @@ import {
   createWorkflowStepExtensionAuthoredFacade,
 } from "../effects/WorkflowStepExtensionAuthoredFacade"
 import { AIDataWorkflowRuntimeDriver } from "./AIDataWorkflowRuntimeDriver"
+import {
+  normalizeAgentExecutionSchema,
+  normalizeAgentExecutionValue,
+  validateAgentExecutionValue,
+} from "../../agent/AgentExecutionContract"
 import { EMPTY_AI_WORKFLOW_DURABLE_STATE, WorkflowDepaPersistence } from "./WorkflowDepaPersistence"
 import { WorkflowLegacyMigration } from "./WorkflowLegacyMigration"
 import {
@@ -46,6 +72,22 @@ import type {
   WorkflowRunReceipt,
 } from "./WorkflowLifecycleFacts"
 import { WorkflowMaterialService } from "./WorkflowMaterialService"
+import {
+  loadHolonDeploymentDefinition,
+  materializeHolonDeploymentDefinition,
+  type MaterializedHolonDeploymentDefinition,
+} from "../../organization/HolonDeploymentDefinition"
+import { FileHolonDeploymentRuntimeStore } from "../../organization/HolonDeploymentRuntimeStore"
+import {
+  EidolonHolonLocalActorRuntime,
+  type HolonExecutionAdapterPorts,
+  type HolonGenericActorOwnerPort,
+} from "../../organization/HolonLocalActorRuntime"
+import {
+  executeHolonWorkflowTask,
+  type ExecuteHolonWorkflowTaskInput,
+  type HolonWorkflowTaskExecutionResult,
+} from "../../organization/HolonWorkflowTaskRuntime"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
 type CtrlController = ReturnType<typeof createAICtrlWorkflowController>
@@ -56,6 +98,37 @@ export type StartWorkflowRunInput = {
   confirmed?: boolean
   replayOf?: string
 }
+
+export type ProcessWorkflowHolonTaskInput = Readonly<{
+  runId: string
+  nodeId: string
+  taskSpaceId: string
+  taskId: string
+  assignmentCommandId: string
+  startCommandId: string
+  settlementCommandId: string
+  invocationRef: string
+  claimedAt: string
+  startedAt: string
+  settledAt: string
+  leaseDurationMs: number
+  input: import("holarchy-eidolon-adapter").ClosedValue
+}>
+
+export type ReplanWorkflowHolonTaskInput = Readonly<{
+  runId: string
+  nodeId: string
+  taskSpaceId: string
+  previousTaskId: string
+  successorTaskId: string
+  successorTaskName: string
+  successorEffectiveAt: string
+  cancelCommandId: string
+  replanCommandId: string
+  planId: string
+  replannedAt: string
+  activeClaim?: import("task-manager-contract").TaskClaimToken
+}>
 
 export type WorkflowRunProjection = {
   ok: true
@@ -78,7 +151,7 @@ function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
   if (typeof value !== "object" || value === null) return value
   return Object.fromEntries(Object.entries(value as Record<string, unknown>)
-    .sort(([left], [right]) => left.localeCompare(right))
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
     .map(([key, item]) => [key, stableValue(item)]))
 }
 
@@ -195,6 +268,191 @@ function runRef(
   })
 }
 
+type WorkflowHolonDeployment = Readonly<{
+  deploymentId: string
+  definition: MaterializedHolonDeploymentDefinition
+  store: FileHolonDeploymentRuntimeStore
+}>
+
+type WorkflowHolonTaskContext = Readonly<{
+  proofs: Readonly<Record<string, FrozenHolonTaskTarget>>
+  targets: Readonly<Record<string, HolonTaskTarget>>
+  taskManager: Readonly<{ owner: FileTaskSpaceOwner }>
+  organizationSnapshots: Readonly<{
+    readEffectiveSnapshot(input: Readonly<{
+      rootHolonRef: string
+      effectiveAt: string
+    }>): Promise<Readonly<{
+      snapshotBytes: Uint8Array
+      issuanceReceiptBytes: Uint8Array
+    }>>
+  }>
+  deployments: ReadonlyMap<string, WorkflowHolonDeployment>
+  proofForNode(nodeId: string): FrozenHolonTaskTarget
+  openTask(
+    input: Parameters<typeof openAICtrlHolonTask>[1],
+    config: Parameters<typeof openAICtrlHolonTask>[2],
+  ): ReturnType<typeof openAICtrlHolonTask>
+  observeTask(
+    input: Parameters<typeof observeAICtrlHolonTask>[1],
+    config: Parameters<typeof observeAICtrlHolonTask>[2],
+  ): ReturnType<typeof observeAICtrlHolonTask>
+  replanTask(
+    input: Parameters<typeof replanAICtrlHolonTask>[1],
+    config: Parameters<typeof replanAICtrlHolonTask>[2],
+  ): ReturnType<typeof replanAICtrlHolonTask>
+  consumeTask(
+    input: Parameters<typeof consumeAIDataHolonTask>[1],
+    config: Parameters<typeof consumeAIDataHolonTask>[2],
+  ): ReturnType<typeof consumeAIDataHolonTask>
+}>
+
+function discoverHolonTaskTargets(
+  descriptor: WorkflowRunDescriptor,
+  definition: ResolvedWorkflowDefinition,
+): Readonly<Record<string, HolonTaskTarget>> {
+  if (!definition.resourceReceipt) return Object.freeze({})
+  const targets: Record<string, HolonTaskTarget> = Object.create(null)
+  const visited = new WeakSet<object>()
+  const visit = (value: unknown): void => {
+    if (typeof value !== "object" || value === null || visited.has(value)) return
+    visited.add(value)
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item)
+      return
+    }
+    const record = value as Record<string, unknown>
+    const attrs = nestedRecord(record.attrs)
+    const configs = [nestedRecord(record.config), nestedRecord(attrs.config), attrs]
+    const config = configs.find((candidate) => Object.prototype.hasOwnProperty.call(candidate, "holonTaskTarget"))
+    const nodeId = typeof record.id === "string" ? record.id
+      : typeof record.nodeId === "string" ? record.nodeId
+      : typeof record.Key === "string" ? record.Key
+      : typeof record.key === "string" ? record.key : undefined
+    if (config && nodeId) {
+      const target = holonTaskTargetFromNodeConfig(config, {
+        workflowKind: descriptor.form,
+        workflowRef: descriptor.workflowRef as `resource://${string}`,
+        nodeId,
+      })
+      if (target) {
+        const prior = targets[nodeId]
+        if (prior && fingerprint(prior) !== fingerprint(target)) {
+          throw new Error(`Frozen workflow node ${nodeId} declares conflicting Holon targets`)
+        }
+        targets[nodeId] = target
+      }
+    }
+    for (const nested of Object.values(record)) visit(nested)
+  }
+  visit(definition.binding.definition)
+  return Object.freeze(targets)
+}
+
+async function validateHolonSettlementMaterial(
+  registry: EidolonAppResourceRegistryAdapter,
+  input: AIDataHolonTaskMaterialValidationInput,
+) {
+  const snapshot = await registry.snapshot()
+  const schemaId = input.schemaRef.slice("resource://".length)
+  const schemaEntry = snapshot.registry.byId.get(schemaId)
+  if (!schemaEntry?.resource || schemaEntry.kind !== "MessageSchema") {
+    throw new Error(`EIDOLON_HOLON_OUTPUT_SCHEMA_MISSING: ${input.schemaRef}`)
+  }
+  const values: Array<readonly [`resource://${string}`, ReturnType<typeof normalizeAgentExecutionValue>]> = []
+  for (const material of input.materials) {
+    const portId = material.materialPortRef.slice("resource://".length)
+    const port = snapshot.agentResources.materialPorts.find(
+      (candidate) => candidate.resource.resourceId === portId,
+    )
+    if (!port || port.schema?.ref !== input.schemaRef
+      || port.schema.resource.resourceId !== schemaEntry.resource.resourceId) {
+      throw new Error(`EIDOLON_HOLON_MATERIAL_PORT_SCHEMA_MISMATCH: ${material.materialPortRef}`)
+    }
+    if (material.body.encoding !== "base64" || material.body.mediaType !== "application/json") {
+      throw new Error(`EIDOLON_HOLON_MATERIAL_ENCODING_UNSUPPORTED: ${material.materialPortRef}`)
+    }
+    const bytes = Buffer.from(material.body.data, "base64")
+    if (bytes.byteLength !== material.body.sizeBytes || bytes.toString("base64") !== material.body.data) {
+      throw new Error(`EIDOLON_HOLON_MATERIAL_BYTES_MISMATCH: ${material.materialPortRef}`)
+    }
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(bytes.toString("utf8"))
+    } catch {
+      throw new Error(`EIDOLON_HOLON_MATERIAL_JSON_INVALID: ${material.materialPortRef}`)
+    }
+    const value = normalizeAgentExecutionValue(parsed, `holonMaterial.${portId}`)
+    validateAgentExecutionValue(
+      normalizeAgentExecutionSchema(port.schema.schema, `holonMaterial.${portId}.schema`),
+      value,
+      `holonMaterial.${portId}`,
+    )
+    values.push(Object.freeze([material.materialPortRef, value] as const))
+  }
+  if (values.length === 1) return values[0]![1]
+  return normalizeAgentExecutionValue(Object.fromEntries(values), "holonMaterial.output")
+}
+
+function workflowHolonDeploymentId(
+  instanceId: string,
+  bindingRef: string,
+  snapshotReceiptDigest?: string,
+): string {
+  const identity = snapshotReceiptDigest === undefined
+    ? `${instanceId}\u0000${bindingRef}`
+    : `${instanceId}\u0000${bindingRef}\u0000${snapshotReceiptDigest}`
+  return `holon-${createHash("sha256").update(identity).digest("hex").slice(0, 32)}`
+}
+
+function sameHolonTargetExecutableIdentity(
+  frozen: HolonTaskTarget,
+  candidate: HolonTaskTarget,
+): boolean {
+  return fingerprint(frozen) === fingerprint({
+    ...candidate,
+    holon: { ...candidate.holon, effectiveAt: frozen.holon.effectiveAt },
+  })
+}
+
+function resourceDocumentPath(documentUri: string): string {
+  if (!documentUri.startsWith("vfs://@/")) {
+    throw new Error("EIDOLON_HOLON_REPLAN_SNAPSHOT_DOCUMENT_UNSUPPORTED")
+  }
+  return documentUri.slice("vfs://@/".length).split(/[?#]/, 1)[0]!
+}
+
+async function assertOrganizationOnlyResourceChange(
+  frozenRegistry: EidolonAppResourceRegistryAdapter,
+  liveRegistry: EidolonAppResourceRegistryAdapter,
+  frozenSnapshotDocumentUri: string,
+  liveSnapshotDocumentUri: string,
+): Promise<void> {
+  const frozenSnapshotPath = resourceDocumentPath(frozenSnapshotDocumentUri)
+  const liveSnapshotPath = resourceDocumentPath(liveSnapshotDocumentUri)
+  if (frozenSnapshotPath !== liveSnapshotPath) {
+    throw new Error("EIDOLON_HOLON_REPLAN_SUCCESSOR_INSTANCE_REQUIRED: organization Resource identity moved")
+  }
+  const [frozenFiles, liveFiles] = await Promise.all([
+    frozenRegistry.captureFrozenResourceClosure(),
+    liveRegistry.captureFrozenResourceClosure(),
+  ])
+  const excluded = (filePath: string) => filePath.endsWith(`/${frozenSnapshotPath}`)
+  const byPath = ([left]: readonly [string, string], [right]: readonly [string, string]) => (
+    left < right ? -1 : left > right ? 1 : 0
+  )
+  const frozenEntries = Object.entries(frozenFiles).filter(([filePath]) => !excluded(filePath)).sort(byPath)
+  const liveEntries = Object.entries(liveFiles).filter(([filePath]) => !excluded(filePath)).sort(byPath)
+  if (fingerprint(frozenEntries) !== fingerprint(liveEntries)) {
+    const frozenMap = new Map(frozenEntries)
+    const liveMap = new Map(liveEntries)
+    const changed = [...new Set([...frozenMap.keys(), ...liveMap.keys()])]
+      .filter((filePath) => frozenMap.get(filePath) !== liveMap.get(filePath))
+      .sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
+    throw new Error(`EIDOLON_HOLON_REPLAN_SUCCESSOR_INSTANCE_REQUIRED: executable ResourcePackage closure changed (${changed.join(", ")})`)
+  }
+}
+
 export class WorkflowRuntimeService {
   readonly facts: WorkflowFactStore
   readonly materials: WorkflowMaterialService
@@ -204,9 +462,11 @@ export class WorkflowRuntimeService {
   private readonly controllers = new Map<string, CtrlController>()
   private readonly ctrlNodeOrder = new Map<string, ReadonlyMap<string, number>>()
   private readonly dataDrivers = new Map<string, AIDataWorkflowRuntimeDriver>()
+  private readonly holonContexts = new Map<string, WorkflowHolonTaskContext>()
   private readonly workspace: WorkflowAuthoringWorkspace
   private readonly catalog: ReturnType<typeof createWorkflowComponentForRuntime>["catalog"]
   private readonly resourceRegistry: EidolonAppResourceRegistryAdapter
+  private readonly supportRoot: string
 
   constructor(private readonly runtime: WorkflowRuntime) {
     const component = createWorkflowComponentForRuntime(runtime)
@@ -216,10 +476,10 @@ export class WorkflowRuntimeService {
     this.catalog = component.catalog
     this.resourceRegistry = component.resourceRegistry
     this.repository = component.repository
-    const supportRoot = factRoot(runtime, component.authoring.store.rootPath)
-    this.facts = new WorkflowFactStore(supportRoot)
-    this.depa = new WorkflowDepaPersistence(supportRoot, stepExtensionCodecs(runtime))
-    this.legacyMigration = new WorkflowLegacyMigration(supportRoot, this.depa)
+    this.supportRoot = factRoot(runtime, component.authoring.store.rootPath)
+    this.facts = new WorkflowFactStore(this.supportRoot)
+    this.depa = new WorkflowDepaPersistence(this.supportRoot, stepExtensionCodecs(runtime))
+    this.legacyMigration = new WorkflowLegacyMigration(this.supportRoot, this.depa)
     this.materials = new WorkflowMaterialService(component.authoring, this.facts)
   }
 
@@ -590,6 +850,256 @@ export class WorkflowRuntimeService {
     return projected
   }
 
+  async processHolonTask(
+    input: ProcessWorkflowHolonTaskInput,
+  ): Promise<HolonWorkflowTaskExecutionResult> {
+    const descriptor = await this.facts.loadDescriptor(input.runId)
+    if (!descriptor) throw new Error(`Holon task run descriptor not found: ${input.runId}`)
+    const definition = await this.loadFrozenDefinition(descriptor, descriptor.form)
+    const registry = this.frozenAgentRegistry(descriptor.instanceId)
+    if (!registry) throw new Error("Holon task execution requires one frozen ResourcePackage registry")
+    const context = await this.workflowHolonContext(descriptor, definition, registry)
+    if (!context) throw new Error(`Workflow ${descriptor.workflowRef} has no frozen Holon task targets`)
+    const frozenTarget = context.targets[input.nodeId]
+    const proof = context.proofs[input.nodeId]
+    if (!frozenTarget || !proof || fingerprint(proof.target) !== fingerprint(frozenTarget)) {
+      throw new Error(`Holon task node ${input.nodeId} has no authentic frozen target`)
+    }
+    const taskSpace = await context.taskManager.owner.readSnapshot(input.taskSpaceId)
+    const task = taskSpace?.tasks.find((candidate) => candidate.taskId === input.taskId)
+    const taskFacts = nestedRecord(task?.profile?.facts)
+    const target = normalizeHolonTaskTarget(taskFacts.target)
+    const snapshotReceipt = normalizeHolonTaskSnapshotReceipt(taskFacts.snapshotReceipt)
+    if (!sameHolonTargetExecutableIdentity(frozenTarget, target)) {
+      throw new Error("EIDOLON_HOLON_TASK_SUCCESSOR_INSTANCE_REQUIRED: task executable identity differs from the frozen Flow node")
+    }
+    const deployment = await this.workflowHolonDeploymentForTask(
+      descriptor,
+      context,
+      target,
+      snapshotReceipt.issuerReceiptId,
+    )
+    const binding = deployment.definition.bindingProjection.binding
+    if (binding.adapter.kind !== "ai-agent") {
+      throw new Error(`EIDOLON_HOLON_PRODUCT_ADAPTER_UNSUPPORTED: ${binding.adapter.kind}`)
+    }
+    const agentAdapter = binding.adapter
+    const executionRegistry = deployment.definition.resourceRegistry
+    const taskProof = await executionRegistry.freezeWorkflowAgentTaskBinding({
+      workflowKind: descriptor.form,
+      workflowRef: descriptor.workflowRef as `resource://${string}`,
+      nodeId: input.nodeId,
+      agentDefinitionRef: agentAdapter.agentDefinitionRef,
+    })
+    const taskBinding = assertFrozenAIAgentTaskBinding(taskProof).task
+    const activeRun = runRef(descriptor, definition)
+    const component = createWorkflowComponentForRuntime(this.runtime)
+    if (!component.authoring) throw new Error("EIDOLON_HOLON_AUTHORING_STORE_REQUIRED")
+    const effects = new EidolonWorkflowEffectProvider(
+      this.runtime,
+      new StoreBackedWorkflowMaterialAccess(component.authoring.store),
+      this.facts,
+      (request, output) => this.captureMaterialOutput(request.run.runId, effectOwnerNodeId(request), output.path),
+      () => activeRun,
+      { workflowForm: descriptor.form, resourceRegistry: executionRegistry },
+      this.stepExtensionFacade(),
+    )
+    const genericOwner = this.workflowHolonGenericOwner(descriptor, agentAdapter.agentDefinitionRef)
+    const adapters: HolonExecutionAdapterPorts = {
+      aiAgent: {
+        execute: async ({ invocation, runtimeRef, sessionRef, taskAttempt }) => {
+          const checkpointKey = { instanceId: descriptor.instanceId, runId: descriptor.runId }
+          const checkpoint = await this.depa.checkpointRuntime.checkpointStore.load(checkpointKey) as any
+          if (!checkpoint) throw new Error("Holon Agent execution requires the canonical Flow checkpoint")
+          const taskAttemptIdentity = JSON.stringify([
+            taskAttempt.taskSpaceId,
+            taskAttempt.taskId,
+            taskAttempt.claimId,
+            taskAttempt.attempt,
+          ])
+          const taskAttemptDigest = createHash("sha256").update(taskAttemptIdentity).digest("hex")
+          const instanceName = `holon-task-attempt-${taskAttemptDigest.slice(0, 32)}`
+          const processorRuntime = {
+            checkpointRuntime: this.depa.checkpointRuntime,
+            checkpointKey,
+            workflowKind: descriptor.form,
+            workflowRef: descriptor.workflowRef as `resource://${string}`,
+            nodeId: input.nodeId,
+            invocationKey: `holon-task-attempt:${taskAttemptDigest}`,
+            generation: descriptor.generation,
+            effects,
+            taskBinding,
+            metadata: {
+              deploymentId: deployment.deploymentId,
+              memberRuntimeRef: runtimeRef,
+              taskSpaceId: input.taskSpaceId,
+              taskId: input.taskId,
+              claimId: taskAttempt.claimId,
+              attempt: taskAttempt.attempt,
+              sessionRef,
+              holonInvocationRef: invocation.invocationRef,
+            },
+          }
+          const config = {
+            agentDefinitionRef: agentAdapter.agentDefinitionRef,
+            materialRefs: invocation.materialRefs,
+          }
+          const result = await runAgent(processorRuntime, invocation.input, { ...config, instanceName })
+          return result.output as import("holarchy-eidolon-adapter").ClosedValue
+        },
+      },
+      humanEndpoint: { execute: () => { throw new Error("EIDOLON_HOLON_HUMAN_ENDPOINT_NOT_BOUND") } },
+      service: { execute: () => { throw new Error("EIDOLON_HOLON_SERVICE_ADAPTER_NOT_BOUND") } },
+      hybrid: { execute: () => { throw new Error("EIDOLON_HOLON_HYBRID_ADAPTER_NOT_BOUND") } },
+    }
+    const actorRuntime = new EidolonHolonLocalActorRuntime(
+      deployment.store,
+      genericOwner,
+      adapters,
+      `workflow-${descriptor.runId}`,
+    )
+    await actorRuntime.recover(deployment.deploymentId)
+    const executionInput: ExecuteHolonWorkflowTaskInput = {
+      deploymentId: deployment.deploymentId,
+      bindingRef: target.executionBinding.ref,
+      holonRef: target.holon.rootHolonRef,
+      taskSpaceId: input.taskSpaceId,
+      taskId: input.taskId,
+      workflowInstanceId: descriptor.instanceId,
+      runId: descriptor.runId,
+      assignmentCommandId: input.assignmentCommandId,
+      startCommandId: input.startCommandId,
+      settlementCommandId: input.settlementCommandId,
+      invocationRef: input.invocationRef,
+      claimedAt: input.claimedAt,
+      startedAt: input.startedAt,
+      settledAt: input.settledAt,
+      leaseDurationMs: input.leaseDurationMs,
+      input: input.input,
+    }
+    return executeHolonWorkflowTask({
+      store: deployment.store,
+      taskManager: context.taskManager,
+      actorRuntime,
+    }, executionInput, {
+      maxTasks: 1_024,
+      maxRelations: 4_096,
+      maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
+    })
+  }
+
+  async replanHolonTask(
+    input: ReplanWorkflowHolonTaskInput,
+  ): ReturnType<typeof replanAICtrlHolonTask> {
+    const descriptor = await this.facts.loadDescriptor(input.runId)
+    if (!descriptor || descriptor.form !== "AICtrlWorkflow") {
+      throw new Error(`EIDOLON_HOLON_REPLAN_CTRL_RUN_REQUIRED: ${input.runId}`)
+    }
+    const definition = await this.loadFrozenDefinition(descriptor, descriptor.form)
+    const frozenRegistry = this.frozenAgentRegistry(descriptor.instanceId)
+    if (!frozenRegistry) throw new Error("EIDOLON_HOLON_REPLAN_FROZEN_REGISTRY_REQUIRED")
+    const context = await this.workflowHolonContext(descriptor, definition, frozenRegistry)
+    if (!context) throw new Error(`Workflow ${descriptor.workflowRef} has no frozen Holon task targets`)
+    const frozenTarget = context.targets[input.nodeId]
+    const frozenProof = context.proofs[input.nodeId]
+    const frozenDeployment = frozenTarget
+      ? context.deployments.get(frozenTarget.executionBinding.ref)
+      : undefined
+    if (!frozenTarget || !frozenProof || !frozenDeployment
+      || fingerprint(frozenProof.target) !== fingerprint(frozenTarget)) {
+      throw new Error(`EIDOLON_HOLON_REPLAN_TARGET_PROOF_REQUIRED: ${input.nodeId}`)
+    }
+
+    const liveSnapshot = await this.resourceRegistry.refresh()
+    const liveProjection = liveSnapshot.holonExecutionBindings.find(
+      (candidate) => candidate.binding.bindingRef === frozenTarget.executionBinding.ref,
+    )
+    if (!liveProjection
+      || liveProjection.snapshot.rootHolonRef !== frozenTarget.holon.rootHolonRef
+      || liveProjection.snapshot.effectiveAt !== input.successorEffectiveAt) {
+      throw new Error("EIDOLON_HOLON_REPLAN_SUCCESSOR_SNAPSHOT_MISSING")
+    }
+    const successorTarget = normalizeHolonTaskTarget({
+      ...frozenTarget,
+      holon: { ...frozenTarget.holon, effectiveAt: input.successorEffectiveAt },
+    })
+    const successorProof = await this.resourceRegistry.freezeWorkflowHolonTaskTarget(successorTarget)
+    if (!sameHolonTargetExecutableIdentity(frozenTarget, successorProof.target)) {
+      throw new Error("EIDOLON_HOLON_REPLAN_SUCCESSOR_INSTANCE_REQUIRED: target executable identity changed")
+    }
+    await assertOrganizationOnlyResourceChange(
+      frozenRegistry,
+      this.resourceRegistry,
+      frozenDeployment.definition.bindingProjection.snapshotResource.documentUri,
+      liveProjection.snapshotResource.documentUri,
+    )
+    const binding = frozenDeployment.definition.bindingProjection.binding
+    if (binding.adapter.kind !== "ai-agent" || liveProjection.bindingBytesDigest !== frozenDeployment.definition.bindingProjection.bindingBytesDigest) {
+      throw new Error("EIDOLON_HOLON_REPLAN_SUCCESSOR_INSTANCE_REQUIRED: binding changed")
+    }
+    const taskIdentity = {
+      workflowKind: descriptor.form,
+      workflowRef: descriptor.workflowRef as `resource://${string}`,
+      nodeId: input.nodeId,
+      agentDefinitionRef: binding.adapter.agentDefinitionRef,
+    } as const
+    const [frozenAgentProof, liveAgentProof] = await Promise.all([
+      frozenRegistry.freezeWorkflowAgentTaskBinding(taskIdentity),
+      this.resourceRegistry.freezeWorkflowAgentTaskBinding(taskIdentity),
+    ])
+    if (frozenAgentProof.semanticFingerprint !== liveAgentProof.semanticFingerprint) {
+      throw new Error("EIDOLON_HOLON_REPLAN_SUCCESSOR_INSTANCE_REQUIRED: Agent or Material closure changed")
+    }
+
+    const instanceRoot = path.dirname(this.depa.load(descriptor.instanceId).definitionDir)
+    const deploymentId = workflowHolonDeploymentId(
+      descriptor.instanceId,
+      frozenTarget.executionBinding.ref,
+      liveProjection.receiptBytesDigest,
+    )
+    const successorDeployment = await materializeHolonDeploymentDefinition({
+      supportRoot: instanceRoot,
+      resourceRegistry: this.resourceRegistry,
+    }, {
+      deploymentId,
+      bindingRef: frozenTarget.executionBinding.ref,
+    }, {})
+    const organizationSnapshots = Object.freeze({
+      readEffectiveSnapshot: async (requested: Readonly<{ rootHolonRef: string; effectiveAt: string }>) => {
+        if (requested.rootHolonRef !== successorDeployment.bindingProjection.snapshot.rootHolonRef
+          || requested.effectiveAt !== successorDeployment.bindingProjection.snapshot.effectiveAt) {
+          throw new Error("EIDOLON_HOLON_REPLAN_SNAPSHOT_AUTHORITY_MISMATCH")
+        }
+        return Object.freeze({
+          snapshotBytes: await canonicalHolonEffectiveSnapshotBytes(successorDeployment.bindingProjection.snapshot),
+          issuanceReceiptBytes: canonicalHolonEffectiveSnapshotIssuanceReceiptBytes(
+            successorDeployment.bindingProjection.receipt,
+            successorDeployment.bindingProjection.snapshot,
+          ),
+        })
+      },
+    })
+    return replanAICtrlHolonTask({
+      taskManager: context.taskManager,
+      organizationSnapshots,
+    }, {
+      frozenSuccessorTarget: successorProof,
+      taskSpaceId: input.taskSpaceId,
+      previousTaskId: input.previousTaskId,
+      successorTaskId: input.successorTaskId,
+      successorTaskName: input.successorTaskName,
+      cancelCommandId: input.cancelCommandId,
+      replanCommandId: input.replanCommandId,
+      planId: input.planId,
+      replannedAt: input.replannedAt,
+      ...(input.activeClaim === undefined ? {} : { activeClaim: input.activeClaim }),
+    }, {
+      maxTasks: 1_024,
+      maxRelations: 4_096,
+      maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
+    })
+  }
+
   async resumeDataNode(runId: string, nodeId: string, output: unknown): Promise<any | undefined> {
     const descriptor = await this.facts.loadDescriptor(runId)
     if (!descriptor || descriptor.form !== "AIDataWorkflow") return undefined
@@ -790,6 +1300,9 @@ export class WorkflowRuntimeService {
     const taskProofs = frozenRegistry
       ? await this.frozenAgentTaskProofs(descriptor, definition, frozenRegistry)
       : {}
+    const holonContext = frozenRegistry
+      ? await this.workflowHolonContext(descriptor, definition, frozenRegistry)
+      : undefined
     const agentEffects = new EidolonWorkflowEffectProvider(
       this.runtime,
       new StoreBackedWorkflowMaterialAccess(component.authoring.store),
@@ -815,16 +1328,18 @@ export class WorkflowRuntimeService {
         ...input,
         reference: normalizeFrozenWorkflowCodeReference(input.reference),
       }),
-      ...(bindAgentNode ? {
+      ...(bindAgentNode || holonContext ? {
         bindNodeRuntime: (nodeRuntime, identity) => {
-          if (!taskProofs[identity.nodeId]) return nodeRuntime
-          const bound = bindAgentNode(nodeRuntime, identity)
-          const authoredAi = bound.ai as AIWorkflowAuthoredRuntimeContext
+          let bound = nodeRuntime as typeof nodeRuntime & { readonly ai?: AIWorkflowAuthoredRuntimeContext }
+          if (bindAgentNode && taskProofs[identity.nodeId]) bound = bindAgentNode(nodeRuntime, identity)
           const facade = this.stepExtensionFacade()
-          return Object.freeze({
+          const withAi = bound.ai ? Object.freeze({
             ...bound,
-            ai: bindWorkflowStepExtensionAuthoredRuntime(authoredAi, facade),
-          })
+            ai: bindWorkflowStepExtensionAuthoredRuntime(bound.ai, facade),
+          }) : bound
+          return holonContext
+            ? Object.freeze({ ...withAi, holonTasks: holonContext })
+            : withAi
         },
       } : {}),
       ai: {
@@ -842,6 +1357,9 @@ export class WorkflowRuntimeService {
     const taskProofs = frozenRegistry
       ? await this.frozenAgentTaskProofs(descriptor, definition, frozenRegistry)
       : {}
+    const holonContext = frozenRegistry
+      ? await this.workflowHolonContext(descriptor, definition, frozenRegistry)
+      : undefined
     return new AIDataWorkflowRuntimeDriver(
       this.runtime,
       this.workspace,
@@ -854,7 +1372,160 @@ export class WorkflowRuntimeService {
       frozenRegistry,
       taskProofs,
       this.stepExtensionFacade(),
+      holonContext,
     )
+  }
+
+  private async workflowHolonContext(
+    descriptor: WorkflowRunDescriptor,
+    definition: ResolvedWorkflowDefinition,
+    registry: EidolonAppResourceRegistryAdapter,
+  ): Promise<WorkflowHolonTaskContext | undefined> {
+    const cached = this.holonContexts.get(descriptor.runId)
+    if (cached) return cached
+    const targets = discoverHolonTaskTargets(descriptor, definition)
+    const entries = Object.entries(targets)
+    if (entries.length === 0) return undefined
+    const instanceRoot = path.dirname(this.depa.load(descriptor.instanceId).definitionDir)
+    const deployments = new Map<string, WorkflowHolonDeployment>()
+    for (const target of Object.values(targets)) {
+      if (deployments.has(target.executionBinding.ref)) continue
+      const deploymentId = workflowHolonDeploymentId(descriptor.instanceId, target.executionBinding.ref)
+      const materialized = await materializeHolonDeploymentDefinition({
+        supportRoot: instanceRoot,
+        resourceRegistry: registry,
+      }, {
+        deploymentId,
+        bindingRef: target.executionBinding.ref,
+      }, {})
+      const store = new FileHolonDeploymentRuntimeStore({ supportRoot: instanceRoot })
+      await store.open(deploymentId)
+      deployments.set(target.executionBinding.ref, Object.freeze({
+        deploymentId,
+        definition: materialized,
+        store,
+      }))
+    }
+    const proofs: Record<string, FrozenHolonTaskTarget> = Object.create(null)
+    for (const [nodeId, target] of entries) {
+      proofs[nodeId] = await registry.freezeWorkflowHolonTaskTarget(target)
+    }
+    const taskManager = Object.freeze({
+      owner: new FileTaskSpaceOwner({ root: path.join(instanceRoot, "task-spaces") }),
+    })
+    const organizationSnapshots = Object.freeze({
+      readEffectiveSnapshot: async (input: Readonly<{ rootHolonRef: string; effectiveAt: string }>) => {
+        const matches: MaterializedHolonDeploymentDefinition[] = []
+        for (const deployment of deployments.values()) {
+          const loaded = await deployment.store.loadDefinition(deployment.deploymentId)
+          if (loaded.bindingProjection.snapshot.rootHolonRef === input.rootHolonRef
+            && loaded.bindingProjection.snapshot.effectiveAt === input.effectiveAt) matches.push(loaded)
+        }
+        if (matches.length !== 1) {
+          throw new Error("EIDOLON_HOLON_SNAPSHOT_AUTHORITY_AMBIGUOUS: frozen target must resolve one deployment snapshot")
+        }
+        const selected = matches[0]!
+        return Object.freeze({
+          snapshotBytes: await canonicalHolonEffectiveSnapshotBytes(selected.bindingProjection.snapshot),
+          issuanceReceiptBytes: canonicalHolonEffectiveSnapshotIssuanceReceiptBytes(
+            selected.bindingProjection.receipt,
+            selected.bindingProjection.snapshot,
+          ),
+        })
+      },
+    })
+    const holonRuntime = Object.freeze({ taskManager, organizationSnapshots })
+    const context: WorkflowHolonTaskContext = Object.freeze({
+      proofs: Object.freeze(proofs),
+      targets,
+      taskManager,
+      deployments,
+      organizationSnapshots,
+      proofForNode: (nodeId: string) => {
+        const proof = proofs[nodeId]
+        if (!proof) throw new Error(`EIDOLON_HOLON_TARGET_PROOF_REQUIRED: ${nodeId}`)
+        return proof
+      },
+      openTask: (input, config) => openAICtrlHolonTask(holonRuntime, input, config),
+      observeTask: (input, config) => observeAICtrlHolonTask(holonRuntime, input, config),
+      replanTask: (input, config) => replanAICtrlHolonTask(holonRuntime, input, config),
+      consumeTask: (input, config) => consumeAIDataHolonTask({
+        taskManager,
+        materials: {
+          validateSettlementMaterial: (materialInput) => validateHolonSettlementMaterial(registry, materialInput),
+        },
+      }, input, config),
+    })
+    this.holonContexts.set(descriptor.runId, context)
+    return context
+  }
+
+  private async workflowHolonDeploymentForTask(
+    descriptor: WorkflowRunDescriptor,
+    context: WorkflowHolonTaskContext,
+    target: HolonTaskTarget,
+    issuerReceiptId: string,
+  ): Promise<WorkflowHolonDeployment> {
+    const initial = context.deployments.get(target.executionBinding.ref)
+    if (initial?.definition.definition.snapshotReceiptDigest === issuerReceiptId) return initial
+    const instanceRoot = path.dirname(this.depa.load(descriptor.instanceId).definitionDir)
+    const deploymentId = workflowHolonDeploymentId(
+      descriptor.instanceId,
+      target.executionBinding.ref,
+      issuerReceiptId,
+    )
+    const definition = await loadHolonDeploymentDefinition({ supportRoot: instanceRoot }, { deploymentId }, {})
+    if (definition.definition.bindingRef !== target.executionBinding.ref
+      || definition.definition.rootHolonRef !== target.holon.rootHolonRef
+      || definition.bindingProjection.snapshot.effectiveAt !== target.holon.effectiveAt
+      || definition.definition.snapshotReceiptDigest !== issuerReceiptId) {
+      throw new Error("EIDOLON_HOLON_ADOPTED_DEPLOYMENT_MISMATCH")
+    }
+    const store = new FileHolonDeploymentRuntimeStore({ supportRoot: instanceRoot })
+    await store.open(deploymentId)
+    return Object.freeze({ deploymentId, definition, store })
+  }
+
+  private workflowHolonGenericOwner(
+    descriptor: WorkflowRunDescriptor,
+    agentDefinitionRef: `resource://${string}`,
+  ): HolonGenericActorOwnerPort {
+    const stableRef = (kind: string, value: unknown): string => (
+      `${kind}-${createHash("sha256").update(JSON.stringify(stableValue(value))).digest("hex").slice(0, 32)}`
+    )
+    return Object.freeze({
+      ensureActor: ({ address }: Parameters<HolonGenericActorOwnerPort["ensureActor"]>[0]) => (
+        Object.freeze({ actorRef: stableRef("actor", address) })
+      ),
+      ensureTaskAttemptSession: (
+        input: Parameters<HolonGenericActorOwnerPort["ensureTaskAttemptSession"]>[0],
+      ) => Object.freeze({
+        sessionRef: stableRef("session", {
+          deploymentId: input.deploymentId,
+          runtimeRef: input.runtimeRef,
+          scopeRef: input.scopeRef,
+          taskAttempt: input.taskAttempt,
+        }),
+      }),
+      resolveTargetedAgentSession: async ({ selector }: Parameters<HolonGenericActorOwnerPort["resolveTargetedAgentSession"]>[0]) => {
+        const checkpoint = await this.depa.checkpointRuntime.checkpointStore.load({
+          instanceId: descriptor.instanceId,
+          runId: descriptor.runId,
+        }) as any
+        const ai = checkpoint?.profile?.ai
+        const instanceId = "byInstanceId" in selector
+          ? selector.byInstanceId
+          : ai?.instanceIdByName?.[selector.byInstanceName]
+        const instance = typeof instanceId === "string" ? ai?.instancesById?.[instanceId] : undefined
+        if (!instance || instance.agentDefinitionRef !== agentDefinitionRef) {
+          throw new Error("EIDOLON_HOLON_TARGETED_AGENT_SESSION_UNRESOLVED")
+        }
+        return Object.freeze({
+          sessionRef: typeof instance.sessionId === "string" ? instance.sessionId : instance.instanceId,
+          agentDefinitionRef,
+        })
+      },
+    })
   }
 
   private frozenAgentRegistry(instanceId: string): EidolonAppResourceRegistryAdapter | undefined {

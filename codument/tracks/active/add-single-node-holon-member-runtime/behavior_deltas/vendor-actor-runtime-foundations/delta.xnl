@@ -1,0 +1,10 @@
+<BehaviorPatch #track.add-single-node-holon-member-runtime.behavior_patch.vendor-actor-runtime-foundations apiVersion="codument.tech/v1alpha1" version="1" { capability = "vendor-actor-runtime-foundations" } (
+  <Mutations [<Upsert { selector = "behavior://vendor-actor-runtime-foundations/requirements/depa-actor-logical-member-address" } (
+    <Requirement #depa-actor-logical-member-address (
+      <Statement ?>Eidolon MemberRuntime SHALL use depa-actor logical local addressing for resolution/dispatch while Eidolon's generic VM/session owners retain actor conversation, mailbox and execution authority.</?>
+      <Suites [<Suite #actor-cases { name = "Actor substrate" } (<Cases [
+        <Case #no-product-registry [<Given ?>Multiple Member runtimes are active.</?><When ?>Runtime ownership is inspected.</?><Then ?>There SHALL be one depa-actor local resolver and no Holon/workflow-specific actor registry.</?>]>
+      ]>)>]>
+    )>
+  )>]>
+)>

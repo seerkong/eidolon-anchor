@@ -1,0 +1,10 @@
+<BehaviorPatch #track.add-holon-execution-binding-resource.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [<Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/holon-execution-binding-resource" } (
+    <Requirement #holon-execution-binding-resource (
+      <Statement ?>The shared App registry SHALL verify issuer-owned HolonEffectiveSnapshot Resource/receipt bytes and load/freeze canonical HolonExecutionBinding resources with exact organization and AI/human/service/hybrid adapter closure proofs, without adding a parallel scanner or registry.</?>
+      <Suites [<Suite #binding-cases { name = "Execution binding" } (<Cases [
+        <Case #candidate-readback [<Given ?>A ResourcePackage candidate contains a Holon execution binding.</?><When ?>Publication proof runs.</?><Then ?>The admitted snapshot SHALL exactly contain the claimed Holon targets, adapter refs and content identities before success.</?>]>
+      ]>)>]>
+    )>
+  )>]>
+)>

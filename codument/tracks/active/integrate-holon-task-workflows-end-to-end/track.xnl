@@ -1,0 +1,86 @@
+<Track #integrate-holon-task-workflows-end-to-end apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Complete a product-level local-file E2E in which AI Ctrl and AI Data workflows delegate complex nodes to TaskSpaces processed by frozen Holon MemberRuntime organizations." description = "Wire exact released dependencies, CLI/product surfaces and durable cross-owner receipts; verify shared runtime reuse, recovery and explicit organization replan." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-23T18:40:48.369Z" updated_at = "2026-08-24T15:11:50.334Z" modeling_base_commit = "94436d0e142762fdadeb6fad22502bfdaca6956b" engineering_base_commit = "94436d0e142762fdadeb6fad22502bfdaca6956b" gap_round = 2 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_integrate-holon-task-workflows-end-to-end { name = "integrate-holon-task-workflows-end-to-end" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "product dependency and fixture assembly" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "adopt exact File-XNL Holon TaskSpace depa-actor and workflow packages" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0SSK5BEXC2A0MVH4ED8J3HF>
+              A real File-XNL authority is written and freshly reconstructed; its canonical issuer snapshot and receipt are admitted with execution binding, Agent resources and Ctrl/Data workflows into one physical ResourcePackage.
+              </?01M0SSK5BEXC2A0MVH4ED8J3HF>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0SSK5BEXC2A0MVH4ED8J3HG>
+              Internal dependencies are exact; the product has no registry override, source/file substitute, old runtime duplicate or DB/DEPA-ORM package in the local File-XNL runtime closure.
+              </?01M0SSK5BEXC2A0MVH4ED8J3HG>
+            ]>
+          )>
+          <Task #P1-T2 { name = "prove all upstream releases from a fresh registry closure" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0SSK5BEXC2A0MVH4ED8J3HH>
+              npm metadata and fresh install prove the exact released File-XNL Holarchy, TaskSpace, depa-actor, workflow and Eidolon package graph; no local/file substitute satisfies acceptance.
+              </?01M0SSK5BEXC2A0MVH4ED8J3HH>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "AI Ctrl organization task journey" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "create delegate wait resume settle and recover Ctrl task" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0SSK5BEXC2A0MVH4ED8J3HJ>
+              HolonCoordinator assigns the ready task to an eligible MemberRuntime; TaskSpace settles before a separate Flow checkpoint CAS consumes the durable receipt.
+              </?01M0SSK5BEXC2A0MVH4ED8J3HJ>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0SSK5BFT2X0JX3MS1BD93QT>
+              Repeated request is idempotent and reuses the default MemberRuntime without creating a second task settlement.
+              </?01M0SSK5BFT2X0JX3MS1BD93QT>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "AI Data journey and explicit replan" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "consume organization task output through MaterialPort" status = "DONE" order = 0 }>
+          <Task #P3-T2 { name = "change live organization and prove freeze then explicit replan" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0SSK5BFT2X0JX3MS1BD93QV>
+              Live File-XNL drift/deletion does not change an admitted task; compatible organization-only replan produces old/new issuer receipts, while changed binding/code/Agent closure creates a linked successor instance/run.
+              </?01M0SSK5BFT2X0JX3MS1BD93QV>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "compiled product and independent verification" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "run CLI/TUI local init and three restart journey" status = "DONE" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0SSK5BFT2X0JX3MS1BD93QW>
+              Artifacts expose stable logical refs and receipts but no physical authority paths, prompts or actor history.
+              </?01M0SSK5BFT2X0JX3MS1BD93QW>
+            ]>
+          )>
+          <Task #P4-T2 { name = "run full tests static boundaries fresh verify and coding attractor" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0SSK5BFT2X0JX3MS1BD93QX>
+              No database, RabbitMQ, remote actor, actor placement, node/placement lease or ownership epoch implementation appears in scope; TaskSpace-local claim lease/expiry is allowed.
+              </?01M0SSK5BFT2X0JX3MS1BD93QX>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_integrate-holon-task-workflows-end-to-end" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

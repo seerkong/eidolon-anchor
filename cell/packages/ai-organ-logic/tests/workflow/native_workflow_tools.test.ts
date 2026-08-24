@@ -47,6 +47,8 @@ function expectWorkflowRuntimeToolNames(names: string[]) {
   expect(names).toContain("WorkflowResult")
   expect(names).toContain("WorkflowResume")
   expect(names).toContain("WorkflowApplyGraphPatch")
+  expect(names).toContain("WorkflowProcessHolonTask")
+  expect(names).toContain("WorkflowReplanHolonTask")
 }
 
 function schemaAccepts(value: unknown, schema: any): boolean {

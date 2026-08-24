@@ -154,7 +154,7 @@ function assertCanonicalPlan(): void {
   ].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
   const actualFlowTargets = [...flowTargets].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)
   if (flowDslProvenance.packageName !== "ai-workflow-flow-dsl-reference"
-    || flowDslProvenance.packageVersion !== "0.1.5"
+    || flowDslProvenance.packageVersion !== "0.1.6"
     || JSON.stringify(actualFlowTargets) !== JSON.stringify(expectedFlowTargets)) {
     throw new Error("EIDOLON_SYSTEM_SKILL_PLAN_INVALID: Flow DSL targets differ from the published module provenance")
   }

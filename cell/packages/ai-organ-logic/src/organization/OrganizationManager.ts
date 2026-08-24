@@ -5,6 +5,7 @@ import { ensureVmRuntimeContext, ensureVmSessionState, type AiAgentVm, type VmAu
 import { AI_AGENT_LANES } from "../lane/AiAgentLane";
 import { AI_AGENT_WORKLOADS } from "../lane/AiAgentWorkload";
 import { getMemberManager } from "./MemberManager";
+import { assertLegacyHolonTaskWriteAllowed } from "./HolonLegacyTaskAuthority";
 
 export type OrganizationHolonRecord = VmAutonomousHolonRecord | VmLeaderLedHolonRecord;
 
@@ -22,6 +23,7 @@ export type OrganizationHolonRecord = VmAutonomousHolonRecord | VmLeaderLedHolon
  * single-writer funnel, no invariant is added or changed.
  */
 export function writeHolonGovernance(actor: AiAgentActor, next: HolonActorState): void {
+  assertLegacyHolonTaskWriteAllowed(actor, next);
   actor.holonState = next;
 }
 

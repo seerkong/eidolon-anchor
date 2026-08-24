@@ -11,6 +11,7 @@
   "description": "AI-specific organization-layer contracts aligned with ai-core and ai-support ownership.",
   "dependencies": {
     "@cell/ai-core-contract": "workspace:*",
-    "@shared/composer": "workspace:*"
+    "@shared/composer": "workspace:*",
+    "holarchy-eidolon-adapter": "0.1.1"
   }
 }

@@ -19,7 +19,11 @@ import {
   type LlmAdapterType,
 } from "../llm"
 import type { LlmProviderRuntime } from "@cell/ai-organ-contract/llm/ProviderRuntime"
-import { deepSeekOfficialChatEffectBundle } from "../llm/ChatCompletionsEffectBundles"
+import {
+  deepSeekCompatibleChatEffectBundle,
+  deepSeekOfficialChatEffectBundle,
+} from "../llm/ChatCompletionsEffectBundles"
+import { resolveSelectedProviderChatCompatibilityProfile } from "../llm/ProviderChatCompatibility"
 
 export {
   extractProviderOptions,
@@ -156,10 +160,18 @@ export async function createRuntimeLlmAdapter(params: {
     const baseUrl = providerOptions.baseURL || config.baseUrl
     const apiKey = providerOptions.apiKey || config.apiKey
     if (params.useMock) {
+      const compatibilityProfile = resolveSelectedProviderChatCompatibilityProfile({
+        driverName: "deepseek-chat",
+        providerId: "deepseek",
+        options: providerOptions,
+        runtimeChatCompatibilityProfileId: params.runtime?.chatCompatibilityProfileId,
+      })
       const mock = createMockOpenAI()
       return {
         type: "deepseek" as const,
-        chatCompletionsEffectBundle: deepSeekOfficialChatEffectBundle,
+        chatCompletionsEffectBundle: compatibilityProfile === "deepseek-compatible-chat@1"
+          ? deepSeekCompatibleChatEffectBundle
+          : deepSeekOfficialChatEffectBundle,
         async createStream(options: any) {
           const stream = await mock.chat.completions.create({
             model: options.model,
@@ -177,7 +189,11 @@ export async function createRuntimeLlmAdapter(params: {
       providerId: "deepseek",
       selectedModel,
       adapterName: "deepseek",
-      options: { ...providerOptions, apiKey, baseURL: baseUrl },
+      options: {
+        ...providerOptions,
+        apiKey,
+        baseURL: baseUrl,
+      },
       runtime: params.runtime,
     })
   }

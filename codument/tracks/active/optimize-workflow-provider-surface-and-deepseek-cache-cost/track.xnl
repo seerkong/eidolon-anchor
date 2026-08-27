@@ -1,0 +1,139 @@
+<Track #optimize-workflow-provider-surface-and-deepseek-cache-cost apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Compare stable-superset, stage-epoch and hybrid Workflow lifecycle provider surfaces on one exact product journey, then adopt the lowest-cost correct strategy without weakening Actor isolation, authorization, recovery or DeepSeek prefix stability." description = "Add a closed production-path surface experiment and deterministic selector, implement only the winning frozen strategy through the existing provider_surface_revision_accepted epoch, and prove cost/recovery boundaries for lifecycle, ordinary and Workflow node Actors." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-25T19:41:13.031Z" updated_at = "2026-08-25T22:31:09.848Z" modeling_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" engineering_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" gap_round = 5 } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_optimize-workflow-provider-surface-and-deepseek-cache-cost { name = "optimize-workflow-provider-surface-and-deepseek-cache-cost" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Closed strategy and cost experiment" status = "DONE" priority = "P0" order = 0 child_mode = "dag" } (
+        <Description ?01M0X8GKP0FYQQMA5E156YA661>
+        Define the versioned strategy/result authority and execute all candidates through one real final-wire journey.
+        </?01M0X8GKP0FYQQMA5E156YA661>
+        <SubNodes [
+          <Task #P1-T1 { name = "Define closed surface strategy experiment and deterministic selector" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0X8GKP0FYQQMA5E156YA662>
+              Implementation begins only after validating the upstream G3 fresh `PASS / NO_GAP` receipt, source-tree authority, Mission G3 TaskGroup `DONE` state and both ratified G3 Gate criteria.
+              </?01M0X8GKP0FYQQMA5E156YA662>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0X8GKP0FYQQMA5E156YA663>
+              The experiment freezes exact union/stage/intersection-derived strategy sets and digests, the planning-to-releasing journey, G1 weights/ceilings and fresh-clone rule before observations.
+              </?01M0X8GKP0FYQQMA5E156YA663>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Produce immutable raw observations for all three production strategies" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0X8GKP0FYQQMA5E156YA664>
+              All candidates use independent clones of one frozen Actor/Conversation, the same exact journey and actual provider serializer; hand-authored labels or synthetic tool lists cannot produce a result.
+              </?01M0X8GKP0FYQQMA5E156YA664>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0X8GKP0FYQQMA5E156YA665>
+              The immutable raw report contains final-wire/tool/control breakdowns, prefix units, epoch reasons, tool correctness and recovery equality for every candidate and has no authoritative winner field.
+              </?01M0X8GKP0FYQQMA5E156YA665>
+            ]>
+          )>
+          <Task #P1-T3 { name = "Independently recompute and ratify the winning strategy" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6FT>
+              A separate pure selector rejects incorrect candidates and recomputes `sum(hit*0.1 + miss*1.0)` from raw units without double-counting attribution breakdowns.
+              </?01M0X8GKP1QXYG7ADZGHRZD6FT>
+              <Criterion #P1-T3-AC2 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6FV>
+              Initial and epoch-successor units count as misses, only exact same-epoch prefix units count as hits, and stable explicit tie-breakers produce one winner independent of report labels.
+              </?01M0X8GKP1QXYG7ADZGHRZD6FV>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Adopt selected frozen surface policy" status = "DONE" priority = "P0" order = 1 child_mode = "dag" } (
+        <Description ?01M0X8GKP1QXYG7ADZGHRZD6FW>
+        Implement the measured winner while preserving the lifecycle execution authority and v2 context epoch boundary.
+        </?01M0X8GKP1QXYG7ADZGHRZD6FW>
+        <SubNodes [
+          <Task #P2-T1 { name = "Migrate facet v1 and persist exact selected strategy revision" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6FX>
+              A one-way exact facet-v1 importer freezes `stable-superset/v1` in facet v2; no silent default or dual-write exists, and new admission freezes the selected strategy revision and digest.
+              </?01M0X8GKP1QXYG7ADZGHRZD6FX>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6FY>
+              Missing, ambiguous, conflicting or newer-only strategy or migration material fails before Actor registration and therefore before provider transport.
+              </?01M0X8GKP1QXYG7ADZGHRZD6FY>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Route schema changes through durable surface acceptance epochs" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6FZ>
+              Any accepted provider-visible schema change commits exactly one durable `provider_surface_revision_accepted` successor before transport and fresh-recovers identically.
+              </?01M0X8GKP1QXYG7ADZGHRZD6FZ>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6G0>
+              Same-surface forward turns preserve retained-prefix integrity `1.0`; presentation never grants execution.
+              </?01M0X8GKP1QXYG7ADZGHRZD6G0>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Actor isolation and product cost gates" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M0X8GKP1QXYG7ADZGHRZD6G1>
+        Prove the adopted strategy on lifecycle, ordinary and Workflow node Actors and ratify the final comparison report.
+        </?01M0X8GKP1QXYG7ADZGHRZD6G1>
+        <SubNodes [
+          <Task #P3-T1 { name = "Verify lifecycle multi-stage retry and fresh recovery journey" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6G2>
+              A real lifecycle journey covers same-stage turns, stage transitions, tool selection, retry and fresh recovery with every miss mapped to an epoch reason.
+              </?01M0X8GKP1QXYG7ADZGHRZD6G2>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6G3>
+              The complete journey satisfies ratified final-wire, tool/control and normalized-cost ceilings.
+              </?01M0X8GKP1QXYG7ADZGHRZD6G3>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Verify ordinary and AI Ctrl/Data node zero lifecycle overhead" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6G4>
+              Ordinary, Ctrl and Data product journeys have no lifecycle facet, managed Skill or stage/progress fact; their serialized schema intersection with lifecycle-internal tools is empty and public gateways are separately attributed.
+              </?01M0X8GKP1QXYG7ADZGHRZD6G4>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6G5>
+              Their same-epoch prefix and normalized-cost gates remain within the G1 ratified bounds.
+              </?01M0X8GKP1QXYG7ADZGHRZD6G5>
+            ]>
+          )>
+          <Task #P3-T3 { name = "Record official DeepSeek evidence or explicit G5 handoff" status = "DONE" priority = "P1" order = 2 } (
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6G6>
+              When official credentials exist, three warmed `deepseek-official-chat@1` groups satisfy per-group hit `>=0.85`, p50 `>=0.90`, cost p50 `<=248`, p95 and every group `<=260`; compatible evidence cannot satisfy this criterion.
+              </?01M0X8GKP1QXYG7ADZGHRZD6G6>
+              <Criterion #P3-T3-AC2 { checked = true } ?01M0X8GKP1QXYG7ADZGHRZD6G7>
+              Absent credentials produce `SKIPPED/UNKNOWN`; an executed request with missing, malformed, failed-attempt or non-final usage produces `UNKNOWN`; neither marks the live gate passed, and the unsatisfied evidence is handed to Mission G5.
+              </?01M0X8GKP1QXYG7ADZGHRZD6G7>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 2 spot_check = true } [
+    <Dag { for = "space_optimize-workflow-provider-surface-and-deepseek-cache-cost" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+    <Dag { for = "P1" } [
+      <Node #P1-T2 [
+        <After { ref = "P1-T1" }>
+      ]>
+      <Node #P1-T3 [
+        <After { ref = "P1-T2" }>
+      ]>
+    ]>
+    <Dag { for = "P2" } [
+      <Node #P2-T2 [
+        <After { ref = "P2-T1" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

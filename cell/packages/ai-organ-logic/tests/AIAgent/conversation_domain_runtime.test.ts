@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 
 import {
+  applyPromptTransformToConversationDomainRuntime,
   appendLiveHistoryMessageToConversationDomainRuntime,
   createConversationDomainRuntime,
   emitConversationDomainEvent,
@@ -11,7 +12,7 @@ import {
   setConversationDomainPersistHooks,
   materializeConversationHistoryMessagesFromVm,
   materializeConversationRuntimeMessagesFromVm,
-  recordPromptOverlayToConversationDomainRuntime,
+  recordPromptRequestToConversationDomainRuntime,
   registerContextBlockToConversationDomainRuntime,
   clearContextBlocksInConversationDomainRuntime,
   forkConversationSessionInConversationDomainRuntime,
@@ -20,6 +21,30 @@ import {
 import { CONVERSATION_PERSISTENCE_SCHEMA_VERSION } from "@cell/ai-organ-contract";
 
 describe("conversation domain runtime", () => {
+  it("rejects minting a legacy late-status overlay through the generic transform port", () => {
+    const runtime = createConversationDomainRuntime();
+    const promptGenerationId = recordPromptRequestToConversationDomainRuntime({
+      runtime,
+      sessionId: "legacy-writer-removed",
+      actorKey: "main",
+      actorId: "actor-main",
+      reason: "overlay",
+    });
+    expect(() => applyPromptTransformToConversationDomainRuntime({
+      runtime,
+      sessionId: "legacy-writer-removed",
+      actorKey: "main",
+      promptGenerationId,
+      transformKind: "overlay",
+      payload: {
+        content: "must not mint",
+        overlayKind: "work_context",
+        insertPlacement: "late_status",
+        promptPlanVersion: 1,
+      },
+    })).toThrow("provider_context_legacy_overlay_writer_removed");
+  });
+
   it("provides stream hooks, assembly state, prompt runtime ops, and session lifecycle entrypoints", () => {
     const runtime = createConversationDomainRuntime();
     const historyEvents: string[] = [];
@@ -116,12 +141,20 @@ describe("conversation domain runtime", () => {
       expect.objectContaining({ role: "assistant", content: "world", startAt: 20, endAt: 30 }),
     ]);
 
-    const promptGenerationId = recordPromptOverlayToConversationDomainRuntime({
+    const promptGenerationId = recordPromptRequestToConversationDomainRuntime({
       runtime,
       sessionId: "ses-1",
       actorKey: "main",
       actorId: "actor-main",
-      content: "Follow the house style.",
+      reason: "overlay",
+    });
+    applyPromptTransformToConversationDomainRuntime({
+      runtime,
+      sessionId: "ses-1",
+      actorKey: "main",
+      promptGenerationId,
+      transformKind: "overlay",
+      payload: { content: "Follow the house style.", overlayKind: "system" },
     });
     expect(promptGenerationId).toContain("main__prompt");
 

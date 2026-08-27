@@ -13,6 +13,8 @@ import type {
   ProviderTransportRequestObserver,
   RuntimePreparedProviderRequest,
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import type { ChatCompletionsEffectBundle } from "@cell/ai-organ-contract/llm/ChatCompletionsEffectBundle";
+import type { ProviderCacheActorClass } from "@cell/ai-organ-contract/llm/ProviderCacheCostObservation";
 import type { LlmProviderAdapterType } from "@cell/ai-organ-contract/llm/ProviderConfig";
 import { normalizeAdapterName } from "./ModelConfigOps";
 import {
@@ -26,6 +28,23 @@ import { getProviderDriver } from "./ProviderDriverRegistry";
 import { emitProviderDiagnostic } from "./ProviderDiagnostics";
 import { createProviderStreamWithRetry } from "./ProviderErrors";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
+import { resolveSelectedProviderChatCompatibilityProfile } from "./ProviderChatCompatibility";
+import {
+  deepSeekCompatibleChatEffectBundle,
+  deepSeekOfficialChatEffectBundle,
+} from "./ChatCompletionsEffectBundles";
+import type { ProviderCacheCostObservation } from "@cell/ai-organ-contract/llm/ProviderCacheCostObservation";
+import {
+  bindProviderCacheUsageToObservation,
+  createProviderCacheCostObservation,
+} from "./ProviderCacheCostObservation";
+import { normalizeProviderCacheUsageTokens } from "./ProviderCacheUsage";
+import { estimateFinalWireProviderCacheCostTokens } from "./ProviderCacheCostEstimates";
+
+function exactProviderCacheActorClass(value: string): ProviderCacheActorClass {
+  if (value === "ordinary" || value === "workflow_lifecycle" || value === "workflow_node") return value;
+  throw new TypeError("provider_cache_actor_class_invalid");
+}
 
 export type ProviderRuntimeLlmAdapterSettings = {
   providerId: string;
@@ -78,12 +97,25 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
   readonly driver: ProviderDriverDefinition;
   readonly runtime: LlmProviderRuntime;
   readonly options: Record<string, unknown>;
+  readonly chatCompletionsEffectBundle?: ChatCompletionsEffectBundle;
   private providerCallOrdinal = 0;
 
   constructor(settings: ProviderRuntimeLlmAdapterSettings) {
     this.driver = settings.driver ?? getProviderDriver(settings.adapterName);
     this.type = toAdapterType(settings.adapterName);
     this.options = normalizeProviderModelOptions(settings.options ?? {});
+    const chatCompatibilityProfileId = resolveSelectedProviderChatCompatibilityProfile({
+      driverName: this.driver.name,
+      providerId: settings.providerId,
+      options: this.options,
+      runtimeChatCompatibilityProfileId:
+        settings.runtime?.chatCompatibilityProfileId,
+    });
+    this.chatCompletionsEffectBundle = this.driver.name === "deepseek-chat"
+      ? chatCompatibilityProfileId === "deepseek-compatible-chat@1"
+        ? deepSeekCompatibleChatEffectBundle
+        : deepSeekOfficialChatEffectBundle
+      : this.driver.chatCompletionsEffectBundle;
     this.runtime = {
       providerId: settings.providerId,
       selectedModel: settings.selectedModel,
@@ -92,6 +124,7 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
       attemptedModels: [],
       fallbackUsed: false,
       ...settings.runtime,
+      ...(chatCompatibilityProfileId ? { chatCompatibilityProfileId } : {}),
     };
   }
 
@@ -118,6 +151,7 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
       connectionOptions,
       runtime,
       providerRequestContext: options.providerRequestContext,
+      chatCompletionsEffectBundle: this.chatCompletionsEffectBundle,
     };
     const driverPrepared = this.driver.prepareRequest?.(requestParams);
     return {
@@ -150,10 +184,15 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
           providerCallOrdinal,
           providerAttemptOrdinal,
         };
-        const transportRequestObserver =
-          createProviderTransportRequestObserver(prepared, options, identity);
+        let cacheCostObservation: ProviderCacheCostObservation | undefined;
+        const transportRequestObserver = createProviderTransportRequestObserver(
+          prepared,
+          options,
+          identity,
+          (observation) => { cacheCostObservation = observation; },
+        );
         captureProviderScene(prepared, "request", undefined, identity);
-        return await this.driver.createStream({
+        const attemptResult = await this.driver.createStream({
           model: options.model,
           messages: options.messages,
           tools: options.tools,
@@ -162,6 +201,7 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
           connectionOptions: prepared.connectionOptions,
           runtime: prepared.runtime,
           providerRequestContext: options.providerRequestContext,
+          chatCompletionsEffectBundle: this.chatCompletionsEffectBundle,
           signal: options.signal,
           transportRequestObserver,
           toolSchemaProjectionAuthority: prepared.toolSchemaProjectionAuthority,
@@ -170,6 +210,7 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
           sessionKey:
             options.sessionKey || deriveRuntimeSessionKey(prepared.runtime),
         });
+        return attachProviderCacheCostObservation(attemptResult, () => cacheCostObservation);
       },
       {
         stage: "stream",
@@ -247,9 +288,16 @@ function createProviderTransportRequestObserver(
   prepared: RuntimePreparedProviderRequest,
   options: LlmGenerateOptions,
   identity: ProviderAttemptIdentity,
+  acceptCacheCostObservation: (observation: ProviderCacheCostObservation) => void,
 ): ProviderTransportRequestObserver | undefined {
   const port = prepared.runtime.requestObservationPort;
-  if (!port) return undefined;
+  const cacheContext = options.providerCacheCostObservation;
+  const cacheProfile = prepared.runtime.chatCompatibilityProfileId === "deepseek-official-chat@1"
+    ? "deepseek_official"
+    : prepared.runtime.chatCompatibilityProfileId === "deepseek-compatible-chat@1"
+      ? "deepseek_compatible"
+      : null;
+  if (!port && (!cacheContext || !cacheProfile)) return undefined;
 
   let transportAttemptOrdinal = 0;
   return (input: ProviderTransportRequestObservationInput) => {
@@ -260,6 +308,27 @@ function createProviderTransportRequestObserver(
       transportType: input.transportType,
     };
     try {
+      if (cacheContext && cacheProfile && typeof input.requestBody === "string") {
+        try {
+          acceptCacheCostObservation(createProviderCacheCostObservation({
+            identity: {
+              schemaVersion: 1,
+              providerId: prepared.runtime.providerId,
+              providerProfile: cacheProfile,
+              providerProfileId: prepared.runtime.chatCompatibilityProfileId!,
+              model: options.model,
+              actorClass: exactProviderCacheActorClass(cacheContext.actorClass),
+              contextEpoch: cacheContext.contextEpoch,
+            },
+            serializedRequestBody: input.requestBody,
+            tokenEstimates: estimateFinalWireProviderCacheCostTokens(input.requestBody),
+            ...(cacheContext.priceWeights ? { priceWeights: cacheContext.priceWeights } : {}),
+          }));
+        } catch (error) {
+          emitProviderRequestObservationFailure(prepared.runtime, transportIdentity, error);
+        }
+      }
+      if (!port) return undefined;
       const requestBody = cloneAndRedactWireBody(input.requestBody);
       const copied = cloneAndRedactProviderObservation({
         messages: options.messages,
@@ -348,6 +417,34 @@ function createProviderTransportRequestObserver(
       );
       return undefined;
     }
+  };
+}
+
+function attachProviderCacheCostObservation(
+  result: LlmStreamResult,
+  readObservation: () => ProviderCacheCostObservation | undefined,
+): LlmStreamResult {
+  const nativeOutput = result.providerOutput ?? Promise.resolve(undefined);
+  return {
+    ...result,
+    providerOutput: nativeOutput.then((output) => {
+      const structural = readObservation();
+      if (!structural) return output;
+      const finalObservation = bindProviderCacheUsageToObservation(
+        structural,
+        normalizeProviderCacheUsageTokens(output),
+      );
+      if (output && typeof output === "object" && !Array.isArray(output)) {
+        const prototype = Object.getPrototypeOf(output);
+        if (prototype === Object.prototype || prototype === null) {
+          return Object.freeze({
+            ...(output as Record<string, unknown>),
+            provider_cache_cost_observation: finalObservation,
+          });
+        }
+      }
+      return Object.freeze({ provider_cache_cost_observation: finalObservation });
+    }),
   };
 }
 

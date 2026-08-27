@@ -21,7 +21,8 @@ export type ProviderFailureKind =
   | "provider_invalid_response"
   | "aborted_by_user"
   | "timeout"
-  | "prompt_too_long";
+  | "prompt_too_long"
+  | "local_projection_rejected";
 
 /** Hash-form snapshot of a tool schema offered to the provider (audit, not full schema). */
 export type ToolSchemaSnapshot = {

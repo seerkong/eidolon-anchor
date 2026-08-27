@@ -9,6 +9,7 @@ import type { HeartbeatSchedulerRuntimeState } from "./Heartbeat";
 import type { QuestionnaireRow } from "./Questionnaire";
 import type { SemanticEvent } from "../stream/semantic";
 import type { UsageData } from "../stream/common";
+import type { ActorRuntimeFacetRegistry } from "./ActorRuntimeFacet";
 
 export type RuntimeCallbacks<TVm = unknown> = {
   resolveExtraBody?: (vm: TVm) => Record<string, unknown>;
@@ -219,6 +220,8 @@ export type VmRuntimeContext = {
   toolCallDomain: unknown | null;
   /** Per-vm ProviderCallDomain runtime data (held opaquely; concrete runtime in ai-organ-logic). */
   providerCallDomain: unknown | null;
+  /** Per-VM runtime-only facet codec/hook registry. Never persisted. */
+  actorFacetRuntime: ActorRuntimeFacetRegistry;
   contextResourcePresentations: Record<string, ContextResourcePresentationData>;
   heartbeatScheduler: HeartbeatSchedulerRuntimeState | null;
   threadGoalRuntime: VmThreadGoalRuntimeState;

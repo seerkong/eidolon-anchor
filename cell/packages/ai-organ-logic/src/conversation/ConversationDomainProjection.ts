@@ -4,6 +4,7 @@ import {
   type ConversationHistoryIndexSnapshot,
   type ConversationPromptIndexSnapshot,
   type ConversationSessionIndexSnapshot,
+  type LocalConversationSessionActorBinding,
 } from "@cell/ai-organ-contract";
 
 export type ConversationProjectionState = {
@@ -11,6 +12,21 @@ export type ConversationProjectionState = {
   promptIndex: ConversationPromptIndexSnapshot;
   sessionIndex: ConversationSessionIndexSnapshot;
 };
+
+export function mergeConversationCompactionActorBinding(params: {
+  projected: LocalConversationSessionActorBinding;
+  live: LocalConversationSessionActorBinding | null | undefined;
+}): LocalConversationSessionActorBinding {
+  if (!params.live?.providerEpochReceipt) return { ...params.projected };
+  return {
+    ...params.projected,
+    contextEpoch: Math.max(
+      params.projected.contextEpoch ?? 0,
+      params.live.contextEpoch ?? params.live.providerEpochReceipt.epoch,
+    ),
+    providerEpochReceipt: params.live.providerEpochReceipt,
+  };
+}
 
 export function createEmptyConversationProjection(sessionId: string): ConversationProjectionState {
   const zeroIso = new Date(0).toISOString();
@@ -124,6 +140,7 @@ export function reduceConversationDomainEvent(
         updatedAt: event.occurredAt,
       };
       state.sessionIndex.session.actorBindings[event.actorKey] = {
+        ...state.sessionIndex.session.actorBindings[event.actorKey],
         actorKey: event.actorKey,
         actorId: state.sessionIndex.session.actorBindings[event.actorKey]?.actorId ?? "",
         actorName: state.sessionIndex.session.actorBindings[event.actorKey]?.actorName ?? null,
@@ -197,6 +214,7 @@ export function reduceConversationDomainEvent(
         updatedAt: event.occurredAt,
       };
       state.sessionIndex.session.actorBindings[event.actorKey] = {
+        ...state.sessionIndex.session.actorBindings[event.actorKey],
         actorKey: event.actorKey,
         actorId: state.sessionIndex.session.actorBindings[event.actorKey]?.actorId ?? "",
         actorName: state.sessionIndex.session.actorBindings[event.actorKey]?.actorName ?? null,
@@ -399,6 +417,96 @@ export function reduceConversationDomainEvent(
         ...(state.sessionIndex.session.contextAssets ?? []).filter((asset) => asset.assetId !== event.assetId),
         ...(event.asset ? [event.asset] : []),
       ];
+      state.sessionIndex.session.updatedAt = event.occurredAt;
+      state.sessionIndex.updatedAt = event.occurredAt;
+      return state;
+    }
+    case "local_conversation_provider_context_fact_appended": {
+      const current = state.sessionIndex.session.contextAssetRegistry;
+      state.sessionIndex.session.contextAssetRegistry = {
+        version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+        assetIds: [...new Set([...(current?.assetIds ?? []), event.assetId])],
+        updatedAt: event.occurredAt,
+      };
+      state.sessionIndex.session.contextAssets = [
+        ...(state.sessionIndex.session.contextAssets ?? []).filter((asset) => asset.assetId !== event.assetId),
+        event.asset,
+      ];
+      const currentBinding = state.sessionIndex.session.actorBindings[event.actorKey];
+      state.sessionIndex.session.actorBindings[event.actorKey] = {
+        ...currentBinding,
+        actorKey: event.actorKey,
+        actorId: event.head.actorId,
+        providerContextFactHead: event.head,
+      };
+      state.sessionIndex.session.updatedAt = event.occurredAt;
+      state.sessionIndex.updatedAt = event.occurredAt;
+      return state;
+    }
+    case "local_conversation_provider_context_delivery_committed": {
+      const assets = [...event.candidateAssets, ...event.factAssets];
+      const assetIds = assets.map((asset) => asset.assetId);
+      const current = state.sessionIndex.session.contextAssetRegistry;
+      state.sessionIndex.session.contextAssetRegistry = {
+        version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+        assetIds: [...new Set([...(current?.assetIds ?? []), ...assetIds])],
+        updatedAt: event.occurredAt,
+      };
+      const replacements = new Map(assets.map((asset) => [asset.assetId, asset]));
+      state.sessionIndex.session.contextAssets = [
+        ...(state.sessionIndex.session.contextAssets ?? []).filter((asset) => !replacements.has(asset.assetId)),
+        ...assets,
+      ];
+      const currentBinding = state.sessionIndex.session.actorBindings[event.actorKey];
+      state.sessionIndex.session.actorBindings[event.actorKey] = {
+        ...currentBinding,
+        actorKey: event.actorKey,
+        actorId: event.head.actorId,
+        providerContextFactHead: event.head,
+        providerRequestAdmissions: [
+          ...(currentBinding?.providerRequestAdmissions ?? []),
+          event.admission,
+        ],
+      };
+      state.sessionIndex.session.updatedAt = event.occurredAt;
+      state.sessionIndex.updatedAt = event.occurredAt;
+      return state;
+    }
+    case "local_conversation_provider_request_admitted": {
+      const currentBinding = state.sessionIndex.session.actorBindings[event.actorKey];
+      state.sessionIndex.session.actorBindings[event.actorKey] = {
+        ...currentBinding,
+        actorKey: event.actorKey,
+        actorId: event.actorId,
+        providerRequestAdmissions: [
+          ...(currentBinding?.providerRequestAdmissions ?? []),
+          event.admission,
+        ],
+      };
+      state.sessionIndex.session.updatedAt = event.occurredAt;
+      state.sessionIndex.updatedAt = event.occurredAt;
+      return state;
+    }
+    case "local_conversation_provider_context_epoch_transition_committed": {
+      const currentBinding = state.sessionIndex.session.actorBindings[event.actorKey];
+      const stagedBinding = event.command.generation?.sessionIndex.session.actorBindings[event.actorKey];
+      state.sessionIndex.session.actorBindings[event.actorKey] = {
+        ...currentBinding,
+        actorKey: event.actorKey,
+        actorId: event.actorId,
+        contextEpoch: event.receipt.epoch,
+        historyHeadGenerationId: event.command.nextHeads.historyHeadGenerationId,
+        promptHeadGenerationId: event.command.nextHeads.promptHeadGenerationId,
+        providerContextFactHead: event.command.nextFactHead,
+        providerEpochReceiptV2: event.receipt,
+        providerRequestAdmissions: [],
+        ...(event.command.reason === "legacy_context_import"
+          ? {
+              providerEpochReceipt: undefined,
+              providerContextLegacyMigrationMarker: stagedBinding?.providerContextLegacyMigrationMarker,
+            }
+          : {}),
+      };
       state.sessionIndex.session.updatedAt = event.occurredAt;
       state.sessionIndex.updatedAt = event.occurredAt;
       return state;

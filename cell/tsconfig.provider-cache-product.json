@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": false
+  },
+  "include": [
+    "packages/ai-organ-logic/type-tests/provider-cache-product.ts",
+    "packages/ai-organ-logic/src/ambient-assets.d.ts"
+  ],
+  "exclude": []
+}

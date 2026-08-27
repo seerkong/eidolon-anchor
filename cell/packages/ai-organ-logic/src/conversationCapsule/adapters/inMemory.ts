@@ -31,6 +31,105 @@ type InMemoryConversationStore = {
   promptGenerations: Map<string, ActorPromptGenerationData>;
 };
 
+function transitionActorKey(transition: import("@cell/ai-organ-contract").ConversationProviderContextTransitionGeneration): string {
+  const matches = Object.entries(transition.sessionIndex.session.actorBindings).filter(([, binding]) => (
+    binding.providerEpochReceiptV2?.receiptDigest === transition.nextEpochReceiptDigest
+  ));
+  if (matches.length !== 1) throw new Error("provider_context_transition_generation_actor_ambiguous");
+  return matches[0]![0];
+}
+
+function contextAssetActorKey(asset: import("@cell/ai-organ-contract").LocalConversationContextAssetData): string | null {
+  return asset.providerContextFact?.actorKey
+    ?? asset.providerContextFactCandidate?.actorKey
+    ?? asset.projectionFact?.actorKey
+    ?? asset.toolResultDeliveryFact?.actorKey
+    ?? asset.messageDeliveryFact?.actorKey
+    ?? null;
+}
+
+function mergeActorScopedTransition(
+  store: InMemoryConversationStore,
+  transition: import("@cell/ai-organ-contract").ConversationProviderContextTransitionGeneration,
+  actorKey: string,
+) {
+  const currentHistory = store.historyIndex ?? defaultHistoryIndex(transition.historyIndex.sessionId);
+  const currentPrompt = store.promptIndex ?? defaultPromptIndex(transition.promptIndex.sessionId);
+  const currentSession = store.sessionIndex ?? defaultSessionIndex(transition.sessionIndex.sessionId);
+  const currentArtifacts = store.artifactRefs ?? defaultArtifactRefs(transition.artifactRefs.sessionId);
+  const targetHistoryEntries = Object.fromEntries(Object.entries(transition.historyIndex.generations)
+    .filter(([, entry]) => entry.actorKey === actorKey));
+  const targetLineages = Object.fromEntries(Object.entries(transition.historyIndex.lineages)
+    .filter(([, entry]) => entry.actorKey === actorKey));
+  const targetPromptEntries = Object.fromEntries(Object.entries(transition.promptIndex.generations)
+    .filter(([, entry]) => entry.actorKey === actorKey));
+  const nextAssets = [
+    ...(currentSession.session.contextAssets ?? []).filter((asset) => contextAssetActorKey(asset) !== actorKey),
+    ...(transition.sessionIndex.session.contextAssets ?? []).filter((asset) => contextAssetActorKey(asset) === actorKey),
+  ];
+  const touchedOwners = new Set([
+    actorKey,
+    ...Object.keys(targetHistoryEntries),
+    ...Object.keys(targetPromptEntries),
+  ]);
+  const nextHistoryHead = transition.historyIndex.heads[actorKey];
+  const nextPromptHead = transition.promptIndex.heads[actorKey];
+  return {
+    historyIndex: {
+      ...currentHistory,
+      heads: nextHistoryHead
+        ? { ...currentHistory.heads, [actorKey]: nextHistoryHead }
+        : Object.fromEntries(Object.entries(currentHistory.heads).filter(([key]) => key !== actorKey)),
+      lineages: {
+        ...Object.fromEntries(Object.entries(currentHistory.lineages).filter(([, entry]) => entry.actorKey !== actorKey)),
+        ...targetLineages,
+      },
+      generations: {
+        ...Object.fromEntries(Object.entries(currentHistory.generations).filter(([, entry]) => entry.actorKey !== actorKey)),
+        ...targetHistoryEntries,
+      },
+      updatedAt: transition.historyIndex.updatedAt,
+    },
+    promptIndex: {
+      ...currentPrompt,
+      heads: nextPromptHead
+        ? { ...currentPrompt.heads, [actorKey]: nextPromptHead }
+        : Object.fromEntries(Object.entries(currentPrompt.heads).filter(([key]) => key !== actorKey)),
+      generations: {
+        ...Object.fromEntries(Object.entries(currentPrompt.generations).filter(([, entry]) => entry.actorKey !== actorKey)),
+        ...targetPromptEntries,
+      },
+      updatedAt: transition.promptIndex.updatedAt,
+    },
+    sessionIndex: {
+      ...currentSession,
+      session: {
+        ...currentSession.session,
+        actorBindings: {
+          ...currentSession.session.actorBindings,
+          [actorKey]: transition.sessionIndex.session.actorBindings[actorKey]!,
+        },
+        contextAssets: nextAssets,
+        contextAssetRegistry: {
+          version: currentSession.version,
+          assetIds: nextAssets.map((asset) => asset.assetId),
+          updatedAt: transition.createdAt,
+        },
+        updatedAt: transition.sessionIndex.session.updatedAt,
+      },
+      updatedAt: transition.sessionIndex.updatedAt,
+    },
+    artifactRefs: {
+      ...currentArtifacts,
+      refs: [
+        ...currentArtifacts.refs.filter((ref) => !touchedOwners.has(ref.ownerId)),
+        ...transition.artifactRefs.refs.filter((ref) => touchedOwners.has(ref.ownerId)),
+      ],
+      updatedAt: transition.artifactRefs.updatedAt,
+    },
+  };
+}
+
 function zeroIso(): string {
   return new Date(0).toISOString();
 }
@@ -151,6 +250,42 @@ function createInMemoryConversationPersistenceRepository(
     },
     async writeArtifactRefs(snapshot) {
       store.artifactRefs = clone(snapshot);
+    },
+    async commitProviderContextTransitionGeneration(transition) {
+      const actorKey = transitionActorKey(transition);
+      const currentBinding = store.sessionIndex?.session.actorBindings[actorKey];
+      if (currentBinding?.providerEpochReceipt && currentBinding.providerEpochReceiptV2) {
+        throw new Error("provider_context_dual_authority_forbidden");
+      }
+      const currentDigest = currentBinding?.providerEpochReceiptV2?.receiptDigest
+        ?? currentBinding?.providerEpochReceipt?.integrityDigest
+        ?? null;
+      if (currentDigest !== transition.nextEpochReceiptDigest
+        && currentDigest !== transition.expectedEpochReceiptDigest) {
+        throw new Error("provider_context_transition_head_cas_conflict");
+      }
+      const nextBindingDigest = transition.sessionIndex.session.actorBindings[actorKey]
+        ?.providerEpochReceiptV2?.receiptDigest ?? null;
+      if (transition.sessionIndex.session.actorBindings[actorKey]?.providerEpochReceipt) {
+        throw new Error("provider_context_transition_generation_dual_authority");
+      }
+      if (nextBindingDigest !== transition.nextEpochReceiptDigest) {
+        throw new Error("provider_context_transition_generation_receipt_mismatch");
+      }
+      for (const generation of transition.historyGenerations) {
+        store.historyGenerations.set(generation.generationId, clone(generation));
+      }
+      for (const generation of transition.promptGenerations) {
+        store.promptGenerations.set(generation.promptGenerationId, clone(generation));
+      }
+      const merged = mergeActorScopedTransition(store, transition, actorKey);
+      store.historyIndex = clone(merged.historyIndex);
+      store.promptIndex = clone(merged.promptIndex);
+      store.sessionIndex = clone(merged.sessionIndex);
+      store.artifactRefs = clone(merged.artifactRefs);
+    },
+    async recoverProviderContextTransitionGeneration() {
+      // One synchronous memory assignment owns the complete generation.
     },
   };
 }

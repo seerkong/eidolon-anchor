@@ -1,0 +1,40 @@
+<BehaviorPatch #track.add-deepseek-cache-coverage-and-cost-product-e2e.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/product-cache-cost-e2e" } (
+      <Requirement #product-cache-cost-e2e (
+        <Statement ?>The product SHALL gate DeepSeek cache coverage and normalized input cost from final admitted requests and final-success usage across complete Actor journeys; every local prefix divergence SHALL be explained by an exact persisted context epoch or fail, while provider-native aggregate misses SHALL remain separate grouped SLO facts.</?>
+        <Suites [
+          <Suite #deterministic-and-live { name = "Deterministic and live cache-cost evidence" } (
+            <Cases [
+              <Case #same-epoch-hard-gate (
+                <Given ?>two forward-only successful requests share Actor, provider profile, model and context epoch</?>
+                <When ?>their final serialized cache units are compared</?>
+                <Then ?>retained-prefix integrity SHALL equal `1.0`, first divergence SHALL be null, and retry bodies SHALL remain byte-identical</?>
+              )>
+              <Case #explicit-epoch-attribution (
+                <Given ?>the local final-wire prefix changes between successful requests</?>
+                <When ?>the product report joins request admission and ProviderEpoch receipts</?>
+                <Then ?>one exact canonical successor reason and source/target frontier SHALL explain the change or the gate SHALL fail</?>
+              )>
+              <Case #official-live-thresholds (
+                <Given ?>three or more warmed groups run under explicit `deepseek-official-chat@1` with final-success usage</?>
+                <When ?>the live report is evaluated</?>
+                <Then ?>every hit rate SHALL be at least `0.85`, p50 at least `0.90`, cost p50 at most `248`, and p95 and every group at most `260`</?>
+              )>
+              <Case #unknown-is-not-pass (
+                <Given ?>credentials are absent or an executed request has missing, malformed, failed-attempt or non-final usage</?>
+                <When ?>live evidence is reported</?>
+                <Then ?>the status SHALL be `SKIPPED/UNKNOWN` for absent credentials or `EXECUTED/UNKNOWN` for executed invalid evidence, and neither SHALL satisfy the live gate</?>
+              )>
+              <Case #compatible-is-separate (
+                <Given ?>a DeepSeek-compatible gateway produces structurally valid requests or usage</?>
+                <When ?>the report is generated</?>
+                <Then ?>it SHALL remain under `deepseek-compatible-chat@1` and MUST NOT satisfy official DeepSeek thresholds</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

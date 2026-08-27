@@ -65,6 +65,26 @@ export type ProviderRequestAdmissionRejectionCode =
   | "serialized_body_digest_mismatch"
   | "tool_schema_projection_protocol_mismatch";
 
+export type ProviderRequestAdmissionValueKind =
+  | "accessor"
+  | "array_hole"
+  | "bigint"
+  | "custom_prototype"
+  | "function"
+  | "non_enumerable"
+  | "non_finite_number"
+  | "non_json_value"
+  | "symbol"
+  | "symbol_key"
+  | "undefined";
+
+export type ProviderRequestAdmissionDiagnostic = Readonly<{
+  code: ProviderRequestAdmissionRejectionCode;
+  path?: string;
+  valueKind?: ProviderRequestAdmissionValueKind;
+  serializedBodyDigest?: ProviderSchemaDigest;
+}>;
+
 export type ProviderToolSchemaProjector = Readonly<{
   protocol: ProviderToolSchemaProtocol;
   ruleSetId: string;

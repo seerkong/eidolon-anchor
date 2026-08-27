@@ -12,7 +12,11 @@ import {
   type LocalConversationProviderProjectionFact,
 } from "@cell/ai-organ-contract";
 import {
+  activateProviderEpochReceiptV2InConversationDomainRuntime,
+  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
   createConversationDomainRuntime,
+  createProviderEpochReceiptV2,
+  digestProviderContextHistoryFrontier,
   setConversationDomainPersistHooks,
   upsertProviderProjectionFactToConversationDomainRuntime,
 } from "@cell/ai-organ-logic";
@@ -149,7 +153,7 @@ function toolPairMessages(): ChatMessage[] {
 }
 
 describe("provider context projections", () => {
-  it("keeps an undelivered source pair while materializing its current projection", () => {
+  it("keeps an undelivered source pair without exposing its legacy projection", () => {
     const fact = makeProjectionFact();
     const rawState = makeRawState({
       messages: toolPairMessages(),
@@ -160,10 +164,10 @@ describe("provider context projections", () => {
 
     expect(runtime.some((message) => message.role === "assistant" && message.toolCalls?.[0]?.id === "call-projected")).toBe(true);
     expect(runtime.some((message) => message.role === "tool" && message.tool_call_id === "call-projected")).toBe(true);
-    expect(runtime.some((message) => message.role === "system" && message.content === fact.content)).toBe(true);
+    expect(runtime.some((message) => message.role === "system" && message.content === fact.content)).toBe(false);
   });
 
-  it("replaces the current revision at a stable Session asset while retaining source delivery audit", () => {
+  it("retains each immutable projection revision and its source delivery audit", () => {
     const runtime = createConversationDomainRuntime();
     const first = makeProjectionFact({
       revision: "revision-1",
@@ -192,14 +196,14 @@ describe("provider context projections", () => {
     });
 
     const assets = runtime.sessionStateSignal.get()["session-projection"]?.contextAssets ?? [];
-    expect(secondAssetId).toBe(firstAssetId);
-    expect(assets).toHaveLength(1);
-    expect(assets[0]?.projectionFact).toEqual(expect.objectContaining({
+    expect(secondAssetId).not.toBe(firstAssetId);
+    expect(assets).toHaveLength(2);
+    expect(assets[1]?.projectionFact).toEqual(expect.objectContaining({
       projectionKey: "mutable-state",
       revision: "revision-2",
       content: "new state",
     }));
-    expect(assets[0]?.projectionFact?.sourceToolCalls).toEqual([
+    expect(assets.flatMap((asset) => asset.projectionFact?.sourceToolCalls ?? [])).toEqual([
       expect.objectContaining({
         toolCallId: "call-1",
         projectionRevision: "revision-1",
@@ -295,7 +299,7 @@ describe("provider context projections", () => {
     expect(providerView).toHaveLength(1);
   });
 
-  it("elides a delivered source call/result atomically from provider view without changing History", () => {
+  it("retains a delivered source call/result in provider view until epoch compaction", () => {
     const rawState = makeRawState({
       messages: toolPairMessages(),
       assets: [makeProjectionAsset(makeProjectionFact({ deliveredAt: "2026-07-18T10:01:00.000Z" }))],
@@ -304,9 +308,9 @@ describe("provider context projections", () => {
 
     const runtime = materializeConversationRuntimePrompt(rawState);
 
-    expect(runtime.some((message) => message.toolCalls?.some((call) => call.id === "call-projected"))).toBe(false);
-    expect(runtime.some((message) => message.role === "tool" && message.tool_call_id === "call-projected")).toBe(false);
-    expect(runtime.some((message) => message.role === "assistant")).toBe(false);
+    expect(runtime.some((message) => message.toolCalls?.some((call) => call.id === "call-projected"))).toBe(true);
+    expect(runtime.some((message) => message.role === "tool" && message.tool_call_id === "call-projected")).toBe(true);
+    expect(runtime.some((message) => message.role === "assistant")).toBe(true);
     expect(materializeConversationVisibleHistory(rawState)).toEqual(historyBefore);
     expect(historyBefore.some((message) => message.role === "tool" && message.tool_call_id === "call-projected")).toBe(true);
   });
@@ -338,12 +342,12 @@ describe("provider context projections", () => {
       content: "I will update and inspect.",
       reasoning_content: "two independent operations",
     }));
-    expect(assistant?.toolCalls?.map((call) => call.id)).toEqual(["call-ordinary"]);
+    expect(assistant?.toolCalls?.map((call) => call.id)).toEqual(["call-projected", "call-ordinary"]);
     expect(runtime.some((message) => message.role === "tool" && message.tool_call_id === "call-ordinary")).toBe(true);
-    expect(runtime.some((message) => message.role === "tool" && message.tool_call_id === "call-projected")).toBe(false);
+    expect(runtime.some((message) => message.role === "tool" && message.tool_call_id === "call-projected")).toBe(true);
   });
 
-  it("uses only the current revision per logical key at the fixed pre-history boundary", () => {
+  it("does not expose legacy replaceable projection assets at the pre-history boundary", () => {
     const older = makeProjectionAsset(
       makeProjectionFact({
         projectionKey: "z-state",
@@ -379,15 +383,13 @@ describe("provider context projections", () => {
     const runtime = materializeConversationRuntimePrompt(rawState);
 
     expect(runtime.map((message) => message.content)).toEqual([
-      "alphabetically first",
-      "new state",
       "earlier user",
       "earlier response",
       "latest user",
     ]);
   });
 
-  it("does not relocate unchanged projections when a new user message is appended", () => {
+  it("keeps legacy projection assets provider-invisible as history appends", () => {
     const assets = [makeProjectionAsset(makeProjectionFact({ content: "fixed dynamic state" }))];
     const before = materializeConversationRuntimePrompt(makeRawState({
       messages: [
@@ -406,7 +408,6 @@ describe("provider context projections", () => {
     }));
 
     expect(before.map((message) => message.content)).toEqual([
-      "fixed dynamic state",
       "first",
       "reply",
     ]);
@@ -438,6 +439,82 @@ describe("provider context projections", () => {
       expect(recovered.contextAssets?.[0]?.projectionFact).toEqual(
         runtime.sessionStateSignal.get()["session-projection"]?.contextAssets?.[0]?.projectionFact,
       );
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    }
+  });
+
+  it("round-trips the exact v2 admission and typed projection fact through fresh local-file recovery", async () => {
+    const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "eidolon-provider-context-fact-"));
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    const runtime = createConversationDomainRuntime();
+    const writes: Promise<void>[] = [];
+    setConversationDomainPersistHooks(runtime, {
+      session: () => {
+        const session = runtime.sessionStateSignal.get()["session-projection"];
+        if (session) writes.push(repository.writeSessionIndex(session.sessionIndex));
+      },
+    });
+    const digest = (character: string) => `sha256:${character.repeat(64)}` as `sha256:${string}`;
+    try {
+      const epoch = createProviderEpochReceiptV2({
+        sessionId: "session-projection",
+        actorKey: "main",
+        actorId: "actor-main",
+        epoch: 1,
+        previousReceiptDigest: null,
+        targetProviderId: "deepseek",
+        targetModelId: "deepseek-chat",
+        targetProfileId: "deepseek-official-chat@1",
+        baselineHeads: {
+          historyHeadGenerationId: "__empty_history__",
+          promptHeadGenerationId: "__empty_prompt__",
+          factHeadDigest: null,
+        },
+        sourceHistoryMessageCount: 0,
+        sourceFrontierDigest: digestProviderContextHistoryFrontier([]),
+        pendingDeliveryDigest: digest("2"),
+        handoffDigest: digest("3"),
+        frozenResourceDigest: digest("4"),
+        providerSurfaceDigest: digest("5"),
+        retentionPolicy: { maxRevisionsPerNamespace: 32, maxCanonicalFactBytesPerEpoch: 65_536 },
+        reason: "initial_projection",
+        compactionProofDigest: null,
+        createdAt: CREATED_AT,
+      });
+      activateProviderEpochReceiptV2InConversationDomainRuntime({ runtime, receipt: epoch });
+      upsertProviderProjectionFactToConversationDomainRuntime({
+        runtime,
+        sessionId: "session-projection",
+        projectionFact: makeProjectionFact(),
+      });
+      const [fact] = commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+        runtime,
+        sessionId: "session-projection",
+        actorKey: "main",
+        actorId: "actor-main",
+        finalRequestDigest: digest("6"),
+        sourceRecords: [{
+          toolCallId: "call-projected",
+          callRecordDigest: digest("7"),
+          resultRecordDigest: digest("8"),
+        }],
+        occurredAt: "2026-07-18T10:01:00.000Z",
+      });
+      await Promise.all(writes);
+
+      const recovered = await loadConversationSessionRawState({ sessionDir, repository });
+      const binding = recovered.actorBindings.main;
+      const recoveredFact = recovered.contextAssets?.find((asset) => (
+        asset.providerContextFact?.factDigest === fact?.factDigest
+      ))?.providerContextFact;
+      expect(binding?.providerEpochReceiptV2?.receiptDigest).toBe(epoch.receiptDigest);
+      expect(binding?.providerRequestAdmissions?.[0]?.factAppendIntentDigest).toBe(
+        fact?.sourceDeliveryProofs[0]?.kind === "first-delivery-pair"
+          ? fact.sourceDeliveryProofs[0].requestAdmissionIntentDigest
+          : null,
+      );
+      expect(recoveredFact).toEqual(fact);
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true });
     }

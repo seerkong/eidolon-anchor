@@ -1,7 +1,10 @@
 import type { LlmAdapter, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
+import { createHash } from "node:crypto";
+import type { ActorRuntimeFacetEvent } from "@cell/ai-core-contract/runtime/ActorRuntimeFacet";
 import {
   applyConversationCompaction,
   defaultRuntimeConfig,
+  digestConversationProviderContextTransitionGeneration,
   type RuntimeConfig,
 } from "@cell/ai-support";
 import type { AiRuntimeEffectKind, AiRuntimeEffectLifecycleEvent } from "@cell/ai-runtime-control-contract";
@@ -11,22 +14,34 @@ import {
   type PersistenceWritePort,
 } from "@cell/ai-core-contract/runtime/PersistencePorts";
 import type {
-  ConversationDomainEvent,
   ConversationHistoryIndexSnapshot,
+  ActorPromptGenerationData,
   LocalConversationProviderProjectionFact,
   ResponsesReplayCheckpoint,
   ResponsesTransportRequestContext,
   ResponsesTransportResult,
   ConversationPromptIndexSnapshot,
   ConversationSessionIndexSnapshot,
+  ActorProviderContextFact,
+  ActorProviderContextFactNamespace,
+  Sha256Digest,
+  LocalConversationContextAssetData,
 } from "@cell/ai-organ-contract";
-import type { ConversationPersistenceRepositoryFactory } from "@cell/ai-organ-contract/persistence/conversation/ConversationPersistence";
+import type {
+  ConversationPersistenceRepository,
+  ConversationPersistenceRepositoryFactory,
+  ConversationProviderContextTransitionGeneration,
+} from "@cell/ai-organ-contract/persistence/conversation/ConversationPersistence";
 import {
   AI_AGENT_COORDINATION_DECISIONS,
   AI_AGENT_COORDINATION_KINDS,
   AI_AGENT_COORDINATION_NAMES,
   AI_AGENT_COORDINATION_STATUSES,
   answerQuestionnaireRow,
+  ActorRuntimeFacetProviderBoundaryError,
+  dispatchActorRuntimeFacetEvent,
+  dispatchActorRuntimeFacetToolOutcome,
+  runActorRuntimeFacetProviderBoundary,
   upsertPendingQuestionnaireRow,
 } from "@cell/ai-core-logic";
 import { MessageHistoryGraph } from "@cell/ai-core-logic/stream/MessageHistoryGraph";
@@ -60,6 +75,8 @@ import type { ToolFuncRegistryData } from "@cell/ai-core-contract/runtime/Runtim
 import { applyCheapCompactionPipeline, compressHistory } from "@cell/ai-organ-logic/compression/ContextCompressor";
 import { estimateTokens, estimateUsageRatio } from "@cell/ai-organ-logic/compression/TokenEstimator";
 import { parseQuestionnaireAnswer } from "@cell/ai-organ-logic/questionnaire/parseQuestionnaireAnswer";
+import { recordProviderCacheUsage } from "../llm/ProviderCacheUsage";
+import { estimateProviderCacheCostTokens } from "../llm/ProviderCacheCostEstimates";
 import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager";
 import {
   getLocalPermissionApprovalContext,
@@ -73,18 +90,9 @@ import { buildAutonomousHolonEnvelope, parseAutonomousHolonEnvelope } from "@cel
 import { buildLeaderLedHolonEnvelope, parseLeaderLedHolonEnvelope } from "@cell/ai-organ-logic/organization/leaderLedHolonEnvelope";
 import { normalizeDelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode";
 import {
-  beginWorkflowActorTurn,
-  recordWorkflowActorToolOutcome,
-  resolveWorkflowActorBudgetConfig,
-  runWithinWorkflowStageDeadline,
-  WorkflowActorBudgetError,
-} from "../workflow/runtime/WorkflowActorProgress";
-import {
-  reduceConversationDomainEvent,
-  type ConversationProjectionState,
-} from "../conversation/ConversationDomainProjection";
-import {
   appendLiveHistoryMessageToConversationDomainRuntime,
+  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
+  commitProviderContextTransition,
   confirmMessageDeliveriesToConversationDomainRuntime,
   confirmToolResultDeliveriesToConversationDomainRuntime,
   ensureVmConversationDomainRuntime,
@@ -100,6 +108,7 @@ import {
   synchronizeConversationDomainActorFromPersistence,
   synchronizeProviderContextEpochToConversationDomainRuntime,
   upsertProviderProjectionFactToConversationDomainRuntime,
+  upsertProviderContextFactCandidateToConversationDomainRuntime,
   upsertResponsesReplayCheckpointToConversationDomainRuntime,
 } from "../conversation/ConversationDomainRuntime";
 import {
@@ -120,8 +129,13 @@ import {
   resolveTurnWorkContextForActor,
 } from "../runtime/ContextControlPlane";
 import { turnReducer } from "../runtime/TurnReducer";
-import { ensureVmToolCallDomain, getVmToolCallDomain } from "../runtime/ToolCallDomainRuntime";
-import type { ToolFailureKind, ToolGateOutcome } from "@cell/ai-core-contract/runtime/ToolCallDomain";
+import {
+  digestToolCallInvocationRecord,
+  digestToolCallRecord,
+  ensureVmToolCallDomain,
+  getVmToolCallDomain,
+} from "../runtime/ToolCallDomainRuntime";
+import { isTerminalToolCallStatus, type ToolFailureKind, type ToolGateOutcome } from "@cell/ai-core-contract/runtime/ToolCallDomain";
 import { ensureVmProviderCallDomain, getVmProviderCallDomain } from "../runtime/ProviderCallDomainRuntime";
 import type { ProviderFailureKind, ToolSchemaSnapshot } from "@cell/ai-core-contract/runtime/ProviderCallDomain";
 import { getCoordinationEngine } from "../coordination/CoordinationEngine";
@@ -129,6 +143,31 @@ import { getMemberManager } from "../organization/MemberManager";
 import { getDetachedActorObservabilityStore } from "../detached/DetachedActorObservability";
 import { getOrganizationManager } from "../organization/OrganizationManager";
 import { normalizeOpenAIChatMessages } from "../llm/OpenAIChatHelpers";
+import { ProviderRequestAdmissionError } from "../llm/tool-schema/ProviderRequestAdmission";
+import {
+  ProviderEpochProjectionError,
+} from "../conversation/ProviderEpochProjection";
+import {
+  activateActorProviderEpoch,
+  reconcileActorProviderEpochProjection,
+  resolveProviderEpochProfileId,
+  validateActorProviderContextEpoch,
+} from "../conversation/ProviderEpoch";
+import {
+  createActorProviderContextFact,
+  measureActorProviderContextFactRetention,
+  normalizeActorProviderContextFactNamespace,
+} from "../conversation/ActorProviderContextFact";
+import { retainStableProviderPromptBasisRefs } from "../conversation/ProviderPromptBasis";
+import { resolveProviderCacheActorClass } from "../llm/ProviderCacheActorAttribution";
+import {
+  createProviderContextCompactionProof,
+  createProviderEpochReceiptV2,
+  digestLegacyProviderEpochReceipt,
+  digestProviderContextClosedValue,
+  digestProviderContextHistoryFrontier,
+  importLegacyProviderContextAuthority,
+} from "../conversation/ProviderContextEpochV2";
 import { accountThreadGoalUsage, getThreadGoal } from "../goals/ThreadGoalManager";
 import { createSessionDiagnosticsXnlLog } from "../runtime/SessionRuntimeXnlLogs";
 import { getContextResourcePresentation } from "../runtime/LocalTextResourceLoader";
@@ -366,6 +405,88 @@ function buildIdentityBlockSystemMessage(actor: AiAgentActor): { role: "system";
   };
 }
 
+function actorRuntimeFacetIds(actor: AiAgentActor): string[] {
+  return Object.keys(actor.runtimeFacets).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+}
+
+function dispatchActorRuntimeFacetHooks(
+  vm: AiAgentVm,
+  actor: AiAgentActor,
+  event: Exclude<ActorRuntimeFacetEvent, { kind: "aroundProvider" }>,
+): void {
+  const facetIds = actorRuntimeFacetIds(actor);
+  if (facetIds.length === 0) return;
+  for (const facetId of facetIds) {
+    dispatchActorRuntimeFacetEvent(
+      vm,
+      { actorKey: actor.key, facetId },
+      event,
+      {},
+    );
+  }
+}
+
+function dispatchActorRuntimeFacetToolOutcomeHooks(
+  vm: AiAgentVm,
+  actor: AiAgentActor,
+  input: Parameters<typeof dispatchActorRuntimeFacetToolOutcome>[2],
+): void {
+  for (const facetId of actorRuntimeFacetIds(actor)) {
+    dispatchActorRuntimeFacetToolOutcome(
+      vm,
+      { actorKey: actor.key, facetId },
+      input,
+      {},
+    );
+  }
+}
+
+async function runWithinActorRuntimeFacetProviderBoundaries<T>(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  operationId: string;
+  providerAttempt: number;
+  abortController: AbortController;
+  run: () => Promise<T>;
+}): Promise<T> {
+  const facetIds = actorRuntimeFacetIds(params.actor);
+  if (facetIds.length === 0) return params.run();
+  const event = Object.freeze({
+    kind: "aroundProvider" as const,
+    operationId: params.operationId,
+    occurredAt: Date.now(),
+    providerAttempt: params.providerAttempt,
+  });
+  let continuation = params.run;
+  for (const facetId of [...facetIds].reverse()) {
+    const next = continuation;
+    continuation = () => runActorRuntimeFacetProviderBoundary(
+      {
+        actors: params.vm.actors,
+        runtimeContext: params.vm.runtimeContext,
+        providerBoundary: {
+          run: next,
+          abort: (reason) => params.abortController.abort(reason),
+        },
+      },
+      { actorKey: params.actor.key, facetId },
+      event,
+      {},
+    );
+  }
+  return continuation();
+}
+
+function closedToolArgs(args: unknown): null | boolean | number | string | readonly unknown[] | Readonly<Record<string, unknown>> {
+  if (args === undefined) return null;
+  try {
+    const encoded = JSON.stringify(args);
+    return encoded === undefined ? null : JSON.parse(encoded);
+  } catch {
+    return null;
+  }
+}
+
 export function __setCompressionDepsForTest(deps: Partial<CompressionDeps> | null): void {
   if (!deps) {
     compressionDeps = {
@@ -413,10 +534,24 @@ function dedupeToolSchemas(tools: any[]): any[] {
   });
 }
 
+function compareToolNamesByCodeUnit(left: any, right: any): number {
+  const leftName = getToolName(left);
+  const rightName = getToolName(right);
+  return leftName < rightName ? -1 : leftName > rightName ? 1 : 0;
+}
+
 export function resolveProviderToolsetForActor(actor: AiAgentActor, tools: any[]): any[] {
   const allowedTools = dedupeToolSchemas(tools.filter((tool) => isToolAllowed(actor, getToolName(tool))));
   if (resolveProviderToolSchemaPolicy(actor) === "stable_surface") {
-    return [...allowedTools].sort((left, right) => getToolName(left).localeCompare(getToolName(right)));
+    const disabled = new Set((actor.toolPolicy.computedDisabledTools ?? []).map(String));
+    const available = dedupeToolSchemas(tools.filter((tool) => !disabled.has(getToolName(tool))));
+    const surface = actor.toolPolicy.providerToolSurface;
+    const visible = surface?.mode === "all"
+      ? available
+      : surface?.mode === "exact"
+        ? available.filter((tool) => surface.toolNames.includes(getToolName(tool)))
+        : allowedTools;
+    return [...visible].sort(compareToolNamesByCodeUnit);
   }
   const avoidUntilNeeded = new Set(resolveWorkModeToolGuidance(getActorWorkContext(actor)).avoidUntilNeeded);
   return allowedTools.filter((tool) => !avoidUntilNeeded.has(getToolName(tool)));
@@ -665,7 +800,7 @@ function pendingProviderProjectionSourceIdsIncludedInPrompt(params: {
   const resultIds = toolCallIdsInResultMessages(params.executionMessages);
   const included = new Set<string>();
   for (const asset of rawState.session.contextAssets ?? []) {
-    const fact = asset.projectionFact;
+    const fact = asset.projectionFact ?? asset.providerContextFactCandidate;
     if (!fact || fact.actorKey !== params.actor.key) continue;
     for (const source of fact.sourceToolCalls) {
       if (
@@ -961,11 +1096,15 @@ function relabelPendingFirstDeliveryCompactionEnvelopes(
  * no message array side: actor.messages is a read-only projection of the
  * domains, so the domain rewrite IS the only write.
  */
-function applyCheapCompactionForActor(params: {
+async function applyCheapCompactionForActor(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
-}): void {
+}): Promise<void> {
   if (!shouldCompressActorHistory(params.actor)) return;
+  // Fence the current immutable generation before deriving a successor. If
+  // the rewrite changes provider-visible bytes, its successor is then
+  // persisted as a distinct history_compaction epoch below.
+  await ensureActorProviderContextEpochBeforeTransport(params);
   const pipelineOptions = buildCheapCompactionPipelineOptions(params.vm, params.actor);
 
   // Domain transform: rewrite the active history generation in the History
@@ -985,6 +1124,7 @@ function applyCheapCompactionForActor(params: {
   });
 
   if (!domainRewrite.changed) return;
+  await persistActiveHistoryRewriteAsProviderContextCompaction(params);
   params.vm.effects.log?.("debug", "cheap context compaction applied", {
     actorKey: params.actor.key,
     domainChanged: domainRewrite.changed,
@@ -992,11 +1132,11 @@ function applyCheapCompactionForActor(params: {
   });
 }
 
-function applyPreflightPressureCompactionForActor(params: {
+async function applyPreflightPressureCompactionForActor(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
   reason: string;
-}): boolean {
+}): Promise<boolean> {
   if (!shouldCompressActorHistory(params.actor)) return false;
   const pipelineOptions = buildPreflightPressureCompactionPipelineOptions(params.vm, params.actor);
 
@@ -1015,6 +1155,7 @@ function applyPreflightPressureCompactionForActor(params: {
   });
 
   if (!domainRewrite.changed) return false;
+  await persistActiveHistoryRewriteAsProviderContextCompaction({ vm: params.vm, actor: params.actor });
   params.vm.effects.log?.("debug", "preflight pressure compaction applied", {
     actorKey: params.actor.key,
     reason: params.reason,
@@ -1024,11 +1165,11 @@ function applyPreflightPressureCompactionForActor(params: {
   return true;
 }
 
-function applyOversizedPendingToolResultCompactionForActor(params: {
+async function applyOversizedPendingToolResultCompactionForActor(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
   reason: string;
-}): boolean {
+}): Promise<boolean> {
   if (!shouldCompressActorHistory(params.actor)) return false;
   const pendingToolCallIds = new Set(pendingToolResultDeliveryIds(params));
   if (pendingToolCallIds.size === 0) return false;
@@ -1062,6 +1203,7 @@ function applyOversizedPendingToolResultCompactionForActor(params: {
   });
 
   if (!domainRewrite.changed) return false;
+  await persistActiveHistoryRewriteAsProviderContextCompaction({ vm: params.vm, actor: params.actor });
   params.vm.effects.log?.("warn", "oversized pending tool result persisted for first delivery", {
     actorKey: params.actor.key,
     reason: params.reason,
@@ -1362,7 +1504,18 @@ async function prepareProviderPromptForTurn(params: {
   pendingMessageDeliveryIds: string[];
 }> {
   const { vm, actor, tools, llmAdapter, model, processStreamFn, stage } = params;
+  // One production fence owns every non-append provider-context boundary.
+  // It runs before prompt construction and therefore before any adapter can
+  // observe changed provider bytes.
+  await ensureActorProviderContextEpochBeforeTransport({ vm, actor });
   let promptBuild = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
+  if (await compactProviderContextFactsAtRetentionBoundary({
+    vm,
+    actor,
+    pendingSourceToolCallIds: promptBuild.pendingProviderProjectionSourceIds,
+  })) {
+    promptBuild = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
+  }
   if ((actor.modelConfig.inputLimit ?? 0) > 0 && estimateTokens(promptBuild.providerMessages) >= (actor.modelConfig.inputLimit ?? 0)) {
     const compacted = await runReactiveCompaction({
       vm,
@@ -1379,7 +1532,7 @@ async function prepareProviderPromptForTurn(params: {
     }
   }
   if ((actor.modelConfig.inputLimit ?? 0) > 0 && estimateTokens(promptBuild.providerMessages) >= (actor.modelConfig.inputLimit ?? 0)) {
-    const compacted = applyPreflightPressureCompactionForActor({
+    const compacted = await applyPreflightPressureCompactionForActor({
       vm,
       actor,
       reason: "preflight_pressure_tool_result_compaction",
@@ -1389,7 +1542,7 @@ async function prepareProviderPromptForTurn(params: {
     }
   }
   if ((actor.modelConfig.inputLimit ?? 0) > 0 && estimateTokens(promptBuild.providerMessages) >= (actor.modelConfig.inputLimit ?? 0)) {
-    const compacted = applyOversizedPendingToolResultCompactionForActor({
+    const compacted = await applyOversizedPendingToolResultCompactionForActor({
       vm,
       actor,
       reason: "preflight_oversized_pending_tool_result",
@@ -1556,35 +1709,52 @@ function markProviderProjectionSourcesDelivered(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
   sourceToolCallIds: readonly string[];
+  transportResult: unknown;
+  fallbackFinalRequestDigest: `sha256:${string}`;
 }): void {
-  if (params.sourceToolCallIds.length === 0) return;
   const runtime = getVmConversationDomainRuntime(params.vm);
   const rawState = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
   if (!runtime || !rawState) return;
-  const selected = new Set(params.sourceToolCallIds);
-  const occurredAt = new Date().toISOString();
-  let changed = false;
-  for (const asset of rawState.session.contextAssets ?? []) {
-    const fact = asset.projectionFact;
-    if (!fact || fact.actorKey !== params.actor.key) continue;
-    const sourceToolCalls = fact.sourceToolCalls.map((source) => {
-      if (source.deliveryState !== "pending" || !selected.has(source.toolCallId)) return source;
-      changed = true;
-      return { ...source, deliveryState: "delivered" as const, deliveredAt: occurredAt };
-    });
-    if (!sourceToolCalls.some((source, index) => source !== fact.sourceToolCalls[index])) continue;
-    upsertProviderProjectionFactToConversationDomainRuntime({
-      runtime,
-      sessionId: rawState.session.sessionId,
-      projectionFact: { ...fact, sourceToolCalls, observedAt: occurredAt },
-      occurredAt,
-    });
+  if (!rawState.session.actorBindings[params.actor.key]?.providerEpochReceiptV2) return;
+  const observedRequestDigest = (params.transportResult as any)
+    ?.provider_cache_cost_observation?.requestDigest;
+  const requestDigest = typeof observedRequestDigest === "string"
+    ? observedRequestDigest
+    : (params.actor.llmClient as any)?.runtime
+      ? null
+      : params.fallbackFinalRequestDigest;
+  if (typeof requestDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(requestDigest)) {
+    throw new Error("provider_request_admission_observation_required");
   }
-  if (changed) {
+  const domain = getVmToolCallDomain(params.vm);
+  if (params.sourceToolCallIds.length > 0 && !domain) {
+    throw new Error("provider_projection_tool_call_domain_required");
+  }
+  const sourceRecords = params.sourceToolCallIds.map((toolCallId) => {
+    if (!domain) throw new Error("provider_projection_tool_call_domain_required");
+    const record = domain.getRecord(toolCallId);
+    if (!record || !isTerminalToolCallStatus(record.status)) {
+      throw new Error(`provider_projection_terminal_record_required:${toolCallId}`);
+    }
+    return Object.freeze({
+      toolCallId,
+      callRecordDigest: digestToolCallInvocationRecord(record),
+      resultRecordDigest: digestToolCallRecord(record),
+    });
+  });
+  const facts = commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+    runtime,
+    sessionId: rawState.session.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    finalRequestDigest: requestDigest as `sha256:${string}`,
+    sourceRecords,
+  });
+  if (facts.length > 0) {
     resetActorContinuationBaseline({
       actor: params.actor,
-      reason: "provider_projection:source_delivery",
-      occurredAt,
+      reason: "provider_projection:fact_appended",
+      occurredAt: facts.at(-1)!.observedAt,
     });
   }
 }
@@ -1965,6 +2135,11 @@ async function streamProviderCompletion(params: {
         operationId: params.operationId,
         requestId: `${params.operationId}:request-${providerRequestOrdinal}`,
       },
+      providerCacheCostObservation: {
+        actorClass: resolveProviderCacheActorClass(actor),
+        contextEpoch: resolveResponsesContextEpoch({ vm, actor }),
+        tokenEstimates: estimateProviderCacheCostTokens(messages, tools),
+      },
     });
     return { result, preparedResponses };
   };
@@ -1974,8 +2149,11 @@ async function streamProviderCompletion(params: {
     providerOutput?: Promise<unknown | undefined>;
     preparedResponses: PreparedResponsesTurn | null;
   }> => {
-    return runWithinWorkflowStageDeadline({
+    return runWithinActorRuntimeFacetProviderBoundaries({
+      vm,
       actor,
+      operationId: params.operationId,
+      providerAttempt: providerRequestOrdinal + 1,
       abortController,
       run: async () => {
         const created = await createProviderStream(messages, plan);
@@ -1999,7 +2177,21 @@ async function streamProviderCompletion(params: {
   let activePendingProviderProjectionSourceIds = params.pendingProviderProjectionSourceIds;
   let activePendingToolResultDeliveryIds = params.pendingToolResultDeliveryIds;
   let activePendingMessageDeliveryIds = params.pendingMessageDeliveryIds;
+  const projectCurrentProviderMessages = (messages: any[], pendingToolCallIds: string[]) => {
+    const receipt = reconcileActorProviderEpochProjection({
+      vm,
+      actor,
+      messages,
+      pendingToolCallIds,
+    });
+    if (!receipt) throw new Error("provider_context_epoch_v2_required_before_transport");
+    return messages;
+  };
   try {
+    activeProviderMessages = projectCurrentProviderMessages(
+      activeProviderMessages,
+      activePendingToolResultDeliveryIds,
+    );
     completion = await runOneCompletion(activeProviderMessages, activePromptPlan);
   } catch (error) {
     if (abortController.signal.aborted || !isPromptTooLongError(error)) {
@@ -2024,7 +2216,10 @@ async function streamProviderCompletion(params: {
       providerMessages: retryPrompt.providerMessages,
       stage: retryStage,
     });
-    activeProviderMessages = retryPrompt.providerMessages;
+    activeProviderMessages = projectCurrentProviderMessages(
+      retryPrompt.providerMessages,
+      retryPrompt.pendingToolResultDeliveryIds,
+    );
     activePromptPlan = retryPrompt.promptPlan;
     activePendingProviderProjectionSourceIds = retryPrompt.pendingProviderProjectionSourceIds;
     activePendingToolResultDeliveryIds = retryPrompt.pendingToolResultDeliveryIds;
@@ -2052,6 +2247,7 @@ async function streamProviderCompletion(params: {
     const transportResult = completion.providerOutput
       ? await completion.providerOutput.catch(() => undefined)
       : undefined;
+    recordProviderCacheUsage(vm, transportResult);
     if (!abortController.signal.aborted && completion.preparedResponses) {
       commitResponsesTurnResult({
         vm,
@@ -2065,6 +2261,13 @@ async function streamProviderCompletion(params: {
       vm,
       actor,
       sourceToolCallIds: activePendingProviderProjectionSourceIds,
+      transportResult,
+      fallbackFinalRequestDigest: digestProviderContextClosedValue({
+        schemaVersion: "provider.mock-final-wire/v1",
+        model,
+        messages: activeProviderMessages,
+        tools,
+      }),
     });
     confirmIncludedToolResultDeliveries({
       vm,
@@ -2099,10 +2302,35 @@ function registerToolContextEffects(params: {
   const occurredAt = new Date().toISOString();
   let changed = false;
   for (const effect of params.effects) {
+    if (effect.kind === "append_provider_context_fact") {
+      const candidate = {
+        actorKey: params.actor.key,
+        namespace: normalizeActorProviderContextFactNamespace(effect.namespace),
+        logicalKey: effect.logicalKey,
+        revision: effect.revision,
+        payload: effect.payload,
+        sourceToolCalls: [{
+          toolCallId: params.toolCallId,
+          projectionRevision: effect.revision,
+          deliveryState: "pending" as const,
+          deliveredAt: null,
+        }],
+        observedAt: occurredAt,
+      };
+      upsertProviderContextFactCandidateToConversationDomainRuntime({
+        runtime,
+        sessionId,
+        candidate,
+        occurredAt,
+      });
+      changed = true;
+      continue;
+    }
     if (effect.kind !== "mutable_provider_projection") continue;
     const existing = rawState?.session.contextAssets?.find((asset) => (
       asset.projectionFact?.actorKey === params.actor.key
       && asset.projectionFact.projectionKey === effect.logicalKey
+      && asset.projectionFact.revision === effect.revision
     ))?.projectionFact;
     const sourceAlreadyRegistered = existing?.sourceToolCalls.some((source) => (
       source.toolCallId === params.toolCallId && source.projectionRevision === effect.revision
@@ -2262,13 +2490,18 @@ function trackToolCallResult(params: {
   gateOutcome: ToolGateOutcome;
   isError: boolean;
   failureKind?: ToolFailureKind;
-}): void {
-  if (!params.toolCallId) return;
+}): Readonly<{ toolCallId: string; recordDigest: string }> | null {
+  if (!params.toolCallId) return null;
   // Only the allow path actually executed and produces a domain result;
   // deny/defer records stay in their terminal/parked gate status.
-  if (params.gateOutcome !== "allow") return;
+  if (params.gateOutcome !== "allow") {
+    const gated = getVmToolCallDomain(params.vm)?.getRecord(params.toolCallId);
+    return gated && isTerminalToolCallStatus(gated.status)
+      ? Object.freeze({ toolCallId: gated.toolCallId, recordDigest: digestToolCallRecord(gated) })
+      : null;
+  }
   const domain = getVmToolCallDomain(params.vm);
-  if (!domain || !domain.getRecord(params.toolCallId)) return;
+  if (!domain || !domain.getRecord(params.toolCallId)) return null;
   try {
     if (params.isError) {
       domain.recordFailure({
@@ -2280,8 +2513,13 @@ function trackToolCallResult(params: {
     } else {
       domain.recordResult({ toolCallId: params.toolCallId, outputText: params.outputText, at: Date.now() });
     }
+    const terminal = domain.getRecord(params.toolCallId);
+    return terminal && isTerminalToolCallStatus(terminal.status)
+      ? Object.freeze({ toolCallId: terminal.toolCallId, recordDigest: digestToolCallRecord(terminal) })
+      : null;
   } catch {
     // best-effort
+    return null;
   }
 }
 
@@ -2316,12 +2554,23 @@ function snapshotToolSchemas(tools: any[]): ToolSchemaSnapshot[] {
 
 function classifyProviderFailure(error: unknown, aborted: boolean): ProviderFailureKind {
   if (aborted) return "aborted_by_user";
+  if (error instanceof ProviderRequestAdmissionError || error instanceof ProviderEpochProjectionError) {
+    return "local_projection_rejected";
+  }
   if (isPromptTooLongError(error)) return "prompt_too_long";
   const message = (error instanceof Error ? error.message : String(error ?? "")).toLowerCase();
   if (message.includes("rate limit") || message.includes("429")) return "provider_rate_limit";
   if (message.includes("timeout") || message.includes("timed out")) return "timeout";
   if (message.includes("network") || message.includes("econn") || message.includes("fetch")) return "network_error";
   return "provider_invalid_response";
+}
+
+function safeLocalProjectionDiagnostic(error: ProviderRequestAdmissionError | ProviderEpochProjectionError): string {
+  const { code, path, valueKind } = error.diagnostic;
+  const serializedBodyDigest = "serializedBodyDigest" in error.diagnostic
+    ? error.diagnostic.serializedBodyDigest
+    : undefined;
+  return [code, path, valueKind, serializedBodyDigest].filter(Boolean).join(":");
 }
 
 function trackProviderCallStarted(params: {
@@ -2412,7 +2661,7 @@ function toEventActorRef(actor: AiAgentActor): { key: string; id: string } {
   };
 }
 
-function findLatestUserContentBeforeLatestAssistant(messages: any[]): string | null {
+function findLatestUserContentBeforeLatestAssistant(messages: readonly any[]): string | null {
   let seenAssistant = false;
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i] as any;
@@ -2429,14 +2678,14 @@ function findLatestUserContentBeforeLatestAssistant(messages: any[]): string | n
   return null;
 }
 
-function findLatestAssignedTaskId(messages: any[]): string | null {
+function findLatestAssignedTaskId(messages: readonly any[]): string | null {
   const content = findLatestUserContentBeforeLatestAssistant(messages);
   if (!content) return null;
   const match = content.match(/TASK_ID=([^\n]+)/);
   return match?.[1] ?? null;
 }
 
-function resolveLeaderLedHolonLeaderRequest(messages: any[]): {
+function resolveLeaderLedHolonLeaderRequest(messages: readonly any[]): {
   routeId: string
   holonId: string
   leaderMemberId: string
@@ -2454,7 +2703,7 @@ function resolveLeaderLedHolonLeaderRequest(messages: any[]): {
   };
 }
 
-function resolveAutonomousHolonMemberTask(messages: any[]): {
+function resolveAutonomousHolonMemberTask(messages: readonly any[]): {
   taskId: string
   holonId: string
   replyMode: "final" | "none" | "stream"
@@ -3387,26 +3636,26 @@ function drainMemberCoordinationIntoMessages(vm: AiAgentVm, actor: AiAgentActor)
 function drainHeartbeatIntoMessages(vm: AiAgentVm, actor: AiAgentActor, options: { includeRuntimeInternalContext: boolean }): void {
   const deferred: any[] = [];
   for (const payload of actor.drainMailbox("heartbeat")) {
-    if (payload?.heartbeatKind === "runtime_internal_context") {
-      if (options.includeRuntimeInternalContext) {
-        const text = String(payload.text ?? "");
-        if (text) appendConversationUserInputMessage({ vm, actor, text });
-      } else {
-        deferred.push(payload);
-      }
+    if ("scheduleId" in payload) {
+      const content = [
+        `Heartbeat wake: ${payload.name}`,
+        `Schedule: ${payload.scheduleId}`,
+        `Kind: ${payload.kind}`,
+        `Purpose: ${payload.description}`,
+        `Message: ${payload.message}`,
+        `Fire count: ${payload.fireCount}`,
+        `Fired at: ${payload.firedAt}`,
+        `Payload: ${JSON.stringify(payload.payload ?? {})}`,
+      ].join("\n");
+      appendConversationUserInputMessage({ vm, actor, text: content });
       continue;
     }
-    const content = [
-      `Heartbeat wake: ${payload.name}`,
-      `Schedule: ${payload.scheduleId}`,
-      `Kind: ${payload.kind}`,
-      `Purpose: ${payload.description}`,
-      `Message: ${payload.message}`,
-      `Fire count: ${payload.fireCount}`,
-      `Fired at: ${payload.firedAt}`,
-      `Payload: ${JSON.stringify(payload.payload ?? {})}`,
-    ].join("\n");
-    appendConversationUserInputMessage({ vm, actor, text: content });
+    if (options.includeRuntimeInternalContext) {
+      const text = String(payload.text ?? "");
+      if (text) appendConversationUserInputMessage({ vm, actor, text });
+    } else {
+      deferred.push(payload);
+    }
   }
   for (const payload of deferred) {
     actor.send("heartbeat", payload);
@@ -3903,7 +4152,7 @@ function attachMessageHistory(vm: AiAgentVm): () => void {
       actorKey: actor.key,
       actorId: actor.id,
       status: "buffered",
-      stream: event.stream,
+      stream: "committed_message",
       role: typeof (event.message as any)?.role === "string" ? (event.message as any).role : undefined,
       historyGenerationCount: actorRawState?.visibleHistoryGenerations.length ?? 0,
       messageCount: actorRawState?.visibleHistoryGenerations.reduce(
@@ -3968,145 +4217,6 @@ function extractCompactionAck(compressedMessages: any[]): string | null {
   return ack || null;
 }
 
-function cloneConversationProjectionState(params: {
-  historyIndex: ConversationHistoryIndexSnapshot;
-  promptIndex: ConversationPromptIndexSnapshot;
-  sessionIndex: ConversationSessionIndexSnapshot;
-}): ConversationProjectionState {
-  return {
-    historyIndex: JSON.parse(JSON.stringify(params.historyIndex)),
-    promptIndex: JSON.parse(JSON.stringify(params.promptIndex)),
-    sessionIndex: JSON.parse(JSON.stringify(params.sessionIndex)),
-  };
-}
-
-function uniqueStrings(values: Array<string | null | undefined>): string[] {
-  const seen = new Set<string>();
-  const next: string[] = [];
-  for (const value of values) {
-    const trimmed = typeof value === "string" ? value.trim() : "";
-    if (!trimmed || seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    next.push(trimmed);
-  }
-  return next;
-}
-
-function projectConversationCompactionState(params: {
-  baseState: ConversationProjectionState;
-  sessionId: string;
-  actorKey: string;
-  actorId: string;
-  occurredAt: string;
-  previousHistoryGenerationId?: string | null;
-  historyGenerationId: string;
-  promptGenerationId: string;
-}): ConversationProjectionState {
-  const projected = cloneConversationProjectionState(params.baseState);
-  const events: ConversationDomainEvent[] = [
-    {
-      type: "actor_history_generation_created",
-      sessionId: params.sessionId,
-      actorKey: params.actorKey,
-      generationId: params.historyGenerationId,
-      occurredAt: params.occurredAt,
-    },
-    ...(params.previousHistoryGenerationId
-      ? [{
-          type: "actor_history_generation_sealed" as const,
-          sessionId: params.sessionId,
-          actorKey: params.actorKey,
-          generationId: params.previousHistoryGenerationId,
-          occurredAt: params.occurredAt,
-        }]
-      : []),
-    {
-      type: "actor_history_head_moved",
-      sessionId: params.sessionId,
-      actorKey: params.actorKey,
-      activeGenerationId: params.historyGenerationId,
-      occurredAt: params.occurredAt,
-    },
-    {
-      type: "actor_prompt_generation_created",
-      sessionId: params.sessionId,
-      actorKey: params.actorKey,
-      promptGenerationId: params.promptGenerationId,
-      occurredAt: params.occurredAt,
-    },
-    {
-      type: "actor_prompt_head_moved",
-      sessionId: params.sessionId,
-      actorKey: params.actorKey,
-      activePromptGenerationId: params.promptGenerationId,
-      occurredAt: params.occurredAt,
-    },
-    {
-      type: "local_conversation_session_head_selected",
-      sessionId: params.sessionId,
-      activeActorKey: params.actorKey,
-      occurredAt: params.occurredAt,
-    },
-  ];
-
-  for (const event of events) {
-    reduceConversationDomainEvent(projected, event);
-  }
-
-  const historyHead = projected.historyIndex.heads[params.actorKey];
-  if (historyHead) {
-    historyHead.actorId = params.actorId;
-  }
-  const promptHead = projected.promptIndex.heads[params.actorKey];
-  if (promptHead) {
-    promptHead.actorId = params.actorId;
-  }
-  const actorBinding = projected.sessionIndex.session.actorBindings[params.actorKey];
-  if (actorBinding) {
-    actorBinding.actorId = params.actorId;
-  }
-  const historyManifest = projected.historyIndex.generations[params.historyGenerationId];
-  if (historyManifest) {
-    historyManifest.actorId = params.actorId;
-  }
-  const promptManifest = projected.promptIndex.generations[params.promptGenerationId];
-  if (promptManifest) {
-    promptManifest.actorId = params.actorId;
-  }
-
-  projected.historyIndex.lineages[params.historyGenerationId] = {
-    ...projected.historyIndex.lineages[params.historyGenerationId],
-    version: projected.historyIndex.version,
-    sessionId: params.sessionId,
-    actorKey: params.actorKey,
-    actorId: params.actorId,
-    generationId: params.historyGenerationId,
-    parentGenerationId: params.previousHistoryGenerationId ?? null,
-    rolledBackFromGenerationId: null,
-    predecessorGenerationIds: uniqueStrings([params.previousHistoryGenerationId]),
-    successorGenerationIds:
-      projected.historyIndex.lineages[params.historyGenerationId]?.successorGenerationIds ?? [],
-    forkGenerationIds:
-      projected.historyIndex.lineages[params.historyGenerationId]?.forkGenerationIds ?? [],
-    branchLabel: projected.historyIndex.lineages[params.historyGenerationId]?.branchLabel ?? null,
-    updatedAt: params.occurredAt,
-  };
-
-  if (params.previousHistoryGenerationId) {
-    const previousLineage = projected.historyIndex.lineages[params.previousHistoryGenerationId];
-    if (previousLineage) {
-      previousLineage.actorId = previousLineage.actorId || params.actorId;
-      previousLineage.successorGenerationIds = uniqueStrings([
-        ...previousLineage.successorGenerationIds,
-        params.historyGenerationId,
-      ]);
-      previousLineage.updatedAt = params.occurredAt;
-    }
-  }
-
-  return projected;
-}
-
 /**
  * Per-vm in-memory fallback persistence for conversation compaction. Since
  * T4.3 the domain materialization is the ONLY provider assembly, so a
@@ -4121,6 +4231,1141 @@ function getVmFallbackConversationPersistenceFactory(vm: AiAgentVm): Conversatio
     runtimeContext.conversationCompactionFallbackPersistence = createInMemoryConversationPersistenceAdapter();
   }
   return runtimeContext.conversationCompactionFallbackPersistence as ConversationPersistenceRepositoryFactory;
+}
+
+const EMPTY_SHA256 = `sha256:${"0".repeat(64)}` as const;
+
+function persistedClosedJson(value: unknown): unknown {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function providerContextRepositoryForActor(params: {
+  vm: AiAgentVm;
+}): Readonly<{ repository: ConversationPersistenceRepository; sessionDir: string }> {
+  const metadata = (params.vm.outerCtx?.metadata ?? {}) as Record<string, unknown>;
+  const sessionDir = typeof metadata.sessionDir === "string" && metadata.sessionDir
+    ? String(metadata.sessionDir)
+    : typeof metadata.sessionId === "string" && metadata.sessionId
+      ? String(metadata.sessionId)
+      : "__unsessioned__";
+  return Object.freeze({
+    sessionDir,
+    repository: (
+      params.vm.outerCtx?.conversationPersistenceRepositoryFactory
+      ?? getVmFallbackConversationPersistenceFactory(params.vm)
+    ).createRepository(sessionDir),
+  });
+}
+
+function authorityHeadsFromRaw(
+  raw: NonNullable<ReturnType<typeof getConversationActorRawStateFromVm>>,
+  actorKey: string,
+) {
+  const binding = raw.session.actorBindings[actorKey];
+  return Object.freeze({
+    historyHeadGenerationId: raw.historyHeadGenerationId ?? "__empty_history__",
+    promptHeadGenerationId: raw.promptHeadGenerationId ?? "__empty_prompt__",
+    factHeadDigest: binding?.providerContextFactHead?.factDigest ?? null,
+  });
+}
+
+async function persistProviderContextEpochTransition(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  priorHeads: ReturnType<typeof authorityHeadsFromRaw>;
+  nextHeads: ReturnType<typeof authorityHeadsFromRaw>;
+  nextReceipt: ReturnType<typeof createProviderEpochReceiptV2>;
+  nextFactHead: NonNullable<ReturnType<typeof getConversationActorRawStateFromVm>>["session"]["actorBindings"][string]["providerContextFactHead"];
+  reason: "initial_projection" | "provider_model_profile_switch" | "history_rewind_or_fork" | "frozen_resource_revision_accepted" | "provider_surface_revision_accepted" | "legacy_context_import";
+  stagedSessionIndex?: ConversationSessionIndexSnapshot;
+  stagedPromptIndex?: ConversationPromptIndexSnapshot;
+  historyGenerations?: NonNullable<ReturnType<typeof getConversationActorRawStateFromVm>>["visibleHistoryGenerations"];
+  promptGenerations?: readonly ActorPromptGenerationData[];
+  appendedFactDigests?: readonly `sha256:${string}`[];
+  occurredAt: string;
+}): Promise<void> {
+  const raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  const binding = raw?.session.actorBindings[params.actor.key];
+  const currentReceiptDigest = binding?.providerEpochReceiptV2?.receiptDigest
+    ?? (binding?.providerEpochReceipt ? digestLegacyProviderEpochReceipt(binding.providerEpochReceipt) : null);
+  if (!raw || !binding || !currentReceiptDigest) {
+    throw new Error("provider_context_transition_predecessor_missing");
+  }
+  const { repository } = providerContextRepositoryForActor({ vm: params.vm });
+  if (!repository.commitProviderContextTransitionGeneration) {
+    throw new Error("provider_context_transition_repository_port_missing");
+  }
+  const historyIndex = structuredClone(raw.session.historyIndex);
+  const promptIndex = params.stagedPromptIndex
+    ? structuredClone(params.stagedPromptIndex)
+    : structuredClone(raw.session.promptIndex);
+  const sessionIndex = params.stagedSessionIndex
+    ? structuredClone(params.stagedSessionIndex)
+    : structuredClone(raw.session.sessionIndex);
+  historyIndex.sessionId = params.nextReceipt.sessionId;
+  promptIndex.sessionId = params.nextReceipt.sessionId;
+  sessionIndex.sessionId = params.nextReceipt.sessionId;
+  sessionIndex.session.sessionId = params.nextReceipt.sessionId;
+  // The atomic repository port resolves the transition owner from the staged
+  // active actor. Each actor therefore fences its own receipt even when a
+  // delegated child shares the parent's session repository.
+  sessionIndex.session.activeActorKey = params.actor.key;
+  if (params.nextHeads.historyHeadGenerationId !== "__empty_history__") {
+    historyIndex.heads[params.actor.key] = {
+      version: historyIndex.version,
+      sessionId: params.nextReceipt.sessionId,
+      actorKey: params.actor.key,
+      actorId: params.actor.id,
+      activeGenerationId: params.nextHeads.historyHeadGenerationId,
+      visibleGenerationIds: raw.visibleGenerationIds,
+      updatedAt: params.occurredAt,
+    };
+  }
+  if (params.nextHeads.promptHeadGenerationId !== "__empty_prompt__") {
+    promptIndex.heads[params.actor.key] = {
+      version: promptIndex.version,
+      sessionId: params.nextReceipt.sessionId,
+      actorKey: params.actor.key,
+      actorId: params.actor.id,
+      activePromptGenerationId: params.nextHeads.promptHeadGenerationId,
+      updatedAt: params.occurredAt,
+    };
+  }
+  const priorBinding = sessionIndex.session.actorBindings[params.actor.key] ?? binding;
+  sessionIndex.session.actorBindings[params.actor.key] = {
+    ...priorBinding,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    contextEpoch: params.nextReceipt.epoch,
+    historyHeadGenerationId: params.nextHeads.historyHeadGenerationId,
+    promptHeadGenerationId: params.nextHeads.promptHeadGenerationId,
+    providerEpochReceiptV2: params.nextReceipt,
+    providerRequestAdmissions: [],
+    providerContextFactHead: params.nextFactHead ?? null,
+    ...(!binding.providerEpochReceiptV2 && binding.providerEpochReceipt ? { providerEpochReceipt: undefined } : {}),
+  };
+  const historyGenerations = params.historyGenerations ?? raw.visibleHistoryGenerations;
+  const promptGenerations = params.promptGenerations
+    ?? (raw.promptGeneration ? [raw.promptGeneration] : []);
+  if (params.nextHeads.historyHeadGenerationId !== "__empty_history__"
+    && !historyGenerations.some((generation) => (
+      generation.generationId === params.nextHeads.historyHeadGenerationId
+    ))) {
+    throw new Error("provider_context_transition_generation_history_missing");
+  }
+  if (params.nextHeads.promptHeadGenerationId !== "__empty_prompt__"
+    && !promptGenerations.some((generation) => (
+      generation.promptGenerationId === params.nextHeads.promptHeadGenerationId
+    ))) {
+    throw new Error("provider_context_transition_generation_prompt_missing");
+  }
+  const generationFacts = Object.freeze({
+    schemaVersion: "conversation.provider-context-transition-generation/v1" as const,
+    expectedEpochReceiptDigest: currentReceiptDigest,
+    nextEpochReceiptDigest: params.nextReceipt.receiptDigest,
+    historyIndex,
+    promptIndex,
+    sessionIndex,
+    artifactRefs: await repository.loadArtifactRefs(),
+    historyGenerations: Object.freeze([...historyGenerations]),
+    promptGenerations: Object.freeze([...promptGenerations]),
+    createdAt: params.occurredAt,
+  });
+  const closedGenerationFacts = persistedClosedJson(generationFacts) as Omit<
+    ConversationProviderContextTransitionGeneration,
+    "transitionId"
+  >;
+  const generation: ConversationProviderContextTransitionGeneration = Object.freeze({
+    ...closedGenerationFacts,
+    transitionId: digestConversationProviderContextTransitionGeneration(closedGenerationFacts),
+  });
+  await repository.commitProviderContextTransitionGeneration(generation);
+  commitProviderContextTransition(ensureVmConversationDomainRuntime(params.vm), {
+    schemaVersion: "provider.context-transition-command/v1",
+    sessionId: params.nextReceipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    expectedConversationRevision: binding.providerContextFactHead?.conversationRevision ?? 0,
+    expectedEpochReceiptDigest: currentReceiptDigest,
+    expectedLatestAdmissionDigest: binding.providerRequestAdmissions?.at(-1)?.admissionDigest ?? null,
+    priorHeads: params.priorHeads,
+    nextHeads: params.nextHeads,
+    reason: params.reason,
+    nextReceipt: params.nextReceipt,
+    nextFactHead: params.nextFactHead ?? null,
+    retainedFactDigests: [],
+    appendedFactDigests: Object.freeze([...(params.appendedFactDigests ?? [])]),
+    deliveryConfirmationDigests: [],
+    compactionProof: null,
+    generation,
+    occurredAt: params.occurredAt,
+  }, {});
+}
+
+async function persistCurrentProviderContextReceiptBeforeTransport(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): Promise<void> {
+  const raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  const binding = raw?.session.actorBindings[params.actor.key];
+  const receipt = binding?.providerEpochReceiptV2;
+  if (!raw || !binding || !receipt) return;
+  const { repository } = providerContextRepositoryForActor({ vm: params.vm });
+  if (!repository.commitProviderContextTransitionGeneration) {
+    throw new Error("provider_context_transition_repository_port_missing");
+  }
+  const persistedSession = await repository.loadSessionIndex();
+  const persistedBinding = persistedSession.session.actorBindings[params.actor.key];
+  const persistedDigest = persistedBinding?.providerEpochReceiptV2?.receiptDigest
+    ?? (persistedBinding?.providerEpochReceipt
+      ? digestLegacyProviderEpochReceipt(persistedBinding.providerEpochReceipt)
+      : null);
+  if (persistedDigest === receipt.receiptDigest) return;
+  if (persistedDigest !== receipt.previousReceiptDigest) {
+    throw new Error("provider_context_transition_unpersisted_predecessor_conflict");
+  }
+  const heads = authorityHeadsFromRaw(raw, params.actor.key);
+  const historyIndex = structuredClone(raw.session.historyIndex);
+  const promptIndex = structuredClone(raw.session.promptIndex);
+  const sessionIndex = structuredClone(raw.session.sessionIndex);
+  historyIndex.sessionId = receipt.sessionId;
+  promptIndex.sessionId = receipt.sessionId;
+  sessionIndex.sessionId = receipt.sessionId;
+  sessionIndex.session.sessionId = receipt.sessionId;
+  sessionIndex.session.activeActorKey = params.actor.key;
+  if (heads.historyHeadGenerationId !== "__empty_history__") {
+    historyIndex.heads[params.actor.key] = {
+      version: historyIndex.version,
+      sessionId: receipt.sessionId,
+      actorKey: params.actor.key,
+      actorId: params.actor.id,
+      activeGenerationId: heads.historyHeadGenerationId,
+      visibleGenerationIds: raw.visibleGenerationIds,
+      updatedAt: receipt.createdAt,
+    };
+  }
+  if (heads.promptHeadGenerationId !== "__empty_prompt__") {
+    promptIndex.heads[params.actor.key] = {
+      version: promptIndex.version,
+      sessionId: receipt.sessionId,
+      actorKey: params.actor.key,
+      actorId: params.actor.id,
+      activePromptGenerationId: heads.promptHeadGenerationId,
+      updatedAt: receipt.createdAt,
+    };
+  }
+  sessionIndex.session.actorBindings[params.actor.key] = {
+    ...binding,
+    providerEpochReceiptV2: receipt,
+  };
+  const generationFacts = Object.freeze({
+    schemaVersion: "conversation.provider-context-transition-generation/v1" as const,
+    expectedEpochReceiptDigest: persistedDigest,
+    nextEpochReceiptDigest: receipt.receiptDigest,
+    historyIndex,
+    promptIndex,
+    sessionIndex,
+    artifactRefs: await repository.loadArtifactRefs(),
+    historyGenerations: raw.activeHistoryGeneration ? [raw.activeHistoryGeneration] : [],
+    promptGenerations: raw.promptGeneration ? [raw.promptGeneration] : [],
+    createdAt: receipt.createdAt,
+  });
+  const closed = persistedClosedJson(generationFacts) as Omit<
+    ConversationProviderContextTransitionGeneration,
+    "transitionId"
+  >;
+  await repository.commitProviderContextTransitionGeneration(Object.freeze({
+    ...closed,
+    transitionId: digestConversationProviderContextTransitionGeneration(closed),
+  }));
+}
+
+function exactLegacyLateStatusText(transform: ActorPromptGenerationData["transforms"][number]): string | null {
+  if (transform.kind !== "overlay") return null;
+  const payload = transform.payload ?? {};
+  const isWorkContext = payload.overlayKind === "work_context";
+  const isLateStatus = payload.insertPlacement === "late_status";
+  if (!isWorkContext && !isLateStatus) return null;
+  const transformKeys = Object.keys(transform).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+  if (transformKeys.join("\0") !== ["appliedAt", "kind", "payload", "transformId"].join("\0")) {
+    throw new Error("provider_context_legacy_overlay_shape_ambiguous");
+  }
+  const expectedPayloadKeys = ["content", "insertPlacement", "overlayKind", "promptPlanVersion"];
+  const payloadKeys = Object.keys(payload).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+  if (!isWorkContext || !isLateStatus || payload.promptPlanVersion !== 1
+    || payloadKeys.length !== expectedPayloadKeys.length
+    || payloadKeys.some((key, index) => key !== expectedPayloadKeys[index])) {
+    throw new Error("provider_context_legacy_overlay_shape_ambiguous");
+  }
+  if (typeof payload.content !== "string" || !payload.content.trim()) {
+    throw new Error("provider_context_legacy_overlay_shape_ambiguous");
+  }
+  return payload.content;
+}
+
+export function readExactLegacyProviderContextOverlayTexts(
+  transforms: ActorPromptGenerationData["transforms"],
+): readonly string[] {
+  const legacyTexts = transforms.flatMap((transform) => {
+    const text = exactLegacyLateStatusText(transform);
+    return text === null ? [] : [text];
+  });
+  if (legacyTexts.length > 1) {
+    throw new Error("provider_context_legacy_overlay_ambiguous");
+  }
+  return Object.freeze(legacyTexts);
+}
+
+async function importLegacyProviderContextBeforeTransport(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): Promise<boolean> {
+  const raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  const binding = raw?.session.actorBindings[params.actor.key];
+  const legacyReceipt = binding?.providerEpochReceipt;
+  if (!raw || !binding) return false;
+  if (binding.providerEpochReceiptV2 && legacyReceipt) {
+    throw new Error("provider_context_dual_authority_forbidden");
+  }
+  if (binding.providerEpochReceiptV2 || !legacyReceipt) return false;
+  const prompt = raw.promptGeneration;
+  const legacyTexts = readExactLegacyProviderContextOverlayTexts(prompt?.transforms ?? []);
+  if (legacyReceipt.reason !== "recovery_rebuild"
+    && legacyReceipt.reason !== "initial_projection"
+    && legacyReceipt.reason !== "model_control") {
+    throw new Error("provider_context_legacy_reason_requires_explicit_import_policy");
+  }
+  const recoveryWithOneOverlay = legacyReceipt.reason === "recovery_rebuild" && legacyTexts.length === 1;
+  const pristineWithoutOverlay = legacyReceipt.reason !== "recovery_rebuild"
+    && legacyTexts.length === 0
+    && (prompt?.transforms.length ?? 0) === 0;
+  if ((!recoveryWithOneOverlay && !pristineWithoutOverlay)
+    || binding.providerContextFactHead
+    || (binding.providerRequestAdmissions?.length ?? 0) !== 0) {
+    throw new Error("provider_context_legacy_late_status_import_required");
+  }
+  const occurredAt = new Date().toISOString();
+  const previousReceiptDigest = digestLegacyProviderEpochReceipt(legacyReceipt);
+  const historyMessages = raw.activeHistoryGeneration?.messages ?? [];
+  const priorHead = binding.providerContextFactHead ?? null;
+  const priorFacts = (raw.session.contextAssets ?? []).flatMap((asset) => (
+    asset.providerContextFact?.actorKey === params.actor.key ? [asset.providerContextFact] : []
+  ));
+  const lastWorkFact = priorFacts
+    .filter((fact) => fact.namespace === "work-context")
+    .sort((left, right) => left.namespaceRevision - right.namespaceRevision)
+    .at(-1) ?? null;
+  const fact = legacyTexts.length === 1 ? createActorProviderContextFact({
+    sessionId: legacyReceipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    epoch: legacyReceipt.epoch + 1,
+    namespace: "work-context",
+    namespaceRevision: (lastWorkFact?.namespaceRevision ?? 0) + 1,
+    sequence: 1,
+    previousFactDigest: lastWorkFact?.factDigest ?? null,
+    previousSequenceFactDigest: null,
+    anchor: {
+      historyGenerationId: raw.activeHistoryGeneration?.generationId ?? "__empty_history__",
+      messageCount: historyMessages.length,
+      frontierDigest: digestProviderContextHistoryFrontier(historyMessages),
+    },
+    sourceDeliveryProofs: [],
+    payload: {
+      logicalKey: "legacy-late-status",
+      legacyOverlays: legacyTexts,
+    },
+    observedAt: occurredAt,
+  }) : null;
+  const nextFactHead = fact ? Object.freeze({
+    schemaVersion: "eidolon.actor-provider-context-fact-head/v1" as const,
+    sessionId: legacyReceipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    epoch: legacyReceipt.epoch + 1,
+    sequence: fact.sequence,
+    factDigest: fact.factDigest,
+    conversationRevision: 1,
+  }) : null;
+  if (!prompt) throw new Error("provider_context_legacy_prompt_generation_missing");
+  const cleanedPromptId = `${prompt.promptGenerationId}__legacy-import-${previousReceiptDigest.slice(7, 19)}`;
+  const cleanedPrompt: ActorPromptGenerationData = {
+    ...structuredClone(prompt),
+    promptGenerationId: cleanedPromptId,
+    basedOnPromptGenerationId: prompt.promptGenerationId,
+    basis: {
+      ...structuredClone(prompt.basis),
+      basisRefs: retainStableProviderPromptBasisRefs(prompt.basis.basisRefs),
+    },
+    transforms: prompt.transforms.filter((transform) => exactLegacyLateStatusText(transform) === null),
+    createdReason: "restore",
+    createdAt: occurredAt,
+    sealedAt: occurredAt,
+    updatedAt: occurredAt,
+  };
+  const stagedSessionIndex = structuredClone(raw.session.sessionIndex);
+  const nextAssets = fact ? [
+    ...(stagedSessionIndex.session.contextAssets ?? []), {
+      assetId: `provider-context-fact:${fact.factDigest.slice(7)}`,
+      kind: "note" as const,
+      label: `${fact.namespace}@${fact.namespaceRevision}`,
+      source: { kind: "note" as const, ownerId: params.actor.key },
+      providerContextFact: fact,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+    },
+  ] : [...(stagedSessionIndex.session.contextAssets ?? [])];
+  stagedSessionIndex.session.contextAssets = nextAssets;
+  stagedSessionIndex.session.contextAssetRegistry = {
+    version: stagedSessionIndex.version,
+    assetIds: nextAssets.map((asset) => asset.assetId),
+    updatedAt: occurredAt,
+  };
+  const promptIndex = structuredClone(raw.session.promptIndex);
+  promptIndex.generations[cleanedPromptId] = {
+    promptGenerationId: cleanedPromptId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    sealed: true,
+    createdAt: occurredAt,
+    updatedAt: occurredAt,
+  };
+  promptIndex.heads[params.actor.key] = {
+    version: promptIndex.version,
+    sessionId: legacyReceipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    activePromptGenerationId: cleanedPromptId,
+    updatedAt: occurredAt,
+  };
+  const targetProfileId = params.actor.modelConfig.adapter
+    ? resolveProviderEpochProfileId(
+        params.actor.modelConfig,
+        (params.actor.llmClient as any)?.runtime?.chatCompatibilityProfileId,
+      )
+    : legacyReceipt.targetProfileId;
+  const nextHeads = Object.freeze({
+    historyHeadGenerationId: raw.historyHeadGenerationId ?? "__empty_history__",
+    promptHeadGenerationId: cleanedPromptId,
+    factHeadDigest: fact?.factDigest ?? null,
+  });
+  const mappedReason = legacyReceipt.reason === "initial_projection"
+    ? "initial_projection" as const
+    : legacyReceipt.reason === "model_control"
+      ? "provider_model_profile_switch" as const
+      : "legacy_context_import" as const;
+  const nextReceipt = createProviderEpochReceiptV2({
+    sessionId: legacyReceipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    epoch: legacyReceipt.epoch + 1,
+    previousReceiptDigest,
+    targetProviderId: String(params.actor.modelConfig.provider ?? legacyReceipt.targetProviderId),
+    targetModelId: String(params.actor.modelConfig.model ?? "__unspecified_model__"),
+    targetProfileId,
+    baselineHeads: nextHeads,
+    sourceHistoryMessageCount: historyMessages.length,
+    sourceFrontierDigest: digestProviderContextHistoryFrontier(historyMessages),
+    pendingDeliveryDigest: digestProviderContextClosedValue([]),
+    handoffDigest: digestProviderContextClosedValue({ cleanedPromptId, factDigest: fact?.factDigest ?? null }),
+    frozenResourceDigest: digestProviderContextClosedValue(params.actor.durableMaterials ?? {}),
+    providerSurfaceDigest: digestProviderContextClosedValue(params.actor.toolPolicy.providerToolSurface ?? {
+      mode: params.actor.toolPolicy.allowedToolsMode,
+      toolNames: params.actor.toolPolicy.allowedTools,
+    }),
+    retentionPolicy: { maxRevisionsPerNamespace: 32, maxCanonicalFactBytesPerEpoch: 65_536 },
+    reason: mappedReason,
+    compactionProofDigest: null,
+    createdAt: occurredAt,
+  });
+  const imported = importLegacyProviderContextAuthority({
+    runtime: new Map(),
+    sourceTreeDigest: digestProviderContextClosedValue({
+      legacyReceipt,
+      promptGenerationId: prompt.promptGenerationId,
+      legacyTexts,
+    }),
+    legacyReceipt,
+    projectedFactDigest: fact?.factDigest ?? digestProviderContextClosedValue(null),
+    targetReceipt: nextReceipt,
+  });
+  stagedSessionIndex.session.actorBindings[params.actor.key] = {
+    ...binding,
+    providerEpochReceipt: undefined,
+    providerEpochReceiptV2: nextReceipt,
+    providerContextLegacyMigrationMarker: imported.marker,
+    providerRequestAdmissions: [],
+    providerContextFactHead: nextFactHead,
+    contextEpoch: nextReceipt.epoch,
+    promptHeadGenerationId: cleanedPromptId,
+  };
+  const priorHeads = authorityHeadsFromRaw(raw, params.actor.key);
+  await persistProviderContextEpochTransition({
+    vm: params.vm,
+    actor: params.actor,
+    priorHeads,
+    nextHeads,
+    nextReceipt,
+    nextFactHead,
+    reason: mappedReason,
+    stagedSessionIndex,
+    stagedPromptIndex: promptIndex,
+    historyGenerations: raw.activeHistoryGeneration ? [raw.activeHistoryGeneration] : [],
+    promptGenerations: [cleanedPrompt],
+    appendedFactDigests: fact ? [fact.factDigest] : [],
+    occurredAt,
+  });
+  return true;
+}
+
+export async function ensureActorProviderContextEpochBeforeTransport(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): Promise<void> {
+  await importLegacyProviderContextBeforeTransport(params);
+  let raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  let binding = raw?.session.actorBindings[params.actor.key];
+  if (binding?.providerEpochReceipt && binding.providerEpochReceiptV2) {
+    throw new Error("provider_context_dual_authority_forbidden");
+  }
+  if (binding?.providerEpochReceipt && !binding.providerEpochReceiptV2) {
+    throw new Error("provider_context_legacy_import_required");
+  }
+  if (!binding?.providerEpochReceiptV2) {
+    const adapterRuntime = (params.actor.llmClient as any)?.runtime ?? {};
+    const activationModelConfig = {
+      ...params.actor.modelConfig,
+      adapter: params.actor.modelConfig.adapter ?? adapterRuntime.adapterName ?? (params.actor.llmClient as any)?.type,
+      provider: params.actor.modelConfig.provider ?? adapterRuntime.providerId ?? (params.actor.llmClient as any)?.type,
+    };
+    const runtimeProfile = adapterRuntime.chatCompatibilityProfileId
+      ?? (!adapterRuntime.adapterName && activationModelConfig.adapter === "deepseek"
+        ? "deepseek-official-chat@1"
+        : undefined);
+    activateActorProviderEpoch({
+      vm: params.vm,
+      actor: params.actor,
+      sessionId: raw?.session.sessionId ?? resolveConversationSessionId(params.vm),
+      targetProviderId: String(activationModelConfig.provider ?? "__unspecified_provider__"),
+      targetProfileId: resolveProviderEpochProfileId(
+        activationModelConfig,
+        runtimeProfile,
+      ),
+      reason: "initial_projection",
+    });
+  }
+  // Terminal/model-control hosts may already have executed the pure
+  // Conversation Processor before entering the generic Executor. Fence that
+  // exact receipt into the injected repository before deriving further
+  // changes or constructing provider bytes.
+  await persistCurrentProviderContextReceiptBeforeTransport(params);
+  raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  binding = raw?.session.actorBindings[params.actor.key];
+  let current = binding?.providerEpochReceiptV2;
+  if (raw && binding && current) {
+    try {
+      validateActorProviderContextEpoch({ vm: params.vm, actor: params.actor });
+    } catch (error) {
+      if (!(error instanceof Error) || !error.message.startsWith("provider_context_epoch_transition_required:")) {
+        throw error;
+      }
+      const occurredAt = new Date().toISOString();
+      const priorHeads = binding.providerRequestAdmissions?.at(-1)?.currentHeads ?? current.baselineHeads;
+      const nextHeads = Object.freeze({
+        historyHeadGenerationId: raw.historyHeadGenerationId ?? "__empty_history__",
+        promptHeadGenerationId: raw.promptHeadGenerationId ?? "__empty_prompt__",
+        factHeadDigest: null,
+      });
+      const nextReceipt = createProviderEpochReceiptV2({
+        ...current,
+        epoch: current.epoch + 1,
+        previousReceiptDigest: current.receiptDigest,
+        baselineHeads: nextHeads,
+        sourceHistoryMessageCount: raw.activeHistoryGeneration?.messages.length ?? 0,
+        sourceFrontierDigest: digestProviderContextHistoryFrontier(raw.activeHistoryGeneration?.messages ?? []),
+        pendingDeliveryDigest: digestProviderContextClosedValue([]),
+        handoffDigest: digestProviderContextClosedValue({
+          historyHeadGenerationId: nextHeads.historyHeadGenerationId,
+          promptHeadGenerationId: nextHeads.promptHeadGenerationId,
+          reason: "history_rewind_or_fork",
+        }),
+        reason: "history_rewind_or_fork",
+        compactionProofDigest: null,
+        createdAt: occurredAt,
+      });
+      const stagedSessionIndex = structuredClone(raw.session.sessionIndex);
+      const nextAssets = (stagedSessionIndex.session.contextAssets ?? []).filter((asset) => (
+        asset.providerContextFact?.actorKey !== params.actor.key
+      ));
+      stagedSessionIndex.session.contextAssets = nextAssets;
+      stagedSessionIndex.session.contextAssetRegistry = {
+        version: stagedSessionIndex.version,
+        assetIds: nextAssets.map((asset) => asset.assetId),
+        updatedAt: occurredAt,
+      };
+      await persistProviderContextEpochTransition({
+        vm: params.vm,
+        actor: params.actor,
+        priorHeads,
+        nextHeads,
+        nextReceipt,
+        nextFactHead: null,
+        reason: "history_rewind_or_fork",
+        stagedSessionIndex,
+        historyGenerations: raw.activeHistoryGeneration ? [raw.activeHistoryGeneration] : [],
+        promptGenerations: raw.promptGeneration ? [raw.promptGeneration] : [],
+        occurredAt,
+      });
+    }
+  }
+  const transition = async (
+    reason: "provider_model_profile_switch" | "frozen_resource_revision_accepted" | "provider_surface_revision_accepted",
+    update: Readonly<Record<string, unknown>>,
+  ) => {
+    const raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+    const binding = raw?.session.actorBindings[params.actor.key];
+    const current = binding?.providerEpochReceiptV2;
+    if (!raw || !binding || !current) return;
+    const heads = authorityHeadsFromRaw(raw, params.actor.key);
+    const successorHeads = Object.freeze({ ...heads, factHeadDigest: null });
+    const occurredAt = new Date().toISOString();
+    const nextReceipt = createProviderEpochReceiptV2({
+      ...current,
+      ...update,
+      epoch: current.epoch + 1,
+      previousReceiptDigest: current.receiptDigest,
+      baselineHeads: successorHeads,
+      sourceHistoryMessageCount: raw.activeHistoryGeneration?.messages.length ?? 0,
+      sourceFrontierDigest: digestProviderContextHistoryFrontier(
+        raw.activeHistoryGeneration?.messages ?? [],
+      ),
+      reason,
+      compactionProofDigest: null,
+      createdAt: occurredAt,
+    });
+    await persistProviderContextEpochTransition({
+      vm: params.vm,
+      actor: params.actor,
+      priorHeads: heads,
+      nextHeads: successorHeads,
+      nextReceipt,
+      nextFactHead: null,
+      reason,
+      occurredAt,
+    });
+  };
+  raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  current = raw?.session.actorBindings[params.actor.key]?.providerEpochReceiptV2;
+  if (!raw || !current) return;
+  const targetProviderId = String(params.actor.modelConfig.provider ?? current.targetProviderId);
+  const targetModelId = String(params.actor.modelConfig.model ?? current.targetModelId);
+  const targetProfileId = params.actor.modelConfig.adapter
+    ? resolveProviderEpochProfileId(
+        params.actor.modelConfig,
+        (params.actor.llmClient as any)?.runtime?.chatCompatibilityProfileId,
+      )
+    : current.targetProfileId;
+  if (current.targetProviderId !== targetProviderId
+    || current.targetModelId !== targetModelId
+    || current.targetProfileId !== targetProfileId) {
+    await transition("provider_model_profile_switch", { targetProviderId, targetModelId, targetProfileId });
+  }
+  raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  current = raw?.session.actorBindings[params.actor.key]?.providerEpochReceiptV2;
+  if (!current) return;
+  const frozenResourceDigest = digestProviderContextClosedValue(params.actor.durableMaterials ?? {});
+  if (current.frozenResourceDigest !== frozenResourceDigest) {
+    await transition("frozen_resource_revision_accepted", { frozenResourceDigest });
+  }
+  raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  current = raw?.session.actorBindings[params.actor.key]?.providerEpochReceiptV2;
+  if (!current) return;
+  const providerSurfaceDigest = digestProviderContextClosedValue(params.actor.toolPolicy.providerToolSurface ?? {
+    mode: params.actor.toolPolicy.allowedToolsMode,
+    toolNames: params.actor.toolPolicy.allowedTools,
+  });
+  if (current.providerSurfaceDigest !== providerSurfaceDigest) {
+    await transition("provider_surface_revision_accepted", { providerSurfaceDigest });
+  }
+  validateActorProviderContextEpoch({ vm: params.vm, actor: params.actor });
+}
+
+async function commitV2ConversationCompaction(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  repository: ConversationPersistenceRepository;
+  occurredAt: string;
+  compaction: Awaited<ReturnType<typeof applyConversationCompaction>>;
+}): Promise<void> {
+  const runtime = ensureVmConversationDomainRuntime(params.vm);
+  const raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  const priorBinding = raw?.session.actorBindings[params.actor.key];
+  const currentReceipt = priorBinding?.providerEpochReceiptV2;
+  if (!raw || !priorBinding || !currentReceipt) {
+    throw new Error("provider_context_compaction_predecessor_missing");
+  }
+  if (!params.repository.commitProviderContextTransitionGeneration) {
+    throw new Error("provider_context_transition_repository_port_missing");
+  }
+  const sourceFacts = (raw.session.contextAssets ?? [])
+    .map((asset) => asset.providerContextFact)
+    .filter((fact): fact is ActorProviderContextFact => Boolean(
+      fact && fact.actorKey === params.actor.key && fact.epoch === currentReceipt.epoch,
+    ))
+    .sort((left, right) => left.sequence - right.sequence);
+  const latestByNamespace = new Map<ActorProviderContextFactNamespace, ActorProviderContextFact>();
+  for (const fact of sourceFacts) latestByNamespace.set(fact.namespace, fact);
+  const retainedSources = [...latestByNamespace.values()].sort((left, right) => (
+    left.namespace < right.namespace ? -1 : left.namespace > right.namespace ? 1 : 0
+  ));
+  type RetainedProviderFact = Readonly<{
+    source: ActorProviderContextFact
+    delivery: Readonly<{
+      callRecordDigest: Sha256Digest
+      resultRecordDigest: Sha256Digest
+      requestAdmissionIntentDigest: Sha256Digest
+      requestAdmissionDigest: Sha256Digest
+    }>
+  }>
+  const provenance = retainedSources.flatMap<RetainedProviderFact>((source) => {
+    if (source.sourceDeliveryProofs.length === 0 && source.namespace === "work-context") {
+      return [];
+    }
+    if (source.sourceDeliveryProofs.length !== 1) {
+      throw new Error("provider_context_compaction_delivery_provenance_not_exact");
+    }
+    const proof = source.sourceDeliveryProofs[0]!;
+    if (proof.kind === "compacted-delivery-proof") {
+      if (proof.proofDigest !== currentReceipt.compactionProofDigest) {
+        throw new Error("provider_context_compaction_delivery_provenance_not_exact");
+      }
+      return [{ source, delivery: proof }];
+    }
+    const admission = priorBinding.providerRequestAdmissions?.find((candidate) => (
+      candidate.factAppendIntentDigest === proof.requestAdmissionIntentDigest
+      && candidate.admittedFactRange?.factDigests.includes(source.factDigest)
+    ));
+    if (!admission) throw new Error("provider_context_compaction_delivery_admission_missing");
+    return [{ source, delivery: { ...proof, requestAdmissionDigest: admission.admissionDigest } }];
+  });
+  const proofDraft = createProviderContextCompactionProof({
+    sessionId: currentReceipt.sessionId,
+    actorKey: params.actor.key,
+    sourceEpoch: currentReceipt.epoch,
+    successorEpoch: currentReceipt.epoch + 1,
+    retained: provenance.map(({ source, delivery }) => ({
+      namespace: source.namespace,
+      sourceFactDigest: source.factDigest,
+      namespaceRevision: source.namespaceRevision,
+      payloadDigest: source.payloadDigest,
+      callRecordDigest: delivery.callRecordDigest,
+      resultRecordDigest: delivery.resultRecordDigest,
+      requestAdmissionIntentDigest: delivery.requestAdmissionIntentDigest,
+      requestAdmissionDigest: delivery.requestAdmissionDigest,
+      successorFactDigest: EMPTY_SHA256,
+    })),
+    createdAt: params.occurredAt,
+  });
+  const nextHistoryGeneration = params.compaction.historyGenerations.find(
+    (entry) => entry.generationId === params.compaction.historyGenerationId,
+  );
+  if (!nextHistoryGeneration) throw new Error("provider_context_compaction_history_generation_missing");
+  const successorFacts: ActorProviderContextFact[] = [];
+  let sequencePredecessor: ActorProviderContextFact | null = null;
+  for (const { source, delivery } of provenance) {
+    const successor = createActorProviderContextFact({
+      sessionId: currentReceipt.sessionId,
+      actorKey: params.actor.key,
+      actorId: params.actor.id,
+      epoch: currentReceipt.epoch + 1,
+      namespace: source.namespace,
+      namespaceRevision: source.namespaceRevision,
+      sequence: successorFacts.length + 1,
+      previousFactDigest: source.factDigest,
+      previousSequenceFactDigest: sequencePredecessor?.factDigest ?? null,
+      anchor: {
+        historyGenerationId: params.compaction.historyGenerationId,
+        messageCount: nextHistoryGeneration.messages.length,
+        frontierDigest: digestProviderContextHistoryFrontier(nextHistoryGeneration.messages),
+      },
+      sourceDeliveryProofs: [{
+        kind: "compacted-delivery-proof",
+        proofDigest: proofDraft.proofDigest,
+        sourceFactDigest: source.factDigest,
+        callRecordDigest: delivery.callRecordDigest,
+        resultRecordDigest: delivery.resultRecordDigest,
+        requestAdmissionIntentDigest: delivery.requestAdmissionIntentDigest,
+        requestAdmissionDigest: delivery.requestAdmissionDigest,
+      }],
+      payload: { ...source.payload },
+      observedAt: params.occurredAt,
+    });
+    successorFacts.push(successor);
+    sequencePredecessor = successor;
+  }
+  const compactionProof = createProviderContextCompactionProof({
+    sessionId: currentReceipt.sessionId,
+    actorKey: params.actor.key,
+    sourceEpoch: currentReceipt.epoch,
+    successorEpoch: currentReceipt.epoch + 1,
+    retained: provenance.map(({ source, delivery }, index) => ({
+      namespace: source.namespace,
+      sourceFactDigest: source.factDigest,
+      namespaceRevision: source.namespaceRevision,
+      payloadDigest: source.payloadDigest,
+      callRecordDigest: delivery.callRecordDigest,
+      resultRecordDigest: delivery.resultRecordDigest,
+      requestAdmissionIntentDigest: delivery.requestAdmissionIntentDigest,
+      requestAdmissionDigest: delivery.requestAdmissionDigest,
+      successorFactDigest: successorFacts[index]!.factDigest,
+    })),
+    createdAt: params.occurredAt,
+  });
+  if (compactionProof.proofDigest !== proofDraft.proofDigest) {
+    throw new Error("provider_context_compaction_proof_digest_unstable");
+  }
+  const successorAssets: LocalConversationContextAssetData[] = successorFacts.map((fact) => ({
+    assetId: `provider-context-fact:${fact.factDigest.slice("sha256:".length)}`,
+    kind: "note",
+    label: `${fact.namespace}@${fact.namespaceRevision}`,
+    source: { kind: "note", ownerId: params.actor.key },
+    providerContextFact: fact,
+    createdAt: params.occurredAt,
+    updatedAt: params.occurredAt,
+  }));
+  const retainedAssets = (raw.session.contextAssets ?? []).filter((asset) => (
+    !asset.providerContextFact || asset.providerContextFact.actorKey !== params.actor.key
+  ));
+  const nextAssets = [...retainedAssets, ...successorAssets];
+  const nextFact = successorFacts.at(-1) ?? null;
+  const nextFactHead = nextFact ? Object.freeze({
+    schemaVersion: "eidolon.actor-provider-context-fact-head/v1" as const,
+    sessionId: currentReceipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    epoch: currentReceipt.epoch + 1,
+    sequence: nextFact.sequence,
+    factDigest: nextFact.factDigest,
+    conversationRevision: (priorBinding.providerContextFactHead?.conversationRevision ?? 0) + 1,
+  }) : null;
+  const priorHeads = Object.freeze({
+    historyHeadGenerationId: nextHistoryGeneration.parentGenerationId
+      ?? raw.historyHeadGenerationId
+      ?? "__empty_history__",
+    promptHeadGenerationId: raw.promptHeadGenerationId ?? "__empty_prompt__",
+    factHeadDigest: priorBinding.providerContextFactHead?.factDigest ?? null,
+  });
+  const nextHeads = Object.freeze({
+    historyHeadGenerationId: params.compaction.historyGenerationId,
+    promptHeadGenerationId: params.compaction.promptGenerationId,
+    factHeadDigest: nextFactHead?.factDigest ?? null,
+  });
+  const nextReceipt = createProviderEpochReceiptV2({
+    ...currentReceipt,
+    epoch: currentReceipt.epoch + 1,
+    previousReceiptDigest: currentReceipt.receiptDigest,
+    baselineHeads: nextHeads,
+    sourceHistoryMessageCount: nextHistoryGeneration.messages.length,
+    sourceFrontierDigest: digestProviderContextHistoryFrontier(nextHistoryGeneration.messages),
+    pendingDeliveryDigest: digestProviderContextClosedValue([]),
+    handoffDigest: digestProviderContextClosedValue({
+      historyGenerationId: params.compaction.historyGenerationId,
+      promptGenerationId: params.compaction.promptGenerationId,
+      retainedFactDigests: successorFacts.map((fact) => fact.factDigest),
+    }),
+    reason: "history_compaction",
+    compactionProofDigest: compactionProof.proofDigest,
+    createdAt: params.occurredAt,
+  });
+  const nextBinding = {
+    ...priorBinding,
+    historyHeadGenerationId: params.compaction.historyGenerationId,
+    promptHeadGenerationId: params.compaction.promptGenerationId,
+    contextEpoch: nextReceipt.epoch,
+    providerEpochReceiptV2: nextReceipt,
+    providerRequestAdmissions: Object.freeze([]),
+    providerContextFactHead: nextFactHead,
+  };
+  params.compaction.historyIndex.sessionId = currentReceipt.sessionId;
+  params.compaction.promptIndex.sessionId = currentReceipt.sessionId;
+  params.compaction.sessionIndex.sessionId = currentReceipt.sessionId;
+  params.compaction.sessionIndex.session.actorBindings[params.actor.key] = nextBinding;
+  params.compaction.sessionIndex.session.contextAssets = nextAssets;
+  params.compaction.sessionIndex.session.contextAssetRegistry = {
+    version: params.compaction.sessionIndex.version,
+    assetIds: nextAssets.map((asset) => asset.assetId),
+    updatedAt: params.occurredAt,
+  };
+  const generationFacts = Object.freeze({
+    schemaVersion: "conversation.provider-context-transition-generation/v1",
+    expectedEpochReceiptDigest: currentReceipt.receiptDigest,
+    nextEpochReceiptDigest: nextReceipt.receiptDigest,
+    historyIndex: params.compaction.historyIndex,
+    promptIndex: params.compaction.promptIndex,
+    sessionIndex: params.compaction.sessionIndex,
+    artifactRefs: params.compaction.artifactRefs,
+    historyGenerations: params.compaction.historyGenerations,
+    promptGenerations: params.compaction.promptGenerations,
+    createdAt: params.occurredAt,
+  });
+  const closedGenerationFacts = persistedClosedJson(generationFacts) as Omit<
+    ConversationProviderContextTransitionGeneration,
+    "transitionId"
+  >;
+  const generation: ConversationProviderContextTransitionGeneration = Object.freeze({
+    ...closedGenerationFacts,
+    transitionId: digestConversationProviderContextTransitionGeneration(closedGenerationFacts),
+  });
+  await params.repository.commitProviderContextTransitionGeneration(generation);
+  commitProviderContextTransition(runtime, {
+    schemaVersion: "provider.context-transition-command/v1",
+    sessionId: currentReceipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    expectedConversationRevision: priorBinding.providerContextFactHead?.conversationRevision ?? 0,
+    expectedEpochReceiptDigest: currentReceipt.receiptDigest,
+    expectedLatestAdmissionDigest: priorBinding.providerRequestAdmissions?.at(-1)?.admissionDigest ?? null,
+    priorHeads,
+    nextHeads,
+    reason: "history_compaction",
+    nextReceipt,
+    nextFactHead,
+    retainedFactDigests: provenance.map(({ source }) => source.factDigest),
+    appendedFactDigests: successorFacts.map((fact) => fact.factDigest),
+    deliveryConfirmationDigests: provenance.flatMap(({ delivery }) => [
+      delivery.callRecordDigest,
+      delivery.resultRecordDigest,
+      delivery.requestAdmissionIntentDigest,
+    ]),
+    compactionProof,
+    generation,
+    occurredAt: params.occurredAt,
+  }, {});
+}
+
+async function persistActiveHistoryRewriteAsProviderContextCompaction(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): Promise<void> {
+  const raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  const receipt = raw?.session.actorBindings[params.actor.key]?.providerEpochReceiptV2;
+  const historyGeneration = raw?.activeHistoryGeneration;
+  const promptGeneration = raw?.promptGeneration;
+  if (!raw || !receipt || !historyGeneration
+    || historyGeneration.createdReason !== "compaction"
+    || !historyGeneration.parentGenerationId) {
+    throw new Error("provider_context_preflight_compaction_generation_required");
+  }
+  const { repository } = providerContextRepositoryForActor({ vm: params.vm });
+  const historyIndex = structuredClone(raw.session.historyIndex);
+  const promptIndex = structuredClone(raw.session.promptIndex);
+  const sessionIndex = structuredClone(raw.session.sessionIndex);
+  historyIndex.sessionId = receipt.sessionId;
+  promptIndex.sessionId = receipt.sessionId;
+  sessionIndex.sessionId = receipt.sessionId;
+  sessionIndex.session.sessionId = receipt.sessionId;
+  historyIndex.heads[params.actor.key] = {
+    version: historyIndex.version,
+    sessionId: receipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    activeGenerationId: historyGeneration.generationId,
+    visibleGenerationIds: raw.visibleGenerationIds,
+    updatedAt: historyGeneration.updatedAt,
+  };
+  if (promptGeneration) {
+    promptIndex.heads[params.actor.key] = {
+      version: promptIndex.version,
+      sessionId: receipt.sessionId,
+      actorKey: params.actor.key,
+      actorId: params.actor.id,
+      activePromptGenerationId: promptGeneration.promptGenerationId,
+      updatedAt: promptGeneration.updatedAt,
+    };
+  }
+  await commitV2ConversationCompaction({
+    vm: params.vm,
+    actor: params.actor,
+    repository,
+    occurredAt: new Date().toISOString(),
+    compaction: {
+      historyGenerationId: historyGeneration.generationId,
+      promptGenerationId: promptGeneration?.promptGenerationId ?? "__empty_prompt__",
+      historyIndex,
+      promptIndex,
+      sessionIndex,
+      artifactRefs: await repository.loadArtifactRefs(),
+      historyGenerations: [persistedClosedJson(historyGeneration) as typeof historyGeneration],
+      promptGenerations: promptGeneration
+        ? [persistedClosedJson(promptGeneration) as typeof promptGeneration]
+        : [],
+    },
+  });
+}
+
+export async function compactProviderContextFactsAtRetentionBoundary(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  pendingSourceToolCallIds?: readonly string[];
+}): Promise<boolean> {
+  const raw = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  });
+  const receipt = raw?.session.actorBindings[params.actor.key]?.providerEpochReceiptV2;
+  if (!raw || !receipt) return false;
+  const facts = (raw.session.contextAssets ?? [])
+    .map((asset) => asset.providerContextFact)
+    .filter((fact): fact is ActorProviderContextFact => Boolean(
+      fact && fact.actorKey === params.actor.key && fact.epoch === receipt.epoch,
+    ));
+  const usage = measureActorProviderContextFactRetention({
+    facts,
+    maxRevisionsPerNamespace: receipt.retentionPolicy.maxRevisionsPerNamespace,
+    maxCanonicalFactBytesPerEpoch: receipt.retentionPolicy.maxCanonicalFactBytesPerEpoch,
+  });
+  const selectedSources = new Set(params.pendingSourceToolCallIds ?? []);
+  const pendingCandidates = (raw.session.contextAssets ?? []).flatMap((asset) => {
+    const candidate = asset.providerContextFactCandidate;
+    if (candidate?.actorKey === params.actor.key) {
+      const sources = candidate.sourceToolCalls.filter((source) => (
+        source.projectionRevision === candidate.revision
+        && selectedSources.has(source.toolCallId)
+      ));
+      if (sources.length > 0) return [{
+        namespace: candidate.namespace,
+        payload: candidate.payload,
+        sourceToolCallIds: sources.map((source) => source.toolCallId),
+        observedAt: candidate.observedAt,
+        assetId: asset.assetId,
+      }];
+    }
+    const projection = asset.projectionFact;
+    if (projection?.actorKey === params.actor.key) {
+      const sources = projection.sourceToolCalls.filter((source) => (
+        source.projectionRevision === projection.revision
+        && selectedSources.has(source.toolCallId)
+      ));
+      if (sources.length > 0) return [{
+        namespace: "provider-projection" as const,
+        payload: {
+          logicalKey: projection.projectionKey,
+          revision: projection.revision,
+          content: projection.content,
+        },
+        sourceToolCallIds: sources.map((source) => source.toolCallId),
+        observedAt: projection.observedAt,
+        assetId: asset.assetId,
+      }];
+    }
+    return [];
+  }).sort((left, right) => (
+    left.observedAt < right.observedAt ? -1
+      : left.observedAt > right.observedAt ? 1
+        : left.assetId < right.assetId ? -1
+          : left.assetId > right.assetId ? 1
+            : 0
+  ));
+  const predictedFacts = [...facts].sort((left, right) => left.sequence - right.sequence);
+  let sequencePredecessor = predictedFacts.at(-1) ?? null;
+  const namespacePredecessors = new Map<ActorProviderContextFactNamespace, ActorProviderContextFact>();
+  for (const fact of predictedFacts) namespacePredecessors.set(fact.namespace, fact);
+  for (const candidate of pendingCandidates) {
+    const namespacePredecessor = namespacePredecessors.get(candidate.namespace) ?? null;
+    const fact = createActorProviderContextFact({
+      sessionId: receipt.sessionId,
+      actorKey: params.actor.key,
+      actorId: params.actor.id,
+      epoch: receipt.epoch,
+      namespace: candidate.namespace,
+      namespaceRevision: (namespacePredecessor?.namespaceRevision ?? 0) + 1,
+      sequence: (sequencePredecessor?.sequence ?? 0) + 1,
+      previousFactDigest: namespacePredecessor?.factDigest ?? null,
+      previousSequenceFactDigest: sequencePredecessor?.factDigest ?? null,
+      anchor: {
+        historyGenerationId: raw.activeHistoryGeneration?.generationId ?? "__empty_history__",
+        messageCount: raw.activeHistoryGeneration?.messages.length ?? 0,
+        frontierDigest: digestProviderContextHistoryFrontier(raw.activeHistoryGeneration?.messages ?? []),
+      },
+      sourceDeliveryProofs: candidate.sourceToolCallIds.map((toolCallId) => ({
+        kind: "first-delivery-pair" as const,
+        toolCallId,
+        callRecordDigest: `sha256:${"c".repeat(64)}`,
+        resultRecordDigest: `sha256:${"d".repeat(64)}`,
+        requestAdmissionIntentDigest: `sha256:${"e".repeat(64)}`,
+      })),
+      payload: { ...candidate.payload },
+      observedAt: candidate.observedAt,
+    });
+    predictedFacts.push(fact);
+    sequencePredecessor = fact;
+    namespacePredecessors.set(fact.namespace, fact);
+  }
+  const predictedUsage = measureActorProviderContextFactRetention({
+    facts: predictedFacts,
+    maxRevisionsPerNamespace: receipt.retentionPolicy.maxRevisionsPerNamespace,
+    maxCanonicalFactBytesPerEpoch: receipt.retentionPolicy.maxCanonicalFactBytesPerEpoch,
+  });
+  if (!usage.atLimit && !predictedUsage.overLimit) return false;
+  if (facts.length === 0) {
+    throw new Error("provider_context_retention_candidate_exceeds_empty_epoch");
+  }
+  const historyGeneration = raw.activeHistoryGeneration;
+  const promptGeneration = raw.promptGeneration;
+  if (!historyGeneration || !promptGeneration) {
+    throw new Error("provider_context_retention_compaction_generation_missing");
+  }
+  const metadata = (params.vm.outerCtx?.metadata ?? {}) as Record<string, unknown>;
+  const sessionDir = typeof metadata.sessionDir === "string" && metadata.sessionDir
+    ? String(metadata.sessionDir)
+    : typeof metadata.sessionId === "string" && metadata.sessionId
+      ? String(metadata.sessionId)
+      : "__unsessioned__";
+  const repository = (
+    params.vm.outerCtx?.conversationPersistenceRepositoryFactory
+    ?? getVmFallbackConversationPersistenceFactory(params.vm)
+  ).createRepository(sessionDir);
+  const historyIndex = structuredClone(raw.session.historyIndex);
+  const promptIndex = structuredClone(raw.session.promptIndex);
+  const sessionIndex = structuredClone(raw.session.sessionIndex);
+  historyIndex.sessionId = receipt.sessionId;
+  promptIndex.sessionId = receipt.sessionId;
+  sessionIndex.sessionId = receipt.sessionId;
+  sessionIndex.session.sessionId = receipt.sessionId;
+  historyIndex.heads[params.actor.key] = {
+    version: historyIndex.version,
+    sessionId: receipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    activeGenerationId: historyGeneration.generationId,
+    visibleGenerationIds: raw.visibleGenerationIds,
+    updatedAt: historyGeneration.updatedAt,
+  };
+  promptIndex.heads[params.actor.key] = {
+    version: promptIndex.version,
+    sessionId: receipt.sessionId,
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    activePromptGenerationId: promptGeneration.promptGenerationId,
+    updatedAt: promptGeneration.updatedAt,
+  };
+  await commitV2ConversationCompaction({
+    vm: params.vm,
+    actor: params.actor,
+    repository,
+    occurredAt: new Date().toISOString(),
+    compaction: {
+      historyGenerationId: historyGeneration.generationId,
+      promptGenerationId: promptGeneration.promptGenerationId,
+      historyIndex,
+      promptIndex,
+      sessionIndex,
+      artifactRefs: await repository.loadArtifactRefs(),
+      historyGenerations: [persistedClosedJson(historyGeneration) as typeof historyGeneration],
+      promptGenerations: [persistedClosedJson(promptGeneration) as typeof promptGeneration],
+    },
+  });
+  return true;
 }
 
 async function persistConversationCompaction(params: {
@@ -4164,13 +5409,14 @@ async function persistConversationCompaction(params: {
     factory?.createRepository(sessionDir)
     ?? getVmFallbackConversationPersistenceFactory(params.vm).createRepository(sessionDir);
 
-  const historyIndex = await repository.loadHistoryIndex();
-  const promptIndex = await repository.loadPromptIndex();
-  const sessionIndex = await repository.loadSessionIndex();
-  const previousHistoryGenerationId =
-    sessionIndex.session.actorBindings[params.actor.key]?.historyHeadGenerationId
-    ?? historyIndex.heads[params.actor.key]?.activeGenerationId
-    ?? null;
+  const liveActorBinding = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  })?.session.actorBindings[params.actor.key];
+  const currentV2Receipt = liveActorBinding?.providerEpochReceiptV2 ?? null;
+  if (!currentV2Receipt) {
+    throw new Error("provider_context_v2_receipt_required_before_compaction");
+  }
   const occurredAt = new Date().toISOString();
   const continuationBaselineBefore = getActorContinuationBaseline(params.actor);
   const continuationBaselineAfter = resetActorContinuationBaseline({
@@ -4179,7 +5425,7 @@ async function persistConversationCompaction(params: {
     occurredAt,
   });
 
-  const { historyGenerationId, promptGenerationId } = await applyConversationCompaction({
+  const compaction = await applyConversationCompaction({
     sessionDir,
     actorKey: params.actor.key,
     actorId: params.actor.id,
@@ -4196,153 +5442,14 @@ async function persistConversationCompaction(params: {
       promptPlan: params.promptPlan ?? undefined,
     },
     repository,
+    deferCommit: true,
   });
-
-  const projected = projectConversationCompactionState({
-    baseState: { historyIndex, promptIndex, sessionIndex },
-    sessionId: sessionIndex.session.sessionId,
-    actorKey: params.actor.key,
-    actorId: params.actor.id,
-    occurredAt,
-    previousHistoryGenerationId,
-    historyGenerationId,
-    promptGenerationId,
-  });
-  await repository.writeHistoryIndex(projected.historyIndex);
-  await repository.writePromptIndex(projected.promptIndex);
-  await repository.writeSessionIndex(projected.sessionIndex);
-
-  const runtime = ensureVmConversationDomainRuntime(params.vm);
-  // Domain events are keyed by the vm-resolved session id (metadata.sessionId
-  // first, mirroring resolveSessionIdFromVm) so the in-memory domain state the
-  // provider materialization reads is updated even when the persistence
-  // sessionDir basename differs from the session id.
-  const sessionId = typeof metadata.sessionId === "string" && metadata.sessionId
-    ? String(metadata.sessionId)
-    : sessionIndex.session.sessionId;
-  const historyGeneration = await repository.loadHistoryGeneration(historyGenerationId);
-  const promptGeneration = await repository.loadPromptGeneration(promptGenerationId);
-  const nextHistoryHead = projected.historyIndex.heads[params.actor.key];
-  const nextPromptHead = projected.promptIndex.heads[params.actor.key];
-  const nextBinding = projected.sessionIndex.session.actorBindings[params.actor.key];
-  const nextSelection = projected.sessionIndex.session.activeSelection;
-  if (previousHistoryGenerationId) {
-    const previousHistoryGeneration = await repository.loadHistoryGeneration(previousHistoryGenerationId);
-    emitConversationDomainEvent(runtime, {
-      type: "actor_history_generation_sealed",
-      sessionId,
-      actorKey: params.actor.key,
-      generationId: previousHistoryGenerationId,
-      generation:
-        previousHistoryGeneration
-          ? {
-              ...previousHistoryGeneration,
-              sealed: true,
-              updatedAt: occurredAt,
-            }
-          : undefined,
-      occurredAt,
-    });
-  }
-  emitConversationDomainEvent(runtime, {
-    type: "actor_history_generation_created",
-    sessionId,
-    actorKey: params.actor.key,
-    generationId: historyGenerationId,
-    generation: historyGeneration ?? undefined,
-    occurredAt,
-  });
-  emitConversationDomainEvent(runtime, {
-    type: "actor_history_head_moved",
-    sessionId,
-    actorKey: params.actor.key,
-    activeGenerationId: historyGenerationId,
-    head: nextHistoryHead,
-    occurredAt,
-  });
-  emitConversationDomainEvent(runtime, {
-    type: "actor_history_compaction_applied",
-    sessionId,
-    actorKey: params.actor.key,
-    actorId: params.actor.id,
-    sourceGenerationIds: previousHistoryGenerationId ? [previousHistoryGenerationId] : [],
-    targetGenerationId: historyGenerationId,
-    summaryText: summary,
-    artifactId: `${promptGenerationId}::artifact`,
-    generation: historyGeneration ?? undefined,
-    head: nextHistoryHead,
-    occurredAt,
-  });
-  emitConversationDomainEvent(runtime, {
-    type: "actor_prompt_generation_created",
-    sessionId,
-    actorKey: params.actor.key,
-    promptGenerationId,
-    generation: promptGeneration ?? undefined,
-    occurredAt,
-  });
-  emitConversationDomainEvent(runtime, {
-    type: "actor_prompt_basis_selected",
-    sessionId,
-    actorKey: params.actor.key,
-    promptGenerationId,
-    basisHistoryGenerationIds: uniqueStrings([previousHistoryGenerationId, historyGenerationId]),
-    occurredAt,
-  });
-  emitConversationDomainEvent(runtime, {
-    type: "actor_prompt_transform_applied",
-    sessionId,
-    actorKey: params.actor.key,
-    promptGenerationId,
-    transformId: `${promptGenerationId}::summary`,
-    transformKind: "history_compaction_summary",
-    payload: {
-      summary,
-      acknowledgedSummary: extractCompactionAck(params.compressedMessages),
-      sourceHistoryGenerationId: previousHistoryGenerationId,
-      targetHistoryGenerationId: historyGenerationId,
-      workContext: getActorWorkContext(params.actor),
-      policyContext: params.policyContext,
-      policyDecision: params.policyDecision,
-      continuationBaselineAfter,
-    },
-    transform:
-      promptGeneration?.transforms.find((transform) => transform.transformId === `${promptGenerationId}::summary`)
-      ?? undefined,
-    occurredAt,
-  });
-  emitConversationDomainEvent(runtime, {
-    type: "actor_prompt_head_moved",
-    sessionId,
-    actorKey: params.actor.key,
-    activePromptGenerationId: promptGenerationId,
-    head: nextPromptHead,
-    occurredAt,
-  });
-  emitConversationDomainEvent(runtime, {
-    type: "local_conversation_session_actor_bound",
-    sessionId,
-    actorKey: params.actor.key,
-    actorId: params.actor.id,
-    historyHeadGenerationId: historyGenerationId,
-    promptHeadGenerationId: promptGenerationId,
-    binding: nextBinding,
-    occurredAt,
-  });
-  emitConversationDomainEvent(runtime, {
-    type: "local_conversation_session_active_selection_updated",
-    sessionId,
-    activeActorKey: params.actor.key,
-    historyHeadGenerationId: historyGenerationId,
-    promptHeadGenerationId: promptGenerationId,
-    selection: nextSelection ?? undefined,
-    occurredAt,
-  });
-  await synchronizeConversationDomainActorFromPersistence({
-    runtime,
-    sessionDir,
-    actorKey: params.actor.key,
+  await commitV2ConversationCompaction({
+    vm: params.vm,
+    actor: params.actor,
     repository,
+    occurredAt,
+    compaction,
   });
 }
 
@@ -4444,7 +5551,8 @@ async function maybeCompressMessages(params: {
   promptPlan?: PromptPlanData | null;
 }): Promise<void> {
   const { vm, actor, llmAdapter, model } = params;
-  applyCheapCompactionForActor({ vm, actor });
+  await applyCheapCompactionForActor({ vm, actor });
+  await ensureActorProviderContextEpochBeforeTransport({ vm, actor });
   resolveTurnWorkContextForActor({
     actor,
     messages: [...actor.messages],
@@ -4547,7 +5655,7 @@ async function runReactiveCompaction(params: {
     return false;
   }
 
-  applyCheapCompactionForActor({ vm, actor });
+  await applyCheapCompactionForActor({ vm, actor });
   const promptBuild = buildProviderPromptForActorTurn({
     vm,
     actor,
@@ -4631,7 +5739,8 @@ export async function forceCompressActorHistory(params: {
     const deps = resolveLoopDeps(params.vm, params.actor);
     const llmAdapter = params.llmAdapter ?? deps.llmAdapter;
     const model = params.model ?? deps.model;
-    applyCheapCompactionForActor({ vm: params.vm, actor: params.actor });
+    await applyCheapCompactionForActor({ vm: params.vm, actor: params.actor });
+    await ensureActorProviderContextEpochBeforeTransport({ vm: params.vm, actor: params.actor });
     resolveTurnWorkContextForActor({
       actor: params.actor,
       messages: [...params.actor.messages],
@@ -4897,7 +6006,8 @@ export async function aiAgentLoopStreaming({
   // message; throws on unrecoverable provider error after recording failed
   // lifecycle evidence.
   const runProviderCallEffect = async (): Promise<any> => {
-    applyCheapCompactionForActor({ vm, actor });
+    await applyCheapCompactionForActor({ vm, actor });
+    await ensureActorProviderContextEpochBeforeTransport({ vm, actor });
     const sessionId = typeof (vm.outerCtx?.metadata as any)?.sessionId === "string"
       ? String((vm.outerCtx?.metadata as any).sessionId)
       : undefined;
@@ -5044,7 +6154,14 @@ export async function aiAgentLoopStreaming({
       toolCallId,
       gateDecision,
     });
-    trackToolCallResult({ vm, toolCallId, outputText, gateOutcome: gateDecision.kind, isError, failureKind });
+    const terminalToolCallEvidence = trackToolCallResult({
+      vm,
+      toolCallId,
+      outputText,
+      gateOutcome: gateDecision.kind,
+      isError,
+      failureKind,
+    });
     const result: ToolCallPipelineResult = {
       funcName,
       toolCallId,
@@ -5092,14 +6209,18 @@ export async function aiAgentLoopStreaming({
       toolName: String(funcName ?? ""),
       args,
     });
-    recordWorkflowActorToolOutcome({
-      actor,
-      toolName: String(funcName ?? ""),
-      args,
-      outputText,
-      isError,
-      config: resolveWorkflowActorBudgetConfig(vm.outerCtx),
-    });
+    if (terminalToolCallEvidence) {
+      dispatchActorRuntimeFacetToolOutcomeHooks(vm, actor, {
+        operationId: effectId,
+        occurredAt: Date.now(),
+        toolCallId: terminalToolCallEvidence.toolCallId,
+        toolName: String(funcName || "__unknown_tool__"),
+        recordDigest: terminalToolCallEvidence.recordDigest,
+        isError,
+        outcome: isError ? "failed" : "completed",
+        outputText,
+      });
+    }
 
     return result;
   };
@@ -5199,11 +6320,13 @@ export async function aiAgentLoopStreaming({
         return stopWith(drainStopReason);
       }
 
-      beginWorkflowActorTurn({
-        actor,
-        config: resolveWorkflowActorBudgetConfig(vm.outerCtx),
+      dispatchActorRuntimeFacetHooks(vm, actor, {
+        kind: "beforeTurn",
+        operationId: `turn:${actor.key}:${turn}`,
+        occurredAt: Date.now(),
       });
 
+      await ensureActorProviderContextEpochBeforeTransport({ vm, actor });
       resolveTurnWorkContextForActor({
         actor,
         messages: [...actor.messages],
@@ -5335,7 +6458,7 @@ export async function aiAgentLoopStreaming({
 }
 
 type CooperativeAiGeneratedEvent =
-  | { kind: "llm_done"; opId: string; msg: any; providerError?: string; replayedFromEffectEvidence?: boolean }
+  | { kind: "llm_done"; opId: string; msg: any; providerError?: string; providerFailureKind?: ProviderFailureKind; replayedFromEffectEvidence?: boolean }
   | {
       kind: "compress_done";
       opId: string;
@@ -6044,7 +7167,7 @@ export async function aiAgentCooperativeStep(params: {
         return { kind: "yield" };
       }
 
-      applyCheapCompactionForActor({ vm, actor });
+      await applyCheapCompactionForActor({ vm, actor });
 
       if (!shouldCompressActorHistory(actor)) {
         state.phase = "start_llm";
@@ -6061,6 +7184,7 @@ export async function aiAgentCooperativeStep(params: {
       }
 
       const { llmAdapter, model, buildToolsetFn, processStreamFn } = resolveLoopDeps(vm, actor);
+      await ensureActorProviderContextEpochBeforeTransport({ vm, actor });
       resolveTurnWorkContextForActor({
         actor,
         messages: [...actor.messages],
@@ -6147,7 +7271,7 @@ export async function aiAgentCooperativeStep(params: {
         params.setState(state);
         return { kind: "yield" };
       }
-      if (state.turnState.kind !== "start_llm") {
+      if (state.turnState?.kind !== "start_llm") {
         applyCooperativeTurnEvent(state, {
           kind: "start_llm_requested",
           reason: nextCooperativeTurnStartReason(state),
@@ -6155,9 +7279,10 @@ export async function aiAgentCooperativeStep(params: {
       }
 
       try {
-        beginWorkflowActorTurn({
-          actor,
-          config: resolveWorkflowActorBudgetConfig(vm.outerCtx),
+        dispatchActorRuntimeFacetHooks(vm, actor, {
+          kind: "beforeTurn",
+          operationId: `turn:${actor.key}:${state.turn + 1}`,
+          occurredAt: Date.now(),
         });
       } catch (error) {
         state.phase = "drain";
@@ -6170,7 +7295,8 @@ export async function aiAgentCooperativeStep(params: {
       const sessionId = typeof (vm.outerCtx?.metadata as any)?.sessionId === "string"
         ? String((vm.outerCtx?.metadata as any).sessionId)
         : "__unsessioned__";
-      applyCheapCompactionForActor({ vm, actor });
+      await applyCheapCompactionForActor({ vm, actor });
+      await ensureActorProviderContextEpochBeforeTransport({ vm, actor });
       resolveTurnWorkContextForActor({
         actor,
         messages: [...actor.messages],
@@ -6196,7 +7322,7 @@ export async function aiAgentCooperativeStep(params: {
         stage: "cooperative llm turn",
       });
 
-      const turn = state.turnState.kind === "start_llm" ? state.turnState.turn : state.turn + 1;
+      const turn = state.turnState?.kind === "start_llm" ? state.turnState.turn : state.turn + 1;
       state.turn = turn;
       eventBus?.emitAgentTurnStart(eventActor, turn);
       beginGoalTurn(vm, [...actor.messages]);
@@ -6277,21 +7403,28 @@ export async function aiAgentCooperativeStep(params: {
             payload: msg,
           });
         } catch (error) {
-          if (abortController.signal.aborted && !(error instanceof WorkflowActorBudgetError)) {
+          if (abortController.signal.aborted && !(error instanceof ActorRuntimeFacetProviderBoundaryError)) {
             return;
           }
           trackProviderCallFailed(vm, opId, error, false);
           const retryClassification = classifyProviderRetry(error);
-          const message = `Error: ${error instanceof Error ? error.message : String(error)}`;
+          const failureKind = classifyProviderFailure(error, false);
+          const message = error instanceof ProviderRequestAdmissionError || error instanceof ProviderEpochProjectionError
+            ? `Error: ${safeLocalProjectionDiagnostic(error)}`
+            : `Error: ${error instanceof Error ? error.message : String(error)}`;
           state.providerFailure = { opId, error: message };
           params.setState(state);
-          emitVisibleAssistantError(vm, actor, message);
+          if (failureKind === "local_projection_rejected") {
+            emitVisibleAssistantError(vm, actor, message);
+          } else {
+            emitVisibleAssistantError(vm, actor, message);
+          }
           appendRuntimeControlLifecycleEvidenceFromVm(vm, {
             kind: "failed",
             effectKind: "provider_completion",
             effectId: opId,
             handlerKey: `llm:${llmAdapter.type}`,
-            error: message,
+            error: failureKind === "local_projection_rejected" ? "local_projection_rejected" : message,
             retryable: retryClassification.retryable,
           });
           emitAiGeneratedCompletion({
@@ -6299,8 +7432,11 @@ export async function aiAgentCooperativeStep(params: {
             event: {
               kind: "llm_done",
               opId,
-              msg: { role: "assistant", content: message },
+              msg: failureKind === "local_projection_rejected"
+                ? { role: "assistant", content: "" }
+                : { role: "assistant", content: message },
               providerError: message,
+              providerFailureKind: failureKind,
             },
           });
         } finally {
@@ -6332,6 +7468,19 @@ export async function aiAgentCooperativeStep(params: {
 
       state.inflight = undefined;
       const msg = (ev as any).msg;
+      const providerFailureKind = (ev as any).providerFailureKind as ProviderFailureKind | undefined;
+      if (providerFailureKind === "local_projection_rejected") {
+        applyCooperativeTurnEvent(state, {
+          kind: "provider_failed",
+          opId: inflight.opId,
+          error: "local_projection_rejected",
+        });
+        if (state.providerFailure?.opId === inflight.opId) state.providerFailure = undefined;
+        eventBus?.emitAgentTurnEnd(eventActor, "local_projection_rejected");
+        state.phase = "start_llm";
+        params.setState(state);
+        return { kind: "suspend", reason: "idle_external" };
+      }
       // P8 single-writer pipeline: a live cooperative llm turn streamed
       // over the vm event bus and the resident MessageHistoryGraph committed
       // it to the domains. A result REPLAYED from durable effect evidence
@@ -6350,17 +7499,12 @@ export async function aiAgentCooperativeStep(params: {
       const toolCalls = msg?.tool_calls || msg?.toolCalls || [];
       state.toolCalls = Array.isArray(toolCalls) ? toolCalls : [];
       state.toolIndex = 0;
-      applyCooperativeTurnEvent(state, {
-        kind: typeof (ev as any).providerError === "string" && (ev as any).providerError
-          ? "provider_failed"
-          : "provider_completed",
-        opId: inflight.opId,
-        ...(
-          typeof (ev as any).providerError === "string" && (ev as any).providerError
-            ? { error: String((ev as any).providerError) }
-            : { hasToolCalls: state.toolCalls.length > 0 }
-        ),
-      });
+      const eventProviderError = typeof (ev as any).providerError === "string" && (ev as any).providerError
+        ? String((ev as any).providerError)
+        : null;
+      applyCooperativeTurnEvent(state, eventProviderError
+        ? { kind: "provider_failed", opId: inflight.opId, error: eventProviderError }
+        : { kind: "provider_completed", opId: inflight.opId, hasToolCalls: state.toolCalls.length > 0 });
 
       const providerError = typeof (ev as any).providerError === "string"
         ? String((ev as any).providerError)
@@ -6653,14 +7797,20 @@ export async function aiAgentCooperativeStep(params: {
         args: (ev as any).args,
       });
       try {
-        recordWorkflowActorToolOutcome({
-          actor,
-          toolName: funcName,
-          args: (ev as any).args,
-          outputText,
-          isError,
-          config: resolveWorkflowActorBudgetConfig(vm.outerCtx),
-        });
+        const toolCallId = String((ev as any).toolCallId || inflight.opId);
+        const terminal = getVmToolCallDomain(vm)?.getRecord(toolCallId);
+        if (terminal && isTerminalToolCallStatus(terminal.status)) {
+          dispatchActorRuntimeFacetToolOutcomeHooks(vm, actor, {
+            operationId: inflight.opId,
+            occurredAt: Date.now(),
+            toolCallId,
+            toolName: funcName || "__unknown_tool__",
+            recordDigest: digestToolCallRecord(terminal),
+            isError,
+            outcome: isError ? "failed" : "completed",
+            outputText,
+          });
+        }
       } catch (error) {
         state.phase = "drain";
         params.setState(state);

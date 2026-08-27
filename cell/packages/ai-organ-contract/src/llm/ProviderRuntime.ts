@@ -264,7 +264,12 @@ export type LlmProviderRuntime = {
   diagnostics?: LlmProviderDiagnosticsRuntime;
   sceneCaptureHook?: ProviderSceneCaptureHook | null;
   requestObservationPort?: ProviderRequestObservationPort | null;
+  chatCompatibilityProfileId?: ProviderChatCompatibilityProfileId;
 };
+
+export type ProviderChatCompatibilityProfileId =
+  | "deepseek-official-chat@1"
+  | "deepseek-compatible-chat@1";
 
 export type ResponsesContinuationConfig = {
   mode: ResponsesContinuationMode;
@@ -366,6 +371,8 @@ export type ProviderDriverRequestParams = {
   connectionOptions: Record<string, unknown>;
   runtime: LlmProviderRuntime;
   providerRequestContext?: unknown;
+  /** Construction-time selected Chat Completions authority, reused by request and ingress. */
+  chatCompletionsEffectBundle?: ChatCompletionsEffectBundle;
 };
 
 export type ProviderDriverStreamParams = ProviderDriverRequestParams & {

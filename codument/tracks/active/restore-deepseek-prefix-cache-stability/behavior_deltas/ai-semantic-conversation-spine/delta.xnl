@@ -1,0 +1,23 @@
+<BehaviorPatch #track.restore-deepseek-prefix-cache-stability.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/cache-stable-dynamic-authority" } (
+      <Requirement #cache-stable-dynamic-authority (
+        <Statement ?>Mutable runtime guidance that changes during a forward-only stable-prefix conversation MUST be represented as an append-only conversation fact or an explicit new cache epoch; it MUST NOT silently replace an earlier root prompt while claiming the same epoch.</?>
+        <Suites [
+          <Suite #dynamic-authority-placement { name = "Dynamic authority placement" } (
+            <Cases [
+              <Case #workflow-stage-is-history-fact [
+                <Given ?>A trusted Workflow stage loader reads exact stage authority.</?>
+                <When ?>The stage changes during the same provider epoch.</?>
+                <Then ?>The new authority SHALL be appended through the single-writer conversation pipeline and previous stage transitions SHALL remain historical facts.</?>
+                <Ands [
+                  <And ?>No second prompt/history store is introduced.</?>
+                ]>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

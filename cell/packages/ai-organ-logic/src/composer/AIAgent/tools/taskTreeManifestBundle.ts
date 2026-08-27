@@ -8,7 +8,7 @@ import { taskTreeWriteVariants } from "./TaskTreeWrite"
 
 export const taskTreeManifestBundle = createComponentBundleManifest<AnyToolDef>({
   id: "aiagent.bundle.tasktree.variants",
-  manifests: [taskTreeReadVariants, taskTreeWriteVariants],
+  manifests: [taskTreeReadVariants, taskTreeWriteVariants] as any,
   meta: {
     domain: "tasktree",
   },
@@ -19,7 +19,7 @@ export function buildTaskTreeDefaultToolDefsFromManifest(): AnyToolDef[] {
     [
       taskTreeReadVariants.variants[taskTreeReadVariants.defaultVariant],
       taskTreeWriteVariants.variants[taskTreeWriteVariants.defaultVariant],
-    ],
+    ] as any,
     { resolveMode: "default" },
   )
 }

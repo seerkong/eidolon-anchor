@@ -1,0 +1,45 @@
+<BehaviorPatch #track.replace-workflow-context-mutation-with-typed-facts.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/provider-context-epoch-integrity" } (
+      <Requirement #provider-context-epoch-integrity (
+        <Statement ?>Conversation Domain SHALL own one immutable provider-context receipt per epoch; append-only turns reuse it exactly, and every non-append prefix change SHALL advance a monotonic epoch with a persisted closed reason before provider transport.</?>
+        <Suites [
+          <Suite #epoch-transition { name = "Provider context epoch transition" } (
+            <Cases [
+              <Case #same-epoch-receipt-immutable (
+                <Given ?>provider/model/profile, source heads and accepted frozen revisions are unchanged</?>
+                <When ?>user, assistant, tool or typed context facts append</?>
+                <Then ?>the epoch-baseline receipt SHALL remain byte-equivalent; each successful request SHALL append a request-admission receipt for current descendant heads/final wire, and reconciliation SHALL validate rather than rewrite source or handoff digests</?>
+              )>
+              <Case #non-append-requires-reason (
+                <Given ?>compaction, rewind/fork, provider/model/profile switch or accepted frozen resource/surface revision changes retained provider bytes</?>
+                <When ?>the next request is admitted</?>
+                <Then ?>one runtime-first Conversation transition SHALL create the next receipt with exact predecessor digest and one closed reason before transport</?>
+              )>
+              <Case #head-and-receipt-atomic (
+                <Given ?>a compaction or rewind changes the history head and requires a successor epoch receipt</?>
+                <When ?>the local authority is interrupted before or after each stage、fsync、publish or head-CAS boundary</?>
+                <Then ?>fresh recovery SHALL observe either the exact old head and receipt or the exact new transition batch, never a mixed authority</?>
+              )>
+              <Case #compacted-delivery-proof-recoverable (
+                <Given ?>a delivered tool pair owns the first delivery of a retained context fact</?>
+                <When ?>an epoch-advancing compaction removes that pair</?>
+                <Then ?>the atomic transition SHALL persist a proof binding source fact、pair records、successful request admission and successor fact; fresh recovery SHALL verify it before publishing the successor head</?>
+              )>
+              <Case #unexplained-divergence-fails (
+                <Given ?>current canonical source no longer matches the immutable receipt and no transition was admitted</?>
+                <When ?>provider projection is requested</?>
+                <Then ?>the system SHALL fail closed without mutating the receipt, sending a request or fabricating a cache observation</?>
+              )>
+              <Case #fresh-recovery-exact (
+                <Given ?>typed context facts and the current epoch receipt were persisted</?>
+                <When ?>a fresh process reconstructs the Actor and Conversation</?>
+                <Then ?>it SHALL reuse exact valid facts and receipt, or execute the explicit bounded legacy importer; it SHALL NOT infer an epoch reason from prompt text</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

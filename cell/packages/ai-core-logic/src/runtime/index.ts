@@ -13,3 +13,5 @@ export * from "./snapshot";
 export * from "./ToolFuncRegistry";
 export * from "./TranscriptRecords";
 export * from "./ActorSurface";
+export * from "./ActorRuntimeFacet";
+export * from "./ActorDurableMaterial";

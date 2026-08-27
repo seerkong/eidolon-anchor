@@ -10,6 +10,7 @@ import {
   createConversationDomainRuntime,
   decideCompactionPolicy,
   materializeExecutionMessagesWithWorkContext,
+  materializeConversationRuntimeMessagesFromVm,
   recordPromptPlanForActorExecution,
   resolveTurnWorkContextForActor,
   setActorTaskPhase,
@@ -139,16 +140,22 @@ describe("context control plane", () => {
     expect(promptState.activePromptGenerationId).toBe(promptGenerationId);
     expect(promptState.generations[0]?.metadata?.promptPlan).toEqual(promptPlan);
     expect(promptState.generations[0]?.metadata?.workContext).toEqual(actor.workContext);
-    expect(promptState.generations[0]?.transforms.map((transform) => transform.kind)).toEqual(["overlay"]);
-    expect(promptState.generations[0]?.transforms[0]?.payload).toEqual(
+    expect(promptState.generations[0]?.transforms).toEqual([]);
+    expect(runtime.sessionStateSignal.get()["ses-1"]?.contextAssets?.at(-1)?.providerContextFact?.payload).toEqual(
       expect.objectContaining({
-        overlayKind: "work_context",
-        insertPlacement: "late_status",
+        workMode: "build",
+        taskPhase: "normal",
+        ownerRevision: 1,
       }),
     );
+    const materialized = materializeConversationRuntimeMessagesFromVm({ vm, actorKey: "main" });
+    expect(materialized.map((message) => message.role)).toEqual(["system", "user"]);
+    expect(String(materialized[1]?.content)).toContain("eidolon-context-fact/v1");
+    expect(String(materialized[1]?.content)).toContain('"workMode":"build"');
+    expect(materialized.some((message) => String(message.content ?? "").includes("<runtime_work_context>"))).toBe(false);
   });
 
-  it("materializes work context at the fixed system/history boundary without splitting completed tool results", () => {
+  it("does not synthesize a mutable work-context system overlay in compatibility materialization", () => {
     const actor = createActor({ key: "main" });
     resolveTurnWorkContextForActor({
       actor,
@@ -175,15 +182,14 @@ describe("context control plane", () => {
 
     expect(executionMessages.map((message) => message.role)).toEqual([
       "system",
-      "system",
       "user",
       "assistant",
       "tool",
       "user",
     ]);
-    expect(String(executionMessages[1]?.content ?? "")).toContain("<runtime_work_context>");
-    expect((executionMessages[3] as any).tool_calls?.[0]?.id).toBe("tc-1");
-    expect((executionMessages[4] as any).tool_call_id).toBe("tc-1");
+    expect(executionMessages.some((message) => String(message.content ?? "").includes("<runtime_work_context>"))).toBe(false);
+    expect((executionMessages[2] as any).tool_calls?.[0]?.id).toBe("tc-1");
+    expect((executionMessages[3] as any).tool_call_id).toBe("tc-1");
   });
 
   it("materializes actor system prompts when recovered history no longer contains system messages", () => {
@@ -204,7 +210,7 @@ describe("context control plane", () => {
     expect(executionMessages[0]).toEqual({ role: "system", content: "root shell prompt" });
   });
 
-  it("materializes work context before all chronological history when there is no stable system prefix", () => {
+  it("keeps chronological history unchanged when there is no stable system prefix", () => {
     const actor = createActor({ key: "main" });
     resolveTurnWorkContextForActor({
       actor,
@@ -229,15 +235,13 @@ describe("context control plane", () => {
     });
 
     expect(executionMessages.map((message) => message.role)).toEqual([
-      "system",
       "assistant",
       "assistant",
       "tool",
     ]);
-    expect(String(executionMessages[0]?.content ?? "")).toContain("<runtime_work_context>");
-    expect((executionMessages[2] as any).reasoning_content).toBe("thinking");
-    expect((executionMessages[2] as any).tool_calls?.[0]?.id).toBe("tc-1");
-    expect((executionMessages[3] as any).tool_call_id).toBe("tc-1");
+    expect((executionMessages[1] as any).reasoning_content).toBe("thinking");
+    expect((executionMessages[1] as any).tool_calls?.[0]?.id).toBe("tc-1");
+    expect((executionMessages[2] as any).tool_call_id).toBe("tc-1");
   });
 
   it("adds DeepSeek cache profile to prompt plans and compaction context", () => {

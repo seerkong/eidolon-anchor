@@ -76,7 +76,26 @@ export type ConversationPersistenceRepository = {
 
   loadArtifactRefs: () => Promise<ConversationArtifactRefsSnapshot>;
   writeArtifactRefs: (snapshot: ConversationArtifactRefsSnapshot) => Promise<void>;
+
+  commitProviderContextTransitionGeneration?: (
+    transition: ConversationProviderContextTransitionGeneration,
+  ) => Promise<void>;
+  recoverProviderContextTransitionGeneration?: () => Promise<void>;
 };
+
+export type ConversationProviderContextTransitionGeneration = Readonly<{
+  schemaVersion: "conversation.provider-context-transition-generation/v1";
+  transitionId: string;
+  expectedEpochReceiptDigest: string | null;
+  nextEpochReceiptDigest: string;
+  historyIndex: ConversationHistoryIndexSnapshot;
+  promptIndex: ConversationPromptIndexSnapshot;
+  sessionIndex: ConversationSessionIndexSnapshot;
+  artifactRefs: ConversationArtifactRefsSnapshot;
+  historyGenerations: readonly ActorHistoryGenerationData[];
+  promptGenerations: readonly ActorPromptGenerationData[];
+  createdAt: string;
+}>;
 
 export type ConversationPersistenceRepositoryFactory = {
   createRepository: (sessionDir: string) => ConversationPersistenceRepository;

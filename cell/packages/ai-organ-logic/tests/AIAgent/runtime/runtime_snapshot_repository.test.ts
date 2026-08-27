@@ -10,6 +10,7 @@ import {
   AI_AGENT_COORDINATION_STATUSES,
   AI_AGENT_SHUTDOWN_COORDINATION_KINDS,
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+  createActorDurableMaterial,
   createActor,
   createVM,
   hydrateActor,
@@ -99,6 +100,7 @@ describe("Runtime snapshot repository", () => {
     const repository = new LocalFileRuntimeSnapshotRepository(rootDir)
 
     const root = createActor({ key: "main", messages: [{ role: "system", content: "hi" } as any] })
+    const frozenMaterial = createActorDurableMaterial("repository-owned frozen bytes", "text/plain")
     const worker = createActor({
       key: "worker",
       type: "delegate" as any,
@@ -115,16 +117,6 @@ describe("Runtime snapshot repository", () => {
         outputSchema: { type: "string" },
         effectPolicy: { toolMode: "declared-only" },
       },
-      workflowProgress: {
-        stageId: "coding",
-        stageStartedAt: 1,
-        deadlineAt: 2,
-        turnsSinceProgress: 3,
-        maxNoProgressTurns: 4,
-        proofRepairAttempts: 0,
-        maxProofRepairAttempts: 2,
-        lastProgressAt: 1,
-      },
       systemPrompts: ["worker profile"],
       continuationBaseline: {
         baselineEpoch: 4,
@@ -139,6 +131,7 @@ describe("Runtime snapshot repository", () => {
         promptIndex: 0,
         contentDigest: "worker-profile-digest",
       },
+      durableMaterials: { [frozenMaterial.digest]: frozenMaterial },
     })
     const vm = createVM({ controlActorKey: root.key, actors: { [root.key]: root, [worker.key]: worker } })
 
@@ -188,9 +181,10 @@ describe("Runtime snapshot repository", () => {
     expect(loaded?.actors.worker?.profileSystemPromptProvenance).toEqual(actorSnapshot.profileSystemPromptProvenance)
     expect(loaded?.actors.worker?.agentName).toBe("resource://eidolon.fixture.RecoverableAgent")
     expect(loaded?.actors.worker?.continuationBaseline?.contextDigest).toBe("sha256:provider-visible-context")
+    expect(loaded?.actors.worker?.durableMaterials).toEqual(worker.durableMaterials)
     expect(loaded?.actors.worker?.contextPolicy).toEqual({ historyCompaction: "disabled" })
     expect(loaded?.actors.worker?.executionContract).toEqual(actorSnapshot.executionContract)
-    expect(loaded?.actors.worker?.workflowProgress?.stageId).toBe("coding")
+    expect("workflowProgress" in (loaded?.actors.worker ?? {})).toBe(false)
     const recoveredWorker = hydrateActor(loaded!.actors.worker!)
     expect(recoveredWorker.continuationBaseline).toEqual(expect.objectContaining({
       baselineEpoch: 4,

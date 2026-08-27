@@ -69,7 +69,7 @@ TaskSpace remains the sole owner of task, assignment, claim, result and history.
 
 The default runtime identity is `(deploymentId, memberRef)` and maps to one long-lived MemberRuntime in the deployment. Repeated tasks and workflow nodes reuse it. This preserves actor continuity while task/session identities remain explicit in each invocation.
 
-Default session scope is a durable task claim attempt keyed by TaskSpace/task/claim/attempt. Cross-node or cross-task Agent-instance continuity is explicit through the existing `runTargetedAgent` selector with exactly one of `{byInstanceId}` or `{byInstanceName}`; the frozen execution binding must authorize it. Shared runtime identity therefore does not imply shared conversation history.
+Default session scope is a durable task claim attempt keyed by TaskSpace/task/claim/attempt. Cross-node or cross-task Agent-instance continuity is explicit through the existing `runTargetedAgent` selector with exactly one of `{byId}` or `{byName}`; legacy instance-prefixed keys fail closed and the frozen execution binding must authorize it. Shared runtime identity therefore does not imply shared conversation history.
 
 Isolation is closed and explicit:
 

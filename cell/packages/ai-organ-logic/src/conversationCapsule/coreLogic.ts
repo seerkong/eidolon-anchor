@@ -32,8 +32,12 @@ import {
  */
 
 export {
+  activateProviderEpochReceiptV2InConversationDomainRuntime,
   appendConversationDomainEvent,
   appendLiveHistoryMessageToConversationDomainRuntime,
+  appendActorProviderContextFactToConversationDomainRuntime,
+  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
+  commitProviderContextTransition,
   bindActorConversationProjectionToVm,
   applyPromptTransformToConversationDomainRuntime,
   clearContextBlocksInConversationDomainRuntime,
@@ -53,7 +57,6 @@ export {
   materializeConversationHistoryMessagesFromVm,
   materializeConversationRuntimeMessagesFromVm,
   recordConversationTranscriptEvidenceInRuntime,
-  recordPromptOverlayToConversationDomainRuntime,
   recordPromptRequestToConversationDomainRuntime,
   registerPendingMessageDeliveryToConversationDomainRuntime,
   registerPendingToolResultDeliveryToConversationDomainRuntime,
@@ -70,6 +73,7 @@ export {
   teeConversationPromptStream,
   teeConversationSessionStream,
   upsertContextResourceFactToConversationDomainRuntime,
+  upsertProviderContextFactCandidateToConversationDomainRuntime,
   upsertProviderProjectionFactToConversationDomainRuntime,
   upsertResponsesReplayCheckpointToConversationDomainRuntime,
   updateConversationDomainFromTranscriptRecordBatch,

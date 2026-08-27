@@ -887,7 +887,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
       },
       session: {
         mode: "targeted-agent-instance",
-        selector: { byInstanceName: "requirements-reviewer" },
+        selector: { byName: "requirements-reviewer" },
       },
     }, {})
     const byId = await ensureHolonMemberRuntime(runtime, {
@@ -900,7 +900,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
       },
       session: {
         mode: "targeted-agent-instance",
-        selector: { byInstanceId: "agent-instance-1" },
+        selector: { byId: "agent-instance-1" },
       },
     }, {})
 
@@ -933,7 +933,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
       },
       session: {
         mode: "targeted-agent-instance",
-        selector: { byInstanceId: "agent-instance-1", byInstanceName: "ambiguous" },
+        selector: { byId: "agent-instance-1", byName: "ambiguous" },
       },
     }, {})).rejects.toThrow(/exactly one|selector/i)
 

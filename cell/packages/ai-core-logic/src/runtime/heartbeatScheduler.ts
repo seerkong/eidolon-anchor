@@ -213,7 +213,9 @@ export async function tickDueHeartbeatSchedules(
         if (!actor) {
           throw new Error(`target actor not found: ${schedule.targetActorKey}`);
         }
-        const alreadyPending = actor.peekMailbox("heartbeat").some((pending) => pending.scheduleId === schedule.scheduleId);
+        const alreadyPending = actor.peekMailbox("heartbeat").some((pending) => (
+          "scheduleId" in pending && pending.scheduleId === schedule.scheduleId
+        ));
         if (alreadyPending) {
           coalescePendingWake(vm, schedule, nowMs);
           continue;
@@ -344,7 +346,9 @@ export function recoverHeartbeatSchedules(
       continue;
     }
 
-    const alreadyPending = actor.peekMailbox("heartbeat").some((pending) => pending.scheduleId === schedule.scheduleId);
+    const alreadyPending = actor.peekMailbox("heartbeat").some((pending) => (
+      "scheduleId" in pending && pending.scheduleId === schedule.scheduleId
+    ));
     if (alreadyPending) {
       coalescePendingWake(vm, schedule, nowMs);
       vm.effects.log?.("warn", "heartbeat missed interval coalesced during recovery", {

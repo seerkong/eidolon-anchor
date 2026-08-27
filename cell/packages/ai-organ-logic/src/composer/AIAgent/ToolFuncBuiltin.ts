@@ -51,7 +51,7 @@ import {
   buildCreateTimeoutToolDef,
   buildListSchedulesToolDef,
 } from "./tools/HeartbeatTools"
-import { buildWorkflowNativeToolDefs } from "../../workflow/tools"
+import { buildWorkflowPublicGatewayToolDefs } from "../../workflow/tools"
 
 export const INTERNAL_ONLY_BUILTIN_TOOL_NAMES = new Set([
   "DetachedToolCall",
@@ -63,7 +63,7 @@ export const INTERNAL_ONLY_BUILTIN_TOOL_NAMES = new Set([
 
 export function buildBuiltinToolDefs(options?: { includeInternalOnly?: boolean }): AnyToolDef[] {
   const taskTreeDefs = buildTaskTreeDefaultToolDefsFromManifest()
-  const workflowDefs = buildWorkflowNativeToolDefs()
+  const workflowDefs = buildWorkflowPublicGatewayToolDefs()
   const defs = [
     buildBashToolDef(),
     buildApplyPatchToolDef(),

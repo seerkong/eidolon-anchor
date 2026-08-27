@@ -26,8 +26,10 @@ import type {
 import type { DurableControlSignalSnapshotStore } from "./DurableControlSignal";
 import type { QuestionnaireRow } from "./Questionnaire";
 import type { HeartbeatSchedule } from "./Heartbeat";
+import type { ActorRuntimeFacetIndex } from "./ActorRuntimeFacet";
+import type { ActorDurableMaterialIndex } from "./ActorDurableMaterial";
 
-export const RUNTIME_SNAPSHOT_SCHEMA_VERSION = 3;
+export const RUNTIME_SNAPSHOT_SCHEMA_VERSION = 4;
 
 export type RuntimeSnapshotVersion = typeof RUNTIME_SNAPSHOT_SCHEMA_VERSION;
 
@@ -96,6 +98,18 @@ type RuntimeSnapshotMailboxQueues = {
 export type RuntimeSnapshotManifest = RuntimeSnapshotManifestBase & {
   controlActorKey: string;
   sessionId?: string;
+  /** Present only when a legacy snapshot was admitted through a head-last generation. */
+  generation?: {
+    id: string;
+    manifestFile: string;
+    manifestDigest: string;
+    treeDigest: string;
+    receiptFile: string;
+    receiptDigest: string;
+  };
+  questionnairesFile?: string;
+  /** Keeps a migrated schema-v3 root permanently read-only across later checkpoints. */
+  legacyRootReadOnly?: boolean;
 };
 
 export type RuntimeSnapshotVm = RuntimeRootSnapshotBase & {
@@ -137,6 +151,8 @@ export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"
   toolPolicy: ActorToolPolicy;
   contextPolicy?: AiAgentActorContract["contextPolicy"];
   executionContract?: AiAgentActorContract["executionContract"];
+  origin?: AiAgentActorContract["origin"];
+  /** Optional only for backward-compatible reads of pre-attribution snapshots. */
   modelConfig: ActorModelConfig;
   ctrlOptions: ActorCtrlOptions;
   taskTree: TaskTree;
@@ -148,7 +164,10 @@ export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"
   continuationBaseline?: ContinuationBaselineData;
   lastMemberResultNotifiedAt?: number | null;
   detachedTask?: DetachedTaskState;
-  workflowProgress?: AiAgentActorContract["workflowProgress"];
+  /** Optional only for backward-compatible reads before neutral facets existed. */
+  runtimeFacets?: ActorRuntimeFacetIndex;
+  /** Optional only for backward-compatible reads before durable materials existed. */
+  durableMaterials?: ActorDurableMaterialIndex;
   holonState?: HolonActorState;
   recovery?: ActorRecoveryState;
 };

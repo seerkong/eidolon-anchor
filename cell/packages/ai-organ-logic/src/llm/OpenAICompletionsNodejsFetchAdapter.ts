@@ -11,6 +11,7 @@ import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/l
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
 import { openAIOfficialChatEffectBundle } from "./ChatCompletionsEffectBundles";
+import { validateProviderContextFactsInFinalWire } from "./ProviderContextFactWireProfile";
 import type { ProviderToolSchemaProjectionAuthority } from "@cell/ai-organ-contract/llm/ProviderToolSchemaProjection";
 import {
   admitProviderRequest,
@@ -49,6 +50,61 @@ type OpenAIStreamTimeouts = {
   totalTimeoutSeconds?: number;
   idleTimeoutSeconds?: number;
 };
+
+type OpenAIChatUsage = Readonly<{
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  prompt_cache_hit_tokens: number;
+  prompt_cache_miss_tokens: number;
+}>;
+
+function normalizeOpenAIChatUsage(value: unknown): OpenAIChatUsage | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return undefined;
+  const source = value as Record<string, unknown>;
+  const keys = [
+    "prompt_tokens",
+    "completion_tokens",
+    "total_tokens",
+    "prompt_cache_hit_tokens",
+    "prompt_cache_miss_tokens",
+  ] as const;
+  const usage = {} as Record<(typeof keys)[number], number>;
+  for (const key of keys) {
+    const descriptor = Object.getOwnPropertyDescriptor(source, key);
+    if (!descriptor || !("value" in descriptor)) return undefined;
+    const numeric = descriptor.value;
+    if (!Number.isFinite(numeric) || numeric < 0) return undefined;
+    usage[key] = numeric;
+  }
+  return Object.freeze(usage);
+}
+
+function observeOpenAIChatUsage(
+  source: AsyncIterable<any>,
+): Pick<LlmStreamResult, "stream" | "providerOutput"> {
+  let resolveOutput!: (value: unknown | undefined) => void;
+  const providerOutput = new Promise<unknown | undefined>((resolve) => {
+    resolveOutput = resolve;
+  });
+  const stream = (async function* () {
+    let usage: OpenAIChatUsage | undefined;
+    try {
+      for await (const chunk of source) {
+        const candidate = normalizeOpenAIChatUsage(chunk?.usage);
+        if (candidate) usage = candidate;
+        yield chunk;
+      }
+      resolveOutput(usage ? Object.freeze({ usage }) : undefined);
+    } catch (error) {
+      resolveOutput(undefined);
+      throw error;
+    }
+  })();
+  return { stream, providerOutput };
+}
 
 async function* streamToOpenAIChunks(
   response: Response,
@@ -394,6 +450,12 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     };
 
     const extra = sanitizeExtraBody(extraBody);
+    if (
+      this.chatCompletionsEffectBundle.id.startsWith("deepseek-")
+      && !Object.prototype.hasOwnProperty.call(extra, "stream_options")
+    ) {
+      extra.stream_options = { include_usage: true };
+    }
     const providerOptions = this.providerOptions;
     const toolProjection = readProviderToolSchemaProjection(toolSchemaProjectionAuthority);
     assertProviderToolSchemaProtocol(
@@ -424,6 +486,14 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     const admitted = admitProviderRequest(toolSchemaProjectionAuthority, body);
     const admittedRequest = readAdmittedProviderRequest(admitted);
     const serializedBody = admittedRequest.serializedBody;
+    validateProviderContextFactsInFinalWire({
+      profileId: this.chatCompletionsEffectBundle.id === "deepseek-official-chat"
+        ? "deepseek-official-chat@1"
+        : this.chatCompletionsEffectBundle.id === "deepseek-compatible-chat"
+          ? "deepseek-compatible-chat@1"
+          : "openai-chat@1",
+      serializedBody,
+    });
 
     if (process.env.MINIMAX_DEBUG === "1") {
       console.log("[openai] request", JSON.stringify(redactCanonicalImages({ url, body: JSON.parse(serializedBody) }), null, 2));
@@ -488,8 +558,8 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       );
     }
 
-    return {
-      stream: streamToOpenAIChunks(
+    return observeOpenAIChatUsage(
+      streamToOpenAIChunks(
         res,
         timeouts,
         abortLink.controller,
@@ -497,7 +567,7 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
         () => internalTimeoutError,
         abortForTimeout,
       ),
-    };
+    );
   }
 }
 

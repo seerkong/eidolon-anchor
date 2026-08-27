@@ -5,6 +5,7 @@ import type {
   AdmittedProviderRequest,
   AdmittedProviderRequestPreview,
   ProviderSchemaDigest,
+  ProviderRequestAdmissionDiagnostic,
   ProviderRequestAdmissionRejectionCode,
   ProviderToolSchemaCoverageObservation,
   ProviderToolSchemaProjectionAuthority,
@@ -16,6 +17,7 @@ import {
   collectSchemaFacts,
   factSetDigest,
   stableDigest,
+  ProviderSchemaValueError,
 } from "./CanonicalSchemaFacts";
 import {
   internalChatToolProjection,
@@ -37,9 +39,15 @@ const projectionAuthorities = new WeakMap<object, ProjectionSnapshot>();
 const admittedRequests = new WeakMap<object, AdmittedSnapshot>();
 
 export class ProviderRequestAdmissionError extends Error {
-  constructor(readonly code: ProviderRequestAdmissionRejectionCode) {
+  readonly diagnostic: ProviderRequestAdmissionDiagnostic;
+
+  constructor(
+    readonly code: ProviderRequestAdmissionRejectionCode,
+    diagnostic: Omit<ProviderRequestAdmissionDiagnostic, "code"> = {},
+  ) {
     super(code);
     this.name = "ProviderRequestAdmissionError";
+    this.diagnostic = Object.freeze({ code, ...diagnostic });
   }
 }
 
@@ -221,7 +229,13 @@ export function admitProviderRequest(
   let parsed: any;
   try {
     parsed = cloneJsonAuthority(body);
-  } catch {
+  } catch (error) {
+    if (error instanceof ProviderSchemaValueError) {
+      throw new ProviderRequestAdmissionError("invalid_provider_request_body", {
+        path: error.path,
+        valueKind: error.valueKind,
+      });
+    }
     throw new ProviderRequestAdmissionError("invalid_provider_request_body");
   }
   const serializedBody = JSON.stringify(parsed);

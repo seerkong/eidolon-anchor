@@ -4,6 +4,12 @@ export type {
   LlmStreamResult,
   LlmAdapterType,
 } from "@cell/ai-core-contract/LlmTypes";
+export {
+  bindProviderCacheUsageToObservation,
+  compareProviderCacheCostObservations,
+  createProviderCacheCostObservation,
+} from "./ProviderCacheCostObservation";
+export type { CreateProviderCacheCostObservationInput } from "./ProviderCacheCostObservation";
 export { OpenAILlmAdapter } from "./OpenaiAdapter";
 export { OpenAICompletionsNodejsFetchLlmAdapter } from "./OpenAICompletionsNodejsFetchAdapter";
 export {
@@ -16,6 +22,7 @@ export {
 } from "./ResponsesCanonicalReplayCompiler";
 export type { ResponsesProjectionCoverageProof } from "./ResponsesCanonicalReplayCompiler";
 export {
+  deepSeekCompatibleChatEffectBundle,
   deepSeekOfficialChatEffectBundle,
   openAIOfficialChatEffectBundle,
 } from "./ChatCompletionsEffectBundles";
@@ -59,6 +66,11 @@ export {
   resolveDeepSeekModelCapabilities,
   resolveDeepSeekReasoningEffort,
 } from "./DeepSeekModelCapabilities";
+export {
+  chatCompatibilityProfileId,
+  resolveProviderChatCompatibilityProfile,
+  resolveSelectedProviderChatCompatibilityProfile,
+} from "./ProviderChatCompatibility";
 export {
   UnsupportedModalityError,
   validateInputModalities,
@@ -223,8 +235,15 @@ export type {
   OpenAIResponsesInputItem,
 } from "./ResponsesInputItems";
 export { loadProviderConfig, extractProviderOptions } from "./ProviderPlugins";
+export {
+  ProviderContextFactWireProfileError,
+  validateProviderContextFactsInFinalWire,
+} from "./ProviderContextFactWireProfile";
 export { ProviderRuntimeLlmAdapter } from "./ProviderRuntimeAdapter";
 export type { ProviderRuntimeLlmAdapterSettings } from "./ProviderRuntimeAdapter";
+export * from "./ProviderCacheProductEvidence";
+export * from "./ProviderCacheProductMatrix";
+export * from "./ProviderCacheProductLive";
 export type {
   LlmProviderRuntime,
   ProviderRequestOutcomeObservationData,

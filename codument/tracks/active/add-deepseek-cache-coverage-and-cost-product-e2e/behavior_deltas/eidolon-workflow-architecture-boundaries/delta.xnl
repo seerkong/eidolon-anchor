@@ -1,0 +1,30 @@
+<BehaviorPatch #track.add-deepseek-cache-coverage-and-cost-product-e2e.behavior_patch.eidolon-workflow-architecture-boundaries apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-workflow-architecture-boundaries" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-workflow-architecture-boundaries/requirements/cache-cost-product-matrix" } (
+      <Requirement #cache-cost-product-matrix (
+        <Statement ?>The cache-cost product matrix SHALL independently cover ordinary Actors, dedicated Workflow lifecycle Actors and AI Ctrl/Data node Agents while preserving their exact capability boundaries.</?>
+        <Suites [
+          <Suite #actor-matrix { name = "Cross-Actor product matrix" } (
+            <Cases [
+              <Case #ordinary-and-node-remain-stage-free (
+                <Given ?>ordinary Code, AI Ctrl node and AI Data node journeys execute with their admitted tools</?>
+                <When ?>final context, tool schemas and runtime facets are observed</?>
+                <Then ?>they SHALL contain no lifecycle facet, managed DevOps Skill, stage/progress fact or lifecycle-internal tool and SHALL report lifecycle-only overhead `0`</?>
+              )>
+              <Case #lifecycle-complete-journey (
+                <Given ?>a dedicated lifecycle Actor uses frozen `stable-superset/v1`</?>
+                <When ?>it runs authoring through planning, coding, building, testing and releasing with tools, retry and fresh recovery</?>
+                <Then ?>same-stage turns SHALL remain same-epoch exact and every legitimate boundary SHALL map to one persisted reason without weakening execution authorization</?>
+              )>
+              <Case #frozen-resource-revisions (
+                <Given ?>live Skill or Workflow resource bytes change after an Actor was admitted</?>
+                <When ?>the old Actor recovers and a new Actor is created</?>
+                <Then ?>the old Actor SHALL retain its frozen revision and request identity while the new Actor SHALL receive the new revision through an explicit accepted boundary</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

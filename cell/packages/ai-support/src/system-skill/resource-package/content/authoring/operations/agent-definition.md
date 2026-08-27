@@ -20,7 +20,7 @@ export async function runAgent(
 
 export async function runTargetedAgent(
   runtime: any,
-  selector: { byInstanceId: string } | { byInstanceName: string },
+  selector: { byId: string } | { byName: string },
   invocation: { kind: "ai.agent"; payload: unknown },
   config: Record<string, unknown> = {},
 ) {
@@ -33,8 +33,8 @@ The parameter order is identical for Ctrl and Data ordinary nodes: runtime first
 Create a reusable authored alias by providing a non-empty `instanceName` in the first call config. Later nodes in the same run select the accepted instance with exactly one of these closed objects:
 
 ```ts
-const byName = { byInstanceName: "requirements-reviewer" }
-const byId = { byInstanceId: previous.instance.instanceId }
+const byName = { byName: "requirements-reviewer" }
+const byId = { byId: previous.instance.instanceId }
 ```
 
 The two selector keys are mutually exclusive. Do not use `{ by, instanceName }`, `{ by, instanceId }`, descriptions, labels or ordinary-language matching. `runAgent` and `runTargetedAgent` return `{ output, instance, receipt }`; preserve `instance.instanceId` when later code needs exact id selection.

@@ -24,6 +24,7 @@ import type {
   ResponsesTransportResult,
 } from "@cell/ai-organ-contract/llm/ResponsesReplay";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
+import { validateProviderContextFactsInFinalWire } from "./ProviderContextFactWireProfile";
 import type {
   AdmittedProviderRequest,
   ProviderToolSchemaProjectionAuthority,
@@ -1195,6 +1196,10 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
     });
     const initialAdmission = admitProviderRequest(toolSchemaProjectionAuthority, body);
     const initialAdmittedRequest = readAdmittedProviderRequest(initialAdmission);
+    validateProviderContextFactsInFinalWire({
+      profileId: "openai-responses@1",
+      serializedBody: initialAdmittedRequest.serializedBody,
+    });
     const admittedBody = JSON.parse(initialAdmittedRequest.serializedBody) as Record<string, any>;
     const url = buildResponsesUrl(
       (providerOptions.baseURL as string | undefined) || this.baseUrl,
@@ -1273,6 +1278,10 @@ export class OpenAIResponsesNodejsFetchLlmAdapter implements LlmAdapter {
         params.admittedRequest ?? admitProviderRequest(toolSchemaProjectionAuthority, payload),
       );
       const serializedBody = admittedSnapshot.serializedBody;
+      validateProviderContextFactsInFinalWire({
+        profileId: "openai-responses@1",
+        serializedBody,
+      });
       const outcomeObserver = observeProviderTransportRequest(this.requestObserver, {
         transportType: "http",
         requestBody: serializedBody,

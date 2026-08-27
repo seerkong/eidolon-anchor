@@ -232,13 +232,13 @@ function session(value: unknown, location: string): HolonGenericSessionRef {
   if (mode === "targeted-agent-instance") {
     exactKeys(record, ["mode", "selector", "sessionRef"], location)
     const selectorRecord = closedObject(record.selector, `${location}.selector`)
-    const hasId = Object.prototype.hasOwnProperty.call(selectorRecord, "byInstanceId")
-    const hasName = Object.prototype.hasOwnProperty.call(selectorRecord, "byInstanceName")
+    const hasId = Object.prototype.hasOwnProperty.call(selectorRecord, "byId")
+    const hasName = Object.prototype.hasOwnProperty.call(selectorRecord, "byName")
     if (hasId === hasName) invalid(`${location}.selector`, "Expected exactly one targeted Agent selector")
-    exactKeys(selectorRecord, [hasId ? "byInstanceId" : "byInstanceName"], `${location}.selector`)
-    const selector: AIAgentSelector = hasId
-      ? Object.freeze({ byInstanceId: exactString(selectorRecord.byInstanceId, `${location}.selector.byInstanceId`) })
-      : Object.freeze({ byInstanceName: exactString(selectorRecord.byInstanceName, `${location}.selector.byInstanceName`) })
+    exactKeys(selectorRecord, [hasId ? "byId" : "byName"], `${location}.selector`)
+    const selector = (hasId
+      ? Object.freeze({ byId: exactString(selectorRecord.byId, `${location}.selector.byId`) })
+      : Object.freeze({ byName: exactString(selectorRecord.byName, `${location}.selector.byName`) })) as unknown as AIAgentSelector
     return Object.freeze({
       mode,
       selector,

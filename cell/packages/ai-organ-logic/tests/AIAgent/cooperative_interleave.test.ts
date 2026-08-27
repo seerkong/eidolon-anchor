@@ -4,11 +4,38 @@ import { selectNextFiberId } from "depa-actor";
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
+import { createActorRuntimeFacetRegistry } from "@cell/ai-core-logic/runtime/ActorRuntimeFacet";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import type { ToolDef } from "@cell/ai-core-contract/types";
 import { aiAgentCooperativeStep } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
 import { createAiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver";
 import { getVmProviderCallDomain } from "@cell/ai-organ-logic/runtime/ProviderCallDomainRuntime";
+import { ProviderRequestAdmissionError } from "@cell/ai-organ-logic/llm/tool-schema/ProviderRequestAdmission";
+import {
+  createWorkflowLifecycleFacetRegistry,
+  createWorkflowLifecycleFacetEnvelope,
+  readWorkflowLifecycleFacet,
+} from "@cell/ai-organ-logic/workflow/runtime/WorkflowLifecycleFacet";
+import { withWorkflowDomainProgress } from "@cell/ai-organ-logic/workflow/runtime/WorkflowDomainProgress";
+
+function testWorkflowFacet(input: { maxNoProgressTurns?: number; stageDeadlineMs?: number } = {}) {
+  const material = "name: sys-eidolon-anchor-devops\nrevision: test-v1";
+  const now = Date.now();
+  return createWorkflowLifecycleFacetEnvelope({
+    strategyRevision: "hybrid/v1",
+    systemPrompts: [material],
+    toolNames: [],
+    progress: {
+      stageStartedAt: now,
+      deadlineAt: now + (input.stageDeadlineMs ?? 180_000),
+      turnsSinceProgress: 0,
+      maxNoProgressTurns: input.maxNoProgressTurns ?? 4,
+      proofRepairAttempts: 0,
+      maxProofRepairAttempts: 3,
+      lastProgressAt: now,
+    },
+  });
+}
 
 async function flushMicrotasks(): Promise<void> {
   for (let i = 0; i < 10; i++) {
@@ -50,6 +77,217 @@ function deferred<T>() {
 }
 
 describe("Stage 3 cooperative stepping", () => {
+  it("uses the same neutral facet order in the cooperative provider/tool loop", async () => {
+    const facetId = "fixture.cooperative-order/v1";
+    const schemaVersion = "1";
+    const events: string[] = [];
+    const registry = createActorRuntimeFacetRegistry([{
+      facetId,
+      schemaVersion,
+      normalize: (value) => value,
+      onEvent: ({ envelope, event }) => {
+        events.push(event.kind);
+        return event.kind === "aroundProvider"
+          ? null
+          : {
+              expectedRevision: envelope.revision,
+              nextValue: { count: Number((envelope.value as any).count) + 1 },
+              reason: `fixture.${event.kind}`,
+            };
+      },
+      aroundProvider: async (_context, runtime) => runtime.providerBoundary.run(),
+    }]);
+    const tool: ToolDef<any, string, Record<string, unknown>> = {
+      schema: {
+        type: "function",
+        function: { name: "CooperativeFacetTool", description: "test", parameters: { type: "object" } },
+      },
+      briefPromptXnl: `<tool name="CooperativeFacetTool" />`,
+      run: async () => "changed",
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(tool);
+    let completion = 0;
+    const actor = createActor({
+      key: "cooperative-facet-order",
+      runtimeFacets: [{ facetId, schemaVersion, revision: 0, value: { count: 0 } }],
+      llmClient: {
+        type: "openai" as const,
+        async createStream() {
+          async function* stream() { yield { ok: true }; }
+          return { stream: stream() };
+        },
+      },
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [tool.schema],
+        processStream: async () => (++completion === 1
+          ? {
+              role: "assistant",
+              tool_calls: [{ id: "coop-facet-tool-1", function: { name: "CooperativeFacetTool", arguments: "{}" } }],
+            }
+          : { role: "assistant", content: "done" }),
+      },
+    });
+    const vm = createVM({
+      controlActorKey: actor.key,
+      actors: { [actor.key]: actor },
+      registries: { toolRegistry },
+      runtimeContext: { actorFacetRuntime: registry },
+    });
+    const fiberId = `${actor.key}:${actor.id}`;
+    let execState: any;
+    const step = () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor,
+      messages: [],
+      state: execState,
+      setState: (next) => { execState = next; },
+      resumeFiber: () => {},
+    });
+    actor.send("humanInput", "run");
+    for (let index = 0; index < 40 && events.length < 5; index += 1) {
+      await step();
+      await flushMicrotasks();
+    }
+
+    expect(events).toEqual([
+      "beforeTurn",
+      "aroundProvider",
+      "afterToolOutcome",
+      "beforeTurn",
+      "aroundProvider",
+    ]);
+    expect(actor.runtimeFacets[facetId]).toMatchObject({ revision: 3, value: { count: 3 } });
+  });
+
+  it("projects committed owner progress through the cooperative lifecycle hook", async () => {
+    const output = JSON.stringify(withWorkflowDomainProgress({ ok: true }, {
+      owner: "workflow.runtime",
+      transition: "run_advanced",
+      subjectId: "run-1",
+      revision: "3",
+    }));
+    const tool: ToolDef<any, string, Record<string, unknown>> = {
+      schema: {
+        type: "function",
+        function: { name: "CooperativeOwnerProgress", description: "test", parameters: { type: "object" } },
+      },
+      briefPromptXnl: `<tool name="CooperativeOwnerProgress" />`,
+      run: async () => output,
+    };
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(tool);
+    let completion = 0;
+    const actor = createActor({
+      key: "cooperative-owner-progress",
+      runtimeFacets: [{
+        ...testWorkflowFacet({ maxNoProgressTurns: 4 }),
+        value: { ...testWorkflowFacet({ maxNoProgressTurns: 4 }).value, turnsSinceProgress: 2 },
+      }],
+      llmClient: {
+        type: "openai" as const,
+        async createStream() {
+          async function* stream() { yield { ok: true }; }
+          return { stream: stream() };
+        },
+      },
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [tool.schema],
+        processStream: async () => (++completion === 1
+          ? {
+              role: "assistant",
+              tool_calls: [{ id: "coop-owner-progress-1", function: { name: "CooperativeOwnerProgress", arguments: "{}" } }],
+            }
+          : { role: "assistant", content: "done" }),
+      },
+    });
+    const vm = createVM({
+      controlActorKey: actor.key,
+      actors: { [actor.key]: actor },
+      registries: { toolRegistry },
+      options: { exitAfterToolResult: true },
+      runtimeContext: { actorFacetRuntime: createWorkflowLifecycleFacetRegistry() },
+    });
+    const fiberId = `${actor.key}:${actor.id}`;
+    let execState: any;
+    const step = () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor,
+      messages: [],
+      state: execState,
+      setState: (next) => { execState = next; },
+      resumeFiber: () => {},
+    });
+    actor.send("humanInput", "run");
+    for (let index = 0; index < 50; index += 1) {
+      await step();
+      await flushMicrotasks();
+      if (readWorkflowLifecycleFacet(actor)?.lastOutcome === "running") break;
+    }
+
+    expect(readWorkflowLifecycleFacet(actor)).toMatchObject({
+      turnsSinceProgress: 0,
+      lastOutcome: "running",
+    });
+    expect(JSON.stringify(actor.runtimeFacets)).not.toContain(output);
+  });
+
+  it("suspends the interactive fiber after local projection rejection without assistant history", async () => {
+    const mockAdapter = {
+      type: "deepseek" as const,
+      async createStream() {
+        throw new ProviderRequestAdmissionError("invalid_provider_request_body", {
+          path: "$/messages/4/internal",
+          valueKind: "undefined",
+        });
+      },
+    };
+    const main = createActor({
+      key: "main",
+      llmClient: mockAdapter,
+      modelConfig: { model: "mock", adapter: "deepseek" },
+      callbacks: { buildToolset: () => [], processStream: async () => null },
+    });
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main },
+      registries: { toolRegistry: new ToolFuncRegistry() },
+    });
+    const fiberId = `${main.key}:${main.id}`;
+    let execState: any;
+    const step = () => aiAgentCooperativeStep({
+      fiberId,
+      vm,
+      actor: main,
+      messages: [],
+      state: execState,
+      setState: (next) => { execState = next; },
+      resumeFiber: () => {},
+    });
+    main.send("humanInput", "continue");
+    let waiting: any;
+    for (let index = 0; index < 10; index += 1) {
+      waiting = await step();
+      if (waiting.kind === "suspend" && waiting.reason === "wait_llm_result") break;
+    }
+    expect(waiting).toEqual({ kind: "suspend", reason: "wait_llm_result" });
+    await flushMicrotasks();
+    expect(await step()).toEqual({ kind: "suspend", reason: "idle_external" });
+    const [record] = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
+    expect(record).toMatchObject({
+      status: "failed",
+      failureKind: "local_projection_rejected",
+      rawError: "invalid_provider_request_body",
+    });
+    expect(main.messages.some((message: any) =>
+      message?.role === "assistant" && String(message?.content ?? "").includes("invalid_provider_request_body"),
+    )).toBeFalse();
+  });
+
   it("runs other fibers while main waits for LLM", async () => {
     const llmDone = deferred<any>();
     const mockAdapter = {
@@ -547,6 +785,7 @@ describe("Stage 3 cooperative stepping", () => {
       key: "workflow-no-progress",
       type: "delegate",
       agentName: "workflow",
+      systemPrompts: ["name: sys-eidolon-anchor-devops\nrevision: test-v1"],
       llmClient: {
         type: "openai" as const,
         async createStream() {
@@ -562,11 +801,13 @@ describe("Stage 3 cooperative stepping", () => {
           tool_calls: [{ id: "no-progress", function: { name: "NoProgressTool", arguments: "{}" } }],
         }),
       },
+      runtimeFacets: [testWorkflowFacet({ maxNoProgressTurns: 1 })],
     });
     const vm = createVM({
       controlActorKey: child.key,
       actors: { [child.key]: child },
       registries: { toolRegistry },
+      runtimeContext: { actorFacetRuntime: createWorkflowLifecycleFacetRegistry() },
       outerCtx: { metadata: { aiWorkflow: { budget: { maxNoProgressTurns: 1 } } } },
     });
     const fiberId = `${child.key}:${child.id}`;
@@ -600,6 +841,7 @@ describe("Stage 3 cooperative stepping", () => {
       key: "workflow-deadline",
       type: "delegate",
       agentName: "workflow",
+      systemPrompts: ["name: sys-eidolon-anchor-devops\nrevision: test-v1"],
       llmClient: {
         type: "openai" as const,
         async createStream() {
@@ -612,11 +854,13 @@ describe("Stage 3 cooperative stepping", () => {
         buildToolset: () => [],
         processStream: async () => new Promise<never>(() => {}),
       },
+      runtimeFacets: [testWorkflowFacet({ stageDeadlineMs: 5 })],
     });
     const vm = createVM({
       controlActorKey: child.key,
       actors: { [child.key]: child },
       registries: { toolRegistry },
+      runtimeContext: { actorFacetRuntime: createWorkflowLifecycleFacetRegistry() },
       outerCtx: { metadata: { aiWorkflow: { budget: { stageDeadlineMs: 5 } } } },
     });
     const fiberId = `${child.key}:${child.id}`;

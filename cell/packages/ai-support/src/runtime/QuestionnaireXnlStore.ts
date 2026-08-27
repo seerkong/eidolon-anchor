@@ -56,7 +56,7 @@ export function questionnaireRowToXnlNode(row: QuestionnaireRow): DataElementNod
         title: row.request.title,
         intro: row.request.intro,
         questions: row.request.questions,
-      }),
+      }) as DataElementNode["attributes"],
     } satisfies DataElementNode,
   ];
   if (row.result) {
@@ -69,7 +69,7 @@ export function questionnaireRowToXnlNode(row: QuestionnaireRow): DataElementNod
       attributes: omitUndefined({
         answers: row.result.answers,
         errors: row.result.errors,
-      }),
+      }) as DataElementNode["attributes"],
       body: [rawTextNode("RawText", row.result.rawText)],
     } satisfies DataElementNode);
   }
@@ -78,7 +78,7 @@ export function questionnaireRowToXnlNode(row: QuestionnaireRow): DataElementNod
       kind: "DataElement",
       tag: "Metadata",
       metadata: {},
-      attributes: row.metadata,
+      attributes: row.metadata as DataElementNode["attributes"],
     } satisfies DataElementNode);
   }
 
@@ -155,8 +155,8 @@ export function questionnaireRowFromXnlNode(node: DataElementNode): Questionnair
       result = {
         questionnaireId,
         toolCallId,
-        rawText: isTextElement(rawText) ? rawText.text ?? "" : asString(child.attributes?.rawText) ?? "",
-        status: (asString(child.metadata.status) as QuestionnaireRow["result"]["status"] | undefined) ?? "ok",
+        rawText: rawText && isTextElement(rawText) ? rawText.text ?? "" : asString(child.attributes?.rawText) ?? "",
+        status: (asString(child.metadata.status) as NonNullable<QuestionnaireRow["result"]>["status"] | undefined) ?? "ok",
         answers: child.attributes?.answers && typeof child.attributes.answers === "object"
           ? child.attributes.answers as Record<string, unknown>
           : {},

@@ -15,7 +15,10 @@ export function createKernelBootstrapDescriptor(
       const skillRegistry = baseRegistries.skillRegistry ?? new SkillRegistry();
       SkillRegistry.configureLoader(skillRegistry, loadSkillEntriesFromDir);
       return {
-        toolRegistry: composeToolRegistry({ includeInternalOnly: options?.includeInternalOnly ?? false }),
+        toolRegistry: composeToolRegistry({
+          includeInternalOnly: options?.includeInternalOnly ?? false,
+          includeWorkflowLifecycle: true,
+        }),
         agentRegistry: new AgentRegistry(state.agentConfigs),
         skillRegistry,
       };

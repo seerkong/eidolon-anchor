@@ -1,17 +1,18 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 import { normalizeInputContent, type ChatMessage, type InputContent, type ToolCall } from "@shared/composer";
 
 import {
   CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
   type ActorCommittedMessageRef,
+  type ActorProviderContextFact,
   type ConversationActorRawState,
   type ActorHistoryGenerationData,
   type ActorPromptGenerationData,
   type ConversationArtifactRef,
   type ConversationCommittedMessageData,
   type LocalConversationContextAssetData,
-  type LocalConversationProviderProjectionFact,
   type ConversationPersistenceRepository,
   type ConversationSessionRawState,
   type ConversationTranscriptSourceRecord,
@@ -22,6 +23,15 @@ import {
 } from "@cell/ai-core-logic/runtime/TranscriptRecords";
 import type { TranscriptRecord } from "@cell/symbiont-logic/stream/StreamTranscript";
 import { getLocalHistoryGenerationPath } from "./LocalConversationPaths";
+
+function canonicalProviderContextJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalProviderContextJson).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort((left, right) => left < right ? -1 : left > right ? 1 : 0).map((key) => (
+    `${JSON.stringify(key)}:${canonicalProviderContextJson(record[key])}`
+  )).join(",")}}`;
+}
 
 function uniqueStrings(values: Array<string | null | undefined>): string[] {
   const seen = new Set<string>();
@@ -274,28 +284,88 @@ function isLateStatusOverlayPayload(payload: Record<string, unknown>): boolean {
   return payload.insertPlacement === "late_status" || payload.overlayKind === "work_context";
 }
 
-function compareProjectionAssets(
-  left: LocalConversationContextAssetData,
-  right: LocalConversationContextAssetData,
-): number {
-  const updated = String(left.updatedAt ?? left.projectionFact?.observedAt ?? "")
-    .localeCompare(String(right.updatedAt ?? right.projectionFact?.observedAt ?? ""));
-  return updated || left.assetId.localeCompare(right.assetId);
+function canonicalContextFactJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalContextFactJson).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort((left, right) => left < right ? -1 : left > right ? 1 : 0).map((key) => (
+    `${JSON.stringify(key)}:${canonicalContextFactJson(record[key])}`
+  )).join(",")}}`;
 }
 
-function currentProviderProjectionFacts(rawState: ConversationActorRawState): LocalConversationProviderProjectionFact[] {
-  const currentByKey = new Map<string, LocalConversationContextAssetData>();
-  for (const asset of rawState.session.contextAssets ?? []) {
-    const fact = asset.projectionFact;
-    if (!fact || asset.archivedAt || fact.actorKey !== rawState.actorKey) continue;
-    const current = currentByKey.get(fact.projectionKey);
-    if (!current || compareProjectionAssets(current, asset) < 0) {
-      currentByKey.set(fact.projectionKey, asset);
+function providerContextFactWireText(fact: ActorProviderContextFact): string {
+  return `eidolon-context-fact/v1\n${canonicalContextFactJson({
+    namespace: fact.namespace,
+    revision: fact.namespaceRevision,
+    payload: fact.payload,
+  })}`;
+}
+
+function currentActorProviderContextFacts(rawState: ConversationActorRawState): ActorProviderContextFact[] {
+  const head = rawState.session.actorBindings[rawState.actorKey]?.providerContextFactHead;
+  if (!head) return [];
+  const facts = (rawState.session.contextAssets ?? [])
+    .map((asset) => asset.providerContextFact)
+    .filter((fact): fact is ActorProviderContextFact => Boolean(
+      fact && fact.actorKey === rawState.actorKey && fact.epoch === head.epoch,
+    ))
+    .sort((left, right) => left.sequence - right.sequence);
+  let previous: ActorProviderContextFact | null = null;
+  for (const fact of facts) {
+    if (fact.sequence !== (previous?.sequence ?? 0) + 1
+      || fact.previousSequenceFactDigest !== (previous?.factDigest ?? null)) {
+      throw new Error("provider context fact chain is not contiguous");
     }
+    previous = fact;
   }
-  return [...currentByKey.values()]
-    .sort((left, right) => left.projectionFact!.projectionKey.localeCompare(right.projectionFact!.projectionKey))
-    .map((asset) => asset.projectionFact!);
+  if (previous?.factDigest !== head.factDigest || previous.sequence !== head.sequence) {
+    throw new Error("provider context fact head does not match the immutable chain");
+  }
+  return facts;
+}
+
+function insertProviderContextFactsAtHistoryAnchors(params: {
+  generation: ActorHistoryGenerationData | null | undefined;
+  messages: ChatMessage[];
+  facts: ActorProviderContextFact[];
+}): ChatMessage[] {
+  if (params.facts.length === 0) return params.messages;
+  const generationId = params.generation?.generationId ?? "__empty_history__";
+  const byCount = new Map<number, ActorProviderContextFact[]>();
+  for (const fact of params.facts) {
+    const exactEmptyAnchor = fact.anchor.historyGenerationId === "__empty_history__"
+      && fact.anchor.messageCount === 0;
+    if ((!exactEmptyAnchor && fact.anchor.historyGenerationId !== generationId) || fact.anchor.messageCount > params.messages.length) {
+      throw new Error(
+        `provider context fact history anchor is unavailable:${fact.anchor.historyGenerationId}:${fact.anchor.messageCount}:${generationId}:${params.messages.length}`,
+      );
+    }
+    const prefix = params.generation?.messages.slice(0, fact.anchor.messageCount) ?? [];
+    // Provider-context frontiers are canonical closed JSON, not JavaScript
+    // insertion-order JSON. Persistence codecs are free to reconstruct the
+    // same record with a different property order, and that must not mutate
+    // the immutable history authority.
+    const persistedPrefix = JSON.parse(JSON.stringify(prefix));
+    const frontierDigest = `sha256:${createHash("sha256").update(canonicalProviderContextJson(persistedPrefix), "utf8").digest("hex")}`;
+    if (frontierDigest !== fact.anchor.frontierDigest) {
+      throw new Error("provider context fact history frontier mismatch");
+    }
+    const list = byCount.get(fact.anchor.messageCount) ?? [];
+    list.push(fact);
+    byCount.set(fact.anchor.messageCount, list);
+  }
+  const next: ChatMessage[] = [];
+  const appendFacts = (messageCount: number) => {
+    for (const fact of byCount.get(messageCount) ?? []) {
+      next.push({ role: "user", content: providerContextFactWireText(fact) } as ChatMessage);
+    }
+  };
+  appendFacts(0);
+  params.messages.forEach((message, index) => {
+    next.push(message);
+    appendFacts(index + 1);
+  });
+  return next;
 }
 
 function assistantToolCallIds(message: ChatMessage): Set<string> {
@@ -700,25 +770,24 @@ function materializeSystemPromptStage(
 }
 
 export function materializeConversationRuntimePrompt(rawState: ConversationActorRawState): ChatMessage[] {
-  const projectionFacts = currentProviderProjectionFacts(rawState);
-  const deliveredSourceToolCallIds = new Set(
-    projectionFacts.flatMap((fact) => fact.sourceToolCalls)
-      .filter((source) => source.deliveryState === "delivered")
-      .map((source) => source.toolCallId),
-  );
+  const providerContextFacts = currentActorProviderContextFacts(rawState);
   const activeTailMessages = rawState.activeHistoryGeneration
     ? committedHistoryRefsToMessages(rawState.activeHistoryGeneration.messages)
     : [];
+  const chronological = insertProviderContextFactsAtHistoryAnchors({
+    generation: rawState.activeHistoryGeneration,
+    messages: activeTailMessages,
+    facts: providerContextFacts,
+  });
   const materialized = materializeSystemPromptStage(rawState, [
     ...materializePromptTransformPrelude({ rawState }),
-    ...elideDeliveredToolCallPairsFromProviderView(activeTailMessages, deliveredSourceToolCallIds),
+    ...chronological,
   ]);
   return insertDynamicOverlaysAtConversationBoundary(
     rawState,
     materialized,
     [
       ...materializePromptTransformLateStatusOverlays({ rawState }),
-      ...projectionFacts.map((fact) => ({ role: "system", content: fact.content } as ChatMessage)),
     ],
   );
 }
@@ -829,9 +898,16 @@ export async function applyConversationCompaction(params: {
     promptPlan?: Record<string, unknown>;
   };
   repository: ConversationPersistenceRepository;
+  deferCommit?: boolean;
 }): Promise<{
   historyGenerationId: string;
   promptGenerationId: string;
+  historyIndex: import("@cell/ai-organ-contract").ConversationHistoryIndexSnapshot;
+  promptIndex: import("@cell/ai-organ-contract").ConversationPromptIndexSnapshot;
+  sessionIndex: import("@cell/ai-organ-contract").ConversationSessionIndexSnapshot;
+  artifactRefs: import("@cell/ai-organ-contract").ConversationArtifactRefsSnapshot;
+  historyGenerations: readonly ActorHistoryGenerationData[];
+  promptGenerations: readonly ActorPromptGenerationData[];
 }> {
   const nowIso = params.occurredAt ?? new Date().toISOString();
   const sessionId = path.basename(params.sessionDir);
@@ -852,11 +928,16 @@ export async function applyConversationCompaction(params: {
     ? await params.repository.loadHistoryGeneration(previousHistoryGenerationId)
     : null;
 
-  if (previousHistoryGeneration && !previousHistoryGeneration.sealed) {
+  const sealedPreviousHistoryGeneration = previousHistoryGeneration && !previousHistoryGeneration.sealed
+    ? {
+        ...previousHistoryGeneration,
+        sealed: true,
+        updatedAt: nowIso,
+      }
+    : null;
+  if (sealedPreviousHistoryGeneration && !params.deferCommit) {
     await params.repository.writeHistoryGeneration({
-      ...previousHistoryGeneration,
-      sealed: true,
-      updatedAt: nowIso,
+      ...sealedPreviousHistoryGeneration,
     });
   }
 
@@ -946,8 +1027,10 @@ export async function applyConversationCompaction(params: {
     },
   };
 
-  await params.repository.writeHistoryGeneration(historyGeneration);
-  await params.repository.writePromptGeneration(promptGeneration);
+  if (!params.deferCommit) {
+    await params.repository.writeHistoryGeneration(historyGeneration);
+    await params.repository.writePromptGeneration(promptGeneration);
+  }
 
   historyIndex.heads[params.actorKey] = {
     version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
@@ -1096,13 +1179,24 @@ export async function applyConversationCompaction(params: {
   ];
   artifactRefs.updatedAt = nowIso;
 
-  await params.repository.writeHistoryIndex(historyIndex);
-  await params.repository.writePromptIndex(promptIndex);
-  await params.repository.writeSessionIndex(sessionIndex);
-  await params.repository.writeArtifactRefs(artifactRefs);
+  if (!params.deferCommit) {
+    await params.repository.writeHistoryIndex(historyIndex);
+    await params.repository.writePromptIndex(promptIndex);
+    await params.repository.writeSessionIndex(sessionIndex);
+    await params.repository.writeArtifactRefs(artifactRefs);
+  }
 
   return {
     historyGenerationId,
     promptGenerationId,
+    historyIndex,
+    promptIndex,
+    sessionIndex,
+    artifactRefs,
+    historyGenerations: [
+      ...(sealedPreviousHistoryGeneration ? [sealedPreviousHistoryGeneration] : []),
+      historyGeneration,
+    ],
+    promptGenerations: [promptGeneration],
   };
 }

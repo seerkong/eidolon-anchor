@@ -57,7 +57,7 @@ RabbitMQ 用于 Mission 2 的 MVP transport/broker 验证。RabbitMQ 不拥有�
 
 ### D7：MemberRuntime 默认复用，conversation 默认隔离
 
-同一 deployment 中 `(deploymentId, memberRef)` 默认对应一个长期 MemberRuntime；显式 task-space/workflow-run isolation policy 才创建临时 runtime。长期 runtime 不等于共享 conversation：默认 generic session 按 task claim attempt 隔离，跨调用复用 Agent instance 必须通过 frozen binding 授权的 `{byInstanceId}` 或 `{byInstanceName}` targeted selector。
+同一 deployment 中 `(deploymentId, memberRef)` 默认对应一个长期 MemberRuntime；显式 task-space/workflow-run isolation policy 才创建临时 runtime。长期 runtime 不等于共享 conversation：默认 generic session 按 task claim attempt 隔离，跨调用复用 Agent instance 必须通过 frozen binding 授权的 `{byId}` 或 `{byName}` targeted selector；旧的 instance-prefixed keys 不再接受。
 
 ### D8：MemberPrincipalKind 位于 effective-dated MemberVersion
 

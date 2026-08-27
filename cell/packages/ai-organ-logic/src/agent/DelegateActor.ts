@@ -22,6 +22,9 @@ import { resolveDelegateWorkload } from "../lane/AiAgentWorkload"
 import { getActorWorkContext } from "../runtime/ContextControlPlane"
 import { TASK_PHASES } from "@cell/ai-core-contract/runtime/ContextControl"
 import type { AgentConfig, AgentSeedMessage } from "@cell/ai-core-contract/runtime/AgentConfig"
+import type { ActorOriginFact } from "@cell/ai-core-contract/runtime/AiAgentActor"
+import type { ActorRuntimeFacetIndexInput } from "@cell/ai-core-contract/runtime/ActorRuntimeFacet"
+import type { ActorDurableMaterialIndexInput } from "@cell/ai-core-contract/runtime/ActorDurableMaterial"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import {
   normalizeAgentExecutionContract,
@@ -49,6 +52,12 @@ export async function spawnChildExecutionActor(
     resolvedConfig?: AgentConfig
     sessionId?: string
     retainActor?: boolean
+    origin?: ActorOriginFact
+    runtimeFacets?: ActorRuntimeFacetIndexInput
+    durableMaterials?: ActorDurableMaterialIndexInput
+    providerToolSurface?: { mode: "all" | "exact"; toolNames: readonly string[] }
+    buildToolset?: AiAgentActor["callbacks"]["buildToolset"]
+    validateBeforeRegistration?: (actor: AiAgentActor) => void
     onActorCreated?: (actor: AiAgentActor) => void
   },
 ): Promise<string> {
@@ -136,6 +145,7 @@ export async function spawnChildExecutionActor(
   const actor = createActor({
     key: `${parentActor.key}:${params.agentType}:${taskId || `${Date.now()}-${Math.random().toString(16).slice(2)}`}`,
     type: mode === "detached" ? "detached" : "delegate",
+    parentKey: parentActor.key,
     agentName: params.agentType,
     llmClient: parentActor.llmClient,
     modelConfig: parentActor.modelConfig,
@@ -150,6 +160,12 @@ export async function spawnChildExecutionActor(
     toolPolicy: {
       allowedToolsMode,
       allowedTools,
+      ...(params.providerToolSurface ? {
+        providerToolSurface: {
+          mode: params.providerToolSurface.mode,
+          toolNames: [...params.providerToolSurface.toolNames],
+        },
+      } : {}),
       enabledToolKeys: parentActor.toolPolicy.enabledToolKeys,
       disabledToolKeys: parentActor.toolPolicy.disabledToolKeys,
       computedDisabledTools: parentActor.toolPolicy.computedDisabledTools,
@@ -158,8 +174,11 @@ export async function spawnChildExecutionActor(
       ? { historyCompaction: "disabled" }
       : config.contextPolicy,
     executionContract,
+    origin: params.origin,
+    runtimeFacets: params.runtimeFacets,
+    durableMaterials: params.durableMaterials,
     callbacks: {
-      buildToolset: parentActor.callbacks.buildToolset,
+      buildToolset: params.buildToolset ?? parentActor.callbacks.buildToolset,
       processStream: parentActor.callbacks.processStream,
     },
     workContext: {
@@ -173,11 +192,12 @@ export async function spawnChildExecutionActor(
       lastTrigger: "delegate_start",
     },
   })
+  params.validateBeforeRegistration?.(actor)
   vm.actors[actor.key] = actor
-  params.onActorCreated?.(actor)
   if (!vm.actorRuntime.has(actor.key)) {
     vm.actorRuntime.register(actor.key, actor)
   }
+  params.onActorCreated?.(actor)
   // Seed prompt into the conversation domains through the semantic injection
   // chain so the child's first provider materialization carries it (the raw
   // seed array is only the compatibility mirror).
@@ -313,18 +333,26 @@ export async function invokeAddressedChildExecutionActor(
     resolvedConfig: AgentConfig
     sessionId?: string
     target?: AddressedChildExecutionReference
+    origin?: ActorOriginFact
+    durableMaterials?: ActorDurableMaterialIndexInput
+    validateActor?: (actor: AiAgentActor) => void
   },
 ): Promise<{ output: string; reference: AddressedChildExecutionReference }> {
   if (params.target) {
+    if (params.durableMaterials !== undefined) {
+      throw new Error("ADDRESSED_AGENT_DURABLE_MATERIALS_REQUIRE_NEW_OWNER: existing Actor revisions use the explicit context-revision transition")
+    }
     const actor = vm.actors[params.target.actorKey]
     if (!actor || actor.id !== params.target.actorId) {
       throw new Error("ADDRESSED_AGENT_OWNER_NOT_AVAILABLE: generic actor owner is not loaded")
     }
     if (params.target.authority !== "eidolon.actor-runtime/v1"
       || params.target.agentDefinitionRef !== params.agentType
-      || actor.agentName !== params.agentType) {
+      || actor.agentName !== params.agentType
+    ) {
       throw new Error("ADDRESSED_AGENT_OWNER_CONFLICT: target does not match the Agent definition")
     }
+    params.validateActor?.(actor)
     appendLiveHistoryMessageToConversationDomainRuntime({
       vm,
       actorKey: actor.key,
@@ -342,8 +370,11 @@ export async function invokeAddressedChildExecutionActor(
     mode: "sync_wait",
     toolCallId: params.toolCallId,
     resolvedConfig: params.resolvedConfig,
+    origin: params.origin,
+    ...(params.durableMaterials === undefined ? {} : { durableMaterials: params.durableMaterials }),
     ...(params.sessionId === undefined ? {} : { sessionId: params.sessionId }),
     retainActor: true,
+    validateBeforeRegistration: params.validateActor,
     onActorCreated: (actor) => { created = actor },
   })
   if (!created) throw new Error("ADDRESSED_AGENT_OWNER_MISSING: generic actor owner was not created")

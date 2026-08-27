@@ -8,6 +8,7 @@ import type {
 import type { ProviderOptions } from "./ProviderPlugins";
 import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
+import { validateProviderContextFactsInFinalWire } from "./ProviderContextFactWireProfile";
 
 const DEFAULT_THINKING_BUDGET = 8000;
 const DEFAULT_MAX_TOKENS = 4096;
@@ -443,6 +444,10 @@ export class AnthropicNodejsFetchLlmAdapter implements LlmAdapter {
     const fetchFn = providerOptions.fetch || fetch;
     const signal = providerOptions.signal as AbortSignal | undefined;
     const serializedBody = JSON.stringify(body);
+    validateProviderContextFactsInFinalWire({
+      profileId: "anthropic-chat@1",
+      serializedBody,
+    });
     observeProviderTransportRequest(this.requestObserver, {
       transportType: "http",
       requestBody: serializedBody,

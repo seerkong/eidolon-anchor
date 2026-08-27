@@ -14,7 +14,7 @@ import { queueLeaderLedHolonAssign } from "../_leaderLedHolonAssignCore"
 import { getLatestAssistantText, parseFormalAssignMode, requireNonEmptyContent, setTargetWatchState } from "../_formalTooling"
 import type { ActorAssignInnerConfig, ActorAssignInnerInput, ActorAssignInnerOutput, ActorAssignInnerRuntime } from "./InnerTypes"
 
-function countAssistantMessages(actor: { messages?: any[] } | null | undefined): number {
+function countAssistantMessages(actor: { messages?: readonly any[] } | null | undefined): number {
   const messages = Array.isArray(actor?.messages) ? actor.messages : []
   return messages.filter((msg) => msg?.role === "assistant").length
 }

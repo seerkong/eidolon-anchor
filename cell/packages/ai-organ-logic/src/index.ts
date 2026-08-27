@@ -3,6 +3,18 @@ export { forceCompressActorHistory, validateProviderPromptInputModalities } from
 export * from "./workflow";
 export * from "./resources";
 export {
+  activateActorProviderEpoch,
+  acceptActorProviderContextRevision,
+  reconcileActorProviderEpochProjection,
+  resolveProviderEpochProfileId,
+} from "./conversation/ProviderEpoch";
+export {
+  computeProviderEpochConversationProjectionDigests,
+  computeProviderEpochReceiptIntegrityDigest,
+  projectProviderEpochConversationMessages,
+  ProviderEpochProjectionError,
+} from "./conversation/ProviderEpochProjection";
+export {
   createAiAgentOrchestratorDriver,
   createAiAgentOrchestratorDriverWithCooperative,
 } from "./OrchestratorDriver";
@@ -54,14 +66,20 @@ export * from "./organization/HolonLegacyTaskAuthority";
 export * from "./organization/HolonWorkflowTaskRuntime";
 export {
   createEmptyConversationProjection,
+  mergeConversationCompactionActorBinding,
   reduceConversationDomainEvent,
   reduceConversationDomainEvents,
 } from "./conversation/ConversationDomainProjection";
 export { loadConversationDebugSnapshot } from "./conversation/ConversationDebug";
+export * from "./conversation/ActorProviderContextFact";
+export * from "./conversation/ProviderContextEpochV2";
 export {
+  activateProviderEpochReceiptV2InConversationDomainRuntime,
   applyPromptTransformToConversationDomainRuntime,
   appendConversationDomainEvent,
+  appendActorProviderContextFactToConversationDomainRuntime,
   appendLiveHistoryMessageToConversationDomainRuntime,
+  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
   clearContextBlocksInConversationDomainRuntime,
   closeConversationSessionInConversationDomainRuntime,
   confirmToolResultDeliveriesToConversationDomainRuntime,
@@ -77,7 +95,6 @@ export {
   materializeConversationHistoryMessagesFromVm,
   materializeConversationRuntimeMessagesFromVm,
   recordConversationTranscriptEvidenceInRuntime,
-  recordPromptOverlayToConversationDomainRuntime,
   recordPromptRequestToConversationDomainRuntime,
   registerPendingToolResultDeliveryToConversationDomainRuntime,
   registerContextBlockToConversationDomainRuntime,
@@ -92,6 +109,7 @@ export {
   teeConversationPromptStream,
   teeConversationSessionStream,
   upsertContextResourceFactToConversationDomainRuntime,
+  upsertProviderContextFactCandidateToConversationDomainRuntime,
   upsertProviderProjectionFactToConversationDomainRuntime,
   upsertResponsesReplayCheckpointToConversationDomainRuntime,
   updateConversationDomainFromTranscriptRecordBatch,
@@ -116,6 +134,8 @@ export {
   DEFAULT_TOOL_CALL_OUTPUT_PREVIEW_CHARS,
   DEFAULT_TOOL_CALL_TERMINAL_RETENTION_LIMIT,
   createToolCallDomainRuntime,
+  digestToolCallInvocationRecord,
+  digestToolCallRecord,
   ensureVmToolCallDomain,
   getVmToolCallDomain,
   prepareToolCallDomainRecordsForSnapshot,

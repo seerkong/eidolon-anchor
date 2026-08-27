@@ -392,6 +392,7 @@ export function applyCommittedMessageAppendToDomains(params: {
     actorBindings: {
       ...currentSession.actorBindings,
       [params.actorKey]: {
+        ...currentSession.actorBindings[params.actorKey],
         actorKey: params.actorKey,
         actorId: params.actorId,
         boundAt: nextGeneration.updatedAt,
@@ -409,6 +410,7 @@ export function applyCommittedMessageAppendToDomains(params: {
         actorBindings: {
           ...currentSession.sessionIndex.session.actorBindings,
           [params.actorKey]: {
+            ...currentSession.sessionIndex.session.actorBindings[params.actorKey],
             actorKey: params.actorKey,
             actorId: params.actorId,
             boundAt: nextGeneration.updatedAt,

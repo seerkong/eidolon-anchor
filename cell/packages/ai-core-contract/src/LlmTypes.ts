@@ -35,6 +35,21 @@ export type LlmRequestExecutionIdentity = Readonly<{
   requestId: string;
 }>;
 
+/** Local-only context for deriving value-safe provider cache-cost evidence. */
+export type ProviderCacheCostObservationContext = Readonly<{
+  /** Domain-owned attribution label; generic transport assigns no semantics. */
+  actorClass: string;
+  contextEpoch: number;
+  tokenEstimates: Readonly<{
+    toolSurfaceTokens: number;
+    workflowControlTokens: number;
+  }>;
+  priceWeights?: Readonly<{
+    cacheHitWeight: number;
+    cacheMissWeight: number;
+  }>;
+}>;
+
 export type LlmGenerateOptions = {
   model: string;
   messages: any[];
@@ -55,6 +70,8 @@ export type LlmGenerateOptions = {
   /** Provider-call-scoped opaque authority prepared by the configured driver. */
   providerToolSchemaProjectionAuthority?: unknown;
   executionIdentity?: LlmRequestExecutionIdentity;
+  /** Diagnostic-only and never serialized into a provider request. */
+  providerCacheCostObservation?: ProviderCacheCostObservationContext;
 };
 
 export type LlmStreamResult = {

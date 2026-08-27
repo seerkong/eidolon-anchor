@@ -1,15 +1,15 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor"
 import { createVM } from "@cell/ai-core-logic/runtime/runtime"
-import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { readRuntimeControlEffectEvidence } from "@cell/ai-file-store-logic"
 import { composeToolRegistry } from "../../src/composer/AIAgent"
 import { computeFlowBundleDigest } from "work-ctrl-flow-logic"
 import { getWorkflowRuntimeService } from "../../src/workflow"
+import { WorkflowCommandService } from "../../src/workflow/component"
 
 const roots: string[] = []
 
@@ -44,13 +44,39 @@ async function makeRuntime(existing?: { workspaceRoot: string; sessionDir: strin
 }
 
 async function call(runtime: Awaited<ReturnType<typeof makeRuntime>>, name: string, input: unknown) {
-  return JSON.parse(String(await ToolFuncRegistry.call(
-    runtime.toolRegistry,
-    name,
-    runtime.vm,
-    runtime.actor,
-    input,
-  )))
+  const service = getWorkflowRuntimeService(runtime as any)
+  const value = input as Record<string, any>
+  try {
+    if (name === "WorkflowCreateInstance") {
+      const instance = await service.createInstance({
+        workflowRef: String(value.workflow_ref),
+        instanceId: value.instance_id,
+        initialInput: value.input,
+      })
+      return { ok: true, kind: "workflow.instance", instance, effectDispatched: false }
+    }
+    if (name === "WorkflowRun") {
+      return await service.start({ instanceId: String(value.instance_id), runId: value.run_id, confirmed: value.confirmed === true })
+    }
+    if (name === "WorkflowStatus") return await service.status(String(value.run_id))
+    if (name === "WorkflowEvents") return await service.events(String(value.run_id))
+    if (name === "WorkflowApplyGraphPatch") {
+      return await service.applyGraphPatch(String(value.run_id), value.patch)
+    }
+    if (name === "WorkflowResume") {
+      const current = await service.status(String(value.run_id))
+      if (current?.terminal) return { ...current, kind: "workflow.runResume", resumed: false }
+      const resumed = await service.resumeDataNode(
+        String(value.run_id),
+        String(value.node_id),
+        value.output ?? value.payload,
+      )
+      return { ...resumed, resumed: true }
+    }
+    throw new Error(`Unsupported direct runtime operation: ${name}`)
+  } catch (error) {
+    return { ok: false, error: String((error as Error)?.message ?? error) }
+  }
 }
 
 async function start(runtime: Awaited<ReturnType<typeof makeRuntime>>, workflowRef: string, input: unknown) {
@@ -60,19 +86,17 @@ async function start(runtime: Awaited<ReturnType<typeof makeRuntime>>, workflowR
 }
 
 async function publish(runtime: Awaited<ReturnType<typeof makeRuntime>>, name: string, fqn: string, manifest: string) {
-  const created = await call(runtime, "WorkflowCreateBundle", {
+  const draft = new WorkflowCommandService().createBundleDraft({
     form: "ai-data",
     name,
     fqn,
     manifest_content: manifest,
   })
-  expect(created.status).toBe("session_opened")
-  const sessionId = created.session.sessionId
-  await call(runtime, "WorkflowWorkspace", { operation: "diff", session_id: sessionId })
-  await call(runtime, "WorkflowValidateAuthoringSession", { session_id: sessionId })
-  await call(runtime, "WorkflowDryRunAuthoringSession", { session_id: sessionId })
-  const published = await call(runtime, "WorkflowPublishAuthoringSession", { session_id: sessionId, confirmed: true })
-  expect(published.status).toBe("published")
+  for (const file of draft.files) {
+    const target = path.join(runtime.workspaceRoot, file.path)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, file.content, "utf8")
+  }
 }
 
 function simpleManifest(fqn: string, middle: string[]): string {

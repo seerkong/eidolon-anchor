@@ -3,6 +3,12 @@ import { createRecoveryHooks, createSnapshotCodec } from "depa-actor";
 import { createActor, type AiAgentActor, type CreateActorParams } from "../actor";
 import { cloneAndFreezeAgentExecutionContract } from "../AgentExecutionContract";
 import {
+  normalizeActorRuntimeFacetIndex,
+  normalizeActorRuntimeFacetIndexForRegistry,
+} from "../ActorRuntimeFacet";
+import type { ActorRuntimeFacetRegistry } from "@cell/ai-core-contract/runtime/ActorRuntimeFacet";
+import { normalizeActorDurableMaterialIndex } from "../ActorDurableMaterial";
+import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   type RuntimeSnapshotActor,
 } from "./types";
@@ -42,6 +48,12 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
       toolPolicy: {
         allowedToolsMode: actor.toolPolicy.allowedToolsMode,
         allowedTools: [...actor.toolPolicy.allowedTools],
+        providerToolSurface: actor.toolPolicy.providerToolSurface
+          ? {
+              mode: actor.toolPolicy.providerToolSurface.mode,
+              toolNames: [...actor.toolPolicy.providerToolSurface.toolNames],
+            }
+          : undefined,
         enabledToolKeys: [...actor.toolPolicy.enabledToolKeys],
         disabledToolKeys: [...actor.toolPolicy.disabledToolKeys],
         computedDisabledTools: [...actor.toolPolicy.computedDisabledTools],
@@ -50,6 +62,7 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
       executionContract: actor.executionContract
         ? cloneAndFreezeAgentExecutionContract(actor.executionContract)
         : undefined,
+      origin: actor.origin ? { ...actor.origin } : undefined,
       modelConfig: { ...actor.modelConfig },
       ctrlOptions: {
         stopAfterFirstTool: actor.ctrlOptions.stopAfterFirstTool,
@@ -65,7 +78,8 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
       continuationBaseline: structuredClone(actor.continuationBaseline),
       lastMemberResultNotifiedAt: actor.lastMemberResultNotifiedAt,
       detachedTask: actor.detachedTask ? structuredClone(actor.detachedTask) : undefined,
-      workflowProgress: actor.workflowProgress ? structuredClone(actor.workflowProgress) : undefined,
+      runtimeFacets: normalizeActorRuntimeFacetIndex(actor.runtimeFacets),
+      durableMaterials: normalizeActorDurableMaterialIndex(actor.durableMaterials),
       holonState: actor.holonState ? structuredClone(actor.holonState) : undefined,
       updatedAt: nowIso,
       recovery: actor.recovery,
@@ -112,6 +126,12 @@ function hydrateActorFromSnapshot(
       allowedToolsMode: snapshot.toolPolicy.allowedToolsMode
         ?? (snapshot.toolPolicy.allowedTools.length > 0 ? "exact" : "all"),
       allowedTools: [...snapshot.toolPolicy.allowedTools],
+      providerToolSurface: snapshot.toolPolicy.providerToolSurface
+        ? {
+            mode: snapshot.toolPolicy.providerToolSurface.mode,
+            toolNames: [...snapshot.toolPolicy.providerToolSurface.toolNames],
+          }
+        : params?.toolPolicy?.providerToolSurface,
       enabledToolKeys: [...snapshot.toolPolicy.enabledToolKeys],
       disabledToolKeys: [...snapshot.toolPolicy.disabledToolKeys],
       computedDisabledTools: [...snapshot.toolPolicy.computedDisabledTools],
@@ -122,6 +142,7 @@ function hydrateActorFromSnapshot(
     executionContract: snapshot.executionContract
       ? cloneAndFreezeAgentExecutionContract(snapshot.executionContract)
       : undefined,
+    origin: snapshot.origin ? { ...snapshot.origin } : undefined,
     modelConfig: { ...snapshot.modelConfig },
     ctrlOptions: {
       stopAfterFirstTool: snapshot.ctrlOptions.stopAfterFirstTool,
@@ -146,7 +167,8 @@ function hydrateActorFromSnapshot(
     continuationBaseline: snapshot.continuationBaseline ? structuredClone(snapshot.continuationBaseline) : undefined,
     lastMemberResultNotifiedAt: snapshot.lastMemberResultNotifiedAt ?? null,
     detachedTask: snapshot.detachedTask ? structuredClone(snapshot.detachedTask) : undefined,
-    workflowProgress: snapshot.workflowProgress ? structuredClone(snapshot.workflowProgress) : undefined,
+    runtimeFacets: normalizeActorRuntimeFacetIndex(snapshot.runtimeFacets),
+    durableMaterials: normalizeActorDurableMaterialIndex(snapshot.durableMaterials),
     holonState: snapshot.holonState ? structuredClone(snapshot.holonState) : undefined,
     recovery: {
       restoredFromSnapshot: true,
@@ -156,11 +178,27 @@ function hydrateActorFromSnapshot(
   });
 }
 
+export type HydrateActorParams = Omit<
+  CreateActorParams,
+  "key" | "id" | "type" | "actorType" | "actorId"
+> & {
+  actorFacetRuntime?: ActorRuntimeFacetRegistry;
+};
+
 export function hydrateActor(
   snapshot: RuntimeSnapshotActor,
-  params?: Omit<CreateActorParams, "key" | "id" | "type" | "actorType" | "actorId">,
+  params?: HydrateActorParams,
 ): AiAgentActor {
-  const hydrated = ACTOR_SNAPSHOT_CODEC.hydrate(snapshot);
-  const actor = params ? hydrateActorFromSnapshot(snapshot, params) : hydrated;
+  const { actorFacetRuntime, ...createParams } = params ?? {};
+  const actor = hydrateActorFromSnapshot(snapshot, createParams);
+  if (Object.keys(actor.runtimeFacets).length > 0) {
+    if (!actorFacetRuntime) {
+      throw new Error("ACTOR_RUNTIME_FACET_UNKNOWN_CODEC: snapshot facets require an exact per-VM codec registry");
+    }
+    actor.runtimeFacets = normalizeActorRuntimeFacetIndexForRegistry(
+      actorFacetRuntime,
+      actor.runtimeFacets,
+    );
+  }
   return ACTOR_RECOVERY_HOOKS.afterHydrate?.(actor) ?? actor;
 }

@@ -18,7 +18,7 @@
   )>
   <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/member-session-and-adapter-boundary" } (
     <Requirement #member-session-and-adapter-boundary (
-      <Statement ?>Shared MemberRuntime SHALL default to a distinct durable task-attempt generic session, SHALL reuse an Agent instance only through exact byInstanceId/byInstanceName targeted selection, and SHALL dispatch AI/human/service/hybrid adapters through one typed task envelope without routing from principalKind.</?>
+      <Statement ?>Shared MemberRuntime SHALL default to a distinct durable task-attempt generic session, SHALL reuse an Agent instance only through exact byId/byName targeted selection while rejecting legacy instance-prefixed keys, and SHALL dispatch AI/human/service/hybrid adapters through one typed task envelope without routing from principalKind.</?>
       <Suites [<Suite #session-adapter-cases { name = "Session and adapter boundary" } (<Cases [
         <Case #default-session-isolation [<Given ?>Two unrelated tasks use the same shared MemberRuntime.</?><When ?>They invoke AI work without a target selector.</?><Then ?>They SHALL use distinct generic sessions and SHALL NOT see each other's conversation.</?>]>
         <Case #targeted-continuity [<Given ?>A prior invocation returned an Agent instance id or admitted instance name.</?><When ?>A later task uses the exact selector.</?><Then ?>It SHALL address the same generic Agent instance without creating a workflow-specific session owner.</?>]>

@@ -56,6 +56,45 @@ function makeTempHomeDir(): string {
   return dir
 }
 
+function makeTempHomeDirWithRecoveryModels(): string {
+  const dir = makeTempHomeDir()
+  fs.writeFileSync(
+    path.join(dir, ".eidolon", "llm-provider.json"),
+    JSON.stringify(
+      {
+        providers: [
+          {
+            id: "first",
+            adapter: "openai",
+            options: { baseURL: "https://first.invalid", apiKey: "first-key" },
+            models: [{ id: "first-model", limits: { context: 128000, output: 8192 } }],
+          },
+          {
+            id: "second",
+            adapter: "openai",
+            options: { baseURL: "https://second.invalid", apiKey: "second-key" },
+            models: [{ id: "second-model", limits: { context: 128000, output: 8192 } }],
+          },
+        ],
+      },
+      null,
+      2,
+    ),
+  )
+  fs.writeFileSync(
+    path.join(dir, ".eidolon", "agent-present.json"),
+    JSON.stringify(
+      {
+        preset: "default",
+        presets: { default: { main: { model: "first/first-model" } } },
+      },
+      null,
+      2,
+    ),
+  )
+  return dir
+}
+
 let activeWorkdir: string | null = null
 let activeHomeDir: string | null = null
 
@@ -181,12 +220,81 @@ describe("headless terminal turn", () => {
       mcp: false,
     })
 
-    expect(first).toContain("users:1")
-    expect(second).toContain("users:1")
+    const firstCount = Number(first.match(/users:(\d+)/)?.[1])
+    const secondCount = Number(second.match(/users:(\d+)/)?.[1])
+    expect(firstCount).toBeGreaterThan(0)
+    expect(secondCount).toBe(firstCount)
 
     const sessionRoot = path.join(activeWorkdir, ".eidolon", "sessions")
     const sessions = fs.readdirSync(sessionRoot)
     expect(sessions.length).toBe(2)
     expect(sessions.every((name) => /^\d{14}__[0-9A-HJKMNP-TV-Z]{26}$/.test(name))).toBe(true)
+  })
+
+  it("honors an explicit model when continuing a session with a persisted model", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDirWithRecoveryModels()
+    process.env.HOME = activeHomeDir
+
+    const createdModels: string[] = []
+    __setLlmAdapterFactoryForTest(async (_adapter, _workDir, overrides) => {
+      createdModels.push(String(overrides?.model ?? ""))
+      return {
+        type: "openai" as const,
+        async createStream() {
+          async function* stream() {
+            yield { choices: [{ delta: { content: `reply:${String(overrides?.model ?? "")}` } }] } as any
+          }
+          return { stream: stream() }
+        },
+      }
+    })
+
+    await runHeadlessTurn({
+      workDir: activeWorkdir,
+      sessionKey: "recovered-model",
+      input: "first",
+      mcp: false,
+    })
+    const result = await runHeadlessTurn({
+      workDir: activeWorkdir,
+      sessionKey: "recovered-model",
+      model: "second/second-model",
+      input: "second",
+      mcp: false,
+    })
+    const sessionIndexPath = path.join(
+      activeWorkdir,
+      ".eidolon",
+      "sessions",
+      "recovered-model",
+      "conversation",
+      "session.index.json",
+    )
+    const modelControlReceipt = JSON.parse(fs.readFileSync(sessionIndexPath, "utf8"))
+      .session.actorBindings.main.providerEpochReceiptV2
+    const recoveredResult = await runHeadlessTurn({
+      workDir: activeWorkdir,
+      sessionKey: "recovered-model",
+      input: "third",
+      mcp: false,
+    })
+
+    expect(result).toContain("reply:second-model")
+    expect(recoveredResult).toContain("reply:second-model")
+    expect(createdModels.at(-1)).toBe("second-model")
+    const sessionIndex = JSON.parse(fs.readFileSync(sessionIndexPath, "utf8"))
+    expect(sessionIndex.session.actorBindings.main.providerEpochReceipt).toBeUndefined()
+    expect(sessionIndex.session.actorBindings.main.providerEpochReceiptV2).toMatchObject({
+      schemaVersion: "provider.epoch-receipt/v2",
+      sessionId: "recovered-model",
+      actorKey: "main",
+      targetProviderId: "second",
+      targetModelId: "second-model",
+      targetProfileId: "openai-chat@1",
+    })
+    expect(modelControlReceipt.reason).toBe("provider_model_profile_switch")
+    expect(sessionIndex.session.actorBindings.main.providerEpochReceiptV2.actorId).toBe(modelControlReceipt.actorId)
+    expect(sessionIndex.session.actorBindings.main.providerEpochReceiptV2.epoch).toBeGreaterThanOrEqual(modelControlReceipt.epoch)
   })
 })

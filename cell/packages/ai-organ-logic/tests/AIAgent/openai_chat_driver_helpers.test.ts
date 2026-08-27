@@ -6,6 +6,20 @@ import {
 } from "@cell/ai-organ-logic/llm";
 
 describe("OpenAI Chat driver helpers", () => {
+  it("projects role-specific own-data and drops internal or undefined message fields", () => {
+    const message = Object.create(null);
+    Object.defineProperties(message, {
+      role: { value: "assistant", enumerable: true },
+      content: { value: "answer", enumerable: true },
+      internalRuntimeFact: { value: "must-not-leave", enumerable: true },
+      optionalUndefined: { value: undefined, enumerable: true },
+    });
+
+    expect(normalizeOpenAIChatMessages([message])).toEqual([
+      { role: "assistant", content: "answer" },
+    ]);
+  });
+
   it("finds replay-safe prefix before dangling tool calls", () => {
     const result = findOpenAIReplaySafeMessagePrefix([
       { role: "user", content: "hi" },
@@ -120,7 +134,7 @@ describe("OpenAI Chat driver helpers", () => {
     ]);
   });
 
-  it("adds empty reasoning_content to legacy DeepSeek assistant tool calls", () => {
+  it("does not fabricate reasoning_content for legacy DeepSeek assistant tool calls", () => {
     expect(
       normalizeOpenAIChatMessages(
         [
@@ -139,7 +153,6 @@ describe("OpenAI Chat driver helpers", () => {
       {
         role: "assistant",
         content: "",
-        reasoning_content: "",
         tool_calls: [
           { id: "call_legacy", type: "function", function: { name: "read", arguments: "{}" } },
         ],

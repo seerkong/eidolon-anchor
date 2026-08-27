@@ -60,6 +60,65 @@ export type InstalledSystemSkillManifest = {
   skills: readonly InstalledSystemSkill[];
 };
 
+export type FrozenAiWorkflowResourcePackage = Readonly<{
+  schemaVersion: "eidolon.ai-workflow-resource-package/v1";
+  revision: string;
+  digest: Sha256Digest;
+  resources: Readonly<Record<string, string>>;
+}>;
+
+export function serializeFrozenAiWorkflowResourcePackage(
+  resourcePackage: FrozenAiWorkflowResourcePackage,
+): string {
+  return JSON.stringify({
+    schemaVersion: resourcePackage.schemaVersion,
+    revision: resourcePackage.revision,
+    digest: resourcePackage.digest,
+    resources: Object.fromEntries(Object.keys(resourcePackage.resources).sort(compareCodeUnits)
+      .map((resourcePath) => [resourcePath, resourcePackage.resources[resourcePath]!])),
+  });
+}
+
+export function parseFrozenAiWorkflowResourcePackage(serialized: string): FrozenAiWorkflowResourcePackage {
+  const raw: unknown = JSON.parse(serialized);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error("AI_WORKFLOW_RESOURCE_PACKAGE_INVALID: package must be an object");
+  }
+  const record = raw as Record<string, unknown>;
+  if (Object.keys(record).sort().join("\0") !== ["schemaVersion", "revision", "digest", "resources"].sort().join("\0")
+    || record.schemaVersion !== "eidolon.ai-workflow-resource-package/v1"
+    || typeof record.revision !== "string" || !record.revision
+    || typeof record.digest !== "string" || !/^sha256:[a-f0-9]{64}$/.test(record.digest)
+    || typeof record.resources !== "object" || record.resources === null || Array.isArray(record.resources)) {
+    throw new Error("AI_WORKFLOW_RESOURCE_PACKAGE_INVALID: package has an invalid closed shape");
+  }
+  const resources: Record<string, string> = {};
+  for (const resourcePath of Object.keys(record.resources as Record<string, unknown>).sort(compareCodeUnits)) {
+    const content = (record.resources as Record<string, unknown>)[resourcePath];
+    if (!resourcePath || resourcePath.startsWith("/") || resourcePath.includes("\\")
+      || resourcePath.split("/").some((segment) => !segment || segment === "." || segment === "..")
+      || typeof content !== "string") {
+      throw new Error(`AI_WORKFLOW_RESOURCE_PACKAGE_INVALID: invalid resource ${resourcePath}`);
+    }
+    resources[resourcePath] = content;
+  }
+  if (Object.keys(resources).length === 0) {
+    throw new Error("AI_WORKFLOW_RESOURCE_PACKAGE_INVALID: resources must not be empty");
+  }
+  const canonical = Object.keys(resources).sort(compareCodeUnits)
+    .map((resourcePath) => `${resourcePath}\0${sha256Digest(resources[resourcePath]!)}\0`)
+    .join("");
+  if (sha256Digest(canonical) !== record.digest) {
+    throw new Error("AI_WORKFLOW_RESOURCE_PACKAGE_INVALID: package digest mismatch");
+  }
+  return Object.freeze({
+    schemaVersion: "eidolon.ai-workflow-resource-package/v1",
+    revision: record.revision,
+    digest: record.digest as Sha256Digest,
+    resources: Object.freeze(resources),
+  });
+}
+
 export type InstallSystemSkillStep =
   | "after-halfcode-apply"
   | "after-candidate-readback"
@@ -970,4 +1029,63 @@ export async function loadAiWorkflowStageContext(input: {
     return `${stageContext}\n\n${runEntry}`;
   }
   return stageContext;
+}
+
+const AI_WORKFLOW_REACHABLE_SYSTEM_SKILLS = Object.freeze([
+  "sys-eidolon-anchor-devops",
+  "sys-eidolon-anchor-authoring",
+  "sys-eidolon-anchor-run",
+]);
+
+export async function freezeAiWorkflowResourcePackage(input: {
+  globalRoot?: string;
+} = {}): Promise<FrozenAiWorkflowResourcePackage> {
+  const globalRoot = resolveEidolonGlobalRoot(input.globalRoot);
+  const skillsRoot = path.join(globalRoot, "skills");
+  const manifest = await readManifestAtSkillsRoot(skillsRoot);
+  assertExpectedManagedSystemSkillSet(manifest);
+  const resources: Record<string, string> = {};
+  const revisions: string[] = [];
+  for (const skillName of AI_WORKFLOW_REACHABLE_SYSTEM_SKILLS) {
+    const skill = manifest.skills.find((entry) => entry.name === skillName);
+    if (!skill) throw new Error(`AI_WORKFLOW_RESOURCE_PACKAGE_INCOMPLETE: ${skillName} is unavailable`);
+    revisions.push(`${skill.name}@${skill.version}:${skill.digest}`);
+    for (const file of skill.files) {
+      const bytes = await readManagedFile(skillsRoot, skill, file);
+      resources[`${skill.name}/${file.path}`] = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    }
+  }
+  const canonical = Object.keys(resources).sort(compareCodeUnits)
+    .map((resourcePath) => `${resourcePath}\0${sha256Digest(resources[resourcePath]!)}\0`)
+    .join("");
+  return Object.freeze({
+    schemaVersion: "eidolon.ai-workflow-resource-package/v1",
+    revision: sha256Digest(revisions.join("\n")),
+    digest: sha256Digest(canonical),
+    resources: Object.freeze(Object.fromEntries(Object.keys(resources).sort(compareCodeUnits)
+      .map((resourcePath) => [resourcePath, resources[resourcePath]!])))
+  });
+}
+
+export function loadFrozenAiWorkflowStageContext(input: {
+  resourcePackage: FrozenAiWorkflowResourcePackage;
+  stage: AiWorkflowStageId;
+}): string {
+  if (!AI_WORKFLOW_STAGE_IDS.includes(input.stage)) throw new Error(`Unknown AI Workflow stage: ${input.stage}`);
+  const paths = [
+    `sys-eidolon-anchor-devops/${input.stage}/system.md`,
+    `sys-eidolon-anchor-devops/${input.stage}/protocol.md`,
+    ...(input.stage === "coding"
+      ? ["sys-eidolon-anchor-authoring/SKILL.md", "sys-eidolon-anchor-authoring/operations/index.md"]
+      : input.stage === "deploying" || input.stage === "operating" || input.stage === "monitoring"
+        ? ["sys-eidolon-anchor-run/SKILL.md", "sys-eidolon-anchor-run/operations/index.md"]
+        : []),
+  ];
+  return paths.map((resourcePath) => {
+    const content = input.resourcePackage.resources[resourcePath];
+    if (typeof content !== "string") {
+      throw new Error(`AI_WORKFLOW_RESOURCE_PACKAGE_INCOMPLETE: ${resourcePath} is unavailable in ${input.resourcePackage.revision}`);
+    }
+    return `<!-- ${resourcePath} -->\n${content.trim()}`;
+  }).join("\n\n");
 }

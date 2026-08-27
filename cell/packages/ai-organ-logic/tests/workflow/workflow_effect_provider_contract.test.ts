@@ -11,6 +11,7 @@ import { composeToolRegistry } from "../../src/composer/AIAgent/ToolFuncComposer
 import { appendLiveHistoryMessageToConversationDomainRuntime } from "../../src/conversation/ConversationDomainRuntime"
 import { EidolonWorkflowEffectProvider } from "../../src/workflow/effects/EidolonWorkflowEffectProvider"
 import { WorkflowFactStore } from "../../src/workflow/runtime/WorkflowFactStore"
+import { resolveProviderCacheActorClass } from "../../src/llm/ProviderCacheActorAttribution"
 
 const ACTIVE_RUN = {
   workflow: { ref: "resource://demo.workflow.Active", scheme: "resource" as const },
@@ -115,6 +116,11 @@ describe("Eidolon workflow effect provider contract", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-agent-fact-"))
     try {
       let providerCalls = 0
+      let observedProviderContextClass: string | undefined
+      let observedRuntimeFacetIds: string[] | undefined
+      let observedSystemPrompts: string[] | undefined
+      let observedAllowedTools: string[] | undefined
+      let observedAllowedToolsMode: string | undefined
       let releaseProvider!: () => void
       let markProviderStarted!: () => void
       const providerStarted = new Promise<void>((resolve) => { markProviderStarted = resolve })
@@ -134,6 +140,11 @@ describe("Eidolon workflow effect provider contract", () => {
           buildToolset: () => [],
           processStream: async (vm, actor) => {
             providerCalls += 1
+            observedProviderContextClass = resolveProviderCacheActorClass(actor)
+            observedRuntimeFacetIds = Object.keys(actor.runtimeFacets)
+            observedSystemPrompts = [...actor.systemPrompts]
+            observedAllowedTools = [...actor.toolPolicy.allowedTools]
+            observedAllowedToolsMode = actor.toolPolicy.allowedToolsMode
             markProviderStarted()
             await providerRelease
             const message = { role: "assistant" as const, content: "resource workflow result" }
@@ -263,11 +274,138 @@ describe("Eidolon workflow effect provider contract", () => {
       expect(await reconstructedProvider.invoke(request as any)).toBe("resource workflow result")
       expect(prepareCalls).toBe(1)
       expect(providerCalls).toBe(1)
+      expect(observedProviderContextClass).toBe("workflow_node")
+      expect(observedRuntimeFacetIds).toEqual([])
+      expect(observedSystemPrompts).toEqual(["frozen instruction"])
+      expect(observedSystemPrompts?.join("\n")).not.toContain("sys-eidolon-anchor-devops")
+      expect(observedAllowedToolsMode).toBe("exact")
+      expect(observedAllowedTools).toEqual([])
       expect(await readRuntimeControlEffectEvidence(root)).toEqual(expect.arrayContaining([
         expect.objectContaining({ kind: "request", effectId: "agent-effect", handlerKey: "workflow:ai.agent" }),
         expect.objectContaining({ kind: "result", effectId: "agent-effect", handlerKey: "workflow:ai.agent" }),
       ]))
       await expect(access(path.join(root, "agent-executions", "active-run"))).rejects.toMatchObject({ code: "ENOENT" })
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it(`rejects a ${workflowForm} resource Agent's frozen lifecycle-internal tool before effect or provider dispatch`, async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-node-tool-admission-"))
+    try {
+      let providerCalls = 0
+      const parent = createActor({
+        key: "main",
+        id: "parent-resource-workflow",
+        llmClient: {
+          type: "openai",
+          async createStream() {
+            providerCalls += 1
+            async function* stream() { yield { ok: true } }
+            return { stream: stream() }
+          },
+        },
+        modelConfig: { model: "mock" },
+        callbacks: {
+          buildToolset: () => [],
+          processStream: async () => {
+            providerCalls += 1
+            return { role: "assistant" as const, content: "must not execute" }
+          },
+        },
+      })
+      const vm = createVM({
+        controlActorKey: parent.key,
+        actors: { [parent.key]: parent },
+        registries: {
+          toolRegistry: composeToolRegistry(),
+          agentRegistry: new AgentRegistry({}),
+        },
+      })
+      ;(vm as any).outerCtx = { metadata: { sessionDir: root } }
+      const facts = new WorkflowFactStore(root)
+      const provider = new EidolonWorkflowEffectProvider(
+        { vm, actor: parent } as any,
+        {} as any,
+        facts,
+        undefined,
+        () => ACTIVE_RUN,
+        {
+          workflowForm,
+          resourceRegistry: {
+            async prepareWorkflowAgentExecution() {
+              return {
+                plan: Object.freeze({
+                  schemaVersion: "eidolon.resource-agent-execution-plan/v1",
+                  agentDefinitionRef: "resource://eidolon.fixture.SupportAgent",
+                  registryRevision: "sha256:registry",
+                  compositionRevision: "sha256:composition",
+                  agentContentDigest: "sha256:agent",
+                  messages: Object.freeze([]),
+                  toolResourceIds: Object.freeze(["WorkflowRun"]),
+                  requiresWorkflowTask: true,
+                  executionContract: Object.freeze({
+                    schemaVersion: "eidolon.agent-execution-contract/v1" as const,
+                    input: Object.freeze({
+                      schemaVersion: "eidolon.agent-execution-input/v1" as const,
+                      payload: Object.freeze({ request: "perform the task" }),
+                      materials: Object.freeze([]),
+                    }),
+                    messageSchemas: Object.freeze([]),
+                    effectPolicy: Object.freeze({ toolMode: "declared-only" as const }),
+                  }),
+                  agentConfig: Object.freeze({
+                    name: "resource://eidolon.fixture.SupportAgent",
+                    description: "frozen resource Agent",
+                    tools: Object.freeze(["WorkflowRun"]) as string[],
+                    prompt: Object.freeze([]) as string[],
+                    seedMessages: Object.freeze([{ role: "system" as const, content: "frozen instruction" }]),
+                    requireExactTools: true,
+                    executionContract: Object.freeze({
+                      schemaVersion: "eidolon.agent-execution-contract/v1" as const,
+                      input: Object.freeze({
+                        schemaVersion: "eidolon.agent-execution-input/v1" as const,
+                        payload: Object.freeze({ request: "perform the task" }),
+                        materials: Object.freeze([]),
+                      }),
+                      messageSchemas: Object.freeze([]),
+                      effectPolicy: Object.freeze({ toolMode: "declared-only" as const }),
+                    }),
+                  }),
+                }),
+                receipt: Object.freeze({
+                  schemaVersion: "ai-workflow.run-resource-freeze/v1" as const,
+                  task: Object.freeze({
+                    workflowKind: workflowForm,
+                    workflowRef: "resource://demo.workflow.Active" as const,
+                    nodeId: "agent-node",
+                    agentDefinitionRef: "resource://eidolon.fixture.SupportAgent" as const,
+                  }),
+                  bindingResourceIds: Object.freeze([]),
+                  dependencySnapshot: Object.freeze({}) as any,
+                  semanticFingerprint: "sha256:semantic" as const,
+                }),
+              }
+            },
+          } as any,
+        },
+      )
+
+      await expect(provider.invoke({
+        run: ACTIVE_RUN,
+        effectId: "unauthorized-agent-effect",
+        operation: "ai.agent",
+        nodeId: "agent-node",
+        input: {
+          agentDefinitionRef: "resource://eidolon.fixture.SupportAgent",
+          payload: { request: "perform the task" },
+        },
+      } as any)).rejects.toThrow(
+        "WORKFLOW_NODE_LIFECYCLE_TOOL_UNAUTHORIZED: frozen Agent task cannot admit lifecycle-internal tool 'WorkflowRun'",
+      )
+      expect(providerCalls).toBe(0)
+      expect(await facts.readRunEvents(ACTIVE_RUN.runId)).toEqual([])
+      expect(await readRuntimeControlEffectEvidence(root)).toEqual([])
     } finally {
       await rm(root, { recursive: true, force: true })
     }

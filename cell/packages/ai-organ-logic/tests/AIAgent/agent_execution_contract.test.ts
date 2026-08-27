@@ -41,6 +41,7 @@ describe("generic Agent execution contract", () => {
     expect(validateAgentExecutionOutput(contract, "done")).toBe("done")
 
     const actor = createActor({ key: "contract-owner", executionContract: contract })
+    expect(actor.origin).toBeUndefined()
     expect(Object.isFrozen(actor.executionContract)).toBe(true)
     expect(Object.isFrozen(actor.executionContract?.input)).toBe(true)
     expect(Object.isFrozen(actor.executionContract?.input.payload)).toBe(true)
@@ -50,6 +51,7 @@ describe("generic Agent execution contract", () => {
     expect(Object.isFrozen(snapshot.executionContract)).toBe(true)
     expect(Object.isFrozen(snapshot.executionContract?.input.payload)).toBe(true)
     const restored = hydrateActor(snapshot)
+    expect(restored.origin).toBeUndefined()
     expect(Object.isFrozen(restored.executionContract)).toBe(true)
     expect(Object.isFrozen(restored.executionContract?.input.payload)).toBe(true)
 

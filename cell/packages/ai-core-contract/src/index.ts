@@ -8,6 +8,8 @@ export * from "./runtime/AgentExecutionContract";
 export * from "./runtime/AiAgentActor";
 export * from "./runtime/AiAgentVm";
 export * from "./runtime/ActorSurface";
+export * from "./runtime/ActorRuntimeFacet";
+export * from "./runtime/ActorDurableMaterial";
 export * from "./runtime/AiRuntimeOuterCtx";
 export * from "./runtime/AutonomousHolon";
 export * from "./runtime/DetachedActor";

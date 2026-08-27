@@ -303,4 +303,23 @@ describe("Eidolon workflow architecture boundaries", () => {
     expect(delegate).toContain("params.resolvedConfig ?? AgentRegistry.get")
     expect(delegate).not.toMatch(/WorkflowAgentActor|WorkflowAgentSession|WorkflowAgentHistory|WorkflowAgentCompactor/)
   })
+
+  it("keeps Ctrl/Data node lifecycle admission outside generic core and Executor", async () => {
+    const effects = await source("cell/packages/ai-organ-logic/src/workflow/effects/EidolonWorkflowEffectProvider.ts")
+    const recovery = await source("cell/packages/ai-organ-logic/src/persistence/RuntimeSnapshots.ts")
+    const admission = await source("cell/packages/ai-organ-logic/src/workflow/runtime/WorkflowNodeActorAdmission.ts")
+    const executor = await source("cell/packages/ai-organ-logic/src/exec/AiAgentExecutor.ts")
+    const coreActor = await source("cell/packages/ai-core-logic/src/runtime/actor.ts")
+
+    expect(effects).toContain("prepareResourceAgentDispatch")
+    expect(effects).toContain("assertWorkflowNodeAgentConfigIsolation")
+    expect(effects.indexOf("prepareResourceAgentDispatch(request)")).toBeLessThan(
+      effects.indexOf("workflow.effect.requested"),
+    )
+    expect(recovery).toContain("assertWorkflowNodeActorIsolation(actor)")
+    expect(admission).toContain("WORKFLOW_LIFECYCLE_DEFINITION_TOOL_NAMES")
+    expect(admission).not.toContain("WORKFLOW_PUBLIC_GATEWAY_TOOL_NAMES")
+    expect(executor).not.toContain("WorkflowNodeActorAdmission")
+    expect(coreActor).not.toContain("WorkflowNodeActorAdmission")
+  })
 })

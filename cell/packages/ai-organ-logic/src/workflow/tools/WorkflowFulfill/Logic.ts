@@ -1,11 +1,11 @@
 import type { StdInnerLogic } from "depa-processor"
-import { spawnChildExecutionActor } from "../../../agent/DelegateActor"
+import { spawnWorkflowLifecycleExecutionActor } from "../../runtime/WorkflowLifecycleActorCapsule"
 import { assembleWorkflowFulfillmentPrompt } from "../../prompts"
 import { createWorkflowComponentForRuntime } from "../../component"
 import { getWorkflowRuntimeService } from "../../runtime"
 import type { WorkflowAuthoringSession } from "../../authoring"
 import {
-  readInstalledSystemSkillResource,
+  freezeAiWorkflowResourcePackage,
   resolveEidolonGlobalRootFromOuterContext,
 } from "@cell/ai-support/system-skill/SystemSkillInstaller"
 import type {
@@ -131,14 +131,11 @@ export const workflowFulfillCoreLogic: StdInnerLogic<
   const continuation = await resolveWorkflowFulfillmentContinuation(runtime, input)
   await validateWorkflowFulfillmentContinuation(runtime, continuation)
   const globalRoot = resolveEidolonGlobalRootFromOuterContext(runtime.vm.outerCtx)
-  const systemAuthority = await readInstalledSystemSkillResource({
-    globalRoot,
-    skillName: "sys-eidolon-anchor-devops",
-    relativePath: "SKILL.md",
-  }).catch((error) => {
+  const systemSkillPackage = await freezeAiWorkflowResourcePackage({ globalRoot }).catch((error) => {
     throw new Error(`Cannot load canonical sys-eidolon-anchor-devops; run \`eidolon global init\`. ${error instanceof Error ? error.message : String(error)}`)
   })
-  return spawnChildExecutionActor(runtime.vm as any, runtime.actor as any, {
+  const systemAuthority = systemSkillPackage.resources["sys-eidolon-anchor-devops/SKILL.md"]!
+  return spawnWorkflowLifecycleExecutionActor(runtime.vm as any, runtime.actor as any, {
     description: "Fulfill a business goal through the Eidolon AI Workflow lifecycle",
     prompt: assembleWorkflowFulfillmentPrompt({
       request,
@@ -148,8 +145,8 @@ export const workflowFulfillCoreLogic: StdInnerLogic<
       execute: input.execute,
       continuation,
     }),
-    agentType: "workflow",
-    additionalSystemPrompts: [systemAuthority],
+    systemSkillMaterial: systemAuthority,
+    systemSkillPackage,
     mode: "sync_wait",
     toolCallId: (runtime as any).toolCallId,
     parentToolName: "WorkflowFulfill",

@@ -5,11 +5,56 @@ import { assembleWorkflowFulfillmentPrompt } from "../../src/workflow"
 import { WORKFLOW_NATIVE_TOOL_NAMES, buildWorkflowNativeToolDefs } from "../../src/workflow/tools"
 import { normalizeWorkflowFulfillmentContinuation } from "../../src/workflow/tools/WorkflowFulfill/OuterTypes"
 import {
+  AI_WORKFLOW_PROVIDER_TOOL_SURFACE,
+  AI_WORKFLOW_STAGE_TOOL_POLICY,
   applyAiWorkflowStageSystemContext,
   applyAiWorkflowStageToolPolicy,
 } from "../../src/workflow/tools/WorkflowLoadStageContext"
 import { BUILTIN_CODING_AGENT_CONFIGS } from "@cell/mod-ai-coding/agent"
+import { createActor } from "@cell/ai-core-logic/runtime/actor"
 import { resolveProviderToolsetForActor } from "../../src/exec/AiAgentExecutor"
+import {
+  createWorkflowLifecycleFacetEnvelope,
+} from "../../src/workflow/runtime/WorkflowLifecycleFacet"
+import {
+  projectWorkflowProviderSurface,
+} from "../../src/workflow/runtime/WorkflowProviderSurfaceStrategy"
+
+const workflowSkill = [
+  "name: sys-eidolon-anchor-devops",
+  "revision: human-product-experience-v1",
+].join("\n")
+
+function createLifecycleActor() {
+  const planningSurface = projectWorkflowProviderSurface({
+    strategyRevision: "hybrid/v1",
+    stage: "planning",
+  }).toolNames
+  return createActor({
+    key: "workflow-human-product-experience",
+    systemPrompts: [workflowSkill],
+    modelConfig: { capabilities: { cachePolicy: { stablePrefix: true } } },
+    runtimeFacets: [createWorkflowLifecycleFacetEnvelope({
+      strategyRevision: "hybrid/v1",
+      systemPrompts: [workflowSkill],
+      toolNames: AI_WORKFLOW_PROVIDER_TOOL_SURFACE,
+      progress: {
+        stageStartedAt: 1_000,
+        deadlineAt: 10_000,
+        turnsSinceProgress: 0,
+        maxNoProgressTurns: 4,
+        proofRepairAttempts: 0,
+        maxProofRepairAttempts: 3,
+        lastProgressAt: 1_000,
+      },
+    })],
+    toolPolicy: {
+      allowedToolsMode: "exact",
+      allowedTools: [...AI_WORKFLOW_STAGE_TOOL_POLICY.planning],
+      providerToolSurface: { mode: "exact", toolNames: [...planningSurface] },
+    },
+  })
+}
 
 describe("workflow human product experience", () => {
   it("preserves a business-language corpus for model-owned semantic routing", () => {
@@ -232,12 +277,7 @@ describe("workflow human product experience", () => {
   })
 
   it("narrows the actor tool policy after an explicit stage selection", () => {
-    const actor = {
-      toolPolicy: {
-        allowedToolsMode: "all" as "all" | "exact",
-        allowedTools: ["WorkflowWorkspace", "WorkflowRun"],
-      },
-    }
+    const actor = createLifecycleActor()
     const coding = applyAiWorkflowStageToolPolicy(actor, "coding")
     expect(coding).toContain("WorkflowWorkspace")
     expect(coding).toContain("WorkflowCreateResourcePackageSession")
@@ -252,11 +292,8 @@ describe("workflow human product experience", () => {
     expect(applyAiWorkflowStageToolPolicy(actor, "improving")).toContain("Skill")
   })
 
-  it("keeps progressive Skill loading available through the executor policy in proof and release stages", () => {
-    const actor = {
-      toolPolicy: { allowedTools: [] as string[] },
-      modelConfig: { capabilities: { cachePolicy: { stablePrefix: true } } },
-    } as any
+  it("projects the frozen hybrid provider surface independently from exact stage execution policy", () => {
+    const actor = createLifecycleActor()
     const providerTools = [
       "Skill",
       "WorkflowValidateAuthoringSession",
@@ -270,27 +307,37 @@ describe("workflow human product experience", () => {
       return resolveProviderToolsetForActor(actor, providerTools).map((tool) => tool.function.name)
     }
 
-    expect(visibleAfterStage("building")).toEqual(["Skill", "WorkflowValidateAuthoringSession"])
+    expect(visibleAfterStage("building")).toEqual([
+      "Skill",
+      "WorkflowValidateAuthoringSession",
+    ])
+    expect(actor.toolPolicy.allowedTools).toEqual(AI_WORKFLOW_STAGE_TOOL_POLICY.building)
     expect(visibleAfterStage("testing")).toEqual([
       "Skill",
       "WorkflowPreparePublication",
       "WorkflowValidateAuthoringSession",
     ])
+    expect(actor.toolPolicy.allowedTools).toEqual(AI_WORKFLOW_STAGE_TOOL_POLICY.testing)
     expect(visibleAfterStage("releasing")).toEqual([
       "Skill",
       "WorkflowPreparePublication",
       "WorkflowPublishAuthoringSession",
       "WorkflowValidateAuthoringSession",
     ])
+    expect(actor.toolPolicy.allowedTools).toEqual(AI_WORKFLOW_STAGE_TOOL_POLICY.releasing)
   })
 
-  it("replaces the selected stage as system context instead of a user prompt", () => {
+  it("returns selected stage authority for append-only tool delivery without rewriting the root", () => {
     const actor = { systemPrompts: ["root authority"] }
-    applyAiWorkflowStageSystemContext(actor, "coding", "coding context")
-    applyAiWorkflowStageSystemContext(actor, "testing", "testing context")
-    expect(actor.systemPrompts).toEqual([
-      "root authority",
-      "<!-- eidolon:sys-eidolon-anchor-devops-stage=testing -->\ntesting context",
-    ])
+    const coding = applyAiWorkflowStageSystemContext(actor, "coding", "coding context")
+    const testing = applyAiWorkflowStageSystemContext(actor, "testing", "testing context")
+    expect(actor.systemPrompts).toEqual(["root authority"])
+    expect(coding).toEqual({
+      kind: "eidolon.aiWorkflowStageContext",
+      stage: "coding",
+      authority: "actor-durable-material:workflow-resource-package",
+      context: "coding context",
+    })
+    expect(testing.stage).toBe("testing")
   })
 })

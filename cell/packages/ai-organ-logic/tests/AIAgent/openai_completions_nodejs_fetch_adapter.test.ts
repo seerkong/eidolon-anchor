@@ -45,7 +45,6 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     const parameters = JSON.parse(fetchedBody).tools[0].function.parameters;
     expect(parameters).toEqual(workflowOpen.schema.function.parameters);
     expect(parameters.type).toBe("object");
-    expect(parameters.oneOf).toHaveLength(3);
     expect(fetchedBody).not.toContain('"type":null');
   });
 
@@ -207,7 +206,7 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
     ]);
   });
 
-  it("repairs missing reasoning_content in serialized legacy DeepSeek tool calls", async () => {
+  it("does not fabricate missing reasoning_content in serialized legacy DeepSeek tool calls", async () => {
     let body: any;
     const adapter = new OpenAICompletionsNodejsFetchLlmAdapter({
       apiKey: "test-key",
@@ -245,7 +244,6 @@ describe("OpenAICompletionsNodejsFetchLlmAdapter", () => {
       {
         role: "assistant",
         content: "",
-        reasoning_content: "",
         tool_calls: toolCalls,
       },
       { role: "tool", tool_call_id: "call_legacy_1", content: "package contents" },

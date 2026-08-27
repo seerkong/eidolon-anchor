@@ -37,9 +37,14 @@ describe("Eidolon final workflow acceptance", () => {
       repositoryRoot,
       "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowLoadStageContext/Logic.ts",
     ), "utf8")
+    const stagePolicy = await readFile(path.join(
+      repositoryRoot,
+      "cell/packages/ai-organ-logic/src/workflow/tools/WorkflowLoadStageContext/StageToolPolicy.ts",
+    ), "utf8")
     expect(stageLoader).not.toContain("STAGE_NEXT_ACTION")
     expect(stageLoader).not.toContain("nextAction:")
-    expect(stageLoader).toContain('authority: "global:sys-eidolon-anchor-devops"')
+    expect(stageLoader).toContain("readWorkflowLifecycleFrozenResourcePackage")
+    expect(stagePolicy).toContain('authority: "actor-durable-material:workflow-resource-package"')
   })
 
   it("delegates ordinary request semantics to the system actor", () => {

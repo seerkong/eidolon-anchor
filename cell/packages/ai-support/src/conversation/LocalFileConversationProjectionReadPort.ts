@@ -115,7 +115,9 @@ export function createLocalFileConversationProjectionReadPort(): ConversationPro
         LocalFileRuntimeSnapshotRepositoryFactory.createRuntimeSnapshotRepository(
           target.sessionDir,
         );
-      const rows = await snapshotRepository.readQuestionnaires();
+      const rows = await (snapshotRepository as typeof snapshotRepository & {
+        readQuestionnaires(): Promise<import("@cell/ai-core-contract/runtime/Questionnaire").QuestionnaireRow[]>
+      }).readQuestionnaires();
       return {
         rows: rows.filter((row) => row.status === "pending"),
       };

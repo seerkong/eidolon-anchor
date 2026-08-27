@@ -34,7 +34,7 @@
               Only the closed isolated policy with task-space/workflow-run scope and isolationKey creates a temporary runtime.
               </?01M0SHSHEMNS8KEBVPHGPW7W4Q>
               <Criterion #P2-T1-AC3 { checked = true } ?01M0SHSHEMNS8KEBVPHGPW7W4R>
-              Session continuity across invocations occurs only through exact mutually-exclusive byInstanceId/byInstanceName runTargetedAgent selectors authorized by the frozen binding.
+              Session continuity across invocations occurs only through exact mutually-exclusive byId/byName runTargetedAgent selectors authorized by the frozen binding; legacy instance-prefixed keys fail closed.
               </?01M0SHSHEMNS8KEBVPHGPW7W4R>
             ]>
           )>

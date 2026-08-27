@@ -30,14 +30,14 @@ function resolveChatCompletionsEffectBundle(
 ): NormalizedChatCompletionsStreamBinding {
   if (typeof llmAdapter === "object") {
     const binding = llmAdapter as DriverBoundLlmAdapter;
+    if (binding.chatCompletionsEffectBundle) {
+      return binding.chatCompletionsEffectBundle;
+    }
     if (binding.driver?.normalizedChatCompletionsStreamBinding) {
       return binding.driver.normalizedChatCompletionsStreamBinding;
     }
     if (binding.driver?.chatCompletionsEffectBundle) {
       return binding.driver.chatCompletionsEffectBundle;
-    }
-    if (binding.chatCompletionsEffectBundle) {
-      return binding.chatCompletionsEffectBundle;
     }
   }
   return openAIOfficialChatEffectBundle;

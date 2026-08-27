@@ -7,6 +7,7 @@ import {
 import { openAIResponsesToolSchemaProjector } from "@cell/ai-organ-logic/llm/tool-schema/OpenAIResponsesToolSchemaProjector";
 import {
   admitProviderRequest,
+  ProviderRequestAdmissionError,
   prepareProviderToolSchemaProjection,
   readAdmittedProviderRequest,
   readProviderToolSchemaProjection,
@@ -246,7 +247,21 @@ describe("provider tool-schema projection and admission", () => {
       },
     });
 
-    expect(() => admitProviderRequest(authority, body)).toThrow("invalid_provider_request_body");
+    let rejection: unknown;
+    try {
+      admitProviderRequest(authority, body);
+    } catch (error) {
+      rejection = error;
+    }
+    expect(rejection).toBeInstanceOf(ProviderRequestAdmissionError);
+    expect(rejection).toMatchObject({
+      code: "invalid_provider_request_body",
+      diagnostic: {
+        code: "invalid_provider_request_body",
+        path: "$/extra",
+        valueKind: "accessor",
+      },
+    });
     expect(getterCalls).toBe(0);
 
     const nonEnumerable = Object.defineProperty({

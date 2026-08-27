@@ -155,7 +155,7 @@ describe("official Chat Completions effect bundles", () => {
 
     expect(requests[0].body.messages[0]).not.toHaveProperty("reasoning_content");
     expect(requests[0].url).toBe("https://api.deepseek.com/v1/chat/completions");
-    expect(requests[1].body.messages[0]).toHaveProperty("reasoning_content", "");
+    expect(requests[1].body.messages[0]).not.toHaveProperty("reasoning_content");
     expect(requests[1].url).toBe("https://inferaiapi.com/v1/chat/completions");
   });
 
@@ -255,6 +255,92 @@ describe("official Chat Completions effect bundles", () => {
     );
   });
 
+  it("prefers the adapter-selected bundle over the driver's registry default for ingress", async () => {
+    const { createIngressStreamAdapter } = await import(
+      "@cell/ai-organ-logic/stream/IngressStreamAdapter"
+    );
+    const { IngressStreamRuntime } = await import(
+      "@cell/symbiont-logic/stream/IngressStreamRuntime"
+    );
+    const {
+      deepSeekOfficialChatEffectBundle,
+      openAIOfficialChatEffectBundle,
+    } = await import(
+      "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles"
+    );
+    const stream = async function* () {
+      yield {
+        choices: [{ delta: { reasoning_content: "selected authority" } }],
+      };
+    };
+    const adapter = {
+      type: "deepseek" as const,
+      chatCompletionsEffectBundle: openAIOfficialChatEffectBundle,
+      driver: { chatCompletionsEffectBundle: deepSeekOfficialChatEffectBundle },
+      async createStream() {
+        return { stream: stream() };
+      },
+    };
+
+    const [, run] = createIngressStreamAdapter(
+      stream(),
+      IngressStreamRuntime.create(),
+      adapter,
+    );
+
+    expect(await run()).not.toHaveProperty("reasoning_content");
+  });
+
+  it("passes the adapter-selected bundle to DeepSeek request preparation and transport", async () => {
+    const { ProviderRuntimeLlmAdapter } = await import(
+      "@cell/ai-organ-logic/llm/ProviderRuntimeAdapter"
+    );
+    const {
+      deepSeekCompatibleChatEffectBundle,
+      deepSeekOfficialChatEffectBundle,
+    } = await import(
+      "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles"
+    );
+    let preparedBundle: unknown;
+    let streamedBundle: unknown;
+    const driver = {
+      name: "deepseek-chat",
+      adapterNames: ["deepseek"],
+      chatCompletionsEffectBundle: deepSeekOfficialChatEffectBundle,
+      prepareRequest(params: any) {
+        preparedBundle = params.chatCompletionsEffectBundle;
+        return { contract: { body: { model: params.model } } };
+      },
+      async createStream(params: any) {
+        streamedBundle = params.chatCompletionsEffectBundle;
+        return { stream: (async function* () {})() };
+      },
+    };
+    const adapter = new ProviderRuntimeLlmAdapter({
+      providerId: "compatible",
+      selectedModel: "deepseek-compatible",
+      adapterName: "deepseek",
+      driver,
+      options: { compatibility_profile: "deepseek-compatible-chat@1" },
+    });
+
+    adapter.prepareRequest({ model: "deepseek-compatible", messages: [], tools: [] });
+    const result = await adapter.createStream({
+      model: "deepseek-compatible",
+      messages: [],
+      tools: [],
+    });
+    for await (const _chunk of result.stream) {
+      // Consume the selected transport path.
+    }
+
+    expect(adapter.chatCompletionsEffectBundle).toBe(
+      deepSeekCompatibleChatEffectBundle,
+    );
+    expect(preparedBundle).toBe(deepSeekCompatibleChatEffectBundle);
+    expect(streamedBundle).toBe(deepSeekCompatibleChatEffectBundle);
+  });
+
   it("keeps explicit DeepSeek semantics on the runtime mock adapter", async () => {
     const runtimePath =
       "@cell/ai-organ-logic/runtime/ShellRuntimeSupport";
@@ -272,9 +358,98 @@ describe("official Chat Completions effect bundles", () => {
         anthropic: { apiKey: "", baseUrl: "", model: "mock-anthropic" },
         deepseek: { apiKey: "", baseUrl: "", model: "mock-deepseek" },
       },
+      overrides: { options: { compatibility_profile: "deepseek-official-chat@1" } },
     });
 
     expect(adapter?.chatCompletionsEffectBundle).toBe(
+      deepSeekOfficialChatEffectBundle,
+    );
+  });
+
+  it("rejects conflicting duplicate DeepSeek profiles through real Shell construction", async () => {
+    const { createRuntimeLlmAdapter } = await import(
+      "@cell/ai-organ-logic/runtime/ShellRuntimeSupport"
+    );
+
+    await expect(createRuntimeLlmAdapter({
+      adapterType: "deepseek",
+      workDir: repoRoot,
+      defaults: {
+        openai: { apiKey: "", baseUrl: "", model: "mock-openai" },
+        anthropic: { apiKey: "", baseUrl: "", model: "mock-anthropic" },
+        deepseek: {
+          apiKey: "test-key",
+          baseUrl: "https://third-party.example/v1",
+          model: "deepseek-compatible",
+        },
+      },
+      overrides: { options: { compatibility_profile: "deepseek-compatible-chat@1" } },
+      runtime: { chatCompatibilityProfileId: "deepseek-official-chat@1" },
+    })).rejects.toThrow("provider_chat_compatibility_profile_conflict");
+  });
+
+  it("fails closed when the real shell DeepSeek adapter targets an undeclared third-party profile", async () => {
+    const runtimePath = "@cell/ai-organ-logic/runtime/ShellRuntimeSupport";
+    const { createRuntimeLlmAdapter } = await import(runtimePath);
+    const {
+      deepSeekCompatibleChatEffectBundle,
+      deepSeekOfficialChatEffectBundle,
+    } = await import(
+      "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles"
+    );
+    const defaults = {
+      openai: { apiKey: "", baseUrl: "", model: "mock-openai" },
+      anthropic: { apiKey: "", baseUrl: "", model: "mock-anthropic" },
+      deepseek: { apiKey: "test-key", baseUrl: "https://third-party.example/v1", model: "deepseek-compatible" },
+    };
+
+    await expect(createRuntimeLlmAdapter({
+      adapterType: "deepseek",
+      workDir: repoRoot,
+      defaults,
+    })).rejects.toThrow("provider_chat_compatibility_profile_required");
+
+    const compatible = await createRuntimeLlmAdapter({
+      adapterType: "deepseek",
+      workDir: repoRoot,
+      defaults,
+      overrides: { options: { compatibility_profile: "deepseek-compatible-chat@1" } },
+    });
+    expect(compatible?.runtime.chatCompatibilityProfileId).toBe("deepseek-compatible-chat@1");
+    expect(compatible?.chatCompletionsEffectBundle).toBe(
+      deepSeekCompatibleChatEffectBundle,
+    );
+
+    const matchingDuplicate = await createRuntimeLlmAdapter({
+      adapterType: "deepseek",
+      workDir: repoRoot,
+      defaults,
+      overrides: { options: { compatibility_profile: "deepseek-compatible-chat@1" } },
+      runtime: { chatCompatibilityProfileId: "deepseek-compatible-chat@1" },
+    });
+    expect(matchingDuplicate?.runtime.chatCompatibilityProfileId).toBe(
+      "deepseek-compatible-chat@1",
+    );
+
+    await expect(createRuntimeLlmAdapter({
+      adapterType: "deepseek",
+      workDir: repoRoot,
+      defaults,
+      overrides: { options: { compatibility_profile: "deepseek-compatible-chat@1" } },
+      runtime: { chatCompatibilityProfileId: "deepseek-official-chat@1" },
+    })).rejects.toThrow("provider_chat_compatibility_profile_conflict");
+
+    const official = await createRuntimeLlmAdapter({
+      adapterType: "deepseek",
+      workDir: repoRoot,
+      defaults: {
+        ...defaults,
+        deepseek: { ...defaults.deepseek, baseUrl: "https://api.deepseek.com/v1" },
+      },
+      overrides: { options: { compatibility_profile: "deepseek-official-chat@1" } },
+    });
+    expect(official?.runtime.chatCompatibilityProfileId).toBe("deepseek-official-chat@1");
+    expect(official?.chatCompletionsEffectBundle).toBe(
       deepSeekOfficialChatEffectBundle,
     );
   });

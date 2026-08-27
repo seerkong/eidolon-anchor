@@ -12,7 +12,7 @@
   <question ?>Does default MemberRuntime reuse also imply one shared conversation/session for every task?</?>
   <answer (
     <raw-answer ?>No. Reuse the runtime address, default session scope to the exact task claim attempt, and make cross-invocation Agent continuity explicit through targeted selectors.</?>
-    <decision-text ?>Default is task-attempt session keyed by taskSpaceId/taskId/claimId/attempt. Explicit continuity uses runTargetedAgent with exactly one of {byInstanceId} or {byInstanceName}, authorized by the frozen binding. Only the generic actor/session owner stores conversation.</?>
+    <decision-text ?>Default is task-attempt session keyed by taskSpaceId/taskId/claimId/attempt. Explicit continuity uses runTargetedAgent with exactly one of {byId} or {byName}; legacy instance-prefixed keys fail closed. The frozen binding authorizes continuity and only the generic actor/session owner stores conversation.</?>
     <rationale ?>Long-lived member identity and safe conversation isolation are separate concerns; explicit targeted reuse preserves both.</?>
     <evidence ?>Existing typed runAgent/runTargetedAgent design and parent mission MemberRuntime reuse decision.</?>
   )>

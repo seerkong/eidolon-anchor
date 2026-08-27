@@ -1,10 +1,13 @@
 import path from "node:path";
+import { createHash } from "node:crypto";
 
 import type { ChatMessage } from "@shared/composer";
 
 import {
   CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
   type ActorHistoryGenerationData,
+  type ActorProviderContextFact,
+  type ActorProviderContextFactNamespace,
   type ActorPromptBasisRefData,
   type ActorPromptGenerationData,
   type ActorPromptHeadData,
@@ -12,13 +15,32 @@ import {
   type ConversationActorRawState,
   type ConversationCommittedMessageData,
   type ConversationDomainEvent,
+  type ConversationProviderContextTransitionGeneration,
   type ConversationSessionRawState,
   type LocalConversationContextAssetData,
   type LocalConversationMessageDeliveryFact,
+  type LocalConversationProviderContextFactCandidate,
   type LocalConversationProviderProjectionFact,
   type LocalConversationToolResultDeliveryFact,
+  type ProviderContextAuthorityHeads,
+  type ProviderContextTransitionCommand,
   type ResponsesReplayCheckpoint,
 } from "@cell/ai-organ-contract";
+import type { ConversationPersistenceRepository } from "@cell/ai-organ-contract/persistence/conversation/ConversationPersistence";
+import {
+  createActorProviderContextFact,
+  measureActorProviderContextFactRetention,
+} from "../../conversation/ActorProviderContextFact";
+import {
+  assertExactProviderContextHistoryPrefix,
+  assertProviderContextClosedValue,
+  createProviderContextCompactionProof,
+  createProviderEpochReceiptV2,
+  createProviderRequestAdmissionReceipt,
+  digestLegacyProviderEpochReceipt,
+  digestProviderContextClosedValue,
+  digestProviderContextHistoryFrontier,
+} from "../../conversation/ProviderContextEpochV2";
 import {
   committedHistoryRefsToMessages,
   loadConversationActorRawState,
@@ -27,7 +49,6 @@ import {
   materializeConversationVisibleHistory,
   materializeConversationVisibleMessages,
   toCommittedConversationMessage,
-  type ConversationPersistenceRepository,
 } from "@cell/ai-support";
 import { reduceTranscriptToMessages } from "@cell/ai-core-logic/runtime/TranscriptRecords";
 import type { TranscriptRecord } from "@cell/symbiont-logic/stream/StreamTranscript";
@@ -236,9 +257,47 @@ export function injectConversationSessionRawState(
   runtime: ConversationDomainRuntime,
   rawState: ConversationSessionRawState,
 ): void {
+  const current = runtime.sessionStateSignal.get()[rawState.sessionId];
+  const actorBindings = current
+    ? Object.fromEntries([...new Set([
+        ...Object.keys(current.actorBindings),
+        ...Object.keys(rawState.actorBindings),
+      ])].map((actorKey) => {
+        const prior = current.actorBindings[actorKey];
+        const incoming = rawState.actorBindings[actorKey];
+        return [actorKey, {
+          ...(prior ?? {}),
+          ...(incoming ?? {}),
+          providerEpochReceipt: incoming?.providerContextLegacyMigrationMarker
+            && incoming.providerEpochReceiptV2
+            ? undefined
+            : incoming?.providerEpochReceipt ?? prior?.providerEpochReceipt,
+          providerEpochReceiptV2: incoming?.providerEpochReceiptV2 ?? prior?.providerEpochReceiptV2,
+          providerRequestAdmissions: incoming?.providerRequestAdmissions ?? prior?.providerRequestAdmissions,
+          providerContextFactHead: incoming && Object.prototype.hasOwnProperty.call(incoming, "providerContextFactHead")
+            ? incoming.providerContextFactHead
+            : prior?.providerContextFactHead,
+        }];
+      }))
+    : rawState.actorBindings;
+  for (const binding of Object.values(actorBindings)) {
+    if (binding.providerEpochReceipt && binding.providerEpochReceiptV2) {
+      throw new Error("provider_context_dual_authority_forbidden");
+    }
+  }
+  const merged = current
+    ? {
+        ...rawState,
+        actorBindings,
+        sessionIndex: {
+          ...rawState.sessionIndex,
+          session: { ...rawState.sessionIndex.session, actorBindings },
+        },
+      }
+    : rawState;
   runtime.sessionStateSignal.set({
     ...runtime.sessionStateSignal.get(),
-    [rawState.sessionId]: rawState,
+    [rawState.sessionId]: merged,
   });
 }
 
@@ -388,6 +447,7 @@ function refreshConversationActorRawStateFromDomainState(params: {
 
 function historyMutationInvalidatesProviderContext(event: ConversationDomainEvent): boolean {
   return event.type === "actor_history_head_moved"
+    || event.type === "actor_history_compaction_applied"
     || event.type === "actor_history_generation_forked"
     || event.type === "actor_history_generation_rolled_back"
     || event.type === "actor_history_reset"
@@ -407,9 +467,13 @@ function advanceProviderContextEpochForHistoryMutation(
       ? [asset.source.ownerId]
       : []
   ));
-  const actorKeys = "actorKey" in event && typeof event.actorKey === "string"
+  const actorKeys = ("actorKey" in event && typeof event.actorKey === "string"
     ? [event.actorKey]
-    : [...new Set([...Object.keys(currentSession.actorBindings), ...replayActorKeys])];
+    : [...new Set([...Object.keys(currentSession.actorBindings), ...replayActorKeys])])
+    // v2 authority is immutable. A non-append history mutation must be
+    // admitted by commitProviderContextTransition; legacy implicit epoch
+    // invalidation remains only for v1 snapshots/import compatibility.
+    .filter((actorKey) => !currentSession.actorBindings[actorKey]?.providerEpochReceiptV2);
   if (actorKeys.length === 0) return;
 
   const affectedActorKeys = new Set(actorKeys);
@@ -433,6 +497,10 @@ function advanceProviderContextEpochForHistoryMutation(
     ))?.replayCheckpoint;
     const currentEpoch = Math.max(existing.contextEpoch ?? 0, checkpoint?.baselineEpoch ?? 0);
     nextBindings[actorKey] = { ...existing, contextEpoch: currentEpoch + 1 };
+    nextBindings[actorKey] = {
+      ...nextBindings[actorKey],
+      providerContextFactHead: null,
+    };
   }
 
   const nextRegistry = currentSession.contextAssetRegistry
@@ -533,6 +601,438 @@ export function synchronizeProviderContextEpochToConversationDomainRuntime(param
     binding: nextBinding,
     occurredAt,
   });
+}
+
+export function activateProviderEpochReceiptV2InConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  receipt: import("@cell/ai-organ-contract").ProviderEpochReceiptV2;
+}): import("@cell/ai-organ-contract").ProviderEpochReceiptV2 {
+  const receipt = params.receipt;
+  const currentSession = params.runtime.sessionStateSignal.get()[receipt.sessionId]
+    ?? createEmptySessionState(receipt.sessionId);
+  const existing = currentSession.actorBindings[receipt.actorKey] ?? {
+    actorKey: receipt.actorKey,
+    actorId: receipt.actorId,
+    boundAt: receipt.createdAt,
+  };
+  const current = existing.providerEpochReceiptV2;
+  if (existing.providerEpochReceipt) {
+    throw new Error("provider_context_legacy_import_required");
+  }
+  if (current?.receiptDigest === receipt.receiptDigest) return current;
+  if (current) {
+    throw new Error("provider_epoch_v2_transition_processor_required");
+  } else if (receipt.previousReceiptDigest !== null) {
+    throw new Error("provider_epoch_v2_predecessor_missing");
+  }
+  const occurredAt = receipt.createdAt;
+  const nextBinding = {
+    ...existing,
+    actorId: receipt.actorId,
+    contextEpoch: Math.max(existing.contextEpoch ?? 0, receipt.epoch),
+    providerEpochReceiptV2: receipt,
+    providerRequestAdmissions: Object.freeze([]),
+  };
+  const nextBindings = { ...currentSession.actorBindings, [receipt.actorKey]: nextBinding };
+  const nextSession = {
+    ...currentSession,
+    actorBindings: nextBindings,
+    sessionIndex: {
+      ...currentSession.sessionIndex,
+      updatedAt: occurredAt,
+      session: {
+        ...currentSession.sessionIndex.session,
+        actorBindings: nextBindings,
+        updatedAt: occurredAt,
+      },
+    },
+  };
+  params.runtime.sessionStateSignal.set({
+    ...params.runtime.sessionStateSignal.get(),
+    [receipt.sessionId]: nextSession,
+  });
+  refreshConversationActorRawStateFromDomainState({
+    runtime: params.runtime,
+    sessionId: receipt.sessionId,
+    actorKey: receipt.actorKey,
+    actorId: receipt.actorId,
+  });
+  params.runtime.persistHooks.session?.({
+    type: "local_conversation_session_actor_bound",
+    sessionId: receipt.sessionId,
+    actorKey: receipt.actorKey,
+    actorId: receipt.actorId,
+    binding: nextBinding,
+    occurredAt,
+  });
+  return receipt;
+}
+
+function exactProviderContextHeads(
+  left: ProviderContextAuthorityHeads,
+  right: ProviderContextAuthorityHeads,
+): boolean {
+  return left.historyHeadGenerationId === right.historyHeadGenerationId
+    && left.promptHeadGenerationId === right.promptHeadGenerationId
+    && left.factHeadDigest === right.factHeadDigest;
+}
+
+function providerContextAuthorityHeads(
+  runtime: ConversationDomainRuntime,
+  sessionId: string,
+  actorKey: string,
+): ProviderContextAuthorityHeads {
+  const key = actorRuntimeKey(sessionId, actorKey);
+  const session = runtime.sessionStateSignal.get()[sessionId];
+  const binding = session?.actorBindings[actorKey];
+  return Object.freeze({
+    historyHeadGenerationId: runtime.historyStateSignal.get()[key]?.activeGenerationId
+      ?? binding?.historyHeadGenerationId
+      ?? "__empty_history__",
+    promptHeadGenerationId: runtime.promptStateSignal.get()[key]?.activePromptGenerationId
+      ?? binding?.promptHeadGenerationId
+      ?? "__empty_prompt__",
+    factHeadDigest: binding?.providerContextFactHead?.factDigest ?? null,
+  });
+}
+
+function actorRawStateFromTransitionGeneration(params: {
+  current: ConversationActorRawState | null;
+  generation: ConversationProviderContextTransitionGeneration;
+  sessionId: string;
+  actorKey: string;
+  actorId: string;
+}): ConversationActorRawState {
+  const { generation } = params;
+  const binding = generation.sessionIndex.session.actorBindings[params.actorKey];
+  const historyHead = generation.historyIndex.heads[params.actorKey];
+  const promptHead = generation.promptIndex.heads[params.actorKey];
+  const promptHeadGenerationId = promptHead?.activePromptGenerationId ?? "__empty_prompt__";
+  if (!binding || binding.actorId !== params.actorId || !historyHead
+    || binding.promptHeadGenerationId !== promptHeadGenerationId) {
+    throw new Error("provider_context_transition_generation_binding_missing");
+  }
+  const knownHistory = new Map([
+    ...(params.current?.visibleHistoryGenerations ?? []).map((entry) => [entry.generationId, entry] as const),
+    ...generation.historyGenerations.map((entry) => [entry.generationId, entry] as const),
+  ]);
+  const visibleGenerationIds = historyHead.visibleGenerationIds;
+  const visibleHistoryGenerations = visibleGenerationIds.map((generationId) => {
+    const entry = knownHistory.get(generationId);
+    if (!entry) throw new Error("provider_context_transition_generation_history_missing");
+    return entry;
+  });
+  const promptGeneration = promptHeadGenerationId === "__empty_prompt__"
+    ? null
+    : generation.promptGenerations.find(
+      (entry) => entry.promptGenerationId === promptHeadGenerationId,
+    ) ?? (params.current?.promptGeneration?.promptGenerationId === promptHeadGenerationId
+      ? params.current.promptGeneration
+      : null);
+  if (promptHeadGenerationId !== "__empty_prompt__" && !promptGeneration) {
+    throw new Error("provider_context_transition_generation_prompt_missing");
+  }
+  const session = {
+    sessionId: generation.sessionIndex.sessionId,
+    activeActorKey: generation.sessionIndex.session.activeActorKey ?? null,
+    actorBindings: generation.sessionIndex.session.actorBindings,
+    contextAssetRegistry: generation.sessionIndex.session.contextAssetRegistry ?? null,
+    contextAssets: generation.sessionIndex.session.contextAssets ?? [],
+    activeSelection: generation.sessionIndex.session.activeSelection ?? null,
+    lineage: generation.sessionIndex.lineage ?? null,
+    historyIndex: generation.historyIndex,
+    promptIndex: generation.promptIndex,
+    sessionIndex: generation.sessionIndex,
+  };
+  return {
+    session,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    historyHeadGenerationId: historyHead.activeGenerationId,
+    promptHeadGenerationId,
+    visibleGenerationIds: [...visibleGenerationIds],
+    visibleHistoryGenerations,
+    activeHistoryGeneration: historyHead.activeGenerationId
+      ? knownHistory.get(historyHead.activeGenerationId) ?? null
+      : null,
+    promptGeneration,
+    contextAssetIds: session.contextAssetRegistry?.assetIds ?? [],
+  };
+}
+
+function assertTransitionDigest(value: unknown, field: string): asserts value is `sha256:${string}` {
+  if (typeof value !== "string" || !/^sha256:[0-9a-f]{64}$/.test(value)) {
+    throw new Error(`provider_context_transition_invalid:${field}`);
+  }
+}
+
+export function commitProviderContextTransition(
+  runtime: ConversationDomainRuntime,
+  input: ProviderContextTransitionCommand,
+  _config: Readonly<Record<string, never>>,
+): import("@cell/ai-organ-contract").ProviderEpochReceiptV2 {
+  assertProviderContextClosedValue(input, "transitionCommand");
+  const expectedCommandKeys = [
+    "actorId", "actorKey", "appendedFactDigests", "compactionProof",
+    "deliveryConfirmationDigests", "expectedConversationRevision",
+    "expectedEpochReceiptDigest", "expectedLatestAdmissionDigest", "generation", "nextFactHead",
+    "nextHeads", "nextReceipt", "occurredAt", "priorHeads", "reason",
+    "retainedFactDigests", "schemaVersion", "sessionId",
+  ];
+  const actualCommandKeys = Object.keys(input).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
+  if (actualCommandKeys.length !== expectedCommandKeys.length
+    || actualCommandKeys.some((key, index) => key !== expectedCommandKeys[index])) {
+    throw new Error("provider_context_transition_invalid:fields");
+  }
+  if (input.schemaVersion !== "provider.context-transition-command/v1") {
+    throw new Error("provider_context_transition_invalid:schemaVersion");
+  }
+  const session = runtime.sessionStateSignal.get()[input.sessionId];
+  const binding = session?.actorBindings[input.actorKey];
+  const current = binding?.providerEpochReceiptV2;
+  const legacy = binding?.providerEpochReceipt;
+  if (current && legacy) {
+    throw new Error("provider_context_dual_authority_forbidden");
+  }
+  const mappedLegacyReason = legacy?.reason === "initial_projection"
+    ? "initial_projection"
+    : legacy?.reason === "model_control"
+      ? "provider_model_profile_switch"
+      : legacy?.reason === "recovery_rebuild"
+        ? "legacy_context_import"
+        : null;
+  const legacyImport = !current && Boolean(legacy) && input.reason === mappedLegacyReason;
+  if (!session || !binding || (!current && !legacyImport) || binding.actorId !== input.actorId) {
+    throw new Error("provider_context_transition_predecessor_missing");
+  }
+  if (current?.receiptDigest === input.nextReceipt.receiptDigest) return current;
+  const currentReceiptDigest = current?.receiptDigest
+    ?? (legacy ? digestLegacyProviderEpochReceipt(legacy) : null);
+  const currentEpoch = current?.epoch ?? legacy?.epoch ?? -1;
+  if (!currentReceiptDigest) throw new Error("provider_context_transition_predecessor_missing");
+  assertTransitionDigest(input.expectedEpochReceiptDigest, "expectedEpochReceiptDigest");
+  if (input.expectedLatestAdmissionDigest !== null) {
+    assertTransitionDigest(input.expectedLatestAdmissionDigest, "expectedLatestAdmissionDigest");
+  }
+  const latestAdmission = binding.providerRequestAdmissions?.at(-1) ?? null;
+  const conversationRevision = binding.providerContextFactHead?.conversationRevision ?? 0;
+  if (currentReceiptDigest !== input.expectedEpochReceiptDigest
+    || (latestAdmission?.admissionDigest ?? null) !== input.expectedLatestAdmissionDigest
+    || conversationRevision !== input.expectedConversationRevision) {
+    throw new Error("provider_context_transition_expected_predecessor_conflict");
+  }
+  const currentHeads = providerContextAuthorityHeads(runtime, input.sessionId, input.actorKey);
+  const currentMatchesExpectedBoundary = input.reason === "history_rewind_or_fork" || input.reason === "history_compaction"
+    ? exactProviderContextHeads(currentHeads, input.priorHeads)
+      || (currentHeads.historyHeadGenerationId === input.nextHeads.historyHeadGenerationId
+        && currentHeads.promptHeadGenerationId === input.nextHeads.promptHeadGenerationId)
+    : exactProviderContextHeads(currentHeads, input.priorHeads);
+  if (!currentMatchesExpectedBoundary) {
+    throw new Error("provider_context_transition_prior_heads_conflict");
+  }
+  const { receiptDigest, ...receiptFacts } = input.nextReceipt;
+  const exactReceipt = createProviderEpochReceiptV2(receiptFacts);
+  if (exactReceipt.receiptDigest !== receiptDigest
+    || exactReceipt.sessionId !== input.sessionId
+    || exactReceipt.actorKey !== input.actorKey
+    || exactReceipt.actorId !== input.actorId
+    || exactReceipt.epoch !== currentEpoch + 1
+    || exactReceipt.previousReceiptDigest !== currentReceiptDigest
+    || exactReceipt.reason !== input.reason
+    || !exactProviderContextHeads(exactReceipt.baselineHeads, input.nextHeads)
+    || exactReceipt.createdAt !== input.occurredAt) {
+    throw new Error("provider_context_transition_successor_receipt_conflict");
+  }
+  if (input.nextHeads.factHeadDigest !== (input.nextFactHead?.factDigest ?? null)) {
+    throw new Error("provider_context_transition_fact_head_conflict");
+  }
+  if (input.nextFactHead && (
+    input.nextFactHead.sessionId !== input.sessionId
+    || input.nextFactHead.actorKey !== input.actorKey
+    || input.nextFactHead.actorId !== input.actorId
+    || input.nextFactHead.epoch !== exactReceipt.epoch
+  )) {
+    throw new Error("provider_context_transition_fact_head_identity_conflict");
+  }
+  const allFactDigests = [...input.retainedFactDigests, ...input.appendedFactDigests];
+  for (const [index, digest] of allFactDigests.entries()) assertTransitionDigest(digest, `factDigests[${index}]`);
+  for (const [index, digest] of input.deliveryConfirmationDigests.entries()) {
+    assertTransitionDigest(digest, `deliveryConfirmationDigests[${index}]`);
+  }
+  const priorFacts = new Map((session.contextAssets ?? []).flatMap((asset) => (
+    asset.providerContextFact ? [[asset.providerContextFact.factDigest, asset.providerContextFact] as const] : []
+  )));
+  const stagedFacts = new Map((input.generation?.sessionIndex.session.contextAssets ?? []).flatMap((asset) => (
+    asset.providerContextFact ? [[asset.providerContextFact.factDigest, asset.providerContextFact] as const] : []
+  )));
+  const knownFacts = new Map([...priorFacts, ...stagedFacts]);
+  for (const digest of allFactDigests) {
+    if (!knownFacts.has(digest)) throw new Error("provider_context_transition_fact_missing");
+  }
+  if (input.compactionProof === null) {
+    if (input.reason === "history_compaction" || exactReceipt.compactionProofDigest !== null) {
+      throw new Error("provider_context_transition_compaction_proof_missing");
+    }
+  } else {
+    const { schemaVersion: _schemaVersion, proofDigest, ...proofFacts } = input.compactionProof;
+    const exactProof = createProviderContextCompactionProof(proofFacts);
+    if (exactProof.proofDigest !== proofDigest
+      || input.reason !== "history_compaction"
+      || exactReceipt.compactionProofDigest !== proofDigest
+      || !current
+      || exactProof.sourceEpoch !== current.epoch
+      || exactProof.successorEpoch !== exactReceipt.epoch) {
+      throw new Error("provider_context_transition_compaction_proof_conflict");
+    }
+    for (const retained of exactProof.retained) {
+      const source = priorFacts.get(retained.sourceFactDigest);
+      const successor = stagedFacts.get(retained.successorFactDigest);
+      const delivery = source?.sourceDeliveryProofs[0];
+      const admission = binding.providerRequestAdmissions?.find(
+        (candidate) => candidate.admissionDigest === retained.requestAdmissionDigest,
+      );
+      const admittedRange = admission?.admittedFactRange ?? null;
+      const admittedOffset = source && admittedRange ? source.sequence - admittedRange.firstSequence : -1;
+      const exactFirstDelivery = delivery?.kind === "first-delivery-pair"
+        && admission
+        && admission.factAppendIntentDigest === retained.requestAdmissionIntentDigest
+        && admittedRange
+        && admittedOffset >= 0
+        && admittedOffset < admittedRange.count
+        && admittedRange.factDigests[admittedOffset] === source?.factDigest
+        && admittedRange.lastSequence === admittedRange.firstSequence + admittedRange.count - 1
+        && admission.currentHeads.factHeadDigest === admittedRange.factDigests.at(-1);
+      const exactCompactedDelivery = delivery?.kind === "compacted-delivery-proof"
+        && delivery.proofDigest === current.compactionProofDigest
+        && delivery.sourceFactDigest === source?.previousFactDigest
+        && delivery.requestAdmissionDigest === retained.requestAdmissionDigest;
+      const successorProof = successor?.sourceDeliveryProofs[0];
+      if (!source || !successor || !delivery
+        || source.namespace !== retained.namespace
+        || source.namespaceRevision !== retained.namespaceRevision
+        || source.payloadDigest !== retained.payloadDigest
+        || delivery.callRecordDigest !== retained.callRecordDigest
+        || delivery.resultRecordDigest !== retained.resultRecordDigest
+        || delivery.requestAdmissionIntentDigest !== retained.requestAdmissionIntentDigest
+        || (!exactFirstDelivery && !exactCompactedDelivery)
+        || successor.namespace !== source.namespace
+        || successor.namespaceRevision !== source.namespaceRevision
+        || successor.payloadDigest !== source.payloadDigest
+        || successor.previousFactDigest !== source.factDigest
+        || successor.epoch !== exactReceipt.epoch
+        || successor.sourceDeliveryProofs.length !== 1
+        || successorProof?.kind !== "compacted-delivery-proof"
+        || successorProof.proofDigest !== exactProof.proofDigest
+        || successorProof.sourceFactDigest !== source.factDigest
+        || successorProof.callRecordDigest !== retained.callRecordDigest
+        || successorProof.resultRecordDigest !== retained.resultRecordDigest
+        || successorProof.requestAdmissionIntentDigest !== retained.requestAdmissionIntentDigest
+        || successorProof.requestAdmissionDigest !== retained.requestAdmissionDigest) {
+        throw new Error("provider_context_transition_compaction_retained_fact_conflict");
+      }
+    }
+  }
+  const providerChanged = current
+    ? current.targetProviderId !== exactReceipt.targetProviderId
+      || current.targetModelId !== exactReceipt.targetModelId
+      || current.targetProfileId !== exactReceipt.targetProfileId
+    : legacy
+      ? legacy.targetProviderId !== exactReceipt.targetProviderId
+        || legacy.targetProfileId !== exactReceipt.targetProfileId
+      : false;
+  const authorityChanged = !exactProviderContextHeads(input.priorHeads, input.nextHeads);
+  const historyChanged = input.priorHeads.historyHeadGenerationId !== input.nextHeads.historyHeadGenerationId
+    || input.priorHeads.promptHeadGenerationId !== input.nextHeads.promptHeadGenerationId;
+  const resourceChanged = current ? current.frozenResourceDigest !== exactReceipt.frozenResourceDigest : false;
+  const surfaceChanged = current ? current.providerSurfaceDigest !== exactReceipt.providerSurfaceDigest : false;
+  if ((input.reason === "provider_model_profile_switch" && !providerChanged && !legacyImport)
+    || (input.reason === "history_compaction" && !authorityChanged)
+    || (input.reason === "history_rewind_or_fork" && !authorityChanged)
+    || (input.reason === "frozen_resource_revision_accepted" && !resourceChanged)
+    || (input.reason === "provider_surface_revision_accepted" && !surfaceChanged)
+    || (input.reason === "initial_projection" && !legacyImport)
+    || (input.reason === "legacy_context_import" && !legacyImport)) {
+    throw new Error("provider_context_transition_reason_facts_mismatch");
+  }
+  if (historyChanged && input.generation === null) {
+    throw new Error("provider_context_transition_generation_presence_conflict");
+  }
+  if (input.generation) {
+    const generation = input.generation;
+    const { transitionId, ...generationFacts } = generation;
+    if (transitionId !== digestProviderContextClosedValue(generationFacts)) {
+      throw new Error("provider_context_transition_generation_identity_conflict");
+    }
+    if (generation.schemaVersion !== "conversation.provider-context-transition-generation/v1"
+      || generation.expectedEpochReceiptDigest !== currentReceiptDigest
+      || generation.nextEpochReceiptDigest !== exactReceipt.receiptDigest
+      || generation.sessionIndex.sessionId !== input.sessionId
+      || generation.historyIndex.sessionId !== input.sessionId
+      || generation.promptIndex.sessionId !== input.sessionId) {
+      throw new Error("provider_context_transition_generation_conflict");
+    }
+    if (historyChanged && (
+      generation.historyIndex.heads[input.actorKey]?.activeGenerationId !== input.nextHeads.historyHeadGenerationId
+      || (generation.promptIndex.heads[input.actorKey]?.activePromptGenerationId ?? "__empty_prompt__")
+        !== input.nextHeads.promptHeadGenerationId
+    )) {
+      throw new Error("provider_context_transition_generation_conflict");
+    }
+    const stagedBinding = generation.sessionIndex.session.actorBindings[input.actorKey];
+    if (stagedBinding?.providerEpochReceiptV2?.receiptDigest !== exactReceipt.receiptDigest
+      || (stagedBinding.providerContextFactHead?.factDigest ?? null) !== input.nextHeads.factHeadDigest
+      || (stagedBinding.providerRequestAdmissions?.length ?? 0) !== 0) {
+      throw new Error("provider_context_transition_generation_session_conflict");
+    }
+    if (stagedBinding.providerEpochReceipt !== undefined) {
+      throw new Error("provider_context_dual_authority_forbidden");
+    }
+    const stagedHistoryId = input.nextHeads.historyHeadGenerationId;
+    const currentHistory = runtime.historyStateSignal.get()[actorRuntimeKey(input.sessionId, input.actorKey)]
+      ?.generations.find((candidate) => candidate.generationId === stagedHistoryId) ?? null;
+    const stagedHistory = generation.historyGenerations.find(
+      (candidate) => candidate.generationId === stagedHistoryId,
+    ) ?? currentHistory;
+    if (stagedHistoryId !== "__empty_history__" && (!stagedHistory
+      || stagedHistory.sessionId !== input.sessionId
+      || stagedHistory.actorKey !== input.actorKey
+      || stagedHistory.actorId !== input.actorId
+      || stagedHistory.messageCount !== stagedHistory.messages.length)) {
+      throw new Error("provider_context_transition_history_generation_conflict");
+    }
+    const stagedMessages = stagedHistory?.messages ?? [];
+    if (exactReceipt.sourceHistoryMessageCount > stagedMessages.length
+      || digestProviderContextHistoryFrontier(
+        stagedMessages.slice(0, exactReceipt.sourceHistoryMessageCount),
+      ) !== exactReceipt.sourceFrontierDigest) {
+      throw new Error("provider_context_transition_source_frontier_conflict");
+    }
+    if (legacyImport && (
+      stagedBinding.providerEpochReceipt !== undefined
+      || stagedBinding.providerContextLegacyMigrationMarker?.targetReceiptDigest !== exactReceipt.receiptDigest
+      || stagedBinding.providerContextLegacyMigrationMarker?.sourceReceiptDigest !== currentReceiptDigest
+    )) {
+      throw new Error("provider_context_transition_legacy_marker_conflict");
+    }
+    const rawState = actorRawStateFromTransitionGeneration({
+      current: runtime.actorRawStateSignal.get()[actorRuntimeKey(input.sessionId, input.actorKey)] ?? null,
+      generation,
+      sessionId: input.sessionId,
+      actorKey: input.actorKey,
+      actorId: input.actorId,
+    });
+    injectConversationActorRawState(runtime, rawState);
+  }
+  emitConversationDomainEvent(runtime, {
+    type: "local_conversation_provider_context_epoch_transition_committed",
+    sessionId: input.sessionId,
+    actorKey: input.actorKey,
+    actorId: input.actorId,
+    command: input,
+    receipt: exactReceipt,
+    occurredAt: input.occurredAt,
+  });
+  return exactReceipt;
 }
 
 export function appendConversationDomainEvent(
@@ -753,7 +1253,7 @@ export function appendConversationDomainEvent(
     if (!keyActor) return;
     const current = runtime.promptStateSignal.get()[keyActor] ?? {
       sessionId: event.sessionId,
-      actorKey: event.actorKey,
+      actorKey: "actorKey" in event ? event.actorKey : "",
       actorId: "",
       generations: [],
       activePromptGenerationId: null,
@@ -900,6 +1400,51 @@ export function appendConversationDomainEvent(
           updatedAt: event.occurredAt,
         },
       });
+      const session = runtime.sessionStateSignal.get()[event.sessionId] ?? createEmptySessionState(event.sessionId);
+      const binding = session.actorBindings[event.actorKey];
+      const promptHead = event.head ?? {
+        version: session.promptIndex.version,
+        sessionId: event.sessionId,
+        actorKey: event.actorKey,
+        actorId: current.actorId,
+        activePromptGenerationId,
+        updatedAt: event.occurredAt,
+      };
+      const actorBindings = binding
+        ? {
+            ...session.actorBindings,
+            [event.actorKey]: {
+              ...binding,
+              promptHeadGenerationId: activePromptGenerationId,
+            },
+          }
+        : session.actorBindings;
+      const promptIndex = {
+        ...session.promptIndex,
+        heads: {
+          ...session.promptIndex.heads,
+          [event.actorKey]: promptHead,
+        },
+        updatedAt: event.occurredAt,
+      };
+      const sessionIndex = {
+        ...session.sessionIndex,
+        session: {
+          ...session.sessionIndex.session,
+          actorBindings,
+          updatedAt: event.occurredAt,
+        },
+        updatedAt: event.occurredAt,
+      };
+      runtime.sessionStateSignal.set({
+        ...runtime.sessionStateSignal.get(),
+        [event.sessionId]: {
+          ...session,
+          actorBindings,
+          promptIndex,
+          sessionIndex,
+        },
+      });
       refreshConversationActorRawStateFromDomainState({
         runtime,
         sessionId: event.sessionId,
@@ -936,18 +1481,40 @@ export function appendConversationDomainEvent(
   trimMutableTail(runtime.sessionEvents, MAX_CONVERSATION_DOMAIN_EVENTS_PER_STREAM);
   const currentSession = runtime.sessionStateSignal.get()[event.sessionId] ?? createEmptySessionState(event.sessionId);
   if (event.type === "local_conversation_session_created") {
+    const admittedActorBindings = event.session
+      ? Object.fromEntries([...new Set([
+          ...Object.keys(currentSession.actorBindings),
+          ...Object.keys(event.session.actorBindings),
+        ])].map((actorKey) => [
+          actorKey,
+          {
+            ...(currentSession.actorBindings[actorKey] ?? {}),
+            ...(event.session!.actorBindings[actorKey] ?? {}),
+            providerEpochReceiptV2:
+              event.session!.actorBindings[actorKey]?.providerEpochReceiptV2
+              ?? currentSession.actorBindings[actorKey]?.providerEpochReceiptV2,
+            providerRequestAdmissions:
+              event.session!.actorBindings[actorKey]?.providerRequestAdmissions
+              ?? currentSession.actorBindings[actorKey]?.providerRequestAdmissions,
+            providerContextFactHead: event.session!.actorBindings[actorKey]
+              && Object.prototype.hasOwnProperty.call(event.session!.actorBindings[actorKey], "providerContextFactHead")
+              ? event.session!.actorBindings[actorKey]?.providerContextFactHead
+              : currentSession.actorBindings[actorKey]?.providerContextFactHead,
+          },
+        ]))
+      : currentSession.actorBindings;
     const nextSession = event.session
       ? {
           ...currentSession,
           activeActorKey: event.session.activeActorKey ?? null,
-          actorBindings: event.session.actorBindings,
+          actorBindings: admittedActorBindings,
           contextAssetRegistry: event.session.contextAssetRegistry ?? null,
           contextAssets: event.session.contextAssets ?? [],
           activeSelection: event.session.activeSelection ?? null,
           sessionIndex: {
             ...currentSession.sessionIndex,
             updatedAt: event.occurredAt,
-            session: { ...event.session },
+            session: { ...event.session, actorBindings: admittedActorBindings },
           },
         }
       : {
@@ -1043,7 +1610,8 @@ export function appendConversationDomainEvent(
     return;
   }
   if (event.type === "local_conversation_session_actor_bound") {
-    const nextBinding = event.binding ?? {
+    const currentBinding = currentSession.actorBindings[event.actorKey];
+    const projectedBinding = event.binding ?? {
       actorKey: event.actorKey,
       actorId: event.actorId,
       actorName: event.actorName ?? null,
@@ -1052,6 +1620,17 @@ export function appendConversationDomainEvent(
       historyHeadGenerationId: event.historyHeadGenerationId ?? null,
       promptHeadGenerationId: event.promptHeadGenerationId ?? null,
       metadata: currentSession.actorBindings[event.actorKey]?.metadata,
+    };
+    const nextBinding = {
+      ...currentBinding,
+      ...projectedBinding,
+      providerEpochReceiptV2:
+        projectedBinding.providerEpochReceiptV2 ?? currentBinding?.providerEpochReceiptV2,
+      providerRequestAdmissions:
+        projectedBinding.providerRequestAdmissions ?? currentBinding?.providerRequestAdmissions,
+      providerContextFactHead: Object.prototype.hasOwnProperty.call(projectedBinding, "providerContextFactHead")
+        ? projectedBinding.providerContextFactHead
+        : currentBinding?.providerContextFactHead,
     };
     runtime.sessionStateSignal.set({
       ...runtime.sessionStateSignal.get(),
@@ -1181,6 +1760,205 @@ export function appendConversationDomainEvent(
         actorKey,
       });
     }
+    return;
+  }
+  if (event.type === "local_conversation_provider_context_fact_appended") {
+    const nextAssets = [
+      ...(currentSession.contextAssets ?? []).filter((asset) => asset.assetId !== event.assetId),
+      event.asset,
+    ];
+    const nextBinding = {
+      ...(currentSession.actorBindings[event.actorKey] ?? {
+        actorKey: event.actorKey,
+        actorId: event.head.actorId,
+        boundAt: event.occurredAt,
+      }),
+      providerContextFactHead: event.head,
+    };
+    const nextRegistry = {
+      version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+      assetIds: [...new Set([...(currentSession.contextAssetRegistry?.assetIds ?? []), event.assetId])],
+      updatedAt: event.occurredAt,
+    };
+    runtime.sessionStateSignal.set({
+      ...runtime.sessionStateSignal.get(),
+      [event.sessionId]: {
+        ...currentSession,
+        actorBindings: { ...currentSession.actorBindings, [event.actorKey]: nextBinding },
+        contextAssetRegistry: nextRegistry,
+        contextAssets: nextAssets,
+        sessionIndex: {
+          ...currentSession.sessionIndex,
+          updatedAt: event.occurredAt,
+          session: {
+            ...currentSession.sessionIndex.session,
+            actorBindings: {
+              ...currentSession.sessionIndex.session.actorBindings,
+              [event.actorKey]: nextBinding,
+            },
+            contextAssetRegistry: nextRegistry,
+            contextAssets: nextAssets,
+            updatedAt: event.occurredAt,
+          },
+        },
+      },
+    });
+    refreshConversationActorRawStateFromDomainState({
+      runtime,
+      sessionId: event.sessionId,
+      actorKey: event.actorKey,
+      actorId: event.head.actorId,
+    });
+    return;
+  }
+  if (event.type === "local_conversation_provider_context_delivery_committed") {
+    const replacements = new Map(
+      [...event.candidateAssets, ...event.factAssets].map((asset) => [asset.assetId, asset]),
+    );
+    const nextAssets = [
+      ...(currentSession.contextAssets ?? []).filter((asset) => !replacements.has(asset.assetId)),
+      ...replacements.values(),
+    ];
+    const currentBinding = currentSession.actorBindings[event.actorKey] ?? {
+      actorKey: event.actorKey,
+      actorId: event.head.actorId,
+      boundAt: event.occurredAt,
+    };
+    const nextBinding = {
+      ...currentBinding,
+      providerContextFactHead: event.head,
+      providerRequestAdmissions: [
+        ...(currentBinding.providerRequestAdmissions ?? []),
+        event.admission,
+      ],
+    };
+    const nextRegistry = {
+      version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+      assetIds: [...new Set([
+        ...(currentSession.contextAssetRegistry?.assetIds ?? []),
+        ...replacements.keys(),
+      ])],
+      updatedAt: event.occurredAt,
+    };
+    runtime.sessionStateSignal.set({
+      ...runtime.sessionStateSignal.get(),
+      [event.sessionId]: {
+        ...currentSession,
+        actorBindings: { ...currentSession.actorBindings, [event.actorKey]: nextBinding },
+        contextAssetRegistry: nextRegistry,
+        contextAssets: nextAssets,
+        sessionIndex: {
+          ...currentSession.sessionIndex,
+          updatedAt: event.occurredAt,
+          session: {
+            ...currentSession.sessionIndex.session,
+            actorBindings: {
+              ...currentSession.sessionIndex.session.actorBindings,
+              [event.actorKey]: nextBinding,
+            },
+            contextAssetRegistry: nextRegistry,
+            contextAssets: nextAssets,
+            updatedAt: event.occurredAt,
+          },
+        },
+      },
+    });
+    refreshConversationActorRawStateFromDomainState({
+      runtime,
+      sessionId: event.sessionId,
+      actorKey: event.actorKey,
+      actorId: event.head.actorId,
+    });
+    return;
+  }
+  if (event.type === "local_conversation_provider_request_admitted") {
+    const currentBinding = currentSession.actorBindings[event.actorKey] ?? {
+      actorKey: event.actorKey,
+      actorId: event.actorId,
+      boundAt: event.occurredAt,
+    };
+    const nextBinding = {
+      ...currentBinding,
+      providerRequestAdmissions: [
+        ...(currentBinding.providerRequestAdmissions ?? []),
+        event.admission,
+      ],
+    };
+    runtime.sessionStateSignal.set({
+      ...runtime.sessionStateSignal.get(),
+      [event.sessionId]: {
+        ...currentSession,
+        actorBindings: { ...currentSession.actorBindings, [event.actorKey]: nextBinding },
+        sessionIndex: {
+          ...currentSession.sessionIndex,
+          updatedAt: event.occurredAt,
+          session: {
+            ...currentSession.sessionIndex.session,
+            actorBindings: {
+              ...currentSession.sessionIndex.session.actorBindings,
+              [event.actorKey]: nextBinding,
+            },
+            updatedAt: event.occurredAt,
+          },
+        },
+      },
+    });
+    refreshConversationActorRawStateFromDomainState({
+      runtime,
+      sessionId: event.sessionId,
+      actorKey: event.actorKey,
+      actorId: event.actorId,
+    });
+    return;
+  }
+  if (event.type === "local_conversation_provider_context_epoch_transition_committed") {
+    const currentBinding = currentSession.actorBindings[event.actorKey] ?? {
+      actorKey: event.actorKey,
+      actorId: event.actorId,
+      boundAt: event.occurredAt,
+    };
+    const stagedBinding = event.command.generation?.sessionIndex.session.actorBindings[event.actorKey];
+    const nextBinding = {
+      ...currentBinding,
+      actorId: event.actorId,
+      contextEpoch: event.receipt.epoch,
+      historyHeadGenerationId: event.command.nextHeads.historyHeadGenerationId,
+      promptHeadGenerationId: event.command.nextHeads.promptHeadGenerationId,
+      providerContextFactHead: event.command.nextFactHead,
+      providerEpochReceiptV2: event.receipt,
+      providerRequestAdmissions: Object.freeze([]),
+      ...(stagedBinding?.providerContextLegacyMigrationMarker
+        ? {
+            providerEpochReceipt: undefined,
+            providerContextLegacyMigrationMarker: stagedBinding?.providerContextLegacyMigrationMarker,
+          }
+        : {}),
+    };
+    runtime.sessionStateSignal.set({
+      ...runtime.sessionStateSignal.get(),
+      [event.sessionId]: {
+        ...currentSession,
+        actorBindings: { ...currentSession.actorBindings, [event.actorKey]: nextBinding },
+        sessionIndex: {
+          ...currentSession.sessionIndex,
+          updatedAt: event.occurredAt,
+          session: {
+            ...currentSession.sessionIndex.session,
+            actorBindings: {
+              ...currentSession.sessionIndex.session.actorBindings,
+              [event.actorKey]: nextBinding,
+            },
+            updatedAt: event.occurredAt,
+          },
+        },
+      },
+    });
+    refreshConversationActorRawStateFromDomainState({
+      runtime,
+      sessionId: event.sessionId,
+      actorKey: event.actorKey,
+      actorId: event.actorId,
+    });
     return;
   }
   if (event.type === "local_conversation_context_asset_removed") {
@@ -1361,8 +2139,8 @@ export function appendLiveHistoryMessageToConversationDomainRuntime(params: {
  * refactor-ai-semantic-conversation-spine, task T4.3): apply a pure,
  * positional (1:1) message rewrite — e.g. cheap tool-result compaction — to
  * the committed messages of the active generation and publish the rewritten
- * generation through an `actor_history_compaction_applied` domain event
- * (upsert semantics, head unchanged). The History domain stays the single
+ * immutable successor generation through an
+ * `actor_history_compaction_applied` domain event. The History domain stays the single
  * provider-context truth: the materialization picks the rewrite up on the
  * next build without any raw-array involvement.
  */
@@ -1408,9 +2186,22 @@ export function rewriteActiveHistoryGenerationMessagesInConversationDomainRuntim
   if (!changed) return { changed: false };
 
   const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const generationDigest = createHash("sha256").update(JSON.stringify({
+    schemaVersion: "conversation.positional-history-compaction/v1",
+    sessionId,
+    actorKey: params.actorKey,
+    sourceGenerationId: generation.generationId,
+    reason: params.reason,
+    messages: nextRefs,
+  }), "utf8").digest("hex");
   const nextGeneration: ActorHistoryGenerationData = {
     ...generation,
+    generationId: `history-compaction-${generationDigest}`,
+    parentGenerationId: generation.generationId,
+    predecessorGenerationIds: [generation.generationId],
+    createdReason: "compaction",
     messages: nextRefs,
+    createdAt: occurredAt,
     updatedAt: occurredAt,
   };
   emitConversationDomainEvent(runtime, {
@@ -1419,7 +2210,7 @@ export function rewriteActiveHistoryGenerationMessagesInConversationDomainRuntim
     actorKey: params.actorKey,
     actorId: params.actorId,
     sourceGenerationIds: [generation.generationId],
-    targetGenerationId: generation.generationId,
+    targetGenerationId: nextGeneration.generationId,
     summaryText: null,
     artifactId: null,
     generation: nextGeneration,
@@ -1571,50 +2362,6 @@ export function recordPromptRequestToConversationDomainRuntime(params: {
   return promptGenerationId;
 }
 
-export function recordPromptOverlayToConversationDomainRuntime(params: {
-  runtime: ConversationDomainRuntime;
-  sessionId: string;
-  actorKey: string;
-  actorId: string;
-  content: string;
-  overlayKind?: string;
-  occurredAt?: string;
-}): string {
-  const occurredAt = params.occurredAt ?? new Date().toISOString();
-  const promptGenerationId = recordPromptRequestToConversationDomainRuntime({
-    runtime: params.runtime,
-    sessionId: params.sessionId,
-    actorKey: params.actorKey,
-    actorId: params.actorId,
-    reason: "overlay",
-    occurredAt,
-  });
-  const transformId = `${promptGenerationId}::overlay`;
-  emitConversationDomainEvent(params.runtime, {
-    type: "actor_prompt_transform_applied",
-    sessionId: params.sessionId,
-    actorKey: params.actorKey,
-    promptGenerationId,
-    transformId,
-    transformKind: "overlay",
-    payload: {
-      content: params.content,
-      overlayKind: params.overlayKind ?? "system",
-    },
-    transform: {
-      transformId,
-      kind: "overlay",
-      payload: {
-        content: params.content,
-        overlayKind: params.overlayKind ?? "system",
-      },
-      appliedAt: occurredAt,
-    },
-    occurredAt,
-  });
-  return promptGenerationId;
-}
-
 export function applyPromptTransformToConversationDomainRuntime(params: {
   runtime: ConversationDomainRuntime;
   sessionId: string;
@@ -1624,6 +2371,10 @@ export function applyPromptTransformToConversationDomainRuntime(params: {
   payload: Record<string, unknown>;
   occurredAt?: string;
 }): string | null {
+  if (params.transformKind === "overlay"
+    && (params.payload.insertPlacement === "late_status" || params.payload.overlayKind === "work_context")) {
+    throw new Error("provider_context_legacy_overlay_writer_removed");
+  }
   const occurredAt = params.occurredAt ?? new Date().toISOString();
   const promptState =
     params.runtime.promptStateSignal.get()[actorRuntimeKey(params.sessionId, params.actorKey)];
@@ -1939,8 +2690,488 @@ export function confirmToolResultDeliveriesToConversationDomainRuntime(params: {
   });
 }
 
-function providerProjectionAssetId(actorKey: string, projectionKey: string): string {
-  return `provider-projection:${encodeURIComponent(actorKey)}:${encodeURIComponent(projectionKey)}`;
+function providerProjectionAssetId(actorKey: string, projectionKey: string, revision: string): string {
+  return `provider-projection:${encodeURIComponent(actorKey)}:${encodeURIComponent(projectionKey)}:${encodeURIComponent(revision)}`;
+}
+
+function providerContextCandidateAssetId(
+  actorKey: string,
+  namespace: string,
+  logicalKey: string,
+  revision: string,
+): string {
+  return `provider-context-candidate:${encodeURIComponent(actorKey)}:${encodeURIComponent(namespace)}:${encodeURIComponent(logicalKey)}:${encodeURIComponent(revision)}`;
+}
+
+function providerContextFrontierDigest(generation: ActorHistoryGenerationData | null | undefined): `sha256:${string}` {
+  return digestProviderContextHistoryFrontier(generation?.messages ?? []);
+}
+
+function assertProviderContextFactRetention(
+  binding: ConversationSessionRawState["actorBindings"][string] | undefined,
+  facts: readonly ActorProviderContextFact[],
+): void {
+  const policy = binding?.providerEpochReceiptV2?.retentionPolicy;
+  if (!policy) return;
+  const usage = measureActorProviderContextFactRetention({
+    facts,
+    maxRevisionsPerNamespace: policy.maxRevisionsPerNamespace,
+    maxCanonicalFactBytesPerEpoch: policy.maxCanonicalFactBytesPerEpoch,
+  });
+  if (usage.overLimit) {
+    throw new Error("provider_context_retention_compaction_required");
+  }
+}
+
+export function appendActorProviderContextFactToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  actorKey: string;
+  actorId: string;
+  namespace: ActorProviderContextFactNamespace;
+  payload: Record<string, unknown>;
+  sourceDeliveryProofs?: ActorProviderContextFact["sourceDeliveryProofs"];
+  occurredAt?: string;
+}): ActorProviderContextFact {
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const session = params.runtime.sessionStateSignal.get()[params.sessionId]
+    ?? createEmptySessionState(params.sessionId);
+  const binding = session.actorBindings[params.actorKey];
+  const epoch = binding?.contextEpoch ?? binding?.providerEpochReceipt?.epoch ?? 0;
+  const epochFacts = (session.contextAssets ?? [])
+    .map((asset) => asset.providerContextFact)
+    .filter((fact): fact is ActorProviderContextFact => Boolean(
+      fact && fact.actorKey === params.actorKey && fact.epoch === epoch,
+    ))
+    .sort((left, right) => left.sequence - right.sequence);
+  const priorSequenceFact = epochFacts.at(-1) ?? null;
+  const priorNamespaceFact = [...epochFacts].reverse().find((fact) => fact.namespace === params.namespace) ?? null;
+  const historyState = params.runtime.historyStateSignal.get()[actorRuntimeKey(params.sessionId, params.actorKey)];
+  const activeHistory = historyState?.activeGenerationId
+    ? historyState.generations.find((generation) => generation.generationId === historyState.activeGenerationId) ?? null
+    : null;
+  const candidate = createActorProviderContextFact({
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    epoch,
+    namespace: params.namespace,
+    namespaceRevision: (priorNamespaceFact?.namespaceRevision ?? 0) + 1,
+    sequence: (priorSequenceFact?.sequence ?? 0) + 1,
+    previousFactDigest: priorNamespaceFact?.factDigest ?? null,
+    previousSequenceFactDigest: priorSequenceFact?.factDigest ?? null,
+    anchor: {
+      historyGenerationId: activeHistory?.generationId ?? "__empty_history__",
+      messageCount: activeHistory?.messages.length ?? 0,
+      frontierDigest: providerContextFrontierDigest(activeHistory),
+    },
+    sourceDeliveryProofs: params.sourceDeliveryProofs ?? [],
+    payload: params.payload,
+    observedAt: occurredAt,
+  });
+  if (priorNamespaceFact?.payloadDigest === candidate.payloadDigest) return priorNamespaceFact;
+  assertProviderContextFactRetention(binding, [...epochFacts, candidate]);
+
+  const acceptedConversationRevision = (binding?.providerContextFactHead?.conversationRevision ?? 0) + 1;
+  const head = Object.freeze({
+    schemaVersion: "eidolon.actor-provider-context-fact-head/v1" as const,
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    epoch,
+    sequence: candidate.sequence,
+    factDigest: candidate.factDigest,
+    conversationRevision: acceptedConversationRevision,
+  });
+  const assetId = `provider-context-fact:${candidate.factDigest.slice("sha256:".length)}`;
+  const asset: LocalConversationContextAssetData = {
+    assetId,
+    kind: "note",
+    label: `${candidate.namespace}@${candidate.namespaceRevision}`,
+    source: { kind: "note", ownerId: params.actorKey },
+    providerContextFact: candidate,
+    createdAt: occurredAt,
+    updatedAt: occurredAt,
+  };
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_provider_context_fact_appended",
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    assetId,
+    asset,
+    head,
+    occurredAt,
+  });
+  return candidate;
+}
+
+export function commitDeliveredProviderProjectionFactsToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  actorKey: string;
+  actorId: string;
+  finalRequestDigest: `sha256:${string}`;
+  sourceRecords: readonly Readonly<{
+    toolCallId: string;
+    callRecordDigest: `sha256:${string}`;
+    resultRecordDigest: `sha256:${string}`;
+  }>[];
+  occurredAt?: string;
+}): readonly ActorProviderContextFact[] {
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const session = params.runtime.sessionStateSignal.get()[params.sessionId]
+    ?? createEmptySessionState(params.sessionId);
+  const binding = session.actorBindings[params.actorKey];
+  const epochReceipt = binding?.providerEpochReceiptV2;
+  if (!binding || !epochReceipt || epochReceipt.actorId !== params.actorId) {
+    throw new Error(`provider_context_epoch_v2_required:${params.sessionId}:${params.actorKey}:${Boolean(binding)}:${Boolean(epochReceipt)}:${epochReceipt?.actorId ?? "missing"}:${params.actorId}`);
+  }
+  const previousAdmission = binding.providerRequestAdmissions?.at(-1) ?? null;
+  const selected = new Map(params.sourceRecords.map((record) => [record.toolCallId, record]));
+  const candidateAssets: LocalConversationContextAssetData[] = [];
+  const candidates: Array<{
+    namespace: ActorProviderContextFactNamespace;
+    payload: Record<string, unknown>;
+    sourceToolCallIds: readonly string[];
+    observedAt: string;
+    assetId: string;
+  }> = [];
+  for (const asset of session.contextAssets ?? []) {
+    const projection = asset.projectionFact;
+    if (!projection || projection.actorKey !== params.actorKey) continue;
+    const revisionSources = projection.sourceToolCalls.filter((source) => (
+      source.projectionRevision === projection.revision
+    ));
+    if (revisionSources.length === 0 || revisionSources.some((source) => (
+      source.deliveryState === "pending" && !selected.has(source.toolCallId)
+    ))) continue;
+    const selectedRevisionSources = revisionSources.filter((source) => selected.has(source.toolCallId));
+    if (selectedRevisionSources.length === 0) continue;
+    const sourceToolCalls = projection.sourceToolCalls.map((source) => (
+      source.deliveryState === "pending" && selected.has(source.toolCallId)
+        ? { ...source, deliveryState: "delivered" as const, deliveredAt: occurredAt }
+        : source
+    ));
+    candidateAssets.push({
+      ...asset,
+      projectionFact: { ...projection, sourceToolCalls, observedAt: occurredAt },
+      updatedAt: occurredAt,
+    });
+    candidates.push({
+      namespace: "provider-projection",
+      payload: {
+        logicalKey: projection.projectionKey,
+        revision: projection.revision,
+        content: projection.content,
+      },
+      sourceToolCallIds: Object.freeze(selectedRevisionSources.map((source) => source.toolCallId)),
+      observedAt: projection.observedAt,
+      assetId: asset.assetId,
+    });
+  }
+  for (const asset of session.contextAssets ?? []) {
+    const candidate = asset.providerContextFactCandidate;
+    if (!candidate || candidate.actorKey !== params.actorKey) continue;
+    const revisionSources = candidate.sourceToolCalls.filter((source) => (
+      source.projectionRevision === candidate.revision
+    ));
+    if (revisionSources.length === 0 || revisionSources.some((source) => (
+      source.deliveryState === "pending" && !selected.has(source.toolCallId)
+    ))) continue;
+    const selectedRevisionSources = revisionSources.filter((source) => selected.has(source.toolCallId));
+    if (selectedRevisionSources.length === 0) continue;
+    const sourceToolCalls = candidate.sourceToolCalls.map((source) => (
+      source.deliveryState === "pending" && selected.has(source.toolCallId)
+        ? { ...source, deliveryState: "delivered" as const, deliveredAt: occurredAt }
+        : source
+    ));
+    candidateAssets.push({
+      ...asset,
+      providerContextFactCandidate: { ...candidate, sourceToolCalls, observedAt: occurredAt },
+      updatedAt: occurredAt,
+    });
+    candidates.push({
+      namespace: candidate.namespace,
+      payload: { ...candidate.payload },
+      sourceToolCallIds: Object.freeze(selectedRevisionSources.map((source) => source.toolCallId)),
+      observedAt: candidate.observedAt,
+      assetId: asset.assetId,
+    });
+  }
+  candidates.sort((left, right) => (
+    left.observedAt < right.observedAt ? -1
+      : left.observedAt > right.observedAt ? 1
+        : left.assetId < right.assetId ? -1
+          : left.assetId > right.assetId ? 1
+            : 0
+  ));
+
+  const currentHead = binding.providerContextFactHead ?? null;
+  const actorRuntime = actorRuntimeKey(params.sessionId, params.actorKey);
+  const currentHistoryHead = params.runtime.historyStateSignal.get()[actorRuntime]?.activeGenerationId
+    ?? binding.historyHeadGenerationId
+    ?? "__empty_history__";
+  const currentPromptHead = params.runtime.promptStateSignal.get()[actorRuntime]?.activePromptGenerationId
+    ?? binding.promptHeadGenerationId
+    ?? "__empty_prompt__";
+  const currentHistoryGeneration = params.runtime.historyStateSignal.get()[actorRuntime]?.generations.find(
+    (generation) => generation.generationId === currentHistoryHead,
+  ) ?? null;
+  const historyMessagesAtAdmission = currentHistoryGeneration?.messages ?? [];
+  const historyMessageCount = historyMessagesAtAdmission.length;
+  const historyFrontierDigest = digestProviderContextHistoryFrontier(historyMessagesAtAdmission);
+  const predecessorHistoryBoundary = previousAdmission
+    ? {
+        messageCount: previousAdmission.historyMessageCount,
+        frontierDigest: previousAdmission.historyFrontierDigest,
+      }
+    : {
+        messageCount: epochReceipt.sourceHistoryMessageCount,
+        frontierDigest: epochReceipt.sourceFrontierDigest,
+      };
+  // Admission is a Conversation-owner operation and therefore enforces the
+  // predecessor byte boundary itself. It must remain fail-closed even if a
+  // caller bypasses the normal pre-transport epoch validator.
+  assertExactProviderContextHistoryPrefix({
+    messages: historyMessagesAtAdmission,
+    messageCount: predecessorHistoryBoundary.messageCount,
+    frontierDigest: predecessorHistoryBoundary.frontierDigest,
+    mismatchCode: "provider_context_admission_history_frontier_mismatch",
+  });
+  const epochFacts = (session.contextAssets ?? [])
+    .map((asset) => asset.providerContextFact)
+    .filter((fact): fact is ActorProviderContextFact => Boolean(
+      fact && fact.actorKey === params.actorKey && fact.epoch === epochReceipt.epoch,
+    ))
+    .sort((left, right) => left.sequence - right.sequence);
+  const previousAdmittedHeadDigest = previousAdmission?.currentHeads.factHeadDigest
+    ?? epochReceipt.baselineHeads.factHeadDigest;
+  const previousAdmittedIndex = previousAdmittedHeadDigest === null
+    ? -1
+    : epochFacts.findIndex((fact) => fact.factDigest === previousAdmittedHeadDigest);
+  if (previousAdmittedHeadDigest !== null && previousAdmittedIndex < 0) {
+    throw new Error("provider_context_admission_previous_fact_head_missing");
+  }
+  const preexistingDeliveryFacts = epochFacts.slice(previousAdmittedIndex + 1);
+  if ((preexistingDeliveryFacts.at(-1)?.factDigest ?? previousAdmittedHeadDigest)
+    !== (currentHead?.factDigest ?? null)) {
+    throw new Error("provider_context_admission_current_fact_head_not_contiguous");
+  }
+  const deliveryConfirmationDigests = Object.freeze(params.sourceRecords.flatMap((record) => [
+    record.callRecordDigest,
+    record.resultRecordDigest,
+  ]));
+  const factAppendIntentDigest = digestProviderContextClosedValue({
+    schemaVersion: "provider.request-admission-fact-append-intent/v1",
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    epoch: epochReceipt.epoch,
+    epochReceiptDigest: epochReceipt.receiptDigest,
+    previousAdmissionDigest: previousAdmission?.admissionDigest ?? null,
+    previousFactHeadDigest: previousAdmittedHeadDigest,
+    preexistingFactDigests: preexistingDeliveryFacts.map((fact) => fact.factDigest),
+    candidates: candidates.map((candidate) => ({
+      namespace: candidate.namespace,
+      payload: candidate.payload,
+      sourceToolCallIds: candidate.sourceToolCallIds,
+      observedAt: candidate.observedAt,
+      assetId: candidate.assetId,
+    })),
+    finalRequestDigest: params.finalRequestDigest,
+    deliveryConfirmationDigests,
+    admittedAt: occurredAt,
+  });
+
+  if (candidates.length === 0) {
+    const admittedFactRange = preexistingDeliveryFacts.length > 0 ? {
+      previousHeadDigest: previousAdmittedHeadDigest,
+      firstSequence: preexistingDeliveryFacts[0]!.sequence,
+      lastSequence: preexistingDeliveryFacts.at(-1)!.sequence,
+      count: preexistingDeliveryFacts.length,
+      factDigests: preexistingDeliveryFacts.map((fact) => fact.factDigest),
+    } : null;
+    const admission = createProviderRequestAdmissionReceipt({
+      sessionId: params.sessionId,
+      actorKey: params.actorKey,
+      actorId: params.actorId,
+      epoch: epochReceipt.epoch,
+      epochReceiptDigest: epochReceipt.receiptDigest,
+      previousAdmissionDigest: previousAdmission?.admissionDigest ?? null,
+      currentHeads: {
+        historyHeadGenerationId: currentHistoryHead,
+        promptHeadGenerationId: currentPromptHead,
+        factHeadDigest: currentHead?.factDigest ?? null,
+      },
+      historyMessageCount,
+      historyFrontierDigest,
+      factAppendIntentDigest,
+      admittedFactRange,
+      finalRequestDigest: params.finalRequestDigest,
+      deliveryConfirmationDigests,
+      admittedAt: occurredAt,
+    });
+    emitConversationDomainEvent(params.runtime, {
+      type: "local_conversation_provider_request_admitted",
+      sessionId: params.sessionId,
+      actorKey: params.actorKey,
+      actorId: params.actorId,
+      admission,
+      occurredAt,
+    });
+    return Object.freeze([]);
+  }
+
+  let priorSequenceFact = epochFacts.at(-1) ?? null;
+  const priorNamespaceFacts = new Map<ActorProviderContextFactNamespace, ActorProviderContextFact>();
+  for (const fact of epochFacts) priorNamespaceFacts.set(fact.namespace, fact);
+  const historyState = params.runtime.historyStateSignal.get()[actorRuntimeKey(params.sessionId, params.actorKey)];
+  const activeHistory = historyState?.activeGenerationId
+    ? historyState.generations.find((generation) => generation.generationId === historyState.activeGenerationId) ?? null
+    : null;
+  const factAssets: LocalConversationContextAssetData[] = [];
+  const facts: ActorProviderContextFact[] = [];
+  for (const candidate of candidates) {
+    const priorNamespaceFact = priorNamespaceFacts.get(candidate.namespace) ?? null;
+    const fact = createActorProviderContextFact({
+      sessionId: params.sessionId,
+      actorKey: params.actorKey,
+      actorId: params.actorId,
+      epoch: epochReceipt.epoch,
+      namespace: candidate.namespace,
+      namespaceRevision: (priorNamespaceFact?.namespaceRevision ?? 0) + 1,
+      sequence: (priorSequenceFact?.sequence ?? 0) + 1,
+      previousFactDigest: priorNamespaceFact?.factDigest ?? null,
+      previousSequenceFactDigest: priorSequenceFact?.factDigest ?? null,
+      anchor: {
+        historyGenerationId: activeHistory?.generationId ?? "__empty_history__",
+        messageCount: activeHistory?.messages.length ?? 0,
+        frontierDigest: providerContextFrontierDigest(activeHistory),
+      },
+      sourceDeliveryProofs: candidate.sourceToolCallIds.map((toolCallId) => {
+        const record = selected.get(toolCallId)!;
+        return {
+          kind: "first-delivery-pair" as const,
+          toolCallId,
+          callRecordDigest: record.callRecordDigest,
+          resultRecordDigest: record.resultRecordDigest,
+          requestAdmissionIntentDigest: factAppendIntentDigest,
+        };
+      }),
+      payload: candidate.payload,
+      observedAt: occurredAt,
+    });
+    const asset: LocalConversationContextAssetData = {
+      assetId: `provider-context-fact:${fact.factDigest.slice("sha256:".length)}`,
+      kind: "note",
+      label: `${fact.namespace}@${fact.namespaceRevision}`,
+      source: { kind: "note", ownerId: params.actorKey },
+      providerContextFact: fact,
+      createdAt: occurredAt,
+      updatedAt: occurredAt,
+    };
+    facts.push(fact);
+    factAssets.push(asset);
+    priorSequenceFact = fact;
+    priorNamespaceFacts.set(candidate.namespace, fact);
+  }
+  assertProviderContextFactRetention(binding, [...epochFacts, ...facts]);
+  const lastFact = facts.at(-1)!;
+  const admittedFacts = [...preexistingDeliveryFacts, ...facts];
+  const head = Object.freeze({
+    schemaVersion: "eidolon.actor-provider-context-fact-head/v1" as const,
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    epoch: epochReceipt.epoch,
+    sequence: lastFact.sequence,
+    factDigest: lastFact.factDigest,
+    conversationRevision: (currentHead?.conversationRevision ?? 0) + 1,
+  });
+  const admission = createProviderRequestAdmissionReceipt({
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    epoch: epochReceipt.epoch,
+    epochReceiptDigest: epochReceipt.receiptDigest,
+    previousAdmissionDigest: previousAdmission?.admissionDigest ?? null,
+    currentHeads: {
+      historyHeadGenerationId: currentHistoryHead,
+      promptHeadGenerationId: currentPromptHead,
+      factHeadDigest: head.factDigest,
+    },
+    historyMessageCount,
+    historyFrontierDigest,
+    factAppendIntentDigest,
+    admittedFactRange: {
+      previousHeadDigest: previousAdmittedHeadDigest,
+      firstSequence: admittedFacts[0]!.sequence,
+      lastSequence: lastFact.sequence,
+      count: admittedFacts.length,
+      factDigests: admittedFacts.map((fact) => fact.factDigest),
+    },
+    finalRequestDigest: params.finalRequestDigest,
+    deliveryConfirmationDigests,
+    admittedAt: occurredAt,
+  });
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_provider_context_delivery_committed",
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    factAssets,
+    candidateAssets,
+    head,
+    admission,
+    occurredAt,
+  });
+  return Object.freeze(facts);
+}
+
+export function upsertProviderContextFactCandidateToConversationDomainRuntime(params: {
+  runtime: ConversationDomainRuntime;
+  sessionId: string;
+  candidate: LocalConversationProviderContextFactCandidate;
+  occurredAt?: string;
+}): string {
+  const occurredAt = params.occurredAt ?? params.candidate.observedAt ?? new Date().toISOString();
+  const session = params.runtime.sessionStateSignal.get()[params.sessionId];
+  const assetId = providerContextCandidateAssetId(
+    params.candidate.actorKey,
+    params.candidate.namespace,
+    params.candidate.logicalKey,
+    params.candidate.revision,
+  );
+  const existing = session?.contextAssets?.find((asset) => asset.assetId === assetId);
+  const sourceToolCalls = new Map<string, LocalConversationProviderProjectionFact["sourceToolCalls"][number]>();
+  for (const source of [
+    ...(existing?.providerContextFactCandidate?.sourceToolCalls ?? []),
+    ...params.candidate.sourceToolCalls,
+  ]) {
+    const sourceKey = `${source.toolCallId}\u0000${source.projectionRevision}`;
+    if (sourceToolCalls.get(sourceKey)?.deliveryState === "delivered") continue;
+    sourceToolCalls.set(sourceKey, source);
+  }
+  const asset: LocalConversationContextAssetData = {
+    assetId,
+    kind: "note",
+    label: `${params.candidate.namespace}:${params.candidate.logicalKey}`,
+    source: { kind: "note", ownerId: params.candidate.actorKey },
+    providerContextFactCandidate: {
+      ...params.candidate,
+      sourceToolCalls: [...sourceToolCalls.values()],
+      observedAt: occurredAt,
+    },
+    createdAt: existing?.createdAt ?? occurredAt,
+    updatedAt: occurredAt,
+  };
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_context_asset_registered",
+    sessionId: params.sessionId,
+    assetId,
+    asset,
+    occurredAt,
+  });
+  return assetId;
 }
 
 export function upsertProviderProjectionFactToConversationDomainRuntime(params: {
@@ -1954,6 +3185,7 @@ export function upsertProviderProjectionFactToConversationDomainRuntime(params: 
   const existing = session?.contextAssets?.find((asset) => (
     asset.projectionFact?.actorKey === params.projectionFact.actorKey
     && asset.projectionFact.projectionKey === params.projectionFact.projectionKey
+    && asset.projectionFact.revision === params.projectionFact.revision
   ));
   const sourceToolCalls = new Map<string, LocalConversationProviderProjectionFact["sourceToolCalls"][number]>();
   for (const source of [
@@ -1965,7 +3197,11 @@ export function upsertProviderProjectionFactToConversationDomainRuntime(params: 
     sourceToolCalls.set(sourceKey, source);
   }
   const assetId = existing?.assetId
-    ?? providerProjectionAssetId(params.projectionFact.actorKey, params.projectionFact.projectionKey);
+    ?? providerProjectionAssetId(
+      params.projectionFact.actorKey,
+      params.projectionFact.projectionKey,
+      params.projectionFact.revision,
+    );
   const asset: LocalConversationContextAssetData = {
     assetId,
     kind: "note",

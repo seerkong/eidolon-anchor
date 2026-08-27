@@ -1,0 +1,6 @@
+<WorkspaceBindings [
+    <Binding #eidolon-anchor { project_ref = "eidolon-anchor" workspace_path = "/Users/kongweixian/ai/eidolon/eidolon-anchor" }>
+    <Binding #holon-workbench { project_ref = "holon-workbench" workspace_path = "/Users/kongweixian/infra-dev/holon-workbench.ts" }>
+    <Binding #depa-flows { project_ref = "depa-flows" workspace_path = "/Users/kongweixian/infra-dev/depa-flows.ts" }>
+    <Binding #depa-actor { project_ref = "depa-actor" workspace_path = "/Users/kongweixian/infra-dev/depa-actor" }>
+ ]>

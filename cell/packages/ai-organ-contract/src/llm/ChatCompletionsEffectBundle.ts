@@ -39,7 +39,7 @@ export type NormalizedChatCompletionsStreamBinding = Readonly<{
 }>;
 
 export type ChatCompletionsEffectBundle = NormalizedChatCompletionsStreamBinding & Readonly<{
-  id: "openai-official-chat" | "deepseek-official-chat";
+  id: "openai-official-chat" | "deepseek-official-chat" | "deepseek-compatible-chat";
   resolveEndpoint: (baseUrl?: string) => string;
   toolSchemaProjector: ProviderToolSchemaProjector;
   projectMessages: (messages: readonly unknown[]) => unknown[];

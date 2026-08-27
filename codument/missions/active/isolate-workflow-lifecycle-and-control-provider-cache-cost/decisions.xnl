@@ -1,0 +1,45 @@
+<decision #mission.workflow_lifecycle_actor_boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?>planning、coding、testing、releasing 等 Workflow lifecycle 概念应当属于哪些 Actor？</?>
+  <answer (
+    <raw-answer ?>只属于专用 Workflow 生命周期 Actor；没有使用 AI Workflow 时不应存在这些概念。</?>
+    <decision-text ?>普通 primary/Code Actor 和 AI Ctrl/Data Workflow 节点 Agent 都保持 stage-free。只有由公开 Workflow gateway 创建的专用 Workflow lifecycle Actor才加载 Workflow internal tools、DevOps Skill、progress profile 和 lifecycle policy；通用 Actor runtime 只提供中性的 extension/profile seam。</?>
+    <rationale ?>Workflow 是可选产品能力，不能绑架整个 Agent runtime，也不能让节点任务因位于 Workflow 中就获得 DevOps authority。</?>
+    <evidence ?>用户明确纠正；当前全局 builtin tool catalog、generic executor 与 core snapshot 的 Workflow 耦合分析。</?>
+  )>
+  <confidence ?>1.0</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #mission.deepseek_cache_cost_is_product_acceptance apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?>Workflow Actor 的 DeepSeek 缓存命中与 token 成本是优化建议，还是产品验收条件？</?>
+  <answer (
+    <raw-answer ?>是产品验收条件；不能因为使用 AI Workflow 就让 token 花销大幅上涨。</?>
+    <decision-text ?>普通和 Workflow Actor 都必须有最终-wire structural prefix、provider-reported hit/miss 与 normalized provider input cost 证据。非 Workflow Actor 的 Workflow-only overhead 必须为零；Workflow 同 epoch 不得持续 miss，额外 control/tool 成本必须在基线后批准的预算内。</?>
+    <rationale ?>只验证功能正确或只看缓存命中率都可能掩盖巨大的稳定 schema/prompt token 开销；三层指标必须共同约束。</?>
+    <evidence ?>用户明确要求；近期 DeepSeek 缓存命中率回退与 Workflow stage/provider surface 排查。</?>
+  )>
+  <confidence ?>1.0</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #mission.control_loop_scale apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>这次修正应当由一个 Track 完成，还是由 Mission 持续控制多个 Track？</?>
+  <answer (
+    <raw-answer ?>必须做成 Mission。</?>
+    <decision-text ?>使用 Mission 管理 baseline、Actor 隔离、typed context/epoch、provider surface 成本优化、产品 E2E 和最终独立验证；每个实现 Track 后都重新观测并允许 replan/gap-loop。</?>
+    <rationale ?>目标跨越通用 Actor、Workflow capability、Conversation projection、provider driver、usage/cost 和产品 E2E，需要频繁自我纠偏，单 Track 无法诚实表达长期控制环。</?>
+    <evidence ?>用户本轮明确决定；现有局部 Track 多轮 AttractorCheck 仍持续暴露相邻缓存与边界缺口。</?>
+  )>
+)>
+
+<decision #mission.g1_provider_cache_cost_budgets apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?>首个产品路径基线完成后，后续 Actor 隔离、缓存稳定和成本优化应当受哪些不可自行放宽的预算约束？</?>
+  <answer (
+    <raw-answer ?>同 epoch retained prefix 必须完整保留；官方 DeepSeek 与 compatible provider 分开；当前高开销只是回归上限，普通和节点 Actor 的 Workflow-only overhead 最终必须归零。</?>
+    <decision-text ?>批准 `reports/g1-budget-ratification.md`：same-epoch forward-only retainedPrefixIntegrity 必须为 1.0 且无 unexplained divergence；官方 DeepSeek 三组可比场景的 follow-up hit-rate 每组不低于 0.85、p50 不低于 0.90，normalized input cost p50 不高于 248、p95/单组不高于 260。当前四条生产 journey 的 18,079 tool-surface 与 10,474–10,626 Workflow-control tokens 只作为冻结场景回归上限，不是终态预算；ordinary 与 AI Ctrl/Data node 的 Workflow-only overhead 终态必须为零。任何放宽都需要显式 Mission replan 和新 decision。</?>
+    <rationale ?>结构完整性、provider cache facts 与 normalized cost 约束不同失败模式。只追求 hit rate 会鼓励保留大量无用稳定 schema；只看 token 总量又会掩盖同 epoch 前缀重写。当前真实产品路径数据必须成为可比较基准，但不能被误解为接受现有 Workflow 全局工具税。</?>
+    <evidence ?>completed Track `characterize-actor-context-and-deepseek-cache-cost`；四条生产 journey admitted-wire baseline；官方 DeepSeek 三组 live evidence；fresh gap rounds 1–5。</?>
+  )>
+  <confidence ?>0.95</?>
+  <reversibility ?>moderate</?>
+)>

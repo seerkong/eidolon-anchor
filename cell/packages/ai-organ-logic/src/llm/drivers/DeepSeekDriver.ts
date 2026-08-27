@@ -5,8 +5,10 @@ import type {
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import type { ProviderToolSchemaProjectionAuthority } from "@cell/ai-organ-contract/llm/ProviderToolSchemaProjection";
 import { OpenAICompletionsAdmittedFetchTransport } from "../OpenAICompletionsNodejsFetchAdapter";
-import { deepSeekOfficialChatEffectBundle } from "../ChatCompletionsEffectBundles";
-import { resolveDeepSeekModelCapabilities } from "../DeepSeekModelCapabilities";
+import {
+  deepSeekCompatibleChatEffectBundle,
+  deepSeekOfficialChatEffectBundle,
+} from "../ChatCompletionsEffectBundles";
 import {
   extractProviderTransportRequestOptions,
   sanitizeProviderExtraBody,
@@ -14,15 +16,27 @@ import {
 } from "../ProviderOptions";
 import { prepareProviderToolSchemaProjection } from "../tool-schema/ProviderRequestAdmission";
 
+function effectBundleFor(params: ProviderDriverRequestParams) {
+  const selected = params.chatCompletionsEffectBundle;
+  if (
+    selected !== deepSeekOfficialChatEffectBundle
+    && selected !== deepSeekCompatibleChatEffectBundle
+  ) {
+    throw new Error("invalid_deepseek_chat_completions_effect_bundle");
+  }
+  return selected;
+}
+
 function prepareDeepSeekRequest(params: ProviderDriverRequestParams) {
+  const effectBundle = effectBundleFor(params);
   const toolSchemaProjectionAuthority = prepareProviderToolSchemaProjection(
-    deepSeekOfficialChatEffectBundle.toolSchemaProjector,
+    effectBundle.toolSchemaProjector,
     params.tools,
   );
   return {
     contract: {
       method: "POST",
-      body: deepSeekOfficialChatEffectBundle.projectRequest({
+      body: effectBundle.projectRequest({
         model: params.model,
         messages: params.messages,
         tools: params.tools,
@@ -48,23 +62,12 @@ function getString(
 function buildDeepSeekExtraBody(
   params: ProviderDriverRequestParams,
 ): Record<string, unknown> {
-  const capabilities = resolveDeepSeekModelCapabilities({
-    providerId: params.runtime.providerId,
-    adapter: params.runtime.adapterName,
-    modelId: params.model,
-  });
   const extraBody: Record<string, unknown> = {
     ...sanitizeProviderRequestBodyOptions(params.requestOptions),
     ...sanitizeProviderExtraBody(params.extraBody),
   };
-  if (capabilities) {
-    extraBody.model_capabilities ??= capabilities;
-    extraBody.cache_profile ??= {
-      provider_family: "deepseek",
-      stable_prefix: true,
-      provider_managed_prefix_cache: true,
-      prefer_late_compaction: true,
-    };
+  if (!Object.prototype.hasOwnProperty.call(extraBody, "stream_options")) {
+    extraBody.stream_options = { include_usage: true };
   }
   return extraBody;
 }
@@ -85,9 +88,10 @@ export function buildDeepSeekProviderDriver(): ProviderDriverDefinition {
     },
     prepareRequest: prepareDeepSeekRequest,
     async createStream(params: ProviderDriverStreamParams) {
+      const effectBundle = effectBundleFor(params);
       const transport = new OpenAICompletionsAdmittedFetchTransport({
         apiKey: getString(params.connectionOptions, "api_key", "apikey"),
-        effectBundle: deepSeekOfficialChatEffectBundle,
+        effectBundle,
         baseUrl:
           getString(params.connectionOptions, "base_url", "baseurl") ||
           "https://api.deepseek.com",

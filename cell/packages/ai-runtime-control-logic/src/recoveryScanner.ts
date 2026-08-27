@@ -124,11 +124,12 @@ export function rebuildEffectsFromLifecycleEvidence(
   for (const event of events) {
     const current = effects[event.effectId]
     if (event.kind === "request" || event.kind === "waiting") {
+      const sourceCommandId = event.kind === "request" ? event.sourceCommandId : undefined
       if (current?.resultSeen) {
         effects[event.effectId] = {
           ...current,
           requestSeen: true,
-          requestCommandId: current.requestCommandId ?? event.sourceCommandId,
+          requestCommandId: current.requestCommandId ?? sourceCommandId,
           idempotencyKey: current.idempotencyKey ?? event.idempotencyKey,
           payload: current.payload ?? event.payload,
         }
@@ -139,7 +140,7 @@ export function rebuildEffectsFromLifecycleEvidence(
         effectId: event.effectId,
         handlerKey: event.handlerKey,
         idempotencyKey: event.idempotencyKey,
-        requestCommandId: event.sourceCommandId ?? current?.requestCommandId,
+        requestCommandId: sourceCommandId ?? current?.requestCommandId,
         status: event.kind === "waiting" ? "waiting" : current?.resultSeen ? current.status : "requested",
         requestSeen: true,
         resultSeen: current?.resultSeen ?? false,

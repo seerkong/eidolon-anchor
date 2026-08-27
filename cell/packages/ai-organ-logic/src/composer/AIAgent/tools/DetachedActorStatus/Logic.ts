@@ -1,6 +1,7 @@
 import type { StdInnerLogic } from "depa-processor"
 
 import { getDetachedActorRegistry } from "@cell/ai-organ-logic/detached/DetachedActorRegistry"
+import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
 
 import type {
   DetachedActorStatusInnerConfig,
@@ -14,7 +15,7 @@ function toFormalDetachedActorKind(kind: string): string {
 }
 
 function getDetachedRecordFromActor(runtime: DetachedActorStatusInnerRuntime, taskId: string) {
-  for (const actor of Object.values(runtime.vm.actors)) {
+  for (const actor of Object.values(runtime.vm.actors) as AiAgentActor[]) {
     if (actor.type !== "detached") continue
     if (actor.detachedTask?.taskId !== taskId) continue
     return {

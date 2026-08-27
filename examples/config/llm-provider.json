@@ -36,6 +36,7 @@
       "adapter": "deepseek",
       "options": {
         "baseURL": "https://api.deepseek.com",
+        "compatibility_profile": "deepseek-official-chat@1",
         "apiKey": "${DEEPSEEK_API_KEY}"
       },
       "models": [

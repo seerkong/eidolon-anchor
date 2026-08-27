@@ -1,8 +1,15 @@
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
+import type { ActorRuntimeFacetVmRuntime } from "@cell/ai-core-contract/runtime/ActorRuntimeFacet"
 import {
   parseWorkflowDomainProgressFact,
   type WorkflowDomainProgressTransition,
 } from "./WorkflowDomainProgress"
+import {
+  readWorkflowLifecycleFacet,
+  replaceWorkflowLifecycleFacet,
+  type WorkflowLifecycleDiagnosticEvidence,
+  type WorkflowLifecycleFacetValue,
+} from "./WorkflowLifecycleFacet"
 
 export const DEFAULT_WORKFLOW_ACTOR_BUDGET = Object.freeze({
   stageDeadlineMs: 180_000,
@@ -46,55 +53,28 @@ export function resolveWorkflowActorBudgetConfig(outerCtx: unknown): WorkflowAct
   }
 }
 
-export function isWorkflowActor(actor: Pick<AiAgentActor, "agentName">): boolean {
-  return actor.agentName === "workflow"
+export function isWorkflowActor(actor: Pick<AiAgentActor, "runtimeFacets">): boolean {
+  return readWorkflowLifecycleFacet(actor as Pick<AiAgentActor, "runtimeFacets">) !== undefined
 }
 
-function ensureProgress(actor: AiAgentActor, now: number, config: WorkflowActorBudgetConfig) {
-  if (!actor.workflowProgress) {
-    actor.workflowProgress = {
-      stageStartedAt: now,
-      deadlineAt: now + config.stageDeadlineMs,
-      turnsSinceProgress: 0,
-      maxNoProgressTurns: config.maxNoProgressTurns,
-      proofRepairAttempts: 0,
-      maxProofRepairAttempts: config.maxProofRepairAttempts,
-      lastProgressAt: now,
-    }
-  }
-  return actor.workflowProgress
-}
-
-const WORKFLOW_PROGRESS_PROMPT_MARKER = "<!-- eidolon:workflow-progress-budget -->"
-
-function exposeProgressBudget(actor: AiAgentActor): void {
-  if (!actor.workflowProgress) return
-  actor.systemPrompts = actor.systemPrompts.filter((prompt) => !prompt.startsWith(WORKFLOW_PROGRESS_PROMPT_MARKER))
-  const progress = actor.workflowProgress
-  const remaining = Math.max(0, progress.maxNoProgressTurns - progress.turnsSinceProgress)
-  actor.systemPrompts.push([
-    WORKFLOW_PROGRESS_PROMPT_MARKER,
-    "<workflow_progress_budget>",
-    `stage: ${progress.stageId ?? "unselected"}`,
-    `turns_without_progress: ${progress.turnsSinceProgress}`,
-    `remaining_no_progress_turns: ${remaining}`,
-    "progress_facts: workspace revision, proof, lifecycle/waiting receipt, or runtime result",
-    "instruction: Read-only context and tool discovery do not reset this budget. When one or fewer turns remain, use already loaded facts to produce the next valid progress fact; if that is impossible, return a typed waiting or failure receipt instead of continuing inspection.",
-    "</workflow_progress_budget>",
-  ].join("\n"))
+function ensureProgress(actor: AiAgentActor): WorkflowLifecycleFacetValue | undefined {
+  return readWorkflowLifecycleFacet(actor)
 }
 
 export function enterWorkflowActorStage(input: {
   actor: AiAgentActor
+  runtime?: ActorRuntimeFacetVmRuntime
+  expectedRevision?: number
   stageId: string
   now?: number
   config: WorkflowActorBudgetConfig
 }): void {
   if (!isWorkflowActor(input.actor)) return
   const now = input.now ?? Date.now()
-  const current = ensureProgress(input.actor, now, input.config)
+  const current = ensureProgress(input.actor)!
   if (current.stageId === input.stageId) return
-  input.actor.workflowProgress = {
+  replaceWorkflowLifecycleFacet(input.actor, {
+    ...current,
     stageId: input.stageId,
     stageStartedAt: now,
     deadlineAt: now + input.config.stageDeadlineMs,
@@ -106,31 +86,43 @@ export function enterWorkflowActorStage(input: {
     lastOutcome: "stage_selected",
     activeAuthoringSessionId: current.activeAuthoringSessionId,
     activeAuthoringRevision: current.activeAuthoringRevision,
-  }
+  }, {
+    runtime: input.runtime,
+    actorKey: input.actor.key,
+    expectedRevision: input.expectedRevision,
+    reason: "workflow_stage_transition",
+  })
 }
 
 export function beginWorkflowActorTurn(input: {
   actor: AiAgentActor
+  runtime?: ActorRuntimeFacetVmRuntime
+  expectedRevision?: number
   now?: number
   config: WorkflowActorBudgetConfig
 }): void {
   if (!isWorkflowActor(input.actor)) return
   const now = input.now ?? Date.now()
-  const progress = ensureProgress(input.actor, now, input.config)
+  const progress = ensureProgress(input.actor)!
   if (now >= progress.deadlineAt) {
     throw new WorkflowActorBudgetError(
       "workflow_stage_deadline",
       `stage=${progress.stageId ?? "unselected"} exceeded deadline; lastOutcome=${progress.lastOutcome ?? "none"}`,
     )
   }
-  progress.turnsSinceProgress += 1
-  if (progress.turnsSinceProgress > progress.maxNoProgressTurns) {
+  const next = { ...progress, turnsSinceProgress: progress.turnsSinceProgress + 1 }
+  if (next.turnsSinceProgress > next.maxNoProgressTurns) {
     throw new WorkflowActorBudgetError(
       "workflow_no_progress",
-      `stage=${progress.stageId ?? "unselected"} produced no workspace/proof/lifecycle/result progress for ${progress.turnsSinceProgress} turns`,
+      `stage=${next.stageId ?? "unselected"} produced no workspace/proof/lifecycle/result progress for ${next.turnsSinceProgress} turns`,
     )
   }
-  exposeProgressBudget(input.actor)
+  replaceWorkflowLifecycleFacet(input.actor, next, {
+    runtime: input.runtime,
+    actorKey: input.actor.key,
+    expectedRevision: input.expectedRevision,
+    reason: "workflow_turn_started",
+  })
 }
 
 function outputIndicatesFailure(outputText: string | undefined): boolean {
@@ -160,27 +152,40 @@ const PROGRESS_OUTCOME_BY_TRANSITION: Readonly<Record<WorkflowDomainProgressTran
 
 export function recordWorkflowActorToolOutcome(input: {
   actor: AiAgentActor
+  runtime?: ActorRuntimeFacetVmRuntime
+  expectedRevision?: number
   toolName: string
   args?: unknown
   outputText?: string
+  diagnosticEvidence?: WorkflowLifecycleDiagnosticEvidence
   isError: boolean
   now?: number
   config: WorkflowActorBudgetConfig
 }): void {
   if (!isWorkflowActor(input.actor)) return
   const now = input.now ?? Date.now()
-  const progress = ensureProgress(input.actor, now, input.config)
+  const progress = ensureProgress(input.actor)!
+  let next: WorkflowLifecycleFacetValue = { ...progress }
   const failed = input.isError || outputIndicatesFailure(input.outputText)
   const isProofTool = input.toolName === "WorkflowValidateAuthoringSession"
     || input.toolName === "WorkflowDryRunAuthoringSession"
 
   if (isProofTool && failed) {
-    progress.proofRepairAttempts += 1
-    progress.lastDiagnostic = input.outputText
-    if (progress.proofRepairAttempts > progress.maxProofRepairAttempts) {
+    next = {
+      ...next,
+      proofRepairAttempts: next.proofRepairAttempts + 1,
+      ...(input.diagnosticEvidence ? { lastDiagnosticEvidence: input.diagnosticEvidence } : {}),
+    }
+    replaceWorkflowLifecycleFacet(input.actor, next, {
+      runtime: input.runtime,
+      actorKey: input.actor.key,
+      expectedRevision: input.expectedRevision,
+      reason: "workflow_proof_failure",
+    })
+    if (next.proofRepairAttempts > next.maxProofRepairAttempts) {
       throw new WorkflowActorBudgetError(
         "workflow_proof_repair_exhausted",
-        `stage=${progress.stageId ?? "testing"} exhausted ${progress.maxProofRepairAttempts} proof repair attempts; workspace is preserved`,
+        `stage=${next.stageId ?? "testing"} exhausted ${next.maxProofRepairAttempts} proof repair attempts; workspace is preserved`,
       )
     }
     return
@@ -191,29 +196,41 @@ export function recordWorkflowActorToolOutcome(input: {
   const outcome = PROGRESS_OUTCOME_BY_TRANSITION[fact.transition]
 
   if (fact.transition === "candidate_diagnostic") {
-    progress.proofRepairAttempts += 1
-    progress.lastDiagnostic = input.outputText
-    if (progress.proofRepairAttempts > progress.maxProofRepairAttempts) {
+    next = {
+      ...next,
+      proofRepairAttempts: next.proofRepairAttempts + 1,
+      ...(input.diagnosticEvidence ? { lastDiagnosticEvidence: input.diagnosticEvidence } : {}),
+      turnsSinceProgress: 0,
+      lastProgressAt: now,
+      lastOutcome: outcome,
+    }
+    replaceWorkflowLifecycleFacet(input.actor, next, {
+      runtime: input.runtime,
+      actorKey: input.actor.key,
+      expectedRevision: input.expectedRevision,
+      reason: "workflow_candidate_diagnostic",
+    })
+    if (next.proofRepairAttempts > next.maxProofRepairAttempts) {
       throw new WorkflowActorBudgetError(
         "workflow_proof_repair_exhausted",
-        `stage=${progress.stageId ?? "coding"} exhausted ${progress.maxProofRepairAttempts} candidate repair attempts`,
+        `stage=${next.stageId ?? "coding"} exhausted ${next.maxProofRepairAttempts} candidate repair attempts`,
       )
     }
-    progress.turnsSinceProgress = 0
-    progress.lastProgressAt = now
-    progress.lastOutcome = outcome
     return
   }
 
-  progress.turnsSinceProgress = 0
-  progress.lastProgressAt = now
-  progress.lastOutcome = outcome
-  progress.lastDiagnostic = undefined
+  const { lastDiagnosticEvidence: _diagnostic, ...withoutDiagnostic } = next
+  next = { ...withoutDiagnostic, turnsSinceProgress: 0, lastProgressAt: now, lastOutcome: outcome }
   if (fact.owner === "workflow.authoring") {
-    progress.activeAuthoringSessionId = fact.subjectId
-    progress.activeAuthoringRevision = fact.revision
+    next = { ...next, activeAuthoringSessionId: fact.subjectId, activeAuthoringRevision: fact.revision }
   }
-  if (outcome === "proof") progress.proofRepairAttempts = 0
+  if (outcome === "proof") next = { ...next, proofRepairAttempts: 0 }
+  replaceWorkflowLifecycleFacet(input.actor, next, {
+    runtime: input.runtime,
+    actorKey: input.actor.key,
+    expectedRevision: input.expectedRevision,
+    reason: "workflow_progress_fact",
+  })
 }
 
 export async function runWithinWorkflowStageDeadline<T>(input: {
@@ -222,9 +239,10 @@ export async function runWithinWorkflowStageDeadline<T>(input: {
   run: () => Promise<T>
   now?: () => number
 }): Promise<T> {
-  if (!isWorkflowActor(input.actor) || !input.actor.workflowProgress) return input.run()
+  const progress = readWorkflowLifecycleFacet(input.actor)
+  if (!progress) return input.run()
   const now = input.now?.() ?? Date.now()
-  const remaining = input.actor.workflowProgress.deadlineAt - now
+  const remaining = progress.deadlineAt - now
   if (remaining <= 0) {
     throw new WorkflowActorBudgetError("workflow_stage_deadline", "provider request started after the stage deadline")
   }

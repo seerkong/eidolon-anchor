@@ -1,0 +1,160 @@
+<Track #add-deepseek-cache-coverage-and-cost-product-e2e apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Create one closed product-level deterministic and live evidence matrix that proves DeepSeek cache coverage, explicit epoch attribution and normalized input cost across ordinary, Workflow lifecycle and AI Ctrl/Data node Actors." description = "Add digest-only journey receipts, a PR-safe final-wire matrix, official/compatible live grouped observations and a strict gate where every local prefix divergence is explained by canonical persisted authority while provider-native aggregate misses are evaluated separately by grouped SLOs." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-25T22:31:25.627Z" updated_at = "2026-08-26T04:49:47.837Z" modeling_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" engineering_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_add-deepseek-cache-coverage-and-cost-product-e2e { name = "add-deepseek-cache-coverage-and-cost-product-e2e" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Closed product evidence authority" status = "DONE" priority = "P0" order = 0 child_mode = "dag" } (
+        <Description ?01M0XJ2FKBWXBTRY38AP0RHVAK>
+        Define a content-free scenario/result protocol and independently derived epoch/miss attribution.
+        </?01M0XJ2FKBWXBTRY38AP0RHVAK>
+        <SubNodes [
+          <Task #P1-T1 { name = "Define closed scenario manifest and digest-only journey receipt" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAM>
+              Manifest and result are exact own-data, versioned, stable-order and contain no prompt, Skill, tool payload, transcript or secret value.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAM>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAN>
+              An opaque run-scoped owner uses a module-private random key to HMAC the exact canonical scenario/owner/session/Actor/call/attempt/admission/wire/epoch/tool/usage ref closure; the same owner verifies the seal and re-reads every source, while self-hashes, replay, substitution and tamper fail.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAN>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Implement strict prefix, retry and epoch miss attribution reducer" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAP>
+              Same-epoch requests require exact retained prefix and null first divergence; retries require byte-identical bodies and one final-success usage row.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAP>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAQ>
+              Every changed local prefix joins one canonical ProviderEpoch successor and exact frontiers; forged self-hashes, cross-owner/session/Actor substitutions, stale refs, duplicate effects/usages and tampering fail, while aggregate provider misses remain grouped SLO facts.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAQ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "PR-safe deterministic cross-Actor matrix" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M0XJ2FKBWXBTRY38AP0RHVAR>
+        Run the complete bounded product matrix through production runtime, serializer, persistence and recovery paths.
+        </?01M0XJ2FKBWXBTRY38AP0RHVAR>
+        <Gate [
+          <Criterion { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAS>
+          Every frozen scenario ID in the design enters through its real product gateway/capsule, production Actor, Conversation, ToolCallDomain, request admission, driver serializer, persistence and retry owners; only transport, clock and provider-native output are fixtures, and direct/synthetic receipts fail.
+          </?01M0XJ2FKBWXBTRY38AP0RHVAS>
+          <Criterion { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAT>
+          Every row binds the exact G4 owner-issued `stable-superset/v1` proof/digest and uses an independent source clone; recovery rows construct a distinct VM from persisted owner state rather than copying evidence artifacts.
+          </?01M0XJ2FKBWXBTRY38AP0RHVAT>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "Cover ordinary, tools, reasoning, pending delivery, retry and fresh recovery" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAV>
+              Ordinary no-tool and Code all-tools rows enter through real product gateway, Actor, Conversation, ToolCallDomain, admission, serializer and retry paths and cover multi-turn, tool/result, reasoning pairs, parallel/pending delivery and 503 without lifecycle leakage or duplicate effects.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAV>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAW>
+              Fresh recovery creates a distinct runtime/VM from persisted owner state and reproduces exact Actor, Conversation, pending delivery, request admission and provider body authority; copied artifacts or directly constructed receipts fail acceptance.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAW>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Cover lifecycle, Ctrl/Data and explicit epoch boundaries" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAX>
+              The stable-superset lifecycle journey covers same-stage turns and planning-to-releasing transitions; Ctrl/Data node journeys remain stage-free with zero lifecycle-only overhead.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAX>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAY>
+              The exact reason matrix covers initial projection, provider/model/profile switch, compaction, rewind/fork, existing-Actor resource/surface acceptance and legacy import/rebuild; reset mints no reason and recovery reproduces the accepted receipt.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAY>
+            ]>
+          )>
+          <Task #P2-T3 { name = "Cover long context, multi-Actor/session and frozen revision isolation" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P2-T3-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVAZ>
+              Exactly 128 retained messages plus one append and four Actor classes interleaved across exactly two sessions retain independent exact prefix/epoch authority with no cross-talk.
+              </?01M0XJ2FKBWXBTRY38AP0RHVAZ>
+              <Criterion #P2-T3-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVB0>
+              Old Actors recover old frozen digests/epochs, new Actors start new revisions at initial projection, existing Actor revision changes use frozen-resource acceptance, and the full authoring-to-releasing journey has no unexplained local divergence.
+              </?01M0XJ2FKBWXBTRY38AP0RHVB0>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Official and compatible live provider evidence" status = "DONE" priority = "P0" order = 2 child_mode = "dag" } (
+        <Description ?01M0XJ2FKBWXBTRY38AP0RHVB1>
+        Run grouped official DeepSeek observations and separately characterize compatible-provider evidence without substitution.
+        </?01M0XJ2FKBWXBTRY38AP0RHVB1>
+        <SubNodes [
+          <Task #P3-T1 { name = "Run official DeepSeek warmed cache-cost groups" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVB2>
+              The live runner supports `NOT_REQUESTED|SKIPPED|EXECUTED` and `PASS|FAIL|UNKNOWN`; only an enabled valid official run of three or more groups may be `EXECUTED/PASS` after all G1 structural/hit/cost thresholds pass.
+              </?01M0XJ2FKBWXBTRY38AP0RHVB2>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVB3>
+              Absent credentials are `SKIPPED/UNKNOWN`; executed missing/malformed/failed/non-final usage is `EXECUTED/UNKNOWN`; Track implementation can complete honestly without fabricating live success and Mission verification retains the unsatisfied state.
+              </?01M0XJ2FKBWXBTRY38AP0RHVB3>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Run separate DeepSeek-compatible observation" status = "DONE" priority = "P1" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVB4>
+              The compatible runner implements the same execution/evidence status axes, uses only the explicit compatible profile and reports actual exposed usage/status separately when configured.
+              </?01M0XJ2FKBWXBTRY38AP0RHVB4>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVB5>
+              Compatible structural or usage evidence cannot satisfy or overwrite the official DeepSeek gate.
+              </?01M0XJ2FKBWXBTRY38AP0RHVB5>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Product report, CI gate and final reconciliation" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M0XJ2FKBWXBTRY38AP0RHVB6>
+        Publish one reproducible report/command and reconcile the combined product tree against Mission budgets.
+        </?01M0XJ2FKBWXBTRY38AP0RHVB6>
+        <SubNodes [
+          <Task #P4-T1 { name = "Generate reproducible deterministic/live product report and command" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVB7>
+              One command always runs the deterministic matrix and optionally runs live profiles; report order/digests are reproducible and content-free.
+              </?01M0XJ2FKBWXBTRY38AP0RHVB7>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVB8>
+              The report separates Actor classes, fixture/official/compatible evidence, epoch reasons, cache metrics and normalized cost, fails every unexplained local divergence, and evaluates provider aggregate misses only through grouped SLOs.
+              </?01M0XJ2FKBWXBTRY38AP0RHVB8>
+            ]>
+          )>
+          <Task #P4-T2 { name = "Run broad recovery, static authority and final budget gates" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVB9>
+              Focused, recovery, type, strict, diff and authority scans pass with no second Conversation/history/cache authority or Workflow leakage.
+              </?01M0XJ2FKBWXBTRY38AP0RHVB9>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0XJ2FKBWXBTRY38AP0RHVBA>
+              The deterministic matrix satisfies all structural/cost budgets; any available official live result satisfies G1 without threshold relaxation, while unavailable/unknown live status remains explicit for Mission verification.
+              </?01M0XJ2FKBWXBTRY38AP0RHVBA>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 2 spot_check = true } [
+    <Dag { for = "space_add-deepseek-cache-coverage-and-cost-product-e2e" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+    <Dag { for = "P1" } [
+      <Node #P1-T2 [
+        <After { ref = "P1-T1" }>
+      ]>
+    ]>
+    <Dag { for = "P3" } []>
+  ]>
+  <Hooks []>
+)>

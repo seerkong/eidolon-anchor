@@ -1,0 +1,35 @@
+<BehaviorPatch #track.replace-workflow-context-mutation-with-typed-facts.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/typed-lifecycle-context-projection" } (
+      <Requirement #typed-lifecycle-context-projection (
+        <Statement ?>The dedicated Workflow lifecycle Actor SHALL expose frozen stage context through append-only typed facts while progress, deadline and repair policy remain runtime-side facet state; stage changes SHALL NOT replace provider-prefix system prompts.</?>
+        <Suites [
+          <Suite #stage-context-and-progress { name = "Typed stage context and runtime progress" } (
+            <Cases [
+              <Case #stage-context-from-frozen-package (
+                <Given ?>a lifecycle Actor loads a stage from its Actor-owned frozen resource package</?>
+                <When ?>`WorkflowLoadStageContext` succeeds</?>
+                <Then ?>its complete tool call/result pair SHALL remain the first-delivery authority; after successful admission it SHALL append a closed stage-context fact bound to pair records、package/facet revision and SHALL NOT reread live Skill roots or mutate earlier system prompts</?>
+              )>
+              <Case #progress-remains-runtime-side (
+                <Given ?>turn, deadline, no-progress and proof-repair counters change</?>
+                <When ?>the lifecycle hooks enforce policy</?>
+                <Then ?>the counters SHALL remain in the facet and SHALL NOT be projected as a changing progress-budget prompt</?>
+              )>
+              <Case #stage-surface-stable-in-g3 (
+                <Given ?>the lifecycle Actor transitions between authoring, coding, testing or releasing stages</?>
+                <When ?>provider tools and execution allowlists are projected</?>
+                <Then ?>the provider-visible G2 lifecycle surface SHALL remain byte-stable while execution uses the current exact allowlist; any future surface change SHALL require an explicit surface epoch</?>
+              )>
+              <Case #ordinary-and-node-remain-stage-free (
+                <Given ?>an ordinary Actor or Ctrl/Data node Agent builds provider context</?>
+                <When ?>typed context facts are materialized</?>
+                <Then ?>no Workflow stage, lifecycle progress or internal Skill fact SHALL appear without the exact lifecycle capability proof</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

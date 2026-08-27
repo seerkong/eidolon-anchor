@@ -10,15 +10,31 @@ function parseToolCallArguments(input: unknown): string {
   }
 }
 
+function ownData(value: unknown, key: string): unknown {
+  if (!value || typeof value !== "object") return undefined;
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor && "value" in descriptor ? descriptor.value : undefined;
+}
+
+function ownString(value: unknown, key: string): string | undefined {
+  const candidate = ownData(value, key);
+  return typeof candidate === "string" ? candidate : undefined;
+}
+
 function normalizeOpenAIToolCalls(message: any): any[] | undefined {
-  const rawToolCalls = message?.tool_calls ?? message?.toolCalls ?? message?.rawToolCalls;
+  const rawToolCalls = ownData(message, "tool_calls")
+    ?? ownData(message, "toolCalls")
+    ?? ownData(message, "rawToolCalls");
   if (!Array.isArray(rawToolCalls) || rawToolCalls.length === 0) return undefined;
   const byId = new Map<string, any>();
   for (const toolCall of rawToolCalls) {
-    const fn = toolCall?.function && typeof toolCall.function === "object" ? toolCall.function : null;
-    const name = String(fn?.name ?? toolCall?.name ?? "");
-    const args = fn ? fn.arguments : toolCall?.arguments ?? toolCall?.input ?? {};
-    const id = String(toolCall?.id ?? "");
+    const rawFunction = ownData(toolCall, "function");
+    const fn = rawFunction && typeof rawFunction === "object" ? rawFunction : null;
+    const name = String(ownData(fn, "name") ?? ownData(toolCall, "name") ?? "");
+    const args = fn
+      ? ownData(fn, "arguments")
+      : ownData(toolCall, "arguments") ?? ownData(toolCall, "input") ?? {};
+    const id = String(ownData(toolCall, "id") ?? "");
     if (!id) continue;
     const normalized = {
       id,
@@ -49,7 +65,9 @@ function isMoreSpecificOpenAIToolCall(candidate: any, current: any): boolean {
 }
 
 function normalizeOpenAIToolCallId(message: any): string | undefined {
-  const value = message?.tool_call_id ?? message?.toolCallId ?? message?.toolCallID;
+  const value = ownData(message, "tool_call_id")
+    ?? ownData(message, "toolCallId")
+    ?? ownData(message, "toolCallID");
   return typeof value === "string" && value ? value : undefined;
 }
 
@@ -65,13 +83,14 @@ function normalizeOpenAIToolMessageContent(content: unknown): string | unknown[]
 }
 
 function hasOpenAIMessageContent(message: any): boolean {
-  if (!message || !("content" in message)) return false;
-  if (typeof message.content === "string") return message.content.length > 0;
-  return message.content !== null && message.content !== undefined;
+  const content = ownData(message, "content");
+  if (typeof content === "string") return content.length > 0;
+  return content !== null && content !== undefined;
 }
 
 function hasOpenAIReasoningContent(message: any): boolean {
-  return typeof message?.reasoning_content === "string" && message.reasoning_content.length > 0;
+  const reasoning = ownData(message, "reasoning_content");
+  return typeof reasoning === "string" && reasoning.length > 0;
 }
 
 function isPlaceholderOpenAIToolCall(toolCall: any): boolean {
@@ -122,46 +141,36 @@ export function normalizeOpenAIChatMessages(
   const laterConcreteToolCallIds = new Set<string>();
   const normalized = messages.map((message) => {
     if (!message || typeof message !== "object") return message;
-    if (message.role === "tool") {
+    const role = ownString(message, "role");
+    if (role === "tool") {
       const toolCallId = normalizeOpenAIToolCallId(message);
       const normalized: Record<string, unknown> = {
         role: "tool",
-        content: normalizeOpenAIToolMessageContent(message.content),
+        content: normalizeOpenAIToolMessageContent(ownData(message, "content")),
       };
       if (toolCallId) normalized.tool_call_id = toolCallId;
-      if (typeof message.name === "string" && message.name) normalized.name = message.name;
+      const name = ownString(message, "name");
+      if (name) normalized.name = name;
       return normalized;
     }
-    if (message.role === "assistant") {
+    if (role === "assistant") {
       const toolCalls = normalizeOpenAIToolCalls(message);
-      const normalized: Record<string, unknown> = {
-        ...message,
-      };
+      const normalized: Record<string, unknown> = { role: "assistant" };
+      const content = ownData(message, "content");
+      if (content !== undefined) normalized.content = content;
+      const name = ownString(message, "name");
+      if (name) normalized.name = name;
       if (options.preserveReasoningContent) {
         const reasoningContent =
-          typeof message.reasoning_content === "string"
-            ? message.reasoning_content
-            : typeof message.reasoningContent === "string"
-              ? message.reasoningContent
-              : undefined;
+          ownString(message, "reasoning_content")
+            ?? ownString(message, "reasoningContent");
         if (reasoningContent !== undefined) {
           normalized.reasoning_content = reasoningContent;
-        } else if (toolCalls) {
-          normalized.reasoning_content = "";
         }
-      } else {
-        delete normalized.reasoning_content;
       }
       if (normalized.reasoning_content && !("content" in normalized) && !toolCalls) {
         normalized.content = "";
       }
-      delete normalized.reasoningContent;
-      delete normalized.content_parts;
-      delete normalized.toolCalls;
-      delete normalized.rawToolCalls;
-      delete normalized.rawToolCallsStr;
-      delete normalized.toolCallId;
-      delete normalized.tool_call_id;
       if (toolCalls) normalized.tool_calls = toolCalls;
       if (toolCalls) {
         for (const toolCall of toolCalls) {
@@ -170,12 +179,21 @@ export function normalizeOpenAIChatMessages(
       }
       return normalized;
     }
-    if (message.role === "user" && Array.isArray(message.content)) {
-      return { ...message, content: projectOpenAIChatUserContent(message.content) };
+    if (role === "user" || role === "system" || role === "developer") {
+      const projected: Record<string, unknown> = { role };
+      const content = ownData(message, "content");
+      if (content !== undefined) {
+        projected.content = role === "user" && Array.isArray(content)
+          ? projectOpenAIChatUserContent(content)
+          : content;
+      }
+      const name = ownString(message, "name");
+      if (name) projected.name = name;
+      return projected;
     }
-    return { ...message };
+    return null;
   });
-  const deduped = normalized.map((message) => {
+  const deduped = normalized.filter(Boolean).map((message) => {
     if (!message || message.role !== "assistant" || !Array.isArray(message.tool_calls)) return message;
     const toolCalls = message.tool_calls.filter((toolCall: any) => {
       return !(isPlaceholderOpenAIToolCall(toolCall) && laterConcreteToolCallIds.has(String(toolCall.id)));

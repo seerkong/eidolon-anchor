@@ -786,17 +786,18 @@ export class WorkflowResourcePackagePublisher {
       return
     }
     if (journal.state === "committed") incoherent()
+    const activeState = journal.state as Exclude<PublicationAttemptState, "committed">
     const allowed = journal.hadLive
       ? {
           prepared: new Set(["base/source/missing", "missing/source/base"]),
           "live-backed-up": new Set(["missing/source/base", "source/missing/base", "base/source/missing"]),
           "candidate-live": new Set(["source/missing/base", "missing/source/base", "base/source/missing"]),
-        }[journal.state]
+        }[activeState]
       : {
           prepared: new Set(["missing/source/missing"]),
           "live-backed-up": new Set(["missing/source/missing", "source/missing/missing"]),
           "candidate-live": new Set(["source/missing/missing", "missing/source/missing"]),
-        }[journal.state]
+        }[activeState]
     if (!allowed || !signatures.some((signature) => allowed.has(signature))) incoherent()
   }
 

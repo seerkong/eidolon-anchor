@@ -1,0 +1,30 @@
+<BehaviorPatch #track.add-provider-epoch-and-deepseek-conversation-projection.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/recoverable-provider-switch" } (
+      <Requirement #recoverable-provider-switch (
+        <Statement ?>TUI/CLI 显式切换 provider/model 后 SHALL 刷新实际 actor adapter并推进需要的 provider epoch；projection/admission failure SHALL 作为可恢复的当前 turn failure展示，MUST NOT让持久会话永久无法继续。</?>
+        <Suites [
+          <Suite #switch-and-recover { name = "模型切换与恢复" } (
+            <Cases [
+              <Case #explicit-switch-applies-to-recovered-actor (
+                <Given ?>session从旧provider model config恢复。</?>
+                <When ?>用户通过dialog或CLI显式选择另一个provider/model。</?>
+                <Then ?>下一次真实request SHALL使用新选择与新provider projection，不得回退到持久化旧adapter。</?>
+              )>
+              <Case #admission-failure-remains-continuable (
+                <Given ?>新provider request在本地closed admission失败且没有网络或tool副作用。</?>
+                <When ?>用户再次切换模型或修正配置后继续。</?>
+                <Then ?>系统 SHALL 记录local_projection_rejected等价typed outcome；main fiber SHALL 可继续处理下一轮。该失败不得写assistant History、确认tool delivery、推进continuation baseline或重复已完成tool effect。</?>
+              )>
+              <Case #incident-copy-deepseek-continuation (
+                <Given ?>事故session的只读副本包含长Codex工具历史。</?>
+                <When ?>使用SiliconFlow DeepSeek V4 Flash继续一次普通用户turn。</?>
+                <Then ?>系统 SHALL 产生provider completion或明确的远端provider failure，MUST NOT再产生本地invalid_provider_request_body，原始事故session保持不变。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -97,7 +97,10 @@ function parseAgentMd(agentDir: string): AgentConfig | null {
 function parseAgentToml(filePath: string): AgentConfig | null {
   try {
     const raw = fs.readFileSync(filePath, "utf-8");
-    const parsed = Bun.TOML.parse(raw) as any;
+    const bunRuntime = (globalThis as typeof globalThis & {
+      Bun: { TOML: { parse(value: string): unknown } }
+    }).Bun;
+    const parsed = bunRuntime.TOML.parse(raw) as any;
     const name = parsed.name;
     const description = parsed.description;
     if (!name || !description) return null;

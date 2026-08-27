@@ -1,0 +1,28 @@
+<BehaviorPatch #track.restore-deepseek-prefix-cache-stability.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/prefix-cache-stability" } (
+      <Requirement #prefix-cache-stability (
+        <Statement ?>DeepSeek same-provider, same-model, forward-only requests SHALL preserve the complete prior provider request prefix across ordinary Workflow stage transitions, and SHALL expose provider-reported cache read/miss token facts without treating local structural similarity as a provider cache-hit receipt.</?>
+        <Suites [
+          <Suite #workflow-prefix-cache { name = "Workflow DeepSeek prefix cache" } (
+            <Cases [
+              <Case #stage-transition-appends [
+                <Given ?>A stable-prefix DeepSeek Workflow actor has completed a coding-stage request.</?>
+                <When ?>It loads testing stage context and sends the next request without provider/model switch, rewind or compaction.</?>
+                <Then ?>The previous messages are an exact prefix of the next messages and the provider-visible tool schema bytes remain identical.</?>
+                <Ands [
+                  <And ?>The current testing allowlist remains the sole runtime execution authority.</?>
+                ]>
+              ]>
+              <Case #cache-usage-observed [
+                <Given ?>A DeepSeek stream ends with provider usage containing prompt cache hit and miss tokens.</?>
+                <When ?>The completion is reduced by the runtime.</?>
+                <Then ?>Existing VM usage cache-read/cache-creation counters SHALL include those exact facts, while conversation history SHALL NOT contain provider usage metadata.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

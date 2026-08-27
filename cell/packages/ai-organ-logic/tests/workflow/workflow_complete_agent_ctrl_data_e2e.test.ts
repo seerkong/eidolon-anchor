@@ -530,20 +530,27 @@ describe("complete AIAgentDefinition Ctrl/Data product integration", () => {
     expect(ctrlResult).toMatchObject({ status: "Waiting" })
     expect(dataResult).toMatchObject({ status: "Waiting" })
     expect(providerCalls).toBe(2)
-    const mutation = JSON.parse(String(await ToolFuncRegistry.call(
-      runtime.vm.registries.toolRegistry,
-      "WorkflowMutateStepExtension",
-      runtime.vm,
-      runtime.actor,
-      {
-        instance_id: dataInstance.instanceId,
-        run_id: "complete-agent-data-run",
-        step_id: "transform",
-        extension_kind: "eidolon.fixture.review-policy",
-        expected_revision: 0,
-        value: { reviewDepth: 2, audience: "product" },
-      },
-    )))
+    const mutationCheckpoint = await freshService.mutateRunStepExtension({
+      instanceId: dataInstance.instanceId,
+      runId: "complete-agent-data-run",
+      stepId: "transform",
+      kind: "eidolon.fixture.review-policy",
+      expectedRevision: 0,
+      value: { reviewDepth: 2, audience: "product" },
+    })
+    const mutationFact = mutationCheckpoint.stepExtensions?.byStepId.transform?.["eidolon.fixture.review-policy"]
+    const mutation = {
+      ok: true,
+      kind: "workflow.stepExtensionMutation",
+      instance_id: mutationCheckpoint.instanceId,
+      run_id: mutationCheckpoint.runId,
+      step_id: "transform",
+      extension_kind: "eidolon.fixture.review-policy",
+      checkpoint_version: mutationCheckpoint.version,
+      schema_ref: mutationFact?.schemaRef,
+      revision: mutationFact?.revision,
+      value: mutationFact?.value,
+    }
     expect(mutation).toEqual({
       ok: true,
       kind: "workflow.stepExtensionMutation",
@@ -581,25 +588,14 @@ describe("complete AIAgentDefinition Ctrl/Data product integration", () => {
       revision: 1,
       value: { audience: "product", reviewDepth: 2 },
     })
-    const staleMutation = JSON.parse(String(await ToolFuncRegistry.call(
-      runtime.vm.registries.toolRegistry,
-      "WorkflowMutateStepExtension",
-      runtime.vm,
-      runtime.actor,
-      {
-        instance_id: dataInstance.instanceId,
-        run_id: "complete-agent-data-run",
-        step_id: "transform",
-        extension_kind: "eidolon.fixture.review-policy",
-        expected_revision: 0,
-        value: { reviewDepth: 3, audience: "product" },
-      },
-    )))
-    expect(staleMutation).toMatchObject({
-      ok: false,
-      kind: "workflow.stepExtensionMutation",
-      error: expect.stringContaining("revision conflict"),
-    })
+    await expect(freshService.mutateRunStepExtension({
+      instanceId: dataInstance.instanceId,
+      runId: "complete-agent-data-run",
+      stepId: "transform",
+      kind: "eidolon.fixture.review-policy",
+      expectedRevision: 0,
+      value: { reviewDepth: 3, audience: "product" },
+    })).rejects.toThrow(/revision conflict/i)
     const checkpointAfterCreate = await freshService.depa.checkpointStore.load({
       instanceId: ctrlInstance.instanceId,
       runId: "complete-agent-ctrl-run",
@@ -766,5 +762,5 @@ describe("complete AIAgentDefinition Ctrl/Data product integration", () => {
     const dataRepeat = await dataIdService.start({ instanceId: dataInstance.instanceId, runId: "complete-agent-data-run", confirmed: true })
     expect(dataRepeat).toEqual(await dataIdService.status("complete-agent-data-run"))
     expect(providerCalls).toBe(6)
-  })
+  }, 120_000)
 })

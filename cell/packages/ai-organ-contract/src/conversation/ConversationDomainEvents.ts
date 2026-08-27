@@ -7,6 +7,12 @@ import type {
   ActorPromptTransformKind,
 } from "./ActorPromptGeneration";
 import type { LocalConversationContextAssetData } from "./LocalConversationContextAsset";
+import type { ActorProviderContextFactHead } from "./ActorProviderContextFact";
+import type {
+  ProviderContextTransitionCommand,
+  ProviderEpochReceiptV2,
+  ProviderRequestAdmissionReceipt,
+} from "./ProviderContextEpochV2";
 import type {
   LocalConversationSessionActorBinding,
   LocalConversationSessionData,
@@ -203,6 +209,42 @@ export type ConversationDomainEvent =
       sessionId: string;
       assetId: string;
       asset?: LocalConversationContextAssetData;
+      occurredAt: string;
+    }
+  | {
+      type: "local_conversation_provider_context_fact_appended";
+      sessionId: string;
+      actorKey: string;
+      assetId: string;
+      asset: LocalConversationContextAssetData;
+      head: ActorProviderContextFactHead;
+      occurredAt: string;
+    }
+  | {
+      type: "local_conversation_provider_context_delivery_committed";
+      sessionId: string;
+      actorKey: string;
+      factAssets: readonly LocalConversationContextAssetData[];
+      candidateAssets: readonly LocalConversationContextAssetData[];
+      head: ActorProviderContextFactHead;
+      admission: ProviderRequestAdmissionReceipt;
+      occurredAt: string;
+    }
+  | {
+      type: "local_conversation_provider_request_admitted";
+      sessionId: string;
+      actorKey: string;
+      actorId: string;
+      admission: ProviderRequestAdmissionReceipt;
+      occurredAt: string;
+    }
+  | {
+      type: "local_conversation_provider_context_epoch_transition_committed";
+      sessionId: string;
+      actorKey: string;
+      actorId: string;
+      command: ProviderContextTransitionCommand;
+      receipt: ProviderEpochReceiptV2;
       occurredAt: string;
     }
   | {

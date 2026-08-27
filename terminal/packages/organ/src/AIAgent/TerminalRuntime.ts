@@ -37,6 +37,8 @@ import {
   PROVIDER_CONFIG_FILE_NAME,
   MCPManager,
   processRuntimeIngressStream,
+  activateActorProviderEpoch,
+  resolveProviderEpochProfileId,
   recoverOrCreateShellRuntime,
   refreshProviderTransportMarkers,
   setDebug,
@@ -1006,6 +1008,11 @@ async function createRuntimeBridge(
     model?: string
     optionsKey?: string
   }>()
+  const pendingProviderEpochReason = new WeakMap<AiAgentActor, "initial_projection" | "model_control" | "recovery_rebuild">()
+  const providerEpochReasonByActor = new WeakMap<AiAgentActor, "initial_projection" | "model_control" | "recovery_rebuild">()
+  const recoveredProviderEpochReceiptByActor = new WeakMap<AiAgentActor, NonNullable<ReturnType<typeof getConversationActorRawStateFromVm>>["session"]["actorBindings"][string]["providerEpochReceiptV2"]>()
+  const providerEpochActors = new Set<AiAgentActor>()
+  let reassertProviderEpochsBeforeSnapshot: (() => void) | null = null
   adapterStateByActor.set(actor, {
     adapterType,
     apiKey: modelConfig.apiKey,
@@ -1013,6 +1020,14 @@ async function createRuntimeBridge(
     model: modelConfig.model,
     optionsKey: JSON.stringify(modelConfig.options ?? {}),
   })
+  for (const runtimeActor of Object.values(vm.actors)) {
+    const receipt = getConversationActorRawStateFromVm({
+      vm,
+      actorKey: runtimeActor.key,
+      sessionId: sessionKey,
+    })?.session.actorBindings[runtimeActor.key]?.providerEpochReceiptV2
+    if (receipt) recoveredProviderEpochReceiptByActor.set(runtimeActor, receipt)
+  }
   runtimeCoordinationEmitterBySession.set(sessionKey, (payload) => {
     shellRuntimeFacade.emitCoordinationEvent({
       eventBus,
@@ -1030,7 +1045,10 @@ async function createRuntimeBridge(
   const runtimeCoordinator = shellRuntimeFacade.createRuntimeCoordinator({
     vm,
     driver,
-    saveSnapshot,
+    saveSnapshot: async () => {
+      reassertProviderEpochsBeforeSnapshot?.()
+      await saveSnapshot()
+    },
     sealCompletedProgress,
     hookDefinitions: runtimeAssembly.hookDefinitions,
     hookHandlers: createDefaultRuntimeHookHandlers(),
@@ -1327,6 +1345,53 @@ async function createRuntimeBridge(
     }
   }
 
+  // An explicitly supplied model is an operator recovery command, not a
+  // fallback for creating a new actor.  A recovered actor normally retains
+  // its persisted model config for continuity, but that must not make
+  // `eidolon run --session ... --model provider/model` silently keep using
+  // the failed provider/model.  Refreshing the adapter below makes this a
+  // durable, provider-consistent switch before the next user turn.
+  if (explicitRuntimeModelRef) {
+    actor.modelConfig = resolveConfiguredActorModelConfig()
+    pendingProviderEpochReason.set(actor, "model_control")
+  }
+
+  const activateProviderEpochForActor = (targetActor: AiAgentActor) => {
+    const reason = pendingProviderEpochReason.get(targetActor)
+      ?? (targetActor === actor ? "recovery_rebuild" : "initial_projection")
+    const activated = activateActorProviderEpoch({
+      vm,
+      actor: targetActor,
+      sessionId: sessionKey,
+      targetProviderId: String(targetActor.modelConfig.provider ?? ""),
+      targetProfileId: resolveProviderEpochProfileId(
+        targetActor.modelConfig,
+        (targetActor.llmClient as any)?.runtime?.chatCompatibilityProfileId,
+      ),
+      reason,
+    })
+    pendingProviderEpochReason.delete(targetActor)
+    providerEpochReasonByActor.set(targetActor, reason)
+    recoveredProviderEpochReceiptByActor.set(targetActor, activated.receipt)
+    providerEpochActors.add(targetActor)
+    return activated
+  }
+  reassertProviderEpochsBeforeSnapshot = () => {
+    for (const targetActor of providerEpochActors) {
+      activateActorProviderEpoch({
+        vm,
+        actor: targetActor,
+        sessionId: sessionKey,
+        targetProviderId: String(targetActor.modelConfig.provider ?? ""),
+        targetProfileId: resolveProviderEpochProfileId(
+          targetActor.modelConfig,
+          (targetActor.llmClient as any)?.runtime?.chatCompatibilityProfileId,
+        ),
+        reason: providerEpochReasonByActor.get(targetActor) ?? "recovery_rebuild",
+      })
+    }
+  }
+
   const runTurn = async (params: {
     timeoutSeconds?: number
   } = {}) => {
@@ -1334,6 +1399,7 @@ async function createRuntimeBridge(
     if (!actor.modelConfig.model || !isActorModelConfigResolvable(actor)) {
       actor.modelConfig = resolveConfiguredActorModelConfig()
     }
+    activateProviderEpochForActor(actor)
     await refreshActorAdapterForModelConfig(actor)
     reviveMainFiberForInteractiveTurnIfNeeded()
     const result = await runtimeCoordinator.runInteractiveTurn({
@@ -1749,6 +1815,8 @@ async function createRuntimeBridge(
     const targetActor = findActorForSurfaceProjection(projection, target)
     if (targetActor) {
       applyActorModelConfigControlSignals(targetActor)
+      pendingProviderEpochReason.set(targetActor, "model_control")
+      activateProviderEpochForActor(targetActor)
       await refreshActorAdapterForModelConfig(targetActor)
     }
     await persistSnapshot()

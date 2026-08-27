@@ -112,3 +112,9 @@ export const deepSeekOfficialChatEffectBundle: ChatCompletionsEffectBundle =
     }),
     streamCore: chatCompletionsStreamCoreBinding,
   });
+
+export const deepSeekCompatibleChatEffectBundle: ChatCompletionsEffectBundle =
+  Object.freeze({
+    ...deepSeekOfficialChatEffectBundle,
+    id: "deepseek-compatible-chat",
+  });

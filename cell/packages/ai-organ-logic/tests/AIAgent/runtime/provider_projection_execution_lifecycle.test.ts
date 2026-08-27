@@ -13,6 +13,7 @@ import {
 } from "@cell/ai-organ-logic/exec/AiAgentExecutor"
 import { getConversationActorRawStateFromVm } from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime"
 import { createAiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver"
+import { activateActorProviderEpoch } from "@cell/ai-organ-logic/conversation/ProviderEpoch"
 import { createMockProcessStream } from "../__test_support__/mockProcessStream"
 
 const adapter = {
@@ -21,7 +22,12 @@ const adapter = {
     async function* stream() {
       yield { ok: true }
     }
-    return { stream: stream() }
+    return {
+      stream: stream(),
+      providerOutput: Promise.resolve({
+        provider_cache_cost_observation: { requestDigest: `sha256:${"a".repeat(64)}` },
+      }),
+    }
   },
 }
 
@@ -52,7 +58,7 @@ function makeStreamingRuntime(params: {
   const actor = createActor({
     key: "main",
     llmClient: adapter,
-    modelConfig: { model: "mock" },
+    modelConfig: { model: "mock", provider: "mock", adapter: "openai" },
     callbacks: {
       buildToolset: () => [params.tool.schema],
       processStream: async () => ({ role: "assistant", content: "unused" }),
@@ -73,6 +79,14 @@ function makeStreamingRuntime(params: {
     buildToolset: () => [params.tool.schema],
     processStream: createMockProcessStream(params.processStream),
   }
+  activateActorProviderEpoch({
+    vm,
+    actor,
+    sessionId: "provider-projection-lifecycle",
+    targetProviderId: "mock",
+    targetProfileId: "openai-chat@1",
+    reason: "initial_projection",
+  })
   return { actor, vm }
 }
 
@@ -100,7 +114,7 @@ async function flushAsyncWork(): Promise<void> {
 }
 
 describe("provider projection execution lifecycle", () => {
-  it("unwraps a generic envelope, delivers its pair once, then elides it", async () => {
+  it("admits a projection only after its complete pair, then retains the pair and appends a typed fact", async () => {
     const tool = makeProjectionTool()
     let providerTurn = 0
     const { actor, vm } = makeStreamingRuntime({
@@ -118,6 +132,8 @@ describe("provider projection execution lifecycle", () => {
           : { role: "assistant", content: "done" }
       },
     })
+    expect(getConversationActorRawStateFromVm({ vm, actorKey: actor.key })
+      ?.session.actorBindings[actor.key]?.providerEpochReceiptV2).toBeDefined()
 
     const result = await aiAgentLoopStreaming({
       vm,
@@ -130,11 +146,52 @@ describe("provider projection execution lifecycle", () => {
       expect.objectContaining({ toolCallId: "call-generic-1", deliveryState: "delivered" }),
     ])
     const nextPrompt = buildPrompt(vm, actor, tool)
-    expect(JSON.stringify(nextPrompt)).not.toContain("call-generic-1")
-    expect(JSON.stringify(nextPrompt)).toContain("full-state:1")
+    const serialized = JSON.stringify(nextPrompt)
+    expect(serialized).toContain("call-generic-1")
+    expect(serialized).toContain("full-state:1")
+    expect(nextPrompt.some((message: any) => (
+      message.role === "user"
+      && String(message.content ?? "").startsWith("eidolon-context-fact/v1\n")
+    ))).toBe(true)
+    expect(nextPrompt.some((message: any) => (
+      message.role === "system" && String(message.content ?? "").includes("full-state:1")
+    ))).toBe(false)
+    const raw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })
+    const typedFacts = raw?.session.contextAssets?.flatMap((asset) => (
+      asset.providerContextFact?.namespace === "provider-projection" ? [asset.providerContextFact] : []
+    )) ?? []
+    expect(typedFacts).toHaveLength(1)
+    const admissions = raw?.session.actorBindings[actor.key]?.providerRequestAdmissions ?? []
+    expect(admissions).toHaveLength(2)
+    const allTypedFacts = raw?.session.contextAssets?.flatMap((asset) => (
+      asset.providerContextFact ? [asset.providerContextFact] : []
+    )) ?? []
+    const firstRequestFacts = allTypedFacts.filter((fact) => fact.sequence <= (admissions[0]?.admittedFactRange?.lastSequence ?? 0))
+    expect(firstRequestFacts.some((fact) => fact.namespace === "work-context")).toBe(true)
+    expect(admissions[0]?.admittedFactRange).toEqual({
+      previousHeadDigest: null,
+      firstSequence: 1,
+      lastSequence: firstRequestFacts.at(-1)?.sequence,
+      count: firstRequestFacts.length,
+      factDigests: firstRequestFacts.map((fact) => fact.factDigest),
+    })
+    expect(admissions.every((admission) => admission.finalRequestDigest === `sha256:${"a".repeat(64)}`)).toBe(true)
+    expect(admissions[1]?.previousAdmissionDigest).toBe(admissions[0]?.admissionDigest)
+    expect(admissions[1]?.currentHeads.factHeadDigest).toBe(typedFacts[0]?.factDigest)
+    expect(admissions[1]?.admittedFactRange).toEqual({
+      previousHeadDigest: typedFacts[0]?.previousSequenceFactDigest,
+      firstSequence: typedFacts[0]?.sequence,
+      lastSequence: typedFacts[0]?.sequence,
+      count: 1,
+      factDigests: [typedFacts[0]?.factDigest],
+    })
+    expect(typedFacts[0]?.sourceDeliveryProofs[0]).toEqual(expect.objectContaining({
+      kind: "first-delivery-pair",
+      toolCallId: "call-generic-1",
+      requestAdmissionIntentDigest: admissions[1]?.factAppendIntentDigest,
+    }))
     expect(actor.continuationBaseline).toEqual(expect.objectContaining({
-      baselineEpoch: 2,
-      lastResetReason: "provider_projection:source_delivery",
+      lastResetReason: "provider_projection:fact_appended",
     }))
   })
 
@@ -169,9 +226,8 @@ describe("provider projection execution lifecycle", () => {
     ])
     const retryPrompt = buildPrompt(vm, actor, tool)
     expect(JSON.stringify(retryPrompt)).toContain("call-failed-delivery")
-    expect(JSON.stringify(retryPrompt)).toContain("full-state:2")
+    expect(JSON.stringify(retryPrompt)).not.toContain("full-state:2")
     expect(actor.continuationBaseline).toEqual(expect.objectContaining({
-      baselineEpoch: 1,
       lastResetReason: "provider_projection:context_effect",
     }))
   })
@@ -217,7 +273,7 @@ describe("provider projection execution lifecycle", () => {
     ])
   })
 
-  it("keeps only the current TaskTree projection across consecutive writes", async () => {
+  it("keeps each TaskTree revision and first-delivery pair across consecutive writes", async () => {
     const tool = buildTaskTreeWriteToolDef()
     let providerTurn = 0
     const { actor, vm } = makeStreamingRuntime({
@@ -276,20 +332,22 @@ describe("provider projection execution lifecycle", () => {
     const projectionFacts = raw?.session.contextAssets
       ?.flatMap((asset) => asset.projectionFact ? [asset.projectionFact] : [])
       ?? []
-    expect(projectionFacts).toHaveLength(1)
-    expect(projectionFacts[0]?.content).toContain("current task")
-    expect(projectionFacts[0]?.content).not.toContain("old task")
-    expect(projectionFacts[0]?.sourceToolCalls).toEqual([
+    expect(projectionFacts).toHaveLength(2)
+    expect(projectionFacts.map((fact) => fact.content)).toEqual([
+      expect.stringContaining("old task"),
+      expect.stringContaining("current task"),
+    ])
+    expect(projectionFacts.flatMap((fact) => fact.sourceToolCalls)).toEqual([
       expect.objectContaining({ toolCallId: "call-tree-1", deliveryState: "delivered" }),
       expect.objectContaining({ toolCallId: "call-tree-2", deliveryState: "delivered" }),
     ])
 
     const laterPrompt = buildPrompt(vm, actor, tool)
     const serialized = JSON.stringify(laterPrompt)
-    expect(serialized).not.toContain("call-tree-1")
-    expect(serialized).not.toContain("call-tree-2")
+    expect(serialized).toContain("call-tree-1")
+    expect(serialized).toContain("call-tree-2")
     expect(serialized).toContain("current task")
-    expect(serialized).not.toContain("old task")
+    expect(serialized).toContain("old task")
   })
 
   it("confirms the same generic delivery lifecycle in cooperative execution", async () => {
@@ -299,7 +357,7 @@ describe("provider projection execution lifecycle", () => {
     const actor = createActor({
       key: "main",
       llmClient: adapter,
-      modelConfig: { model: "mock" },
+      modelConfig: { model: "mock", provider: "mock", adapter: "openai" },
       callbacks: {
         buildToolset: () => [tool.schema],
         processStream: createMockProcessStream(async () => {
@@ -328,6 +386,14 @@ describe("provider projection execution lifecycle", () => {
       eventBus,
       outerCtx: { metadata: { sessionId: "provider-projection-cooperative" } },
     })
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId: "provider-projection-cooperative",
+      targetProviderId: "mock",
+      targetProfileId: "openai-chat@1",
+      reason: "initial_projection",
+    })
     const fiberId = `${actor.key}:${actor.id}`
     const driver = createAiAgentOrchestratorDriver({
       fibers: [{ fiberId, vm, actor, messages: [], basePriority: 1 }],
@@ -355,7 +421,7 @@ describe("provider projection execution lifecycle", () => {
       expect.objectContaining({ toolCallId: "call-cooperative", deliveryState: "delivered" }),
     ])
     const laterPrompt = buildPrompt(vm, actor, tool)
-    expect(JSON.stringify(laterPrompt)).not.toContain("call-cooperative")
+    expect(JSON.stringify(laterPrompt)).toContain("call-cooperative")
     expect(JSON.stringify(laterPrompt)).toContain("full-state:4")
   })
 })

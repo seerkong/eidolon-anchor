@@ -45,6 +45,10 @@ import type { AiRuntimeRegistries as ContractRuntimeRegistries } from "@cell/ai-
 import type { AiRuntimeOuterCtx } from "@cell/ai-core-contract/runtime/AiRuntimeOuterCtx";
 import type { McpManagerLike } from "@cell/ai-core-contract/runtime/McpManagerLike";
 import { cloneDurableControlSignalStore, createEmptyDurableControlSignalStore } from "./DurableControlSignals";
+import {
+  createActorRuntimeFacetRegistry,
+  normalizeActorRuntimeFacetIndexForRegistry,
+} from "./ActorRuntimeFacet";
 
 export { AI_AGENT_VM_FACET_OWNERSHIP } from "@cell/ai-core-contract/runtime/AiAgentVm";
 export { bindVmDomainRxStreams, ensureVmRxData } from "./rxData";
@@ -120,6 +124,7 @@ export function createEmptyVmRuntimeContext(): VmRuntimeContext {
     conversationDomainRuntime: null,
     toolCallDomain: null,
     providerCallDomain: null,
+    actorFacetRuntime: createActorRuntimeFacetRegistry(),
     contextResourcePresentations: {},
     heartbeatScheduler: null,
     threadGoalRuntime: {
@@ -162,6 +167,7 @@ function materializeVmRuntimeContext(runtimeContext?: Partial<VmRuntimeContext>)
     conversationDomainRuntime: runtimeContext?.conversationDomainRuntime ?? null,
     toolCallDomain: runtimeContext?.toolCallDomain ?? null,
     providerCallDomain: runtimeContext?.providerCallDomain ?? null,
+    actorFacetRuntime: runtimeContext?.actorFacetRuntime ?? createActorRuntimeFacetRegistry(),
     contextResourcePresentations: { ...(runtimeContext?.contextResourcePresentations ?? {}) },
     heartbeatScheduler: runtimeContext?.heartbeatScheduler ?? null,
     threadGoalRuntime: {
@@ -208,12 +214,17 @@ export type CreateVMParams = {
   runtimeContext?: Partial<VmRuntimeContext>;
 };
 
-export type NormalizedRuntimeStorageOptions = Required<RuntimeStorageOptions>;
+export type NormalizedRuntimeStorageOptions = Readonly<{
+  logs: boolean;
+  files: boolean;
+  reasoningDebug?: RuntimeStorageOptions["reasoningDebug"];
+}>;
 
 export function normalizeRuntimeStorageOptions(options?: RuntimeOptions): NormalizedRuntimeStorageOptions {
   return {
     logs: options?.storage?.logs !== false,
     files: options?.storage?.files !== false,
+    ...(options?.storage?.reasoningDebug ? { reasoningDebug: options.storage.reasoningDebug } : {}),
   };
 }
 
@@ -323,6 +334,18 @@ export function createVM(params: CreateVMParams): AiAgentVm {
   });
   const options = materializeRuntimeOptions(params.options);
   const effects = materializeRuntimeEffects(options, params.effects);
+  // Preflight every Actor before constructing/registering the VM. This keeps
+  // unknown codecs, schema mismatches and invalid payloads from causing a
+  // partially registered runtime or partially normalized Actor set.
+  const normalizedActorFacetIndexes = Object.fromEntries(
+    Object.entries(params.actors).map(([actorKey, actor]) => [
+      actorKey,
+      normalizeActorRuntimeFacetIndexForRegistry(
+        aiFacet.runtimeContext.actorFacetRuntime,
+        actor.runtimeFacets,
+      ),
+    ]),
+  );
 
   let vm!: AiAgentVm;
   const actorRuntime = new ActorRuntime<AiAgentVm, AiAgentMailboxSchema>(() => vm);
@@ -414,6 +437,10 @@ export function createVM(params: CreateVMParams): AiAgentVm {
 
   actorRuntime.setFacet(VM_AI_FACET, aiFacet);
   actorRuntime.setFacet(VM_RUNTIME_CONTEXT_FACET, aiFacet.runtimeContext);
+
+  for (const [actorKey, runtimeFacets] of Object.entries(normalizedActorFacetIndexes)) {
+    params.actors[actorKey]!.runtimeFacets = runtimeFacets;
+  }
 
   for (const [id, actor] of Object.entries(vm.actors)) {
     if (!actorRuntime.has(id)) {

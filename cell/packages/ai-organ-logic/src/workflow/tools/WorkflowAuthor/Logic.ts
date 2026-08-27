@@ -1,8 +1,8 @@
 import type { StdInnerLogic } from "depa-processor"
-import { spawnChildExecutionActor } from "../../../agent/DelegateActor"
+import { spawnWorkflowLifecycleExecutionActor } from "../../runtime/WorkflowLifecycleActorCapsule"
 import { assembleWorkflowAuthorPrompt } from "../../prompts"
 import {
-  readInstalledSystemSkillResource,
+  freezeAiWorkflowResourcePackage,
   resolveEidolonGlobalRootFromOuterContext,
 } from "@cell/ai-support/system-skill/SystemSkillInstaller"
 import type {
@@ -24,14 +24,11 @@ export const workflowAuthorCoreLogic: StdInnerLogic<
     throw new Error("WorkflowAuthor edit requires workflow_ref")
   }
   const globalRoot = resolveEidolonGlobalRootFromOuterContext(runtime.vm.outerCtx)
-  const systemAuthority = await readInstalledSystemSkillResource({
-    globalRoot,
-    skillName: "sys-eidolon-anchor-devops",
-    relativePath: "SKILL.md",
-  }).catch((error) => {
+  const systemSkillPackage = await freezeAiWorkflowResourcePackage({ globalRoot }).catch((error) => {
     throw new Error(`Cannot load canonical sys-eidolon-anchor-devops; run \`eidolon global init\`. ${error instanceof Error ? error.message : String(error)}`)
   })
-  return spawnChildExecutionActor(runtime.vm as any, runtime.actor as any, {
+  const systemAuthority = systemSkillPackage.resources["sys-eidolon-anchor-devops/SKILL.md"]!
+  return spawnWorkflowLifecycleExecutionActor(runtime.vm as any, runtime.actor as any, {
     description: input.operation === "edit" ? "Edit an AI workflow" : "Create an AI workflow",
     prompt: assembleWorkflowAuthorPrompt({
       operation: input.operation,
@@ -40,8 +37,8 @@ export const workflowAuthorCoreLogic: StdInnerLogic<
       form: input.form,
       publish: input.publish,
     }),
-    agentType: "workflow",
-    additionalSystemPrompts: [systemAuthority],
+    systemSkillMaterial: systemAuthority,
+    systemSkillPackage,
     mode: "sync_wait",
     toolCallId: (runtime as any).toolCallId,
   })

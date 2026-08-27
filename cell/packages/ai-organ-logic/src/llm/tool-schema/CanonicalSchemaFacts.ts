@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 
 import type {
+  ProviderRequestAdmissionValueKind,
   ProviderSchemaDigest,
   ProviderSchemaFact,
 } from "@cell/ai-organ-contract/llm/ProviderToolSchemaProjection";
 
 export class ProviderSchemaValueError extends Error {
-  constructor(readonly path: string) {
+  constructor(
+    readonly path: string,
+    readonly valueKind: ProviderRequestAdmissionValueKind = "non_json_value",
+  ) {
     super(`non_json_schema_value:${path}`);
     this.name = "ProviderSchemaValueError";
   }
@@ -32,39 +36,52 @@ function isPlainObject(value: object): boolean {
 export function cloneJsonAuthority(value: unknown, path = "$"): any {
   if (value === null || typeof value === "string" || typeof value === "boolean") return value;
   if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new ProviderSchemaValueError(path);
+    if (!Number.isFinite(value)) throw new ProviderSchemaValueError(path, "non_finite_number");
     return value;
   }
   if (Array.isArray(value)) {
     const descriptors = Object.getOwnPropertyDescriptors(value);
     const keys = Object.keys(descriptors).filter((key) => key !== "length");
     if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
-      throw new ProviderSchemaValueError(path);
+      throw new ProviderSchemaValueError(path, "array_hole");
     }
     return keys.map((key) => {
       const descriptor = descriptors[key];
       if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) {
-        throw new ProviderSchemaValueError(`${path}/${key}`);
+        throw new ProviderSchemaValueError(
+          `${path}/${key}`,
+          descriptor && !("value" in descriptor) ? "accessor" : "non_enumerable",
+        );
       }
       return cloneJsonAuthority(descriptor.value, `${path}/${key}`);
     });
   }
   if (!value || typeof value !== "object" || !isPlainObject(value)) {
-    throw new ProviderSchemaValueError(path);
+    throw new ProviderSchemaValueError(path, "custom_prototype");
   }
-  if (Object.getOwnPropertySymbols(value).length > 0) throw new ProviderSchemaValueError(path);
+  if (Object.getOwnPropertySymbols(value).length > 0) throw new ProviderSchemaValueError(path, "symbol_key");
   const output: Record<string, unknown> = Object.create(null);
   const keys = Object.keys(value).sort(codeUnitCompare);
   if (Object.getOwnPropertyNames(value).length !== keys.length) {
-    throw new ProviderSchemaValueError(path);
+    const hidden = Object.getOwnPropertyNames(value).find((key) => !keys.includes(key));
+    throw new ProviderSchemaValueError(
+      hidden ? `${path}/${pointerSegment(hidden)}` : path,
+      "non_enumerable",
+    );
   }
   for (const key of keys) {
     const descriptor = Object.getOwnPropertyDescriptor(value, key);
     if (!descriptor || !("value" in descriptor) || descriptor.enumerable !== true) {
-      throw new ProviderSchemaValueError(`${path}/${pointerSegment(key)}`);
+      throw new ProviderSchemaValueError(
+        `${path}/${pointerSegment(key)}`,
+        descriptor && !("value" in descriptor) ? "accessor" : "non_enumerable",
+      );
     }
     if (descriptor.value === undefined || typeof descriptor.value === "function" || typeof descriptor.value === "symbol" || typeof descriptor.value === "bigint") {
-      throw new ProviderSchemaValueError(`${path}/${pointerSegment(key)}`);
+      const valueKind = descriptor.value === undefined
+        ? "undefined"
+        : typeof descriptor.value as "function" | "symbol" | "bigint";
+      throw new ProviderSchemaValueError(`${path}/${pointerSegment(key)}`, valueKind);
     }
     output[key] = cloneJsonAuthority(descriptor.value, `${path}/${pointerSegment(key)}`);
   }

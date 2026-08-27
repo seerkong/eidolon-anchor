@@ -17,38 +17,53 @@ import {
   WORKFLOW_NATIVE_TOOL_NAMES,
   buildWorkflowNativeToolDefs,
 } from "../../src/workflow/tools"
+import {
+  createWorkflowLifecycleFacetRegistry,
+  createWorkflowLifecycleFacetEnvelope,
+} from "../../src/workflow/runtime/WorkflowLifecycleFacet"
+import { AI_WORKFLOW_PROVIDER_TOOL_SURFACE } from "../../src/workflow/tools/WorkflowLoadStageContext/StageToolPolicy"
 
-function makeRuntime() {
-  return {
-    vm: {
-      outerCtx: {
-        workDir: "/tmp/eidolon-workflow-test",
-        metadata: {
-          workflowRoots: {
-            workspaceRoot: "vfs://./workflow",
-          },
-        },
-      },
-      registries: {},
+const managedSkill = [
+  "---",
+  "name: sys-eidolon-anchor-devops",
+  "revision: native-workflow-tools-v1",
+  "---",
+  "# Managed workflow skill",
+].join("\n")
+
+function lifecycleFacet() {
+  return createWorkflowLifecycleFacetEnvelope({
+    strategyRevision: "hybrid/v1",
+    systemPrompts: [managedSkill],
+    toolNames: AI_WORKFLOW_PROVIDER_TOOL_SURFACE,
+    progress: {
+      stageStartedAt: 1,
+      deadlineAt: 180_001,
+      turnsSinceProgress: 0,
+      maxNoProgressTurns: 4,
+      proofRepairAttempts: 0,
+      maxProofRepairAttempts: 3,
+      lastProgressAt: 1,
     },
-    actor: {},
-  } as any
+  })
 }
 
-function expectWorkflowRuntimeToolNames(names: string[]) {
-  expect(names).toContain("WorkflowCreateInstance")
-  expect(names).toContain("WorkflowCreateInstanceFromPrebuilt")
-  expect(names).toContain("WorkflowMaterialImport")
-  expect(names).toContain("WorkflowMaterialReplay")
-  expect(names).toContain("WorkflowGetFlowSummary")
-  expect(names).toContain("WorkflowRun")
-  expect(names).toContain("WorkflowStatus")
-  expect(names).toContain("WorkflowEvents")
-  expect(names).toContain("WorkflowResult")
-  expect(names).toContain("WorkflowResume")
-  expect(names).toContain("WorkflowApplyGraphPatch")
-  expect(names).toContain("WorkflowProcessHolonTask")
-  expect(names).toContain("WorkflowReplanHolonTask")
+function makeRuntime() {
+  const actor = createActor({ key: "workflow-test", systemPrompts: [managedSkill], runtimeFacets: [lifecycleFacet()] })
+  const vm = createVM({
+    controlActorKey: actor.key,
+    actors: { [actor.key]: actor },
+    runtimeContext: { actorFacetRuntime: createWorkflowLifecycleFacetRegistry() },
+    outerCtx: {
+      workDir: "/tmp/eidolon-workflow-test",
+      metadata: {
+        workflowRoots: {
+          workspaceRoot: "vfs://./workflow",
+        },
+      },
+    },
+  })
+  return { vm, actor }
 }
 
 function schemaAccepts(value: unknown, schema: any): boolean {
@@ -71,12 +86,13 @@ function schemaAccepts(value: unknown, schema: any): boolean {
 }
 
 function makeSeededWorkflowRuntime() {
-  const actor = createActor({ key: "main" })
-  const toolRegistry = composeToolRegistry({ includeInternalOnly: false })
+  const actor = createActor({ key: "main", systemPrompts: [managedSkill], runtimeFacets: [lifecycleFacet()] })
+  const toolRegistry = composeToolRegistry({ includeInternalOnly: false, includeWorkflowLifecycle: true })
   const vm = createVM({
     controlActorKey: actor.key,
     actors: { [actor.key]: actor },
     registries: { toolRegistry },
+    runtimeContext: { actorFacetRuntime: createWorkflowLifecycleFacetRegistry() },
     outerCtx: {
       workDir: "/tmp/eidolon-workflow-test",
       metadata: {
@@ -353,45 +369,26 @@ describe("native AI workflow tools", () => {
 
   it("exposes workflow tools through model-visible built-in schemas", () => {
     const baseNames = BASE_TOOLS.map((tool) => tool.function.name)
-    expect(baseNames).toContain("WorkflowFulfill")
-    expect(baseNames).toContain("WorkflowInspectCapability")
-    expect(baseNames).toContain("WorkflowAuthor")
-    expect(baseNames).toContain("WorkflowWorkspace")
-    expect(baseNames).toContain("WorkflowGetAuthoringContext")
-    expect(baseNames).toContain("WorkflowListAuthoringTemplates")
-    expect(baseNames).toContain("WorkflowListApps")
-    expect(baseNames).toContain("WorkflowGetApp")
-    expect(baseNames).toContain("WorkflowOpenAuthoringSession")
-    expect(baseNames).toContain("WorkflowCreateResourcePackageSession")
-    expect(baseNames).toContain("WorkflowPublishAuthoringSession")
-    expect(baseNames).toContain("WorkflowValidateResourceRef")
-    expect(baseNames).toContain("WorkflowCreateBundle")
-    expect(baseNames).toContain("WorkflowPatchBundle")
-    expectWorkflowRuntimeToolNames(baseNames)
+    expect(baseNames.filter((name) => name.startsWith("Workflow"))).toEqual([
+      "WorkflowFulfill",
+      "WorkflowAuthor",
+    ])
 
     const allNames = buildAllTools("", {}).map((tool) => tool.function.name)
-    expect(allNames).toContain("WorkflowFulfill")
-    expect(allNames).toContain("WorkflowInspectCapability")
-    expect(allNames).toContain("WorkflowAuthor")
-    expect(allNames).toContain("WorkflowWorkspace")
-    expect(allNames).toContain("WorkflowGetAuthoringContext")
-    expect(allNames).toContain("WorkflowListAuthoringTemplates")
-    expect(allNames).toContain("WorkflowListApps")
-    expect(allNames).toContain("WorkflowGetApp")
-    expect(allNames).toContain("WorkflowOpenAuthoringSession")
-    expect(allNames).toContain("WorkflowCreateResourcePackageSession")
-    expect(allNames).toContain("WorkflowPublishAuthoringSession")
-    expect(allNames).toContain("WorkflowValidateResourceRef")
-    expect(allNames).toContain("WorkflowCreateBundle")
-    expect(allNames).toContain("WorkflowPatchBundle")
-    expectWorkflowRuntimeToolNames(allNames)
+    expect(allNames.filter((name) => name.startsWith("Workflow"))).toEqual([
+      "WorkflowFulfill",
+      "WorkflowAuthor",
+    ])
   })
 
   it("registers workflow tools in the native ToolFuncRegistry", async () => {
-    const registry = composeToolRegistry({ includeInternalOnly: false })
-    expect(ToolFuncRegistry.get(registry, "WorkflowFulfill")).toBeDefined()
+    const ordinaryRegistry = composeToolRegistry({ includeInternalOnly: false })
+    expect(ToolFuncRegistry.get(ordinaryRegistry, "WorkflowFulfill")).toBeDefined()
+    expect(ToolFuncRegistry.get(ordinaryRegistry, "WorkflowAuthor")).toBeDefined()
+    expect(ToolFuncRegistry.get(ordinaryRegistry, "WorkflowInspectCapability")).toBeUndefined()
+
+    const registry = composeToolRegistry({ includeInternalOnly: false, includeWorkflowLifecycle: true })
     expect(ToolFuncRegistry.get(registry, "WorkflowInspectCapability")).toBeDefined()
-    expect(ToolFuncRegistry.get(registry, "WorkflowAuthor")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowWorkspace")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowValidateResourceRef")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowCreateBundle")).toBeDefined()
@@ -422,7 +419,7 @@ describe("native AI workflow tools", () => {
   })
 
   it("validates workflow resource refs through the native tool", async () => {
-    const registry = composeToolRegistry({ includeInternalOnly: false })
+    const registry = composeToolRegistry({ includeInternalOnly: false, includeWorkflowLifecycle: true })
     const runtime = makeRuntime()
 
     const accepted = JSON.parse(await ToolFuncRegistry.call(
@@ -446,7 +443,7 @@ describe("native AI workflow tools", () => {
   })
 
   it("creates structured workflow bundle drafts without writing host files", async () => {
-    const registry = composeToolRegistry({ includeInternalOnly: false })
+    const registry = composeToolRegistry({ includeInternalOnly: false, includeWorkflowLifecycle: true })
     const runtime = makeRuntime()
 
     const created = JSON.parse(await ToolFuncRegistry.call(
@@ -482,17 +479,12 @@ describe("native AI workflow tools", () => {
 
   it("cannot bypass proof and explicit publication through the legacy create primitive", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-tool-"))
-    const registry = composeToolRegistry({ includeInternalOnly: false })
-    const runtime = {
-      vm: {
-        outerCtx: {
-          workDir: path.dirname(workspaceRoot),
-          metadata: { aiWorkflow: { roots: { workspaceRoot } } },
-        },
-        registries: {},
-      },
-      actor: {},
-    } as any
+    const registry = composeToolRegistry({ includeInternalOnly: false, includeWorkflowLifecycle: true })
+    const runtime = makeRuntime()
+    runtime.vm.outerCtx = {
+      workDir: path.dirname(workspaceRoot),
+      metadata: { aiWorkflow: { roots: { workspaceRoot } } },
+    }
 
     const created = JSON.parse(await ToolFuncRegistry.call(
       registry,
@@ -641,7 +633,7 @@ describe("native AI workflow tools", () => {
   })
 
   it("plans workflow bundle patches through validated manifest refs", async () => {
-    const registry = composeToolRegistry({ includeInternalOnly: false })
+    const registry = composeToolRegistry({ includeInternalOnly: false, includeWorkflowLifecycle: true })
     const runtime = makeRuntime()
 
     const accepted = JSON.parse(await ToolFuncRegistry.call(
@@ -671,7 +663,7 @@ describe("native AI workflow tools", () => {
   })
 
   it("rejects the removed direct workflow-ref run bypass", async () => {
-    const registry = composeToolRegistry({ includeInternalOnly: false })
+    const registry = composeToolRegistry({ includeInternalOnly: false, includeWorkflowLifecycle: true })
     const runtime = makeRuntime()
 
     const rejected = JSON.parse(await ToolFuncRegistry.call(

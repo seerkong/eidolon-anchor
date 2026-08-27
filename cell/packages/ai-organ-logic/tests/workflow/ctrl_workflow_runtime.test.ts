@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from "bun:test"
-import { access, mkdtemp, readFile, rm } from "node:fs/promises"
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 
 import { createActor } from "@cell/ai-core-logic/runtime/actor"
 import { createVM } from "@cell/ai-core-logic/runtime/runtime"
-import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { readRuntimeControlEffectEvidence } from "@cell/ai-file-store-logic"
 import { composeToolRegistry } from "../../src/composer/AIAgent"
 import { getWorkflowRuntimeService } from "../../src/workflow"
+import { WorkflowCommandService } from "../../src/workflow/component"
 
 const roots: string[] = []
 
@@ -43,13 +43,36 @@ async function makeRuntime(existing?: { workspaceRoot: string; sessionDir: strin
 }
 
 async function call(runtime: Awaited<ReturnType<typeof makeRuntime>>, name: string, input: unknown) {
-  return JSON.parse(String(await ToolFuncRegistry.call(
-    runtime.toolRegistry,
-    name,
-    runtime.vm,
-    runtime.actor,
-    input,
-  )))
+  const service = getWorkflowRuntimeService(runtime as any)
+  const value = input as Record<string, any>
+  try {
+    if (name === "WorkflowCreateInstance") {
+      const instance = await service.createInstance({ workflowRef: String(value.workflow_ref), initialInput: value.input })
+      return { ok: true, kind: "workflow.instance", instance, effectDispatched: false }
+    }
+    if (name === "WorkflowRun") {
+      return await service.start({ instanceId: String(value.instance_id), runId: value.run_id, confirmed: value.confirmed === true })
+    }
+    if (name === "WorkflowStatus") return await service.status(String(value.run_id))
+    if (name === "WorkflowEvents") return await service.events(String(value.run_id))
+    if (name === "WorkflowResume" || name === "WorkflowResolve" || name === "WorkflowReject") {
+      const runId = String(value.run_id)
+      const current = await service.status(runId)
+      if (current?.terminal) return { ...current, kind: "workflow.runResume", resumed: false }
+      const only = current?.open_wait_handles?.length === 1 ? current.open_wait_handles[0] : undefined
+      const resumed = await service.resume(runId, {
+        signalKind: value.signal_kind ?? only?.signalKind,
+        signalKey: value.signal_key ?? only?.signalKey,
+        resumeToken: value.resume_token ?? only?.resumeToken,
+        outcome: name === "WorkflowResolve" ? "Success" : name === "WorkflowReject" ? "Failure" : value.outcome,
+        payload: value.payload,
+      })
+      return { ...resumed, resumed: true }
+    }
+    throw new Error(`Unsupported direct runtime operation: ${name}`)
+  } catch (error) {
+    return { ok: false, error: String((error as Error)?.message ?? error) }
+  }
 }
 
 async function start(runtime: Awaited<ReturnType<typeof makeRuntime>>, workflowRef: string, input: unknown) {
@@ -59,20 +82,18 @@ async function start(runtime: Awaited<ReturnType<typeof makeRuntime>>, workflowR
 }
 
 async function publish(runtime: Awaited<ReturnType<typeof makeRuntime>>, name: string, fqn: string, manifest: string) {
-  const created = await call(runtime, "WorkflowCreateBundle", {
+  const draft = new WorkflowCommandService().createBundleDraft({
     form: "ai-ctrl",
     name,
     fqn,
     manifest_content: manifest,
   })
-  expect(created.status).toBe("session_opened")
-  const sessionId = created.session.sessionId
-  await call(runtime, "WorkflowWorkspace", { operation: "diff", session_id: sessionId })
-  await call(runtime, "WorkflowValidateAuthoringSession", { session_id: sessionId })
-  await call(runtime, "WorkflowDryRunAuthoringSession", { session_id: sessionId })
-  const published = await call(runtime, "WorkflowPublishAuthoringSession", { session_id: sessionId, confirmed: true })
-  expect(published.status).toBe("published")
-  return published
+  for (const file of draft.files) {
+    const target = path.join(runtime.workspaceRoot, file.path)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, file.content, "utf8")
+  }
+  return draft
 }
 
 describe("Eidolon AI Ctrl Workflow runtime", () => {

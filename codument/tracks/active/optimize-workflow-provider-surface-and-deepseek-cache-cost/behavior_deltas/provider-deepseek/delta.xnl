@@ -1,0 +1,40 @@
+<BehaviorPatch #track.optimize-workflow-provider-surface-and-deepseek-cache-cost.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/workflow-surface-cost-selection" } (
+      <Requirement #workflow-surface-cost-selection (
+        <Statement ?>The system SHALL compare stable-superset, stage-epoch and hybrid Workflow lifecycle provider surfaces on one exact product journey and SHALL adopt only the lowest normalized-total-cost candidate that preserves authorization, recovery and same-epoch prefix correctness.</?>
+        <Suites [
+          <Suite #surface-strategy-comparison { name = "Workflow provider surface strategy comparison" } (
+            <Cases [
+              <Case #same-journey-exact-observation (
+                <Given ?>one frozen Workflow lifecycle capability, authored stage sequence, provider/model/profile and explicit cost weights</?>
+                <When ?>the three versioned surface strategies are evaluated</?>
+                <Then ?>each candidate SHALL start from an independent clone of the same frozen snapshot, traverse the exact planning-to-releasing production journey and final serializer, and report immutable raw observations without a trusted winner label</?>
+              )>
+              <Case #correctness-before-cost (
+                <Given ?>a candidate has lower estimated cost but leaks execution authority, omits a required tool, diverges within one epoch, fails fresh recovery or exceeds a ratified ceiling</?>
+                <When ?>the deterministic selector ranks candidates</?>
+                <Then ?>the candidate SHALL be rejected before normalized cost comparison</?>
+              )>
+              <Case #surface-change-is-an-epoch (
+                <Given ?>the accepted strategy changes provider-visible lifecycle schemas at a stage boundary</?>
+                <When ?>the next provider request is prepared</?>
+                <Then ?>one durable `provider_surface_revision_accepted` context epoch SHALL commit before transport, while same-stage forward turns SHALL retain exact prefix integrity `1.0`</?>
+              )>
+              <Case #independent-winner-ratification (
+                <Given ?>immutable raw observations for all three pre-frozen strategies and the G1 weights and ceilings</?>
+                <When ?>a separate pure selector recomputes eligibility and journey-wide cost</?>
+                <Then ?>it SHALL reject incorrect candidates, compute hits only from exact same-epoch prefix units, count initial and epoch-successor units as misses, avoid double-counting tool/control breakdowns, and ignore or reject any embedded winner claim</?>
+              )>
+              <Case #provider-contracts-remain-separate (
+                <Given ?>deterministic fixtures, an official DeepSeek endpoint and a DeepSeek-compatible endpoint expose different evidence</?>
+                <When ?>cost and cache results are reported</?>
+                <Then ?>fixture estimates, official cache hit/miss usage and compatible-provider observations SHALL remain separate and unavailable live evidence SHALL NOT be claimed as a pass</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

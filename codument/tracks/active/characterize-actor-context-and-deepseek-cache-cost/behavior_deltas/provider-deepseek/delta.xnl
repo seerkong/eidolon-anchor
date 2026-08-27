@@ -1,0 +1,40 @@
+<BehaviorPatch #track.characterize-actor-context-and-deepseek-cache-cost.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/cache-cost-observation" } (
+      <Requirement #cache-cost-observation (
+        <Statement ?>DeepSeek provider integration SHALL expose value-safe final-wire structural-prefix, final-success cache-usage and normalized input-cost observations without changing the request or creating a second conversation authority.</?>
+        <Suites [
+          <Suite #final-wire-observation { name = "Final-wire cache and cost observation" } (
+            <Cases [
+              <Case #same-epoch-prefix (
+                <Given ?>two consecutive admitted DeepSeek requests belong to the same provider/model/profile/context epoch</?>
+                <When ?>the cache-cost observer compares their canonical messages and tool surfaces</?>
+                <Then ?>it SHALL report retainedPrefixIntegrity using prior cache-relevant units as denominator, reuseOpportunityCoverage using current cache-relevant units as denominator, and first divergence from one explicit provider-profile final-wire unit definition without exposing prompt or tool values</?>
+              )>
+              <Case #actor-class-baseline (
+                <Given ?>equivalent ordinary, Workflow lifecycle and AI Workflow node Agent journeys are observed</?>
+                <When ?>their request and usage observations are summarized</?>
+                <Then ?>Workflow-only prompt/tool tokens, cache hit/miss tokens and normalized input cost SHALL remain separately attributable to the exact Actor class</?>
+              )>
+              <Case #official-versus-compatible (
+                <Given ?>one provider uses the official DeepSeek cache usage contract and another is a DeepSeek-compatible provider</?>
+                <When ?>cache evidence is accepted</?>
+                <Then ?>the system SHALL require an explicit compatibility profile and MUST NOT combine or infer the two contracts from provider names</?>
+              )>
+              <Case #final-success-only (
+                <Given ?>a provider call retries, fails, omits usage or eventually succeeds</?>
+                <When ?>cache-cost facts are recorded</?>
+                <Then ?>only closed finite non-negative final-success usage SHALL count as provider hit/miss evidence and no attempt SHALL be double counted</?>
+              )>
+              <Case #live-official-baseline (
+                <Given ?>an official DeepSeek cache-capable provider profile and secret capability are available</?>
+                <When ?>the baseline gate executes after warm-up</?>
+                <Then ?>it SHALL record 3–5 grouped official hit/miss observations separately from compatible providers; unavailable official capability SHALL block the live gate rather than accepting simulated or compatible evidence</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

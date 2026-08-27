@@ -1,10 +1,31 @@
 import { describe, expect, it } from "bun:test";
 import { buildProviderDriverRegistry, getProviderDriver, ProviderExecutionError, ProviderRuntimeLlmAdapter } from "@cell/ai-organ-logic/llm";
 import type { ProviderDriverDefinition } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import { resolveProviderEpochProfileId } from "../../src/conversation/ProviderEpoch";
 import { buildWorkflowNativeToolDefs } from "../../src/workflow/tools";
 
 function sseDone(): Response {
   return new Response("data: [DONE]\n\n", {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream" },
+  });
+}
+
+function sseDoneWithUsage(): Response {
+  return new Response([
+    `data: ${JSON.stringify({
+      choices: [{ delta: { content: "ok" }, finish_reason: null }],
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 4,
+        total_tokens: 104,
+        prompt_cache_hit_tokens: 75,
+        prompt_cache_miss_tokens: 25,
+      },
+    })}`,
+    "data: [DONE]",
+    "",
+  ].join("\n\n"), {
     status: 200,
     headers: { "Content-Type": "text/event-stream" },
   });
@@ -21,7 +42,7 @@ describe("provider runtime driver registry", () => {
     expect(getProviderDriver("deepseek").name).toBe("deepseek-chat");
   });
 
-  it("prepares DeepSeek provider requests with cache-aware metadata", () => {
+  it("keeps runtime capability/cache observations outside DeepSeek wire requests", () => {
     const adapter = new ProviderRuntimeLlmAdapter({
       providerId: "deepseek",
       selectedModel: "deepseek/deepseek-reasoner",
@@ -29,6 +50,7 @@ describe("provider runtime driver registry", () => {
       options: {
         apiKey: "k-deepseek",
         baseURL: "https://api.deepseek.com/v1",
+        compatibility_profile: "deepseek-official-chat@1",
       },
     });
 
@@ -37,22 +59,28 @@ describe("provider runtime driver registry", () => {
     expect(prepared.driver.name).toBe("deepseek-chat");
     expect(prepared.connectionOptions.api_key).toBe("k-deepseek");
     expect(prepared.contract.body?.model).toBe("deepseek-reasoner");
-    expect(prepared.contract.body?.cache_profile).toEqual(
-      expect.objectContaining({
-        provider_family: "deepseek",
-        stable_prefix: true,
-        provider_managed_prefix_cache: true,
-        prefer_late_compaction: true,
-      }),
-    );
-    expect(prepared.contract.body?.model_capabilities).toEqual(
-      expect.objectContaining({
-        family: "deepseek",
-        reasoningEffort: "high",
-      }),
-    );
-    expect(Object.values(prepared.contract.body?.model_capabilities ?? {}))
-      .not.toContain(undefined);
+    expect(prepared.contract.body).not.toHaveProperty("cache_profile");
+    expect(prepared.contract.body).not.toHaveProperty("model_capabilities");
+    expect(prepared.runtime.chatCompatibilityProfileId).toBe("deepseek-official-chat@1");
+  });
+
+  it("never infers official DeepSeek compatibility from a provider name", () => {
+    expect(() => new ProviderRuntimeLlmAdapter({
+      providerId: "deepseek",
+      selectedModel: "custom-compatible-model",
+      adapterName: "deepseek",
+      options: { apiKey: "k", baseURL: "https://compatible.example/v1" },
+    })).toThrow("provider_chat_compatibility_profile_required");
+    expect(() => resolveProviderEpochProfileId({
+      adapter: "deepseek",
+      provider: "deepseek",
+      model: "custom-compatible-model",
+    })).toThrow("provider_chat_compatibility_profile_required");
+    expect(resolveProviderEpochProfileId({
+      adapter: "deepseek",
+      provider: "arbitrary-provider-name",
+      model: "deepseek-chat",
+    }, "deepseek-official-chat@1")).toBe("deepseek-official-chat@1");
   });
 
   it("sends the real authoring-session schema through the configured DeepSeek runtime", async () => {
@@ -75,6 +103,7 @@ describe("provider runtime driver registry", () => {
         options: {
           apiKey: "test-key",
           baseURL: "https://api.deepseek.com/v1",
+          compatibility_profile: "deepseek-official-chat@1",
         },
         runtime: {
           requestObservationPort: {
@@ -100,18 +129,112 @@ describe("provider runtime driver registry", () => {
         workflowOpen.schema.function.parameters,
       );
       expect(body.tools[0].function.parameters.type).toBe("object");
-      expect(body.tools[0].function.parameters.oneOf).toHaveLength(3);
-      expect(body.model_capabilities).toEqual({
-        family: "deepseek",
-        cachePolicy: {
-          stablePrefix: true,
-          providerManagedPrefixCache: true,
-          preferLateCompaction: true,
-        },
-      });
+      expect(body.tools[0].function.parameters.oneOf).toHaveLength(
+        workflowOpen.schema.function.parameters.oneOf.length,
+      );
+      expect(body).not.toHaveProperty("model_capabilities");
+      expect(body).not.toHaveProperty("cache_profile");
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it("binds final admitted DeepSeek bytes to final-success usage without changing the request", async () => {
+    const observations: any[] = [];
+    let fetchedBody = "";
+    let fetchCalls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url, init) => {
+      fetchCalls += 1;
+      fetchedBody = String(init?.body ?? "");
+      if (fetchCalls === 1) {
+        return new Response('{"error":{"message":"temporary","code":"server_error"}}', {
+          status: 503,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return sseDoneWithUsage();
+    }) as typeof fetch;
+    try {
+      const adapter = new ProviderRuntimeLlmAdapter({
+        providerId: "deepseek",
+        selectedModel: "deepseek-chat",
+        adapterName: "deepseek",
+        options: {
+          apiKey: "test-key",
+          baseURL: "https://api.deepseek.com/v1",
+          compatibility_profile: "deepseek-official-chat@1",
+        },
+        runtime: {
+          requestObservationPort: {
+            append: (observation) => observations.push(observation),
+            appendOutcome: () => undefined,
+          },
+        },
+      });
+      const result = await adapter.createStream({
+        model: "deepseek-chat",
+        messages: [{ role: "user", content: "hello" }],
+        tools: [],
+        providerCacheCostObservation: {
+          actorClass: "ordinary",
+          contextEpoch: 3,
+          tokenEstimates: { toolSurfaceTokens: 0, workflowControlTokens: 0 },
+          priceWeights: { cacheHitWeight: 0.1, cacheMissWeight: 1 },
+        },
+      });
+      for await (const _chunk of result.stream) {
+        // Final-success usage becomes authoritative only after full consumption.
+      }
+      const output = await result.providerOutput as any;
+
+      expect(fetchCalls).toBe(2);
+      expect(observations).toHaveLength(2);
+      expect(observations.every((observation) => observation.requestBody === fetchedBody)).toBe(true);
+      expect(output.provider_cache_cost_observation.identity).toEqual(expect.objectContaining({
+        providerId: "deepseek",
+        providerProfile: "deepseek_official",
+        actorClass: "ordinary",
+        contextEpoch: 3,
+      }));
+      expect(output.provider_cache_cost_observation.tokenBreakdown.usage).toEqual(expect.objectContaining({
+        cacheHitTokens: 75,
+        cacheMissTokens: 25,
+      }));
+      expect(output.provider_cache_cost_observation.tokenBreakdown.normalizedInputCost).toBe(32.5);
+      expect(output.provider_cache_cost_observation.tokenBreakdown.usage.cacheHitTokens).toBe(75);
+      expect(JSON.stringify(output.provider_cache_cost_observation)).not.toContain("hello");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("selects a third-party DeepSeek compatibility profile only from explicit versioned config", () => {
+    const adapter = new ProviderRuntimeLlmAdapter({
+      providerId: "siliconflow",
+      selectedModel: "siliconflow/deepseek-ai/DeepSeek-V4-Flash",
+      adapterName: "deepseek",
+      options: {
+        apiKey: "test-key",
+        baseURL: "https://example.invalid/v1",
+        compatibilityProfile: "deepseek-compatible-chat@1",
+      },
+    });
+    expect(adapter.runtime.chatCompatibilityProfileId).toBe("deepseek-compatible-chat@1");
+
+    expect(() => new ProviderRuntimeLlmAdapter({
+      providerId: "siliconflow",
+      selectedModel: "siliconflow/deepseek-ai/DeepSeek-V4-Flash",
+      adapterName: "deepseek",
+      options: { baseURL: "https://api.deepseek.com/v1" },
+    })).toThrow("provider_chat_compatibility_profile_required");
+
+    expect(() => new ProviderRuntimeLlmAdapter({
+      providerId: "deepseek",
+      selectedModel: "deepseek/deepseek-chat",
+      adapterName: "deepseek",
+      options: { compatibilityProfile: "future-profile@99" },
+    })).toThrow("invalid_provider_chat_compatibility_profile");
   });
 
   it("keeps runtime-only prompt diagnostics out of DeepSeek request contracts", () => {
@@ -122,6 +245,7 @@ describe("provider runtime driver registry", () => {
       options: {
         apiKey: "k-deepseek",
         baseURL: "https://api.deepseek.com/v1",
+        compatibility_profile: "deepseek-official-chat@1",
       },
     });
 

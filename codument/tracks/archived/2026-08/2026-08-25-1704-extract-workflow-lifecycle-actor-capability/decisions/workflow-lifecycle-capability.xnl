@@ -1,0 +1,47 @@
+<decision #runtime-facet-owner apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?>中性 Actor runtime facet 的 registry、state mutation 与 hook order 由谁拥有？</?>
+  <answer (
+    <raw-answer ?>每个 VM 注入自己的 registry；Actor state 仍是唯一 facet owner；使用 runtime-first Processor 与 revision CAS，不使用进程 singleton。</?>
+    <decision-text ?>`VmRuntimeContext.actorFacetRuntime` 是每 VM 的 runtime-only codec/profile/hook registry。`actor.runtimeFacets` 是唯一持久 state owner。create/read/replace/event dispatch 使用 design 中冻结的四个 runtime-first Processor；replace 必须比较 expectedRevision 并一次替换完整 envelope。standard streaming 与 cooperative loop 使用相同 beforeTurn → aroundProvider → afterToolOutcome 顺序。provider continuation/effect 只能放在 invocation-scoped runtime port；selector/invocation 只含 closed facts，config 只含静态 closed flags/limits，任何 function 都不得进入 invocation、config 或持久状态。</?>
+    <rationale ?>Registry 是运行时依赖，不是事实 authority；Actor snapshot 是持久 authority。每 VM 注入避免测试/多 runtime 相互污染，完整替换和 CAS 避免 domain facet 被通用 core 部分更新。</?>
+    <evidence ?>Mission dedicated lifecycle capability boundary；现有 AiAgentExecutor 两条 loop 的 Workflow hook 调用位置。</?>
+  )>
+  <confidence ?>0.95</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #legacy-workflow-facet-migration-witness apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?>没有新 facet proof 的 v3 legacy Workflow Actor 依靠什么一次性迁移，而不把旧名称当作永久授权？</?>
+  <answer (
+    <raw-answer ?>使用仅适用于 snapshot v3 的闭合复合 witness；迁移完成后只能用新 facet proof。</?>
+    <decision-text ?>v3→v4 importer 只接受 exact legacy conjunction：trusted snapshot manifest/receipt、delegate Actor、非空 parentKey、legacy agentName=workflow、closed workflowProgress、已冻结的 Workflow provider surface或其旧 stage policy、以及 snapshot system prompt 中唯一可解析的 managed DevOps Skill material。providerContextClass 若存在必须是 workflow_lifecycle。任一缺失/歧义/冲突 fail closed。该 witness 只允许 mint 一次 v1 facet并在一个新 v4 generation 删除旧字段；local snapshot repository 先写/fsync contained immutable generation与绑定source/target manifest/tree digest的closed attempt receipt，最后CAS并atomic替换manifest head。legacy root永不原地覆盖；中断重试只能收敛到同一generation/head或fail closed。该 witness 在 v4 execution中无授权效力。</?>
+    <rationale ?>旧格式没有 capability receipt，无法追溯创建时重新签名。可信 snapshot authority中的多个独立旧事实可以保守识别已存在的 lifecycle Actor，同时通过版本限定、one-way rewrite 与新 proof阻断长期名称授权。</?>
+    <evidence ?>Runtime snapshot schema v3 的旧事实；WorkflowAuthor/Fulfill 旧实现创建 delegate `agentName=workflow` 并注入 managed Skill 与 Workflow tool surface。</?>
+  )>
+  <confidence ?>0.85</?>
+  <reversibility ?>low</?>
+)>
+
+<decision #workflow-tool-profile-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?>Workflow tool definition registry 与 lifecycle Actor 的实际 admitted surface 如何区分和冻结？</?>
+  <answer (
+    <raw-answer ?>registry只提供定义；versioned lifecycle profile决定 exact admitted names；facet冻结profile revision和digest。</?>
+    <decision-text ?>内部 definition registry可包含全部 Workflow tool definitions但不授予可见性/执行权。`eidolon.workflow-lifecycle-tools/v1` profile只包含当前 `AI_WORKFLOW_PROVIDER_TOOL_SURFACE` 的 exact code-unit-sorted names和canonical schema digest；不会自动加入该union之外的六个定义。facet冻结 profileId/revision/namesDigest，visibility和execution必须同时命中同一facet proof、profile revision及exact member。fresh recovery找不到相同revision时fail closed，不用新profile替代。</?>
+    <rationale ?>把所有定义绑定给Actor会扩大权限和provider成本；冻结实际profile既保持当前能力，又为后续surface epoch实验保留显式revision边界。</?>
+    <evidence ?>Workflow stage catalog 的 public/internal split；G1成本预算禁止隐式surface增长。</?>
+  )>
+  <confidence ?>0.95</?>
+  <reversibility ?>moderate</?>
+)>
+
+<decision #workflow-skill-material-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?>live Skill变化后，既有 lifecycle Actor 从哪里恢复原始资源包 bytes，诊断又如何避免复制tool output？</?>
+  <answer (
+    <raw-answer ?>完整 reachable Workflow resource package bytes 进入通用 Actor-owned durable material；facet 只保存 content-addressed reference 与 provenance，诊断只保存 self-contained identity/digest evidence。</?>
+    <decision-text ?>通用 `actor.durableMaterials` 是 Actor 所需不可变资源 bytes 的唯一持久 authority，索引键、material digest 与解码 bytes 的 SHA-256 必须一致。Workflow facet 只保存 resource-package ref：revision、packageDigest、materialDigest 与 provenanceDigest；fresh recovery 沿该引用读取 Actor material，复验完整 frozen package，禁止回读 live Skill 或全局 registry 替换。v1 facet 不得保存 raw diagnostic/tool/provider output 或可悬空 record ref；`lastDiagnosticEvidence` 只能是 `{kind:tool-call-digest,actorKey,toolCallId,recordDigest}` 或 `{kind:legacy-digest,digest}`。前者在 ToolCallDomain terminal commit 后生成；legacy raw 只计算 digest 后丢弃。</?>
+    <rationale ?>通用 durable-material authority 使完整资源 bytes 可在 fresh process 重建，同时避免把 Workflow bytes 塞入 domain facet、复制 ToolCallDomain authority或创建第二个 package store；live 升级只影响新 Actor。</?>
+    <evidence ?>Actor durable-material codec与snapshot round-trip；lifecycle capsule old-Actor/fresh-VM 保持旧 revision、新 Actor取得新 revision；facet JSON 不含资源 bytes。</?>
+  )>
+  <confidence ?>0.95</?>
+  <reversibility ?>moderate</?>
+)>

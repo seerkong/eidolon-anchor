@@ -17,7 +17,17 @@ export type MutableProviderProjectionContextEffect = {
   placement: "late";
 };
 
-export type ToolContextEffect = MutableProviderProjectionContextEffect;
+export type AppendProviderContextFactEffect = {
+  kind: "append_provider_context_fact";
+  namespace: string;
+  logicalKey: string;
+  revision: string;
+  payload: Readonly<Record<string, unknown>>;
+};
+
+export type ToolContextEffect =
+  | MutableProviderProjectionContextEffect
+  | AppendProviderContextFactEffect;
 
 export type ToolExecutionOutcome =
   | { status: "completed" }

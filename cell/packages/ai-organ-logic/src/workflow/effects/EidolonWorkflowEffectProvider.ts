@@ -32,6 +32,11 @@ import type {
 } from "../../resources"
 import { normalizeAgentExecutionValue, projectAgentExecutionOutput } from "../../agent/AgentExecutionContract"
 import type { WorkflowStepExtensionAuthoredFacade } from "./WorkflowStepExtensionAuthoredFacade"
+import {
+  assertWorkflowNodeActorIsolation,
+  assertWorkflowNodeAgentConfigIsolation,
+  createWorkflowNodeActorOrigin,
+} from "../runtime/WorkflowNodeActorAdmission"
 
 export type { WorkflowStepExtensionAuthoredFacade } from "./WorkflowStepExtensionAuthoredFacade"
 
@@ -216,6 +221,9 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         throw new Error(`WORKFLOW_RESOURCE_AGENT_EFFECT_FAILED: ${recovered.error}`)
       }
     }
+    const preparedResourceAgent = recoverResourceAgentResult
+      ? await this.prepareResourceAgentDispatch(request)
+      : undefined
     const eventBase = {
       runId: request.run.runId,
       generation: request.run.generation,
@@ -243,7 +251,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
     })
 
     try {
-      const output = await this.dispatch(request)
+      const output = await this.dispatch(request, preparedResourceAgent)
       if (request.operation === "material.write" && this.onMaterialWrite) {
         const materialOutput = record(output)
         await this.onMaterialWrite(request, {
@@ -338,7 +346,10 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
     return { kind: "pending" }
   }
 
-  private async dispatch(request: AIWorkflowEffectRequest): Promise<unknown> {
+  private async dispatch(
+    request: AIWorkflowEffectRequest,
+    preparedResourceAgent?: EidolonPreparedWorkflowAgentExecution,
+  ): Promise<unknown> {
     const input = record(request.input)
     const config = record(request.config)
     switch (request.operation) {
@@ -359,7 +370,10 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       }
       case "ai.agent": {
         if (request.run.workflow.scheme === "resource") {
-          return this.dispatchResourceAgent(request, input, config)
+          if (!preparedResourceAgent) {
+            throw new Error("Resource workflow Agent execution requires frozen pre-dispatch admission")
+          }
+          return this.dispatchResourceAgent(request, input, config, preparedResourceAgent)
         }
         const agentType = text(input.agentType ?? input.agent_type, text(config.agentType ?? config.agent_type, "code"))
         const prompt = text(input.prompt, typeof request.input === "string" ? request.input : JSON.stringify(request.input, null, 2))
@@ -367,6 +381,13 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
           description: text(input.description, `Workflow node ${request.nodeId ?? request.effectId}`),
           prompt,
           agentType,
+          origin: createWorkflowNodeActorOrigin({
+            runId: request.run.runId,
+            generation: request.run.generation,
+            nodeId: request.nodeId ?? request.effectId,
+            effectId: request.effectId,
+            agentType,
+          }),
           mode: "sync_wait",
           toolCallId: request.effectId,
         })
@@ -391,10 +412,8 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
     request: AIWorkflowEffectRequest,
     input: Record<string, unknown>,
     config: Record<string, unknown>,
+    prepared: EidolonPreparedWorkflowAgentExecution,
   ): Promise<unknown> {
-    if (!this.agentResources) {
-      throw new Error("Resource workflow Agent execution requires a bound resource registry")
-    }
     const agentDefinitionRef = selectExactAgentDefinitionRef(input, config)
     const nodeId = typeof request.nodeId === "string" ? request.nodeId : ""
     if (!nodeId || nodeId !== nodeId.trim()) {
@@ -403,17 +422,19 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
     if (Object.prototype.hasOwnProperty.call(input, "prompt")) {
       throw new Error("Resource workflow ai.agent does not accept a free prompt; use the explicit payload field")
     }
-    const payload = normalizeAgentExecutionValue(input.payload ?? null, "input.payload")
-    const prepared: EidolonPreparedWorkflowAgentExecution = await this.agentResources.resourceRegistry.prepareWorkflowAgentExecution({
-      workflowKind: this.agentResources.workflowForm,
-      workflowRef: request.run.workflow.ref as `resource://${string}`,
-      nodeId,
-      agentDefinitionRef,
-    }, { payload })
     if (prepared.plan.agentDefinitionRef !== agentDefinitionRef) {
       throw new Error("Prepared resource Agent plan does not match the requested Agent definition")
     }
     const prompt = JSON.stringify(prepared.plan.executionContract.input)
+    const origin = createWorkflowNodeActorOrigin({
+      runId: request.run.runId,
+      generation: request.run.generation,
+      workflowRef: request.run.workflow.ref,
+      nodeId,
+      effectId: request.effectId,
+      agentDefinitionRef,
+      semanticFingerprint: prepared.receipt.semanticFingerprint,
+    })
     const typedHost = config.typedHost === true
     if (typedHost) {
       const targetValue = config.targetInstance
@@ -431,7 +452,9 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         prompt,
         agentType: agentDefinitionRef,
         resolvedConfig: prepared.plan.agentConfig,
+        origin,
         toolCallId: request.effectId,
+        validateActor: assertWorkflowNodeActorIsolation,
         ...(target === undefined ? {} : { target }),
         ...(target !== undefined || taskAttemptSessionId === undefined
           ? {}
@@ -458,10 +481,48 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       prompt,
       agentType: agentDefinitionRef,
       resolvedConfig: prepared.plan.agentConfig,
+      origin,
       mode: "sync_wait",
       toolCallId: request.effectId,
+      validateBeforeRegistration: assertWorkflowNodeActorIsolation,
     })
     return projectAgentExecutionOutput(prepared.plan.executionContract, outputText)
+  }
+
+  private async prepareResourceAgentDispatch(
+    request: AIWorkflowEffectRequest,
+  ): Promise<EidolonPreparedWorkflowAgentExecution> {
+    if (!this.agentResources) {
+      throw new Error("Resource workflow Agent execution requires a bound resource registry")
+    }
+    const input = record(request.input)
+    const config = record(request.config)
+    const agentDefinitionRef = selectExactAgentDefinitionRef(input, config)
+    const nodeId = typeof request.nodeId === "string" ? request.nodeId : ""
+    if (!nodeId || nodeId !== nodeId.trim()) {
+      throw new Error("Resource workflow ai.agent requires an exact nodeId")
+    }
+    if (Object.prototype.hasOwnProperty.call(input, "prompt")) {
+      throw new Error("Resource workflow ai.agent does not accept a free prompt; use the explicit payload field")
+    }
+    const payload = normalizeAgentExecutionValue(input.payload ?? null, "input.payload")
+    const prepared = await this.agentResources.resourceRegistry.prepareWorkflowAgentExecution({
+      workflowKind: this.agentResources.workflowForm,
+      workflowRef: request.run.workflow.ref as `resource://${string}`,
+      nodeId,
+      agentDefinitionRef,
+    }, { payload })
+    if (prepared.plan.agentDefinitionRef !== agentDefinitionRef) {
+      throw new Error("Prepared resource Agent plan does not match the requested Agent definition")
+    }
+    const declared = prepared.plan.agentConfig.tools
+    if (declared === "*"
+      || declared.length !== prepared.plan.toolResourceIds.length
+      || declared.some((name, index) => name !== prepared.plan.toolResourceIds[index])) {
+      throw new Error("WORKFLOW_NODE_TOOL_AUTHORITY_MISMATCH: frozen plan tools differ from AgentDefinition tools")
+    }
+    assertWorkflowNodeAgentConfigIsolation(prepared.plan.agentConfig)
+    return prepared
   }
 
   private appendEvent(request: AIWorkflowEffectRequest, event: AIWorkflowRunEvent): Promise<void> {

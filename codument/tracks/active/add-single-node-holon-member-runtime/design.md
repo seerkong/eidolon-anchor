@@ -20,7 +20,7 @@ Shared addresses derive exactly from `(deploymentId, holonRef)` for coordinators
 
 Shared MemberRuntime does not imply one deployment-wide conversation. Every dispatch carries closed `taskSpaceId`, `taskId`, `claimId`, `workflowInstanceId/runId` when present, and stable `invocationId`. Default conversation policy is `{mode:"task-attempt"}` and resolves one durable generic session for the exact task claim attempt.
 
-Cross-node or cross-task Agent continuity is explicit only through `{mode:"targeted-agent-instance", selector:{byInstanceId:string}|{byInstanceName:string}}`, authorized by the frozen execution binding and dispatched through the existing `runTargetedAgent` seam. The two selector keys are mutually exclusive and exact; missing, conflicting, ambiguous or unresolved selectors fail closed under the generic Agent owner. Flow/TaskSpace stores only returned opaque Agent instance/session refs and never conversation content.
+Cross-node or cross-task Agent continuity is explicit only through `{mode:"targeted-agent-instance", selector:{byId:string}|{byName:string}}`, authorized by the frozen execution binding and dispatched through the existing `runTargetedAgent` seam. The two selector keys are mutually exclusive and exact; legacy instance-prefixed keys, missing, conflicting, ambiguous or unresolved selectors fail closed under the generic Agent owner. Flow/TaskSpace stores only returned opaque Agent instance/session refs and never conversation content.
 
 ## Actor integration
 

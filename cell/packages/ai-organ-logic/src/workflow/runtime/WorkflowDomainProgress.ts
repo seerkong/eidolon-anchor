@@ -106,6 +106,23 @@ export function withWorkflowDomainProgress<T extends object>(
   }
 }
 
+export function normalizeWorkflowDomainProgressFact(value: unknown): WorkflowDomainProgressFact | undefined {
+  if (!isClosedPlainDataRecord(value, FACT_KEYS)) return undefined
+  const subjectId = exactText(value.subjectId)
+  const revision = exactText(value.revision)
+  if (value.kind !== WORKFLOW_DOMAIN_PROGRESS_KIND) return undefined
+  if (value.schemaVersion !== WORKFLOW_DOMAIN_PROGRESS_SCHEMA_VERSION) return undefined
+  if (!OWNERS.has(value.owner as WorkflowDomainProgressOwner)) return undefined
+  if (!TRANSITIONS.has(value.transition as WorkflowDomainProgressTransition)) return undefined
+  if (!subjectId || !revision) return undefined
+  return createWorkflowDomainProgressFact({
+    owner: value.owner as WorkflowDomainProgressOwner,
+    transition: value.transition as WorkflowDomainProgressTransition,
+    subjectId,
+    revision,
+  })
+}
+
 export function parseWorkflowDomainProgressFact(outputText: string | undefined): WorkflowDomainProgressFact | undefined {
   if (!outputText) return undefined
   let envelope: unknown
@@ -122,19 +139,5 @@ export function parseWorkflowDomainProgressFact(outputText: string | undefined):
   const progress = Object.getOwnPropertyDescriptor(envelope, "workflow_progress")
   if (!ok || !("value" in ok) || !ok.enumerable || ok.value !== true) return undefined
   if (!progress || !("value" in progress) || !progress.enumerable) return undefined
-  if (!isClosedPlainDataRecord(progress.value, FACT_KEYS)) return undefined
-  const fact = progress.value
-  const subjectId = exactText(fact.subjectId)
-  const revision = exactText(fact.revision)
-  if (fact.kind !== WORKFLOW_DOMAIN_PROGRESS_KIND) return undefined
-  if (fact.schemaVersion !== WORKFLOW_DOMAIN_PROGRESS_SCHEMA_VERSION) return undefined
-  if (!OWNERS.has(fact.owner as WorkflowDomainProgressOwner)) return undefined
-  if (!TRANSITIONS.has(fact.transition as WorkflowDomainProgressTransition)) return undefined
-  if (!subjectId || !revision) return undefined
-  return createWorkflowDomainProgressFact({
-    owner: fact.owner as WorkflowDomainProgressOwner,
-    transition: fact.transition as WorkflowDomainProgressTransition,
-    subjectId,
-    revision,
-  })
+  return normalizeWorkflowDomainProgressFact(progress.value)
 }

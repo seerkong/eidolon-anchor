@@ -14,6 +14,7 @@ describe("createActor", () => {
     expect(actor.ctrlOptions.stopAfterFirstTool).toBe(false);
     expect(actor.toolPolicy.allowedToolsMode).toBe("all");
     expect(actor.toolPolicy.allowedTools).toEqual([]);
+    expect(actor.toolPolicy.providerToolSurface).toEqual({ mode: "all", toolNames: [] });
     expect(actor.priority).toEqual(AI_AGENT_MAILBOXES);
     expect((actor as any).watchState).toBe("unwatched");
   });
@@ -46,6 +47,7 @@ describe("createActor", () => {
     expect(actor.ctrlOptions.stopAfterFirstTool).toBe(true);
     expect(actor.toolPolicy.allowedToolsMode).toBe("exact");
     expect(actor.toolPolicy.allowedTools).toEqual(["read"]);
+    expect(actor.toolPolicy.providerToolSurface).toEqual({ mode: "exact", toolNames: ["read"] });
   });
 
   it("round-trips an exact empty tool policy without widening it", () => {
@@ -58,6 +60,26 @@ describe("createActor", () => {
 
     expect(restored.toolPolicy.allowedToolsMode).toBe("exact");
     expect(restored.toolPolicy.allowedTools).toEqual([]);
+    expect(restored.toolPolicy.providerToolSurface).toEqual({ mode: "exact", toolNames: [] });
+  });
+
+  it("round-trips an explicit provider presentation surface separately from execution policy", () => {
+    const actor = createActor({
+      key: "stable-provider-surface",
+      toolPolicy: {
+        allowedToolsMode: "exact",
+        allowedTools: ["read"],
+        providerToolSurface: { mode: "exact", toolNames: ["read", "write"] },
+      },
+    });
+
+    const restored = hydrateActor(serializeActor(actor));
+
+    expect(restored.toolPolicy.allowedTools).toEqual(["read"]);
+    expect(restored.toolPolicy.providerToolSurface).toEqual({
+      mode: "exact",
+      toolNames: ["read", "write"],
+    });
   });
 
   it("supports detached actors and the new organization identities", () => {

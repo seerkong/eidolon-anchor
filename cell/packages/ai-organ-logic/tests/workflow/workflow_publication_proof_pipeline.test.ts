@@ -183,7 +183,7 @@ describe("workflow publication proof pipeline", () => {
         diagnostic: "data-code-agent-contract",
         source: `export async function destructuredAgentCapability(runtime: any, input: any, config: any) {
   const { runTargetedAgent: targeted } = runtime.ai.effects
-  const result = await targeted({ byInstanceName: "shared" }, { input }, config)
+  const result = await targeted({ byName: "shared" }, { input }, config)
   return { result }
 }\n`,
       },
@@ -202,7 +202,7 @@ describe("workflow publication proof pipeline", () => {
         exportName: "templateTargetedCapability",
         diagnostic: "data-code-agent-contract",
         source: `export async function templateTargetedCapability(runtime: any, input: any, config: any) {
-  const result = await runtime.ai.effects[\`runTargetedAgent\`]({ byInstanceName: "shared" }, { input }, config)
+  const result = await runtime.ai.effects[\`runTargetedAgent\`]({ byName: "shared" }, { input }, config)
   return { result }
 }\n`,
       },
@@ -234,7 +234,7 @@ describe("workflow publication proof pipeline", () => {
   const effects = runtime.ai.effects
   const method = "runTargetedAgent"
   const fn = effects[method]
-  const result = await fn({ byInstanceName: "shared" }, { input }, config)
+  const result = await fn({ byName: "shared" }, { input }, config)
   return { result }
 }\n`,
       },

@@ -68,6 +68,15 @@ import {
   readToolCallRecordOutputText,
   restoreVmToolCallDomain,
 } from "../runtime/ToolCallDomainRuntime"
+import {
+  assertWorkflowLifecycleActorCapability,
+  createWorkflowLifecycleFacetRegistry,
+  migrateWorkflowLifecycleFacetV1,
+  readWorkflowLifecycleFacet,
+} from "../workflow/runtime/WorkflowLifecycleFacet"
+import { recoverWorkflowLifecycleActorCapability } from "../workflow/runtime/WorkflowLifecycleActorCapsule"
+import { resolveWorkflowLifecycleToolProfileRegistry } from "../workflow/tools/WorkflowLifecycleToolProfileRuntime"
+import { assertWorkflowNodeActorIsolation, hasExactWorkflowNodeActorOrigin } from "../workflow/runtime/WorkflowNodeActorAdmission"
 import type { ToolCallRecord } from "@cell/ai-core-contract/runtime/ToolCallDomain"
 import type { DelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode"
 import type {
@@ -106,8 +115,8 @@ import {
   readRuntimeControlEffectEvidence,
   readRuntimeControlEffectEvidenceThroughSequence,
   readRuntimeControlSessionUpgradeFile,
-  type AiRuntimeEffectLifecycleEvent,
 } from "@cell/ai-file-store-logic"
+import type { AiRuntimeEffectLifecycleEvent } from "@cell/ai-runtime-control-contract"
 // P2 seam (track refactor-persistent-session-backplane): the pure-I/O
 // persistence routing (snapshot repo access, derived-index read/write,
 // conversation-persistence repo access, snapshot existence + deserialize-side
@@ -1680,6 +1689,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     Awaited<ReturnType<typeof loadConversationActorRawState>>
   >()
 
+  const actorFacetRuntime = createWorkflowLifecycleFacetRegistry()
   const actorEntries = await Promise.all(
     Object.values(loaded.actors).map(async (snapshot) => {
       // Single-source read via the read port: each conversation fact from its
@@ -1696,7 +1706,24 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
         llmClient: params.llmClient ?? null,
         callbacks: params.actorCallbacks,
         messages: [],
+        actorFacetRuntime,
       })
+      // Facet v1 is an exact recovery input, not an admissible runtime value.
+      // Run the one-way importer before any v2-only read or registration.
+      migrateWorkflowLifecycleFacetV1(actor)
+      if (readWorkflowLifecycleFacet(actor)) {
+        const toolRegistry = params.registries?.toolRegistry
+        if (!toolRegistry) {
+          throw new Error("WORKFLOW_LIFECYCLE_TOOL_PROFILE_UNAVAILABLE: recovery requires the exact VM tool registry")
+        }
+        assertWorkflowLifecycleActorCapability({
+          actor,
+          profileRegistry: resolveWorkflowLifecycleToolProfileRegistry(toolRegistry),
+        })
+      }
+      if (hasExactWorkflowNodeActorOrigin(actor)) {
+        assertWorkflowNodeActorIsolation(actor)
+      }
       hydrateActorContextControlFromConversation({
         actor,
         actorRawState,
@@ -1726,6 +1753,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
   const actors = Object.fromEntries(actorEntries)
 
   const vm = hydrateVM(loaded.vm, actors, {
+    runtimeContext: { actorFacetRuntime },
     eventBus: params.eventBus ?? null,
     registries: params.registries,
     callbacks: params.callbacks,
@@ -1748,6 +1776,9 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
     },
     mcpManager: params.mcpManager,
   })
+  for (const actor of Object.values(actors)) {
+    recoverWorkflowLifecycleActorCapability(vm, actor)
+  }
   hydrateQuestionnaireRowsIntoRuntime(vm, loaded.questionnaires)
 
   // P4: restore the ToolCallDomain from persisted records so interrupted-tool
@@ -2040,12 +2071,12 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
 
   const restoredCoordinationCache = cachedIndexes.coordinationRecords.records.map((record) => ({
     request_id: record.requestId,
-    coordination: (record as { coordination?: string; protocol?: string }).coordination
+    coordination: ((record as { coordination?: string; protocol?: string }).coordination
       ?? (record as { coordination?: string; protocol?: string }).protocol
-      ?? AI_AGENT_COORDINATION_NAMES.shutdown,
+      ?? AI_AGENT_COORDINATION_NAMES.shutdown) as CoordinationRecord["coordination"],
     kind: record.kind as CoordinationRecord["kind"],
     status: record.status as CoordinationRecord["status"],
-    decision: typeof record.decision === "string" ? record.decision : undefined,
+    decision: (typeof record.decision === "string" ? record.decision : undefined) as CoordinationRecord["decision"],
     created_at: record.updatedAt,
     updated_at: record.updatedAt,
   }))

@@ -1,0 +1,91 @@
+<decision #track.restore_deepseek_prefix_cache.stage_authority_placement apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>Workflow stage authority should replace a root system prompt or append a trusted transition fact?</?>
+  <recommendation ?>Append the exact loaded context in the trusted tool result and keep current runtime policy separately.</?>
+  <options [
+    <option { key = "A" recommended = true } (
+      <title ?>Append-only stage fact</?>
+      <description ?>The tool result carries the exact context and naturally extends canonical history.</?>
+      <tradeoff ?>Historical stage contexts remain visible, with latest transition taking precedence.</?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>Replace root system context</?>
+      <description ?>Only current stage is visible at the root.</?>
+      <tradeoff ?>Every stage change invalidates DeepSeek's accumulated conversation prefix.</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>User asked to investigate and land a repair for the observed DeepSeek cache hit-rate regression.</?>
+    <decision-text ?>Use append-only trusted stage transition facts; do not mutate the root prompt inside an unchanged cache epoch.</?>
+    <rationale ?>This preserves the exact-prefix contract and the existing single Conversation authority.</?>
+    <evidence ?>Git blame identifies the 2026-08-13 stage root replacement; DeepSeek documents automatic cache hits only for identical request prefixes.</?>
+  )>
+)>
+
+<decision #track.restore_deepseek_prefix_cache.legacy_cache_epoch apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>How should upgraded actors remove a legacy mutable stage root without falsely claiming prefix continuity?</?>
+  <recommendation ?>Reset the existing continuation baseline once with an exact migration reason, then use append-only stage facts.</?>
+  <options [
+    <option { key = "A" recommended = true } (
+      <title ?>Explicit migration epoch</?>
+      <description ?>The first upgraded request starts a new local cache epoch and all later stage changes preserve it.</?>
+      <tradeoff ?>One intentional miss is accepted to eliminate recurring misses.</?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>Silent deletion</?>
+      <description ?>Delete the marker without recording a boundary.</?>
+      <tradeoff ?>Breaks the append-only contract and makes diagnostics dishonest.</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>Fresh coding AttractorCheck required an explicit migration boundary.</?>
+    <decision-text ?>Use ContinuationBaselineData.baselineEpoch with `legacy_stage_prompt_migration` or `workflow_tool_surface_migration`; do not advance ProviderEpoch for an unchanged provider.</?>
+    <rationale ?>The baseline is existing actor-owned context reset authority and avoids a second cache registry.</?>
+    <evidence ?>Removing a root message cannot preserve an exact provider prefix.</?>
+  )>
+)>
+
+<decision #track.restore_deepseek_prefix_cache.tool_surface_authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>Can a stable provider-visible tool surface replace stage execution authorization?</?>
+  <recommendation ?>No. Freeze presentation separately and retain exact current stage allowlist for execution.</?>
+  <options [
+    <option { key = "A" recommended = true } (
+      <title ?>Separate presentation and authority</?>
+      <description ?>Stable schema bytes aid cache reuse; runtime still rejects any disallowed call.</?>
+      <tradeoff ?>The model can see tools unavailable in the current stage and relies on appended allowed-tool guidance.</?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>Expose only executable tools</?>
+      <description ?>Provider schema exactly mirrors each stage.</?>
+      <tradeoff ?>Every stage changes the cache input and destroys reuse.</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>User authorized a root-cause repair, not a dashboard-only workaround.</?>
+    <decision-text ?>Persist a stable provider-visible Workflow tool snapshot, while ActorToolPolicy.allowedTools remains the execution authority.</?>
+    <rationale ?>DEPA separates derived provider presentation from effect authorization.</?>
+    <evidence ?>Current stable_surface sorts only the already-changing allowed subset, so ordering is stable but membership is not.</?>
+  )>
+)>
+
+<decision #track.restore_deepseek_prefix_cache.provider_epoch_frontier apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>Should an unchanged provider epoch re-address its source handoff after every appended conversation turn?</?>
+  <recommendation ?>No. Freeze the admitted source frontier and handoff addresses; ordinary turns append after them.</?>
+  <options [
+    <option { key = "A" recommended = true } (
+      <title ?>Frozen epoch frontier</?>
+      <description ?>Revalidate the fixed source prefix before transport and retain the exact receipt on forward-only turns.</?>
+      <tradeoff ?>Compaction, rewind or source replacement must explicitly rebuild projection addresses as a new cache boundary.</?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>Re-address every turn</?>
+      <description ?>Include all new messages in a changing handoff digest.</?>
+      <tradeoff ?>The digest-bearing system header changes at the beginning of every request and defeats prefix caching.</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>The implementation AttractorCheck reproduced a changing first system handoff across ordinary same-provider turns.</?>
+    <decision-text ?>Freeze sourceMessageCount, initial pending ids, sourceFrontierDigest and handoffDigest for an unchanged provider epoch; appended current-provider messages follow that prefix.</?>
+    <rationale ?>ProviderEpoch addresses the cross-provider source handoff, not the growing target-provider conversation tail.</?>
+    <evidence ?>A complete projected-message regression proves request two begins with every message from request one.</?>
+  )>
+)>

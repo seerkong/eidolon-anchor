@@ -44,7 +44,7 @@ function resolveMemberTarget(
 }
 
 function findActorOwnedTarget(runtime: PlanReviewInnerRuntime, requestId: string): PlanReviewTarget | null {
-  for (const actor of Object.values(runtime.vm.actors)) {
+  for (const actor of Object.values(runtime.vm.actors) as AiAgentActor[]) {
     if (actor.planApproval?.requestId !== requestId) continue
     return resolveMemberTarget(runtime, actor)
   }
@@ -53,7 +53,7 @@ function findActorOwnedTarget(runtime: PlanReviewInnerRuntime, requestId: string
 
 function findPendingMailboxTarget(runtime: PlanReviewInnerRuntime, requestId: string): PlanReviewTarget | null {
   const engine = getCoordinationEngine()
-  for (const actor of Object.values(runtime.vm.actors)) {
+  for (const actor of Object.values(runtime.vm.actors) as AiAgentActor[]) {
     for (const mailboxTag of ["memberCoordination", "memberChatInbox"] as const) {
       for (const pending of actor.peekMailbox(mailboxTag) as Array<{ text?: string }>) {
         const env = engine.parseEnvelopeText(String(pending?.text ?? ""))

@@ -27,6 +27,12 @@ import { getDetachedActorRegistry } from "@cell/ai-organ-logic/detached/Detached
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine"
 import { getVmToolCallDomain } from "@cell/ai-organ-logic/runtime/ToolCallDomainRuntime"
 import { recoverAiAgentRuntime, saveAiAgentRuntimeSnapshot } from "@cell/ai-organ-logic/persistence/RuntimeSnapshots"
+import { spawnWorkflowLifecycleExecutionActor } from "@cell/ai-organ-logic/workflow/runtime/WorkflowLifecycleActorCapsule"
+import { readWorkflowLifecycleFacet } from "@cell/ai-organ-logic/workflow/runtime/WorkflowLifecycleFacet"
+import type { WorkflowLifecycleToolProfileRegistry } from "@cell/ai-organ-logic/workflow/tools"
+import { AI_WORKFLOW_PROVIDER_TOOL_SURFACE } from "@cell/ai-organ-logic/workflow/tools/WorkflowLoadStageContext/StageToolPolicy"
+import { projectWorkflowProviderSurface } from "@cell/ai-organ-logic/workflow/runtime/WorkflowProviderSurfaceStrategy"
+import { createWorkflowNodeActorOrigin } from "@cell/ai-organ-logic/workflow/runtime/WorkflowNodeActorAdmission"
 import {
   applyConversationCompaction,
   LocalFileConversationPersistenceRepositoryFactory,
@@ -114,6 +120,225 @@ async function readLatestHistoryGenerationFromXnl(sessionDir: string, generation
 }
 
 describe("runtime recovery bootstrap", () => {
+  it("fresh-recovers the exact lifecycle Skill/profile proof and rebinds its internal toolset", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-workflow-lifecycle-capability"
+    const adapter = makeMockAdapter()
+    const frozenSkill = [
+      "---",
+      "name: sys-eidolon-anchor-devops",
+      "revision: recovery-capsule-v1",
+      "---",
+      "# Persisted lifecycle Skill bytes",
+    ].join("\n")
+    const parent = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: (vm) => ToolFuncRegistry.list(vm.registries.toolRegistry!).map((tool) => tool.schema),
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "lifecycle ready" })),
+      },
+    })
+    const registries = {
+      toolRegistry: composeToolRegistry({ includeInternalOnly: true, includeWorkflowLifecycle: true }),
+      agentRegistry: new AgentRegistry({
+        workflow: {
+          name: "workflow",
+          description: "lifecycle recovery fixture",
+          tools: [...AI_WORKFLOW_PROVIDER_TOOL_SURFACE],
+          prompt: ["Lifecycle recovery fixture."],
+          requireExactTools: true,
+        },
+      }),
+    }
+    const vm = createVM({
+      controlActorKey: parent.key,
+      actors: { [parent.key]: parent },
+      registries,
+    })
+    let lifecycleActor: typeof parent | undefined
+    try {
+      await spawnWorkflowLifecycleExecutionActor(vm, parent, {
+        description: "persist lifecycle capability",
+        prompt: "persist",
+        systemSkillMaterial: frozenSkill,
+        mode: "sync_wait",
+        retainActor: true,
+        onActorCreated: (actor) => { lifecycleActor = actor },
+      })
+      expect(lifecycleActor).toBeDefined()
+      const originalDigest = readWorkflowLifecycleFacet(lifecycleActor!)!.systemSkill.materialDigest
+      const fiberId = `${parent.key}:${parent.id}`
+      const driver = createAiAgentOrchestratorDriverWithCooperative({
+        fibers: [{ fiberId, vm, actor: parent, messages: parent.messages, basePriority: 1 }],
+        options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+      })
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+
+      // Exercise the production recovery entrypoint with the exact facet-v1
+      // witness. Recovery must migrate before any v2-only facet read.
+      const v1Manifest = JSON.parse(fs.readFileSync(path.join(sessionDir, "runtime_state", "manifest.json"), "utf8"))
+      const v1ActorFile = path.resolve(sessionDir, "runtime_state", v1Manifest.actorFiles[lifecycleActor!.key])
+      const v1ActorStateFile = path.join(path.dirname(v1ActorFile), "state.json")
+      const v1ActorState = JSON.parse(fs.readFileSync(v1ActorStateFile, "utf8"))
+      const v1Envelope = v1ActorState.runtimeFacets["eidolon.workflow-lifecycle/v1"]
+      const v1Revision = v1Envelope.revision
+      v1Envelope.schemaVersion = "1"
+      delete v1Envelope.value.providerSurfaceStrategy
+      fs.writeFileSync(v1ActorStateFile, `${JSON.stringify(v1ActorState, null, 2)}\n`)
+      const v1ActorSnapshot = JSON.parse(fs.readFileSync(v1ActorFile, "utf8"))
+      v1ActorSnapshot.toolPolicy.providerToolSurface = {
+        mode: "exact",
+        toolNames: [...AI_WORKFLOW_PROVIDER_TOOL_SURFACE],
+      }
+      fs.writeFileSync(v1ActorFile, `${JSON.stringify(v1ActorSnapshot, null, 2)}\n`)
+
+      const recoveredRegistries = {
+        toolRegistry: composeToolRegistry({ includeInternalOnly: true, includeWorkflowLifecycle: true }),
+        agentRegistry: registries.agentRegistry,
+      }
+      const recovered = await recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: recoveredRegistries,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "recovered" })),
+        },
+      })
+      expect(recovered).toBeTruthy()
+      const restored = recovered!.vm.actors[lifecycleActor!.key]!
+      expect(restored.systemPrompts).toContain(frozenSkill)
+      expect(readWorkflowLifecycleFacet(restored)!.systemSkill.materialDigest).toBe(originalDigest)
+      expect(restored.runtimeFacets["eidolon.workflow-lifecycle/v1"]).toMatchObject({
+        schemaVersion: "2",
+        revision: v1Revision + 1,
+      })
+      expect(readWorkflowLifecycleFacet(restored)!.providerSurfaceStrategy.strategyRevision).toBe("stable-superset/v1")
+      expect(restored.callbacks.buildToolset(recovered!.vm, restored).map((tool) => tool.function.name)).toEqual(
+        projectWorkflowProviderSurface({ strategyRevision: "stable-superset/v1", stage: "planning" }).toolNames,
+      )
+
+      const newerOnlyProfile = Object.freeze({
+        profileId: "eidolon.workflow-lifecycle-tools/v1",
+        profileRevision: "2",
+        admittedNames: Object.freeze([...AI_WORKFLOW_PROVIDER_TOOL_SURFACE]),
+        admittedNamesDigest: "sha256:newer-profile",
+        schemaDigest: "sha256:newer-schema",
+      })
+      const newerOnlyProfileRegistry = Object.freeze({
+        profiles: Object.freeze([newerOnlyProfile]),
+        resolve(profileId: string, profileRevision: string) {
+          if (profileId === newerOnlyProfile.profileId && profileRevision === newerOnlyProfile.profileRevision) {
+            return newerOnlyProfile
+          }
+          throw new Error(`WORKFLOW_LIFECYCLE_TOOL_PROFILE_UNAVAILABLE: profile unavailable ${profileId}@${profileRevision}`)
+        },
+      }) as unknown as WorkflowLifecycleToolProfileRegistry
+      await expect(recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: {
+          toolRegistry: composeToolRegistry({
+            includeInternalOnly: true,
+            includeWorkflowLifecycle: true,
+            workflowProfileRegistry: newerOnlyProfileRegistry,
+          }),
+          agentRegistry: registries.agentRegistry,
+        },
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "must not recover" })),
+        },
+      })).rejects.toThrow(/profile unavailable.*@1/i)
+
+      const manifest = JSON.parse(fs.readFileSync(path.join(sessionDir, "runtime_state", "manifest.json"), "utf8"))
+      const actorFile = path.resolve(sessionDir, "runtime_state", manifest.actorFiles[lifecycleActor!.key])
+      const actorSnapshot = JSON.parse(fs.readFileSync(actorFile, "utf8"))
+      actorSnapshot.systemPrompts = actorSnapshot.systemPrompts.map((prompt: string) => (
+        prompt === frozenSkill ? frozenSkill.replace("recovery-capsule-v1", "changed-live-v2") : prompt
+      ))
+      fs.writeFileSync(actorFile, `${JSON.stringify(actorSnapshot, null, 2)}\n`)
+      await expect(recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries: recoveredRegistries,
+        actorCallbacks: {
+          buildToolset: () => [],
+          processStream: createMockProcessStream(async () => ({ role: "assistant", content: "must not recover" })),
+        },
+      })).rejects.toThrow(/Skill material digest mismatch/i)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("rejects a recovered workflow node carrying a lifecycle-internal tool before Actor registration", async () => {
+    const sessionDir = makeTempSessionDir()
+    const sessionId = "session-workflow-node-isolation"
+    const adapter = makeMockAdapter()
+    const callbacks = {
+      buildToolset: (currentVm: any) => ToolFuncRegistry.list(currentVm.registries.toolRegistry).map((tool) => tool.schema),
+      processStream: createMockProcessStream(async () => ({ role: "assistant", content: "must not run" })),
+    }
+    const parent = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      callbacks,
+    })
+    const node = createActor({
+      key: "node",
+      agentName: "resource://demo.agent.InvalidNode",
+      parentKey: parent.key,
+      origin: createWorkflowNodeActorOrigin({ runId: "recovery-run", generation: 1, nodeId: "node", effectId: "recovery-effect" }),
+      llmClient: adapter,
+      modelConfig: { model: "mock" },
+      systemPrompts: ["frozen node instruction"],
+      toolPolicy: {
+        allowedToolsMode: "exact",
+        allowedTools: ["WorkflowRun"],
+        enabledToolKeys: [],
+        disabledToolKeys: [],
+      },
+      callbacks,
+    })
+    const registries = {
+      toolRegistry: composeToolRegistry({ includeInternalOnly: true, includeWorkflowLifecycle: true }),
+      agentRegistry: new AgentRegistry({}),
+    }
+    const vm = createVM({
+      controlActorKey: parent.key,
+      actors: { [parent.key]: parent, [node.key]: node },
+      registries,
+    })
+    const fiberId = `${parent.key}:${parent.id}`
+    const driver = createAiAgentOrchestratorDriverWithCooperative({
+      fibers: [{ fiberId, vm, actor: parent, messages: parent.messages, basePriority: 1 }],
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    try {
+      await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
+      await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
+      await expect(recoverAiAgentRuntime({
+        sessionDir,
+        sessionId,
+        llmClient: adapter,
+        registries,
+        actorCallbacks: callbacks,
+      })).rejects.toThrow(
+        "WORKFLOW_NODE_LIFECYCLE_TOOL_UNAUTHORIZED: frozen Agent task cannot admit lifecycle-internal tool 'WorkflowRun'",
+      )
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("loads an upgraded clean session through the production owned gate", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-recovery-owned-clean"

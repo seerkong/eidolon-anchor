@@ -1,0 +1,44 @@
+<BehaviorPatch #track.extract-workflow-lifecycle-actor-capability.behavior_patch.eidolon-workflow-architecture-boundaries apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-workflow-architecture-boundaries" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-workflow-architecture-boundaries/requirements/workflow-lifecycle-actor-isolation" } (
+      <Requirement #workflow-lifecycle-actor-isolation (
+        <Statement ?>Workflow lifecycle stage, progress, DevOps Skill and internal-tool authority SHALL belong only to a dedicated Workflow lifecycle Actor capability; generic Actor core and AI Workflow node Agents SHALL remain stage-free.</?>
+        <Suites [
+          <Suite #actor-boundaries { name = "Actor capability boundaries" } (
+            <Cases [
+              <Case #ordinary-public-gateways-only (
+                <Given ?>an ordinary primary or Code Actor uses its complete admitted tool surface</?>
+                <When ?>provider-visible tools and executable capabilities are projected</?>
+                <Then ?>only `WorkflowFulfill` and `WorkflowAuthor` SHALL be exposed as Workflow gateways, and lifecycle-internal tools, stages, progress and DevOps Skill content SHALL be absent</?>
+              )>
+              <Case #node-stage-free (
+                <Given ?>an AI Ctrl or AI Data node Agent is created from a frozen task and AgentDefinition</?>
+                <When ?>its context, tools and runtime facets are admitted</?>
+                <Then ?>it SHALL receive only its node/task/Agent authority and explicit allowed public tools, and SHALL NOT receive a Workflow lifecycle facet or internal tool by implication</?>
+              )>
+              <Case #lifecycle-capability-required (
+                <Given ?>an Actor invokes a Workflow lifecycle-internal tool or lifecycle hook</?>
+                <When ?>the runtime authorizes visibility or execution</?>
+                <Then ?>the Actor SHALL present the exact admitted lifecycle facet/catalog proof; Actor name, provider context class, prompt text and registry presence SHALL NOT authorize it</?>
+              )>
+            ]>
+          )>
+          <Suite #generic-runtime-boundary { name = "Generic runtime boundary" } (
+            <Cases [
+              <Case #neutral-facet-only (
+                <Given ?>generic Actor contract, executor, snapshot and local-file support source is inspected</?>
+                <When ?>domain extension state and hooks are represented</?>
+                <Then ?>the source SHALL know only a closed neutral runtime-facet envelope and a per-VM injected codec/profile/hook registry; state replacement SHALL use exact revision CAS, and source SHALL NOT define or import Workflow stage, progress, tool or lifecycle policy</?>
+              )>
+              <Case #legacy-one-way-migration (
+                <Given ?>a valid legacy dedicated Workflow Actor snapshot contains `workflowProgress`</?>
+                <When ?>fresh runtime recovery loads it through the registered Workflow legacy importer</?>
+                <Then ?>only the exact schema-v3 composite migration witness SHALL create one immutable v4 generation containing one `eidolon.workflow-lifecycle/v1` facet; all generation bytes and a source/target-digest-bound receipt SHALL be durable before one CAS/atomic manifest-head switch, legacy files SHALL remain read-only, and absent, malformed, ambiguous, interrupted or conflicting states SHALL recover deterministically or fail closed</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

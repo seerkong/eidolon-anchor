@@ -518,23 +518,23 @@ function submitQuestionnaireResponseById(
   ));
 
   delete sessionState.actorSurface.pendingQuestionnaires[normalizedId];
-  const answered = {
+  const answered: QuestionnaireSurfaceItemData = {
     ...pending,
     result: {
       questionnaireId: normalizedId,
       toolCallId: pending.toolCallId,
       rawText: responseText,
-      status: "ok",
+      status: "ok" as const,
       answers: { raw: responseText },
     },
-    lifecycleState: "answered",
+    lifecycleState: "answered" as const,
     updatedAt: now,
   };
   sessionState.actorSurface.answeredQuestionnaires[normalizedId] = answered;
   const answeredRow = answerQuestionnaireRow({
     vm,
     questionnaireId: normalizedId,
-    result: answered.result,
+    result: answered.result!,
     now,
   });
   if (!answeredRow) {
@@ -546,7 +546,7 @@ function submitQuestionnaireResponseById(
       ownerFiberId: answered.ownerFiberId,
       toolCallId: answered.toolCallId,
       request: answered.request,
-      result: answered.result,
+      result: answered.result!,
       suspendPolicy: answered.suspendPolicy,
       status: "answered",
       createdAt: answered.createdAt ?? now,

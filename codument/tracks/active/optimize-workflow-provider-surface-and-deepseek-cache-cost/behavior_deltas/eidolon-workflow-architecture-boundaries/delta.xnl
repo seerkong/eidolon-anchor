@@ -1,0 +1,35 @@
+<BehaviorPatch #track.optimize-workflow-provider-surface-and-deepseek-cache-cost.behavior_patch.eidolon-workflow-architecture-boundaries apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-workflow-architecture-boundaries" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-workflow-architecture-boundaries/requirements/provider-surface-strategy-boundary" } (
+      <Requirement #provider-surface-strategy-boundary (
+        <Statement ?>Workflow lifecycle provider-surface strategy SHALL be a frozen presentation policy of the dedicated lifecycle capability and SHALL NOT become execution authorization or leak lifecycle semantics into ordinary or Workflow node Actors.</?>
+        <Suites [
+          <Suite #surface-authority { name = "Surface and execution authority separation" } (
+            <Cases [
+              <Case #exact-facet-authorizes-execution (
+                <Given ?>a lifecycle tool is visible under any accepted surface strategy</?>
+                <When ?>the runtime attempts execution</?>
+                <Then ?>the exact frozen lifecycle facet/catalog/profile proof SHALL independently authorize the tool; visibility, prompt content, Actor name and registry membership SHALL NOT authorize it</?>
+              )>
+              <Case #ordinary-and-node-zero-overhead (
+                <Given ?>an ordinary Actor or AI Ctrl/Data Workflow node Agent prepares a provider request</?>
+                <When ?>its exact admitted surface and control context are measured</?>
+                <Then ?>lifecycle-only tool and control overhead SHALL be zero and no lifecycle surface strategy SHALL be installed by implication</?>
+              )>
+              <Case #frozen-strategy-recovery (
+                <Given ?>a lifecycle Actor was admitted with one strategy revision and surface digest</?>
+                <When ?>live catalogs change or a fresh process recovers the Actor</?>
+                <Then ?>the Actor SHALL reconstruct the exact frozen strategy and surface, and missing, conflicting or newer-only strategy material SHALL fail closed before provider transport</?>
+              )>
+              <Case #facet-v1-one-way-import (
+                <Given ?>a valid lifecycle facet-v1 Actor is recovered after strategy support is installed</?>
+                <When ?>the lifecycle capability is admitted</?>
+                <Then ?>one exact importer SHALL create facet v2 with frozen `stable-superset/v1` strategy proof; silent defaulting, dual-write and live strategy substitution SHALL be forbidden</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

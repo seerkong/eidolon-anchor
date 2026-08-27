@@ -6,9 +6,11 @@ import path from "path";
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry";
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry";
 import type { ToolDef } from "@cell/ai-core-contract/types";
+import type { ActorRuntimeFacetRegistry } from "@cell/ai-core-contract/runtime/ActorRuntimeFacet";
 import { projectInputContentText } from "@shared/composer";
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
 import { createActor } from "@cell/ai-core-logic/runtime/actor";
+import { createActorRuntimeFacetRegistry } from "@cell/ai-core-logic/runtime/ActorRuntimeFacet";
 import { createVM, ensureVmRxData } from "@cell/ai-core-logic/runtime/runtime";
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
 import { createMockProcessStream } from "./__test_support__/mockProcessStream";
@@ -19,6 +21,7 @@ import {
   __setLoopHooksForTest,
   aiAgentLoopStreaming,
   forceCompressActorHistory,
+  readExactLegacyProviderContextOverlayTexts,
   resolveProviderToolSchemaPolicy,
   resolveProviderToolsetForActor,
 } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
@@ -26,8 +29,28 @@ import { getVmToolCallDomain } from "@cell/ai-organ-logic/runtime/ToolCallDomain
 import { getVmProviderCallDomain, getLatestActorProviderReasoning } from "@cell/ai-organ-logic/runtime/ProviderCallDomainRuntime";
 import { buildSetTaskPhaseToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/SetTaskPhase";
 import { buildRunDelegateActorToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/RunDelegateActor";
-import { appendLiveHistoryMessageToConversationDomainRuntime } from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime";
+import {
+  appendLiveHistoryMessageToConversationDomainRuntime,
+  appendActorProviderContextFactToConversationDomainRuntime,
+  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
+  emitConversationDomainEvent,
+  ensureVmConversationDomainRuntime,
+  getConversationActorRawStateFromVm,
+  recordPromptRequestToConversationDomainRuntime,
+  synchronizeConversationDomainActorFromPersistence,
+  upsertProviderContextFactCandidateToConversationDomainRuntime,
+} from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime";
 import { createWriteBehindPersistenceWritePort } from "@cell/ai-organ-logic/persistence/WriteBehindPersistencePort";
+import { createInMemoryConversationPersistenceAdapter } from "@cell/ai-organ-logic/conversationCapsule/coreLogic";
+import {
+  createWorkflowLifecycleFacetEnvelope,
+  createWorkflowLifecycleFacetRegistry,
+  readWorkflowLifecycleFacet,
+} from "@cell/ai-organ-logic/workflow/runtime/WorkflowLifecycleFacet";
+import { withWorkflowDomainProgress } from "@cell/ai-organ-logic/workflow/runtime/WorkflowDomainProgress";
+import { createWorkflowNodeActorOrigin } from "@cell/ai-organ-logic/workflow/runtime/WorkflowNodeActorAdmission";
+import { activateActorProviderEpoch } from "@cell/ai-organ-logic/conversation/ProviderEpoch";
+import { computeProviderEpochReceiptIntegrityDigest } from "@cell/ai-organ-logic/conversation/ProviderEpochProjection";
 
 const mockAdapter = {
   type: "openai" as const,
@@ -50,6 +73,125 @@ const mockAdapter = {
 
 function detectParserInvocation(options: unknown): boolean {
   return JSON.stringify(options ?? {}).includes("QUESTIONNAIRE_ANSWER_PARSER_V");
+}
+
+function legacyProviderEpochIntegrity(input: Readonly<{
+  sessionId: string;
+  actorKey: string;
+  actorId: string;
+  sourceMessageCount: number;
+  reason: "initial_projection" | "model_control" | "recovery_rebuild";
+  createdAt: string;
+}>): `sha256:${string}` {
+  return computeProviderEpochReceiptIntegrityDigest({
+    schemaVersion: "provider.epoch-receipt/v1",
+    sessionId: input.sessionId,
+    actorKey: input.actorKey,
+    actorId: input.actorId,
+    epoch: 1,
+    targetProviderId: "mock",
+    targetProfileId: "openai-chat@1",
+    sourceMessageCount: input.sourceMessageCount,
+    pendingToolCallIds: [],
+    sourceFrontierDigest: `sha256:${"1".repeat(64)}`,
+    handoffDigest: `sha256:${"2".repeat(64)}`,
+    reason: input.reason,
+    createdAt: input.createdAt,
+  });
+}
+
+function recordLegacyPromptOverlayFixture(params: Readonly<{
+  runtime: ReturnType<typeof ensureVmConversationDomainRuntime>;
+  sessionId: string;
+  actorKey: string;
+  actorId: string;
+  content: string;
+  overlayKind?: string;
+  occurredAt?: string;
+}>): string {
+  const occurredAt = params.occurredAt ?? new Date().toISOString();
+  const promptGenerationId = recordPromptRequestToConversationDomainRuntime({
+    runtime: params.runtime,
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    reason: "overlay",
+    occurredAt,
+  });
+  const overlayKind = params.overlayKind ?? "system";
+  const payload = overlayKind === "work_context"
+    ? { content: params.content, overlayKind, insertPlacement: "late_status", promptPlanVersion: 1 }
+    : { content: params.content, overlayKind };
+  emitConversationDomainEvent(params.runtime, {
+    type: "actor_prompt_transform_applied",
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    promptGenerationId,
+    transformId: `${promptGenerationId}::legacy-fixture-overlay`,
+    transformKind: "overlay",
+    payload,
+    transform: {
+      transformId: `${promptGenerationId}::legacy-fixture-overlay`,
+      kind: "overlay",
+      payload,
+      appliedAt: occurredAt,
+    },
+    occurredAt,
+  });
+  return promptGenerationId;
+}
+
+function activateLegacyProviderEpochFixture(params: Readonly<{
+  runtime: ReturnType<typeof ensureVmConversationDomainRuntime>;
+  sessionId: string;
+  actorKey: string;
+  actorId: string;
+  targetProviderId: string;
+  targetProfileId: "openai-chat@1" | "openai-responses@1" | "deepseek-compatible-chat@1" | "deepseek-official-chat@1";
+  sourceMessageCount: number;
+  pendingToolCallIds: readonly string[];
+  sourceFrontierDigest: `sha256:${string}`;
+  handoffDigest: `sha256:${string}`;
+  integrityDigest: `sha256:${string}`;
+  reason: "initial_projection" | "model_control" | "recovery_rebuild";
+  occurredAt: string;
+}>): void {
+  const receipt = {
+    schemaVersion: "provider.epoch-receipt/v1" as const,
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    epoch: 1,
+    targetProviderId: params.targetProviderId,
+    targetProfileId: params.targetProfileId,
+    sourceMessageCount: params.sourceMessageCount,
+    pendingToolCallIds: [...params.pendingToolCallIds],
+    sourceFrontierDigest: params.sourceFrontierDigest,
+    handoffDigest: params.handoffDigest,
+    integrityDigest: params.integrityDigest,
+    reason: params.reason,
+    createdAt: params.occurredAt,
+  };
+  const session = params.runtime.sessionStateSignal.get()[params.sessionId];
+  const binding = {
+    ...(session?.actorBindings[params.actorKey] ?? {
+      actorKey: params.actorKey,
+      actorId: params.actorId,
+      boundAt: params.occurredAt,
+    }),
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    contextEpoch: receipt.epoch,
+    providerEpochReceipt: receipt,
+  };
+  emitConversationDomainEvent(params.runtime, {
+    type: "local_conversation_session_actor_bound",
+    sessionId: params.sessionId,
+    actorKey: params.actorKey,
+    actorId: params.actorId,
+    binding,
+    occurredAt: params.occurredAt,
+  });
 }
 
 function makeStaticTool(name: string, output: string): ToolDef<any, string, Record<string, unknown>> {
@@ -169,6 +311,8 @@ function createTestRuntime(params: {
   effects?: {
     log?: (level: "info" | "warn" | "error" | "debug", message: string, context?: Record<string, unknown>) => void;
   };
+  tools?: any[];
+  actorFacetRuntime?: ActorRuntimeFacetRegistry;
 }) {
   // P8 single-writer pipeline: every test runtime gets a bus by default so
   // the resident MessageHistoryGraph can commit. Tests that want to inspect
@@ -177,7 +321,7 @@ function createTestRuntime(params: {
   const userProcessStream = params.processStream;
   params.actor.callbacks = {
     ...params.actor.callbacks,
-    buildToolset: () => [],
+    buildToolset: () => params.tools ?? [],
     processStream: createMockProcessStream(async (vm: any, actor: any, _stream: unknown, options) =>
       userProcessStream({ vm, actor, options }),
     ),
@@ -190,6 +334,9 @@ function createTestRuntime(params: {
     options: params.options,
     outerCtx: params.outerCtx,
     effects: params.effects,
+    runtimeContext: params.actorFacetRuntime
+      ? { actorFacetRuntime: params.actorFacetRuntime }
+      : undefined,
   });
 }
 
@@ -199,6 +346,178 @@ describe("ai_agent_loop_streaming", () => {
     __setLoopHooksForTest(null);
   });
 
+  it("drives neutral facet hooks in beforeTurn -> aroundProvider -> afterToolOutcome order with CAS", async () => {
+    const facetId = "fixture.executor-order/v1";
+    const schemaVersion = "fixture.executor-order-payload/v1";
+    const events: string[] = [];
+    const afterToolEvents: unknown[] = [];
+    const registry = createActorRuntimeFacetRegistry([{
+      facetId,
+      schemaVersion,
+      normalize(value) {
+        const count = Number((value as any)?.count);
+        if (!Number.isSafeInteger(count) || count < 0) throw new Error("invalid count");
+        return { count };
+      },
+      onEvent({ envelope, event }) {
+        events.push(event.kind);
+        if (event.kind === "afterToolOutcome") afterToolEvents.push(event);
+        if (event.kind === "aroundProvider") return null;
+        return {
+          expectedRevision: envelope.revision,
+          nextValue: { count: Number((envelope.value as any).count) + 1 },
+          reason: `fixture.${event.kind}`,
+        };
+      },
+      async aroundProvider(_context, runtime) {
+        return runtime.providerBoundary.run();
+      },
+    }]);
+    const tool = makeStaticTool("FacetOrderTool", "changed");
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(tool);
+    const actor = createActor({
+      key: "facet-order",
+      runtimeFacets: [{ facetId, schemaVersion, revision: 0, value: { count: 0 } }],
+      llmClient: mockAdapter,
+      modelConfig: { model: "mock-model" },
+      callbacks: { buildToolset: () => [tool.schema], processStream: async () => null },
+    });
+    let completion = 0;
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      tools: [tool.schema],
+      actorFacetRuntime: registry,
+      processStream: async () => (++completion === 1
+        ? {
+            role: "assistant",
+            tool_calls: [{ id: "facet-tool-1", function: { name: "FacetOrderTool", arguments: "{}" } }],
+          }
+        : { role: "assistant", content: "done" }),
+    });
+    actor.send("humanInput", "run");
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(events).toEqual([
+      "beforeTurn",
+      "aroundProvider",
+      "afterToolOutcome",
+      "beforeTurn",
+      "aroundProvider",
+    ]);
+    expect(actor.runtimeFacets[facetId]).toMatchObject({ revision: 3, value: { count: 3 } });
+    expect(afterToolEvents).toEqual([expect.objectContaining({
+      toolCallId: "facet-tool-1",
+      recordDigest: expect.stringMatching(/^sha256:/),
+      outcome: "completed",
+    })]);
+    expect(JSON.stringify(afterToolEvents)).not.toContain("outputText");
+    expect(JSON.stringify(afterToolEvents)).not.toContain("args");
+  });
+
+  it("projects a terminal owner progress fact after commit and resets the lifecycle budget", async () => {
+    const output = JSON.stringify(withWorkflowDomainProgress({ ok: true }, {
+      owner: "workflow.authoring",
+      transition: "workspace_revision_changed",
+      subjectId: "workspace-1",
+      revision: "2",
+    }));
+    const tool = makeStaticTool("OwnerProgressTool", output);
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(tool);
+    const facet = createWorkflowLifecycleFacetEnvelope({
+      strategyRevision: "hybrid/v1",
+      systemPrompts: ["name: sys-eidolon-anchor-devops\nrevision: test-v1"],
+      toolNames: [],
+      progress: {
+        stageId: "coding",
+        stageStartedAt: Date.now(),
+        deadlineAt: Date.now() + 60_000,
+        turnsSinceProgress: 2,
+        maxNoProgressTurns: 4,
+        proofRepairAttempts: 0,
+        maxProofRepairAttempts: 3,
+        lastProgressAt: 1,
+      },
+    });
+    const actor = createActor({
+      key: "workflow-progress-integration",
+      runtimeFacets: [facet],
+      llmClient: mockAdapter,
+      modelConfig: { model: "mock-model" },
+      callbacks: { buildToolset: () => [tool.schema], processStream: async () => null },
+    });
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      tools: [tool.schema],
+      actorFacetRuntime: createWorkflowLifecycleFacetRegistry(),
+      options: { exitAfterToolResult: true },
+      processStream: async () => ({
+        role: "assistant",
+        tool_calls: [{ id: "owner-progress-tool-1", function: { name: "OwnerProgressTool", arguments: "{}" } }],
+      }),
+    });
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    const terminal = getVmToolCallDomain(vm)?.getRecord("owner-progress-tool-1");
+
+    expect(result.stopReason).toBe("exit_after_tool_result");
+    expect(terminal?.status).toBe("completed");
+    expect(readWorkflowLifecycleFacet(actor)).toMatchObject({
+      turnsSinceProgress: 0,
+      lastOutcome: "workspace_changed",
+      activeAuthoringSessionId: "workspace-1",
+      activeAuthoringRevision: "2",
+    });
+    expect(JSON.stringify(actor.runtimeFacets)).not.toContain(output);
+  });
+
+  it("does not invoke facet callbacks or mutate progress prompts for an Actor without facets", async () => {
+    let callbacks = 0;
+    const registry = createActorRuntimeFacetRegistry([{
+      facetId: "fixture.unadmitted/v1",
+      schemaVersion: "1",
+      normalize: (value) => value,
+      onEvent: () => { callbacks += 1; return null; },
+      aroundProvider: async (_context, runtime) => {
+        callbacks += 1;
+        return runtime.providerBoundary.run();
+      },
+    }]);
+    const actor = createTestActor();
+    actor.systemPrompts = ["stable ordinary prefix"];
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      actorFacetRuntime: registry,
+      processStream: async () => ({ role: "assistant", content: "done" }),
+    });
+    actor.send("humanInput", "run");
+
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(callbacks).toBe(0);
+    expect(actor.systemPrompts).toEqual(["stable ordinary prefix"]);
+  });
+
+  it("keeps the generic Executor free of Workflow lifecycle implementation imports", () => {
+    const source = fs.readFileSync(new URL("../../src/exec/AiAgentExecutor.ts", import.meta.url), "utf8");
+    expect(source).not.toContain("workflow/runtime/WorkflowActorProgress");
+    for (const symbol of [
+      "beginWorkflowActorTurn",
+      "recordWorkflowActorToolOutcome",
+      "resolveWorkflowActorBudgetConfig",
+      "runWithinWorkflowStageDeadline",
+      "WorkflowActorBudgetError",
+    ]) {
+      expect(source).not.toContain(symbol);
+    }
+  });
+
   it("passes the exact request adapter to the actor stream callback", async () => {
     const llmAdapter = {
       type: "openai" as const,
@@ -206,7 +525,12 @@ describe("ai_agent_loop_streaming", () => {
         async function* stream() {
           yield { choices: [{ delta: { content: "hello" } }] };
         }
-        return { stream: stream() };
+        return {
+          stream: stream(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"9".repeat(64)}` },
+          }),
+        };
       },
     };
     const actor = createTestActor(llmAdapter);
@@ -223,6 +547,62 @@ describe("ai_agent_loop_streaming", () => {
     await aiAgentLoopStreaming({ vm, actor, messages: [] });
 
     expect(callbackAdapter).toBe(llmAdapter);
+  });
+
+  it("derives provider context attribution from exact capability/origin authority", async () => {
+    const lifecycleFacet = createWorkflowLifecycleFacetEnvelope({
+      strategyRevision: "stable-superset/v1",
+      systemPrompts: ["name: sys-eidolon-anchor-devops\nrevision: attribution-v1"],
+      toolNames: [],
+      progress: {
+        stageId: "planning",
+        stageStartedAt: Date.now(),
+        deadlineAt: Date.now() + 60_000,
+        turnsSinceProgress: 0,
+        maxNoProgressTurns: 4,
+        proofRepairAttempts: 0,
+        maxProofRepairAttempts: 3,
+        lastProgressAt: 1,
+      },
+    });
+    const cases = [
+      { expected: "ordinary" as const },
+      { expected: "workflow_lifecycle" as const, runtimeFacets: [lifecycleFacet] },
+      {
+        expected: "workflow_node" as const,
+        origin: createWorkflowNodeActorOrigin({ runId: "run", generation: 1, nodeId: "node", effectId: "effect" }),
+      },
+    ];
+    for (const fixture of cases) {
+      let observedClass: string | undefined;
+      const llmAdapter = {
+        type: "deepseek" as const,
+        async createStream(options: any) {
+          observedClass = options.providerCacheCostObservation?.actorClass;
+          async function* stream() { yield { choices: [{ delta: { content: "ok" } }] }; }
+          return { stream: stream() };
+        },
+      };
+      const actor = createActor({
+        key: `actor-${fixture.expected}`,
+        origin: fixture.origin,
+        runtimeFacets: fixture.runtimeFacets,
+        llmClient: llmAdapter,
+        modelConfig: { model: "deepseek-chat" },
+        callbacks: {
+          buildToolset: () => [],
+          processStream: async () => ({ role: "assistant", content: "ok" }),
+        },
+      });
+      const vm = createTestRuntime({
+        actor,
+        toolRegistry: new ToolFuncRegistry(),
+        ...(fixture.runtimeFacets ? { actorFacetRuntime: createWorkflowLifecycleFacetRegistry() } : {}),
+        processStream: async () => ({ role: "assistant", content: "ok" }),
+      });
+      await aiAgentLoopStreaming({ vm, actor, messages: [] });
+      expect(observedClass).toBe(fixture.expected);
+    }
   });
 
   it("keeps the full provider tool schema stable for prefix-cache models", () => {
@@ -298,6 +678,51 @@ describe("ai_agent_loop_streaming", () => {
       "WorkflowStatus",
     ]);
     expect(resolveProviderToolsetForActor(exactEmpty, tools)).toEqual([]);
+  });
+
+  it("keeps a provider-visible tool execution-disabled by the exact stage policy", async () => {
+    const actor = createTestActor();
+    actor.modelConfig = {
+      ...actor.modelConfig,
+      capabilities: {
+        ...actor.modelConfig.capabilities,
+        cachePolicy: { stablePrefix: true },
+      },
+    };
+    actor.toolPolicy = {
+      allowedToolsMode: "exact",
+      allowedTools: [],
+      computedDisabledTools: [],
+      providerToolSurface: { mode: "exact", toolNames: ["write"] },
+    };
+    let effectCalls = 0;
+    const toolRegistry = new ToolFuncRegistry();
+    const write = makeStaticTool("write", "WROTE");
+    toolRegistry.register({
+      ...write,
+      run: async (...args: any[]) => {
+        effectCalls += 1;
+        return (write.run as any)(...args);
+      },
+    });
+    expect(resolveProviderToolsetForActor(actor, [{ function: { name: "write" } }]))
+      .toHaveLength(1);
+
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      options: { stopAfterFirstTool: true },
+      processStream: async () => ({
+        role: "assistant",
+        tool_calls: [{ id: "tc-write-disabled", function: { name: "write", arguments: "{}" } }],
+      }),
+    });
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    const toolMessage = result.messages.find(
+      (message: any) => message?.role === "tool" && message?.tool_call_id === "tc-write-disabled",
+    );
+    expect(effectCalls).toBe(0);
+    expect(String(toolMessage?.content ?? "")).toContain("policy violation");
   });
 
   it("blocks write tools at execution time in plan mode", async () => {
@@ -735,7 +1160,12 @@ describe("ai_agent_loop_streaming", () => {
         async function* stream() {
           yield { ok: true };
         }
-        return { stream: stream() };
+        return {
+          stream: stream(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"9".repeat(64)}` },
+          }),
+        };
       },
     });
     const toolRegistry = new ToolFuncRegistry();
@@ -1310,7 +1740,6 @@ describe("ai_agent_loop_streaming", () => {
       toolRegistry,
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
-
     const originalMessages = [{ role: "user", content: "seed" }];
     await aiAgentLoopStreaming({ vm, actor, messages: originalMessages });
 
@@ -1321,7 +1750,7 @@ describe("ai_agent_loop_streaming", () => {
       (compressedInput ?? []).some((message: any) => String(message?.content ?? "").includes("seed")),
     ).toBe(true);
     expect(ratioMessages).not.toBe(originalMessages);
-    expect(ratioMessages?.some((message: any) => String(message?.content ?? "").includes("<runtime_work_context>"))).toBe(true);
+    expect(ratioMessages?.some((message: any) => String(message?.content ?? "").includes("<runtime_work_context>"))).toBe(false);
   });
 
   it("cheap-compacts older tool results before provider prompt without losing delivered-result evidence", async () => {
@@ -1534,15 +1963,25 @@ describe("ai_agent_loop_streaming", () => {
     const sessionDir = makeTempSessionDir();
     let createStreamCalls = 0;
     let providerMessages: any[] = [];
+    let transportBinding: any;
+    let transportHistory: any;
     const actor = createTestActor({
       type: "openai" as const,
       async createStream(options?: any) {
         createStreamCalls += 1;
         providerMessages = options?.messages ?? [];
+        const raw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key });
+        transportBinding = raw?.session.actorBindings[actor.key];
+        transportHistory = raw?.activeHistoryGeneration;
         async function* stream() {
           yield { ok: true };
         }
-        return { stream: stream() };
+        return {
+          stream: stream(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"9".repeat(64)}` },
+          }),
+        };
       },
     });
     actor.modelConfig.inputLimit = 5_000;
@@ -1560,6 +1999,7 @@ describe("ai_agent_loop_streaming", () => {
       outerCtx: {
         workDir: process.cwd(),
         metadata: { sessionDir, sessionId: "preflight-pressure-compaction" },
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
       },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
@@ -1588,6 +2028,21 @@ describe("ai_agent_loop_streaming", () => {
       expect(serializedPrompt).toContain("delivered_and_compacted");
       expect(serializedPrompt).toContain("tc-large-0");
       expect(serializedPrompt).toContain("tc-large-7");
+      expect(transportBinding?.providerEpochReceipt).toBeUndefined();
+      expect(transportBinding?.providerEpochReceiptV2).toMatchObject({
+        reason: "history_compaction",
+        epoch: 2,
+      });
+      expect(transportHistory).toMatchObject({
+        createdReason: "compaction",
+        parentGenerationId: expect.any(String),
+      });
+      const fresh = await LocalFileConversationPersistenceRepositoryFactory
+        .createRepository(sessionDir)
+        .loadSessionIndex();
+      expect(fresh.session.actorBindings.main?.providerEpochReceipt).toBeUndefined();
+      expect(fresh.session.actorBindings.main?.providerEpochReceiptV2?.receiptDigest)
+        .toBe(transportBinding?.providerEpochReceiptV2?.receiptDigest);
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true });
     }
@@ -1728,7 +2183,6 @@ describe("ai_agent_loop_streaming", () => {
       },
       processStream: async () => ({ role: "assistant", content: "final" }),
     });
-
     await aiAgentLoopStreaming({
       vm,
       actor,
@@ -1756,10 +2210,787 @@ describe("ai_agent_loop_streaming", () => {
     expect(promptGeneration?.transforms[0]?.kind).toBe("history_compaction_summary");
     expect(artifactRefs.refs.some((ref) => ref.ownerId === promptHeadId && ref.artifactKind === "compaction_summary")).toBe(true);
     expect(artifactRefs.refs.some((ref) => ref.ownerId === promptHeadId && ref.artifactKind === "diagnostic")).toBe(true);
-    expect(actor.continuationBaseline.baselineEpoch).toBe(1);
+    // The initial provider projection owns epoch 1; persisting the compacted
+    // history is a distinct, reasoned provider-context transition at epoch 2.
+    expect(actor.continuationBaseline.baselineEpoch).toBe(2);
     expect(actor.continuationBaseline.lastResetReason).toContain("compaction:auto");
     expect(promptGeneration?.metadata?.policyDecision).toBeTruthy();
     expect(promptGeneration?.metadata?.continuationBaselineAfter).toEqual(actor.continuationBaseline);
+  });
+
+  it("persists every changed provider/model/resource/surface epoch before real transport", async () => {
+    const sessionDir = makeTempSessionDir();
+    const sessionId = path.basename(sessionDir);
+    const observedReceipts: any[] = [];
+    const adapter = {
+      type: "openai" as const,
+      async createStream() {
+        const fresh = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+        observedReceipts.push((await fresh.loadSessionIndex()).session.actorBindings.main?.providerEpochReceiptV2);
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"f".repeat(64)}` },
+          }),
+        };
+      },
+    };
+    const actor = createTestActor(adapter);
+    actor.modelConfig = {
+      model: "deepseek-chat",
+      provider: "deepseek",
+      adapter: "deepseek",
+      options: { compatibilityProfile: "deepseek-official-chat@1" },
+    };
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: {
+        workDir: sessionDir,
+        metadata: { sessionDir, sessionId },
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
+      },
+      processStream: async () => ({ role: "assistant", content: "done" }),
+    });
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: "provider boundary seed" },
+    });
+    recordLegacyPromptOverlayFixture({
+      runtime: ensureVmConversationDomainRuntime(vm),
+      sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      content: "stable seed",
+      overlayKind: "system",
+    });
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId,
+      targetProviderId: "deepseek",
+      targetProfileId: "deepseek-official-chat@1",
+      reason: "initial_projection",
+    });
+    const seeded = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    await repository.writeHistoryIndex(seeded.session.historyIndex);
+    if (seeded.activeHistoryGeneration) await repository.writeHistoryGeneration(seeded.activeHistoryGeneration);
+    await repository.writePromptIndex(seeded.session.promptIndex);
+    if (seeded.promptGeneration) await repository.writePromptGeneration(seeded.promptGeneration);
+    await repository.writeSessionIndex(seeded.session.sessionIndex);
+
+    actor.modelConfig = { model: "gpt-5-mini", provider: "openai", adapter: "openai" };
+    (actor as any).durableMaterials = { resourcePackage: { fqn: "fixture.agent", version: "2" } };
+    actor.toolPolicy.providerToolSurface = { mode: "exact", toolNames: ["Questionnaire"] };
+    // Reproduce the Terminal host: it may run the pure Conversation
+    // transition Processor during model control before entering the generic
+    // Executor. The Executor must durably fence that exact successor before
+    // transport, not skip it merely because in-memory identity already
+    // matches the Actor config.
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId,
+      targetProviderId: "openai",
+      targetProfileId: "openai-chat@1",
+      reason: "model_control",
+    });
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(observedReceipts).toHaveLength(1);
+    expect(observedReceipts[0]).toMatchObject({
+      targetProviderId: "openai",
+      targetModelId: "gpt-5-mini",
+      targetProfileId: "openai-chat@1",
+      reason: "provider_surface_revision_accepted",
+    });
+    const generationsDir = path.join(sessionDir, "conversation", "provider-context-transitions", "generations");
+    const reasons = fs.readdirSync(generationsDir).map((name) => (
+      JSON.parse(fs.readFileSync(path.join(generationsDir, name), "utf8"))
+        .sessionIndex.session.actorBindings.main.providerEpochReceiptV2
+    )).sort((left, right) => left.epoch - right.epoch).map((receipt) => receipt.reason);
+    expect(reasons).toEqual([
+      "provider_model_profile_switch",
+      "frozen_resource_revision_accepted",
+      "provider_surface_revision_accepted",
+    ]);
+  });
+
+  it("persists a real history rewind event as one reasoned epoch before transport", async () => {
+    const sessionDir = makeTempSessionDir();
+    const sessionId = path.basename(sessionDir);
+    const observedReasons: string[] = [];
+    const adapter = {
+      type: "openai" as const,
+      async createStream() {
+        const fresh = await LocalFileConversationPersistenceRepositoryFactory
+          .createRepository(sessionDir).loadSessionIndex();
+        observedReasons.push(String(fresh.session.actorBindings.main?.providerEpochReceiptV2?.reason));
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"d".repeat(64)}` },
+          }),
+        };
+      },
+    };
+    const actor = createTestActor(adapter);
+    actor.modelConfig = { model: "mock", provider: "mock", adapter: "openai" };
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: {
+        workDir: sessionDir,
+        metadata: { sessionDir, sessionId },
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
+      },
+      processStream: async () => ({ role: "assistant", content: "done" }),
+    });
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: "rewind seed" },
+    });
+    recordLegacyPromptOverlayFixture({
+      runtime: ensureVmConversationDomainRuntime(vm),
+      sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      content: "stable prompt",
+      overlayKind: "system",
+    });
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId,
+      targetProviderId: "mock",
+      targetProfileId: "openai-chat@1",
+      reason: "initial_projection",
+    });
+    const initial = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    await repository.writeHistoryIndex(initial.session.historyIndex);
+    if (initial.activeHistoryGeneration) await repository.writeHistoryGeneration(initial.activeHistoryGeneration);
+    await repository.writePromptIndex(initial.session.promptIndex);
+    if (initial.promptGeneration) await repository.writePromptGeneration(initial.promptGeneration);
+    await repository.writeSessionIndex(initial.session.sessionIndex);
+
+    const occurredAt = "2026-08-25T18:40:00.000Z";
+    const rewound = {
+      ...structuredClone(initial.activeHistoryGeneration!),
+      generationId: `${initial.activeHistoryGeneration!.generationId}__rewound`,
+      parentGenerationId: null,
+      predecessorGenerationIds: [],
+      createdReason: "rollback" as const,
+      updatedAt: occurredAt,
+    };
+    emitConversationDomainEvent(ensureVmConversationDomainRuntime(vm), {
+      type: "actor_history_generation_created",
+      sessionId,
+      actorKey: actor.key,
+      generationId: rewound.generationId,
+      generation: rewound,
+      occurredAt,
+    });
+    emitConversationDomainEvent(ensureVmConversationDomainRuntime(vm), {
+      type: "actor_history_head_moved",
+      sessionId,
+      actorKey: actor.key,
+      activeGenerationId: rewound.generationId,
+      head: {
+        version: initial.session.historyIndex.version,
+        sessionId,
+        actorKey: actor.key,
+        actorId: actor.id,
+        activeGenerationId: rewound.generationId,
+        visibleGenerationIds: [rewound.generationId],
+        updatedAt: occurredAt,
+      },
+      occurredAt,
+    });
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    expect(observedReasons).toEqual(["history_rewind_or_fork"]);
+    const fresh = await LocalFileConversationPersistenceRepositoryFactory
+      .createRepository(sessionDir).loadSessionIndex();
+    expect(fresh.session.actorBindings.main?.providerEpochReceiptV2).toMatchObject({
+      reason: "history_rewind_or_fork",
+      baselineHeads: { historyHeadGenerationId: rewound.generationId },
+    });
+  });
+
+  it("fresh-imports legacy v1 late-status as a typed fact before transport and never sends the old overlay", async () => {
+    const sessionDir = makeTempSessionDir();
+    const sessionId = path.basename(sessionDir);
+    const seedActor = createTestActor();
+    seedActor.modelConfig = { model: "mock", provider: "mock", adapter: "openai" };
+    const seedVm = createTestRuntime({
+      actor: seedActor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: { metadata: { sessionId } },
+      processStream: async () => ({ role: "assistant", content: "unused" }),
+    });
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm: seedVm,
+      actorKey: seedActor.key,
+      actorId: seedActor.id,
+      message: { role: "user", content: "legacy seed" },
+    });
+    recordLegacyPromptOverlayFixture({
+      runtime: ensureVmConversationDomainRuntime(seedVm),
+      sessionId,
+      actorKey: seedActor.key,
+      actorId: seedActor.id,
+      content: "LEGACY_LATE_STATUS_MUST_BE_IMPORTED",
+      overlayKind: "work_context",
+      occurredAt: "2026-08-25T18:30:00.000Z",
+    });
+    activateLegacyProviderEpochFixture({
+      runtime: ensureVmConversationDomainRuntime(seedVm),
+      sessionId,
+      actorKey: seedActor.key,
+      actorId: seedActor.id,
+      targetProviderId: "mock",
+      targetProfileId: "openai-chat@1",
+      sourceMessageCount: 1,
+      pendingToolCallIds: [],
+      sourceFrontierDigest: `sha256:${"1".repeat(64)}`,
+      handoffDigest: `sha256:${"2".repeat(64)}`,
+      integrityDigest: legacyProviderEpochIntegrity({
+        sessionId,
+        actorKey: seedActor.key,
+        actorId: seedActor.id,
+        sourceMessageCount: 1,
+        reason: "recovery_rebuild",
+        createdAt: "2026-08-25T18:30:01.000Z",
+      }),
+      reason: "recovery_rebuild",
+      occurredAt: "2026-08-25T18:30:01.000Z",
+    });
+    const seedRaw = getConversationActorRawStateFromVm({ vm: seedVm, actorKey: seedActor.key })!;
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    await repository.writeHistoryIndex(seedRaw.session.historyIndex);
+    if (seedRaw.activeHistoryGeneration) await repository.writeHistoryGeneration(seedRaw.activeHistoryGeneration);
+    const seedPromptIndex = structuredClone(seedRaw.session.promptIndex);
+    seedPromptIndex.heads[seedActor.key] = {
+      version: seedPromptIndex.version,
+      sessionId,
+      actorKey: seedActor.key,
+      actorId: seedActor.id,
+      activePromptGenerationId: seedRaw.promptGeneration!.promptGenerationId,
+      updatedAt: seedRaw.promptGeneration!.updatedAt,
+    };
+    await repository.writePromptIndex(seedPromptIndex);
+    if (seedRaw.promptGeneration) await repository.writePromptGeneration(seedRaw.promptGeneration);
+    await repository.writeSessionIndex(seedRaw.session.sessionIndex);
+
+    const providerBodies: any[] = [];
+    const adapter = {
+      type: "openai" as const,
+      async createStream(options: any) {
+        providerBodies.push(options.messages);
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"e".repeat(64)}` },
+          }),
+        };
+      },
+    };
+    const actor = createTestActor(adapter);
+    actor.id = seedActor.id;
+    actor.modelConfig = { model: "mock", provider: "mock", adapter: "openai" };
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: {
+        workDir: sessionDir,
+        metadata: { sessionDir, sessionId },
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
+      },
+      processStream: async () => ({ role: "assistant", content: "done" }),
+    });
+    await synchronizeConversationDomainActorFromPersistence({
+      runtime: ensureVmConversationDomainRuntime(vm),
+      sessionDir,
+      actorKey: actor.key,
+      repository,
+    });
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    const serialized = JSON.stringify(providerBodies[0]);
+    expect(serialized).toContain("eidolon-context-fact/v1");
+    expect(serialized).toContain("LEGACY_LATE_STATUS_MUST_BE_IMPORTED");
+    expect(providerBodies[0].some((message: any) => (
+      message.role === "system" && String(message.content).includes("LEGACY_LATE_STATUS_MUST_BE_IMPORTED")
+    ))).toBe(false);
+    const fresh = await LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir).loadSessionIndex();
+    expect(fresh.session.actorBindings.main?.providerEpochReceipt).toBeUndefined();
+    expect(fresh.session.actorBindings.main).toMatchObject({
+      providerEpochReceiptV2: { reason: "legacy_context_import" },
+      providerContextLegacyMigrationMarker: { status: "completed" },
+    });
+  });
+
+  it("fails closed on the production transport path when legacy provider-context overlays are ambiguous", async () => {
+    const exact = {
+      transformId: "legacy-overlay-1",
+      kind: "overlay",
+      payload: {
+        content: "legacy status",
+        overlayKind: "work_context",
+        insertPlacement: "late_status",
+        promptPlanVersion: 1,
+      },
+      appliedAt: "2026-08-25T18:30:00.000Z",
+    } as const;
+    expect(readExactLegacyProviderContextOverlayTexts([exact] as any)).toEqual(["legacy status"]);
+    const byteExactContent = "  工作流状态\n保留结尾空格  \n";
+    expect(readExactLegacyProviderContextOverlayTexts([{
+      ...exact,
+      payload: { ...exact.payload, content: byteExactContent },
+    }] as any)).toEqual([byteExactContent]);
+    expect(() => readExactLegacyProviderContextOverlayTexts([{
+      ...exact,
+      payload: { ...exact.payload, unexpected: true },
+    }] as any)).toThrow("provider_context_legacy_overlay_shape_ambiguous");
+    expect(() => readExactLegacyProviderContextOverlayTexts([
+      exact,
+      { ...exact, transformId: "legacy-overlay-2" },
+    ] as any)).toThrow("provider_context_legacy_overlay_ambiguous");
+    expect(() => readExactLegacyProviderContextOverlayTexts([{
+      ...exact,
+      payload: { content: "legacy status", overlayKind: "work_context" },
+    }] as any)).toThrow("provider_context_legacy_overlay_shape_ambiguous");
+
+    const actor = createTestActor();
+    actor.modelConfig = { model: "mock", provider: "mock", adapter: "openai" };
+    const sessionId = "ambiguous-legacy-overlay";
+    const persistence = createInMemoryConversationPersistenceAdapter();
+    let providerCalls = 0;
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: {
+        metadata: { sessionId },
+        conversationPersistenceRepositoryFactory: persistence,
+      },
+      processStream: async () => {
+        providerCalls += 1;
+        return { role: "assistant", content: "must not transport" };
+      },
+    });
+    const promptGenerationId = recordLegacyPromptOverlayFixture({
+      runtime: ensureVmConversationDomainRuntime(vm),
+      sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      content: "first legacy overlay",
+      overlayKind: "work_context",
+      occurredAt: "2026-08-25T18:30:00.000Z",
+    });
+    emitConversationDomainEvent(ensureVmConversationDomainRuntime(vm), {
+      type: "actor_prompt_transform_applied",
+      sessionId,
+      actorKey: actor.key,
+      promptGenerationId,
+      transformId: `${promptGenerationId}::second-overlay`,
+      transformKind: "overlay",
+      payload: {
+        content: "second legacy overlay",
+        overlayKind: "work_context",
+        insertPlacement: "late_status",
+        promptPlanVersion: 1,
+      },
+      transform: {
+        transformId: `${promptGenerationId}::second-overlay`,
+        kind: "overlay",
+        payload: {
+          content: "second legacy overlay",
+          overlayKind: "work_context",
+          insertPlacement: "late_status",
+          promptPlanVersion: 1,
+        },
+        appliedAt: "2026-08-25T18:30:01.000Z",
+      },
+      occurredAt: "2026-08-25T18:30:01.000Z",
+    });
+    activateLegacyProviderEpochFixture({
+      runtime: ensureVmConversationDomainRuntime(vm),
+      sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      targetProviderId: "mock",
+      targetProfileId: "openai-chat@1",
+      sourceMessageCount: 0,
+      pendingToolCallIds: [],
+      sourceFrontierDigest: `sha256:${"1".repeat(64)}`,
+      handoffDigest: `sha256:${"2".repeat(64)}`,
+      integrityDigest: legacyProviderEpochIntegrity({
+        sessionId,
+        actorKey: actor.key,
+        actorId: actor.id,
+        sourceMessageCount: 0,
+        reason: "recovery_rebuild",
+        createdAt: "2026-08-25T18:30:02.000Z",
+      }),
+      reason: "recovery_rebuild",
+      occurredAt: "2026-08-25T18:30:02.000Z",
+    });
+    const raw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    const repository = persistence.createRepository(sessionId);
+    await repository.writeHistoryIndex(raw.session.historyIndex);
+    await repository.writePromptIndex(raw.session.promptIndex);
+    if (raw.promptGeneration) await repository.writePromptGeneration(raw.promptGeneration);
+    await repository.writeSessionIndex(raw.session.sessionIndex);
+    await expect(aiAgentLoopStreaming({ vm, actor, messages: [] }))
+      .rejects.toThrow("provider_context_legacy_overlay_ambiguous");
+    expect(providerCalls).toBe(0);
+  });
+
+  it("fails closed before transport when legacy v1 and immutable v2 coexist", async () => {
+    const actor = createTestActor();
+    actor.modelConfig = { model: "mock", provider: "mock", adapter: "openai" };
+    let providerCalls = 0;
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: { metadata: { sessionId: "dual-provider-authority" } },
+      processStream: async () => {
+        providerCalls += 1;
+        return { role: "assistant", content: "must not transport" };
+      },
+    });
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: "dual authority" },
+    });
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId: "dual-provider-authority",
+      targetProviderId: "mock",
+      targetProfileId: "openai-chat@1",
+      reason: "initial_projection",
+    });
+    const runtime = ensureVmConversationDomainRuntime(vm);
+    const raw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    const sessionState = runtime.sessionStateSignal.get()[raw.session.sessionId]!;
+    const legacyReceipt = {
+      schemaVersion: "provider.epoch-receipt/v1",
+      sessionId: raw.session.sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      epoch: 1,
+      targetProviderId: "mock",
+      targetProfileId: "openai-chat@1",
+      sourceMessageCount: 1,
+      pendingToolCallIds: [],
+      sourceFrontierDigest: `sha256:${"1".repeat(64)}`,
+      handoffDigest: `sha256:${"2".repeat(64)}`,
+      integrityDigest: legacyProviderEpochIntegrity({
+        sessionId: raw.session.sessionId,
+        actorKey: actor.key,
+        actorId: actor.id,
+        sourceMessageCount: 1,
+        reason: "recovery_rebuild",
+        createdAt: "2026-08-25T18:40:00.000Z",
+      }),
+      reason: "recovery_rebuild",
+      createdAt: "2026-08-25T18:40:00.000Z",
+    };
+    const dualBinding = {
+      ...sessionState.actorBindings[actor.key]!,
+      providerEpochReceipt: legacyReceipt,
+    };
+    runtime.sessionStateSignal.set({
+      ...runtime.sessionStateSignal.get(),
+      [raw.session.sessionId]: {
+        ...sessionState,
+        actorBindings: { ...sessionState.actorBindings, [actor.key]: dualBinding },
+        sessionIndex: {
+          ...sessionState.sessionIndex,
+          session: {
+            ...sessionState.sessionIndex.session,
+            actorBindings: { ...sessionState.sessionIndex.session.actorBindings, [actor.key]: dualBinding },
+          },
+        },
+      },
+    });
+    await expect(aiAgentLoopStreaming({ vm, actor, messages: [] }))
+      .rejects.toThrow("provider_context_dual_authority_forbidden");
+    expect(providerCalls).toBe(0);
+  });
+
+  it("commits v2 compaction as one durable history/prompt/receipt generation", async () => {
+    const actor = createTestActor();
+    actor.modelConfig.inputLimit = 100;
+    const sessionDir = makeTempSessionDir();
+    const sessionId = path.basename(sessionDir);
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: {
+        workDir: sessionDir,
+        metadata: { sessionDir, sessionId },
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
+      },
+      processStream: async () => ({ role: "assistant", content: "unused" }),
+    });
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: "x".repeat(1200) },
+      occurredAt: "2026-08-25T18:00:00.000Z",
+    });
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId,
+      targetProviderId: "deepseek",
+      targetProfileId: "deepseek-official-chat@1",
+      reason: "initial_projection",
+      occurredAt: "2026-08-25T18:00:01.000Z",
+    });
+    const sourceRecord = {
+      toolCallId: "stage-context-1",
+      callRecordDigest: `sha256:${"2".repeat(64)}` as const,
+      resultRecordDigest: `sha256:${"3".repeat(64)}` as const,
+    };
+    upsertProviderContextFactCandidateToConversationDomainRuntime({
+      runtime: ensureVmConversationDomainRuntime(vm),
+      sessionId,
+      candidate: {
+        actorKey: actor.key,
+        namespace: "workflow-stage-context",
+        logicalKey: "stage-context",
+        revision: "coding@1",
+        payload: { stage: "coding", context: "frozen" },
+        sourceToolCalls: [{
+          toolCallId: sourceRecord.toolCallId,
+          projectionRevision: "coding@1",
+          deliveryState: "pending",
+        }],
+        observedAt: "2026-08-25T18:00:02.000Z",
+      },
+    });
+    const [sourceFact] = commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+      runtime: ensureVmConversationDomainRuntime(vm),
+      sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      finalRequestDigest: `sha256:${"4".repeat(64)}`,
+      sourceRecords: [sourceRecord],
+      occurredAt: "2026-08-25T18:00:02.000Z",
+    });
+    const seededRepository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    const seededRaw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    await seededRepository.writeSessionIndex(seededRaw.session.sessionIndex);
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 0.9,
+      compressHistory: async () => [
+        { role: "user", content: "<state_snapshot><overall_goal>v2</overall_goal></state_snapshot>" },
+        { role: "assistant", content: "Understood. I have the full context from the state snapshot." },
+        { role: "assistant", content: "retained tail" },
+      ],
+    });
+
+    expect(await forceCompressActorHistory({ vm, actor })).toMatchObject({ ok: true, compacted: true });
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    const historyIndex = await repository.loadHistoryIndex();
+    const promptIndex = await repository.loadPromptIndex();
+    const sessionIndex = await repository.loadSessionIndex();
+    const receipt = sessionIndex.session.actorBindings[actor.key]?.providerEpochReceiptV2;
+    expect(receipt).toMatchObject({
+      epoch: 2,
+      reason: "history_compaction",
+      previousReceiptDigest: expect.stringMatching(/^sha256:/),
+      baselineHeads: {
+        historyHeadGenerationId: historyIndex.heads[actor.key]?.activeGenerationId,
+        promptHeadGenerationId: promptIndex.heads[actor.key]?.activePromptGenerationId,
+      },
+    });
+    expect(receipt?.compactionProofDigest).toMatch(/^sha256:/);
+    const successorAssets = sessionIndex.session.contextAssets?.filter((asset) => (
+      asset.providerContextFact?.epoch === receipt?.epoch
+    )) ?? [];
+    expect(successorAssets).toHaveLength(1);
+    expect(successorAssets[0]?.providerContextFact).toMatchObject({
+      namespace: sourceFact.namespace,
+      namespaceRevision: sourceFact.namespaceRevision,
+      previousFactDigest: sourceFact.factDigest,
+      sourceDeliveryProofs: [{
+        kind: "compacted-delivery-proof",
+        proofDigest: receipt?.compactionProofDigest,
+      }],
+    });
+    expect(JSON.stringify(await repository.loadHistoryGeneration(String(
+      historyIndex.heads[actor.key]?.activeGenerationId,
+    )))).not.toContain(sourceRecord.toolCallId);
+    const fresh = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    await fresh.recoverProviderContextTransitionGeneration?.();
+    expect((await fresh.loadSessionIndex()).session.actorBindings[actor.key]?.providerEpochReceiptV2)
+      .toEqual(receipt);
+  });
+
+  it("compacts one namespace exactly once at the admitted 32-revision boundary", async () => {
+    let providerCalls = 0;
+    const retentionAdapter = {
+      type: "openai" as const,
+      async createStream() {
+        providerCalls += 1;
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: {
+              requestDigest: `sha256:${String(providerCalls).repeat(64)}`,
+            },
+          }),
+        };
+      },
+    };
+    const actor = createTestActor(retentionAdapter);
+    const sessionDir = makeTempSessionDir();
+    const sessionId = path.basename(sessionDir);
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: {
+        workDir: sessionDir,
+        metadata: { sessionDir, sessionId },
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
+      },
+      processStream: async () => ({ role: "assistant", content: "complete" }),
+    });
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: "retention seed" },
+      occurredAt: "2026-08-25T18:10:00.000Z",
+    });
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId,
+      targetProviderId: "deepseek",
+      targetProfileId: "deepseek-official-chat@1",
+      reason: "initial_projection",
+      occurredAt: "2026-08-25T18:10:01.000Z",
+    });
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    for (let revision = 1; revision <= 32; revision += 1) {
+      const toolCallId = `retention-source-${revision}`;
+      const projectionRevision = `retention@${revision}`;
+      upsertProviderContextFactCandidateToConversationDomainRuntime({
+        runtime: ensureVmConversationDomainRuntime(vm),
+        sessionId,
+        candidate: {
+          actorKey: actor.key,
+          namespace: "provider-projection",
+          logicalKey: "retention",
+          revision: projectionRevision,
+          payload: { revision, namespace: "provider-projection" },
+          sourceToolCalls: [{ toolCallId, projectionRevision, deliveryState: "pending" }],
+          observedAt: `2026-08-25T18:11:${String(revision).padStart(2, "0")}.000Z`,
+        },
+      });
+      const hex = revision.toString(16).padStart(64, "0");
+      commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+        runtime: ensureVmConversationDomainRuntime(vm),
+        sessionId,
+        actorKey: actor.key,
+        actorId: actor.id,
+        finalRequestDigest: `sha256:${hex}`,
+        sourceRecords: [{
+          toolCallId,
+          callRecordDigest: `sha256:${hex}`,
+          resultRecordDigest: `sha256:${(revision + 32).toString(16).padStart(64, "0")}`,
+        }],
+        occurredAt: `2026-08-25T18:12:${String(revision).padStart(2, "0")}.000Z`,
+      });
+    }
+    const atLimit = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    expect((atLimit.session.contextAssets ?? []).filter((asset) => (
+      asset.providerContextFact?.epoch === 1
+    ))).toHaveLength(33);
+    const seededRepository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    await seededRepository.writeHistoryIndex(atLimit.session.historyIndex);
+    if (atLimit.activeHistoryGeneration) await seededRepository.writeHistoryGeneration(atLimit.activeHistoryGeneration);
+    await seededRepository.writePromptIndex(atLimit.session.promptIndex);
+    if (atLimit.promptGeneration) await seededRepository.writePromptGeneration(atLimit.promptGeneration);
+    await seededRepository.writeSessionIndex(atLimit.session.sessionIndex);
+
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    const after = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    const receipt = after.session.actorBindings[actor.key]!.providerEpochReceiptV2!;
+    expect(receipt).toMatchObject({ epoch: 2, reason: "history_compaction" });
+    expect(receipt.previousReceiptDigest).toBeTruthy();
+    const epochTwoFacts = (after.session.contextAssets ?? []).flatMap((asset) => (
+      asset.providerContextFact?.epoch === 2 ? [asset.providerContextFact] : []
+    ));
+    expect(epochTwoFacts.filter((fact) => fact.namespace === "provider-projection")).toHaveLength(1);
+    expect(epochTwoFacts.filter((fact) => fact.namespace === "workflow-stage-context")).toHaveLength(0);
+    expect(after.session.actorBindings[actor.key]!.providerRequestAdmissions).toHaveLength(1);
+    expect(providerCalls).toBe(2);
+
+    // Cross the next threshold in another namespace while the unchanged
+    // provider-projection fact is represented only by the prior compacted
+    // proof. The second compaction must reconstruct that provenance without a
+    // live tool/admission reread from epoch one.
+    for (let revision = 1; revision <= 32; revision += 1) {
+      const toolCallId = `stage-retention-source-${revision}`;
+      const projectionRevision = `stage-retention@${revision}`;
+      upsertProviderContextFactCandidateToConversationDomainRuntime({
+        runtime: ensureVmConversationDomainRuntime(vm),
+        sessionId,
+        candidate: {
+          actorKey: actor.key,
+          namespace: "workflow-stage-context",
+          logicalKey: "stage-retention",
+          revision: projectionRevision,
+          payload: { revision, namespace: "workflow-stage-context" },
+          sourceToolCalls: [{ toolCallId, projectionRevision, deliveryState: "pending" }],
+          observedAt: `2026-08-25T18:13:${String(revision).padStart(2, "0")}.000Z`,
+        },
+      });
+      const hex = (revision + 64).toString(16).padStart(64, "0");
+      commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+        runtime: ensureVmConversationDomainRuntime(vm),
+        sessionId,
+        actorKey: actor.key,
+        actorId: actor.id,
+        finalRequestDigest: `sha256:${hex}`,
+        sourceRecords: [{
+          toolCallId,
+          callRecordDigest: `sha256:${hex}`,
+          resultRecordDigest: `sha256:${(revision + 96).toString(16).padStart(64, "0")}`,
+        }],
+        occurredAt: `2026-08-25T18:14:${String(revision).padStart(2, "0")}.000Z`,
+      });
+    }
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    const afterRepeated = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    const repeatedReceipt = afterRepeated.session.actorBindings[actor.key]!.providerEpochReceiptV2!;
+    expect(repeatedReceipt).toMatchObject({ epoch: 3, reason: "history_compaction" });
+    const epochThreeFacts = (afterRepeated.session.contextAssets ?? []).flatMap((asset) => (
+      asset.providerContextFact?.epoch === 3 ? [asset.providerContextFact] : []
+    ));
+    expect(epochThreeFacts.map((fact) => fact.namespace).sort()).toEqual([
+      "provider-projection",
+      "work-context",
+      "workflow-stage-context",
+    ]);
+    expect(providerCalls).toBe(3);
+    const fresh = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
+    expect((await fresh.loadSessionIndex()).session.actorBindings[actor.key]?.providerEpochReceiptV2)
+      .toEqual(repeatedReceipt);
   });
 
   it("manual compaction reports already compact enough without rewriting history", async () => {

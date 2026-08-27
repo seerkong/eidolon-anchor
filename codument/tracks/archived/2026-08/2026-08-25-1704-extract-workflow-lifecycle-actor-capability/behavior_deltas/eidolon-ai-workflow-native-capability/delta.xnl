@@ -1,0 +1,35 @@
+<BehaviorPatch #track.extract-workflow-lifecycle-actor-capability.behavior_patch.eidolon-ai-workflow-native-capability apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-ai-workflow-native-capability" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-ai-workflow-native-capability/requirements/dedicated-lifecycle-capability" } (
+      <Requirement #dedicated-lifecycle-capability (
+        <Statement ?>Public Workflow gateways SHALL create and recover a dedicated lifecycle Actor whose frozen capability owns the managed DevOps Skill, lifecycle profile and internal native-tool catalog.</?>
+        <Suites [
+          <Suite #gateway-and-recovery { name = "Gateway, execution and recovery" } (
+            <Cases [
+              <Case #gateway-creates-capability (
+                <Given ?>an ordinary Actor calls `WorkflowFulfill` or `WorkflowAuthor`</?>
+                <When ?>the gateway starts the product operation</?>
+                <Then ?>it SHALL create a separate `workflow_lifecycle` Actor with an admitted lifecycle facet, exact frozen managed Skill material digest and exact versioned lifecycle tool-profile revision</?>
+              )>
+              <Case #fresh-recovery-exact (
+                <Given ?>a lifecycle Actor has persisted its facet and generic conversation/session authority</?>
+                <When ?>a fresh process resumes it after live Skill or workspace changes</?>
+                <Then ?>the same facet facts SHALL be reconstructed from persisted Actor Skill material bytes plus the exact available tool-profile revision, without rereading a new live Skill, substituting a newer profile, or creating a second authority</?>
+              )>
+              <Case #node-cannot-escalate (
+                <Given ?>a Ctrl/Data node AgentDefinition declares a lifecycle-internal tool without a lifecycle facet proof</?>
+                <When ?>the definition is frozen, loaded or dispatched</?>
+                <Then ?>admission SHALL fail before provider request or effect dispatch and SHALL NOT silently turn the node into a lifecycle Actor</?>
+              )>
+              <Case #provider-cost-isolated (
+                <Given ?>ordinary, lifecycle and Ctrl/Data node product journeys are observed at final admitted wire</?>
+                <When ?>the capability split is complete</?>
+                <Then ?>ordinary and node requests SHALL contain zero Workflow-lifecycle-only prompt/tool overhead, same-epoch retained-prefix integrity SHALL remain 1.0, and no journey SHALL exceed the ratified G1 cost ceiling</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

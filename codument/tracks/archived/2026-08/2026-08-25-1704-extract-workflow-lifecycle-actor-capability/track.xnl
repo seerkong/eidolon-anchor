@@ -1,0 +1,146 @@
+<Track #extract-workflow-lifecycle-actor-capability apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Move Workflow lifecycle state, policy, managed Skill and internal tools behind a dedicated Actor capability while keeping generic core, ordinary Actors and AI Ctrl/Data node Agents stage-free." description = "Add a neutral Actor runtime-facet seam, one-way legacy snapshot migration, exact public/internal Workflow tool catalogs and lifecycle-only runtime hooks; prove fresh recovery and G1 cache-cost isolation without redesigning Conversation or the later typed-context strategy." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-25T09:51:53.723Z" updated_at = "2026-08-25T14:04:57.157Z" modeling_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" engineering_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" gap_round = 2 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_extract-workflow-lifecycle-actor-capability { name = "extract-workflow-lifecycle-actor-capability" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Neutral Actor facet and legacy migration" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Add closed runtime-facet contract, codec registry and snapshot envelope" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78RR>
+              Core validates deterministic closed facet envelopes; one per-VM registry binds codecs/hooks; snapshots persist no runtime function.
+              </?01M0W71F4H3GF5VE8N4SSN78RR>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78RS>
+              Unknown codec, accessor/sparse payload, duplicate facet and schema mismatch fail before Actor registration or snapshot mutation.
+              </?01M0W71F4H3GF5VE8N4SSN78RS>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Move Workflow progress into v1 facet and implement one-way migration" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78RT>
+              Workflow payload/codec/hooks live outside ai-core and round-trip through the neutral envelope.
+              </?01M0W71F4H3GF5VE8N4SSN78RT>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78RV>
+              Only exact schema-v3 composite witnesses produce one immutable v4 generation; staged files and a source/target-digest-bound receipt are fsynced before a CAS/atomic manifest-head switch, while missing/ambiguous/conflicting facts fail closed and legacy files are never overwritten or dual-written.
+              </?01M0W71F4H3GF5VE8N4SSN78RV>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78RW>
+          Generic Actor contract, logic and snapshot authority contain no Workflow lifecycle type or mutable progress field.
+          </?01M0W71F4H3GF5VE8N4SSN78RW>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Public gateway and lifecycle-internal tool capability" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Split exact public gateway and lifecycle-internal catalogs" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78RX>
+              Ordinary all-tools contains exactly the two public Workflow gateways and no internal Workflow schema.
+              </?01M0W71F4H3GF5VE8N4SSN78RX>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78RY>
+              Definition registry grants nothing; visibility and execution both require the same facet proof, exact frozen profile revision and admitted-name membership.
+              </?01M0W71F4H3GF5VE8N4SSN78RY>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Bind lifecycle Actor capsule, frozen Skill and internal catalog" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78RZ>
+              WorkflowAuthor/Fulfill create a distinct lifecycle Actor with exact facet, persisted Skill material digest and current exact admitted profile revision.
+              </?01M0W71F4H3GF5VE8N4SSN78RZ>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78S0>
+              Actor name, providerContextClass and registry presence cannot authorize lifecycle effects.
+              </?01M0W71F4H3GF5VE8N4SSN78S0>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P2-G1 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78S1>
+          A complete gateway lifecycle operation succeeds while the calling ordinary Actor never gains internal lifecycle tools.
+          </?01M0W71F4H3GF5VE8N4SSN78S1>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Generic Executor decoupling and node isolation" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Replace Executor Workflow imports with neutral facet hooks" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0W71F4H3GF5VE8N4SSN78S2>
+              Both Executor loops invoke per-VM neutral hooks in exact beforeTurn → aroundProvider → afterToolOutcome order with revision-CAS replacement; provider continuation/effect exists only on the invocation-scoped runtime port, while selector/invocation are closed facts and config contains no function.
+              </?01M0W71F4H3GF5VE8N4SSN78S2>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXG>
+              Actors without the facet perform no lifecycle callback or dynamic progress prompt mutation.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXG>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Enforce Ctrl/Data node stage-free admission and exact tools" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXH>
+              Ctrl/Data nodes receive no implicit gateway, stage, Skill or lifecycle-internal tool.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXH>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXJ>
+              A frozen Agent task requesting an internal lifecycle tool without proof fails before provider/effect dispatch.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXJ>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXK>
+          Static and product tests prove generic core/executor and node Agents are Workflow-lifecycle-free.
+          </?01M0W71F4JSZ2BCSEC2E7G1EXK>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Recovery, cost regression and final verification" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "Prove fresh recovery, frozen Skill and legacy migration" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXM>
+              Fresh recovery verifies persisted Actor Skill bytes/digest and exact available tool-profile revision; it neither rereads a changed live Skill nor substitutes a newer profile.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXM>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXN>
+              Faults after staging create/write/fsync, immutable generation publish and before/after manifest-head swap converge on fresh retry to one admitted v1 facet; receipt/head/digest tamper and symlink/path escape fail closed without duplicate authority.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXN>
+            ]>
+          )>
+          <Task #P4-T2 { name = "Run final-wire cache and normalized-cost regression" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXP>
+              Ordinary/node Workflow-lifecycle-only overhead is zero and same-epoch retainedPrefixIntegrity remains 1.0.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXP>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXQ>
+              All comparable product journeys stay at or below G1 tool/control and normalized-cost ceilings.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXQ>
+            ]>
+          )>
+          <Task #P4-T3 { name = "Run full gates and fresh coding AttractorCheck" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P4-T3-AC1 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXR>
+              Scoped typecheck, product tests, static boundaries, strict Codument and diff check pass.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXR>
+              <Criterion #P4-T3-AC2 { checked = true } ?01M0W71F4JSZ2BCSEC2E7G1EXS>
+              Fresh coding AttractorCheck returns no P0/P1 gap.
+              </?01M0W71F4JSZ2BCSEC2E7G1EXS>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_extract-workflow-lifecycle-actor-capability" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "track:after" } (
+      <AttractorCheck { use = "coding" }>
+    )>
+  ]>
+)>

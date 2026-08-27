@@ -3,10 +3,10 @@
 For an admitted resource workflow, an ordinary Ctrl/Data node invokes the typed bound facade:
 
 - `runAgent(input, config)` creates or idempotently reuses the invocation identified by the current node/run/generation; an optional non-empty `config.instanceName` reserves one unique alias inside that run;
-- `runTargetedAgent({ byInstanceName }, invocation, config)` addresses that accepted alias;
-- `runTargetedAgent({ byInstanceId }, invocation, config)` addresses the exact id returned by an earlier `{ output, instance, receipt }` result.
+- `runTargetedAgent({ byName }, invocation, config)` addresses that accepted alias;
+- `runTargetedAgent({ byId }, invocation, config)` addresses the exact id returned by an earlier `{ output, instance, receipt }` result.
 
-`invocation` is a closed `{ kind: "ai.agent", payload, metadata? }` object. A selector contains exactly one non-empty `byInstanceName` or `byInstanceId`; never send both and never translate labels or prose into a selector.
+`invocation` is a closed `{ kind: "ai.agent", payload, metadata? }` object. A selector contains exactly one non-empty `byName` or `byId`; never send both and never translate labels or prose into a selector.
 
 Eidolon freezes the exact task tuple, dependency receipt, schemas, effect policy, ordered Material values and payload before creating the generic delegate actor. Resource Agents do not accept a free prompt override.
 

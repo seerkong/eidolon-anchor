@@ -1,0 +1,141 @@
+<Track #restore-deepseek-prefix-cache-stability apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Restore DeepSeek exact-prefix cacheability across Workflow stage transitions and expose provider-reported cache usage without weakening tool authorization." description = "Replace root prompt/tool-schema mutation with append-only stage facts plus a stable provider schema projection, then consume DeepSeek streamed cache hit/miss usage through the existing VM usage authority." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-24T19:57:55.277Z" updated_at = "2026-08-24T20:41:49.428Z" modeling_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" engineering_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_restore-deepseek-prefix-cache-stability { name = "restore-deepseek-prefix-cache-stability" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Prefix regression characterization" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M0TPD3C5HS81V2AMXSMHTBR9>
+        Prove which recent request mutations break DeepSeek exact-prefix reuse and establish deterministic RED tests.
+        </?01M0TPD3C5HS81V2AMXSMHTBR9>
+        <Gate [
+          <Criterion { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRA>
+          The RED suite distinguishes recurring stage prefix invalidation from deterministic admission and Holon changes.
+          </?01M0TPD3C5HS81V2AMXSMHTBRA>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "Establish request-prefix and usage RED" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M0TPD3C5HS81V2AMXSMHTBRB>
+            Build consecutive real Workflow/DeepSeek request projections and streamed usage fixtures before implementation.
+            </?01M0TPD3C5HS81V2AMXSMHTBRB>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRC>
+              A coding-to-testing transition proves the prior messages and tool schemas are not an exact prefix/surface under current code.
+              </?01M0TPD3C5HS81V2AMXSMHTBRC>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRD>
+              A DeepSeek usage-only terminal stream chunk proves cache hit/miss facts are currently discarded.
+              </?01M0TPD3C5HS81V2AMXSMHTBRD>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRE>
+              Git evidence records the introducing commits and rules out the Holon Mission as the mutation owner.
+              </?01M0TPD3C5HS81V2AMXSMHTBRE>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Cache-stable Workflow stage projection" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M0TPD3C5HS81V2AMXSMHTBRF>
+        Move stage authority to append-only tool facts and stabilize the provider schema surface while retaining exact runtime authorization.
+        </?01M0TPD3C5HS81V2AMXSMHTBRF>
+        <Gate [
+          <Criterion { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRG>
+          Same-provider forward-only Workflow turns extend the previous DeepSeek request prefix.
+          </?01M0TPD3C5HS81V2AMXSMHTBRG>
+          <Criterion { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRH>
+          Stage-disallowed tools remain impossible to execute.
+          </?01M0TPD3C5HS81V2AMXSMHTBRH>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "Implement append-only stage context" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M0TPD3C5HS81V2AMXSMHTBRJ>
+            Return the loaded stage authority in the trusted tool result and stop rewriting root system prompts.
+            </?01M0TPD3C5HS81V2AMXSMHTBRJ>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRK>
+              Stage transitions append a closed authority envelope and do not replace an earlier request prefix.
+              </?01M0TPD3C5HS81V2AMXSMHTBRK>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRM>
+              Legacy dynamic stage system markers are removed only while advancing the continuation baseline with a typed migration reason; that request is an explicit new cache epoch.
+              </?01M0TPD3C5HS81V2AMXSMHTBRM>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Separate stable schema presentation from execution policy" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M0TPD3C5HS81V2AMXSMHTBRN>
+            Persist the configured provider-visible tool surface and keep current stage allowlist as the sole execution authority.
+            </?01M0TPD3C5HS81V2AMXSMHTBRN>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRP>
+              Stable-prefix actors preserve an explicit all/exact code-unit-sorted tool schema surface across stage transitions.
+              </?01M0TPD3C5HS81V2AMXSMHTBRP>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRQ>
+              A visible but stage-disallowed tool is rejected before its effect executes.
+              </?01M0TPD3C5HS81V2AMXSMHTBRQ>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRR>
+              Actor snapshot/recovery preserves the stable surface; all+empty, initial exact and legacy narrowed Workflow recovery are covered, with legacy reconstruction beginning a new cache epoch.
+              </?01M0TPD3C5HS81V2AMXSMHTBRR>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "DeepSeek cache usage and bounded verification" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M0TPD3C5HS81V2AMXSMHTBRS>
+        Capture provider-reported cache usage and prove the repair against provider/conversation/workflow regressions.
+        </?01M0TPD3C5HS81V2AMXSMHTBRS>
+        <Gate [
+          <Criterion { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRT>
+          Focused tests, strict typecheck, terminal build, Codument validation and diff checks pass.
+          </?01M0TPD3C5HS81V2AMXSMHTBRT>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "Record provider cache usage" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M0TPD3C5HS81V2AMXSMHTBRV>
+            Request DeepSeek streamed usage, return it through providerOutput and update existing VM cache counters without persisting provider metadata into history.
+            </?01M0TPD3C5HS81V2AMXSMHTBRV>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRW>
+              DeepSeek requests default include_usage without overriding an explicit stream_options value.
+              </?01M0TPD3C5HS81V2AMXSMHTBRW>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRX>
+              Final-success hit/miss counters reach VM usage and the assistant conversation message remains provider-metadata-free.
+              </?01M0TPD3C5HS81V2AMXSMHTBRX>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBRY>
+              Malformed/negative usage, retry/failure, explicit include_usage=false and providers omitting usage preserve the existing estimated path without double counting.
+              </?01M0TPD3C5HS81V2AMXSMHTBRY>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Run cache and regression matrix" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M0TPD3C5HS81V2AMXSMHTBRZ>
+            Run Workflow, provider epoch, DeepSeek, stream, snapshot and terminal gates, then review ownership/static boundaries.
+            </?01M0TPD3C5HS81V2AMXSMHTBRZ>
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBS0>
+              Same-provider stage transitions are prefix-stable; provider/model switch and compaction remain explicit epoch boundaries.
+              </?01M0TPD3C5HS81V2AMXSMHTBS0>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0TPD3C5HS81V2AMXSMHTBS1>
+              Provider epoch, pending tool delivery and DeepSeek reasoning/tool roundtrip suites remain green.
+              </?01M0TPD3C5HS81V2AMXSMHTBS1>
+              <Criterion #P3-T2-AC3 { checked = true } ?01M0TPD3C60NQ6WQ910T9V4EQ0>
+              Typecheck, terminal build, strict Codument validation and git diff --check pass.
+              </?01M0TPD3C60NQ6WQ910T9V4EQ0>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_restore-deepseek-prefix-cache-stability" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

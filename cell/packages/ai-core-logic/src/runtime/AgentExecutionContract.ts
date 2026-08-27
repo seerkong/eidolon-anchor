@@ -114,7 +114,7 @@ function cloneClosedValue(value: unknown, location: string, active = new Set<obj
 
 function objectValue(value: AgentExecutionValue | undefined, location: string): Readonly<Record<string, AgentExecutionValue>> {
   if (value === null || value === undefined || Array.isArray(value) || typeof value !== "object") invalid(`${location} must be an object`)
-  return value
+  return value as Readonly<Record<string, AgentExecutionValue>>
 }
 
 function schemaObject(value: AgentExecutionValue | undefined, location: string): void {

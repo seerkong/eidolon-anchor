@@ -7,6 +7,7 @@ import type { ToolSchema } from "@cell/ai-core-contract/types";
 import type { ProviderOptions } from "./ProviderPlugins";
 import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
+import { validateProviderContextFactsInFinalWire } from "./ProviderContextFactWireProfile";
 
 export type ClaudeNodejsFetchAdapterSettings = {
   apiKey: string;
@@ -424,6 +425,10 @@ export class ClaudeNodejsFetchLlmAdapter implements LlmAdapter {
     const fetchFn = this.providerOptions.fetch || fetch;
     const signal = this.providerOptions.signal as AbortSignal | undefined;
     const serializedBody = JSON.stringify(body);
+    validateProviderContextFactsInFinalWire({
+      profileId: "claude-code@1",
+      serializedBody,
+    });
     observeProviderTransportRequest(this.requestObserver, {
       transportType: "http",
       requestBody: serializedBody,

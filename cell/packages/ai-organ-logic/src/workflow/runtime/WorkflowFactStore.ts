@@ -384,10 +384,10 @@ export class WorkflowFactStore implements WorkCtrlFlowStore, AIWorkflowStateStor
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return []
       throw error
     }
-    return (await Promise.all(names
+    const values = await Promise.all(names
       .filter((name) => name.endsWith(".json"))
-      .map((name) => readJson<T>(path.join(directory, name)))))
-      .filter((item): item is T => Boolean(item))
+      .map((name) => readJson<T>(path.join(directory, name))))
+    return values.filter((item) => item !== undefined) as T[]
   }
 }
 

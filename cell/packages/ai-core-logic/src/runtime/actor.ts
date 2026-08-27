@@ -10,6 +10,12 @@ import type {
 } from "@cell/ai-core-contract/runtime/ContextControl";
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
 import { cloneAndFreezeAgentExecutionContract } from "./AgentExecutionContract";
+import { normalizeActorRuntimeFacetIndex } from "./ActorRuntimeFacet";
+import type {
+  ActorRuntimeFacetIndexInput,
+} from "@cell/ai-core-contract/runtime/ActorRuntimeFacet";
+import type { ActorDurableMaterialIndexInput } from "@cell/ai-core-contract/runtime/ActorDurableMaterial";
+import { normalizeActorDurableMaterialIndex } from "./ActorDurableMaterial";
 import type {
   ActorContext,
   ActorContextPolicy,
@@ -153,6 +159,7 @@ export type CreateActorParams = {
   toolPolicy?: Partial<ActorToolPolicy>;
   contextPolicy?: Partial<ActorContextPolicy>;
   executionContract?: AiAgentActor["executionContract"];
+  origin?: AiAgentActor["origin"];
   modelConfig?: ActorModelConfig;
   llmClient?: object | null;
   stream?: XStream<any> | null;
@@ -167,7 +174,8 @@ export type CreateActorParams = {
   continuationBaseline?: ContinuationBaselineData;
   recovery?: ActorRecoveryState;
   detachedTask?: DetachedTaskState;
-  workflowProgress?: AiAgentActor["workflowProgress"];
+  runtimeFacets?: ActorRuntimeFacetIndexInput;
+  durableMaterials?: ActorDurableMaterialIndexInput;
   holonState?: HolonActorState;
   callbacks?: Partial<AiAgentActor.ActorCallbacks>;
   logger?: Logger;
@@ -228,10 +236,21 @@ export function createActor(params: CreateActorParams): AiAgentActor {
   };
 
   const allowedTools = [...(params.toolPolicy?.allowedTools ?? [])];
+  const allowedToolsMode = params.toolPolicy?.allowedToolsMode
+    ?? (allowedTools.length > 0 ? "exact" : "all");
+  const configuredProviderSurface = params.toolPolicy?.providerToolSurface;
   const toolPolicy: ActorToolPolicy = {
-    allowedToolsMode: params.toolPolicy?.allowedToolsMode
-      ?? (allowedTools.length > 0 ? "exact" : "all"),
+    allowedToolsMode,
     allowedTools,
+    providerToolSurface: configuredProviderSurface
+      ? {
+          mode: configuredProviderSurface.mode,
+          toolNames: [...configuredProviderSurface.toolNames],
+        }
+      : {
+          mode: allowedToolsMode,
+          toolNames: [...allowedTools],
+        },
     enabledToolKeys: [...(params.toolPolicy?.enabledToolKeys ?? [])],
     disabledToolKeys: [...(params.toolPolicy?.disabledToolKeys ?? [])],
     computedDisabledTools: [...(params.toolPolicy?.computedDisabledTools ?? [])],
@@ -289,6 +308,7 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     executionContract: params.executionContract
       ? cloneAndFreezeAgentExecutionContract(params.executionContract)
       : undefined,
+    origin: normalizeActorOrigin(params.origin),
     modelConfig: params.modelConfig ?? {},
     llmClient: params.llmClient ?? null,
     stream: params.stream ?? null,
@@ -314,7 +334,8 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     },
     recovery: params.recovery,
     detachedTask: params.detachedTask ? { ...params.detachedTask } : undefined,
-    workflowProgress: params.workflowProgress ? { ...params.workflowProgress } : undefined,
+    runtimeFacets: normalizeActorRuntimeFacetIndex(params.runtimeFacets),
+    durableMaterials: normalizeActorDurableMaterialIndex(params.durableMaterials),
     holonState: params.holonState ? cloneHolonState(params.holonState) : undefined,
     watchState: "unwatched",
     hasPending: (tag) => mailboxes[tag].length > 0,
@@ -335,6 +356,29 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     },
     logger: params.logger,
   };
+}
+
+function normalizeActorOrigin(value: AiAgentActor["origin"] | undefined): AiAgentActor["origin"] | undefined {
+  if (value === undefined) return undefined;
+  const descriptors = Object.getOwnPropertyDescriptors(value);
+  const keys = Reflect.ownKeys(descriptors);
+  if (Object.getPrototypeOf(value) !== Object.prototype
+    || keys.some((key) => typeof key !== "string")
+    || (keys as string[]).sort().join("\0") !== ["ownerDigest", "proofDigest", "schemaVersion", "subjectDigest"].join("\0")) {
+    throw new Error("ACTOR_ORIGIN_INVALID: origin must be exact closed own-data");
+  }
+  for (const key of keys as string[]) {
+    const descriptor = descriptors[key]!;
+    if (!("value" in descriptor) || !descriptor.enumerable) {
+      throw new Error("ACTOR_ORIGIN_INVALID: origin must contain enumerable own-data only");
+    }
+  }
+  const sha = /^sha256:[0-9a-f]{64}$/;
+  if (value.schemaVersion !== "eidolon.actor-origin/v1"
+    || !sha.test(value.ownerDigest) || !sha.test(value.subjectDigest) || !sha.test(value.proofDigest)) {
+    throw new Error("ACTOR_ORIGIN_INVALID: origin digest or schema is invalid");
+  }
+  return Object.freeze({ ...value });
 }
 
 export function applyActorModelConfigControlSignals(actor: AiAgentActor): AppliedActorModelConfigControl | null {

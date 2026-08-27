@@ -8,6 +8,7 @@ import {
 } from "../authoring"
 import { withWorkflowDomainProgress } from "../runtime/WorkflowDomainProgress"
 import { normalizeWorkflowFulfillmentContinuation } from "./WorkflowFulfill/OuterTypes"
+import { readWorkflowLifecycleFacet } from "../runtime/WorkflowLifecycleFacet"
 
 type ToolConfig = Record<string, unknown>
 type JsonTool = ToolDef<any, string, ToolConfig>
@@ -125,7 +126,7 @@ async function activeAuthoringIdentity(
   input: { session_id?: unknown; expected_revision?: unknown },
   component: ReturnType<typeof createWorkflowComponentForRuntime>,
 ): Promise<{ sessionId: string; revision?: string }> {
-  const progress = runtime.actor.workflowProgress
+  const progress = readWorkflowLifecycleFacet(runtime.actor)
   let sessionId = input.session_id === undefined
     ? progress?.activeAuthoringSessionId
     : text(input.session_id, "session_id")
@@ -134,9 +135,12 @@ async function activeAuthoringIdentity(
     : text(input.expected_revision, "expected_revision")
   if (!sessionId) {
     const outerId = outerSessionId(runtime)
-    const continuation = outerId
+    const storedContinuation = outerId
       ? await component.sessions.readFulfillmentContinuation(outerId)
       : undefined
+    const continuation = storedContinuation === undefined
+      ? undefined
+      : normalizeWorkflowFulfillmentContinuation(storedContinuation)
     if (continuation?.kind === "authoring") {
       sessionId = continuation.authoring_session_id
       revision ??= continuation.expected_revision
@@ -563,8 +567,12 @@ export function buildWorkflowPublishAuthoringSessionToolDef(): JsonTool {
           expectedRevision: text(input.expected_revision, "expected_revision"),
           confirmed: input.confirmed === true,
         })
+        if (result.status !== "published") return result
         const receipt = result.receipt
         if (!receipt || receipt.kind !== "workflow.resourcePackagePublicationReceipt") return result
+        if (session.target.kind !== "workspace-resource-package") {
+          throw new Error("Workflow ResourcePackage session target is invalid")
+        }
         const appRef = session.target.selectedResourceRefs.find((ref) => receipt.appRefs.includes(ref))
           ?? (receipt.appRefs.length === 1 ? receipt.appRefs[0] : undefined)
         const workflowRef = session.target.selectedResourceRefs.find((ref) => receipt.entrypointWorkflowRefs.includes(ref))

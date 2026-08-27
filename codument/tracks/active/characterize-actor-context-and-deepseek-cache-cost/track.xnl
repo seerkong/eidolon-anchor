@@ -1,0 +1,133 @@
+<Track #characterize-actor-context-and-deepseek-cache-cost apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Create final-wire, provider-aware evidence that distinguishes Actor context leakage, exact-prefix stability, cache usage and normalized input cost before Workflow lifecycle refactoring." description = "Add a closed cache-cost observation contract and deterministic product-shaped baselines for ordinary, Workflow lifecycle and AI Workflow node Agents, while reporting official DeepSeek and compatible providers separately." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-25T07:34:29.643Z" updated_at = "2026-08-25T09:49:23.587Z" modeling_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" engineering_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" gap_round = 5 } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_characterize-actor-context-and-deepseek-cache-cost { name = "characterize-actor-context-and-deepseek-cache-cost" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Final-wire measurement contract and RED" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M0VY82G22YES690E75RB5EZ6>
+        Define cache-relevant units and prove that current ordinary, Workflow and node-Agent request projections cannot yet produce a complete comparable cost record.
+        </?01M0VY82G22YES690E75RB5EZ6>
+        <Gate [
+          <Criterion { checked = true } ?01M0VY82G22YES690E75RB5EZ7>
+          RED evidence reaches the serialized admitted request rather than comparing intermediate stage DTOs.
+          </?01M0VY82G22YES690E75RB5EZ7>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "Define closed structural and normalized-cost observation contract" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0VY82G22YES690E75RB5EZ8>
+              The contract binds provider/profile/model, actor class, context epoch, message/tool surface digests, token components and explicit price weights without storing prompt/tool values.
+              </?01M0VY82G22YES690E75RB5EZ8>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0VY82G22YES690E75RB5EZ9>
+              Canonical final-wire cache units with an explicit epoch identity produce two distinct metrics: retainedPrefixIntegrity uses the prior request as denominator and reuseOpportunityCoverage uses the current request as denominator.
+              </?01M0VY82G22YES690E75RB5EZ9>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Establish final-wire actor and cache-cost RED matrix" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0VY82G22YES690E75RB5EZA>
+              Ordinary primary/Code, dedicated Workflow lifecycle and AI Workflow node Agent fixtures are independently observable.
+              </?01M0VY82G22YES690E75RB5EZA>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0VY82G22YES690E75RB5EZB>
+              The RED suite detects dynamic Workflow progress/work-context prefix mutation and global Workflow tool-surface leakage.
+              </?01M0VY82G22YES690E75RB5EZB>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M0VY82G22YES690E75RB5EZC>
+              Official DeepSeek and SiliconFlow-compatible profiles cannot be silently combined into one cache contract.
+              </?01M0VY82G22YES690E75RB5EZC>
+              <Criterion #P1-T2-AC4 { checked = true } ?01M0VY82G22YES690E75RB5EZD>
+              A complete writer-to-owner inventory reverse-traces live Skill loading, progress/work-context overlays, provider epoch, compaction, rewind, recovery, reasoning/tool-pair presentation and provider-specific normalization to final admitted bytes.
+              </?01M0VY82G22YES690E75RB5EZD>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Provider cache-cost observer and integration" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M0VY82G22YES690E75RB5EZE>
+        Implement a pure closed observer over final admitted request bytes and final-success provider usage, then connect it to the existing provider observation/usage authority without adding a history owner.
+        </?01M0VY82G22YES690E75RB5EZE>
+        <Gate [
+          <Criterion { checked = true } ?01M0VY82G22YES690E75RB5EZF>
+          Observation is deterministic, deep immutable, value-safe and does not change the provider request.
+          </?01M0VY82G22YES690E75RB5EZF>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "Implement canonical cache-relevant units and prefix comparison" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0VY82G22YES690E75RB5EZG>
+              Consecutive same-epoch observations report retainedPrefixIntegrity = exact retained prior units/prior units, reuseOpportunityCoverage = exact LCP units/current units, and first divergence kind/digests using one explicit provider-profile unit definition.
+              </?01M0VY82G22YES690E75RB5EZG>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0VY82G22YES690E75RB5EZH>
+              Accessor, sparse, non-own, undefined and non-finite input fails closed before an observation is accepted.
+              </?01M0VY82G22YES690E75RB5EZH>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Bind final-success usage and normalized cost breakdown" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0VY82G22YES690E75RB5EZJ>
+              Hit, miss, prompt, tool-surface and Workflow-control token components remain separate and normalized cost uses explicit injected weights.
+              </?01M0VY82G22YES690E75RB5EZJ>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0VY82G22YES690E75RB5EZK>
+              Retry/failure/missing usage does not fabricate provider hit evidence or double count a successful attempt.
+              </?01M0VY82G22YES690E75RB5EZK>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Actor baseline, provider split and Track verification" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M0VY82G22YES690E75RB5EZM>
+        Run the complete deterministic matrix, record a reproducible baseline and independently review whether the next Mission Track has enough evidence to isolate Workflow lifecycle authority.
+        </?01M0VY82G22YES690E75RB5EZM>
+        <Gate [
+          <Criterion { checked = true } ?01M0VY82G22YES690E75RB5EZN>
+          The report separates structural regression, provider best-effort cache behavior and total normalized input cost.
+          </?01M0VY82G22YES690E75RB5EZN>
+          <Criterion { checked = true } ?01M0VY82G22YES690E75RB5EZP>
+          Focused/full tests, strict types, Codument validation and diff checks pass.
+          </?01M0VY82G22YES690E75RB5EZP>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "Record ordinary, Workflow and node-Agent baseline" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0VY82G22YES690E75RB5EZQ>
+              The baseline identifies every current Workflow-only prompt/tool contribution paid by ordinary and node Agents.
+              </?01M0VY82G22YES690E75RB5EZQ>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0VY82G22YES690E75RB5EZR>
+              Same-stage, stage-transition, reasoning/tool pairs, retry, compaction, rewind, recovery, provider switch, live Skill revision and long-context scenarios emit comparable observations.
+              </?01M0VY82G22YES690E75RB5EZR>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M0VY82G22YES690E75RB5EZS>
+              Official DeepSeek live baseline runs 3–5 warmed groups and remains separate from compatible-provider results; missing official credentials is an explicit Track blocker and deterministic evidence never masquerades as a live hit.
+              </?01M0VY82G22YES690E75RB5EZS>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Run final gates and fresh coding AttractorCheck" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0VY82G22YES690E75RB5EZT>
+              The implementation is value-safe, introduces no second Conversation/History/Session authority and leaves request bytes unchanged.
+              </?01M0VY82G22YES690E75RB5EZT>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0VY82G22YES690E75RB5EZV>
+              Fresh review finds no P0/P1 gap in the measurement boundary or baseline evidence.
+              </?01M0VY82G22YES690E75RB5EZV>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_characterize-actor-context-and-deepseek-cache-cost" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

@@ -7,6 +7,7 @@ import {
   stdMakeNullOuterComputed,
 } from "depa-processor"
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine"
+import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
 import type { ShutdownStatusInnerConfig, ShutdownStatusInnerInput, ShutdownStatusInnerOutput, ShutdownStatusInnerRuntime } from "./InnerTypes"
 
 export const makeShutdownStatusOuterComputed = stdMakeNullOuterComputed
@@ -16,7 +17,7 @@ export const makeShutdownStatusInnerConfig = stdMakeIdentityInnerConfig
 export const makeShutdownStatusOuterOutput = stdMakeIdentityOuterOutput
 
 function findShutdownOwner(runtime: ShutdownStatusInnerRuntime, requestId: string): { key: string; id: string } | null {
-  for (const actor of Object.values(runtime.vm.actors)) {
+  for (const actor of Object.values(runtime.vm.actors) as AiAgentActor[]) {
     if (actor.shutdownCoordination?.requestId === requestId) {
       return { key: actor.key, id: actor.id }
     }
@@ -29,7 +30,7 @@ function findPendingShutdownEnvelope(
   requestId: string,
 ): { env: { request_id: string; coordination: string; kind: string }; actorKey: string; actorId: string } | null {
   const engine = getCoordinationEngine()
-  for (const actor of Object.values(runtime.vm.actors)) {
+  for (const actor of Object.values(runtime.vm.actors) as AiAgentActor[]) {
     for (const mailboxTag of ["memberCoordination", "memberChatInbox"] as const) {
       for (const pending of actor.peekMailbox(mailboxTag) as Array<{ text?: string }>) {
         const env = engine.parseEnvelopeText(String(pending?.text ?? ""))

@@ -1,8 +1,10 @@
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { buildActorDirName } from "@cell/ai-core-contract/runtime/ActorDirectory";
 import type { RuntimeSnapshotRepositoryFactory } from "@cell/ai-core-contract/runtime/RuntimeSnapshotStore";
+import type { RuntimeSnapshotImporter } from "@cell/ai-core-contract/runtime/RuntimeSnapshotStore";
 import {
   RUNTIME_SNAPSHOT_SCHEMA_VERSION,
   type RuntimeSnapshotActor,
@@ -16,6 +18,8 @@ import {
   type RuntimeSnapshotPersistedState,
   type RuntimeSnapshotVm,
 } from "@cell/ai-core-logic/runtime/snapshot";
+import { normalizeActorDurableMaterialIndex } from "@cell/ai-core-logic/runtime/ActorDurableMaterial";
+import { normalizeActorRuntimeFacetIndex } from "@cell/ai-core-logic/runtime/ActorRuntimeFacet";
 import {
   parseQuestionnaireRowsXnl,
   serializeQuestionnaireRowsXnl,
@@ -27,12 +31,29 @@ const QUESTIONNAIRES_FILE = "questionnaires.xnl";
 const ACTORS_DIR = path.posix.join("..", "actors");
 const FIBERS_DIR = "fibers";
 const INDEXES_DIR = "indexes";
+const GENERATIONS_DIR = "generations";
+const CHECKPOINTS_DIR = "checkpoints";
+const GENERATION_MANIFEST_FILE = "generation-manifest.json";
+const MIGRATION_RECEIPT_FILE = "migration-attempt.json";
 const REDACTED_PROVIDER_SECRET = "[REDACTED]";
 
 export type RuntimeSnapshotWriteSelection = {
   dirtyActorKeys?: readonly string[];
   dirtyFiberIds?: readonly string[];
 };
+
+export type RuntimeSnapshotMigrationFaultPoint =
+  | "after-staging-create"
+  | "after-staging-write"
+  | "after-staging-fsync"
+  | "after-generation-publish"
+  | "before-head-swap"
+  | "after-head-swap";
+
+export type LocalFileRuntimeSnapshotRepositoryOptions = Readonly<{
+  importers?: readonly RuntimeSnapshotImporter[];
+  migrationFaultInjector?: (point: RuntimeSnapshotMigrationFaultPoint) => void | Promise<void>;
+}>;
 
 type RuntimeSnapshotWriteInput = RuntimeSnapshotPersistedState & RuntimeSnapshotWriteSelection;
 
@@ -105,6 +126,32 @@ function toAbsolute(rootDir: string, relativeFile: string): string {
   return path.join(rootDir, relativeFile);
 }
 
+function sha256Bytes(value: string | Uint8Array): string {
+  return `sha256:${createHash("sha256").update(value).digest("hex")}`;
+}
+
+function stableJson(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+async function fsyncFile(filePath: string): Promise<void> {
+  const handle = await open(filePath, "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function fsyncDirectory(directoryPath: string): Promise<void> {
+  const handle = await open(directoryPath, "r");
+  try {
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
 async function ensureParentDir(filePath: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
 }
@@ -169,8 +216,10 @@ function isStringRecord(value: unknown): value is Record<string, string> {
   return Object.values(value).every((entry) => typeof entry === "string" && entry.length > 0);
 }
 
-function assertCurrentManifestShape(manifest: RuntimeSnapshotManifest): void {
-  assertCurrentSnapshotVersion(manifest.version, MANIFEST_FILE);
+function assertManifestShape(manifest: RuntimeSnapshotManifest, expectedVersion: number): void {
+  if (manifest.version !== expectedVersion) {
+    failUnsupportedSnapshot(`${MANIFEST_FILE} must use version=${expectedVersion}`);
+  }
   if (typeof manifest.vmFile !== "string" || manifest.vmFile.length === 0) {
     failUnsupportedSnapshot("manifest.vmFile is required");
   }
@@ -183,6 +232,10 @@ function assertCurrentManifestShape(manifest: RuntimeSnapshotManifest): void {
   if (!Array.isArray(manifest.indexFiles) || !manifest.indexFiles.every((entry) => typeof entry === "string" && entry.length > 0)) {
     failUnsupportedSnapshot("manifest.indexFiles must be a string array");
   }
+}
+
+function assertCurrentManifestShape(manifest: RuntimeSnapshotManifest): void {
+  assertManifestShape(manifest, RUNTIME_SNAPSHOT_SCHEMA_VERSION);
 }
 
 function buildIndexes(input: {
@@ -224,9 +277,11 @@ function buildIndexes(input: {
 
 export class LocalFileRuntimeSnapshotRepository {
   readonly rootDir: string;
+  readonly options: LocalFileRuntimeSnapshotRepositoryOptions;
 
-  constructor(rootDir: string) {
+  constructor(rootDir: string, options: LocalFileRuntimeSnapshotRepositoryOptions = {}) {
     this.rootDir = rootDir;
+    this.options = options;
   }
 
   get manifestPath(): string {
@@ -294,6 +349,7 @@ export class LocalFileRuntimeSnapshotRepository {
     actorState: Record<string, unknown>;
     actorMailboxes: Record<string, unknown>;
   } {
+    const runtimeFacets = normalizeActorRuntimeFacetIndex(actor.runtimeFacets);
     return {
       actorMeta: {
         version: actor.version,
@@ -308,6 +364,7 @@ export class LocalFileRuntimeSnapshotRepository {
         toolPolicy: actor.toolPolicy,
         contextPolicy: actor.contextPolicy,
         executionContract: actor.executionContract,
+        origin: actor.origin,
         modelConfig: redactProviderSecrets(actor.modelConfig),
         ctrlOptions: actor.ctrlOptions,
       },
@@ -320,7 +377,8 @@ export class LocalFileRuntimeSnapshotRepository {
         continuationBaseline: actor.continuationBaseline,
         lastMemberResultNotifiedAt: actor.lastMemberResultNotifiedAt,
         detachedTask: actor.detachedTask,
-        workflowProgress: actor.workflowProgress,
+        runtimeFacets,
+        durableMaterials: normalizeActorDurableMaterialIndex(actor.durableMaterials),
         holonState: actor.holonState,
         updatedAt: actor.updatedAt,
         recovery: actor.recovery,
@@ -333,7 +391,11 @@ export class LocalFileRuntimeSnapshotRepository {
     };
   }
 
-  private async readActorSnapshotFromPath(relativeFile: string, corruptions: RuntimeSnapshotCorruption[]): Promise<RuntimeSnapshotActor | null> {
+  private async readActorSnapshotFromPath(
+    relativeFile: string,
+    corruptions: RuntimeSnapshotCorruption[],
+    expectedVersion = RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+  ): Promise<RuntimeSnapshotActor | null> {
     const actorPath = toAbsolute(this.rootDir, relativeFile);
     const actorJson = await readJsonFileBestEffort<Record<string, any>>(actorPath, corruptions);
     if (!actorJson) return null;
@@ -341,17 +403,17 @@ export class LocalFileRuntimeSnapshotRepository {
     if (actorJson.mailboxes || actorJson.taskTree || actorJson.messages) {
       failUnsupportedSnapshot(`invalid actor metadata shape at ${relativeFile}`);
     }
-    assertCurrentSnapshotVersion(actorJson.version, relativeFile);
+    if (actorJson.version !== expectedVersion) failUnsupportedSnapshot(`${relativeFile} must use version=${expectedVersion}`);
 
     const statePath = toAbsolute(this.rootDir, buildActorSiblingFile(relativeFile, "state.json"));
     const mailboxesPath = toAbsolute(this.rootDir, buildActorSiblingFile(relativeFile, "mailboxes.json"));
     const stateJson = await readJsonFileBestEffort<Record<string, any>>(statePath, corruptions);
     const mailboxesJson = await readJsonFileBestEffort<Record<string, any>>(mailboxesPath, corruptions);
     if (!stateJson || !mailboxesJson) return null;
-    assertCurrentSnapshotVersion(stateJson.version, buildActorSiblingFile(relativeFile, "state.json"));
-    assertCurrentSnapshotVersion(mailboxesJson.version, buildActorSiblingFile(relativeFile, "mailboxes.json"));
-    return {
-      version: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+    if (stateJson.version !== expectedVersion) failUnsupportedSnapshot(`${buildActorSiblingFile(relativeFile, "state.json")} must use version=${expectedVersion}`);
+    if (mailboxesJson.version !== expectedVersion) failUnsupportedSnapshot(`${buildActorSiblingFile(relativeFile, "mailboxes.json")} must use version=${expectedVersion}`);
+    const snapshot: RuntimeSnapshotActor = {
+      version: expectedVersion,
       key: String(actorJson.key ?? ""),
       id: String(actorJson.id ?? ""),
       type: actorJson.type,
@@ -371,6 +433,7 @@ export class LocalFileRuntimeSnapshotRepository {
       },
       contextPolicy: actorJson.contextPolicy ?? { historyCompaction: "auto" },
       executionContract: actorJson.executionContract,
+      origin: actorJson.origin,
       modelConfig: removePersistedProviderSecrets(actorJson.modelConfig ?? {}) as RuntimeSnapshotActor["modelConfig"],
       ctrlOptions: actorJson.ctrlOptions ?? {
         stopAfterFirstTool: false,
@@ -392,7 +455,8 @@ export class LocalFileRuntimeSnapshotRepository {
       continuationBaseline: stateJson.continuationBaseline,
       lastMemberResultNotifiedAt: stateJson.lastMemberResultNotifiedAt,
       detachedTask: stateJson.detachedTask,
-      workflowProgress: stateJson.workflowProgress,
+      runtimeFacets: normalizeActorRuntimeFacetIndex(stateJson.runtimeFacets),
+      durableMaterials: normalizeActorDurableMaterialIndex(stateJson.durableMaterials),
       holonState: stateJson.holonState,
       updatedAt:
         typeof stateJson.updatedAt === "string"
@@ -402,6 +466,18 @@ export class LocalFileRuntimeSnapshotRepository {
             : undefined,
       recovery: stateJson.recovery,
     };
+    if (expectedVersion === 3) {
+      const knownStateFields = new Set([
+        "version", "planApproval", "shutdownCoordination", "taskTree", "toolCallStreamState",
+        "continuationBaseline", "lastMemberResultNotifiedAt", "detachedTask", "runtimeFacets", "durableMaterials",
+        "holonState", "updatedAt", "recovery",
+      ]);
+      const migrationView = snapshot as unknown as Record<string, unknown>;
+      for (const [key, value] of Object.entries(stateJson)) {
+        if (!knownStateFields.has(key)) migrationView[key] = value;
+      }
+    }
+    return snapshot;
   }
 
   async writeActor(actor: RuntimeSnapshotActor): Promise<void> {
@@ -440,6 +516,20 @@ export class LocalFileRuntimeSnapshotRepository {
   }
 
   async writeSnapshot(input: RuntimeSnapshotWriteInput): Promise<RuntimeSnapshotManifest> {
+    // Validate every durable facet envelope before the first file write. A
+    // later invalid Actor must not leave a partially updated snapshot tree.
+    for (const actor of Object.values(input.actors)) {
+      normalizeActorRuntimeFacetIndex(actor.runtimeFacets);
+      normalizeActorDurableMaterialIndex(actor.durableMaterials);
+    }
+    const currentManifest = await this.readManifest();
+    const generationsStat = await lstat(path.join(this.rootDir, GENERATIONS_DIR)).catch(() => null);
+    if (generationsStat?.isSymbolicLink()) {
+      failUnsupportedSnapshot("migration generations authority is a symlink");
+    }
+    if (currentManifest?.generation || currentManifest?.legacyRootReadOnly || generationsStat?.isDirectory()) {
+      return this.writeContainedV4Checkpoint(input);
+    }
     await mkdir(this.rootDir, { recursive: true });
 
     const fibers = { ...(input.fibers ?? {}) };
@@ -491,20 +581,154 @@ export class LocalFileRuntimeSnapshotRepository {
     return manifest;
   }
 
-  async loadSnapshot(): Promise<RuntimeSnapshotLoadResult | null> {
-    const corruptions: RuntimeSnapshotCorruption[] = [];
-    const manifest = await this.readManifest();
-    if (!manifest) {
-      return null;
+  private async writeContainedV4Checkpoint(input: RuntimeSnapshotWriteInput): Promise<RuntimeSnapshotManifest> {
+    const checkpointId = `v4-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const checkpointPrefix = path.posix.join(CHECKPOINTS_DIR, checkpointId);
+    const checkpointsRoot = path.join(this.rootDir, CHECKPOINTS_DIR);
+    const stagingDir = path.join(checkpointsRoot, `${checkpointId}.staging`);
+    const checkpointDir = path.join(checkpointsRoot, checkpointId);
+    const files = new Map<string, string>();
+    const actorFiles: Record<string, string> = {};
+    for (const [actorKey, actor] of Object.entries(input.actors)) {
+      const internal = this.generationActorFile(actor);
+      actorFiles[actorKey] = path.posix.join(checkpointPrefix, internal);
+      const { actorMeta, actorState, actorMailboxes } = this.splitActorSnapshot(actor);
+      files.set(internal, stableJson(actorMeta));
+      files.set(buildActorSiblingFile(internal, "state.json"), stableJson(actorState));
+      files.set(buildActorSiblingFile(internal, "mailboxes.json"), stableJson(actorMailboxes));
     }
-    assertCurrentManifestShape(manifest);
+    const fibers = { ...(input.fibers ?? {}) };
+    const fiberFiles: Record<string, string> = {};
+    for (const [fiberId, fiber] of Object.entries(fibers)) {
+      const internal = buildFiberFile(fiberId);
+      fiberFiles[fiberId] = path.posix.join(checkpointPrefix, internal);
+      files.set(internal, stableJson(fiber));
+    }
+    const indexes = buildIndexes({ actors: input.actors, fibers });
+    for (const [name, index] of Object.entries(indexes) as Array<[RuntimeSnapshotIndexName, RuntimeSnapshotIndex]>) {
+      const internal = buildIndexFile(name);
+      const entries = Object.fromEntries(Object.entries(index.entries).map(([key, relative]) => [
+        key,
+        relative.startsWith(ACTORS_DIR)
+          ? actorFiles[key] ?? path.posix.join(checkpointPrefix, relative.replace(/^\.\.\//, ""))
+          : fiberFiles[key] ?? path.posix.join(checkpointPrefix, relative),
+      ]));
+      files.set(internal, stableJson({ ...index, entries }));
+    }
+    files.set(VM_FILE, stableJson(input.vm));
+    files.set(QUESTIONNAIRES_FILE, serializeQuestionnaireRowsXnl(input.questionnaires ?? []));
 
-    const vm = await readJsonFileBestEffort<RuntimeSnapshotVm>(toAbsolute(this.rootDir, manifest.vmFile), corruptions);
-    if (!vm) {
-      return null;
+    await mkdir(checkpointsRoot, { recursive: true });
+    await mkdir(stagingDir, { recursive: false });
+    await this.writeAndFsyncGeneration(stagingDir, files);
+    await rename(stagingDir, checkpointDir);
+    await fsyncDirectory(checkpointsRoot);
+    const nowIso = new Date().toISOString();
+    const manifest: RuntimeSnapshotManifest = {
+      version: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+      controlActorKey: input.vm.controlActorKey,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+      actorKeys: Object.keys(actorFiles),
+      fiberIds: Object.keys(fiberFiles),
+      indexFiles: Object.keys(INDEX_FILE_NAMES).map((name) => path.posix.join(checkpointPrefix, buildIndexFile(name as RuntimeSnapshotIndexName))),
+      questionnairesFile: path.posix.join(checkpointPrefix, QUESTIONNAIRES_FILE),
+      legacyRootReadOnly: true,
+      vmFile: path.posix.join(checkpointPrefix, VM_FILE),
+      actorFiles,
+      fiberFiles,
+      savedAt: Date.now(),
+    };
+    const tempHead = `${this.manifestPath}.checkpoint-${process.pid}-${checkpointId}`;
+    await writeFile(tempHead, stableJson(manifest), "utf8");
+    await fsyncFile(tempHead);
+    await rename(tempHead, this.manifestPath);
+    await fsyncDirectory(this.rootDir);
+    return manifest;
+  }
+
+  private async invokeMigrationFault(point: RuntimeSnapshotMigrationFaultPoint): Promise<void> {
+    await this.options.migrationFaultInjector?.(point);
+  }
+
+  private referencedSnapshotFiles(manifest: RuntimeSnapshotManifest): string[] {
+    const files = new Set<string>([
+      manifest.vmFile,
+      ...manifest.indexFiles,
+      ...(manifest.derivedIndexFiles ?? []),
+      ...Object.values(manifest.fiberFiles ?? {}),
+    ]);
+    files.add(manifest.questionnairesFile ?? QUESTIONNAIRES_FILE);
+    for (const actorFile of Object.values(manifest.actorFiles)) {
+      files.add(actorFile);
+      files.add(buildActorSiblingFile(actorFile, "state.json"));
+      files.add(buildActorSiblingFile(actorFile, "mailboxes.json"));
     }
-    assertCurrentSnapshotVersion(vm.version, manifest.vmFile);
-    const questionnaires = await this.readQuestionnaires();
+    return [...files].sort();
+  }
+
+  private async readTrustedSnapshotFile(relativeFile: string, allowedRoot: string): Promise<Uint8Array> {
+    if (!relativeFile || path.isAbsolute(relativeFile) || relativeFile.includes("\0")) {
+      failUnsupportedSnapshot(`unsafe snapshot path ${JSON.stringify(relativeFile)}`);
+    }
+    const absolute = path.resolve(this.rootDir, relativeFile);
+    const normalizedAllowed = path.resolve(allowedRoot);
+    const allowedRootStat = await lstat(normalizedAllowed).catch(() => null);
+    if (!allowedRootStat?.isDirectory() || allowedRootStat.isSymbolicLink()) {
+      failUnsupportedSnapshot(`snapshot authority root is not a no-symlink directory: ${allowedRoot}`);
+    }
+    if (absolute !== normalizedAllowed && !absolute.startsWith(`${normalizedAllowed}${path.sep}`)) {
+      failUnsupportedSnapshot(`snapshot path escapes authority root: ${relativeFile}`);
+    }
+    const fileStat = await lstat(absolute).catch(() => null);
+    if (!fileStat?.isFile() || fileStat.isSymbolicLink()) {
+      failUnsupportedSnapshot(`snapshot path is not a regular no-symlink file: ${relativeFile}`);
+    }
+    let cursor = normalizedAllowed;
+    for (const segment of path.relative(normalizedAllowed, absolute).split(path.sep).filter(Boolean)) {
+      cursor = path.join(cursor, segment);
+      const segmentStat = await lstat(cursor).catch(() => null);
+      if (!segmentStat || segmentStat.isSymbolicLink()) {
+        failUnsupportedSnapshot(`snapshot path traverses a symlink: ${relativeFile}`);
+      }
+    }
+    const resolved = await realpath(absolute);
+    const resolvedAllowed = await realpath(normalizedAllowed);
+    if (resolved !== resolvedAllowed && !resolved.startsWith(`${resolvedAllowed}${path.sep}`)) {
+      failUnsupportedSnapshot(`snapshot path traverses a symlink: ${relativeFile}`);
+    }
+    return new Uint8Array(await readFile(absolute));
+  }
+
+  private async computeTreeDigest(
+    manifest: RuntimeSnapshotManifest,
+    allowedRoot: string,
+  ): Promise<string> {
+    const facts: string[] = [];
+    for (const relativeFile of this.referencedSnapshotFiles(manifest)) {
+      const bytes = await this.readTrustedSnapshotFile(relativeFile, allowedRoot);
+      facts.push(`${relativeFile}\0${sha256Bytes(bytes)}`);
+    }
+    return sha256Bytes(facts.join("\n"));
+  }
+
+  private async loadSnapshotAtManifest(
+    manifest: RuntimeSnapshotManifest,
+    expectedVersion: number,
+  ): Promise<RuntimeSnapshotLoadResult | null> {
+    assertManifestShape(manifest, expectedVersion);
+    const corruptions: RuntimeSnapshotCorruption[] = [];
+    const vm = await readJsonFileBestEffort<RuntimeSnapshotVm>(toAbsolute(this.rootDir, manifest.vmFile), corruptions);
+    if (!vm) return null;
+    if (vm.version !== expectedVersion) failUnsupportedSnapshot(`${manifest.vmFile} must use version=${expectedVersion}`);
+
+    let questionnaires: RuntimeSnapshotLoadResult["questionnaires"] = [];
+    const questionnairesFile = manifest.questionnairesFile ?? QUESTIONNAIRES_FILE;
+    try {
+      questionnaires = parseQuestionnaireRowsXnl(await readFile(toAbsolute(this.rootDir, questionnairesFile), "utf8"));
+    } catch {
+      questionnaires = [];
+    }
 
     const indexes = {} as Partial<RuntimeSnapshotIndexes>;
     for (const relativeFile of manifest.indexFiles) {
@@ -513,38 +737,285 @@ export class LocalFileRuntimeSnapshotRepository {
       if (!name) continue;
       const indexValue = await readJsonFileBestEffort<RuntimeSnapshotIndex>(toAbsolute(this.rootDir, relativeFile), corruptions);
       if (indexValue) {
-        assertCurrentSnapshotVersion((indexValue as { schemaVersion?: unknown }).schemaVersion, relativeFile);
+        if ((indexValue as { schemaVersion?: unknown }).schemaVersion !== expectedVersion) {
+          failUnsupportedSnapshot(`${relativeFile} must use version=${expectedVersion}`);
+        }
         (indexes as Record<string, RuntimeSnapshotIndex>)[name] = indexValue as RuntimeSnapshotIndexes[typeof name];
       }
     }
 
     const actors: Record<string, RuntimeSnapshotActor> = {};
     for (const [actorKey, relativeFile] of Object.entries(manifest.actorFiles)) {
-      const actor = await this.readActorSnapshotFromPath(relativeFile, corruptions);
-      if (actor) {
-        actors[actorKey] = actor;
-      }
+      const actor = await this.readActorSnapshotFromPath(relativeFile, corruptions, expectedVersion);
+      if (actor) actors[actorKey] = actor;
     }
 
     const fibers: Record<string, RuntimeSnapshotFiber> = {};
     for (const [fiberId, relativeFile] of Object.entries(manifest.fiberFiles ?? {})) {
       const fiber = await readJsonFileBestEffort<RuntimeSnapshotFiber>(toAbsolute(this.rootDir, relativeFile), corruptions);
       if (fiber) {
-        assertCurrentSnapshotVersion(fiber.version, relativeFile);
-        fiber.version = RUNTIME_SNAPSHOT_SCHEMA_VERSION;
-        fibers[fiberId] = fiber;
+        if (fiber.version !== expectedVersion) failUnsupportedSnapshot(`${relativeFile} must use version=${expectedVersion}`);
+        fibers[fiberId] = { ...fiber, version: expectedVersion };
       }
     }
 
-    return {
-      manifest,
-      vm,
-      actors,
-      questionnaires,
-      fibers,
-      indexes,
-      corruptions,
+    return { manifest, vm, actors, questionnaires, fibers, indexes, corruptions };
+  }
+
+  private generationActorFile(actor: Pick<RuntimeSnapshotActor, "key" | "id" | "type" | "identity">): string {
+    return path.posix.join("actors", buildActorDirName({
+      agentKey: actor.key,
+      actorId: actor.id,
+      actorType: actor.type,
+      identity: actor.identity,
+    }), "actor.json");
+  }
+
+  private async writeAndFsyncGeneration(
+    stagingDir: string,
+    files: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    const directories = new Set<string>([stagingDir]);
+    for (const [relativeFile, bytes] of files) {
+      const absolute = path.join(stagingDir, relativeFile);
+      const parent = path.dirname(absolute);
+      await mkdir(parent, { recursive: true });
+      directories.add(parent);
+      await writeFile(absolute, bytes, "utf8");
+      await fsyncFile(absolute);
+    }
+    for (const directory of [...directories].sort((left, right) => right.length - left.length)) {
+      await fsyncDirectory(directory);
+    }
+  }
+
+  private async validateExistingGeneration(
+    generationDir: string,
+    files: ReadonlyMap<string, string>,
+  ): Promise<void> {
+    const directoryStat = await lstat(generationDir).catch(() => null);
+    if (!directoryStat?.isDirectory() || directoryStat.isSymbolicLink()) {
+      failUnsupportedSnapshot("published migration generation is not an immutable no-symlink directory");
+    }
+    for (const [relativeFile, expected] of files) {
+      const absolute = path.join(generationDir, relativeFile);
+      const fileStat = await lstat(absolute).catch(() => null);
+      if (!fileStat?.isFile() || fileStat.isSymbolicLink()) {
+        failUnsupportedSnapshot(`published migration generation is incomplete: ${relativeFile}`);
+      }
+      if (await readFile(absolute, "utf8") !== expected) {
+        failUnsupportedSnapshot(`published migration generation conflicts: ${relativeFile}`);
+      }
+    }
+  }
+
+  private async validateAdmittedGeneration(manifest: RuntimeSnapshotManifest): Promise<void> {
+    const generation = manifest.generation;
+    if (!generation) return;
+    if (
+      typeof generation.id !== "string"
+      || generation.id.length === 0
+      || generation.id === "."
+      || generation.id === ".."
+      || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(generation.id)
+      || path.posix.basename(generation.id) !== generation.id
+      || path.win32.basename(generation.id) !== generation.id
+    ) {
+      failUnsupportedSnapshot("generation id must be one canonical single-segment direct child");
+    }
+    const generationPrefix = path.posix.join(GENERATIONS_DIR, generation.id);
+    if (generation.manifestFile !== path.posix.join(generationPrefix, GENERATION_MANIFEST_FILE)
+      || generation.receiptFile !== path.posix.join(generationPrefix, MIGRATION_RECEIPT_FILE)) {
+      failUnsupportedSnapshot("generation manifest/receipt paths must be exact canonical direct-child paths");
+    }
+    const allowedRoot = path.join(this.rootDir, generationPrefix);
+    if (path.dirname(allowedRoot) !== path.join(this.rootDir, GENERATIONS_DIR)) {
+      failUnsupportedSnapshot("generation authority must be an exact direct child of generations");
+    }
+    const manifestBytes = await this.readTrustedSnapshotFile(generation.manifestFile, allowedRoot);
+    const receiptBytes = await this.readTrustedSnapshotFile(generation.receiptFile, allowedRoot);
+    if (sha256Bytes(manifestBytes) !== generation.manifestDigest) failUnsupportedSnapshot("generation manifest digest mismatch");
+    if (sha256Bytes(receiptBytes) !== generation.receiptDigest) failUnsupportedSnapshot("migration receipt digest mismatch");
+    const generationManifest = JSON.parse(new TextDecoder().decode(manifestBytes)) as RuntimeSnapshotManifest;
+    if (generationManifest.version !== RUNTIME_SNAPSHOT_SCHEMA_VERSION) failUnsupportedSnapshot("generation manifest schema mismatch");
+    const { generation: _headGeneration, legacyRootReadOnly: _headLegacyRootReadOnly, ...headSnapshotAuthority } = manifest;
+    if (manifest.legacyRootReadOnly !== true
+      || stableJson(headSnapshotAuthority) !== stableJson(generationManifest)) {
+      failUnsupportedSnapshot("manifest head does not bind the admitted generation manifest");
+    }
+    if (await this.computeTreeDigest(generationManifest, allowedRoot) !== generation.treeDigest) {
+      failUnsupportedSnapshot("generation tree digest mismatch");
+    }
+    const receipt = JSON.parse(new TextDecoder().decode(receiptBytes)) as Record<string, any>;
+    if (receipt.schemaVersion !== "runtime-snapshot-migration-receipt/v1"
+      || receipt.target?.generationId !== generation.id
+      || receipt.target?.manifestDigest !== generation.manifestDigest
+      || receipt.target?.treeDigest !== generation.treeDigest) {
+      failUnsupportedSnapshot("migration receipt does not bind the admitted target");
+    }
+  }
+
+  private async migrateLegacyV3(
+    sourceManifest: RuntimeSnapshotManifest,
+    sourceManifestBytes: string,
+  ): Promise<RuntimeSnapshotLoadResult> {
+    assertManifestShape(sourceManifest, 3);
+    const sourceAllowedRoot = path.dirname(this.rootDir);
+    const sourceManifestDigest = sha256Bytes(sourceManifestBytes);
+    const sourceTreeDigest = await this.computeTreeDigest(sourceManifest, sourceAllowedRoot);
+    const sourceSnapshot = await this.loadSnapshotAtManifest(sourceManifest, 3);
+    if (!sourceSnapshot || sourceSnapshot.corruptions.length > 0) {
+      failUnsupportedSnapshot("schema-v3 source is incomplete or corrupt");
+    }
+    const importers = (this.options.importers ?? []).filter((entry) =>
+      entry.sourceVersion === 3 && entry.targetVersion === RUNTIME_SNAPSHOT_SCHEMA_VERSION);
+    if (importers.length !== 1) {
+      failUnsupportedSnapshot(`schema-v3 import requires exactly one runtime-supplied importer, found ${importers.length}`);
+    }
+    const importer = importers[0]!;
+    const migrated = importer.importSnapshot({
+      sourceVersion: 3,
+      manifestDigest: sourceManifestDigest,
+      treeDigest: sourceTreeDigest,
+      snapshot: sourceSnapshot,
+    });
+    for (const actor of Object.values(migrated.actors)) normalizeActorRuntimeFacetIndex(actor.runtimeFacets);
+
+    const generationId = `v4-${sourceTreeDigest.slice("sha256:".length, "sha256:".length + 24)}`;
+    const generationPrefix = path.posix.join(GENERATIONS_DIR, generationId);
+    const files = new Map<string, string>();
+    const actorFiles: Record<string, string> = {};
+    for (const [actorKey, actor] of Object.entries(migrated.actors)) {
+      const internalActorFile = this.generationActorFile(actor);
+      actorFiles[actorKey] = path.posix.join(generationPrefix, internalActorFile);
+      const { actorMeta, actorState, actorMailboxes } = this.splitActorSnapshot({ ...actor, version: RUNTIME_SNAPSHOT_SCHEMA_VERSION });
+      files.set(internalActorFile, stableJson({ ...actorMeta, version: RUNTIME_SNAPSHOT_SCHEMA_VERSION }));
+      files.set(buildActorSiblingFile(internalActorFile, "state.json"), stableJson({ ...actorState, version: RUNTIME_SNAPSHOT_SCHEMA_VERSION }));
+      files.set(buildActorSiblingFile(internalActorFile, "mailboxes.json"), stableJson({ ...actorMailboxes, version: RUNTIME_SNAPSHOT_SCHEMA_VERSION }));
+    }
+    const fiberFiles: Record<string, string> = {};
+    for (const [fiberId, fiber] of Object.entries(migrated.fibers ?? {})) {
+      const internal = buildFiberFile(fiberId);
+      fiberFiles[fiberId] = path.posix.join(generationPrefix, internal);
+      files.set(internal, stableJson({ ...fiber, version: RUNTIME_SNAPSHOT_SCHEMA_VERSION }));
+    }
+    const indexes = buildIndexes({ actors: migrated.actors, fibers: migrated.fibers ?? {} });
+    for (const [name, index] of Object.entries(indexes) as Array<[RuntimeSnapshotIndexName, RuntimeSnapshotIndex]>) {
+      const internal = buildIndexFile(name);
+      const entries = Object.fromEntries(Object.entries(index.entries).map(([key, relative]) => [
+        key,
+        relative.startsWith(ACTORS_DIR)
+          ? actorFiles[key] ?? path.posix.join(generationPrefix, relative.replace(/^\.\.\//, ""))
+          : fiberFiles[key] ?? path.posix.join(generationPrefix, relative),
+      ]));
+      files.set(internal, stableJson({ ...index, schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION, entries }));
+    }
+    files.set(VM_FILE, stableJson({ ...migrated.vm, version: RUNTIME_SNAPSHOT_SCHEMA_VERSION }));
+    files.set(QUESTIONNAIRES_FILE, serializeQuestionnaireRowsXnl(migrated.questionnaires ?? []));
+
+    const nowIso = sourceManifest.updatedAt || sourceManifest.createdAt;
+    const generationManifest: RuntimeSnapshotManifest = {
+      version: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+      controlActorKey: migrated.vm.controlActorKey,
+      createdAt: sourceManifest.createdAt,
+      updatedAt: nowIso,
+      actorKeys: Object.keys(actorFiles),
+      fiberIds: Object.keys(fiberFiles),
+      indexFiles: Object.keys(INDEX_FILE_NAMES).map((name) => path.posix.join(generationPrefix, buildIndexFile(name as RuntimeSnapshotIndexName))),
+      questionnairesFile: path.posix.join(generationPrefix, QUESTIONNAIRES_FILE),
+      vmFile: path.posix.join(generationPrefix, VM_FILE),
+      actorFiles,
+      fiberFiles,
+      savedAt: sourceManifest.savedAt,
     };
+    const treeFacts = [...files.entries()].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([relative, bytes]) => `${path.posix.join(generationPrefix, relative)}\0${sha256Bytes(bytes)}`);
+    const targetTreeDigest = sha256Bytes(treeFacts.join("\n"));
+    const generationManifestBytes = stableJson(generationManifest);
+    const targetManifestDigest = sha256Bytes(generationManifestBytes);
+    const receipt = {
+      schemaVersion: "runtime-snapshot-migration-receipt/v1",
+      migrationId: importer.migrationId,
+      source: { schemaVersion: 3, manifestDigest: sourceManifestDigest, treeDigest: sourceTreeDigest },
+      target: {
+        schemaVersion: RUNTIME_SNAPSHOT_SCHEMA_VERSION,
+        generationId,
+        manifestDigest: targetManifestDigest,
+        treeDigest: targetTreeDigest,
+      },
+      createdAt: nowIso,
+    };
+    const receiptBytes = stableJson(receipt);
+    const receiptDigest = sha256Bytes(receiptBytes);
+    files.set(GENERATION_MANIFEST_FILE, generationManifestBytes);
+    files.set(MIGRATION_RECEIPT_FILE, receiptBytes);
+
+    const generationsRoot = path.join(this.rootDir, GENERATIONS_DIR);
+    const stagingDir = path.join(generationsRoot, `${generationId}.staging`);
+    const generationDir = path.join(generationsRoot, generationId);
+    await mkdir(generationsRoot, { recursive: true });
+    const stagingStat = await lstat(stagingDir).catch(() => null);
+    if (stagingStat?.isSymbolicLink()) failUnsupportedSnapshot("migration staging path is a symlink");
+    if (stagingStat) await rm(stagingDir, { recursive: true, force: true });
+    await mkdir(stagingDir, { recursive: false });
+    await this.invokeMigrationFault("after-staging-create");
+    await this.writeAndFsyncGeneration(stagingDir, files);
+    await this.invokeMigrationFault("after-staging-write");
+    await fsyncDirectory(stagingDir);
+    await fsyncDirectory(generationsRoot);
+    await this.invokeMigrationFault("after-staging-fsync");
+
+    const published = await lstat(generationDir).catch(() => null);
+    if (published) {
+      await this.validateExistingGeneration(generationDir, files);
+      await rm(stagingDir, { recursive: true, force: true });
+    } else {
+      await rename(stagingDir, generationDir);
+      await fsyncDirectory(generationsRoot);
+    }
+    await this.invokeMigrationFault("after-generation-publish");
+
+    const head: RuntimeSnapshotManifest = {
+      ...generationManifest,
+      legacyRootReadOnly: true,
+      generation: {
+        id: generationId,
+        manifestFile: path.posix.join(generationPrefix, GENERATION_MANIFEST_FILE),
+        manifestDigest: targetManifestDigest,
+        treeDigest: targetTreeDigest,
+        receiptFile: path.posix.join(generationPrefix, MIGRATION_RECEIPT_FILE),
+        receiptDigest,
+      },
+    };
+    const tempHead = `${this.manifestPath}.migration-${process.pid}-${generationId}`;
+    await writeFile(tempHead, stableJson(head), "utf8");
+    await fsyncFile(tempHead);
+    await this.invokeMigrationFault("before-head-swap");
+    const liveHeadBytes = await readFile(this.manifestPath, "utf8");
+    if (sha256Bytes(liveHeadBytes) !== sourceManifestDigest) {
+      await rm(tempHead, { force: true });
+      failUnsupportedSnapshot("migration manifest-head CAS conflict");
+    }
+    await rename(tempHead, this.manifestPath);
+    await fsyncDirectory(this.rootDir);
+    await this.invokeMigrationFault("after-head-swap");
+    const loaded = await this.loadSnapshotAtManifest(head, RUNTIME_SNAPSHOT_SCHEMA_VERSION);
+    if (!loaded) failUnsupportedSnapshot("admitted v4 generation cannot be loaded");
+    return loaded;
+  }
+
+  async loadSnapshot(): Promise<RuntimeSnapshotLoadResult | null> {
+    let manifestBytes: string;
+    try {
+      manifestBytes = await readFile(this.manifestPath, "utf8");
+    } catch {
+      return null;
+    }
+    const manifest = JSON.parse(manifestBytes) as RuntimeSnapshotManifest;
+    if (manifest.version === 3) return this.migrateLegacyV3(manifest, manifestBytes);
+    assertCurrentManifestShape(manifest);
+    await this.validateAdmittedGeneration(manifest);
+    return this.loadSnapshotAtManifest(manifest, RUNTIME_SNAPSHOT_SCHEMA_VERSION);
   }
 }
 

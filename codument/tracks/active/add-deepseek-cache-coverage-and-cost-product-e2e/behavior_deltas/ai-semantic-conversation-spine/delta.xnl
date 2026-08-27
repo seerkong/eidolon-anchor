@@ -1,0 +1,35 @@
+<BehaviorPatch #track.add-deepseek-cache-coverage-and-cost-product-e2e.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/provider-cache-evidence-join" } (
+      <Requirement #provider-cache-evidence-join (
+        <Statement ?>Provider-cache product evidence SHALL be a read-only digest projection of the canonical Conversation, ProviderEpoch, request-admission, ToolCall and final-success usage authorities and SHALL NOT create a second context or transcript authority.</?>
+        <Suites [
+          <Suite #evidence-authority { name = "Evidence authority and recovery" } (
+            <Cases [
+              <Case #owner-receipts-not-report-booleans (
+                <Given ?>a product journey produces request, epoch, retry, tool and recovery observations</?>
+                <When ?>the result is admitted</?>
+                <Then ?>the runner SHALL re-read exact owner receipts and independently derive pass/fail; report-controlled booleans, self-hashes and substituted refs SHALL NOT certify evidence</?>
+              )>
+              <Case #cross-authority-substitution-fails (
+                <Given ?>a report or receipt is self-rehashed, replayed, tampered, duplicated or substituted across evidence owner, session, Actor, provider call, attempt, epoch, ToolCall or usage identity</?>
+                <When ?>the product verifier independently reloads canonical owners</?>
+                <Then ?>verification SHALL fail before report admission and SHALL preserve every source authority</?>
+              )>
+              <Case #fresh-recovery-exact (
+                <Given ?>a session is persisted and reconstructed in a fresh runtime</?>
+                <When ?>the next provider request is serialized</?>
+                <Then ?>the recovered Actor, Conversation, facet, epoch, pending tool delivery and frozen resource identity SHALL be exact and unchanged same-epoch bytes SHALL retain prefix integrity `1.0`</?>
+              )>
+              <Case #no-content-leak (
+                <Given ?>a journey report is persisted or printed</?>
+                <When ?>its complete closed shape is inspected</?>
+                <Then ?>it SHALL contain only identities, digests, lengths, counters, statuses and reasons and SHALL NOT contain prompts, Skill bytes, tool arguments/results, API keys, history or provider transcript</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

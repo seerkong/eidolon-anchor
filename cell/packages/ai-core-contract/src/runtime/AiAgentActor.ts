@@ -21,6 +21,8 @@ import type { QuestionnaireRequestPayload } from "./Questionnaire";
 import type { HeartbeatWakePayload } from "./Heartbeat";
 import type { ChatMessage, InputContent, Logger, XStream } from "@shared/composer";
 import type { AgentExecutionContract } from "./AgentExecutionContract";
+import type { ActorRuntimeFacetIndex } from "./ActorRuntimeFacet";
+import type { ActorDurableMaterialIndex } from "./ActorDurableMaterial";
 
 export type ActorType = ActorExecutionKind;
 
@@ -89,21 +91,6 @@ export type ActorCtrlOptions = {
   exitAfterToolResult: boolean;
 };
 
-export type WorkflowActorProgressState = {
-  stageId?: string;
-  stageStartedAt: number;
-  deadlineAt: number;
-  turnsSinceProgress: number;
-  maxNoProgressTurns: number;
-  proofRepairAttempts: number;
-  maxProofRepairAttempts: number;
-  lastProgressAt: number;
-  lastOutcome?: string;
-  lastDiagnostic?: string;
-  activeAuthoringSessionId?: string;
-  activeAuthoringRevision?: string;
-};
-
 export type ActorModelConfig = {
   provider?: string;
   adapter?: LlmAdapterType;
@@ -139,6 +126,15 @@ export type ProfileSystemPromptProvenance = {
 export type ActorToolPolicy = {
   allowedToolsMode: "all" | "exact";
   allowedTools: string[];
+  /**
+   * Provider-facing schema presentation. This is derived presentation data,
+   * never execution authority: allowedToolsMode/allowedTools still gate every
+   * actual effect.
+   */
+  providerToolSurface?: {
+    mode: "all" | "exact";
+    toolNames: string[];
+  };
   enabledToolKeys: string[];
   disabledToolKeys: string[];
   computedDisabledTools: string[];
@@ -258,6 +254,14 @@ export type AiAgentActorCallbacks<TVm = any, TActor = any> = {
   ) => Promise<any>;
 };
 
+/** Domain-neutral, opaque and content-addressed creation-origin proof. */
+export type ActorOriginFact = Readonly<{
+  schemaVersion: "eidolon.actor-origin/v1";
+  ownerDigest: `sha256:${string}`;
+  subjectDigest: `sha256:${string}`;
+  proofDigest: `sha256:${string}`;
+}>;
+
 export interface AiAgentActorData<TVm = any, TActor = any> {
   key: string;
   id: string;
@@ -292,6 +296,7 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
   toolPolicy: ActorToolPolicy;
   contextPolicy: ActorContextPolicy;
   executionContract?: AgentExecutionContract;
+  origin?: ActorOriginFact;
   modelConfig: ActorModelConfig;
   llmClient: object | null;
   stream: XStream<any> | null;
@@ -307,7 +312,10 @@ export interface AiAgentActorData<TVm = any, TActor = any> {
   continuationBaseline: ContinuationBaselineData;
   recovery?: ActorRecoveryState;
   detachedTask?: DetachedTaskState;
-  workflowProgress?: WorkflowActorProgressState;
+  /** Domain-neutral durable extension state. Runtime codecs/hooks live on the VM. */
+  runtimeFacets: ActorRuntimeFacetIndex;
+  /** Actor-owned, closed content-addressed source/prompt bytes. */
+  durableMaterials: ActorDurableMaterialIndex;
   holonState?: HolonActorState;
   watchState: ActorWatchState;
   callbacks: AiAgentActorCallbacks<TVm, TActor>;

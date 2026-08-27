@@ -158,7 +158,7 @@
   <question ?>默认长期 MemberRuntime 是否同时意味着所有任务共享一个 conversation/session？</?>
   <answer (
     <raw-answer ?>不意味着。默认按 task claim attempt 建 durable session；跨调用复用必须显式 targeted。</?>
-    <decision-text ?>MemberRuntime address 默认按 deployment/member 复用；conversation 默认按 taskSpace/task/claim/attempt 隔离。只有冻结 binding 授权的 runTargetedAgent 且 selector 精确为 {byInstanceId} 或 {byInstanceName} 时才能复用既有 Agent instance。</?>
+    <decision-text ?>MemberRuntime address 默认按 deployment/member 复用；conversation 默认按 taskSpace/task/claim/attempt 隔离。只有冻结 binding 授权的 runTargetedAgent 且 selector 精确为 {byId} 或 {byName} 时才能复用既有 Agent instance；旧的 instance-prefixed keys fail closed。</?>
     <rationale ?>将 actor continuity 与 conversation scope 分开，既保留长期成员身份，也阻断无意的跨任务上下文泄漏。</?>
     <evidence ?>现有 runAgent/runTargetedAgent contract、generic actor/session authority 与 Mission risk analysis。</?>
   )>

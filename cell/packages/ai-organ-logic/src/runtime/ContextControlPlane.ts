@@ -14,7 +14,7 @@ import type { AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
 import { createHash } from "node:crypto";
 import {
-  applyPromptTransformToConversationDomainRuntime,
+  appendActorProviderContextFactToConversationDomainRuntime,
   getConversationActorRawStateFromVm,
   getVmConversationDomainRuntime,
   recordPromptRequestToConversationDomainRuntime,
@@ -52,7 +52,7 @@ function buildPromptPlanCacheProfile(params: {
 }): PromptPlanData["cacheProfile"] | undefined {
   const capabilities = params.actor.modelConfig.capabilities;
   const cachePolicy = capabilities?.cachePolicy;
-  if (!cachePolicy?.stablePrefix) return undefined;
+  if (!capabilities || !cachePolicy?.stablePrefix) return undefined;
   return {
     providerFamily: capabilities.family,
     stablePrefixEnabled: true,
@@ -459,11 +459,7 @@ export function materializeExecutionMessagesWithWorkContext(params: {
   const rootedMessages = materializeActorSystemPrompts(params.actor, params.messages);
   return {
     promptPlan,
-    executionMessages: insertDynamicOverlayAtConversationBoundary(
-      rootedMessages,
-      workContextOverlay,
-      promptPlan.systemPrompts,
-    ),
+    executionMessages: rootedMessages,
     workContextOverlay,
   };
 }
@@ -494,18 +490,6 @@ export function completeEstimationPromptMaterialization(params: {
     .filter((prompt) => prompt && !existingSystem.has(prompt));
   if (missing.length > 0) {
     next = [...missing.map((prompt) => ({ role: "system", content: prompt } as ChatMessage)), ...next];
-  }
-  const hasOverlay = next.some(
-    (message) =>
-      String(message?.role ?? "") === "system"
-      && String(message?.content ?? "").includes("<runtime_work_context>"),
-  );
-  if (!hasOverlay) {
-    next = insertDynamicOverlayAtConversationBoundary(
-      next,
-      buildWorkContextOverlayText(params.promptPlan.workContext),
-      params.promptPlan.systemPrompts,
-    );
   }
   return next;
 }
@@ -556,20 +540,37 @@ export function recordPromptPlanForActorExecution(params: {
     },
     occurredAt: params.occurredAt,
   });
-  applyPromptTransformToConversationDomainRuntime({
-    runtime,
-    sessionId,
+  const refreshed = getConversationActorRawStateFromVm({
+    vm: params.vm,
     actorKey: params.actor.key,
-    promptGenerationId,
-    transformKind: "overlay",
-    payload: {
-      content: buildWorkContextOverlayText(promptPlan.workContext),
-      overlayKind: "work_context",
-      insertPlacement: "late_status",
-      promptPlanVersion: promptPlan.version,
-    },
-    occurredAt: params.occurredAt,
+    sessionId,
   });
+  const priorWorkFact = (refreshed?.session.contextAssets ?? [])
+    .map((asset) => asset.providerContextFact)
+    .filter((fact) => fact?.actorKey === params.actor.key && fact.namespace === "work-context")
+    .sort((left, right) => (left?.namespaceRevision ?? 0) - (right?.namespaceRevision ?? 0))
+    .at(-1);
+  const semanticPayload = {
+    workMode: promptPlan.workContext.workMode,
+    taskPhase: promptPlan.workContext.taskPhase,
+  };
+  const priorPayload = priorWorkFact?.payload as Record<string, unknown> | undefined;
+  if (priorPayload?.workMode !== semanticPayload.workMode || priorPayload?.taskPhase !== semanticPayload.taskPhase) {
+    appendActorProviderContextFactToConversationDomainRuntime({
+      runtime,
+      sessionId,
+      actorKey: params.actor.key,
+      actorId: params.actor.id,
+      namespace: "work-context",
+      payload: {
+        ...semanticPayload,
+        ownerRevision: (Number(priorPayload?.ownerRevision) || 0) + 1,
+      },
+      occurredAt: params.occurredAt
+        ?? promptPlan.workContext.taskPhaseUpdatedAt
+        ?? promptPlan.workContext.workModeUpdatedAt,
+    });
+  }
   return {
     promptGenerationId,
     promptPlan,

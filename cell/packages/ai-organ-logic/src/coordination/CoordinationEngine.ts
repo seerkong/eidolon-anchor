@@ -321,7 +321,7 @@ export class CoordinationEngine {
     return {
       type: AI_AGENT_COORDINATION_ENVELOPE.type,
       v: AI_AGENT_COORDINATION_ENVELOPE.version,
-      coordination: parsed.coordination ?? parsed.protocol,
+      coordination: parsed.coordination ?? (parsed as { protocol?: string }).protocol!,
       kind: parsed.kind,
       request_id: parsed.request_id,
       payload: parsed.payload ?? {},

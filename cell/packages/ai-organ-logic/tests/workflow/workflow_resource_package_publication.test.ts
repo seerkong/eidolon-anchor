@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "bun:test"
 import { cp, link, lstat, mkdir, mkdtemp, readFile, readdir, rename, rm, symlink, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { createActor } from "@cell/ai-core-logic"
 
 import { bindWorkflowComponentToRuntime, createWorkflowComponent } from "../../src/workflow"
 import {
@@ -18,6 +19,11 @@ import {
   buildWorkflowPublishAuthoringSessionToolDef,
   buildWorkflowOpenAuthoringSessionToolDef,
 } from "../../src/workflow/tools/WorkflowAuthoringTools"
+import {
+  createWorkflowLifecycleFacetEnvelope,
+  readWorkflowLifecycleFacet,
+  replaceWorkflowLifecycleFacet,
+} from "../../src/workflow/runtime/WorkflowLifecycleFacet"
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "resource-native-authoring-package")
 const temporaryRoots: string[] = []
@@ -231,7 +237,10 @@ describe("workspace ResourcePackage publication", () => {
     })
     const runtime = {
       vm: { outerCtx: { workDir: roots.parent, metadata: { sessionId: "outer-publication-session" } } },
-      actor: {},
+      actor: createActor({
+        key: "workflow-publication-continuation-test",
+        systemPrompts: ["name: sys-eidolon-anchor-devops\nrevision: test-v1"],
+      }),
     } as any
     bindWorkflowComponentToRuntime(runtime, component)
     const proofReceiptIds = [
@@ -271,10 +280,28 @@ describe("workspace ResourcePackage publication", () => {
       expected_revision: "sha256:stale",
       proof_receipt_ids: proofReceiptIds,
     })).rejects.toThrow("WORKFLOW_FULFILL_CONTINUATION_REVISION_CONFLICT")
-    runtime.actor.workflowProgress = {
+    runtime.actor.runtimeFacets = Object.freeze({
+      ...runtime.actor.runtimeFacets,
+      "eidolon.workflow-lifecycle/v1": createWorkflowLifecycleFacetEnvelope({
+        strategyRevision: "hybrid/v1",
+        systemPrompts: runtime.actor.systemPrompts,
+        toolNames: [],
+        progress: {
+          stageStartedAt: 1,
+          deadlineAt: 180_001,
+          turnsSinceProgress: 0,
+          maxNoProgressTurns: 4,
+          proofRepairAttempts: 0,
+          maxProofRepairAttempts: 3,
+          lastProgressAt: 1,
+        },
+      }),
+    })
+    replaceWorkflowLifecycleFacet(runtime.actor, {
+      ...readWorkflowLifecycleFacet(runtime.actor)!,
       activeAuthoringSessionId: opened.sessionId,
       activeAuthoringRevision: prepared.revision,
-    }
+    })
     const readyOutput = JSON.parse(await buildWorkflowCompleteAuthoringToolDef().run(runtime, {
       stage: "testing",
       outcome: "ready",
@@ -311,7 +338,7 @@ describe("workspace ResourcePackage publication", () => {
         proof_receipt_ids: ["model-truncated-id"],
       },
     })).toEqual(readyOutput.continuation)
-    runtime.actor.workflowProgress = undefined
+    runtime.actor.runtimeFacets = {}
     const preparedThroughTool = JSON.parse(await buildWorkflowPreparePublicationToolDef().run(
       runtime,
       {},

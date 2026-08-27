@@ -9,9 +9,11 @@ import {
   LocalFileConversationPersistenceRepositoryFactory,
   LocalFilePermissionConfigStore,
   LocalFileRuntimeDerivedIndexesStore,
-  LocalFileRuntimeSnapshotRepositoryFactory,
   resolveActorModelConfigFromLocalFiles,
 } from "@cell/ai-support";
+import path from "node:path";
+import { createWorkflowLifecycleSnapshotImporter } from "@cell/ai-organ-logic/workflow/runtime/WorkflowLifecycleFacet";
+import { LocalFileRuntimeSnapshotRepository } from "@cell/ai-support";
 
 export function createKernelRuntimeSupportDescriptor(): RuntimeSupportDescriptor {
   return {
@@ -21,7 +23,13 @@ export function createKernelRuntimeSupportDescriptor(): RuntimeSupportDescriptor
     createOrchestrationHistoryEffects: (params) => createLocalFileOrchestrationHistoryEffects(params),
     permissionConfigStore: LocalFilePermissionConfigStore,
     persistence: {
-      snapshotRepositoryFactory: LocalFileRuntimeSnapshotRepositoryFactory,
+      snapshotRepositoryFactory: {
+        createRuntimeSnapshotRepository(sessionDir) {
+          return new LocalFileRuntimeSnapshotRepository(path.join(sessionDir, "runtime_state"), {
+            importers: [createWorkflowLifecycleSnapshotImporter()],
+          });
+        },
+      },
       derivedIndexesStore: LocalFileRuntimeDerivedIndexesStore,
       conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
     },

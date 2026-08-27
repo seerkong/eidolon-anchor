@@ -84,6 +84,40 @@ function sha256(content: string): string {
   return crypto.createHash("sha256").update(content, "utf8").digest("hex");
 }
 
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value)) fail("tool-call record contains a non-finite number");
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  if (!value || typeof value !== "object") fail("tool-call record contains a non-JSON value");
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record).sort(compareToolCallIds).map((key) => (
+    `${JSON.stringify(key)}:${canonicalJson(record[key])}`
+  )).join(",")}}`;
+}
+
+/** Stable closed evidence for a terminal ToolCallDomain record. */
+export function digestToolCallRecord(record: ToolCallRecord): `sha256:${string}` {
+  if (!isTerminalToolCallStatus(record.status)) {
+    fail(`tool_call_id "${record.toolCallId}" is not terminal and cannot be digested`);
+  }
+  return `sha256:${sha256(canonicalJson(record))}`;
+}
+
+/** Stable evidence for the admitted invocation side of a tool call/result pair. */
+export function digestToolCallInvocationRecord(record: ToolCallRecord): `sha256:${string}` {
+  return `sha256:${sha256(canonicalJson({
+    toolCallId: record.toolCallId,
+    actorKey: record.actorKey,
+    turnId: record.turnId,
+    funcName: record.funcName,
+    args: record.args,
+    plannedAt: record.plannedAt,
+  }))}`;
+}
+
 function persistToolCallOutput(params: {
   sessionDir: string;
   record: ToolCallRecord;

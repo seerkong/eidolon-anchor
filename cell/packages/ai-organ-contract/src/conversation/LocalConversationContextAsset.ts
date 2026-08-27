@@ -1,4 +1,5 @@
 import type { ResponsesReplayCheckpoint } from "../llm/ResponsesReplay";
+import type { ActorProviderContextFact } from "./ActorProviderContextFact";
 
 export type LocalConversationContextAssetKind =
   | "workspace_file"
@@ -78,6 +79,16 @@ export type LocalConversationProviderProjectionFact = {
   observedAt: string;
 };
 
+export type LocalConversationProviderContextFactCandidate = {
+  actorKey: string;
+  namespace: ActorProviderContextFact["namespace"];
+  logicalKey: string;
+  revision: string;
+  payload: Readonly<Record<string, unknown>>;
+  sourceToolCalls: LocalConversationProviderProjectionSourceToolCall[];
+  observedAt: string;
+};
+
 export type LocalConversationToolResultDelivery = {
   toolCallId: string;
   deliveryState: "pending" | "delivered";
@@ -115,6 +126,10 @@ export type LocalConversationContextAssetData = {
   selectedFragmentId?: string | null;
   resourceFact?: LocalConversationContextResourceFact;
   projectionFact?: LocalConversationProviderProjectionFact;
+  /** Runtime-only pending delivery candidate; never provider-visible itself. */
+  providerContextFactCandidate?: LocalConversationProviderContextFactCandidate;
+  /** Immutable, provider-visible append-only context fact. */
+  providerContextFact?: ActorProviderContextFact;
   /**
    * Runtime-only delivery facts for ordinary tool call/result pairs. These
    * facts participate in late provider materialization decisions, but never

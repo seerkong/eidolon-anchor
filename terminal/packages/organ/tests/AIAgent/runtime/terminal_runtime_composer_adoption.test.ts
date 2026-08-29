@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "bun:test"
 
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { assembleAiCodingRuntimeProfile } from "@cell/mod-profiles"
+import { installBundledSystemSkills } from "@cell/ai-support/system-skill/SystemSkillInstaller"
 import {
   __setLlmAdapterFactoryForTest,
   __setRuntimeAssemblyFactoryForTest,
@@ -137,6 +138,37 @@ afterEach(async () => {
   }
 })
 
+describe("terminal runtime failure propagation", () => {
+  it("surfaces a main-fiber system Skill build mismatch to the caller", async () => {
+    activeWorkdir = makeTempWorkdir()
+    activeHomeDir = makeTempHomeDir()
+    const globalRoot = path.join(activeHomeDir, ".eidolon")
+    await installBundledSystemSkills({ globalRoot })
+    const manifestPath = path.join(globalRoot, "skills", ".system-skills.xnl")
+    const manifest = fs.readFileSync(manifestPath, "utf8")
+    fs.writeFileSync(manifestPath, manifest.replace(/version = "1\.0\.\d+"/, 'version = "1.0.999"'))
+    process.env.HOME = activeHomeDir
+
+    let providerCalls = 0
+    __setLlmAdapterFactoryForTest(async () => ({
+      type: "openai" as const,
+      async createStream() {
+        providerCalls += 1
+        async function* stream() {
+          yield { choices: [{ delta: { content: "unexpected" } }] } as any
+        }
+        return { stream: stream() }
+      },
+    }))
+
+    configureTerminalRuntime({ workDir: activeWorkdir, mcp: false })
+    const runtime = await getTerminalRuntimeBridge("composer-adoption")
+
+    await expect(runtime!.turn("hello")).rejects.toThrow("SYSTEM_SKILL_BUILD_MISMATCH")
+    expect(providerCalls).toBe(0)
+  })
+})
+
 describe("TerminalRuntime composer adoption", () => {
   it("settles an unsupported image turn with its modality error and remains reusable", async () => {
     activeWorkdir = makeTempWorkdir()
@@ -150,7 +182,11 @@ describe("TerminalRuntime composer adoption", () => {
             {
               id: "deepseek-test",
               adapter: "deepseek",
-              options: { baseURL: "https://api.example.com", apiKey: "test-key" },
+              options: {
+                baseURL: "https://api.example.com",
+                apiKey: "test-key",
+                compatibilityProfile: "deepseek-compatible-chat@1",
+              },
               models: [
                 {
                   id: "deepseek-v4-flash",
@@ -190,7 +226,11 @@ describe("TerminalRuntime composer adoption", () => {
       },
     }))
 
-    configureTerminalRuntime({ workDir: activeWorkdir, mcp: false })
+    configureTerminalRuntime({
+      workDir: activeWorkdir,
+      mcp: false,
+      providerChatCompatibilityProfileId: "deepseek-compatible-chat@1",
+    })
     const runtime = await getTerminalRuntimeBridge("composer-adoption")
     expect(runtime).toBeTruthy()
 
@@ -816,11 +856,16 @@ describe("TerminalRuntime composer adoption", () => {
 
     let providerCalls = 0
     let providerMessages: Array<{ role?: string; content?: string }> = []
+    let providerExtraBody: Record<string, unknown> = {}
     __setLlmAdapterFactoryForTest(async () => ({
       type: "openai" as const,
-      async createStream(options: { messages?: Array<{ role?: string; content?: string }> }) {
+      async createStream(options: {
+        messages?: Array<{ role?: string; content?: string }>
+        extraBody?: Record<string, unknown>
+      }) {
         providerCalls += 1
         providerMessages = options.messages ?? []
+        providerExtraBody = options.extraBody ?? {}
         async function* stream() {
           yield { choices: [{ delta: { content: "ok" } }] } as any
         }
@@ -842,7 +887,8 @@ describe("TerminalRuntime composer adoption", () => {
 
     await runtime!.turn("hello")
     expect(providerCalls).toBe(1)
-    expect(providerMessages.some((message) => String(message.content ?? "").includes("work_mode: plan"))).toBe(true)
+    expect(providerExtraBody.work_context).toMatchObject({ workMode: "plan" })
+    expect(providerMessages.some((message) => String(message.content ?? "").includes("work_mode: plan"))).toBe(false)
     expect(providerMessages.some((message) => String(message.content ?? "").includes("/work-mode plan"))).toBe(false)
   })
 

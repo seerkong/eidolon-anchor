@@ -174,6 +174,7 @@ export async function spawnChildExecutionActor(
       ? { historyCompaction: "disabled" }
       : config.contextPolicy,
     executionContract,
+    contextPipeline: config.contextPipeline,
     origin: params.origin,
     runtimeFacets: params.runtimeFacets,
     durableMaterials: params.durableMaterials,
@@ -336,6 +337,7 @@ export async function invokeAddressedChildExecutionActor(
     origin?: ActorOriginFact
     durableMaterials?: ActorDurableMaterialIndexInput
     validateActor?: (actor: AiAgentActor) => void
+    onActorAdmitted?: (reference: AddressedChildExecutionReference) => void
   },
 ): Promise<{ output: string; reference: AddressedChildExecutionReference }> {
   if (params.target) {
@@ -353,6 +355,7 @@ export async function invokeAddressedChildExecutionActor(
       throw new Error("ADDRESSED_AGENT_OWNER_CONFLICT: target does not match the Agent definition")
     }
     params.validateActor?.(actor)
+    params.onActorAdmitted?.(params.target)
     appendLiveHistoryMessageToConversationDomainRuntime({
       vm,
       actorKey: actor.key,
@@ -363,6 +366,7 @@ export async function invokeAddressedChildExecutionActor(
     return { output, reference: params.target }
   }
   let created: AiAgentActor | undefined
+  let createdReference: AddressedChildExecutionReference | undefined
   const output = await spawnChildExecutionActor(vm, parentActor, {
     description: params.description,
     prompt: params.prompt,
@@ -375,19 +379,23 @@ export async function invokeAddressedChildExecutionActor(
     ...(params.sessionId === undefined ? {} : { sessionId: params.sessionId }),
     retainActor: true,
     validateBeforeRegistration: params.validateActor,
-    onActorCreated: (actor) => { created = actor },
+    onActorCreated: (actor) => {
+      created = actor
+      const work = getActorWorkContext(actor)
+      createdReference = Object.freeze({
+        authority: "eidolon.actor-runtime/v1",
+        actorKey: actor.key,
+        actorId: actor.id,
+        ...(params.sessionId ? { sessionId: params.sessionId } : work.sessionId ? { sessionId: work.sessionId } : {}),
+        agentDefinitionRef: params.agentType,
+      })
+      params.onActorAdmitted?.(createdReference)
+    },
   })
-  if (!created) throw new Error("ADDRESSED_AGENT_OWNER_MISSING: generic actor owner was not created")
-  const work = getActorWorkContext(created)
+  if (!created || !createdReference) throw new Error("ADDRESSED_AGENT_OWNER_MISSING: generic actor owner was not created")
   return {
     output,
-    reference: Object.freeze({
-      authority: "eidolon.actor-runtime/v1",
-      actorKey: created.key,
-      actorId: created.id,
-      ...(params.sessionId ? { sessionId: params.sessionId } : work.sessionId ? { sessionId: work.sessionId } : {}),
-      agentDefinitionRef: params.agentType,
-    }),
+    reference: createdReference,
   }
 }
 

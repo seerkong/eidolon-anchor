@@ -61,6 +61,7 @@ export type RuntimeProviderRetryReason =
   | "provider_error_retryable"
   | "provider_error_non_retryable"
   | "responses_tool_context_recoverable"
+  | "chat_tool_payload_recoverable"
   | "other"
 
 export type RuntimeProviderRetryTerminalCause =
@@ -294,6 +295,7 @@ function projectRetryReason(value: string | undefined): RuntimeProviderRetryReas
     case "provider_error_retryable":
     case "provider_error_non_retryable":
     case "responses_tool_context_recoverable":
+    case "chat_tool_payload_recoverable":
       return value
     default:
       return "other"

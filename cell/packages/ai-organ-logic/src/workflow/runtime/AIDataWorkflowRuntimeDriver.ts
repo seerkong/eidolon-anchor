@@ -130,6 +130,7 @@ export class AIDataWorkflowRuntimeDriver {
       () => this.activeRunAuthority,
       resourceRegistry ? { workflowForm: descriptor.form, resourceRegistry } : undefined,
       stepExtensions,
+      { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
     )
     this.aiRuntime = createAIDataWorkflowRuntime({
       ai: {

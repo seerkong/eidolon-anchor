@@ -9,7 +9,7 @@
         <given>buildProviderPromptForActorTurn 完成 + LLM adapter createStream 即将调用</given>
         <when>检查运行时</when>
         <then>ProviderCallDomain SHALL 已写入一条 ProviderCallRecord 含完整请求元数据</then>
-        <then>state.inflight.kind=&quot;llm&quot; 的 opId SHALL 与该 ProviderCallRecord 一一对应</then>
+        <then>state.inflight.kind=&amp;amp;quot;llm&amp;amp;quot; 的 opId SHALL 与该 ProviderCallRecord 一一对应</then>
       </case>
       <case id="metadata-not-scattered">
         <given>需要查询某次 provider 请求的 temperature 或 tool schemas</given>
@@ -32,18 +32,53 @@
         <given>TUI think card 或 observability 需要 reasoning</given>
         <when>读取事实</when>
         <then>SHALL 通过 ProviderCallDomain reasoning fact 查询</then>
-        <then>SHALL NOT 通过 content_parts.find(type===&quot;reasoning&quot;) 隐式约定</then>
+        <then>SHALL NOT 通过 content_parts.find(type===&amp;amp;quot;reasoning&amp;amp;quot;) 隐式约定</then>
       </case>
     </suite>
   </requirement>
   <requirement id="failure-classification">
-    <statement>provider 请求失败 SHALL 在 ProviderCallDomain 显式分类为：network_error / provider_rate_limit / provider_invalid_response / aborted_by_user / timeout 等枚举类型；SHALL NOT 仅以&quot;Error: ...&quot;字符串前缀承载错误语义。</statement>
+    <statement>provider 请求失败 SHALL 在 ProviderCallDomain 显式分类为：network_error / provider_rate_limit / provider_invalid_response / aborted_by_user / timeout 等枚举类型；SHALL NOT 仅以&amp;amp;quot;Error: ...&amp;amp;quot;字符串前缀承载错误语义。</statement>
     <suite id="failures" name="Failure classification">
       <case id="classified-failure">
         <given>provider 调用失败</given>
         <when>ProviderCallDomain 记录失败</when>
         <then>SHALL 写入显式 failureKind 枚举字段</then>
         <then>SHALL 同时保留原始 error 字符串作为 audit 字段</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="transient-transport-replay-safety">
+    <statement>Provider transport retries SHALL replay one already-prepared request only within the existing bounded policy and only while runtime evidence proves no provider output was observed; runtime output evidence SHALL override a classifier's pre-accept hint.</statement>
+    <suite id="transport-replay-boundary" name="Transport replay boundary">
+      <case id="same-request-before-accept">
+        <given>a recognized transient transport close occurs before output</given>
+        <when>the provider call retries</when>
+        <then>the same prepared request authority SHALL be reused and diagnostics SHALL identify a bounded safe pre-accept replay</then>
+      </case>
+      <case id="runtime-output-evidence-blocks-replay">
+        <given>a visible chunk or driver output-observed fact exists before failure</given>
+        <when>the retry boundary reconciles classifier hints with runtime facts</when>
+        <then>runtime evidence SHALL win, effective phase SHALL be provider_accepted, and no new attempt SHALL be created</then>
+      </case>
+    </suite>
+  </requirement>
+  <requirement id="provider-cache-observation-epoch-authority">
+    <statement>Provider cache observation epoch SHALL be projected from the same provider-context receipt authority that admits provider-visible non-append changes; independent continuation counters MUST NOT mask a receipt transition through numeric max/merge.</statement>
+    <suite id="cache-epoch-boundaries" name="Provider cache epoch boundaries">
+      <case id="history-compaction-is-atomic-boundary">
+        <given>history compaction creates a successor provider-context receipt and re-anchors durable context facts</given>
+        <when>the first provider request is materialized from the compacted history</when>
+        <then>its cache observation SHALL carry the successor receipt epoch on that same request, so comparison with the predecessor is epoch_boundary</then>
+      </case>
+      <case id="continuation-counter-cannot-mask-boundary">
+        <given>a Responses continuation baseline counter is numerically greater than both predecessor and successor provider-context receipt epochs</given>
+        <when>a generic provider cache observation identity is projected</when>
+        <then>the receipt transition SHALL remain visible and MUST NOT be collapsed by taking the maximum counter</then>
+      </case>
+      <case id="append-keeps-comparable-epoch">
+        <given>provider-visible history only grows by admitted append and the provider-context receipt is unchanged</given>
+        <when>successive cache observations are compared</when>
+        <then>they SHALL retain one context epoch and remain eligible for exact forward-prefix comparison</then>
       </case>
     </suite>
   </requirement>

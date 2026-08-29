@@ -1,0 +1,36 @@
+<Track #exercise-ai-data-cybernetic-resource-agent apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Prove that AI Data observes a real output gap, replans through the canonical graph-patch boundary, advances generation and converges with the same frozen resource Agent and verifier." description = "Upgrade the complete resource Agent fixture to MessagePrefix plus ContextPipeline, add an observable generation-0 failure, apply a public validated graph patch, and verify generation-1 convergence, persistence and effect identity." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-29T10:52:04.671Z" updated_at = "2026-08-29T11:02:08.700Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_exercise-ai-data-cybernetic-resource-agent { name = "exercise-ai-data-cybernetic-resource-agent" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Specify adaptive resource-Agent journey" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Freeze verifier control loop and authority boundaries" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "Upgrade complete fixture to MessagePrefix and ContextPipeline" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Exercise canonical graph replanning" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Observe generation-zero verifier gap" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Apply public graph patch and prove generation-one convergence" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Verify durable cybernetic evidence" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Verify recovery identity patch history invalidation and effects" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "Run focused tests typecheck strict validation and diff check" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_exercise-ai-data-cybernetic-resource-agent" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

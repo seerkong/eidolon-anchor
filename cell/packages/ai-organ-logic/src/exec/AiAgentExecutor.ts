@@ -76,7 +76,9 @@ import { applyCheapCompactionPipeline, compressHistory } from "@cell/ai-organ-lo
 import { estimateTokens, estimateUsageRatio } from "@cell/ai-organ-logic/compression/TokenEstimator";
 import { parseQuestionnaireAnswer } from "@cell/ai-organ-logic/questionnaire/parseQuestionnaireAnswer";
 import { recordProviderCacheUsage } from "../llm/ProviderCacheUsage";
+import { recordProviderCacheObservationProjection } from "../llm/ProviderCacheObservationProjection";
 import { estimateProviderCacheCostTokens } from "../llm/ProviderCacheCostEstimates";
+import { resolveProviderCachePriceWeights } from "../llm/ProviderCacheCostObservation";
 import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager";
 import {
   getLocalPermissionApprovalContext,
@@ -90,6 +92,7 @@ import { buildAutonomousHolonEnvelope, parseAutonomousHolonEnvelope } from "@cel
 import { buildLeaderLedHolonEnvelope, parseLeaderLedHolonEnvelope } from "@cell/ai-organ-logic/organization/leaderLedHolonEnvelope";
 import { normalizeDelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode";
 import {
+  appendActorProviderContextFactToConversationDomainRuntime,
   appendLiveHistoryMessageToConversationDomainRuntime,
   commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
   commitProviderContextTransition,
@@ -171,6 +174,7 @@ import {
 import { accountThreadGoalUsage, getThreadGoal } from "../goals/ThreadGoalManager";
 import { createSessionDiagnosticsXnlLog } from "../runtime/SessionRuntimeXnlLogs";
 import { getContextResourcePresentation } from "../runtime/LocalTextResourceLoader";
+
 import {
   compileConversationDeltaToResponsesInput,
   compileConversationToResponsesCanonicalReplay,
@@ -188,6 +192,7 @@ import {
   splitResponsesModelOptions,
 } from "../llm/ProviderOptions";
 import { classifyProviderRetry } from "../llm/ProviderErrors";
+import { emitProviderDiagnostic } from "../llm/ProviderDiagnostics";
 import {
   buildOpenAIResponsesInstructionPlan,
   buildOpenAIResponsesInstructions,
@@ -195,6 +200,14 @@ import {
 } from "../llm/OpenAIResponsesNodejsFetchAdapter";
 import { normalizeInputContent, projectInputContentText, type InputContentPart } from "@shared/composer";
 import { UnsupportedModalityError, validateInputModalities } from "../llm/InputModalityValidator";
+
+function digestPersistedProviderContextValue(value: unknown): `sha256:${string}` {
+  const persisted = JSON.stringify(value);
+  if (persisted === undefined) {
+    throw new Error("provider_context_digest_value_not_persistable");
+  }
+  return digestProviderContextClosedValue(JSON.parse(persisted));
+}
 
 const isDebugEnabled = (): boolean => (globalThis as any)?.process?.env?.AI_LOOP_DEBUG === "1";
 
@@ -688,6 +701,25 @@ function buildPromptPlanSeedMessages(vm: AiAgentVm, actor: AiAgentActor): any[] 
   return [identityMsg];
 }
 
+const STANDARD_AGENT_CONTEXT_PIPELINE_STAGES = [
+  "prompt-plan",
+  "conversation-prelude",
+  "provider-context-facts-at-history-anchors",
+  "stable-message-prefix",
+  "conversation-boundary-overlays",
+  "provider-conversion",
+] as const;
+
+function assertCanonicalAgentContextPipeline(actor: AiAgentActor): void {
+  const binding = actor.contextPipeline;
+  if (!binding) return;
+  if (binding.implementation !== "eidolon.standard-context-pipeline/v1"
+    || binding.stages.length !== STANDARD_AGENT_CONTEXT_PIPELINE_STAGES.length
+    || binding.stages.some((stage, index) => stage !== STANDARD_AGENT_CONTEXT_PIPELINE_STAGES[index])) {
+    throw new Error(`AGENT_CONTEXT_PIPELINE_UNSUPPORTED: actor '${actor.key}' has a non-canonical context pipeline binding`);
+  }
+}
+
 function toolCallIdsInAssistantMessages(messages: any[]): Set<string> {
   const ids = new Set<string>();
   for (const message of messages) {
@@ -853,6 +885,7 @@ export function buildProviderPromptForActorTurn(params: {
   pendingToolResultDeliveryIds: string[];
   pendingMessageDeliveryIds: string[];
 } {
+  assertCanonicalAgentContextPipeline(params.actor);
   ensureVmConversationDomainRuntime(params.vm);
   const sessionId = typeof (params.vm.outerCtx?.metadata as any)?.sessionId === "string"
     ? String((params.vm.outerCtx?.metadata as any).sessionId)
@@ -1262,14 +1295,118 @@ function assistantMessageHasMeaningfulPayload(msg: any): boolean {
 const EMPTY_ASSISTANT_RESPONSE_RETRY_MESSAGE =
   "The previous assistant response was empty. Continue from the current context and either provide the next tool call or a concise final response.";
 
-function appendEmptyAssistantResponseRetryNudge(providerMessages: any[]): any[] {
-  return [
-    ...providerMessages,
-    {
-      role: "user",
-      content: EMPTY_ASSISTANT_RESPONSE_RETRY_MESSAGE,
+const INVALID_TOOL_PAYLOAD_RETRY_MESSAGE =
+  "The previous assistant tool call was rejected before dispatch because its function arguments were not one complete valid JSON object. Retry the same next action once with exactly one complete, bounded tool call. If the payload would be large, choose the smallest valid next step supported by the available tools. Do not repeat any earlier completed tool effect.";
+
+const TRUNCATED_ASSISTANT_RESPONSE_RETRY_MESSAGE =
+  "The previous generation ended after internal reasoning without producing a final response or tool call. Restart this turn from the unchanged task context and take the smallest concrete next action early. Prefer one bounded tool call over restating a complete plan; do not assume any tool effect occurred in the reasoning-only attempt.";
+
+function appendProviderRecoveryContextNudge(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+  llmAdapter: LlmAdapter;
+  operationId: string;
+  requestOrdinal: number;
+  recoveryKind: "empty_assistant" | "invalid_tool_payload" | "reasoning_only_or_truncated";
+  instruction: string;
+}): any[] {
+  const runtime = ensureVmConversationDomainRuntime(params.vm);
+  const rawState = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
+  appendActorProviderContextFactToConversationDomainRuntime({
+    runtime,
+    sessionId: rawState?.session.sessionId ?? resolveConversationSessionId(params.vm),
+    actorKey: params.actor.key,
+    actorId: params.actor.id,
+    namespace: "provider-recovery",
+    payload: {
+      logicalKey: "provider-output-recovery",
+      recoveryKind: params.recoveryKind,
+      operationId: params.operationId,
+      requestOrdinal: params.requestOrdinal,
+      instruction: params.instruction,
     },
-  ];
+  });
+  return prepareMessagesForLlmAdapter(
+    params.llmAdapter,
+    materializeConversationRuntimeMessagesFromVm({ vm: params.vm, actorKey: params.actor.key }),
+  );
+}
+
+function emitToolPayloadRepairRetryDiagnostic(input: {
+  llmAdapter: LlmAdapter;
+  actor: AiAgentActor;
+  model: string;
+  stage: string;
+  error: unknown;
+}): void {
+  const runtime = (input.llmAdapter as { runtime?: Record<string, any> }).runtime;
+  emitProviderDiagnostic(runtime?.diagnostics, "retry", {
+    agentName: String(runtime?.providerId ?? runtime?.adapterName ?? "provider"),
+    providerId: String(runtime?.providerId ?? input.actor.modelConfig?.provider ?? "unknown"),
+    selectedModel: String(runtime?.selectedModel ?? input.model),
+    stage: input.stage,
+    attemptNumber: 1,
+    retryCount: 1,
+    maxRetries: 1,
+    delaySeconds: 0,
+    error: input.error instanceof Error ? input.error.message : String(input.error),
+    classificationReason: "chat_tool_payload_recoverable",
+    classificationLayer: "stream_protocol",
+    classificationPhase: "before_tool_dispatch",
+    retryScope: "assistant_turn_repair",
+    replaySafety: "safe_before_tool_dispatch",
+    terminationReason: "retry_scheduled",
+    actorId: input.actor.id,
+    sessionId: typeof runtime?.sessionId === "string" ? runtime.sessionId : undefined,
+    turnId: typeof runtime?.turnId === "string" ? runtime.turnId : undefined,
+    traceId: typeof runtime?.traceId === "string" ? runtime.traceId : undefined,
+    eventType: "provider_retry_diagnostic",
+  });
+}
+
+function emitReasoningOnlyRepairRetryDiagnostic(input: {
+  llmAdapter: LlmAdapter;
+  actor: AiAgentActor;
+  model: string;
+  stage: string;
+  error: unknown;
+  continuationOrdinal: number;
+  budgetKind: "fixed_attempts" | "cumulative_output_tokens";
+  maxRetries: number;
+  consumedOutputTokens: number;
+  remainingOutputTokens: number;
+  maxOutputTokens: number;
+}): void {
+  const runtime = (input.llmAdapter as { runtime?: Record<string, any> }).runtime;
+  emitProviderDiagnostic(runtime?.diagnostics, "retry", {
+    agentName: String(runtime?.providerId ?? runtime?.adapterName ?? "provider"),
+    providerId: String(runtime?.providerId ?? input.actor.modelConfig?.provider ?? "unknown"),
+    selectedModel: String(runtime?.selectedModel ?? input.model),
+    stage: input.stage,
+    attemptNumber: input.continuationOrdinal,
+    retryCount: input.continuationOrdinal,
+    maxRetries: input.maxRetries,
+    delaySeconds: 0,
+    error: input.error instanceof Error ? input.error.message : String(input.error),
+    classificationReason: input.error instanceof Error
+      && input.error.name === "ChatCompletionsOutputTruncatedError"
+      ? "chat_output_truncated_recoverable"
+      : "chat_reasoning_only_recoverable",
+    classificationLayer: "stream_protocol",
+    classificationPhase: "before_tool_dispatch",
+    retryScope: "assistant_turn_semantic_completion",
+    replaySafety: "safe_before_tool_dispatch",
+    retryBudgetKind: input.budgetKind,
+    consumedOutputTokens: input.consumedOutputTokens,
+    remainingOutputTokens: input.remainingOutputTokens,
+    maxOutputTokens: input.maxOutputTokens,
+    terminationReason: "retry_scheduled",
+    actorId: input.actor.id,
+    sessionId: typeof runtime?.sessionId === "string" ? runtime.sessionId : undefined,
+    turnId: typeof runtime?.turnId === "string" ? runtime.turnId : undefined,
+    traceId: typeof runtime?.traceId === "string" ? runtime.traceId : undefined,
+    eventType: "provider_retry_diagnostic",
+  });
 }
 
 function getMemberId(actor: AiAgentActor): string | undefined {
@@ -1423,11 +1560,27 @@ function resolveLoopDeps(vm: AiAgentVm, actor: AiAgentActor): {
 
   const callbackExtraBody = vm.callbacks.resolveExtraBody?.(vm);
   const baseExtraBody: Record<string, unknown> = {};
+  const chatEffectBundleId = String(
+    (llmAdapter as LlmAdapter & { chatCompletionsEffectBundle?: { id?: unknown } })
+      .chatCompletionsEffectBundle?.id ?? "",
+  );
+  const isDeepSeekChat = chatEffectBundleId === "deepseek-official-chat"
+    || chatEffectBundleId === "deepseek-compatible-chat";
   if (vm.options.reasoningSplit !== undefined) {
     baseExtraBody.reasoning_split = vm.options.reasoningSplit;
   }
   if (actor.modelConfig.reasoningEffort) {
-    baseExtraBody.reasoning = { effort: actor.modelConfig.reasoningEffort };
+    if (isDeepSeekChat) {
+      baseExtraBody.reasoning_effort = actor.modelConfig.reasoningEffort;
+    } else {
+      baseExtraBody.reasoning = { effort: actor.modelConfig.reasoningEffort };
+    }
+  }
+  if (isDeepSeekChat
+    && typeof actor.modelConfig.maxOutputTokens === "number"
+    && Number.isFinite(actor.modelConfig.maxOutputTokens)
+    && actor.modelConfig.maxOutputTokens > 0) {
+    baseExtraBody.max_tokens = Math.floor(actor.modelConfig.maxOutputTokens);
   }
 
   let extraBody: Record<string, unknown> | undefined;
@@ -1848,6 +2001,20 @@ function resolveResponsesContextEpoch(params: {
   return Math.max(sessionEpoch, getActorContinuationBaseline(params.actor).baselineEpoch);
 }
 
+function resolveProviderCacheObservationContextEpoch(params: {
+  vm: AiAgentVm;
+  actor: AiAgentActor;
+}): number {
+  const rawState = getConversationActorRawStateFromVm({
+    vm: params.vm,
+    actorKey: params.actor.key,
+  });
+  const binding = rawState?.session.actorBindings[params.actor.key];
+  return binding?.providerEpochReceiptV2?.epoch
+    ?? binding?.providerEpochReceipt?.epoch
+    ?? resolveResponsesContextEpoch(params);
+}
+
 function prepareResponsesTurnRequest(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
@@ -2097,7 +2264,42 @@ async function streamProviderCompletion(params: {
   // (P2). Same derivation as the prompt-plan session id; scoped per actor so each
   // actor's reasoning chain stays isolated. Empty -> continuity disabled downstream.
   const turnSessionKey = deriveTurnSessionKey(vm, actor);
+  const providerCacheProfileId = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })
+    ?.session.actorBindings[actor.key]?.providerEpochReceiptV2?.targetProfileId
+    ?? (llmAdapter as any)?.runtime?.chatCompatibilityProfileId
+    ?? "";
+  const providerCachePriceWeights = resolveProviderCachePriceWeights(String(providerCacheProfileId));
+  const chatEffectBundleId = String((llmAdapter as any)?.chatCompletionsEffectBundle?.id ?? "");
+  const usesDeepSeekSemanticCompletion = providerCacheProfileId === "deepseek-official-chat@1"
+    || providerCacheProfileId === "deepseek-compatible-chat@1"
+    || chatEffectBundleId === "deepseek-official-chat"
+    || chatEffectBundleId === "deepseek-compatible-chat";
+  const configuredOutputBudget = Number((extraBody as Record<string, unknown> | undefined)?.max_tokens);
+  const semanticCompletionMaxOutputTokens = usesDeepSeekSemanticCompletion
+    && Number.isFinite(configuredOutputBudget)
+    && configuredOutputBudget > 0
+    ? Math.floor(configuredOutputBudget)
+    : null;
+  let semanticCompletionConsumedOutputTokens = 0;
+  let semanticCompletionRemainingOutputTokens = semanticCompletionMaxOutputTokens;
+  let lastFailedAttemptCompletionTokens: number | null = null;
   let providerRequestOrdinal = 0;
+  const settleProviderAttemptEvidence = async (
+    providerOutput: Promise<unknown | undefined> | undefined,
+  ): Promise<unknown | undefined> => {
+    const transportResult = providerOutput
+      ? await providerOutput.catch(() => undefined)
+      : undefined;
+    recordProviderCacheUsage(vm, transportResult);
+    recordProviderCacheObservationProjection(vm, transportResult);
+    return transportResult;
+  };
+  const readProviderCompletionTokens = (transportResult: unknown): number | null => {
+    const value = (transportResult as { usage?: { completion_tokens?: unknown } } | null | undefined)
+      ?.usage?.completion_tokens;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : null;
+  };
   const createProviderStream = async (messages: any[], plan: any): Promise<{
     result: LlmStreamResult;
     preparedResponses: PreparedResponsesTurn | null;
@@ -2107,6 +2309,12 @@ async function streamProviderCompletion(params: {
       vm,
       estimateProviderRequestPromptTokens({ providerMessages: messages, tools }),
     );
+    const requestExtraBody = {
+      ...(extraBody ?? {}),
+      ...(semanticCompletionRemainingOutputTokens !== null
+        ? { max_tokens: semanticCompletionRemainingOutputTokens }
+        : {}),
+    };
     const preparedResponses = prepareResponsesTurnRequest({
       vm,
       actor,
@@ -2115,14 +2323,14 @@ async function streamProviderCompletion(params: {
       providerMessages: messages,
       tools,
       promptPlan: plan,
-      extraBody,
+      extraBody: requestExtraBody,
     });
     const result = await llmAdapter.createStream({
       model,
       messages,
       tools,
       extraBody: {
-        ...(extraBody ?? {}),
+        ...requestExtraBody,
         prompt_plan: plan,
         work_context: getActorWorkContext(actor),
       },
@@ -2137,8 +2345,9 @@ async function streamProviderCompletion(params: {
       },
       providerCacheCostObservation: {
         actorClass: resolveProviderCacheActorClass(actor),
-        contextEpoch: resolveResponsesContextEpoch({ vm, actor }),
+        contextEpoch: resolveProviderCacheObservationContextEpoch({ vm, actor }),
         tokenEstimates: estimateProviderCacheCostTokens(messages, tools),
+        ...(providerCachePriceWeights ? { priceWeights: providerCachePriceWeights } : {}),
       },
     });
     return { result, preparedResponses };
@@ -2156,11 +2365,22 @@ async function streamProviderCompletion(params: {
       providerAttempt: providerRequestOrdinal + 1,
       abortController,
       run: async () => {
+        lastFailedAttemptCompletionTokens = null;
         const created = await createProviderStream(messages, plan);
-        const msg = await processStreamFn(vm, created.result.stream, {
-          signal: abortController.signal,
-          llmAdapter,
-        });
+        let msg: any;
+        try {
+          msg = await processStreamFn(vm, created.result.stream, {
+            signal: abortController.signal,
+            llmAdapter,
+          });
+        } catch (error) {
+          // A reasoning-only/truncated response can finish transport cleanly
+          // and still fail the semantic stream gate. Close that real attempt's
+          // usage/cache evidence before issuing the bounded repair request.
+          const transportResult = await settleProviderAttemptEvidence(created.result.providerOutput);
+          lastFailedAttemptCompletionTokens = readProviderCompletionTokens(transportResult);
+          throw error;
+        }
         assembleReasoningContentParts(llmAdapter, msg);
         return {
           msg,
@@ -2187,44 +2407,158 @@ async function streamProviderCompletion(params: {
     if (!receipt) throw new Error("provider_context_epoch_v2_required_before_transport");
     return messages;
   };
+  const runActiveCompletionWithSemanticContinuation = async () => {
+    let recoveryContextInstalled = false;
+    let legacyRepairUsed = false;
+    let continuationOrdinal = 0;
+    while (true) {
+      try {
+        return await runOneCompletion(activeProviderMessages, activePromptPlan);
+      } catch (error) {
+        const classification = classifyProviderRetry(error);
+        const isIncompleteSemanticCompletion =
+          classification.classificationReason === "chat_output_truncated_recoverable"
+          || classification.classificationReason === "chat_reasoning_only_recoverable";
+        if (abortController.signal.aborted || !isIncompleteSemanticCompletion) throw error;
+
+        if (semanticCompletionMaxOutputTokens === null) {
+          if (legacyRepairUsed) throw error;
+          legacyRepairUsed = true;
+          vm.effects.log?.("warn", "provider ended before an actionable assistant result; retrying once", {
+            actorKey: actor.key,
+            model,
+          });
+          emitReasoningOnlyRepairRetryDiagnostic({
+            llmAdapter,
+            actor,
+            model,
+            stage: retryStage,
+            error,
+            continuationOrdinal: 1,
+            budgetKind: "fixed_attempts",
+            maxRetries: 1,
+            consumedOutputTokens: 0,
+            remainingOutputTokens: 0,
+            maxOutputTokens: 0,
+          });
+        } else {
+          const progress = lastFailedAttemptCompletionTokens;
+          if (progress === null || progress <= 0) {
+            throw new Error(
+              `provider_semantic_completion_stalled: reasoning-only attempt did not report positive completion-token progress (${error instanceof Error ? error.message : String(error)})`,
+            );
+          }
+          semanticCompletionConsumedOutputTokens += progress;
+          semanticCompletionRemainingOutputTokens = Math.max(
+            0,
+            semanticCompletionMaxOutputTokens - semanticCompletionConsumedOutputTokens,
+          );
+          if (semanticCompletionRemainingOutputTokens <= 0) {
+            throw new Error(
+              `provider_semantic_completion_budget_exhausted: consumed ${semanticCompletionConsumedOutputTokens}/${semanticCompletionMaxOutputTokens} output tokens without content or tool calls`,
+            );
+          }
+          continuationOrdinal += 1;
+          vm.effects.log?.("warn", "DeepSeek turn remains reasoning-only; replaying within the remaining semantic output budget", {
+            actorKey: actor.key,
+            model,
+            continuationOrdinal,
+            consumedOutputTokens: semanticCompletionConsumedOutputTokens,
+            remainingOutputTokens: semanticCompletionRemainingOutputTokens,
+          });
+          emitReasoningOnlyRepairRetryDiagnostic({
+            llmAdapter,
+            actor,
+            model,
+            stage: retryStage,
+            error,
+            continuationOrdinal,
+            budgetKind: "cumulative_output_tokens",
+            maxRetries: 0,
+            consumedOutputTokens: semanticCompletionConsumedOutputTokens,
+            remainingOutputTokens: semanticCompletionRemainingOutputTokens,
+            maxOutputTokens: semanticCompletionMaxOutputTokens,
+          });
+        }
+
+        if (!recoveryContextInstalled) {
+          activeProviderMessages = projectCurrentProviderMessages(
+            appendProviderRecoveryContextNudge({
+              vm,
+              actor,
+              llmAdapter,
+              operationId: params.operationId,
+              requestOrdinal: providerRequestOrdinal + 1,
+              recoveryKind: "reasoning_only_or_truncated",
+              instruction: TRUNCATED_ASSISTANT_RESPONSE_RETRY_MESSAGE,
+            }),
+            activePendingToolResultDeliveryIds,
+          );
+          recoveryContextInstalled = true;
+        }
+      }
+    }
+  };
   try {
     activeProviderMessages = projectCurrentProviderMessages(
       activeProviderMessages,
       activePendingToolResultDeliveryIds,
     );
-    completion = await runOneCompletion(activeProviderMessages, activePromptPlan);
+    completion = await runActiveCompletionWithSemanticContinuation();
   } catch (error) {
-    if (abortController.signal.aborted || !isPromptTooLongError(error)) {
+    const retryClassification = classifyProviderRetry(error);
+    if (!abortController.signal.aborted
+      && retryClassification.classificationReason === "chat_tool_payload_recoverable") {
+      vm.effects.log?.("warn", "provider returned an invalid tool payload; retrying once before tool dispatch", {
+        actorKey: actor.key,
+        model,
+      });
+      emitToolPayloadRepairRetryDiagnostic({ llmAdapter, actor, model, stage: retryStage, error });
+      activeProviderMessages = projectCurrentProviderMessages(
+        appendProviderRecoveryContextNudge({
+          vm,
+          actor,
+          llmAdapter,
+          operationId: params.operationId,
+          requestOrdinal: providerRequestOrdinal + 1,
+          recoveryKind: "invalid_tool_payload",
+          instruction: INVALID_TOOL_PAYLOAD_RETRY_MESSAGE,
+        }),
+        activePendingToolResultDeliveryIds,
+      );
+      completion = await runActiveCompletionWithSemanticContinuation();
+    } else if (abortController.signal.aborted || !isPromptTooLongError(error)) {
       throw error;
+    } else {
+      const compacted = await runReactiveCompaction({
+        vm,
+        actor,
+        tools,
+        llmAdapter,
+        model,
+        processStreamFn,
+        promptPlan,
+        reason: "provider_prompt_too_long",
+      });
+      if (!compacted) {
+        throw error;
+      }
+      const retryPrompt = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
+      assertProviderPromptWithinInputLimit({
+        actor,
+        providerMessages: retryPrompt.providerMessages,
+        stage: retryStage,
+      });
+      activeProviderMessages = projectCurrentProviderMessages(
+        retryPrompt.providerMessages,
+        retryPrompt.pendingToolResultDeliveryIds,
+      );
+      activePromptPlan = retryPrompt.promptPlan;
+      activePendingProviderProjectionSourceIds = retryPrompt.pendingProviderProjectionSourceIds;
+      activePendingToolResultDeliveryIds = retryPrompt.pendingToolResultDeliveryIds;
+      activePendingMessageDeliveryIds = retryPrompt.pendingMessageDeliveryIds;
+      completion = await runActiveCompletionWithSemanticContinuation();
     }
-    const compacted = await runReactiveCompaction({
-      vm,
-      actor,
-      tools,
-      llmAdapter,
-      model,
-      processStreamFn,
-      promptPlan,
-      reason: "provider_prompt_too_long",
-    });
-    if (!compacted) {
-      throw error;
-    }
-    const retryPrompt = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
-    assertProviderPromptWithinInputLimit({
-      actor,
-      providerMessages: retryPrompt.providerMessages,
-      stage: retryStage,
-    });
-    activeProviderMessages = projectCurrentProviderMessages(
-      retryPrompt.providerMessages,
-      retryPrompt.pendingToolResultDeliveryIds,
-    );
-    activePromptPlan = retryPrompt.promptPlan;
-    activePendingProviderProjectionSourceIds = retryPrompt.pendingProviderProjectionSourceIds;
-    activePendingToolResultDeliveryIds = retryPrompt.pendingToolResultDeliveryIds;
-    activePendingMessageDeliveryIds = retryPrompt.pendingMessageDeliveryIds;
-    completion = await runOneCompletion(activeProviderMessages, activePromptPlan);
   }
 
   if (!assistantMessageHasMeaningfulPayload(completion.msg)) {
@@ -2235,19 +2569,25 @@ async function streamProviderCompletion(params: {
       actorKey: actor.key,
       model,
     });
-    completion = await runOneCompletion(
-      appendEmptyAssistantResponseRetryNudge(activeProviderMessages),
-      activePromptPlan,
+    activeProviderMessages = projectCurrentProviderMessages(
+      appendProviderRecoveryContextNudge({
+        vm,
+        actor,
+        llmAdapter,
+        operationId: params.operationId,
+        requestOrdinal: providerRequestOrdinal + 1,
+        recoveryKind: "empty_assistant",
+        instruction: EMPTY_ASSISTANT_RESPONSE_RETRY_MESSAGE,
+      }),
+      activePendingToolResultDeliveryIds,
     );
+    completion = await runOneCompletion(activeProviderMessages, activePromptPlan);
     if (!assistantMessageHasMeaningfulPayload(completion.msg)) {
       throw new Error("provider returned an empty assistant response");
     }
   }
   if (!abortController.signal.aborted) {
-    const transportResult = completion.providerOutput
-      ? await completion.providerOutput.catch(() => undefined)
-      : undefined;
-    recordProviderCacheUsage(vm, transportResult);
+    const transportResult = await settleProviderAttemptEvidence(completion.providerOutput);
     if (!abortController.signal.aborted && completion.preparedResponses) {
       commitResponsesTurnResult({
         vm,
@@ -2262,7 +2602,7 @@ async function streamProviderCompletion(params: {
       actor,
       sourceToolCallIds: activePendingProviderProjectionSourceIds,
       transportResult,
-      fallbackFinalRequestDigest: digestProviderContextClosedValue({
+      fallbackFinalRequestDigest: digestPersistedProviderContextValue({
         schemaVersion: "provider.mock-final-wire/v1",
         model,
         messages: activeProviderMessages,
@@ -4668,8 +5008,8 @@ async function importLegacyProviderContextBeforeTransport(params: {
     sourceFrontierDigest: digestProviderContextHistoryFrontier(historyMessages),
     pendingDeliveryDigest: digestProviderContextClosedValue([]),
     handoffDigest: digestProviderContextClosedValue({ cleanedPromptId, factDigest: fact?.factDigest ?? null }),
-    frozenResourceDigest: digestProviderContextClosedValue(params.actor.durableMaterials ?? {}),
-    providerSurfaceDigest: digestProviderContextClosedValue(params.actor.toolPolicy.providerToolSurface ?? {
+    frozenResourceDigest: digestPersistedProviderContextValue(params.actor.durableMaterials ?? {}),
+    providerSurfaceDigest: digestPersistedProviderContextValue(params.actor.toolPolicy.providerToolSurface ?? {
       mode: params.actor.toolPolicy.allowedToolsMode,
       toolNames: params.actor.toolPolicy.allowedTools,
     }),
@@ -4873,14 +5213,14 @@ export async function ensureActorProviderContextEpochBeforeTransport(params: {
   raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
   current = raw?.session.actorBindings[params.actor.key]?.providerEpochReceiptV2;
   if (!current) return;
-  const frozenResourceDigest = digestProviderContextClosedValue(params.actor.durableMaterials ?? {});
+  const frozenResourceDigest = digestPersistedProviderContextValue(params.actor.durableMaterials ?? {});
   if (current.frozenResourceDigest !== frozenResourceDigest) {
     await transition("frozen_resource_revision_accepted", { frozenResourceDigest });
   }
   raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
   current = raw?.session.actorBindings[params.actor.key]?.providerEpochReceiptV2;
   if (!current) return;
-  const providerSurfaceDigest = digestProviderContextClosedValue(params.actor.toolPolicy.providerToolSurface ?? {
+  const providerSurfaceDigest = digestPersistedProviderContextValue(params.actor.toolPolicy.providerToolSurface ?? {
     mode: params.actor.toolPolicy.allowedToolsMode,
     toolNames: params.actor.toolPolicy.allowedTools,
   });
@@ -4928,7 +5268,8 @@ async function commitV2ConversationCompaction(params: {
     }>
   }>
   const provenance = retainedSources.flatMap<RetainedProviderFact>((source) => {
-    if (source.sourceDeliveryProofs.length === 0 && source.namespace === "work-context") {
+    if (source.sourceDeliveryProofs.length === 0
+      && (source.namespace === "work-context" || source.namespace === "provider-recovery")) {
       return [];
     }
     if (source.sourceDeliveryProofs.length !== 1) {

@@ -153,6 +153,58 @@ async function fixtureLayers(): Promise<readonly ResourcePackageLayerBinding[]> 
   ])
 }
 
+async function composableAgentFixture(): Promise<{
+  readonly layers: readonly ResourcePackageLayerBinding[]
+  readonly workspaceRoot: string
+}> {
+  const parent = await mkdtemp(path.join(os.tmpdir(), "eidolon-composable-agent-"))
+  temporaryRoots.push(parent)
+  const resources = path.join(parent, "resources")
+  const workspaceRoot = path.join(parent, "workspace")
+  await mkdir(workspaceRoot, { recursive: true })
+  await writeFile(path.join(workspaceRoot, "AGENTS.md"), "Keep the workspace invariant.\n", "utf8")
+  const files: Record<string, string> = {
+    "manifest.xnl": `<ResourcePackage #eidolon.fixture.composable.package apiVersion="halfcode.resources/v1" version="1.0.0" { lifecycle = "Active" } (
+  <Catalogs [
+    <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
+    <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>
+    <Catalog #prompts { kind = "Prompt" shape = "single-file" root = "vfs://./Prompts/" }>
+    <Catalog #sources { kind = "AgentMessageSource" shape = "single-file" root = "vfs://./MessageSources/" }>
+    <Catalog #pipelines { kind = "AgentContextPipeline" shape = "single-file" root = "vfs://./ContextPipelines/" }>
+  ]>
+)>
+`,
+    "KindDefinitions/AIAgentDefinition/manifest.xnl": kindDefinition("AIAgentDefinition"),
+    "KindDefinitions/Prompt/manifest.xnl": kindDefinition("Prompt"),
+    "KindDefinitions/AgentMessageSource/manifest.xnl": kindDefinition("AgentMessageSource"),
+    "KindDefinitions/AgentContextPipeline/manifest.xnl": kindDefinition("AgentContextPipeline"),
+    "Agents/Code.xnl": `<AIAgentDefinition #eidolon.fixture.ComposableCode apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Composable coding Agent" } (
+  <MessagePrefix [
+    <Message #kernel { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.KernelPrompt" }>
+    <MessageSource #workspace { kind = "AgentMessageSource" ref = "resource://eidolon.fixture.WorkspaceAgents" }>
+    <Message #coding { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.CodingPrompt" }>
+  ]>
+  <ContextPipeline { kind = "AgentContextPipeline" ref = "resource://eidolon.fixture.StandardContext" }>
+  <ToolRefs []>
+  <MaterialPortRefs []>
+)>
+`,
+    "Prompts/Kernel.xnl": `<Prompt #eidolon.fixture.KernelPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>kernel-prefix</?>)>`,
+    "Prompts/Coding.xnl": `<Prompt #eidolon.fixture.CodingPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>coding-prefix</?>)>`,
+    "MessageSources/Workspace.xnl": `<AgentMessageSource #eidolon.fixture.WorkspaceAgents apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>{\"implementation\":\"eidolon.workspace-agents/v1\"}</?>)>`,
+    "ContextPipelines/Standard.xnl": `<AgentContextPipeline #eidolon.fixture.StandardContext apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>{\"implementation\":\"eidolon.standard-context-pipeline/v1\",\"stages\":[\"prompt-plan\",\"conversation-prelude\",\"provider-context-facts-at-history-anchors\",\"stable-message-prefix\",\"conversation-boundary-overlays\",\"provider-conversion\"]}</?>)>`,
+  }
+  for (const [relativePath, content] of Object.entries(files)) {
+    const target = path.join(resources, relativePath)
+    await mkdir(path.dirname(target), { recursive: true })
+    await writeFile(target, content, "utf8")
+  }
+  return Object.freeze({
+    workspaceRoot,
+    layers: Object.freeze([Object.freeze({ id: "workspace" as const, rootDir: resources })]),
+  })
+}
+
 function deferred<T = void>(): {
   readonly promise: Promise<T>
   readonly resolve: (value: T) => void
@@ -168,6 +220,46 @@ function deferred<T = void>(): {
 }
 
 describe("Eidolon Halfcode App resource registry", () => {
+  it("splices heterogeneous MessagePrefix sources and binds the standard ContextPipeline", async () => {
+    const fixture = await composableAgentFixture()
+    const adapter = new EidolonAppResourceRegistryAdapter({
+      layers: fixture.layers,
+      workspaceRoot: fixture.workspaceRoot,
+    })
+
+    const plan = await adapter.materializeAgentExecutionPlan(
+      "resource://eidolon.fixture.ComposableCode",
+      { scope: "standalone" },
+    )
+
+    expect(plan.messages.map(({ id, content }) => [id, content])).toEqual([
+      ["kernel", "kernel-prefix"],
+      ["workspace", "AGENTS.md (workspace):\nKeep the workspace invariant."],
+      ["coding", "coding-prefix"],
+    ])
+    expect(plan.messages.map((message) => message.contentDigest)).toHaveLength(3)
+    expect(plan.contextPipeline).toMatchObject({
+      resourceId: "eidolon.fixture.StandardContext",
+      implementation: "eidolon.standard-context-pipeline/v1",
+    })
+    expect(plan.agentConfig.contextPipeline).toEqual(plan.contextPipeline)
+  })
+
+  it("fails closed before Actor creation for an unknown ContextPipeline implementation", async () => {
+    const fixture = await composableAgentFixture()
+    const pipeline = path.join(fixture.layers[0]!.rootDir, "ContextPipelines", "Standard.xnl")
+    await writeFile(pipeline, `<AgentContextPipeline #eidolon.fixture.StandardContext apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (<Content ?>{\"implementation\":\"unknown/v9\",\"stages\":[]}</?>)>`, "utf8")
+    const adapter = new EidolonAppResourceRegistryAdapter({
+      layers: fixture.layers,
+      workspaceRoot: fixture.workspaceRoot,
+    })
+
+    await expect(adapter.materializeAgentExecutionPlan(
+      "resource://eidolon.fixture.ComposableCode",
+      { scope: "standalone" },
+    )).rejects.toThrow("EIDOLON_AGENT_CONTEXT_PIPELINE_IMPLEMENTATION_UNSUPPORTED")
+  })
+
   it("freezes the exact union of declared and discovered Agent tasks", async () => {
     const frozenTasks: string[] = []
     const registry = {

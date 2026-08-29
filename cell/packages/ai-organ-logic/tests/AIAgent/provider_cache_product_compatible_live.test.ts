@@ -13,6 +13,7 @@ type CatalogProvider = Readonly<{
 }>
 
 function readCompatibleProvider(): CatalogProvider | undefined {
+  const requestedProviderId = process.env.EIDOLON_DEEPSEEK_COMPATIBLE_PROVIDER?.trim()
   const configPath = join(homedir(), ".eidolon", "llm-provider.json")
   if (!existsSync(configPath)) return undefined
   const catalog = JSON.parse(readFileSync(configPath, "utf8")) as { providers?: unknown }
@@ -28,7 +29,10 @@ function readCompatibleProvider(): CatalogProvider | undefined {
     && candidate.options.apiKey.length > 0
     && typeof candidate?.options?.baseURL === "string"
     && candidate.options.baseURL.startsWith("https://")
-  )).sort((left: any, right: any) => Number(right.id === "siliconflow") - Number(left.id === "siliconflow"))[0] as CatalogProvider | undefined
+  )).sort((left: any, right: any) => (
+    Number(right.id === requestedProviderId) - Number(left.id === requestedProviderId)
+    || Number(right.id === "siliconflow") - Number(left.id === "siliconflow")
+  ))[0] as CatalogProvider | undefined
 }
 
 const live = process.env.EIDOLON_DEEPSEEK_COMPATIBLE_LIVE === "1" ? test : test.skip
@@ -36,7 +40,9 @@ const live = process.env.EIDOLON_DEEPSEEK_COMPATIBLE_LIVE === "1" ? test : test.
 live("records compatible-provider evidence without granting official authority", async () => {
   const provider = readCompatibleProvider()
   const models = Array.isArray(provider?.models) ? provider.models : Object.values(provider?.models ?? {})
-  const model = models.find((candidate) => candidate.id.includes("DeepSeek") || candidate.id.includes("deepseek"))?.id
+  const requestedModelId = process.env.EIDOLON_DEEPSEEK_COMPATIBLE_MODEL?.trim()
+  const model = models.find((candidate) => candidate.id === requestedModelId)?.id
+    ?? models.find((candidate) => candidate.id.includes("DeepSeek") || candidate.id.includes("deepseek"))?.id
   const result = await runProviderCacheProductLive({
     requested: true,
     evidenceClass: "deepseek_compatible",

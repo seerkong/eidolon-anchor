@@ -12,8 +12,8 @@ import {
 } from "./WorkflowLifecycleFacet"
 
 export const DEFAULT_WORKFLOW_ACTOR_BUDGET = Object.freeze({
-  stageDeadlineMs: 180_000,
-  maxNoProgressTurns: 4,
+  stageDeadlineMs: 900_000,
+  maxNoProgressTurns: 12,
   maxProofRepairAttempts: 3,
 })
 

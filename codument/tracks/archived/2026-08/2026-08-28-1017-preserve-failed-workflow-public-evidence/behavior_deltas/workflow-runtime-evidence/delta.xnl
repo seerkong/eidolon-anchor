@@ -1,0 +1,35 @@
+<BehaviorPatch #track.preserve-failed-workflow-public-evidence.behavior_patch.workflow-runtime-evidence apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-complete-agent-ctrl-data-e2e" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-complete-agent-ctrl-data-e2e/requirements/failed-workflow-preserves-mode-identity" } (
+      <Requirement #failed-workflow-preserves-mode-identity (
+        <Statement ?>An admitted Workflow node actor SHALL publish its exact Workflow kind, definition, instance, run and node identity even when its execution later fails; outcome evidence SHALL remain independently failed and MUST NOT be promoted to success.</?>
+        <Suites [
+          <Suite #workflow-failure-identity { name = "Workflow failure identity" } (
+            <Cases [
+              <Case #admitted-child-fails (
+                <Given ?>an AICtrlWorkflow or AIDataWorkflow child actor is admitted and its provider later rejects the request</?>
+                <When ?>headless runtime evidence is projected</?>
+                <Then ?>exactly one matching Workflow run/node identity SHALL be present alongside the original failed outcome and provider cause</?>
+              )>
+              <Case #failure-before-admission (
+                <Given ?>Workflow Agent admission fails before any child actor exists</?>
+                <When ?>public runtime evidence is projected</?>
+                <Then ?>no node actor identity SHALL be fabricated</?>
+              )>
+              <Case #repeated-node-executions (
+                <Given ?>one Workflow run legitimately executes the same node definition more than once</?>
+                <When ?>each execution admits a distinct child actor</?>
+                <Then ?>public evidence SHALL retain every actor execution in order and MUST NOT treat a repeated node id as an identity collision</?>
+              )>
+              <Case #addressed-actor-fails-after-admission (
+                <Given ?>a typed-host Workflow invocation validates a new or existing addressed actor owner</?>
+                <When ?>that actor's provider execution later fails</?>
+                <Then ?>the admitted addressed actor identity SHALL remain public while the outcome remains failed</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

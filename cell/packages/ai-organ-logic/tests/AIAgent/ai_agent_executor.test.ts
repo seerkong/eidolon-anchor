@@ -51,6 +51,17 @@ import { withWorkflowDomainProgress } from "@cell/ai-organ-logic/workflow/runtim
 import { createWorkflowNodeActorOrigin } from "@cell/ai-organ-logic/workflow/runtime/WorkflowNodeActorAdmission";
 import { activateActorProviderEpoch } from "@cell/ai-organ-logic/conversation/ProviderEpoch";
 import { computeProviderEpochReceiptIntegrityDigest } from "@cell/ai-organ-logic/conversation/ProviderEpochProjection";
+import {
+  ChatCompletionsOutputTruncatedError,
+  ChatCompletionsProtocolError,
+  ChatCompletionsReasoningOnlyError,
+} from "@cell/ai-organ-logic/stream/ChatCompletionsStreamCore";
+import { deepSeekCompatibleChatEffectBundle } from "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles";
+import {
+  compareProviderCacheCostObservations,
+  createProviderCacheCostObservation,
+} from "@cell/ai-organ-logic/llm/ProviderCacheCostObservation";
+import { readProviderCacheObservationProjection } from "@cell/ai-organ-logic/llm/ProviderCacheObservationProjection";
 
 const mockAdapter = {
   type: "openai" as const,
@@ -1190,6 +1201,370 @@ describe("ai_agent_loop_streaming", () => {
     expect(record?.status).toBe("completed");
   });
 
+  it("retries one malformed chat tool payload before any tool dispatch", async () => {
+    let createStreamCalls = 0;
+    let processStreamCalls = 0;
+    const requestedMessages: any[][] = [];
+    const diagnostics: any[] = [];
+    const actor = createTestActor({
+      type: "openai" as const,
+      runtime: {
+        providerId: "deepseek",
+        selectedModel: "deepseek-v4-flash",
+        diagnostics: { retryEvents: { onNext: (event: unknown) => diagnostics.push(event) } },
+      },
+      async createStream(options?: any) {
+        createStreamCalls += 1;
+        requestedMessages.push(options?.messages ?? []);
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"8".repeat(64)}` },
+          }),
+        };
+      },
+    } as any);
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      processStream: async () => {
+        processStreamCalls += 1;
+        if (processStreamCalls === 1) {
+          throw new ChatCompletionsProtocolError([{
+            code: "invalid_tool_call_payload",
+            message: "tool call call_1 has invalid JSON arguments",
+          }]);
+        }
+        return { role: "assistant", content: "recovered before dispatch" };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(createStreamCalls).toBe(2);
+    expect(processStreamCalls).toBe(2);
+    expect(JSON.stringify(requestedMessages[1])).toContain("not one complete valid JSON object");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      classificationReason: "chat_tool_payload_recoverable",
+      terminationReason: "retry_scheduled",
+    });
+    const [record] = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
+    expect(record?.status).toBe("completed");
+  });
+
+  it("retries one output-truncated reasoning turn before any tool dispatch", async () => {
+    let createStreamCalls = 0;
+    let processStreamCalls = 0;
+    const requestedMessages: any[][] = [];
+    const diagnostics: any[] = [];
+    const actor = createTestActor({
+      type: "openai" as const,
+      runtime: {
+        providerId: "deepseek-iqingwa",
+        selectedModel: "deepseek-v4-pro",
+        diagnostics: { retryEvents: { onNext: (event: unknown) => diagnostics.push(event) } },
+      },
+      async createStream(options?: any) {
+        createStreamCalls += 1;
+        requestedMessages.push(options?.messages ?? []);
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"7".repeat(64)}` },
+          }),
+        };
+      },
+    } as any);
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      processStream: async () => {
+        processStreamCalls += 1;
+        if (processStreamCalls === 1) throw new ChatCompletionsOutputTruncatedError();
+        return { role: "assistant", content: "recovered before dispatch" };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(createStreamCalls).toBe(2);
+    expect(processStreamCalls).toBe(2);
+    expect(JSON.stringify(requestedMessages[1])).toContain("ended after internal reasoning");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      classificationReason: "chat_output_truncated_recoverable",
+      terminationReason: "retry_scheduled",
+    });
+    const [record] = getVmProviderCallDomain(vm)?.getAllRecords() ?? [];
+    expect(record?.status).toBe("completed");
+  });
+
+  it("retries one reasoning-only normal stop before any tool dispatch", async () => {
+    let processStreamCalls = 0;
+    let createStreamCalls = 0;
+    const requestedMessages: any[][] = [];
+    const tool = makeStaticTool("Read", "ok");
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(tool);
+    const actor = createTestActor({
+      type: "openai" as const,
+      async createStream(options?: any) {
+        createStreamCalls += 1;
+        requestedMessages.push(options?.messages ?? []);
+        const observation = createProviderCacheCostObservation({
+          identity: {
+            schemaVersion: 1,
+            providerId: "deepseek-iqingwa",
+            providerProfile: "deepseek_compatible",
+            providerProfileId: "deepseek-compatible-chat@1",
+            model: "mock-model",
+            actorClass: "ordinary",
+            contextEpoch: 1,
+          },
+          serializedRequestBody: JSON.stringify({
+            model: "mock-model",
+            messages: options?.messages ?? [],
+            tools: options?.tools ?? [],
+          }),
+          tokenEstimates: { toolSurfaceTokens: 1, workflowControlTokens: 0 },
+          usage: {
+            promptTokens: 100 + createStreamCalls,
+            completionTokens: 10,
+            cacheHitTokens: 90,
+            cacheMissTokens: 10 + createStreamCalls,
+          },
+        });
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            usage: {
+              prompt_tokens: 100 + createStreamCalls,
+              completion_tokens: 10,
+              prompt_cache_hit_tokens: 90,
+              prompt_cache_miss_tokens: 10 + createStreamCalls,
+            },
+            provider_cache_cost_observation: observation,
+          }),
+        };
+      },
+    });
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      tools: [tool.schema],
+      processStream: async () => {
+        processStreamCalls += 1;
+        if (processStreamCalls === 1) throw new ChatCompletionsReasoningOnlyError("stop");
+        if (processStreamCalls === 2) {
+          return {
+            role: "assistant",
+            content: "",
+            tool_calls: [{ id: "recovery-read", function: { name: "Read", arguments: "{}" } }],
+          };
+        }
+        return { role: "assistant", content: "recovered" };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(processStreamCalls).toBe(3);
+    expect(readProviderCacheObservationProjection(vm)).toHaveLength(3);
+    expect(readProviderCacheObservationProjection(vm).every((entry) => entry.tokenBreakdown.usage !== null)).toBe(true);
+    expect(JSON.stringify(requestedMessages[1])).toContain("ended after internal reasoning");
+    const recoveryIndex = requestedMessages[1]!.findIndex((message) => (
+      JSON.stringify(message).includes("ended after internal reasoning")
+    ));
+    expect(recoveryIndex).toBeGreaterThanOrEqual(0);
+    expect(requestedMessages[2]![recoveryIndex]).toEqual(requestedMessages[1]![recoveryIndex]);
+    expect(requestedMessages[2]!.slice(recoveryIndex + 1)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "assistant" }),
+      expect.objectContaining({ role: "tool", tool_call_id: "recovery-read" }),
+    ]));
+
+    const identity = {
+      schemaVersion: 1 as const,
+      providerId: "deepseek-iqingwa",
+      providerProfile: "deepseek_compatible" as const,
+      providerProfileId: "deepseek-compatible-chat@1" as const,
+      model: "mock-model",
+      actorClass: "ordinary" as const,
+      contextEpoch: 1,
+    };
+    const observe = (messages: any[]) => createProviderCacheCostObservation({
+      identity,
+      serializedRequestBody: JSON.stringify({ model: identity.model, messages, tools: [tool.schema] }),
+      tokenEstimates: { toolSurfaceTokens: 1, workflowControlTokens: 0 },
+    });
+    expect(compareProviderCacheCostObservations(
+      observe(requestedMessages[1]!),
+      observe(requestedMessages[2]!),
+    ).retainedPrefixIntegrity).toBe(1);
+  });
+
+  it("continues DeepSeek reasoning-only attempts by remaining output budget without growing the recovery prefix", async () => {
+    let processStreamCalls = 0;
+    const requestedMessages: any[][] = [];
+    const requestedMaxTokens: number[] = [];
+    const diagnostics: any[] = [];
+    const completionProgress = [100, 150, 200, 25, 10];
+    const tool = makeStaticTool("Read", "ok");
+    const toolRegistry = new ToolFuncRegistry();
+    toolRegistry.register(tool);
+    const adapter = {
+      type: "openai" as const,
+      chatCompletionsEffectBundle: deepSeekCompatibleChatEffectBundle,
+      runtime: {
+        providerId: "deepseek-iqingwa",
+        selectedModel: "deepseek-v4-pro",
+        chatCompatibilityProfileId: "deepseek-compatible-chat@1",
+        diagnostics: { retryEvents: { onNext: (event: unknown) => diagnostics.push(event) } },
+      },
+      async createStream(options?: any) {
+        const callIndex = requestedMessages.length;
+        requestedMessages.push(options?.messages ?? []);
+        requestedMaxTokens.push(Number(options?.extraBody?.max_tokens));
+        const completionTokens = completionProgress[callIndex] ?? 10;
+        const usage = {
+          prompt_tokens: 1000,
+          completion_tokens: completionTokens,
+          total_tokens: 1000 + completionTokens,
+          prompt_cache_hit_tokens: 900,
+          prompt_cache_miss_tokens: 100,
+        };
+        const observation = createProviderCacheCostObservation({
+          identity: {
+            schemaVersion: 1,
+            providerId: "deepseek-iqingwa",
+            providerProfile: "deepseek_compatible",
+            providerProfileId: "deepseek-compatible-chat@1",
+            model: "deepseek-v4-pro",
+            actorClass: "ordinary",
+            contextEpoch: 1,
+          },
+          serializedRequestBody: JSON.stringify({
+            model: "deepseek-v4-pro",
+            messages: options?.messages ?? [],
+            tools: options?.tools ?? [],
+            max_tokens: options?.extraBody?.max_tokens,
+          }),
+          tokenEstimates: { toolSurfaceTokens: 1, workflowControlTokens: 0 },
+          usage: {
+            promptTokens: usage.prompt_tokens,
+            completionTokens: usage.completion_tokens,
+            cacheHitTokens: usage.prompt_cache_hit_tokens,
+            cacheMissTokens: usage.prompt_cache_miss_tokens,
+          },
+        });
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            usage,
+            provider_cache_cost_observation: observation,
+          }),
+        };
+      },
+    };
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: {
+        model: "deepseek-v4-pro",
+        maxOutputTokens: 1000,
+      },
+      callbacks: {
+        buildToolset: () => [tool.schema],
+        processStream: async () => ({ role: "assistant", content: "unused" }),
+      },
+    });
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry,
+      tools: [tool.schema],
+      processStream: async () => {
+        processStreamCalls += 1;
+        if (processStreamCalls <= 3) throw new ChatCompletionsReasoningOnlyError("stop");
+        if (processStreamCalls === 4) {
+          return {
+            role: "assistant",
+            content: "",
+            tool_calls: [{ id: "budget-read", function: { name: "Read", arguments: "{}" } }],
+          };
+        }
+        return { role: "assistant", content: "done" };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(processStreamCalls).toBe(5);
+    expect(requestedMaxTokens.slice(0, 4)).toEqual([1000, 900, 750, 550]);
+    expect(requestedMaxTokens[4]).toBe(1000);
+    expect(requestedMessages[2]).toEqual(requestedMessages[1]);
+    expect(requestedMessages[3]).toEqual(requestedMessages[1]);
+    expect(JSON.stringify(requestedMessages[1])).toContain("ended after internal reasoning");
+    expect(JSON.stringify(requestedMessages[1]).match(/ended after internal reasoning/g)).toHaveLength(1);
+    expect(diagnostics).toHaveLength(3);
+    expect(diagnostics.map((event) => event.retryBudgetKind)).toEqual([
+      "cumulative_output_tokens",
+      "cumulative_output_tokens",
+      "cumulative_output_tokens",
+    ]);
+    expect(diagnostics.map((event) => event.remainingOutputTokens)).toEqual([900, 750, 550]);
+    expect(diagnostics.every((event) => event.maxRetries === 0)).toBe(true);
+  });
+
+  it("fails closed when a DeepSeek reasoning-only attempt makes no accountable token progress", async () => {
+    const adapter = {
+      type: "openai" as const,
+      chatCompletionsEffectBundle: deepSeekCompatibleChatEffectBundle,
+      runtime: {
+        providerId: "deepseek-iqingwa",
+        selectedModel: "deepseek-v4-pro",
+        chatCompatibilityProfileId: "deepseek-compatible-chat@1",
+      },
+      async createStream() {
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            usage: {
+              prompt_tokens: 100,
+              completion_tokens: 0,
+              total_tokens: 100,
+              prompt_cache_hit_tokens: 90,
+              prompt_cache_miss_tokens: 10,
+            },
+          }),
+        };
+      },
+    };
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "deepseek-v4-pro", maxOutputTokens: 1000 },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "unused" }),
+      },
+    });
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      processStream: async () => {
+        throw new ChatCompletionsReasoningOnlyError(null);
+      },
+    });
+
+    await expect(aiAgentLoopStreaming({ vm, actor, messages: [] })).rejects.toThrow(
+      "provider_semantic_completion_stalled",
+    );
+  });
+
   it("fails provider turns that repeatedly return an empty assistant response instead of reporting no_tool_calls", async () => {
     let processStreamCalls = 0;
     const actor = createTestActor();
@@ -2218,6 +2593,42 @@ describe("ai_agent_loop_streaming", () => {
     expect(promptGeneration?.metadata?.continuationBaselineAfter).toEqual(actor.continuationBaseline);
   });
 
+  it("projects official DeepSeek normalized input weights into the final-wire observation", async () => {
+    const observedCacheContexts: any[] = [];
+    const adapter = {
+      type: "deepseek" as const,
+      async createStream(options: any) {
+        observedCacheContexts.push(options.providerCacheCostObservation);
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: { requestDigest: `sha256:${"e".repeat(64)}` },
+          }),
+        };
+      },
+    };
+    const actor = createTestActor(adapter);
+    actor.modelConfig = {
+      model: "deepseek-v4-flash",
+      provider: "deepseek",
+      adapter: "deepseek",
+      options: { compatibilityProfile: "deepseek-official-chat@1" },
+    };
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      processStream: async () => ({ role: "assistant", content: "done" }),
+    });
+
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(observedCacheContexts).toHaveLength(1);
+    expect(observedCacheContexts[0]?.priceWeights).toEqual({
+      cacheHitWeight: 0.1,
+      cacheMissWeight: 1,
+    });
+  });
+
   it("persists every changed provider/model/resource/surface epoch before real transport", async () => {
     const sessionDir = makeTempSessionDir();
     const sessionId = path.basename(sessionDir);
@@ -2789,6 +3200,19 @@ describe("ai_agent_loop_streaming", () => {
       sourceRecords: [sourceRecord],
       occurredAt: "2026-08-25T18:00:02.000Z",
     });
+    appendActorProviderContextFactToConversationDomainRuntime({
+      runtime: ensureVmConversationDomainRuntime(vm),
+      sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      namespace: "provider-recovery",
+      payload: {
+        logicalKey: "provider-output-recovery",
+        recoveryKind: "reasoning_only_or_truncated",
+        instruction: "take one bounded action",
+      },
+      occurredAt: "2026-08-25T18:00:03.000Z",
+    });
     const seededRepository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
     const seededRaw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
     await seededRepository.writeSessionIndex(seededRaw.session.sessionIndex);
@@ -2821,6 +3245,7 @@ describe("ai_agent_loop_streaming", () => {
       asset.providerContextFact?.epoch === receipt?.epoch
     )) ?? [];
     expect(successorAssets).toHaveLength(1);
+    expect(successorAssets.some((asset) => asset.providerContextFact?.namespace === "provider-recovery")).toBe(false);
     expect(successorAssets[0]?.providerContextFact).toMatchObject({
       namespace: sourceFact.namespace,
       namespaceRevision: sourceFact.namespaceRevision,
@@ -2837,6 +3262,130 @@ describe("ai_agent_loop_streaming", () => {
     await fresh.recoverProviderContextTransitionGeneration?.();
     expect((await fresh.loadSessionIndex()).session.actorBindings[actor.key]?.providerEpochReceiptV2)
       .toEqual(receipt);
+  });
+
+  it("projects cache observation epoch from the compaction receipt instead of a larger continuation counter", async () => {
+    const observedEpochs: number[] = [];
+    const observedReceiptEpochs: number[] = [];
+    const observedMessages: any[][] = [];
+    let vmRef: any;
+    const adapter = {
+      type: "deepseek" as const,
+      async createStream(options: any) {
+        observedEpochs.push(options.providerCacheCostObservation?.contextEpoch);
+        observedReceiptEpochs.push(
+          getConversationActorRawStateFromVm({ vm: vmRef, actorKey: "main" })
+            ?.session.actorBindings.main?.providerEpochReceiptV2?.epoch,
+        );
+        observedMessages.push(structuredClone(options.messages ?? []));
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: {
+              requestDigest: `sha256:${String(observedEpochs.length).repeat(64)}`,
+            },
+          }),
+        };
+      },
+    };
+    const actor = createTestActor(adapter);
+    actor.modelConfig = {
+      model: "deepseek-v4-flash",
+      provider: "deepseek",
+      adapter: "deepseek",
+      options: { compatibilityProfile: "deepseek-official-chat@1" },
+      inputLimit: 0,
+    };
+    actor.continuationBaseline = {
+      baselineEpoch: 100,
+      lastResetReason: "fixture_counter_ahead_of_provider_receipt",
+      latestResponseId: null,
+      contextDigest: null,
+      updatedAt: "2026-08-28T03:30:00.000Z",
+    };
+    const sessionDir = makeTempSessionDir();
+    const sessionId = path.basename(sessionDir);
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      outerCtx: {
+        workDir: sessionDir,
+        metadata: { sessionDir, sessionId },
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
+      },
+      processStream: async () => ({ role: "assistant", content: "done" }),
+    });
+    vmRef = vm;
+    appendLiveHistoryMessageToConversationDomainRuntime({
+      vm,
+      actorKey: actor.key,
+      actorId: actor.id,
+      message: { role: "user", content: "x".repeat(1200) },
+      occurredAt: "2026-08-28T03:30:01.000Z",
+    });
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId,
+      targetProviderId: "deepseek",
+      targetProfileId: "deepseek-official-chat@1",
+      reason: "initial_projection",
+      occurredAt: "2026-08-28T03:30:02.000Z",
+    });
+
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    expect(observedEpochs).toEqual(observedReceiptEpochs);
+
+    actor.modelConfig.inputLimit = 100;
+    __setCompressionDepsForTest({
+      estimateUsageRatio: () => 0.9,
+      compressHistory: async () => [
+        { role: "user", content: "<state_snapshot><overall_goal>cache epoch</overall_goal></state_snapshot>" },
+        { role: "assistant", content: "Understood. I have the full context from the state snapshot." },
+        { role: "assistant", content: "retained tail" },
+      ],
+    });
+    expect(await forceCompressActorHistory({ vm, actor })).toMatchObject({ ok: true, compacted: true });
+    const compacted = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    expect(compacted.session.actorBindings[actor.key]?.providerEpochReceiptV2).toMatchObject({
+      epoch: 2,
+      reason: "history_compaction",
+    });
+
+    actor.modelConfig.inputLimit = 0;
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+    actor.send("humanInput", "append-only follow-up");
+    await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(observedEpochs).toEqual(observedReceiptEpochs);
+    expect(observedReceiptEpochs[1]).toBeGreaterThan(observedReceiptEpochs[0]!);
+    expect(observedReceiptEpochs[2]).toBe(observedReceiptEpochs[1]);
+    expect(JSON.stringify(observedMessages[0])).not.toBe(JSON.stringify(observedMessages[1]));
+    expect(JSON.stringify(observedMessages[2])).toContain("append-only follow-up");
+    const observations = observedMessages.map((messages, index) => createProviderCacheCostObservation({
+      identity: {
+        schemaVersion: 1,
+        providerId: "deepseek",
+        providerProfile: "deepseek_official",
+        providerProfileId: "deepseek-official-chat@1",
+        model: "deepseek-v4-flash",
+        actorClass: "ordinary",
+        contextEpoch: observedEpochs[index]!,
+      },
+      serializedRequestBody: JSON.stringify({
+        model: "deepseek-v4-flash",
+        messages,
+        tools: [],
+        stream: true,
+      }),
+      tokenEstimates: { toolSurfaceTokens: 0, workflowControlTokens: 0 },
+    }));
+    expect(compareProviderCacheCostObservations(observations[0]!, observations[1]!).relation)
+      .toBe("epoch_boundary");
+    expect(compareProviderCacheCostObservations(observations[1]!, observations[2]!)).toMatchObject({
+      relation: "same_epoch",
+      retainedPrefixIntegrity: 1,
+    });
   });
 
   it("compacts one namespace exactly once at the admitted 32-revision boundary", async () => {

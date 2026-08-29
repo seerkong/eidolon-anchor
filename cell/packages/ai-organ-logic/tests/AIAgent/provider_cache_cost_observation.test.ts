@@ -9,11 +9,21 @@ import {
   bindProviderCacheUsageToObservation,
   compareProviderCacheCostObservations,
   createProviderCacheCostObservation,
+  resolveProviderCachePriceWeights,
 } from "../../src/llm/ProviderCacheCostObservation";
 import { normalizeProviderCacheUsageTokens } from "../../src/llm/ProviderCacheUsage";
 import { buildBuiltinToolDefs } from "../../src/composer/AIAgent/ToolFuncBuiltin";
 
 describe("provider cache-cost observation contract", () => {
+  test("only assigns the ratified normalized input weights to official DeepSeek", () => {
+    expect(resolveProviderCachePriceWeights("deepseek-official-chat@1")).toEqual({
+      cacheHitWeight: 0.1,
+      cacheMissWeight: 1,
+    });
+    expect(resolveProviderCachePriceWeights("deepseek-compatible-chat@1")).toBeNull();
+    expect(resolveProviderCachePriceWeights("openai-chat@1")).toBeNull();
+  });
+
   test("names the actor/provider/epoch identity and both prefix denominators", () => {
     const identity: ProviderCacheCostObservationIdentity = {
       schemaVersion: PROVIDER_CACHE_OBSERVATION_SCHEMA_VERSION,
@@ -157,7 +167,7 @@ describe("provider cache-cost observation contract", () => {
     expect(comparison.firstDivergence).toBeNull();
   });
 
-  test("detects a byte-level wire change even when parsed JSON values are equal", () => {
+  test("detects a byte-level prompt change even when parsed JSON values are equal", () => {
     const identity = {
       schemaVersion: 1 as const,
       providerId: "deepseek",
@@ -173,10 +183,47 @@ describe("provider cache-cost observation contract", () => {
       tokenEstimates: { toolSurfaceTokens: 0, workflowControlTokens: 0 },
     });
     const compact = observe('{"model":"deepseek-chat","messages":[{"role":"user","content":"one"}],"tools":[]}');
-    const spaced = observe('{"model": "deepseek-chat", "messages": [{"role":"user","content":"one"}], "tools": []}');
+    const spaced = observe('{"model":"deepseek-chat","messages":[{"role": "user","content":"one"}],"tools":[]}');
 
-    expect(compareProviderCacheCostObservations(compact, spaced).retainedPrefixIntegrity).toBe(0);
-    expect(compareProviderCacheCostObservations(compact, spaced).firstDivergence?.ordinal).toBe(0);
+    expect(compareProviderCacheCostObservations(compact, spaced).retainedPrefixIntegrity).toBe(0.5);
+    expect(compareProviderCacheCostObservations(compact, spaced).firstDivergence?.ordinal).toBe(1);
+  });
+
+  test("keeps DeepSeek completion controls outside retained prompt-prefix integrity", () => {
+    const identity = {
+      schemaVersion: 1 as const,
+      providerId: "deepseek-iqingwa",
+      providerProfile: "deepseek_compatible" as const,
+      providerProfileId: "deepseek-compatible-chat@1" as const,
+      model: "deepseek-v4-pro",
+      actorClass: "workflow_node" as const,
+      contextEpoch: 3,
+    };
+    const observe = (maxTokens: number, temperature: number) => createProviderCacheCostObservation({
+      identity,
+      serializedRequestBody: JSON.stringify({
+        max_tokens: maxTokens,
+        temperature,
+        reasoning_effort: "high",
+        model: identity.model,
+        messages: [
+          { role: "system", content: "stable root" },
+          { role: "user", content: "continue" },
+        ],
+        stream: true,
+        stream_options: { include_usage: true },
+        tools: [],
+      }),
+      tokenEstimates: { toolSurfaceTokens: 0, workflowControlTokens: 0 },
+    });
+    const initial = observe(300_000, 0.2);
+    const continuation = observe(291_878, 0.8);
+    const comparison = compareProviderCacheCostObservations(initial, continuation);
+
+    expect(initial.requestDigest).not.toBe(continuation.requestDigest);
+    expect(initial.units).toEqual(continuation.units);
+    expect(comparison.retainedPrefixIntegrity).toBe(1);
+    expect(comparison.firstDivergence).toBeNull();
   });
 
   test("detects current dynamic Workflow prefix mutation and global tool leakage", () => {
@@ -250,7 +297,7 @@ describe("provider cache-cost observation contract", () => {
     })).toThrow("provider_cache_observation_identity_mismatch");
   });
 
-  test("includes exact array delimiter bytes without breaking append-only prefix units", () => {
+  test("includes exact prompt-array delimiter bytes without treating output controls as prompt", () => {
     const identity = {
       schemaVersion: 1 as const,
       providerId: "deepseek",
@@ -269,10 +316,8 @@ describe("provider cache-cost observation contract", () => {
     const spaced = observeRaw('{"model":"deepseek-chat","messages":[{"role":"user","content":"one"}, {"role":"assistant","content":"two"}],"tools":[]}');
     const changed = compareProviderCacheCostObservations(compact, spaced);
     expect(compact.requestDigest).not.toBe(spaced.requestDigest);
-    expect(compact.units.reduce((sum, unit) => sum + unit.byteLength, 0))
-      .toBe(Buffer.byteLength('{"model":"deepseek-chat","messages":[{"role":"user","content":"one"},{"role":"assistant","content":"two"}],"tools":[]}', "utf8"));
     expect(spaced.units.reduce((sum, unit) => sum + unit.byteLength, 0))
-      .toBe(Buffer.byteLength('{"model":"deepseek-chat","messages":[{"role":"user","content":"one"}, {"role":"assistant","content":"two"}],"tools":[]}', "utf8"));
+      .toBe(compact.units.reduce((sum, unit) => sum + unit.byteLength, 0) + 1);
     expect(changed.retainedPrefixIntegrity).toBeLessThan(1);
     expect(changed.firstDivergence?.reason).toBe("digest_changed");
 

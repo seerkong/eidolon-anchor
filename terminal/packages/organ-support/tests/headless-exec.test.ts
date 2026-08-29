@@ -510,13 +510,16 @@ describe("headless exec", () => {
     fs.writeFileSync(path.join(activeWorkdir, "package.json"), JSON.stringify({ name: "loop-fixture" }), "utf-8")
 
     let streamCount = 0
-    let secondPromptUserCount = 0
+    let secondPromptHumanInputCount = 0
     __setLlmAdapterFactoryForTest(async () => ({
       type: "openai" as const,
       async createStream(options: { messages?: Array<{ role?: string; content?: string }> }) {
         streamCount += 1
         if (streamCount === 2) {
-          secondPromptUserCount = (options.messages ?? []).filter((message) => message.role === "user").length
+          secondPromptHumanInputCount = (options.messages ?? []).filter((message) => (
+            message.role === "user"
+            && JSON.stringify(message.content).includes("keep reading")
+          )).length
         }
         async function* stream() {
           if (streamCount === 1) {
@@ -583,7 +586,7 @@ describe("headless exec", () => {
     ).toBe(result.timing.window.wallMs)
     expect(fs.readFileSync(outputLastMessagePath, "utf-8")).toBe("resumed final")
     expect(streamCount).toBe(2)
-    expect(secondPromptUserCount).toBe(1)
+    expect(secondPromptHumanInputCount).toBe(1)
     expect(diagnostics.join("")).toContain("[exec] auto-resume continuation 1/2")
     const traceLines = fs
       .readFileSync(outputTracePath, "utf-8")

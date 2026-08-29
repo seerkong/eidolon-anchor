@@ -1,0 +1,48 @@
+<Behavior #ai-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #halfcode-agent-composition (
+      <Statement ?01M17AFKJNSTQ1K7G5DN80479E>
+      A resource Agent SHALL compile an ordered heterogeneous MessagePrefix and one frozen ContextPipeline while reusing the canonical Eidolon Actor, Conversation, provider, persistence, compaction and tool authorities.
+      </?01M17AFKJNSTQ1K7G5DN80479E>
+      <Suites [
+        <Suite #halfcode-composition-cases { name = "Halfcode Agent composition" } (
+          <Cases [
+            <Case #resource-agent-message-prefix-splicing (
+              <Given ?01M17AFKJNSTQ1K7G5DN80479F>
+              One frozen AIAgentDefinition with ordered Message and MessageSource children.
+              </?01M17AFKJNSTQ1K7G5DN80479F>
+              <When ?01M17AFKJNSTQ1K7G5DN80479G>
+              Eidolon materializes its execution plan for a bound workspace.
+              </?01M17AFKJNSTQ1K7G5DN80479G>
+              <Then ?01M17AFKJNSTQ1K7G5DN80479H>
+              Each child SHALL emit zero or more messages in declaration order, workspace AGENTS.md SHALL emit zero or one system message, and every emitted item SHALL record frozen resource provenance.
+              </?01M17AFKJNSTQ1K7G5DN80479H>
+            )>
+            <Case #resource-agent-context-pipeline-parity (
+              <Given ?01M17AFKJNSTQ1K7G5DN80479J>
+              One resource Agent declares the frozen eidolon.standard-context-pipeline/v1 resource.
+              </?01M17AFKJNSTQ1K7G5DN80479J>
+              <When ?01M17AFKJNSTQ1K7G5DN80479K>
+              The Agent runs, compacts, changes provider epoch, recovers, and produces another provider request.
+              </?01M17AFKJNSTQ1K7G5DN80479K>
+              <Then ?01M17AFKJNSTQ1K7G5DN80479M>
+              The existing authorities SHALL be used exactly once and the stable MessagePrefix SHALL remain unchanged.
+              </?01M17AFKJNSTQ1K7G5DN80479M>
+            )>
+            <Case #resource-agent-context-pipeline-unknown (
+              <Given ?01M17AFKJNSTQ1K7G5DN80479N>
+              An AIAgentDefinition selects an unknown or malformed context pipeline implementation.
+              </?01M17AFKJNSTQ1K7G5DN80479N>
+              <When ?01M17AFKJNSTQ1K7G5DN80479P>
+              Eidolon prepares the Agent execution.
+              </?01M17AFKJNSTQ1K7G5DN80479P>
+              <Then ?01M17AFKJNSTQ1K7G5DN80479Q>
+              Preparation SHALL fail before Actor creation and no fallback or partial provider request SHALL occur.
+              </?01M17AFKJNSTQ1K7G5DN80479Q>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

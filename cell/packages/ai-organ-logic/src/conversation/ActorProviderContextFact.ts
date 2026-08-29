@@ -25,6 +25,7 @@ const SHA256_PATTERN = /^sha256:[0-9a-f]{64}$/;
 const NAMESPACES = new Set<ActorProviderContextFactNamespace>([
   "work-context",
   "provider-projection",
+  "provider-recovery",
   "workflow-stage-context",
 ]);
 
@@ -144,6 +145,7 @@ export function measureActorProviderContextFactRetention(input: Readonly<{
   const counts: Record<ActorProviderContextFactNamespace, number> = {
     "work-context": 0,
     "provider-projection": 0,
+    "provider-recovery": 0,
     "workflow-stage-context": 0,
   };
   let canonicalFactBytes = 0;

@@ -1,0 +1,30 @@
+<BehaviorPatch #track.add-codument-proposition-trimodal-e2e-harness.behavior_patch.eidolon-complete-agent-ctrl-data-e2e apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-complete-agent-ctrl-data-e2e" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-complete-agent-ctrl-data-e2e/requirements/equivalent-proposition-across-ordinary-ctrl-data" } (
+      <Requirement #equivalent-proposition-across-ordinary-ctrl-data (
+        <Statement ?>Eidolon SHALL execute one immutable engineering proposition through ordinary, AI Ctrl Workflow and AI Data Workflow modes with the same output acceptance authority, while proving the requested lifecycle rather than silently falling back.</?>
+        <Suites [
+          <Suite #tri-modal-equivalence { name = "Tri-modal proposition equivalence" } (
+            <Cases [
+              <Case #ordinary-is-workflow-free (
+                <Given ?>the manifest selects ordinary execution</?>
+                <When ?>the proposition session and provider surface are observed</?>
+                <Then ?>no Workflow instance, inferred stage, lifecycle-only resource or lifecycle-internal tool SHALL be present</?>
+              )>
+              <Case #ctrl-and-data-prove-identity (
+                <Given ?>the manifest selects Ctrl or Data execution</?>
+                <When ?>the workflow journey completes or pauses</?>
+                <Then ?>the receipt SHALL join the exact requested Workflow kind, instance/run and node-agent lifecycle; ordinary or other-kind fallback SHALL fail the cell</?>
+              )>
+              <Case #same-proposition-and-verifier (
+                <Given ?>three cells share one scenario revision</?>
+                <When ?>their inputs and outcomes are compared</?>
+                <Then ?>request bytes, seed policy and verifier digest SHALL match exactly and only verifier-equivalent completed cells SHALL enter cache/cost comparison</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

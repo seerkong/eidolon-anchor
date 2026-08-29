@@ -1,0 +1,66 @@
+<BehaviorPatch #track.validate-resource-agent-trimodal-siliconflow.behavior_patch.codument-proposition-e2e apiVersion="codument.tech/v1alpha1" version="1" { capability = "codument-proposition-e2e" } (
+  <Mutations [
+    <Upsert { selector = "behavior://codument-proposition-e2e/requirements/closed-provider-binding" } (
+      <Requirement #closed-provider-binding (
+        <Statement ?>A live proposition matrix SHALL use one explicit catalogued provider binding across command construction, runtime admission, evidence classification and receipt acceptance without exposing credentials.</?>
+        <Suites [
+          <Suite #provider-binding-cases { name = "Closed proposition provider binding" } (
+            <Cases [
+              <Case #official-binding-preserved [
+                <Given ?>The official DeepSeek binding is selected.</?>
+                <When ?>A live proposition cell is constructed and accepted.</?>
+                <Then ?>Its model, official chat profile and official evidence class SHALL remain unchanged.</?>
+              ]>
+              <Case #iqingwa-compatible-binding [
+                <Given ?>The iQingwa DeepSeek V4 Pro binding is selected.</?>
+                <When ?>Ordinary, AI Ctrl and AI Data cells execute.</?>
+                <Then ?>Every command and receipt SHALL use the iQingwa model, compatible chat profile and deepseek-compatible evidence class without official relabelling.</?>
+              ]>
+              <Case #binding-substitution-rejected [
+                <Given ?>A source runner requests a model different from the selected binding.</?>
+                <When ?>The shim constructs the Eidolon command.</?>
+                <Then ?>Execution SHALL fail before provider dispatch.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://codument-proposition-e2e/requirements/deepseek-semantic-completion" } (
+      <Requirement #deepseek-semantic-completion (
+        <Statement ?>A DeepSeek thinking turn SHALL project its admitted output budget to the provider and SHALL treat reasoning without content/tool calls as an incomplete semantic completion governed by observable progress and cumulative turn budget, not by a fixed retry count.</?>
+        <Suites [
+          <Suite #semantic-completion-cases { name = "DeepSeek semantic completion protocol" } (
+            <Cases [
+              <Case #output-budget-projected [
+                <Given ?>A DeepSeek model has an admitted maximum output-token limit.</?>
+                <When ?>The runtime constructs a Chat Completions request.</?>
+                <Then ?>The remaining logical-turn output budget SHALL be projected as `max_tokens`.</?>
+              ]>
+              <Case #reasoning-only-progress [
+                <Given ?>One or more pre-tool provider attempts contain reasoning but no content/tool call and report positive completion-token usage.</?>
+                <When ?>The cumulative output budget and outer operation deadline remain available.</?>
+                <Then ?>The runtime SHALL reuse one anchored recovery context and continue without a fixed attempt-count cutoff.</?>
+              ]>
+              <Case #reasoning-only-stalled [
+                <Given ?>A reasoning-only attempt lacks accountable usage, makes zero token progress, exhausts the cumulative output budget or is cancelled.</?>
+                <When ?>The runtime evaluates semantic continuation.</?>
+                <Then ?>It SHALL fail closed without dispatching a tool or growing the stable provider prefix.</?>
+              ]>
+              <Case #output-controls-not-input-prefix [
+                <Given ?>A semantic continuation changes `max_tokens` or another completion-side control while model, tools and retained messages remain exact.</?>
+                <When ?>The runtime compares provider cache observations inside one epoch.</?>
+                <Then ?>The complete wire request digest SHALL change, but retained prompt-prefix integrity SHALL remain exact.</?>
+              ]>
+              <Case #preaccept-evidence-not-retry-counted [
+                <Given ?>One or more provider observations have no usage because they were not billed or accepted, while transport retry and semantic-continuation counters describe separate lifecycles.</?>
+                <When ?>The live receipt gate evaluates the run.</?>
+                <Then ?>It SHALL accept or reject each incomplete observation from its zero-usage and prefix-integrity facts rather than requiring equality with a retry count.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

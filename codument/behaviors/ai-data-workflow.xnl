@@ -1,0 +1,48 @@
+<Behavior #ai-data-workflow apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #cybernetic-resource-agent-replanning (
+      <Statement ?01M17AFKX8QZ3J267G7T6DJ5VD>
+      A non-terminal AI Data run SHALL support a canonical graph patch that advances generation and re-executes an affected frozen resource Agent task until an unchanged verifier target is satisfied.
+      </?01M17AFKX8QZ3J267G7T6DJ5VD>
+      <Suites [
+        <Suite #cybernetic-resource-agent-cases { name = "Cybernetic resource Agent replanning" } (
+          <Cases [
+            <Case #observed-gap-before-replan (
+              <Given ?01M17AFKX8QZ3J267G7T6DJ5VE>
+              A frozen AI Data definition invokes a resource Agent and pauses at an observation boundary.
+              </?01M17AFKX8QZ3J267G7T6DJ5VE>
+              <When ?01M17AFKX8QZ3J267G7T6DJ5VF>
+              The projected Agent output fails the run's immutable verifier.
+              </?01M17AFKX8QZ3J267G7T6DJ5VF>
+              <Then ?01M17AFKX8QZ3J267G7T6DJ5VG>
+              The failed observation SHALL be recorded before any graph mutation and the run SHALL remain non-terminal.
+              </?01M17AFKX8QZ3J267G7T6DJ5VG>
+            )>
+            <Case #canonical-patch-convergence (
+              <Given ?01M17AFKX8QZ3J267G7T6DJ5VH>
+              The controller has one structurally valid repair for the failed Agent node.
+              </?01M17AFKX8QZ3J267G7T6DJ5VH>
+              <When ?01M17AFKX8QZ3J267G7T6DJ5VJ>
+              It applies the repair through WorkflowApplyGraphPatch.
+              </?01M17AFKX8QZ3J267G7T6DJ5VJ>
+              <Then ?01M17AFKX8QZ3J267G7T6DJ5VK>
+              The same run, definition and Agent identity SHALL advance to a new generation, invalidate affected facts, re-execute, and satisfy the unchanged verifier.
+              </?01M17AFKX8QZ3J267G7T6DJ5VK>
+            )>
+            <Case #adaptive-evidence-survives-recovery (
+              <Given ?01M17AFKX8QZ3J267G7T6DJ5VM>
+              A patched Data run has converged at generation one.
+              </?01M17AFKX8QZ3J267G7T6DJ5VM>
+              <When ?01M17AFKX8QZ3J267G7T6DJ5VN>
+              Eidolon reloads the run from durable state.
+              </?01M17AFKX8QZ3J267G7T6DJ5VN>
+              <Then ?01M17AFKX8QZ3J267G7T6DJ5VP>
+              Patch history, invalidation facts, generation-aware Agent effects and Agent instance/session continuity SHALL remain observable.
+              </?01M17AFKX8QZ3J267G7T6DJ5VP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

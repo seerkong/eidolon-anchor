@@ -22,6 +22,7 @@ import {
   createWorkflowLifecycleFacetEnvelope,
 } from "../../src/workflow/runtime/WorkflowLifecycleFacet"
 import { AI_WORKFLOW_PROVIDER_TOOL_SURFACE } from "../../src/workflow/tools/WorkflowLoadStageContext/StageToolPolicy"
+import { deepSeekOfficialChatEffectBundle } from "../../src/llm/ChatCompletionsEffectBundles"
 
 const managedSkill = [
   "---",
@@ -307,6 +308,7 @@ describe("native AI workflow tools", () => {
         adapterName: "deepseek",
         driverName: deepSeek.name,
       },
+      chatCompletionsEffectBundle: deepSeekOfficialChatEffectBundle,
     })
     const emitted = (request.body!.tools as any[])[0].function.parameters
 

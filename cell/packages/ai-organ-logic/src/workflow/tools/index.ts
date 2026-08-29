@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 
 import type { AnyToolDef } from "@cell/ai-core-contract/types"
+import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
 import { stableDigest } from "../../llm/tool-schema/CanonicalSchemaFacts"
 import { buildSkillToolDef } from "../../composer/AIAgent/tools/Skill"
@@ -113,6 +114,48 @@ function buildWorkflowLifecycleRawDefinitions(): AnyToolDef[] {
     buildWorkflowProcessHolonTaskToolDef(),
     buildWorkflowReplanHolonTaskToolDef(),
   ]
+}
+
+const WORKFLOW_NATIVE_HOST_COMMAND_TOOL_NAMES = new Set([
+  "WorkflowCreateInstance",
+  "WorkflowRun",
+  "WorkflowCreateInstanceFromPrebuilt",
+  "WorkflowListTypes",
+  "WorkflowListInstances",
+  "WorkflowMaterialImport",
+  "WorkflowMaterialBind",
+  "WorkflowMaterialExport",
+  "WorkflowMaterialReplay",
+  "WorkflowMaterialCleanup",
+  "WorkflowStatus",
+  "WorkflowGetFlowSummary",
+  "WorkflowEvents",
+  "WorkflowResult",
+  "WorkflowResume",
+  "WorkflowApplyGraphPatch",
+  "WorkflowProcessHolonTask",
+  "WorkflowReplanHolonTask",
+])
+
+/**
+ * Executes one explicit user-facing `eidolon workflow` host command through
+ * the same raw Processor as the lifecycle tool. This is a host authority
+ * boundary, not an AI Actor tool call: ordinary Actors remain subject to the
+ * guarded lifecycle facet/profile checks in ToolFuncRegistry.
+ */
+export async function runWorkflowNativeHostCommand(
+  runtime: AiAgentOneActorRuntime,
+  toolName: string,
+  input: unknown,
+): Promise<unknown> {
+  if (!WORKFLOW_NATIVE_HOST_COMMAND_TOOL_NAMES.has(toolName)) {
+    throw new Error(`WORKFLOW_NATIVE_HOST_COMMAND_UNSUPPORTED: ${toolName}`)
+  }
+  const definition = buildWorkflowLifecycleRawDefinitions().find(
+    (candidate) => candidate.schema.function.name === toolName,
+  )
+  if (!definition) throw new Error(`WORKFLOW_NATIVE_HOST_COMMAND_MISSING: ${toolName}`)
+  return await definition.run(runtime as any, input as any, {})
 }
 
 function buildCurrentProfile(): WorkflowLifecycleToolProfile {

@@ -25,6 +25,7 @@ import type {
   HolonTaskTarget,
 } from "ai-workflow-contract"
 import type { AgentConfig } from "@cell/ai-core-contract/runtime/AgentConfig"
+import type { AgentContextPipelineBinding } from "@cell/ai-core-contract/runtime/AgentContextPipeline"
 import type {
   AgentExecutionContract,
   AgentExecutionMaterialPortInput,
@@ -144,6 +145,7 @@ export type EidolonResourceAgentExecutionPlan = {
   readonly compositionRevision: string
   readonly agentContentDigest: string
   readonly messages: readonly EidolonResourceAgentResolvedMessage[]
+  readonly contextPipeline?: AgentContextPipelineBinding
   readonly toolResourceIds: readonly string[]
   readonly requiresWorkflowTask: boolean
   readonly executionContract: AgentExecutionContract
@@ -187,6 +189,7 @@ const LAYER_ORDER: Readonly<Record<ResourcePackageLayerId, number>> = Object.fre
 
 export class EidolonAppResourceRegistryAdapter {
   private readonly configuredLayers: readonly ResourcePackageLayerBinding[]
+  private readonly workspaceRoot: string
   private readonly effectiveSources = new WeakMap<
     EidolonEffectiveResourceSource,
     EidolonResourceRegistrySnapshot
@@ -200,8 +203,12 @@ export class EidolonAppResourceRegistryAdapter {
   private activeSourceReads = 0
   private resolveSourceReadsDrained?: () => void
 
-  constructor(input: { readonly layers?: readonly ResourcePackageLayerBinding[] } = {}) {
+  constructor(input: {
+    readonly layers?: readonly ResourcePackageLayerBinding[]
+    readonly workspaceRoot?: string
+  } = {}) {
     this.configuredLayers = normalizeLayerBindings(input.layers ?? [])
+    this.workspaceRoot = path.resolve(input.workspaceRoot ?? process.cwd())
   }
 
   snapshot(): Promise<EidolonResourceRegistrySnapshot> {
@@ -791,8 +798,35 @@ export class EidolonAppResourceRegistryAdapter {
       )
     }
 
-    const messages = Object.freeze(agent.messages.map((message) => {
-      const prompt = effectiveResource(snapshot, message.prompt.resource.resourceId)
+    const messages: readonly EidolonResourceAgentResolvedMessage[] = Object.freeze(
+      agent.messagePrefix.flatMap<EidolonResourceAgentResolvedMessage>((item) => {
+        if (item.type === "message-source") {
+        const source = effectiveResource(snapshot, item.source.resource.resourceId)
+        if (source !== item.source.resource || source.kind !== item.source.kind) {
+          throw new EidolonResourceRegistryError(
+            "EIDOLON_RESOURCE_AGENT_MESSAGE_SOURCE_IDENTITY_MISMATCH",
+            `Agent message source '${item.id}' does not match the selected effective resource.`,
+          )
+        }
+        const descriptor = parseClosedResourceDescriptor(source, "AgentMessageSource")
+        if (descriptor.implementation !== "eidolon.workspace-agents/v1") {
+          throw new EidolonResourceRegistryError(
+            "EIDOLON_AGENT_MESSAGE_SOURCE_IMPLEMENTATION_UNSUPPORTED",
+            `Agent message source '${item.id}' selects unsupported implementation '${String(descriptor.implementation)}'.`,
+          )
+        }
+        const workspaceInstructions = loadWorkspaceAgentInstructions(this.workspaceRoot)
+        if (!workspaceInstructions) return []
+        return [Object.freeze({
+          id: item.id,
+          role: "system" as const,
+          promptResourceId: source.resourceId,
+          contentDigest: sha256Digest(new TextEncoder().encode(workspaceInstructions)),
+          content: workspaceInstructions,
+        }) satisfies EidolonResourceAgentResolvedMessage]
+        }
+        const message = item
+        const prompt = effectiveResource(snapshot, message.prompt.resource.resourceId)
       if (prompt !== message.prompt.resource || prompt.kind !== message.prompt.kind) {
         throw new EidolonResourceRegistryError(
           "EIDOLON_RESOURCE_AGENT_PROMPT_IDENTITY_MISMATCH",
@@ -807,7 +841,7 @@ export class EidolonAppResourceRegistryAdapter {
         )
       }
       const identity = requiredContentIdentity(snapshot, prompt.resourceId)
-      return Object.freeze({
+        return [Object.freeze({
         id: message.id,
         role: message.role,
         promptResourceId: prompt.resourceId,
@@ -816,8 +850,10 @@ export class EidolonAppResourceRegistryAdapter {
         schema: message.schema
           ? normalizeAgentExecutionSchema(message.schema.schema, `message.${message.id}.schema`)
           : undefined,
-      })
-    }))
+        }) satisfies EidolonResourceAgentResolvedMessage]
+      }),
+    )
+    const contextPipeline = materializeAgentContextPipeline(agent, snapshot)
 
     const toolResourceIds = agent.tools.map((tool) => {
       const selected = effectiveResource(snapshot, tool.resource.resourceId)
@@ -882,6 +918,7 @@ export class EidolonAppResourceRegistryAdapter {
       seedMessages,
       requireExactTools: true,
       executionContract,
+      ...(contextPipeline ? { contextPipeline } : {}),
     }) satisfies AgentConfig
     return Object.freeze({
       schemaVersion: "eidolon.resource-agent-execution-plan/v1",
@@ -890,6 +927,7 @@ export class EidolonAppResourceRegistryAdapter {
       compositionRevision: snapshot.registry.compositionRevision,
       agentContentDigest: requiredContentIdentity(snapshot, agent.resource.resourceId).contentDigest,
       messages,
+      ...(contextPipeline ? { contextPipeline } : {}),
       toolResourceIds: frozenToolResourceIds,
       requiresWorkflowTask: scope === "workflow",
       executionContract,
@@ -1180,6 +1218,96 @@ function effectiveResource(
     )
   }
   return resource
+}
+
+type ClosedResourceDescriptor = Readonly<{
+  implementation?: unknown
+  stages?: unknown
+}>
+
+function parseClosedResourceDescriptor(
+  resource: ResourceRecord,
+  expectedKind: "AgentMessageSource" | "AgentContextPipeline",
+): ClosedResourceDescriptor {
+  if (resource.kind !== expectedKind) {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_AGENT_CODE_RESOURCE_KIND_MISMATCH",
+      `Resource '${resource.resourceId}' must have kind '${expectedKind}', got '${resource.kind}'.`,
+    )
+  }
+  const content = resource.node.subdomains.Content?.text
+  if (typeof content !== "string" || !content.trim()) {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_AGENT_CODE_RESOURCE_CONTENT_MISSING",
+      `Resource '${resource.resourceId}' requires one non-empty JSON code descriptor in Content.`,
+    )
+  }
+  try {
+    const parsed = JSON.parse(content)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object")
+    return Object.freeze({ ...(parsed as Record<string, unknown>) })
+  } catch (error) {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_AGENT_CODE_RESOURCE_CONTENT_INVALID",
+      `Resource '${resource.resourceId}' code descriptor must be exact JSON: ${error instanceof Error ? error.message : String(error)}.`,
+    )
+  }
+}
+
+function loadWorkspaceAgentInstructions(workspaceRoot: string): string | null {
+  try {
+    const target = path.join(workspaceRoot, "AGENTS.md")
+    if (!lstatSync(target).isFile()) return null
+    const content = readFileSync(target, "utf8").trim()
+    return content ? `AGENTS.md (workspace):\n${content}` : null
+  } catch {
+    return null
+  }
+}
+
+const STANDARD_CONTEXT_PIPELINE_STAGES = Object.freeze([
+  "prompt-plan",
+  "conversation-prelude",
+  "provider-context-facts-at-history-anchors",
+  "stable-message-prefix",
+  "conversation-boundary-overlays",
+  "provider-conversion",
+])
+
+function materializeAgentContextPipeline(
+  agent: AIAgentDefinitionProjection,
+  snapshot: EidolonResourceRegistrySnapshot,
+): AgentContextPipelineBinding | undefined {
+  if (!agent.contextPipeline) return undefined
+  const resource = effectiveResource(snapshot, agent.contextPipeline.resource.resourceId)
+  if (resource !== agent.contextPipeline.resource || resource.kind !== agent.contextPipeline.kind) {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_RESOURCE_AGENT_CONTEXT_PIPELINE_IDENTITY_MISMATCH",
+      `Agent ContextPipeline does not match the selected effective resource.`,
+    )
+  }
+  const descriptor = parseClosedResourceDescriptor(resource, "AgentContextPipeline")
+  if (descriptor.implementation !== "eidolon.standard-context-pipeline/v1") {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_AGENT_CONTEXT_PIPELINE_IMPLEMENTATION_UNSUPPORTED",
+      `ContextPipeline '${resource.resourceId}' selects unsupported implementation '${String(descriptor.implementation)}'.`,
+    )
+  }
+  if (!Array.isArray(descriptor.stages)
+    || descriptor.stages.length !== STANDARD_CONTEXT_PIPELINE_STAGES.length
+    || descriptor.stages.some((stage, index) => stage !== STANDARD_CONTEXT_PIPELINE_STAGES[index])) {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_AGENT_CONTEXT_PIPELINE_STAGES_INVALID",
+      `ContextPipeline '${resource.resourceId}' must declare the canonical ordered stage ledger.`,
+    )
+  }
+  return Object.freeze({
+    schemaVersion: "eidolon.agent-context-pipeline-binding/v1",
+    resourceId: resource.resourceId,
+    contentDigest: requiredContentIdentity(snapshot, resource.resourceId).contentDigest,
+    implementation: "eidolon.standard-context-pipeline/v1",
+    stages: STANDARD_CONTEXT_PIPELINE_STAGES,
+  })
 }
 
 function requiredContentIdentity(

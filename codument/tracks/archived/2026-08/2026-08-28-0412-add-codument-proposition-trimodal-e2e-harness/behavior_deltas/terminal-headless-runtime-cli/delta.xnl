@@ -1,0 +1,35 @@
+<BehaviorPatch #track.add-codument-proposition-trimodal-e2e-harness.behavior_patch.terminal-headless-runtime-cli apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-headless-runtime-cli" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-headless-runtime-cli/requirements/reproducible-proposition-run-receipt" } (
+      <Requirement #reproducible-proposition-run-receipt (
+        <Statement ?>Headless Eidolon SHALL expose a bounded proposition-run harness that executes an immutable request in a fresh workspace and emits a redacted machine-readable receipt without replacing the runtime or verifier authorities.</?>
+        <Suites [
+          <Suite #proposition-runner { name = "Reproducible proposition runner" } (
+            <Cases [
+              <Case #fresh-workspace-and-original-verifier (
+                <Given ?>a content-addressed proposition manifest names a request composition and independent verifier</?>
+                <When ?>the harness executes one mode cell</?>
+                <Then ?>it SHALL create a fresh isolated Git workspace, preserve the exact request bytes, invoke the original verifier after the session and retain bounded raw logs plus a structured receipt</?>
+              )>
+              <Case #provenance-and-redaction (
+                <Given ?>a proposition run uses installed Eidolon, Codument and a configured provider</?>
+                <When ?>the receipt is finalized</?>
+                <Then ?>it SHALL bind executable/source/corpus/verifier digests, mode/session identity, completion and timing facts while excluding provider keys and raw credentials</?>
+              )>
+              <Case #timeout-and-resume-are-explicit (
+                <Given ?>a long-running session pauses, times out or is resumed</?>
+                <When ?>the harness reconciles process and session state</?>
+                <Then ?>it SHALL preserve the workspace and durable session evidence, distinguish resumable progress from hard failure, and never claim verifier success from process exit alone</?>
+              )>
+              <Case #environment-is-explicitly-projected (
+                <Given ?>a mode cell needs provider credentials and a bounded subprocess environment</?>
+                <When ?>the execution effect is invoked</?>
+                <Then ?>it SHALL receive an allowlisted environment projection and opaque configured-provider credential binding; undeclared ambient variables SHALL NOT be forwarded or serialized</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

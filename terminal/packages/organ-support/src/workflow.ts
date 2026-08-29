@@ -17,7 +17,19 @@ export type NativeWorkflowToolOptions = {
   profile?: string
   timeoutSeconds?: number
   sessionKey?: string
+  captureRuntimeEvidence?: boolean
+  providerChatCompatibilityProfileId?: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
 }
+
+export type NativeWorkflowToolEvidenceResult = Readonly<{
+  kind: "workflow.nativeToolEvidenceResult"
+  status: "completed"
+  output: unknown
+  timing: unknown
+  usage: unknown
+  providerCacheObservations: readonly unknown[]
+  workflowExecutions: readonly unknown[]
+}>
 export function workflowSessionKey(workDir: string): string {
   const canonical = path.resolve(workDir)
   const digest = createHash("sha256").update(canonical).digest("hex").slice(0, 20)
@@ -36,6 +48,7 @@ export async function runNativeWorkflowTool(options: NativeWorkflowToolOptions):
     ephemeral: false,
     profileId: options.profile,
     entryType: "cli",
+    providerChatCompatibilityProfileId: options.providerChatCompatibilityProfileId,
     metadata: buildExecRuntimeMetadata({
       workDir,
       approvalMode: "full-auto",
@@ -44,7 +57,25 @@ export async function runNativeWorkflowTool(options: NativeWorkflowToolOptions):
   const runtime = await getSessionRuntimeBridge(sessionKey)
   if (!runtime) throw new Error("Runtime unavailable: failed to initialize Eidolon workflow session")
   try {
-    return await runtime.callTool(options.toolName, options.input)
+    const startedAt = Date.now()
+    const providerObservationCountBefore = runtime.readProviderCacheObservations?.().length ?? 0
+    const workflowExecutionCountBefore = runtime.readWorkflowExecutions?.().length ?? 0
+    const output = await runtime.callWorkflowHostCommand(options.toolName, options.input)
+    if (!options.captureRuntimeEvidence) return output
+    const endedAt = Date.now()
+    return Object.freeze({
+      kind: "workflow.nativeToolEvidenceResult",
+      status: "completed",
+      output,
+      timing: runtime.readTimingProjection?.({ startedAt, endedAt }) ?? null,
+      usage: runtime.readUsageProjection?.() ?? null,
+      providerCacheObservations: Object.freeze([
+        ...(runtime.readProviderCacheObservations?.() ?? []).slice(providerObservationCountBefore),
+      ]),
+      workflowExecutions: Object.freeze([
+        ...(runtime.readWorkflowExecutions?.() ?? []).slice(workflowExecutionCountBefore),
+      ]),
+    }) satisfies NativeWorkflowToolEvidenceResult
   } finally {
     await disposeSessionRuntimeBridge(sessionKey)
   }

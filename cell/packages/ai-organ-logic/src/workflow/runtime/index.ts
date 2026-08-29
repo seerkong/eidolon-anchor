@@ -1,6 +1,7 @@
 export * from "./WorkflowDefinitionRepository"
 export * from "./WorkflowFactStore"
 export * from "./WorkflowRuntimeService"
+export * from "./WorkflowPublicRuntimeEvidence"
 export * from "./WorkflowDepaPersistence"
 export * from "./WorkflowLegacyMigration"
 export * from "./AIDataWorkflowRuntimeDriver"

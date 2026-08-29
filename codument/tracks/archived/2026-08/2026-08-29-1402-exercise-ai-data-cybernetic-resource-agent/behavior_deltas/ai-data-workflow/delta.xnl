@@ -1,0 +1,30 @@
+<BehaviorPatch #track.exercise-ai-data-cybernetic-resource-agent.behavior_patch.ai-data-workflow apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-data-workflow" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-data-workflow/requirements/cybernetic-resource-agent-replanning" } (
+      <Requirement #cybernetic-resource-agent-replanning (
+        <Statement ?>A non-terminal AI Data run SHALL support a canonical graph patch that advances generation and re-executes an affected frozen resource Agent task until an unchanged verifier target is satisfied.</?>
+        <Suites [
+          <Suite #cybernetic-resource-agent-cases { name = "Cybernetic resource Agent replanning" } (
+            <Cases [
+              <Case #observed-gap-before-replan [
+                <Given ?>A frozen AI Data definition invokes a resource Agent and pauses at an observation boundary.</?>
+                <When ?>The projected Agent output fails the run's immutable verifier.</?>
+                <Then ?>The failed observation SHALL be recorded before any graph mutation and the run SHALL remain non-terminal.</?>
+              ]>
+              <Case #canonical-patch-convergence [
+                <Given ?>The controller has one structurally valid repair for the failed Agent node.</?>
+                <When ?>It applies the repair through WorkflowApplyGraphPatch.</?>
+                <Then ?>The same run, definition and Agent identity SHALL advance to a new generation, invalidate affected facts, re-execute, and satisfy the unchanged verifier.</?>
+              ]>
+              <Case #adaptive-evidence-survives-recovery [
+                <Given ?>A patched Data run has converged at generation one.</?>
+                <When ?>Eidolon reloads the run from durable state.</?>
+                <Then ?>Patch history, invalidation facts, generation-aware Agent effects and Agent instance/session continuity SHALL remain observable.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

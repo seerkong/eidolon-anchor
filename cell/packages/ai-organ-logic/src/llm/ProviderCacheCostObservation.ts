@@ -30,6 +30,24 @@ const ACTOR_CLASSES = new Set(["ordinary", "workflow_lifecycle", "workflow_node"
 const PROVIDER_PROFILES = new Set(["deepseek_official", "deepseek_compatible", "other"]);
 const PROVIDER_PROFILE_IDS = new Set(["deepseek-official-chat@1", "deepseek-compatible-chat@1"]);
 
+const OFFICIAL_DEEPSEEK_NORMALIZED_INPUT_PRICE_WEIGHTS = Object.freeze({
+  cacheHitWeight: 0.1,
+  cacheMissWeight: 1,
+});
+
+/**
+ * Relative charged-input weights approved for official DeepSeek evidence.
+ * Compatible gateways own different pricing authorities and cannot silently
+ * inherit the official profile's cost projection.
+ */
+export function resolveProviderCachePriceWeights(
+  providerProfileId: string,
+): ProviderCachePriceWeights | null {
+  return providerProfileId === "deepseek-official-chat@1"
+    ? OFFICIAL_DEEPSEEK_NORMALIZED_INPUT_PRICE_WEIGHTS
+    : null;
+}
+
 function fail(code: string, message: string): never {
   throw new TypeError(`${code}: ${message}`);
 }
@@ -278,14 +296,6 @@ function arrayCacheMaterial(source: string, span: RawSpan): ArrayCacheMaterial {
   };
 }
 
-function replaceSpans(source: string, replacements: readonly Readonly<{ span: RawSpan; value: string }>[]): string {
-  let result = source;
-  for (const replacement of [...replacements].sort((left, right) => right.span.start - left.span.start)) {
-    result = result.slice(0, replacement.span.start) + replacement.value + result.slice(replacement.span.end);
-  }
-  return result;
-}
-
 function normalizeUsage(value: ProviderCacheUsageTokens | null | undefined): ProviderCacheUsageTokens | null {
   if (value == null) return null;
   assertPlainOwnData(value, "usage");
@@ -360,15 +370,26 @@ export function createProviderCacheCostObservation(
     fail("provider_cache_request_invalid", "request.messages must be an array and request.tools must be absent or an array.");
   }
   const spans = topLevelValueSpans(input.serializedRequestBody);
+  const modelSpan = spans.get("model");
   const messageSpan = spans.get("messages");
   const toolSpan = spans.get("tools");
+  if (!modelSpan) fail("provider_cache_request_invalid", "request.model must be present.");
   if (!messageSpan) fail("provider_cache_request_invalid", "request.messages must be present.");
   const messageMaterial = arrayCacheMaterial(input.serializedRequestBody, messageSpan);
   const toolMaterial = toolSpan ? arrayCacheMaterial(input.serializedRequestBody, toolSpan) : null;
-  const prefixMaterial = replaceSpans(input.serializedRequestBody, [
-    { span: messageSpan, value: messageMaterial.framingReplacement },
-    ...(toolSpan && toolMaterial ? [{ span: toolSpan, value: toolMaterial.framingReplacement }] : []),
-  ]);
+  // DeepSeek's prefix cache is keyed by the admitted prompt projection, not
+  // by completion-side controls in the HTTP body. In particular, a
+  // reasoning-only semantic continuation deliberately lowers max_tokens;
+  // treating that output budget as retained input would report a false cache
+  // divergence even though model, tools and every retained message are exact.
+  // Keep requestDigest as the authority for the complete final-wire body and
+  // make this unit describe only the versioned chat-template framing/model.
+  const prefixMaterial = JSON.stringify({
+    profile: identity.providerProfileId,
+    model: input.serializedRequestBody.slice(modelSpan.start, modelSpan.end),
+    toolsFraming: toolMaterial?.framingReplacement ?? "absent",
+    messagesFraming: messageMaterial.framingReplacement,
+  });
   const units = createUnitsForExplicitProfile({
     providerProfileId: identity.providerProfileId,
     prefixMaterial,

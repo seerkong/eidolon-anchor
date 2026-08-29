@@ -156,6 +156,10 @@ export type LlmProviderRetryDiagnosticData = {
   classificationPhase?: string;
   retryScope?: string;
   replaySafety?: string;
+  retryBudgetKind?: "fixed_attempts" | "cumulative_output_tokens";
+  consumedOutputTokens?: number;
+  remainingOutputTokens?: number;
+  maxOutputTokens?: number;
   terminationReason?: string;
   actorId?: string;
   sessionId?: string;

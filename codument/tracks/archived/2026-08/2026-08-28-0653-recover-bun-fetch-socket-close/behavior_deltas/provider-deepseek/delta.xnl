@@ -1,0 +1,25 @@
+<BehaviorPatch #track.recover-bun-fetch-socket-close.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/transient-transport-recovery" } (
+      <Requirement #transient-transport-recovery (
+        <Statement ?>Official DeepSeek live execution SHALL integrate the provider-call transport recovery contract: a transient close may use bounded same-contract replay only before provider output is observed, and SHALL fail without replay once any visible output makes acceptance indeterminate.</?>
+        <Suites [
+          <Suite #socket-close-recovery { name = "Premature socket-close recovery" } (
+            <Cases [
+              <Case #bun-close-before-output-retries (
+                <Given ?>Bun fetch closes an official DeepSeek stream with `The socket connection was closed unexpectedly` before visible text, reasoning or tool-call output</?>
+                <When ?>the provider retry boundary classifies and handles the failure</?>
+                <Then ?>it SHALL classify a transport pre-accept failure, replay the exact admitted request within the existing bounded policy, and emit structured retry diagnostics</?>
+              )>
+              <Case #close-after-output-does-not-replay (
+                <Given ?>any visible provider output has been observed before a transport close</?>
+                <When ?>the stream terminates</?>
+                <Then ?>it SHALL report indeterminate-after-accept and MUST NOT create another provider attempt</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

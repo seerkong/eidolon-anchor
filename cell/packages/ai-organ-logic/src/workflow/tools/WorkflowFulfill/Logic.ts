@@ -139,6 +139,7 @@ export const workflowFulfillCoreLogic: StdInnerLogic<
     description: "Fulfill a business goal through the Eidolon AI Workflow lifecycle",
     prompt: assembleWorkflowFulfillmentPrompt({
       request,
+      form: input.form,
       operation: input.operation,
       workflowRef: input.workflow_ref,
       publish: input.publish,

@@ -1,0 +1,86 @@
+<Track #isolate-codument-proposition-e2e-testkit apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Move Codument proposition-only contracts and execution facilities out of production package source into one repository-private E2E testkit without changing evidence semantics." description = "Create a private testkit owner, migrate all proposition imports and tests, remove production exports, and enforce the boundary with repeatable source conformance and type/test gates." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-29T09:47:56.309Z" updated_at = "2026-08-29T10:03:32.741Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_isolate-codument-proposition-e2e-testkit { name = "isolate-codument-proposition-e2e-testkit" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Private proposition testkit boundary" status = "DONE" order = 0 } (
+        <Description ?01M16F92YFTX1Q8JBSM9YJT9YH>
+        Establish the ownership ratchet before moving implementation.
+        </?01M16F92YFTX1Q8JBSM9YJT9YH>
+        <SubNodes [
+          <Task #P1-T1 { name = "Freeze proposition behavior and production-source boundary" status = "DONE" order = 0 } (
+            <Description ?01M16F92YFTX1Q8JBSM9YJT9YJ>
+            Inventory proposition-only modules and add a failing source conformance assertion while retaining existing behavior tests as characterization.
+            </?01M16F92YFTX1Q8JBSM9YJT9YJ>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M16F92YFTX1Q8JBSM9YJT9YK>
+              The inventory distinguishes private proposition facilities from product provider/workflow evidence that remains in production.
+              </?01M16F92YFTX1Q8JBSM9YJT9YK>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M16F92YFTX1Q8JBSM9YJT9YM>
+              A source conformance test detects old production paths, public exports and production imports of the private testkit.
+              </?01M16F92YFTX1Q8JBSM9YJT9YM>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Ownership migration" status = "DONE" order = 1 } (
+        <Description ?01M16F92YFTX1Q8JBSM9YJT9YN>
+        Move the implementation and update every repository consumer without compatibility re-exports.
+        </?01M16F92YFTX1Q8JBSM9YJT9YN>
+        <SubNodes [
+          <Task #P2-T1 { name = "Relocate proposition facilities and update consumers" status = "DONE" order = 0 } (
+            <Description ?01M16F92YFTX1Q8JBSM9YJT9YP>
+            Create the repository-private testkit, move the five proposition modules, update scripts/tests/typecheck and remove production exports and legacy paths.
+            </?01M16F92YFTX1Q8JBSM9YJT9YP>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M16F92YFTX1Q8JBSM9YJT9YQ>
+              All proposition scripts and tests import the private testkit owner and no legacy production proposition path remains.
+              </?01M16F92YFTX1Q8JBSM9YJT9YQ>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M16F92YFTX1Q8JBSM9YJT9YR>
+              Manifest, receipt, mode identity, matrix planning, registered Workflow fixture and executable epoch behavior remain covered and green.
+              </?01M16F92YFTX1Q8JBSM9YJT9YR>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M16F92YFTX1Q8JBSM9YJT9YS>
+              Production package source and public entries contain no proposition testkit implementation or dependency.
+              </?01M16F92YFTX1Q8JBSM9YJT9YS>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Bounded verification" status = "DONE" order = 2 } (
+        <Description ?01M16F92YFTX1Q8JBSM9YJT9YT>
+        Run focused behavior, type, source-boundary and Codument gates without consuming live provider credit.
+        </?01M16F92YFTX1Q8JBSM9YJT9YT>
+        <SubNodes [
+          <Task #P3-T1 { name = "Verify private testkit parity and clean production surface" status = "DONE" order = 0 } (
+            <Description ?01M16F92YFTX1Q8JBSM9YJT9YV>
+            Run focused Bun tests, proposition typecheck, source conformance, no-network runner smoke, strict Track validation and diff review.
+            </?01M16F92YFTX1Q8JBSM9YJT9YV>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M16F92YFTX1Q8JBSM9YJT9YW>
+              Focused proposition tests and the dedicated TypeScript typecheck pass.
+              </?01M16F92YFTX1Q8JBSM9YJT9YW>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M16F92YFTX1Q8JBSM9YJT9YX>
+              Source conformance, no-network runner smoke, strict Codument validation and git diff check pass.
+              </?01M16F92YFTX1Q8JBSM9YJT9YX>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M16F92YFTX1Q8JBSM9YJT9YY>
+              Diff review confirms only ownership changed and product evidence authorities remain in production.
+              </?01M16F92YFTX1Q8JBSM9YJT9YY>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_isolate-codument-proposition-e2e-testkit" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

@@ -62,6 +62,9 @@ const ACTOR_SNAPSHOT_CODEC = createSnapshotCodec<AiAgentActor, RuntimeSnapshotAc
       executionContract: actor.executionContract
         ? cloneAndFreezeAgentExecutionContract(actor.executionContract)
         : undefined,
+      contextPipeline: actor.contextPipeline
+        ? { ...actor.contextPipeline, stages: [...actor.contextPipeline.stages] }
+        : undefined,
       origin: actor.origin ? { ...actor.origin } : undefined,
       modelConfig: { ...actor.modelConfig },
       ctrlOptions: {
@@ -141,6 +144,9 @@ function hydrateActorFromSnapshot(
       : { historyCompaction: "auto" },
     executionContract: snapshot.executionContract
       ? cloneAndFreezeAgentExecutionContract(snapshot.executionContract)
+      : undefined,
+    contextPipeline: snapshot.contextPipeline
+      ? { ...snapshot.contextPipeline, stages: [...snapshot.contextPipeline.stages] }
       : undefined,
     origin: snapshot.origin ? { ...snapshot.origin } : undefined,
     modelConfig: { ...snapshot.modelConfig },

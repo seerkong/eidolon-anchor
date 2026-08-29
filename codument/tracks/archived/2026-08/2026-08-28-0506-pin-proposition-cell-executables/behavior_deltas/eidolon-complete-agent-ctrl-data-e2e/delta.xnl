@@ -1,0 +1,37 @@
+<BehaviorPatch #track.pin-proposition-cell-executables.behavior_patch.eidolon-complete-agent-ctrl-data-e2e apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-complete-agent-ctrl-data-e2e" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-complete-agent-ctrl-data-e2e/requirements/equivalent-proposition-across-ordinary-ctrl-data" } (
+      <Requirement #equivalent-proposition-across-ordinary-ctrl-data (
+        <Statement ?01M12YSSTW1WWW70M3AQKC4KN9>
+        Eidolon SHALL execute one immutable engineering proposition through ordinary, AI Ctrl Workflow and AI Data Workflow modes with the same output acceptance authority, while proving the requested lifecycle rather than silently falling back.
+        </?01M12YSSTW1WWW70M3AQKC4KN9>
+        <Suites [
+          <Suite #tri-modal-equivalence { name = "Tri-modal proposition equivalence" } (
+            <Cases [
+              <Case #ordinary-is-workflow-free (
+                <Given ?01M12YSSTW1WWW70M3AQKC4KNA>the manifest selects ordinary execution</?01M12YSSTW1WWW70M3AQKC4KNA>
+                <When ?01M12YSSTW1WWW70M3AQKC4KNB>the proposition session and provider surface are observed</?01M12YSSTW1WWW70M3AQKC4KNB>
+                <Then ?01M12YSSTW1WWW70M3AQKC4KNC>no Workflow instance, inferred stage, lifecycle-only resource or lifecycle-internal tool SHALL be present</?01M12YSSTW1WWW70M3AQKC4KNC>
+              )>
+              <Case #ctrl-and-data-prove-identity (
+                <Given ?01M12YSSTW1WWW70M3AQKC4KND>the manifest selects Ctrl or Data execution</?01M12YSSTW1WWW70M3AQKC4KND>
+                <When ?01M12YSSTW1WWW70M3AQKC4KNE>the workflow journey completes or pauses</?01M12YSSTW1WWW70M3AQKC4KNE>
+                <Then ?01M12YSSTW1WWW70M3AQKC4KNF>the receipt SHALL join the exact requested Workflow kind, instance/run and node-agent lifecycle; ordinary or other-kind fallback SHALL fail the cell</?01M12YSSTW1WWW70M3AQKC4KNF>
+              )>
+              <Case #same-proposition-and-verifier (
+                <Given ?01M12YSSTW1WWW70M3AQKC4KNG>three cells share one scenario revision</?01M12YSSTW1WWW70M3AQKC4KNG>
+                <When ?01M12YSSTW1WWW70M3AQKC4KNH>their inputs and outcomes are compared</?01M12YSSTW1WWW70M3AQKC4KNH>
+                <Then ?01M12YSSTW1WWW70M3AQKC4KNJ>request bytes, seed policy and verifier digest SHALL match exactly and only verifier-equivalent completed cells SHALL enter cache/cost comparison</?01M12YSSTW1WWW70M3AQKC4KNJ>
+              )>
+              <Case #matrix-pins-executable-bytes (
+                <Given ?01M12YSSTW1WWW70M3AQKC4KNK>a matrix binds source executable paths and may perform multiple invocations</?01M12YSSTW1WWW70M3AQKC4KNK>
+                <When ?01M12YSSTW1WWW70M3AQKC4KNM>a source path is rebuilt or replaced while the matrix is active</?01M12YSSTW1WWW70M3AQKC4KNM>
+                <Then ?01M12YSSTW1WWW70M3AQKC4KNN>every cell and resume SHALL use the first runnable executable epoch bound to that run id, including Eidolon's adjacent native sidecar closure; binding and receipt evidence SHALL identify those content-addressed bytes, and integrity drift observed by the persistence gate SHALL fail before a completed receipt is persisted</?01M12YSSTW1WWW70M3AQKC4KNN>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

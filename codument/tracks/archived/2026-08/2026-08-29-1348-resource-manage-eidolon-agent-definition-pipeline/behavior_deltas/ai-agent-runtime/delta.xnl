@@ -1,0 +1,30 @@
+<BehaviorPatch #track.resource-manage-eidolon-agent-definition-pipeline.behavior_patch.ai-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-agent-runtime" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-agent-runtime/requirements/halfcode-agent-composition" } (
+      <Requirement #halfcode-agent-composition (
+        <Statement ?>A resource Agent SHALL compile an ordered heterogeneous MessagePrefix and one frozen ContextPipeline while reusing the canonical Eidolon Actor, Conversation, provider, persistence, compaction and tool authorities.</?>
+        <Suites [
+          <Suite #halfcode-composition-cases { name = "Halfcode Agent composition" } (
+            <Cases [
+              <Case #resource-agent-message-prefix-splicing [
+                <Given ?>One frozen AIAgentDefinition with ordered Message and MessageSource children.</?>
+                <When ?>Eidolon materializes its execution plan for a bound workspace.</?>
+                <Then ?>Each child SHALL emit zero or more messages in declaration order, workspace AGENTS.md SHALL emit zero or one system message, and every emitted item SHALL record frozen resource provenance.</?>
+              ]>
+              <Case #resource-agent-context-pipeline-parity [
+                <Given ?>One resource Agent declares the frozen eidolon.standard-context-pipeline/v1 resource.</?>
+                <When ?>The Agent runs, compacts, changes provider epoch, recovers, and produces another provider request.</?>
+                <Then ?>The existing authorities SHALL be used exactly once and the stable MessagePrefix SHALL remain unchanged.</?>
+              ]>
+              <Case #resource-agent-context-pipeline-unknown [
+                <Given ?>An AIAgentDefinition selects an unknown or malformed context pipeline implementation.</?>
+                <When ?>Eidolon prepares the Agent execution.</?>
+                <Then ?>Preparation SHALL fail before Actor creation and no fallback or partial provider request SHALL occur.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

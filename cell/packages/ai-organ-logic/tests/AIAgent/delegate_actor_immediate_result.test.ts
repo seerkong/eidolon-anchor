@@ -120,6 +120,7 @@ describe("spawnChildExecutionActor immediate result", () => {
   it("uses an already resolved generic config and preserves ordered Agent seed messages", async () => {
     let observedSystemPrompts: string[] = []
     let observedHistory: Array<{ role: string; content: unknown }> = []
+    let observedContextPipeline: unknown
     let observedToolPolicy: { allowedToolsMode: string; allowedTools: string[] } | undefined
     const parent = createActor({
       key: "main",
@@ -136,6 +137,7 @@ describe("spawnChildExecutionActor immediate result", () => {
         buildToolset: () => [],
         processStream: async (vm, actor) => {
           observedSystemPrompts = [...actor.systemPrompts]
+          observedContextPipeline = actor.contextPipeline
           observedToolPolicy = {
             allowedToolsMode: actor.toolPolicy.allowedToolsMode,
             allowedTools: [...actor.toolPolicy.allowedTools],
@@ -180,6 +182,20 @@ describe("spawnChildExecutionActor immediate result", () => {
           { role: "user", content: "example request" },
           { role: "assistant", content: "example response" },
         ],
+        contextPipeline: {
+          schemaVersion: "eidolon.agent-context-pipeline-binding/v1",
+          resourceId: "eidolon.fixture.StandardContext",
+          contentDigest: "sha256:delegate-context",
+          implementation: "eidolon.standard-context-pipeline/v1",
+          stages: [
+            "prompt-plan",
+            "conversation-prelude",
+            "provider-context-facts-at-history-anchors",
+            "stable-message-prefix",
+            "conversation-boundary-overlays",
+            "provider-conversion",
+          ],
+        },
       },
       mode: "sync_wait",
     })
@@ -187,6 +203,9 @@ describe("spawnChildExecutionActor immediate result", () => {
     expect(result).toBe("resource result")
     expect(observedToolPolicy).toEqual({ allowedToolsMode: "exact", allowedTools: [] })
     expect(observedSystemPrompts).toEqual(["system instruction", "developer instruction"])
+    expect(observedContextPipeline).toEqual(expect.objectContaining({
+      implementation: "eidolon.standard-context-pipeline/v1",
+    }))
     expect(observedHistory).toEqual([
       { role: "user", content: "example request" },
       { role: "assistant", content: "example response" },

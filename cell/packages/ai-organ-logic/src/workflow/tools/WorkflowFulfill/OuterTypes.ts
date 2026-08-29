@@ -30,6 +30,7 @@ export type WorkflowFulfillmentContinuation =
 
 export type WorkflowFulfillOuterInput = {
   request: string
+  form?: "auto" | "ai-data" | "ai-ctrl"
   operation?: "auto" | "create" | "edit" | "run" | "continue"
   workflow_ref?: string
   publish?: boolean

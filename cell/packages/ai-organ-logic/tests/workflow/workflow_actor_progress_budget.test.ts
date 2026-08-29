@@ -5,8 +5,10 @@ import { dispatchActorRuntimeFacetEvent } from "@cell/ai-core-logic/runtime/Acto
 import { hydrateActor, serializeActor } from "@cell/ai-core-logic/runtime/snapshot/actorSnapshot"
 import {
   beginWorkflowActorTurn,
+  DEFAULT_WORKFLOW_ACTOR_BUDGET,
   enterWorkflowActorStage,
   recordWorkflowActorToolOutcome,
+  resolveWorkflowActorBudgetConfig,
   runWithinWorkflowStageDeadline,
   WorkflowActorBudgetError,
   type WorkflowActorBudgetConfig,
@@ -71,6 +73,20 @@ function progressOutput(
 }
 
 describe("workflow actor progress budget", () => {
+  it("admits the documented fresh-package bootstrap while remaining bounded", () => {
+    const config = resolveWorkflowActorBudgetConfig(undefined)
+    expect(config).toEqual(DEFAULT_WORKFLOW_ACTOR_BUDGET)
+
+    const actor = workflowActor()
+    enterWorkflowActorStage({ actor, stageId: "coding", now: 1_000, config })
+    for (let turn = 1; turn <= 12; turn += 1) {
+      expect(() => beginWorkflowActorTurn({ actor, now: 1_000 + turn, config })).not.toThrow()
+    }
+    expect(() => beginWorkflowActorTurn({ actor, now: 1_013, config })).toThrow(
+      /workflow_no_progress.*13 turns/,
+    )
+  })
+
   it("routes stage transitions through generic CAS and rejects a stale competing revision", () => {
     const actor = workflowActor()
     const vm = createVM({

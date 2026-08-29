@@ -1,0 +1,256 @@
+<Mission #validate-codument-e2e-propositions-across-eidolon-modes apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Preserve the completed tri-modal proposition evidence while refactoring Eidolon's complete mature Agent definition and message-processing chain into Halfcode-managed AIAgentDefinition resources, then prove parity and adaptive AI Data behavior with a user-selected compatible DeepSeek gateway." description = "Keep G1-G7 as historical official-DeepSeek evidence; isolate proposition-only E2E code, map every legacy Agent capability into MessagePrefix and a code-backed ContextPipeline without creating a second runtime, exercise real AI Data replanning, and converge through compatible-provider live regression and independent verification." question_mode = "decision-tree" question_severity = "auto" revision = 77 created_at = "2026-08-27T15:18:52.513Z" updated_at = "2026-08-29T18:03:37.071Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+    <ProjectRef #codument-source { kind = "external" }>
+    <ProjectRef #depa-flows { kind = "external" }>
+  ]>
+  <ActorSets { default = "tri-modal-control-loop" } [
+    <ActorSet #tri-modal-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M10E2E000000000000000001>
+        Preserve one proposition and verifier contract across ordinary, AI Ctrl Workflow and AI Data Workflow modes; schedule bounded live DeepSeek runs and create only the smallest implementation Track justified by observed failure evidence.
+        </?01M10E2E000000000000000001>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M10E2E000000000000000002>
+        Observe source corpus digests, isolated workspace outputs, independent verifier results, session recovery, workflow identity, final provider-visible prefixes, cache hit/miss tokens, retries, errors, elapsed time and normalized provider-token cost.
+        </?01M10E2E000000000000000002>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M10E2E000000000000000003>
+        Compare all three modes against the same behavioral and engineering outcomes and against mode-specific lifecycle boundaries; reject silent fallback, incomparable cache ratios, unverifiable success and green tests that leave a P0/P1 semantic or cost gap.
+        </?01M10E2E000000000000000003>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M10E2E000000000000000004>
+        Build and install the exact Eidolon under test, execute reproducible isolated journeys, persist evidence, and plan, implement, independently verify and archive repair Tracks; never make product-code changes directly as a Mission task.
+        </?01M10E2E000000000000000004>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_validate-codument-e2e-propositions-across-eidolon-modes { name = "validate-codument-e2e-propositions-across-eidolon-modes" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #G1 { name = "Freeze propositions and equivalence contract" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M10E2E000000000000000005>
+        Inventory and content-address the Codument modeling/engineering, project-implementation and nested-Mission propositions, define one immutable input/verifier contract per journey, and ratify comparable correctness, stability, cache and cost measurements before live execution.
+        </?01M10E2E000000000000000005>
+        <Gate [
+          <Criterion { checked = true } ?01M10E2E000000000000000006>
+          Every selected journey records source paths and content digests, request bytes, verifier identity, timeout and expected output without modifying the Codument source repository.
+          </?01M10E2E000000000000000006>
+          <Criterion { checked = true } ?01M10E2E000000000000000007>
+          Mode equivalence, workflow identity, long-context cache denominator and pass/fail thresholds are explicit; short-context warm-up is reported separately from comparable retained-prefix turns.
+          </?01M10E2E000000000000000007>
+        ]>
+        <SubNodes [
+          <Task #G1-T1 { name = "Freeze Codument proposition corpus and verifier provenance" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G1-T2 { name = "Ratify tri-modal outcome and provider-metric contract" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "Reproducible tri-modal E2E harness" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M10E2E000000000000000008>
+        Add a bounded harness that builds and locally installs the current Eidolon, creates fresh Git workspaces, invokes the official DeepSeek model through explicit ordinary/Ctrl/Data adapters, preserves raw receipts and independently verifies outputs.
+        </?01M10E2E000000000000000008>
+        <Gate [
+          <Criterion { checked = true } ?01M10E2E000000000000000009>
+          Each run proves its requested mode was actually active and cannot silently fall back to ordinary execution or another Workflow kind.
+          </?01M10E2E000000000000000009>
+          <Criterion { checked = true } ?01M10E2E00000000000000000A>
+          Raw logs and structured summaries expose model/provider, binary and CLI provenance, completion status, retries/errors, cache tokens, elapsed time and verifier evidence without leaking credentials.
+          </?01M10E2E00000000000000000A>
+        ]>
+        <SubNodes [
+          <Task #G2-T1 { name = "Implement Codument proposition tri-modal E2E harness" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #add-codument-proposition-trimodal-e2e-harness { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "Modeling and engineering proposition matrix" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M10E2E00000000000000000B>
+        Run Todo, Blog and Ecommerce core/payment modeling-engineering journeys in all three modes, requiring exact BehaviorPatch and Modeling/Engineering deltas, strict Codument validation, runnable product output and the source score contract.
+        </?01M10E2E00000000000000000B>
+        <SubNodes [
+          <Task #G3-T1 { name = "Execute ordinary modeling-engineering journeys" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G3-T2 { name = "Execute AI Ctrl Workflow modeling-engineering journeys" status = "DONE" priority = "P0" order = 1 }>
+          <Task #G3-T3 { name = "Execute AI Data Workflow modeling-engineering journeys" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "Project implementation proposition matrix" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M10E2E00000000000000000C>
+        Run the stream-pipeline AI-agent proposition in all three modes and independently verify the Python project shape, actual RxPY/OpenAI tool loop semantics, isolated dependency installation, compilation, tests and completed Codument Track.
+        </?01M10E2E00000000000000000C>
+        <SubNodes [
+          <Task #G4-T1 { name = "Execute stream-pipeline proposition in ordinary mode" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G4-T2 { name = "Execute stream-pipeline proposition in AI Ctrl Workflow" status = "DONE" priority = "P0" order = 1 }>
+          <Task #G4-T3 { name = "Execute stream-pipeline proposition in AI Data Workflow" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "Nested Mission proposition matrix" status = "DONE" priority = "P0" order = 4 } (
+        <Description ?01M10E2E00000000000000000D>
+        Run the real two-repository B2C order/inventory nested-Mission proposition in all three modes and verify reciprocal Mission hierarchy, exact selected-task linkage, portable workspace bindings, cross-layer Track links, runnable services and strict validation.
+        </?01M10E2E00000000000000000D>
+        <SubNodes [
+          <Task #G5-T1 { name = "Execute nested-Mission proposition in ordinary mode" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G5-T2 { name = "Execute nested-Mission proposition in AI Ctrl Workflow" status = "DONE" priority = "P0" order = 1 }>
+          <Task #G5-T3 { name = "Execute nested-Mission proposition in AI Data Workflow" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #G6 { name = "Cross-mode stability, cache and cost analysis" status = "DONE" priority = "P0" order = 5 } (
+        <Description ?01M10E2E00000000000000000E>
+        Compare correctness and completion first, then session continuity, invalid request and retry incidence, exact-prefix integrity, official DeepSeek cache coverage, total charged input tokens and elapsed time across equivalent journeys.
+        </?01M10E2E00000000000000000E>
+        <Gate [
+          <Criterion { checked = true } ?01M10E2E00000000000000000F>
+          No accepted run contains invalid_provider_request_body, unexplained 5xx retry loops, unrecoverable session continuation or mode-identity mismatch.
+          </?01M10E2E00000000000000000F>
+          <Criterion { checked = true } ?01M10E2E00000000000000000G>
+          Every forward-only comparable epoch has exact retained-prefix integrity, and official DeepSeek long-context cache coverage meets the ratified budget or produces a localized repair gap rather than a hidden aggregate.
+          </?01M10E2E00000000000000000G>
+        ]>
+        <SubNodes [
+          <Task #G6-T1 { name = "Produce tri-modal correctness and stability comparison" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G6-T2 { name = "Produce official DeepSeek cache and normalized-cost comparison" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G7 { name = "Cybernetic convergence and independent verification" status = "DONE" priority = "P0" order = 6 } (
+        <Description ?01M10E2E00000000000000000H>
+        Reconcile actual evidence against the desired tri-modal contract, create minimal repair Tracks for observed product gaps, rerun only affected plus sentinel journeys, and finish with an independent full-matrix verdict when no P0/P1 gap remains.
+        </?01M10E2E00000000000000000H>
+        <SubNodes [
+          <Task #G7-T1 { name = "Run bounded evidence-driven gap loop and repair Tracks" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #pin-proposition-cell-executables { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G7-T1B { name = "Repair premature provider socket-close found by live evidence" status = "DONE" priority = "P0" order = 1 } (
+            <TrackLink #recover-bun-fetch-socket-close { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G7-T1C { name = "Align history-compaction fact anchors with provider cache epoch" status = "DONE" priority = "P0" order = 2 } (
+            <TrackLink #align-provider-compaction-cache-epoch { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G7-T1D { name = "Preserve failed Workflow public mode identity" status = "DONE" priority = "P0" order = 3 } (
+            <TrackLink #preserve-failed-workflow-public-evidence { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G7-T2 { name = "Run independent Mission verification and publish final report" status = "DONE" priority = "P0" order = 4 }>
+        ]>
+      )>
+      <TaskGroup #G8 { name = "Restore proposition E2E package boundaries" status = "DONE" priority = "P0" order = 7 } (
+        <Description ?01M10E2E000000000000000010>
+        Move proposition-only contracts, harness logic, live support and fixtures out of production package src/public exports while preserving the completed harness behavior and evidence format.
+        </?01M10E2E000000000000000010>
+        <Gate [
+          <Criterion { checked = true } ?01M10E2E000000000000000011>
+          Production package indexes and runtime src contain no Codument proposition E2E contract or harness surface.
+          </?01M10E2E000000000000000011>
+          <Criterion { checked = true } ?01M10E2E000000000000000012>
+          Deterministic proposition tests and the live runner still resolve one private testkit and preserve sealed receipt semantics.
+          </?01M10E2E000000000000000012>
+        ]>
+        <SubNodes [
+          <Task #G8-T1 { name = "Isolate Codument proposition E2E testkit" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #isolate-codument-proposition-e2e-testkit { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G9 { name = "Resource-manage the complete Eidolon Agent pipeline" status = "DONE" priority = "P0" order = 8 } (
+        <Description ?01M10E2E000000000000000013>
+        Refactor the mature legacy Agent definition and provider-neutral message-processing chain into Halfcode-managed AIAgentDefinition resources using MessagePrefix plus a code-backed ContextPipeline, without introducing a parallel Actor, Conversation, provider, session, recovery or cache authority.
+        </?01M10E2E000000000000000013>
+        <Gate [
+          <Criterion { checked = true } ?01M10E2E000000000000000014>
+          The Track design contains an exhaustive legacy-to-Halfcode migration ledger with code locations, authority owners, mappings, dispositions and parity evidence; no discovered capability remains unmapped.
+          </?01M10E2E000000000000000014>
+          <Criterion { checked = true } ?01M10E2E000000000000000015>
+          Workflow CodeAgent receives equivalent kernel/coding/workspace instructions and complete context/history behavior through frozen resource dependencies while reusing the existing runtime authorities.
+          </?01M10E2E000000000000000015>
+          <Criterion { checked = true } ?01M10E2E000000000000000016>
+            Long-session compaction, context anchors, provider epoch handoff, recovery, exact tool admission and stable-prefix observations pass behavior-parity tests.
+          </?01M10E2E000000000000000016>
+        ]>
+        <SubNodes [
+          <Task #G9-T0 { name = "Extend Halfcode AIAgentDefinition composition contract" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #extend-ai-agent-definition-halfcode-composition { state = "bound" project_ref = "depa-flows" }>
+          )>
+          <Task #G9-T1 { name = "Implement complete resource-native AIAgentDefinition pipeline" status = "DONE" priority = "P0" order = 1 } (
+            <TrackLink #resource-manage-eidolon-agent-definition-pipeline { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G10 { name = "Exercise adaptive AI Data control" status = "DONE" priority = "P0" order = 9 } (
+        <Description ?01M10E2E000000000000000017>
+        Add a real proposition journey in which AI Data observes an execution gap, changes its admitted task/graph definition through the canonical mutation boundary, runs a new generation and converges to the unchanged verifier target.
+        </?01M10E2E000000000000000017>
+        <SubNodes [
+          <Task #G10-T1 { name = "Prove AI Data cybernetic replanning with resource Agents" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #exercise-ai-data-cybernetic-resource-agent { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G11 { name = "Compatible-provider tri-modal parity and cache regression" status = "DONE" priority = "P0" order = 10 } (
+        <Description ?01M10E2E000000000000000018>
+        Parameterize the proposition provider binding, retain the SiliconFlow timeout incident, run ordinary/Ctrl/Data journeys with deepseek-iqingwa/deepseek-v4-pro, and report compatible-provider correctness, stability, prefix/cache and normalized-cost evidence without consuming official DeepSeek quota.
+        </?01M10E2E000000000000000018>
+        <SubNodes [
+          <Task #G11-T1 { name = "Validate resource Agents across three modes on iQingwa" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #validate-resource-agent-trimodal-siliconflow { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G12 { name = "Independent resource-Agent migration verification" status = "DONE" priority = "P0" order = 11 } (
+        <Description ?01M10E2E000000000000000019>
+        Independently audit the migration ledger and rerun focused plus live evidence to reject omitted legacy behavior, hidden Workflow fallback, Conversation authority duplication, recovery drift or cache-prefix regression.
+        </?01M10E2E000000000000000019>
+        <SubNodes [
+          <Task #G12-T1 { name = "Publish fresh no-gap migration verdict" status = "DONE" priority = "P0" order = 0 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_validate-codument-e2e-propositions-across-eidolon-modes" } [
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G5 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G6 [
+        <After { ref = "G3" }>
+        <After { ref = "G4" }>
+        <After { ref = "G5" }>
+      ]>
+      <Node #G7 [
+        <After { ref = "G6" }>
+      ]>
+      <Node #G8 [
+        <After { ref = "G7" }>
+      ]>
+      <Node #G9 [
+        <After { ref = "G8" }>
+      ]>
+      <Node #G10 [
+        <After { ref = "G9" }>
+      ]>
+      <Node #G11 [
+        <After { ref = "G10" }>
+      ]>
+      <Node #G12 [
+        <After { ref = "G11" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

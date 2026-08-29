@@ -1,10 +1,16 @@
 import { describe, expect, it } from "bun:test";
 import {
   classifyProviderRetry,
+  createProviderStreamWithRetry,
   executeWithProviderRetry,
   ProviderExecutionError,
   resolveProviderRetryPolicy,
 } from "@cell/ai-organ-logic/llm";
+import {
+  ChatCompletionsOutputTruncatedError,
+  ChatCompletionsProtocolError,
+  ChatCompletionsReasoningOnlyError,
+} from "@cell/ai-organ-logic/stream/ChatCompletionsStreamCore";
 
 describe("provider retry classification", () => {
   it("classifies retryable HTTP and retry-after provider errors", () => {
@@ -70,6 +76,71 @@ describe("provider retry classification", () => {
     expect(classification.replaySafety).toBe("safe_same_contract");
     expect(policy.maxRetries).toBe(1);
     expect(policy.maxTotalElapsedSeconds).toBeGreaterThan(300);
+  });
+
+  it("classifies malformed chat tool arguments as one safe pre-dispatch repair", () => {
+    const error = new ChatCompletionsProtocolError([{
+      code: "invalid_tool_call_payload",
+      message: "tool call call_1 has invalid JSON arguments",
+    }]);
+    const classification = classifyProviderRetry(error);
+    const policy = resolveProviderRetryPolicy(classification.classificationReason);
+
+    expect(classification).toMatchObject({
+      retryable: true,
+      classificationReason: "chat_tool_payload_recoverable",
+      phase: "before_tool_dispatch",
+      retryScope: "assistant_turn_repair",
+      replaySafety: "safe_before_tool_dispatch",
+    });
+    expect(policy.maxRetries).toBe(1);
+    expect(policy.baseDelaySeconds).toBe(0);
+  });
+
+  it("routes output-limit truncation to semantic-completion budget ownership", () => {
+    const classification = classifyProviderRetry(new ChatCompletionsOutputTruncatedError());
+    const policy = resolveProviderRetryPolicy(classification.classificationReason);
+
+    expect(classification).toMatchObject({
+      retryable: true,
+      classificationReason: "chat_output_truncated_recoverable",
+      phase: "before_tool_dispatch",
+      retryScope: "assistant_turn_semantic_completion",
+      replaySafety: "safe_before_tool_dispatch",
+    });
+    expect(policy.maxRetries).toBe(0);
+    expect(policy.baseDelaySeconds).toBe(0);
+  });
+
+  it("routes a reasoning-only normal stop to semantic-completion budget ownership", () => {
+    const classification = classifyProviderRetry(new ChatCompletionsReasoningOnlyError("stop"));
+
+    expect(classification).toMatchObject({
+      retryable: true,
+      classificationReason: "chat_reasoning_only_recoverable",
+      phase: "before_tool_dispatch",
+      retryScope: "assistant_turn_semantic_completion",
+      replaySafety: "safe_before_tool_dispatch",
+    });
+    expect(resolveProviderRetryPolicy(classification.classificationReason).maxRetries).toBe(0);
+  });
+
+  it("classifies Bun premature socket closure as safe pre-accept transport replay", () => {
+    const classification = classifyProviderRetry(
+      new Error("The socket connection was closed unexpectedly. For more information, pass verbose: true in the second argument to fetch()"),
+    );
+
+    expect(classification).toEqual({
+      retryable: true,
+      classificationReason: "transport_socket_closed_retryable",
+      layer: "transport",
+      phase: "before_accept",
+      retryScope: "request_replay",
+      replaySafety: "safe_same_contract",
+    });
+    expect(resolveProviderRetryPolicy(classification.classificationReason)).toEqual(
+      resolveProviderRetryPolicy("provider_error_retryable"),
+    );
   });
 });
 
@@ -156,5 +227,131 @@ describe("provider retry executor", () => {
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].classificationReason).toBe("transport_timeout_retryable");
     expect(diagnostics[0].terminationReason).toBe("retry_scheduled");
+  });
+
+  it("retries Bun premature socket closure before the first visible stream output", async () => {
+    const diagnostics: any[] = [];
+    let attempts = 0;
+    const socketClose = new Error("The socket connection was closed unexpectedly");
+    const result = createProviderStreamWithRetry(
+      async () => {
+        attempts += 1;
+        if (attempts === 1) {
+          return {
+            stream: (async function* () {
+              throw socketClose;
+            })(),
+          };
+        }
+        return {
+          stream: (async function* () {
+            yield { choices: [{ delta: { content: "recovered" } }] };
+          })(),
+          providerOutput: Promise.resolve({ id: "second-attempt" }),
+        };
+      },
+      {
+        stage: "stream",
+        providerId: "deepseek",
+        selectedModel: "deepseek-v4-flash",
+        sleep: async () => {},
+        onDiagnostic: (event) => diagnostics.push(event),
+      },
+    );
+
+    const chunks = [];
+    for await (const chunk of result.stream) chunks.push(chunk);
+
+    expect(chunks).toEqual([{ choices: [{ delta: { content: "recovered" } }] }]);
+    expect(await result.providerOutput).toEqual({ id: "second-attempt" });
+    expect(attempts).toBe(2);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      classificationReason: "transport_socket_closed_retryable",
+      classificationLayer: "transport",
+      classificationPhase: "before_accept",
+      retryScope: "request_replay",
+      replaySafety: "safe_same_contract",
+      terminationReason: "retry_scheduled",
+    });
+  });
+
+  it("does not replay Bun socket closure after visible stream output", async () => {
+    const diagnostics: any[] = [];
+    let attempts = 0;
+    const socketClose = new Error("The socket connection was closed unexpectedly");
+    const result = createProviderStreamWithRetry(
+      async () => {
+        attempts += 1;
+        return {
+          stream: (async function* () {
+            yield { choices: [{ delta: { content: "accepted" } }] };
+            throw socketClose;
+          })(),
+        };
+      },
+      {
+        stage: "stream",
+        providerId: "deepseek",
+        selectedModel: "deepseek-v4-flash",
+        sleep: async () => {},
+        onDiagnostic: (event) => diagnostics.push(event),
+      },
+    );
+
+    const providerOutput = result.providerOutput.catch((error) => error);
+    const iterator = result.stream[Symbol.asyncIterator]();
+    expect(await iterator.next()).toEqual({
+      done: false,
+      value: { choices: [{ delta: { content: "accepted" } }] },
+    });
+    await expect(iterator.next()).rejects.toThrow("socket connection was closed unexpectedly");
+    expect((await providerOutput).message).toContain("socket connection was closed unexpectedly");
+    expect(attempts).toBe(1);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      classificationReason: "transport_socket_closed_retryable",
+      classificationPhase: "provider_accepted",
+      replaySafety: "indeterminate_after_accept",
+      terminationReason: "indeterminate_after_accept",
+    });
+  });
+
+  it("trusts attempt output observation when failure precedes chunk delivery", async () => {
+    const diagnostics: any[] = [];
+    let attempts = 0;
+    const socketClose = new Error("The socket connection was closed unexpectedly");
+    const result = createProviderStreamWithRetry(
+      async () => {
+        attempts += 1;
+        return {
+          stream: (async function* () {
+            throw socketClose;
+          })(),
+          outputObserved: () => true,
+        };
+      },
+      {
+        stage: "stream",
+        providerId: "deepseek",
+        selectedModel: "deepseek-v4-flash",
+        sleep: async () => {},
+        onDiagnostic: (event) => diagnostics.push(event),
+      },
+    );
+
+    const providerOutput = result.providerOutput.catch((error) => error);
+    await expect(result.stream[Symbol.asyncIterator]().next()).rejects.toThrow(
+      "socket connection was closed unexpectedly",
+    );
+    expect((await providerOutput).message).toContain("socket connection was closed unexpectedly");
+    expect(attempts).toBe(1);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      classificationReason: "transport_socket_closed_retryable",
+      classificationPhase: "provider_accepted",
+      replaySafety: "indeterminate_after_accept",
+      terminationReason: "indeterminate_after_accept",
+    });
   });
 });

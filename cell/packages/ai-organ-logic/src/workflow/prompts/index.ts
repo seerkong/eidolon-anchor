@@ -25,6 +25,7 @@ export function assembleWorkflowAuthorPrompt(input: WorkflowAuthorPromptInput): 
 
 export type WorkflowFulfillmentPromptInput = {
   request: string
+  form?: "auto" | "ai-data" | "ai-ctrl"
   operation?: "auto" | "create" | "edit" | "run" | "continue"
   workflowRef?: string
   publish?: boolean
@@ -39,6 +40,7 @@ export function assembleWorkflowFulfillmentPrompt(input: WorkflowFulfillmentProm
     JSON.stringify({
       kind: "eidolon.aiWorkflowInvocation",
       request: input.request.trim(),
+      formHint: input.form ?? "auto",
       operation: input.operation ?? "auto",
       ...(input.workflowRef ? { workflowRef: input.workflowRef } : {}),
       ...(input.continuation ? { continuation: input.continuation } : {}),

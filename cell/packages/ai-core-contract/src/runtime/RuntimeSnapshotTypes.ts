@@ -151,6 +151,7 @@ export type RuntimeSnapshotActor = ActorSnapshotBase<AiAgentActorContract["type"
   toolPolicy: ActorToolPolicy;
   contextPolicy?: AiAgentActorContract["contextPolicy"];
   executionContract?: AiAgentActorContract["executionContract"];
+  contextPipeline?: AiAgentActorContract["contextPipeline"];
   origin?: AiAgentActorContract["origin"];
   /** Optional only for backward-compatible reads of pre-attribution snapshots. */
   modelConfig: ActorModelConfig;

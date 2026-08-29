@@ -1,0 +1,178 @@
+<Track #add-codument-proposition-trimodal-e2e-harness apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Add a reproducible harness that executes unchanged Codument engineering propositions through ordinary, AI Ctrl Workflow and AI Data Workflow modes and emits independently verifiable correctness, stability and official DeepSeek cache-cost evidence." description = "Implement closed manifests, isolated workspaces, explicit mode adapters, mode-identity and provider receipts, original-verifier execution, deterministic orchestration tests and opt-in sentinel/full live runners without introducing Workflow semantics into ordinary execution." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-27T15:30:41.908Z" updated_at = "2026-08-28T01:12:07.607Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #contracts { role = "output" name = "contracts" domain = "code" path = "vfs://@/cell/packages/ai-organ-contract/" }>
+    <MaterialBundle #runtime { role = "output" name = "runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/" }>
+    <MaterialBundle #terminal_support { role = "output" name = "terminal-support" domain = "code" path = "vfs://@/terminal/packages/organ-support/" }>
+    <MaterialBundle #scripts { role = "output" name = "scripts" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/scripts/" }>
+    <MaterialBundle #tests { role = "output" name = "tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/" }>
+  ]>
+  <TaskSpace #space_add-codument-proposition-trimodal-e2e-harness { name = "add-codument-proposition-trimodal-e2e-harness" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Closed proposition and receipt contracts" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M11Y31WDB2FBSTMBKB54V5E9>
+        Define the experiment authority boundary before adding process execution.
+        </?01M11Y31WDB2FBSTMBKB54V5E9>
+        <SubNodes [
+          <Task #P1-T1 { name = "Write RED tests for manifest closure, effect-port explicitness, receipt redaction and metric scopes" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EA>
+              Tests reject path escape, source/verifier digest mismatch, unknown manifest fields, ambient environment forwarding, secret-bearing receipts and incomparable cache scopes.
+              </?01M11Y31WDB2FBSTMBKB54V5EA>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Implement own-data manifest, receipt and minimal effect-port contracts" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EB>
+              Public own-data and effect-port contracts are owned by ai-organ-contract with no filesystem, process or Workflow implementation imports.
+              </?01M11Y31WDB2FBSTMBKB54V5EB>
+            ]>
+          )>
+          <Task #P1-T3 { name = "Implement pure manifest validation, coordination and comparison processors" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EC>
+              Focused logic tests pass with canonical digests and separate cold, stable-epoch and explicit-transition scopes using injected ports only.
+              </?01M11Y31WDB2FBSTMBKB54V5EC>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Isolated execution and explicit mode adapters" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M11Y31WDB2FBSTMBKB54V5ED>
+        Execute immutable propositions through production runtime boundaries and prove the selected mode.
+        </?01M11Y31WDB2FBSTMBKB54V5ED>
+        <SubNodes [
+          <Task #P2-T1 { name = "Write RED tests for workspace effects, environment allowlist, verifier authority, resume and mode mismatch" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EE>
+              Tests prove process success cannot replace verifier success, undeclared environment is not forwarded, and wrong/missing mode identity is rejected.
+              </?01M11Y31WDB2FBSTMBKB54V5EE>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Implement support effect bindings and registered ordinary adapter" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EF>
+              Ordinary runs preserve exact request bytes, contain no Workflow identity and retain recoverable failed/paused workspaces.
+              </?01M11Y31WDB2FBSTMBKB54V5EF>
+            ]>
+          )>
+          <Task #P2-T3 { name = "Implement registered Ctrl and Data adapters with typed emitted identity proof" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P2-T3-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EG>
+              Ctrl/Data use the same proposition digest, enter through public production surfaces, expose typed emitted Workflow kind/instance/run/node facts and reject fallback without direct implementation reads.
+              </?01M11Y31WDB2FBSTMBKB54V5EG>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Provider evidence and runnable matrix" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M11Y31WDB2FBSTMBKB54V5EH>
+        Join canonical provider evidence and expose deterministic plus explicit live execution.
+        </?01M11Y31WDB2FBSTMBKB54V5EH>
+        <SubNodes [
+          <Task #P3-T1 { name = "Write RED tests for official provider identity, prefix integrity and absolute-cost joins" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EJ>
+              Tests reject compatible provider substitution, missing final usage, prefix divergence and ratio-only cost reports.
+              </?01M11Y31WDB2FBSTMBKB54V5EJ>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Integrate canonical provider-cache evidence and per-cell persistence" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EK>
+              Each completed cell persists a redacted receipt with final-success tokens, epochs, prefix and retry facts.
+              </?01M11Y31WDB2FBSTMBKB54V5EK>
+            ]>
+          )>
+          <Task #P3-T3 { name = "Add deterministic fixture, sentinel and full live runners" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EM>
+              Runner can select one cell, sentinel matrix or full matrix and never performs live calls without explicit enablement.
+              </?01M11Y31WDB2FBSTMBKB54V5EM>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Verification and integration closure" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M11Y31WDB2FBSTMBKB54V5EN>
+        Prove the harness without consuming live quota, then make the current build ready for Mission live runs.
+        </?01M11Y31WDB2FBSTMBKB54V5EN>
+        <SubNodes [
+          <Task #P4-T1 { name = "Run focused deterministic product tests and typecheck" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EP>
+              Harness, headless, Workflow mode and provider-cache focused suites plus typecheck pass.
+              </?01M11Y31WDB2FBSTMBKB54V5EP>
+            ]>
+          )>
+          <Task #P4-T2 { name = "Run strict validation and inspect contract, effect and lifecycle dependency boundaries" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M11Y31WDB2FBSTMBKB54V5EQ>
+              Strict validation passes; contracts import no effects; adapters use registered surfaces; ordinary imports no Workflow implementation; Ctrl/Data do not read lifecycle internals or create parallel messaging.
+              </?01M11Y31WDB2FBSTMBKB54V5EQ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Independent verification repair loop" status = "DONE" priority = "P0" order = 4 } (
+        <Description ?01M11ZREPAIR0000000000001>
+        Repair only the Wired gaps proven by fresh verification and the no-token live sentinel, then repeat independent verification.
+        </?01M11ZREPAIR0000000000001>
+        <SubNodes [
+          <Task #P5-T1 { name = "Make the Codex-compatible shim portable outside the Eidolon repository" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P5-T1-AC1 { checked = true } ?01M11ZREPAIR0000000000002>
+              The executable shim resolves all code from an arbitrary external cwd and a no-provider dry run reaches the Eidolon executable instead of failing module resolution.
+              </?01M11ZREPAIR0000000000002>
+            ]>
+          )>
+          <Task #P5-T2 { name = "Wire production matrix effects to the canonical coordinator and receipt store" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P5-T2-AC1 { checked = true } ?01M11ZREPAIR0000000000003>
+              A production entry assembles workspace, source, mode, verifier and receipt effects, invokes runCodumentPropositionCell, and persists retry/final-attempt facts without test-only callers.
+              </?01M11ZREPAIR0000000000003>
+            ]>
+          )>
+          <Task #P5-T3 { name = "Join Ctrl and Data mode identity from public runtime evidence" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P5-T3-AC1 { checked = true } ?01M11ZREPAIR0000000000004>
+              Ctrl/Data live evidence contains exact definition, instance, run and node actor identity from a typed public runtime projection; pending or requested-only identity fails the cell.
+              </?01M11ZREPAIR0000000000004>
+            ]>
+          )>
+          <Task #P5-T4 { name = "Bound Bash descendant lifecycle under timeout and abort" status = "DONE" priority = "P0" order = 3 } (
+            <Acceptance [
+              <Criterion #P5-T4-AC1 { checked = true } ?01M11ZREPAIR0000000000005>
+              A timed-out or aborted Bash command terminates its POSIX descendant process group and resolves a failed tool result instead of leaving an orphan that keeps the Agent turn open.
+              </?01M11ZREPAIR0000000000005>
+            ]>
+          )>
+          <Task #P5-T5 { name = "Repeat focused and independent Wired verification" status = "DONE" priority = "P0" order = 4 } (
+            <Acceptance [
+              <Criterion #P5-T5-AC1 { checked = true } ?01M11ZREPAIR0000000000006>
+              Focused tests, typecheck, build, strict validation, external-cwd dry run and fresh independent verification all pass before the Track can complete.
+              </?01M11ZREPAIR0000000000006>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_add-codument-proposition-trimodal-e2e-harness" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+      <Node #P5 [
+        <After { ref = "P4" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

@@ -244,6 +244,7 @@ export type { ProviderRuntimeLlmAdapterSettings } from "./ProviderRuntimeAdapter
 export * from "./ProviderCacheProductEvidence";
 export * from "./ProviderCacheProductMatrix";
 export * from "./ProviderCacheProductLive";
+export * from "./ProviderCacheObservationProjection";
 export type {
   LlmProviderRuntime,
   ProviderRequestOutcomeObservationData,

@@ -90,6 +90,20 @@ function createConformanceRuntime() {
     llmClient: llmAdapter,
     systemPrompts: ["You are the single-in-memory-truth conformance agent."],
     modelConfig: { model: "conformance-mock", inputLimit: 32_000 },
+    contextPipeline: {
+      schemaVersion: "eidolon.agent-context-pipeline-binding/v1",
+      resourceId: "eidolon.fixture.StandardContext",
+      contentDigest: "sha256:conformance-context-pipeline",
+      implementation: "eidolon.standard-context-pipeline/v1",
+      stages: [
+        "prompt-plan",
+        "conversation-prelude",
+        "provider-context-facts-at-history-anchors",
+        "stable-message-prefix",
+        "conversation-boundary-overlays",
+        "provider-conversion",
+      ],
+    },
     callbacks: {
       buildToolset: () => [],
       processStream: async () => ({ role: "assistant", content: "" }),

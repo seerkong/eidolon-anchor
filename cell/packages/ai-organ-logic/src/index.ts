@@ -45,6 +45,8 @@ export {
   PROVIDER_CONFIG_FILE_NAME,
   ProviderRuntimeLlmAdapter,
   refreshProviderTransportMarkers,
+  readProviderCacheObservationProjection,
+  recordProviderCacheObservationProjection,
   resolveActorModelConfig,
   resolvePresetModelRef,
   resolvePrimaryCandidates,

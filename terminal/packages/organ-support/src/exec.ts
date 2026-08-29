@@ -2,6 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 
 import type { MessageHistoryEvent } from "@cell/ai-core-logic/stream/MessageHistoryGraph";
+import type { AiAgentVmUsageData } from "@cell/ai-core-contract/runtime/AiAgentVm";
+import type { ProviderCacheCostObservation } from "@cell/ai-organ-contract/llm/ProviderCacheCostObservation";
+import type { WorkflowPublicRuntimeEvidence } from "@cell/ai-organ-contract/workflow/WorkflowPublicRuntimeEvidence";
+import type { ProviderChatCompatibilityProfileId } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import {
   type ExecApprovalMode,
   ExecProtocolGraph,
@@ -37,6 +41,7 @@ export type HeadlessExecOptions = {
   /** Exact tool identities whose structured error result makes this run fail. */
   failOnToolError?: readonly string[];
   captureProviderRequests?: boolean;
+  providerChatCompatibilityProfileId?: ProviderChatCompatibilityProfileId;
   onVisibleChunk?: (chunk: string) => void | Promise<void>;
   onDiagnosticLine?: (line: string) => void | Promise<void>;
 };
@@ -48,9 +53,32 @@ export type HeadlessExecResult = {
   warnings: string[];
   failureSummary: string | null;
   timing: RuntimeTimingProjection;
+  usage: AiAgentVmUsageData;
+  providerCacheObservations: readonly ProviderCacheCostObservation[];
+  workflowExecutions: readonly WorkflowPublicRuntimeEvidence[];
   outputLastMessagePath?: string;
   outputTracePath?: string;
 };
+
+const EMPTY_USAGE: AiAgentVmUsageData = Object.freeze({
+  prompt_tokens: 0,
+  completion_tokens: 0,
+  total_tokens: 0,
+  cache_creation_tokens: 0,
+  cache_read_tokens: 0,
+  is_estimated: false,
+});
+
+function usageDelta(before: AiAgentVmUsageData, after: AiAgentVmUsageData): AiAgentVmUsageData {
+  return Object.freeze({
+    prompt_tokens: Math.max(0, after.prompt_tokens - before.prompt_tokens),
+    completion_tokens: Math.max(0, after.completion_tokens - before.completion_tokens),
+    total_tokens: Math.max(0, after.total_tokens - before.total_tokens),
+    cache_creation_tokens: Math.max(0, after.cache_creation_tokens - before.cache_creation_tokens),
+    cache_read_tokens: Math.max(0, after.cache_read_tokens - before.cache_read_tokens),
+    is_estimated: before.is_estimated || after.is_estimated,
+  });
+}
 
 type ExecTraceRecord =
   | {
@@ -87,6 +115,9 @@ type ExecTraceRecord =
       finalMessageChars: number;
       visibleOutputChars: number;
       timing: RuntimeTimingProjection;
+      usage: AiAgentVmUsageData;
+      providerCacheObservations: readonly ProviderCacheCostObservation[];
+      workflowExecutions: readonly WorkflowPublicRuntimeEvidence[];
     };
 
 export function parseExecConfigOverride(raw: string): { mcp: boolean } {
@@ -345,6 +376,7 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
           },
         })
       : undefined,
+    providerChatCompatibilityProfileId: options.providerChatCompatibilityProfileId,
   });
 
   let runtime: Awaited<ReturnType<typeof getSessionRuntimeBridge>> = null;
@@ -370,6 +402,9 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
       finalMessageChars: snapshot.lastMessageContents?.length ?? 0,
       visibleOutputChars: snapshot.visibleOutput.length,
       timing,
+      usage: EMPTY_USAGE,
+      providerCacheObservations: [],
+      workflowExecutions: [],
     });
     graph.dispose();
     return {
@@ -379,6 +414,9 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
       warnings: [...snapshot.warnings],
       failureSummary: snapshot.failureSummary,
       timing,
+      usage: EMPTY_USAGE,
+      providerCacheObservations: [],
+      workflowExecutions: [],
       outputLastMessagePath: options.outputLastMessagePath,
       outputTracePath: options.outputTracePath,
     };
@@ -387,6 +425,12 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
   let emittedLength = 0;
   let continuationCount = 0;
   let timing = emptyRuntimeTiming(sessionKey, startedAtMs, startedAtMs);
+  const usageBefore = runtime.readUsageProjection?.() ?? EMPTY_USAGE;
+  const providerCacheObservationCountBefore = runtime.readProviderCacheObservations?.().length ?? 0;
+  const workflowExecutionCountBefore = runtime.readWorkflowExecutions?.().length ?? 0;
+  let usageAfter = usageBefore;
+  let providerCacheObservations: readonly ProviderCacheCostObservation[] = [];
+  let workflowExecutions: readonly WorkflowPublicRuntimeEvidence[] = [];
   const emitVisibleDelta = async () => {
     const snapshot = graph.getSnapshot();
     const next = snapshot.visibleOutput.slice(emittedLength);
@@ -526,6 +570,13 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
       startedAt: startedAtMs,
       endedAt: endedAtMs,
     }) ?? emptyRuntimeTiming(sessionKey, startedAtMs, endedAtMs);
+    usageAfter = runtime.readUsageProjection?.() ?? usageBefore;
+    providerCacheObservations = Object.freeze([
+      ...(runtime.readProviderCacheObservations?.() ?? []).slice(providerCacheObservationCountBefore),
+    ]);
+    workflowExecutions = Object.freeze([
+      ...(runtime.readWorkflowExecutions?.() ?? []).slice(workflowExecutionCountBefore),
+    ]);
     historySub?.unsubscribe();
     await disposeSessionRuntimeBridge(sessionKey);
   }
@@ -541,6 +592,9 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
     finalMessageChars: snapshot.lastMessageContents?.length ?? 0,
     visibleOutputChars: snapshot.visibleOutput.length,
     timing,
+    usage: usageDelta(usageBefore, usageAfter),
+    providerCacheObservations,
+    workflowExecutions,
   });
   const allWarnings = [...snapshot.warnings, ...snapshot.processWarnings];
   const result: HeadlessExecResult = {
@@ -550,6 +604,9 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
     warnings: allWarnings,
     failureSummary: snapshot.failureSummary,
     timing,
+    usage: usageDelta(usageBefore, usageAfter),
+    providerCacheObservations,
+    workflowExecutions,
     outputLastMessagePath: options.outputLastMessagePath,
     outputTracePath: options.outputTracePath,
   };

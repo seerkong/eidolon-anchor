@@ -1,110 +1,253 @@
 <Behavior #eidolon-complete-agent-ctrl-data-e2e apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #author-and-publish-complete-agent-package (
-      <Statement ?01M0QPD2RJ4W0SR5B97QX45V4B>
+      <Statement ?01M17AFD8GB0Z3DF15C0ZMPNMV>
       Eidolon SHALL use installed authoring references to create, prove and atomically publish a complete ResourcePackage containing App, Ctrl/Data workflows, AIAgentDefinition, schemas, EffectPolicy and Material values.
-      </?01M0QPD2RJ4W0SR5B97QX45V4B>
+      </?01M17AFD8GB0Z3DF15C0ZMPNMV>
       <Suites [
         <Suite #authoring-publication { name = "Complete Agent authoring and publication" } (
           <Cases [
             <Case #complete-package (
-              <Given ?01M0QPD2RJ4W0SR5B97QX45V4C>
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNMW>
               an isolated installed four-Skill environment and an empty workspace resource root
-              </?01M0QPD2RJ4W0SR5B97QX45V4C>
-              <When ?01M0QPD2RJ4W0SR5B97QX45V4D>
+              </?01M17AFD8GB0Z3DF15C0ZMPNMW>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNMX>
               the model loads exact installed references, submits one explicit-complete-package file set, prepares the exact candidate and explicitly publishes it
-              </?01M0QPD2RJ4W0SR5B97QX45V4D>
-              <Then ?01M0QPD2RJ4W0SR5B97QX45V4E>
+              </?01M17AFD8GB0Z3DF15C0ZMPNMX>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNMY>
               the host SHALL open one recoverable whole-package authoring session without synthesizing KindDefinitions or resource semantics, and the admitted Halfcode/depa snapshot SHALL expose the App, both workflows, the complete Agent projection, Material bindings and exact proof identities
-              </?01M0QPD2RJ4W0SR5B97QX45V4E>
+              </?01M17AFD8GB0Z3DF15C0ZMPNMY>
             )>
             <Case #authorization-separation (
-              <Given ?01M0QPD2RJ4W0SR5B97QX45V4F>
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNMZ>
               an authored and prepared candidate
-              </?01M0QPD2RJ4W0SR5B97QX45V4F>
-              <When ?01M0QPD2RJ4W0SR5B97QX45V4G>
+              </?01M17AFD8GB0Z3DF15C0ZMPNMZ>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNN0>
               publication or execution has not been explicitly authorized
-              </?01M0QPD2RJ4W0SR5B97QX45V4G>
-              <Then ?01M0QPD2RJ4W0SR5B97QX45V4H>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN0>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNN1>
               Eidolon MUST NOT publish or run the candidate and SHALL preserve a typed recoverable handoff
-              </?01M0QPD2RJ4W0SR5B97QX45V4H>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN1>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #shared-ctrl-data-agent-runtime (
-      <Statement ?01M0QPD2RJ4W0SR5B97QX45V4J>
+      <Statement ?01M17AFD8GB0Z3DF15C0ZMPNN2>
       AICtrlWorkflow and AIDataWorkflow SHALL execute exact AIAgentTask tuples through the same generic Agent execution contract and lifecycle while retaining their own substrate lifecycles.
-      </?01M0QPD2RJ4W0SR5B97QX45V4J>
+      </?01M17AFD8GB0Z3DF15C0ZMPNN2>
       <Suites [
         <Suite #ctrl-data-runtime { name = "Ctrl and Data Agent execution" } (
           <Cases [
             <Case #same-contract (
-              <Given ?01M0QPD2RJ4W0SR5B97QX45V4K>
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNN3>
               Ctrl and Data workflow nodes reference one AgentDefinition through exact four-field task tuples
-              </?01M0QPD2RJ4W0SR5B97QX45V4K>
-              <When ?01M0QPD2RJ4W0SR5B97QX45V4M>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN3>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNN4>
               each workflow is explicitly run with schema-valid input and bound Material values
-              </?01M0QPD2RJ4W0SR5B97QX45V4M>
-              <Then ?01M0QPD2RJ4W0SR5B97QX45V4N>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN4>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNN5>
               both SHALL use the same frozen schema, policy, Material, tool and output-validation path and return schema-valid results
-              </?01M0QPD2RJ4W0SR5B97QX45V4N>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN5>
             )>
             <Case #typed-output-projection (
-              <Given ?01M0QPD2RJ4W0SR5B97QX45V4P>
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNN6>
               the Agent output schema accepts a structured JSON value but does not accept the raw provider string
-              </?01M0QPD2RJ4W0SR5B97QX45V4P>
-              <When ?01M0QPD2RJ4W0SR5B97QX45V4Q>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN6>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNN7>
               the provider result is validated once and delivered to a Ctrl or Data workflow node
-              </?01M0QPD2RJ4W0SR5B97QX45V4Q>
-              <Then ?01M0QPD2RJ4W0SR5B97QX45V4R>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN7>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNN8>
               the shared generic contract SHALL return the deep-frozen parsed value so Data output ports consume structured fields without a workflow-specific parser
-              </?01M0QPD2RJ4W0SR5B97QX45V4R>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN8>
             )>
             <Case #exact-once-recovery (
-              <Given ?01M0QPD2RJ4W0SR5B97QX45V4S>
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNN9>
               one Agent effect is pending or completed for an exact run, generation and effect identity
-              </?01M0QPD2RJ4W0SR5B97QX45V4S>
-              <When ?01M0QPD2RJ4W0SR5B97QX45V4T>
+              </?01M17AFD8GB0Z3DF15C0ZMPNN9>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNNA>
               the invoke is repeated through the same or a reconstructed provider instance
-              </?01M0QPD2RJ4W0SR5B97QX45V4T>
-              <Then ?01M0QPD2RJ4W0SR5B97QX45V4V>
+              </?01M17AFD8GB0Z3DF15C0ZMPNNA>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNNB>
               the generic effect lifecycle SHALL return the same terminal result without creating a second provider child
-              </?01M0QPD2RJ4W0SR5B97QX45V4V>
+              </?01M17AFD8GB0Z3DF15C0ZMPNNB>
             )>
             <Case #new-run (
-              <Given ?01M0QPD2RJ4W0SR5B97QX45V4W>
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNNC>
               a previously completed business run
-              </?01M0QPD2RJ4W0SR5B97QX45V4W>
-              <When ?01M0QPD2RJ4W0SR5B97QX45V4X>
+              </?01M17AFD8GB0Z3DF15C0ZMPNNC>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNND>
               the caller explicitly supplies a new run identity
-              </?01M0QPD2RJ4W0SR5B97QX45V4X>
-              <Then ?01M0QPD2RJ4W0SR5B97QX45V4Y>
+              </?01M17AFD8GB0Z3DF15C0ZMPNND>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNNE>
               Eidolon SHALL treat it as a new run rather than replaying the prior run by semantic similarity
-              </?01M0QPD2RJ4W0SR5B97QX45V4Y>
+              </?01M17AFD8GB0Z3DF15C0ZMPNNE>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #no-host-semantic-heuristics (
-      <Statement ?01M0QPD2RJ4W0SR5B97QX45V4Z>
+      <Statement ?01M17AFD8GB0Z3DF15C0ZMPNNF>
       Host code MUST derive Agent tasks, policies, tools and Material bindings only from closed structured resources and exact identities, never from ordinary-language or naming heuristics.
-      </?01M0QPD2RJ4W0SR5B97QX45V4Z>
+      </?01M17AFD8GB0Z3DF15C0ZMPNNF>
       <Suites [
         <Suite #authority-boundary { name = "Structured authority boundary" } (
           <Cases [
             <Case #ordinary-text-has-no-semantics (
-              <Given ?01M0QPD2RJ4W0SR5B97QX45V50>
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNNG>
               ordinary content contains similar names, Chinese process words or embedded resource-looking text
-              </?01M0QPD2RJ4W0SR5B97QX45V50>
-              <When ?01M0QPD2RKXHY3H3S89VNJ76PD>
+              </?01M17AFD8GB0Z3DF15C0ZMPNNG>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNNH>
               the package is projected, published or run
-              </?01M0QPD2RKXHY3H3S89VNJ76PD>
-              <Then ?01M0QPD2RKXHY3H3S89VNJ76PE>
+              </?01M17AFD8GB0Z3DF15C0ZMPNNH>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNNJ>
               no task, policy, tool or Material edge SHALL be inferred unless a fixed typed relation declares it
-              </?01M0QPD2RKXHY3H3S89VNJ76PE>
+              </?01M17AFD8GB0Z3DF15C0ZMPNNJ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #equivalent-proposition-across-ordinary-ctrl-data (
+      <Statement ?01M17AFD8GB0Z3DF15C0ZMPNNK>
+      Eidolon SHALL execute one immutable engineering proposition through ordinary, AI Ctrl Workflow and AI Data Workflow modes with the same output acceptance authority, while proving the requested lifecycle rather than silently falling back.
+      </?01M17AFD8GB0Z3DF15C0ZMPNNK>
+      <Suites [
+        <Suite #tri-modal-equivalence { name = "Tri-modal proposition equivalence" } (
+          <Cases [
+            <Case #ordinary-is-workflow-free (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNNM>
+              the manifest selects ordinary execution
+              </?01M17AFD8GB0Z3DF15C0ZMPNNM>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNNN>
+              the proposition session and provider surface are observed
+              </?01M17AFD8GB0Z3DF15C0ZMPNNN>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNNP>
+              no Workflow instance, inferred stage, lifecycle-only resource or lifecycle-internal tool SHALL be present
+              </?01M17AFD8GB0Z3DF15C0ZMPNNP>
+            )>
+            <Case #ctrl-and-data-prove-identity (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNNQ>
+              the manifest selects Ctrl or Data execution
+              </?01M17AFD8GB0Z3DF15C0ZMPNNQ>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNNR>
+              the workflow journey completes or pauses
+              </?01M17AFD8GB0Z3DF15C0ZMPNNR>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNNS>
+              the receipt SHALL join the exact requested Workflow kind, instance/run and node-agent lifecycle; ordinary or other-kind fallback SHALL fail the cell
+              </?01M17AFD8GB0Z3DF15C0ZMPNNS>
+            )>
+            <Case #same-proposition-and-verifier (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNNT>
+              three cells share one scenario revision
+              </?01M17AFD8GB0Z3DF15C0ZMPNNT>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNNV>
+              their inputs and outcomes are compared
+              </?01M17AFD8GB0Z3DF15C0ZMPNNV>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNNW>
+              request bytes, seed policy and verifier digest SHALL match exactly and only verifier-equivalent completed cells SHALL enter cache/cost comparison
+              </?01M17AFD8GB0Z3DF15C0ZMPNNW>
+            )>
+            <Case #matrix-pins-executable-bytes (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNNX>
+              a matrix binds source executable paths and may perform multiple invocations
+              </?01M17AFD8GB0Z3DF15C0ZMPNNX>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNNY>
+              a source path is rebuilt or replaced while the matrix is active
+              </?01M17AFD8GB0Z3DF15C0ZMPNNY>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNNZ>
+              every cell and resume SHALL use the first runnable executable epoch bound to that run id, including Eidolon's adjacent native sidecar closure; binding and receipt evidence SHALL identify those content-addressed bytes, and integrity drift observed by the persistence gate SHALL fail before a completed receipt is persisted
+              </?01M17AFD8GB0Z3DF15C0ZMPNNZ>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #failed-workflow-preserves-mode-identity (
+      <Statement ?01M17AFD8GB0Z3DF15C0ZMPNP0>
+      An admitted Workflow node actor SHALL publish its exact Workflow kind, definition, instance, run and node identity even when its execution later fails; outcome evidence SHALL remain independently failed and MUST NOT be promoted to success.
+      </?01M17AFD8GB0Z3DF15C0ZMPNP0>
+      <Suites [
+        <Suite #workflow-failure-identity { name = "Workflow failure identity" } (
+          <Cases [
+            <Case #admitted-child-fails (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNP1>
+              an AICtrlWorkflow or AIDataWorkflow child actor is admitted and its provider later rejects the request
+              </?01M17AFD8GB0Z3DF15C0ZMPNP1>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNP2>
+              headless runtime evidence is projected
+              </?01M17AFD8GB0Z3DF15C0ZMPNP2>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNP3>
+              exactly one matching Workflow run/node identity SHALL be present alongside the original failed outcome and provider cause
+              </?01M17AFD8GB0Z3DF15C0ZMPNP3>
+            )>
+            <Case #failure-before-admission (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNP4>
+              Workflow Agent admission fails before any child actor exists
+              </?01M17AFD8GB0Z3DF15C0ZMPNP4>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNP5>
+              public runtime evidence is projected
+              </?01M17AFD8GB0Z3DF15C0ZMPNP5>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNP6>
+              no node actor identity SHALL be fabricated
+              </?01M17AFD8GB0Z3DF15C0ZMPNP6>
+            )>
+            <Case #repeated-node-executions (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNP7>
+              one Workflow run legitimately executes the same node definition more than once
+              </?01M17AFD8GB0Z3DF15C0ZMPNP7>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNP8>
+              each execution admits a distinct child actor
+              </?01M17AFD8GB0Z3DF15C0ZMPNP8>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNP9>
+              public evidence SHALL retain every actor execution in order and MUST NOT treat a repeated node id as an identity collision
+              </?01M17AFD8GB0Z3DF15C0ZMPNP9>
+            )>
+            <Case #addressed-actor-fails-after-admission (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNPA>
+              a typed-host Workflow invocation validates a new or existing addressed actor owner
+              </?01M17AFD8GB0Z3DF15C0ZMPNPA>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNPB>
+              that actor's provider execution later fails
+              </?01M17AFD8GB0Z3DF15C0ZMPNPB>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNPC>
+              the admitted addressed actor identity SHALL remain public while the outcome remains failed
+              </?01M17AFD8GB0Z3DF15C0ZMPNPC>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #private-proposition-testkit-boundary (
+      <Statement ?01M17AFD8GB0Z3DF15C0ZMPNPD>
+      Codument proposition matrix contracts and execution helpers SHALL be owned by one repository-private E2E testkit and SHALL NOT be exported from or imported by production package source.
+      </?01M17AFD8GB0Z3DF15C0ZMPNPD>
+      <Suites [
+        <Suite #private-testkit-cases { name = "Private proposition testkit ownership" } (
+          <Cases [
+            <Case #private-owner-preserves-evidence (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNPE>
+              The ordinary, AI Ctrl and AI Data proposition matrix and live provider runner exist.
+              </?01M17AFD8GB0Z3DF15C0ZMPNPE>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNPF>
+              The proposition facilities are moved out of production package source.
+              </?01M17AFD8GB0Z3DF15C0ZMPNPF>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNPG>
+              The private testkit SHALL preserve manifest, receipt, mode identity, provider observation and executable epoch behavior.
+              </?01M17AFD8GB0Z3DF15C0ZMPNPG>
+            )>
+            <Case #production-surface-remains-clean (
+              <Given ?01M17AFD8GB0Z3DF15C0ZMPNPH>
+              Production package public entries and source dependency edges are inspected.
+              </?01M17AFD8GB0Z3DF15C0ZMPNPH>
+              <When ?01M17AFD8GB0Z3DF15C0ZMPNPJ>
+              The proposition E2E testkit is present.
+              </?01M17AFD8GB0Z3DF15C0ZMPNPJ>
+              <Then ?01M17AFD8GB0Z3DF15C0ZMPNPK>
+              Production source SHALL NOT export or import the private testkit or legacy proposition E2E modules.
+              </?01M17AFD8GB0Z3DF15C0ZMPNPK>
             )>
           ]>
         )>

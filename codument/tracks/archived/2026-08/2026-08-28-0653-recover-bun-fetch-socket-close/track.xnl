@@ -1,0 +1,76 @@
+<Track #recover-bun-fetch-socket-close apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Recover official DeepSeek streams from Bun premature socket closure before first output without replaying accepted output." description = "Classify the exact Bun fetch socket-close failure, prove both sides of the stream replay boundary, rebuild/install Eidolon, and rerun the rejected proposition cell before resuming the matrix." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-28T03:04:01.015Z" updated_at = "2026-08-28T03:53:05.598Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #provider_errors { role = "output" name = "provider-errors" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/llm/ProviderErrors.ts" }>
+    <MaterialBundle #retry_tests { role = "output" name = "provider-retry-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/AIAgent/provider_retry.test.ts" }>
+  ]>
+  <TaskSpace #space_recover-bun-fetch-socket-close { name = "recover-bun-fetch-socket-close" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Lock transport recovery contract" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Write RED classification and stream replay-boundary tests" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M135G6EEDBVK8XR15ERSS36G>
+              Tests reproduce the exact Bun error, require same-request retry before first output, and prohibit retry after either a visible chunk or driver output-observed fact.
+              </?01M135G6EEDBVK8XR15ERSS36G>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Validate the DeepSeek transport behavior patch" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M135G6EF15MKFC95XN3K6P66>
+              The behavior delta specifies bounded pre-accept recovery and indeterminate-after-accept termination without changing provider requests or retry budgets.
+              </?01M135G6EF15MKFC95XN3K6P66>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Implement precise classification" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Classify Bun premature socket-close as safe pre-accept transport replay" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M135G6EF15MKFC95XN3K6P67>
+              The exact message emits transport_socket_closed_retryable metadata and uses the existing bounded policy.
+              </?01M135G6EF15MKFC95XN3K6P67>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Keep stream output as replay authority" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M135G6EF15MKFC95XN3K6P68>
+              No visible-output or driver-observed-output path creates another attempt, and diagnostic phase/termination are provider_accepted and indeterminate_after_accept.
+              </?01M135G6EF15MKFC95XN3K6P68>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Verify, install and rerun evidence" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Run regression, typecheck, build, local install and strict validation" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M135G6EF15MKFC95XN3K6P69>
+              Focused and broader tests, locked TypeScript, build/install digest, and strict Codument validation pass.
+              </?01M135G6EF15MKFC95XN3K6P69>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Independently verify and rerun official DeepSeek proposition cell" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M135G6EF15MKFC95XN3K6P6A>
+              A fresh verifier passes the repair and a new immutable run either accepts modeling-blog/ordinary or supplies a new localized gap without accepting the rejected receipt.
+              </?01M135G6EF15MKFC95XN3K6P6A>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_recover-bun-fetch-socket-close" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

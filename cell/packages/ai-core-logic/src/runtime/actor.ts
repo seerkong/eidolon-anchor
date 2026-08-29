@@ -159,6 +159,7 @@ export type CreateActorParams = {
   toolPolicy?: Partial<ActorToolPolicy>;
   contextPolicy?: Partial<ActorContextPolicy>;
   executionContract?: AiAgentActor["executionContract"];
+  contextPipeline?: AiAgentActor["contextPipeline"];
   origin?: AiAgentActor["origin"];
   modelConfig?: ActorModelConfig;
   llmClient?: object | null;
@@ -307,6 +308,9 @@ export function createActor(params: CreateActorParams): AiAgentActor {
     contextPolicy,
     executionContract: params.executionContract
       ? cloneAndFreezeAgentExecutionContract(params.executionContract)
+      : undefined,
+    contextPipeline: params.contextPipeline
+      ? Object.freeze({ ...params.contextPipeline, stages: Object.freeze([...params.contextPipeline.stages]) })
       : undefined,
     origin: normalizeActorOrigin(params.origin),
     modelConfig: params.modelConfig ?? {},

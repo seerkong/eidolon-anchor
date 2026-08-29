@@ -143,6 +143,7 @@ export function createWorkflowComponent(options: WorkflowComponentOptions = {}):
   const authoring = new WorkflowAuthoringWorkspace(effectiveStore, resources)
   const resourceRegistry = options.resourceRegistry ?? new EidolonAppResourceRegistryAdapter({
     layers: options.resourceLayers,
+    workspaceRoot: options.workspaceRoot,
   })
   const sessions = new WorkflowAuthoringSessionStore(
     effectiveStore,

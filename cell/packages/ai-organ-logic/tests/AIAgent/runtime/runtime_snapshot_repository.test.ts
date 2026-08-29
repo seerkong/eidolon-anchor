@@ -117,6 +117,20 @@ describe("Runtime snapshot repository", () => {
         outputSchema: { type: "string" },
         effectPolicy: { toolMode: "declared-only" },
       },
+      contextPipeline: {
+        schemaVersion: "eidolon.agent-context-pipeline-binding/v1",
+        resourceId: "eidolon.fixture.StandardContext",
+        contentDigest: "sha256:standard-context",
+        implementation: "eidolon.standard-context-pipeline/v1",
+        stages: [
+          "prompt-plan",
+          "conversation-prelude",
+          "provider-context-facts-at-history-anchors",
+          "stable-message-prefix",
+          "conversation-boundary-overlays",
+          "provider-conversion",
+        ],
+      },
       systemPrompts: ["worker profile"],
       continuationBaseline: {
         baselineEpoch: 4,
@@ -184,6 +198,7 @@ describe("Runtime snapshot repository", () => {
     expect(loaded?.actors.worker?.durableMaterials).toEqual(worker.durableMaterials)
     expect(loaded?.actors.worker?.contextPolicy).toEqual({ historyCompaction: "disabled" })
     expect(loaded?.actors.worker?.executionContract).toEqual(actorSnapshot.executionContract)
+    expect(loaded?.actors.worker?.contextPipeline).toEqual(actorSnapshot.contextPipeline)
     expect("workflowProgress" in (loaded?.actors.worker ?? {})).toBe(false)
     const recoveredWorker = hydrateActor(loaded!.actors.worker!)
     expect(recoveredWorker.continuationBaseline).toEqual(expect.objectContaining({
@@ -192,6 +207,7 @@ describe("Runtime snapshot repository", () => {
       contextDigest: "sha256:provider-visible-context",
     }))
     expect(recoveredWorker.executionContract).toEqual(actorSnapshot.executionContract)
+    expect(recoveredWorker.contextPipeline).toEqual(actorSnapshot.contextPipeline)
     expect(recoveredWorker.agentName).toBe("resource://eidolon.fixture.RecoverableAgent")
     expect(loaded?.questionnaires.map((row) => row.questionnaireId)).toEqual(["q1"])
     const questionnaireXnl = fs.readFileSync(path.join(rootDir, "questionnaires.xnl"), "utf8").trim()

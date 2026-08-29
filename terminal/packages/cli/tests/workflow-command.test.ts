@@ -7,6 +7,7 @@ import yargs from "yargs"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { createWorkflowComponent } from "@cell/ai-organ-logic/workflow"
 import { composeToolRegistry } from "@cell/ai-organ-logic/composer/AIAgent"
+import { buildWorkflowInspectCapabilityToolDef } from "@cell/ai-organ-logic/workflow/tools"
 import { buildExecRuntimeMetadata } from "../../organ/src/AIAgent/TerminalRuntime"
 import { projectRuntimeTiming } from "../../organ/src/AIAgent/RuntimeTimingProjection"
 import {
@@ -42,6 +43,17 @@ function testTiming(sessionId = "test-session") {
     providerCalls: [],
     toolCalls: [],
   })
+}
+
+function testUsage() {
+  return {
+    prompt_tokens: 0,
+    completion_tokens: 0,
+    total_tokens: 0,
+    cache_creation_tokens: 0,
+    cache_read_tokens: 0,
+    is_estimated: false,
+  }
 }
 
 async function publishFixture(component: ReturnType<typeof createWorkflowComponent>, input: {
@@ -177,7 +189,7 @@ describe("workflow command", () => {
     const timing = testTiming("public-trends-session")
     await yargs([
       "workflow", "agent", "调研三个真实来源，综合成报告并等待负责人确认",
-      "--session", "public-trends-session", "--execute", "--json",
+      "--session", "public-trends-session", "--form", "ai-ctrl", "--execute", "--json",
     ])
       .scriptName("eidolon")
       .command(createWorkflowCommand({
@@ -195,6 +207,9 @@ describe("workflow command", () => {
             warnings: [],
             failureSummary: null,
             timing,
+            usage: testUsage(),
+            providerCacheObservations: [],
+            workflowExecutions: [],
           }
         },
         reportError: (message) => errors.push(message),
@@ -215,6 +230,7 @@ describe("workflow command", () => {
     expect(calls[0].input).toContain("typed durable WorkflowFulfill handoff")
     expect(calls[0].input).toContain("never reconstruct identifiers")
     expect(calls[0].input).toContain('"request": "调研三个真实来源，综合成报告并等待负责人确认"')
+    expect(calls[0].input).toContain('"form": "ai-ctrl"')
     expect(calls[0].input).toContain('"publish": true')
     expect(calls[0].input).toContain('"execute": true')
     expect(JSON.parse(writes.join(""))).toMatchObject({
@@ -262,6 +278,9 @@ describe("workflow command", () => {
             warnings: [],
             failureSummary: null,
             timing: testTiming("public-trends-session"),
+            usage: testUsage(),
+            providerCacheObservations: [],
+            workflowExecutions: [],
           }
         },
         reportError: (message) => errors.push(message),
@@ -321,6 +340,16 @@ describe("workflow command", () => {
     })
   })
 
+  test("projects an explicit workflow form without inferring it from the request", () => {
+    expect(buildWorkflowCliFulfillInput({ requirement: "完成同一个命题", form: "ai-data" })).toEqual({
+      request: "完成同一个命题",
+      form: "ai-data",
+      operation: "auto",
+      publish: false,
+      execute: false,
+    })
+  })
+
   test("creates a workflow from natural language through the in-process Eidolon runtime", async () => {
     const workDir = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-cli-"))
     const { processLike, writes, errors } = makeProcessLike(workDir)
@@ -337,6 +366,9 @@ describe("workflow command", () => {
           warnings: [],
           failureSummary: null,
           timing: testTiming(),
+          usage: testUsage(),
+          providerCacheObservations: [],
+          workflowExecutions: [],
         }
       },
       reportError: (message) => errors.push(message),
@@ -379,6 +411,9 @@ describe("workflow command", () => {
           warnings: [],
           failureSummary: null,
           timing: testTiming(),
+          usage: testUsage(),
+          providerCacheObservations: [],
+          workflowExecutions: [],
         }
       },
       reportError: () => {},
@@ -398,7 +433,14 @@ describe("workflow command", () => {
 
   test("projects lifecycle subcommands to the same native workflow tools", async () => {
     const workDir = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-cli-"))
-    const calls: Array<{ toolName: string; input: any; workDir: string; sessionKey?: string }> = []
+    const calls: Array<{
+      toolName: string
+      input: any
+      workDir: string
+      sessionKey?: string
+      captureRuntimeEvidence?: boolean
+      providerChatCompatibilityProfileId?: string
+    }> = []
     const invoke = async (argv: string[]) => {
       const { processLike, writes, errors } = makeProcessLike(workDir)
       await yargs(["workflow", ...argv, "--json"])
@@ -412,6 +454,8 @@ describe("workflow command", () => {
               input: options.input,
               workDir: options.workDir,
               sessionKey: options.sessionKey,
+              captureRuntimeEvidence: options.captureRuntimeEvidence,
+              providerChatCompatibilityProfileId: options.providerChatCompatibilityProfileId,
             })
             return JSON.stringify({ ok: true, status: "Succeeded", run_id: "workflow-1" })
           },
@@ -424,7 +468,10 @@ describe("workflow command", () => {
     }
 
     await invoke(["prepare", "resource://demo.data.Flow", "{\"value\":\"hello\"}", "--instance-id", "instance-1", "--session", "business-session"])
-    await invoke(["run", "instance-1", "--run-id", "workflow-1", "--yes", "--session", "business-session"])
+    await invoke([
+      "run", "instance-1", "--run-id", "workflow-1", "--yes", "--session", "business-session",
+      "--capture-runtime-evidence", "--provider-chat-profile", "deepseek-official-chat@1",
+    ])
     await invoke(["status", "workflow-1", "--session", "business-session"])
     await invoke(["events", "workflow-1", "--session", "business-session"])
     await invoke(["result", "workflow-1", "--allow-partial", "--session", "business-session"])
@@ -477,6 +524,10 @@ describe("workflow command", () => {
     })
     expect(calls.every((entry) => entry.sessionKey === "business-session")).toBe(true)
     expect(calls[1].input).toEqual({ instance_id: "instance-1", run_id: "workflow-1", confirmed: true })
+    expect(calls[1]).toMatchObject({
+      captureRuntimeEvidence: true,
+      providerChatCompatibilityProfileId: "deepseek-official-chat@1",
+    })
     expect(calls[5].input).toMatchObject({
       run_id: "workflow-1",
       node_id: "review",
@@ -751,16 +802,16 @@ describe("workflow command", () => {
         },
       },
     })
-    const registry = composeToolRegistry({ includeInternalOnly: false })
-    const output = await ToolFuncRegistry.call(
-      registry,
-      "WorkflowInspectCapability",
+    const output = await buildWorkflowInspectCapabilityToolDef().run(
       {
-        outerCtx: {
-          workDir: "/workspace/project",
-          metadata,
+        vm: {
+          outerCtx: {
+            workDir: "/workspace/project",
+            metadata,
+          },
+          registries: {},
         },
-        registries: {},
+        actor: {},
       },
       {},
       {},

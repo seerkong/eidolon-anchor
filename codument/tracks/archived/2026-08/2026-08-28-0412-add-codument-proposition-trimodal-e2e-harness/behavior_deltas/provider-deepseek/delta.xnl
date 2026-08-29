@@ -1,0 +1,30 @@
+<BehaviorPatch #track.add-codument-proposition-trimodal-e2e-harness.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/official-live-proposition-cache-evidence" } (
+      <Requirement #official-live-proposition-cache-evidence (
+        <Statement ?>Official DeepSeek proposition runs SHALL report final-success cache usage, exact retained-prefix integrity and absolute provider-token cost by comparable context epoch without letting compatible providers, short-context warm-up or aggregate ratios satisfy the long-running gate.</?>
+        <Suites [
+          <Suite #live-proposition-evidence { name = "Official live proposition evidence" } (
+            <Cases [
+              <Case #official-provider-only (
+                <Given ?>a live matrix cell is required for Mission acceptance</?>
+                <When ?>provider configuration is resolved</?>
+                <Then ?>the receipt SHALL prove the official DeepSeek provider and exact model; a compatible gateway SHALL remain separate and cannot satisfy the cell</?>
+              )>
+              <Case #long-context-scope (
+                <Given ?>forward-only final-success turns share provider, model and context epoch with at least three eligible subsequent turns and 32768 input tokens</?>
+                <When ?>cache coverage is evaluated</?>
+                <Then ?>the scope SHALL report hit and miss tokens, require retained-prefix integrity `1.0`, target hit ratio at least `0.995`, and localize any lower result without merging cold or explicit-epoch turns</?>
+              )>
+              <Case #absolute-cost-is-visible (
+                <Given ?>ordinary, Ctrl and Data cells are verifier-equivalent</?>
+                <When ?>their provider cost is compared</?>
+                <Then ?>the report SHALL expose total input, hit, miss and output tokens plus normalized charged input and elapsed/retry facts so stable Workflow overhead cannot be hidden by a high ratio</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

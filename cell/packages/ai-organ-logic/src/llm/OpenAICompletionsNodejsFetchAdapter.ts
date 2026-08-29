@@ -59,27 +59,45 @@ type OpenAIChatUsage = Readonly<{
   prompt_cache_miss_tokens: number;
 }>;
 
-function normalizeOpenAIChatUsage(value: unknown): OpenAIChatUsage | undefined {
+function ownFiniteNonNegativeNumber(source: Record<string, unknown>, key: string): number | undefined {
+  const descriptor = Object.getOwnPropertyDescriptor(source, key);
+  if (!descriptor || !("value" in descriptor)) return undefined;
+  const numeric = descriptor.value;
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric as number : undefined;
+}
+
+export function normalizeOpenAIChatUsage(value: unknown): OpenAIChatUsage | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const prototype = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) return undefined;
   const source = value as Record<string, unknown>;
-  const keys = [
-    "prompt_tokens",
-    "completion_tokens",
-    "total_tokens",
-    "prompt_cache_hit_tokens",
-    "prompt_cache_miss_tokens",
-  ] as const;
-  const usage = {} as Record<(typeof keys)[number], number>;
-  for (const key of keys) {
-    const descriptor = Object.getOwnPropertyDescriptor(source, key);
-    if (!descriptor || !("value" in descriptor)) return undefined;
-    const numeric = descriptor.value;
-    if (!Number.isFinite(numeric) || numeric < 0) return undefined;
-    usage[key] = numeric;
+  const promptTokens = ownFiniteNonNegativeNumber(source, "prompt_tokens");
+  const completionTokens = ownFiniteNonNegativeNumber(source, "completion_tokens");
+  const totalTokens = ownFiniteNonNegativeNumber(source, "total_tokens");
+  if (promptTokens === undefined || completionTokens === undefined || totalTokens === undefined) return undefined;
+
+  let cacheHitTokens = ownFiniteNonNegativeNumber(source, "prompt_cache_hit_tokens");
+  if (cacheHitTokens === undefined) {
+    const details = source.prompt_tokens_details;
+    if (details && typeof details === "object" && !Array.isArray(details)) {
+      const detailsPrototype = Object.getPrototypeOf(details);
+      if (detailsPrototype === Object.prototype || detailsPrototype === null) {
+        cacheHitTokens = ownFiniteNonNegativeNumber(details as Record<string, unknown>, "cached_tokens");
+      }
+    }
   }
-  return Object.freeze(usage);
+  if (cacheHitTokens === undefined || cacheHitTokens > promptTokens) return undefined;
+  const cacheMissTokens = ownFiniteNonNegativeNumber(source, "prompt_cache_miss_tokens")
+    ?? promptTokens - cacheHitTokens;
+  if (cacheHitTokens + cacheMissTokens !== promptTokens) return undefined;
+
+  return Object.freeze({
+    prompt_tokens: promptTokens,
+    completion_tokens: completionTokens,
+    total_tokens: totalTokens,
+    prompt_cache_hit_tokens: cacheHitTokens,
+    prompt_cache_miss_tokens: cacheMissTokens,
+  });
 }
 
 function observeOpenAIChatUsage(

@@ -11,6 +11,7 @@ import {
   createMacOsSeatbeltPolicy,
   createWindowsSandboxCommand,
   executeSandboxedBashCommand,
+  executeStreamingSandboxedBashCommand,
   resolveSandboxBackendSelection,
   sandboxSetupIsComplete,
 } from "@cell/ai-organ-logic/sandbox";
@@ -58,6 +59,28 @@ configureLocalPermissionConfigStore({
 } as any);
 
 describe("sandbox backend runtime", () => {
+  it("terminates a timed-out shell's descendant process group", async () => {
+    if (process.platform === "win32") return;
+    const startedAt = Date.now();
+    const result = await executeStreamingSandboxedBashCommand({
+      command: "sleep 30 & wait",
+      cwd: tmpdir(),
+      timeoutMs: 100,
+      selection: {
+        backendName: "unsandboxed",
+        sandboxMode: "danger-full-access",
+        networkAccess: "enabled",
+        workDir: tmpdir(),
+        writableRoots: [tmpdir()],
+        platform: process.platform,
+      },
+    });
+
+    expect(result.ok).toBeFalse();
+    expect(result.timedOut).toBeTrue();
+    expect(Date.now() - startedAt).toBeLessThan(3_000);
+  });
+
   it("merges workspace-access write grants into workspace-write writable roots", () => {
     const workDir = "/workspace/project";
     const authorityRoot = "/workspace/project/.eidolon";

@@ -2,9 +2,26 @@ import { describe, expect, it } from "bun:test";
 
 import { OpenAICompletionsNodejsFetchStreamAdapter } from "@cell/ai-organ-logic/stream/OpenAICompletionsNodejsFetchStreamAdapter";
 import { deepSeekOfficialChatEffectBundle } from "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles";
+import { normalizeOpenAIChatUsage } from "@cell/ai-organ-logic/llm/OpenAICompletionsNodejsFetchAdapter";
 import { OutputStream } from "@cell/symbiont-logic/stream/stream";
 
 describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
+  it("normalizes OpenAI-compatible cached_tokens usage into the DeepSeek cache contract", () => {
+    expect(normalizeOpenAIChatUsage({
+      prompt_tokens: 100,
+      completion_tokens: 8,
+      total_tokens: 108,
+      prompt_tokens_details: { cached_tokens: 75 },
+      completion_tokens_details: { reasoning_tokens: 7 },
+    })).toEqual({
+      prompt_tokens: 100,
+      completion_tokens: 8,
+      total_tokens: 108,
+      prompt_cache_hit_tokens: 75,
+      prompt_cache_miss_tokens: 25,
+    });
+  });
+
   it("captures interleaved reasoning_content into reasoning_content field", async () => {
     const timeline = new OutputStream();
     const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
@@ -196,5 +213,49 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
       "StreamStart",
       "StreamEnd",
     ]);
+  });
+
+  it("rejects a reasoning-only response truncated by the provider output limit", async () => {
+    const timeline = new OutputStream();
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
+    const events: Array<{ event: string; data: string }> = [];
+    timeline.onData((ev) => events.push(ev));
+
+    async function* stream() {
+      yield { choices: [{ delta: { reasoning_content: "I will plan the implementation." }, finish_reason: null }] };
+      yield { choices: [{ delta: {}, finish_reason: "length" }] };
+    }
+
+    await expect(adapter.processStream(stream())).rejects.toThrow("provider_output_truncated");
+    expect(events.filter((ev) => ev.event === "control").map((ev) => JSON.parse(ev.data).event)).toEqual([
+      "StreamStart",
+      "StreamEnd",
+    ]);
+  });
+
+  it("normalizes compatible finish-reason aliases before semantic completion", async () => {
+    const timeline = new OutputStream();
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
+
+    async function* stream() {
+      yield { choices: [{ delta: { reasoning_content: "Still thinking." } }] };
+      yield { choices: [{ delta: {}, finishReason: "max_output_tokens" }] };
+    }
+
+    await expect(adapter.processStream(stream())).rejects.toThrow(
+      "provider_output_truncated: chat completion ended with finish_reason=length",
+    );
+  });
+
+  it("rejects a reasoning-only response even when the provider reports a normal stop", async () => {
+    const timeline = new OutputStream();
+    const adapter = new OpenAICompletionsNodejsFetchStreamAdapter({ timeline, effectBundle: deepSeekOfficialChatEffectBundle });
+
+    async function* stream() {
+      yield { choices: [{ delta: { reasoning_content: "I planned the work but produced no action." }, finish_reason: null }] };
+      yield { choices: [{ delta: {}, finish_reason: "stop" }] };
+    }
+
+    await expect(adapter.processStream(stream())).rejects.toThrow("provider_reasoning_only_response");
   });
 });

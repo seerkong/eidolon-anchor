@@ -26,6 +26,7 @@ import {
   resolveWorkflowLifecycleToolProfileRegistry,
   type WorkflowLifecycleToolProfileRegistry,
 } from "../tools/WorkflowLifecycleToolProfileRuntime"
+import { DEFAULT_WORKFLOW_ACTOR_BUDGET } from "./WorkflowActorProgress"
 
 const BOUND_ACTORS = new WeakSet<AiAgentActor>()
 
@@ -150,11 +151,11 @@ async function spawnWorkflowLifecycleActorWithStrategy(
     resourcePackage,
     progress: {
       stageStartedAt: now,
-      deadlineAt: now + 180_000,
+      deadlineAt: now + DEFAULT_WORKFLOW_ACTOR_BUDGET.stageDeadlineMs,
       turnsSinceProgress: 0,
-      maxNoProgressTurns: 4,
+      maxNoProgressTurns: DEFAULT_WORKFLOW_ACTOR_BUDGET.maxNoProgressTurns,
       proofRepairAttempts: 0,
-      maxProofRepairAttempts: 3,
+      maxProofRepairAttempts: DEFAULT_WORKFLOW_ACTOR_BUDGET.maxProofRepairAttempts,
       lastProgressAt: now,
     },
   })

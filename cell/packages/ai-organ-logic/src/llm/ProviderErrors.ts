@@ -75,6 +75,25 @@ export const RESPONSES_TOOL_CONTEXT_RECOVERY_POLICY: ProviderRetryPolicy = {
   baseDelaySeconds: 0,
 };
 
+export const CHAT_TOOL_PAYLOAD_RECOVERY_POLICY: ProviderRetryPolicy = {
+  ...DEFAULT_PROVIDER_RETRY_POLICY,
+  maxRetries: 1,
+  maxTotalElapsedSeconds: 15 * 60,
+  maxDelaySeconds: 0,
+  baseDelaySeconds: 0,
+};
+
+export const CHAT_INCOMPLETE_SEMANTIC_COMPLETION_POLICY: ProviderRetryPolicy = {
+  ...DEFAULT_PROVIDER_RETRY_POLICY,
+  // The generic attempt-count executor does not own DeepSeek semantic
+  // completion. AiAgentExecutor admits replay by cumulative output-token
+  // progress and the outer operation deadline instead.
+  maxRetries: 0,
+  maxTotalElapsedSeconds: 15 * 60,
+  maxDelaySeconds: 0,
+  baseDelaySeconds: 0,
+};
+
 const HTTP_STATUS_RE = /\b(?:http|fetch error)\s*(\d{3})\b/i;
 const NON_RETRYABLE_PATTERNS = [
   "unauthorized",
@@ -135,6 +154,34 @@ export function classifyProviderRetry(error: unknown): ProviderRetryClassificati
   const message = error instanceof Error ? error.message : String(error ?? "");
   const lowered = message.toLowerCase();
   const statusCode = statusFromError(error);
+  const protocolError = error as { name?: unknown; code?: unknown } | null | undefined;
+  if (protocolError?.name === "ChatCompletionsProtocolError"
+    && protocolError.code === "invalid_tool_call_payload") {
+    return retryable("chat_tool_payload_recoverable", {
+      layer: "stream_protocol",
+      phase: "before_tool_dispatch",
+      retryScope: "assistant_turn_repair",
+      replaySafety: "safe_before_tool_dispatch",
+    });
+  }
+  if (protocolError?.name === "ChatCompletionsOutputTruncatedError"
+    && protocolError.code === "provider_output_truncated") {
+    return retryable("chat_output_truncated_recoverable", {
+      layer: "stream_protocol",
+      phase: "before_tool_dispatch",
+      retryScope: "assistant_turn_semantic_completion",
+      replaySafety: "safe_before_tool_dispatch",
+    });
+  }
+  if (protocolError?.name === "ChatCompletionsReasoningOnlyError"
+    && protocolError.code === "provider_reasoning_only_response") {
+    return retryable("chat_reasoning_only_recoverable", {
+      layer: "stream_protocol",
+      phase: "before_tool_dispatch",
+      retryScope: "assistant_turn_semantic_completion",
+      replaySafety: "safe_before_tool_dispatch",
+    });
+  }
   if (typeof statusCode === "number") {
     if (isRetryableStatus(statusCode)) return retryable(`http_${statusCode}_retryable`, { phase: "request_sent" });
     if (statusCode >= 400 && statusCode < 500) return nonRetryable(`http_${statusCode}_non_retryable`);
@@ -174,6 +221,14 @@ export function classifyProviderRetry(error: unknown): ProviderRetryClassificati
       replaySafety: "safe_same_contract",
     });
   }
+  if (lowered.includes("socket connection was closed unexpectedly")) {
+    return retryable("transport_socket_closed_retryable", {
+      layer: "transport",
+      phase: "before_accept",
+      retryScope: "request_replay",
+      replaySafety: "safe_same_contract",
+    });
+  }
   if (error instanceof Error && error.name === "ConnectionError") {
     return retryable("transport_error_retryable", { phase: "request_sent" });
   }
@@ -187,6 +242,9 @@ export function resolveProviderRetryPolicy(classificationReason: string): Provid
   if (classificationReason === "first_event_timeout_retryable") return FIRST_EVENT_TIMEOUT_PROVIDER_RETRY_POLICY;
   if (classificationReason === "transport_timeout_retryable") return TRANSPORT_TIMEOUT_PROVIDER_RETRY_POLICY;
   if (classificationReason === "responses_tool_context_recoverable") return RESPONSES_TOOL_CONTEXT_RECOVERY_POLICY;
+  if (classificationReason === "chat_tool_payload_recoverable") return CHAT_TOOL_PAYLOAD_RECOVERY_POLICY;
+  if (classificationReason === "chat_output_truncated_recoverable") return CHAT_INCOMPLETE_SEMANTIC_COMPLETION_POLICY;
+  if (classificationReason === "chat_reasoning_only_recoverable") return CHAT_INCOMPLETE_SEMANTIC_COMPLETION_POLICY;
   return DEFAULT_PROVIDER_RETRY_POLICY;
 }
 
@@ -346,7 +404,15 @@ export function createProviderStreamWithRetry(
           resolveProviderOutput(output);
           return;
         } catch (error) {
-          void currentAttempt?.providerOutput?.catch(() => undefined);
+          const failedAttempt = currentAttempt;
+          if (!outputObserved && failedAttempt?.outputObserved) {
+            try {
+              outputObserved = failedAttempt.outputObserved() === true;
+            } catch {
+              // A broken observation hook cannot prove provider acceptance.
+            }
+          }
+          void failedAttempt?.providerOutput?.catch(() => undefined);
           currentAttempt = undefined;
           if (options.signal?.aborted) throw error;
 
@@ -386,7 +452,9 @@ export function createProviderStreamWithRetry(
             error: error instanceof Error ? error.message : String(error),
             classificationReason: classification.classificationReason,
             classificationLayer: classification.layer,
-            classificationPhase: classification.phase,
+            classificationPhase: outputObserved
+              ? "provider_accepted"
+              : classification.phase,
             retryScope: classification.retryScope,
             replaySafety: retrySafety,
             terminationReason: delay.terminationReason,

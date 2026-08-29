@@ -78,6 +78,13 @@ describe("workflow human product experience", () => {
     expect(prompt).not.toMatch(/approval-process|composite/)
   })
 
+  it("carries an explicit form hint as invocation data without rewriting the request", () => {
+    const request = "Use the exact same proposition and verifier."
+    const prompt = assembleWorkflowFulfillmentPrompt({ request, form: "ai-data" })
+    expect(prompt).toContain(`"formHint": "ai-data"`)
+    expect(prompt).toContain(request)
+  })
+
   it("passes only the current structured invocation instead of building workflow-specific history", () => {
     const prompt = assembleWorkflowFulfillmentPrompt({
       request: "Proceed with the confirmed recommendation and publish it.",

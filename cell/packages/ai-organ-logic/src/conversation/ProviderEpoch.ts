@@ -26,7 +26,11 @@ import { computeProviderEpochConversationProjectionDigests } from "./ProviderEpo
 import { codeUnitCompare } from "../llm/tool-schema/CanonicalSchemaFacts";
 
 function stableDigest(value: unknown): `sha256:${string}` {
-  return digestProviderContextClosedValue(value);
+  const persisted = JSON.stringify(value);
+  if (persisted === undefined) {
+    throw new Error("provider_context_digest_value_not_persistable");
+  }
+  return digestProviderContextClosedValue(JSON.parse(persisted));
 }
 
 function v2TransitionReason(

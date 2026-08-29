@@ -364,6 +364,7 @@ export class LocalFileRuntimeSnapshotRepository {
         toolPolicy: actor.toolPolicy,
         contextPolicy: actor.contextPolicy,
         executionContract: actor.executionContract,
+        contextPipeline: actor.contextPipeline,
         origin: actor.origin,
         modelConfig: redactProviderSecrets(actor.modelConfig),
         ctrlOptions: actor.ctrlOptions,
@@ -433,6 +434,7 @@ export class LocalFileRuntimeSnapshotRepository {
       },
       contextPolicy: actorJson.contextPolicy ?? { historyCompaction: "auto" },
       executionContract: actorJson.executionContract,
+      contextPipeline: actorJson.contextPipeline,
       origin: actorJson.origin,
       modelConfig: removePersistedProviderSecrets(actorJson.modelConfig ?? {}) as RuntimeSnapshotActor["modelConfig"],
       ctrlOptions: actorJson.ctrlOptions ?? {

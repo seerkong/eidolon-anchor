@@ -1,0 +1,86 @@
+<Track #pin-proposition-cell-executables apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Pin every Codument proposition matrix cell to one run-scoped Eidolon and Codument executable epoch so receipts identify the bytes actually executed." description = "Add content-addressed executable snapshots, bind the full matrix to those immutable paths, fail receipt persistence on drift, and independently verify the repair before restarting rejected live evidence." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-28T01:23:09.873Z" updated_at = "2026-08-28T02:06:08.317Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #live_runtime { role = "output" name = "live-runtime" domain = "code" path = "vfs://@/terminal/packages/organ-support/src/codumentPropositionLiveRuntime.ts" }>
+    <MaterialBundle #matrix_runner { role = "output" name = "matrix-runner" domain = "code" path = "vfs://@/scripts/run-codument-proposition-live.ts" }>
+    <MaterialBundle #tests { role = "output" name = "tests" domain = "test" path = "vfs://@/terminal/packages/organ-support/tests/codument-proposition-support.test.ts" }>
+  ]>
+  <TaskSpace #space_pin-proposition-cell-executables { name = "pin-proposition-cell-executables" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Executable epoch contract" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M13PINEXEC00000000000001>
+        Lock observable failure semantics with tests before changing live execution.
+        </?01M13PINEXEC00000000000001>
+        <SubNodes [
+          <Task #P1-T1 { name = "Write RED tests for run bindings, restart, source replacement and integrity drift" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M13PINEXEC00000000000002>
+              Tests prove one run and its resumes preserve the first executable binding after source replacement and reject unsafe identifiers, inconsistent manifests, or integrity drift.
+              </?01M13PINEXEC00000000000002>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Validate the executable provenance behavior delta" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M13PINEXEC00000000000003>
+              The behavior patch preserves tri-modal equivalence and adds a strict run-scoped executable-byte invariant.
+              </?01M13PINEXEC00000000000003>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Pinned live execution" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M13PINEXEC00000000000004>
+        Freeze source executables once, route every matrix invocation through the snapshots and fail closed on drift.
+        </?01M13PINEXEC00000000000004>
+        <SubNodes [
+          <Task #P2-T1 { name = "Implement content-addressed executable snapshot effects" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M13PINEXEC00000000000005>
+              Snapshot creation reads each source once, writes executable content-addressed files exclusively, persists a first-writer run binding, and verifies all reused material.
+              </?01M13PINEXEC00000000000005>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Bind the matrix and receipt authority to the pinned epoch" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M13PINEXEC00000000000006>
+              The root runner snapshots before planning the first cell, every cell receives the same frozen paths, and persistence rehashes them before a completed receipt is written.
+              </?01M13PINEXEC00000000000006>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Verification and live-run restart" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M13PINEXEC00000000000007>
+        Prove the repair, install the exact build and restart only comparable evidence.
+        </?01M13PINEXEC00000000000007>
+        <SubNodes [
+          <Task #P3-T1 { name = "Run focused tests, typecheck, build, local install and strict validation" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M13PINEXEC00000000000008>
+              Regression suites, locked TypeScript checks, TUI build, installed-versus-dist digest and strict Track validation all pass.
+              </?01M13PINEXEC00000000000008>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Repair runnable closure provenance, independently verify and restart with a new run id" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M13PINEXEC00000000000009>
+              A fresh verifier confirms the runnable binary-and-sidecar epoch invariant, invalid runs remain excluded, and the replacement run starts successfully from immutable snapshot paths.
+              </?01M13PINEXEC00000000000009>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_pin-proposition-cell-executables" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

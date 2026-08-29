@@ -478,12 +478,14 @@ export function executeStreamingSandboxedBashCommand(
     let aborted = false;
     let child: ChildProcess;
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let terminationFallback: ReturnType<typeof setTimeout> | undefined;
     let abortHandler: (() => void) | undefined;
 
     function finish(result: Omit<StreamingBashResult, "stdout" | "stderr" | "outputText">) {
       if (settled) return;
       settled = true;
       if (timeout) clearTimeout(timeout);
+      if (terminationFallback) clearTimeout(terminationFallback);
       if (abortHandler) params.signal?.removeEventListener("abort", abortHandler);
       const outputText = `${stdout}${stderr}`.trim() || "(no output)";
       resolve({
@@ -495,7 +497,13 @@ export function executeStreamingSandboxedBashCommand(
     }
 
     try {
-      child = spawnFn(spawnSpec.command, spawnSpec.args, spawnSpec.options);
+      child = spawnFn(spawnSpec.command, spawnSpec.args, {
+        ...spawnSpec.options,
+        // A dedicated POSIX process group lets timeout/abort terminate shell
+        // grandchildren too. Killing only the wrapper can orphan commands that
+        // keep stdout/stderr open and leave the awaiting tool call hung forever.
+        ...(process.platform === "win32" ? {} : { detached: true }),
+      });
     } catch (error) {
       finish({
         ok: false,
@@ -506,28 +514,54 @@ export function executeStreamingSandboxedBashCommand(
       return;
     }
 
-    const killChild = () => {
+    const killChild = (signal: NodeJS.Signals) => {
+      if (process.platform !== "win32" && typeof child.pid === "number") {
+        try {
+          process.kill(-child.pid, signal);
+          return;
+        } catch {
+          // Fall through when an injected spawn or exited group has no group id.
+        }
+      }
       try {
-        child.kill("SIGTERM");
+        child.kill(signal);
       } catch {
         // ignore
       }
     };
 
+    const terminate = () => {
+      if (terminationFallback) return;
+      killChild("SIGTERM");
+      terminationFallback = setTimeout(() => {
+        killChild("SIGKILL");
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        finish({
+          ok: false,
+          exitCode: null,
+          signal: "SIGKILL",
+          error: aborted ? "bash command aborted" : `bash command timed out after ${params.timeoutMs}ms`,
+          timedOut,
+          aborted,
+        });
+      }, 1_000);
+    };
+
     if (params.signal?.aborted) {
       aborted = true;
-      killChild();
+      terminate();
     } else if (params.signal) {
       abortHandler = () => {
         aborted = true;
-        killChild();
+        terminate();
       };
       params.signal.addEventListener("abort", abortHandler, { once: true });
     }
 
     timeout = setTimeout(() => {
       timedOut = true;
-      killChild();
+      terminate();
     }, params.timeoutMs);
 
     child.stdout?.setEncoding("utf-8");

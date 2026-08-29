@@ -1,0 +1,41 @@
+<Track #preserve-failed-workflow-public-evidence apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Preserve exact Workflow mode and node identity when an admitted child actor later fails." description = "Record public node identity at actor admission, cover Ctrl/Data failure paths, rebuild/install Eidolon, and retain the official DeepSeek 402 as an explicit external blocker rather than a mode mismatch." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-28T06:34:53.765Z" updated_at = "2026-08-28T07:17:20.150Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #effect_provider { role = "output" name = "workflow-effect-provider" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/effects/EidolonWorkflowEffectProvider.ts" }>
+    <MaterialBundle #effect_tests { role = "output" name = "workflow-effect-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/workflow_effect_provider_contract.test.ts" }>
+  ]>
+  <TaskSpace #space_preserve-failed-workflow-public-evidence { name = "preserve-failed-workflow-public-evidence" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Lock failed-run evidence contract" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Add Ctrl/Data failing-child RED tests" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "Validate behavior patch and rejected live evidence" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Record identity at actor admission" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Move resource child evidence to creation callback" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Move legacy child evidence to creation callback" status = "DONE" priority = "P1" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Verify and install repair" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Run focused and broader workflow regressions" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "Build, local install, verify digest and strict Codument state" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P3-T3 { name = "Independently verify without claiming blocked live acceptance" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_preserve-failed-workflow-public-evidence" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

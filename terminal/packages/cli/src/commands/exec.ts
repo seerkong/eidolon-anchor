@@ -23,10 +23,12 @@ export type ExecArgs = {
   autoResume?: boolean
   maxContinuations?: number
   captureProviderRequests?: boolean
+  providerChatProfile?: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
   addDir?: string[]
   ephemeral?: boolean
   timeout?: number
   debug?: boolean
+  json?: boolean
   config?: string[]
 }
 
@@ -127,6 +129,11 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           default: false,
           describe: "capture complete provider request attempts in the session SQLite ledger",
         })
+        .option("provider-chat-profile", {
+          type: "string",
+          choices: ["deepseek-official-chat@1", "deepseek-compatible-chat@1"] as const,
+          describe: "explicit versioned DeepSeek chat compatibility profile",
+        })
         .option("add-dir", {
           type: "array",
           string: true,
@@ -147,6 +154,11 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           type: "boolean",
           default: false,
           describe: "enable debug logging",
+        })
+        .option("json", {
+          type: "boolean",
+          default: false,
+          describe: "emit one structured headless result instead of streaming visible text",
         })
         .option("config", {
           alias: ["c"],
@@ -204,14 +216,17 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           autoResume: args.autoResume,
           maxContinuations: args.maxContinuations,
           captureProviderRequests: args.captureProviderRequests,
+          providerChatCompatibilityProfileId: args.providerChatProfile,
           onVisibleChunk: (chunk) => {
-            deps.processLike.stdout.write(chunk)
+            if (!args.json) deps.processLike.stdout.write(chunk)
           },
           onDiagnosticLine: (line) => {
             deps.processLike.stderr.write(line)
           },
         })
-        if (!result.visibleOutput.endsWith("\n")) {
+        if (args.json) {
+          deps.processLike.stdout.write(`${JSON.stringify({ kind: "eidolon.headlessExecResult", ...result })}\n`)
+        } else if (!result.visibleOutput.endsWith("\n")) {
           deps.processLike.stdout.write("\n")
         }
         if (result.status === "failed") {

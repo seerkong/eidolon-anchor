@@ -1,0 +1,114 @@
+<Behavior #codument-proposition-e2e apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #closed-provider-binding (
+      <Statement ?01M17A8N9C0QQM9461QBWH0XZT>
+      A live proposition matrix SHALL use one explicit catalogued provider binding across command construction, runtime admission, evidence classification and receipt acceptance without exposing credentials.
+      </?01M17A8N9C0QQM9461QBWH0XZT>
+      <Suites [
+        <Suite #provider-binding-cases { name = "Closed proposition provider binding" } (
+          <Cases [
+            <Case #official-binding-preserved (
+              <Given ?01M17A8N9C0QQM9461QBWH0XZV>
+              The official DeepSeek binding is selected.
+              </?01M17A8N9C0QQM9461QBWH0XZV>
+              <When ?01M17A8N9C0QQM9461QBWH0XZW>
+              A live proposition cell is constructed and accepted.
+              </?01M17A8N9C0QQM9461QBWH0XZW>
+              <Then ?01M17A8N9C0QQM9461QBWH0XZX>
+              Its model, official chat profile and official evidence class SHALL remain unchanged.
+              </?01M17A8N9C0QQM9461QBWH0XZX>
+            )>
+            <Case #iqingwa-compatible-binding (
+              <Given ?01M17A8N9C0QQM9461QBWH0XZY>
+              The iQingwa DeepSeek V4 Pro binding is selected.
+              </?01M17A8N9C0QQM9461QBWH0XZY>
+              <When ?01M17A8N9C0QQM9461QBWH0XZZ>
+              Ordinary, AI Ctrl and AI Data cells execute.
+              </?01M17A8N9C0QQM9461QBWH0XZZ>
+              <Then ?01M17A8N9C0QQM9461QBWH0Y00>
+              Every command and receipt SHALL use the iQingwa model, compatible chat profile and deepseek-compatible evidence class without official relabelling.
+              </?01M17A8N9C0QQM9461QBWH0Y00>
+            )>
+            <Case #binding-substitution-rejected (
+              <Given ?01M17A8N9C0QQM9461QBWH0Y01>
+              A source runner requests a model different from the selected binding.
+              </?01M17A8N9C0QQM9461QBWH0Y01>
+              <When ?01M17A8N9C0QQM9461QBWH0Y02>
+              The shim constructs the Eidolon command.
+              </?01M17A8N9C0QQM9461QBWH0Y02>
+              <Then ?01M17A8N9C0QQM9461QBWH0Y03>
+              Execution SHALL fail before provider dispatch.
+              </?01M17A8N9C0QQM9461QBWH0Y03>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #deepseek-semantic-completion (
+      <Statement ?01M17A8N9C0QQM9461QBWH0Y04>
+      A DeepSeek thinking turn SHALL project its admitted output budget to the provider and SHALL treat reasoning without content/tool calls as an incomplete semantic completion governed by observable progress and cumulative turn budget, not by a fixed retry count.
+      </?01M17A8N9C0QQM9461QBWH0Y04>
+      <Suites [
+        <Suite #semantic-completion-cases { name = "DeepSeek semantic completion protocol" } (
+          <Cases [
+            <Case #output-budget-projected (
+              <Given ?01M17A8N9C0QQM9461QBWH0Y05>
+              A DeepSeek model has an admitted maximum output-token limit.
+              </?01M17A8N9C0QQM9461QBWH0Y05>
+              <When ?01M17A8N9DQQYR4C56SEYYJD71>
+              The runtime constructs a Chat Completions request.
+              </?01M17A8N9DQQYR4C56SEYYJD71>
+              <Then ?01M17A8N9DQQYR4C56SEYYJD72>
+              The remaining logical-turn output budget SHALL be projected as `max_tokens`.
+              </?01M17A8N9DQQYR4C56SEYYJD72>
+            )>
+            <Case #reasoning-only-progress (
+              <Given ?01M17A8N9DQQYR4C56SEYYJD73>
+              One or more pre-tool provider attempts contain reasoning but no content/tool call and report positive completion-token usage.
+              </?01M17A8N9DQQYR4C56SEYYJD73>
+              <When ?01M17A8N9DQQYR4C56SEYYJD74>
+              The cumulative output budget and outer operation deadline remain available.
+              </?01M17A8N9DQQYR4C56SEYYJD74>
+              <Then ?01M17A8N9DQQYR4C56SEYYJD75>
+              The runtime SHALL reuse one anchored recovery context and continue without a fixed attempt-count cutoff.
+              </?01M17A8N9DQQYR4C56SEYYJD75>
+            )>
+            <Case #reasoning-only-stalled (
+              <Given ?01M17A8N9DQQYR4C56SEYYJD76>
+              A reasoning-only attempt lacks accountable usage, makes zero token progress, exhausts the cumulative output budget or is cancelled.
+              </?01M17A8N9DQQYR4C56SEYYJD76>
+              <When ?01M17A8N9DQQYR4C56SEYYJD77>
+              The runtime evaluates semantic continuation.
+              </?01M17A8N9DQQYR4C56SEYYJD77>
+              <Then ?01M17A8N9DQQYR4C56SEYYJD78>
+              It SHALL fail closed without dispatching a tool or growing the stable provider prefix.
+              </?01M17A8N9DQQYR4C56SEYYJD78>
+            )>
+            <Case #output-controls-not-input-prefix (
+              <Given ?01M17A8N9DQQYR4C56SEYYJD79>
+              A semantic continuation changes `max_tokens` or another completion-side control while model, tools and retained messages remain exact.
+              </?01M17A8N9DQQYR4C56SEYYJD79>
+              <When ?01M17A8N9DQQYR4C56SEYYJD7A>
+              The runtime compares provider cache observations inside one epoch.
+              </?01M17A8N9DQQYR4C56SEYYJD7A>
+              <Then ?01M17A8N9DQQYR4C56SEYYJD7B>
+              The complete wire request digest SHALL change, but retained prompt-prefix integrity SHALL remain exact.
+              </?01M17A8N9DQQYR4C56SEYYJD7B>
+            )>
+            <Case #preaccept-evidence-not-retry-counted (
+              <Given ?01M17A8N9DQQYR4C56SEYYJD7C>
+              One or more provider observations have no usage because they were not billed or accepted, while transport retry and semantic-continuation counters describe separate lifecycles.
+              </?01M17A8N9DQQYR4C56SEYYJD7C>
+              <When ?01M17A8N9DQQYR4C56SEYYJD7D>
+              The live receipt gate evaluates the run.
+              </?01M17A8N9DQQYR4C56SEYYJD7D>
+              <Then ?01M17A8N9DQQYR4C56SEYYJD7E>
+              It SHALL accept or reject each incomplete observation from its zero-usage and prefix-integrity facts rather than requiring equality with a retry count.
+              </?01M17A8N9DQQYR4C56SEYYJD7E>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

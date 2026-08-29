@@ -37,6 +37,7 @@ import {
   assertWorkflowNodeAgentConfigIsolation,
   createWorkflowNodeActorOrigin,
 } from "../runtime/WorkflowNodeActorAdmission"
+import { recordWorkflowPublicNodeExecutionEvidence } from "../runtime/WorkflowPublicRuntimeEvidence"
 
 export type { WorkflowStepExtensionAuthoredFacade } from "./WorkflowStepExtensionAuthoredFacade"
 
@@ -51,6 +52,11 @@ export type WorkflowAgentResourceBinding = {
   readonly workflowForm: AiWorkflowForm
   readonly resourceRegistry: Pick<EidolonAppResourceRegistryAdapter, "prepareWorkflowAgentExecution">
 }
+
+export type WorkflowPublicEvidenceBinding = Readonly<{
+  instanceId: string
+  workflowForm: AiWorkflowForm
+}>
 
 export type WorkflowMaterialWriteResult = Readonly<{ path: string; revision: string }>
 
@@ -117,7 +123,28 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
     private readonly resolveRunAuthority: () => AIWorkflowRunRef,
     private readonly agentResources?: WorkflowAgentResourceBinding,
     private readonly stepExtensions?: WorkflowStepExtensionAuthoredFacade,
+    private readonly publicEvidence?: WorkflowPublicEvidenceBinding,
   ) {}
+
+  private recordNodeEvidence(input: Readonly<{
+    request: AIWorkflowEffectRequest
+    nodeId: string
+    actorId: string
+    actorKey: string
+    agentDefinitionRef: string
+  }>): void {
+    if (!this.publicEvidence) return
+    recordWorkflowPublicNodeExecutionEvidence(this.runtime.vm, {
+      kind: this.publicEvidence.workflowForm,
+      definitionRef: input.request.run.workflow.ref,
+      instanceId: this.publicEvidence.instanceId,
+      runId: input.request.run.runId,
+      nodeId: input.nodeId,
+      actorId: input.actorId,
+      actorKey: input.actorKey,
+      agentDefinitionRef: input.agentDefinitionRef,
+    })
+  }
 
   mutateRunStepExtension(
     selector: Parameters<WorkflowStepExtensionAuthoredFacade["mutateRunStepExtension"]>[0],
@@ -377,7 +404,8 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         }
         const agentType = text(input.agentType ?? input.agent_type, text(config.agentType ?? config.agent_type, "code"))
         const prompt = text(input.prompt, typeof request.input === "string" ? request.input : JSON.stringify(request.input, null, 2))
-        return spawnChildExecutionActor(this.runtime.vm, this.runtime.actor, {
+        let childActor: { id: string; key: string } | undefined
+        const result = await spawnChildExecutionActor(this.runtime.vm, this.runtime.actor, {
           description: text(input.description, `Workflow node ${request.nodeId ?? request.effectId}`),
           prompt,
           agentType,
@@ -390,7 +418,19 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
           }),
           mode: "sync_wait",
           toolCallId: request.effectId,
+          onActorCreated: (actor) => {
+            childActor = actor
+            this.recordNodeEvidence({
+              request,
+              nodeId: request.nodeId ?? request.effectId,
+              actorId: actor.id,
+              actorKey: actor.key,
+              agentDefinitionRef: agentType,
+            })
+          },
         })
+        if (!childActor) throw new Error("Workflow node actor was not projected after execution")
+        return result
       }
       case "material.read": {
         const materialPath = text(input.path ?? input.materialPath ?? config.path)
@@ -455,6 +495,15 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         origin,
         toolCallId: request.effectId,
         validateActor: assertWorkflowNodeActorIsolation,
+        onActorAdmitted: (reference) => {
+          this.recordNodeEvidence({
+            request,
+            nodeId,
+            actorId: reference.actorId,
+            actorKey: reference.actorKey,
+            agentDefinitionRef,
+          })
+        },
         ...(target === undefined ? {} : { target }),
         ...(target !== undefined || taskAttemptSessionId === undefined
           ? {}
@@ -476,6 +525,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         hostReceipt: { effectId: request.effectId },
       }
     }
+    let childActor: { id: string; key: string } | undefined
     const outputText = await spawnChildExecutionActor(this.runtime.vm, this.runtime.actor, {
       description: text(input.description, `Workflow node ${nodeId}`),
       prompt,
@@ -485,7 +535,18 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       mode: "sync_wait",
       toolCallId: request.effectId,
       validateBeforeRegistration: assertWorkflowNodeActorIsolation,
+      onActorCreated: (actor) => {
+        childActor = actor
+        this.recordNodeEvidence({
+          request,
+          nodeId,
+          actorId: actor.id,
+          actorKey: actor.key,
+          agentDefinitionRef,
+        })
+      },
     })
+    if (!childActor) throw new Error("Workflow node actor was not projected after execution")
     return projectAgentExecutionOutput(prepared.plan.executionContract, outputText)
   }
 

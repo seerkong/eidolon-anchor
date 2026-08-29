@@ -18,6 +18,7 @@ export type ProviderCacheProfileId =
 export type ProviderCacheRelevantUnitKind =
   | "message"
   | "tool_schema"
+  /** Versioned chat-template/model framing; completion-side controls are excluded. */
   | "request_prefix";
 
 /**
@@ -98,7 +99,9 @@ export type ProviderCacheCostObservation = Readonly<{
   identity: ProviderCacheCostObservationIdentity;
   /** Digest of the closed provider/profile/model/Actor/epoch identity. */
   epochDigest: string;
+  /** Digest of the complete serialized wire request, including output controls. */
   requestDigest: string;
+  /** Provider prompt-cache input units; intentionally narrower than requestDigest. */
   units: readonly ProviderCacheRelevantUnit[];
   tokenBreakdown: ProviderCacheTokenBreakdown;
 }>;

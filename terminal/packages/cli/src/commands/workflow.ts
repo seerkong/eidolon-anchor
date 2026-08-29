@@ -51,6 +51,7 @@ export type WorkflowNaturalAuthorArgs = {
 
 export type WorkflowAgentArgs = {
   requirement?: string
+  form?: "auto" | "ai-data" | "ai-ctrl"
   session?: string
   publish?: boolean
   execute?: boolean
@@ -58,6 +59,9 @@ export type WorkflowAgentArgs = {
   model?: string
   profile?: string
   timeout?: number
+  outputTrace?: string
+  captureProviderRequests?: boolean
+  providerChatProfile?: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
   json?: boolean
 }
 
@@ -73,6 +77,8 @@ export type WorkflowRuntimeArgs = {
   model?: string
   profile?: string
   timeout?: number
+  captureRuntimeEvidence?: boolean
+  providerChatProfile?: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
   json?: boolean
   yes?: boolean
   materialRef?: string
@@ -232,6 +238,8 @@ async function callRuntimeTool(
     profile: args.profile,
     timeoutSeconds: args.timeout,
     sessionKey: args.session?.trim() || undefined,
+    captureRuntimeEvidence: args.captureRuntimeEvidence === true,
+    providerChatCompatibilityProfileId: args.providerChatProfile,
   })
   renderRuntimeToolResult(deps, toolName, value, args.json)
 }
@@ -242,6 +250,16 @@ function withRuntimeOptions(yargs: any) {
     .option("model", { type: "string", describe: "optional Eidolon model override" })
     .option("profile", { type: "string", describe: "optional Eidolon runtime profile" })
     .option("timeout", { type: "number", describe: "runtime initialization timeout in seconds" })
+    .option("capture-runtime-evidence", {
+      type: "boolean",
+      default: false,
+      describe: "include public Provider-cache and Workflow execution evidence in the JSON result",
+    })
+    .option("provider-chat-profile", {
+      type: "string",
+      choices: ["deepseek-official-chat@1", "deepseek-compatible-chat@1"] as const,
+      describe: "explicit Chat Completions compatibility profile for Provider evidence",
+    })
     .option("json", { type: "boolean", default: false })
 }
 
@@ -275,6 +293,7 @@ export function buildWorkflowCliFulfillInput(input: WorkflowAgentArgs): Record<s
   const execute = input.execute === true || input.yes === true
   return {
     request,
+    form: input.form ?? "auto",
     operation: "auto",
     publish: input.publish === true || execute,
     execute,
@@ -326,6 +345,9 @@ async function runWorkflowAgent(deps: WorkflowCommandDeps, input: WorkflowAgentA
     autoResume: true,
     maxContinuations: 16,
     failOnToolError: ["WorkflowFulfill"],
+    outputTracePath: input.outputTrace,
+    captureProviderRequests: input.captureProviderRequests,
+    providerChatCompatibilityProfileId: input.providerChatProfile,
   })
   if (input.json) {
     writeJson(deps.processLike, {
@@ -404,6 +426,26 @@ export function createWorkflowCommand(
               alias: ["s"],
               type: "string",
               describe: "Eidolon session id to continue across CLI invocations",
+            })
+            .option("form", {
+              type: "string",
+              choices: ["auto", "ai-data", "ai-ctrl"] as const,
+              default: "auto",
+              describe: "require an exact Workflow form; auto leaves semantic selection to the workflow actor",
+            })
+            .option("output-trace", {
+              type: "string",
+              describe: "write structured workflow-agent trace records to this file",
+            })
+            .option("capture-provider-requests", {
+              type: "boolean",
+              default: false,
+              describe: "capture complete provider request attempts in the session SQLite ledger",
+            })
+            .option("provider-chat-profile", {
+              type: "string",
+              choices: ["deepseek-official-chat@1", "deepseek-compatible-chat@1"] as const,
+              describe: "explicit versioned DeepSeek chat compatibility profile",
             })
             .option("publish", { type: "boolean", default: false, describe: "explicitly authorize publication, but not execution" })
             .option("execute", {

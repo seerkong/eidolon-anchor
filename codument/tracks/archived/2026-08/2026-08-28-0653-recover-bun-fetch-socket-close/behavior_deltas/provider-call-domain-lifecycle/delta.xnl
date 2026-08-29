@@ -1,0 +1,25 @@
+<BehaviorPatch #track.recover-bun-fetch-socket-close.behavior_patch.provider-call-domain-lifecycle apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-call-domain-lifecycle" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-call-domain-lifecycle/requirements/transient-transport-replay-safety" } (
+      <Requirement #transient-transport-replay-safety (
+        <Statement ?>Provider transport retries SHALL replay one already-prepared request only within the existing bounded policy and only while runtime evidence proves no provider output was observed; runtime output evidence SHALL override a classifier's pre-accept hint.</?>
+        <Suites [
+          <Suite #transport-replay-boundary { name = "Transport replay boundary" } (
+            <Cases [
+              <Case #same-request-before-accept (
+                <Given ?>a recognized transient transport close occurs before output</?>
+                <When ?>the provider call retries</?>
+                <Then ?>the same prepared request authority SHALL be reused and diagnostics SHALL identify a bounded safe pre-accept replay</?>
+              )>
+              <Case #runtime-output-evidence-blocks-replay (
+                <Given ?>a visible chunk or driver output-observed fact exists before failure</?>
+                <When ?>the retry boundary reconciles classifier hints with runtime facts</?>
+                <Then ?>runtime evidence SHALL win, effective phase SHALL be provider_accepted, and no new attempt SHALL be created</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

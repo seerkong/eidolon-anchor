@@ -22,3 +22,4 @@ export * from "./persistence/conversation/ConversationArtifacts";
 export * from "./persistence/conversation/ConversationPersistence";
 export * from "./persistence/RuntimeDerivedIndexes";
 export * from "./stream/SemanticProtocolFrame";
+export * from "./workflow/WorkflowPublicRuntimeEvidence";

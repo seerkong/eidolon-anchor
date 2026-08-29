@@ -3,6 +3,7 @@ export type Sha256Digest = `sha256:${string}`;
 export type ActorProviderContextFactNamespace =
   | "work-context"
   | "provider-projection"
+  | "provider-recovery"
   | "workflow-stage-context";
 
 export type ActorProviderContextFactHistoryAnchor = Readonly<{

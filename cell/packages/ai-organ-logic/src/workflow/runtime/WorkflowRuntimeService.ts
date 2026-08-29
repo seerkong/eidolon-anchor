@@ -903,6 +903,7 @@ export class WorkflowRuntimeService {
       () => activeRun,
       { workflowForm: descriptor.form, resourceRegistry: executionRegistry },
       this.stepExtensionFacade(),
+      { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
     )
     const genericOwner = this.workflowHolonGenericOwner(descriptor, agentAdapter.agentDefinitionRef)
     const adapters: HolonExecutionAdapterPorts = {
@@ -1311,6 +1312,7 @@ export class WorkflowRuntimeService {
       () => activeRunAuthority,
       frozenRegistry ? { workflowForm: descriptor.form, resourceRegistry: frozenRegistry } : undefined,
       this.stepExtensionFacade(),
+      { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
     )
     const bindAgentNode = definition.resourceReceipt
       ? createAICtrlWorkflowAgentNodeRuntimeBinder({

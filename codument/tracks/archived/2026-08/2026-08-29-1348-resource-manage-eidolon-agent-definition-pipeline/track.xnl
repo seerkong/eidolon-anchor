@@ -1,0 +1,46 @@
+<Track #resource-manage-eidolon-agent-definition-pipeline apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Refactor the mature Eidolon Agent prefix and provider-context chain into MessagePrefix and code-backed ContextPipeline resources while preserving every existing runtime authority and behavior." description = "Compile heterogeneous frozen prefix resources, load workspace AGENTS.md, bind a closed standard context-pipeline code resource, upgrade the Workflow CodeAgent, and prove legacy/runtime/cache parity against an exhaustive migration ledger." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-29T10:04:19.059Z" updated_at = "2026-08-29T10:48:43.051Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_resource-manage-eidolon-agent-definition-pipeline { name = "resource-manage-eidolon-agent-definition-pipeline" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze migration design and red tests" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Ratify exhaustive legacy-to-Halfcode ledger" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "Add failing prefix and pipeline adapter tests" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Compile resource prefix and pipeline binding" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Compile Message and MessageSource items with provenance" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Bind and validate standard ContextPipeline source" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P2-T3 { name = "Carry immutable pipeline binding through Agent and Actor" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Upgrade Workflow CodeAgent resources" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Create mature copied prefix and dynamic workspace source" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "Declare standard context pipeline for Ctrl and Data Agent" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Prove mature-chain parity" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "Verify history anchors overlays compaction epoch and recovery" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P4-T2 { name = "Run focused suites typecheck strict validation and diff check" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_resource-manage-eidolon-agent-definition-pipeline" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

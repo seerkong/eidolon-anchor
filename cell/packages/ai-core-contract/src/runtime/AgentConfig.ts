@@ -1,5 +1,6 @@
 import type { ActorContextPolicy } from "./AiAgentActor"
 import type { AgentExecutionContract } from "./AgentExecutionContract"
+import type { AgentContextPipelineBinding } from "./AgentContextPipeline"
 
 export type AgentSeedMessageRole = "system" | "developer" | "user" | "assistant"
 
@@ -17,4 +18,5 @@ export type AgentConfig = {
   requireExactTools?: boolean
   contextPolicy?: Partial<ActorContextPolicy>
   executionContract?: AgentExecutionContract
+  contextPipeline?: AgentContextPipelineBinding
 }

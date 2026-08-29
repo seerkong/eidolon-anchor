@@ -11,6 +11,7 @@ import { composeToolRegistry } from "../../src/composer/AIAgent/ToolFuncComposer
 import { appendLiveHistoryMessageToConversationDomainRuntime } from "../../src/conversation/ConversationDomainRuntime"
 import { EidolonWorkflowEffectProvider } from "../../src/workflow/effects/EidolonWorkflowEffectProvider"
 import { WorkflowFactStore } from "../../src/workflow/runtime/WorkflowFactStore"
+import { readWorkflowPublicRuntimeEvidence } from "../../src/workflow/runtime/WorkflowPublicRuntimeEvidence"
 import { resolveProviderCacheActorClass } from "../../src/llm/ProviderCacheActorAttribution"
 
 const ACTIVE_RUN = {
@@ -406,10 +407,150 @@ describe("Eidolon workflow effect provider contract", () => {
       expect(providerCalls).toBe(0)
       expect(await facts.readRunEvents(ACTIVE_RUN.runId)).toEqual([])
       expect(await readRuntimeControlEffectEvidence(root)).toEqual([])
+      expect(readWorkflowPublicRuntimeEvidence(vm)).toEqual([])
     } finally {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  for (const typedHost of [false, true] as const) {
+    it(`preserves ${workflowForm} ${typedHost ? "addressed" : "spawned"} resource node identity after provider failure`, async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), `eidolon-resource-workflow-failed-public-evidence-${typedHost}-`))
+      try {
+      const parent = createActor({
+        key: "main",
+        id: `parent-resource-failure-${workflowForm}`,
+        llmClient: {
+          type: "openai",
+          async createStream() {
+            async function* stream() { yield { ok: true } }
+            return { stream: stream() }
+          },
+        },
+        modelConfig: { model: "mock" },
+        callbacks: {
+          buildToolset: () => [],
+          processStream: async () => {
+            throw new Error("official provider rejected after resource actor admission")
+          },
+        },
+      })
+      const vm = createVM({
+        controlActorKey: parent.key,
+        actors: { [parent.key]: parent },
+        registries: {
+          toolRegistry: composeToolRegistry(),
+          agentRegistry: new AgentRegistry({}),
+        },
+      })
+      ;(vm as any).outerCtx = { metadata: { sessionDir: root } }
+      const facts = new WorkflowFactStore(root)
+      const agentDefinitionRef = "resource://eidolon.fixture.FailingAgent"
+      const provider = new EidolonWorkflowEffectProvider(
+        { vm, actor: parent } as any,
+        {} as any,
+        facts,
+        undefined,
+        () => ACTIVE_RUN,
+        {
+          workflowForm,
+          resourceRegistry: {
+            async prepareWorkflowAgentExecution() {
+              return {
+                plan: {
+                  schemaVersion: "eidolon.resource-agent-execution-plan/v1",
+                  agentDefinitionRef,
+                  registryRevision: "sha256:registry",
+                  compositionRevision: "sha256:composition",
+                  agentContentDigest: "sha256:agent",
+                  messages: [],
+                  toolResourceIds: [],
+                  requiresWorkflowTask: false,
+                  agentConfig: {
+                    name: agentDefinitionRef,
+                    description: "failing resource Agent",
+                    tools: [],
+                    prompt: [],
+                    seedMessages: [{ role: "system", content: "fail after admission" }],
+                    requireExactTools: true,
+                  },
+                  executionContract: {
+                    input: { payload: { request: "fail" }, materials: [] },
+                    messageSchemas: [],
+                    effectPolicy: { toolMode: "declared-only" },
+                  },
+                },
+                receipt: {
+                  schemaVersion: "ai-workflow.run-resource-freeze/v1",
+                  task: {
+                    workflowKind: workflowForm,
+                    workflowRef: ACTIVE_RUN.workflow.ref,
+                    nodeId: "execute",
+                    agentDefinitionRef,
+                  },
+                  bindingResourceIds: [],
+                  dependencySnapshot: {},
+                  semanticFingerprint: "sha256:failure",
+                },
+              }
+            },
+          } as any,
+        },
+        undefined,
+        { instanceId: `resource-instance-${workflowForm}`, workflowForm },
+      )
+
+      await expect(provider.invoke({
+        run: ACTIVE_RUN,
+        effectId: `resource-failure-${workflowForm}`,
+        operation: "ai.agent",
+        nodeId: "execute",
+        input: { agentDefinitionRef, payload: { request: "fail" } },
+        config: typedHost ? { typedHost: true } : {},
+      } as any)).rejects.toThrow("official provider rejected after resource actor admission")
+
+      expect((await facts.readRunEvents(ACTIVE_RUN.runId)).at(-1)).toMatchObject({
+        type: "workflow.effect.failed",
+        payload: { error: "Error: official provider rejected after resource actor admission" },
+      })
+      const evidence = readWorkflowPublicRuntimeEvidence(vm)
+      expect(evidence).toEqual([
+        expect.objectContaining({
+          kind: workflowForm,
+          definitionRef: ACTIVE_RUN.workflow.ref,
+          instanceId: `resource-instance-${workflowForm}`,
+          runId: ACTIVE_RUN.runId,
+          nodeExecutions: [expect.objectContaining({
+            nodeId: "execute",
+            agentDefinitionRef,
+          })],
+        }),
+      ])
+      if (typedHost) {
+        const admitted = evidence[0]!.nodeExecutions[0]!
+        await expect(provider.invoke({
+          run: ACTIVE_RUN,
+          effectId: `resource-failure-reused-${workflowForm}`,
+          operation: "ai.agent",
+          nodeId: "execute",
+          input: { agentDefinitionRef, payload: { request: "fail again" } },
+          config: {
+            typedHost: true,
+            targetInstance: {
+              authority: "eidolon.actor-runtime/v1",
+              instanceId: admitted.actorId,
+              agentDefinitionRef,
+              metadata: { actorKey: admitted.actorKey },
+            },
+          },
+        } as any)).rejects.toThrow("official provider rejected after resource actor admission")
+        expect(readWorkflowPublicRuntimeEvidence(vm)[0]?.nodeExecutions).toEqual([admitted])
+      }
+      } finally {
+        await rm(root, { recursive: true, force: true })
+      }
+    })
+  }
   }
 
   it("requires resource workflows to provide an exact agentDefinitionRef without legacy fallback", async () => {
@@ -485,18 +626,113 @@ describe("Eidolon workflow effect provider contract", () => {
         facts,
         undefined,
         () => vfsRun,
+        undefined,
+        undefined,
+        { instanceId: "legacy-instance", workflowForm: "AICtrlWorkflow" },
       )
 
       expect(await provider.invoke({
         run: vfsRun,
-        effectId: "legacy-agent",
+        effectId: "legacy-agent-1",
         operation: "ai.agent",
         nodeId: "legacy-node",
         input: { agentType: "code", prompt: "legacy task" },
       } as any)).toBe("legacy result")
-      expect(await facts.loadAgentExecutionFact("legacy-run", 0, "legacy-agent")).toBeUndefined()
+      expect(await provider.invoke({
+        run: vfsRun,
+        effectId: "legacy-agent-2",
+        operation: "ai.agent",
+        nodeId: "legacy-node",
+        input: { agentType: "code", prompt: "legacy task again" },
+      } as any)).toBe("legacy result")
+      expect(await facts.loadAgentExecutionFact("legacy-run", 0, "legacy-agent-1")).toBeUndefined()
+      const publicEvidence = readWorkflowPublicRuntimeEvidence(vm)
+      expect(publicEvidence).toHaveLength(1)
+      expect(publicEvidence[0]?.nodeExecutions).toHaveLength(2)
+      expect(new Set(publicEvidence[0]?.nodeExecutions.map((node) => node.actorId)).size).toBe(2)
+      expect(publicEvidence[0]?.nodeExecutions.map((node) => node.nodeId)).toEqual(["legacy-node", "legacy-node"])
     } finally {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  for (const workflowForm of ["AICtrlWorkflow", "AIDataWorkflow"] as const) {
+    it(`preserves ${workflowForm} node identity when an admitted child later fails`, async () => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-failed-public-evidence-"))
+      try {
+        const run = {
+          workflow: { ref: "vfs://./failed/manifest.xnl", scheme: "vfs" as const },
+          runId: `failed-${workflowForm}`,
+          generation: 0,
+        }
+        const parent = createActor({
+          key: "main",
+          id: `parent-${workflowForm}`,
+          llmClient: {
+            type: "openai",
+            async createStream() {
+              async function* stream() { yield { ok: true } }
+              return { stream: stream() }
+            },
+          },
+          modelConfig: { model: "mock" },
+          callbacks: {
+            buildToolset: () => [],
+            processStream: async () => {
+              throw new Error("provider rejected after actor admission")
+            },
+          },
+        })
+        const vm = createVM({
+          controlActorKey: parent.key,
+          actors: { [parent.key]: parent },
+          registries: {
+            toolRegistry: composeToolRegistry(),
+            agentRegistry: new AgentRegistry({
+              code: { name: "code", description: "failing Agent", tools: "*", prompt: ["fail after admission"] },
+            }),
+          },
+        })
+        const facts = new WorkflowFactStore(root)
+        const provider = new EidolonWorkflowEffectProvider(
+          { vm, actor: parent } as any,
+          {} as any,
+          facts,
+          undefined,
+          () => run,
+          undefined,
+          undefined,
+          { instanceId: `instance-${workflowForm}`, workflowForm },
+        )
+
+        await expect(provider.invoke({
+          run,
+          effectId: `failed-effect-${workflowForm}`,
+          operation: "ai.agent",
+          nodeId: "execute",
+          input: { agentType: "code", prompt: "fail" },
+        } as any)).rejects.toThrow("provider rejected after actor admission")
+
+        const events = await facts.readRunEvents(run.runId)
+        expect(events.at(-1)).toMatchObject({
+          type: "workflow.effect.failed",
+          payload: { error: "Error: provider rejected after actor admission" },
+        })
+        expect(readWorkflowPublicRuntimeEvidence(vm)).toEqual([
+          expect.objectContaining({
+            kind: workflowForm,
+            definitionRef: run.workflow.ref,
+            instanceId: `instance-${workflowForm}`,
+            runId: run.runId,
+            nodeExecutions: [expect.objectContaining({
+              nodeId: "execute",
+              agentDefinitionRef: "code",
+            })],
+          }),
+        ])
+      } finally {
+        await rm(root, { recursive: true, force: true })
+      }
+    })
+  }
 })

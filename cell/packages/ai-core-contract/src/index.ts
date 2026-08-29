@@ -4,6 +4,7 @@ export * from "./coordination";
 export * from "./plan/TaskTree";
 export * from "./stream/ingressAdapterTypes";
 export * from "./runtime/AgentConfig";
+export * from "./runtime/AgentContextPipeline";
 export * from "./runtime/AgentExecutionContract";
 export * from "./runtime/AiAgentActor";
 export * from "./runtime/AiAgentVm";

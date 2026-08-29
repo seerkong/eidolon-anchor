@@ -1,0 +1,76 @@
+<Track #align-provider-compaction-cache-epoch apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Make provider cache observation epochs advance atomically with provider-context receipt transitions, including history-compaction fact re-anchoring." description = "Separate generic cache observation identity from Responses continuation counters, prove the compaction boundary with regression tests, rebuild/install Eidolon and rerun the rejected official DeepSeek proposition cell." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-28T03:55:44.506Z" updated_at = "2026-08-28T04:28:22.899Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #executor { role = "output" name = "ai-agent-executor" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/exec/AiAgentExecutor.ts" }>
+    <MaterialBundle #executor_tests { role = "output" name = "ai-agent-executor-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/AIAgent/ai_agent_executor.test.ts" }>
+  ]>
+  <TaskSpace #space_align-provider-compaction-cache-epoch { name = "align-provider-compaction-cache-epoch" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Lock cache epoch authority" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Write RED compaction and append-boundary regression" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M138G54P6DRQX9MVMY9RR64N>
+              A regression reproduces a continuation baseline of 3 masking provider receipt 1→2, requires observation epoch 1→2 across compaction, and preserves one epoch for append-only requests.
+              </?01M138G54P6DRQX9MVMY9RR64N>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Validate provider lifecycle behavior patch" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M138G54P6DRQX9MVMY9RR64P>
+              The behavior patch assigns cache observation epoch authority to the provider-context receipt and forbids max-merging independent counters.
+              </?01M138G54P6DRQX9MVMY9RR64P>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Implement authority projection" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Separate cache observation epoch from Responses continuation epoch" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M138G54P6DRQX9MVMY9RR64Q>
+              V2 cache observations use the active provider-context receipt epoch, while Responses planning retains its continuation-specific epoch and legacy initialization remains compatible.
+              </?01M138G54P6DRQX9MVMY9RR64Q>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Prove atomic compaction request boundary" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M138G54P6DRQX9MVMY9RR64R>
+              The first request built from compacted history carries the successor receipt epoch, compares as epoch_boundary, and subsequent append-only requests remain same_epoch with exact prefix integrity.
+              </?01M138G54P6DRQX9MVMY9RR64R>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Verify, install and rerun evidence" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Run regression, typecheck, build and local install" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M138G54P6DRQX9MVMY9RR64S>
+              Focused and broader provider/context suites, locked TypeScript, build/install digest and strict Codument validation pass.
+              </?01M138G54P6DRQX9MVMY9RR64S>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Independently verify and rerun official DeepSeek proposition cell" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M138G54P6DRQX9MVMY9RR64T>
+              A fresh verifier passes the repair and a new immutable modeling-blog/ordinary run either accepts or supplies a newly localized gap without accepting rejected evidence.
+              </?01M138G54P6DRQX9MVMY9RR64T>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_align-provider-compaction-cache-epoch" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

@@ -1,0 +1,38 @@
+<Track #validate-resource-agent-trimodal-siliconflow apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Run one unchanged Codument proposition across ordinary, AI Ctrl and AI Data with the selected compatible DeepSeek gateway and publish correctly classified parity, cache and stability evidence." description = "Parameterize the closed proposition provider binding, preserve official evidence semantics, retain the SiliconFlow incident, then execute the three-mode matrix with deepseek-iqingwa/deepseek-v4-pro and report receipts without mislabelling compatible evidence." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-29T11:03:05.109Z" updated_at = "2026-08-29T17:49:47.611Z" modeling_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" engineering_base_commit = "34706c1c5d71b3b3592e8e0860af37ab147259fc" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_validate-resource-agent-trimodal-siliconflow { name = "validate-resource-agent-trimodal-siliconflow" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Parameterize closed provider evidence" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Define official and catalogued compatible-provider bindings" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "Thread binding through shim live runtime matrix and receipt gate" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P1-T3 { name = "Add deterministic official and compatible regression cases" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Build and execute first compatible-provider sentinel" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Build and locally install the exact Eidolon epoch" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Run first-pass sentinel until a real provider or behavior gap is observed" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Reconcile compatible-provider evidence" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Repair observed gaps and rerun ordinary Ctrl and Data sentinel cells" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "Publish Chinese tri-modal compatible-provider report" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P3-T3 { name = "Run strict validation and diff check" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_validate-resource-agent-trimodal-siliconflow" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

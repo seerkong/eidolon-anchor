@@ -1,0 +1,30 @@
+<BehaviorPatch #track.align-provider-compaction-cache-epoch.behavior_patch.provider-call-domain-lifecycle apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-call-domain-lifecycle" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-call-domain-lifecycle/requirements/provider-cache-observation-epoch-authority" } (
+      <Requirement #provider-cache-observation-epoch-authority (
+        <Statement ?>Provider cache observation epoch SHALL be projected from the same provider-context receipt authority that admits provider-visible non-append changes; independent continuation counters MUST NOT mask a receipt transition through numeric max/merge.</?>
+        <Suites [
+          <Suite #cache-epoch-boundaries { name = "Provider cache epoch boundaries" } (
+            <Cases [
+              <Case #history-compaction-is-atomic-boundary (
+                <Given ?>history compaction creates a successor provider-context receipt and re-anchors durable context facts</?>
+                <When ?>the first provider request is materialized from the compacted history</?>
+                <Then ?>its cache observation SHALL carry the successor receipt epoch on that same request, so comparison with the predecessor is epoch_boundary</?>
+              )>
+              <Case #continuation-counter-cannot-mask-boundary (
+                <Given ?>a Responses continuation baseline counter is numerically greater than both predecessor and successor provider-context receipt epochs</?>
+                <When ?>a generic provider cache observation identity is projected</?>
+                <Then ?>the receipt transition SHALL remain visible and MUST NOT be collapsed by taking the maximum counter</?>
+              )>
+              <Case #append-keeps-comparable-epoch (
+                <Given ?>provider-visible history only grows by admitted append and the provider-context receipt is unchanged</?>
+                <When ?>successive cache observations are compared</?>
+                <Then ?>they SHALL retain one context epoch and remain eligible for exact forward-prefix comparison</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

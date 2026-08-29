@@ -51,6 +51,9 @@ import {
   materializeConversationRuntimeMessagesFromVm,
   mergeResourceAgentConfigs,
   projectRuntimeTiming,
+  readProviderCacheObservationProjection,
+  readWorkflowPublicRuntimeEvidence,
+  runWorkflowNativeHostCommand,
   setActorWorkMode,
   type LlmAdapterType,
   type LlmProviderRuntime,
@@ -58,6 +61,7 @@ import {
   type RuntimeTimingProjection,
   type RuntimeTimingWindow,
 } from "@cell/ai-organ-logic"
+import type { ProviderChatCompatibilityProfileId } from "@cell/ai-organ-contract/llm/ProviderRuntime"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import {
   normalizeInputContent,
@@ -88,6 +92,8 @@ import type { ActorSurfaceProjectionData } from "@cell/ai-core-contract/runtime/
 import type { ActorModelConfig, AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor"
 import { WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl"
 import type { AiAgentVmUsageData } from "@cell/ai-core-contract/runtime/AiAgentVm"
+import type { ProviderCacheCostObservation } from "@cell/ai-organ-contract/llm/ProviderCacheCostObservation"
+import type { WorkflowPublicRuntimeEvidence } from "@cell/ai-organ-contract/workflow/WorkflowPublicRuntimeEvidence"
 import type { HeartbeatSchedule, HeartbeatWakePayload } from "@cell/ai-core-contract/runtime/Heartbeat"
 import type { SemanticEvent } from "@cell/ai-core-contract/stream/semantic"
 import type { AiAgentOrchestratorDriver } from "@cell/ai-organ-logic/OrchestratorDriver"
@@ -147,6 +153,7 @@ export type TuiRuntimeBridge = {
   }) => Promise<string>
   compact: () => Promise<{ ok: boolean; message: string }>
   callTool: (name: string, input: unknown) => Promise<unknown>
+  callWorkflowHostCommand: (name: string, input: unknown) => Promise<unknown>
   getActorSurface?: (options?: {
     selectedLaneId?: string
     selectedActorId?: string
@@ -194,6 +201,12 @@ export type TuiRuntimeBridge = {
   }>
   /** Sanitized, read-only timing projection over existing runtime domains. */
   readTimingProjection?: (window: RuntimeTimingWindow) => RuntimeTimingProjection
+  /** Sanitized, read-only cumulative usage projection for headless evidence. */
+  readUsageProjection?: () => AiAgentVmUsageData
+  /** Sanitized, read-only canonical provider cache observations. */
+  readProviderCacheObservations?: () => readonly ProviderCacheCostObservation[]
+  /** Sanitized, read-only Workflow execution and node Actor evidence. */
+  readWorkflowExecutions?: () => readonly WorkflowPublicRuntimeEvidence[]
 }
 
 export type TuiRuntimeConfig = {
@@ -212,6 +225,7 @@ export type TuiRuntimeConfig = {
   /** Storage capability flags; defaults to persistent (logs and files enabled). */
   storage?: Partial<RuntimeCompositionStorageFlags>
   providerRequestObservationBindingFactory?: ProviderRequestObservationBindingFactory
+  providerChatCompatibilityProfileId?: ProviderChatCompatibilityProfileId
   attachmentResolver?: AttachmentResolverPort
 }
 
@@ -868,6 +882,9 @@ async function createRuntimeBridge(
     sessionId: sessionKey,
     diagnostics: providerDiagnosticsCollector.runtime,
     requestObservationPort: providerRequestObservationBinding?.port ?? null,
+    ...(runtimeConfig.providerChatCompatibilityProfileId
+      ? { chatCompatibilityProfileId: runtimeConfig.providerChatCompatibilityProfileId }
+      : {}),
   }
   const llmAdapter = await createRuntimeLlmAdapter({
     adapterType,
@@ -1406,6 +1423,10 @@ async function createRuntimeBridge(
       mainFiberId,
       timeoutMs: params.timeoutSeconds && params.timeoutSeconds > 0 ? params.timeoutSeconds * 1000 : undefined,
     })
+    const mainFiber = driver.getState().fibers[mainFiberId]
+    if (mainFiber?.status === "failed") {
+      throw new Error(mainFiber.lastError || "runtime_main_fiber_failed")
+    }
     if (result.status === "timeout_unsettled") {
       throw new Error(`runtime_turn_unsettled:${result.reason || "unknown"}`)
     }
@@ -1757,6 +1778,16 @@ async function createRuntimeBridge(
     })
   }
 
+  const callWorkflowHostCommand = async (name: string, input: unknown): Promise<unknown> => {
+    const toolName = name.trim()
+    if (!toolName) throw new Error("Native Workflow host command name is required")
+    return runtimeCoordinator.enqueue(async () => {
+      const output = await runWorkflowNativeHostCommand({ vm, actor } as any, toolName, input)
+      await runtimeCoordinator.saveSnapshot()
+      return output
+    })
+  }
+
   const createDurableActorSurfaceFacade = () => createActorSurfaceFacade(vm as any, {
     emitFiberSignal: (input) => {
       driver.emitFiberSignal({
@@ -1918,6 +1949,16 @@ async function createRuntimeBridge(
     toolCalls: getVmToolCallDomain(vm)?.getAllRecords() ?? [],
     providerRetries: providerDiagnosticsCollector.events.retry,
   })
+  const readUsageProjection = (): AiAgentVmUsageData => {
+    const { publicRxData } = ensureVmRxData(vm)
+    return Object.freeze({ ...publicRxData.usage.get() })
+  }
+  const readProviderCacheObservations = (): readonly ProviderCacheCostObservation[] => (
+    readProviderCacheObservationProjection(vm)
+  )
+  const readWorkflowExecutions = (): readonly WorkflowPublicRuntimeEvidence[] => (
+    readWorkflowPublicRuntimeEvidence(vm)
+  )
 
   const loadConversationViews = async () => {
     const state = await loadConversationState()
@@ -1998,6 +2039,7 @@ async function createRuntimeBridge(
     resumeTurn,
     compact,
     callTool,
+    callWorkflowHostCommand,
     getActorSurface,
     selectActorSurfaceTarget,
     sendActorHumanMessage,
@@ -2012,6 +2054,9 @@ async function createRuntimeBridge(
     loadConversationViews,
     loadActorConversationMessages,
     readTimingProjection,
+    readUsageProjection,
+    readProviderCacheObservations,
+    readWorkflowExecutions,
   }
 }
 
@@ -2077,6 +2122,7 @@ export function configureTuiRuntime(config: TuiRuntimeConfig) {
   runtimeConfig.entryType = config.entryType
   runtimeConfig.storage = config.storage
   runtimeConfig.providerRequestObservationBindingFactory = config.providerRequestObservationBindingFactory
+  runtimeConfig.providerChatCompatibilityProfileId = config.providerChatCompatibilityProfileId
   runtimeConfig.attachmentResolver = config.attachmentResolver
   runtimeConfig.metadata = normalizeTerminalRuntimeMetadata(config.workDir, config.metadata)
   sessionRuntimePromises.clear()

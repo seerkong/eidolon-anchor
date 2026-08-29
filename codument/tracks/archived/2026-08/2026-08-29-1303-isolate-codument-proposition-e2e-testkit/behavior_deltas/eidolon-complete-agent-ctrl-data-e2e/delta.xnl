@@ -1,0 +1,25 @@
+<BehaviorPatch #track.isolate-codument-proposition-e2e-testkit.behavior_patch.eidolon-complete-agent-ctrl-data-e2e apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-complete-agent-ctrl-data-e2e" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-complete-agent-ctrl-data-e2e/requirements/private-proposition-testkit-boundary" } (
+      <Requirement #private-proposition-testkit-boundary (
+        <Statement ?>Codument proposition matrix contracts and execution helpers SHALL be owned by one repository-private E2E testkit and SHALL NOT be exported from or imported by production package source.</?>
+        <Suites [
+          <Suite #private-testkit-cases { name = "Private proposition testkit ownership" } (
+            <Cases [
+              <Case #private-owner-preserves-evidence [
+                <Given ?>The ordinary, AI Ctrl and AI Data proposition matrix and live provider runner exist.</?>
+                <When ?>The proposition facilities are moved out of production package source.</?>
+                <Then ?>The private testkit SHALL preserve manifest, receipt, mode identity, provider observation and executable epoch behavior.</?>
+              ]>
+              <Case #production-surface-remains-clean [
+                <Given ?>Production package public entries and source dependency edges are inspected.</?>
+                <When ?>The proposition E2E testkit is present.</?>
+                <Then ?>Production source SHALL NOT export or import the private testkit or legacy proposition E2E modules.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

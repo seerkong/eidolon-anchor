@@ -25,6 +25,7 @@ export type ChatCompletionsStreamState = {
   reasoningDetails: any[];
   pending: string;
   inThink: boolean;
+  finishReason: string | null;
   lastChunkFingerprint: string | null;
 };
 
@@ -44,6 +45,24 @@ export class ChatCompletionsProtocolError extends Error {
     this.name = "ChatCompletionsProtocolError";
     this.code = first.code;
     this.failures = failures;
+  }
+}
+
+export class ChatCompletionsOutputTruncatedError extends Error {
+  readonly code = "provider_output_truncated";
+
+  constructor() {
+    super("provider_output_truncated: chat completion ended with finish_reason=length");
+    this.name = "ChatCompletionsOutputTruncatedError";
+  }
+}
+
+export class ChatCompletionsReasoningOnlyError extends Error {
+  readonly code = "provider_reasoning_only_response";
+
+  constructor(finishReason: string | null) {
+    super(`provider_reasoning_only_response: chat completion ended without content or tool calls (finish_reason=${finishReason ?? "unknown"})`);
+    this.name = "ChatCompletionsReasoningOnlyError";
   }
 }
 
@@ -86,6 +105,7 @@ export function createChatCompletionsStreamState(): ChatCompletionsStreamState {
     reasoningDetails: [],
     pending: "",
     inThink: false,
+    finishReason: null,
     lastChunkFingerprint: null,
   };
 }
@@ -105,6 +125,8 @@ export function reduceChatCompletionsChunk(
     return { state, events };
   }
   state.lastChunkFingerprint = fingerprint;
+  const finishReason = normalizeChatCompletionsFinishReason(choice, chunk);
+  if (finishReason) state.finishReason = finishReason;
 
   const content = normalizeChatCompletionsContent(delta.content);
   reduceReasoning(
@@ -125,9 +147,41 @@ export function reduceChatCompletionsChunk(
   return { state, events };
 }
 
+export function normalizeChatCompletionsFinishReason(
+  choice: unknown,
+  chunk?: unknown,
+): string | null {
+  const choiceRecord = choice && typeof choice === "object"
+    ? choice as Record<string, unknown>
+    : {};
+  const chunkRecord = chunk && typeof chunk === "object"
+    ? chunk as Record<string, unknown>
+    : {};
+  const candidate = choiceRecord.finish_reason
+    ?? choiceRecord.finishReason
+    ?? choiceRecord.stop_reason
+    ?? choiceRecord.stopReason
+    ?? chunkRecord.finish_reason
+    ?? chunkRecord.finishReason
+    ?? chunkRecord.stop_reason
+    ?? chunkRecord.stopReason;
+  if (typeof candidate !== "string" || !candidate.trim()) return null;
+  const normalized = candidate.trim().toLowerCase();
+  if (normalized === "max_tokens" || normalized === "max_output_tokens") return "length";
+  return normalized;
+}
+
 export function buildChatCompletionsAssistantMessage(
   state: ChatCompletionsStreamState,
 ): any {
+  if (state.finishReason === "length") {
+    throw new ChatCompletionsOutputTruncatedError();
+  }
+  if (!state.contentBuffer.trim()
+    && Object.keys(state.toolCalls).length === 0
+    && state.reasoningContentBuffer.trim()) {
+    throw new ChatCompletionsReasoningOnlyError(state.finishReason);
+  }
   const message: any = {
     role: "assistant",
     content: state.contentBuffer || null,

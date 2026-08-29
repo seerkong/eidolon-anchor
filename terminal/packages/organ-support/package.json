@@ -8,6 +8,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@cell/ai-organ-contract": "workspace:*",
+    "@cell/ai-organ-logic": "workspace:*",
     "@cell/platform-support": "workspace:*",
     "@terminal/core": "workspace:*",
     "@terminal/organ": "workspace:*"

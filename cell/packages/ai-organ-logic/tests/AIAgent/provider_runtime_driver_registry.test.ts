@@ -209,6 +209,60 @@ describe("provider runtime driver registry", () => {
     }
   });
 
+  it("reuses the same prepared DeepSeek request after a pre-output Bun socket close", async () => {
+    const requestBodies: string[] = [];
+    let fetchCalls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async (_url, init) => {
+      fetchCalls += 1;
+      requestBodies.push(String(init?.body ?? ""));
+      if (fetchCalls === 1) {
+        throw new Error("The socket connection was closed unexpectedly");
+      }
+      return sseDone();
+    }) as typeof fetch;
+    try {
+      const adapter = new ProviderRuntimeLlmAdapter({
+        providerId: "deepseek",
+        selectedModel: "deepseek/deepseek-v4-flash",
+        adapterName: "deepseek",
+        options: {
+          apiKey: "test-key",
+          baseURL: "https://api.deepseek.com/v1",
+          compatibility_profile: "deepseek-official-chat@1",
+        },
+      });
+      const tools = [{
+        type: "function" as const,
+        function: {
+          name: "read_fact",
+          description: "Read one fact",
+          parameters: {
+            type: "object",
+            properties: { key: { type: "string" } },
+            required: ["key"],
+            additionalProperties: false,
+          },
+        },
+      }];
+      const result = await adapter.createStream({
+        model: "deepseek-v4-flash",
+        messages: [{ role: "user", content: "Read the stable fact" }],
+        tools,
+      });
+      for await (const _chunk of result.stream) {
+        // Consume the final successful attempt.
+      }
+
+      expect(fetchCalls).toBe(2);
+      expect(requestBodies).toHaveLength(2);
+      expect(requestBodies[1]).toBe(requestBodies[0]);
+      expect(JSON.parse(requestBodies[1]).tools).toEqual(tools);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("selects a third-party DeepSeek compatibility profile only from explicit versioned config", () => {
     const adapter = new ProviderRuntimeLlmAdapter({
       providerId: "siliconflow",

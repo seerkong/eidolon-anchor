@@ -302,6 +302,7 @@ function createProviderTransportRequestObserver(
   let transportAttemptOrdinal = 0;
   return (input: ProviderTransportRequestObservationInput) => {
     transportAttemptOrdinal += 1;
+    const correlation = snapshotProviderTransportCorrelation(prepared.runtime);
     const transportIdentity: ProviderTransportAttemptIdentity = {
       ...identity,
       transportAttemptOrdinal,
@@ -313,7 +314,7 @@ function createProviderTransportRequestObserver(
           acceptCacheCostObservation(createProviderCacheCostObservation({
             identity: {
               schemaVersion: 1,
-              providerId: prepared.runtime.providerId,
+              providerId: correlation.providerId,
               providerProfile: cacheProfile,
               providerProfileId: prepared.runtime.chatCompatibilityProfileId!,
               model: options.model,
@@ -341,21 +342,21 @@ function createProviderTransportRequestObserver(
       });
       const observation: ProviderRequestObservationData = {
         schemaVersion: 1,
-        sessionId: prepared.runtime.sessionId,
-        actorId: prepared.runtime.actorId,
-        turnId: prepared.runtime.turnId,
-        traceId: prepared.runtime.traceId,
+        sessionId: correlation.sessionId,
+        actorId: correlation.actorId,
+        turnId: correlation.turnId,
+        traceId: correlation.traceId,
         providerCallId: identity.providerCallId,
         providerCallOrdinal: identity.providerCallOrdinal,
         providerAttemptOrdinal: identity.providerAttemptOrdinal,
         attemptOrdinal: identity.providerAttemptOrdinal,
         transportAttemptOrdinal,
         transportType: input.transportType,
-        providerId: prepared.runtime.providerId,
-        model: prepared.runtime.selectedModel,
+        providerId: correlation.providerId,
+        model: correlation.selectedModel,
         requestModel: options.model,
-        adapterName: String(prepared.runtime.adapterName),
-        driverName: prepared.runtime.driverName,
+        adapterName: String(correlation.adapterName),
+        driverName: correlation.driverName,
         captureLayer: "provider_transport_before_send",
         capturedAt: Date.now(),
         messages: copied.messages,
@@ -379,18 +380,18 @@ function createProviderTransportRequestObserver(
           try {
             const outcome: ProviderRequestOutcomeObservationData = {
               schemaVersion: 1,
-              sessionId: prepared.runtime.sessionId,
-              actorId: prepared.runtime.actorId,
-              turnId: prepared.runtime.turnId,
-              traceId: prepared.runtime.traceId,
+              sessionId: correlation.sessionId,
+              actorId: correlation.actorId,
+              turnId: correlation.turnId,
+              traceId: correlation.traceId,
               providerCallId: identity.providerCallId,
               providerCallOrdinal: identity.providerCallOrdinal,
               providerAttemptOrdinal: identity.providerAttemptOrdinal,
               attemptOrdinal: identity.providerAttemptOrdinal,
               transportAttemptOrdinal,
               transportType: input.transportType,
-              providerId: prepared.runtime.providerId,
-              model: prepared.runtime.selectedModel,
+              providerId: correlation.providerId,
+              model: correlation.selectedModel,
               terminalState: outcomeInput.terminalState,
               fallbackUsed: outcomeInput.fallbackUsed,
               completenessStatus: outcomeInput.completeness.status,
@@ -452,6 +453,32 @@ type ProviderTransportAttemptIdentity = ProviderAttemptIdentity & {
   transportAttemptOrdinal: number;
   transportType: ProviderTransportRequestObservationInput["transportType"];
 };
+
+type ProviderTransportCorrelationSnapshot = Readonly<{
+  sessionId: LlmProviderRuntime["sessionId"];
+  actorId: LlmProviderRuntime["actorId"];
+  turnId: LlmProviderRuntime["turnId"];
+  traceId: LlmProviderRuntime["traceId"];
+  providerId: LlmProviderRuntime["providerId"];
+  selectedModel: LlmProviderRuntime["selectedModel"];
+  adapterName: LlmProviderRuntime["adapterName"];
+  driverName: LlmProviderRuntime["driverName"];
+}>;
+
+function snapshotProviderTransportCorrelation(
+  runtime: LlmProviderRuntime,
+): ProviderTransportCorrelationSnapshot {
+  return Object.freeze({
+    sessionId: runtime.sessionId,
+    actorId: runtime.actorId,
+    turnId: runtime.turnId,
+    traceId: runtime.traceId,
+    providerId: runtime.providerId,
+    selectedModel: runtime.selectedModel,
+    adapterName: runtime.adapterName,
+    driverName: runtime.driverName,
+  });
+}
 
 function cloneAndRedactWireBody(value: unknown): unknown {
   if (typeof value === "string") {

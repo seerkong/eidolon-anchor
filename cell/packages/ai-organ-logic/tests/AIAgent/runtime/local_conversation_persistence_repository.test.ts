@@ -14,6 +14,7 @@ import {
   type ConversationSessionIndexSnapshot,
 } from "@cell/ai-organ-contract"
 import { appendXnlRecord } from "@cell/ai-file-store-logic"
+import { digestProviderContextHistoryFrontier } from "@cell/ai-organ-logic/conversation/ProviderContextEpochV2"
 import { LocalFileConversationPersistenceRepositoryFactory } from "@cell/ai-support"
 
 function makeTempSessionDir(): string {
@@ -520,6 +521,57 @@ describe("Local conversation persistence repository", () => {
       },
     }))
     expect(await repository.loadHistoryGeneration("hist-blocks")).toEqual(historyGeneration)
+  })
+
+  it("preserves multiline and boundary-whitespace History bytes across recovery frontiers", async () => {
+    const sessionDir = makeTempSessionDir()
+    const repository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir)
+    const historyGeneration: ActorHistoryGenerationData = {
+      version: CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
+      generationId: "hist-exact-text",
+      sessionId: "ses_1",
+      actorKey: "main",
+      actorId: "actor-main",
+      parentGenerationId: null,
+      predecessorGenerationIds: [],
+      createdReason: "append",
+      sealed: false,
+      messageCount: 2,
+      messages: [{
+        recordId: "user-1",
+        actorKey: "main",
+        actorId: "actor-main",
+        committedAt: 0,
+        message: { role: "user", content: "  retain boundary whitespace  " },
+      }, {
+        recordId: "assistant-1",
+        actorKey: "main",
+        actorId: "actor-main",
+        committedAt: 1,
+        message: {
+          role: "assistant",
+          reasoningContent: "first line\nsecond line\n  indented reasoning",
+          content: "answer line one\nanswer line two",
+        },
+      }],
+      createdAt: new Date(1).toISOString(),
+      updatedAt: new Date(2).toISOString(),
+    }
+    const before = digestProviderContextHistoryFrontier(historyGeneration.messages)
+
+    await repository.writeHistoryGeneration(historyGeneration)
+    const recovered = await repository.loadHistoryGeneration(historyGeneration.generationId)
+
+    expect(recovered).toEqual(historyGeneration)
+    expect(digestProviderContextHistoryFrontier(recovered!.messages)).toBe(before)
+    const historyXnl = fs.readFileSync(path.join(sessionDir, "conversation", "history.xnl"), "utf8")
+    const messages = parseXnl(historyXnl).nodes as any[]
+    expect(messages[0].body[0]).toEqual(expect.objectContaining({
+      kind: "DataElement",
+      tag: "Content",
+      attributes: expect.objectContaining({ textEncoding: "utf8-json-string/v1" }),
+    }))
+    expect(messages[1].body.map((block: any) => block.kind)).toEqual(["DataElement", "DataElement"])
   })
 
   it("restores history generation messages from blocks without message blobs", async () => {

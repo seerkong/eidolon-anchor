@@ -1,0 +1,35 @@
+<BehaviorPatch #track.add-autonomous-ai-data-planning-e2e.behavior_patch.ai-data-workflow apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-data-workflow" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-data-workflow/requirements/autonomous-planning-evidence" } (
+      <Requirement #autonomous-planning-evidence (
+        <Statement ?>Autonomous AI Data planning evidence SHALL bind proposition-neutral inputs to canonical multi-generation control facts, exact Agent identities and immutable verifier outcomes, while distinguishing deterministic mechanics from live-provider autonomy.</?>
+        <Suites [
+          <Suite #autonomous-planning-evidence-cases { name = "Autonomous planning evidence" } (
+            <Cases [
+              <Case #two-distinct-observation-driven-patches [
+                <Given ?>A proposition supplies only a goal, immutable verifier, frozen capability catalog, initial data and budgets.</?>
+                <When ?>The autonomous control loop observes a first gap and a distinct verifier failure after its first admitted revision.</?>
+                <Then ?>It SHALL record two distinct admitted patch digests causally linked to those observations and converge without a harness-authored repair answer.</?>
+              ]>
+              <Case #invalid-decision-preserves-authority [
+                <Given ?>A controller output is invalid and the current graph bytes and generation are known.</?>
+                <When ?>The output is normalized and rejected by admission.</?>
+                <Then ?>Typed bounded feedback SHALL be committed while graph bytes and generation remain unchanged.</?>
+              ]>
+              <Case #sealed-exact-reuse-evidence [
+                <Given ?>A run is recovered after its first admitted patch and Agent invocations.</?>
+                <When ?>The Controller and a repeated Worker are invoked in the fresh runtime.</?>
+                <Then ?>The sealed evidence SHALL prove targeted reuse of identical external instance and session identities and reject substitutions or fallback creation.</?>
+              ]>
+              <Case #evidence-class-separation [
+                <Given ?>A deterministic provider double completes the same canonical runtime path as a live resource Agent.</?>
+                <When ?>Its sealed receipt is evaluated for live-autonomy acceptance.</?>
+                <Then ?>The receipt SHALL be classified as mechanics-only and SHALL NOT satisfy a live-provider evidence gate.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

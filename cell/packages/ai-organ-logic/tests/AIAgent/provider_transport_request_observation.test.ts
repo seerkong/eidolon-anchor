@@ -13,6 +13,7 @@ import {
   OpenAIResponsesNodejsFetchLlmAdapter,
   ProviderRuntimeLlmAdapter,
 } from "@cell/ai-organ-logic/llm";
+import { pairAutonomousPlanningProviderAttempts } from "../../../../../scripts/run-autonomous-ai-data-live";
 
 function sse(events: unknown[] = []): Response {
   const body =
@@ -168,11 +169,12 @@ describe("provider transport request observation", () => {
       },
     };
 
-    await adapter.createStream({
+    const result = await adapter.createStream({
       model: "wire-model",
       messages: sourceMessages,
       tools: sourceTools,
     });
+    await drain(result.stream);
 
     expect(timeline).toEqual(["observe", "fetch"]);
     expect(observations).toHaveLength(1);
@@ -193,6 +195,173 @@ describe("provider transport request observation", () => {
     expect(JSON.parse(String(observations[0].requestBody))).toEqual(
       JSON.parse(fetchBodies[0]),
     );
+  });
+
+  it("keeps an ordinary chat outcome bound to its request-time identity when runtime context changes", async () => {
+    const observations: ProviderRequestObservationData[] = [];
+    const outcomes: ProviderRequestOutcomeObservationData[] = [];
+    let adapter!: ProviderRuntimeLlmAdapter;
+    const driver: ProviderDriverDefinition = {
+      name: "openai-chat-outcome-correlation-test",
+      adapterNames: ["openai-responses"],
+      async createStream(params: ProviderDriverStreamParams) {
+        const transport = new OpenAICompletionsNodejsFetchLlmAdapter({
+          apiKey: "test-key",
+          requestObserver: params.transportRequestObserver,
+          providerOptions: {
+            fetch: async () => {
+              Object.assign(adapter.runtime, {
+                sessionId: "session-mutated",
+                actorId: "actor-mutated",
+                turnId: "turn-mutated",
+                traceId: "trace-mutated",
+                providerId: "provider-mutated",
+                selectedModel: "model-mutated",
+              });
+              return sse([{ id: "chatcmpl-1", choices: [] }]);
+            },
+          },
+        });
+        return transport.createStream({
+          model: params.model,
+          messages: params.messages as any[],
+          tools: params.tools as any[],
+          extraBody: params.extraBody,
+          signal: params.signal,
+        });
+      },
+    };
+    adapter = createRuntimeAdapter({ driver, observations, outcomes });
+    adapter.runtime.traceId = "trace-1";
+
+    const result = await adapter.createStream({
+      model: "wire-model",
+      messages: [{ role: "user", content: "hello" }],
+      tools: [],
+    });
+    await drain(result.stream);
+
+    expect(observations).toHaveLength(1);
+    expect(outcomes).toHaveLength(1);
+    const identityFields = ({
+      providerCallId,
+      providerCallOrdinal,
+      providerAttemptOrdinal,
+      transportAttemptOrdinal,
+      transportType,
+      providerId,
+      model,
+      actorId,
+      sessionId,
+      turnId,
+      traceId,
+    }: ProviderRequestObservationData | ProviderRequestOutcomeObservationData) => ({
+      providerCallId,
+      providerCallOrdinal,
+      providerAttemptOrdinal,
+      transportAttemptOrdinal,
+      transportType,
+      providerId,
+      model,
+      actorId,
+      sessionId,
+      turnId,
+      traceId,
+    });
+    expect(identityFields(outcomes[0]!)).toEqual(identityFields(observations[0]!));
+    expect(outcomes[0]).toEqual(expect.objectContaining({
+      terminalState: "completed",
+      fallbackUsed: false,
+      completenessStatus: "complete",
+      completenessSource: "completed_output",
+      responseId: "chatcmpl-1",
+    }));
+    expect(pairAutonomousPlanningProviderAttempts({
+      requests: observations,
+      outcomes,
+      providerId: "provider-1",
+      model: "selected-model",
+    })).toEqual([
+      expect.objectContaining({
+        identity: expect.objectContaining({
+          actorId: "actor-1",
+          sessionId: "session-1",
+          turnId: "turn-1",
+          traceId: "trace-1",
+        }),
+        terminalState: "completed",
+      }),
+    ]);
+  });
+
+  it.each([
+    ["failed", "not_observed", "http_400"],
+    ["aborted", "not_observed", "aborted"],
+    ["incomplete", "not_observed", "missing_done_marker"],
+  ] as const)("records exactly one %s ordinary chat terminal outcome", async (
+    expectedState,
+    expectedCompleteness,
+    expectedReason,
+  ) => {
+    const observations: ProviderRequestObservationData[] = [];
+    const outcomes: ProviderRequestOutcomeObservationData[] = [];
+    const controller = new AbortController();
+    if (expectedState === "aborted") controller.abort();
+    const driver: ProviderDriverDefinition = {
+      name: `openai-chat-${expectedState}-outcome-test`,
+      adapterNames: ["openai-responses"],
+      async createStream(params: ProviderDriverStreamParams) {
+        const transport = new OpenAICompletionsNodejsFetchLlmAdapter({
+          apiKey: "test-key",
+          requestObserver: params.transportRequestObserver,
+          providerOptions: {
+            fetch: async (_url, init) => {
+              if ((init?.signal as AbortSignal | undefined)?.aborted) {
+                throw new DOMException("aborted", "AbortError");
+              }
+              if (expectedState === "failed") {
+                return new Response("denied", { status: 400 });
+              }
+              return new Response('data: {"id":"chatcmpl-incomplete","choices":[]}\n\n', {
+                status: 200,
+                headers: { "Content-Type": "text/event-stream" },
+              });
+            },
+          },
+        });
+        return transport.createStream({
+          model: params.model,
+          messages: params.messages as any[],
+          tools: params.tools as any[],
+          extraBody: params.extraBody,
+          signal: params.signal,
+        });
+      },
+    };
+    const adapter = createRuntimeAdapter({ driver, observations, outcomes });
+    const result = await adapter.createStream({
+      model: "wire-model",
+      messages: [{ role: "user", content: "hello" }],
+      tools: [],
+      signal: controller.signal,
+    });
+
+    if (expectedState === "failed" || expectedState === "aborted") {
+      await expect(drain(result.stream)).rejects.toThrow();
+    } else {
+      await drain(result.stream);
+    }
+
+    expect(observations).toHaveLength(1);
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toEqual(expect.objectContaining({
+      terminalState: expectedState,
+      fallbackUsed: false,
+      completenessStatus: expectedCompleteness,
+      completenessSource: null,
+      completenessReason: expectedReason,
+      responseId: null,
+    }));
   });
 
   it("records the actual Responses WS payload selected by the explicit request plan", async () => {
@@ -551,7 +720,10 @@ describe("provider transport request observation", () => {
             webSocketFactory: (() => {
               throw new Error("connect failed");
             }) as any,
-            fetch: async () => sse(),
+            fetch: async () => sse([{
+              type: "response.completed",
+              response: { id: "resp-connect-fallback", output: [] },
+            }]),
           },
         });
         return adapter.createStream({
@@ -563,11 +735,12 @@ describe("provider transport request observation", () => {
     };
     const adapter = createRuntimeAdapter({ driver, observations });
 
-    await adapter.createStream({
+    const result = await adapter.createStream({
       model: "wire-model",
       messages: [{ role: "user", content: "hello" }],
       tools: [],
     });
+    await drain(result.stream);
 
     expect(observations).toHaveLength(1);
     expect(observations[0]).toEqual(
@@ -610,12 +783,13 @@ describe("provider transport request observation", () => {
     const controller = new AbortController();
     if (abortMode) controller.abort();
 
-    await expect(adapter.createStream({
+    const result = await adapter.createStream({
       model: "wire-model",
       messages: [],
       tools: [],
       signal: controller.signal,
-    })).rejects.toThrow();
+    });
+    await expect(drain(result.stream)).rejects.toThrow();
 
     expect(observations).toHaveLength(1);
     expect(outcomes).toEqual([
@@ -698,6 +872,7 @@ describe("provider transport request observation", () => {
       messages: [],
       tools: [],
     });
+    await drain(result.stream);
 
     expect(result.stream).toBeDefined();
     expect(fetchCalls).toBe(1);

@@ -1406,7 +1406,7 @@ describe("ai_agent_loop_streaming", () => {
     ).retainedPrefixIntegrity).toBe(1);
   });
 
-  it("continues DeepSeek reasoning-only attempts by remaining output budget without growing the recovery prefix", async () => {
+  it("continues DeepSeek reasoning-only attempts by output budget with append-only partial reasoning", async () => {
     let processStreamCalls = 0;
     const requestedMessages: any[][] = [];
     const requestedMaxTokens: number[] = [];
@@ -1487,7 +1487,17 @@ describe("ai_agent_loop_streaming", () => {
       tools: [tool.schema],
       processStream: async () => {
         processStreamCalls += 1;
-        if (processStreamCalls <= 3) throw new ChatCompletionsReasoningOnlyError("stop");
+        if (processStreamCalls <= 3) {
+          throw new ChatCompletionsReasoningOnlyError(
+            "stop",
+            completionProgress[processStreamCalls - 1]! * 4,
+            {
+              role: "assistant",
+              content: "",
+              reasoning_content: `partial-reasoning-${processStreamCalls}`,
+            },
+          );
+        }
         if (processStreamCalls === 4) {
           return {
             role: "assistant",
@@ -1505,8 +1515,11 @@ describe("ai_agent_loop_streaming", () => {
     expect(processStreamCalls).toBe(5);
     expect(requestedMaxTokens.slice(0, 4)).toEqual([1000, 900, 750, 550]);
     expect(requestedMaxTokens[4]).toBe(1000);
-    expect(requestedMessages[2]).toEqual(requestedMessages[1]);
-    expect(requestedMessages[3]).toEqual(requestedMessages[1]);
+    expect(requestedMessages[2]!.slice(0, requestedMessages[1]!.length)).toEqual(requestedMessages[1]);
+    expect(requestedMessages[3]!.slice(0, requestedMessages[2]!.length)).toEqual(requestedMessages[2]);
+    expect(JSON.stringify(requestedMessages[3])).toContain("partial-reasoning-1");
+    expect(JSON.stringify(requestedMessages[3])).toContain("partial-reasoning-2");
+    expect(JSON.stringify(requestedMessages[3])).toContain("partial-reasoning-3");
     expect(JSON.stringify(requestedMessages[1])).toContain("ended after internal reasoning");
     expect(JSON.stringify(requestedMessages[1]).match(/ended after internal reasoning/g)).toHaveLength(1);
     expect(diagnostics).toHaveLength(3);
@@ -1516,7 +1529,79 @@ describe("ai_agent_loop_streaming", () => {
       "cumulative_output_tokens",
     ]);
     expect(diagnostics.map((event) => event.remainingOutputTokens)).toEqual([900, 750, 550]);
+    expect(diagnostics.every((event) => event.outputTokenProgressSource === "provider_usage")).toBe(true);
     expect(diagnostics.every((event) => event.maxRetries === 0)).toBe(true);
+  });
+
+  it("accounts reasoning stream bytes when a compatible provider omits usage", async () => {
+    let processStreamCalls = 0;
+    const requestedMaxTokens: number[] = [];
+    const diagnostics: any[] = [];
+    const adapter = {
+      type: "openai" as const,
+      chatCompletionsEffectBundle: deepSeekCompatibleChatEffectBundle,
+      runtime: {
+        providerId: "deepseek-iqingwa",
+        selectedModel: "deepseek-v4-pro",
+        chatCompatibilityProfileId: "deepseek-compatible-chat@1",
+        diagnostics: { retryEvents: { onNext: (event: unknown) => diagnostics.push(event) } },
+      },
+      async createStream(options?: any) {
+        requestedMaxTokens.push(Number(options?.extraBody?.max_tokens));
+        const observation = createProviderCacheCostObservation({
+          identity: {
+            schemaVersion: 1,
+            providerId: "deepseek-iqingwa",
+            providerProfile: "deepseek_compatible",
+            providerProfileId: "deepseek-compatible-chat@1",
+            model: "deepseek-v4-pro",
+            actorClass: "ordinary",
+            contextEpoch: 1,
+          },
+          serializedRequestBody: JSON.stringify({
+            model: "deepseek-v4-pro",
+            messages: options?.messages ?? [],
+            tools: options?.tools ?? [],
+            max_tokens: options?.extraBody?.max_tokens,
+          }),
+          tokenEstimates: { toolSurfaceTokens: 0, workflowControlTokens: 0 },
+        });
+        return {
+          stream: (async function* () { yield { ok: true }; })(),
+          providerOutput: Promise.resolve({ provider_cache_cost_observation: observation }),
+        };
+      },
+    };
+    const actor = createActor({
+      key: "main",
+      llmClient: adapter,
+      modelConfig: { model: "deepseek-v4-pro", maxOutputTokens: 100 },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async () => ({ role: "assistant", content: "unused" }),
+      },
+    });
+    const vm = createTestRuntime({
+      actor,
+      toolRegistry: new ToolFuncRegistry(),
+      processStream: async () => {
+        processStreamCalls += 1;
+        if (processStreamCalls === 1) throw new ChatCompletionsReasoningOnlyError("stop", 80);
+        return { role: "assistant", content: "recovered" };
+      },
+    });
+
+    const result = await aiAgentLoopStreaming({ vm, actor, messages: [] });
+
+    expect(result.stopReason).toBe("no_tool_calls");
+    expect(requestedMaxTokens).toEqual([100, 80]);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      retryBudgetKind: "cumulative_output_tokens",
+      consumedOutputTokens: 20,
+      remainingOutputTokens: 80,
+      outputTokenProgressSource: "reasoning_bytes_estimate",
+    });
   });
 
   it("fails closed when a DeepSeek reasoning-only attempt makes no accountable token progress", async () => {

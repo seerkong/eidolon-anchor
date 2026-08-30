@@ -593,8 +593,16 @@ function historyMessageRecordToMessage(
       message.reasoningContent = block.text;
       continue;
     }
+    if (block.kind === "data" && block.tag === "Think" && typeof block.attributes?.text === "string") {
+      message.reasoningContent = block.attributes.text;
+      continue;
+    }
     if (block.kind === "text" && block.tag === "Content") {
       contentParts.push(block.text);
+      continue;
+    }
+    if (block.kind === "data" && block.tag === "Content" && typeof block.attributes?.text === "string") {
+      contentParts.push(block.attributes.text);
       continue;
     }
     if (block.kind === "data" && block.tag === "StructuredContent") {
@@ -796,28 +804,32 @@ async function createHistoryMessageBlocks(
 ): Promise<XnlAppendDataRecordBody> {
   const blocks: XnlAppendDataRecordBody = [];
   const nextIndex = () => blocks.length;
+  const exactTextBlock = (tag: "Think" | "Content", text: string): XnlAppendDataRecordBody[number] => {
+    const metadata = {
+      id: `${entry.recordId}.b${nextIndex()}`,
+      index: nextIndex(),
+    };
+    // xnl-core intentionally pretty-indents multiline TextElement bodies and
+    // trims their boundary whitespace. Provider admission frontiers require
+    // byte-exact History across recovery, so values affected by that display
+    // normalization use a JSON-string data attribute instead. The reader keeps
+    // accepting legacy TextElements for backward compatibility.
+    if (text.includes("\n") || text.includes("\r") || text.trim() !== text) {
+      return {
+        kind: "data",
+        tag,
+        metadata,
+        attributes: { text, textEncoding: "utf8-json-string/v1" },
+      };
+    }
+    return { kind: "text", tag, metadata, text };
+  };
   if (entry.message.reasoningContent) {
-    blocks.push({
-      kind: "text",
-      tag: "Think",
-      metadata: {
-        id: `${entry.recordId}.b${nextIndex()}`,
-        index: nextIndex(),
-      },
-      text: entry.message.reasoningContent,
-    });
+    blocks.push(exactTextBlock("Think", entry.message.reasoningContent));
   }
   if (entry.message.content && entry.message.role !== "tool") {
     if (typeof entry.message.content === "string") {
-      blocks.push({
-        kind: "text",
-        tag: "Content",
-        metadata: {
-          id: `${entry.recordId}.b${nextIndex()}`,
-          index: nextIndex(),
-        },
-        text: entry.message.content,
-      });
+      blocks.push(exactTextBlock("Content", entry.message.content));
     } else {
       blocks.push({
         kind: "data",

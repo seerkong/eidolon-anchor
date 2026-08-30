@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "packages/ai-organ-logic/type-tests/ai-data-autonomous-control.ts",
+    "packages/ai-organ-logic/tests/workflow/autonomous_planning_e2e_testkit.ts",
+    "packages/ai-organ-logic/src/ambient-assets.d.ts"
+  ],
+  "exclude": []
+}

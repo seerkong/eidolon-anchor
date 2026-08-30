@@ -159,6 +159,11 @@ export type EidolonPreparedWorkflowAgentExecution = {
   readonly receipt: AIWorkflowRunResourceFreezeReceipt
 }
 
+export type EidolonWorkflowAgentTaskProofRef = {
+  readonly taskProofRef: `resource://${string}`
+  readonly task: AIWorkflowAgentTaskRef
+}
+
 export type EidolonEffectiveResourceSource = {
   readonly resource: ResourceRecord
   readonly source: string
@@ -425,6 +430,43 @@ export class EidolonAppResourceRegistryAdapter {
     }))
   }
 
+  async freezeWorkflowAgentTaskBindingByRef(
+    taskProofRef: string,
+    expectedTask: AIWorkflowAgentTaskRef,
+  ): Promise<FrozenAIAgentTaskBinding> {
+    const exactRef = exactResourceRef(taskProofRef)
+    const snapshot = await this.snapshot()
+    const resourceId = exactRef.slice("resource://".length)
+    const binding = snapshot.agentResources.materialBindings.find(
+      (candidate) => candidate.resource.resourceId === resourceId,
+    )
+    if (!binding) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_WORKFLOW_AGENT_TASK_PROOF_NOT_FOUND",
+        `Workflow Agent task proof '${exactRef}' is not present in registry ${snapshot.registryRevision}.`,
+      )
+    }
+    if (!sameAgentTask(binding.task, expectedTask)) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_WORKFLOW_AGENT_TASK_PROOF_IDENTITY_MISMATCH",
+        `Workflow Agent task proof '${exactRef}' does not match the expected workflow, node and Agent definition identity.`,
+      )
+    }
+    const receipt = freezeAIWorkflowRunResources({
+      registry: snapshot.registry,
+      projection: snapshot.agentResources,
+      task: binding.task,
+      contentIdentities: snapshot.contentIdentities,
+    })
+    if (!receipt.bindingResourceIds.includes(resourceId)) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_WORKFLOW_AGENT_TASK_PROOF_CLOSURE_MISMATCH",
+        `Workflow Agent task proof '${exactRef}' is absent from its frozen dependency closure.`,
+      )
+    }
+    return projectFrozenAIAgentTaskBinding(receipt)
+  }
+
   async freezeWorkflowHolonTaskTarget(target: HolonTaskTarget): Promise<FrozenHolonTaskTarget> {
     const snapshot = await this.snapshot()
     return projectFrozenHolonTaskTarget(freezeAIWorkflowHolonTaskTarget({
@@ -458,6 +500,16 @@ export class EidolonAppResourceRegistryAdapter {
       .map((binding) => binding.task)
       .filter((task) => task.workflowRef === workflowRef)
       .map((task) => Object.freeze({ ...task })))
+  }
+
+  async listWorkflowAgentTaskProofRefs(workflowRef: string): Promise<readonly EidolonWorkflowAgentTaskProofRef[]> {
+    const snapshot = await this.snapshot()
+    return Object.freeze(snapshot.agentResources.materialBindings
+      .filter((binding) => binding.task.workflowRef === workflowRef)
+      .map((binding) => Object.freeze({
+        taskProofRef: resourceRef(binding.resource.resourceId),
+        task: Object.freeze({ ...binding.task }),
+      })))
   }
 
   async readEffectiveSource(
@@ -1204,6 +1256,13 @@ function exactDependencyPath(value: string): string {
 
 function resourceRef(resourceId: string): `resource://${string}` {
   return `resource://${resourceId}`
+}
+
+function sameAgentTask(left: AIWorkflowAgentTaskRef, right: AIWorkflowAgentTaskRef): boolean {
+  return left.workflowKind === right.workflowKind
+    && left.workflowRef === right.workflowRef
+    && left.nodeId === right.nodeId
+    && left.agentDefinitionRef === right.agentDefinitionRef
 }
 
 function effectiveResource(

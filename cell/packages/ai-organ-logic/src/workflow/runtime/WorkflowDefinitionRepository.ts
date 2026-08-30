@@ -1,4 +1,6 @@
 import path from "node:path"
+import { readFileSync } from "node:fs"
+import type { DefinitionStepSourceReadPort } from "flow-step-space-contract"
 
 import type {
   AiWorkflowForm,
@@ -32,6 +34,22 @@ function vfsManifestPath(ref: string): string | undefined {
   return relative.endsWith(".xnl") ? relative : `${relative.replace(/\/$/, "")}/manifest.xnl`
 }
 
+function filesystemStepSources(baseUri: string): DefinitionStepSourceReadPort {
+  const root = path.resolve(baseUri)
+  return Object.freeze({
+    readSource(ref: string): Uint8Array {
+      if (!ref || path.isAbsolute(ref) || ref.includes("\0")) {
+        throw new Error(`Workflow step source ref is invalid: ${ref}`)
+      }
+      const target = path.resolve(root, ref)
+      if (target !== root && !target.startsWith(`${root}${path.sep}`)) {
+        throw new Error(`Workflow step source escapes its bundle root: ${ref}`)
+      }
+      return readFileSync(target)
+    },
+  })
+}
+
 export class WorkflowDefinitionRepository {
   constructor(
     private readonly workspace: WorkflowAuthoringWorkspace,
@@ -53,7 +71,11 @@ export class WorkflowDefinitionRepository {
     const bundlePath = path.posix.dirname(manifestPath)
     const baseUri = path.join(this.workspace.store.rootPath, ...bundlePath.split("/"))
     const sources = { "manifest.xnl": manifest }
-    const loaded = this.loader.load({ sources, baseUri })
+    const loaded = this.loader.load({
+      sources,
+      baseUri,
+      stepSources: filesystemStepSources(baseUri),
+    })
     if (!loaded.binding) {
       const details = loaded.diagnostics.map((item) => `${item.code}: ${item.message}`).join("; ")
       throw new Error(`Workflow manifest ${manifestPath} is invalid${details ? `: ${details}` : ""}`)

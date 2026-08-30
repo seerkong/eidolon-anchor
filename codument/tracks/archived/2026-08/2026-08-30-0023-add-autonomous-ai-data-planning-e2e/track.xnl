@@ -1,0 +1,65 @@
+<Track #add-autonomous-ai-data-planning-e2e apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Prove the autonomous AI Data control loop through deterministic anti-cheat E2E propositions whose harness contains no proposition answer, while sealing enough source and runtime evidence to distinguish mechanics from later live-model autonomy." description = "Add resource-backed Controller/Worker fixtures, proposition-neutral black-box execution, crash recovery, invalid-decision feedback, exact Agent reuse, sealed receipts and fail-closed source conformance checks without introducing a second graph or scripted-provider proof of live autonomy." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-29T20:58:29.847Z" updated_at = "2026-08-29T21:23:23.338Z" modeling_base_commit = "0d07806584770ed09966ffb0133f47357c40c839" engineering_base_commit = "0d07806584770ed09966ffb0133f47357c40c839" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #tests { role = "output" name = "autonomous-control-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/" }>
+    <MaterialBundle #fixtures { role = "output" name = "autonomous-control-fixtures" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/fixtures/" }>
+    <MaterialBundle #behavior { role = "output" name = "behavior" domain = "behavior" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_add-autonomous-ai-data-planning-e2e { name = "add-autonomous-ai-data-planning-e2e" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze anti-cheat E2E contract" status = "DONE" priority = "P0" order = 0 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17Q9W6CBP3R647VKTDF4301>
+          Test inputs contain only goal, immutable verifier, frozen capability catalog, initial data and budgets; they contain no expected patch, repair intent, proposition-specific controller branch or verifier answer.
+          </?01M17Q9W6CBP3R647VKTDF4301>
+          <Criterion { checked = true } ?01M17Q9W6CBP3R647VKTDF4302>
+          Deterministic provider evidence is explicitly classified as mechanics-only and cannot satisfy the Mission live-autonomy gate.
+          </?01M17Q9W6CBP3R647VKTDF4302>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "Define proposition-neutral fixtures and sealed receipt contract" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "Add source-conformance and evidence-class RED cases" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Execute deterministic cybernetic propositions" status = "DONE" priority = "P0" order = 1 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17Q9W6CBP3R647VKTDF4303>
+          One black-box run records two distinct admitted patches caused by different observations, one unchanged verifier identity, an invalid-decision feedback iteration with unchanged graph bytes and final convergence.
+          </?01M17Q9W6CBP3R647VKTDF4303>
+          <Criterion { checked = true } ?01M17Q9W6CBP3R647VKTDF4304>
+          A fresh runtime recovered after the first patch targets the exact Controller and Worker instance/session identities and never falls back to replacement creation.
+          </?01M17Q9W6CBP3R647VKTDF4304>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "Run two-patch convergence with invalid-decision feedback" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Recover mid-loop and prove exact Agent continuity" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Seal evidence and enforce conformance" status = "DONE" priority = "P0" order = 2 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17Q9W6CBP3R647VKTDF4305>
+          Sealed receipts bind goal, verifier, resources, executable sources, graph generations, raw decisions, admissions and Agent invocation identities with deterministic digests.
+          </?01M17Q9W6CBP3R647VKTDF4305>
+          <Criterion { checked = true } ?01M17Q9W6CBP3R647VKTDF4306>
+          Negative mutations for hidden answer templates, graph duplication, fallback creation, digest tampering and reuse substitution fail closed; focused regression and strict Codument validation pass.
+          </?01M17Q9W6CBP3R647VKTDF4306>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "Seal source and runtime evidence with tamper rejection" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "Run focused regressions typecheck and strict validation" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_add-autonomous-ai-data-planning-e2e" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

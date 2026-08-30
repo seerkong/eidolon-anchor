@@ -3,6 +3,10 @@ import type {
   AIDataWorkflowGraphPatch,
   AIDataWorkflowRunGraph,
   AIDataWorkflowRunNode,
+  AIDataControlAdmission,
+  AIDataControlDecision,
+  AIDataControlObservation,
+  AIDataControlVerifierFact,
   AIWorkflowNodeResult,
   AIWorkflowRunRef,
 } from "@cell/ai-workflow-contract"
@@ -21,8 +25,10 @@ import {
   recordAIDataWorkflowNodeResult,
   restoreAIDataWorkflowRunGraph,
 } from "ai-data-workflow-logic"
-import type { FlowClosedValue, FrozenAIAgentTaskBinding } from "ai-workflow-contract"
+import type { AIWorkflowFlowRunCheckpoint, FlowClosedValue, FrozenAIAgentTaskBinding } from "ai-workflow-contract"
 import type { FrozenHolonTaskTarget } from "ai-workflow-contract"
+import { assertFrozenAIAgentTaskBinding } from "ai-workflow-logic/run-freeze"
+import { bindAIAgentProcessors } from "ai-workflow-logic"
 import { createFilesystemCodeResolver } from "eager-data-flow-logic"
 import type { WorkflowAuthoringWorkspace } from "../authoring"
 import {
@@ -36,6 +42,28 @@ import type { WorkflowFactStore, WorkflowRunDescriptor } from "./WorkflowFactSto
 import { EMPTY_AI_WORKFLOW_DURABLE_STATE, type WorkflowDepaPersistence } from "./WorkflowDepaPersistence"
 import type { EidolonAppResourceRegistryAdapter } from "../../resources"
 import { normalizeFrozenWorkflowCodeReference } from "./WorkflowDefinitionRepository"
+import {
+  resolveAIDataDynamicAgentBinding,
+  findAIDataAutonomousControlState,
+  findAIDataAutonomousControlStateInExtensions,
+  readAIDataAutonomousControlState,
+  selectAIDataAgentDispatch,
+  transitionAIDataAutonomousControlCheckpoint,
+  type AIDataAutonomousControlPhase,
+  type AIDataAutonomousControlState,
+  type AIDataDynamicAgentBinding,
+} from "./AIDataAutonomousControlLoop"
+import {
+  AIDataAutonomousAdmissionValidationError,
+  AIDataAutonomousControllerOutputError,
+  projectAIDataAutonomousControllerPayload,
+  runAIDataAutonomousControlLoop,
+  type AIDataAutonomousControllerInput,
+  type AIDataAutonomousControllerResult,
+  type AIDataAutonomousControlRunResult,
+  type AIDataAutonomousVerifierPort,
+} from "./AIDataAutonomousControlRunner"
+import { AgentExecutionContractError } from "../../agent/AgentExecutionContract"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
 
@@ -102,10 +130,12 @@ function workflowRef(
 
 export class AIDataWorkflowRuntimeDriver {
   private graph?: AIDataWorkflowRunGraph
+  private autonomousControlPhase?: AIDataAutonomousControlPhase
   private activeRunAuthority: AIWorkflowRunRef
   private readonly code = createFilesystemCodeResolver<any>((specifier) => import(specifier))
   private readonly aiRuntime: ReturnType<typeof createAIDataWorkflowRuntime>
   private readonly bindAgentNode?: ReturnType<typeof createAIDataWorkflowAgentNodeRuntimeBinder>
+  private readonly agentEffects: EidolonWorkflowEffectProvider
 
   constructor(
     private readonly runtime: WorkflowRuntime,
@@ -117,7 +147,8 @@ export class AIDataWorkflowRuntimeDriver {
     roots: { globalRoot: string; workspaceRoot: string },
     onMaterialWrite?: ConstructorParameters<typeof EidolonWorkflowEffectProvider>[3],
     resourceRegistry?: EidolonAppResourceRegistryAdapter,
-    taskProofs: Readonly<Record<string, FrozenAIAgentTaskBinding>> = {},
+    private readonly taskProofs: Readonly<Record<string, FrozenAIAgentTaskBinding>> = {},
+    private readonly taskProofRefs: Readonly<Record<string, readonly `resource://${string}`[]>> = {},
     stepExtensions?: WorkflowStepExtensionAuthoredFacade,
     private readonly holonTasks?: AIDataWorkflowHolonTaskFacade,
   ) {
@@ -132,6 +163,7 @@ export class AIDataWorkflowRuntimeDriver {
       stepExtensions,
       { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
     )
+    this.agentEffects = agentEffects
     this.aiRuntime = createAIDataWorkflowRuntime({
       ai: {
         roots,
@@ -147,11 +179,11 @@ export class AIDataWorkflowRuntimeDriver {
         checkpointRuntime: depa.checkpointRuntime,
         effects: agentEffects,
         workflowRef: descriptor.workflowRef as `resource://${string}`,
-        taskProofs,
+        taskProofs: this.taskProofs,
         generationForNode: (nodeId) => this.graph?.nodes[nodeId]?.generation ?? descriptor.generation,
       })
       this.bindAgentNode = (nodeRuntime, identity) => {
-        if (!taskProofs[identity.nodeId]) return nodeRuntime
+        if (!this.taskProofs[identity.nodeId]) return nodeRuntime
         const bound = bindAgentNode(nodeRuntime, identity)
         return stepExtensions
           ? Object.freeze({
@@ -170,6 +202,11 @@ export class AIDataWorkflowRuntimeDriver {
       runId: this.descriptor.runId,
     })
     const instance = this.depa.load(this.descriptor.instanceId)
+    const initialStepExtensions = this.depa.initialStepExtensions(
+      this.descriptor.instanceId,
+      instance.descriptor.definition,
+      "AIDataWorkflow",
+    )
     await createAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
       instanceId: this.descriptor.instanceId,
       definition: instance.descriptor.definition,
@@ -181,12 +218,13 @@ export class AIDataWorkflowRuntimeDriver {
       controllerSidecars: { status: "Pending" },
       nodeSidecars: this.nodeSidecars(),
       ai: EMPTY_AI_WORKFLOW_DURABLE_STATE,
-      stepExtensions: this.depa.initialStepExtensions(
-        this.descriptor.instanceId,
-        instance.descriptor.definition,
-        "AIDataWorkflow",
-      ),
+      stepExtensions: initialStepExtensions,
     })
+    const autonomousControl = findAIDataAutonomousControlStateInExtensions(initialStepExtensions)
+    if (autonomousControl) {
+      this.autonomousControlPhase = autonomousControl.phase
+      this.assertAutonomousControlBarrier(this.graph, autonomousControl)
+    }
     await this.advance(record(input))
     return this.project("workflow.run")
   }
@@ -211,6 +249,10 @@ export class AIDataWorkflowRuntimeDriver {
       }
     }
     this.graph = graph
+    this.autonomousControlPhase = findAIDataAutonomousControlState(
+      stored as unknown as AIWorkflowFlowRunCheckpoint,
+    )?.phase
+    this.descriptor.generation = graph.currentGeneration
     if (Object.values(graph.nodes).some((node) => node.status === "Running" && node.nodeType !== "manual")) await this.persist()
     return true
   }
@@ -222,6 +264,10 @@ export class AIDataWorkflowRuntimeDriver {
 
   async resumeManual(nodeId: string, output: unknown): Promise<DataRunProjection> {
     await this.requireGraph()
+    const control = await this.loadAutonomousControlState()
+    if (control?.binding.controlNodeId === nodeId) {
+      throw new Error(`AI_DATA_CONTROL_BARRIER_RESUME_FORBIDDEN: ${nodeId}`)
+    }
     const node = this.graph!.nodes[nodeId]
     if (!node || node.nodeType !== "manual" || node.result?.status !== "Waiting") {
       throw new Error(`AIDataWorkflow node ${nodeId} is not a waiting manual node`)
@@ -241,12 +287,87 @@ export class AIDataWorkflowRuntimeDriver {
 
   async applyPatch(patch: AIDataWorkflowGraphPatch): Promise<DataRunProjection> {
     await this.requireGraph()
-    this.graph = applyAIDataWorkflowGraphPatch(this.graph!, patch)
+    const control = await this.loadAutonomousControlState()
+    if (control && patch.operations.some((operation) => (
+      (operation.op === "remove-node" || operation.op === "update-node")
+        ? operation.nodeId === control.binding.controlNodeId
+        : operation.node.id === control.binding.controlNodeId
+    ))) {
+      throw new Error(`AI_DATA_CONTROL_BARRIER_PATCH_FORBIDDEN: ${control.binding.controlNodeId}`)
+    }
+    const candidate = applyAIDataWorkflowGraphPatch(this.graph!, patch)
+    for (const node of Object.values(candidate.nodes)) {
+      if (node.status !== "Removed" && node.config.agent !== undefined) this.dynamicAgentBinding(node)
+    }
+    this.graph = candidate
     this.descriptor.generation = this.graph.currentGeneration
     await this.facts.saveDescriptor(this.descriptor)
     await this.persist()
     await this.advance()
     return this.project("workflow.graphPatch")
+  }
+
+  async autonomousControlCheckpoint(): Promise<AIWorkflowFlowRunCheckpoint | undefined> {
+    const checkpoint = await loadAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+      instanceId: this.descriptor.instanceId,
+      runId: this.descriptor.runId,
+    })
+    const canonical = checkpoint as unknown as AIWorkflowFlowRunCheckpoint | undefined
+    const control = canonical ? findAIDataAutonomousControlState(canonical) : undefined
+    if (!canonical || !control) return undefined
+    this.autonomousControlPhase = control.phase
+    return canonical
+  }
+
+  async commitAutonomousControlTransition(input: Readonly<{
+    observation: AIDataControlObservation
+    decision: AIDataControlDecision
+    admission: AIDataControlAdmission
+    verifier: AIDataControlVerifierFact
+    budget?: import("ai-data-workflow-contract").AIDataControlBudget
+  }>): Promise<DataRunProjection> {
+    await this.requireGraph()
+    const current = await this.autonomousControlCheckpoint()
+    if (!current) throw new Error(`AI_DATA_CONTROL_STATE_MISSING: ${this.descriptor.runId}`)
+    const candidate = transitionAIDataAutonomousControlCheckpoint(current, input)
+    const accepted = await commitAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+      expectedVersion: current.version,
+      checkpoint: candidate as any,
+    })
+    if (accepted.profile.kind !== "AIDataWorkflow") {
+      throw new Error(`AI_DATA_CONTROL_PROFILE_MISMATCH: ${this.descriptor.runId}`)
+    }
+    this.autonomousControlPhase = readAIDataAutonomousControlState(
+      accepted as unknown as AIWorkflowFlowRunCheckpoint,
+    ).phase
+    this.graph = restoreAIDataWorkflowRunGraph({
+      ...accepted.profile.runGraph,
+      binding: this.definition.binding.kind === "AIDataWorkflow"
+        ? this.definition.binding
+        : (accepted.profile.runGraph as any).binding,
+    } as any)
+    this.descriptor.generation = this.graph.currentGeneration
+    await this.facts.saveDescriptor(this.descriptor)
+    if (input.admission.kind === "patch" || input.admission.kind === "complete") await this.advance()
+    return this.project(input.admission.kind === "patch" ? "workflow.graphPatch" : "workflow.runStatus")
+  }
+
+  async runAutonomousControl(
+    verifier: AIDataAutonomousVerifierPort,
+  ): Promise<AIDataAutonomousControlRunResult> {
+    return runAIDataAutonomousControlLoop({
+      verifier,
+      checkpoint: {
+        load: () => this.autonomousControlCheckpoint(),
+        commit: async (input) => { await this.commitAutonomousControlTransition(input) },
+      },
+      controller: {
+        decide: (input) => this.decideAutonomousControl(input),
+      },
+      admissionValidation: {
+        validate: (input) => this.validateAutonomousAdmission(input),
+      },
+    })
   }
 
   async result(allowPartial = false): Promise<DataRunProjection | {
@@ -275,20 +396,29 @@ export class AIDataWorkflowRuntimeDriver {
     let progressed = true
     while (progressed) {
       progressed = false
+      let haltedOnRepairableFailure = false
       for (const node of listReadyAIDataWorkflowNodes(this.graph!)) {
         progressed = true
         await this.applyNode(node, initialInput)
         initialInput = undefined
-        if (this.graph!.nodes[node.id]?.status === "Failed") break
+        const appliedStatus = this.graph!.nodes[node.id]?.status
+        if (appliedStatus === "Failed"
+          || ((this.autonomousControlPhase === "planning" || this.autonomousControlPhase === "executing")
+            && appliedStatus === "Invalidated")) {
+          haltedOnRepairableFailure = appliedStatus === "Invalidated"
+          break
+        }
       }
-      if (Object.values(this.graph!.nodes).some((node) => node.status === "Failed")) break
+      if (haltedOnRepairableFailure
+        || Object.values(this.graph!.nodes).some((node) => node.status === "Failed")) break
     }
     await this.persist()
   }
 
   private async applyNode(node: AIDataWorkflowRunNode, initialInput?: Record<string, unknown>): Promise<void> {
-    const generation = this.graph!.currentGeneration
+    const generation = node.generation
     const input = node.tag === "EntryNode" ? (initialInput ?? this.initialInput()) : this.effectiveInput(node)
+    const dynamicAgent = this.dynamicAgentBinding(node)
     const fingerprint = createAIDataWorkflowSemanticFingerprint({
       nodeId: node.id,
       nodeTag: node.tag,
@@ -346,16 +476,9 @@ export class AIDataWorkflowRuntimeDriver {
         output = exactOutput(input, this.definition.binding.definition.contract.outputPorts, node.id)
       } else if (node.tag === "TransformNode" || node.tag === "SinkNode") {
         if (this.definition.binding.kind !== "AIDataWorkflow") throw new Error("Expected AIDataWorkflow binding")
-        const planNode = this.definition.binding.definition.nodeById[node.id] as any
-        const reference = planNode?.src ?? planNode?.impl ?? node.config.src ?? node.config.impl
-        if (typeof reference !== "string") throw new Error(`${node.id} has no EagerDataFlow code binding`)
-        const fn = await this.code({
-          reference: normalizeFrozenWorkflowCodeReference(reference),
-          flowId: this.definition.binding.definition.fqn,
-          nodeId: node.id,
-          baseUri: this.definition.binding.definition.baseUri,
-        })
-        const result = await fn(this.runtimeForGeneration(generation, node.id), input, node.config)
+        const result = dynamicAgent
+          ? await this.executeDynamicAgent(node, dynamicAgent, input, generation)
+          : await this.executeCodeNode(node, input, generation)
         output = node.tag === "SinkNode" ? undefined : exactOutput(result, node.outputs, node.id)
       } else {
         throw new Error(`Unsupported AIDataWorkflow node tag: ${node.tag}`)
@@ -371,11 +494,115 @@ export class AIDataWorkflowRuntimeDriver {
       this.graph = recordAIDataWorkflowNodeResult(this.graph!, node.id, {
         nodeId: node.id,
         generation,
-        status: "Failed",
+        status: this.autonomousControlPhase === "planning" || this.autonomousControlPhase === "executing"
+          ? "Invalidated"
+          : "Failed",
         semanticFingerprint: fingerprint,
       })
     }
     await this.persist()
+  }
+
+  private dynamicAgentBinding(node: AIDataWorkflowRunNode): AIDataDynamicAgentBinding | undefined {
+    if (node.config.agent === undefined) return undefined
+    if (!this.definition.resourceReceipt || this.definition.binding.kind !== "AIDataWorkflow") {
+      throw new Error(`AI_DATA_AGENT_FROZEN_RESOURCE_REQUIRED: dynamic Agent node ${node.id} requires a frozen resource workflow`)
+    }
+    return resolveAIDataDynamicAgentBinding({
+      node,
+      workflowRef: this.descriptor.workflowRef as `resource://${string}`,
+      taskProofs: this.taskProofs,
+      taskProofRefs: this.taskProofRefs,
+    })
+  }
+
+  private validateAutonomousAdmission(input: Readonly<{
+    state: AIDataAutonomousControlState
+    decision: AIDataControlDecision
+    admission: AIDataControlAdmission
+  }>): void {
+    if (input.admission.kind !== "patch" || input.decision.kind !== "revise") return
+    for (const operation of input.decision.operations) {
+      if (operation.op === "remove-node") continue
+      const controlNodeId = input.state.binding.controlNodeId
+      const readsControlBarrier = operation.dependsOn?.includes(controlNodeId) === true
+        || Object.values(operation.inputs).some((binding) => binding.kind === "port" && binding.nodeId === controlNodeId)
+      if (readsControlBarrier) {
+        throw new AIDataAutonomousAdmissionValidationError(
+          `decision.operations node '${operation.nodeId}' cannot depend on protected control barrier '${controlNodeId}'; the barrier is released only after verifier completion`,
+        )
+      }
+      const capability = input.state.binding.catalog.capabilities[operation.capabilityId]
+      const implementation = capability?.implementation
+      if (!implementation || implementation.kind !== "agent") continue
+      const allowedNodeIds = Object.entries(this.taskProofRefs)
+        .filter(([, refs]) => refs.includes(implementation.taskProofRef))
+        .map(([nodeId]) => nodeId)
+        .sort()
+      if (allowedNodeIds.length === 0) {
+        throw new Error(`AI_DATA_CONTROL_TASK_PROOF_MISSING: ${implementation.taskProofRef}`)
+      }
+      if (!allowedNodeIds.includes(operation.nodeId)) {
+        throw new AIDataAutonomousAdmissionValidationError(
+          `decision.operations nodeId '${operation.nodeId}' does not select the exact frozen task proof node; allowed nodeIds: ${allowedNodeIds.join(", ")}`,
+        )
+      }
+      const proof = this.taskProofs[operation.nodeId]
+      if (!proof) throw new Error(`AI_DATA_CONTROL_TASK_PROOF_MISSING: ${operation.nodeId}`)
+      const task = assertFrozenAIAgentTaskBinding(proof).task
+      if (task.workflowKind !== "AIDataWorkflow"
+        || task.workflowRef !== this.descriptor.workflowRef
+        || task.nodeId !== operation.nodeId
+        || task.agentDefinitionRef !== implementation.agentDefinitionRef) {
+        throw new Error(`AI_DATA_CONTROL_TASK_PROOF_IDENTITY_MISMATCH: ${operation.nodeId}`)
+      }
+    }
+  }
+
+  private async executeDynamicAgent(
+    node: AIDataWorkflowRunNode,
+    binding: AIDataDynamicAgentBinding,
+    input: Record<string, unknown>,
+    generation: number,
+  ): Promise<unknown> {
+    const checkpoint = await loadAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+      instanceId: this.descriptor.instanceId,
+      runId: this.descriptor.runId,
+    })
+    if (!checkpoint || checkpoint.profile.kind !== "AIDataWorkflow") {
+      throw new Error(`AI_DATA_AGENT_CHECKPOINT_MISSING: ${this.descriptor.runId}`)
+    }
+    const dispatch = selectAIDataAgentDispatch(checkpoint.profile.ai, {
+      instanceName: binding.instanceName,
+      agentDefinitionRef: binding.agentDefinitionRef,
+      payload: input as FlowClosedValue,
+    })
+    const effects = (this.runtimeForGeneration(generation, node.id) as any).ai?.effects
+    if (!effects || typeof effects.runAgent !== "function" || typeof effects.runTargetedAgent !== "function") {
+      throw new Error(`AI_DATA_AGENT_RUNTIME_UNBOUND: ${node.id}`)
+    }
+    const result = dispatch.mode === "new"
+      ? await effects.runAgent(dispatch.input, dispatch.config)
+      : await effects.runTargetedAgent(dispatch.selector, dispatch.invocation, dispatch.config)
+    return result.output
+  }
+
+  private async executeCodeNode(
+    node: AIDataWorkflowRunNode,
+    input: Record<string, unknown>,
+    generation: number,
+  ): Promise<unknown> {
+    if (this.definition.binding.kind !== "AIDataWorkflow") throw new Error("Expected AIDataWorkflow binding")
+    const planNode = this.definition.binding.definition.nodeById[node.id] as any
+    const reference = planNode?.src ?? planNode?.impl ?? node.config.src ?? node.config.impl
+    if (typeof reference !== "string") throw new Error(`${node.id} has no EagerDataFlow code binding`)
+    const fn = await this.code({
+      reference: normalizeFrozenWorkflowCodeReference(reference),
+      flowId: this.definition.binding.definition.fqn,
+      nodeId: node.id,
+      baseUri: this.definition.binding.definition.baseUri,
+    })
+    return fn(this.runtimeForGeneration(generation, node.id), input, node.config)
   }
 
   private effectiveInput(node: AIDataWorkflowRunNode): Record<string, unknown> {
@@ -427,6 +654,9 @@ export class AIDataWorkflowRuntimeDriver {
       runId: this.descriptor.runId,
     })
     if (!current) throw new Error(`AIDataWorkflow checkpoint missing for ${this.descriptor.runId}`)
+    this.autonomousControlPhase = findAIDataAutonomousControlState(
+      current as unknown as AIWorkflowFlowRunCheckpoint,
+    )?.phase
     if ((current.controllerSidecars.status === "Succeeded" || current.controllerSidecars.status === "Failed")
       && canonicalJson(current.profile.runGraph) === canonicalJson(this.durableGraph())) {
       return
@@ -439,7 +669,7 @@ export class AIDataWorkflowRuntimeDriver {
         version: current.version + 1,
         state: { status: checkpointStatus, generation: this.graph!.currentGeneration },
         output: this.checkpointOutput(),
-        controllerSidecars: { status: checkpointStatus },
+        controllerSidecars: { ...current.controllerSidecars, status: checkpointStatus },
         nodeSidecars: this.nodeSidecars(),
         profile: { ...current.profile, runGraph: this.durableGraph() },
       },
@@ -505,6 +735,83 @@ export class AIDataWorkflowRuntimeDriver {
 
   private async requireGraph(): Promise<void> {
     if (!this.graph && !await this.restore()) throw new Error(`AIDataWorkflow graph missing for ${this.descriptor.runId}`)
+  }
+
+  private assertAutonomousControlBarrier(
+    graph: AIDataWorkflowRunGraph,
+    control: AIDataAutonomousControlState,
+  ): void {
+    const barrier = graph.nodes[control.binding.controlNodeId]
+    if (!barrier || barrier.nodeType !== "manual") {
+      throw new Error(`AI_DATA_CONTROL_BARRIER_INVALID: ${control.binding.controlNodeId}`)
+    }
+    if (!control.binding.catalog.foundationNodes[barrier.id]?.protected) {
+      throw new Error(`AI_DATA_CONTROL_BARRIER_NOT_PROTECTED: ${barrier.id}`)
+    }
+  }
+
+  private async loadAutonomousControlState(): Promise<AIDataAutonomousControlState | undefined> {
+    const checkpoint = await this.autonomousControlCheckpoint()
+    return checkpoint ? readAIDataAutonomousControlState(checkpoint) : undefined
+  }
+
+  private async decideAutonomousControl(
+    input: AIDataAutonomousControllerInput,
+  ): Promise<AIDataAutonomousControllerResult> {
+    if (this.definition.binding.kind !== "AIDataWorkflow"
+      || !this.definition.resourceReceipt
+      || !this.descriptor.workflowRef.startsWith("resource://")) {
+      throw new Error("AI_DATA_CONTROL_RESOURCE_WORKFLOW_REQUIRED: controller execution requires a frozen resource workflow")
+    }
+    const binding = input.state.binding.controller
+    const nodeId = input.state.binding.controlNodeId
+    if (this.taskProofRefs[nodeId]?.includes(binding.taskProofRef) !== true) {
+      throw new Error(`AI_DATA_CONTROL_TASK_PROOF_REF_MISMATCH: ${binding.taskProofRef}`)
+    }
+    const proof = this.taskProofs[nodeId]
+    if (!proof) throw new Error(`AI_DATA_CONTROL_TASK_PROOF_MISSING: ${nodeId}`)
+    const task = assertFrozenAIAgentTaskBinding(proof).task
+    if (task.workflowKind !== "AIDataWorkflow"
+      || task.workflowRef !== this.descriptor.workflowRef
+      || task.nodeId !== nodeId
+      || task.agentDefinitionRef !== binding.agentDefinitionRef) {
+      throw new Error(`AI_DATA_CONTROL_TASK_PROOF_IDENTITY_MISMATCH: ${nodeId}`)
+    }
+    const checkpoint = await this.autonomousControlCheckpoint()
+    if (!checkpoint || checkpoint.profile.kind !== "AIDataWorkflow") {
+      throw new Error(`AI_DATA_CONTROL_STATE_MISSING: ${this.descriptor.runId}`)
+    }
+    const dispatch = selectAIDataAgentDispatch(checkpoint.profile.ai, {
+      instanceName: binding.instanceName,
+      agentDefinitionRef: binding.agentDefinitionRef,
+      payload: projectAIDataAutonomousControllerPayload(input) as unknown as FlowClosedValue,
+    })
+    const effects = bindAIAgentProcessors({
+      checkpointRuntime: this.depa.checkpointRuntime,
+      checkpointKey: { instanceId: this.descriptor.instanceId, runId: this.descriptor.runId },
+      nodeId,
+      invocationKey: `${nodeId}#control-${input.state.iteration}`,
+      generation: Number((checkpoint.profile.runGraph as any).currentGeneration),
+      workflowKind: "AIDataWorkflow",
+      workflowRef: this.descriptor.workflowRef as `resource://${string}`,
+      taskBinding: task,
+      effects: this.agentEffects,
+      metadata: {
+        controlIteration: input.state.iteration,
+        observationId: input.observation.observationId,
+      },
+    })
+    try {
+      const result = dispatch.mode === "new"
+        ? await effects.runAgent(dispatch.input, dispatch.config)
+        : await effects.runTargetedAgent(dispatch.selector, dispatch.invocation, dispatch.config)
+      return Object.freeze({ value: result.output })
+    } catch (error) {
+      if (error instanceof AgentExecutionContractError) {
+        throw new AIDataAutonomousControllerOutputError(error.message, error)
+      }
+      throw error
+    }
   }
 }
 

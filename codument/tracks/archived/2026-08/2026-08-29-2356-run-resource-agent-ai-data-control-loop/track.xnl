@@ -1,0 +1,67 @@
+<Track #run-resource-agent-ai-data-control-loop apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Run a resource-managed AI Data controller as a bounded cybernetic loop over one canonical graph/checkpoint authority while reusing exact Controller and Worker Agent instances across generations and recovery." description = "Consume the published provider-neutral control protocol, add a protected completion barrier, resolve dynamically admitted Agent nodes from frozen task proofs, and atomically persist graph plus control progress without a second graph or Conversation authority." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-29T19:54:13.722Z" updated_at = "2026-08-29T20:56:54.209Z" modeling_base_commit = "83e11a1f64c4ac9aac3d7094bd9ee5bdb89e7426" engineering_base_commit = "83e11a1f64c4ac9aac3d7094bd9ee5bdb89e7426" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #runtime { role = "output" name = "workflow-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/runtime/" }>
+    <MaterialBundle #registry { role = "output" name = "resource-registry" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/resources/" }>
+    <MaterialBundle #tests { role = "output" name = "workflow-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/" }>
+    <MaterialBundle #behavior { role = "output" name = "behavior" domain = "behavior" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_run-resource-agent-ai-data-control-loop { name = "run-resource-agent-ai-data-control-loop" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze executable authority contract" status = "DONE" priority = "P0" order = 0 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17HV8W5M2QYEZQW96P2WGZ0>
+          Published control contracts are consumed from ai-data-workflow-contract 0.1.6 and ai-data-workflow-logic 0.1.12 rather than copied into Eidolon.
+          </?01M17HV8W5M2QYEZQW96P2WGZ0>
+          <Criterion { checked = true } ?01M17HV8W5M2QYEZQW96P2WGZ1>
+          RED cases distinguish the protected barrier, dynamic frozen proof, exact Agent reuse, atomic crash windows, invalid decisions and host invariant failures.
+          </?01M17HV8W5M2QYEZQW96P2WGZ1>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "Adopt the published autonomous-control protocol packages" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "Add authority-first RED runtime cases" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Implement canonical autonomous control runtime" status = "DONE" priority = "P0" order = 1 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17HV8W5M2QYEZQW96P2WGZ2>
+          One checkpoint transition atomically owns graph generation, control cursor, verifier report, feedback, admission and iteration receipt.
+          </?01M17HV8W5M2QYEZQW96P2WGZ2>
+          <Criterion { checked = true } ?01M17HV8W5M2QYEZQW96P2WGZ3>
+          Only an admitted complete decision paired with the current host-owned verifier PASS may release the explicit protected control barrier.
+          </?01M17HV8W5M2QYEZQW96P2WGZ3>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "Resolve admitted Agent nodes from exact frozen task proofs" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Persist atomic control state and protected completion barrier" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P2-T3 { name = "Drive typed observe plan admit apply and verify iterations" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Prove reuse recovery and source conformance" status = "DONE" priority = "P0" order = 2 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17HV8W5M2QYEZQW96P2WGZ4>
+          Controller and Worker each create once, then target the exact durable instance across generation and fresh-runtime recovery with no fallback creation.
+          </?01M17HV8W5M2QYEZQW96P2WGZ4>
+          <Criterion { checked = true } ?01M17HV8W5M2QYEZQW96P2WGZ5>
+          Focused tests, package typecheck and authority/source scans pass without adding a second graph, provider loop or Conversation store.
+          </?01M17HV8W5M2QYEZQW96P2WGZ5>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "Verify exact new-to-targeted reuse and crash recovery" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "Run focused regression typecheck and conformance gates" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_run-resource-agent-ai-data-control-loop" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

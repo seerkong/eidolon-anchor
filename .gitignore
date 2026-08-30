@@ -20,6 +20,7 @@ testdata/
 tui-debug.log
 .tmp/
 .codument-local/
+codument/.local/
 codument/tracks/**/analysis/
 codument/tracks/**/reports/
 codument/archive/**/analysis/

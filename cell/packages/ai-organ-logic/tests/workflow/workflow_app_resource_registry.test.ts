@@ -7,8 +7,19 @@ import { createActor } from "@cell/ai-core-logic/runtime/actor"
 import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { createVM } from "@cell/ai-core-logic/runtime/runtime"
 import { readRuntimeControlEffectEvidence } from "@cell/ai-file-store-logic"
+import {
+  LocalFileConversationPersistenceRepositoryFactory,
+  LocalFileRuntimeDerivedIndexesStore,
+  LocalFileRuntimeSnapshotRepositoryFactory,
+} from "@cell/ai-support"
 import { composeToolRegistry } from "../../src/composer/AIAgent/ToolFuncComposer"
 import { appendLiveHistoryMessageToConversationDomainRuntime } from "../../src/conversation/ConversationDomainRuntime"
+import { createAiAgentOrchestratorDriver } from "../../src/OrchestratorDriver"
+import {
+  configureRuntimePersistenceSupport,
+  recoverAiAgentRuntime,
+  saveAiAgentRuntimeSnapshot,
+} from "../../src/persistence/RuntimeSnapshots"
 import {
   EidolonAppResourceRegistryAdapter,
   mergeResourceAgentConfigs,
@@ -23,8 +34,19 @@ import {
 import { WorkflowFactStore } from "../../src/workflow/runtime"
 import { WorkflowRuntimeService } from "../../src/workflow/runtime"
 import { buildWorkflowNativeToolDefs } from "../../src/workflow/tools"
+import {
+  createAIDataControlRuntime,
+  freezeAIDataControlCapabilityCatalog,
+} from "ai-data-workflow-logic"
+import { createAIDataAutonomousControlState } from "../../src/workflow/runtime/AIDataAutonomousControlLoop"
 
 const temporaryRoots: string[] = []
+
+configureRuntimePersistenceSupport({
+  snapshotRepositoryFactory: LocalFileRuntimeSnapshotRepositoryFactory,
+  derivedIndexesStore: LocalFileRuntimeDerivedIndexesStore,
+  conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
+})
 
 afterEach(async () => {
   await Promise.all(temporaryRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })))
@@ -928,7 +950,7 @@ describe("Eidolon Halfcode App resource registry", () => {
       `  return result.output`,
       `}`,
       `export async function invokeDataAgent(runtime: any, input: unknown, config: Record<string, unknown> = {}) {`,
-      `  return { value: await invokeAgent(runtime, input, config) }`,
+      `  return await invokeAgent(runtime, input, config)`,
       `}`,
       `export function identity(_runtime: any, input: unknown) { return input }`,
       ``,
@@ -953,7 +975,7 @@ describe("Eidolon Halfcode App resource registry", () => {
     )>
   ]>
   <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.InputSchema" }>
-  <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.ResponseSchema" }>
+  <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.OutputSchema" }>
   <ToolRefs []>
   <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.SafePolicy" }>
   <MaterialPortRefs [
@@ -969,6 +991,7 @@ describe("Eidolon Halfcode App resource registry", () => {
     await mkdir(path.join(workspacePackage, "RequestMaterials"), { recursive: true })
     await writeFile(path.join(workspacePackage, "Schemas", "Input.xnl"), `<MessageSchema #eidolon.fixture.InputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`)
     await writeFile(path.join(workspacePackage, "Schemas", "Response.xnl"), `<MessageSchema #eidolon.fixture.ResponseSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "string" } }>`)
+    await writeFile(path.join(workspacePackage, "Schemas", "Output.xnl"), `<MessageSchema #eidolon.fixture.OutputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`)
     await writeFile(path.join(workspacePackage, "Policies", "Safe.xnl"), `<EffectPolicy #eidolon.fixture.SafePolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "declared-only" }>`)
     await writeFile(path.join(workspacePackage, "Ports", "Request.xnl"), `<MaterialPort #eidolon.fixture.RequestPort apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" } (
   <SchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.InputSchema" }>
@@ -1010,6 +1033,7 @@ describe("Eidolon Halfcode App resource registry", () => {
 ) [
   <EntryNode #entry>
   <TransformNode #agent-node { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] impl = "vfs://@/flow-code/agent.ts#invokeDataAgent" config = { effectId = "data-agent-effect" nodeId = "agent-node" agentDefinitionRef = "resource://eidolon.fixture.SupportAgent" reuse_policy = "never" } }>
+  <TransformNode #control { inputs = { value = "flow-port://#agent-node/value" } outputs = ["value"] impl = "vfs://@/flow-code/agent.ts#identity" config = { node_type = "manual" } }>
   <ReturnNode #return { inputs = { value = "flow-port://#agent-node/value" } }>
 ]>
 `,
@@ -1029,7 +1053,7 @@ describe("Eidolon Halfcode App resource registry", () => {
       callbacks: {
         buildToolset: () => [],
         processStream: async (vm, child) => {
-          const message = { role: "assistant" as const, content: "resource Agent completed" }
+          const message = { role: "assistant" as const, content: JSON.stringify({ value: "resource Agent completed" }) }
           appendLiveHistoryMessageToConversationDomainRuntime({
             vm,
             actorKey: child.key,
@@ -1056,6 +1080,23 @@ describe("Eidolon Halfcode App resource registry", () => {
         },
       },
     })
+    const exactRegistry = new EidolonAppResourceRegistryAdapter({ layers })
+    const dataTask = {
+      workflowKind: "AIDataWorkflow" as const,
+      workflowRef: "resource://eidolon.fixture.SupportData" as const,
+      nodeId: "agent-node",
+      agentDefinitionRef: "resource://eidolon.fixture.SupportAgent" as const,
+    }
+    const exactProof = await exactRegistry.freezeWorkflowAgentTaskBindingByRef(
+      "resource://eidolon.fixture.DataBinding",
+      dataTask,
+    )
+    expect(exactProof.task).toEqual(dataTask)
+    await expect(exactRegistry.freezeWorkflowAgentTaskBindingByRef(
+      "resource://eidolon.fixture.CtrlBinding",
+      dataTask,
+    )).rejects.toThrow(/task proof.*does not match|identity/i)
+
     const service = new WorkflowRuntimeService({ vm, actor } as any)
     const ctrlInstance = await service.createInstance({
       workflowRef: "resource://eidolon.fixture.SupportCtrl",
@@ -1089,7 +1130,62 @@ describe("Eidolon Halfcode App resource registry", () => {
     const ctrlResult = await service.start({ instanceId: ctrlInstance.instanceId, runId: "resource-agent-ctrl-run", confirmed: true })
     const dataResult = await service.start({ instanceId: dataInstance.instanceId, runId: "resource-agent-data-run", confirmed: true })
     expect(ctrlResult).toMatchObject({ status: "Completed" })
-    expect(dataResult).toMatchObject({ status: "Succeeded", output: { value: "resource Agent completed" } })
+    expect(dataResult).toMatchObject({ status: "Waiting", output: { value: "resource Agent completed" } })
+    const providerCallsBeforeRejectedProof = Object.keys(vm.actors).length
+    await expect(service.applyGraphPatch("resource-agent-data-run", {
+      patchId: "reject-mismatched-dynamic-proof",
+      operations: [{
+        op: "update-node",
+        nodeId: "agent-node",
+        changes: {
+          nodeType: "agent",
+          config: {
+            node_type: "agent",
+            instanceName: "data-support-agent",
+            reuse_policy: "never",
+            agent: {
+              agentDefinitionRef: "resource://eidolon.fixture.SupportAgent",
+              taskProofRef: "resource://eidolon.fixture.CtrlBinding",
+            },
+          },
+        },
+      }],
+    })).rejects.toThrow(/TASK_PROOF_REF_MISMATCH|exact frozen task proof/)
+    expect(await service.status("resource-agent-data-run")).toMatchObject({
+      generation: 0,
+      graph: { patchHistory: [] },
+    })
+    expect(Object.keys(vm.actors)).toHaveLength(providerCallsBeforeRejectedProof)
+    const dynamicResult = await service.applyGraphPatch("resource-agent-data-run", {
+      patchId: "admit-dynamic-resource-agent",
+      reason: "exercise the admitted agent implementation shape",
+      operations: [{
+        op: "update-node",
+        nodeId: "agent-node",
+        changes: {
+          nodeType: "agent",
+          config: {
+            node_type: "agent",
+            instanceName: "data-support-agent",
+            reuse_policy: "never",
+            agent: {
+              agentDefinitionRef: "resource://eidolon.fixture.SupportAgent",
+              taskProofRef: "resource://eidolon.fixture.DataBinding",
+            },
+          },
+        },
+      }],
+    })
+    expect(dynamicResult).toMatchObject({ status: "Waiting", generation: 1 })
+    expect(dynamicResult?.nodes.find((node: any) => node.id === "agent-node")).toMatchObject({
+      nodeType: "agent",
+      status: "Succeeded",
+      result: { output: { value: "resource Agent completed" } },
+    })
+    const completedData = await service.resumeDataNode("resource-agent-data-run", "control", {
+      value: "resource Agent completed",
+    })
+    expect(completedData).toMatchObject({ status: "Succeeded", output: { value: "resource Agent completed" } })
     const lifecycle = await readRuntimeControlEffectEvidence(path.join(parent, "resource-agent-session"))
     expect(lifecycle).toEqual(expect.arrayContaining([
       expect.objectContaining({ kind: "result", effectId: expect.stringMatching(/^agent:resource-agent-ctrl:resource-agent-ctrl-run:agent-node#\d+$/), handlerKey: "workflow:ai.agent" }),
@@ -1100,5 +1196,305 @@ describe("Eidolon Halfcode App resource registry", () => {
         parent, "resource-agent-session", "workflow-runtime", "agent-executions", runId,
       ))).rejects.toMatchObject({ code: "ENOENT" })
     }
+  })
+
+  it("recovers one resource Controller and Worker as exact targeted instances across autonomous generations", async () => {
+    const layers = await fixtureLayers()
+    const parent = path.dirname(layers[0]!.rootDir)
+    const workspacePackage = layers.find((layer) => layer.id === "workspace")!.rootDir
+    const protocol = createAIDataControlRuntime()
+    const valueSchema = "schema://eidolon.fixture/autonomous-value"
+    const goal = {
+      schemaVersion: "depa.ai-data-control/v1" as const,
+      goalId: "autonomous-resource-goal",
+      objective: "Create and refine a Worker result until the host verifier passes",
+      verifierRef: "resource://eidolon.fixture.AutonomousVerifier" as const,
+      requiredOutputSchemaRef: valueSchema,
+    }
+    const budget = {
+      schemaVersion: "depa.ai-data-control/v1" as const,
+      limits: { maxIterations: 7, maxOperationsPerDecision: 1, maxNoProgressIterations: 2 },
+      usage: { iteration: 0, noProgressIterations: 0 },
+    }
+    const catalog = freezeAIDataControlCapabilityCatalog(protocol, {
+      schemaVersion: "depa.ai-data-control/v1",
+      catalogId: "autonomous-resource-catalog",
+      foundationNodes: {
+        entry: { protected: true, inputSchemaRefs: {}, outputSchemaRefs: { value: valueSchema } },
+        control: { protected: true, inputSchemaRefs: { value: valueSchema }, outputSchemaRefs: { value: valueSchema } },
+        return: { protected: true, inputSchemaRefs: { value: valueSchema }, outputSchemaRefs: {} },
+      },
+      capabilities: {
+        "worker-agent": {
+          capabilityId: "worker-agent",
+          tag: "TransformNode",
+          nodeType: "agent",
+          inputSchemaRefs: { value: valueSchema },
+          outputSchemaRefs: { value: valueSchema },
+          fixedConfig: { node_type: "agent", instanceName: "worker-instance", reuse_policy: "never" },
+          implementation: {
+            kind: "agent",
+            agentDefinitionRef: "resource://eidolon.fixture.AutonomousWorkerAgent",
+            taskProofRef: "resource://eidolon.fixture.AutonomousWorkerBinding",
+          },
+        },
+      },
+    }, {})
+    const controlState = createAIDataAutonomousControlState({
+      controlNodeId: "control",
+      goal,
+      catalog,
+      budget,
+      controller: {
+        taskProofRef: "resource://eidolon.fixture.AutonomousControllerBinding",
+        agentDefinitionRef: "resource://eidolon.fixture.AutonomousControllerAgent",
+        instanceName: "controller-instance",
+      },
+      maxObservedNodes: 16,
+    })
+    const files: Record<string, string> = {
+      "flow-code/autonomous.ts": `export function identity(_runtime: unknown, input: unknown) { return input }\n`,
+      "Schemas/AutonomousInput.xnl": `<MessageSchema #eidolon.fixture.AutonomousInputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`,
+      "Schemas/AutonomousDecision.xnl": `<MessageSchema #eidolon.fixture.AutonomousDecisionSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`,
+      "Schemas/AutonomousWorkerOutput.xnl": `<MessageSchema #eidolon.fixture.AutonomousWorkerOutputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
+      "Policies/AutonomousSafe.xnl": `<EffectPolicy #eidolon.fixture.AutonomousSafePolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "none" }>`,
+      "Ports/AutonomousRequest.xnl": `<MaterialPort #eidolon.fixture.AutonomousRequestPort apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" } (
+  <SchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
+)>`,
+      "RequestMaterials/AutonomousRequest.xnl": `<RequestMaterial #eidolon.fixture.AutonomousRequestMaterial apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" value = { request = "autonomous control" } }>`,
+      "Agents/AutonomousController.xnl": `<AIAgentDefinition #eidolon.fixture.AutonomousControllerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Typed autonomous controller" } (
+  <Messages [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
+  <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
+  <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousDecisionSchema" }>
+  <ToolRefs []>
+  <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.AutonomousSafePolicy" }>
+  <MaterialPortRefs [<MaterialPortRef #request { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>]>
+)>`,
+      "Agents/AutonomousWorker.xnl": `<AIAgentDefinition #eidolon.fixture.AutonomousWorkerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Typed autonomous worker" } (
+  <Messages [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
+  <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
+  <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousWorkerOutputSchema" }>
+  <ToolRefs []>
+  <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.AutonomousSafePolicy" }>
+  <MaterialPortRefs [<MaterialPortRef #request { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>]>
+)>`,
+      "Bindings/AutonomousController.xnl": `<MaterialBinding #eidolon.fixture.AutonomousControllerBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+  <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.AutonomousData" nodeId = "control" agentDefinitionRef = "resource://eidolon.fixture.AutonomousControllerAgent" }>
+  <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>
+  <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.AutonomousRequestMaterial" }>
+)>`,
+      "Bindings/AutonomousWorker.xnl": `<MaterialBinding #eidolon.fixture.AutonomousWorkerBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
+  <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.AutonomousData" nodeId = "worker" agentDefinitionRef = "resource://eidolon.fixture.AutonomousWorkerAgent" }>
+  <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>
+  <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.AutonomousRequestMaterial" }>
+)>`,
+      "DataWorkflows/Autonomous.xnl": `<AIDataWorkflow #eidolon.fixture.AutonomousData apiVersion="depa.flows/v1" version="1.0.0" (
+  <FlowContract #eidolon.fixture.AutonomousData { inputPorts = ["value"] outputPorts = ["value"] }>
+  <StepSpaceRef { src = "autonomous/step-space.xnl" }>
+)>`,
+      "DataWorkflows/autonomous/step-space.xnl": `<StepSpace #eidolon.fixture.AutonomousSteps apiVersion="depa.flows/v1" version="1" [
+  <StepRef #entry { src = "autonomous/steps/entry.xnl" }>
+  <StepRef #control { src = "autonomous/steps/control.xnl" }>
+  <StepRef #return { src = "autonomous/steps/return.xnl" }>
+]>`,
+      "DataWorkflows/autonomous/steps/entry.xnl": `<Step #entry (<Core [<EntryNode #entry>]>)>`,
+      "DataWorkflows/autonomous/steps/control.xnl": `<Step #control (
+  <Core [<TransformNode #control { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] impl = "vfs://@/flow-code/autonomous.ts#identity" config = { node_type = "manual" } }>]>
+  <Extensions [<ExtensionRef { kind = "eidolon.ai-data-autonomous-control" src = "autonomous/steps/autonomous-control.xnl" schema = "schema://eidolon.ai-data-autonomous-control/v1" }>]>
+)>`,
+      "DataWorkflows/autonomous/steps/return.xnl": `<Step #return (<Core [<ReturnNode #return { inputs = { value = "flow-port://#control/value" } }>]>)>`,
+      "DataWorkflows/autonomous/steps/autonomous-control.xnl": `<StepExtension #autonomous-control { kind = "eidolon.ai-data-autonomous-control" schema = "schema://eidolon.ai-data-autonomous-control/v1" value = ${JSON.stringify(JSON.stringify(controlState))} }>`,
+    }
+    for (const [relativePath, content] of Object.entries(files)) {
+      const target = path.join(workspacePackage, relativePath)
+      await mkdir(path.dirname(target), { recursive: true })
+      await writeFile(target, content, "utf8")
+    }
+
+    let controllerTurns = 0
+    let workerTurns = 0
+    let controllerObservedRepairableWorkerFailure = false
+    const actor = createActor({
+      key: "main",
+      id: "autonomous-resource-runtime",
+      llmClient: { type: "openai", async createStream() { async function* stream() { yield { ok: true } }; return { stream: stream() } } },
+      modelConfig: { model: "mock" },
+      callbacks: {
+        buildToolset: () => [],
+        processStream: async (vm, child) => {
+          const latestUser = [...child.messages].reverse().find((message) => message.role === "user")
+          const executionInput = JSON.parse(String(latestUser?.content ?? "{}"))
+          let output: unknown
+          if (child.agentName === "resource://eidolon.fixture.AutonomousControllerAgent") {
+            controllerTurns += 1
+            const { observation: observed } = executionInput.payload
+            controllerObservedRepairableWorkerFailure ||= observed.graph.nodes.some((node: any) => (
+              node.nodeId === "worker" && node.status === "Invalidated"
+            ))
+            const base = {
+              schemaVersion: "depa.ai-data-control/v1",
+              decisionId: `controller-${observed.graph.generation}`,
+              goalId: observed.goalId,
+              observationId: observed.observationId,
+              observationDigest: observed.observationDigest,
+              catalogDigest: observed.catalogDigest,
+              reason: `control generation ${observed.graph.generation}`,
+            }
+            output = observed.graph.generation === 0
+              ? { ...base, kind: "revise", operations: [{
+                  op: "add-capability", nodeId: controllerTurns === 1 ? "worker-1" : "worker", capabilityId: "worker-agent",
+                  inputs: { value: { kind: "port", nodeId: "entry", port: "value", schemaRef: valueSchema } },
+                }] }
+              : observed.graph.generation === 1
+                ? { ...base, kind: "revise", operations: [{
+                    op: "rewire-capability", nodeId: "worker", capabilityId: "worker-agent",
+                    ...(controllerTurns === 3 ? { dependsOn: ["control"] } : {}),
+                    inputs: { value: controllerTurns === 3
+                      ? { kind: "port", nodeId: "control", port: "value", schemaRef: valueSchema }
+                      : { kind: "literal", schemaRef: valueSchema, value: "second-generation" } },
+                  }] }
+                : observed.graph.generation === 2
+                  ? { ...base, kind: "revise", operations: [{
+                      op: "rewire-capability", nodeId: "worker", capabilityId: "worker-agent",
+                      inputs: { value: { kind: "literal", schemaRef: valueSchema, value: "third-generation" } },
+                    }] }
+                  : {
+                    ...base,
+                    kind: "complete",
+                    verifierFactId: observed.verifier.factId,
+                    outputNodeId: "worker",
+                    outputPort: "value",
+                    outputSchemaRef: valueSchema,
+                  }
+          } else {
+            workerTurns += 1
+            output = workerTurns === 2
+              ? { malformed: "FIXTURE_REPAIRABLE_WORKER_FAILURE" }
+              : { value: `worker-${workerTurns}` }
+          }
+          const message = { role: "assistant" as const, content: JSON.stringify(output) }
+          appendLiveHistoryMessageToConversationDomainRuntime({ vm, actorKey: child.key, actorId: child.id, message })
+          return message
+        },
+      },
+    })
+    const vm = createVM({
+      controlActorKey: actor.key,
+      actors: { [actor.key]: actor },
+      registries: { toolRegistry: composeToolRegistry(), agentRegistry: new AgentRegistry({}) },
+      outerCtx: {
+        workDir: parent,
+        metadata: {
+          sessionDir: path.join(parent, "autonomous-resource-session"),
+          aiWorkflow: { roots: { workspaceRoot: path.join(parent, "authoring") } },
+          resourcePackages: { layers },
+        },
+      },
+    })
+    const first = new WorkflowRuntimeService({ vm, actor } as any)
+    const instance = await first.createInstance({
+      workflowRef: "resource://eidolon.fixture.AutonomousData",
+      instanceId: "autonomous-resource-instance",
+      initialInput: { value: "seed" },
+    })
+    await first.start({ instanceId: instance.instanceId, runId: "autonomous-resource-run", confirmed: true })
+    await expect(first.runAutonomousControl("autonomous-resource-run", {
+      verify: async ({ graph }) => {
+        if (graph.currentGeneration === 1) throw new Error("FIXTURE_CRASH_AFTER_FIRST_PATCH")
+        return {
+          schemaVersion: "depa.ai-data-control/v1",
+          factId: `verifier-${graph.currentGeneration}`,
+          goalId: goal.goalId,
+          graphGeneration: graph.currentGeneration,
+          status: "failed",
+          verifierRef: goal.verifierRef,
+          requiredOutputSchemaRef: goal.requiredOutputSchemaRef,
+          diagnostics: [{ code: "NOT_READY", message: "worker needs another generation" }],
+        }
+      },
+    })).rejects.toThrow("FIXTURE_CRASH_AFTER_FIRST_PATCH")
+    expect(await first.status("autonomous-resource-run")).toMatchObject({ generation: 1, status: "Waiting" })
+
+    const snapshotDriver = createAiAgentOrchestratorDriver({
+      fibers: Object.values(vm.actors).map((currentActor) => ({
+        fiberId: `${currentActor.key}:${currentActor.id}`,
+        vm,
+        actor: currentActor,
+        messages: currentActor.messages,
+        basePriority: 1,
+      })),
+      runStep: async () => ({ kind: "yield" as const }),
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    const runtimeSessionDir = path.join(parent, "autonomous-resource-session")
+    expect((await saveAiAgentRuntimeSnapshot({
+      sessionDir: runtimeSessionDir,
+      sessionId: "autonomous-resource-runtime-session",
+      vm,
+      driver: snapshotDriver,
+    })).status).toBe("saved")
+    const recoveredRuntime = await recoverAiAgentRuntime({
+      sessionDir: runtimeSessionDir,
+      sessionId: "autonomous-resource-runtime-session",
+      llmClient: actor.llmClient,
+      actorCallbacks: actor.callbacks,
+      registries: vm.registries,
+      callbacks: vm.callbacks,
+      effects: vm.effects,
+      outerCtx: vm.outerCtx,
+      mcpManager: vm.mcpManager,
+    })
+    expect(recoveredRuntime).not.toBeNull()
+    const recovered = new WorkflowRuntimeService({
+      vm: recoveredRuntime!.vm,
+      actor: recoveredRuntime!.controlActor,
+    } as any)
+    const completed = await recovered.runAutonomousControl("autonomous-resource-run", {
+      verify: async ({ graph }) => ({
+        schemaVersion: "depa.ai-data-control/v1",
+        factId: `verifier-${graph.currentGeneration}`,
+        goalId: goal.goalId,
+        graphGeneration: graph.currentGeneration,
+        status: graph.currentGeneration >= 3 ? "passed" : "failed",
+        verifierRef: goal.verifierRef,
+        requiredOutputSchemaRef: goal.requiredOutputSchemaRef,
+        diagnostics: graph.currentGeneration >= 3 ? [] : [{ code: "NOT_READY", message: "worker needs another generation" }],
+      }),
+    })
+    expect(completed.state).toMatchObject({
+      phase: "completed",
+      iteration: 6,
+      receipts: [
+        { admissionKind: "rejected", generationBefore: 0, generationAfter: 0 },
+        { admissionKind: "patch", generationBefore: 0, generationAfter: 1 },
+        { admissionKind: "rejected", generationBefore: 1, generationAfter: 1 },
+        { admissionKind: "patch", generationBefore: 1, generationAfter: 2 },
+        { admissionKind: "patch", generationBefore: 2, generationAfter: 3 },
+        { admissionKind: "complete", generationBefore: 3, generationAfter: 3 },
+      ],
+    })
+    expect(completed.checkpoint.output).toEqual({ value: "worker-3" })
+    expect(await recovered.getInstance(instance.instanceId)).toMatchObject({ status: "Completed" })
+    expect(controllerTurns).toBe(6)
+    expect(workerTurns).toBe(3)
+    expect(controllerObservedRepairableWorkerFailure).toBe(true)
+    expect(Object.values(recoveredRuntime!.vm.actors).filter((candidate) => candidate.agentName === "resource://eidolon.fixture.AutonomousControllerAgent")).toHaveLength(1)
+    expect(Object.values(recoveredRuntime!.vm.actors).filter((candidate) => candidate.agentName === "resource://eidolon.fixture.AutonomousWorkerAgent")).toHaveLength(1)
+    const ai = (completed.checkpoint.profile as any).ai
+    expect(ai.instanceIdByName).toMatchObject({
+      "controller-instance": expect.any(String),
+      "worker-instance": expect.any(String),
+    })
+    expect(ai.invocationsByKey).toMatchObject({
+      "control#control-0": { mode: "new", instanceId: ai.instanceIdByName["controller-instance"] },
+      "control#control-1": { mode: "targeted", instanceId: ai.instanceIdByName["controller-instance"] },
+      "control#control-2": { mode: "targeted", instanceId: ai.instanceIdByName["controller-instance"] },
+      "control#control-3": { mode: "targeted", instanceId: ai.instanceIdByName["controller-instance"] },
+      "control#control-4": { mode: "targeted", instanceId: ai.instanceIdByName["controller-instance"] },
+      "control#control-5": { mode: "targeted", instanceId: ai.instanceIdByName["controller-instance"] },
+      "worker#1": { mode: "new", instanceId: ai.instanceIdByName["worker-instance"] },
+      "worker#2": { mode: "targeted", instanceId: ai.instanceIdByName["worker-instance"] },
+      "worker#3": { mode: "targeted", instanceId: ai.instanceIdByName["worker-instance"] },
+    })
   })
 })

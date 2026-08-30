@@ -1,0 +1,40 @@
+<BehaviorPatch #track.run-resource-agent-ai-data-control-loop.behavior_patch.ai-data-workflow apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-data-workflow" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-data-workflow/requirements/autonomous-resource-agent-control-loop" } (
+      <Requirement #autonomous-resource-agent-control-loop (
+        <Statement ?>An autonomous AI Data run SHALL execute a resource-managed controller over one canonical checkpoint authority, admit only typed control decisions, and reuse exact Controller and Worker Agent instances across generations and recovery.</?>
+        <Suites [
+          <Suite #autonomous-resource-agent-control-cases { name = "Autonomous resource Agent control loop" } (
+            <Cases [
+              <Case #protected-completion-barrier [
+                <Given ?>A frozen autonomous AI Data definition identifies an immutable verifier and an explicit protected control node.</?>
+                <When ?>All ordinary graph nodes succeed but the current verifier has not produced PASS with an admitted complete decision.</?>
+                <Then ?>The protected node SHALL remain waiting and the run SHALL remain non-terminal.</?>
+              ]>
+              <Case #atomic-admitted-transition [
+                <Given ?>A Controller Agent proposes a decision against the current generation and the host admits it.</?>
+                <When ?>The runtime commits that control iteration.</?>
+                <Then ?>Graph generation, control cursor, verifier report, feedback, admission and receipt SHALL become visible atomically in the same canonical checkpoint.</?>
+              ]>
+              <Case #frozen-dynamic-agent-proof [
+                <Given ?>An admitted dynamic Agent node names an AgentDefinition and an exact frozen task proof.</?>
+                <When ?>The node becomes ready.</?>
+                <Then ?>The runtime SHALL execute the frozen task binding only when workflow, node and AgentDefinition identities agree, otherwise fail before provider dispatch without mutating the graph.</?>
+              ]>
+              <Case #exact-instance-reuse [
+                <Given ?>A named Controller or Worker Agent has one durable instance binding in checkpoint profile state.</?>
+                <When ?>A later iteration or recovered runtime invokes that logical Agent again.</?>
+                <Then ?>It SHALL target the exact reciprocal instance id and SHALL NOT create a replacement when the binding is missing, corrupt or inconsistent.</?>
+              ]>
+              <Case #bounded-invalid-decision-feedback [
+                <Given ?>A Controller Agent emits an invalid, stale, duplicate or no-progress decision.</?>
+                <When ?>The admission Processor rejects it.</?>
+                <Then ?>The runtime SHALL atomically record typed bounded feedback without changing graph generation, while propagating host invariant failures instead of treating them as model correction.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -7,7 +7,10 @@ import type { ToolSchema } from "@cell/ai-core-contract/types";
 import type { ChatCompletionsEffectBundle } from "@cell/ai-organ-contract/llm/ChatCompletionsEffectBundle";
 import { ProviderExecutionError } from "./ProviderErrors";
 import type { ProviderOptions } from "./ProviderPlugins";
-import type { ProviderTransportRequestObserver } from "@cell/ai-organ-contract/llm/ProviderRuntime";
+import type {
+  ProviderTransportOutcomeObserver,
+  ProviderTransportRequestObserver,
+} from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import { observeProviderTransportRequest } from "./ProviderTransportObservation";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
 import { openAIOfficialChatEffectBundle } from "./ChatCompletionsEffectBundles";
@@ -102,6 +105,11 @@ export function normalizeOpenAIChatUsage(value: unknown): OpenAIChatUsage | unde
 
 function observeOpenAIChatUsage(
   source: AsyncIterable<any>,
+  outcome: Readonly<{
+    observer?: ProviderTransportOutcomeObserver;
+    completion: OpenAIChatStreamCompletionObservation;
+    signal?: AbortSignal;
+  }>,
 ): Pick<LlmStreamResult, "stream" | "providerOutput"> {
   let resolveOutput!: (value: unknown | undefined) => void;
   const providerOutput = new Promise<unknown | undefined>((resolve) => {
@@ -109,19 +117,91 @@ function observeOpenAIChatUsage(
   });
   const stream = (async function* () {
     let usage: OpenAIChatUsage | undefined;
+    let responseId: string | null = null;
+    let outcomeRecorded = false;
+    const recordOutcome = (
+      input: Parameters<ProviderTransportOutcomeObserver["appendOutcome"]>[0],
+    ) => {
+      if (outcomeRecorded) return;
+      outcomeRecorded = true;
+      appendOpenAIChatTransportOutcome(outcome.observer, input);
+    };
     try {
       for await (const chunk of source) {
         const candidate = normalizeOpenAIChatUsage(chunk?.usage);
         if (candidate) usage = candidate;
+        if (typeof chunk?.id === "string" && chunk.id.length > 0) {
+          responseId = chunk.id;
+        }
         yield chunk;
       }
+      recordOutcome(outcome.completion.doneMarkerObserved
+        ? {
+            terminalState: "completed",
+            fallbackUsed: false,
+            completeness: {
+              status: "complete",
+              source: "completed_output",
+              reason: null,
+            },
+            responseId,
+          }
+        : {
+            terminalState: "incomplete",
+            fallbackUsed: false,
+            completeness: {
+              status: "not_observed",
+              source: null,
+              reason: "missing_done_marker",
+            },
+            responseId: null,
+          });
       resolveOutput(usage ? Object.freeze({ usage }) : undefined);
     } catch (error) {
+      recordOutcome({
+        terminalState: outcome.signal?.aborted ? "aborted" : "incomplete",
+        fallbackUsed: false,
+        completeness: {
+          status: "not_observed",
+          source: null,
+          reason: outcome.signal?.aborted ? "aborted" : "stream_error",
+        },
+        responseId: null,
+      });
       resolveOutput(undefined);
       throw error;
+    } finally {
+      if (!outcomeRecorded) {
+        recordOutcome({
+          terminalState: outcome.signal?.aborted ? "aborted" : "incomplete",
+          fallbackUsed: false,
+          completeness: {
+            status: "not_observed",
+            source: null,
+            reason: outcome.signal?.aborted ? "aborted" : "stream_not_consumed",
+          },
+          responseId: null,
+        });
+        resolveOutput(undefined);
+      }
     }
   })();
   return { stream, providerOutput };
+}
+
+type OpenAIChatStreamCompletionObservation = {
+  doneMarkerObserved: boolean;
+};
+
+function appendOpenAIChatTransportOutcome(
+  observer: ProviderTransportOutcomeObserver | undefined,
+  input: Parameters<ProviderTransportOutcomeObserver["appendOutcome"]>[0],
+): void {
+  try {
+    observer?.appendOutcome(input);
+  } catch {
+    // Outcome capture is observation-only and cannot alter the provider loop.
+  }
 }
 
 async function* streamToOpenAIChunks(
@@ -131,6 +211,7 @@ async function* streamToOpenAIChunks(
   cleanupAbortLink: () => void,
   getInternalTimeoutError: () => Error | undefined,
   abortForTimeout: (error: Error) => void,
+  completion: OpenAIChatStreamCompletionObservation,
 ): AsyncIterable<any> {
   if (!response.body) {
     try {
@@ -193,6 +274,7 @@ async function* streamToOpenAIChunks(
         const result = flushLine(line);
         if (result === "DONE") {
           sawProviderEvent = true;
+          completion.doneMarkerObserved = true;
           return;
         }
         if (result) {
@@ -518,7 +600,7 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     }
 
     const fetchFn = providerOptions.fetch || fetch;
-    observeProviderTransportRequest(this.requestObserver, {
+    const outcomeObserver = observeProviderTransportRequest(this.requestObserver, {
       transportType: "http",
       requestBody: serializedBody,
       url,
@@ -545,6 +627,16 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       );
     } catch (error) {
       abortLink.cleanup();
+      appendOpenAIChatTransportOutcome(outcomeObserver, {
+        terminalState: signal?.aborted ? "aborted" : "failed",
+        fallbackUsed: false,
+        completeness: {
+          status: "not_observed",
+          source: null,
+          reason: signal?.aborted ? "aborted" : "transport_error",
+        },
+        responseId: null,
+      });
       throw internalTimeoutError ?? error;
     }
 
@@ -563,10 +655,30 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
           abortForTimeout,
         );
       } catch (error) {
+        appendOpenAIChatTransportOutcome(outcomeObserver, {
+          terminalState: signal?.aborted ? "aborted" : "failed",
+          fallbackUsed: false,
+          completeness: {
+            status: "not_observed",
+            source: null,
+            reason: signal?.aborted ? "aborted" : "http_error_read_failed",
+          },
+          responseId: null,
+        });
         throw internalTimeoutError ?? error;
       } finally {
         abortLink.cleanup();
       }
+      appendOpenAIChatTransportOutcome(outcomeObserver, {
+        terminalState: "failed",
+        fallbackUsed: false,
+        completeness: {
+          status: "not_observed",
+          source: null,
+          reason: `http_${res.status}`,
+        },
+        responseId: null,
+      });
       throw new ProviderExecutionError(
         `OpenAI fetch error ${res.status}: ${errorText || res.statusText}`,
         {
@@ -576,6 +688,9 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
       );
     }
 
+    const completion: OpenAIChatStreamCompletionObservation = {
+      doneMarkerObserved: false,
+    };
     return observeOpenAIChatUsage(
       streamToOpenAIChunks(
         res,
@@ -584,7 +699,9 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
         abortLink.cleanup,
         () => internalTimeoutError,
         abortForTimeout,
+        completion,
       ),
+      { observer: outcomeObserver, completion, signal },
     );
   }
 }

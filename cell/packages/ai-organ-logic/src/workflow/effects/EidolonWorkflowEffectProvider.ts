@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 
 import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
@@ -96,6 +96,21 @@ function text(value: unknown, fallback = ""): string {
 function sessionDir(runtime: WorkflowRuntime): string | undefined {
   const value = runtime.vm?.outerCtx?.metadata?.sessionDir
   return typeof value === "string" && value.trim() ? value : undefined
+}
+
+function stableWorkflowAgentSessionId(
+  request: AIWorkflowEffectRequest,
+  agentDefinitionRef: string,
+  instanceName: unknown,
+): string {
+  const identity = JSON.stringify({
+    workflowRef: request.run.workflow.ref,
+    runId: request.run.runId,
+    nodeId: request.nodeId,
+    agentDefinitionRef,
+    instanceName: typeof instanceName === "string" ? instanceName : undefined,
+  })
+  return `workflow-agent-${createHash("sha256").update(identity).digest("hex").slice(0, 32)}`
 }
 
 function isSameRunAuthority(actual: AIWorkflowRunRef, expected: AIWorkflowRunRef): boolean {
@@ -486,7 +501,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
         && invocationMetadata.sessionRef.trim() === invocationMetadata.sessionRef
         && invocationMetadata.sessionRef.length > 0
         ? invocationMetadata.sessionRef
-        : undefined
+        : stableWorkflowAgentSessionId(request, agentDefinitionRef, config.instanceName)
       const invoked = await invokeAddressedChildExecutionActor(this.runtime.vm, this.runtime.actor, {
         description: text(input.description, `Workflow node ${nodeId}`),
         prompt,

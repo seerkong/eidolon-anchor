@@ -14,6 +14,7 @@
     "generate:holon-e2e-resource": "bun run tests/workflow/generateFileXnlHolonE2eResource.ts",
     "check:holon-e2e-resource": "bun test tests/workflow/file_xnl_holon_issuer_fixture.test.ts tests/workflow/materialize_file_xnl_holon_e2e_resource.test.ts --timeout 30000",
     "check:provider-cache-product": "bun run scripts/providerCacheProductGate.ts",
+    "typecheck:ai-data-autonomous-control": "tsc -p ../../tsconfig.ai-data-autonomous-control.json",
     "typecheck:holon-execution-binding": "tsc -p ../../tsconfig.holon-execution-binding.json",
     "typecheck:step-space-adoption": "tsc -p ../../tsconfig.step-space-adoption.json"
   },
@@ -31,8 +32,8 @@
     "@cell/symbiont-contract": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",
     "ai-ctrl-workflow-logic": "0.1.8",
-    "ai-data-workflow-contract": "0.1.5",
-    "ai-data-workflow-logic": "0.1.11",
+    "ai-data-workflow-contract": "0.1.6",
+    "ai-data-workflow-logic": "0.1.12",
     "ai-workflow-contract": "0.1.8",
     "ai-workflow-logic": "0.1.9",
     "ajv": "8.20.0",

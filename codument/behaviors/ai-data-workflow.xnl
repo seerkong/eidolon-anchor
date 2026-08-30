@@ -1,44 +1,198 @@
 <Behavior #ai-data-workflow apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #cybernetic-resource-agent-replanning (
-      <Statement ?01M17AFKX8QZ3J267G7T6DJ5VD>
+      <Statement ?01M181S9XQ5E9T891GJK9NJZ4J>
       A non-terminal AI Data run SHALL support a canonical graph patch that advances generation and re-executes an affected frozen resource Agent task until an unchanged verifier target is satisfied.
-      </?01M17AFKX8QZ3J267G7T6DJ5VD>
+      </?01M181S9XQ5E9T891GJK9NJZ4J>
       <Suites [
         <Suite #cybernetic-resource-agent-cases { name = "Cybernetic resource Agent replanning" } (
           <Cases [
             <Case #observed-gap-before-replan (
-              <Given ?01M17AFKX8QZ3J267G7T6DJ5VE>
+              <Given ?01M181S9XQ5E9T891GJK9NJZ4K>
               A frozen AI Data definition invokes a resource Agent and pauses at an observation boundary.
-              </?01M17AFKX8QZ3J267G7T6DJ5VE>
-              <When ?01M17AFKX8QZ3J267G7T6DJ5VF>
+              </?01M181S9XQ5E9T891GJK9NJZ4K>
+              <When ?01M181S9XQ5E9T891GJK9NJZ4M>
               The projected Agent output fails the run's immutable verifier.
-              </?01M17AFKX8QZ3J267G7T6DJ5VF>
-              <Then ?01M17AFKX8QZ3J267G7T6DJ5VG>
+              </?01M181S9XQ5E9T891GJK9NJZ4M>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ4N>
               The failed observation SHALL be recorded before any graph mutation and the run SHALL remain non-terminal.
-              </?01M17AFKX8QZ3J267G7T6DJ5VG>
+              </?01M181S9XQ5E9T891GJK9NJZ4N>
             )>
             <Case #canonical-patch-convergence (
-              <Given ?01M17AFKX8QZ3J267G7T6DJ5VH>
+              <Given ?01M181S9XQ5E9T891GJK9NJZ4P>
               The controller has one structurally valid repair for the failed Agent node.
-              </?01M17AFKX8QZ3J267G7T6DJ5VH>
-              <When ?01M17AFKX8QZ3J267G7T6DJ5VJ>
+              </?01M181S9XQ5E9T891GJK9NJZ4P>
+              <When ?01M181S9XQ5E9T891GJK9NJZ4Q>
               It applies the repair through WorkflowApplyGraphPatch.
-              </?01M17AFKX8QZ3J267G7T6DJ5VJ>
-              <Then ?01M17AFKX8QZ3J267G7T6DJ5VK>
+              </?01M181S9XQ5E9T891GJK9NJZ4Q>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ4R>
               The same run, definition and Agent identity SHALL advance to a new generation, invalidate affected facts, re-execute, and satisfy the unchanged verifier.
-              </?01M17AFKX8QZ3J267G7T6DJ5VK>
+              </?01M181S9XQ5E9T891GJK9NJZ4R>
             )>
             <Case #adaptive-evidence-survives-recovery (
-              <Given ?01M17AFKX8QZ3J267G7T6DJ5VM>
+              <Given ?01M181S9XQ5E9T891GJK9NJZ4S>
               A patched Data run has converged at generation one.
-              </?01M17AFKX8QZ3J267G7T6DJ5VM>
-              <When ?01M17AFKX8QZ3J267G7T6DJ5VN>
+              </?01M181S9XQ5E9T891GJK9NJZ4S>
+              <When ?01M181S9XQ5E9T891GJK9NJZ4T>
               Eidolon reloads the run from durable state.
-              </?01M17AFKX8QZ3J267G7T6DJ5VN>
-              <Then ?01M17AFKX8QZ3J267G7T6DJ5VP>
+              </?01M181S9XQ5E9T891GJK9NJZ4T>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ4V>
               Patch history, invalidation facts, generation-aware Agent effects and Agent instance/session continuity SHALL remain observable.
-              </?01M17AFKX8QZ3J267G7T6DJ5VP>
+              </?01M181S9XQ5E9T891GJK9NJZ4V>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #autonomous-resource-agent-control-loop (
+      <Statement ?01M181S9XQ5E9T891GJK9NJZ4W>
+      An autonomous AI Data run SHALL execute a resource-managed controller over one canonical checkpoint authority, admit only typed control decisions, and reuse exact Controller and Worker Agent instances across generations and recovery.
+      </?01M181S9XQ5E9T891GJK9NJZ4W>
+      <Suites [
+        <Suite #autonomous-resource-agent-control-cases { name = "Autonomous resource Agent control loop" } (
+          <Cases [
+            <Case #protected-completion-barrier (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ4X>
+              A frozen autonomous AI Data definition identifies an immutable verifier and an explicit protected control node.
+              </?01M181S9XQ5E9T891GJK9NJZ4X>
+              <When ?01M181S9XQ5E9T891GJK9NJZ4Y>
+              All ordinary graph nodes succeed but the current verifier has not produced PASS with an admitted complete decision.
+              </?01M181S9XQ5E9T891GJK9NJZ4Y>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ4Z>
+              The protected node SHALL remain waiting and the run SHALL remain non-terminal.
+              </?01M181S9XQ5E9T891GJK9NJZ4Z>
+            )>
+            <Case #atomic-admitted-transition (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ50>
+              A Controller Agent proposes a decision against the current generation and the host admits it.
+              </?01M181S9XQ5E9T891GJK9NJZ50>
+              <When ?01M181S9XQ5E9T891GJK9NJZ51>
+              The runtime commits that control iteration.
+              </?01M181S9XQ5E9T891GJK9NJZ51>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ52>
+              Graph generation, control cursor, verifier report, feedback, admission and receipt SHALL become visible atomically in the same canonical checkpoint.
+              </?01M181S9XQ5E9T891GJK9NJZ52>
+            )>
+            <Case #frozen-dynamic-agent-proof (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ53>
+              An admitted dynamic Agent node names an AgentDefinition and an exact frozen task proof.
+              </?01M181S9XQ5E9T891GJK9NJZ53>
+              <When ?01M181S9XQ5E9T891GJK9NJZ54>
+              The node becomes ready.
+              </?01M181S9XQ5E9T891GJK9NJZ54>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ55>
+              The runtime SHALL execute the frozen task binding only when workflow, node and AgentDefinition identities agree, otherwise fail before provider dispatch without mutating the graph.
+              </?01M181S9XQ5E9T891GJK9NJZ55>
+            )>
+            <Case #exact-instance-reuse (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ56>
+              A named Controller or Worker Agent has one durable instance binding in checkpoint profile state.
+              </?01M181S9XQ5E9T891GJK9NJZ56>
+              <When ?01M181S9XQ5E9T891GJK9NJZ57>
+              A later iteration or recovered runtime invokes that logical Agent again.
+              </?01M181S9XQ5E9T891GJK9NJZ57>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ58>
+              It SHALL target the exact reciprocal instance id and SHALL NOT create a replacement when the binding is missing, corrupt or inconsistent.
+              </?01M181S9XQ5E9T891GJK9NJZ58>
+            )>
+            <Case #bounded-invalid-decision-feedback (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ59>
+              A Controller Agent emits an invalid, stale, duplicate or no-progress decision.
+              </?01M181S9XQ5E9T891GJK9NJZ59>
+              <When ?01M181S9XQ5E9T891GJK9NJZ5A>
+              The admission Processor rejects it.
+              </?01M181S9XQ5E9T891GJK9NJZ5A>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ5B>
+              The runtime SHALL atomically record typed bounded feedback without changing graph generation, while propagating host invariant failures instead of treating them as model correction.
+              </?01M181S9XQ5E9T891GJK9NJZ5B>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #autonomous-planning-evidence (
+      <Statement ?01M181S9XQ5E9T891GJK9NJZ5C>
+      Autonomous AI Data planning evidence SHALL bind proposition-neutral inputs to canonical multi-generation control facts, exact Agent identities and immutable verifier outcomes, while distinguishing deterministic mechanics from live-provider autonomy.
+      </?01M181S9XQ5E9T891GJK9NJZ5C>
+      <Suites [
+        <Suite #autonomous-planning-evidence-cases { name = "Autonomous planning evidence" } (
+          <Cases [
+            <Case #two-distinct-observation-driven-patches (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ5D>
+              A proposition supplies only a goal, immutable verifier, frozen capability catalog, initial data and budgets.
+              </?01M181S9XQ5E9T891GJK9NJZ5D>
+              <When ?01M181S9XQ5E9T891GJK9NJZ5E>
+              The autonomous control loop observes a first gap and a distinct verifier failure after its first admitted revision.
+              </?01M181S9XQ5E9T891GJK9NJZ5E>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ5F>
+              It SHALL record two distinct admitted patch digests causally linked to those observations and converge without a harness-authored repair answer.
+              </?01M181S9XQ5E9T891GJK9NJZ5F>
+            )>
+            <Case #invalid-decision-preserves-authority (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ5G>
+              A controller output is invalid and the current graph bytes and generation are known.
+              </?01M181S9XQ5E9T891GJK9NJZ5G>
+              <When ?01M181S9XQ5E9T891GJK9NJZ5H>
+              The output is normalized and rejected by admission.
+              </?01M181S9XQ5E9T891GJK9NJZ5H>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ5J>
+              Typed bounded feedback SHALL be committed while graph bytes and generation remain unchanged.
+              </?01M181S9XQ5E9T891GJK9NJZ5J>
+            )>
+            <Case #sealed-exact-reuse-evidence (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ5K>
+              A run is recovered after its first admitted patch and Agent invocations.
+              </?01M181S9XQ5E9T891GJK9NJZ5K>
+              <When ?01M181S9XQ5E9T891GJK9NJZ5M>
+              The Controller and a repeated Worker are invoked in the fresh runtime.
+              </?01M181S9XQ5E9T891GJK9NJZ5M>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ5N>
+              The sealed evidence SHALL prove targeted reuse of identical external instance and session identities and reject substitutions or fallback creation.
+              </?01M181S9XQ5E9T891GJK9NJZ5N>
+            )>
+            <Case #evidence-class-separation (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ5P>
+              A deterministic provider double completes the same canonical runtime path as a live resource Agent.
+              </?01M181S9XQ5E9T891GJK9NJZ5P>
+              <When ?01M181S9XQ5E9T891GJK9NJZ5Q>
+              Its sealed receipt is evaluated for live-autonomy acceptance.
+              </?01M181S9XQ5E9T891GJK9NJZ5Q>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ5R>
+              The receipt SHALL be classified as mechanics-only and SHALL NOT satisfy a live-provider evidence gate.
+              </?01M181S9XQ5E9T891GJK9NJZ5R>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #live-autonomous-planning-convergence (
+      <Statement ?01M181S9XQ5E9T891GJK9NJZ5S>
+      A live-provider autonomous AI Data run SHALL let a resource Controller plan only from goal, frozen catalog and canonical observations, and SHALL preserve exact Controller/Worker identities while converging through admitted graph generations.
+      </?01M181S9XQ5E9T891GJK9NJZ5S>
+      <Suites [
+        <Suite #live-autonomous-planning-cases { name = "Live autonomous planning convergence" } (
+          <Cases [
+            <Case #live-outcome-driven-construction (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ5T>
+              A real provider receives a goal and frozen capabilities but no expected patch or verifier answer.
+              </?01M181S9XQ5E9T891GJK9NJZ5T>
+              <When ?01M181S9XQ5E9T891GJK9NJZ5V>
+              The initial graph has no implementation path.
+              </?01M181S9XQ5E9T891GJK9NJZ5V>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ5W>
+              The Controller SHALL emit an admitted revision, execute a resource Worker and complete only after the immutable host verifier passes.
+              </?01M181S9XQ5E9T891GJK9NJZ5W>
+            )>
+            <Case #live-verifier-driven-second-patch (
+              <Given ?01M181S9XQ5E9T891GJK9NJZ5X>
+              The first live generation is structurally valid but fails the unchanged verifier.
+              </?01M181S9XQ5E9T891GJK9NJZ5X>
+              <When ?01M181S9XQ5E9T891GJK9NJZ5Y>
+              The failure facts are observed after fresh-runtime recovery.
+              </?01M181S9XQ5E9T891GJK9NJZ5Y>
+              <Then ?01M181S9XQ5E9T891GJK9NJZ5Z>
+              The same Controller SHALL produce a distinct second admitted patch and the repeated Worker SHALL use the same external instance and session.
+              </?01M181S9XQ5E9T891GJK9NJZ5Z>
             )>
           ]>
         )>

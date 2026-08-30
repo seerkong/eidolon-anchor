@@ -1,0 +1,68 @@
+<Track #validate-iqingwa-autonomous-ai-data-convergence apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Demonstrate that iQingwa DeepSeek V4 Pro can autonomously construct and revise canonical AI Data graphs from goal, frozen catalog and verifier observations, including a verifier-driven second patch and mid-loop recovery." description = "Add a real-provider runner over the G4 anti-cheat harness, capture sealed live-provider/cache/recovery evidence for two proposition-distinct runs, and apply only general repairs justified by observed failures." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-29T21:28:29.261Z" updated_at = "2026-08-30T00:24:37.453Z" modeling_base_commit = "2015b5667c62ce839604c2010ceb4e5d6f4bf81b" engineering_base_commit = "2015b5667c62ce839604c2010ceb4e5d6f4bf81b" gap_round = 4 } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #scripts { role = "output" name = "live-runner" domain = "code" path = "vfs://@/scripts/" }>
+    <MaterialBundle #testkit { role = "output" name = "autonomous-planning-testkit" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/" }>
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #reports { role = "output" name = "live-evidence-reports" domain = "artifact" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_validate-iqingwa-autonomous-ai-data-convergence { name = "validate-iqingwa-autonomous-ai-data-convergence" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Bind real provider without changing authority" status = "DONE" priority = "P0" order = 0 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17R8W6CBP3R647VKTDF4401>
+          Runner uses the configured `deepseek-iqingwa/deepseek-v4-pro` adapter and mature Agent execution path; it contains no scripted Controller or Worker output.
+          </?01M17R8W6CBP3R647VKTDF4401>
+          <Criterion { checked = true } ?01M17R8W6CBP3R647VKTDF4402>
+          Live receipts bind provider transport outcomes, cache observations, resource/executable digests and canonical checkpoint facts without persisting credentials.
+          </?01M17R8W6CBP3R647VKTDF4402>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "Implement real iQingwa autonomous-planning runner" status = "DONE" priority = "P0" order = 0 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Run construct repair and recovery propositions" status = "DONE" priority = "P0" order = 1 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17R8W6CBP3R647VKTDF4403>
+          Two proposition-distinct live runs converge under immutable verifier identities with every provider attempt accounted.
+          </?01M17R8W6CBP3R647VKTDF4403>
+          <Criterion { checked = true } ?01M17R8W6CBP3R647VKTDF4404>
+          At least one live run records two distinct admitted patches and one fresh-runtime recovery while preserving Controller/Worker instance and session identities.
+          </?01M17R8W6CBP3R647VKTDF4404>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "Run live construct proposition" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Run live verifier-repair and recovery proposition" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Reconcile model/runtime gaps and publish evidence" status = "DONE" priority = "P0" order = 2 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17R8W6CBP3R647VKTDF4405>
+          Every repair is proposition-neutral and justified by a sealed failed observation; reruns leave no P0/P1 autonomy or authority gap.
+          </?01M17R8W6CBP3R647VKTDF4405>
+          <Criterion { checked = true } ?01M17R8W6CBP3R647VKTDF4406>
+          Chinese report distinguishes correctness, attempts/recovery, graph generations, Agent continuity, prefix integrity and cache usage without inventing unavailable price facts.
+          </?01M17R8W6CBP3R647VKTDF4406>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "Apply bounded evidence-driven repairs and rerun" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "Publish sealed live convergence report" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_validate-iqingwa-autonomous-ai-data-convergence" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "track:after" } (
+      <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = false }>
+    )>
+  ]>
+)>

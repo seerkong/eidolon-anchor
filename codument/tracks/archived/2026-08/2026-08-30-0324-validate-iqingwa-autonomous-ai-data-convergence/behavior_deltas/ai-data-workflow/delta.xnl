@@ -1,0 +1,25 @@
+<BehaviorPatch #track.validate-iqingwa-autonomous-ai-data-convergence.behavior_patch.ai-data-workflow apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-data-workflow" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-data-workflow/requirements/live-autonomous-planning-convergence" } (
+      <Requirement #live-autonomous-planning-convergence (
+        <Statement ?>A live-provider autonomous AI Data run SHALL let a resource Controller plan only from goal, frozen catalog and canonical observations, and SHALL preserve exact Controller/Worker identities while converging through admitted graph generations.</?>
+        <Suites [
+          <Suite #live-autonomous-planning-cases { name = "Live autonomous planning convergence" } (
+            <Cases [
+              <Case #live-outcome-driven-construction [
+                <Given ?>A real provider receives a goal and frozen capabilities but no expected patch or verifier answer.</?>
+                <When ?>The initial graph has no implementation path.</?>
+                <Then ?>The Controller SHALL emit an admitted revision, execute a resource Worker and complete only after the immutable host verifier passes.</?>
+              ]>
+              <Case #live-verifier-driven-second-patch [
+                <Given ?>The first live generation is structurally valid but fails the unchanged verifier.</?>
+                <When ?>The failure facts are observed after fresh-runtime recovery.</?>
+                <Then ?>The same Controller SHALL produce a distinct second admitted patch and the repeated Worker SHALL use the same external instance and session.</?>
+              ]>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

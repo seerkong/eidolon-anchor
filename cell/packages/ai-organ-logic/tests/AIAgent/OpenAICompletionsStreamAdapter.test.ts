@@ -256,6 +256,20 @@ describe("OpenAICompletionsNodejsFetchStreamAdapter", () => {
       yield { choices: [{ delta: {}, finish_reason: "stop" }] };
     }
 
-    await expect(adapter.processStream(stream())).rejects.toThrow("provider_reasoning_only_response");
+    try {
+      await adapter.processStream(stream());
+      throw new Error("expected a reasoning-only protocol error");
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain("provider_reasoning_only_response");
+      expect((error as { observedReasoningBytes?: number }).observedReasoningBytes).toBe(
+        new TextEncoder().encode("I planned the work but produced no action.").byteLength,
+      );
+      expect((error as { continuationAssistantMessage?: unknown }).continuationAssistantMessage).toEqual({
+        role: "assistant",
+        content: "",
+        reasoning_content: "I planned the work but produced no action.",
+      });
+    }
   });
 });

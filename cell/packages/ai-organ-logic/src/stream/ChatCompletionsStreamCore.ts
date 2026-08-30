@@ -59,10 +59,20 @@ export class ChatCompletionsOutputTruncatedError extends Error {
 
 export class ChatCompletionsReasoningOnlyError extends Error {
   readonly code = "provider_reasoning_only_response";
+  readonly observedReasoningBytes: number;
+  readonly continuationAssistantMessage?: Readonly<Record<string, unknown>>;
 
-  constructor(finishReason: string | null) {
+  constructor(
+    finishReason: string | null,
+    observedReasoningBytes = 0,
+    continuationAssistantMessage?: Readonly<Record<string, unknown>>,
+  ) {
     super(`provider_reasoning_only_response: chat completion ended without content or tool calls (finish_reason=${finishReason ?? "unknown"})`);
     this.name = "ChatCompletionsReasoningOnlyError";
+    this.observedReasoningBytes = Number.isFinite(observedReasoningBytes) && observedReasoningBytes > 0
+      ? Math.floor(observedReasoningBytes)
+      : 0;
+    this.continuationAssistantMessage = continuationAssistantMessage;
   }
 }
 
@@ -180,7 +190,19 @@ export function buildChatCompletionsAssistantMessage(
   if (!state.contentBuffer.trim()
     && Object.keys(state.toolCalls).length === 0
     && state.reasoningContentBuffer.trim()) {
-    throw new ChatCompletionsReasoningOnlyError(state.finishReason);
+    const observedReasoningBytes = Math.max(
+      new TextEncoder().encode(state.reasoningContentBuffer).byteLength,
+      new TextEncoder().encode(state.thinkBuffer).byteLength,
+    );
+    throw new ChatCompletionsReasoningOnlyError(
+      state.finishReason,
+      observedReasoningBytes,
+      Object.freeze({
+        role: "assistant",
+        content: "",
+        reasoning_content: state.reasoningContentBuffer,
+      }),
+    );
   }
   const message: any = {
     role: "assistant",

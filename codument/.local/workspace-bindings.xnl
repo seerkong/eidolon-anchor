@@ -3,4 +3,5 @@
     <Binding #holon-workbench { project_ref = "holon-workbench" workspace_path = "/Users/kongweixian/infra-dev/holon-workbench.ts" }>
     <Binding #depa-flows { project_ref = "depa-flows" workspace_path = "/Users/kongweixian/infra-dev/depa-flows.ts" }>
     <Binding #depa-actor { project_ref = "depa-actor" workspace_path = "/Users/kongweixian/infra-dev/depa-actor" }>
+    <Binding #codument-source { project_ref = "codument-source" workspace_path = "/Users/kongweixian/ai/ai-codument/codument" }>
  ]>

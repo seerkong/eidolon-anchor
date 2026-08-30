@@ -1299,7 +1299,25 @@ const INVALID_TOOL_PAYLOAD_RETRY_MESSAGE =
   "The previous assistant tool call was rejected before dispatch because its function arguments were not one complete valid JSON object. Retry the same next action once with exactly one complete, bounded tool call. If the payload would be large, choose the smallest valid next step supported by the available tools. Do not repeat any earlier completed tool effect.";
 
 const TRUNCATED_ASSISTANT_RESPONSE_RETRY_MESSAGE =
-  "The previous generation ended after internal reasoning without producing a final response or tool call. Restart this turn from the unchanged task context and take the smallest concrete next action early. Prefer one bounded tool call over restating a complete plan; do not assume any tool effect occurred in the reasoning-only attempt.";
+  "The previous generation ended after internal reasoning without producing a final response or tool call. Continue from any appended partial reasoning and take the smallest concrete next action early. Prefer one bounded tool call over restating the plan; do not assume any tool effect occurred in the reasoning-only attempt.";
+
+const REASONING_CONTINUATION_USER_MESSAGE =
+  "Continue from the preceding reasoning. Produce the required concise final response or one smallest valid tool call now; do not restart the analysis.";
+
+function readReasoningContinuationAssistantMessage(error: unknown): Readonly<Record<string, unknown>> | null {
+  const message = (error as { continuationAssistantMessage?: unknown } | null | undefined)
+    ?.continuationAssistantMessage;
+  if (!message || typeof message !== "object" || Array.isArray(message)) return null;
+  const source = message as Record<string, unknown>;
+  if (source.role !== "assistant"
+    || typeof source.reasoning_content !== "string"
+    || !source.reasoning_content.trim()) return null;
+  return Object.freeze({
+    role: "assistant",
+    content: typeof source.content === "string" ? source.content : "",
+    reasoning_content: source.reasoning_content,
+  });
+}
 
 function appendProviderRecoveryContextNudge(params: {
   vm: AiAgentVm;
@@ -1376,6 +1394,7 @@ function emitReasoningOnlyRepairRetryDiagnostic(input: {
   consumedOutputTokens: number;
   remainingOutputTokens: number;
   maxOutputTokens: number;
+  outputTokenProgressSource?: "provider_usage" | "reasoning_bytes_estimate";
 }): void {
   const runtime = (input.llmAdapter as { runtime?: Record<string, any> }).runtime;
   emitProviderDiagnostic(runtime?.diagnostics, "retry", {
@@ -1400,6 +1419,7 @@ function emitReasoningOnlyRepairRetryDiagnostic(input: {
     consumedOutputTokens: input.consumedOutputTokens,
     remainingOutputTokens: input.remainingOutputTokens,
     maxOutputTokens: input.maxOutputTokens,
+    outputTokenProgressSource: input.outputTokenProgressSource,
     terminationReason: "retry_scheduled",
     actorId: input.actor.id,
     sessionId: typeof runtime?.sessionId === "string" ? runtime.sessionId : undefined,
@@ -2282,7 +2302,11 @@ async function streamProviderCompletion(params: {
     : null;
   let semanticCompletionConsumedOutputTokens = 0;
   let semanticCompletionRemainingOutputTokens = semanticCompletionMaxOutputTokens;
-  let lastFailedAttemptCompletionTokens: number | null = null;
+  let lastFailedAttemptOutputProgress: Readonly<{
+    tokens: number;
+    source: "provider_usage" | "reasoning_bytes_estimate";
+  }> | null = null;
+  let lastFailedAttemptContinuationMessage: Readonly<Record<string, unknown>> | null = null;
   let providerRequestOrdinal = 0;
   const settleProviderAttemptEvidence = async (
     providerOutput: Promise<unknown | undefined> | undefined,
@@ -2294,11 +2318,26 @@ async function streamProviderCompletion(params: {
     recordProviderCacheObservationProjection(vm, transportResult);
     return transportResult;
   };
-  const readProviderCompletionTokens = (transportResult: unknown): number | null => {
+  const readProviderCompletionProgress = (
+    transportResult: unknown,
+    error: unknown,
+  ): typeof lastFailedAttemptOutputProgress => {
     const value = (transportResult as { usage?: { completion_tokens?: unknown } } | null | undefined)
       ?.usage?.completion_tokens;
     const numeric = Number(value);
-    return Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : null;
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return Object.freeze({ tokens: Math.floor(numeric), source: "provider_usage" });
+    }
+    const observedReasoningBytes = Number(
+      (error as { observedReasoningBytes?: unknown } | null | undefined)?.observedReasoningBytes,
+    );
+    if (Number.isFinite(observedReasoningBytes) && observedReasoningBytes > 0) {
+      return Object.freeze({
+        tokens: Math.max(1, Math.ceil(observedReasoningBytes / 4)),
+        source: "reasoning_bytes_estimate",
+      });
+    }
+    return null;
   };
   const createProviderStream = async (messages: any[], plan: any): Promise<{
     result: LlmStreamResult;
@@ -2365,7 +2404,8 @@ async function streamProviderCompletion(params: {
       providerAttempt: providerRequestOrdinal + 1,
       abortController,
       run: async () => {
-        lastFailedAttemptCompletionTokens = null;
+        lastFailedAttemptOutputProgress = null;
+        lastFailedAttemptContinuationMessage = null;
         const created = await createProviderStream(messages, plan);
         let msg: any;
         try {
@@ -2378,7 +2418,8 @@ async function streamProviderCompletion(params: {
           // and still fail the semantic stream gate. Close that real attempt's
           // usage/cache evidence before issuing the bounded repair request.
           const transportResult = await settleProviderAttemptEvidence(created.result.providerOutput);
-          lastFailedAttemptCompletionTokens = readProviderCompletionTokens(transportResult);
+          lastFailedAttemptOutputProgress = readProviderCompletionProgress(transportResult, error);
+          lastFailedAttemptContinuationMessage = readReasoningContinuationAssistantMessage(error);
           throw error;
         }
         assembleReasoningContentParts(llmAdapter, msg);
@@ -2442,13 +2483,13 @@ async function streamProviderCompletion(params: {
             maxOutputTokens: 0,
           });
         } else {
-          const progress = lastFailedAttemptCompletionTokens;
-          if (progress === null || progress <= 0) {
+          const progress = lastFailedAttemptOutputProgress;
+          if (!progress) {
             throw new Error(
               `provider_semantic_completion_stalled: reasoning-only attempt did not report positive completion-token progress (${error instanceof Error ? error.message : String(error)})`,
             );
           }
-          semanticCompletionConsumedOutputTokens += progress;
+          semanticCompletionConsumedOutputTokens += progress.tokens;
           semanticCompletionRemainingOutputTokens = Math.max(
             0,
             semanticCompletionMaxOutputTokens - semanticCompletionConsumedOutputTokens,
@@ -2465,6 +2506,7 @@ async function streamProviderCompletion(params: {
             continuationOrdinal,
             consumedOutputTokens: semanticCompletionConsumedOutputTokens,
             remainingOutputTokens: semanticCompletionRemainingOutputTokens,
+            outputTokenProgressSource: progress.source,
           });
           emitReasoningOnlyRepairRetryDiagnostic({
             llmAdapter,
@@ -2478,6 +2520,7 @@ async function streamProviderCompletion(params: {
             consumedOutputTokens: semanticCompletionConsumedOutputTokens,
             remainingOutputTokens: semanticCompletionRemainingOutputTokens,
             maxOutputTokens: semanticCompletionMaxOutputTokens,
+            outputTokenProgressSource: progress.source,
           });
         }
 
@@ -2495,6 +2538,16 @@ async function streamProviderCompletion(params: {
             activePendingToolResultDeliveryIds,
           );
           recoveryContextInstalled = true;
+        }
+        if (lastFailedAttemptContinuationMessage) {
+          activeProviderMessages = projectCurrentProviderMessages(
+            [
+              ...activeProviderMessages,
+              lastFailedAttemptContinuationMessage,
+              { role: "user", content: REASONING_CONTINUATION_USER_MESSAGE },
+            ],
+            activePendingToolResultDeliveryIds,
+          );
         }
       }
     }

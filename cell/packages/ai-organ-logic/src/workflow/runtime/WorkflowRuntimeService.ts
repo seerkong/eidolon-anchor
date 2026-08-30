@@ -72,6 +72,14 @@ import type {
   WorkflowRunReceipt,
 } from "./WorkflowLifecycleFacts"
 import { WorkflowMaterialService } from "./WorkflowMaterialService"
+import { createAIDataAutonomousControlExtensionCodecRegistry } from "./AIDataAutonomousControlLoop"
+import type { AIDataAutonomousVerifierPort } from "./AIDataAutonomousControlRunner"
+import type {
+  AIDataControlAdmission,
+  AIDataControlDecision,
+  AIDataControlObservation,
+  AIDataControlVerifierFact,
+} from "@cell/ai-workflow-contract"
 import {
   loadHolonDeploymentDefinition,
   materializeHolonDeploymentDefinition,
@@ -249,9 +257,11 @@ function stepExtensionCodecs(runtime: WorkflowRuntime): DefinitionStepExtensionC
   const aiWorkflow = nestedRecord(metadata(runtime).aiWorkflow)
   const candidate = aiWorkflow.extensionCodecs
   if (candidate && typeof candidate === "object" && typeof (candidate as { resolve?: unknown }).resolve === "function") {
-    return candidate as DefinitionStepExtensionCodecRegistryPort
+    return createAIDataAutonomousControlExtensionCodecRegistry(
+      candidate as DefinitionStepExtensionCodecRegistryPort,
+    )
   }
-  return Object.freeze({ resolve: () => undefined })
+  return createAIDataAutonomousControlExtensionCodecRegistry()
 }
 
 function runRef(
@@ -1116,6 +1126,40 @@ export class WorkflowRuntimeService {
     return result && this.attachDescriptor(descriptor, result)
   }
 
+  async autonomousControlCheckpoint(runId: string) {
+    const descriptor = await this.facts.loadDescriptor(runId)
+    if (!descriptor || descriptor.form !== "AIDataWorkflow") return undefined
+    return (await this.loadDataDriver(descriptor))?.autonomousControlCheckpoint()
+  }
+
+  async runAutonomousControl(runId: string, verifier: AIDataAutonomousVerifierPort) {
+    const descriptor = await this.facts.loadDescriptor(runId)
+    if (!descriptor) throw new Error(`Workflow run descriptor not found: ${runId}`)
+    if (descriptor.form !== "AIDataWorkflow") {
+      throw new Error(`AI_DATA_CONTROL_PROFILE_MISMATCH: ${runId}`)
+    }
+    const driver = await this.loadDataDriver(descriptor)
+    if (!driver) throw new Error(`AI_DATA_CONTROL_STATE_MISSING: ${runId}`)
+    const result = await driver.runAutonomousControl(verifier)
+    const projection = await driver.status()
+    if (projection) await this.synchronizeInstanceStatus(runId, projection)
+    return result
+  }
+
+  async commitAutonomousControlTransition(runId: string, input: Readonly<{
+    observation: AIDataControlObservation
+    decision: AIDataControlDecision
+    admission: AIDataControlAdmission
+    verifier: AIDataControlVerifierFact
+    budget?: import("ai-data-workflow-contract").AIDataControlBudget
+  }>): Promise<any | undefined> {
+    const descriptor = await this.facts.loadDescriptor(runId)
+    if (!descriptor || descriptor.form !== "AIDataWorkflow") return undefined
+    const result = await (await this.loadDataDriver(descriptor))?.commitAutonomousControlTransition(input)
+    if (result) await this.synchronizeInstanceStatus(runId, result)
+    return result && this.attachDescriptor(descriptor, result)
+  }
+
   async events(runId: string) {
     const descriptor = await this.facts.loadDescriptor(runId)
     if (!descriptor) return undefined
@@ -1251,7 +1295,11 @@ export class WorkflowRuntimeService {
     return next
   }
 
-  private async execute(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition, input: unknown): Promise<any> {
+  private async execute(
+    descriptor: WorkflowRunDescriptor,
+    definition: ResolvedWorkflowDefinition,
+    input: unknown,
+  ): Promise<any> {
     if (descriptor.form === "AIDataWorkflow") {
       const driver = await this.createDataDriver(descriptor, definition)
       this.dataDrivers.set(descriptor.runId, driver)
@@ -1359,6 +1407,9 @@ export class WorkflowRuntimeService {
     const taskProofs = frozenRegistry
       ? await this.frozenAgentTaskProofs(descriptor, definition, frozenRegistry)
       : {}
+    const taskProofRefs = frozenRegistry
+      ? await this.frozenAgentTaskProofRefs(descriptor, frozenRegistry)
+      : {}
     const holonContext = frozenRegistry
       ? await this.workflowHolonContext(descriptor, definition, frozenRegistry)
       : undefined
@@ -1373,6 +1424,7 @@ export class WorkflowRuntimeService {
       (request, output) => this.captureMaterialOutput(request.run.runId, effectOwnerNodeId(request), output.path),
       frozenRegistry,
       taskProofs,
+      taskProofRefs,
       this.stepExtensionFacade(),
       holonContext,
     )
@@ -1515,9 +1567,9 @@ export class WorkflowRuntimeService {
           runId: descriptor.runId,
         }) as any
         const ai = checkpoint?.profile?.ai
-        const instanceId = "byInstanceId" in selector
-          ? selector.byInstanceId
-          : ai?.instanceIdByName?.[selector.byInstanceName]
+        const instanceId = "byId" in selector
+          ? selector.byId
+          : ai?.instanceIdByName?.[selector.byName]
         const instance = typeof instanceId === "string" ? ai?.instancesById?.[instanceId] : undefined
         if (!instance || instance.agentDefinitionRef !== agentDefinitionRef) {
           throw new Error("EIDOLON_HOLON_TARGETED_AGENT_SESSION_UNRESOLVED")
@@ -1565,6 +1617,27 @@ export class WorkflowRuntimeService {
       proofs[task.nodeId] = await registry.freezeWorkflowAgentTaskBinding(task)
     }
     return Object.freeze(proofs)
+  }
+
+  private async frozenAgentTaskProofRefs(
+    descriptor: WorkflowRunDescriptor,
+    registry: EidolonAppResourceRegistryAdapter,
+  ): Promise<Readonly<Record<string, readonly `resource://${string}`[]>>> {
+    const declared = await registry.listWorkflowAgentTaskProofRefs(descriptor.workflowRef)
+    const refs: Record<string, `resource://${string}`[]> = {}
+    for (const entry of declared) {
+      if (entry.task.workflowKind !== descriptor.form
+        || entry.task.workflowRef !== descriptor.workflowRef) {
+        throw new Error(`Frozen Agent task proof ${entry.taskProofRef} does not match workflow ${descriptor.workflowRef}`)
+      }
+      const byNode = refs[entry.task.nodeId] ?? []
+      if (!byNode.includes(entry.taskProofRef)) byNode.push(entry.taskProofRef)
+      refs[entry.task.nodeId] = byNode
+    }
+    return Object.freeze(Object.fromEntries(Object.entries(refs).map(([nodeId, values]) => [
+      nodeId,
+      Object.freeze([...values].sort((left, right) => left < right ? -1 : left > right ? 1 : 0)),
+    ])))
   }
 
   private async loadFrozenDefinition(

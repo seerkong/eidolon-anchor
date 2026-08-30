@@ -160,6 +160,7 @@ export type LlmProviderRetryDiagnosticData = {
   consumedOutputTokens?: number;
   remainingOutputTokens?: number;
   maxOutputTokens?: number;
+  outputTokenProgressSource?: "provider_usage" | "reasoning_bytes_estimate";
   terminationReason?: string;
   actorId?: string;
   sessionId?: string;

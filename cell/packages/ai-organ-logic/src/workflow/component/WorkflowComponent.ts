@@ -15,6 +15,7 @@ import {
   type WorkflowAuthoringStore,
 } from "../authoring"
 import { WorkflowResourceLoader } from "../resources"
+import { createAIDataAutonomousControlExtensionCodecRegistry } from "../runtime/AIDataAutonomousControlLoop"
 import { WorkflowDefinitionRepository } from "../runtime/WorkflowDefinitionRepository"
 import { WorkflowCommandService } from "./WorkflowCommandService"
 import { WorkflowQueryService } from "./WorkflowQueryService"
@@ -124,19 +125,22 @@ function runtimeResourcePackageLayers(runtime: WorkflowComponentRuntimeLike): re
 
 function runtimeStepExtensionCodecs(
   runtime: WorkflowComponentRuntimeLike,
-): DefinitionStepExtensionCodecRegistryPort | undefined {
+): DefinitionStepExtensionCodecRegistryPort {
   const metadata = record(runtime.vm?.outerCtx?.metadata)
   const aiWorkflow = record(metadata?.aiWorkflow)
   const candidate = aiWorkflow?.extensionCodecs
-  return candidate
+  const fallback = candidate
     && typeof candidate === "object"
     && typeof (candidate as { resolve?: unknown }).resolve === "function"
     ? candidate as DefinitionStepExtensionCodecRegistryPort
     : undefined
+  return createAIDataAutonomousControlExtensionCodecRegistry(fallback)
 }
 
 export function createWorkflowComponent(options: WorkflowComponentOptions = {}): WorkflowComponent {
-  const resources = options.resources ?? new WorkflowResourceLoader(options.extensionCodecs)
+  const resources = options.resources ?? new WorkflowResourceLoader(
+    createAIDataAutonomousControlExtensionCodecRegistry(options.extensionCodecs),
+  )
   const store = options.store
     ?? (options.workspaceRoot ? new NodeWorkflowAuthoringStore(options.workspaceRoot) : undefined)
   const effectiveStore = store ?? new NodeWorkflowAuthoringStore(path.resolve(process.cwd(), ".eidolon", "workflows"))

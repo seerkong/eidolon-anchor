@@ -16,6 +16,12 @@ function successfulStream() {
   };
 }
 
+async function drain(stream: AsyncIterable<unknown>): Promise<void> {
+  for await (const _chunk of stream) {
+    // Provider retry and response capture settle while the stream is consumed.
+  }
+}
+
 function observeFakeHttp(
   params: Parameters<ProviderDriverDefinition["createStream"]>[0],
   body: unknown = { model: params.model },
@@ -95,7 +101,8 @@ describe("provider request observation", () => {
       },
     });
 
-    await adapter.createStream({ model: "wire-model", messages, tools });
+    const result = await adapter.createStream({ model: "wire-model", messages, tools });
+    await drain(result.stream);
 
     expect(timeline).toEqual(["append:1", "driver:1", "append:2", "driver:2"]);
     expect(events).toHaveLength(2);
@@ -214,7 +221,8 @@ describe("provider request observation", () => {
       },
     });
 
-    await adapter.createStream({ model: "wire-model", messages, tools });
+    const result = await adapter.createStream({ model: "wire-model", messages, tools });
+    await drain(result.stream);
 
     expect(events).toHaveLength(1);
     expect(JSON.stringify(events[0])).not.toContain("connection-api-key");
@@ -276,8 +284,10 @@ describe("provider request observation", () => {
       },
     });
 
-    await adapter.createStream({ model: "model-1", messages: [], tools: [] });
-    await adapter.createStream({ model: "model-1", messages: [], tools: [] });
+    const first = await adapter.createStream({ model: "model-1", messages: [], tools: [] });
+    await drain(first.stream);
+    const second = await adapter.createStream({ model: "model-1", messages: [], tools: [] });
+    await drain(second.stream);
 
     expect(
       events.map(({ providerCallOrdinal, attemptOrdinal }) => ({
@@ -312,7 +322,7 @@ describe("provider request observation", () => {
         },
       });
 
-    await createAdapter().createStream({
+    const first = await createAdapter().createStream({
       model: "model-1",
       messages: [],
       tools: [],
@@ -323,7 +333,8 @@ describe("provider request observation", () => {
         requestId: "llm:fiber-1:9:request-1",
       },
     });
-    await createAdapter().createStream({
+    await drain(first.stream);
+    const second = await createAdapter().createStream({
       model: "model-1",
       messages: [],
       tools: [],
@@ -334,6 +345,7 @@ describe("provider request observation", () => {
         requestId: "llm:fiber-1:10:request-1",
       },
     });
+    await drain(second.stream);
 
     expect(events.map((event) => ({
       actorId: event.actorId,
@@ -398,6 +410,7 @@ describe("provider request observation", () => {
       messages: [],
       tools: [],
     });
+    await drain(result.stream);
 
     expect(result.stream).toBeDefined();
     expect(driverCalls).toBe(1);
@@ -439,9 +452,12 @@ describe("provider request observation", () => {
     });
     errorAdapter.prepareRequest({ model: "model-1", messages: [], tools: [] });
     expect(errorEvents).toEqual([]);
-    await expect(
-      errorAdapter.createStream({ model: "model-1", messages: [], tools: [] }),
-    ).rejects.toThrow("non-retryable");
+    const errorResult = await errorAdapter.createStream({
+      model: "model-1",
+      messages: [],
+      tools: [],
+    });
+    await expect(drain(errorResult.stream)).rejects.toThrow("non-retryable");
     expect(errorEvents).toHaveLength(1);
 
     const abortEvents: ProviderRequestObservationData[] = [];
@@ -465,14 +481,13 @@ describe("provider request observation", () => {
         requestObservationPort: { append: (event) => abortEvents.push(event) },
       },
     });
-    await expect(
-      abortAdapter.createStream({
-        model: "model-1",
-        messages: [],
-        tools: [],
-        signal: controller.signal,
-      }),
-    ).rejects.toThrow("aborted");
+    const abortResult = await abortAdapter.createStream({
+      model: "model-1",
+      messages: [],
+      tools: [],
+      signal: controller.signal,
+    });
+    await expect(drain(abortResult.stream)).rejects.toThrow("aborted");
     expect(abortEvents).toHaveLength(1);
   });
 });

@@ -1,0 +1,48 @@
+<Behavior #provider-stream-retry apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #stream-failure-recovery (
+      <Statement ?01M18J9T1K89E0X058HF5MX1VB>
+      Provider stream consumption SHALL classify upstream temporary failures with the same retry policy used for request establishment, but SHALL retry only when no assistant content, reasoning, or tool-call output has been observed for the failed attempt.
+      </?01M18J9T1K89E0X058HF5MX1VB>
+      <Suites [
+        <Suite #stream-failure-recovery-cases { name = "Provider stream failure recovery" } (
+          <Cases [
+            <Case #retry-before-visible-output (
+              <Given ?01M18J9T1MMDT9QCF0NH7XZ4XW>
+              A provider request establishes a stream and emits a retryable upstream failure before any visible assistant content, reasoning, or tool call is observed.
+              </?01M18J9T1MMDT9QCF0NH7XZ4XW>
+              <When ?01M18J9T1MMDT9QCF0NH7XZ4XX>
+              The runtime consumes the provider stream.
+              </?01M18J9T1MMDT9QCF0NH7XZ4XX>
+              <Then ?01M18J9T1MMDT9QCF0NH7XZ4XY>
+              The runtime SHALL retry the same request contract according to the configured provider retry policy.
+              </?01M18J9T1MMDT9QCF0NH7XZ4XY>
+            )>
+            <Case #do-not-retry-after-visible-output (
+              <Given ?01M18J9T1MMDT9QCF0NH7XZ4XZ>
+              A provider stream has emitted any assistant content, reasoning, or tool-call fragment before a retryable transport/provider failure.
+              </?01M18J9T1MMDT9QCF0NH7XZ4XZ>
+              <When ?01M18J9T1MMDT9QCF0NH7XZ4Y0>
+              The stream fails.
+              </?01M18J9T1MMDT9QCF0NH7XZ4Y0>
+              <Then ?01M18J9T1MMDT9QCF0NH7XZ4Y1>
+              The runtime SHALL NOT replay the request automatically and SHALL preserve the failure as indeterminate-after-accept.
+              </?01M18J9T1MMDT9QCF0NH7XZ4Y1>
+            )>
+            <Case #retry-diagnostics (
+              <Given ?01M18J9T1MMDT9QCF0NH7XZ4Y2>
+              A stream failure is retried or terminates retry evaluation.
+              </?01M18J9T1MMDT9QCF0NH7XZ4Y2>
+              <When ?01M18J9T1MMDT9QCF0NH7XZ4Y3>
+              The runtime records provider diagnostics.
+              </?01M18J9T1MMDT9QCF0NH7XZ4Y3>
+              <Then ?01M18J9T1MMDT9QCF0NH7XZ4Y4>
+              Each actual attempt, retry decision, attempt number, retry count, termination reason, and replay-safety classification SHALL be observable.
+              </?01M18J9T1MMDT9QCF0NH7XZ4Y4>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

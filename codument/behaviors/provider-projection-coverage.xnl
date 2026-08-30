@@ -1,0 +1,103 @@
+<Behavior #provider-projection-coverage apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #send-before-coverage-proof (
+      <Statement ?01M18JH285R8RCDS7YDS10NY2S>
+      Responses canonical projection SHALL prove that every source function call and tool output is emitted before request planning; unaccounted loss SHALL fail closed.
+      </?01M18JH285R8RCDS7YDS10NY2S>
+      <Suites [
+        <Suite #coverage-cases { name = "Projection coverage" } (
+          <Cases [
+            <Case #complete-proof (
+              <Given ?01M18JH285R8RCDS7YDS10NY2T>
+              Canonical materialization contains completed tool rounds.
+              </?01M18JH285R8RCDS7YDS10NY2T>
+              <When ?01M18JH285R8RCDS7YDS10NY2V>
+              Responses replay is compiled.
+              </?01M18JH285R8RCDS7YDS10NY2V>
+              <Then ?01M18JH285R8RCDS7YDS10NY2W>
+              The projection SHALL include a typed source/emitted call-output coverage proof.
+              </?01M18JH285R8RCDS7YDS10NY2W>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #tool-declaration-coverage-proof (
+      <Statement ?01M18JH285R8RCDS7YDS10NY2X>
+      Before any provider request effect, a typed coverage gate SHALL normalize every canonical and emitted schema keyword, value, branch and constraint into kind/path/valueDigest facts, prove an exact fact double-entry mapping or one versioned compatible consume/produce transformation for every changed fact, and exclusively create an opaque admitted capability that binds defensive-copied exact serialized bytes and their body digest.
+      </?01M18JH285R8RCDS7YDS10NY2X>
+      <Suites [
+        <Suite #tool-declaration-coverage { name = "Tool declaration coverage proof" } (
+          <Cases [
+            <Case #complete-projection-receipt (
+              <Given ?01M18JH285R8RCDS7YDS10NY2Y>
+              a deterministic provider projection that preserves or explicitly transforms every canonical tool-schema fact
+              </?01M18JH285R8RCDS7YDS10NY2Y>
+              <When ?01M18JH285R8RCDS7YDS10NY2Z>
+              the send-before coverage gate compares source, emitted declarations, and serialized body
+              </?01M18JH285R8RCDS7YDS10NY2Z>
+              <Then ?01M18JH285R8RCDS7YDS10NY30>
+              it SHALL issue a bounded immutable receipt with source/emitted fact-set digests and counts plus versioned transformation facts, while the internal gate retains the complete fact relation needed to prove values as well as paths
+              </?01M18JH285R8RCDS7YDS10NY30>
+            )>
+            <Case #missing-tool-or-branch (
+              <Given ?01M18JH285R8RCDS7YDS10NY31>
+              a projection missing a canonical tool, branch, or constrained schema path
+              </?01M18JH285R8RCDS7YDS10NY31>
+              <When ?01M18JH285R8RCDS7YDS10NY32>
+              coverage is evaluated
+              </?01M18JH285R8RCDS7YDS10NY32>
+              <Then ?01M18JH285R8RCDS7YDS10NY33>
+              the gate SHALL reject with a stable diagnostic and SHALL NOT expose or send a provider request
+              </?01M18JH285R8RCDS7YDS10NY33>
+            )>
+            <Case #serialized-body-mismatch (
+              <Given ?01M18JH285R8RCDS7YDS10NY34>
+              an admitted emitted-tool projection and a serialized body whose tool declarations differ from it
+              </?01M18JH285R8RCDS7YDS10NY34>
+              <When ?01M18JH285R8RCDS7YDS10NY35>
+              request admission performs final readback
+              </?01M18JH285R8RCDS7YDS10NY35>
+              <Then ?01M18JH285R8RCDS7YDS10NY36>
+              the gate SHALL reject before request observation and network I/O
+              </?01M18JH285R8RCDS7YDS10NY36>
+            )>
+            <Case #admitted-body-is-immutable-authority (
+              <Given ?01M18JH285R8RCDS7YDS10NY37>
+              an authentic admitted capability and a caller that later mutates its source request or byte input
+              </?01M18JH285R8RCDS7YDS10NY37>
+              <When ?01M18JH285R8RCDS7YDS10NY38>
+              transport verifies the private fixed bytes and serialized-body digest
+              </?01M18JH285R8RCDS7YDS10NY38>
+              <Then ?01M18JH285R8RCDS7YDS10NY39>
+              the sent bytes SHALL remain the originally admitted bytes, or any authenticity/digest mismatch SHALL reject before observation and I/O
+              </?01M18JH285R8RCDS7YDS10NY39>
+            )>
+            <Case #coverage-domain-separation (
+              <Given ?01M18JH285R8RCDS7YDS10NY3A>
+              existing conversation function-call and function-output coverage evidence
+              </?01M18JH285R8RCDS7YDS10NY3A>
+              <When ?01M18JH285R8RCDS7YDS10NY3B>
+              tool declaration compatibility is verified
+              </?01M18JH285R8RCDS7YDS10NY3B>
+              <Then ?01M18JH285R8RCDS7YDS10NY3C>
+              declaration coverage SHALL require its own proof and SHALL NOT be inferred from conversation replay coverage
+              </?01M18JH285R8RCDS7YDS10NY3C>
+            )>
+            <Case #same-path-different-value (
+              <Given ?01M18JH285R8RCDS7YDS10NY3D>
+              source and emitted schemas with the same paths but a changed required member, enum value, nested type, or additional-property policy
+              </?01M18JH285R8RCDS7YDS10NY3D>
+              <When ?01M18JH285R8RCDS7YDS10NY3E>
+              fact coverage compares their value digests without an applicable versioned transformation
+              </?01M18JH285R8RCDS7YDS10NY3E>
+              <Then ?01M18JH285R8RCDS7YDS10NY3F>
+              the projection SHALL be rejected before an admitted request is produced
+              </?01M18JH285R8RCDS7YDS10NY3F>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

@@ -1,0 +1,171 @@
+<Behavior #provider-chat-completions apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #tool-schema-projection-owner (
+      <Statement ?01M18JQ4EJNA1YT5NFR3KR6QZ5>
+      Each configured Chat Completions provider bundle SHALL own an explicit pure tool-schema projection compiler that prepares one opaque tool-projection authority per provider call; request preview and every real transport attempt SHALL reuse it, while the coverage gate alone creates an opaque admitted capability for each concrete serialized body, and generic fetch code SHALL accept no canonical tools or structural request lookalikes and SHALL NOT infer provider policy from model names, base URLs, provider labels, tool names, or schema text.
+      </?01M18JQ4EJNA1YT5NFR3KR6QZ5>
+      <Suites [
+        <Suite #chat-tool-schema-owner { name = "Chat tool-schema projection ownership" } (
+          <Cases [
+            <Case #configured-bundle-selects-projector (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6QZ6>
+              an explicitly configured ordinary OpenAI Chat or DeepSeek Chat driver
+              </?01M18JQ4EJNA1YT5NFR3KR6QZ6>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6QZ7>
+              the runtime builds and sends a request containing canonical tools
+              </?01M18JQ4EJNA1YT5NFR3KR6QZ7>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZ8>
+              the selected driver bundle SHALL prepare one tool-projection authority and every concrete transport body SHALL be admitted from that authority before transport
+              </?01M18JQ4EJNA1YT5NFR3KR6QZ8>
+            )>
+            <Case #generic-fetch-has-no-dialect-routing (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6QZ9>
+              a projected provider request admitted by the compatibility gate
+              </?01M18JQ4EJNA1YT5NFR3KR6QZ9>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6QZA>
+              the generic fetch effect serializes and sends it
+              </?01M18JQ4EJNA1YT5NFR3KR6QZA>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZB>
+              it SHALL NOT branch on model, URL, provider label, tool name, or natural-language/schema keyword content
+              </?01M18JQ4EJNA1YT5NFR3KR6QZB>
+            )>
+            <Case #rejected-projection-never-reaches-effect (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6QZC>
+              a tool projection with incomplete coverage or an unsupported transformation
+              </?01M18JQ4EJNA1YT5NFR3KR6QZC>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6QZD>
+              request admission is evaluated
+              </?01M18JQ4EJNA1YT5NFR3KR6QZD>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZE>
+              request observation and network effects SHALL remain uncalled and a stable typed diagnostic SHALL be returned
+              </?01M18JQ4EJNA1YT5NFR3KR6QZE>
+            )>
+            <Case #preview-send-single-admission (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6QZF>
+              an admitted provider request produced by the configured bundle
+              </?01M18JQ4EJNA1YT5NFR3KR6QZF>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6QZG>
+              the request is previewed and then sent through createStream
+              </?01M18JQ4EJNA1YT5NFR3KR6QZG>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZH>
+              both SHALL consume the same admitted artifact and instrumentation SHALL observe no second projection or provider re-selection
+              </?01M18JQ4EJNA1YT5NFR3KR6QZH>
+            )>
+            <Case #unadmitted-request-cannot-cross-effect-boundary (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6QZJ>
+              a structural lookalike request or a caller mutation after a valid request was admitted
+              </?01M18JQ4EJNA1YT5NFR3KR6QZJ>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6QZK>
+              transport validates the capability and serialized-body digest before request observation
+              </?01M18JQ4EJNA1YT5NFR3KR6QZK>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZM>
+              it SHALL reject the request and network invocation SHALL remain zero
+              </?01M18JQ4EJNA1YT5NFR3KR6QZM>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #official-effect-bundle-composition (
+      <Statement ?01M18JQ4EJNA1YT5NFR3KR6QZN>
+      The system SHALL implement OpenAI official Chat Completions and DeepSeek official Chat Completions as two explicit effect bundles composed with one shared Chat Completions core; provider selection MUST come from the configured driver and MUST NOT be inferred from model or URL strings.
+      </?01M18JQ4EJNA1YT5NFR3KR6QZN>
+      <Suites [
+        <Suite #bundle-selection { name = "Official provider effect bundle selection" } (
+          <Cases [
+            <Case #openai-official-selection [
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZP>
+              the OpenAI official effect bundle SHALL be used
+              </?01M18JQ4EJNA1YT5NFR3KR6QZP>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZQ>
+              DeepSeek-only reasoning compatibility fields MUST NOT be injected
+              </?01M18JQ4EJNA1YT5NFR3KR6QZQ>
+            ] (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6QZR>
+              the configured provider driver is OpenAI Chat Completions
+              </?01M18JQ4EJNA1YT5NFR3KR6QZR>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6QZS>
+              a request and stream are processed
+              </?01M18JQ4EJNA1YT5NFR3KR6QZS>
+            )>
+            <Case #deepseek-official-selection [
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZT>
+              the DeepSeek official effect bundle SHALL be used independently of model and Base URL naming
+              </?01M18JQ4EJNA1YT5NFR3KR6QZT>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZV>
+              DeepSeek reasoning continuation SHALL remain protocol-correct
+              </?01M18JQ4EJNA1YT5NFR3KR6QZV>
+            ] (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6QZW>
+              the configured provider driver is DeepSeek
+              </?01M18JQ4EJNA1YT5NFR3KR6QZW>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6QZX>
+              a request and stream are processed against an official or explicitly configured compatible endpoint
+              </?01M18JQ4EJNA1YT5NFR3KR6QZX>
+            )>
+            <Case #shared-stream-behavior [
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZY>
+              both bundles SHALL reuse the same pure stream core
+              </?01M18JQ4EJNA1YT5NFR3KR6QZY>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6QZZ>
+              content, tool-call and ingress event behavior SHALL remain compatible with the existing adapter
+              </?01M18JQ4EJNA1YT5NFR3KR6QZZ>
+            ] (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6R00>
+              OpenAI and DeepSeek streams use Chat Completions delta framing
+              </?01M18JQ4EJNA1YT5NFR3KR6R00>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6R01>
+              content and tool-call deltas are reduced
+              </?01M18JQ4EJNA1YT5NFR3KR6R01>
+            )>
+            <Case #end-to-end-driver-binding [
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6R02>
+              the same driver bundle binding SHALL control request and stream semantics
+              </?01M18JQ4EJNA1YT5NFR3KR6R02>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6R03>
+              the stream path MUST NOT reselect a provider bundle from adapter type, model or Base URL strings
+              </?01M18JQ4EJNA1YT5NFR3KR6R03>
+            ] (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6R04>
+              a provider driver has been selected for the current request
+              </?01M18JQ4EJNA1YT5NFR3KR6R04>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6R05>
+              the response stream is passed through executor, terminal runtime and ingress reduction
+              </?01M18JQ4EJNA1YT5NFR3KR6R05>
+            )>
+            <Case #ai-domain-ownership [
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6R06>
+              their contracts and logic SHALL reside in AI domain contract and logic packages
+              </?01M18JQ4EJNA1YT5NFR3KR6R06>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6R07>
+              the symbiont layer MUST remain limited to provider-neutral stream and runtime primitives
+              </?01M18JQ4EJNA1YT5NFR3KR6R07>
+            ] (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6R08>
+              Chat Completions reduction interprets provider reasoning and tool-call protocol fields
+              </?01M18JQ4EJNA1YT5NFR3KR6R08>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6R09>
+              the shared core and official bundles are packaged
+              </?01M18JQ4EJNA1YT5NFR3KR6R09>
+            )>
+            <Case #responses-isolation [
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6R0A>
+              the Responses driver and continuation model SHALL remain outside the Chat Completions effect bundles
+              </?01M18JQ4EJNA1YT5NFR3KR6R0A>
+              <Then ?01M18JQ4EJNA1YT5NFR3KR6R0B>
+              any reuse of normalized ingress reduction MUST NOT invoke OpenAI Chat request, endpoint or history projection
+              </?01M18JQ4EJNA1YT5NFR3KR6R0B>
+            ] (
+              <Given ?01M18JQ4EJNA1YT5NFR3KR6R0C>
+              the configured provider uses OpenAI Responses API
+              </?01M18JQ4EJNA1YT5NFR3KR6R0C>
+              <When ?01M18JQ4EJNA1YT5NFR3KR6R0D>
+              the provider driver is selected
+              </?01M18JQ4EJNA1YT5NFR3KR6R0D>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

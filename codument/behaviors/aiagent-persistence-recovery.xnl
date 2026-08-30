@@ -1,1182 +1,1252 @@
 <Behavior #aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #durable-control-signal-recovery (
-      <Statement ?01M05F1P1C68XS65CB3E79N4GX>
+      <Statement ?01M18JQ3PKJHJKVPD2WBBJCY39>
       系统 SHALL persist unblock-capable actor control signals durably and replay or re-deliver them during session recovery.
-      </?01M05F1P1C68XS65CB3E79N4GX>
+      </?01M18JQ3PKJHJKVPD2WBBJCY39>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/durable-control-signal-recovery" strength = "hint" }>
       <Suites [
         <Suite #outbox-inbox-recovery { name = "Outbox and inbox recovery" } (
           <Cases [
             <Case #crash-after-control-event-before-resume [
-              <Then ?01M05F1P1C68XS65CB3E79N4GY>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3A>
               The process crashes before the matching resume is applied
-              </?01M05F1P1C68XS65CB3E79N4GY>
-              <Then ?01M05F1P1C68XS65CB3E79N4GZ>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3A>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3B>
               The runtime SHALL re-deliver or reduce the durable signal into the actor mailbox or cooperative exec state
-              </?01M05F1P1C68XS65CB3E79N4GZ>
-              <Then ?01M05F1P1C68XS65CB3E79N4H0>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3B>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3C>
               The owning fiber SHALL become schedulable if the signal satisfies its wait condition
-              </?01M05F1P1C68XS65CB3E79N4H0>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3C>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4H1>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY3D>
               A tool, LLM, child, human, or cancel event has been persisted as a durable control signal
-              </?01M05F1P1C68XS65CB3E79N4H1>
-              <When ?01M05F1P1C68XS65CB3E79N4H2>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3D>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY3E>
               The session runtime is recovered
-              </?01M05F1P1C68XS65CB3E79N4H2>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3E>
             )>
             <Case #crash-after-mailbox-before-projection [
-              <Then ?01M05F1P1C68XS65CB3E79N4H3>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3F>
               The process crashes before transcript or projection persistence completes
-              </?01M05F1P1C68XS65CB3E79N4H3>
-              <Then ?01M05F1P1C68XS65CB3E79N4H4>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3F>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3G>
               The control signal SHALL remain available for actor execution
-              </?01M05F1P1C68XS65CB3E79N4H4>
-              <Then ?01M05F1P1C68XS65CB3E79N4H5>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3G>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3H>
               Transcript projection SHALL be rebuilt or repaired as a read model
-              </?01M05F1P1C68XS65CB3E79N4H5>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3H>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4H6>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY3J>
               A durable control signal has been enqueued into an actor mailbox
-              </?01M05F1P1C68XS65CB3E79N4H6>
-              <When ?01M05F1P1C68XS65CB3E79N4H7>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3J>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY3K>
               The session runtime is recovered
-              </?01M05F1P1C68XS65CB3E79N4H7>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3K>
             )>
             <Case #idempotent-redelivery [
-              <Then ?01M05F1P1C68XS65CB3E79N4H8>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3M>
               The runtime SHALL de-duplicate by event id, op id, fiber id, and tool call id as applicable
-              </?01M05F1P1C68XS65CB3E79N4H8>
-              <Then ?01M05F1P1C68XS65CB3E79N4H9>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3M>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3N>
               The actor SHALL NOT apply the same completion twice
-              </?01M05F1P1C68XS65CB3E79N4H9>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3N>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4HA>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY3P>
               The same durable control signal is encountered more than once during recovery
-              </?01M05F1P1C68XS65CB3E79N4HA>
-              <When ?01M05F1P1C68XS65CB3E79N4HB>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3P>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY3Q>
               The runtime replays control events
-              </?01M05F1P1C68XS65CB3E79N4HB>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3Q>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #suspended-fiber-invariant (
-      <Statement ?01M05F1P1C68XS65CB3E79N4HC>
+      <Statement ?01M18JQ3PKJHJKVPD2WBBJCY3R>
       系统 SHALL reject, repair, or explicitly diagnose suspended fiber snapshots that have no recoverable wait condition or pending control signal.
-      </?01M05F1P1C68XS65CB3E79N4HC>
+      </?01M18JQ3PKJHJKVPD2WBBJCY3R>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/suspended-fiber-invariant" strength = "hint" }>
       <Suites [
         <Suite #snapshot-invariants { name = "Snapshot invariants" } (
           <Cases [
             <Case #invalid-external-empty-state [
-              <Then ?01M05F1P1C68XS65CB3E79N4HD>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3S>
               The actor has no pending mailbox entries, no cooperative exec state, no durable pending control signal, and no terminal condition
-              </?01M05F1P1C68XS65CB3E79N4HD>
-              <Then ?01M05F1P1C68XS65CB3E79N4HE>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3S>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3T>
               The runtime SHALL NOT silently persist or accept the state as a healthy blocked fiber
-              </?01M05F1P1C68XS65CB3E79N4HE>
-              <Then ?01M05F1P1C68XS65CB3E79N4HF>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3T>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3V>
               The runtime SHALL either mark it recoverable-failed with diagnostics or rehydrate it to a deterministic ready state when a safe continuation rule exists
-              </?01M05F1P1C68XS65CB3E79N4HF>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3V>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4HG>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY3W>
               A fiber snapshot would be saved as suspended with generic external waiting
-              </?01M05F1P1C68XS65CB3E79N4HG>
-              <When ?01M05F1P1C68XS65CB3E79N4HH>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3W>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY3X>
               The runtime attempts to save or recover the snapshot
-              </?01M05F1P1C68XS65CB3E79N4HH>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3X>
             )>
             <Case #projection-tail-not-primary-control-truth [
-              <Then ?01M05F1P1C68XS65CB3E79N4HJ>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3Y>
               The runtime MAY use the transcript tail as a conservative repair hint
-              </?01M05F1P1C68XS65CB3E79N4HJ>
-              <Then ?01M05F1P1C68XS65CB3E79N4HK>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3Y>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY3Z>
               The runtime SHALL prefer durable control signals, actor mailboxes, and cooperative exec state as the primary control truth
-              </?01M05F1P1C68XS65CB3E79N4HK>
+              </?01M18JQ3PKJHJKVPD2WBBJCY3Z>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4HM>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY40>
               The transcript or conversation history ends with a tool result
-              </?01M05F1P1C68XS65CB3E79N4HM>
-              <When ?01M05F1P1C68XS65CB3E79N4HN>
+              </?01M18JQ3PKJHJKVPD2WBBJCY40>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY41>
               The runtime recovers control state
-              </?01M05F1P1C68XS65CB3E79N4HN>
+              </?01M18JQ3PKJHJKVPD2WBBJCY41>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #vm-snapshot-boundaries (
-      <Statement ?01M05F1P1C68XS65CB3E79N4HP>
+      <Statement ?01M18JQ3PKJHJKVPD2WBBJCY42>
       系统 SHALL keep the VM snapshot as a bounded durable subset and SHALL NOT persist complete AI message history, provider-private content, or large tool outputs in `runtime_state/vm.json`.
-      </?01M05F1P1C68XS65CB3E79N4HP>
+      </?01M18JQ3PKJHJKVPD2WBBJCY42>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/vm-snapshot-boundaries" strength = "hint" }>
       <Suites [
         <Suite #durable-subset { name = "VM durable subset boundary" } (
           <Cases [
             <Case #no-ai-history-payloads-in-vm-json [
-              <Then ?01M05F1P1C68XS65CB3E79N4HQ>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY43>
               The VM snapshot SHALL NOT contain complete `llm_done.msg`, `tool_done.output`, `tool_done.outputText`, `reasoning_content`, or complete tool schemas
-              </?01M05F1P1C68XS65CB3E79N4HQ>
-              <Then ?01M05F1P1C68XS65CB3E79N4HR>
+              </?01M18JQ3PKJHJKVPD2WBBJCY43>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY44>
               The message content SHALL remain recoverable from actor transcript, conversation history, or a referenced artifact store
-              </?01M05F1P1C68XS65CB3E79N4HR>
+              </?01M18JQ3PKJHJKVPD2WBBJCY44>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4HS>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY45>
               An actor turn produces assistant messages, reasoning content, tool calls, and tool results
-              </?01M05F1P1C68XS65CB3E79N4HS>
-              <When ?01M05F1P1C68XS65CB3E79N4HT>
+              </?01M18JQ3PKJHJKVPD2WBBJCY45>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY46>
               The runtime writes `runtime_state/vm.json`
-              </?01M05F1P1C68XS65CB3E79N4HT>
+              </?01M18JQ3PKJHJKVPD2WBBJCY46>
             )>
             <Case #bounded-vm-growth [
-              <Then ?01M05F1P1C68XS65CB3E79N4HV>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY47>
               The serialized VM snapshot size SHALL remain bounded by session control state, not by historical LLM/tool content volume
-              </?01M05F1P1C68XS65CB3E79N4HV>
-              <Then ?01M05F1P1C68XS65CB3E79N4HW>
+              </?01M18JQ3PKJHJKVPD2WBBJCY47>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY48>
               Consumed control signal records SHALL be compacted or checkpointed into small idempotency tombstones
-              </?01M05F1P1C68XS65CB3E79N4HW>
+              </?01M18JQ3PKJHJKVPD2WBBJCY48>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4HX>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY49>
               A session runs many LLM/tool cycles and all corresponding control signals have been consumed
-              </?01M05F1P1C68XS65CB3E79N4HX>
-              <When ?01M05F1P1C68XS65CB3E79N4HY>
+              </?01M18JQ3PKJHJKVPD2WBBJCY49>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY4A>
               The runtime writes repeated VM snapshots
-              </?01M05F1P1C68XS65CB3E79N4HY>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4A>
             )>
             <Case #legacy-full-payload-snapshot-recovery [
-              <Then ?01M05F1P1C68XS65CB3E79N4HZ>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4B>
               The runtime SHALL preserve recoverability
-              </?01M05F1P1C68XS65CB3E79N4HZ>
-              <Then ?01M05F1P1C68XS65CB3E79N4J0>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4B>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4C>
               The next saved VM snapshot SHALL normalize or migrate those control signals to the bounded durable format
-              </?01M05F1P1C68XS65CB3E79N4J0>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4C>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4J1>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY4D>
               A legacy session contains full LLM/tool payloads inside `sessionState.controlSignals.events`
-              </?01M05F1P1C68XS65CB3E79N4J1>
-              <When ?01M05F1P1C68XS65CB3E79N4J2>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4D>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY4E>
               The runtime recovers and saves the session with the new snapshot writer
-              </?01M05F1P1C68XS65CB3E79N4J2>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4E>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #control-signal-payload-refs (
-      <Statement ?01M05F1P1C68XS65CB3E79N4J3>
+      <Statement ?01M18JQ3PKJHJKVPD2WBBJCY4F>
       系统 SHALL persist durable control signal payloads as typed metadata or payload references rather than unbounded mailbox payload copies.
-      </?01M05F1P1C68XS65CB3E79N4J3>
+      </?01M18JQ3PKJHJKVPD2WBBJCY4F>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/control-signal-payload-refs" strength = "hint" }>
       <Suites [
         <Suite #payload-normalization { name = "Control signal payload normalization" } (
           <Cases [
             <Case #async-completion-stores-ref [
-              <Then ?01M05F1P1C68XS65CB3E79N4J4>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4G>
               The signal SHALL store op id, tool call id, mailbox kind, signal kind, priority, created time, and a small payload reference or digest
-              </?01M05F1P1C68XS65CB3E79N4J4>
-              <Then ?01M05F1P1C68XS65CB3E79N4J5>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4G>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4H>
               The full completion payload SHALL be delivered through the actor mailbox and persisted by the appropriate actor mailbox, transcript, conversation, or artifact surface
-              </?01M05F1P1C68XS65CB3E79N4J5>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4H>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4J6>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY4J>
               An async LLM or tool operation completes with a large result
-              </?01M05F1P1C68XS65CB3E79N4J6>
-              <When ?01M05F1P1C68XS65CB3E79N4J7>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4J>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY4K>
               The runtime emits the durable control signal that wakes the owning fiber
-              </?01M05F1P1C68XS65CB3E79N4J7>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4K>
             )>
             <Case #unconsumed-mailbox-payload-remains-actor-owned [
-              <Then ?01M05F1P1C68XS65CB3E79N4J8>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4M>
               The actor mailbox snapshot SHALL retain enough payload data to continue mailbox drain after recovery
-              </?01M05F1P1C68XS65CB3E79N4J8>
-              <Then ?01M05F1P1C68XS65CB3E79N4J9>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4M>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4N>
               The VM control signal snapshot SHALL NOT duplicate that payload as a second content truth source
-              </?01M05F1P1C68XS65CB3E79N4J9>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4N>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4JA>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY4P>
               A mailbox payload is not yet consumed at snapshot time
-              </?01M05F1P1C68XS65CB3E79N4JA>
-              <When ?01M05F1P1C68XS65CB3E79N4JB>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4P>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY4Q>
               The runtime writes actor snapshots
-              </?01M05F1P1C68XS65CB3E79N4JB>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4Q>
             )>
             <Case #projection-not-promoted-by-accident [
-              <Then ?01M05F1P1C68XS65CB3E79N4JC>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4R>
               Those projections SHALL either be rebuildable from VM, actor, fiber, transcript, conversation, and artifact truth sources or be explicitly modeled as durable state
-              </?01M05F1P1C68XS65CB3E79N4JC>
-              <Then ?01M05F1P1C68XS65CB3E79N4JD>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4R>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4S>
               They SHALL NOT silently become the only source of truth for recoverable state
-              </?01M05F1P1C68XS65CB3E79N4JD>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4S>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4JE>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY4T>
               Derived indexes or projection files exist for member, detached actor, coordination, conversation, or UI views
-              </?01M05F1P1C68XS65CB3E79N4JE>
-              <When ?01M05F1P1C68XS65CB3E79N4JF>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4T>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY4V>
               The runtime recovers a session
-              </?01M05F1P1C68XS65CB3E79N4JF>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4V>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #snapshot-guardrails (
-      <Statement ?01M05F1P1C68XS65CB3E79N4JG>
+      <Statement ?01M18JQ3PKJHJKVPD2WBBJCY4W>
       系统 SHALL provide guard tests or diagnostics that prevent VM snapshot boundary regressions.
-      </?01M05F1P1C68XS65CB3E79N4JG>
+      </?01M18JQ3PKJHJKVPD2WBBJCY4W>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/snapshot-guardrails" strength = "hint" }>
       <Suites [
         <Suite #snapshot-guards { name = "Snapshot guardrails" } (
           <Cases [
             <Case #vm-json-forbidden-fields (
-              <Given ?01M05F1P1C68XS65CB3E79N4JH>
+              <Given ?01M18JQ3PKJHJKVPD2WBBJCY4X>
               A test runtime produces assistant reasoning, tool output, MCP output, and consumed control signals
-              </?01M05F1P1C68XS65CB3E79N4JH>
-              <When ?01M05F1P1C68XS65CB3E79N4JJ>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4X>
+              <When ?01M18JQ3PKJHJKVPD2WBBJCY4Y>
               The test inspects serialized `vm.json`
-              </?01M05F1P1C68XS65CB3E79N4JJ>
-              <Then ?01M05F1P1C68XS65CB3E79N4JK>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4Y>
+              <Then ?01M18JQ3PKJHJKVPD2WBBJCY4Z>
               The test SHALL fail if `vm.json` contains provider-private fields such as `reasoning_content` or full `tool_done.outputText` payloads
-              </?01M05F1P1C68XS65CB3E79N4JK>
+              </?01M18JQ3PKJHJKVPD2WBBJCY4Z>
             )>
             <Case #vm-json-size-regression (
-              <Given ?01M05F1P1C68XS65CB3E79N4JM>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYEZ>
               A fixture produces repeated consumed LLM/tool completion signals
-              </?01M05F1P1C68XS65CB3E79N4JM>
-              <When ?01M05F1P1C68XS65CB3E79N4JN>
+              </?01M18JQ3PMARJTV7J68S1GYYEZ>
+              <When ?01M18JQ3PMARJTV7J68S1GYYF0>
               The test compares VM snapshot size before and after additional consumed history
-              </?01M05F1P1C68XS65CB3E79N4JN>
-              <Then ?01M05F1P1C68XS65CB3E79N4JP>
+              </?01M18JQ3PMARJTV7J68S1GYYF0>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYF1>
               The test SHALL fail if VM snapshot growth is proportional to historical message or tool payload bytes
-              </?01M05F1P1C68XS65CB3E79N4JP>
+              </?01M18JQ3PMARJTV7J68S1GYYF1>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #questionnaire-table-persistence (
-      <Statement ?01M05F1P1C68XS65CB3E79N4JQ>
+      <Statement ?01M18JQ3PMARJTV7J68S1GYYF2>
       系统 SHALL persist questionnaire state as first-class rows in `runtime_state/questionnaires.xnl` and SHALL NOT persist questionnaire request payloads inside actor snapshots.
-      </?01M05F1P1C68XS65CB3E79N4JQ>
+      </?01M18JQ3PMARJTV7J68S1GYYF2>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/questionnaire-table-persistence" strength = "hint" }>
       <Suites [
         <Suite #questionnaire-xnl-table { name = "Questionnaire XNL table" } (
           <Cases [
             <Case #questionnaires-xnl-uses-row-nodes [
-              <Then ?01M05F1P1C68XS65CB3E79N4JR>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYF3>
               The snapshot SHALL write `runtime_state/questionnaires.xnl` as repeated `QuestionnaireRow` XNL data nodes without an outer wrapper node
-              </?01M05F1P1C68XS65CB3E79N4JR>
-              <Then ?01M05F1P1C68XS65CB3E79N4JS>
+              </?01M18JQ3PMARJTV7J68S1GYYF3>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYF4>
               The writer SHALL use xnl-core parsing and stringifying APIs rather than XML syntax or ad hoc string concatenation
-              </?01M05F1P1C68XS65CB3E79N4JS>
+              </?01M18JQ3PMARJTV7J68S1GYYF4>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4JT>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYF5>
               A runtime has pending or answered questionnaires
-              </?01M05F1P1C68XS65CB3E79N4JT>
-              <When ?01M05F1P1C68XS65CB3E79N4JV>
+              </?01M18JQ3PMARJTV7J68S1GYYF5>
+              <When ?01M18JQ3PMARJTV7J68S1GYYF6>
               The runtime writes a snapshot
-              </?01M05F1P1C68XS65CB3E79N4JV>
+              </?01M18JQ3PMARJTV7J68S1GYYF6>
             )>
             <Case #actor-snapshot-does-not-own-questionnaires [
-              <Then ?01M05F1P1C68XS65CB3E79N4JW>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYF7>
               The actor metadata, state, and mailbox snapshot files SHALL NOT store `pendingQuestionnaires` as durable questionnaire truth
-              </?01M05F1P1C68XS65CB3E79N4JW>
-              <Then ?01M05F1P1C68XS65CB3E79N4JX>
+              </?01M18JQ3PMARJTV7J68S1GYYF7>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYF8>
               The questionnaire SHALL remain recoverable from `runtime_state/questionnaires.xnl`
-              </?01M05F1P1C68XS65CB3E79N4JX>
+              </?01M18JQ3PMARJTV7J68S1GYYF8>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4JY>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYF9>
               An actor owns a pending questionnaire
-              </?01M05F1P1C68XS65CB3E79N4JY>
-              <When ?01M05F1P1C68XS65CB3E79N4JZ>
+              </?01M18JQ3PMARJTV7J68S1GYYF9>
+              <When ?01M18JQ3PMARJTV7J68S1GYYFA>
               The runtime writes actor snapshot files
-              </?01M05F1P1C68XS65CB3E79N4JZ>
+              </?01M18JQ3PMARJTV7J68S1GYYFA>
             )>
             <Case #recover-pending-questionnaires-from-table [
-              <Then ?01M05F1P1C68XS65CB3E79N4K0>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFB>
               The runtime SHALL rebuild the actor surface pending questionnaire list from those rows
-              </?01M05F1P1C68XS65CB3E79N4K0>
-              <Then ?01M05F1P1C68XS65CB3E79N4K1>
+              </?01M18JQ3PMARJTV7J68S1GYYFB>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFC>
               The TUI SHALL show pending questionnaires when loading the session
-              </?01M05F1P1C68XS65CB3E79N4K1>
+              </?01M18JQ3PMARJTV7J68S1GYYFC>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4K2>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYFD>
               A session is recovered from snapshot files
-              </?01M05F1P1C68XS65CB3E79N4K2>
-              <When ?01M05F1P1C68XS65CB3E79N4K3>
+              </?01M18JQ3PMARJTV7J68S1GYYFD>
+              <When ?01M18JQ3PMARJTV7J68S1GYYFE>
               `runtime_state/questionnaires.xnl` contains pending questionnaire rows
-              </?01M05F1P1C68XS65CB3E79N4K3>
+              </?01M18JQ3PMARJTV7J68S1GYYFE>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #recover-consumed-signal-mailbox-work (
-      <Statement ?01M05F1P1C68XS65CB3E79N4K4>
+      <Statement ?01M18JQ3PMARJTV7J68S1GYYFF>
       系统 SHALL recover and schedule actor mailbox wake work even when the corresponding durable control signal is present only as a consumed tombstone.
-      </?01M05F1P1C68XS65CB3E79N4K4>
+      </?01M18JQ3PMARJTV7J68S1GYYFF>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/recover-consumed-signal-mailbox-work" strength = "hint" }>
       <Suites [
         <Suite #consumed-signal-mailbox-payload { name = "Consumed signal with pending mailbox payload" } (
           <Cases [
             <Case #consumed-async-signal-mailbox-pending [
-              <Then ?01M05F1P1C68XS65CB3E79N4K5>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFG>
               The actor mailbox snapshot still contains `asyncCompletion` payload for op id `X`
-              </?01M05F1P1C68XS65CB3E79N4K5>
-              <Then ?01M05F1P1C68XS65CB3E79N4K6>
+              </?01M18JQ3PMARJTV7J68S1GYYFG>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFH>
               The actor mailbox payload SHALL remain the recoverable execution truth
-              </?01M05F1P1C68XS65CB3E79N4K6>
-              <Then ?01M05F1P1C68XS65CB3E79N4K7>
+              </?01M18JQ3PMARJTV7J68S1GYYFH>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFJ>
               The owning fiber SHALL become schedulable without requiring a pending durable signal event
-              </?01M05F1P1C68XS65CB3E79N4K7>
+              </?01M18JQ3PMARJTV7J68S1GYYFJ>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4K8>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYFK>
               `runtime_state/vm.json` contains a consumed `async_completed` control-signal tombstone for op id `X`
-              </?01M05F1P1C68XS65CB3E79N4K8>
-              <When ?01M05F1P1C68XS65CB3E79N4K9>
+              </?01M18JQ3PMARJTV7J68S1GYYFK>
+              <When ?01M18JQ3PMARJTV7J68S1GYYFM>
               The session runtime is recovered
-              </?01M05F1P1C68XS65CB3E79N4K9>
+              </?01M18JQ3PMARJTV7J68S1GYYFM>
             )>
             <Case #mailbox-work-reconstructs-pending-resume [
-              <Then ?01M05F1P1C68XS65CB3E79N4KA>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFN>
               The runtime SHALL rebuild the equivalent schedulable state from actor mailbox plus cooperative exec state
-              </?01M05F1P1C68XS65CB3E79N4KA>
-              <Then ?01M05F1P1C68XS65CB3E79N4KB>
+              </?01M18JQ3PMARJTV7J68S1GYYFN>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFP>
               The runtime SHALL NOT require transcript-tail inference to resume the fiber
-              </?01M05F1P1C68XS65CB3E79N4KB>
+              </?01M18JQ3PMARJTV7J68S1GYYFP>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4KC>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYFQ>
               A recovered actor has pending wake mailbox work and no serialized pending resume
-              </?01M05F1P1C68XS65CB3E79N4KC>
-              <When ?01M05F1P1C68XS65CB3E79N4KD>
+              </?01M18JQ3PMARJTV7J68S1GYYFQ>
+              <When ?01M18JQ3PMARJTV7J68S1GYYFR>
               The runtime reconstructs orchestrator state
-              </?01M05F1P1C68XS65CB3E79N4KD>
+              </?01M18JQ3PMARJTV7J68S1GYYFR>
             )>
             <Case #pending-resume-never-required-as-sole-truth [
-              <Then ?01M05F1P1C68XS65CB3E79N4KE>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFS>
               The explicit `pendingResumes` scheduler set was lost or absent
-              </?01M05F1P1C68XS65CB3E79N4KE>
-              <Then ?01M05F1P1C68XS65CB3E79N4KF>
+              </?01M18JQ3PMARJTV7J68S1GYYFS>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFT>
               The pending actor mailbox entry SHALL be sufficient to re-schedule the fiber
-              </?01M05F1P1C68XS65CB3E79N4KF>
+              </?01M18JQ3PMARJTV7J68S1GYYFT>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4KG>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYFV>
               A wake message was durably delivered to an actor mailbox before process exit
-              </?01M05F1P1C68XS65CB3E79N4KG>
-              <When ?01M05F1P1C68XS65CB3E79N4KH>
+              </?01M18JQ3PMARJTV7J68S1GYYFV>
+              <When ?01M18JQ3PMARJTV7J68S1GYYFW>
               The runtime recovers
-              </?01M05F1P1C68XS65CB3E79N4KH>
+              </?01M18JQ3PMARJTV7J68S1GYYFW>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #cooperative-wait-snapshot-guard (
-      <Statement ?01M05F1P1C68XS65CB3E79N4KJ>
+      <Statement ?01M18JQ3PMARJTV7J68S1GYYFX>
       系统 SHALL reject, repair, or explicitly diagnose snapshots that persist a cooperative async wait as an apparently idle ready fiber.
-      </?01M05F1P1C68XS65CB3E79N4KJ>
+      </?01M18JQ3PMARJTV7J68S1GYYFX>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/cooperative-wait-snapshot-guard" strength = "hint" }>
       <Suites [
         <Suite #cooperative-wait-guards { name = "Cooperative wait snapshot guards" } (
           <Cases [
             <Case #ready-wait-llm-guard [
-              <Then ?01M05F1P1C68XS65CB3E79N4KK>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFY>
               The cooperative exec state is `wait_llm` with inflight work
-              </?01M05F1P1C68XS65CB3E79N4KK>
-              <Then ?01M05F1P1C68XS65CB3E79N4KM>
+              </?01M18JQ3PMARJTV7J68S1GYYFY>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYFZ>
               The runtime SHALL NOT silently accept it as ordinary idle state
-              </?01M05F1P1C68XS65CB3E79N4KM>
-              <Then ?01M05F1P1C68XS65CB3E79N4KN>
+              </?01M18JQ3PMARJTV7J68S1GYYFZ>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYG0>
               The runtime SHALL repair it to a schedulable or typed waiting state and emit diagnostics when repair is applied
-              </?01M05F1P1C68XS65CB3E79N4KN>
+              </?01M18JQ3PMARJTV7J68S1GYYG0>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4KP>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYG1>
               A snapshot would persist a fiber as `ready` with no waiting reason
-              </?01M05F1P1C68XS65CB3E79N4KP>
-              <When ?01M05F1P1C68XS65CB3E79N4KQ>
+              </?01M18JQ3PMARJTV7J68S1GYYG1>
+              <When ?01M18JQ3PMARJTV7J68S1GYYG2>
               The snapshot is saved or recovered
-              </?01M05F1P1C68XS65CB3E79N4KQ>
+              </?01M18JQ3PMARJTV7J68S1GYYG2>
             )>
             <Case #ready-wait-tool-guard (
-              <Given ?01M05F1P1C68XS65CB3E79N4KR>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYG3>
               A snapshot would persist a fiber as `ready` with cooperative exec state `wait_tool` and inflight work
-              </?01M05F1P1C68XS65CB3E79N4KR>
-              <When ?01M05F1P1C68XS65CB3E79N4KS>
+              </?01M18JQ3PMARJTV7J68S1GYYG3>
+              <When ?01M18JQ3PMARJTV7J68S1GYYG4>
               The snapshot is saved or recovered
-              </?01M05F1P1C68XS65CB3E79N4KS>
-              <Then ?01M05F1P1C68XS65CB3E79N4KT>
+              </?01M18JQ3PMARJTV7J68S1GYYG4>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYG5>
               The runtime SHALL preserve a deterministic continuation path for the pending tool result
-              </?01M05F1P1C68XS65CB3E79N4KT>
+              </?01M18JQ3PMARJTV7J68S1GYYG5>
             )>
             <Case #recovery-fixture-covers-empty-pending-signal-store [
-              <Then ?01M05F1P1C68XS65CB3E79N4KV>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYG6>
               It has consumed wake tombstones, pending actor mailbox payloads, and cooperative wait state
-              </?01M05F1P1C68XS65CB3E79N4KV>
-              <Then ?01M05F1P1C68XS65CB3E79N4KW>
+              </?01M18JQ3PMARJTV7J68S1GYYG6>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYG7>
               The test SHALL prove that mailbox-owned payloads still drive recovery and execution
-              </?01M05F1P1C68XS65CB3E79N4KW>
+              </?01M18JQ3PMARJTV7J68S1GYYG7>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4KX>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYG8>
               A recovery fixture has no pending durable control signal events
-              </?01M05F1P1C68XS65CB3E79N4KX>
-              <When ?01M05F1P1C68XS65CB3E79N4KY>
+              </?01M18JQ3PMARJTV7J68S1GYYG8>
+              <When ?01M18JQ3PMARJTV7J68S1GYYG9>
               The focused recovery test runs
-              </?01M05F1P1C68XS65CB3E79N4KY>
+              </?01M18JQ3PMARJTV7J68S1GYYG9>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #runtime-snapshot-safepoints (
-      <Statement ?01M05F1P1C68XS65CB3E79N4KZ>
+      <Statement ?01M18JQ3PMARJTV7J68S1GYYGA>
       系统 SHALL save runtime snapshots only at recoverable safepoints or preserve the previous known-good snapshot when the current runtime state is not a safepoint.
-      </?01M05F1P1C68XS65CB3E79N4KZ>
+      </?01M18JQ3PMARJTV7J68S1GYYGA>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/runtime-snapshot-safepoints" strength = "hint" }>
       <Suites [
         <Suite #snapshot-save-safepoint { name = "Snapshot save safepoint semantics" } (
           <Cases [
             <Case #reject-start-tool-half-step [
-              <Then ?01M05F1P1C68XS65CB3E79N4M0>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGB>
               The owning fiber cooperative exec state is `start_tool`
-              </?01M05F1P1C68XS65CB3E79N4M0>
-              <Then ?01M05F1P1C68XS65CB3E79N4M1>
+              </?01M18JQ3PMARJTV7J68S1GYYGB>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGC>
               No durable tool operation or matching tool result exists for that tool call
-              </?01M05F1P1C68XS65CB3E79N4M1>
-              <Then ?01M05F1P1C68XS65CB3E79N4M2>
+              </?01M18JQ3PMARJTV7J68S1GYYGC>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGD>
               The snapshot writer SHALL NOT persist that state as the latest recoverable snapshot
-              </?01M05F1P1C68XS65CB3E79N4M2>
-              <Then ?01M05F1P1C68XS65CB3E79N4M3>
+              </?01M18JQ3PMARJTV7J68S1GYYGD>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGE>
               The runtime SHALL either advance to a safepoint or skip the save while preserving the previous known-good snapshot
-              </?01M05F1P1C68XS65CB3E79N4M3>
+              </?01M18JQ3PMARJTV7J68S1GYYGE>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4M4>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYGF>
               An actor history contains an assistant tool call that requires tool execution
-              </?01M05F1P1C68XS65CB3E79N4M4>
-              <When ?01M05F1P1C68XS65CB3E79N4M5>
+              </?01M18JQ3PMARJTV7J68S1GYYGF>
+              <When ?01M18JQ3PMARJTV7J68S1GYYGG>
               The runtime attempts to save a snapshot
-              </?01M05F1P1C68XS65CB3E79N4M5>
+              </?01M18JQ3PMARJTV7J68S1GYYGG>
             )>
             <Case #tool-call-has-durable-proof [
-              <Then ?01M05F1P1C68XS65CB3E79N4M6>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGH>
               The snapshot SHALL contain recoverable proof that the matching tool operation has started or is waiting for completion
-              </?01M05F1P1C68XS65CB3E79N4M6>
-              <Then ?01M05F1P1C68XS65CB3E79N4M7>
+              </?01M18JQ3PMARJTV7J68S1GYYGH>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGJ>
               Recovery SHALL be able to continue without relying on transcript-tail inference
-              </?01M05F1P1C68XS65CB3E79N4M7>
+              </?01M18JQ3PMARJTV7J68S1GYYGJ>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4M8>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYGK>
               An actor history contains an assistant tool call without a matching tool result
-              </?01M05F1P1C68XS65CB3E79N4M8>
-              <When ?01M05F1P1C68XS65CB3E79N4M9>
+              </?01M18JQ3PMARJTV7J68S1GYYGK>
+              <When ?01M18JQ3PMARJTV7J68S1GYYGM>
               The runtime saves a snapshot
-              </?01M05F1P1C68XS65CB3E79N4M9>
+              </?01M18JQ3PMARJTV7J68S1GYYGM>
             )>
             <Case #save-after-crash-boundary [
-              <Then ?01M05F1P1C68XS65CB3E79N4MA>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGN>
               The recovered runtime SHALL be able to continue or remain in a typed external wait state
-              </?01M05F1P1C68XS65CB3E79N4MA>
-              <Then ?01M05F1P1C68XS65CB3E79N4MB>
+              </?01M18JQ3PMARJTV7J68S1GYYGN>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGP>
               The recovered message history SHALL NOT contain unmatched assistant tool calls unless a durable operation can produce the matching tool result
-              </?01M05F1P1C68XS65CB3E79N4MB>
+              </?01M18JQ3PMARJTV7J68S1GYYGP>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4MC>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYGQ>
               A snapshot save has completed successfully
-              </?01M05F1P1C68XS65CB3E79N4MC>
-              <When ?01M05F1P1C68XS65CB3E79N4MD>
+              </?01M18JQ3PMARJTV7J68S1GYYGQ>
+              <When ?01M18JQ3PMARJTV7J68S1GYYGR>
               The process exits immediately after the save and the session is recovered
-              </?01M05F1P1C68XS65CB3E79N4MD>
+              </?01M18JQ3PMARJTV7J68S1GYYGR>
             )>
           ]>
         )>
         <Suite #snapshot-diagnostics { name = "Snapshot diagnostics" } (
           <Cases [
             <Case #diagnose-non-safepoint-skip [
-              <Then ?01M05F1P1C68XS65CB3E79N4ME>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGS>
               The runtime SHALL emit diagnostics describing the blocking fiber, phase, and reason
-              </?01M05F1P1C68XS65CB3E79N4ME>
-              <Then ?01M05F1P1C68XS65CB3E79N4MF>
+              </?01M18JQ3PMARJTV7J68S1GYYGS>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGT>
               The diagnostics SHALL NOT expose provider-private message content or large tool payloads
-              </?01M05F1P1C68XS65CB3E79N4MF>
+              </?01M18JQ3PMARJTV7J68S1GYYGT>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4MG>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYGV>
               The runtime attempts to save while mandatory continuations remain unconsumed
-              </?01M05F1P1C68XS65CB3E79N4MG>
-              <When ?01M05F1P1C68XS65CB3E79N4MH>
+              </?01M18JQ3PMARJTV7J68S1GYYGV>
+              <When ?01M18JQ3PMARJTV7J68S1GYYGW>
               The save is skipped or delayed because the state is not a safepoint
-              </?01M05F1P1C68XS65CB3E79N4MH>
+              </?01M18JQ3PMARJTV7J68S1GYYGW>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #append-only-xnl-storage (
-      <Statement ?01M05F1P1C68XS65CB3E79N4MJ>
+      <Statement ?01M18JQ3PMARJTV7J68S1GYYGX>
       系统 SHALL store every append-only session record stream as parser-valid top-level XNL records appended with filesystem append operations, and SHALL keep replace-written state files bounded.
-      </?01M05F1P1C68XS65CB3E79N4MJ>
+      </?01M18JQ3PMARJTV7J68S1GYYGX>
       <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-persistence-recovery/append-only-xnl-storage" strength = "hint" }>
       <Suites [
         <Suite #classification { name = "XNL file classification" } (
           <Cases [
             <Case #shared-xnl-helpers [
-              <Then ?01M05F1P1C68XS65CB3E79N4MK>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGY>
               The implementation SHALL use shared project-level XNL formatter, append helper, and read helper where practical
-              </?01M05F1P1C68XS65CB3E79N4MK>
-              <Then ?01M05F1P1C68XS65CB3E79N4MM>
+              </?01M18JQ3PMARJTV7J68S1GYYGY>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYGZ>
               The formatter SHALL follow xnl-core-compatible AST and syntax rules
-              </?01M05F1P1C68XS65CB3E79N4MM>
-              <Then ?01M05F1P1C68XS65CB3E79N4MN>
+              </?01M18JQ3PMARJTV7J68S1GYYGZ>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYH0>
               The append helper SHALL write one complete top-level record plus newline per append
-              </?01M05F1P1C68XS65CB3E79N4MN>
-              <Then ?01M05F1P1C68XS65CB3E79N4MP>
+              </?01M18JQ3PMARJTV7J68S1GYYH0>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYH1>
               The read helper SHALL be built on XNL-provided parser/helper functions rather than reimplementing an XNL parser
-              </?01M05F1P1C68XS65CB3E79N4MP>
-              <Then ?01M05F1P1C68XS65CB3E79N4MQ>
+              </?01M18JQ3PMARJTV7J68S1GYYH1>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYH2>
               The read helper SHALL parse multi-root append streams and reject root-wrapper growing history for append-only streams
-              </?01M05F1P1C68XS65CB3E79N4MQ>
+              </?01M18JQ3PMARJTV7J68S1GYYH2>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4MR>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYH3>
               The implementation writes or reads runtime XNL persistence records covered by this requirement
-              </?01M05F1P1C68XS65CB3E79N4MR>
-              <When ?01M05F1P1C68XS65CB3E79N4MS>
+              </?01M18JQ3PMARJTV7J68S1GYYH3>
+              <When ?01M18JQ3PMARJTV7J68S1GYYH4>
               The implementation serializes, appends, or reads those records
-              </?01M05F1P1C68XS65CB3E79N4MS>
+              </?01M18JQ3PMARJTV7J68S1GYYH4>
             )>
             <Case #append-only-classification [
-              <Then ?01M05F1P1C68XS65CB3E79N4MT>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYH5>
               The component SHALL append one complete top-level XNL element per record
-              </?01M05F1P1C68XS65CB3E79N4MT>
-              <Then ?01M05F1P1C68XS65CB3E79N4MV>
+              </?01M18JQ3PMARJTV7J68S1GYYH5>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYH6>
               The component SHALL NOT rewrite a growing root wrapper, JSON array, JSONL stream, or plain text transcript as the authoritative append-only format
-              </?01M05F1P1C68XS65CB3E79N4MV>
+              </?01M18JQ3PMARJTV7J68S1GYYH6>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4MW>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYH7>
               A session file records historical facts, audit facts, replay facts, diagnostics, message history, prompt materialization history, orchestration events, or runtime-control evidence
-              </?01M05F1P1C68XS65CB3E79N4MW>
-              <When ?01M05F1P1C68XS65CB3E79N4MX>
+              </?01M18JQ3PMARJTV7J68S1GYYH7>
+              <When ?01M18JQ3PMARJTV7J68S1GYYH8>
               The component persists the fact to an XNL file
-              </?01M05F1P1C68XS65CB3E79N4MX>
+              </?01M18JQ3PMARJTV7J68S1GYYH8>
             )>
             <Case #attribute-unique-child-body-shape [
-              <Then ?01M05F1P1C68XS65CB3E79N4MY>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYH9>
               A pure key-value subject SHALL be represented in the top-level node's custom attribute block
-              </?01M05F1P1C68XS65CB3E79N4MY>
-              <Then ?01M05F1P1C68XS65CB3E79N4MZ>
+              </?01M18JQ3PMARJTV7J68S1GYYH9>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHA>
               A single subject that has its own tag, metadata, attributes, or text marker semantics SHALL be represented as a named child node in `()`
-              </?01M05F1P1C68XS65CB3E79N4MZ>
-              <Then ?01M05F1P1C68XS65CB3E79N4N0>
+              </?01M18JQ3PMARJTV7J68S1GYYHA>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHB>
               The writer SHALL use `[]` body only when the record has multiple peer child nodes, ordered blocks, or mixed text/data children
-              </?01M05F1P1C68XS65CB3E79N4N0>
+              </?01M18JQ3PMARJTV7J68S1GYYHB>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4N1>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYHC>
               An append-only XNL record has exactly one event subject, payload, payload reference, or structured result
-              </?01M05F1P1C68XS65CB3E79N4N1>
-              <When ?01M05F1P1C68XS65CB3E79N4N2>
+              </?01M18JQ3PMARJTV7J68S1GYYHC>
+              <When ?01M18JQ3PMARJTV7J68S1GYYHD>
               The record is serialized
-              </?01M05F1P1C68XS65CB3E79N4N2>
+              </?01M18JQ3PMARJTV7J68S1GYYHD>
             )>
             <Case #replace-state-classification [
-              <Then ?01M05F1P1C68XS65CB3E79N4N3>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHE>
               The component MAY use replace-written JSON or replace-written XNL only if the file does not contain historical record bodies
-              </?01M05F1P1C68XS65CB3E79N4N3>
-              <Then ?01M05F1P1C68XS65CB3E79N4N4>
+              </?01M18JQ3PMARJTV7J68S1GYYHE>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHF>
               The file SHALL remain bounded by current state rather than growing with session event count
-              </?01M05F1P1C68XS65CB3E79N4N4>
+              </?01M18JQ3PMARJTV7J68S1GYYHF>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4N5>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYHG>
               A session file stores bounded current state such as a manifest, index, head, cursor, checkpoint marker, or projection metadata
-              </?01M05F1P1C68XS65CB3E79N4N5>
-              <When ?01M05F1P1C68XS65CB3E79N4N6>
+              </?01M18JQ3PMARJTV7J68S1GYYHG>
+              <When ?01M18JQ3PMARJTV7J68S1GYYHH>
               The component persists that state
-              </?01M05F1P1C68XS65CB3E79N4N6>
+              </?01M18JQ3PMARJTV7J68S1GYYHH>
             )>
             <Case #replace-xnl-review (
-              <Given ?01M05F1P1C68XS65CB3E79N4N7>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYHJ>
               An XNL file is currently written by full replacement
-              </?01M05F1P1C68XS65CB3E79N4N7>
-              <When ?01M05F1P1C68XS65CB3E79N4N8>
+              </?01M18JQ3PMARJTV7J68S1GYYHJ>
+              <When ?01M18JQ3PMARJTV7J68S1GYYHK>
               The file's rows represent lifecycle history or recovery/audit evidence rather than bounded current state
-              </?01M05F1P1C68XS65CB3E79N4N8>
-              <Then ?01M05F1P1C68XS65CB3E79N4N9>
+              </?01M18JQ3PMARJTV7J68S1GYYHK>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHM>
               The implementation SHALL convert it to an append-only XNL stream or split historical facts into a dedicated append-only XNL stream
-              </?01M05F1P1C68XS65CB3E79N4N9>
+              </?01M18JQ3PMARJTV7J68S1GYYHM>
             )>
           ]>
         )>
         <Suite #required-session-streams { name = "Required append-only session streams" } (
           <Cases [
             <Case #conversation-history-xnl [
-              <Then ?01M05F1P1C68XS65CB3E79N4NA>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHN>
               The record SHALL be appended to `conversation/history.xnl` as a top-level XNL record
-              </?01M05F1P1C68XS65CB3E79N4NA>
-              <Then ?01M05F1P1C68XS65CB3E79N4NB>
+              </?01M18JQ3PMARJTV7J68S1GYYHN>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHP>
               `conversation/history-generations/*.json` SHALL NOT be used as the authoritative format for new or upgraded sessions
-              </?01M05F1P1C68XS65CB3E79N4NB>
+              </?01M18JQ3PMARJTV7J68S1GYYHP>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4NC>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYHQ>
               The runtime persists actor conversation history records
-              </?01M05F1P1C68XS65CB3E79N4NC>
-              <When ?01M05F1P1C68XS65CB3E79N4ND>
+              </?01M18JQ3PMARJTV7J68S1GYYHQ>
+              <When ?01M18JQ3PMARJTV7J68S1GYYHR>
               The record is saved
-              </?01M05F1P1C68XS65CB3E79N4ND>
+              </?01M18JQ3PMARJTV7J68S1GYYHR>
             )>
             <Case #prompt-generation-xnl [
-              <Then ?01M05F1P1C68XS65CB3E79N4NE>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHS>
               The record SHALL be appended to `conversation/prompts.xnl` as a top-level XNL record
-              </?01M05F1P1C68XS65CB3E79N4NE>
-              <Then ?01M05F1P1C68XS65CB3E79N4NF>
+              </?01M18JQ3PMARJTV7J68S1GYYHS>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHT>
               Prompt caches that are rebuildable SHALL be explicitly non-authoritative
-              </?01M05F1P1C68XS65CB3E79N4NF>
+              </?01M18JQ3PMARJTV7J68S1GYYHT>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4NG>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYHV>
               The runtime persists prompt materialization records that are retained for recovery, audit, or debugging
-              </?01M05F1P1C68XS65CB3E79N4NG>
-              <When ?01M05F1P1C68XS65CB3E79N4NH>
+              </?01M18JQ3PMARJTV7J68S1GYYHV>
+              <When ?01M18JQ3PMARJTV7J68S1GYYHW>
               The record is saved
-              </?01M05F1P1C68XS65CB3E79N4NH>
+              </?01M18JQ3PMARJTV7J68S1GYYHW>
             )>
             <Case #remove-actor-transcript-xnl [
-              <Then ?01M05F1P1C68XS65CB3E79N4NJ>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHX>
               The actor source SHALL be represented in `conversation/history.xnl` generation and message metadata
-              </?01M05F1P1C68XS65CB3E79N4NJ>
-              <Then ?01M05F1P1C68XS65CB3E79N4NK>
+              </?01M18JQ3PMARJTV7J68S1GYYHX>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHY>
               The runtime SHALL NOT create or append to `actors/&amp;amp;lt;actor-dir&amp;amp;gt;/transcript.xnl` as an independent history file
-              </?01M05F1P1C68XS65CB3E79N4NK>
-              <Then ?01M05F1P1C68XS65CB3E79N4NM>
+              </?01M18JQ3PMARJTV7J68S1GYYHY>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYHZ>
               `transcript.txt` and legacy `transcript.xnl` files SHALL NOT be used as recovery or append-only history sources for new or upgraded sessions
-              </?01M05F1P1C68XS65CB3E79N4NM>
+              </?01M18JQ3PMARJTV7J68S1GYYHZ>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4NN>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYJ0>
               The runtime persists actor-originated conversation history
-              </?01M05F1P1C68XS65CB3E79N4NN>
-              <When ?01M05F1P1C68XS65CB3E79N4NP>
+              </?01M18JQ3PMARJTV7J68S1GYYJ0>
+              <When ?01M18JQ3PMARJTV7J68S1GYYJ1>
               The record is saved in a new or upgraded session
-              </?01M05F1P1C68XS65CB3E79N4NP>
+              </?01M18JQ3PMARJTV7J68S1GYYJ1>
             )>
             <Case #runtime-control-effects-xnl [
-              <Then ?01M05F1P1C68XS65CB3E79N4NQ>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJ2>
               The evidence SHALL be appended to `runtime-control/effects.xnl` as a top-level XNL record with monotonic sequence metadata
-              </?01M05F1P1C68XS65CB3E79N4NQ>
-              <Then ?01M05F1P1C68XS65CB3E79N4NR>
+              </?01M18JQ3PMARJTV7J68S1GYYJ2>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJ3>
               `runtime-control/effects.jsonl` SHALL NOT be used for new or upgraded sessions
-              </?01M05F1P1C68XS65CB3E79N4NR>
+              </?01M18JQ3PMARJTV7J68S1GYYJ3>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4NS>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYJ4>
               The runtime-control engine records effect lifecycle evidence
-              </?01M05F1P1C68XS65CB3E79N4NS>
-              <When ?01M05F1P1C68XS65CB3E79N4NT>
+              </?01M18JQ3PMARJTV7J68S1GYYJ4>
+              <When ?01M18JQ3PMARJTV7J68S1GYYJ5>
               The evidence is persisted
-              </?01M05F1P1C68XS65CB3E79N4NT>
+              </?01M18JQ3PMARJTV7J68S1GYYJ5>
             )>
             <Case #orchestration-history-xnl [
-              <Then ?01M05F1P1C68XS65CB3E79N4NV>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJ6>
               The event SHALL be appended to `logs/orchestration_history.xnl` as a top-level XNL record
-              </?01M05F1P1C68XS65CB3E79N4NV>
-              <Then ?01M05F1P1C68XS65CB3E79N4NW>
+              </?01M18JQ3PMARJTV7J68S1GYYJ6>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJ7>
               `logs/orchestration_history.jsonl` SHALL NOT be used for new or upgraded sessions
-              </?01M05F1P1C68XS65CB3E79N4NW>
+              </?01M18JQ3PMARJTV7J68S1GYYJ7>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4NX>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYJ8>
               The runtime records orchestration history
-              </?01M05F1P1C68XS65CB3E79N4NX>
-              <When ?01M05F1P1C68XS65CB3E79N4NY>
+              </?01M18JQ3PMARJTV7J68S1GYYJ8>
+              <When ?01M18JQ3PMARJTV7J68S1GYYJ9>
               The event is persisted
-              </?01M05F1P1C68XS65CB3E79N4NY>
+              </?01M18JQ3PMARJTV7J68S1GYYJ9>
             )>
             <Case #runtime-ingress-diagnostics-xnl [
-              <Then ?01M05F1P1C68XS65CB3E79N4NZ>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJA>
               The event SHALL be appended to `logs/ingress.xnl` or `logs/diagnostics.xnl` as a top-level XNL record
-              </?01M05F1P1C68XS65CB3E79N4NZ>
-              <Then ?01M05F1P1C68XS65CB3E79N4P0>
+              </?01M18JQ3PMARJTV7J68S1GYYJA>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJB>
               Any head JSON for those logs SHALL contain only bounded cursor, count, id, timestamp, or sequence state
-              </?01M05F1P1C68XS65CB3E79N4P0>
+              </?01M18JQ3PMARJTV7J68S1GYYJB>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4P1>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYJC>
               The runtime records ingress or diagnostic event facts
-              </?01M05F1P1C68XS65CB3E79N4P1>
-              <When ?01M05F1P1C68XS65CB3E79N4P2>
+              </?01M18JQ3PMARJTV7J68S1GYYJC>
+              <When ?01M18JQ3PMARJTV7J68S1GYYJD>
               The event is persisted
-              </?01M05F1P1C68XS65CB3E79N4P2>
+              </?01M18JQ3PMARJTV7J68S1GYYJD>
             )>
           ]>
         )>
         <Suite #history-message-format { name = "History message XNL format" } (
           <Cases [
             <Case #message-first-layer [
-              <Then ?01M05F1P1C68XS65CB3E79N4P3>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJE>
               The top-level XNL node SHALL represent one message, not a generation wrapper
-              </?01M05F1P1C68XS65CB3E79N4P3>
-              <Then ?01M05F1P1C68XS65CB3E79N4P4>
+              </?01M18JQ3PMARJTV7J68S1GYYJE>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJF>
               The message metadata SHALL include actor source fields such as `actorKey` and `actorId`
-              </?01M05F1P1C68XS65CB3E79N4P4>
+              </?01M18JQ3PMARJTV7J68S1GYYJF>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4P5>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYJG>
               The runtime writes a record to `conversation/history.xnl`
-              </?01M05F1P1C68XS65CB3E79N4P5>
-              <When ?01M05F1P1C68XS65CB3E79N4P6>
+              </?01M18JQ3PMARJTV7J68S1GYYJG>
+              <When ?01M18JQ3PMARJTV7J68S1GYYJH>
               The record is serialized
-              </?01M05F1P1C68XS65CB3E79N4P6>
+              </?01M18JQ3PMARJTV7J68S1GYYJH>
             )>
             <Case #message-blocks-second-layer [
-              <Then ?01M05F1P1C68XS65CB3E79N4P7>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJJ>
               The message body SHALL contain the block nodes in order
-              </?01M05F1P1C68XS65CB3E79N4P7>
-              <Then ?01M05F1P1C68XS65CB3E79N4P8>
+              </?01M18JQ3PMARJTV7J68S1GYYJJ>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJK>
               `Think` and `Content` blocks SHALL be XNL text nodes without a `mime` metadata field
-              </?01M05F1P1C68XS65CB3E79N4P8>
-              <Then ?01M05F1P1C68XS65CB3E79N4P9>
+              </?01M18JQ3PMARJTV7J68S1GYYJK>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJM>
               `Think` and `Content` text markers SHALL be generated ULIDs
-              </?01M05F1P1C68XS65CB3E79N4P9>
-              <Then ?01M05F1P1C68XS65CB3E79N4PA>
+              </?01M18JQ3PMARJTV7J68S1GYYJM>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJN>
               Non-text blocks such as tool calls, tool results, artifact refs, and questionnaire refs SHALL be XNL data nodes
-              </?01M05F1P1C68XS65CB3E79N4PA>
+              </?01M18JQ3PMARJTV7J68S1GYYJN>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4PB>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYJP>
               A history message contains multiple blocks
-              </?01M05F1P1C68XS65CB3E79N4PB>
-              <When ?01M05F1P1C68XS65CB3E79N4PC>
+              </?01M18JQ3PMARJTV7J68S1GYYJP>
+              <When ?01M18JQ3PMARJTV7J68S1GYYJQ>
               The message is serialized
-              </?01M05F1P1C68XS65CB3E79N4PC>
+              </?01M18JQ3PMARJTV7J68S1GYYJQ>
             )>
             <Case #no-transcript-source-record-blobs [
-              <Then ?01M05F1P1C68XS65CB3E79N4PD>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJR>
               The writer SHALL NOT persist legacy transcript-shaped `sourceRecords` payload blobs or `transcriptPath` fields in `HistoryMessage` attributes
-              </?01M05F1P1C68XS65CB3E79N4PD>
-              <Then ?01M05F1P1C68XS65CB3E79N4PE>
+              </?01M18JQ3PMARJTV7J68S1GYYJR>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJS>
               The message text SHALL live only in the block children rather than being duplicated as attribute payload strings
-              </?01M05F1P1C68XS65CB3E79N4PE>
-              <Then ?01M05F1P1C68XS65CB3E79N4PF>
+              </?01M18JQ3PMARJTV7J68S1GYYJS>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJT>
               Readers MAY keep accepting `sourceRecords` attributes from records written before this rule for tool-call-id recovery and user-input history compatibility
-              </?01M05F1P1C68XS65CB3E79N4PF>
+              </?01M18JQ3PMARJTV7J68S1GYYJT>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4PG>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYJV>
               A history message is persisted to `conversation/history.xnl`, including runtime commits, compaction writes, legacy history-generation migration, and transcript-only legacy session bootstrap
-              </?01M05F1P1C68XS65CB3E79N4PG>
-              <When ?01M05F1P1C68XS65CB3E79N4PH>
+              </?01M18JQ3PMARJTV7J68S1GYYJV>
+              <When ?01M18JQ3PMARJTV7J68S1GYYJW>
               The `HistoryMessage` record is serialized
-              </?01M05F1P1C68XS65CB3E79N4PH>
+              </?01M18JQ3PMARJTV7J68S1GYYJW>
             )>
             <Case #compact-open-tag-format [
-              <Then ?01M05F1P1C68XS65CB3E79N4PJ>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJX>
               The formatter SHALL keep the node name, metadata fields, and attribute block on the same opening line when an attribute block exists
-              </?01M05F1P1C68XS65CB3E79N4PJ>
-              <Then ?01M05F1P1C68XS65CB3E79N4PK>
+              </?01M18JQ3PMARJTV7J68S1GYYJX>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYJY>
               The formatter SHALL be based on xnl-core compatible syntax or AST rules rather than ad hoc XML string concatenation
-              </?01M05F1P1C68XS65CB3E79N4PK>
+              </?01M18JQ3PMARJTV7J68S1GYYJY>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4PM>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYJZ>
               The history writer serializes message and block nodes
-              </?01M05F1P1C68XS65CB3E79N4PM>
-              <When ?01M05F1P1C68XS65CB3E79N4PN>
+              </?01M18JQ3PMARJTV7J68S1GYYJZ>
+              <When ?01M18JQ3PMARJTV7J68S1GYYK0>
               It writes XNL text
-              </?01M05F1P1C68XS65CB3E79N4PN>
+              </?01M18JQ3PMARJTV7J68S1GYYK0>
             )>
           ]>
         )>
         <Suite #prompt-generation-format { name = "Prompt generation XNL format" } (
           <Cases [
             <Case #prompt-generation-first-layer [
-              <Then ?01M05F1P1C68XS65CB3E79N4PP>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYK1>
               The top-level XNL node SHALL represent one `PromptGeneration` record
-              </?01M05F1P1C68XS65CB3E79N4PP>
-              <Then ?01M05F1P1C68XS65CB3E79N4PQ>
+              </?01M18JQ3PMARJTV7J68S1GYYK1>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYK2>
               The prompt generation metadata SHALL include `id`, `sessionId`, `actorKey`, `actorId`, `reason`, `sealed`, `createdAt`, and `updatedAt` when available
-              </?01M05F1P1C68XS65CB3E79N4PQ>
+              </?01M18JQ3PMARJTV7J68S1GYYK2>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4PR>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYK3>
               The runtime writes a record to `conversation/prompts.xnl`
-              </?01M05F1P1C68XS65CB3E79N4PR>
-              <When ?01M05F1P1C68XS65CB3E79N4PS>
+              </?01M18JQ3PMARJTV7J68S1GYYK3>
+              <When ?01M18JQ3PMARJTV7J68S1GYYK4>
               The prompt generation is serialized
-              </?01M05F1P1C68XS65CB3E79N4PS>
+              </?01M18JQ3PMARJTV7J68S1GYYK4>
             )>
             <Case #prompt-generation-second-layer [
-              <Then ?01M05F1P1C68XS65CB3E79N4PT>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYK5>
               The body SHALL contain structured second-layer nodes such as `Basis`, `BasisRef`, `Transform`, and `MaterializedContext`
-              </?01M05F1P1C68XS65CB3E79N4PT>
-              <Then ?01M05F1P1C68XS65CB3E79N4PV>
+              </?01M18JQ3PMARJTV7J68S1GYYK5>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYK6>
               `MaterializedContext` SHALL be an XNL text node with a generated ULID marker
-              </?01M05F1P1C68XS65CB3E79N4PV>
-              <Then ?01M05F1P1C68XS65CB3E79N4PW>
+              </?01M18JQ3PMARJTV7J68S1GYYK6>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYK7>
               `Basis`, `BasisRef`, and `Transform` SHALL be XNL data nodes
-              </?01M05F1P1C68XS65CB3E79N4PW>
+              </?01M18JQ3PMARJTV7J68S1GYYK7>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4PX>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYK8>
               A prompt generation has basis refs, transforms, and materialized context
-              </?01M05F1P1C68XS65CB3E79N4PX>
-              <When ?01M05F1P1C68XS65CB3E79N4PY>
+              </?01M18JQ3PMARJTV7J68S1GYYK8>
+              <When ?01M18JQ3PMARJTV7J68S1GYYK9>
               The prompt generation is serialized
-              </?01M05F1P1C68XS65CB3E79N4PY>
+              </?01M18JQ3PMARJTV7J68S1GYYK9>
             )>
             <Case #prompt-authority-classification [
-              <Then ?01M05F1P1C68XS65CB3E79N4PZ>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKA>
               The record SHALL explicitly state whether it is recoverable audit truth or a rebuildable non-authoritative cache
-              </?01M05F1P1C68XS65CB3E79N4PZ>
-              <Then ?01M05F1P1C68XS65CB3E79N4Q0>
+              </?01M18JQ3PMARJTV7J68S1GYYKA>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKB>
               Rebuildable prompt caches SHALL NOT be used as recovery fact sources
-              </?01M05F1P1C68XS65CB3E79N4Q0>
+              </?01M18JQ3PMARJTV7J68S1GYYKB>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4Q1>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYKC>
               A prompt materialization is persisted
-              </?01M05F1P1C68XS65CB3E79N4Q1>
-              <When ?01M05F1P1C68XS65CB3E79N4Q2>
+              </?01M18JQ3PMARJTV7J68S1GYYKC>
+              <When ?01M18JQ3PMARJTV7J68S1GYYKD>
               The record is written to `conversation/prompts.xnl`
-              </?01M05F1P1C68XS65CB3E79N4Q2>
+              </?01M18JQ3PMARJTV7J68S1GYYKD>
             )>
           ]>
         )>
         <Suite #runtime-effect-event-format { name = "Runtime effect event XNL format" } (
           <Cases [
             <Case #effect-event-first-layer [
-              <Then ?01M05F1P1C68XS65CB3E79N4Q3>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKE>
               The top-level XNL node SHALL represent one `RuntimeEffectEvent` lifecycle event
-              </?01M05F1P1C68XS65CB3E79N4Q3>
-              <Then ?01M05F1P1C68XS65CB3E79N4Q4>
+              </?01M18JQ3PMARJTV7J68S1GYYKE>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKF>
               The top-level metadata SHALL include `sequence`, `kind`, `effectKind`, `effectId`, and `handlerKey`
-              </?01M05F1P1C68XS65CB3E79N4Q4>
-              <Then ?01M05F1P1C68XS65CB3E79N4Q5>
+              </?01M18JQ3PMARJTV7J68S1GYYKF>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKG>
               The implementation SHALL NOT wrap the full lifecycle event object in a generic nested `event` data node
-              </?01M05F1P1C68XS65CB3E79N4Q5>
+              </?01M18JQ3PMARJTV7J68S1GYYKG>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4Q6>
+              <Given ?01M18JQ3PMARJTV7J68S1GYYKH>
               The runtime-control engine writes a record to `runtime-control/effects.xnl`
-              </?01M05F1P1C68XS65CB3E79N4Q6>
-              <When ?01M05F1P1C68XS65CB3E79N4Q7>
+              </?01M18JQ3PMARJTV7J68S1GYYKH>
+              <When ?01M18JQ3PMARJTV7J68S1GYYKJ>
               The lifecycle evidence is serialized
-              </?01M05F1P1C68XS65CB3E79N4Q7>
+              </?01M18JQ3PMARJTV7J68S1GYYKJ>
             )>
             <Case #effect-event-second-layer [
-              <Then ?01M05F1P1C68XS65CB3E79N4Q8>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKK>
               The event-specific subject SHALL be stored as a named child node in `()`, such as `Request`, `Wait`, `Result`, or `Error`
-              </?01M05F1P1C68XS65CB3E79N4Q8>
-              <Then ?01M05F1P1C68XS65CB3E79N4Q9>
+              </?01M18JQ3PMARJTV7J68S1GYYKK>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKM>
               The writer SHALL NOT use a `[]` body solely to wrap a single event-specific subject
-              </?01M05F1P1C68XS65CB3E79N4Q9>
-              <Then ?01M05F1P1C68XS65CB3E79N4QA>
+              </?01M18JQ3PMARJTV7J68S1GYYKM>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKN>
               Small structured subjects SHALL be expanded directly into the event-specific child node attributes rather than wrapped as `{ payload = ... }` by default
-              </?01M05F1P1C68XS65CB3E79N4QA>
-              <Then ?01M05F1P1C68XS65CB3E79N4QB>
+              </?01M18JQ3PMARJTV7J68S1GYYKN>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKP>
               The writer MAY use a `payload` field only when that field has a real sibling at the same level and the schema documents the sibling semantics
-              </?01M05F1P1C68XS65CB3E79N4QB>
-              <Then ?01M05F1P1C68XS65CB3E79N4QC>
+              </?01M18JQ3PMARJTV7J68S1GYYKP>
+              <Then ?01M18JQ3PMARJTV7J68S1GYYKQ>
               Large payloads, text bodies, provider outputs, or tool outputs SHALL be stored as artifact refs, digests, or bounded summaries rather than top-level metadata
-              </?01M05F1P1C68XS65CB3E79N4QC>
+              </?01M18JQ3PMARJTV7J68S1GYYKQ>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4QD>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQPQ>
               An effect lifecycle event has kind `request`, `waiting`, `result`, or `failed`
-              </?01M05F1P1C68XS65CB3E79N4QD>
-              <When ?01M05F1P1C68XS65CB3E79N4QE>
+              </?01M18JQ3PN41N7R9XMVYHPMQPQ>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQPR>
               The event is serialized
-              </?01M05F1P1C68XS65CB3E79N4QE>
+              </?01M18JQ3PN41N7R9XMVYHPMQPR>
             )>
           ]>
         )>
         <Suite #ingress-event-format { name = "Ingress event XNL format" } (
           <Cases [
             <Case #ingress-typed-top-level [
-              <Then ?01M05F1P1C68XS65CB3E79N4QF>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQPS>
               The top-level XNL node SHALL represent the ingress category directly rather than a generic `IngressEvent` wrapper
-              </?01M05F1P1C68XS65CB3E79N4QF>
-              <Then ?01M05F1P1C68XS65CB3E79N4QG>
+              </?01M18JQ3PN41N7R9XMVYHPMQPS>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQPT>
               The writer SHALL NOT use `IngressEvent` containing `Data` containing `{ payload = ... }` for new records
-              </?01M05F1P1C68XS65CB3E79N4QG>
+              </?01M18JQ3PN41N7R9XMVYHPMQPT>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4QH>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQPV>
               The runtime writes a record to `logs/ingress.xnl`
-              </?01M05F1P1C68XS65CB3E79N4QH>
-              <When ?01M05F1P1C68XS65CB3E79N4QJ>
+              </?01M18JQ3PN41N7R9XMVYHPMQPV>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQPW>
               The ingress event is serialized
-              </?01M05F1P1C68XS65CB3E79N4QJ>
+              </?01M18JQ3PN41N7R9XMVYHPMQPW>
             )>
             <Case #ingress-text-readable [
-              <Then ?01M05F1P1C68XS65CB3E79N4QK>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQPX>
               The event SHALL be written as a typed XNL text node such as `Think` or `Content`
-              </?01M05F1P1C68XS65CB3E79N4QK>
-              <Then ?01M05F1P1C68XS65CB3E79N4QM>
+              </?01M18JQ3PN41N7R9XMVYHPMQPX>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQPY>
               The human-readable text SHALL be the text node body, not JSON inside a payload field
-              </?01M05F1P1C68XS65CB3E79N4QM>
+              </?01M18JQ3PN41N7R9XMVYHPMQPY>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4QN>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQPZ>
               An ingress event contains think or content text
-              </?01M05F1P1C68XS65CB3E79N4QN>
-              <When ?01M05F1P1C68XS65CB3E79N4QP>
+              </?01M18JQ3PN41N7R9XMVYHPMQPZ>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQ0>
               The event is serialized
-              </?01M05F1P1C68XS65CB3E79N4QP>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ0>
             )>
             <Case #ingress-structured-events [
-              <Then ?01M05F1P1C68XS65CB3E79N4QQ>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQ1>
               The event SHALL use a typed top-level data node with metadata and direct attributes when the subject is a pure key-value structure
-              </?01M05F1P1C68XS65CB3E79N4QQ>
-              <Then ?01M05F1P1C68XS65CB3E79N4QR>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ1>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQ2>
               The event MAY use `()` only when a single child subject has its own tag, metadata, attributes, or text-marker semantics
-              </?01M05F1P1C68XS65CB3E79N4QR>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ2>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4QS>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQQ3>
               An ingress event contains tool, control, or other structured data
-              </?01M05F1P1C68XS65CB3E79N4QS>
-              <When ?01M05F1P1C68XS65CB3E79N4QT>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ3>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQ4>
               The event is serialized
-              </?01M05F1P1C68XS65CB3E79N4QT>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ4>
             )>
           ]>
         )>
         <Suite #orchestration-event-format { name = "Orchestration event XNL format" } (
           <Cases [
             <Case #orchestration-event-first-layer [
-              <Then ?01M05F1P1C68XS65CB3E79N4QV>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQ5>
               The top-level XNL node SHALL represent one `OrchestrationEvent`
-              </?01M05F1P1C68XS65CB3E79N4QV>
-              <Then ?01M05F1P1C68XS65CB3E79N4QW>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ5>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQ6>
               The top-level metadata SHALL include `version`, `sequence`, `observedAt`, `stream`, and `kind`
-              </?01M05F1P1C68XS65CB3E79N4QW>
-              <Then ?01M05F1P1C68XS65CB3E79N4QX>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ6>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQ7>
               The implementation SHALL NOT wrap the full event object in a generic nested `event` data node
-              </?01M05F1P1C68XS65CB3E79N4QX>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ7>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4QY>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQQ8>
               The runtime writes a record to `logs/orchestration_history.xnl`
-              </?01M05F1P1C68XS65CB3E79N4QY>
-              <When ?01M05F1P1C68XS65CB3E79N4QZ>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ8>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQ9>
               The orchestration event is serialized
-              </?01M05F1P1C68XS65CB3E79N4QZ>
+              </?01M18JQ3PN41N7R9XMVYHPMQQ9>
             )>
             <Case #orchestration-event-payload-shape [
-              <Then ?01M05F1P1C68XS65CB3E79N4R0>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQA>
               Small structured payloads SHALL be stored as a `Payload` child node in `()`
-              </?01M05F1P1C68XS65CB3E79N4R0>
-              <Then ?01M05F1P1C68XS65CB3E79N4R1>
+              </?01M18JQ3PN41N7R9XMVYHPMQQA>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQB>
               Large hook reports, long text, or complex diagnostic objects SHALL be stored as `PayloadRef` child nodes in `()` with artifact refs, digests, or bounded summaries
-              </?01M05F1P1C68XS65CB3E79N4R1>
+              </?01M18JQ3PN41N7R9XMVYHPMQQB>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4R2>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQQC>
               An orchestration event has one payload subject
-              </?01M05F1P1C68XS65CB3E79N4R2>
-              <When ?01M05F1P1C68XS65CB3E79N4R3>
+              </?01M18JQ3PN41N7R9XMVYHPMQQC>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQD>
               The event is serialized
-              </?01M05F1P1C68XS65CB3E79N4R3>
+              </?01M18JQ3PN41N7R9XMVYHPMQQD>
             )>
           ]>
         )>
         <Suite #questionnaire-table-boundary { name = "Questionnaire table boundary" } (
           <Cases [
             <Case #questionnaire-current-state-table [
-              <Then ?01M05F1P1C68XS65CB3E79N4R4>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQE>
               The file MAY remain a replace-written bounded XNL table of `QuestionnaireRow` nodes
-              </?01M05F1P1C68XS65CB3E79N4R4>
-              <Then ?01M05F1P1C68XS65CB3E79N4R5>
+              </?01M18JQ3PN41N7R9XMVYHPMQQE>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQF>
               The implementation SHALL prove that the table does not grow as an audit log of questionnaire lifecycle events
-              </?01M05F1P1C68XS65CB3E79N4R5>
-              <Then ?01M05F1P1C68XS65CB3E79N4R6>
+              </?01M18JQ3PN41N7R9XMVYHPMQQF>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQG>
               `QuestionnaireRow` SHALL use `[]` for multiple typed children such as `Request`, `Result`, and `Metadata`
-              </?01M05F1P1C68XS65CB3E79N4R6>
+              </?01M18JQ3PN41N7R9XMVYHPMQQG>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4R7>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQQH>
               `runtime_state/questionnaires.xnl` stores only current questionnaire rows for recovery of pending or answered questionnaire state
-              </?01M05F1P1C68XS65CB3E79N4R7>
-              <When ?01M05F1P1C68XS65CB3E79N4R8>
+              </?01M18JQ3PN41N7R9XMVYHPMQQH>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQJ>
               The runtime writes a snapshot
-              </?01M05F1P1C68XS65CB3E79N4R8>
+              </?01M18JQ3PN41N7R9XMVYHPMQQJ>
             )>
             <Case #questionnaire-history-split (
-              <Given ?01M05F1P1C68XS65CB3E79N4R9>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQQK>
               The runtime needs questionnaire lifecycle audit or replay history
-              </?01M05F1P1C68XS65CB3E79N4R9>
-              <When ?01M05F1P1C68XS65CB3E79N4RA>
+              </?01M18JQ3PN41N7R9XMVYHPMQQK>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQM>
               The lifecycle facts are persisted
-              </?01M05F1P1C68XS65CB3E79N4RA>
-              <Then ?01M05F1P1C68XS65CB3E79N4RB>
+              </?01M18JQ3PN41N7R9XMVYHPMQQM>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQN>
               The facts SHALL be stored in a dedicated append-only XNL stream rather than hidden inside the replace-written questionnaire state table
-              </?01M05F1P1C68XS65CB3E79N4RB>
+              </?01M18JQ3PN41N7R9XMVYHPMQQN>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #xnl-conversation-history (
-      <Statement ?01M05F1P1C68XS65CB3E79N4RC>
+      <Statement ?01M18JQ3PN41N7R9XMVYHPMQQP>
       系统 SHALL make XNL conversation history the upgraded session's authoritative message history format.
-      </?01M05F1P1C68XS65CB3E79N4RC>
+      </?01M18JQ3PN41N7R9XMVYHPMQQP>
       <Suites [
         <Suite #conversation-migration { name = "Conversation history migration" } (
           <Cases [
             <Case #remove-json-history-generations (
-              <Given ?01M05F1P1C68XS65CB3E79N4RD>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQQQ>
               An upgraded session has conversation history records
-              </?01M05F1P1C68XS65CB3E79N4RD>
-              <When ?01M05F1P1C68XS65CB3E79N4RE>
+              </?01M18JQ3PN41N7R9XMVYHPMQQQ>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQR>
               The session is saved or recovered after upgrade
-              </?01M05F1P1C68XS65CB3E79N4RE>
-              <Then ?01M05F1P1C68XS65CB3E79N4RF>
+              </?01M18JQ3PN41N7R9XMVYHPMQQR>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQS>
               The session SHALL use XNL append-only conversation history records instead of `conversation/history-generations/*.json` as the authoritative history source
-              </?01M05F1P1C68XS65CB3E79N4RF>
+              </?01M18JQ3PN41N7R9XMVYHPMQQS>
             )>
             <Case #remove-transcript-txt [
-              <Then ?01M05F1P1C68XS65CB3E79N4RG>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQT>
               The upgrade SHALL migrate transcript facts into XNL record streams
-              </?01M05F1P1C68XS65CB3E79N4RG>
-              <Then ?01M05F1P1C68XS65CB3E79N4RH>
+              </?01M18JQ3PN41N7R9XMVYHPMQQT>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQQV>
               The upgraded session SHALL NOT retain `transcript.txt` as a recovery or append-only history source
-              </?01M05F1P1C68XS65CB3E79N4RH>
+              </?01M18JQ3PN41N7R9XMVYHPMQQV>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4RJ>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQQW>
               A legacy session contains actor `transcript.txt` files
-              </?01M05F1P1C68XS65CB3E79N4RJ>
-              <When ?01M05F1P1C68XS65CB3E79N4RK>
+              </?01M18JQ3PN41N7R9XMVYHPMQQW>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQX>
               The session is upgraded to the new append-only storage model
-              </?01M05F1P1C68XS65CB3E79N4RK>
+              </?01M18JQ3PN41N7R9XMVYHPMQQX>
             )>
             <Case #history-index-is-head-state (
-              <Given ?01M05F1P1C68XS65CB3E79N4RM>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQQY>
               Conversation indexes or heads are written after upgrade
-              </?01M05F1P1C68XS65CB3E79N4RM>
-              <When ?01M05F1P1C68XS65CB3E79N4RN>
+              </?01M18JQ3PN41N7R9XMVYHPMQQY>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQQZ>
               The system updates visible heads, active actor selection, or generation cursors
-              </?01M05F1P1C68XS65CB3E79N4RN>
-              <Then ?01M05F1P1C68XS65CB3E79N4RP>
+              </?01M18JQ3PN41N7R9XMVYHPMQQZ>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQR0>
               The JSON index/head files SHALL only point to XNL stream positions or generation ids and SHALL NOT store growing message bodies
-              </?01M05F1P1C68XS65CB3E79N4RP>
+              </?01M18JQ3PN41N7R9XMVYHPMQR0>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #xnl-runtime-control-evidence (
-      <Statement ?01M05F1P1C68XS65CB3E79N4RQ>
+      <Statement ?01M18JQ3PN41N7R9XMVYHPMQR1>
       系统 SHALL store runtime-control evidence and orchestration history as XNL append-only streams.
-      </?01M05F1P1C68XS65CB3E79N4RQ>
+      </?01M18JQ3PN41N7R9XMVYHPMQR1>
       <Suites [
         <Suite #runtime-control-migration { name = "Runtime control record migration" } (
           <Cases [
             <Case #effects-xnl [
-              <Then ?01M05F1P1C68XS65CB3E79N4RR>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQR2>
               The event SHALL be appended to an XNL effect evidence stream
-              </?01M05F1P1C68XS65CB3E79N4RR>
-              <Then ?01M05F1P1C68XS65CB3E79N4RS>
+              </?01M18JQ3PN41N7R9XMVYHPMQR2>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQR3>
               The system SHALL NOT use `runtime-control/effects.jsonl` for new upgraded sessions
-              </?01M05F1P1C68XS65CB3E79N4RS>
+              </?01M18JQ3PN41N7R9XMVYHPMQR3>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4RT>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQR4>
               The runtime-control engine records an effect lifecycle event
-              </?01M05F1P1C68XS65CB3E79N4RT>
-              <When ?01M05F1P1C68XS65CB3E79N4RV>
+              </?01M18JQ3PN41N7R9XMVYHPMQR4>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQR5>
               The event is persisted
-              </?01M05F1P1C68XS65CB3E79N4RV>
+              </?01M18JQ3PN41N7R9XMVYHPMQR5>
             )>
             <Case #orchestration-xnl [
-              <Then ?01M05F1P1C68XS65CB3E79N4RW>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQR6>
               The event SHALL be appended to an XNL orchestration stream
-              </?01M05F1P1C68XS65CB3E79N4RW>
-              <Then ?01M05F1P1C68XS65CB3E79N4RX>
+              </?01M18JQ3PN41N7R9XMVYHPMQR6>
+              <Then ?01M18JQ3PN41N7R9XMVYHPMQR7>
               The system SHALL NOT use `logs/orchestration_history.jsonl` for new upgraded sessions
-              </?01M05F1P1C68XS65CB3E79N4RX>
+              </?01M18JQ3PN41N7R9XMVYHPMQR7>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4RY>
+              <Given ?01M18JQ3PN41N7R9XMVYHPMQR8>
               The runtime records orchestration history
-              </?01M05F1P1C68XS65CB3E79N4RY>
-              <When ?01M05F1P1C68XS65CB3E79N4RZ>
+              </?01M18JQ3PN41N7R9XMVYHPMQR8>
+              <When ?01M18JQ3PN41N7R9XMVYHPMQR9>
               The event is persisted
-              </?01M05F1P1C68XS65CB3E79N4RZ>
+              </?01M18JQ3PN41N7R9XMVYHPMQR9>
             )>
             <Case #log-heads-are-cursors [
-              <Then ?01M05F1P1C68XS65CB3E79N4S0>
+              <Then ?01M18JQ3PP523Y3CEN41J7PH9K>
               The head SHALL contain cursor state such as count, sequence, id, and timestamp only
-              </?01M05F1P1C68XS65CB3E79N4S0>
-              <Then ?01M05F1P1C68XS65CB3E79N4S1>
+              </?01M18JQ3PP523Y3CEN41J7PH9K>
+              <Then ?01M18JQ3PP523Y3CEN41J7PH9M>
               The head SHALL NOT embed the full last event payload
-              </?01M05F1P1C68XS65CB3E79N4S1>
+              </?01M18JQ3PP523Y3CEN41J7PH9M>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4S2>
+              <Given ?01M18JQ3PP523Y3CEN41J7PH9N>
               The runtime updates diagnostic or ingress log heads
-              </?01M05F1P1C68XS65CB3E79N4S2>
-              <When ?01M05F1P1C68XS65CB3E79N4S3>
+              </?01M18JQ3PP523Y3CEN41J7PH9N>
+              <When ?01M18JQ3PP523Y3CEN41J7PH9P>
               The head JSON file is written
-              </?01M05F1P1C68XS65CB3E79N4S3>
+              </?01M18JQ3PP523Y3CEN41J7PH9P>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #xnl-prompt-records (
-      <Statement ?01M05F1P1C68XS65CB3E79N4S4>
+      <Statement ?01M18JQ3PP523Y3CEN41J7PH9Q>
       系统 SHALL classify prompt materialization data as either XNL audit records or rebuildable cache, and SHALL NOT persist prompt history as many authoritative JSON generation files.
-      </?01M05F1P1C68XS65CB3E79N4S4>
+      </?01M18JQ3PP523Y3CEN41J7PH9Q>
       <Suites [
         <Suite #prompt-generation-migration { name = "Prompt generation migration" } (
           <Cases [
             <Case #prompt-audit-xnl (
-              <Given ?01M05F1P1C68XS65CB3E79N4S5>
+              <Given ?01M18JQ3PP523Y3CEN41J7PH9R>
               A prompt materialization must be retained for recovery, audit, or debugging
-              </?01M05F1P1C68XS65CB3E79N4S5>
-              <When ?01M05F1P1C68XS65CB3E79N4S6>
+              </?01M18JQ3PP523Y3CEN41J7PH9R>
+              <When ?01M18JQ3PP523Y3CEN41J7PH9S>
               The prompt materialization is persisted
-              </?01M05F1P1C68XS65CB3E79N4S6>
-              <Then ?01M05F1P1C68XS65CB3E79N4S7>
+              </?01M18JQ3PP523Y3CEN41J7PH9S>
+              <Then ?01M18JQ3PP523Y3CEN41J7PH9T>
               The system SHALL append it as an XNL prompt record
-              </?01M05F1P1C68XS65CB3E79N4S7>
+              </?01M18JQ3PP523Y3CEN41J7PH9T>
             )>
             <Case #prompt-cache-not-authoritative (
-              <Given ?01M05F1P1C68XS65CB3E79N4S8>
+              <Given ?01M18JQ3PP523Y3CEN41J7PH9V>
               A prompt materialization is only a rebuildable cache
-              </?01M05F1P1C68XS65CB3E79N4S8>
-              <When ?01M05F1P1C68XS65CB3E79N4S9>
+              </?01M18JQ3PP523Y3CEN41J7PH9V>
+              <When ?01M18JQ3PP523Y3CEN41J7PH9W>
               The prompt cache is persisted
-              </?01M05F1P1C68XS65CB3E79N4S9>
-              <Then ?01M05F1P1C68XS65CB3E79N4SA>
+              </?01M18JQ3PP523Y3CEN41J7PH9W>
+              <Then ?01M18JQ3PP523Y3CEN41J7PH9X>
               The cache SHALL be explicitly marked as non-authoritative and SHALL NOT be used as a recovery fact source
-              </?01M05F1P1C68XS65CB3E79N4SA>
+              </?01M18JQ3PP523Y3CEN41J7PH9X>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #runtime-control-safepoint-source (
-      <Statement ?01M05F1P1C68XS65CB3E79N4SB>
+      <Statement ?01M18JQ3PP523Y3CEN41J7PH9Y>
       系统 SHALL source snapshot safepoint decisions from the AI runtime control layer rather than from the persistence writer.
-      </?01M05F1P1C68XS65CB3E79N4SB>
+      </?01M18JQ3PP523Y3CEN41J7PH9Y>
       <Suites [
         <Suite #snapshot-save { name = "Snapshot Save" } (
           <Cases [
             <Case #persistence-consumes-barrier [
-              <Then ?01M05F1P1C68XS65CB3E79N4SC>
+              <Then ?01M18JQ3PP523Y3CEN41J7PH9Z>
               The writer SHALL call the AI runtime control layer for the barrier result
-              </?01M05F1P1C68XS65CB3E79N4SC>
-              <Then ?01M05F1P1C68XS65CB3E79N4SD>
+              </?01M18JQ3PP523Y3CEN41J7PH9Z>
+              <Then ?01M18JQ3PP523Y3CEN41J7PHA0>
               The writer SHALL only persist or skip according to that result
-              </?01M05F1P1C68XS65CB3E79N4SD>
+              </?01M18JQ3PP523Y3CEN41J7PHA0>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4SE>
+              <Given ?01M18JQ3PP523Y3CEN41J7PHA1>
               The snapshot writer is asked to save runtime state
-              </?01M05F1P1C68XS65CB3E79N4SE>
-              <When ?01M05F1P1C68XS65CB3E79N4SF>
+              </?01M18JQ3PP523Y3CEN41J7PHA1>
+              <When ?01M18JQ3PP523Y3CEN41J7PHA2>
               It checks whether the runtime is at a safepoint
-              </?01M05F1P1C68XS65CB3E79N4SF>
+              </?01M18JQ3PP523Y3CEN41J7PHA2>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #conversation-single-recovery-source (
-      <Statement ?01M05F1P1C68XS65CB3E79N4SG>
+      <Statement ?01M18JQ3PP523Y3CEN41J7PHA3>
       对话恢复 SHALL 以会话文件（history、prompts、session.index）为唯一来源；SHALL NOT 读取 actor transcript（该形态已删除）；transcript-only 旧 session SHALL 被显式拒绝而非静默降级。
-      </?01M05F1P1C68XS65CB3E79N4SG>
+      </?01M18JQ3PP523Y3CEN41J7PHA3>
       <Suites [
         <Suite #single-source { name = "Single recovery source" } (
           <Cases [
             <Case #no-transcript-fallback [
-              <Then ?01M05F1P1C68XS65CB3E79N4SH>
+              <Then ?01M18JQ3PP523Y3CEN41J7PHA4>
               恢复 SHALL 失败并返回显式错误
-              </?01M05F1P1C68XS65CB3E79N4SH>
-              <Then ?01M05F1P1C68XS65CB3E79N4SJ>
+              </?01M18JQ3PP523Y3CEN41J7PHA4>
+              <Then ?01M18JQ3PP523Y3CEN41J7PHA5>
               SHALL NOT 回退到 transcript 或其它部分事实源
-              </?01M05F1P1C68XS65CB3E79N4SJ>
+              </?01M18JQ3PP523Y3CEN41J7PHA5>
             ] (
-              <Given ?01M05F1P1C68XS65CB3E79N4SK>
+              <Given ?01M18JQ3PP523Y3CEN41J7PHA6>
               恢复流程选择对话来源
-              </?01M05F1P1C68XS65CB3E79N4SK>
-              <When ?01M05F1P1C68XS65CB3E79N4SM>
+              </?01M18JQ3PP523Y3CEN41J7PHA6>
+              <When ?01M18JQ3PP523Y3CEN41J7PHA7>
               会话文件缺失或不完整
-              </?01M05F1P1C68XS65CB3E79N4SM>
+              </?01M18JQ3PP523Y3CEN41J7PHA7>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #holon-deployment-recovery (
+      <Statement ?01M18JQ3PP523Y3CEN41J7PHA8>
+      A fresh Eidolon process SHALL recover deployment, MemberRuntime logical identity and generic actor/session facts from the frozen local deployment authority without reading live Holon or App sources.
+      </?01M18JQ3PP523Y3CEN41J7PHA8>
+      <Suites [
+        <Suite #recovery-cases { name = "Member recovery" } (
+          <Cases [
+            <Case #live-source-deleted (
+              <Given ?01M18JQ3PP523Y3CEN41J7PHA9>
+              A deployment was admitted and its live source resources are later deleted.
+              </?01M18JQ3PP523Y3CEN41J7PHA9>
+              <When ?01M18JQ3PP523Y3CEN41J7PHAA>
+              A fresh process resumes a member task.
+              </?01M18JQ3PP523Y3CEN41J7PHAA>
+              <Then ?01M18JQ3PP523Y3CEN41J7PHAB>
+              It SHALL use frozen definition bytes and the prior logical actor identity.
+              </?01M18JQ3PP523Y3CEN41J7PHAB>
+            )>
+            <Case #no-actor-copy (
+              <Given ?01M18JQ3PP523Y3CEN41J7PHAC>
+              Deployment runtime material is inspected after recovery.
+              </?01M18JQ3PP523Y3CEN41J7PHAC>
+              <When ?01M18JQ3PP523Y3CEN41J7PHAD>
+              Generic actor/session persistence is compared.
+              </?01M18JQ3PP523Y3CEN41J7PHAD>
+              <Then ?01M18JQ3PP523Y3CEN41J7PHAE>
+              Deployment SHALL contain only opaque refs/registration receipts and no copied mailbox, conversation or actor snapshot tree.
+              </?01M18JQ3PP523Y3CEN41J7PHAE>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #bounded-vm-snapshot-and-incremental-writes (
+      <Statement ?01M18JQ3PP523Y3CEN41J7PHAF>
+      VM 快照写入 SHALL 保持有界：toolCallDomain 持久化记录 SHALL 受保留窗口约束（活跃 + 最近 N 条终态），大工具输出 SHALL 外部化到 artifact store 并以引用形式进入快照；连续快照间未变化的 actor/fiber 文件 SHALL NOT 被重写（增量写）。
+      </?01M18JQ3PP523Y3CEN41J7PHAF>
+      <Suites [
+        <Suite #bounded-snapshot { name = "Bounded VM snapshot and incremental writes" } (
+          <Cases [
+            <Case #toolcall-domain-bounded [
+              <Then ?01M18JQ3PP523Y3CEN41J7PHAG>
+              toolCallDomain SHALL 仅含活跃 + 最近 N 条终态记录
+              </?01M18JQ3PP523Y3CEN41J7PHAG>
+              <Then ?01M18JQ3PP523Y3CEN41J7PHAH>
+              大 outputText SHALL 以 artifact 引用而非全文进入快照
+              </?01M18JQ3PP523Y3CEN41J7PHAH>
+            ] (
+              <Given ?01M18JQ3PP523Y3CEN41J7PHAJ>
+              session 已产生数千条已完结工具调用
+              </?01M18JQ3PP523Y3CEN41J7PHAJ>
+              <When ?01M18JQ3PP523Y3CEN41J7PHAK>
+              序列化 vm.json
+              </?01M18JQ3PP523Y3CEN41J7PHAK>
+            )>
+            <Case #unchanged-files-not-rewritten (
+              <Given ?01M18JQ3PP523Y3CEN41J7PHAM>
+              两次连续快照之间某 actor/fiber 未变化
+              </?01M18JQ3PP523Y3CEN41J7PHAM>
+              <When ?01M18JQ3PP523Y3CEN41J7PHAN>
+              执行第二次快照写
+              </?01M18JQ3PP523Y3CEN41J7PHAN>
+              <Then ?01M18JQ3PP523Y3CEN41J7PHAP>
+              该 actor/fiber 文件 SHALL NOT 被重写
+              </?01M18JQ3PP523Y3CEN41J7PHAP>
             )>
           ]>
         )>

@@ -1,0 +1,103 @@
+<decision #refactor-chat-completions-effect-bundles.composition apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JQ4SKF81EEMXJJ066XB9M>
+  OpenAI Chat 与 DeepSeek 应复制两个 adapter，还是共享核心并提供两个 effect bundle？
+  </?01M18JQ4SKF81EEMXJJ066XB9M>
+  <answer {  } (
+    <raw-answer ?01M18JQ4SKF81EEMXJJ066XB9N>
+    用户确认共同部分多时，应将 DeepSeek 和 OpenAI 官方版本做成一个 effect bundle contract 的两个实现。
+    </?01M18JQ4SKF81EEMXJJ066XB9N>
+    <decision-text ?01M18JQ4SKF81EEMXJJ066XB9P>
+    建立一个 Chat Completions 公共核心，以及 OpenAI official Chat 和 DeepSeek official Chat 两个 effect bundle 实现。
+    </?01M18JQ4SKF81EEMXJJ066XB9P>
+    <rationale ?01M18JQ4SKF81EEMXJJ066XB9Q>
+    两者的 transport、SSE、content/tool-call 和 ingress 机制高度相同，差异集中在 provider protocol projection。
+    </?01M18JQ4SKF81EEMXJJ066XB9Q>
+    <evidence ?01M18JQ4SKF81EEMXJJ066XB9R>
+    当前两个 provider driver 均实例化同一 fetch adapter，stream adapter 中只有 reasoning 和少量 endpoint/request 分支体现差异。
+    </?01M18JQ4SKF81EEMXJJ066XB9R>
+  )>
+  <confidence ?01M18JQ4SKF81EEMXJJ066XB9S>
+  0.95
+  </?01M18JQ4SKF81EEMXJJ066XB9S>
+  <reversibility ?01M18JQ4SKF81EEMXJJ066XB9T>
+  moderate
+  </?01M18JQ4SKF81EEMXJJ066XB9T>
+)>
+
+<decision #refactor-chat-completions-effect-bundles.pure-core apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JQ4SKF81EEMXJJ066XB9V>
+  共享流状态机如何与副作用隔离？
+  </?01M18JQ4SKF81EEMXJJ066XB9V>
+  <answer {  } (
+    <raw-answer ?01M18JQ4SKF81EEMXJJ066XB9W>
+    用户要求将内部逻辑改造为纯函数，供两个 adapter 组合使用。
+    </?01M18JQ4SKF81EEMXJJ066XB9W>
+    <decision-text ?01M18JQ4SKF81EEMXJJ066XB9X>
+    以纯 reducer 处理 chunk、tool-call、reasoning、think-tag 与 final message；fetch、timeout、abort 和 OutputStream 发送留在 effect shell。
+    </?01M18JQ4SKF81EEMXJJ066XB9X>
+    <rationale ?01M18JQ4SKF81EEMXJJ066XB9Y>
+    该边界符合项目 DOP、显式 effect 与可验证性 attractor。
+    </?01M18JQ4SKF81EEMXJJ066XB9Y>
+    <evidence ?01M18JQ4SKF81EEMXJJ066XB9Z>
+    现有 stream adapter 将数据归约和 OutputStream 写入混在同一可变 class 中。
+    </?01M18JQ4SKF81EEMXJJ066XB9Z>
+  )>
+  <confidence ?01M18JQ4SKF81EEMXJJ066XBA0>
+  0.95
+  </?01M18JQ4SKF81EEMXJJ066XBA0>
+  <reversibility ?01M18JQ4SKF81EEMXJJ066XBA1>
+  moderate
+  </?01M18JQ4SKF81EEMXJJ066XBA1>
+)>
+
+<decision #refactor-chat-completions-effect-bundles.explicit-selection apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JQ4SKF81EEMXJJ066XBA2>
+  effect bundle 应如何选择？
+  </?01M18JQ4SKF81EEMXJJ066XBA2>
+  <answer {  } (
+    <raw-answer ?01M18JQ4SM5BC8VYQVC9CNNRQ6>
+    沿用用户确认的两个官方实现方案。
+    </?01M18JQ4SM5BC8VYQVC9CNNRQ6>
+    <decision-text ?01M18JQ4SM5BC8VYQVC9CNNRQ7>
+    由 ProviderDriverRegistry 已选中的 driver 显式注入 bundle，并把本次请求实际使用的 adapter/driver binding 传到 stream callback 与 ingress；移除模型名、Base URL 和流侧 adapter-type 的二次选择。
+    </?01M18JQ4SM5BC8VYQVC9CNNRQ7>
+    <rationale ?01M18JQ4SM5BC8VYQVC9CNNRQ8>
+    adapter 配置是协议选择真源；若请求侧使用 driver、流侧再按字符串选择，会形成两个可能漂移的真源并误分类第三方 endpoint 或 provider switch。
+    </?01M18JQ4SM5BC8VYQVC9CNNRQ8>
+    <evidence ?01M18JQ4SM5BC8VYQVC9CNNRQ9>
+    ProviderRuntimeLlmAdapter 已持有 selected driver，但 AiAgentExecutor 只把 raw stream 交给 callback；TerminalRuntime 随后从 llmClient.type 重建 streamAdapterType。
+    </?01M18JQ4SM5BC8VYQVC9CNNRQ9>
+  )>
+  <confidence ?01M18JQ4SM5BC8VYQVC9CNNRQA>
+  0.95
+  </?01M18JQ4SM5BC8VYQVC9CNNRQA>
+  <reversibility ?01M18JQ4SM5BC8VYQVC9CNNRQB>
+  moderate
+  </?01M18JQ4SM5BC8VYQVC9CNNRQB>
+)>
+
+<decision #refactor-chat-completions-effect-bundles.domain-ownership apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JQ4SM5BC8VYQVC9CNNRQC>
+  Chat Completions stream core 与兼容 facade 应归属 symbiont 平台层还是 AI provider 领域层？
+  </?01M18JQ4SM5BC8VYQVC9CNNRQC>
+  <answer {  } (
+    <raw-answer ?01M18JQ4SM5BC8VYQVC9CNNRQD>
+    After-design coding AttractorCheck 要求对照双层微内核、contract/logic 分离与禁止反向依赖审查。
+    </?01M18JQ4SM5BC8VYQVC9CNNRQD>
+    <decision-text ?01M18JQ4SM5BC8VYQVC9CNNRQE>
+    将 Chat Completions、reasoning 与 tool-call reducer/facade 迁入 ai-organ contract/logic；symbiont 只保留 provider-neutral stream/runtime 原语。
+    </?01M18JQ4SM5BC8VYQVC9CNNRQE>
+    <rationale ?01M18JQ4SM5BC8VYQVC9CNNRQF>
+    provider、tool calling protocol 和 AI semantic projection 属于 AI domain kernel；symbiont-logic 无 AI contract 依赖，继续放置会迫使反向依赖或双份 policy。
+    </?01M18JQ4SM5BC8VYQVC9CNNRQF>
+    <evidence ?01M18JQ4SM5BC8VYQVC9CNNRQG>
+    现有 symbiont stream adapter 直接解释 reasoning_content、reasoning_details 与 tool_calls，package.json 仅依赖 symbiont-contract。
+    </?01M18JQ4SM5BC8VYQVC9CNNRQG>
+  )>
+  <confidence ?01M18JQ4SM5BC8VYQVC9CNNRQH>
+  0.95
+  </?01M18JQ4SM5BC8VYQVC9CNNRQH>
+  <reversibility ?01M18JQ4SM5BC8VYQVC9CNNRQJ>
+  moderate
+  </?01M18JQ4SM5BC8VYQVC9CNNRQJ>
+)>

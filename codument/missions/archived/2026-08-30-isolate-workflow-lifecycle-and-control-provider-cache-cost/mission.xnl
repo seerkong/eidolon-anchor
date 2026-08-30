@@ -1,0 +1,162 @@
+<Mission #isolate-workflow-lifecycle-and-control-provider-cache-cost apiVersion="codument.tech/v1alpha1" version="1" { status = "archived" goal = "Isolate Workflow lifecycle semantics from ordinary and node Agent runtimes, then make DeepSeek cache coverage and normalized provider-token cost enforceable product properties for both ordinary and Workflow actors." description = "Coordinate measurement, Actor/capability boundary correction, cache-stable context projection, provider-surface optimization, product E2E and repeated fresh reconciliation through a dependency-ordered Mission rather than one oversized Track." question_mode = "decision-tree" question_severity = "auto" revision = 36 created_at = "2026-08-25T04:06:41.279Z" updated_at = "2026-08-30T05:37:44.413Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+  ]>
+  <ActorSets { default = "default-control-loop" } [
+    <ActorSet #default-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M0VXCB8Z9AHENCDEDTKQ0RZ8>
+        Maintain the dependency-ordered Track DAG, preserve completed DeepSeek/provider work as baseline evidence, and create only the smallest next Track justified by current request-body and cost observations.
+        </?01M0VXCB8Z9AHENCDEDTKQ0RZ8>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M0VXCB8Z9AHENCDEDTKQ0RZ9>
+        Observe final provider-visible request bodies, Actor capability/resource projections, context epochs, streamed cache hit/miss facts, normalized token cost, fresh-process recovery, and live official/compatible DeepSeek behavior without treating prompts as lifecycle authority.
+        </?01M0VXCB8Z9AHENCDEDTKQ0RZ9>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M0VXCB8Z9AHENCDEDTKQ0RZA>
+        Compare actual Actor isolation, exact-prefix retention, explicit epoch reasons, provider cache coverage and cost budgets with the desired state after every node; require replan or gap repair when green tests do not close the semantic boundary.
+        </?01M0VXCB8Z9AHENCDEDTKQ0RZA>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M0VXCB8Z9AHENCDEDTKQ0RZB>
+        Plan, implement, independently verify and archive bounded Tracks with RED-to-GREEN evidence, fresh coding AttractorCheck and gap-loop repair; never implement product code directly in Mission files.
+        </?01M0VXCB8Z9AHENCDEDTKQ0RZB>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_isolate-workflow-lifecycle-and-control-provider-cache-cost { name = "isolate-workflow-lifecycle-and-control-provider-cache-cost" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #G1 { name = "Actor context and DeepSeek cost baseline" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M0VXCB90ZRVGEGFRHVZ6B0PW>
+        Establish final-wire structural/cache/cost measurements and an exhaustive inventory of Workflow concepts currently reachable from generic actors before selecting an implementation strategy.
+        </?01M0VXCB90ZRVGEGFRHVZ6B0PW>
+        <Gate [
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0PX>
+          The baseline distinguishes ordinary primary/Code actors, AI Workflow node Agents and the dedicated Workflow lifecycle actor.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0PX>
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0PY>
+          Official DeepSeek cache facts and SiliconFlow-compatible observations are reported as separate provider contracts.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0PY>
+        ]>
+        <SubNodes [
+          <Task #G1-T1 { name = "Characterize Actor context and DeepSeek cache-cost baseline" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #characterize-actor-context-and-deepseek-cache-cost { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G1-T2 { name = "Ratify structural, live-cache and normalized-cost budgets" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "Workflow lifecycle Actor isolation" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M0VXCB90ZRVGEGFRHVZ6B0PZ>
+        Move Workflow lifecycle authority, internal tools and progress profile behind a dedicated Actor/capsule boundary while keeping only explicit public Workflow gateways visible to ordinary actors.
+        </?01M0VXCB90ZRVGEGFRHVZ6B0PZ>
+        <Gate [
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0Q0>
+          Generic Actor core and executor contain no Workflow lifecycle type, tool or progress-state authority.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0Q0>
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0Q1>
+          Ordinary and AI Workflow node Agents are stage-free and cannot access Workflow-internal DevOps tools.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0Q1>
+        ]>
+        <SubNodes [
+          <Task #G2-T1 { name = "Extract dedicated Workflow lifecycle Actor capability" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #extract-workflow-lifecycle-actor-capability { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "Cache-stable typed context projection" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M0VXCB90ZRVGEGFRHVZ6B0Q2>
+        Replace mutable system-prompt overlays and live resource rereads with append-only typed facts, frozen resource revisions and explicit context epochs owned by the dedicated Workflow lifecycle capability.
+        </?01M0VXCB90ZRVGEGFRHVZ6B0Q2>
+        <Gate [
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0Q3>
+          Within one epoch, every provider-visible retained prefix item remains byte-equivalent and in the same order on the next forward-only turn.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0Q3>
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0Q4>
+          Progress enforcement stays runtime-side; compaction, rewind, provider/model switch and accepted resource revision change are explicit epoch transitions.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0Q4>
+        ]>
+        <SubNodes [
+          <Task #G3-T1 { name = "Replace mutable Workflow context with typed facts and epochs" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #replace-workflow-context-mutation-with-typed-facts { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "Workflow provider-surface and cost optimization" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M0VXCB90ZRVGEGFRHVZ6B0Q5>
+        Measure stable-superset, stage-epoch and hybrid capability projections, select the lowest total provider cost that preserves correctness, and implement the accepted strategy without hiding misses.
+        </?01M0VXCB90ZRVGEGFRHVZ6B0Q5>
+        <Gate [
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0Q6>
+          Ordinary actors pay zero Workflow-only prompt/tool-schema overhead.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0Q6>
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0Q7>
+          Workflow forward-only turns have no unexplained recurring prefix miss and satisfy the ratified normalized-cost budget.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0Q7>
+        ]>
+        <SubNodes [
+          <Task #G4-T1 { name = "Optimize Workflow provider surface and DeepSeek cache cost" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #optimize-workflow-provider-surface-and-deepseek-cache-cost { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "Provider-cache product E2E and observability" status = "DONE" priority = "P0" order = 4 } (
+        <Description ?01M0VXCB90ZRVGEGFRHVZ6B0Q8>
+        Create deterministic final-wire E2E and bounded live provider verification covering ordinary actors, Workflow lifecycle actors, AI Workflow node Agents, tools, retries, recovery, epochs and long contexts.
+        </?01M0VXCB90ZRVGEGFRHVZ6B0Q8>
+        <Gate [
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0Q9>
+          Every local final-wire prefix divergence in a product journey maps to a persisted explicit epoch reason or fails the gate; provider-native aggregate misses remain separate best-effort facts and satisfy the ratified grouped SLO rather than per-token epoch attribution.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0Q9>
+          <Criterion { checked = true } ?01M0VXCB90ZRVGEGFRHVZ6B0QA>
+          PR-safe deterministic evidence and scheduled/manual live official DeepSeek evidence both exist; compatible providers use separate expectations.
+          </?01M0VXCB90ZRVGEGFRHVZ6B0QA>
+        ]>
+        <SubNodes [
+          <Task #G5-T1 { name = "Add DeepSeek cache-coverage and token-cost product E2E" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #add-deepseek-cache-coverage-and-cost-product-e2e { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G6 { name = "Mission-level convergence and independent verification" status = "DONE" priority = "P0" order = 5 } (
+        <Description ?01M0VXCB90ZRVGEGFRHVZ6B0QB>
+        Re-run the complete cross-Actor matrix on the final tree, compare observed cost with the ratified baseline and execute fresh gap repair until no P0/P1 architecture or product-cost gap remains.
+        </?01M0VXCB90ZRVGEGFRHVZ6B0QB>
+        <SubNodes [
+          <Task #G6-T1 { name = "Run fresh cross-Actor coding AttractorCheck and bounded gap-loop" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G6-T2 { name = "Run independent Mission verification and produce final cost report" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_isolate-workflow-lifecycle-and-control-provider-cache-cost" } [
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G3" }>
+      ]>
+      <Node #G5 [
+        <After { ref = "G4" }>
+      ]>
+      <Node #G6 [
+        <After { ref = "G5" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

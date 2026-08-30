@@ -1,0 +1,37 @@
+<Behavior #provider-context-epoch apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #history-movement-invalidates-replay (
+      <Statement ?01M18J9RM79MCZM6D3NEDNNB2T>
+      Provider replay optimization SHALL be scoped by a Session-owned context epoch; history head movement, fork, rollback, and reset MUST advance the epoch and invalidate affected replay checkpoints before the next provider request.
+      </?01M18J9RM79MCZM6D3NEDNNB2T>
+      <Suites [
+        <Suite #history-mutation { name = "History mutation invalidation" } (
+          <Cases [
+            <Case #rewind-invalidates-checkpoint (
+              <Given ?01M18J9RM79MCZM6D3NEDNNB2V>
+              A Responses replay checkpoint exists for the current conversation head.
+              </?01M18J9RM79MCZM6D3NEDNNB2V>
+              <When ?01M18J9RM79MCZM6D3NEDNNB2W>
+              The actor history head moves to another generation.
+              </?01M18J9RM79MCZM6D3NEDNNB2W>
+              <Then ?01M18J9RM79MCZM6D3NEDNNB2X>
+              The context epoch SHALL advance and the checkpoint SHALL be removed without changing canonical History.
+              </?01M18J9RM79MCZM6D3NEDNNB2X>
+            )>
+            <Case #stale-result-rejected (
+              <Given ?01M18J9RM79MCZM6D3NEDNNB2Y>
+              A provider request was prepared under an earlier context epoch.
+              </?01M18J9RM79MCZM6D3NEDNNB2Y>
+              <When ?01M18J9RM79MCZM6D3NEDNNB2Z>
+              History changes before the provider result commits.
+              </?01M18J9RM79MCZM6D3NEDNNB2Z>
+              <Then ?01M18J9RM79MCZM6D3NEDNNB30>
+              The stale result SHALL NOT advance replay checkpoint or continuation state.
+              </?01M18J9RM79MCZM6D3NEDNNB30>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

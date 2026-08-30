@@ -1,0 +1,51 @@
+<decision #fix-deepseek-thinking-tool-roundtrip.wire-display-separation apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JQ1R112Q2BRXDS6680VET>
+  DeepSeek reasoning 的协议保真和 TUI 重复展示应如何协调？
+  </?01M18JQ1R112Q2BRXDS6680VET>
+  <answer {  } (
+    <raw-answer ?01M18JQ1R2ZE7C5871SE7H1AVZ>
+    用户要求先使用 codument-plan-track，再使用 codument-impl-track 修复已确认的 DeepSeek interleaved thinking 工具调用问题。
+    </?01M18JQ1R2ZE7C5871SE7H1AVZ>
+    <decision-text ?01M18JQ1R2ZE7C5871SE7H1AW0>
+    始终保留 provider wire-level reasoning_content；TUI 是否显示镜像 thinking 使用独立策略，禁止通过删除协议字段实现展示去重。
+    </?01M18JQ1R2ZE7C5871SE7H1AW0>
+    <rationale ?01M18JQ1R2ZE7C5871SE7H1AW1>
+    DeepSeek tools 协议要求后续请求完整回传 reasoning_content，而展示去重只是本地 presentation concern。
+    </?01M18JQ1R2ZE7C5871SE7H1AW1>
+    <evidence ?01M18JQ1R2ZE7C5871SE7H1AW2>
+    故障 session turn 139 缺 reasoning_content 后，turn 140 返回明确的 HTTP 400；stream adapter 当前会删除空值和镜像值。
+    </?01M18JQ1R2ZE7C5871SE7H1AW2>
+  )>
+  <confidence ?01M18JQ1R2ZE7C5871SE7H1AW3>
+  0.95
+  </?01M18JQ1R2ZE7C5871SE7H1AW3>
+  <reversibility ?01M18JQ1R2ZE7C5871SE7H1AW4>
+  moderate
+  </?01M18JQ1R2ZE7C5871SE7H1AW4>
+)>
+
+<decision #fix-deepseek-thinking-tool-roundtrip.legacy-recovery apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JQ1R2ZE7C5871SE7H1AW5>
+  升级前已经缺失 reasoning_content 的历史 session 如何恢复？
+  </?01M18JQ1R2ZE7C5871SE7H1AW5>
+  <answer {  } (
+    <raw-answer ?01M18JQ1R2ZE7C5871SE7H1AW6>
+    按无需修改历史 session 文件且可以继续现有会话的目标处理。
+    </?01M18JQ1R2ZE7C5871SE7H1AW6>
+    <decision-text ?01M18JQ1R2ZE7C5871SE7H1AW7>
+    DeepSeek 请求归一化对缺字段的 assistant tool-call 历史消息补 reasoning_content 空字符串；不修改 XNL 持久化文件。
+    </?01M18JQ1R2ZE7C5871SE7H1AW7>
+    <rationale ?01M18JQ1R2ZE7C5871SE7H1AW8>
+    原始 SSE 未持久化，真实 reasoning 无法重建；请求边界 fallback 是最小且可逆的兼容方案。
+    </?01M18JQ1R2ZE7C5871SE7H1AW8>
+    <evidence ?01M18JQ1R2ZE7C5871SE7H1AW9>
+    故障 history 和 effect evidence 均已缺字段，provider 错误要求字段必须传回。
+    </?01M18JQ1R2ZE7C5871SE7H1AW9>
+  )>
+  <confidence ?01M18JQ1R2ZE7C5871SE7H1AWA>
+  0.95
+  </?01M18JQ1R2ZE7C5871SE7H1AWA>
+  <reversibility ?01M18JQ1R2ZE7C5871SE7H1AWB>
+  moderate
+  </?01M18JQ1R2ZE7C5871SE7H1AWB>
+)>

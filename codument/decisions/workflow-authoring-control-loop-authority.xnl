@@ -1,0 +1,155 @@
+<decision #track.optimize-ai-workflow-authoring-control-loop.summary-boundary apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M18JQ2XEZBPECM803C60MDWJ>
+  Workflow authoring session 的 compact list/summary 应在哪一层实现？
+  </?01M18JQ2XEZBPECM803C60MDWJ>
+  <answer {  } (
+    <raw-answer ?01M18JQ2XEZBPECM803C60MDWK>
+    它是 workflow 领域 read model，不是 context compression。
+    </?01M18JQ2XEZBPECM803C60MDWK>
+    <decision-text ?01M18JQ2XEZBPECM803C60MDWM>
+    保留 session store full describe/list authority；WorkflowListAuthoringSessions 通过稳定排序与 limit/cursor 返回有界 brief page，WorkflowGetAuthoringSummary 返回有硬上限的 summary，完整 detail 由显式 workspace read 获取。
+    </?01M18JQ2XEZBPECM803C60MDWM>
+    <rationale ?01M18JQ2XEZBPECM803C60MDWN>
+    避免把领域摘要和 transport/history compaction 混为一谈，也不改变其他 Eidolon 工具行为。
+    </?01M18JQ2XEZBPECM803C60MDWN>
+    <evidence ?01M18JQ2XEZBPECM803C60MDWP>
+    当前两个 tool adapter 直接返回完整 metadata；generic compaction 已存在且需保护首次 delivery。
+    </?01M18JQ2XEZBPECM803C60MDWP>
+  )>
+  <confidence ?01M18JQ2XEZBPECM803C60MDWQ>
+  0.98
+  </?01M18JQ2XEZBPECM803C60MDWQ>
+  <reversibility ?01M18JQ2XEZBPECM803C60MDWR>
+  moderate
+  </?01M18JQ2XEZBPECM803C60MDWR>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.generic-context-policy apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M18JQ2XEZBPECM803C60MDWS>
+  多轮 workflow delegate 的上下文预算如何修复？
+  </?01M18JQ2XEZBPECM803C60MDWS>
+  <answer {  } (
+    <raw-answer ?01M18JQ2XEZBPECM803C60MDWT>
+    复用 Eidolon 通用机制，不能给 workflow 另建压缩器。
+    </?01M18JQ2XEZBPECM803C60MDWT>
+    <decision-text ?01M18JQ2XEZBPECM803C60MDWV>
+    将 compaction eligibility 改为 actor-owned generic context policy；多轮 delegate 默认参与，短生命周期 actor 可显式关闭；实现不得检查 workflow/tool name。
+    </?01M18JQ2XEZBPECM803C60MDWV>
+    <rationale ?01M18JQ2XEZBPECM803C60MDWW>
+    问题根因是 actor type eligibility 缺口，workflow-specific 分支会制造第二套机制。
+    </?01M18JQ2XEZBPECM803C60MDWW>
+    <evidence ?01M18JQ2XEZBPECM803C60MDWX>
+    WorkflowAuthor 通过通用 spawnChildExecutionActor 创建 delegate，而 shouldCompressActorHistory 仅接受 primary/member。
+    </?01M18JQ2XEZBPECM803C60MDWX>
+  )>
+  <confidence ?01M18JQ2XEZBPECM803C60MDWY>
+  0.99
+  </?01M18JQ2XEZBPECM803C60MDWY>
+  <reversibility ?01M18JQ2XEZBPECM803C60MDWZ>
+  moderate
+  </?01M18JQ2XEZBPECM803C60MDWZ>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.revision-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M18JQ2XFHDWR5NFD8M3K7Z2R>
+  如何表达编辑中版本与最近发布版本？
+  </?01M18JQ2XFHDWR5NFD8M3K7Z2R>
+  <answer {  } (
+    <raw-answer ?01M18JQ2XFHDWR5NFD8M3K7Z2S>
+    working 与 published 必须是两条显式 revision 线，dirty 由二者派生。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z2S>
+    <decision-text ?01M18JQ2XFHDWR5NFD8M3K7Z2T>
+    session metadata SHALL 记录 base/working/published revisions、proof set 与 immutable publication receipt；mutation 只推进 working revision 并使 proof stale，不得抹掉历史 publication authority或把 dirty work 称为 published clean。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z2T>
+    <rationale ?01M18JQ2XFHDWR5NFD8M3K7Z2V>
+    单一 currentRevision + status 无法表达发布后继续编辑，也无法支持正确 diff baseline。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z2V>
+    <evidence ?01M18JQ2XFHDWR5NFD8M3K7Z2W>
+    当前 invalidate 保留 status=published，publish 不记录 artifact digest/receipt，/base 不 rebase。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z2W>
+  )>
+  <confidence ?01M18JQ2XFHDWR5NFD8M3K7Z2X>
+  0.98
+  </?01M18JQ2XFHDWR5NFD8M3K7Z2X>
+  <reversibility ?01M18JQ2XFHDWR5NFD8M3K7Z2Y>
+  moderate
+  </?01M18JQ2XFHDWR5NFD8M3K7Z2Y>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.atomic-control-loop apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M18JQ2XFHDWR5NFD8M3K7Z2Z>
+  怎样减少成功编辑路径的模型轮次而不把语义移入代码？
+  </?01M18JQ2XFHDWR5NFD8M3K7Z2Z>
+  <answer {  } (
+    <raw-answer ?01M18JQ2XFHDWR5NFD8M3K7Z30>
+    模型决定目标和内容；component 提供结构化 atomic patch 与 exact-revision proof pipeline。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z30>
+    <decision-text ?01M18JQ2XFHDWR5NFD8M3K7Z31>
+    新增 expected-revision 原子多文件 patch 和 deterministic prepare-publication command；host 只执行结构化操作，禁止从原始自然语言推导文件、stage 或业务规则。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z31>
+    <rationale ?01M18JQ2XFHDWR5NFD8M3K7Z32>
+    一次一文件、一 proof 一轮造成可避免的 provider roundtrip；结构化 compound command 不涉及模糊语义。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z32>
+    <evidence ?01M18JQ2XFHDWR5NFD8M3K7Z33>
+    事故中 native tools 仅 0.430s，而 12 次 completion 占据绝大多数时长。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z33>
+  )>
+  <confidence ?01M18JQ2XFHDWR5NFD8M3K7Z34>
+  0.97
+  </?01M18JQ2XFHDWR5NFD8M3K7Z34>
+  <reversibility ?01M18JQ2XFHDWR5NFD8M3K7Z35>
+  moderate
+  </?01M18JQ2XFHDWR5NFD8M3K7Z35>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.proof-contract apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M18JQ2XFHDWR5NFD8M3K7Z36>
+  静态 dry-run 能否作为 effectful workflow 的发布验收？
+  </?01M18JQ2XFHDWR5NFD8M3K7Z36>
+  <answer {  } (
+    <raw-answer ?01M18JQ2XFHDWR5NFD8M3K7Z37>
+    不能；必须诚实区分 static projection、隔离 candidate acceptance 与授权后的真实 execution。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z37>
+    <decision-text ?01M18JQ2XFHDWR5NFD8M3K7Z38>
+    发布 proof SHALL 绑定 diff、canonical validation、必需但 non-effectful 的 staticProjectionReceipt、build digest 与 acceptance disposition；required 只能用隔离 effect fixture 形成 candidate receipt，not_required 必须有 canonical/explicit structured policy source。真实 effect 只在发布后独立 execution authorization 下产生 execution receipt。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z38>
+    <rationale ?01M18JQ2XFHDWR5NFD8M3K7Z39>
+    effectDispatched=false 无法证明 web source success/degrade/failure 行为，而发布确认也没有授权真实执行。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z39>
+    <evidence ?01M18JQ2XFHDWR5NFD8M3K7Z3A>
+    当前 dryRun 只 projectStatic；既有 canonical behavior 要求它继续作为 publication proof，releasing protocol 还要求 build digest，而 publish gate 尚未检查 build/acceptance disposition。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z3A>
+  )>
+  <confidence ?01M18JQ2XFHDWR5NFD8M3K7Z3B>
+  0.99
+  </?01M18JQ2XFHDWR5NFD8M3K7Z3B>
+  <reversibility ?01M18JQ2XFHDWR5NFD8M3K7Z3C>
+  moderate
+  </?01M18JQ2XFHDWR5NFD8M3K7Z3C>
+)>
+
+<decision #track.optimize-ai-workflow-authoring-control-loop.receipt-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M18JQ2XFHDWR5NFD8M3K7Z3D>
+  Typed authoring 与 publication receipts 的事实 authority 在哪里？
+  </?01M18JQ2XFHDWR5NFD8M3K7Z3D>
+  <answer {  } (
+    <raw-answer ?01M18JQ2XFHDWR5NFD8M3K7Z3E>
+    模型只请求 transition，component/session authority 从持久化事实生成 receipts。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z3E>
+    <decision-text ?01M18JQ2XFHDWR5NFD8M3K7Z3F>
+    WorkflowAuthoringReceipt SHALL 由 component 校验 session/revision/proof 后生成；publication receipts SHALL append-only，session 只投影 latest receipt id；forged/stale/model-claimed receipts 必须拒绝。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z3F>
+    <rationale ?01M18JQ2XFHDWR5NFD8M3K7Z3G>
+    避免把模型声明升级为事实，也避免重复发布覆盖历史 authority。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z3G>
+    <evidence ?01M18JQ2XFHDWR5NFD8M3K7Z3H>
+    AttractorCheck 指出“authoritative child outcome”和单值 publicationReceipt 会造成事实 owner 冲突。
+    </?01M18JQ2XFHDWR5NFD8M3K7Z3H>
+  )>
+  <confidence ?01M18JQ2XFHDWR5NFD8M3K7Z3J>
+  0.99
+  </?01M18JQ2XFHDWR5NFD8M3K7Z3J>
+  <reversibility ?01M18JQ2XFHDWR5NFD8M3K7Z3K>
+  moderate
+  </?01M18JQ2XFHDWR5NFD8M3K7Z3K>
+)>

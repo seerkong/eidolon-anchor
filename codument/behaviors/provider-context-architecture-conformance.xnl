@@ -1,0 +1,37 @@
+<Behavior #provider-context-architecture-conformance apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #replay-equivalence-gate (
+      <Statement ?01M18J9YHC3KNX67JSPE79RYSB>
+      Provider context architecture SHALL retain executable conformance evidence that canonical replay is complete, Chat repair is isolated, checkpoint deletion is semantically neutral, and history mutation invalidates provider optimization state.
+      </?01M18J9YHC3KNX67JSPE79RYSB>
+      <Suites [
+        <Suite #provider-context-conformance { name = "Provider context conformance" } (
+          <Cases [
+            <Case #checkpoint-deletion-equivalence (
+              <Given ?01M18J9YHDG4M0RGWCNC68DH4W>
+              A valid canonical conversation and an equivalent replay checkpoint exist.
+              </?01M18J9YHDG4M0RGWCNC68DH4W>
+              <When ?01M18J9YHDG4M0RGWCNC68DH4X>
+              Stateless input is planned with and without the checkpoint.
+              </?01M18J9YHDG4M0RGWCNC68DH4X>
+              <Then ?01M18J9YHDG4M0RGWCNC68DH4Y>
+              Both plans SHALL expose identical provider-visible native input.
+              </?01M18J9YHDG4M0RGWCNC68DH4Y>
+            )>
+            <Case #long-replay-coverage (
+              <Given ?01M18J9YHDG4M0RGWCNC68DH4Z>
+              Canonical History contains one hundred completed tool rounds.
+              </?01M18J9YHDG4M0RGWCNC68DH4Z>
+              <When ?01M18J9YHDG4M0RGWCNC68DH50>
+              The named Responses canonical compiler projects it.
+              </?01M18J9YHDG4M0RGWCNC68DH50>
+              <Then ?01M18J9YHDG4M0RGWCNC68DH51>
+              All calls and outputs SHALL appear in order and in the coverage proof.
+              </?01M18J9YHDG4M0RGWCNC68DH51>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

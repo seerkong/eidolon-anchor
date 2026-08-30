@@ -1,0 +1,37 @@
+<Behavior #provider-responses-replay apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #complete-canonical-replay (
+      <Statement ?01M18J9VRFT7ZQB8K713YRFAES>
+      Responses canonical replay SHALL emit all canonical assistant function calls and matching tool outputs in chronological order, independent of Chat Completions adjacency repair.
+      </?01M18J9VRFT7ZQB8K713YRFAES>
+      <Suites [
+        <Suite #replay-cases { name = "Complete replay" } (
+          <Cases [
+            <Case #all-tool-pairs-replayed (
+              <Given ?01M18J9VRGEMTXPXMP691FQSE6>
+              Conversation history contains multiple completed tool rounds.
+              </?01M18J9VRGEMTXPXMP691FQSE6>
+              <When ?01M18J9VRGEMTXPXMP691FQSE7>
+              Responses canonical input is compiled.
+              </?01M18J9VRGEMTXPXMP691FQSE7>
+              <Then ?01M18J9VRGEMTXPXMP691FQSE8>
+              Every closed function call/output pair SHALL be present in native input order.
+              </?01M18J9VRGEMTXPXMP691FQSE8>
+            )>
+            <Case #frontier-stable (
+              <Given ?01M18J9VRHK9F8AMR35FYW5JAJ>
+              An assistant function call is followed by its tool result.
+              </?01M18J9VRHK9F8AMR35FYW5JAJ>
+              <When ?01M18J9VRHK9F8AMR35FYW5JAK>
+              The provider frontier is compared before and after the result is committed.
+              </?01M18J9VRHK9F8AMR35FYW5JAK>
+              <Then ?01M18J9VRHK9F8AMR35FYW5JAM>
+              The prior frontier SHALL remain an exact prefix of the new canonical message projection.
+              </?01M18J9VRHK9F8AMR35FYW5JAM>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

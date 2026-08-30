@@ -1,0 +1,363 @@
+<decision #mission.local_file_single_node_holon_task_actor_runtime.scope_split apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXYSDGPAWP2RPPXA0G99DV>
+  本轮大系统需求如何切分，才能既交付可运行版本又不提前复制分布式 actor 基础设施？
+  </?01M0QXYSDGPAWP2RPPXA0G99DV>
+  <answer (
+    <raw-answer ?01M0QXYSDGPAWP2RPPXA0G99DW>
+    至少拆成两个大 Mission：第一个实现本地文件存储的单机版；第二个实现数据库存储的跨机器版，并在 depa-actor 上配合 RabbitMQ 做 MVP。
+    </?01M0QXYSDGPAWP2RPPXA0G99DW>
+    <decision-text ?01M0QXYSDGPAWP2RPPXA0G99DX>
+    Mission 1 只拥有单进程、本地文件 authority、逻辑 actor 地址、TaskSpace 本地 claim lease/heartbeat/expiry 和完整本机 E2E；数据库、RabbitMQ、remote actor ref、actor placement、node-placement lease/epoch 与跨机器恢复全部进入 Mission 2。
+    </?01M0QXYSDGPAWP2RPPXA0G99DX>
+    <rationale ?01M0QXYSDGPAWP2RPPXA0G99DY>
+    先闭合组织、任务、流程和 actor 的 authority，再把同一逻辑协议扩展到网络，能够避免用半成品分布式协议掩盖本地事实分裂。
+    </?01M0QXYSDGPAWP2RPPXA0G99DY>
+    <evidence ?01M0QXYSDGPAWP2RPPXA0G99DZ>
+    用户明确纠正；docs/ai/architecture/holon-task-actor-system.md；depa-actor 当前本地 Actor/Processor substrate。
+    </?01M0QXYSDGPAWP2RPPXA0G99DZ>
+  )>
+  <confidence ?01M18JYQXVY8TXWFEZ8KK7RYMA>
+  high
+  </?01M18JYQXVY8TXWFEZ8KK7RYMA>
+  <reversibility ?01M18JYQXVY8TXWFEZ8KK7RYMB>
+  moderate
+  </?01M18JYQXVY8TXWFEZ8KK7RYMB>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.organization_snapshot_freeze apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXYTMNP6XVPQ50D03BQKC8>
+  运行任务是否自动跟随 Holon 组织变更？
+  </?01M0QXYTMNP6XVPQ50D03BQKC8>
+  <answer (
+    <raw-answer ?01M0QXYTMPY44JSDW33WRRDJKQ>
+    任务创建时冻结 Holon exact effective snapshot；组织之后变化不自动改变运行中的任务，只能显式 replan。
+    </?01M0QXYTMPY44JSDW33WRRDJKQ>
+    <decision-text ?01M0QXYTMPY44JSDW33WRRDJKR>
+    TaskSpace 绑定精确 effective instant 下完整的 OrganizationalSubject、Holon/Version、Member/Version、HolonMembership/Version、Role/Version、RoleAssignment/Version、GovernancePolicy/Version closure 与 tree digest。replan 生成新 snapshot 和 old/new receipt，不覆盖历史。
+    </?01M0QXYTMPY44JSDW33WRRDJKR>
+    <rationale ?01M0QXYTMPY44JSDW33WRRDJKS>
+    运行事实必须可重放；若读取 live organization，任务语义会随主数据漂移而无法恢复。
+    </?01M0QXYTMPY44JSDW33WRRDJKS>
+    <evidence ?01M0QXYTMPY44JSDW33WRRDJKT>
+    用户明确同意；Holon Workbench effective-dated model；depa-flows Definition→Instance→Run 冻结原则。
+    </?01M0QXYTMPY44JSDW33WRRDJKT>
+  )>
+  <confidence ?01M18JYQXWFKWS6XPFKDH4YF6F>
+  high
+  </?01M18JYQXWFKWS6XPFKDH4YF6F>
+  <reversibility ?01M18JYQXWFKWS6XPFKDH4YF6G>
+  hard
+  </?01M18JYQXWFKWS6XPFKDH4YF6G>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.holon_master_data_neutrality apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXYW54F9CWMNMSTD5YHBFM>
+  Holon Workbench 是否直接持有 AIAgentDefinition 等 AI 执行属性？
+  </?01M0QXYW54F9CWMNMSTD5YHBFM>
+  <answer (
+    <raw-answer ?01M0QXYW54F9CWMNMSTD5YHBFN>
+    Holon Workbench 保持人机中立，作为组织结构主数据；业务系统在主数据基础上扩展 AgentDefinition 等属性。
+    </?01M0QXYW54F9CWMNMSTD5YHBFN>
+    <decision-text ?01M0QXYW54F9CWMNMSTD5YHBFP>
+    Holon 核心仅表达 principal kind 等描述性事实；Eidolon-owned HolonExecutionBinding Resource 承担 Member/Role 到 AIAgentDefinition 和运行策略的映射。
+    </?01M0QXYW54F9CWMNMSTD5YHBFP>
+    <rationale ?01M0QXYW54F9CWMNMSTD5YHBFQ>
+    组织主数据可被不同业务系统复用，执行扩展也能独立版本化和冻结。
+    </?01M0QXYW54F9CWMNMSTD5YHBFQ>
+    <evidence ?01M0QXYW54F9CWMNMSTD5YHBFR>
+    用户确认；Holon Workbench domain model；Eidolon ResourcePackage/AIAgentDefinition authority。
+    </?01M0QXYW54F9CWMNMSTD5YHBFR>
+  )>
+  <confidence ?01M18JYQXWFKWS6XPFKDH4YF6H>
+  high
+  </?01M18JYQXWFKWS6XPFKDH4YF6H>
+  <reversibility ?01M18JYQXWFKWS6XPFKDH4YF6J>
+  moderate
+  </?01M18JYQXWFKWS6XPFKDH4YF6J>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.actor_substrate apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXYX9C2FRR39Z4Z4XRY16N>
+  MemberRuntime 与未来跨机器 actor 通信应建立在哪个 substrate 上？
+  </?01M0QXYX9C2FRR39Z4Z4XRY16N>
+  <answer (
+    <raw-answer ?01M0QXYX9C2FRR39Z4Z4XRY16P>
+    必须复用 depa-actor；跨机器版在其上配合 RabbitMQ 做 MVP，不能重复造轮子。
+    </?01M0QXYX9C2FRR39Z4Z4XRY16P>
+    <decision-text ?01M0QXYX9DKCZ267W6T2F9HAN9>
+    Mission 1 先给 depa-actor 增加稳定本地逻辑地址、resolver/router 与恢复 identity，再由 Eidolon generic actor/session 承载 Agent；Mission 2 扩展 remote transport。
+    </?01M0QXYX9DKCZ267W6T2F9HAN9>
+    <rationale ?01M0QXYX9DKCZ267W6T2F9HANA>
+    Actor 基础语义必须是可复用基础设施，不能分别在 workflow、Holon 和产品 host 中实现。
+    </?01M0QXYX9DKCZ267W6T2F9HANA>
+    <evidence ?01M0QXYX9DKCZ267W6T2F9HANB>
+    用户明确纠正；depa-actor processor/actor contracts；Eidolon existing actor VM/session。
+    </?01M0QXYX9DKCZ267W6T2F9HANB>
+  )>
+  <confidence ?01M18JYQXWFKWS6XPFKDH4YF6K>
+  high
+  </?01M18JYQXWFKWS6XPFKDH4YF6K>
+  <reversibility ?01M18JYQXWFKWS6XPFKDH4YF6M>
+  hard
+  </?01M18JYQXWFKWS6XPFKDH4YF6M>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.member_runtime_reuse apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXYYKRFSRF23HE45DDJSZQ>
+  一个 Member 在一个 deployment 中默认拥有多少个长期 MemberRuntime？
+  </?01M0QXYYKRFSRF23HE45DDJSZQ>
+  <answer (
+    <raw-answer ?01M0QXYYKRFSRF23HE45DDJSZR>
+    采用建议方案：默认复用一个长期 MemberRuntime，显式隔离策略才创建临时实例。
+    </?01M0QXYYKRFSRF23HE45DDJSZR>
+    <decision-text ?01M0QXYYKRFSRF23HE45DDJSZS>
+    默认 identity 为 `(deploymentId, memberRef)`。隔离 union 仅允许 shared 或 `{mode:"isolated", scope:"task-space"|"workflow-run", isolationKey}`；冲突与不可恢复均 fail closed。
+    </?01M0QXYYKRFSRF23HE45DDJSZS>
+    <rationale ?01M0QXYYKRFSRF23HE45DDJSZT>
+    默认长期复用保持 actor continuity，同时显式 task/session refs 和 isolation key 防止上下文串扰。
+    </?01M0QXYYKRFSRF23HE45DDJSZT>
+    <evidence ?01M0QXYYKRFSRF23HE45DDJSZV>
+    用户本轮接受建议；Eidolon addressed actor/session continuity 现有实现。
+    </?01M0QXYYKRFSRF23HE45DDJSZV>
+  )>
+  <confidence ?01M18JYQXWFKWS6XPFKDH4YF6N>
+  high
+  </?01M18JYQXWFKWS6XPFKDH4YF6N>
+  <reversibility ?01M18JYQXXDS7M564PN3YXE5GW>
+  moderate
+  </?01M18JYQXXDS7M564PN3YXE5GW>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.member_principal_kind apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXZ00257JFB12GDWFXPDFZ>
+  MemberPrincipalKind 的精确枚举、effective-dated 位置和兼容迁移是什么？
+  </?01M0QXZ00257JFB12GDWFXPDFZ>
+  <answer (
+    <raw-answer ?01M0QXZ00257JFB12GDWFXPDG0>
+    采用建议的 closed union，并把它放在 effective-dated MemberVersion；历史数据迁移为 unspecified。
+    </?01M0QXZ00257JFB12GDWFXPDG0>
+    <decision-text ?01M0QXZ00257JFB12GDWFXPDG1>
+    枚举精确为 `human|ai|hybrid|service|unspecified`。MemberCreate 必须显式填写；MemberRevise 可在新有效期修改；旧数据确定性迁移为 unspecified，禁止按名称/角色推断。
+    </?01M0QXZ00257JFB12GDWFXPDG1>
+    <rationale ?01M0QXZ00257JFB12GDWFXPDG2>
+    principal kind 会随时间变化，属于 Member 版本而非稳定 identity；unspecified 是唯一诚实兼容默认值。
+    </?01M0QXZ00257JFB12GDWFXPDG2>
+    <evidence ?01M0QXZ00257JFB12GDWFXPDG3>
+    用户本轮接受建议；Holon Workbench effective-dated MemberVersion actual state。
+    </?01M0QXZ00257JFB12GDWFXPDG3>
+  )>
+  <confidence ?01M18JYQXYJK8NCR4RG9H4XJMZ>
+  high
+  </?01M18JYQXYJK8NCR4RG9H4XJMZ>
+  <reversibility ?01M18JYQXYJK8NCR4RG9H4XJN0>
+  moderate
+  </?01M18JYQXYJK8NCR4RG9H4XJN0>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.execution_binding_authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXZ1CZY4SBE1HTGB36MABK>
+  HolonExecutionBinding 的 ResourcePackage kind、FQN 与版本由谁拥有？
+  </?01M0QXZ1CZY4SBE1HTGB36MABK>
+  <answer (
+    <raw-answer ?01M0QXZ1CZY4SBE1HTGB36MABM>
+    采用 Eidolon-owned canonical KindDefinition 和机械打包方案。
+    </?01M0QXZ1CZY4SBE1HTGB36MABM>
+    <decision-text ?01M0QXZ1CZY4SBE1HTGB36MABN>
+    Kind=`HolonExecutionBinding`，FQN=`Eidolon.AI.KindDefinition.HolonExecutionBinding`，apiVersion=`eidolon.ai/v1`，KindDefinition version=`1.0.0`；公共 `holarchy-eidolon-adapter` 拥有 contract bytes 与 projection/freeze，私有 @cell 包只做兼容 re-export 和产品接线。
+    </?01M0QXZ1CZY4SBE1HTGB36MABN>
+    <rationale ?01M0QXZ1CZY4SBE1HTGB36MABP>
+    业务执行映射属于 Eidolon AI organization domain；ResourcePackage 只机械包含 canonical bytes，避免包内副本成为第二标准。
+    </?01M0QXZ1CZY4SBE1HTGB36MABP>
+    <evidence ?01M0QXZ1CZY4SBE1HTGB36MABQ>
+    用户本轮接受建议；现有 Eidolon ai-organ packages 与 Halfcode ResourcePackage authority。
+    </?01M0QXZ1CZY4SBE1HTGB36MABQ>
+  )>
+  <confidence ?01M18JYQXYJK8NCR4RG9H4XJN1>
+  high
+  </?01M18JYQXYJK8NCR4RG9H4XJN1>
+  <reversibility ?01M18JYQXYJK8NCR4RG9H4XJN2>
+  moderate
+  </?01M18JYQXYJK8NCR4RG9H4XJN2>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.task_space_package_boundary apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXZ3DJARKDDNWXEPQYT9SG>
+  TaskSpace kernel 与各领域 profile 如何划分 package？
+  </?01M0QXZ3DJARKDDNWXEPQYT9SG>
+  <answer (
+    <raw-answer ?01M0QXZ3DK701X4TV7S8FZN6XT>
+    采用共享 TaskSpace kernel、不同领域 profile；Codument TaskSpace 明确跳过。
+    </?01M0QXZ3DK701X4TV7S8FZN6XT>
+    <decision-text ?01M0QXZ3DK701X4TV7S8FZN6XV>
+    task-manager-contract 只放 closed data/ports；task-manager-logic 放纯/runtime-first processors；新 task-manager-file-support 放 Node FS transaction。kernel lifecycle 精确为 Pending|Ready|Claimed|Running|Waiting|Succeeded|Failed|Cancelled，并拥有 claim lease/heartbeat/expiry/history；BP 词汇与 ai-workflow 组织字段分别留在 profile，Ctrl/Data 只做 adapters。
+    </?01M0QXZ3DK701X4TV7S8FZN6XV>
+    <rationale ?01M0QXZ3DK701X4TV7S8FZN6XW>
+    共享任务生命期与并发语义，同时允许人工业务任务和 AI 组织任务拥有不同字段，不让 FS effect 污染 kernel。
+    </?01M0QXZ3DK701X4TV7S8FZN6XW>
+    <evidence ?01M0QXZ3DK701X4TV7S8FZN6XX>
+    用户确认；depa-flows task-manager-*、bp-ctrl-flow-* 与 AI Workflow package actual state。
+    </?01M0QXZ3DK701X4TV7S8FZN6XX>
+  )>
+  <confidence ?01M18JYQXYJK8NCR4RG9H4XJN3>
+  high
+  </?01M18JYQXYJK8NCR4RG9H4XJN3>
+  <reversibility ?01M18JYQXYJK8NCR4RG9H4XJN4>
+  hard
+  </?01M18JYQXYJK8NCR4RG9H4XJN4>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.file_authority_protocol apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M0QXZ4M6GR2ZQ39NFZYPN0R3>
+  Mission 1 本地文件 authority 的物理布局与 transaction protocol 是什么？
+  </?01M0QXZ4M6GR2ZQ39NFZYPN0R3>
+  <answer (
+    <raw-answer ?01M0QXZ4M6GR2ZQ39NFZYPN0R4>
+    采用 content-addressed records/trees/receipts + recoverable journal + head-last CAS；Flow 保持 Definition→Instance→Run，TaskSpace 位于 run 下。
+    </?01M0QXZ4M6GR2ZQ39NFZYPN0R4>
+    <decision-text ?01M0QXZ4M6GR2ZQ39NFZYPN0R5>
+    Holon authority 使用 head/records/trees/receipts/transactions；Eidolon 使用 holon-deployments/&lt;deployment&gt;/definition+runtime；Flow 使用 instances/&lt;instance&gt;/runs/&lt;run&gt;/checkpoint、step-space、task-spaces。每个 owner 做 closed normalize、containment、recoverable lock、CAS、file+parent fsync、journal、head-last rename 和 readback。
+    </?01M0QXZ4M6GR2ZQ39NFZYPN0R5>
+    <rationale ?01M0QXZ4M6GR2ZQ39NFZYPN0R6>
+    内容寻址和 head-last admission 提供可恢复单 owner authority；跨 owner 用 durable receipt + CAS，而不伪造文件系统全局事务。
+    </?01M0QXZ4M6GR2ZQ39NFZYPN0R6>
+    <evidence ?01M0QXZ4M6GR2ZQ39NFZYPN0R7>
+    用户本轮接受建议；depa-flows canonical Definition→Instance→Run 与 StepSpace transaction 经验。
+    </?01M0QXZ4M6GR2ZQ39NFZYPN0R7>
+  )>
+  <confidence ?01M18JYQXYJK8NCR4RG9H4XJN5>
+  high
+  </?01M18JYQXYJK8NCR4RG9H4XJN5>
+  <reversibility ?01M18JYQXYJK8NCR4RG9H4XJN6>
+  hard
+  </?01M18JYQXYJK8NCR4RG9H4XJN6>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.snapshot_artifact_authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JYQXZ2V59PPRDKJJ6NMYX>
+  Holon effective snapshot 怎样跨项目进入 ResourcePackage、deployment 与 TaskSpace，而不形成三份可写真源？
+  </?01M18JYQXZ2V59PPRDKJJ6NMYX>
+  <answer (
+    <raw-answer ?01M18JYQXZ2V59PPRDKJJ6NMYY>
+    由 Holon Workbench 签发一个中立、可携带的 exact snapshot Resource/receipt；Eidolon 与 TaskSpace 只冻结并引用该签发物。
+    </?01M18JYQXZ2V59PPRDKJJ6NMYY>
+    <decision-text ?01M18JYQXZ2V59PPRDKJJ6NMYZ>
+    Holon Workbench owns Kind `HolonEffectiveSnapshot`, FQN `Holon.Workbench.KindDefinition.HolonEffectiveSnapshot`, apiVersion `holon.workbench/v1`, definition version `1.0.0`; holarchy-core-contract owns the closed contract and canonical KindDefinition bytes, while holarchy-core-logic projects/exports the canonical snapshot and issuance receipt. ResourcePackage/deployment mechanically retain those bytes and receipt. TaskSpace derives a HolonTaskSnapshotReceipt that references their digest plus the frozen execution-binding digest.
+    </?01M18JYQXZ2V59PPRDKJJ6NMYZ>
+    <rationale ?01M18JYQXZ2V59PPRDKJJ6NMZ0>
+    A portable issuer-owned artifact closes provenance and recovery without letting Eidolon or TaskSpace re-author organization master data.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZ0>
+    <evidence ?01M18JYQXZ2V59PPRDKJJ6NMZ1>
+    Stored architecture authority map identifies Holon Workbench as snapshot issuer and HolonTaskSnapshotReceipt as each TaskSpace's organization-version fact.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZ1>
+  )>
+  <confidence ?01M18JYQXZ2V59PPRDKJJ6NMZ2>
+  high
+  </?01M18JYQXZ2V59PPRDKJJ6NMZ2>
+  <reversibility ?01M18JYQXZ2V59PPRDKJJ6NMZ3>
+  hard
+  </?01M18JYQXZ2V59PPRDKJJ6NMZ3>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.holarchy_package_roles apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JYQXZ2V59PPRDKJJ6NMZ4>
+  Holarchy libraries, Workbench applications and cross-project adapters use which package identity grammar and ownership rule?
+  </?01M18JYQXZ2V59PPRDKJJ6NMZ4>
+  <answer (
+    <raw-answer ?01M18JYQXZ2V59PPRDKJJ6NMZ5>
+    Role is always the final token and only contract, logic, support, adapter or capsule are allowed; composer is the retired early capsule name. Adapters live where the wrapping integration is implemented.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZ5>
+    <decision-text ?01M18JYQXZ2V59PPRDKJJ6NMZ6>
+    Public packages use `<family>-<capability-path>-<role>` with final role exactly `contract|logic|support|adapter|capsule`. Holon Workbench publishes only substantive Holarchy libraries; its server/web are private apps. Holon Workbench owns holarchy-depa-domain-adapter, while eidolon-anchor owns holarchy-eidolon-adapter. The public closures are released only by the repository that owns each adapter; private product packages are never published.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZ6>
+    <rationale ?01M18JYQXZ2V59PPRDKJJ6NMZ7>
+    The grammar makes package responsibilities mechanically reviewable, prevents upper applications from leaking into the release closure, and places protocol translation with the actual integrator.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZ7>
+    <evidence ?01M18JYQXZ2V59PPRDKJJ6NMZ8>
+    User decisions on 2026-08-24; Replan 003; existing DEPA contract/logic/support/composition experience.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZ8>
+  )>
+  <confidence ?01M18JYQXZ2V59PPRDKJJ6NMZ9>
+  high
+  </?01M18JYQXZ2V59PPRDKJJ6NMZ9>
+  <reversibility ?01M18JYQXZ2V59PPRDKJJ6NMZA>
+  moderate
+  </?01M18JYQXZ2V59PPRDKJJ6NMZA>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.holon_runtime_coordination apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JYQXZ2V59PPRDKJJ6NMZB>
+  谁根据冻结组织与 ready TaskSpace 选择 MemberRuntime 并协调 assignment？
+  </?01M18JYQXZ2V59PPRDKJJ6NMZB>
+  <answer (
+    <raw-answer ?01M18JYQXZ2V59PPRDKJJ6NMZC>
+    Eidolon deployment 必须为每个 Holon 提供长期 HolonRuntime/HolonCoordinatorActor；不能让 workflow 预选 Member 绕过组织运行。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZC>
+    <decision-text ?01M18JYQXZ2V59PPRDKJJ6NMZD>
+    One shared HolonRuntime/HolonCoordinatorActor per `(deploymentId, holonRef)` observes TaskSpace-ready facts, evaluates frozen Role/Policy plus HolonExecutionBinding, proposes a typed assignment command and resolves the selected stable MemberRuntimeRef. TaskSpace remains assignment/claim/result authority; the coordinator retains only subscriptions, actor refs, cursor, pending correlations, supervision and health observations.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZD>
+    <rationale ?01M18JYQXZ2V59PPRDKJJ6NMZE>
+    Holon target semantics require an organization-level runtime owner, while task facts and organization master data must remain in their existing authorities.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZE>
+    <evidence ?01M18JYQXZ2V59PPRDKJJ6NMZF>
+    docs/ai/architecture/holon-task-actor-system.md sections 4, 6, 12 and user-approved goal of hosting several Holons/Members inside Eidolon.
+    </?01M18JYQXZ2V59PPRDKJJ6NMZF>
+  )>
+  <confidence ?01M18JYQXZ2V59PPRDKJJ6NMZG>
+  high
+  </?01M18JYQXZ2V59PPRDKJJ6NMZG>
+  <reversibility ?01M18JYQXZ2V59PPRDKJJ6NMZH>
+  hard
+  </?01M18JYQXZ2V59PPRDKJJ6NMZH>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.execution_adapter_union apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JYQXZ2V59PPRDKJJ6NMZJ>
+  HolonExecutionBinding 如何在人机中立的主数据上表达不同运行载体？
+  </?01M18JYQXZ2V59PPRDKJJ6NMZJ>
+  <answer (
+    <raw-answer ?01M18JYQXZ2V59PPRDKJJ6NMZK>
+    使用 Eidolon-owned closed adapter union，不用 principalKind 自动路由。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZK>
+    <decision-text ?01M18JYQXZ2V59PPRDKJJ6NMZM>
+    HolonMemberExecutionAdapter 精确为 ai-agent、human-endpoint、service、hybrid。各分支只引用冻结 Resource；hybrid 只在冻结 candidates 内按 policy 选择；TaskSpace 与 Coordinator 共用同一 task/claim/invocation/result envelope。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZM>
+    <rationale ?01M18JYQXZ2V59PPRDKJJ6NMZN>
+    组织主数据保持中立，业务执行仍可精确版本化，而且任务协议不因执行主体类型分叉。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZN>
+    <evidence ?01M18JYQXZ2V59PPRDKJJ6NMZP>
+    docs/ai/architecture/holon-task-actor-system.md MemberRuntime 形态与本 Mission neutrality decision。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZP>
+  )>
+  <confidence ?01M18JYQXZ2V59PPRDKJJ6NMZQ>
+  high
+  </?01M18JYQXZ2V59PPRDKJJ6NMZQ>
+  <reversibility ?01M18JYQXZ2V59PPRDKJJ6NMZR>
+  moderate
+  </?01M18JYQXZ2V59PPRDKJJ6NMZR>
+)>
+
+<decision #mission.local_file_single_node_holon_task_actor_runtime.member_session_scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M18JYQXZ2V59PPRDKJJ6NMZS>
+  默认长期 MemberRuntime 是否同时意味着所有任务共享一个 conversation/session？
+  </?01M18JYQXZ2V59PPRDKJJ6NMZS>
+  <answer (
+    <raw-answer ?01M18JYQXZ2V59PPRDKJJ6NMZT>
+    不意味着。默认按 task claim attempt 建 durable session；跨调用复用必须显式 targeted。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZT>
+    <decision-text ?01M18JYQXZ2V59PPRDKJJ6NMZV>
+    MemberRuntime address 默认按 deployment/member 复用；conversation 默认按 taskSpace/task/claim/attempt 隔离。只有冻结 binding 授权的 runTargetedAgent 且 selector 精确为 {byId} 或 {byName} 时才能复用既有 Agent instance；旧的 instance-prefixed keys fail closed。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZV>
+    <rationale ?01M18JYQXZ2V59PPRDKJJ6NMZW>
+    将 actor continuity 与 conversation scope 分开，既保留长期成员身份，也阻断无意的跨任务上下文泄漏。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZW>
+    <evidence ?01M18JYQXZ2V59PPRDKJJ6NMZX>
+    现有 runAgent/runTargetedAgent contract、generic actor/session authority 与 Mission risk analysis。
+    </?01M18JYQXZ2V59PPRDKJJ6NMZX>
+  )>
+  <confidence ?01M18JYQXZ2V59PPRDKJJ6NMZY>
+  high
+  </?01M18JYQXZ2V59PPRDKJJ6NMZY>
+  <reversibility ?01M18JYQXZ2V59PPRDKJJ6NMZZ>
+  moderate
+  </?01M18JYQXZ2V59PPRDKJJ6NMZZ>
+)>

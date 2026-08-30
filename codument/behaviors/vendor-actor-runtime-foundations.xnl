@@ -1,220 +1,242 @@
 <Behavior #vendor-actor-runtime-foundations apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #vendor-actor-shall-provide-completion-signal-and-waiter-foundations (
-      <Statement ?01M05F1P3ZPN9HRWGBV7M2ESXN>
+      <Statement ?01M18JEZYVVEG65Z2VMNNVPKAA>
       系统应当在 `vendor/depa-actor` 中提供 keyed completion signal 与 waiter foundation，用于表达 fiber 完成等待、异步完成绑定和结果回流，而不要求业务层反复手写等待表与轮询逻辑。
-      </?01M05F1P3ZPN9HRWGBV7M2ESXN>
+      </?01M18JEZYVVEG65Z2VMNNVPKAA>
       <Suites [
         <Suite { name = "vendor-actor-shall-provide-completion-signal-and-waiter-foundations" } (
           <Cases [
             <Case #parent-flow-waits-for-keyed-completion { name = "Parent flow waits for keyed completion" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESXP>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAB>
               应当能够通过 vendor 提供的 completion signal / waiter foundation 完成等待与唤醒
-              </?01M05F1P3ZPN9HRWGBV7M2ESXP>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESXQ>
+              </?01M18JEZYVVEG65Z2VMNNVPKAB>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAC>
               不需要在业务层长期维护平行的 waiter store 机制
-              </?01M05F1P3ZPN9HRWGBV7M2ESXQ>
+              </?01M18JEZYVVEG65Z2VMNNVPKAC>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESXR>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKAD>
               某个 runtime 需要等待一个 child workload 或异步步骤以 key 形式回传完成结果
-              </?01M05F1P3ZPN9HRWGBV7M2ESXR>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESXS>
+              </?01M18JEZYVVEG65Z2VMNNVPKAD>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKAE>
               该 runtime 使用 `vendor/depa-actor` 的 orchestration foundation
-              </?01M05F1P3ZPN9HRWGBV7M2ESXS>
+              </?01M18JEZYVVEG65Z2VMNNVPKAE>
             )>
             <Case #child-completion-binding-routes-detached-or-nested-results { name = "Child completion binding routes detached or nested results" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESXT>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAF>
               vendor 应提供 child completion binding 或等价 foundation 表达该关系
-              </?01M05F1P3ZPN9HRWGBV7M2ESXT>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESXV>
+              </?01M18JEZYVVEG65Z2VMNNVPKAF>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAG>
               业务层不应继续手工维护一套平行的 completion routing helper
-              </?01M05F1P3ZPN9HRWGBV7M2ESXV>
+              </?01M18JEZYVVEG65Z2VMNNVPKAG>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESXW>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKAH>
               某个 runtime 需要把 child actor / fiber 的完成事件路由回 parent 或 detached watcher
-              </?01M05F1P3ZPN9HRWGBV7M2ESXW>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESXX>
+              </?01M18JEZYVVEG65Z2VMNNVPKAH>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKAJ>
               该 runtime 依赖 `vendor/depa-actor`
-              </?01M05F1P3ZPN9HRWGBV7M2ESXX>
+              </?01M18JEZYVVEG65Z2VMNNVPKAJ>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #vendor-actor-shall-separate-persistence-protocol-from-persistence-implementation (
-      <Statement ?01M05F1P3ZPN9HRWGBV7M2ESXY>
+      <Statement ?01M18JEZYVVEG65Z2VMNNVPKAK>
       系统应当在 `vendor/depa-actor` 中将 actor / fiber / orchestrator 的持久化与恢复能力表达为 protocol、codec hook 和 effect port，而不是内置具体的 save/load 实现。
-      </?01M05F1P3ZPN9HRWGBV7M2ESXY>
+      </?01M18JEZYVVEG65Z2VMNNVPKAK>
       <Suites [
         <Suite { name = "vendor-actor-shall-separate-persistence-protocol-from-persistence-implementation" } (
           <Cases [
             <Case #runtime-wants-actor-persistence-without-fixed-storage-medium { name = "Runtime wants actor persistence without fixed storage medium" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESXZ>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAM>
               vendor 应只要求上层注入 state codec、hydrate / recover hook 与 persistence effect adapter
-              </?01M05F1P3ZPN9HRWGBV7M2ESXZ>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESY0>
+              </?01M18JEZYVVEG65Z2VMNNVPKAM>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAN>
               vendor 不应假定文件系统、数据库或其他具体存储介质
-              </?01M05F1P3ZPN9HRWGBV7M2ESY0>
+              </?01M18JEZYVVEG65Z2VMNNVPKAN>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESY1>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKAP>
               上层 runtime 需要对 actor 状态进行保存与恢复
-              </?01M05F1P3ZPN9HRWGBV7M2ESY1>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESY2>
+              </?01M18JEZYVVEG65Z2VMNNVPKAP>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKAQ>
               该 runtime 依赖 `vendor/depa-actor`
-              </?01M05F1P3ZPN9HRWGBV7M2ESY2>
+              </?01M18JEZYVVEG65Z2VMNNVPKAQ>
             )>
             <Case #snapshot-contract-does-not-embed-product-specific-fields { name = "Snapshot contract does not embed product-specific fields" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESY3>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAR>
               vendor snapshot contract 应只表达通用 actor / fiber / orchestrator 基础结构
-              </?01M05F1P3ZPN9HRWGBV7M2ESY3>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESY4>
+              </?01M18JEZYVVEG65Z2VMNNVPKAR>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAS>
               产品字段应通过外层 codec / facet hook 注入，而不是写死在 vendor snapshot schema 中
-              </?01M05F1P3ZPN9HRWGBV7M2ESY4>
+              </?01M18JEZYVVEG65Z2VMNNVPKAS>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESY5>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKAT>
               某个产品 runtime 为 actor 挂载了 domain-specific state
-              </?01M05F1P3ZPN9HRWGBV7M2ESY5>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESY6>
+              </?01M18JEZYVVEG65Z2VMNNVPKAT>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKAV>
               它基于 vendor snapshot protocol 构建保存与恢复
-              </?01M05F1P3ZPN9HRWGBV7M2ESY6>
+              </?01M18JEZYVVEG65Z2VMNNVPKAV>
             )>
             <Case #vendor-snapshot-base-contract-is-the-structural-source-of-truth { name = "Vendor snapshot base contract is the structural source of truth" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESY7>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAW>
               其通用基础结构应建立在 `vendor/depa-actor` 导出的 snapshot base contract 之上
-              </?01M05F1P3ZPN9HRWGBV7M2ESY7>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESY8>
+              </?01M18JEZYVVEG65Z2VMNNVPKAW>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKAX>
               项目侧不应继续独立维护一套与 vendor 平行的基础 snapshot 结构定义
-              </?01M05F1P3ZPN9HRWGBV7M2ESY8>
+              </?01M18JEZYVVEG65Z2VMNNVPKAX>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESY9>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKAY>
               项目侧 runtime 需要定义 actor、vm、fiber 或 manifest 的 snapshot shape
-              </?01M05F1P3ZPN9HRWGBV7M2ESY9>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESYA>
+              </?01M18JEZYVVEG65Z2VMNNVPKAY>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKAZ>
               它声明这些 snapshot 类型
-              </?01M05F1P3ZPN9HRWGBV7M2ESYA>
+              </?01M18JEZYVVEG65Z2VMNNVPKAZ>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #vendor-actor-shall-expose-actor-runtime-extension-points-for-product-facets (
-      <Statement ?01M05F1P3ZPN9HRWGBV7M2ESYB>
+      <Statement ?01M18JEZYVVEG65Z2VMNNVPKB0>
       系统应当在 `vendor/depa-actor` 中提供正式的 runtime / plugin / facet extension point，使上层能够为 actor / vm 挂载额外状态与索引，而不必把全部产品态字段内嵌进 vendor actor shell。
-      </?01M05F1P3ZPN9HRWGBV7M2ESYB>
+      </?01M18JEZYVVEG65Z2VMNNVPKB0>
       <Suites [
         <Suite { name = "vendor-actor-shall-expose-actor-runtime-extension-points-for-product-facets" } (
           <Cases [
             <Case #product-runtime-adds-domain-specific-actor-state { name = "Product runtime adds domain-specific actor state" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYC>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKB1>
               它应当能够通过 facet、plugin 或等价扩展点挂载这些状态
-              </?01M05F1P3ZPN9HRWGBV7M2ESYC>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYD>
+              </?01M18JEZYVVEG65Z2VMNNVPKB1>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKB2>
               不应要求 `vendor/depa-actor` 直接认识这些产品字段
-              </?01M05F1P3ZPN9HRWGBV7M2ESYD>
+              </?01M18JEZYVVEG65Z2VMNNVPKB2>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESYE>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKB3>
               某个产品 runtime 需要为 actor 挂载额外 domain-specific state
-              </?01M05F1P3ZPN9HRWGBV7M2ESYE>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESYF>
+              </?01M18JEZYVVEG65Z2VMNNVPKB3>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKB4>
               该产品 runtime 构建在 `vendor/depa-actor` 之上
-              </?01M05F1P3ZPN9HRWGBV7M2ESYF>
+              </?01M18JEZYVVEG65Z2VMNNVPKB4>
             )>
             <Case #product-runtime-installs-indexes-without-forking-vendor-actor-shell { name = "Product runtime installs indexes without forking vendor actor shell" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYG>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKB5>
               它应当能够通过正式扩展点安装这些索引
-              </?01M05F1P3ZPN9HRWGBV7M2ESYG>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYH>
+              </?01M18JEZYVVEG65Z2VMNNVPKB5>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKB6>
               不应继续通过复制 vendor actor shell 的方式承载这些索引
-              </?01M05F1P3ZPN9HRWGBV7M2ESYH>
+              </?01M18JEZYVVEG65Z2VMNNVPKB6>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESYJ>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKB7>
               某个产品 runtime 需要维护 actor / fiber 的额外索引或派生视图
-              </?01M05F1P3ZPN9HRWGBV7M2ESYJ>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESYK>
+              </?01M18JEZYVVEG65Z2VMNNVPKB7>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKB8>
               该 runtime 使用 `vendor/depa-actor`
-              </?01M05F1P3ZPN9HRWGBV7M2ESYK>
+              </?01M18JEZYVVEG65Z2VMNNVPKB8>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #ai-specific-organization-and-coordination-semantics-shall-remain-outside-vendor-actor-core (
-      <Statement ?01M05F1P3ZPN9HRWGBV7M2ESYM>
+      <Statement ?01M18JEZYVVEG65Z2VMNNVPKB9>
       系统应当明确 holon 治理语义、TaskTree、plan approval、shutdown coordination、questionnaire wait policy 等 AI-specific 业务逻辑不直接沉淀到 `vendor/depa-actor`。
-      </?01M05F1P3ZPN9HRWGBV7M2ESYM>
+      </?01M18JEZYVVEG65Z2VMNNVPKB9>
       <Suites [
         <Suite { name = "ai-specific-organization-and-coordination-semantics-shall-remain-outside-vendor-actor-core" } (
           <Cases [
             <Case #ai-specific-actor-behavior-is-reviewed-for-vendorization { name = "AI-specific actor behavior is reviewed for vendorization" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYN>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBA>
               该能力应优先保留在 `symbiont-*` 或更高层
-              </?01M05F1P3ZPN9HRWGBV7M2ESYN>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYP>
+              </?01M18JEZYVVEG65Z2VMNNVPKBA>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBB>
               vendor 只沉淀其底层可复用机制
-              </?01M05F1P3ZPN9HRWGBV7M2ESYP>
+              </?01M18JEZYVVEG65Z2VMNNVPKBB>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESYQ>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKBC>
               某项 actor behavior 依赖 autonomous / leader_led holon、questionnaire、TaskTree 或 coordination 业务语义
-              </?01M05F1P3ZPN9HRWGBV7M2ESYQ>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESYR>
+              </?01M18JEZYVVEG65Z2VMNNVPKBC>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKBD>
               评估该能力是否进入 `vendor/depa-actor`
-              </?01M05F1P3ZPN9HRWGBV7M2ESYR>
+              </?01M18JEZYVVEG65Z2VMNNVPKBD>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #first-iteration-shall-be-verified-through-real-adoption-targets (
-      <Statement ?01M05F1P3ZPN9HRWGBV7M2ESYS>
+      <Statement ?01M18JEZYVVEG65Z2VMNNVPKBE>
       系统应当在本 capability 第一轮中使用真实仓库调用方验证新的 vendor foundation，而不是只在 vendor 内部抽象层停留。
-      </?01M05F1P3ZPN9HRWGBV7M2ESYS>
+      </?01M18JEZYVVEG65Z2VMNNVPKBE>
       <Suites [
         <Suite { name = "first-iteration-shall-be-verified-through-real-adoption-targets" } (
           <Cases [
             <Case #orchestrator-driver-adopts-vendor-waiter-foundation { name = "Orchestrator driver adopts vendor waiter foundation" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYT>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBF>
               它应开始建立在 `vendor/depa-actor` 的 completion signal / waiter foundation 之上
-              </?01M05F1P3ZPN9HRWGBV7M2ESYT>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYV>
+              </?01M18JEZYVVEG65Z2VMNNVPKBF>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBG>
               原项目内通用 waiter helper 不应继续作为正式来源
-              </?01M05F1P3ZPN9HRWGBV7M2ESYV>
+              </?01M18JEZYVVEG65Z2VMNNVPKBG>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESYW>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKBH>
               `OrchestratorDriver` 当前仍持有项目内等待、完成绑定与 settle helper
-              </?01M05F1P3ZPN9HRWGBV7M2ESYW>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESYX>
+              </?01M18JEZYVVEG65Z2VMNNVPKBH>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKBJ>
               第一轮实现完成
-              </?01M05F1P3ZPN9HRWGBV7M2ESYX>
+              </?01M18JEZYVVEG65Z2VMNNVPKBJ>
             )>
             <Case #runtime-snapshot-adopts-vendor-persistence-protocol { name = "Runtime snapshot adopts vendor persistence protocol" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYY>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBK>
               actor / fiber / orchestrator 的通用 persistence protocol 应收口到 vendor
-              </?01M05F1P3ZPN9HRWGBV7M2ESYY>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESYZ>
+              </?01M18JEZYVVEG65Z2VMNNVPKBK>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBM>
               项目侧只保留 AI-specific product-state codec 与 effect adapter
-              </?01M05F1P3ZPN9HRWGBV7M2ESYZ>
+              </?01M18JEZYVVEG65Z2VMNNVPKBM>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESZ0>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKBN>
               runtime snapshot / recovery 当前仍主要由项目侧 schema 与 helper 驱动
-              </?01M05F1P3ZPN9HRWGBV7M2ESZ0>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESZ1>
+              </?01M18JEZYVVEG65Z2VMNNVPKBN>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKBP>
               第一轮实现完成
-              </?01M05F1P3ZPN9HRWGBV7M2ESZ1>
+              </?01M18JEZYVVEG65Z2VMNNVPKBP>
             )>
             <Case #runtime-state-mounting-adopts-vendor-facet-foundation { name = "Runtime state mounting adopts vendor facet foundation" } [
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESZ2>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBQ>
               至少应有一类产品态挂载改为建立在 vendor facet / plugin foundation 之上
-              </?01M05F1P3ZPN9HRWGBV7M2ESZ2>
-              <Then ?01M05F1P3ZPN9HRWGBV7M2ESZ3>
+              </?01M18JEZYVVEG65Z2VMNNVPKBQ>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBR>
               迁移结果应通过 focused tests 或现有回归测试证明无行为回归
-              </?01M05F1P3ZPN9HRWGBV7M2ESZ3>
+              </?01M18JEZYVVEG65Z2VMNNVPKBR>
             ] (
-              <Given ?01M05F1P3ZPN9HRWGBV7M2ESZ4>
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKBS>
               `AiAgentActor` 或 `AiAgentVm` 当前直接内嵌大量产品态字段
-              </?01M05F1P3ZPN9HRWGBV7M2ESZ4>
-              <When ?01M05F1P3ZPN9HRWGBV7M2ESZ5>
+              </?01M18JEZYVVEG65Z2VMNNVPKBS>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKBT>
               第一轮实现完成
-              </?01M05F1P3ZPN9HRWGBV7M2ESZ5>
+              </?01M18JEZYVVEG65Z2VMNNVPKBT>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #depa-actor-logical-member-address (
+      <Statement ?01M18JEZYVVEG65Z2VMNNVPKBV>
+      Eidolon MemberRuntime SHALL use depa-actor logical local addressing for resolution/dispatch while Eidolon's generic VM/session owners retain actor conversation, mailbox and execution authority.
+      </?01M18JEZYVVEG65Z2VMNNVPKBV>
+      <Suites [
+        <Suite #actor-cases { name = "Actor substrate" } (
+          <Cases [
+            <Case #no-product-registry (
+              <Given ?01M18JEZYVVEG65Z2VMNNVPKBW>
+              Multiple Member runtimes are active.
+              </?01M18JEZYVVEG65Z2VMNNVPKBW>
+              <When ?01M18JEZYVVEG65Z2VMNNVPKBX>
+              Runtime ownership is inspected.
+              </?01M18JEZYVVEG65Z2VMNNVPKBX>
+              <Then ?01M18JEZYVVEG65Z2VMNNVPKBY>
+              There SHALL be one depa-actor local resolver and no Holon/workflow-specific actor registry.
+              </?01M18JEZYVVEG65Z2VMNNVPKBY>
             )>
           ]>
         )>

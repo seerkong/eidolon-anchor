@@ -1,644 +1,765 @@
 <Behavior #aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #member-holon (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCRV>
+      <Statement ?01M18JEZPC5YQ7N98J4FTHDZFW>
       系统 SHALL 将 AIAgent 的正式组织对象模型统一为 `member / holon`。
-      </?01M05F1P19WR8N6XD6NYPWQCRV>
+      </?01M18JEZPC5YQ7N98J4FTHDZFW>
       <Suites [
         <Suite { name = "member-holon" } (
           <Cases [
-            <Case #holon { name = "用 holon 取代旧组织类型" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCRW>
+            <Case #replace-legacy-organization-types { name = "用 holon 取代旧组织类型" } [
+              <Then ?01M18JEZPC5YQ7N98J4FTHDZFX>
               对外正式组织类型 SHALL 只保留 `member` 与 `holon`
-              </?01M05F1P19WR8N6XD6NYPWQCRW>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCRX>
+              </?01M18JEZPC5YQ7N98J4FTHDZFX>
+              <Then ?01M18JEZPC5YQ7N98J4FTHDZFY>
               `collective` 与 `formation` SHALL 不再作为正式组织 kind 出现在正式命令面、正式工具族、正式文档与正式 contract 中
-              </?01M05F1P19WR8N6XD6NYPWQCRX>
+              </?01M18JEZPC5YQ7N98J4FTHDZFY>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCRY>
+              <Given ?01M18JEZPC5YQ7N98J4FTHDZFZ>
               系统历史上使用 `collective` 与 `formation` 作为一级正式组织类型
-              </?01M05F1P19WR8N6XD6NYPWQCRY>
-              <When ?01M05F1P19WR8N6XD6NYPWQCRZ>
+              </?01M18JEZPC5YQ7N98J4FTHDZFZ>
+              <When ?01M18JEZPC5YQ7N98J4FTHDZG0>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCRZ>
+              </?01M18JEZPC5YQ7N98J4FTHDZG0>
             )>
             <Case #holon-actor { name = "holon 继续作为可寻址 actor 暴露" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCS0>
+              <Then ?01M18JEZPC5YQ7N98J4FTHDZG1>
               系统 SHALL 将该对象暴露为可寻址的 `holon` actor
-              </?01M05F1P19WR8N6XD6NYPWQCS0>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCS1>
+              </?01M18JEZPC5YQ7N98J4FTHDZG1>
+              <Then ?01M18JEZPC5YQ7N98J4FTHDZG2>
               SHALL 通过统一 actor 接口提供 `assign`、`status`、`watch`、`unwatch` 等正式能力
-              </?01M05F1P19WR8N6XD6NYPWQCS1>
+              </?01M18JEZPC5YQ7N98J4FTHDZG2>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCS2>
+              <Given ?01M18JEZPC5YQ7N98J4FTHDZG3>
               用户通过正式命令或正式 tool surface 寻址一个组织对象
-              </?01M05F1P19WR8N6XD6NYPWQCS2>
-              <When ?01M05F1P19WR8N6XD6NYPWQCS3>
+              </?01M18JEZPC5YQ7N98J4FTHDZG3>
+              <When ?01M18JEZPC5YQ7N98J4FTHDZG4>
               runtime 解析目标
-              </?01M05F1P19WR8N6XD6NYPWQCS3>
+              </?01M18JEZPC5YQ7N98J4FTHDZG4>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #holon-governance (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCS4>
+      <Statement ?01M18JEZPD3YD9YBSK417EPB4C>
       系统 SHALL 使用 `holon.governance` 表达组织治理差异。
-      </?01M05F1P19WR8N6XD6NYPWQCS4>
+      </?01M18JEZPD3YD9YBSK417EPB4C>
       <Suites [
         <Suite { name = "holon-governance" } (
           <Cases [
             <Case #autonomous-holon-leader { name = "autonomous holon 对应无 leader 组织" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCS5>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWDR>
               系统 SHALL 使用 `identity.kind = "holon"`
-              </?01M05F1P19WR8N6XD6NYPWQCS5>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCS6>
+              </?01M18JEZPFWF93X6V1XZ3AYWDR>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWDS>
               SHALL 使用 `identity.governance = "autonomous"`
-              </?01M05F1P19WR8N6XD6NYPWQCS6>
+              </?01M18JEZPFWF93X6V1XZ3AYWDS>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCS7>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWDT>
               某个 holon 采用自主决策、成员领取或任务板分发模型
-              </?01M05F1P19WR8N6XD6NYPWQCS7>
-              <When ?01M05F1P19WR8N6XD6NYPWQCS8>
+              </?01M18JEZPFWF93X6V1XZ3AYWDT>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWDV>
               runtime 创建、恢复或展示该对象
-              </?01M05F1P19WR8N6XD6NYPWQCS8>
+              </?01M18JEZPFWF93X6V1XZ3AYWDV>
             )>
             <Case #leader-led-holon-leader { name = "leader_led holon 对应 leader 路由组织" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCS9>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWDW>
               系统 SHALL 使用 `identity.kind = "holon"`
-              </?01M05F1P19WR8N6XD6NYPWQCS9>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSA>
+              </?01M18JEZPFWF93X6V1XZ3AYWDW>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWDX>
               SHALL 使用 `identity.governance = "leader_led"`
-              </?01M05F1P19WR8N6XD6NYPWQCSA>
+              </?01M18JEZPFWF93X6V1XZ3AYWDX>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCSB>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWDY>
               某个 holon 采用 leader 路由、结果回流模型
-              </?01M05F1P19WR8N6XD6NYPWQCSB>
-              <When ?01M05F1P19WR8N6XD6NYPWQCSC>
+              </?01M18JEZPFWF93X6V1XZ3AYWDY>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWDZ>
               runtime 创建、恢复或展示该对象
-              </?01M05F1P19WR8N6XD6NYPWQCSC>
+              </?01M18JEZPFWF93X6V1XZ3AYWDZ>
             )>
             <Case #case-5 { name = "组织语义与执行语义保持正交" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSD>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWE0>
               `member / holon` SHALL 只通过 `identity.kind` 表达组织语义
-              </?01M05F1P19WR8N6XD6NYPWQCSD>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSE>
+              </?01M18JEZPFWF93X6V1XZ3AYWE0>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWE1>
               `governance` SHALL 只存在于 `holon`
-              </?01M05F1P19WR8N6XD6NYPWQCSE>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSF>
+              </?01M18JEZPFWF93X6V1XZ3AYWE1>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWE2>
               `primary / delegate / detached` SHALL 只通过 `actor.type` 表达执行语义
-              </?01M05F1P19WR8N6XD6NYPWQCSF>
+              </?01M18JEZPFWF93X6V1XZ3AYWE2>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCSG>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWE3>
               系统同时存在组织语义与执行语义两条 actor 维度
-              </?01M05F1P19WR8N6XD6NYPWQCSG>
-              <When ?01M05F1P19WR8N6XD6NYPWQCSH>
+              </?01M18JEZPFWF93X6V1XZ3AYWE3>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWE4>
               runtime 创建或恢复 actor
-              </?01M05F1P19WR8N6XD6NYPWQCSH>
+              </?01M18JEZPFWF93X6V1XZ3AYWE4>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #primary-delegate-detached (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCSJ>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWE5>
       系统 SHALL 以 `primary / delegate / detached` 作为唯一正式执行语义。
-      </?01M05F1P19WR8N6XD6NYPWQCSJ>
+      </?01M18JEZPFWF93X6V1XZ3AYWE5>
       <Suites [
         <Suite { name = "primary-delegate-detached" } (
           <Cases [
             <Case #primary-control { name = "primary 替换 control" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSK>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWE6>
               系统 SHALL 使用 `primary` 作为正式命名
-              </?01M05F1P19WR8N6XD6NYPWQCSK>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSM>
+              </?01M18JEZPFWF93X6V1XZ3AYWE6>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWE7>
               `control` SHALL 不再作为正式执行 type 出现在正式 contract、正式文档与正式 tool surface 中
-              </?01M05F1P19WR8N6XD6NYPWQCSM>
+              </?01M18JEZPFWF93X6V1XZ3AYWE7>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCSN>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWE8>
               系统历史上使用 `control` 表达主会话执行体
-              </?01M05F1P19WR8N6XD6NYPWQCSN>
-              <When ?01M05F1P19WR8N6XD6NYPWQCSP>
+              </?01M18JEZPFWF93X6V1XZ3AYWE8>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWE9>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCSP>
+              </?01M18JEZPFWF93X6V1XZ3AYWE9>
             )>
             <Case #delegate-detached { name = "delegate 与 detached 保持执行分工" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSQ>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWEA>
               `delegate` SHALL 表示短生命周期协作执行体
-              </?01M05F1P19WR8N6XD6NYPWQCSQ>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSR>
+              </?01M18JEZPFWF93X6V1XZ3AYWEA>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWEB>
               `detached` SHALL 表示脱离当前交互回合、可独立推进的执行体
-              </?01M05F1P19WR8N6XD6NYPWQCSR>
+              </?01M18JEZPFWF93X6V1XZ3AYWEB>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCSS>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWEC>
               系统已使用 `delegate` 与 `detached`
-              </?01M05F1P19WR8N6XD6NYPWQCSS>
-              <When ?01M05F1P19WR8N6XD6NYPWQCST>
+              </?01M18JEZPFWF93X6V1XZ3AYWEC>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWED>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCST>
+              </?01M18JEZPFWF93X6V1XZ3AYWED>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #assign (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCSV>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWEE>
       系统 SHALL 以 `assign` 作为唯一正式派发动词，适用于 `member` 与 `holon`。
-      </?01M05F1P19WR8N6XD6NYPWQCSV>
+      </?01M18JEZPFWF93X6V1XZ3AYWEE>
       <Suites [
         <Suite { name = "assign" } (
           <Cases [
-            <Case #member-holon { name = "member 与 holon 使用同一派发动词" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSW>
+            <Case #member-holon-dispatch-vocabulary { name = "member 与 holon 使用同一派发动词" } [
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWEF>
               系统 SHALL 使用 `assign` 作为唯一正式派发动词
-              </?01M05F1P19WR8N6XD6NYPWQCSW>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCSX>
+              </?01M18JEZPFWF93X6V1XZ3AYWEF>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWEG>
               SHALL 支持 `assign`、`assign:r`、`assign:n`、`assign:s`
-              </?01M05F1P19WR8N6XD6NYPWQCSX>
+              </?01M18JEZPFWF93X6V1XZ3AYWEG>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCSY>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWEH>
               用户要向 `member` 或 `holon` 派发任务
-              </?01M05F1P19WR8N6XD6NYPWQCSY>
-              <When ?01M05F1P19WR8N6XD6NYPWQCSZ>
+              </?01M18JEZPFWF93X6V1XZ3AYWEH>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWEJ>
               用户使用正式命令面或正式 tool surface
-              </?01M05F1P19WR8N6XD6NYPWQCSZ>
+              </?01M18JEZPFWF93X6V1XZ3AYWEJ>
             )>
             <Case #assign-s-watched { name = "assign:s 自动进入 watched 状态" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCT0>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWEK>
               系统 SHALL 输出流式事件
-              </?01M05F1P19WR8N6XD6NYPWQCT0>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCT1>
+              </?01M18JEZPFWF93X6V1XZ3AYWEK>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWEM>
               目标对象 SHALL 进入 `watched` 状态
-              </?01M05F1P19WR8N6XD6NYPWQCT1>
+              </?01M18JEZPFWF93X6V1XZ3AYWEM>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCT2>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWEN>
               用户执行 `assign:s`
-              </?01M05F1P19WR8N6XD6NYPWQCT2>
-              <When ?01M05F1P19WR8N6XD6NYPWQCT3>
+              </?01M18JEZPFWF93X6V1XZ3AYWEN>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWEP>
               目标 actor 开始执行任务
-              </?01M05F1P19WR8N6XD6NYPWQCT3>
+              </?01M18JEZPFWF93X6V1XZ3AYWEP>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #watch-unwatch (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCT4>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWEQ>
       系统 SHALL 使用 `watch / unwatch` 作为唯一正式对象级持续监听接口。
-      </?01M05F1P19WR8N6XD6NYPWQCT4>
+      </?01M18JEZPFWF93X6V1XZ3AYWEQ>
       <Suites [
         <Suite { name = "watch-unwatch" } (
           <Cases [
-            <Case #watch-unwatch { name = "watch / unwatch 不控制任务生命周期" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCT5>
+            <Case #watch-unwatch-lifecycle-separation { name = "watch / unwatch 不控制任务生命周期" } [
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWER>
               系统 SHALL 只改变对象级持续监听状态
-              </?01M05F1P19WR8N6XD6NYPWQCT5>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCT6>
+              </?01M18JEZPFWF93X6V1XZ3AYWER>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWES>
               SHALL 不将 `unwatch` 解释为 cancel、shutdown、interrupt 或任务回滚
-              </?01M05F1P19WR8N6XD6NYPWQCT6>
+              </?01M18JEZPFWF93X6V1XZ3AYWES>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCT7>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWET>
               某个 actor 已经在工作或空闲
-              </?01M05F1P19WR8N6XD6NYPWQCT7>
-              <When ?01M05F1P19WR8N6XD6NYPWQCT8>
+              </?01M18JEZPFWF93X6V1XZ3AYWET>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWEV>
               用户执行 `watch` 或 `unwatch`
-              </?01M05F1P19WR8N6XD6NYPWQCT8>
+              </?01M18JEZPFWF93X6V1XZ3AYWEV>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #actor-member-holon (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCT9>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWEW>
       系统 SHALL 将正式命令面统一收口到 `/actor`、`/member`、`/holon`。
-      </?01M05F1P19WR8N6XD6NYPWQCT9>
+      </?01M18JEZPFWF93X6V1XZ3AYWEW>
       <Suites [
         <Suite { name = "actor-member-holon" } (
           <Cases [
             <Case #case-11 { name = "只保留新的一级命令面" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTA>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWEX>
               正式一级命令面 SHALL 只保留 `/actor`、`/member`、`/holon`
-              </?01M05F1P19WR8N6XD6NYPWQCTA>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTB>
+              </?01M18JEZPFWF93X6V1XZ3AYWEX>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWEY>
               `/collective` 与 `/formation` 如保留，也只能作为 deprecated parser alias
-              </?01M05F1P19WR8N6XD6NYPWQCTB>
+              </?01M18JEZPFWF93X6V1XZ3AYWEY>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCTC>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWEZ>
               系统历史上存在 `/collective` 与 `/formation`
-              </?01M05F1P19WR8N6XD6NYPWQCTC>
-              <When ?01M05F1P19WR8N6XD6NYPWQCTD>
+              </?01M18JEZPFWF93X6V1XZ3AYWEZ>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWF0>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCTD>
+              </?01M18JEZPFWF93X6V1XZ3AYWF0>
             )>
             <Case #holon-create-governance { name = "holon create 显式接收 governance" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTE>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWF1>
               系统 SHALL 支持 `/holon create &lt;governance&gt; &lt;name&gt;`
-              </?01M05F1P19WR8N6XD6NYPWQCTE>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTF>
+              </?01M18JEZPFWF93X6V1XZ3AYWF1>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWF2>
               `&lt;governance&gt;` SHALL 只允许 `autonomous | leader_led`
-              </?01M05F1P19WR8N6XD6NYPWQCTF>
+              </?01M18JEZPFWF93X6V1XZ3AYWF2>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCTG>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWF3>
               用户需要创建组织对象
-              </?01M05F1P19WR8N6XD6NYPWQCTG>
-              <When ?01M05F1P19WR8N6XD6NYPWQCTH>
+              </?01M18JEZPFWF93X6V1XZ3AYWF3>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWF4>
               用户使用正式命令面
-              </?01M05F1P19WR8N6XD6NYPWQCTH>
+              </?01M18JEZPFWF93X6V1XZ3AYWF4>
             )>
             <Case #holon-appoint-leader-led { name = "holon appoint 只适用于 leader_led" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTJ>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWF5>
               系统 SHALL fail-fast
-              </?01M05F1P19WR8N6XD6NYPWQCTJ>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTK>
+              </?01M18JEZPFWF93X6V1XZ3AYWF5>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWF6>
               SHALL 返回明确的治理不匹配错误
-              </?01M05F1P19WR8N6XD6NYPWQCTK>
+              </?01M18JEZPFWF93X6V1XZ3AYWF6>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCTM>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWF7>
               用户使用 `/holon appoint`
-              </?01M05F1P19WR8N6XD6NYPWQCTM>
-              <When ?01M05F1P19WR8N6XD6NYPWQCTN>
+              </?01M18JEZPFWF93X6V1XZ3AYWF7>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWF8>
               目标 holon 的 `governance` 不是 `leader_led`
-              </?01M05F1P19WR8N6XD6NYPWQCTN>
+              </?01M18JEZPFWF93X6V1XZ3AYWF8>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #holon (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCTP>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWF9>
       系统 SHALL 以 `Holon*` 作为唯一正式组织工具族。
-      </?01M05F1P19WR8N6XD6NYPWQCTP>
+      </?01M18JEZPFWF93X6V1XZ3AYWF9>
       <Suites [
         <Suite { name = "holon" } (
           <Cases [
             <Case #holon-2 { name = "正式组织工具族映射到 holon 命令面" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTQ>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFA>
               系统 SHALL 提供 `HolonCreate`、`HolonAdd`、`HolonAppoint`、`HolonStatus`、`HolonAssign`
-              </?01M05F1P19WR8N6XD6NYPWQCTQ>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTR>
+              </?01M18JEZPFWF93X6V1XZ3AYWFA>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFB>
               `Collective*` 与 `Formation*` SHALL 不再作为默认正式 tool family 暴露
-              </?01M05F1P19WR8N6XD6NYPWQCTR>
+              </?01M18JEZPFWF93X6V1XZ3AYWFB>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCTS>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWFC>
               用户通过底层 tool surface 操作组织对象
-              </?01M05F1P19WR8N6XD6NYPWQCTS>
-              <When ?01M05F1P19WR8N6XD6NYPWQCTT>
+              </?01M18JEZPFWF93X6V1XZ3AYWFC>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWFD>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCTT>
+              </?01M18JEZPFWF93X6V1XZ3AYWFD>
             )>
             <Case #builtin-registry-holon-first { name = "builtin registry 只保留 holon-first 组织工具族" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTV>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFE>
               builtin registry SHALL 只注册 `Holon*` 作为组织工具族
-              </?01M05F1P19WR8N6XD6NYPWQCTV>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCTW>
+              </?01M18JEZPFWF93X6V1XZ3AYWFE>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFF>
               `includeInternalOnly: true` 也 SHALL NOT 恢复 `Collective* / Formation*`
-              </?01M05F1P19WR8N6XD6NYPWQCTW>
+              </?01M18JEZPFWF93X6V1XZ3AYWFF>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCTX>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWFG>
               runtime 构建 builtin tool registry
-              </?01M05F1P19WR8N6XD6NYPWQCTX>
-              <When ?01M05F1P19WR8N6XD6NYPWQCTY>
+              </?01M18JEZPFWF93X6V1XZ3AYWFG>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWFH>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCTY>
+              </?01M18JEZPFWF93X6V1XZ3AYWFH>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #slash (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCTZ>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWFJ>
       系统 SHALL 使用 `--` 作为 slash 命令中结构化参数与自由文本的正式分隔符。
-      </?01M05F1P19WR8N6XD6NYPWQCTZ>
+      </?01M18JEZPFWF93X6V1XZ3AYWFJ>
       <Suites [
         <Suite { name = "slash" } (
           <Cases [
             <Case #create-assign { name = "create 与 assign 使用 -- 分隔自由文本" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCV0>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFK>
               系统 SHALL 使用 `--` 作为唯一正式分隔符
-              </?01M05F1P19WR8N6XD6NYPWQCV0>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCV1>
+              </?01M18JEZPFWF93X6V1XZ3AYWFK>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFM>
               `--` 后的全部文本 SHALL 被视为 prompt 或 content
-              </?01M05F1P19WR8N6XD6NYPWQCV1>
+              </?01M18JEZPFWF93X6V1XZ3AYWFM>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCV2>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWFN>
               用户通过 slash 命令传递 prompt 或 task content
-              </?01M05F1P19WR8N6XD6NYPWQCV2>
-              <When ?01M05F1P19WR8N6XD6NYPWQCV3>
+              </?01M18JEZPFWF93X6V1XZ3AYWFN>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWFP>
               用户使用正式命令面
-              </?01M05F1P19WR8N6XD6NYPWQCV3>
+              </?01M18JEZPFWF93X6V1XZ3AYWFP>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #autonomous-holon-ownership (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCV4>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWFQ>
       系统 SHALL 提供真正的 autonomous holon actor，并让其持有任务板、ownership 与完成归并的唯一真相源。
-      </?01M05F1P19WR8N6XD6NYPWQCV4>
+      </?01M18JEZPFWF93X6V1XZ3AYWFQ>
       <Suites [
         <Suite { name = "autonomous-holon-ownership" } (
           <Cases [
             <Case #autonomous-holon-assign { name = "autonomous holon 处理 assign 与成员完成回报" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCV5>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFR>
               holon actor SHALL 在自己的 mailbox 与 actor-owned state 中记录任务与 ownership
-              </?01M05F1P19WR8N6XD6NYPWQCV5>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCV6>
+              </?01M18JEZPFWF93X6V1XZ3AYWFR>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFS>
               holon actor SHALL 通过消息将任务分发给成员
-              </?01M05F1P19WR8N6XD6NYPWQCV6>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCV7>
+              </?01M18JEZPFWF93X6V1XZ3AYWFS>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFT>
               holon actor SHALL 通过成员回报消息完成状态归并，而不是依赖 tool 层 polling 或手工补完成
-              </?01M05F1P19WR8N6XD6NYPWQCV7>
+              </?01M18JEZPFWF93X6V1XZ3AYWFT>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCV8>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWFV>
               用户向一个 `autonomous` holon 发起 `assign`
-              </?01M05F1P19WR8N6XD6NYPWQCV8>
-              <When ?01M05F1P19WR8N6XD6NYPWQCV9>
+              </?01M18JEZPFWF93X6V1XZ3AYWFV>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWFW>
               holon actor 接收任务
-              </?01M05F1P19WR8N6XD6NYPWQCV9>
+              </?01M18JEZPFWF93X6V1XZ3AYWFW>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #leader-led-holon-leader-actor (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCVA>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWFX>
       系统 SHALL 提供真正的 leader-led holon actor，并让其承担 leader 路由与结果回流。
-      </?01M05F1P19WR8N6XD6NYPWQCVA>
+      </?01M18JEZPFWF93X6V1XZ3AYWFX>
       <Suites [
         <Suite { name = "leader-led-holon-leader-actor" } (
           <Cases [
             <Case #leader-led-holon-leader-2 { name = "leader_led holon 将任务路由到 leader 并回流给发起者" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVB>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFY>
               holon actor SHALL 按当前 leader 配置将任务路由给 leader
-              </?01M05F1P19WR8N6XD6NYPWQCVB>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVC>
+              </?01M18JEZPFWF93X6V1XZ3AYWFY>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWFZ>
               leader 的阶段事件或最终结果 SHALL 先回到该 holon actor
-              </?01M05F1P19WR8N6XD6NYPWQCVC>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVD>
+              </?01M18JEZPFWF93X6V1XZ3AYWFZ>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWG0>
               该 holon actor SHALL 再依据任务关联关系将这些消息回流给原始发起者
-              </?01M05F1P19WR8N6XD6NYPWQCVD>
+              </?01M18JEZPFWF93X6V1XZ3AYWG0>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCVE>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWG1>
               用户向一个 `leader_led` holon 发起 `assign`
-              </?01M05F1P19WR8N6XD6NYPWQCVE>
-              <When ?01M05F1P19WR8N6XD6NYPWQCVF>
+              </?01M18JEZPFWF93X6V1XZ3AYWG1>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWG2>
               holon actor 接收该任务
-              </?01M05F1P19WR8N6XD6NYPWQCVF>
+              </?01M18JEZPFWF93X6V1XZ3AYWG2>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #coordination-actor-coordination-mailbox (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCVG>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWG3>
       系统 SHALL 将控制型协作交互收口为 `coordination`，并通过每个业务 actor 自有的 `coordination` mailbox 处理。
-      </?01M05F1P19WR8N6XD6NYPWQCVG>
+      </?01M18JEZPFWF93X6V1XZ3AYWG3>
       <Suites [
         <Suite { name = "coordination-actor-coordination-mailbox" } (
           <Cases [
             <Case #coordination-per-actor-mailbox { name = "coordination 采用 per-actor mailbox" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVH>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWG4>
               这些交互 SHALL 进入目标 actor 自己的 `coordination` mailbox
-              </?01M05F1P19WR8N6XD6NYPWQCVH>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVJ>
+              </?01M18JEZPFWF93X6V1XZ3AYWG4>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWG5>
               系统不得引入"一请求一 coordination actor"作为正式模型
-              </?01M05F1P19WR8N6XD6NYPWQCVJ>
+              </?01M18JEZPFWF93X6V1XZ3AYWG5>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCVK>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWG6>
               系统存在 plan review、shutdown handshake 等带 `request_id` 的控制型交互
-              </?01M05F1P19WR8N6XD6NYPWQCVK>
-              <When ?01M05F1P19WR8N6XD6NYPWQCVM>
+              </?01M18JEZPFWF93X6V1XZ3AYWG6>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWG7>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCVM>
+              </?01M18JEZPFWF93X6V1XZ3AYWG7>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #actor-ownership (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCVN>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWG8>
       系统 SHALL 让业务状态优先归属于 actor，而不是长期停留在 sessionState、registry、manager 或 runtime bridge 中。
-      </?01M05F1P19WR8N6XD6NYPWQCVN>
+      </?01M18JEZPFWF93X6V1XZ3AYWG8>
       <Suites [
         <Suite { name = "actor-ownership" } (
           <Cases [
             <Case #manager-registry-factory-projection { name = "manager 与 registry 退化为 factory、索引或 projection" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVP>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWG9>
               这些对象 SHALL 退化为 factory、索引、projection 或 parser/reducer helper
-              </?01M05F1P19WR8N6XD6NYPWQCVP>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVQ>
+              </?01M18JEZPFWF93X6V1XZ3AYWG9>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGA>
               不得继续作为 `holon`、`detached` 或 `coordination` 的长期业务真相源
-              </?01M05F1P19WR8N6XD6NYPWQCVQ>
+              </?01M18JEZPFWF93X6V1XZ3AYWGA>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCVR>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWGB>
               系统仍有 `OrganizationManager`、detached registry、coordination helper 等对象
-              </?01M05F1P19WR8N6XD6NYPWQCVR>
-              <When ?01M05F1P19WR8N6XD6NYPWQCVS>
+              </?01M18JEZPFWF93X6V1XZ3AYWGB>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWGC>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCVS>
+              </?01M18JEZPFWF93X6V1XZ3AYWGC>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #runtime-truth-persistence (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCVT>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWGD>
       系统 SHALL 将运行时真相源与持久化结构同步切换到新命名。
-      </?01M05F1P19WR8N6XD6NYPWQCVT>
+      </?01M18JEZPFWF93X6V1XZ3AYWGD>
       <Suites [
         <Suite { name = "runtime-truth-persistence" } (
           <Cases [
             <Case #actor-key-actor-owned-state-holon { name = "actor key 与 actor-owned state 收口到 holon" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVV>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGE>
               runtime SHALL 将正式组织 actor key 收口为 `holon:&lt;id&gt;`
-              </?01M05F1P19WR8N6XD6NYPWQCVV>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVW>
+              </?01M18JEZPFWF93X6V1XZ3AYWGE>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGF>
               SHALL 将 actor-owned organization state 收口为统一的 `holonState`
-              </?01M05F1P19WR8N6XD6NYPWQCVW>
+              </?01M18JEZPFWF93X6V1XZ3AYWGF>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCVX>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWGG>
               系统历史上使用 `collective:&lt;id&gt;` / `formation:&lt;id&gt;` 与 `collectiveState` / `formationState`
-              </?01M05F1P19WR8N6XD6NYPWQCVX>
-              <When ?01M05F1P19WR8N6XD6NYPWQCVY>
+              </?01M18JEZPFWF93X6V1XZ3AYWGG>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWGH>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCVY>
+              </?01M18JEZPFWF93X6V1XZ3AYWGH>
             )>
             <Case #sessionstate-snapshot { name = "sessionState 与 snapshot 不再保留旧正式字段" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCVZ>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGJ>
               正式 sessionState 与 snapshot 结构 SHALL 收口为 `holons`
-              </?01M05F1P19WR8N6XD6NYPWQCVZ>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCW0>
+              </?01M18JEZPFWF93X6V1XZ3AYWGJ>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGK>
               旧正式字段 SHALL 不再继续作为新模型正式结构存在
-              </?01M05F1P19WR8N6XD6NYPWQCW0>
+              </?01M18JEZPFWF93X6V1XZ3AYWGK>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCW1>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWGM>
               系统历史上在 VM 与 snapshot 中使用 `collectives` / `formations`
-              </?01M05F1P19WR8N6XD6NYPWQCW1>
-              <When ?01M05F1P19WR8N6XD6NYPWQCW2>
+              </?01M18JEZPFWF93X6V1XZ3AYWGM>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWGN>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCW2>
+              </?01M18JEZPFWF93X6V1XZ3AYWGN>
             )>
             <Case #governance-specific-runtime-record-holon-first-type-names { name = "governance-specific runtime record 使用 holon-first type names" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCW3>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGP>
               governance-specific runtime record SHALL 使用 `VmAutonomousHolonRecord` 与 `VmLeaderLedHolonRecord`
-              </?01M05F1P19WR8N6XD6NYPWQCW3>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCW4>
+              </?01M18JEZPFWF93X6V1XZ3AYWGP>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGQ>
               `VmCollectiveRecord / VmFormationRecord` SHALL NOT 继续作为当前正式类型名
-              </?01M05F1P19WR8N6XD6NYPWQCW4>
+              </?01M18JEZPFWF93X6V1XZ3AYWGQ>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCW5>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWGR>
               runtime session store 已统一为 `sessionState.holons`
-              </?01M05F1P19WR8N6XD6NYPWQCW5>
-              <When ?01M05F1P19WR8N6XD6NYPWQCW6>
+              </?01M18JEZPFWF93X6V1XZ3AYWGR>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWGS>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCW6>
+              </?01M18JEZPFWF93X6V1XZ3AYWGS>
             )>
             <Case #holon-identity-state-envelope-payload-holonid { name = "holon identity state 与 envelope payload 统一使用 holonId" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCW7>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGT>
               这些结构 SHALL 统一使用 `holonId`
-              </?01M05F1P19WR8N6XD6NYPWQCW7>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCW8>
+              </?01M18JEZPFWF93X6V1XZ3AYWGT>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGV>
               `collectiveId / formationId` SHALL NOT 继续作为当前正式字段真相
-              </?01M05F1P19WR8N6XD6NYPWQCW8>
+              </?01M18JEZPFWF93X6V1XZ3AYWGV>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCW9>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWGW>
               holon actor identity、holonState 与 envelope payload 会进入 runtime、snapshot 与 protocol
-              </?01M05F1P19WR8N6XD6NYPWQCW9>
-              <When ?01M05F1P19WR8N6XD6NYPWQCWA>
+              </?01M18JEZPFWF93X6V1XZ3AYWGW>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWGX>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCWA>
+              </?01M18JEZPFWF93X6V1XZ3AYWGX>
             )>
             <Case #leader-led-holon-route-protocol-holon-first-tag { name = "leader-led holon route protocol 使用 holon-first tag" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWB>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGY>
               payload SHALL 使用 `holonId`
-              </?01M05F1P19WR8N6XD6NYPWQCWB>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWC>
+              </?01M18JEZPFWF93X6V1XZ3AYWGY>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWGZ>
               route tag SHALL 使用 `&lt;leader_led_holon_route&gt;`
-              </?01M05F1P19WR8N6XD6NYPWQCWC>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWD>
+              </?01M18JEZPFWF93X6V1XZ3AYWGZ>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWH0>
               `&lt;formation_route&gt;` SHALL NOT 继续作为当前正式 protocol tag
-              </?01M05F1P19WR8N6XD6NYPWQCWD>
+              </?01M18JEZPFWF93X6V1XZ3AYWH0>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCWE>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWH1>
               leader-led holon 仍通过 envelope protocol 执行 route/backflow
-              </?01M05F1P19WR8N6XD6NYPWQCWE>
-              <When ?01M05F1P19WR8N6XD6NYPWQCWF>
+              </?01M18JEZPFWF93X6V1XZ3AYWH1>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWH2>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCWF>
+              </?01M18JEZPFWF93X6V1XZ3AYWH2>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #holon-runtime-protocol-event-api (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCWG>
+      <Statement ?01M18JEZPFWF93X6V1XZ3AYWH3>
       系统 SHALL 让 holon 的 scheduler/workload/scope marker 与 runtime event API 使用治理显式、holon-first 的正式命名。
-      </?01M05F1P19WR8N6XD6NYPWQCWG>
+      </?01M18JEZPFWF93X6V1XZ3AYWH3>
       <Suites [
         <Suite { name = "holon-runtime-protocol-event-api" } (
           <Cases [
             <Case #autonomous-holon-lane-workload { name = "autonomous holon lane 与 workload 使用正式治理命名" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWH>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWH4>
               系统 SHALL 使用 `autonomous_holon` 作为正式 lane
-              </?01M05F1P19WR8N6XD6NYPWQCWH>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWJ>
+              </?01M18JEZPFWF93X6V1XZ3AYWH4>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWH5>
               SHALL 使用 `autonomous_holon_task` 作为正式 workload
-              </?01M05F1P19WR8N6XD6NYPWQCWJ>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWK>
+              </?01M18JEZPFWF93X6V1XZ3AYWH5>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWH6>
               `collective` 与 `collective_task` SHALL NOT 继续作为当前正式 runtime protocol 真相
-              </?01M05F1P19WR8N6XD6NYPWQCWK>
+              </?01M18JEZPFWF93X6V1XZ3AYWH6>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCWM>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWH7>
               autonomous holon 相关成员 lane 与 fiber workload 会进入调度、snapshot 与投影视图
-              </?01M05F1P19WR8N6XD6NYPWQCWM>
-              <When ?01M05F1P19WR8N6XD6NYPWQCWN>
+              </?01M18JEZPFWF93X6V1XZ3AYWH7>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWH8>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCWN>
+              </?01M18JEZPFWF93X6V1XZ3AYWH8>
             )>
             <Case #task-tree-holon-scope-marker-governance-explicit { name = "task-tree holon scope marker 使用 governance-explicit 语义" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWP>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWH9>
               autonomous holon SHALL 使用 `holon:autonomous:&lt;id&gt;`
-              </?01M05F1P19WR8N6XD6NYPWQCWP>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWQ>
+              </?01M18JEZPFWF93X6V1XZ3AYWH9>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWHA>
               leader-led holon SHALL 使用 `holon:leader_led:&lt;id&gt;`
-              </?01M05F1P19WR8N6XD6NYPWQCWQ>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWR>
+              </?01M18JEZPFWF93X6V1XZ3AYWHA>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWHB>
               旧组织前缀 SHALL NOT 继续作为当前正式 scope marker
-              </?01M05F1P19WR8N6XD6NYPWQCWR>
+              </?01M18JEZPFWF93X6V1XZ3AYWHB>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCWS>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWHC>
               task-tree activeForm 需要表达 holon 任务归属
-              </?01M05F1P19WR8N6XD6NYPWQCWS>
-              <When ?01M05F1P19WR8N6XD6NYPWQCWT>
+              </?01M18JEZPFWF93X6V1XZ3AYWHC>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWHD>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCWT>
+              </?01M18JEZPFWF93X6V1XZ3AYWHD>
             )>
             <Case #runtime-event-api-holon-first { name = "runtime event API 只暴露 holon-first 名称" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWV>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWHE>
               系统 SHALL 使用 `emitAutonomousHolonClaim` 与 `emitAutonomousHolonIdleExit`
-              </?01M05F1P19WR8N6XD6NYPWQCWV>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCWW>
+              </?01M18JEZPFWF93X6V1XZ3AYWHE>
+              <Then ?01M18JEZPFWF93X6V1XZ3AYWHF>
               旧 event alias SHALL NOT 继续作为当前正式 runtime API 暴露
-              </?01M05F1P19WR8N6XD6NYPWQCWW>
+              </?01M18JEZPFWF93X6V1XZ3AYWHF>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCWX>
+              <Given ?01M18JEZPFWF93X6V1XZ3AYWHG>
               runtime 需要发出 autonomous holon claim 与 idle-exit 事件
-              </?01M05F1P19WR8N6XD6NYPWQCWX>
-              <When ?01M05F1P19WR8N6XD6NYPWQCWY>
+              </?01M18JEZPFWF93X6V1XZ3AYWHG>
+              <When ?01M18JEZPFWF93X6V1XZ3AYWHH>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCWY>
+              </?01M18JEZPFWF93X6V1XZ3AYWHH>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #session-snapshot (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCWZ>
+      <Statement ?01M18JEZPG6YXVV7SWBPAF79MK>
       系统 SHALL 明确将旧命名下的恢复兼容排除在当前正式运行时范围之外。
-      </?01M05F1P19WR8N6XD6NYPWQCWZ>
+      </?01M18JEZPG6YXVV7SWBPAF79MK>
       <Suites [
         <Suite { name = "session-snapshot" } (
           <Cases [
             <Case #case-29 { name = "旧数据恢复不被当前模型直接承诺" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCX0>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79MM>
               系统 SHALL 不承诺兼容恢复
-              </?01M05F1P19WR8N6XD6NYPWQCX0>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCX1>
+              </?01M18JEZPG6YXVV7SWBPAF79MM>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79MN>
               如需兼容，必须通过明确迁移器处理，而不是通过 runtime 双字段双命名长期保留
-              </?01M05F1P19WR8N6XD6NYPWQCX1>
+              </?01M18JEZPG6YXVV7SWBPAF79MN>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCX2>
+              <Given ?01M18JEZPG6YXVV7SWBPAF79MP>
               存在按 `collective / formation / control` 命名持久化的旧 session 或 snapshot
-              </?01M05F1P19WR8N6XD6NYPWQCX2>
-              <When ?01M05F1P19WR8N6XD6NYPWQCX3>
+              </?01M18JEZPG6YXVV7SWBPAF79MP>
+              <When ?01M18JEZPG6YXVV7SWBPAF79MQ>
               当前模型尝试读取这些数据
-              </?01M05F1P19WR8N6XD6NYPWQCX3>
+              </?01M18JEZPG6YXVV7SWBPAF79MQ>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #member-holon-primary (
-      <Statement ?01M05F1P19WR8N6XD6NYPWQCX4>
+      <Statement ?01M18JEZPG6YXVV7SWBPAF79MR>
       系统 SHALL 重写 AIAgent 相关正式文档、示例与测试基线，使其与当前命名一致。
-      </?01M05F1P19WR8N6XD6NYPWQCX4>
+      </?01M18JEZPG6YXVV7SWBPAF79MR>
       <Suites [
         <Suite { name = "member-holon-primary" } (
           <Cases [
             <Case #case-30 { name = "正式文档不再使用旧对象模型作为当前真相" } [
-              <Then ?01M05F1P19WR8N6XD6NYPWQCX5>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79MS>
               正式文档 SHALL 统一使用 `member / holon / primary`
-              </?01M05F1P19WR8N6XD6NYPWQCX5>
-              <Then ?01M05F1P19WR8N6XD6NYPWQCX6>
+              </?01M18JEZPG6YXVV7SWBPAF79MS>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79MT>
               旧命名如需出现，只能作为迁移说明或历史背景
-              </?01M05F1P19WR8N6XD6NYPWQCX6>
+              </?01M18JEZPG6YXVV7SWBPAF79MT>
             ] (
-              <Given ?01M05F1P19WR8N6XD6NYPWQCX7>
+              <Given ?01M18JEZPG6YXVV7SWBPAF79MV>
               项目内存在 howto、architecture、spec、vendor AI-agent 说明与测试基线
-              </?01M05F1P19WR8N6XD6NYPWQCX7>
-              <When ?01M05F1P19WR8N6XD6NYPWQCX8>
+              </?01M18JEZPG6YXVV7SWBPAF79MV>
+              <When ?01M18JEZPG6YXVV7SWBPAF79MW>
               当前正式模型生效
-              </?01M05F1P19WR8N6XD6NYPWQCX8>
+              </?01M18JEZPG6YXVV7SWBPAF79MW>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #neutral-holon-execution-extension (
+      <Statement ?01M18JEZPG6YXVV7SWBPAF79MX>
+      Eidolon SHALL map frozen Holon Member/Role master-data refs through a closed HolonExecutionBinding adapter union (ai-agent, human-endpoint, service, hybrid) and SHALL NOT require execution fields in Holon core records or route from principalKind.
+      </?01M18JEZPG6YXVV7SWBPAF79MX>
+      <Suites [
+        <Suite #neutrality-cases { name = "Holon neutrality" } (
+          <Cases [
+            <Case #principal-not-routing (
+              <Given ?01M18JEZPG6YXVV7SWBPAF79MY>
+              A Member principalKind is ai.
+              </?01M18JEZPG6YXVV7SWBPAF79MY>
+              <When ?01M18JEZPG6YXVV7SWBPAF79MZ>
+              No exact execution binding exists.
+              </?01M18JEZPG6YXVV7SWBPAF79MZ>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79N0>
+              Eidolon SHALL fail closed rather than infer an AgentDefinition.
+              </?01M18JEZPG6YXVV7SWBPAF79N0>
+            )>
+            <Case #common-envelope (
+              <Given ?01M18JEZPG6YXVV7SWBPAF79N1>
+              Human, AI and service members receive organization tasks.
+              </?01M18JEZPG6YXVV7SWBPAF79N1>
+              <When ?01M18JEZPG6YXVV7SWBPAF79N2>
+              Their adapters are invoked.
+              </?01M18JEZPG6YXVV7SWBPAF79N2>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79N3>
+              Each SHALL use the same typed task/claim/invocation/result envelope while adapter-specific state remains behind its owner.
+              </?01M18JEZPG6YXVV7SWBPAF79N3>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #member-runtime-reuse (
+      <Statement ?01M18JEZPG6YXVV7SWBPAF79N4>
+      Within one deployment Eidolon SHALL reuse one long-lived MemberRuntime for each exact Member ref by default; only explicit task-space/workflow-run isolation with isolationKey SHALL create a temporary runtime.
+      </?01M18JEZPG6YXVV7SWBPAF79N4>
+      <Suites [
+        <Suite #reuse-cases { name = "MemberRuntime lifecycle" } (
+          <Cases [
+            <Case #shared-by-default (
+              <Given ?01M18JEZPG6YXVV7SWBPAF79N5>
+              Two tasks target the same deployment and Member without isolation.
+              </?01M18JEZPG6YXVV7SWBPAF79N5>
+              <When ?01M18JEZPG6YXVV7SWBPAF79N6>
+              Both dispatch work.
+              </?01M18JEZPG6YXVV7SWBPAF79N6>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79N7>
+              They SHALL resolve the same logical MemberRuntime while defaulting to distinct durable task-attempt sessions.
+              </?01M18JEZPG6YXVV7SWBPAF79N7>
+            )>
+            <Case #explicit-isolation (
+              <Given ?01M18JEZPG6YXVV7SWBPAF79N8>
+              A valid isolated policy names scope and isolationKey.
+              </?01M18JEZPG6YXVV7SWBPAF79N8>
+              <When ?01M18JEZPG6YXVV7SWBPAF79N9>
+              Work is dispatched.
+              </?01M18JEZPG6YXVV7SWBPAF79N9>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79NA>
+              A distinct bounded runtime SHALL be created and SHALL NOT replace the shared runtime.
+              </?01M18JEZPG6YXVV7SWBPAF79NA>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #holon-runtime-coordination (
+      <Statement ?01M18JEZPG6YXVV7SWBPAF79NB>
+      Eidolon SHALL host one shared HolonRuntime/HolonCoordinatorActor per deployment/Holon to observe ready TaskSpaces and propose exact Member assignments from frozen snapshot, Role/Policy and execution binding; TaskSpace SHALL remain assignment/claim/result authority.
+      </?01M18JEZPG6YXVV7SWBPAF79NB>
+      <Suites [
+        <Suite #coordination-cases { name = "Holon coordination" } (
+          <Cases [
+            <Case #organization-target (
+              <Given ?01M18JEZPG6YXVV7SWBPAF79NC>
+              A workflow targets a Holon and a TaskSpace becomes ready.
+              </?01M18JEZPG6YXVV7SWBPAF79NC>
+              <When ?01M18JEZPG6YXVV7SWBPAF79ND>
+              The coordinator evaluates eligible members.
+              </?01M18JEZPG6YXVV7SWBPAF79ND>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79NE>
+              It SHALL propose a typed assignment and resolve the chosen MemberRuntime without workflow preselection.
+              </?01M18JEZPG6YXVV7SWBPAF79NE>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #member-session-and-adapter-boundary (
+      <Statement ?01M18JEZPG6YXVV7SWBPAF79NF>
+      Shared MemberRuntime SHALL default to a distinct durable task-attempt generic session, SHALL reuse an Agent instance only through exact byId/byName targeted selection while rejecting legacy instance-prefixed keys, and SHALL dispatch AI/human/service/hybrid adapters through one typed task envelope without routing from principalKind.
+      </?01M18JEZPG6YXVV7SWBPAF79NF>
+      <Suites [
+        <Suite #session-adapter-cases { name = "Session and adapter boundary" } (
+          <Cases [
+            <Case #default-session-isolation (
+              <Given ?01M18JEZPG6YXVV7SWBPAF79NG>
+              Two unrelated tasks use the same shared MemberRuntime.
+              </?01M18JEZPG6YXVV7SWBPAF79NG>
+              <When ?01M18JEZPG6YXVV7SWBPAF79NH>
+              They invoke AI work without a target selector.
+              </?01M18JEZPG6YXVV7SWBPAF79NH>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79NJ>
+              They SHALL use distinct generic sessions and SHALL NOT see each other's conversation.
+              </?01M18JEZPG6YXVV7SWBPAF79NJ>
+            )>
+            <Case #targeted-continuity (
+              <Given ?01M18JEZPG6YXVV7SWBPAF79NK>
+              A prior invocation returned an Agent instance id or admitted instance name.
+              </?01M18JEZPG6YXVV7SWBPAF79NK>
+              <When ?01M18JEZPG6YXVV7SWBPAF79NM>
+              A later task uses the exact selector.
+              </?01M18JEZPG6YXVV7SWBPAF79NM>
+              <Then ?01M18JEZPG6YXVV7SWBPAF79NN>
+              It SHALL address the same generic Agent instance without creating a workflow-specific session owner.
+              </?01M18JEZPG6YXVV7SWBPAF79NN>
             )>
           ]>
         )>

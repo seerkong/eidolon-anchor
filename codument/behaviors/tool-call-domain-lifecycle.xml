@@ -90,4 +90,20 @@
       </case>
     </suite>
   </requirement>
+  <requirement id="retention-and-externalization">
+    <statement>ToolCallDomain SHALL 提供保留边界：仅保留活跃/进行中记录与最近 N 条终态记录；终态记录的大 outputText SHALL 外部化到 artifacts/tool-results 并在 domain 中仅保留引用/预览；恢复路径 SHALL 能从外部化引用重建工具结果消息。</statement>
+    <suite id="retention" name="Retention and externalization">
+      <case id="terminal-records-pruned">
+        <given>终态工具记录数量超过保留窗口</given>
+        <when>运行保留裁剪</when>
+        <then>SHALL 裁剪超出窗口的终态记录</then>
+        <then>SHALL 保留活跃/进行中记录</then>
+      </case>
+      <case id="large-output-externalized">
+        <given>工具输出超过外部化阈值</given>
+        <when>记录工具结果</when>
+        <then>SHALL 将全文写入 artifact 并仅保留引用/预览</then>
+      </case>
+    </suite>
+  </requirement>
 </capability>

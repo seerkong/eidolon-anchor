@@ -1,184 +1,283 @@
 <Behavior #eidolon-workflow-architecture-boundaries apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #explicit-architecture-boundaries (
-      <Statement ?01M0WM0N0ETVQZS4PP04CK4W5M>
+      <Statement ?01M18J9TX3T03ETKSYZFEBY91E>
       Eidolon workflow integration SHALL use canonical XNL/depa-flows resources, injected Eidolon roots, actor/session effect authority and native surfaces; it SHALL NOT introduce XML authoring, MCP, external agent CLI or parallel flow/runtime authority.
-      </?01M0WM0N0ETVQZS4PP04CK4W5M>
+      </?01M18J9TX3T03ETKSYZFEBY91E>
       <Suites [
         <Suite #resource-and-runtime-authority { name = "Resource and runtime authority" } (
           <Cases [
             <Case #canonical-xnl-and-depa-runtime [
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W5N>
+              <Then ?01M18J9TX3T03ETKSYZFEBY91F>
               it SHALL use canonical depa-flows XNL loaders and Ctrl/Data runtimes
-              </?01M0WM0N0ETVQZS4PP04CK4W5N>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W5P>
+              </?01M18J9TX3T03ETKSYZFEBY91F>
+              <Then ?01M18J9TX3T03ETKSYZFEBY91G>
               it SHALL NOT parse XML or implement a parallel scheduler
-              </?01M0WM0N0ETVQZS4PP04CK4W5P>
+              </?01M18J9TX3T03ETKSYZFEBY91G>
             ] (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W5Q>
+              <Given ?01M18J9TX3T03ETKSYZFEBY91H>
               Ctrl or Data workflow production source
-              </?01M0WM0N0ETVQZS4PP04CK4W5Q>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W5R>
+              </?01M18J9TX3T03ETKSYZFEBY91H>
+              <When ?01M18J9TX3T03ETKSYZFEBY91J>
               it loads or executes a definition
-              </?01M0WM0N0ETVQZS4PP04CK4W5R>
+              </?01M18J9TX3T03ETKSYZFEBY91J>
             )>
             <Case #eidolon-roots [
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W5S>
+              <Then ?01M18J9TX3T03ETKSYZFEBY91K>
               the workflow authoring/session root SHALL remain the injected workspace `.eidolon/workflows` root
-              </?01M0WM0N0ETVQZS4PP04CK4W5S>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W5T>
+              </?01M18J9TX3T03ETKSYZFEBY91K>
+              <Then ?01M18J9TX3T03ETKSYZFEBY91M>
               optional global and workspace ResourcePackage layers SHALL use separately injected `.eidolon/resources` roots and SHALL be shared by CLI, TUI and native runtime surfaces
-              </?01M0WM0N0ETVQZS4PP04CK4W5T>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W5V>
+              </?01M18J9TX3T03ETKSYZFEBY91M>
+              <Then ?01M18J9TX3T03ETKSYZFEBY91N>
               Eidolon MUST NOT scan either root for child packages or treat the authoring root as a ResourcePackage by implication
-              </?01M0WM0N0ETVQZS4PP04CK4W5V>
+              </?01M18J9TX3T03ETKSYZFEBY91N>
             ] (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W5W>
+              <Given ?01M18J9TX3T03ETKSYZFEBY91P>
               CLI or TUI constructs the workflow component
-              </?01M0WM0N0ETVQZS4PP04CK4W5W>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W5X>
+              </?01M18J9TX3T03ETKSYZFEBY91P>
+              <When ?01M18J9TX3T03ETKSYZFEBY91Q>
               workspace/global roots are resolved
-              </?01M0WM0N0ETVQZS4PP04CK4W5X>
+              </?01M18J9TX3T03ETKSYZFEBY91Q>
             )>
           ]>
         )>
         <Suite #effect-and-surface-authority { name = "Effect and surface authority" } (
           <Cases [
             <Case #eidolon-effect-lifecycle (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W5Y>
+              <Given ?01M18J9TX3T03ETKSYZFEBY91R>
               a workflow node invokes agent, tool, human or Material work
-              </?01M0WM0N0ETVQZS4PP04CK4W5Y>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W5Z>
+              </?01M18J9TX3T03ETKSYZFEBY91R>
+              <When ?01M18J9TX3T03ETKSYZFEBY91S>
               the effect starts, completes or fails
-              </?01M0WM0N0ETVQZS4PP04CK4W5Z>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W60>
+              </?01M18J9TX3T03ETKSYZFEBY91S>
+              <Then ?01M18J9TX3T03ETKSYZFEBY91T>
               Eidolon actor/session/runtime-control SHALL retain lifecycle authority and workflow facts SHALL only reference it
-              </?01M0WM0N0ETVQZS4PP04CK4W60>
+              </?01M18J9TX3T03ETKSYZFEBY91T>
             )>
             <Case #native-no-mcp-surface (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W61>
+              <Given ?01M18J9TX3T03ETKSYZFEBY91V>
               conversation, TUI or CLI uses workflow capability
-              </?01M0WM0N0ETVQZS4PP04CK4W61>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W62>
+              </?01M18J9TX3T03ETKSYZFEBY91V>
+              <When ?01M18J9TX3T03ETKSYZFEBY91W>
               it reads or mutates authoring/run facts
-              </?01M0WM0N0ETVQZS4PP04CK4W62>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W63>
+              </?01M18J9TX3T03ETKSYZFEBY91W>
+              <Then ?01M18J9TX3T03ETKSYZFEBY91X>
               it SHALL call native component services without MCP, external agent CLI or private mutation paths
-              </?01M0WM0N0ETVQZS4PP04CK4W63>
+              </?01M18J9TX3T03ETKSYZFEBY91X>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #depa-instance-run-owner (
-      <Statement ?01M0WM0N0ETVQZS4PP04CK4W64>
+      <Statement ?01M18J9TX3T03ETKSYZFEBY91Y>
       Eidolon SHALL bind depa-flows storage and runtime ports without reimplementing Definition, Instance, Run, checkpoint, Ctrl snapshot or Data RunGraph authority.
-      </?01M0WM0N0ETVQZS4PP04CK4W64>
+      </?01M18J9TX3T03ETKSYZFEBY91Y>
       <Suites [
         <Suite #authority-boundary { name = "Persistence authority boundary" } (
           <Cases [
             <Case #host-binds-not-redefines (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W65>
+              <Given ?01M18J9TX3T03ETKSYZFEBY91Z>
               Eidolon constructs its workflow component
-              </?01M0WM0N0ETVQZS4PP04CK4W65>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W66>
+              </?01M18J9TX3T03ETKSYZFEBY91Z>
+              <When ?01M18J9TX3T03ETKSYZFEBY920>
               it binds filesystem roots and generic actor/session/effect runtime
-              </?01M0WM0N0ETVQZS4PP04CK4W66>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W67>
+              </?01M18J9TX3T03ETKSYZFEBY920>
+              <Then ?01M18J9TX3T03ETKSYZFEBY921>
               the host SHALL consume published depa materialization and checkpoint contracts and SHALL NOT define a parallel filesystem layout, checkpoint schema, transition validator or scheduler
-              </?01M0WM0N0ETVQZS4PP04CK4W67>
+              </?01M18J9TX3T03ETKSYZFEBY921>
             )>
             <Case #opaque-runtime-references (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W68>
+              <Given ?01M18J9TX3T03ETKSYZFEBY922>
               a workflow invokes an Agent through Eidolon generic runtime
-              </?01M0WM0N0ETVQZS4PP04CK4W68>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W69>
+              </?01M18J9TX3T03ETKSYZFEBY922>
+              <When ?01M18J9TX3T03ETKSYZFEBY923>
               the Flow checkpoint records the durable execution binding
-              </?01M0WM0N0ETVQZS4PP04CK4W69>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W6A>
+              </?01M18J9TX3T03ETKSYZFEBY923>
+              <Then ?01M18J9TX3T03ETKSYZFEBY924>
               it SHALL contain only stable opaque actor/session/instance references and typed receipts and SHALL NOT contain conversation history, provider transcript, compaction or actor-owned mutable state
-              </?01M0WM0N0ETVQZS4PP04CK4W6A>
+              </?01M18J9TX3T03ETKSYZFEBY924>
             )>
             <Case #closed-invalid-input (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W6B>
+              <Given ?01M18J9TX3T03ETKSYZFEBY925>
               a malformed descriptor, checkpoint, migration record, symlinked root or conflicting CAS candidate
-              </?01M0WM0N0ETVQZS4PP04CK4W6B>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W6C>
+              </?01M18J9TX3T03ETKSYZFEBY925>
+              <When ?01M18J9TX3T03ETKSYZFEBY926>
               the host loads or commits workflow persistence
-              </?01M0WM0N0ETVQZS4PP04CK4W6C>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W6D>
+              </?01M18J9TX3T03ETKSYZFEBY926>
+              <Then ?01M18J9TX3T03ETKSYZFEBY927>
               it SHALL fail closed before live mutation or runtime dispatch and SHALL preserve the last admitted instance/run authority
-              </?01M0WM0N0ETVQZS4PP04CK4W6D>
+              </?01M18J9TX3T03ETKSYZFEBY927>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #workflow-lifecycle-actor-isolation (
-      <Statement ?01M0WM0N0ETVQZS4PP04CK4W6E>
+      <Statement ?01M18J9TX3T03ETKSYZFEBY928>
       Workflow lifecycle stage, progress, DevOps Skill and internal-tool authority SHALL belong only to a dedicated Workflow lifecycle Actor capability; generic Actor core and AI Workflow node Agents SHALL remain stage-free.
-      </?01M0WM0N0ETVQZS4PP04CK4W6E>
+      </?01M18J9TX3T03ETKSYZFEBY928>
       <Suites [
         <Suite #actor-boundaries { name = "Actor capability boundaries" } (
           <Cases [
             <Case #ordinary-public-gateways-only (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W6F>
+              <Given ?01M18J9TX3T03ETKSYZFEBY929>
               an ordinary primary or Code Actor uses its complete admitted tool surface
-              </?01M0WM0N0ETVQZS4PP04CK4W6F>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W6G>
+              </?01M18J9TX3T03ETKSYZFEBY929>
+              <When ?01M18J9TX3T03ETKSYZFEBY92A>
               provider-visible tools and executable capabilities are projected
-              </?01M0WM0N0ETVQZS4PP04CK4W6G>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W6H>
+              </?01M18J9TX3T03ETKSYZFEBY92A>
+              <Then ?01M18J9TX3T03ETKSYZFEBY92B>
               only `WorkflowFulfill` and `WorkflowAuthor` SHALL be exposed as Workflow gateways, and lifecycle-internal tools, stages, progress and DevOps Skill content SHALL be absent
-              </?01M0WM0N0ETVQZS4PP04CK4W6H>
+              </?01M18J9TX3T03ETKSYZFEBY92B>
             )>
             <Case #node-stage-free (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W6J>
+              <Given ?01M18J9TX3T03ETKSYZFEBY92C>
               an AI Ctrl or AI Data node Agent is created from a frozen task and AgentDefinition
-              </?01M0WM0N0ETVQZS4PP04CK4W6J>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W6K>
+              </?01M18J9TX3T03ETKSYZFEBY92C>
+              <When ?01M18J9TX3T03ETKSYZFEBY92D>
               its context, tools and runtime facets are admitted
-              </?01M0WM0N0ETVQZS4PP04CK4W6K>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W6M>
+              </?01M18J9TX3T03ETKSYZFEBY92D>
+              <Then ?01M18J9TX3T03ETKSYZFEBY92E>
               it SHALL receive only its node/task/Agent authority and explicit allowed public tools, and SHALL NOT receive a Workflow lifecycle facet or internal tool by implication
-              </?01M0WM0N0ETVQZS4PP04CK4W6M>
+              </?01M18J9TX3T03ETKSYZFEBY92E>
             )>
             <Case #lifecycle-capability-required (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W6N>
+              <Given ?01M18J9TX3T03ETKSYZFEBY92F>
               an Actor invokes a Workflow lifecycle-internal tool or lifecycle hook
-              </?01M0WM0N0ETVQZS4PP04CK4W6N>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W6P>
+              </?01M18J9TX3T03ETKSYZFEBY92F>
+              <When ?01M18J9TX3T03ETKSYZFEBY92G>
               the runtime authorizes visibility or execution
-              </?01M0WM0N0ETVQZS4PP04CK4W6P>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W6Q>
+              </?01M18J9TX3T03ETKSYZFEBY92G>
+              <Then ?01M18J9TX3T03ETKSYZFEBY92H>
               the Actor SHALL present the exact admitted lifecycle facet/catalog proof; Actor name, provider context class, prompt text and registry presence SHALL NOT authorize it
-              </?01M0WM0N0ETVQZS4PP04CK4W6Q>
+              </?01M18J9TX3T03ETKSYZFEBY92H>
             )>
           ]>
         )>
         <Suite #generic-runtime-boundary { name = "Generic runtime boundary" } (
           <Cases [
             <Case #neutral-facet-only (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W6R>
+              <Given ?01M18J9TX3T03ETKSYZFEBY92J>
               generic Actor contract, executor, snapshot and local-file support source is inspected
-              </?01M0WM0N0ETVQZS4PP04CK4W6R>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W6S>
+              </?01M18J9TX3T03ETKSYZFEBY92J>
+              <When ?01M18J9TX3T03ETKSYZFEBY92K>
               domain extension state and hooks are represented
-              </?01M0WM0N0ETVQZS4PP04CK4W6S>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W6T>
+              </?01M18J9TX3T03ETKSYZFEBY92K>
+              <Then ?01M18J9TX3T03ETKSYZFEBY92M>
               the source SHALL know only a closed neutral runtime-facet envelope and a per-VM injected codec/profile/hook registry; state replacement SHALL use exact revision CAS, and source SHALL NOT define or import Workflow stage, progress, tool or lifecycle policy
-              </?01M0WM0N0ETVQZS4PP04CK4W6T>
+              </?01M18J9TX3T03ETKSYZFEBY92M>
             )>
             <Case #legacy-one-way-migration (
-              <Given ?01M0WM0N0ETVQZS4PP04CK4W6V>
+              <Given ?01M18J9TX3T03ETKSYZFEBY92N>
               a valid legacy dedicated Workflow Actor snapshot contains `workflowProgress`
-              </?01M0WM0N0ETVQZS4PP04CK4W6V>
-              <When ?01M0WM0N0ETVQZS4PP04CK4W6W>
+              </?01M18J9TX3T03ETKSYZFEBY92N>
+              <When ?01M18J9TX3T03ETKSYZFEBY92P>
               fresh runtime recovery loads it through the registered Workflow legacy importer
-              </?01M0WM0N0ETVQZS4PP04CK4W6W>
-              <Then ?01M0WM0N0ETVQZS4PP04CK4W6X>
+              </?01M18J9TX3T03ETKSYZFEBY92P>
+              <Then ?01M18J9TX3T03ETKSYZFEBY92Q>
               only the exact schema-v3 composite migration witness SHALL create one immutable v4 generation containing one `eidolon.workflow-lifecycle/v1` facet; all generation bytes and a source/target-digest-bound receipt SHALL be durable before one CAS/atomic manifest-head switch, legacy files SHALL remain read-only, and absent, malformed, ambiguous, interrupted or conflicting states SHALL recover deterministically or fail closed
-              </?01M0WM0N0ETVQZS4PP04CK4W6X>
+              </?01M18J9TX3T03ETKSYZFEBY92Q>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #cache-cost-product-matrix (
+      <Statement ?01M18J9TX3T03ETKSYZFEBY92R>
+      The cache-cost product matrix SHALL independently cover ordinary Actors, dedicated Workflow lifecycle Actors and AI Ctrl/Data node Agents while preserving their exact capability boundaries.
+      </?01M18J9TX3T03ETKSYZFEBY92R>
+      <Suites [
+        <Suite #actor-matrix { name = "Cross-Actor product matrix" } (
+          <Cases [
+            <Case #ordinary-and-node-remain-stage-free (
+              <Given ?01M18J9TX3T03ETKSYZFEBY92S>
+              ordinary Code, AI Ctrl node and AI Data node journeys execute with their admitted tools
+              </?01M18J9TX3T03ETKSYZFEBY92S>
+              <When ?01M18J9TX3T03ETKSYZFEBY92T>
+              final context, tool schemas and runtime facets are observed
+              </?01M18J9TX3T03ETKSYZFEBY92T>
+              <Then ?01M18J9TX3T03ETKSYZFEBY92V>
+              they SHALL contain no lifecycle facet, managed DevOps Skill, stage/progress fact or lifecycle-internal tool and SHALL report lifecycle-only overhead `0`
+              </?01M18J9TX3T03ETKSYZFEBY92V>
+            )>
+            <Case #lifecycle-complete-journey (
+              <Given ?01M18J9TX3T03ETKSYZFEBY92W>
+              a dedicated lifecycle Actor uses frozen `stable-superset/v1`
+              </?01M18J9TX3T03ETKSYZFEBY92W>
+              <When ?01M18J9TX3T03ETKSYZFEBY92X>
+              it runs authoring through planning, coding, building, testing and releasing with tools, retry and fresh recovery
+              </?01M18J9TX3T03ETKSYZFEBY92X>
+              <Then ?01M18J9TX3T03ETKSYZFEBY92Y>
+              same-stage turns SHALL remain same-epoch exact and every legitimate boundary SHALL map to one persisted reason without weakening execution authorization
+              </?01M18J9TX3T03ETKSYZFEBY92Y>
+            )>
+            <Case #frozen-resource-revisions (
+              <Given ?01M18J9TX3T03ETKSYZFEBY92Z>
+              live Skill or Workflow resource bytes change after an Actor was admitted
+              </?01M18J9TX3T03ETKSYZFEBY92Z>
+              <When ?01M18J9TX3T03ETKSYZFEBY930>
+              the old Actor recovers and a new Actor is created
+              </?01M18J9TX3T03ETKSYZFEBY930>
+              <Then ?01M18J9TX3T03ETKSYZFEBY931>
+              the old Actor SHALL retain its frozen revision and request identity while the new Actor SHALL receive the new revision through an explicit accepted boundary
+              </?01M18J9TX3T03ETKSYZFEBY931>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #provider-surface-strategy-boundary (
+      <Statement ?01M18J9TX3T03ETKSYZFEBY932>
+      Workflow lifecycle provider-surface strategy SHALL be a frozen presentation policy of the dedicated lifecycle capability and SHALL NOT become execution authorization or leak lifecycle semantics into ordinary or Workflow node Actors.
+      </?01M18J9TX3T03ETKSYZFEBY932>
+      <Suites [
+        <Suite #surface-authority { name = "Surface and execution authority separation" } (
+          <Cases [
+            <Case #exact-facet-authorizes-execution (
+              <Given ?01M18J9TX3T03ETKSYZFEBY933>
+              a lifecycle tool is visible under any accepted surface strategy
+              </?01M18J9TX3T03ETKSYZFEBY933>
+              <When ?01M18J9TX3T03ETKSYZFEBY934>
+              the runtime attempts execution
+              </?01M18J9TX3T03ETKSYZFEBY934>
+              <Then ?01M18J9TX3T03ETKSYZFEBY935>
+              the exact frozen lifecycle facet/catalog/profile proof SHALL independently authorize the tool; visibility, prompt content, Actor name and registry membership SHALL NOT authorize it
+              </?01M18J9TX3T03ETKSYZFEBY935>
+            )>
+            <Case #ordinary-and-node-zero-overhead (
+              <Given ?01M18J9TX3T03ETKSYZFEBY936>
+              an ordinary Actor or AI Ctrl/Data Workflow node Agent prepares a provider request
+              </?01M18J9TX3T03ETKSYZFEBY936>
+              <When ?01M18J9TX3T03ETKSYZFEBY937>
+              its exact admitted surface and control context are measured
+              </?01M18J9TX3T03ETKSYZFEBY937>
+              <Then ?01M18J9TX3T03ETKSYZFEBY938>
+              lifecycle-only tool and control overhead SHALL be zero and no lifecycle surface strategy SHALL be installed by implication
+              </?01M18J9TX3T03ETKSYZFEBY938>
+            )>
+            <Case #frozen-strategy-recovery (
+              <Given ?01M18J9TX3T03ETKSYZFEBY939>
+              a lifecycle Actor was admitted with one strategy revision and surface digest
+              </?01M18J9TX3T03ETKSYZFEBY939>
+              <When ?01M18J9TX3T03ETKSYZFEBY93A>
+              live catalogs change or a fresh process recovers the Actor
+              </?01M18J9TX3T03ETKSYZFEBY93A>
+              <Then ?01M18J9TX3T03ETKSYZFEBY93B>
+              the Actor SHALL reconstruct the exact frozen strategy and surface, and missing, conflicting or newer-only strategy material SHALL fail closed before provider transport
+              </?01M18J9TX3T03ETKSYZFEBY93B>
+            )>
+            <Case #facet-v1-one-way-import (
+              <Given ?01M18J9TX3T03ETKSYZFEBY93C>
+              a valid lifecycle facet-v1 Actor is recovered after strategy support is installed
+              </?01M18J9TX3T03ETKSYZFEBY93C>
+              <When ?01M18J9TX3T03ETKSYZFEBY93D>
+              the lifecycle capability is admitted
+              </?01M18J9TX3T03ETKSYZFEBY93D>
+              <Then ?01M18J9TX3T03ETKSYZFEBY93E>
+              one exact importer SHALL create facet v2 with frozen `stable-superset/v1` strategy proof; silent defaulting, dual-write and live strategy substitution SHALL be forbidden
+              </?01M18J9TX3T03ETKSYZFEBY93E>
             )>
           ]>
         )>

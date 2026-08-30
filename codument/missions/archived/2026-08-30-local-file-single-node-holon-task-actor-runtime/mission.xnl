@@ -1,0 +1,196 @@
+<Mission #local-file-single-node-holon-task-actor-runtime apiVersion="codument.tech/v1alpha1" version="1" { status = "archived" goal = "以 Holon Workbench 的组织主数据、depa-flows 的 TaskSpace 与 AI Workflow、depa-actor 的本地 actor substrate 和 Eidolon 的通用 Agent runtime，交付可恢复的本地文件存储单机 Holon/Member 任务执行系统。" description = "Mission 1 只实现单进程、本地文件 authority：冻结组织 effective snapshot，把 Holon 业务绑定与主数据分离，让复杂流程节点委派独立 TaskSpace，并由默认长期复用的 MemberRuntime 在通用 actor substrate 上处理；数据库、RabbitMQ、跨机器寻址、actor placement 与 node-placement lease 属于 Mission 2。TaskSpace 本地 claim lease/heartbeat/expiry 仍由 Mission 1 拥有。" question_mode = "decision-tree" question_severity = "auto" revision = 60 created_at = "2026-08-23T18:25:43.886Z" updated_at = "2026-08-30T05:40:54.772Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #eidolon-anchor { kind = "host" }>
+    <ProjectRef #holon-workbench { kind = "external" }>
+    <ProjectRef #depa-flows { kind = "external" }>
+    <ProjectRef #depa-actor { kind = "external" }>
+  ]>
+  <ActorSets { default = "mission-control-loop" } [
+    <ActorSet #mission-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "eidolon-anchor" } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XC>
+        依据组织 authority、TaskSpace、actor substrate 与产品接线证据维护跨仓 DAG，只创建边界清晰、可独立验证的 Track。
+        </?01M0R23V991XEWC54RQHVRC6XC>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "eidolon-anchor" } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XD>
+        观察四个项目的 contracts、持久化 authority、运行时 identity、测试、发布版本和 pending Track 状态，不把派生投影误作事实真源。
+        </?01M0R23V991XEWC54RQHVRC6XD>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "eidolon-anchor" } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XE>
+        比较期望的单机 Holon/Member 系统与实际态；出现 authority 分裂、版本漂移或范围越界时重规划或阻塞。
+        </?01M0R23V991XEWC54RQHVRC6XE>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "eidolon-anchor" } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XF>
+        按 DAG 激活、实现、验证和归档 bounded Track；发布只使用最小 patch version，不指定 registry，不修改 npmrc。
+        </?01M0R23V991XEWC54RQHVRC6XF>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_local-file-single-node-holon-task-actor-runtime { name = "local-file-single-node-holon-task-actor-runtime" version = "1" child_mode = "dag" } (
+    <Description ?01M0R23V991XEWC54RQHVRC6XG>
+    单机本地文件版组织主数据、任务空间、Actor 与 AI Workflow 融合 mission。
+    </?01M0R23V991XEWC54RQHVRC6XG>
+    <SubNodes [
+      <TaskGroup #HOLON_MODEL { name = "Holon principal 与 effective snapshot authority" status = "DONE" order = 0 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XH>
+        补齐人机中立的 MemberPrincipalKind 和可冻结、可验证的 effective organization snapshot；不嵌入 AIAgentDefinition。
+        </?01M0R23V991XEWC54RQHVRC6XH>
+        <SubNodes [
+          <Task #HOLON_MODEL-T1 { name = "实现 MemberPrincipalKind 与 effective snapshot Track" status = "DONE" order = 0 } (
+            <TrackLink #add-member-principal-kind-and-effective-snapshots { state = "bound" project_ref = "holon-workbench" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #TASKSPACE_KERNEL { name = "TaskSpace kernel 与本地文件 authority" status = "DONE" order = 1 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XJ>
+        把 task-manager-* 收敛为共享 kernel，并提供独立本地文件 support package；Codument TaskSpace 明确排除。
+        </?01M0R23V991XEWC54RQHVRC6XJ>
+        <SubNodes [
+          <Task #TASKSPACE_KERNEL-T1 { name = "强化 TaskSpace kernel 与文件事务 Track" status = "DONE" order = 0 } (
+            <TrackLink #harden-task-space-kernel-and-file-authority { state = "bound" project_ref = "depa-flows" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #ACTOR_LOCAL { name = "depa-actor 本地逻辑寻址" status = "DONE" order = 2 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XK>
+        提供单进程稳定逻辑地址、注册、恢复与本地路由，不引入 RabbitMQ 或远程 actor protocol。
+        </?01M0R23V991XEWC54RQHVRC6XK>
+        <SubNodes [
+          <Task #ACTOR_LOCAL-T1 { name = "实现本地逻辑 actor addressing Track" status = "DONE" order = 0 } (
+            <TrackLink #add-local-logical-actor-addressing { state = "bound" project_ref = "depa-actor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #HOLON_FILE { name = "Holon XNL 本地文件后端" status = "DONE" order = 3 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XM>
+        先把直接 depa-orm/SQLite 耦合抽成 contracts-owned governance/store port，再以同一 conformance suite 提供 SQLite 与 content-addressed XNL adapter、CAS、journal 和显式单向导入；禁止双写。
+        </?01M0R23V991XEWC54RQHVRC6XM>
+        <SubNodes [
+          <Task #HOLON_FILE-T1 { name = "实现 Holon XNL authority backend Track" status = "DONE" order = 0 } (
+            <TrackLink #add-xnl-holon-authority-backend { state = "bound" project_ref = "holon-workbench" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #EXECUTION_BINDING { name = "HolonExecutionBinding resource authority" status = "DONE" order = 4 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XN>
+        定义组织主数据到 AI/human endpoint/service/hybrid 执行 adapter 与运行策略的业务扩展映射，并纳入 ResourcePackage 冻结与 publication proof；principalKind 不自动路由。
+        </?01M0R23V991XEWC54RQHVRC6XN>
+        <SubNodes [
+          <Task #EXECUTION_BINDING-T1 { name = "实现 HolonExecutionBinding ResourcePackage Track" status = "DONE" order = 0 } (
+            <TrackLink #add-holon-execution-binding-resource { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #WORKFLOW_TARGET { name = "AI Workflow Holon task target" status = "DONE" order = 5 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XP>
+        让 Ctrl/Data workflow 节点创建或引用独立 TaskSpace；instance 冻结 target policy/execution binding，TaskSpace 创建时接收 Holon issuer 签发的 exact snapshot receipt。
+        </?01M0R23V991XEWC54RQHVRC6XP>
+        <SubNodes [
+          <Task #WORKFLOW_TARGET-T1 { name = "实现 Holon task target 与 Ctrl/Data adapters Track" status = "DONE" order = 0 } (
+            <TrackLink #add-holon-task-targets-to-ai-workflows { state = "bound" project_ref = "depa-flows" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #MEMBER_RUNTIME { name = "Eidolon 单机 Holon MemberRuntime" status = "DONE" order = 6 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XQ>
+        每个 deployment/holon 提供长期 HolonRuntime/Coordinator 做组织 assignment；每个 deployment/member 默认复用一个长期 MemberRuntime，但默认会话按 task claim attempt 隔离，只有 exact targeted Agent selector 才跨调用复用。
+        </?01M0R23V991XEWC54RQHVRC6XQ>
+        <SubNodes [
+          <Task #MEMBER_RUNTIME-T1 { name = "实现单机 Holon MemberRuntime Track" status = "DONE" order = 0 } (
+            <TrackLink #add-single-node-holon-member-runtime { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #HOLON_FILE_COMPOSITION { name = "File-XNL 产品 authority 组合与 snapshot 签发" status = "DONE" order = 7 } (
+        <Description ?01M0SQNS16XHRJCD0Y78EY99W9>
+        将 FileXnlHolonAuthorityStore 组合成不依赖 SQLite/DEPA-ORM runtime 的纯 File-XNL capsule，通过真实 timeline read port 签发 issuer-owned HolonEffectiveSnapshot 与 receipt；显式导入能力与运行时闭包分离。
+        </?01M0SQNS16XHRJCD0Y78EY99W9>
+        <SubNodes [
+          <Task #HOLON_FILE_COMPOSITION-T1 { name = "实现纯 File-XNL capsule 与 snapshot port Track" status = "DONE" order = 0 } (
+            <TrackLink #separate-file-xnl-runtime-capsule-and-snapshot-port { state = "bound" project_ref = "holon-workbench" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #PRODUCT_E2E { name = "组织任务 AI Workflow 产品集成" status = "DONE" order = 8 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XR>
+        从真实 File-XNL authority 经 issuer-owned snapshot/receipt 完成 ResourcePackage、TaskSpace、Ctrl/Data workflow 与 MemberRuntime 的单机 E2E；本地文件产品 runtime closure 不安装 DEPA-ORM/SQLite 包，也不使用手工 snapshot fixture。
+        </?01M0R23V991XEWC54RQHVRC6XR>
+        <SubNodes [
+          <Task #PRODUCT_E2E-T1 { name = "实现单机 Holon task workflow E2E Track" status = "DONE" order = 0 } (
+            <TrackLink #integrate-holon-task-workflows-end-to-end { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #VERIFY { name = "Mission 总体验收" status = "DONE" order = 9 } (
+        <Description ?01M0R23V991XEWC54RQHVRC6XS>
+        证明无组织、任务、actor 或 workflow 双 authority，以及中断恢复、snapshot isolation、runtime/session 边界、显式 replan和全部上游 minimum-patch release 的 fresh registry closure。
+        </?01M0R23V991XEWC54RQHVRC6XS>
+        <SubNodes [
+          <Task #VERIFY-T1 { name = "运行四仓 strict validation、focused/full tests 与 fresh package consumers" status = "DONE" order = 0 }>
+          <Task #VERIFY-T2 { name = "运行真实本地文件 Ctrl/Data workflow + Holon task journey" status = "DONE" order = 1 }>
+          <Task #VERIFY-T3 { name = "运行 fresh coding AttractorCheck 并确认 Mission 2 边界未泄漏" status = "DONE" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #INSPECTABLE_E2E_AUTHORITY { name = "可检查且可再生的 File-XNL E2E authority 资源" status = "DONE" order = 10 } (
+        <Description ?01M0W2Y5H6K2J9VX8Q4Z7N3ABC>
+        保留一份由真实 capsule 写入、fresh reconstruction 与 snapshot issuance 生成的仓库内 E2E 资源目录，并用隔离再生成的 byte-exact gate 防止漂移；该目录仅是检查/测试证据，不成为产品第二 authority。
+        </?01M0W2Y5H6K2J9VX8Q4Z7N3ABC>
+        <SubNodes [
+          <Task #INSPECTABLE_E2E_AUTHORITY-T1 { name = "实现可检查 File-XNL Holon E2E 资源与再生成门禁" status = "DONE" order = 0 } (
+            <TrackLink #add-inspectable-file-xnl-holon-e2e-resource { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_local-file-single-node-holon-task-actor-runtime" } [
+      <Node #HOLON_FILE [
+        <After { ref = "HOLON_MODEL" }>
+      ]>
+      <Node #EXECUTION_BINDING [
+        <After { ref = "HOLON_MODEL" }>
+      ]>
+      <Node #WORKFLOW_TARGET [
+        <After { ref = "HOLON_FILE" }>
+        <After { ref = "TASKSPACE_KERNEL" }>
+        <After { ref = "EXECUTION_BINDING" }>
+      ]>
+      <Node #MEMBER_RUNTIME [
+        <After { ref = "HOLON_FILE" }>
+        <After { ref = "TASKSPACE_KERNEL" }>
+        <After { ref = "ACTOR_LOCAL" }>
+        <After { ref = "EXECUTION_BINDING" }>
+        <After { ref = "WORKFLOW_TARGET" }>
+      ]>
+      <Node #HOLON_FILE_COMPOSITION [
+        <After { ref = "HOLON_MODEL" }>
+        <After { ref = "HOLON_FILE" }>
+      ]>
+      <Node #PRODUCT_E2E [
+        <After { ref = "HOLON_FILE_COMPOSITION" }>
+        <After { ref = "WORKFLOW_TARGET" }>
+        <After { ref = "MEMBER_RUNTIME" }>
+      ]>
+      <Node #VERIFY [
+        <After { ref = "PRODUCT_E2E" }>
+      ]>
+      <Node #INSPECTABLE_E2E_AUTHORITY [
+        <After { ref = "VERIFY" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

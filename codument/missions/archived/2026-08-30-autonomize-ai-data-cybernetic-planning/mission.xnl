@@ -1,0 +1,144 @@
+<Mission #autonomize-ai-data-cybernetic-planning apiVersion="codument.tech/v1alpha1" version="1" { status = "archived" goal = "Make AI Data Workflow autonomously observe, plan, patch, execute and converge through a bounded cybernetic loop using frozen AIAgentDefinitions, typed dataflow contracts and reusable Agent instances." description = "Build and repeatedly exercise a real-model E2E where the harness supplies only a goal and immutable verifier, while a resource-managed controller proposes admitted graph changes, reuses controller/worker Agent instances across generations, survives recovery and converges without a second graph or Conversation authority." question_mode = "decision-tree" question_severity = "auto" revision = 37 created_at = "2026-08-29T18:33:25.120Z" updated_at = "2026-08-30T05:39:02.682Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+    <ProjectRef #depa-flows { kind = "external" }>
+  ]>
+  <ActorSets { default = "autonomous-data-control-loop" } [
+    <ActorSet #autonomous-data-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M17D1W6B0CCW4SRJNV1WQ6WK>
+        Maintain the goal-backward DAG for autonomous planning rather than fixed graph execution; create only evidence-justified Tracks and never encode a proposition's expected patch into the controller or harness.
+        </?01M17D1W6B0CCW4SRJNV1WQ6WK>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M17D1W6B0CCW4SRJNV1WQ6WM>
+        Observe canonical AI Data checkpoints, graph generations, typed decisions, admission diagnostics, verifier reports, Agent instance/session identities, provider traces, cache/cost facts, recovery evidence and both repositories' Track states.
+        </?01M17D1W6B0CCW4SRJNV1WQ6WM>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M17D1W6CBP3R647VKTDF42QN>
+        Compare each live run with the unchanged verifier and authority topology; distinguish model planning failure from schema, admission, graph, Agent-reuse, provider or recovery defects and require a new generation to demonstrate factual progress.
+        </?01M17D1W6CBP3R647VKTDF42QN>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M17D1W6CBP3R647VKTDF42QP>
+        Create, bind, implement, verify and archive real host/depa-flows Tracks; run deterministic and iQingwa DeepSeek E2E loops, apply only validated general repairs, preserve other sessions' work and continuously feed observations back into Mission replanning.
+        </?01M17D1W6CBP3R647VKTDF42QP>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_autonomize-ai-data-cybernetic-planning { name = "autonomize-ai-data-cybernetic-planning" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #G1 { name = "Freeze autonomous-control truth and E2E contract" status = "DONE" priority = "P0" order = 0 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QQ>
+          The authority ledger names exactly one owner for goal, graph/checkpoint, Agent instance index and Conversation/session, and treats model decisions and receipts as non-authoritative proposals/observations.
+          </?01M17D1W6CBP3R647VKTDF42QQ>
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QR>
+          The E2E anti-cheat contract forbids fixture-authored patches, repair answers, proposition-specific controller branches and scripted-provider evidence as a substitute for live autonomy.
+          </?01M17D1W6CBP3R647VKTDF42QR>
+        ]>
+        <SubNodes [
+          <Task #G1-T1 { name = "Record current capability and authority ledger" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G1-T2 { name = "Freeze multi-generation autonomous E2E propositions and receipts" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "General AI Data cybernetic control protocol" status = "DONE" priority = "P0" order = 1 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QS>
+          Closed versioned Goal, Observation, Decision, PatchAdmission and IterationReceipt data contracts are provider-neutral and proposition-neutral.
+          </?01M17D1W6CBP3R647VKTDF42QS>
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QT>
+          Only the canonical graph transition owns mutation; invalid, stale, duplicate, oversized or no-progress decisions produce typed feedback without changing authority.
+          </?01M17D1W6CBP3R647VKTDF42QT>
+        ]>
+        <SubNodes [
+          <Task #G2-T1 { name = "Implement provider-neutral autonomous control and admission protocol" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #add-ai-data-cybernetic-control-protocol { state = "bound" project_ref = "depa-flows" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "Resource Agent control-loop runtime" status = "DONE" priority = "P0" order = 2 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QV>
+          ControllerAgent and WorkerAgent are frozen Halfcode AIAgentDefinitions with typed inputs/outputs, MessagePrefix, ContextPipeline and exact Effect policies.
+          </?01M17D1W6CBP3R647VKTDF42QV>
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QW>
+          Controller and at least one worker use one exact external instance/session across generations: create once, then target by durable selector after checkpoint recovery.
+          </?01M17D1W6CBP3R647VKTDF42QW>
+        ]>
+        <SubNodes [
+          <Task #G3-T1 { name = "Bind autonomous controller, worker reuse and canonical feedback loop" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #run-resource-agent-ai-data-control-loop { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "Autonomous planning E2E harness" status = "DONE" priority = "P0" order = 3 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QX>
+          Deterministic E2E proves two distinct admitted patches, unchanged verifier convergence, recovery, invalid-decision feedback and exact Agent-instance reuse without a harness-authored patch.
+          </?01M17D1W6CBP3R647VKTDF42QX>
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QY>
+          Source conformance and sealed receipts make hidden patch templates, fallback, graph duplication and reuse substitution observable failures.
+          </?01M17D1W6CBP3R647VKTDF42QY>
+        ]>
+        <SubNodes [
+          <Task #G4-T1 { name = "Create anti-cheat deterministic and live autonomous-planning harness" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #add-autonomous-ai-data-planning-e2e { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "Live DeepSeek cybernetic convergence" status = "DONE" priority = "P0" order = 4 } (
+        <Gate [
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42QZ>
+          At least two proposition-distinct iQingwa DeepSeek V4 Pro runs autonomously construct or revise their graph and pass immutable verifiers with provider failures accounted.
+          </?01M17D1W6CBP3R647VKTDF42QZ>
+          <Criterion { checked = true } ?01M17D1W6CBP3R647VKTDF42R0>
+          At least one run performs a verifier-driven second patch and one mid-loop recovery while retaining controller/worker instance identities and prefix integrity 1.
+          </?01M17D1W6CBP3R647VKTDF42R0>
+        ]>
+        <SubNodes [
+          <Task #G5-T1 { name = "Run first live autonomous planning and capture full control evidence" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #validate-iqingwa-autonomous-ai-data-convergence { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G5-T2 { name = "Run distinct repair and recovery propositions" status = "DONE" priority = "P0" order = 1 }>
+          <Task #G5-T3 { name = "Execute bounded evidence-driven replanning until no P0/P1 gap remains" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #G6 { name = "Independent autonomy and architecture verification" status = "DONE" priority = "P0" order = 5 } (
+        <SubNodes [
+          <Task #G6-T1 { name = "Publish fresh goal-backward no-gap verdict" status = "DONE" priority = "P0" order = 0 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_autonomize-ai-data-cybernetic-planning" } [
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G3" }>
+      ]>
+      <Node #G5 [
+        <After { ref = "G4" }>
+      ]>
+      <Node #G6 [
+        <After { ref = "G5" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

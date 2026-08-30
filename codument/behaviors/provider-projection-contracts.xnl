@@ -1,0 +1,26 @@
+<Behavior #provider-projection-contracts apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #protocol-owner-isolation (
+      <Statement ?01M18J9XXKD8814P4NBWWCBEP6>
+      OpenAI Chat wire projection and OpenAI Responses canonical replay SHALL have separate named compiler owners and SHALL NOT import each other's repair implementation.
+      </?01M18J9XXKD8814P4NBWWCBEP6>
+      <Suites [
+        <Suite #isolation-cases { name = "Projection isolation" } (
+          <Cases [
+            <Case #responses-independent-from-chat (
+              <Given ?01M18J9XXKD8814P4NBWWCBEP7>
+              Responses canonical replay is compiled from Conversation materialization.
+              </?01M18J9XXKD8814P4NBWWCBEP7>
+              <When ?01M18J9XXKD8814P4NBWWCBEP8>
+              Source ownership and imports are inspected.
+              </?01M18J9XXKD8814P4NBWWCBEP8>
+              <Then ?01M18J9XXKD8814P4NBWWCBEP9>
+              The Responses compiler SHALL NOT import OpenAIChatHelpers or invoke Chat adjacency repair.
+              </?01M18J9XXKD8814P4NBWWCBEP9>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

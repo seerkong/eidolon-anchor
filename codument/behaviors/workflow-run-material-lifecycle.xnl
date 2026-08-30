@@ -1,244 +1,266 @@
 <Behavior #workflow-run-material-lifecycle apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #type-instance-run-and-material-acceptance (
-      <Statement ?01M0QH8A83G0XJW23PPX7S7TE3>
+      <Statement ?01M18JH2ZN7D1YFJZPYAAQV31Y>
       Eidolon native workflow component SHALL provide Resource Type/Instance/Run and immutable Material lifecycles using canonical XNL/depa-flows resources and Eidolon actor/session effect authority.
-      </?01M0QH8A83G0XJW23PPX7S7TE3>
+      </?01M18JH2ZN7D1YFJZPYAAQV31Y>
       <Suites [
         <Suite #definition-instance-run { name = "Definition, instance and run lifecycle" } (
           <Cases [
             <Case #instance-freezes-definition-revision [
-              <Then ?01M0QH8A83G0XJW23PPX7S7TE4>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV31Z>
               execution SHALL use the instance's frozen content revision and form
-              </?01M0QH8A83G0XJW23PPX7S7TE4>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TE5>
+              </?01M18JH2ZN7D1YFJZPYAAQV31Z>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV320>
               it SHALL NOT resolve the current publication
-              </?01M0QH8A83G0XJW23PPX7S7TE5>
+              </?01M18JH2ZN7D1YFJZPYAAQV320>
             ] (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TE6>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV321>
               a published workflow resource is instantiated and the publication is later changed
-              </?01M0QH8A83G0XJW23PPX7S7TE6>
-              <When ?01M0QH8A83G0XJW23PPX7S7TE7>
+              </?01M18JH2ZN7D1YFJZPYAAQV321>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV322>
               the instance is started or a prior run is recovered
-              </?01M0QH8A83G0XJW23PPX7S7TE7>
+              </?01M18JH2ZN7D1YFJZPYAAQV322>
             )>
             <Case #execution-has-independent-confirmation (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TE8>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV323>
               a valid instance with input facts and bindings
-              </?01M0QH8A83G0XJW23PPX7S7TE8>
-              <When ?01M0QH8A83G0XJW23PPX7S7TE9>
+              </?01M18JH2ZN7D1YFJZPYAAQV323>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV324>
               start is requested without explicit execution confirmation
-              </?01M0QH8A83G0XJW23PPX7S7TE9>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TEA>
+              </?01M18JH2ZN7D1YFJZPYAAQV324>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV325>
               the component SHALL return a freeze preview without creating run facts, events, or effects
-              </?01M0QH8A83G0XJW23PPX7S7TEA>
+              </?01M18JH2ZN7D1YFJZPYAAQV325>
             )>
             <Case #start-is-idempotent-and-inputs-freeze (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TEB>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV326>
               a caller-supplied run id and request fingerprint
-              </?01M0QH8A83G0XJW23PPX7S7TEB>
-              <When ?01M0QH8A83G0XJW23PPX7S7TEC>
+              </?01M18JH2ZN7D1YFJZPYAAQV326>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV327>
               the same start is repeated or input mutation is attempted after start
-              </?01M0QH8A83G0XJW23PPX7S7TEC>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TED>
+              </?01M18JH2ZN7D1YFJZPYAAQV327>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV328>
               the same request SHALL return the existing run, conflicting reuse SHALL fail, and started instance inputs SHALL be immutable
-              </?01M0QH8A83G0XJW23PPX7S7TED>
+              </?01M18JH2ZN7D1YFJZPYAAQV328>
             )>
             <Case #wait-resolve-reject-and-recovery (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TEE>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV329>
               a ctrl or data workflow has a pending human or agent wait handle
-              </?01M0QH8A83G0XJW23PPX7S7TEE>
-              <When ?01M0QH8A83G0XJW23PPX7S7TEF>
+              </?01M18JH2ZN7D1YFJZPYAAQV329>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV32A>
               the handle is resolved/rejected or the runtime process is reconstructed
-              </?01M0QH8A83G0XJW23PPX7S7TEF>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TEG>
+              </?01M18JH2ZN7D1YFJZPYAAQV32A>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV32B>
               the exact pending handle SHALL transition through the existing Eidolon/depa-flows lifecycle and stable run facts SHALL recover status and result
-              </?01M0QH8A83G0XJW23PPX7S7TEG>
+              </?01M18JH2ZN7D1YFJZPYAAQV32B>
             )>
           ]>
         )>
         <Suite #immutable-materials { name = "Immutable Material lifecycle" } (
           <Cases [
             <Case #import-produces-exact-revision [
-              <Then ?01M0QH8A83G0XJW23PPX7S7TEH>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV32C>
               the component SHALL create or reuse a content-addressed immutable revision with manifest and provenance
-              </?01M0QH8A83G0XJW23PPX7S7TEH>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TEJ>
+              </?01M18JH2ZN7D1YFJZPYAAQV32C>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV32D>
               path escape and symlink traversal SHALL be rejected
-              </?01M0QH8A83G0XJW23PPX7S7TEJ>
+              </?01M18JH2ZN7D1YFJZPYAAQV32D>
             ] (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TEK>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV32E>
               a workspace-contained regular source file or directory
-              </?01M0QH8A83G0XJW23PPX7S7TEK>
-              <When ?01M0QH8A83G0XJW23PPX7S7TEM>
+              </?01M18JH2ZN7D1YFJZPYAAQV32E>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV32F>
               it is imported as a Material
-              </?01M0QH8A83G0XJW23PPX7S7TEM>
+              </?01M18JH2ZN7D1YFJZPYAAQV32F>
             )>
             <Case #binding-and-receipt-freeze-revisions (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TEN>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV32G>
               an instance node port is bound to an exact Material revision
-              </?01M0QH8A83G0XJW23PPX7S7TEN>
-              <When ?01M0QH8A83G0XJW23PPX7S7TEP>
+              </?01M18JH2ZN7D1YFJZPYAAQV32G>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV32H>
               a confirmed run starts and produces outputs
-              </?01M0QH8A83G0XJW23PPX7S7TEP>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TEQ>
+              </?01M18JH2ZN7D1YFJZPYAAQV32H>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV32J>
               its receipt SHALL retain exact input and output revisions and leases
-              </?01M0QH8A83G0XJW23PPX7S7TEQ>
+              </?01M18JH2ZN7D1YFJZPYAAQV32J>
             )>
             <Case #replay-ignores-later-rebinding (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TER>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV32K>
               a completed run receipt and a later binding to a different revision
-              </?01M0QH8A83G0XJW23PPX7S7TER>
-              <When ?01M0QH8A83G0XJW23PPX7S7TES>
+              </?01M18JH2ZN7D1YFJZPYAAQV32K>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV32M>
               the original run is replayed
-              </?01M0QH8A83G0XJW23PPX7S7TES>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TET>
+              </?01M18JH2ZN7D1YFJZPYAAQV32M>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV32N>
               the new run SHALL inherit the original receipt's exact revisions rather than current bindings
-              </?01M0QH8A83G0XJW23PPX7S7TET>
+              </?01M18JH2ZN7D1YFJZPYAAQV32N>
             )>
             <Case #export-and-cleanup-require-confirmation (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TEV>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV32P>
               an export destination or cleanup candidate set
-              </?01M0QH8A83G0XJW23PPX7S7TEV>
-              <When ?01M0QH8A83G0XJW23PPX7S7TEW>
+              </?01M18JH2ZN7D1YFJZPYAAQV32P>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV32Q>
               the operation is not confirmed or a revision remains leased
-              </?01M0QH8A83G0XJW23PPX7S7TEW>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TEX>
+              </?01M18JH2ZN7D1YFJZPYAAQV32Q>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV32R>
               no filesystem export or leased revision deletion SHALL occur
-              </?01M0QH8A83G0XJW23PPX7S7TEX>
+              </?01M18JH2ZN7D1YFJZPYAAQV32R>
             )>
           ]>
         )>
         <Suite #native-authority { name = "Native surface and authority" } (
           <Cases [
             <Case #tools-and-cli-share-component (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TEY>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV32S>
               conversation tools and eidolon workflow CLI expose lifecycle operations
-              </?01M0QH8A83G0XJW23PPX7S7TEY>
-              <When ?01M0QH8A83G0XJW23PPX7S7TEZ>
+              </?01M18JH2ZN7D1YFJZPYAAQV32S>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV32T>
               they query or mutate workflow facts
-              </?01M0QH8A83G0XJW23PPX7S7TEZ>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TF0>
+              </?01M18JH2ZN7D1YFJZPYAAQV32T>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV32V>
               both surfaces SHALL call the same workflow component service and SHALL NOT retain a direct-run or private-storage path
-              </?01M0QH8A83G0XJW23PPX7S7TF0>
+              </?01M18JH2ZN7D1YFJZPYAAQV32V>
             )>
             <Case #workflow-owns-only-workflow-facts (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TF1>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV32W>
               agent, tool, human, graph and Material execution evidence exists
-              </?01M0QH8A83G0XJW23PPX7S7TF1>
-              <When ?01M0QH8A83G0XJW23PPX7S7TF2>
+              </?01M18JH2ZN7D1YFJZPYAAQV32W>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV32X>
               workflow recovery facts are persisted
-              </?01M0QH8A83G0XJW23PPX7S7TF2>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TF3>
+              </?01M18JH2ZN7D1YFJZPYAAQV32X>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV32Y>
               the workflow store SHALL own only Type/Instance/Run/receipt facts while depa-flows and Eidolon retain their existing fact authority
-              </?01M0QH8A83G0XJW23PPX7S7TF3>
+              </?01M18JH2ZN7D1YFJZPYAAQV32Y>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #step-space-and-sidecar-authority (
-      <Statement ?01M0QH8A83G0XJW23PPX7S7TF4>
+      <Statement ?01M18JH2ZN7D1YFJZPYAAQV32Z>
       Eidolon SHALL preserve depa StepSpace definition authority and profile-aware run sidecars inside the existing frozen Instance and single FlowRunCheckpoint lifecycle.
-      </?01M0QH8A83G0XJW23PPX7S7TF4>
+      </?01M18JH2ZN7D1YFJZPYAAQV32Z>
       <Suites [
         <Suite #frozen-step-space { name = "Frozen StepSpace authority" } (
           <Cases [
             <Case #complete-closure (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TF5>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV330>
               a ResourcePackage declares a Ctrl or Data StepSpace with step groups and extensions
-              </?01M0QH8A83G0XJW23PPX7S7TF5>
-              <When ?01M0QH8A83G0XJW23PPX7S7TF6>
+              </?01M18JH2ZN7D1YFJZPYAAQV330>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV331>
               an instance is admitted
-              </?01M0QH8A83G0XJW23PPX7S7TF6>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TF7>
+              </?01M18JH2ZN7D1YFJZPYAAQV331>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV332>
               the complete explicit closure, descriptors and normalized initial extension values SHALL be frozen with exact source revision, digest and provenance
-              </?01M0QH8A83G0XJW23PPX7S7TF7>
+              </?01M18JH2ZN7D1YFJZPYAAQV332>
             )>
             <Case #fresh-owner-first (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TF8>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV333>
               a materialized instance and a later live source modification, deletion or corruption
-              </?01M0QH8A83G0XJW23PPX7S7TF8>
-              <When ?01M0QH8A83G0XJW23PPX7S7TF9>
+              </?01M18JH2ZN7D1YFJZPYAAQV333>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV334>
               a fresh runtime loads or resumes the run
-              </?01M0QH8A83G0XJW23PPX7S7TF9>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TFA>
+              </?01M18JH2ZN7D1YFJZPYAAQV334>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV335>
               profile authority and extension membership SHALL be reconstructed only from the frozen instance bytes
-              </?01M0QH8A83G0XJW23PPX7S7TFA>
+              </?01M18JH2ZN7D1YFJZPYAAQV335>
             )>
           ]>
         )>
         <Suite #single-checkpoint-sidecar { name = "Single logical checkpoint and local update" } (
           <Cases [
             <Case #same-logical-truth (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TFB>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV336>
               Ctrl or Data core state and custom step extension state change
-              </?01M0QH8A83G0XJW23PPX7S7TFB>
-              <When ?01M0QH8A83G0XJW23PPX7S7TFC>
+              </?01M18JH2ZN7D1YFJZPYAAQV336>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV337>
               the transition is admitted
-              </?01M0QH8A83G0XJW23PPX7S7TFC>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TFD>
+              </?01M18JH2ZN7D1YFJZPYAAQV337>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV338>
               both SHALL remain one closed FlowRunCheckpoint truth and SHALL NOT create a second Eidolon sidecar store
-              </?01M0QH8A83G0XJW23PPX7S7TFD>
+              </?01M18JH2ZN7D1YFJZPYAAQV338>
             )>
             <Case #targeted-locality (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TFE>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV339>
               one non-terminal step extension is selected by logical identity
-              </?01M0QH8A83G0XJW23PPX7S7TFE>
-              <When ?01M0QH8A83G0XJW23PPX7S7TFF>
+              </?01M18JH2ZN7D1YFJZPYAAQV339>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV33A>
               the runtime-first mutation Processor succeeds
-              </?01M0QH8A83G0XJW23PPX7S7TFF>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TFG>
+              </?01M18JH2ZN7D1YFJZPYAAQV33A>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV33B>
               exactly that extension revision SHALL advance through one checkpoint CAS while unrelated logical state remains equal and physical layout remains depa-owned
-              </?01M0QH8A83G0XJW23PPX7S7TFG>
+              </?01M18JH2ZN7D1YFJZPYAAQV33B>
             )>
             <Case #fresh-recovery (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TFH>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV33C>
               an accepted local extension update and an interrupted or reconstructed process
-              </?01M0QH8A83G0XJW23PPX7S7TFH>
-              <When ?01M0QH8A83G0XJW23PPX7S7TFJ>
+              </?01M18JH2ZN7D1YFJZPYAAQV33C>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV33D>
               the run is loaded again
-              </?01M0QH8A83G0XJW23PPX7S7TFJ>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TFK>
+              </?01M18JH2ZN7D1YFJZPYAAQV33D>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV33E>
               the same logical extension value, revision, checkpoint version and run result SHALL recover without replaying accepted effects
-              </?01M0QH8A83G0XJW23PPX7S7TFK>
+              </?01M18JH2ZN7D1YFJZPYAAQV33E>
             )>
           ]>
         )>
         <Suite #authority-boundaries { name = "Authority and compatibility boundaries" } (
           <Cases [
             <Case #runtime-codec-only (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TFM>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV33F>
               a schema-bound custom extension
-              </?01M0QH8A83G0XJW23PPX7S7TFM>
-              <When ?01M0QH8A83G0XJW23PPX7S7TFN>
+              </?01M18JH2ZN7D1YFJZPYAAQV33F>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV33G>
               definition or run facts are persisted
-              </?01M0QH8A83G0XJW23PPX7S7TFN>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TFP>
+              </?01M18JH2ZN7D1YFJZPYAAQV33G>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV33H>
               codec functions and host paths SHALL remain runtime-only and unknown or mismatched codecs SHALL fail before mutation
-              </?01M0QH8A83G0XJW23PPX7S7TFP>
+              </?01M18JH2ZN7D1YFJZPYAAQV33H>
             )>
             <Case #logical-native-reads (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TFQ>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV33J>
               native status, summary, result, replay or evidence is requested
-              </?01M0QH8A83G0XJW23PPX7S7TFQ>
-              <When ?01M0QH8A83G0XJW23PPX7S7TFR>
+              </?01M18JH2ZN7D1YFJZPYAAQV33J>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV33K>
               the component projects a run
-              </?01M0QH8A83G0XJW23PPX7S7TFR>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TFS>
+              </?01M18JH2ZN7D1YFJZPYAAQV33K>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV33M>
               it SHALL read the logical checkpoint and SHALL NOT expose physical record, tree, receipt, head or bundle paths
-              </?01M0QH8A83G0XJW23PPX7S7TFS>
+              </?01M18JH2ZN7D1YFJZPYAAQV33M>
             )>
             <Case #no-dual-write (
-              <Given ?01M0QH8A83G0XJW23PPX7S7TFT>
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV33N>
               a new or migrated Ctrl/Data run uses StepSpace sidecars
-              </?01M0QH8A83G0XJW23PPX7S7TFT>
-              <When ?01M0QH8A83G0XJW23PPX7S7TFV>
+              </?01M18JH2ZN7D1YFJZPYAAQV33N>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV33P>
               the run changes
-              </?01M0QH8A83G0XJW23PPX7S7TFV>
-              <Then ?01M0QH8A83G0XJW23PPX7S7TFW>
+              </?01M18JH2ZN7D1YFJZPYAAQV33P>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV33Q>
               Eidolon SHALL NOT write legacy Ctrl, AI state, Data graph or Agent execution authorities
-              </?01M0QH8A83G0XJW23PPX7S7TFW>
+              </?01M18JH2ZN7D1YFJZPYAAQV33Q>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #task-space-receipt-handoff (
+      <Statement ?01M18JH2ZN7D1YFJZPYAAQV33R>
+      TaskSpace SHALL admit settlement before FlowRunCheckpoint consumes its durable receipt in a separate CAS transition; repeated or interrupted handoff SHALL converge without duplicate task or run facts.
+      </?01M18JH2ZN7D1YFJZPYAAQV33R>
+      <Suites [
+        <Suite #handoff-cases { name = "Cross-owner handoff" } (
+          <Cases [
+            <Case #interrupted-between-owners (
+              <Given ?01M18JH2ZN7D1YFJZPYAAQV33S>
+              Task settlement commits and the process stops before checkpoint update.
+              </?01M18JH2ZN7D1YFJZPYAAQV33S>
+              <When ?01M18JH2ZN7D1YFJZPYAAQV33T>
+              A fresh runtime resumes.
+              </?01M18JH2ZN7D1YFJZPYAAQV33T>
+              <Then ?01M18JH2ZN7D1YFJZPYAAQV33V>
+              It SHALL consume the same settlement receipt exactly once.
+              </?01M18JH2ZN7D1YFJZPYAAQV33V>
             )>
           ]>
         )>

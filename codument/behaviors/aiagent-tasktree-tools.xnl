@@ -1,163 +1,185 @@
 <Behavior #aiagent-tasktree-tools apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #tasktreewrite (
-      <Statement ?01M05F1P1ME6C6PEP9C8TZ1V04>
+      <Statement ?01M18JEZY7VYPCW6HENG3WGJF7>
       系统 MUST 使用 `TaskTreeWrite` 作为任务树状态更新入口，支持 `replace_root`、`expand`、`update_status` 三类操作。
-      </?01M05F1P1ME6C6PEP9C8TZ1V04>
+      </?01M18JEZY7VYPCW6HENG3WGJF7>
       <Suites [
         <Suite { name = "tasktreewrite" } (
           <Cases [
             <Case #replace-root { name = "使用 replace_root 初始化任务树" } [
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V05>
+              <Then ?01M18JEZY7VYPCW6HENG3WGJF8>
               任务树根节点子任务被替换为输入任务集合
-              </?01M05F1P1ME6C6PEP9C8TZ1V05>
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V06>
+              </?01M18JEZY7VYPCW6HENG3WGJF8>
+              <Then ?01M18JEZY7VYPCW6HENG3WGJF9>
               返回可读的任务树渲染结果
-              </?01M05F1P1ME6C6PEP9C8TZ1V06>
+              </?01M18JEZY7VYPCW6HENG3WGJF9>
             ] (
-              <Given ?01M05F1P1ME6C6PEP9C8TZ1V07>
+              <Given ?01M18JEZY7VYPCW6HENG3WGJFA>
               当前会话存在 AIAgent actor
-              </?01M05F1P1ME6C6PEP9C8TZ1V07>
-              <When ?01M05F1P1ME6C6PEP9C8TZ1V08>
+              </?01M18JEZY7VYPCW6HENG3WGJFA>
+              <When ?01M18JEZY7VYPCW6HENG3WGJFB>
               调用 `TaskTreeWrite` 且 `op=replace_root`
-              </?01M05F1P1ME6C6PEP9C8TZ1V08>
+              </?01M18JEZY7VYPCW6HENG3WGJFB>
             )>
             <Case #in-progress-expand { name = "仅允许 in_progress 任务执行 expand" } (
-              <Given ?01M05F1P1ME6C6PEP9C8TZ1V09>
+              <Given ?01M18JEZY7VYPCW6HENG3WGJFC>
               某任务状态不是 `in_progress`
-              </?01M05F1P1ME6C6PEP9C8TZ1V09>
-              <When ?01M05F1P1ME6C6PEP9C8TZ1V0A>
+              </?01M18JEZY7VYPCW6HENG3WGJFC>
+              <When ?01M18JEZY7VYPCW6HENG3WGJFD>
               调用 `TaskTreeWrite` 且 `op=expand`
-              </?01M05F1P1ME6C6PEP9C8TZ1V0A>
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V0B>
+              </?01M18JEZY7VYPCW6HENG3WGJFD>
+              <Then ?01M18JEZY7VYPCW6HENG3WGJFE>
               系统拒绝扩展并返回可识别错误
-              </?01M05F1P1ME6C6PEP9C8TZ1V0B>
+              </?01M18JEZY7VYPCW6HENG3WGJFE>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #tasktreeread-json (
-      <Statement ?01M05F1P1ME6C6PEP9C8TZ1V0C>
+      <Statement ?01M18JEZY8APAYRTG71P1SJRZG>
       系统 MUST 提供 `TaskTreeRead` 工具，并返回完整 `TaskTree` JSON（包含 `root` 与 `nextId`）。
-      </?01M05F1P1ME6C6PEP9C8TZ1V0C>
+      </?01M18JEZY8APAYRTG71P1SJRZG>
       <Suites [
         <Suite { name = "tasktreeread-json" } (
           <Cases [
             <Case #case-3 { name = "读取完整结构" } [
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V0D>
+              <Then ?01M18JEZY8APAYRTG71P1SJRZH>
               返回值包含完整 JSON 结构
-              </?01M05F1P1ME6C6PEP9C8TZ1V0D>
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V0E>
+              </?01M18JEZY8APAYRTG71P1SJRZH>
+              <Then ?01M18JEZY8APAYRTG71P1SJRZJ>
               返回内容包含 `root` 字段与 `nextId` 字段
-              </?01M05F1P1ME6C6PEP9C8TZ1V0E>
+              </?01M18JEZY8APAYRTG71P1SJRZJ>
             ] (
-              <Given ?01M05F1P1ME6C6PEP9C8TZ1V0F>
+              <Given ?01M18JEZY8APAYRTG71P1SJRZK>
               会话内已存在任务树状态
-              </?01M05F1P1ME6C6PEP9C8TZ1V0F>
-              <When ?01M05F1P1ME6C6PEP9C8TZ1V0G>
+              </?01M18JEZY8APAYRTG71P1SJRZK>
+              <When ?01M18JEZY8APAYRTG71P1SJRZM>
               调用 `TaskTreeRead`
-              </?01M05F1P1ME6C6PEP9C8TZ1V0G>
+              </?01M18JEZY8APAYRTG71P1SJRZM>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #runsubagent (
-      <Statement ?01M05F1P1ME6C6PEP9C8TZ1V0H>
+      <Statement ?01M18JEZY8APAYRTG71P1SJRZN>
       系统 MUST 以 `RunSubAgent` 作为子代理调用工具名，旧名 `RunSubTask` 不再作为标准入口。
-      </?01M05F1P1ME6C6PEP9C8TZ1V0H>
+      </?01M18JEZY8APAYRTG71P1SJRZN>
       <Suites [
         <Suite { name = "runsubagent" } (
           <Cases [
             <Case #case-4 { name = "使用新工具名调用子代理" } [
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V0J>
+              <Then ?01M18JEZY8APAYRTG71P1SJRZP>
               系统按输入参数创建子代理任务
-              </?01M05F1P1ME6C6PEP9C8TZ1V0J>
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V0K>
+              </?01M18JEZY8APAYRTG71P1SJRZP>
+              <Then ?01M18JEZY8APAYRTG71P1SJRZQ>
               工具调用链路不依赖 `RunSubTask` 名称
-              </?01M05F1P1ME6C6PEP9C8TZ1V0K>
+              </?01M18JEZY8APAYRTG71P1SJRZQ>
             ] (
-              <Given ?01M05F1P1ME6C6PEP9C8TZ1V0M>
+              <Given ?01M18JEZY8APAYRTG71P1SJRZR>
               已注册可用 agent_type
-              </?01M05F1P1ME6C6PEP9C8TZ1V0M>
-              <When ?01M05F1P1ME6C6PEP9C8TZ1V0N>
+              </?01M18JEZY8APAYRTG71P1SJRZR>
+              <When ?01M18JEZY8APAYRTG71P1SJRZS>
               调用 `RunSubAgent`
-              </?01M05F1P1ME6C6PEP9C8TZ1V0N>
+              </?01M18JEZY8APAYRTG71P1SJRZS>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #tooldefinitions-schema (
-      <Statement ?01M05F1P1ME6C6PEP9C8TZ1V0P>
+      <Statement ?01M18JEZY8APAYRTG71P1SJRZT>
       系统 MUST 在 `ToolDefinitions` 中基于 builtin tool defs 组装 schema，避免重复手写 schema 定义导致漂移。
-      </?01M05F1P1ME6C6PEP9C8TZ1V0P>
+      </?01M18JEZY8APAYRTG71P1SJRZT>
       <Suites [
         <Suite { name = "tooldefinitions-schema" } (
           <Cases [
             <Case #case-5 { name = "组装工具清单时不依赖重复硬编码" } [
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V0Q>
+              <Then ?01M18JEZY8APAYRTG71P1SJRZV>
               使用工具目录 schema 作为来源
-              </?01M05F1P1ME6C6PEP9C8TZ1V0Q>
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V0R>
+              </?01M18JEZY8APAYRTG71P1SJRZV>
+              <Then ?01M18JEZY8APAYRTG71P1SJRZW>
               不再维护重复的同名手写 schema
-              </?01M05F1P1ME6C6PEP9C8TZ1V0R>
+              </?01M18JEZY8APAYRTG71P1SJRZW>
             ] (
-              <Given ?01M05F1P1ME6C6PEP9C8TZ1V0S>
+              <Given ?01M18JEZY8APAYRTG71P1SJRZX>
               已存在工具目录下的 ToolDef schema
-              </?01M05F1P1ME6C6PEP9C8TZ1V0S>
-              <When ?01M05F1P1ME6C6PEP9C8TZ1V0T>
+              </?01M18JEZY8APAYRTG71P1SJRZX>
+              <When ?01M18JEZY8APAYRTG71P1SJRZY>
               构建 base tools 与动态工具描述
-              </?01M05F1P1ME6C6PEP9C8TZ1V0T>
+              </?01M18JEZY8APAYRTG71P1SJRZY>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #requirement-5 (
-      <Statement ?01M05F1P1ME6C6PEP9C8TZ1V0V>
+      <Statement ?01M18JEZY8APAYRTG71P1SJRZZ>
       terminal 侧 SHALL 只完成 minimal 运行与基础映射对齐，不要求完整 TUI 深度体验优化。
-      </?01M05F1P1ME6C6PEP9C8TZ1V0V>
+      </?01M18JEZY8APAYRTG71P1SJRZZ>
       <Suites [
         <Suite { name = "requirement-5" } (
           <Cases [
             <Case #minimal { name = "minimal 提示词与工具名一致" } (
-              <Given ?01M05F1P1ME6C6PEP9C8TZ1V0W>
+              <Given ?01M18JEZY8APAYRTG71P1SJS00>
               启动 terminal minimal
-              </?01M05F1P1ME6C6PEP9C8TZ1V0W>
-              <When ?01M05F1P1ME6C6PEP9C8TZ1V0X>
+              </?01M18JEZY8APAYRTG71P1SJS00>
+              <When ?01M18JEZY8APAYRTG71P1SJS01>
               查看系统提示词与工具映射
-              </?01M05F1P1ME6C6PEP9C8TZ1V0X>
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V0Y>
+              </?01M18JEZY8APAYRTG71P1SJS01>
+              <Then ?01M18JEZY8APAYRTG71P1SJS02>
               使用 `TaskTreeWrite`、`TaskTreeRead`、`RunSubAgent` 新命名
-              </?01M05F1P1ME6C6PEP9C8TZ1V0Y>
+              </?01M18JEZY8APAYRTG71P1SJS02>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #requirement-6 (
-      <Statement ?01M05F1P1ME6C6PEP9C8TZ1V0Z>
+      <Statement ?01M18JEZY8APAYRTG71P1SJS03>
       本能力规范 SHALL 仅描述已完成改动，不额外扩展新特性。
-      </?01M05F1P1ME6C6PEP9C8TZ1V0Z>
+      </?01M18JEZY8APAYRTG71P1SJS03>
       <Suites [
         <Suite { name = "requirement-6" } (
           <Cases [
             <Case #case-7 { name = "规范收敛为已落地行为" } [
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V10>
+              <Then ?01M18JEZY8APAYRTG71P1SJS04>
               内容聚焦于现状行为与契约
-              </?01M05F1P1ME6C6PEP9C8TZ1V10>
-              <Then ?01M05F1P1ME6C6PEP9C8TZ1V11>
+              </?01M18JEZY8APAYRTG71P1SJS04>
+              <Then ?01M18JEZY8APAYRTG71P1SJS05>
               不新增与目标无关功能
-              </?01M05F1P1ME6C6PEP9C8TZ1V11>
+              </?01M18JEZY8APAYRTG71P1SJS05>
             ] (
-              <Given ?01M05F1P1ME6C6PEP9C8TZ1V12>
+              <Given ?01M18JEZY8APAYRTG71P1SJS06>
               代码已存在相关实现
-              </?01M05F1P1ME6C6PEP9C8TZ1V12>
-              <When ?01M05F1P1ME6C6PEP9C8TZ1V13>
+              </?01M18JEZY8APAYRTG71P1SJS06>
+              <When ?01M18JEZY8APAYRTG71P1SJS07>
               审查该能力规范
-              </?01M05F1P1ME6C6PEP9C8TZ1V13>
+              </?01M18JEZY8APAYRTG71P1SJS07>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #task-space-authority-migration (
+      <Statement ?01M18JEZY8APAYRTG71P1SJS08>
+      Eidolon task tools SHALL project and mutate the canonical depa-flows TaskSpace; overlapping legacy TaskTree/Holon ownership facts SHALL be one-way migrated or read-only derived and SHALL NOT remain a second writable authority.
+      </?01M18JEZY8APAYRTG71P1SJS08>
+      <Suites [
+        <Suite #migration-cases { name = "Task authority" } (
+          <Cases [
+            <Case #no-dual-write (
+              <Given ?01M18JEZY8APAYRTG71P1SJS09>
+              A migrated organization task changes state.
+              </?01M18JEZY8APAYRTG71P1SJS09>
+              <When ?01M18JEZY8APAYRTG71P1SJS0A>
+              Production tools execute.
+              </?01M18JEZY8APAYRTG71P1SJS0A>
+              <Then ?01M18JEZY8APAYRTG71P1SJS0B>
+              Only TaskSpace SHALL be committed and any legacy view SHALL be rebuilt from its receipt.
+              </?01M18JEZY8APAYRTG71P1SJS0B>
             )>
           ]>
         )>

@@ -1,268 +1,312 @@
 <Behavior #terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #effective-model-priority (
-      <Statement ?01M05F1P3Q7EGWBJS6CX3J9EQ2>
+      <Statement ?01M18J9Q636X5F9AT2Z5CPVZZJ>
       系统 SHALL 在 terminal TUI 中以 source-aware 方式解析并展示当前有效模型，避免人工选择、启动参数、agent 默认、runtime 历史和配置默认之间互相拍平覆盖。
-      </?01M05F1P3Q7EGWBJS6CX3J9EQ2>
+      </?01M18J9Q636X5F9AT2Z5CPVZZJ>
       <Suites [
         <Suite #priority-resolution { name = "有效模型优先级" } (
           <Cases [
             <Case #manual-dialog-selection-wins [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQ3>
+              <Then ?01M18J9Q636X5F9AT2Z5CPVZZK>
               系统 SHALL 保持人工选择作为当前有效模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQ3>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQ4>
+              </?01M18J9Q636X5F9AT2Z5CPVZZK>
+              <Then ?01M18J9Q636X5F9AT2Z5CPVZZM>
               系统 SHALL 在状态条展示该人工选择后的 provider/model
-              </?01M05F1P3Q7EGWBJS6CX3J9EQ4>
+              </?01M18J9Q636X5F9AT2Z5CPVZZM>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9EQ5>
+              <Given ?01M18J9Q636X5F9AT2Z5CPVZZN>
               用户在 TUI 模型 dialog 中人工选择 provider/model
-              </?01M05F1P3Q7EGWBJS6CX3J9EQ5>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9EQ6>
+              </?01M18J9Q636X5F9AT2Z5CPVZZN>
+              <When ?01M18J9Q636X5F9AT2Z5CPVZZP>
               agent 默认模型同步、runtime 历史投影或 recent model 随后产生不同模型候选
-              </?01M05F1P3Q7EGWBJS6CX3J9EQ6>
+              </?01M18J9Q636X5F9AT2Z5CPVZZP>
             )>
             <Case #cli-model-wins-over-config [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQ7>
+              <Then ?01M18J9Q636X5F9AT2Z5CPVZZQ>
               系统 SHALL 使用启动参数模型作为有效模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQ7>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQ8>
+              </?01M18J9Q636X5F9AT2Z5CPVZZQ>
+              <Then ?01M18J9Q636X5F9AT2Z5CPVZZR>
               该模型 SHALL 低于后续人工 dialog 选择的优先级
-              </?01M05F1P3Q7EGWBJS6CX3J9EQ8>
+              </?01M18J9Q636X5F9AT2Z5CPVZZR>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9EQ9>
+              <Given ?01M18J9Q636X5F9AT2Z5CPVZZS>
               启动参数指定了 provider/model，且配置默认或 recent model 指向另一个模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQ9>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9EQA>
+              </?01M18J9Q636X5F9AT2Z5CPVZZS>
+              <When ?01M18J9Q636X5F9AT2Z5CPVZZT>
               TUI 初始化当前会话选择状态
-              </?01M05F1P3Q7EGWBJS6CX3J9EQA>
+              </?01M18J9Q636X5F9AT2Z5CPVZZT>
             )>
             <Case #agent-memory-wins-over-agent-default [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQB>
+              <Then ?01M18J9Q636X5F9AT2Z5CPVZZV>
               系统 SHALL 优先使用 agent 用户记忆中的模型覆盖值
-              </?01M05F1P3Q7EGWBJS6CX3J9EQB>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQC>
+              </?01M18J9Q636X5F9AT2Z5CPVZZV>
+              <Then ?01M18J9Q636X5F9AT2Z5CPVZZW>
               agent definition 默认模型 SHALL 只在缺少更高优先级来源时生效
-              </?01M05F1P3Q7EGWBJS6CX3J9EQC>
+              </?01M18J9Q636X5F9AT2Z5CPVZZW>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9EQD>
+              <Given ?01M18J9Q636X5F9AT2Z5CPVZZX>
               当前 agent 具有用户记忆中的 provider/model 覆盖值，且 agent definition 也声明默认模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQD>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9EQE>
+              </?01M18J9Q636X5F9AT2Z5CPVZZX>
+              <When ?01M18J9Q636X5F9AT2Z5CPVZZY>
               系统解析当前有效模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQE>
+              </?01M18J9Q636X5F9AT2Z5CPVZZY>
             )>
             <Case #priority-order-is-stable (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9EQF>
+              <Given ?01M18J9Q636X5F9AT2Z5CPVZZZ>
               多个模型来源同时存在
-              </?01M05F1P3Q7EGWBJS6CX3J9EQF>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9EQG>
+              </?01M18J9Q636X5F9AT2Z5CPVZZZ>
+              <When ?01M18J9Q636X5F9AT2Z5CPW000>
               系统解析当前有效模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQG>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQH>
+              </?01M18J9Q636X5F9AT2Z5CPW000>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW001>
               系统 SHALL 按 user-explicit、cli-arg、agent-memory、agent-default、runtime-config、recent、provider-default 的顺序选择第一个有效模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQH>
+              </?01M18J9Q636X5F9AT2Z5CPW001>
             )>
           ]>
         )>
         <Suite #projection-and-display { name = "投影与展示" } (
           <Cases [
             <Case #runtime-history-does-not-overwrite-explicit-source [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQJ>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW002>
               系统 SHALL 只记录或使用 runtime 历史作为低优先级候选
-              </?01M05F1P3Q7EGWBJS6CX3J9EQJ>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQK>
+              </?01M18J9Q636X5F9AT2Z5CPW002>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW003>
               系统 SHALL NOT 用 runtime 历史覆盖更高优先级的有效模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQK>
+              </?01M18J9Q636X5F9AT2Z5CPW003>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9EQM>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW004>
               runtime 历史消息中包含 provider/model 信息
-              </?01M05F1P3Q7EGWBJS6CX3J9EQM>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9EQN>
+              </?01M18J9Q636X5F9AT2Z5CPW004>
+              <When ?01M18J9Q636X5F9AT2Z5CPW005>
               当前 selection 已有更高优先级来源
-              </?01M05F1P3Q7EGWBJS6CX3J9EQN>
+              </?01M18J9Q636X5F9AT2Z5CPW005>
             )>
             <Case #status-line-shows-effective-model [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQP>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW006>
               系统 SHALL 展示 effective model resolver 的输出
-              </?01M05F1P3Q7EGWBJS6CX3J9EQP>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQQ>
+              </?01M18J9Q636X5F9AT2Z5CPW006>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW007>
               系统 SHALL NOT 直接展示未解析的拍平 selection 值
-              </?01M05F1P3Q7EGWBJS6CX3J9EQQ>
+              </?01M18J9Q636X5F9AT2Z5CPW007>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9EQR>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW008>
               当前 TUI 有多个模型候选来源
-              </?01M05F1P3Q7EGWBJS6CX3J9EQR>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9EQS>
+              </?01M18J9Q636X5F9AT2Z5CPW008>
+              <When ?01M18J9Q636X5F9AT2Z5CPW009>
               composer/input 底部状态条渲染 provider/model
-              </?01M05F1P3Q7EGWBJS6CX3J9EQS>
+              </?01M18J9Q636X5F9AT2Z5CPW009>
             )>
             <Case #agent-switch-recomputes-without-model-only-overwrite-loop [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQT>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00A>
               系统 SHALL 响应 agent identity 变化重新解析候选模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQT>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQV>
+              </?01M18J9Q636X5F9AT2Z5CPW00A>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00B>
               系统 SHALL NOT 因 provider/model-only 变化误触发 agent 默认模型覆盖人工选择
-              </?01M05F1P3Q7EGWBJS6CX3J9EQV>
+              </?01M18J9Q636X5F9AT2Z5CPW00B>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9EQW>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW00C>
               用户切换当前 agent
-              </?01M05F1P3Q7EGWBJS6CX3J9EQW>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9EQX>
+              </?01M18J9Q636X5F9AT2Z5CPW00C>
+              <When ?01M18J9Q636X5F9AT2Z5CPW00D>
               系统根据新 agent 重新计算有效模型
-              </?01M05F1P3Q7EGWBJS6CX3J9EQX>
+              </?01M18J9Q636X5F9AT2Z5CPW00D>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #composer-attachment-blocks (
-      <Statement ?01M05F1P3Q7EGWBJS6CX3J9EQY>
+      <Statement ?01M18J9Q636X5F9AT2Z5CPW00E>
       Terminal TUI Composer SHALL 以显式用户选择区分路径文本、文件引用与附件；当 bracketed-paste 完整解析为一个或多个存在的文件路径时，Composer SHALL 弹出“附件 / 引用 / 路径文本”三选一，且在用户选择前 MUST NOT 创建 structured part 或读取文件内容。普通非路径文本直接插入；带二进制图片 MIME 的剪贴板输入直接创建图片附件。
-      </?01M05F1P3Q7EGWBJS6CX3J9EQY>
+      </?01M18J9Q636X5F9AT2Z5CPW00E>
       <Suites [
         <Suite #attachment-ingress { name = "附件输入" } (
           <Cases [
             <Case #path-candidate-requires-explicit-choice [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9EQZ>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00F>
               Composer SHALL 弹出简短的“附件 / 引用 / 路径文本”选择器，并将一次选择应用到本次路径集合
-              </?01M05F1P3Q7EGWBJS6CX3J9EQZ>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ER0>
+              </?01M18J9Q636X5F9AT2Z5CPW00F>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00G>
               选择完成前 MUST NOT 读取文件内容或创建 canonical part
-              </?01M05F1P3Q7EGWBJS6CX3J9ER0>
+              </?01M18J9Q636X5F9AT2Z5CPW00G>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ER1>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW00H>
               bracketed-paste payload 完整解析为一个或多个存在的 Windows drive/UNC、POSIX 或 file URI 文件路径
-              </?01M05F1P3Q7EGWBJS6CX3J9ER1>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ER2>
+              </?01M18J9Q636X5F9AT2Z5CPW00H>
+              <When ?01M18J9Q636X5F9AT2Z5CPW00J>
               Composer 接收该路径集合
-              </?01M05F1P3Q7EGWBJS6CX3J9ER2>
+              </?01M18J9Q636X5F9AT2Z5CPW00J>
             )>
             <Case #attachment-choice-imports-value [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ER3>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00K>
               每个文件 SHALL 按值导入 session asset store 并建立附件块；图片 SHALL 依文件头识别为 image attachment
-              </?01M05F1P3Q7EGWBJS6CX3J9ER3>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ER4>
+              </?01M18J9Q636X5F9AT2Z5CPW00K>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00M>
               源文件之后移动、删除或变化 MUST NOT 影响已导入附件的恢复
-              </?01M05F1P3Q7EGWBJS6CX3J9ER4>
+              </?01M18J9Q636X5F9AT2Z5CPW00M>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ER5>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW00N>
               路径候选选择器正在显示且用户选择“附件”
-              </?01M05F1P3Q7EGWBJS6CX3J9ER5>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ER6>
+              </?01M18J9Q636X5F9AT2Z5CPW00N>
+              <When ?01M18J9Q636X5F9AT2Z5CPW00P>
               Composer 应用选择
-              </?01M05F1P3Q7EGWBJS6CX3J9ER6>
+              </?01M18J9Q636X5F9AT2Z5CPW00P>
             )>
             <Case #reference-choice-keeps-local-reference (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ER7>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW00Q>
               路径候选选择器正在显示且用户选择“引用”
-              </?01M05F1P3Q7EGWBJS6CX3J9ER7>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ER8>
+              </?01M18J9Q636X5F9AT2Z5CPW00Q>
+              <When ?01M18J9Q636X5F9AT2Z5CPW00R>
               Composer 应用选择
-              </?01M05F1P3Q7EGWBJS6CX3J9ER8>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ER9>
+              </?01M18J9Q636X5F9AT2Z5CPW00R>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00S>
               每个文件 SHALL 建立 file-reference part，发送时从原路径解析，因此源文件变化或移动 SHALL 影响后续读取
-              </?01M05F1P3Q7EGWBJS6CX3J9ER9>
+              </?01M18J9Q636X5F9AT2Z5CPW00S>
             )>
             <Case #path-text-choice-preserves-text (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ERA>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW00T>
               路径候选选择器正在显示且用户选择“路径文本”
-              </?01M05F1P3Q7EGWBJS6CX3J9ERA>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ERB>
+              </?01M18J9Q636X5F9AT2Z5CPW00T>
+              <When ?01M18J9Q636X5F9AT2Z5CPW00V>
               Composer 应用选择
-              </?01M05F1P3Q7EGWBJS6CX3J9ERB>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ERC>
+              </?01M18J9Q636X5F9AT2Z5CPW00V>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00W>
               原始 paste payload SHALL 作为普通文本插入且 MUST NOT 读取文件内容或创建 structured part
-              </?01M05F1P3Q7EGWBJS6CX3J9ERC>
+              </?01M18J9Q636X5F9AT2Z5CPW00W>
             )>
             <Case #ordinary-non-path-paste-remains-text (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ERD>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW00X>
               文本 paste payload 不能完整解析为存在的文件路径集合
-              </?01M05F1P3Q7EGWBJS6CX3J9ERD>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ERE>
+              </?01M18J9Q636X5F9AT2Z5CPW00X>
+              <When ?01M18J9Q636X5F9AT2Z5CPW00Y>
               Composer 处理 paste
-              </?01M05F1P3Q7EGWBJS6CX3J9ERE>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ERF>
+              </?01M18J9Q636X5F9AT2Z5CPW00Y>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW00Z>
               payload SHALL 按普通文本原样插入且不弹出文件意图选择器
-              </?01M05F1P3Q7EGWBJS6CX3J9ERF>
+              </?01M18J9Q636X5F9AT2Z5CPW00Z>
             )>
             <Case #explicit-file-reference-becomes-part (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ERG>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW010>
               用户通过 Ctrl+O 或 `@fs:` 显式选择一个或多个文件引用
-              </?01M05F1P3Q7EGWBJS6CX3J9ERG>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ERH>
+              </?01M18J9Q636X5F9AT2Z5CPW010>
+              <When ?01M18J9Q636X5F9AT2Z5CPW011>
               Composer 接收该显式引用入口
-              </?01M05F1P3Q7EGWBJS6CX3J9ERH>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ERJ>
+              </?01M18J9Q636X5F9AT2Z5CPW011>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW012>
               每个有效文件 SHALL 直接成为独立 file-reference part 和可见引用块，无需再次弹出意图选择器
-              </?01M05F1P3Q7EGWBJS6CX3J9ERJ>
+              </?01M18J9Q636X5F9AT2Z5CPW012>
             )>
             <Case #clipboard-image-becomes-image-attachment (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ERK>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW013>
               剪贴板输入显式携带受支持的 image MIME 与二进制内容
-              </?01M05F1P3Q7EGWBJS6CX3J9ERK>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ERM>
+              </?01M18J9Q636X5F9AT2Z5CPW013>
+              <When ?01M18J9Q636X5F9AT2Z5CPW014>
               Composer 处理 paste 命令
-              </?01M05F1P3Q7EGWBJS6CX3J9ERM>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ERN>
+              </?01M18J9Q636X5F9AT2Z5CPW014>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW015>
               图片 SHALL 成为 image attachment part，而不是路径文本或 file reference
-              </?01M05F1P3Q7EGWBJS6CX3J9ERN>
+              </?01M18J9Q636X5F9AT2Z5CPW015>
             )>
             <Case #all-entry-points-share-part-shape (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ERP>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW016>
               同一附件分别由文件选择、显式引用或剪贴板图片加入
-              </?01M05F1P3Q7EGWBJS6CX3J9ERP>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ERQ>
+              </?01M18J9Q636X5F9AT2Z5CPW016>
+              <When ?01M18J9Q636X5F9AT2Z5CPW017>
               Composer 建立附件
-              </?01M05F1P3Q7EGWBJS6CX3J9ERQ>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ERR>
+              </?01M18J9Q636X5F9AT2Z5CPW017>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW018>
               附件 SHALL 使用相同的 file part identity、MIME、source range 与 extmark lifecycle
-              </?01M05F1P3Q7EGWBJS6CX3J9ERR>
+              </?01M18J9Q636X5F9AT2Z5CPW018>
             )>
           ]>
         )>
         <Suite #atomic-editing { name = "附件块编辑与计数" } (
           <Cases [
             <Case #backspace-deletes-whole-block [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ERS>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW019>
               Composer SHALL 一次删除完整虚拟范围、extmark 与对应 structured part
-              </?01M05F1P3Q7EGWBJS6CX3J9ERS>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ERT>
+              </?01M18J9Q636X5F9AT2Z5CPW019>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW01A>
               相邻普通文本和其他附件 SHALL 保持不变
-              </?01M05F1P3Q7EGWBJS6CX3J9ERT>
+              </?01M18J9Q636X5F9AT2Z5CPW01A>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ERV>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW01B>
               光标位于附件虚拟块之后
-              </?01M05F1P3Q7EGWBJS6CX3J9ERV>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ERW>
+              </?01M18J9Q636X5F9AT2Z5CPW01B>
+              <When ?01M18J9Q636X5F9AT2Z5CPW01C>
               用户按 Backspace
-              </?01M05F1P3Q7EGWBJS6CX3J9ERW>
+              </?01M18J9Q636X5F9AT2Z5CPW01C>
             )>
             <Case #delete-deletes-whole-block (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ERX>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW01D>
               光标位于附件虚拟块之前或 selection 覆盖附件块
-              </?01M05F1P3Q7EGWBJS6CX3J9ERX>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ERY>
+              </?01M18J9Q636X5F9AT2Z5CPW01D>
+              <When ?01M18J9Q636X5F9AT2Z5CPW01E>
               用户按 Delete 或删除 selection
-              </?01M05F1P3Q7EGWBJS6CX3J9ERY>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ERZ>
+              </?01M18J9Q636X5F9AT2Z5CPW01E>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW01F>
               Composer SHALL 一次删除整个附件块而不留下部分文件名或孤立 part
-              </?01M05F1P3Q7EGWBJS6CX3J9ERZ>
+              </?01M18J9Q636X5F9AT2Z5CPW01F>
             )>
             <Case #part-count-is-canonical [
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ES0>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW01G>
               数量 SHALL 与 reconciliation 后的 canonical structured parts 数量一致
-              </?01M05F1P3Q7EGWBJS6CX3J9ES0>
-              <Then ?01M05F1P3Q7EGWBJS6CX3J9ES1>
+              </?01M18J9Q636X5F9AT2Z5CPW01G>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW01H>
               同一 UI transaction 完成后 SHALL 不显示旧计数
-              </?01M05F1P3Q7EGWBJS6CX3J9ES1>
+              </?01M18J9Q636X5F9AT2Z5CPW01H>
             ] (
-              <Given ?01M05F1P3Q7EGWBJS6CX3J9ES2>
+              <Given ?01M18J9Q636X5F9AT2Z5CPW01J>
               附件被批量插入、原子删除、历史恢复或草稿清空
-              </?01M05F1P3Q7EGWBJS6CX3J9ES2>
-              <When ?01M05F1P3Q7EGWBJS6CX3J9ES3>
+              </?01M18J9Q636X5F9AT2Z5CPW01J>
+              <When ?01M18J9Q636X5F9AT2Z5CPW01K>
               Composer 右下角渲染 parts 数量
-              </?01M05F1P3Q7EGWBJS6CX3J9ES3>
+              </?01M18J9Q636X5F9AT2Z5CPW01K>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #recoverable-provider-switch (
+      <Statement ?01M18J9Q636X5F9AT2Z5CPW01M>
+      TUI/CLI 显式切换 provider/model 后 SHALL 刷新实际 actor adapter并推进需要的 provider epoch；projection/admission failure SHALL 作为可恢复的当前 turn failure展示，MUST NOT让持久会话永久无法继续。
+      </?01M18J9Q636X5F9AT2Z5CPW01M>
+      <Suites [
+        <Suite #switch-and-recover { name = "模型切换与恢复" } (
+          <Cases [
+            <Case #explicit-switch-applies-to-recovered-actor (
+              <Given ?01M18J9Q636X5F9AT2Z5CPW01N>
+              session从旧provider model config恢复。
+              </?01M18J9Q636X5F9AT2Z5CPW01N>
+              <When ?01M18J9Q636X5F9AT2Z5CPW01P>
+              用户通过dialog或CLI显式选择另一个provider/model。
+              </?01M18J9Q636X5F9AT2Z5CPW01P>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW01Q>
+              下一次真实request SHALL使用新选择与新provider projection，不得回退到持久化旧adapter。
+              </?01M18J9Q636X5F9AT2Z5CPW01Q>
+            )>
+            <Case #admission-failure-remains-continuable (
+              <Given ?01M18J9Q636X5F9AT2Z5CPW01R>
+              新provider request在本地closed admission失败且没有网络或tool副作用。
+              </?01M18J9Q636X5F9AT2Z5CPW01R>
+              <When ?01M18J9Q636X5F9AT2Z5CPW01S>
+              用户再次切换模型或修正配置后继续。
+              </?01M18J9Q636X5F9AT2Z5CPW01S>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW01T>
+              系统 SHALL 记录local_projection_rejected等价typed outcome；main fiber SHALL 可继续处理下一轮。该失败不得写assistant History、确认tool delivery、推进continuation baseline或重复已完成tool effect。
+              </?01M18J9Q636X5F9AT2Z5CPW01T>
+            )>
+            <Case #incident-copy-deepseek-continuation (
+              <Given ?01M18J9Q636X5F9AT2Z5CPW01V>
+              事故session的只读副本包含长Codex工具历史。
+              </?01M18J9Q636X5F9AT2Z5CPW01V>
+              <When ?01M18J9Q636X5F9AT2Z5CPW01W>
+              使用SiliconFlow DeepSeek V4 Flash继续一次普通用户turn。
+              </?01M18J9Q636X5F9AT2Z5CPW01W>
+              <Then ?01M18J9Q636X5F9AT2Z5CPW01X>
+              系统 SHALL 产生provider completion或明确的远端provider failure，MUST NOT再产生本地invalid_provider_request_body，原始事故session保持不变。
+              </?01M18J9Q636X5F9AT2Z5CPW01X>
             )>
           ]>
         )>

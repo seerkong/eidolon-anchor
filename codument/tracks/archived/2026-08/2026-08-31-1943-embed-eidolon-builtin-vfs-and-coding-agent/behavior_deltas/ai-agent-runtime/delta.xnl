@@ -1,0 +1,20 @@
+<BehaviorPatch #track.embed-eidolon-builtin-vfs-and-coding-agent.behavior_patch.ai-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-agent-runtime" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-agent-runtime/requirements/halfcode-agent-composition/suites/builtin-coding-agent" } (
+      <Suite #builtin-coding-agent { name = "Formal mature Coding Agent" } (
+        <Cases [
+          <Case #no-physical-eidolon-required (
+            <Given ?>no physical workspace or home .eidolon directory exists</?>
+            <When ?>Eidolon resolves the formal mature Coding Agent</?>
+            <Then ?>it SHALL resolve resource://eidolon.coding.CodeAgent from the Builtin VFS with its mature MessagePrefix, Workspace AGENTS.md source, Standard ContextPipeline and exact tools intact</?>
+          )>
+          <Case #testkit-does-not-own-production-agent (
+            <Given ?>a proposition or workflow E2E fixture needs the mature Coding Agent</?>
+            <When ?>the fixture builds test-specific resources</?>
+            <Then ?>it SHALL reference the formal Agent resource and MUST NOT copy or regenerate production prompt, MessagePrefix, ContextPipeline or ToolRef bytes</?>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

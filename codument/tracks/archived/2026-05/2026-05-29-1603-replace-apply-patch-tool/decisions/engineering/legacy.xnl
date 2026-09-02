@@ -1,0 +1,197 @@
+<decision #track.replace-apply-patch-tool.d1 apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>
+迁移范围：哪些机制纳入本 Track。
+  </?>
+  <recommendation ?>
+A。
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+全量迁移：真实 anchors、匹配回退、失败诊断、staged writes、防覆盖/重复路径/目录防护、read freshness/context refresh、prompt contract、路径权限对齐、结构化输出。
+      </?>
+      <description ?>
+全量迁移：真实 anchors、匹配回退、失败诊断、staged writes、防覆盖/重复路径/目录防护、read freshness/context refresh、prompt contract、路径权限对齐、结构化输出。
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+核心迁移：只迁移 parser/matcher/staged writes/prompt，不做 read freshness/context refresh。
+      </?>
+      <description ?>
+核心迁移：只迁移 parser/matcher/staged writes/prompt，不做 read freshness/context refresh。
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+最小迁移：只替换 parser/matcher，其他机制保持现状。
+      </?>
+      <description ?>
+最小迁移：只替换 parser/matcher，其他机制保持现状。
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+A，全量迁移；若实现阶段发现本项目缺少 read cache 基础设施，则做最小可行适配并在设计/实现记录边界。
+    </?>
+    <decision-text ?>
+A，全量迁移；若实现阶段发现本项目缺少 read cache 基础设施，则做最小可行适配并在设计/实现记录边界。
+    </?>
+    <rationale ?>
+用户明确要求迁移 apply patch 之外的其他机制，且 apply_patch 的安全性依赖完整编辑生命周期。
+    </?>
+    <evidence ?>
+用户明确要求不仅迁移 apply patch 本体，也迁移和 apply patch 之外相关的机制；前置问卷中用户未逐项选择 migration_scope，只回复“同意”。
+
+Legacy provenance: codument/tracks/archived/2026-05/2026-05-29-1603-replace-apply-patch-tool/decisions.md
+
+- 背景：用户明确要求不仅迁移 apply patch 本体，也迁移和 apply patch 之外相关的机制；前置问卷中用户未逐项选择 migration_scope，只回复“同意”。
+- 需要决定：哪些机制纳入本 Track。
+- 选项：
+  - A) 全量迁移：真实 anchors、匹配回退、失败诊断、staged writes、防覆盖/重复路径/目录防护、read freshness/context refresh、prompt contract、路径权限对齐、结构化输出。
+  - B) 核心迁移：只迁移 parser/matcher/staged writes/prompt，不做 read freshness/context refresh。
+  - C) 最小迁移：只替换 parser/matcher，其他机制保持现状。
+- 当前建议：A。
+- 用户答复：同意。
+- 最终决策：A，全量迁移；若实现阶段发现本项目缺少 read cache 基础设施，则做最小可行适配并在设计/实现记录边界。
+- 决策理由：用户明确要求迁移 apply patch 之外的其他机制，且 apply_patch 的安全性依赖完整编辑生命周期。
+- 状态：accepted
+    </?>
+  )>
+)>
+
+<decision #track.replace-apply-patch-tool.d2 apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>
+成功输出兼容策略：替换后如何兼容旧调用方。
+  </?>
+  <recommendation ?>
+A。
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+保留现有 unified diff，同时新增结构化字段。
+      </?>
+      <description ?>
+保留现有 unified diff，同时新增结构化字段。
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+改为风格结构化输出为主，不保证保留 diff。
+      </?>
+      <description ?>
+改为风格结构化输出为主，不保证保留 diff。
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+新字段为主，但提供兼容 wrapper/字段。
+      </?>
+      <description ?>
+新字段为主，但提供兼容 wrapper/字段。
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+A。
+    </?>
+    <decision-text ?>
+A。
+    </?>
+    <rationale ?>
+兼容风险最低，同时让 agent/runtime 获取 touched files、counts、match modes、refresh hint 等新信息。
+    </?>
+    <evidence ?>
+本项目旧 ApplyPatch 成功输出包含 unified diff
+
+Legacy provenance: codument/tracks/archived/2026-05/2026-05-29-1603-replace-apply-patch-tool/decisions.md
+
+- 背景：本项目旧 ApplyPatch 成功输出包含 unified diff
+- 需要决定：替换后如何兼容旧调用方。
+- 选项：
+  - A) 保留现有 unified diff，同时新增结构化字段。
+  - B) 改为风格结构化输出为主，不保证保留 diff。
+  - C) 新字段为主，但提供兼容 wrapper/字段。
+- 当前建议：A。
+- 用户答复：A. 保留现有 unified diff，同时新增结构化字段。
+- 最终决策：A。
+- 决策理由：兼容风险最低，同时让 agent/runtime 获取 touched files、counts、match modes、refresh hint 等新信息。
+- 状态：accepted
+    </?>
+  )>
+)>
+
+<decision #track.replace-apply-patch-tool.d3 apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?>
+提交与校验模式：自动提交还是手动提交，以及 human-confirm 还是 gap-loop。
+  </?>
+  <recommendation ?>
+B。
+  </?>
+  <options { } [
+    <option { key = "A" recommended = false } (
+      <title ?>
+manual + yield-human-confirm。
+      </?>
+      <description ?>
+manual + yield-human-confirm。
+      </?>
+    )>
+    <option { key = "B" recommended = true } (
+      <title ?>
+manual + yield-gap-loop（仅最后 phase）。
+      </?>
+      <description ?>
+manual + yield-gap-loop（仅最后 phase）。
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+auto + yield-gap-loop（仅最后 phase）。
+      </?>
+      <description ?>
+auto + yield-gap-loop（仅最后 phase）。
+      </?>
+    )>
+    <option { key = "D" recommended = false } (
+      <title ?>
+auto + yield-human-confirm。
+      </?>
+      <description ?>
+auto + yield-human-confirm。
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+B，`commit_mode=manual`，`validation_mode=yield-gap-loop`，`validation_granularity=final_phase`。
+    </?>
+    <decision-text ?>
+B，`commit_mode=manual`，`validation_mode=yield-gap-loop`，`validation_granularity=final_phase`。
+    </?>
+    <rationale ?>
+本仓库提交策略不明确，manual 更安全；最后 phase gap-loop 可在完成后做目标对比和缺口检查。
+    </?>
+    <evidence ?>
+Track plan 需要记录 commit_mode 与 validation_mode。
+
+Legacy provenance: codument/tracks/archived/2026-05/2026-05-29-1603-replace-apply-patch-tool/decisions.md
+
+- 背景：Track plan 需要记录 commit_mode 与 validation_mode。
+- 需要决定：自动提交还是手动提交，以及 human-confirm 还是 gap-loop。
+- 选项：
+  - A) manual + yield-human-confirm。
+  - B) manual + yield-gap-loop（仅最后 phase）。
+  - C) auto + yield-gap-loop（仅最后 phase）。
+  - D) auto + yield-human-confirm。
+- 当前建议：B。
+- 用户答复：B. manual + yield-gap-loop（仅最后 phase）。
+- 最终决策：B，`commit_mode=manual`，`validation_mode=yield-gap-loop`，`validation_granularity=final_phase`。
+- 决策理由：本仓库提交策略不明确，manual 更安全；最后 phase gap-loop 可在完成后做目标对比和缺口检查。
+- 状态：accepted
+    </?>
+  )>
+)>

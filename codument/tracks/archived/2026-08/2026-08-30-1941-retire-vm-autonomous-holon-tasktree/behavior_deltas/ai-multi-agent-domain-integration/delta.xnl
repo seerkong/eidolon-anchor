@@ -1,0 +1,39 @@
+<BehaviorPatch #track.retire-vm-autonomous-holon-tasktree.behavior_patch.ai-multi-agent-domain-integration apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-multi-agent-domain-integration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-multi-agent-domain-integration/requirements/canonical-holon-product-cutover" } (
+      <Requirement #canonical-holon-product-cutover (
+        <Statement ?01M1C42Z3Y0ZV7Y7Z8D7P0C00M>
+        Product/bootstrap, AI Ctrl and AI Data SHALL share the canonical File-XNL Holon binding, TaskSpace coordinator and generic MemberRuntime execution chain; the retired VM autonomous Holon runtime SHALL be absent rather than retained as a fallback.
+        </?01M1C42Z3Y0ZV7Y7Z8D7P0C00M>
+        <Suites [
+          <Suite #product-cutover { name = "Canonical Holon product cutover" } (
+            <Cases [
+              <Case #ctrl-data-and-product-share-runtime (
+                <Given ?01M1C42Z3Y0ZV7Y7Z8D7P0C00N>
+                Product assignment, AI Ctrl or AI Data delegates work to an autonomous Holon.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00N>
+                <When ?01M1C42Z3Y0ZV7Y7Z8D7P0C00P>
+                The request is accepted, recovered and completed.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00P>
+                <Then ?01M1C42Z3Y0ZV7Y7Z8D7P0C00Q>
+                All modes SHALL traverse the same frozen binding, TaskSpace, coordinator actor, MemberRuntime and settlement authorities without a per-mode Holon task state machine.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00Q>
+              )>
+              <Case #legacy-runtime-cannot-revive (
+                <Given ?01M1C42Z3Y0ZV7Y7Z8D7P0C00R>
+                Source, snapshot or history contains an old autonomous VM task representation.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00R>
+                <When ?01M1C42Z3Y0ZV7Y7Z8D7P0C00S>
+                A fresh runtime loads or inspects it.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00S>
+                <Then ?01M1C42Z3Y0ZV7Y7Z8D7P0C00T>
+                It SHALL be rejected or exposed only by an explicit read-only audit decoder and SHALL NOT create a writer, fiber, lane, waiter or dispatch.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00T>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

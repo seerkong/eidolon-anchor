@@ -1,0 +1,90 @@
+<decision #implement-windows-sandbox-account.account-vs-restricted-token apiVersion="codument.tech/v1alpha1" {
+  status = "decided"
+  owner = "track"
+}
+(
+  <question ?>Windows 进程级隔离用独立账号还是 restricted-token？</?>
+  <options { } [
+    <option { key = "A" recommended = true }
+    (
+      <title ?>independent-account</?>
+      <description ?>独立受限账号（NetUserAdd + LogonUserW + CreateProcessAsUserW）</?>
+    )
+    >
+    <option { key = "B" }
+    (
+      <title ?>restricted-token</?>
+      <description ?>当前用户 restricted-token 降级（已证 Cygwin/bun 不兼容）</?>
+    )
+    >
+  ]>
+  <answer { }
+  (
+    <raw-answer ?>A。独立账号是全新普通用户，Cygwin/bun 正常，且进程级隔离真正生效。</?>
+    <decision-text ?>A。独立账号是全新普通用户，Cygwin/bun 正常，且进程级隔离真正生效。</?>
+    <rationale ?>实验证明 restricted-token 降级路径使 Cygwin 无法初始化（NtSetInformationToken ACCESS_DENIED）。独立账号方案规避。</?>
+    <evidence ?>结论文：A。独立账号是全新普通用户，Cygwin/bun 正常，且进程级隔离真正生效。</?>
+  )
+  >
+)
+>
+<decision #implement-windows-sandbox-account.account-naming apiVersion="codument.tech/v1alpha1" {
+  status = "decided"
+  owner = "track"
+}
+(
+  <question ?>沙箱账号命名与权限？</?>
+  <options { } [
+    <option { key = "A" recommended = true }
+    (
+      <title ?>fixed-name</?>
+      <description ?>固定名 eidolon-sandbox，USER_PRIV_USER（普通用户）</?>
+    )
+    >
+    <option { key = "B" }
+    (
+      <title ?>random-name</?>
+      <description ?>随机名 + 隐藏</?>
+    )
+    >
+  ]>
+  <answer { }
+  (
+    <raw-answer ?>A。固定名便于 setup/cleanup 管理；USER_PRIV_USER 非管理员，足够隔离。</?>
+    <decision-text ?>A。固定名便于 setup/cleanup 管理；USER_PRIV_USER 非管理员，足够隔离。</?>
+    <rationale ?>固定名简化 setup 幂等与删除；隐藏账号（做法）作为增强。</?>
+    <evidence ?>结论文：A。固定名便于 setup/cleanup 管理；USER_PRIV_USER 非管理员，足够隔离。</?>
+  )
+  >
+)
+>
+<decision #implement-windows-sandbox-account.wfp-scope apiVersion="codument.tech/v1alpha1" {
+  status = "decided"
+  owner = "track"
+}
+(
+  <question ?>WFP 网络过滤在本 track 实现到什么程度？</?>
+  <options { } [
+    <option { key = "A" recommended = true }
+    (
+      <title ?>full</?>
+      <description ?>完整过滤（FwpmFilterAdd + 事务 + 拦截账号 SID）</?>
+    )
+    >
+    <option { key = "B" }
+    (
+      <title ?>skip</?>
+      <description ?>本 track 不做，后续单独</?>
+    )
+    >
+  ]>
+  <answer { }
+  (
+    <raw-answer ?>A。账号方案落地后 WFP 有了拦截目标（账号 SID），可完整实现。</?>
+    <decision-text ?>A。账号方案落地后 WFP 有了拦截目标（账号 SID），可完整实现。</?>
+    <rationale ?>账号模式是 WFP 拦截的前提（否则不知拦谁）；本 track 一并完成达到 同等。</?>
+    <evidence ?>结论文：A。账号方案落地后 WFP 有了拦截目标（账号 SID），可完整实现。</?>
+  )
+  >
+)
+>

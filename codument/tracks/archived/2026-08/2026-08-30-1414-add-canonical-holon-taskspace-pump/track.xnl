@@ -1,0 +1,67 @@
+<Track #add-canonical-holon-taskspace-pump apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Continuously and recoverably advance canonical TaskSpace work through one Holon coordinator actor and automatically feed Ctrl/Data workflow settlements." description = "Add an adapter-neutral task pump, durable attempt/result fencing, lease and replan reconciliation, and fresh-process exclusion of the old VM writer." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-30T05:54:42.734Z" updated_at = "2026-08-30T11:14:47.286Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "taskspace-holon-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/organization/" }>
+    <MaterialBundle { role = "output" name = "canonical-holon-pump" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/organization/" }>
+    <MaterialBundle { role = "output" name = "workflow-auto-consumption" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+  ]>
+  <TaskSpace #space_add-canonical-holon-taskspace-pump { name = "add-canonical-holon-taskspace-pump" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Canonical authority and durable correlation" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "correct Holon task authority behaviors and projections" status = "DONE" order = 0 }>
+          <Task #P1-T2 { name = "define durable pump subscription attempt and result receipts" status = "DONE" order = 1 }>
+          <Task #P1-T3 { name = "replace WeakMap canonical exclusion with durable recovery proof" status = "DONE" order = 2 } (
+            <Acceptance [
+              <Criterion #P1-T3-AC1 { checked = true } ?01M1ACE5EZM1MEVQK9NXK4PQ3S>
+              After a fresh process restart, the legacy runner performs zero writes for every durably adopted canonical Holon scope.
+              </?01M1ACE5EZM1MEVQK9NXK4PQ3S>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Coordinator actor task pump" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "observe ready frontier and drive bounded pump steps" status = "DONE" order = 0 }>
+          <Task #P2-T2 { name = "persist dispatch intent result and settle with attempt fencing" status = "DONE" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1AN2YK2HTPGWZ854NWTWFRZ>
+              Crashes and concurrent pumps converge on one claim, one accepted effect/result and one terminal settlement.
+              </?01M1AN2YK2HTPGWZ854NWTWFRZ>
+            ]>
+          )>
+          <Task #P2-T3 { name = "renew expire reclaim and reject stale completion" status = "DONE" order = 2 }>
+          <Task #P2-T4 { name = "reconcile organization snapshot replan through canonical processors" status = "DONE" order = 3 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Workflow automatic consumption and verification" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "wire pump lifecycle into WorkflowRuntimeService host composition" status = "DONE" order = 0 }>
+          <Task #P3-T2 { name = "prove automatic Ctrl and Data multi-task settlement consumption" status = "DONE" order = 1 }>
+          <Task #P3-T3 { name = "run crash lease concurrency replan and coexistence matrix" status = "DONE" order = 2 } (
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M1A8K1ENCZ5M2TKZKC3CW5TF>
+              Ctrl and Data reach terminal workflow state without a manual processHolonTask seam and preserve exactly-once TaskSpace history/material consumption across fresh recovery.
+              </?01M1A8K1ENCZ5M2TKZKC3CW5TF>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_add-canonical-holon-taskspace-pump" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

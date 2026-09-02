@@ -1,0 +1,30 @@
+<BehaviorPatch #track.integrate-autonomous-agent-resource-authoring.behavior_patch.ai-data-workflow apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-data-workflow" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-data-workflow/requirements/autonomous-agent-definition-preparation" } (
+      <Requirement #autonomous-agent-definition-preparation (
+        <Statement ?>An AI Data Mission preparation step SHALL autonomously select or author a Halfcode AIAgentDefinition from typed task requirements, freeze it as a run-local fixed capability, and reuse the existing durable Agent instance runtime across graph generations and fresh recovery.</?>
+        <Suites [
+          <Suite #preparation-and-recovery { name = "Agent definition preparation and recovery" } (
+            <Cases [
+              <Case #typed-preparation-before-run (
+                <Given ?>A Mission goal requires a Worker contract but does not prescribe an AgentDefinition identity.</?>
+                <When ?>The resource-managed Mission Controller prepares the AI Data run.</?>
+                <Then ?>It SHALL use typed candidate selection or author-new admission before freezing one fixed Agent capability for the run, without mutating a dynamic Capability Catalog.</?>
+              )>
+              <Case #receipt-based-fresh-recovery (
+                <Given ?>A preparation receipt was persisted with exact resource, proof and instance identities.</?>
+                <When ?>A fresh runtime reconstructs the workflow.</?>
+                <Then ?>It SHALL re-project the same resource closure, reproduce the same proof fingerprint and target the reciprocal durable instance id, otherwise fail without replacement creation.</?>
+              )>
+              <Case #definition-instance-separation (
+                <Given ?>A selected or newly authored definition has an authentic task proof.</?>
+                <When ?>The Worker is invoked for the first and later graph generations.</?>
+                <Then ?>Definition authoring and selection SHALL remain distinct from instance creation and by-id targeting, which continue through the generic Agent runtime.</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

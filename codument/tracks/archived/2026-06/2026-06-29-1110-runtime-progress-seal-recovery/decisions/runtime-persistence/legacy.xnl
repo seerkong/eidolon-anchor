@@ -1,0 +1,53 @@
+<decision #track.runtime-progress-seal-recovery.d1 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P0" durable_candidate = false } (
+  <question ?>
+Progress seal 与 checkpoint 的边界：是否把 completed progress seal 作为 checkpoint 之外的恢复接力机制。
+  </?>
+  <recommendation ?>
+A。
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+启用 production seal，并仅允许 conversation forward-only recovery。
+      </?>
+      <description ?>
+启用 production seal，并仅允许 conversation forward-only recovery。
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+继续等待完整 safepoint，不保存任何 progress。
+      </?>
+      <description ?>
+继续等待完整 safepoint，不保存任何 progress。
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+A。
+    </?>
+    <decision-text ?>
+A。
+    </?>
+    <rationale ?>
+A 不放宽完整 checkpoint 的事务边界，同时避免长 turn 已完成进度丢失。
+    </?>
+    <evidence ?>
+长 turn 未到 safepoint 时不能保存完整 VM checkpoint，但 completed conversation progress 已经是 closed fact。
+
+Legacy provenance: codument/tracks/archived/2026-06/2026-06-29-1110-runtime-progress-seal-recovery/decisions.md
+
+- 背景：长 turn 未到 safepoint 时不能保存完整 VM checkpoint，但 completed conversation progress 已经是 closed fact。
+- 需要决定：是否把 completed progress seal 作为 checkpoint 之外的恢复接力机制。
+- 选项：
+  - A) 启用 production seal，并仅允许 conversation forward-only recovery。
+  - B) 继续等待完整 safepoint，不保存任何 progress。
+- 当前建议：A。
+- 用户答复：来自 mission 目标，要求从本源解决长时间无法到 safepoint 的退出问题，同时保留 checkpoint 事务性。
+- 最终决策：A。
+- 决策理由：A 不放宽完整 checkpoint 的事务边界，同时避免长 turn 已完成进度丢失。
+- 状态：decided
+    </?>
+  )>
+)>

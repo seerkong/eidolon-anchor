@@ -1,0 +1,40 @@
+<BehaviorPatch #track.implement-conversation-native-session-fork-and-repair.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/conversation-native-session-fork" } (
+      <Requirement #conversation-native-session-fork (
+        <Statement ?>Conversation Domain SHALL own session fork as one closed child-authority transition over canonical History, Prompt, Session lineage and provider-context baseline; surfaces MUST NOT create fork truth by copying rendered messages or runtime projections.</?>
+        <Suites [
+          <Suite #fork-authority { name = "Conversation-native session fork" } (
+            <Cases [
+              <Case #fork-current-head (
+                <Given ?>source session具有可恢复的canonical History head、Prompt head与Session binding</?>
+                <When ?>调用domain capability从当前head创建child session</?>
+                <Then ?>child SHALL获得语义等价且身份重绑定的History/Prompt authority、独立heads与parent lineage；source SHALL保持byte-equivalent且父子后续append相互独立</?>
+              )>
+              <Case #fork-through-committed-message (
+                <Given ?>指定message id可唯一映射到canonical committed-message record，且目标History prefix、Prompt basis与完整tool-pair边界均可证明</?>
+                <When ?>调用domain capability从该消息边界创建child session</?>
+                <Then ?>child SHALL只包含截至该边界的canonical上下文，MUST NOT包含后续消息、拆开的tool pair或包含未来事实的Prompt transform</?>
+              )>
+              <Case #unprovable-compaction-boundary-rejected (
+                <Given ?>目标消息跨越compaction边界，且准确Prompt generation或等价重建证据缺失、歧义或digest不匹配</?>
+                <When ?>系统解析message-level fork point</?>
+                <Then ?>系统 SHALL fail closed并返回typed rejection，MUST NOT创建、发布或导航到空白或部分child session</?>
+              )>
+              <Case #fork-publish-is-atomic (
+                <Given ?>child-authority初始化在stage、append、fsync、index publish或head CAS任一边界被中断</?>
+                <When ?>fresh process恢复source与target session</?>
+                <Then ?>恢复结果 SHALL是source不变且target不存在，或source不变且target三域authority与child provider receipt/epoch baseline共同完整；MUST NOT出现lineage已发布但History/Prompt head为空、或Conversation可hydrate但provider epoch不可运行的混合状态</?>
+              )>
+              <Case #fork-source-and-target-cas (
+                <Given ?>fork point已规划，但source authority或target transaction ownership在提交前发生竞争变化</?>
+                <When ?>runtime执行提交前source重读与durable target claim</?>
+                <Then ?>source digest不一致或不同target claim SHALL fail closed且不得发布child；相同immutable transaction SHALL可幂等恢复</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

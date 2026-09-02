@@ -1,0 +1,114 @@
+<decision #track.add-actor-surface-lanes.d4 apiVersion="codument.tech/v1alpha1" { status = "deferred" priority = "P1" durable_candidate = false } (
+  <question ?>
+primary backend identity 配置入口：本 track 是否必须交付完整配置 UI。
+  </?>
+  <recommendation ?>
+A
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+本 track 建立 contract/facade/persistence，TUI 展示当前 backend identity；完整配置 UI 可后续增强
+      </?>
+      <description ?>
+本 track 建立 contract/facade/persistence，TUI 展示当前 backend identity；完整配置 UI 可后续增强
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+本 track 同时交付完整 primary backend identity 配置 UI
+      </?>
+      <description ?>
+本 track 同时交付完整 primary backend identity 配置 UI
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+其他（可填写）
+      </?>
+      <description ?>
+其他（可填写）
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>原 archive 未收到用户答复，保持未选择。</?>
+    <decision-text ?>该已归档 track 不再补判配置 UI 范围；若能力仍需要，应由后续工作重新提出。</?>
+    <rationale ?>归档后的 pending questionnaire 不能继续充当活动决策，也不能把当时的推荐项伪装成已接受结论。</?>
+    <evidence ?>
+用户希望支持配置 primary actor backend identity，但当前请求没有限定第一版 UI 入口。
+
+Legacy provenance: codument/decisions/2026-05/2026-05-31-0800-add-actor-surface-lanes/decision.md
+
+- 背景：用户希望支持配置 primary actor backend identity，但当前请求没有限定第一版 UI 入口。
+- 需要决定：本 track 是否必须交付完整配置 UI。
+- 选项：
+  - A) 本 track 建立 contract/facade/persistence，TUI 展示当前 backend identity；完整配置 UI 可后续增强
+  - B) 本 track 同时交付完整 primary backend identity 配置 UI
+  - C) 其他（可填写）
+- 当前建议：A
+- 用户答复：
+- 最终决策：
+- 决策理由：
+- 状态：pending
+    </?>
+  )>
+)>
+
+
+<decision #track.add-actor-surface-lanes.d5 apiVersion="codument.tech/v1alpha1" { status = "deferred" priority = "P2" durable_candidate = false } (
+  <question ?>
+actor-scoped manual message 开放范围：第一版开放范围。
+  </?>
+  <recommendation ?>
+A
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+对 foreground-capable actor 开放，其他 actor 只允许查看和取消
+      </?>
+      <description ?>
+对 foreground-capable actor 开放，其他 actor 只允许查看和取消
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+对所有 materialized actor 开放
+      </?>
+      <description ?>
+对所有 materialized actor 开放
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+其他（可填写）
+      </?>
+      <description ?>
+其他（可填写）
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>原 archive 未收到用户答复，保持未选择。</?>
+    <decision-text ?>该已归档 track 不再补判 actor-scoped manual message 范围；若能力仍需要，应由后续工作重新提出。</?>
+    <rationale ?>归档后的 pending questionnaire 不能继续充当活动决策，也不能把当时的推荐项伪装成已接受结论。</?>
+    <evidence ?>
+用户希望发现问题后能人工发送消息，再继续运行；不同 actor 类型对人工输入的语义可能不同。
+
+Legacy provenance: codument/decisions/2026-05/2026-05-31-0800-add-actor-surface-lanes/decision.md
+
+- 背景：用户希望发现问题后能人工发送消息，再继续运行；不同 actor 类型对人工输入的语义可能不同。
+- 需要决定：第一版开放范围。
+- 选项：
+  - A) 对 foreground-capable actor 开放，其他 actor 只允许查看和取消
+  - B) 对所有 materialized actor 开放
+  - C) 其他（可填写）
+- 当前建议：A
+- 用户答复：
+- 最终决策：
+- 决策理由：
+- 状态：pending
+    </?>
+  )>
+)>

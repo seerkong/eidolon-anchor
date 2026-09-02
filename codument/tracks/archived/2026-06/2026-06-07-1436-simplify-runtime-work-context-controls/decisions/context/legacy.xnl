@@ -1,0 +1,188 @@
+<decision #track.simplify-runtime-work-context-controls.d1 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P0" durable_candidate = false } (
+  <question ?>
+Work mode 状态空间与切换方式：work mode 是否继续自动推断。
+  </?>
+  <recommendation ?>
+B
+  </?>
+  <options { } [
+    <option { key = "A" recommended = false } (
+      <title ?>
+保留自动推断
+      </?>
+      <description ?>
+保留自动推断
+      </?>
+    )>
+    <option { key = "B" recommended = true } (
+      <title ?>
+改为用户手动 slash command 切换
+      </?>
+      <description ?>
+改为用户手动 slash command 切换
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+其他
+      </?>
+      <description ?>
+其他
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+B
+    </?>
+    <decision-text ?>
+B
+    </?>
+    <rationale ?>
+work mode 是权限和控制边界，应由用户显式控制，避免 runtime 自动推断导致状态不可解释。
+    </?>
+    <evidence ?>
+当前 work mode 自动推断且枚举过多。
+
+Legacy provenance: codument/tracks/archived/2026-06/2026-06-07-1436-simplify-runtime-work-context-controls/decisions.md
+
+- 背景：当前 work mode 自动推断且枚举过多。
+- 需要决定：work mode 是否继续自动推断。
+- 选项：
+  - A) 保留自动推断
+  - B) 改为用户手动 slash command 切换
+  - C) 其他
+- 当前建议：B
+- 用户答复：选择 `type WorkMode = "plan" | "build"`，并通过 `/work-mode build`、`/work-mode plan` 手动切换，默认 `build`。
+- 最终决策：B
+- 决策理由：work mode 是权限和控制边界，应由用户显式控制，避免 runtime 自动推断导致状态不可解释。
+- 状态：decided
+    </?>
+  )>
+)>
+
+<decision #track.simplify-runtime-work-context-controls.d2 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P0" durable_candidate = false } (
+  <question ?>
+Task phase 状态空间与切换方式：task phase 如何收敛。
+  </?>
+  <recommendation ?>
+B
+  </?>
+  <options { } [
+    <option { key = "A" recommended = false } (
+      <title ?>
+保留多个 phase
+      </?>
+      <description ?>
+保留多个 phase
+      </?>
+    )>
+    <option { key = "B" recommended = true } (
+      <title ?>
+收敛为 `normal | answer`，由模型 tool call 切换
+      </?>
+      <description ?>
+收敛为 `normal | answer`，由模型 tool call 切换
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+改为用户 slash command
+      </?>
+      <description ?>
+改为用户 slash command
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+B
+    </?>
+    <decision-text ?>
+B
+    </?>
+    <rationale ?>
+task phase 是模型当前响应形态，不应成为用户手动权限状态。
+    </?>
+    <evidence ?>
+当前 task phase 过多且混入验证、上下文构建等策略状态。
+
+Legacy provenance: codument/tracks/archived/2026-06/2026-06-07-1436-simplify-runtime-work-context-controls/decisions.md
+
+- 背景：当前 task phase 过多且混入验证、上下文构建等策略状态。
+- 需要决定：task phase 如何收敛。
+- 选项：
+  - A) 保留多个 phase
+  - B) 收敛为 `normal | answer`，由模型 tool call 切换
+  - C) 改为用户 slash command
+- 当前建议：B
+- 用户答复：选择 `type TaskPhase = "normal" | "answer"`，并通过 toolcall 让大模型自主切换。
+- 最终决策：B
+- 决策理由：task phase 是模型当前响应形态，不应成为用户手动权限状态。
+- 状态：decided
+    </?>
+  )>
+)>
+
+<decision #track.simplify-runtime-work-context-controls.d3 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P0" durable_candidate = false } (
+  <question ?>
+旧自动推断和调用次数逻辑：是否保留旧逻辑作为兼容。
+  </?>
+  <recommendation ?>
+B
+  </?>
+  <options { } [
+    <option { key = "A" recommended = false } (
+      <title ?>
+保留兼容 shim
+      </?>
+      <description ?>
+保留兼容 shim
+      </?>
+    )>
+    <option { key = "B" recommended = true } (
+      <title ?>
+删除旧推断和次数相关逻辑
+      </?>
+      <description ?>
+删除旧推断和次数相关逻辑
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+仅保留部分旧逻辑
+      </?>
+      <description ?>
+仅保留部分旧逻辑
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+B
+    </?>
+    <decision-text ?>
+B
+    </?>
+    <rationale ?>
+新控制模型要求状态切换来源显式，调用次数不应成为控制状态事实源。
+    </?>
+    <evidence ?>
+旧逻辑包含用户文本推断、工具 progression 和调用次数相关启发式。
+
+Legacy provenance: codument/tracks/archived/2026-06/2026-06-07-1436-simplify-runtime-work-context-controls/decisions.md
+
+- 背景：旧逻辑包含用户文本推断、工具 progression 和调用次数相关启发式。
+- 需要决定：是否保留旧逻辑作为兼容。
+- 选项：
+  - A) 保留兼容 shim
+  - B) 删除旧推断和次数相关逻辑
+  - C) 仅保留部分旧逻辑
+- 当前建议：B
+- 用户答复：完全去掉过去和 work mode、task phase 有关的调用次数相关逻辑。
+- 最终决策：B
+- 决策理由：新控制模型要求状态切换来源显式，调用次数不应成为控制状态事实源。
+- 状态：decided
+    </?>
+  )>
+)>

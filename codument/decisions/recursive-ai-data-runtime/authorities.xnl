@@ -1,0 +1,158 @@
+<decision #mission.recursive_ai_data.graph_authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M18JFM7FRM3H4WG27KN8XXP3>
+  分层目标与子目标应由独立 GoalGraph 还是现有 AIDataWorkflow 子图调用表达？
+  </?01M18JFM7FRM3H4WG27KN8XXP3>
+  <recommendation ?01M18JFM7G83A4WSYH99SFX89C>
+  以 recursive SubFlowNode + child workflow lifecycle 表达，不创建 GoalGraph。
+  </?01M18JFM7G83A4WSYH99SFX89C>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M18JFM7G83A4WSYH99SFX89D>
+      Recursive Data SubFlow
+      </?01M18JFM7G83A4WSYH99SFX89D>
+      <description ?01M18JFM7G83A4WSYH99SFX89E>
+      在唯一 RunGraph 中用 SubFlowNode、FlowContract 和 child receipt 表达主子目标与执行关系。
+      </?01M18JFM7G83A4WSYH99SFX89E>
+      <tradeoff ?01M18JFM7G83A4WSYH99SFX89F>
+      需要把现有 isolated SubFlow invocation 扩展为 durable AIData child run/checkpoint。
+      </?01M18JFM7G83A4WSYH99SFX89F>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M18JFM7G83A4WSYH99SFX89G>
+      Separate GoalGraph
+      </?01M18JFM7G83A4WSYH99SFX89G>
+      <description ?01M18JFM7G83A4WSYH99SFX89H>
+      新建目标分解图，再由 Mission Controller 同步目标图与执行 Workflow。
+      </?01M18JFM7G83A4WSYH99SFX89H>
+      <tradeoff ?01M18JFM7G83A4WSYH99SFX89J>
+      形成两个 graph authority、双重恢复和持续同步问题，重复现有 Data Flow composition。
+      </?01M18JFM7G83A4WSYH99SFX89J>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1A1DKRJX7WBTC6DMWQ99TX2>
+    用户明确要求使用 Data Flow 子图调用，类比 Codument 嵌套主子 Mission；Mission Controller只修订这一张自描述图。
+    </?01M1A1DKRJX7WBTC6DMWQ99TX2>
+    <decision-text ?01M1A1DKRKZR47688TRKSKBDMQ>
+    AI Data 分层目标 SHALL 由 recursive SubFlowNode、typed FlowContract、exact child definition/instance/run/checkpoint ref 与 completion receipt 表达；不得引入 GoalGraph 产品类型或第二 graph state owner。
+    </?01M1A1DKRKZR47688TRKSKBDMQ>
+    <rationale ?01M1A1DKRKZR47688TRKSKBDMR>
+    现有 AIDataWorkflow 已拥有 SubFlowNode 和 canonical RunGraph/checkpoint。复用它保持单一事实源，并让目标分解与可执行依赖天然一致。
+    </?01M1A1DKRKZR47688TRKSKBDMR>
+    <evidence ?01M1A1DKRKZR47688TRKSKBDMS>
+    depa-flows data-workflow/nodes规范、autonomous-control 的原始差距与 2026-08-30 G8 fresh SubFlow E2E；2026-08-30 用户决策。
+    </?01M1A1DKRKZR47688TRKSKBDMS>
+  )>
+  <confidence ?01M1A1DKRKZR47688TRKSKBDMT>
+  1.0
+  </?01M1A1DKRKZR47688TRKSKBDMT>
+  <reversibility ?01M1A1DKRKZR47688TRKSKBDMV>
+  low
+  </?01M1A1DKRKZR47688TRKSKBDMV>
+)>
+
+<decision #mission.recursive_ai_data.resource_authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M18JFM9E3CW6K27JXBTGEZ1E>
+  AI 自主创建/选择 AIAgentDefinition 与未来 Capability Catalog 应由谁拥有？
+  </?01M18JFM9E3CW6K27JXBTGEZ1E>
+  <recommendation ?01M18JFM9F8ED3QWWXQKDSGA68>
+  AIAgentDefinition继续由 Halfcode authoring/effective registry/freeze authority管理；dynamic catalog延后并最终作为registry投影。
+  </?01M18JFM9F8ED3QWWXQKDSGA68>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M18JFM9F8ED3QWWXQKDSGA69>
+      Halfcode resource authority
+      </?01M18JFM9F8ED3QWWXQKDSGA69>
+      <description ?01M18JFM9F8ED3QWWXQKDSGA6A>
+      AI通过通用Halfcode authoring transaction创建资源，depa-flows做typed Agent投影/选择，Eidolon只做host执行。
+      </?01M18JFM9F8ED3QWWXQKDSGA6A>
+      <tradeoff ?01M18JFM9F8ED3QWWXQKDSGA6B>
+      需要先补通用资源proposal/plan/apply/CAS/receipt和动态run proof。
+      </?01M18JFM9F8ED3QWWXQKDSGA6B>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M18JFM9F8ED3QWWXQKDSGA6C>
+      Workflow-private definitions/catalog
+      </?01M18JFM9F8ED3QWWXQKDSGA6C>
+      <description ?01M18JFM9F8ED3QWWXQKDSGA6D>
+      在AI Workflow runtime中保存动态Agent配置和capability列表。
+      </?01M18JFM9F8ED3QWWXQKDSGA6D>
+      <tradeoff ?01M18JFM9F8ED3QWWXQKDSGA6E>
+      绕过Halfcode、复制资源authority，并让未来Tool/Skill/Processor资源化再次迁移。
+      </?01M18JFM9F8ED3QWWXQKDSGA6E>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1A1DKRKZR47688TRKSKBDMW>
+    用户要求AIAgentDefinition统一纳入Halfcode资源管理；当前更多capability尚未Halfcode化，动态Capability Catalog应延后。
+    </?01M1A1DKRKZR47688TRKSKBDMW>
+    <decision-text ?01M1A1DKRKZR47688TRKSKBDMX>
+    自主 AIAgentDefinition SHALL 作为普通 Halfcode resource 经通用受审计 authoring transaction、effective registry 与 dependency freeze 管理；definition selection读取typed projection。Dynamic Capability Catalog DEFERRED，未来只能是Halfcode registry的派生投影。
+    </?01M1A1DKRKZR47688TRKSKBDMX>
+    <rationale ?01M1A1DKRKZR47688TRKSKBDMY>
+    Halfcode是资源事实authority；depa-flows拥有AI workflow/Agent领域projection；Eidolon拥有generic runtime。该边界避免三方平行catalog与不可恢复的私有定义。
+    </?01M1A1DKRKZR47688TRKSKBDMY>
+    <evidence ?01M1A1DKRKZR47688TRKSKBDMZ>
+    现有Halfcode ResourcePackage/effective registry、depa-flows AIAgentDefinition projection/freeze和Eidolon registry adapter；2026-08-30用户决策。
+    </?01M1A1DKRKZR47688TRKSKBDMZ>
+  )>
+  <confidence ?01M1A1DKRKZR47688TRKSKBDN0>
+  1.0
+  </?01M1A1DKRKZR47688TRKSKBDN0>
+  <reversibility ?01M1A1DKRKZR47688TRKSKBDN1>
+  moderate
+  </?01M1A1DKRKZR47688TRKSKBDN1>
+)>
+
+<decision #mission.recursive_ai_data.holon_runtime_authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M18JFMC3G3XH3ND6P1M8G3NY>
+  Holon任务自治应继续保留VM TaskTree runner，还是迁移到canonical TaskSpace/HolonCoordinator actor并删除旧路径？
+  </?01M18JFMC3G3XH3ND6P1M8G3NY>
+  <recommendation ?01M18JFMC4Q0PRN7Y0YD388N57>
+  以canonical TaskSpace/HolonCoordinator/MemberRuntime为唯一基础，迁移有效行为后删除旧VM runner。
+  </?01M18JFMC4Q0PRN7Y0YD388N57>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M18JFMC4Q0PRN7Y0YD388N58>
+      Canonical TaskSpace actor pump
+      </?01M18JFMC4Q0PRN7Y0YD388N58>
+      <description ?01M18JFMC4Q0PRN7Y0YD388N59>
+      长生命周期actor观察TaskSpace ready frontier，通过typed commands、Coordinator与MemberRuntime持续推进完整组织任务。
+      </?01M18JFMC4Q0PRN7Y0YD388N59>
+      <tradeoff ?01M18JFMC4Q0PRN7Y0YD388N5A>
+      必须逐项迁移旧runner的claim、mailbox、idle与observability并建立恢复/E2E门禁。
+      </?01M18JFMC4Q0PRN7Y0YD388N5A>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M18JFMC4Q0PRN7Y0YD388N5B>
+      Keep dual runners
+      </?01M18JFMC4Q0PRN7Y0YD388N5B>
+      <description ?01M18JFMC4Q0PRN7Y0YD388N5C>
+      新TaskSpace链路处理显式调用，旧VM runner继续负责自动组织任务。
+      </?01M18JFMC4Q0PRN7Y0YD388N5C>
+      <tradeoff ?01M18JFMC4Q0PRN7Y0YD388N5D>
+      task/assignment/ownership与恢复存在两个product authority，旧runner当前还会跳过canonical task。
+      </?01M18JFMC4Q0PRN7Y0YD388N5D>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1A1DKRKZR47688TRKSKBDN2>
+    用户要求新路径消化旧 VM自主Holon能力，然后从代码库移除旧版本。
+    </?01M1A1DKRKZR47688TRKSKBDN2>
+    <decision-text ?01M1A1DKRKZR47688TRKSKBDN3>
+    Canonical TaskSpace SHALL remain the sole task/claim/settlement authority；HolonCoordinator/MemberRuntime之上的mailbox-driven pump SHALL承接自治推进。完成parity、recovery与Ctrl/Data E2E后，旧AutonomousHolonTaskRunner及TaskTree Holon compatibility SHALL被删除。
+    </?01M1A1DKRKZR47688TRKSKBDN3>
+    <rationale ?01M1A1DKRKZR47688TRKSKBDN4>
+    当前新路径已具备正确authority但缺少持续驱动，旧路径具备驱动却依赖错误TaskTree/VM事实。迁移后删除才能消除双authority。
+    </?01M1A1DKRKZR47688TRKSKBDN4>
+    <evidence ?01M1A1DKRKZR47688TRKSKBDN5>
+    HolonWorkflowTaskRuntime、WorkflowRuntimeService.processHolonTask、AutonomousHolonTaskRunner跳过canonical authority逻辑和既有Holon Mission测试；2026-08-30用户决策。
+    </?01M1A1DKRKZR47688TRKSKBDN5>
+  )>
+  <confidence ?01M1A1DKRKZR47688TRKSKBDN6>
+  1.0
+  </?01M1A1DKRKZR47688TRKSKBDN6>
+  <reversibility ?01M1A1DKRKZR47688TRKSKBDN7>
+  low
+  </?01M1A1DKRKZR47688TRKSKBDN7>
+)>

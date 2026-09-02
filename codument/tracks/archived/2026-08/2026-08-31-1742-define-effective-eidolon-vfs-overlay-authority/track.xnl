@@ -1,0 +1,65 @@
+<Track #define-effective-eidolon-vfs-overlay-authority apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "定义唯一 Effective Eidolon VFS overlay authority、宿主 contract、迁移边界与 RED acceptance baseline" description = "以 behavior delta、storage-neutral contracts、invariant tests 和 authority report 固定后续 XNL/Halfcode/Agent runtime 的共同边界" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-31T14:22:51.705Z" updated_at = "2026-08-31T14:42:34.881Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #contracts { role = "output" name = "effective-vfs-contracts" domain = "code" path = "vfs://@/cell/packages/symbiont-contract/src/resource/" }>
+    <MaterialBundle #tests { role = "output" name = "effective-vfs-contract-tests" domain = "test" path = "vfs://@/cell/packages/symbiont-logic/tests/" }>
+    <MaterialBundle #reports { role = "output" name = "authority-baseline" domain = "docs" path = "vfs://./reports/" }>
+  ]>
+  <TaskSpace #space_define-effective-eidolon-vfs-overlay-authority { name = "define-effective-eidolon-vfs-overlay-authority" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze authority contract" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M1C3T6GYY1XNC59VFH0G4Y07>
+        固定唯一 Effective VFS 的行为、数据边界与身份/版本不变量。
+        </?01M1C3T6GYY1XNC59VFH0G4Y07>
+        <SubNodes [
+          <Task #P1-T1 { name = "Define storage-neutral Effective VFS contracts" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1C3T6GYY1XNC59VFH0G4Y08>
+              contract 区分 Builtin/overlay/plan/candidate/admitted/rejected/read port，且不依赖 XNL 或 Bun。
+              </?01M1C3T6GYY1XNC59VFH0G4Y08>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1C3T6GYY1XNC59VFH0G4Y09>
+              receipt 能证明 revision fence、overlay order、candidate digest、validation 与失败关闭语义。
+              </?01M1C3T6GYY1XNC59VFH0G4Y09>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Implement authority invariant guards" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1C3T6GYY1XNC59VFH0G4Y0A>
+              guard 拒绝乱序/重复 overlay、revision 不闭合及不完整 admitted/rejected receipt。
+              </?01M1C3T6GYY1XNC59VFH0G4Y0A>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1C3T6GYY1XNC59VFH0G4Y0B>
+              legacy ResourceVfs 被明确标记为单 revision 的只读 projection。
+              </?01M1C3T6GYY1XNC59VFH0G4Y0B>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Prove and hand off authority baseline" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M1C3T6GYY1XNC59VFH0G4Y0C>
+        用契约测试和系统级 RED inventory 为后续 owner Track 建立可验证边界。
+        </?01M1C3T6GYY1XNC59VFH0G4Y0C>
+        <SubNodes [
+          <Task #P2-T1 { name = "Add executable contract tests" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1C3T6GYY1XNC59VFH0G4Y0D>
+              测试覆盖合法 plan/receipt、overlay 顺序、失败诊断与 legacy projection provenance。
+              </?01M1C3T6GYY1XNC59VFH0G4Y0D>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Validate behavior delta and RED inventory" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1C3T6GYY1XNC59VFH0G4Y0E>
+              严格 Codument 校验通过，旧 FQN layering 条款被精确删除，新 authority cases 完整。
+              </?01M1C3T6GYY1XNC59VFH0G4Y0E>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1C3T6GYY1XNC59VFH0G4Y0F>
+              RED inventory 为每个未实现系统场景指定后续 owner Track。
+              </?01M1C3T6GYY1XNC59VFH0G4Y0F>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

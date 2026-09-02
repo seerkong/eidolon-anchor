@@ -1,0 +1,27 @@
+<Track #isolate-workflow-resource-authoring-behind-effective-vfs apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Ensure Effective-VFS Workflow composition exposes no physical ResourcePackage read/write authority" description = "Select one mutually exclusive Workflow resource authority mode, retain physical-only compatibility, and promote the architecture correction through a BehaviorPatch" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-31T19:30:44.916Z" updated_at = "2026-08-31T19:42:15.600Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_isolate-workflow-resource-authoring-behind-effective-vfs { name = "isolate-workflow-resource-authoring-behind-effective-vfs" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Lock the production authority shape" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Add production-shaped RED test and BehaviorPatch" status = "DONE" priority = "P0" order = 0 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Isolate physical ResourcePackage compatibility" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Select mutually exclusive Effective VFS or physical authority" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Preserve and verify the physical-only compatibility path" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Converge regression and durable authority" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Run regression, typecheck and strict validation" status = "DONE" priority = "P0" order = 0 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

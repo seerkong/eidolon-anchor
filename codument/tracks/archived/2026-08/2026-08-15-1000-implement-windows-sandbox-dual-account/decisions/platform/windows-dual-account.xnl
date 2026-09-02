@@ -1,0 +1,66 @@
+<decision #implement-windows-sandbox-dual-account.dual-vs-single apiVersion="codument.tech/v1alpha1" {
+  status = "decided"
+  owner = "track"
+}
+(
+  <question ?>每次命令可选网络策略用双账号还是单账号+动态 WFP？</?>
+  <options { } [
+    <option { key = "A" recommended = true }
+    (
+      <title ?>dual-account</?>
+      <description ?>双账号（online/offline），runner 按 --network 选账号</?>
+    )
+    >
+    <option { key = "B" }
+    (
+      <title ?>single-dynamic</?>
+      <description ?>单账号 + 每次命令动态装/卸 WFP</?>
+    )
+    >
+    <option { key = "C" }
+    (
+      <title ?>single-fixed</?>
+      <description ?>单账号一次性（现状，不可每次选）</?>
+    )
+    >
+  ]>
+  <answer { }
+  (
+    <raw-answer ?>A。双账号是 独立账号模式，WFP 只需对 offline 装一次，runner 按 --network 选账号即可，简单可靠。</?>
+      <decision-text ?>A。双账号是 独立账号模式，WFP 只需对 offline 装一次，runner 按 --network 选账号即可，简单可靠。</?>
+      <rationale ?>动态装/卸 WFP 每次有延迟且有竞态；双账号隔离清晰，--network 直接映射账号。</?>
+      <evidence ?>旧决策记录中的用户答复、最终决策与实施理由。</?>
+  )
+  >
+)
+>
+<decision #implement-windows-sandbox-dual-account.legacy-cleanup apiVersion="codument.tech/v1alpha1" {
+  status = "decided"
+  owner = "track"
+}
+(
+  <question ?>旧单账号 eidolon-sandbox 如何处理？</?>
+  <options { } [
+    <option { key = "A" recommended = true }
+    (
+      <title ?>cleanup</?>
+      <description ?>setup 双账号后删除旧单账号</?>
+    )
+    >
+    <option { key = "B" }
+    (
+      <title ?>keep</?>
+      <description ?>保留旧账号不清理</?>
+    )
+    >
+  ]>
+  <answer { }
+  (
+    <raw-answer ?>A。setup 双账号后删除旧 eidolon-sandbox，避免混淆。</?>
+    <decision-text ?>A。setup 双账号后删除旧 eidolon-sandbox，避免混淆。</?>
+    <rationale ?>旧账号是单账号设计的产物，双账号后无用途，清理避免误用。</?>
+    <evidence ?>结论文：A。setup 双账号后删除旧 eidolon-sandbox，避免混淆。</?>
+  )
+  >
+)
+>

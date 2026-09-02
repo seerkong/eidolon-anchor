@@ -1,0 +1,188 @@
+<Mission #establish-overlay-materialized-eidolon-vfs-and-halfcode-runtime apiVersion="codument.tech/v1alpha1" version="1" { status = "archived" goal = "Establish one overlay-materialized, revisioned Effective Eidolon VFS as the runtime authority for embedded defaults, .eidolon customization and Halfcode-backed Agent resources." description = "Coordinate XNL VFS primitives, a storage-neutral Halfcode loader, BunFS builtin resources, atomic home/workspace overlays, resource-authoring migration and cross-mode product verification without retaining FQN-layer composition as the overlay authority." question_mode = "decision-tree" question_severity = "auto" revision = 40 created_at = "2026-08-31T09:28:58.620Z" updated_at = "2026-09-02T13:52:57.216Z" gap_round = 4 } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+    <ProjectRef #xnl { kind = "external" }>
+    <ProjectRef #halfcode-compiler { kind = "external" }>
+  ]>
+  <ActorSets { default = "default-control-loop" } [
+    <ActorSet #default-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQ4>
+        Maintain the cross-project Track DAG from the accepted Effective-VFS-first authority, create only owner-local Tracks, and replan when XNL or Halfcode observations prove an external Track unnecessary or expose a missing prerequisite.
+        </?01M1C311TG98N6XJEKMCAZSJQ4>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQ5>
+        Observe BunFS/source bytes, VFS node identities and revisions, ordered overlay plans, strict mutation results, final Halfcode projections, authoring receipts, frozen Agent closures, compiled binaries and fresh recovery; coordinate overlapping resource work through current workspace evidence and .tmp/chat.jsonl.
+        </?01M1C311TG98N6XJEKMCAZSJQ5>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQ6>
+        Compare the actual topology with the invariant that consumers read one admitted Effective Eidolon VFS and Halfcode remains a one-way semantic projection; reject dual authorities, stale silent patches, random identities, registry-level overlay substitutions and unverifiable run drift.
+        </?01M1C311TG98N6XJEKMCAZSJQ6>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQ7>
+        Create, execute, verify and archive bounded Tracks in their owner projects, use RED-to-GREEN and atomic readback evidence, preserve unrelated dirty work, and run final fresh gap-loop and independent verification without implementing product code directly in Mission files.
+        </?01M1C311TG98N6XJEKMCAZSJQ7>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_establish-overlay-materialized-eidolon-vfs-and-halfcode-runtime { name = "establish-overlay-materialized-eidolon-vfs-and-halfcode-runtime" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #G1 { name = "Effective VFS authority and behavior contract" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQ8>
+        Replace the current global/workspace exact-FQN overlay contract with an Effective-VFS-first behavior, freeze the authority topology, compatibility boundaries, receipts and failing product tests before implementation.
+        </?01M1C311TG98N6XJEKMCAZSJQ8>
+        <Gate [
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQ9>
+          Behavior deltas distinguish path replacement, no-opinion fallback, explicit delete, VFS mutation, XNL content mutation and final FQN validation.
+          </?01M1C311TG98N6XJEKMCAZSJQ9>
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQA>
+          The design identifies Builtin snapshot, overlay intent, Effective VFS, Halfcode projection and run freeze as distinct one-way facts with one runtime read authority.
+          </?01M1C311TG98N6XJEKMCAZSJQA>
+        ]>
+        <SubNodes [
+          <Task #G1-T1 { name = "Define Effective Eidolon VFS overlay authority" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #define-effective-eidolon-vfs-overlay-authority { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "Cross-project VFS and Halfcode source foundations" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQB>
+        Complete the framework-neutral primitives required to materialize a stable revisioned VFS and load authentic Halfcode ResourceTrees from that final virtual source without Bun or Eidolon coupling.
+        </?01M1C311TG98N6XJEKMCAZSJQB>
+        <Gate [
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQC>
+          XNL VFS can represent stable packaged snapshots and atomically apply directory/VFS/XNL mutations with revision, identity and precondition diagnostics.
+          </?01M1C311TG98N6XJEKMCAZSJQC>
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQD>
+          Halfcode directory and VFS read-port loaders produce equivalent records, canonical provenance, diagnostics and content identities.
+          </?01M1C311TG98N6XJEKMCAZSJQD>
+        ]>
+        <SubNodes [
+          <Task #G2-T1 { name = "Expose stable XNL VFS overlay runtime" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #expose-stable-xnl-vfs-overlay-runtime { state = "bound" project_ref = "xnl" }>
+          )>
+          <Task #G2-T2 { name = "Load Halfcode resource trees from a VFS read port" status = "DONE" priority = "P0" order = 1 } (
+            <TrackLink #load-halfcode-resource-trees-from-vfs-read-port { state = "bound" project_ref = "halfcode-compiler" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "Builtin Eidolon VFS and mature Coding Agent" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQE>
+        Move the production Coding Agent out of proposition testkit, generate a stable Builtin Eidolon VFS snapshot and embed it at the final Bun compile boundary with source/compiled parity.
+        </?01M1C311TG98N6XJEKMCAZSJQE>
+        <Gate [
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQF>
+          No physical .eidolon is required to resolve and execute the mature Halfcode Coding Agent.
+          </?01M1C311TG98N6XJEKMCAZSJQF>
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQG>
+          Source and compiled modes expose identical stable VFS node identities, content digests and resource closure.
+          </?01M1C311TG98N6XJEKMCAZSJQG>
+        ]>
+        <SubNodes [
+          <Task #G3-T1 { name = "Embed Builtin Eidolon VFS and Coding Agent" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #embed-eidolon-builtin-vfs-and-coding-agent { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G3-T2 { name = "Escape colliding text markers in full XNL VFS snapshots" status = "DONE" priority = "P0" order = 1 } (
+            <TrackLink #escape-colliding-text-markers-in-xnl-vfs-snapshots { state = "bound" project_ref = "xnl" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "Atomic home and workspace overlay materialization" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQH>
+        Turn physical home/workspace .eidolon inputs into ordered overlay intent, atomically materialize and validate one Effective VFS revision, preserve the previous admitted revision on failure and expose compatibility projections only as read views.
+        </?01M1C311TG98N6XJEKMCAZSJQH>
+        <Gate [
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQJ>
+          Replacement removal and explicit deletion have distinct tested semantics, while move/rename and XNL mutation preserve declared identities.
+          </?01M1C311TG98N6XJEKMCAZSJQJ>
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQK>
+          Stale revision, expectedId, valueBefore, duplicate resource or invalid Halfcode candidate cannot publish partial state.
+          </?01M1C311TG98N6XJEKMCAZSJQK>
+        ]>
+        <SubNodes [
+          <Task #G4-T1 { name = "Materialize Eidolon overlays into one Effective VFS" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #materialize-eidolon-overlays-into-effective-vfs { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "Halfcode consumer and resource-authoring cutover" status = "DONE" priority = "P0" order = 4 } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQM>
+        Make registry projection, source capture, freeze/recovery and autonomous Agent authoring consume and transition the Effective VFS authority, then remove physical layer/FQN overlay ownership and long-lived dual writes.
+        </?01M1C311TG98N6XJEKMCAZSJQM>
+        <Gate [
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQN>
+          All runtime resource consumers bind one Effective VFS revision and Halfcode projection; no consumer directly reads builtin/home/workspace sources.
+          </?01M1C311TG98N6XJEKMCAZSJQN>
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQP>
+          Author-new persists workspace overlay intent, publishes only after full candidate readback and freezes an exact executable proof without mutating an existing run closure.
+          </?01M1C311TG98N6XJEKMCAZSJQP>
+        ]>
+        <SubNodes [
+          <Task #G5-T1 { name = "Cut over Halfcode registry to Effective Eidolon VFS" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #cut-over-halfcode-registry-to-effective-eidolon-vfs { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G5-T2 { name = "Migrate Agent resource authoring to VFS mutations" status = "DONE" priority = "P0" order = 1 } (
+            <TrackLink #migrate-agent-resource-authoring-to-eidolon-vfs-mutations { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G6 { name = "Upgrade, recovery and product convergence" status = "DONE" priority = "P0" order = 5 } (
+        <Description ?01M1C311TG98N6XJEKMCAZSJQQ>
+        Verify base upgrades, overlay replay/conflicts, compiled local installation, frozen revision recovery and ordinary/Ctrl/Data Coding Agent behavior, then run fresh architecture reconciliation until no authority or migration gap remains.
+        </?01M1C311TG98N6XJEKMCAZSJQQ>
+        <Gate [
+          <Criterion { checked = false } ?01M1C311TG98N6XJEKMCAZSJQR>
+          B1 overlays safely replay or fail closed on B2 with actionable evidence and no loss of the last admitted Effective VFS.
+          </?01M1C311TG98N6XJEKMCAZSJQR>
+          <Criterion { checked = false } ?01M1C311TH45J02N18W5R2PW5X>
+          Ordinary, Ctrl Workflow and Data Workflow executions use the formal embedded Coding Agent, preserve frozen revision recovery and maintain provider-prefix stability.
+          </?01M1C311TH45J02N18W5R2PW5X>
+          <Criterion { checked = false } ?01M1CN3TSBBNH52WSBZZX9HJSG>
+          Effective-VFS production composition exposes no physical ResourcePackage read/write publisher, while the isolated physical-only compatibility path and durable BehaviorPatch provenance remain verified.
+          </?01M1CN3TSBBNH52WSBZZX9HJSG>
+        ]>
+        <SubNodes [
+          <Task #G6-T1 { name = "Verify VFS overlay upgrades and Agent runtime" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #verify-eidolon-vfs-overlay-upgrade-and-agent-runtime { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G6-T2 { name = "Run fresh architecture gap-loop and independent Mission verification" status = "DONE" priority = "P0" order = 1 }>
+          <Task #G6-T3 { name = "Isolate Workflow resource authoring behind Effective VFS" status = "DONE" priority = "P0" order = 2 } (
+            <TrackLink #isolate-workflow-resource-authoring-behind-effective-vfs { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_establish-overlay-materialized-eidolon-vfs-and-halfcode-runtime" } [
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G2" }>
+        <After { ref = "G3" }>
+      ]>
+      <Node #G5 [
+        <After { ref = "G4" }>
+      ]>
+      <Node #G6 [
+        <After { ref = "G5" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 max_rounds = 8 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

@@ -1,0 +1,179 @@
+<Track #fix-provider-switch-admission-and-recovery apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Make successful provider calls always commit protocol-neutral request admission evidence and make provider switches atomically recoverable across snapshots." description = "Repair the 20260831145910 session incident: Codex Responses completed transport but failed post-response admission observation, then provider state split across snapshot authorities and switching back to DeepSeek could not continue." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-31T16:13:42.625Z" updated_at = "2026-08-31T19:10:26.561Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_fix-provider-switch-admission-and-recovery { name = "fix-provider-switch-admission-and-recovery" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Incident-shaped RED and authority audit" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M1CA8J1H0MDK3433E6BBE20P>
+        Reproduce the Codex post-response admission failure and the divergent provider snapshot/transition heads without mutating the original session.
+        </?01M1CA8J1H0MDK3433E6BBE20P>
+        <Gate [
+          <Criterion { checked = true } ?01M1CA8J1H0MDK3433E6BBE20Q>
+          A deterministic test proves any successful transport has a value-safe request digest independent of DeepSeek cache instrumentation.
+          </?01M1CA8J1H0MDK3433E6BBE20Q>
+          <Criterion { checked = true } ?01M1CA8J1H0MDK3433E6BBE20R>
+          A recovery fixture proves provider receipt/head divergence and swallowed checkpoint errors.
+          </?01M1CA8J1H0MDK3433E6BBE20R>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "Capture provider admission and switch RED" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1CA8J1H0MDK3433E6BBE20S>
+            Add focused tests from session 20260831145910 for Codex Responses success followed by provider_request_admission_observation_required, and for switch/checkpoint divergence.
+            </?01M1CA8J1H0MDK3433E6BBE20S>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1CA8J1H0MDK3433E6BBE20T>
+              The Codex case fails at the post-response observation boundary before the fix.
+              </?01M1CA8J1H0MDK3433E6BBE20T>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1CA8J1H0MDK3433E6BBE20V>
+              The switch case detects a session.index provider epoch newer than provider-context transition head.
+              </?01M1CA8J1H0MDK3433E6BBE20V>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M1CA8J1H0MDK3433E6BBE20W>
+              The original session directory is read-only evidence and remains byte/mtime unchanged.
+              </?01M1CA8J1H0MDK3433E6BBE20W>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Protocol-neutral admission and atomic provider transition" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M1CA8J1H0MDK3433E6BBE20X>
+        Decouple request admission evidence from DeepSeek cache observation and make model control, adapter refresh, provider epoch transition and snapshot commit one recoverable ordering.
+        </?01M1CA8J1H0MDK3433E6BBE20X>
+        <Gate [
+          <Criterion { checked = true } ?01M1CA8J1H0MDK3433E6BBE20Y>
+          Every admitted provider request has a digest even when no provider-specific cache observer exists.
+          </?01M1CA8J1H0MDK3433E6BBE20Y>
+          <Criterion { checked = true } ?01M1CA8J1H0MDK3433E6BBE20Z>
+          A committed snapshot cannot expose a new provider receipt with a stale transition head.
+          </?01M1CA8J1H0MDK3433E6BBE20Z>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "Implement universal final-wire request observation" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1CA8J1H0MDK3433E6BBE210>
+            Produce the safe request digest at common transport admission; provider-specific observers may enrich cache/cost facts but are not required for validity.
+            </?01M1CA8J1H0MDK3433E6BBE210>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1CA8J1H0MDK3433E6BBE211>
+              OpenAI Responses, OpenAI Chat and DeepSeek Chat all satisfy the common admission evidence contract.
+              </?01M1CA8J1H0MDK3433E6BBE211>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1CA8J1H0MDK3433E6BBE212>
+              Evidence contains no prompt, tool argument/result or credential values.
+              </?01M1CA8J1H0MDK3433E6BBE212>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Implement atomic provider switch and checkpoint failure semantics" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1CA8J1H0MDK3433E6BBE213>
+            Resolve target adapter/profile before epoch activation, commit transition receipt/head consistently, and surface snapshot failure instead of swallowing it.
+            </?01M1CA8J1H0MDK3433E6BBE213>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1CA8J1H0MDK3433E6BBE214>
+              Explicit model control refreshes the target adapter before deriving the target protocol profile.
+              </?01M1CA8J1H0MDK3433E6BBE214>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1CA8J1H0MDK3433E6BBE215>
+              Snapshot and transition head either commit together or leave the last known-good state recoverable.
+              </?01M1CA8J1H0MDK3433E6BBE215>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M1CA8J1H0MDK3433E6BBE216>
+              A checkpoint write failure becomes typed visible evidence and never presents a false idle/stuck state.
+              </?01M1CA8J1H0MDK3433E6BBE216>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Recovery regression and copied-session verification" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M1CA8J1H0MDK3433E6BBE217>
+        Verify failed Codex turns and provider switches can resume with either Codex or DeepSeek from deterministic fixtures and a named copy of the incident session.
+        </?01M1CA8J1H0MDK3433E6BBE217>
+        <Gate [
+          <Criterion { checked = true } ?01M1CA8J1H0MDK3433E6BBE218>
+          The copied session can continue after selecting either protocol without local admission/profile errors.
+          </?01M1CA8J1H0MDK3433E6BBE218>
+          <Criterion { checked = true } ?01M1CA8J1H0MDK3433E6BBE219>
+          Focused suites, terminal build, strict Codument validation and diff checks pass.
+          </?01M1CA8J1H0MDK3433E6BBE219>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "Verify provider switch recovery matrix" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1CA8J1H0MDK3433E6BBE21A>
+            Run Codex→retry, Codex→DeepSeek and DeepSeek→Codex recovery cases, verify authority heads, no duplicate tool effects and original-session immutability.
+            </?01M1CA8J1H0MDK3433E6BBE21A>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1CA8J1H0MDK3433E6BBE21B>
+              A failed provider turn does not permanently seal the main fiber.
+              </?01M1CA8J1H0MDK3433E6BBE21B>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M1CA8J1H0MDK3433E6BBE21C>
+              Fresh recovery chooses the last committed provider epoch and protocol profile.
+              </?01M1CA8J1H0MDK3433E6BBE21C>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M1CA8J1H0MDK3433E6BBE21D>
+              No duplicate provider/tool effect or canonical history rewrite occurs.
+              </?01M1CA8J1H0MDK3433E6BBE21D>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Interactive actor-target recovery" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M1CZP4000000000000000001>
+        Repair the actual TUI Primary-target submission path so a user message sent through actor.send revives and drives a recovered failed fiber through the same interactive-turn lifecycle instead of returning an idle projection.
+        </?01M1CZP4000000000000000001>
+        <Gate [
+          <Criterion { checked = true } ?01M1CZP4000000000000000002>
+          A copied failed session continues through the TUI actor-target API without requiring headless --auto-resume.
+          </?01M1CZP4000000000000000002>
+          <Criterion { checked = true } ?01M1CZP4000000000000000003>
+          User input, provider execution, error projection and persistence form one observable turn; the UI cannot silently retain an input that never reached durable runtime state.
+          </?01M1CZP4000000000000000003>
+        ]>
+        <SubNodes [
+          <Task #P4-T1 { name = "Drive recovered actor-target turns to an observable terminal boundary" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1CZP4000000000000000004>
+            Add an incident-shaped TUI actor.send regression, reuse the runtime coordinator for targeted interactive execution, project failures visibly, and verify the real copied session through the actor API.
+            </?01M1CZP4000000000000000004>
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M1CZP4000000000000000005>
+              Sending human input to Primary after recovering a failed fiber SHALL revive that fiber and dispatch a provider turn through the interactive coordinator.
+              </?01M1CZP4000000000000000005>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M1CZP4000000000000000006>
+              The actor-target call SHALL return a refreshed projection only after a settled or human-blocked boundary, and SHALL reject with a visible error on activation, provider, timeout or checkpoint failure.
+              </?01M1CZP4000000000000000006>
+              <Criterion #P4-T1-AC3 { checked = true } ?01M1CZP4000000000000000007>
+              A real copy of session 20260831145910 SHALL continue with DeepSeek and Codex through the same actor-target API, with consistent provider receipt/head and no duplicate tool effect.
+              </?01M1CZP4000000000000000007>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Bounded restored-session runtime initialization" status = "DONE" priority = "P0" order = 4 } (
+        <Description ?01M1D0VFS00000000000000001>
+        Repair the post-overlay regression where restoring a real session recursively imports runtime-owned home state into Effective Eidolon VFS before MCP startup, exhausting CPU and memory while the TUI misleadingly reports MCP initialization.
+        </?01M1D0VFS00000000000000001>
+        <Gate [
+          <Criterion { checked = true } ?01M1D0VFS00000000000000002>
+          Configuration/resource overlays have an explicit root authority boundary and never ingest session/project runtime state.
+          </?01M1D0VFS00000000000000002>
+          <Criterion { checked = true } ?01M1D0VFS00000000000000003>
+          The copied incident session reaches an interactive TUI boundary through eidolon --yolo within bounded time and memory, with and without MCP.
+          </?01M1D0VFS00000000000000003>
+        ]>
+        <SubNodes [
+          <Task #P5-T1 { name = "Fence runtime state from Effective VFS startup" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1D0VFS00000000000000004>
+            Add the incident-shaped RED, define the physical overlay root classification, exclude runtime-owned projects and sessions before traversal, preserve managed configuration/resources, and verify the exact installed TUI restore path.
+            </?01M1D0VFS00000000000000004>
+            <Acceptance [
+              <Criterion #P5-T1-AC1 { checked = true } ?01M1D0VFS00000000000000005>
+              A physical overlay containing large projects and sessions trees SHALL omit those roots without traversing or reading their descendants while retaining root configuration and resources.
+              </?01M1D0VFS00000000000000005>
+              <Criterion #P5-T1-AC2 { checked = true } ?01M1D0VFS00000000000000006>
+              Runtime initialization SHALL expose a generic local-runtime preparation state before any actual MCP phase, so a pre-MCP failure is not diagnosed as an MCP hang.
+              </?01M1D0VFS00000000000000006>
+              <Criterion #P5-T1-AC3 { checked = true } ?01M1D0VFS00000000000000007>
+              A fresh copy of session 20260831145910 restored via eidolon --yolo SHALL become interactive within the bounded smoke-test budget without CPU/RSS amplification from home project history; --no-mcp SHALL satisfy the same pre-MCP bound.
+              </?01M1D0VFS00000000000000007>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

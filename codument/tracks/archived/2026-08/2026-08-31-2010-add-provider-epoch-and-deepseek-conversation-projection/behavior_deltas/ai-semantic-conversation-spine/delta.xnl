@@ -1,0 +1,64 @@
+<BehaviorPatch #track.add-provider-epoch-and-deepseek-conversation-projection.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/provider-epoch-projection" } (
+      <Requirement #provider-epoch-projection (
+        <Statement ?>跨 provider/protocol 的会话继续 SHALL 由 canonical Conversation/ToolCall facts 派生 durable Provider Epoch 投影；History 与 ToolCallDomain 保持唯一 authority。系统 MUST NOT 直接把旧 provider-native tool framing 当作新 provider 历史，也 MUST NOT 伪造缺失 reasoning。</?>
+        <Suites [
+          <Suite #cross-provider-switch { name = "跨 provider 会话切换" } (
+            <Cases [
+              <Case #codex-tool-history-to-deepseek (
+                <Given ?>已恢复会话含 Codex/OpenAI provider 产生的多轮完整 tool facts，但旧 assistant tool call 没有 DeepSeek reasoning_content。</?>
+                <When ?>用户显式切换到 DeepSeek official 或显式 compatible profile并发送下一轮。</?>
+                <Then ?>系统 SHALL 推进 provider epoch，以 provider-neutral bounded handoff承接 source frontier，并 SHALL NOT把旧 tool framing发送给DeepSeek或注入空 reasoning。</?>
+              )>
+              <Case #deepseek-native-round-recovery (
+                <Given ?>DeepSeek 已返回含真实 reasoning_content 的 assistant tool call，matching tool result已提交。</?>
+                <When ?>进程恢复后构造下一次同 profile请求。</?>
+                <Then ?>系统 SHALL 精确回放真实 reasoning/tool pair，保持同一epoch，并 SHALL NOT重复工具副作用。</?>
+              )>
+              <Case #epoch-is-projection-not-authority (
+                <Given ?>provider switch 创建了 handoff 与 receipt。</?>
+                <When ?>检查持久化事实和回放来源。</?>
+                <Then ?>receipt SHALL 绑定 source frontier digest与target profile；canonical History/ToolCall facts SHALL 保持不变且不存在第二 conversation store。</?>
+              )>
+              <Case #pending-first-delivery-blocks-lossy-switch (
+                <Given ?>一个assistant tool call与matching result具有显式undelivered fact，且目标profile无法在不伪造provider-native字段时完整表达它。</?>
+                <When ?>用户请求跨protocol/provider epoch切换。</?>
+                <Then ?>系统 SHALL 在网络发送前typed fail closed，保持pair undelivered，MUST NOT发送outcome summary、确认delivery或再次执行tool。</?>
+              )>
+              <Case #pending-exact-projection-confirms-after-success (
+                <Given ?>显式undelivered pair可由目标profile从canonical facts完整无损投影。</?>
+                <When ?>目标provider成功完成包含该pair的request。</?>
+                <Then ?>系统 SHALL 仅在成功completion后确认delivery；admission、transport或provider失败后仍保持pending。</?>
+              )>
+              <Case #legacy-history-handoff (
+                <Given ?>恢复的legacy history含旧completed tool pair但没有新式delivery fact。</?>
+                <When ?>跨provider epoch构造handoff。</?>
+                <Then ?>系统 MAY 按既有legacy兼容规则承接这些完成事实，SHALL NOT强制重跑全部legacy tool或制造新的pending delivery。</?>
+              )>
+            ]>
+          )>
+          <Suite #closed-provider-request { name = "Closed provider request" } (
+            <Cases [
+              <Case #safe-admission-diagnostic (
+                <Given ?>provider message含 accessor、undefined、custom prototype或其他非 JSON own-data。</?>
+                <When ?>request admission在网络发送前拒绝请求。</?>
+                <Then ?>typed diagnostic SHALL 只包含 rejection code、safe JSON pointer/value kind与request digest，MUST NOT包含prompt、args、output、credential或完整body。</?>
+              )>
+              <Case #runtime-metadata-not-on-wire (
+                <Given ?>runtime已解析model capabilities与cache policy。</?>
+                <When ?>DeepSeek request投影为wire body。</?>
+                <Then ?>这些runtime observation SHALL NOT作为未声明的model_capabilities或cache_profile字段发送给provider。</?>
+              )>
+              <Case #adapter-owned-protocol-profile (
+                <Given ?>多个provider配置都选择DeepSeek adapter，但provider id、endpoint和model不同。</?>
+                <When ?>driver构造provider request。</?>
+                <Then ?>系统 SHALL 由adapter统一选择`deepseek-chat@1`，MUST NOT要求provider配置profile或从URL、model、provider id推断协议语义；旧official/compatible id只可在恢复边界归一化。</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -1,0 +1,35 @@
+<BehaviorPatch #track.verify-recursive-ai-data-and-canonical-holon-e2e.behavior_patch.eidolon-complete-agent-ctrl-data-e2e apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-complete-agent-ctrl-data-e2e" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-complete-agent-ctrl-data-e2e/requirements/recursive-mission-holon-product-matrix" } (
+      <Requirement #recursive-mission-holon-product-matrix (
+        <Statement ?>Eidolon SHALL prove recursive AI Data mission execution, Halfcode Worker definition authoring/selection and canonical Holon Ctrl/Data task execution as one recoverable product matrix without a second graph or task authority.</?>
+        <Suites [
+          <Suite #recursive-product-matrix { name = "Recursive mission and Holon product matrix" } (
+            <Cases [
+              <Case #recursive-child-and-worker-resource (
+                <Given ?>an AI Data parent run whose controller needs a typed child workflow and a Worker definition not present in its initial candidate set</?>
+                <When ?>the controller admits a SubFlowNode and authors or selects the Worker through the Halfcode resource authority</?>
+                <Then ?>the parent SHALL retain exact child invocation and Worker preparation receipts, preserve its original freeze, and consume the child terminal output after fresh reconstruction</?>
+              )>
+              <Case #ctrl-data-canonical-holon-parity (
+                <Given ?>Ctrl and Data product runs delegate dependent organization tasks through frozen Holon targets</?>
+                <When ?>the canonical coordinator automatically advances each ready frontier</?>
+                <Then ?>both runs SHALL settle only through TaskSpace receipts and feed the exact settlement into the parent checkpoint or MaterialPort without per-task process calls or VM task state</?>
+              )>
+              <Case #failure-recovery-and-replan (
+                <Given ?>an accepted Agent effect or settled Holon task is interrupted before its parent Flow consumes the result</?>
+                <When ?>a fresh runtime reconstructs the run and an explicit newer organization snapshot replans a successor task</?>
+                <Then ?>the accepted effect SHALL not repeat, the in-flight target SHALL not drift, the successor SHALL use the new snapshot receipt, and the parent Flow SHALL reach one terminal result</?>
+              )>
+              <Case #single-authority-anti-cheat (
+                <Given ?>the product matrix completes</?>
+                <When ?>its graph, resources, tasks and product calls are audited</?>
+                <Then ?>no GoalGraph, dynamic Capability Catalog authority, manual holon-process step, retired VM autonomous task writer or precomputed host routing decision SHALL be present</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

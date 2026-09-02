@@ -16,6 +16,8 @@
     用户明确约束；既有 actor-boundary durable decision；事故 session 的错误 composite route。
     </?01KZKTFNTXTTXG1W6TSXVK0T3B>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.establish-system-ai-workflow-skill.global-location apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -36,6 +38,8 @@
     用户明确指定的 global Skill 位置。
     </?01KZKTFNTYEV0NHYVCGK081KSE>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.establish-system-ai-workflow-skill.stage-boundary apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -56,6 +60,8 @@
     用户要求；现有 publication/execution lifecycle contract。
     </?01KZKTFNTYEV0NHYVCGK081KSK>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.establish-system-ai-workflow-skill.prompt-layering apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -76,6 +82,8 @@
     用户明确修正；KWF 分层 prompt/generation-kernel 证据；AI Workflow 产品 transition。
     </?01KZKTFNTYEV0NHYVCGK081KSR>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.establish-system-ai-workflow-skill.flow-dsl-skeleton apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -96,6 +104,8 @@
     depa-flows flow-dsl README、foundation、flow-core、eager/work substrate、AI profile specs and axioms。
     </?01KZKTFNTYEV0NHYVCGK081KSX>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.establish-system-ai-workflow-skill.global-init apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -116,6 +126,8 @@
     用户明确指定 global init；global skills 目录同时可能存在用户 Skill。
     </?01KZKTFNTYEV0NHYVCGK081KT2>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.establish-system-ai-workflow-skill.system-identity apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -136,6 +148,8 @@
     用户指定 global path；现有 workspace-only Skill loader 与多根覆盖机制。
     </?01KZKTFNTYEV0NHYVCGK081KT7>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.establish-system-ai-workflow-skill.fact-ownership apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -156,6 +170,8 @@
     KWF workflow-authoring lifecycle；depa-flows flow-core/work/AI workflow fact-owner specifications。
     </?01KZKTFNTYEV0NHYVCGK081KTC>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.harden-ai-workflow-agent-runtime.failure-terminal apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -176,6 +192,8 @@
     事故 session 与 AiAgentExecutor provider_failed 分支。
     </?01KZKWFSP4D00WZ11ERKNZWFPJ>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.harden-ai-workflow-agent-runtime.result-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -196,6 +214,8 @@
     DelegateActor 注释与 driverRuntime 当前实现冲突。
     </?01KZKWFSP4D00WZ11ERKNZWFPQ>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.harden-ai-workflow-agent-runtime.tool-call-identity apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -216,6 +236,8 @@
     事故中两组同名并行工具被重复拼接。
     </?01KZKWFSP4D00WZ11ERKNZWFPW>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.harden-ai-workflow-agent-runtime.stage-outcome apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -236,6 +258,8 @@
     事故 session 十一分钟无 workspace mutation；KWF structured scaffold/infer and bounded model E2E。
     </?01KZKWFSP4D00WZ11ERKNZWFQ1>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.fix-workflow-fulfill-terminal-and-continuation.failure-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -256,6 +280,8 @@
     真实回归 sequence 68/170。
     </?01KZM376J89SBRFRM2JQJ91A1C>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.fix-workflow-fulfill-terminal-and-continuation.sync-wait-single-writer apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -276,6 +302,8 @@
     真实 conversation history 的空 ToolResult。
     </?01KZM376J9DYZVC71NQQ8D51YK>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #track.fix-workflow-fulfill-terminal-and-continuation.context-projection apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -296,6 +324,8 @@
     重试 actor 将趋势研究误解为 approval prebuilt。
     </?01KZM376J9DYZVC71NQQ8D51YR>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #unify-tui-turn-projection-and-workspace-scope.projection-owner apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -316,6 +346,8 @@
     continuation 当前只传 onChunk，prompt/command/continuation 分别复制 assistant/tool 投影逻辑。
     </?01M05F1P4YHBXSG9Y2884CQJ71>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #unify-tui-turn-projection-and-workspace-scope.authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -336,6 +368,8 @@
     syncSessionMessagesFromActorConversation 当前清空 state 并为所有历史创建随机 id。
     </?01M05F1P4YHBXSG9Y2884CQJ76>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>
 
 <decision #unify-tui-turn-projection-and-workspace-scope.workspace-scope apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
@@ -356,4 +390,6 @@
     现场 `ls /Users/kongweixian/infra-dev` 导致对整个父目录的读写授权问卷。
     </?01M05F1P4YHBXSG9Y2884CQJ7B>
   )>
+  <confidence ?>legacy-unrecorded</?>
+  <reversibility ?>legacy-unrecorded</?>
 )>

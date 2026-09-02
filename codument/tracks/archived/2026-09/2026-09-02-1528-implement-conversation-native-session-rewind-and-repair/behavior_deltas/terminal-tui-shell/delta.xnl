@@ -1,0 +1,17 @@
+<BehaviorPatch #track.implement-conversation-native-session-rewind-and-repair.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/conversation-rewind-interaction" } (
+      <Requirement #conversation-rewind-interaction (
+        <Statement ?>The local-runtime TUI SHALL implement revert through a durable Conversation command；a successful revert SHALL exclude all later messages from the next provider request，a failed command SHALL show a typed error without optimistic truncation，and unrevert SHALL NOT pretend to restore domain state.</?>
+        <Suites [
+          <Suite #rewind-ui { name = "Session rewind interaction" } (
+            <Cases [
+              <Case #revert-commits-before-removing-ui (<Given ?>the user selects a message in the timeline</?><When ?>revert is activated</?><Then ?>the TUI SHALL await the domain receipt、rehydrate persisted history and only then emit removed-message projections</?>)>
+              <Case #unrevert-does-not-fake-domain-restore (<Given ?>a durable rewind completed</?><When ?>unrevert is requested in local-runtime</?><Then ?>the TUI SHALL report that branch restore is unsupported and MUST NOT merely clear a UI flag</?>)>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

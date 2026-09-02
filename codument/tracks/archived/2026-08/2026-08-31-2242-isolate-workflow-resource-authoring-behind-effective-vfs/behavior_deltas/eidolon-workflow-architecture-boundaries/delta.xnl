@@ -1,0 +1,44 @@
+<BehaviorPatch #track.isolate-workflow-resource-authoring-behind-effective-vfs.behavior_patch.eidolon-workflow-architecture-boundaries apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-workflow-architecture-boundaries" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-workflow-architecture-boundaries/requirements/explicit-architecture-boundaries" } (
+      <Requirement #explicit-architecture-boundaries (
+        <Statement ?>Eidolon workflow integration SHALL use canonical XNL/depa-flows resources, one admitted Effective Eidolon VFS for runtime resource consumption, injected workflow-authoring roots, actor/session effect authority and native surfaces; it SHALL NOT introduce XML authoring, MCP, external agent CLI or parallel flow/runtime/resource authority.</?>
+        <Suites [
+          <Suite #resource-and-runtime-authority { name = "Resource and runtime authority" } (
+            <Cases [
+              <Case #canonical-xnl-and-depa-runtime [
+                <Then ?>it SHALL use canonical depa-flows XNL loaders and Ctrl/Data runtimes</?>
+                <Then ?>it SHALL NOT parse XML or implement a parallel scheduler</?>
+              ] (
+                <Given ?>Ctrl or Data workflow production source</?>
+                <When ?>it loads or executes a definition</?>
+              )>
+              <Case #eidolon-roots [
+                <Then ?>the workflow authoring/session root SHALL remain the injected workspace `.eidolon/workflows` root</?>
+                <Then ?>CLI, TUI and native runtime surfaces SHALL share one injected Effective Eidolon VFS read port for ResourcePackage consumption; separately injected global/workspace `.eidolon/resources` roots MAY exist only as an isolated legacy compatibility path when no Effective VFS is configured</?>
+                <Then ?>Eidolon MUST NOT combine legacy physical ResourcePackage layers or a physical ResourcePackage publisher with an Effective VFS, scan either legacy root for child packages, or treat the workflow authoring root as a ResourcePackage by implication</?>
+              ] (
+                <Given ?>CLI or TUI constructs the workflow component</?>
+                <When ?>workspace/global roots and the Effective VFS binding are resolved</?>
+              )>
+            ]>
+          )>
+          <Suite #effect-and-surface-authority { name = "Effect and surface authority" } (
+            <Cases [
+              <Case #eidolon-effect-lifecycle (
+                <Given ?>a workflow node invokes agent, tool, human or Material work</?>
+                <When ?>the effect starts, completes or fails</?>
+                <Then ?>Eidolon actor/session/runtime-control SHALL retain lifecycle authority and workflow facts SHALL only reference it</?>
+              )>
+              <Case #native-no-mcp-surface (
+                <Given ?>conversation, TUI or CLI uses workflow capability</?>
+                <When ?>it reads or mutates authoring/run facts</?>
+                <Then ?>it SHALL call native component services without MCP, external agent CLI or private mutation paths</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

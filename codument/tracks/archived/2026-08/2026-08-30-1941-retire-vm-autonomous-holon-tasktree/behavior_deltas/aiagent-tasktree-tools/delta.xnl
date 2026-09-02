@@ -1,0 +1,39 @@
+<BehaviorPatch #track.retire-vm-autonomous-holon-tasktree.behavior_patch.aiagent-tasktree-tools apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-tasktree-tools" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-tasktree-tools/requirements/task-space-authority-migration" } (
+      <Requirement #task-space-authority-migration (
+        <Statement ?01M1C42Z3Y0ZV7Y7Z8D7P0C00D>
+        General TaskTree tools SHALL remain a planning surface, while organization execution SHALL be owned only by canonical TaskSpace; no TaskTree activeForm, status or Holon projection SHALL trigger, mirror or recover autonomous execution.
+        </?01M1C42Z3Y0ZV7Y7Z8D7P0C00D>
+        <Suites [
+          <Suite #task-authority-separation { name = "TaskTree and TaskSpace authority separation" } (
+            <Cases [
+              <Case #general-tasktree-remains-local (
+                <Given ?01M1C42Z3Y0ZV7Y7Z8D7P0C00E>
+                A user uses TaskTreeRead or TaskTreeWrite without an AI workflow.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00E>
+                <When ?01M1C42Z3Y0ZV7Y7Z8D7P0C00F>
+                The tree contains pending or in-progress planning nodes.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00F>
+                <Then ?01M1C42Z3Y0ZV7Y7Z8D7P0C00G>
+                The nodes SHALL remain ordinary planning facts and SHALL NOT be claimed or dispatched by a Holon runtime.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00G>
+              )>
+              <Case #organization-task-is-taskspace-only (
+                <Given ?01M1C42Z3Y0ZV7Y7Z8D7P0C00H>
+                A canonical Holon task changes lifecycle state.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00H>
+                <When ?01M1C42Z3Y0ZV7Y7Z8D7P0C00J>
+                Product tools or recovery observe the change.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00J>
+                <Then ?01M1C42Z3Y0ZV7Y7Z8D7P0C00K>
+                Only TaskSpace receipts SHALL represent the transition; TaskTree and VM Holon fields SHALL receive no dual write or executable compatibility projection.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00K>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

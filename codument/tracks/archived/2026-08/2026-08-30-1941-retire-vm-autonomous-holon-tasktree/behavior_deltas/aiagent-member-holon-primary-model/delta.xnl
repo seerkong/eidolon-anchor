@@ -1,0 +1,63 @@
+<BehaviorPatch #track.retire-vm-autonomous-holon-tasktree.behavior_patch.aiagent-member-holon-primary-model apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-member-holon-primary-model" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/autonomous-holon-ownership" } (
+      <Requirement #autonomous-holon-ownership (
+        <Statement ?01M1C42Z3Y0ZV7Y7Z8D7P0C002>
+        Autonomous Holon actors SHALL retain governance and mailbox identity only; canonical TaskSpace SHALL be the unique owner of autonomous task status, claim, attempt, ownership, artifact and completion facts, and no VM actor task board or compatibility writer SHALL remain.
+        </?01M1C42Z3Y0ZV7Y7Z8D7P0C002>
+        <Suites [
+          <Suite { name = "autonomous-holon-ownership" } (
+            <Cases [
+              <Case #assign-through-frozen-binding (
+                <Given ?01M1C42Z3Y0ZV7Y7Z8D7P0C003>
+                HolonAssign or ActorAssign targets an autonomous Holon with one exact frozen execution binding.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C003>
+                <When ?01M1C42Z3Y0ZV7Y7Z8D7P0C004>
+                Work is accepted and observed in final, none or stream mode.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C004>
+                <Then ?01M1C42Z3Y0ZV7Y7Z8D7P0C005>
+                The tool SHALL expose only canonical task, subscription and settlement receipts and SHALL NOT mutate VM tasks, ownership or TaskTree status.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C005>
+              )>
+              <Case #assign-without-binding-fails-closed (
+                <Given ?01M1C42Z3Y0ZV7Y7Z8D7P0C006>
+                An autonomous Holon has no unique frozen execution binding in the current resource/workflow context.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C006>
+                <When ?01M1C42Z3Y0ZV7Y7Z8D7P0C007>
+                HolonAssign or ActorAssign requests work.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C007>
+                <Then ?01M1C42Z3Y0ZV7Y7Z8D7P0C008>
+                The tool SHALL return a canonical-binding-required error and SHALL NOT fall back to a VM mailbox, task board or member lane.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C008>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://aiagent-member-holon-primary-model/requirements/holon-runtime-protocol-event-api" } (
+      <Requirement #holon-runtime-protocol-event-api (
+        <Statement ?01M1C42Z3Y0ZV7Y7Z8D7P0C009>
+        Autonomous Holon execution SHALL use the generic MemberRuntime task-attempt session and canonical TaskSpace/workflow progress receipts; autonomous-only VM lanes, workloads, envelope tags, completion signals and event APIs SHALL NOT be product protocol.
+        </?01M1C42Z3Y0ZV7Y7Z8D7P0C009>
+        <Suites [
+          <Suite { name = "holon-runtime-protocol-event-api" } (
+            <Cases [
+              <Case #generic-member-runtime-and-canonical-events (
+                <Given ?01M1C42Z3Y0ZV7Y7Z8D7P0C00A>
+                A canonical organization task is assigned, executed, recovered or settled.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00A>
+                <When ?01M1C42Z3Y0ZV7Y7Z8D7P0C00B>
+                Runtime and observers project progress.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00B>
+                <Then ?01M1C42Z3Y0ZV7Y7Z8D7P0C00C>
+                Execution SHALL use generic member/task-attempt identities and TaskSpace or Flow history; `autonomous_holon`, `autonomous_holon_task`, autonomous envelope/signal and claim/idle event protocols SHALL be absent.
+                </?01M1C42Z3Y0ZV7Y7Z8D7P0C00C>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

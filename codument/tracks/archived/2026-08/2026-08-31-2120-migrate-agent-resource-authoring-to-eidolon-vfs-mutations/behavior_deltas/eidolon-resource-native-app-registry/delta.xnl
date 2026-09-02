@@ -1,0 +1,30 @@
+<BehaviorPatch #track.migrate-agent-resource-authoring-to-eidolon-vfs-mutations.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/autonomous-agent-resource-authoring" } (
+      <Requirement #autonomous-agent-resource-authoring (
+        <Statement ?>Eidolon SHALL author a new workspace AIAgentDefinition as durable overlay intent and SHALL expose it only after one complete Effective VFS candidate、Halfcode readback、receipt reconciliation and final CAS admission.</?>
+        <Suites [
+          <Suite #vfs-authoring-transaction { name = "VFS authoring transaction" } (
+            <Cases [
+              <Case #candidate-before-publish (
+                <Given ?>Halfcode admits an exact create proposal against current registry revision</?>
+                <When ?>the host prepares workspace authoring</?>
+                <Then ?>it SHALL build a non-authoritative candidate VFS and complete Agent/registry readback before publishing any new runtime revision</?>
+              )>
+              <Case #failure-keeps-current (
+                <Given ?>candidate validation、receipt reconciliation or CAS fails</?>
+                <When ?>the transaction rolls back or is resumed</?>
+                <Then ?>the prior Effective VFS、registry and frozen parent closure SHALL remain authoritative and no executable task proof SHALL exist</?>
+              )>
+              <Case #admit-and-freeze (
+                <Given ?>candidate readback and final CAS both succeed</?>
+                <When ?>authoring commits</?>
+                <Then ?>the durable receipt SHALL bind workspace intent、Effective VFS revision、registry revision and exact Agent content before a new task proof is frozen</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

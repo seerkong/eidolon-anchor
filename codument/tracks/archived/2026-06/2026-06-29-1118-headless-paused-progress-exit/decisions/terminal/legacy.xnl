@@ -1,0 +1,53 @@
+<decision #track.headless-paused-progress-exit.d1 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P0" durable_candidate = false } (
+  <question ?>
+Paused result status name：状态命名。
+  </?>
+  <recommendation ?>
+A。
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+`paused_with_progress`
+      </?>
+      <description ?>
+`paused_with_progress`
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+`failed_resumable`
+      </?>
+      <description ?>
+`failed_resumable`
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+A。
+    </?>
+    <decision-text ?>
+A。
+    </?>
+    <rationale ?>
+A 明确表达没有完成但已有可接力进度。
+    </?>
+    <evidence ?>
+需要把可恢复暂停和硬失败分开。
+
+Legacy provenance: codument/tracks/archived/2026-06/2026-06-29-1118-headless-paused-progress-exit/decisions.md
+
+- 背景：需要把可恢复暂停和硬失败分开。
+- 需要决定：状态命名。
+- 选项：
+  - A) `paused_with_progress`
+  - B) `failed_resumable`
+- 当前建议：A。
+- 用户答复：来自 mission slicing。
+- 最终决策：A。
+- 决策理由：A 明确表达没有完成但已有可接力进度。
+- 状态：decided
+    </?>
+  )>
+)>

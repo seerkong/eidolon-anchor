@@ -1,0 +1,25 @@
+<BehaviorPatch #track.embed-eidolon-builtin-vfs-and-coding-agent.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/effective-eidolon-vfs-authority/suites/builtin-base-transport" } (
+      <Suite #builtin-base-transport { name = "Builtin base ownership and transport" } (
+        <Cases [
+          <Case #versioned-builtin-base (
+            <Given ?>version-controlled Eidolon resources owned by their product modules</?>
+            <When ?>the Builtin Eidolon VFS asset is generated</?>
+            <Then ?>a deterministic full VFS snapshot SHALL preserve stable path-bound node identities and exact file bytes, and startup MUST NOT allocate random identities</?>
+          )>
+          <Case #source-compiled-builtin-parity (
+            <Given ?>source runtime and a compiled Bun binary contain the same generated Builtin snapshot</?>
+            <When ?>each prepares the Builtin VFS base</?>
+            <Then ?>both SHALL expose identical snapshot bytes, node ids, tree/content digests and Halfcode resource closure</?>
+          )>
+          <Case #bunfs-is-transport-only (
+            <Given ?>the final Bun compile embeds the Builtin snapshot as a file asset</?>
+            <When ?>runtime loads Builtin resources</?>
+            <Then ?>BunFS SHALL only provide canonical snapshot bytes and MUST NOT become an overlay, registry or current Effective VFS authority</?>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

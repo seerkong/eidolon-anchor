@@ -1,0 +1,108 @@
+<decision #fix-windows-platform-and-sandbox-compat.windows-sandbox-level-model apiVersion="codument.tech/v1alpha1" {
+  status = "decided"
+  owner = "track"
+}
+(
+  <question ?>Windows sandbox 缺失时如何处理？</?>
+  <options { } [
+    <option { key = "A" }
+    (
+      <title ?>fail-closed</?>
+      <description ?>runner 缺失时返回显式 error，不降级</?>
+    )
+    >
+    <option { key = "B" recommended = true }
+    (
+      <title ?>fail-open-unsandboxed</?>
+      <description ?>runner 缺失时走普通执行 + 权限检查</?>
+    )
+    >
+    <option { key = "C" }
+    (
+      <title ?>tiered</?>
+      <description ?>三级：elevated/restricted-token/disabled</?>
+    )
+    >
+  ]>
+  <answer { }
+  (
+    <raw-answer ?>B+C 结合：三级模式，disabled 时走普通执行 + 权限检查，runner 可用时走 windows-elevated。对齐 Codex exec.rs:516。</?>
+    <decision-text ?>B+C 结合：三级模式，disabled 时走普通执行 + 权限检查，runner 可用时走 windows-elevated。对齐 Codex exec.rs:516。</?>
+    <rationale ?>fail-closed 让 Windows 用户完全无法使用 bash；分级降级 + 权限检查保留文件安全，且与 Codex 的 Disabled 模式一致。</?>
+    <evidence ?>结论文：B+C 结合：三级模式，disabled 时走普通执行 + 权限检查，runner 可用时走 windows-elevated。对齐 Codex exec.rs:516。</?>
+  )
+  >
+)
+>
+<decision #fix-windows-platform-and-sandbox-compat.platform-injection-point apiVersion="codument.tech/v1alpha1" {
+  status = "decided"
+  owner = "track"
+}
+(
+  <question ?>平台信息注入到哪里？</?>
+  <options { } [
+    <option { key = "A" }
+    (
+      <title ?>system-prompt-only</?>
+      <description ?>只注入 buildSystemMessages</?>
+    )
+    >
+    <option { key = "B" }
+    (
+      <title ?>metadata-only</?>
+      <description ?>只注入 normalizeTerminalRuntimeMetadata</?>
+    )
+    >
+    <option { key = "C" recommended = true }
+    (
+      <title ?>both</?>
+      <description ?>两者都注入</?>
+    )
+    >
+  ]>
+  <answer { }
+  (
+    <raw-answer ?>C。systemPrompt 让 agent 感知并选对命令；metadata 让 sandbox/permission 层有默认值（tui_a1 不传 metadata 也有合理默认）。</?>
+    <decision-text ?>C。systemPrompt 让 agent 感知并选对命令；metadata 让 sandbox/permission 层有默认值（tui_a1 不传 metadata 也有合理默认）。</?>
+    <rationale ?>agent 感知靠 systemPrompt，runtime 行为靠 metadata，两者互补。</?>
+    <evidence ?>结论文：C。systemPrompt 让 agent 感知并选对命令；metadata 让 sandbox/permission 层有默认值（tui_a1 不传 metadata 也有合理默认）。</?>
+  )
+  >
+)
+>
+<decision #fix-windows-platform-and-sandbox-compat.full-auto-default apiVersion="codument.tech/v1alpha1" {
+  status = "decided"
+  owner = "track"
+}
+(
+  <question ?>tui_a1 不传 metadata 时 exec_protocol.mode 默认值？</?>
+  <options { } [
+    <option { key = "A" }
+    (
+      <title ?>full-auto-all-platforms</?>
+      <description ?>默认全自动（所有平台）</?>
+    )
+    >
+    <option { key = "B" recommended = true }
+    (
+      <title ?>full-auto-windows-only</?>
+      <description ?>仅 Windows 默认 full-auto，其他平台保持 interactive</?>
+    )
+    >
+    <option { key = "C" }
+    (
+      <title ?>interactive</?>
+      <description ?>保持 interactive，需审批</?>
+    )
+    >
+  ]>
+  <answer { }
+  (
+    <raw-answer ?>B。Windows 无 headless 默认 full-auto + workspace-write 最可用（runner 缺失时可执行 bash）；其他平台保持 interactive，不改变既有审批行为（符合 Non-Goal "不改变非 Windows 平台的 sandbox 行为"）。文件权限检查仍保留。</?>
+    <decision-text ?>B。Windows 无 headless 默认 full-auto + workspace-write 最可用（runner 缺失时可执行 bash）；其他平台保持 interactive，不改变既有审批行为（符合 Non-Goal "不改变非 Windows 平台的 sandbox 行为"）。文件权限检查仍保留。</?>
+    <rationale ?>当前 interactive 默认导致 Windows 上所有 bash 被 deny；full-auto 仅限 Windows 避免全局行为变更。LocalPermissionEvaluator 文件权限检查仍兜底。</?>
+    <evidence ?>结论文：B。Windows 无 headless 默认 full-auto + workspace-write 最可用（runner 缺失时可执行 bash）；其他平台保持 interactive，不改变既有审批行为（符合 Non-Goal "不改变非 Windows 平台的 sandbox 行为"）。文件权限检查仍保留。</?>
+  )
+  >
+)
+>

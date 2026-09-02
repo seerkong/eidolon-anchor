@@ -1,0 +1,252 @@
+<decision #typed-context-fact-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?01M1GW6GH316EKR251T0RW0RZ3>
+  变化中的 Workflow stage、provider projection 与 recovery context 如何进入模型上下文而不改写既有前缀，同时避免泄露执行控制状态？
+  </?01M1GW6GH316EKR251T0RW0RZ3>
+  <recommendation ?01M1GW6GH316EKR251T0RW0RZ4>
+  在现有 Conversation authority 中只为明确由模型消费的动态上下文追加闭合、前驱绑定的 typed context facts；work context 保持 runtime-only，owner state 与 fact projection 分离。
+  </?01M1GW6GH316EKR251T0RW0RZ4>
+  <options {  } [
+    <option { key = "append-only-facts" recommended = true } (
+      <title ?01M1GW6GH316EKR251T0RW0RZ5>
+      Append-only typed facts
+      </?01M1GW6GH316EKR251T0RW0RZ5>
+      <description ?01M1GW6GH316EKR251T0RW0RZ6>
+      状态仍由 Actor/Workflow owner 持有；仅当该状态明确由模型消费且 canonical value 变化时，才向 Conversation 追加带 revision、previous digest 与 closed payload 的 provider context fact。
+      </?01M1GW6GH316EKR251T0RW0RZ6>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0RZ7>
+      同 epoch 会保留 superseded facts，直到一次显式 compaction/epoch transition 收敛。
+      </?01M1GW6GH316EKR251T0RW0RZ7>
+    )>
+    <option { key = "fixed-overlay" recommended = false } (
+      <title ?01M1GW6GH316EKR251T0RW0RZ8>
+      Replace fixed-boundary overlay
+      </?01M1GW6GH316EKR251T0RW0RZ8>
+      <description ?01M1GW6GH316EKR251T0RW0RZ9>
+      继续在 system roots 后只投影最新动态状态。
+      </?01M1GW6GH316EKR251T0RW0RZ9>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0RZA>
+      每次 revision 变化都会改写早期 bytes，破坏 DeepSeek exact-prefix 缓存。
+      </?01M1GW6GH316EKR251T0RW0RZA>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1GW6GH316EKR251T0RW0RZB>
+    选择 append-only typed facts，但仅用于模型明确需要消费的动态上下文；共享现有 Conversation Domain，不创建第二上下文 authority。
+    </?01M1GW6GH316EKR251T0RW0RZB>
+    <decision-text ?01M1GW6GH316EKR251T0RW0RZC>
+    Deliberately model-consumed dynamic owner state SHALL 通过 runtime-first projector 生成 immutable closed `ActorProviderContextFact` asset；`ActorWorkContext` SHALL remain runtime-only and SHALL NOT mint such a fact。`LocalConversationSessionActorBinding.providerContextFactHead` SHALL bind one Actor-global sequence/digest chain; append SHALL atomically create the content-addressed asset and CAS the head. 每个 provider-visible namespace 仅允许 exact idempotent replay 或 revision `n+1` 且 namespace predecessor 命中；每个 fact 同时绑定 exact history anchor。materializer SHALL follow the chain and insert tagged machine-owned facts at their safe chronological user/text boundary, never system roots and never inside a pending tool pair。DeepSeek/OpenAI Chat、Responses 与 Anthropic SHALL each use the closed versioned wire table in design §6; adapters cannot relocate facts。unchanged value 不新增 fact；generic logic 不解释 Workflow payload。
+    </?01M1GW6GH316EKR251T0RW0RZC>
+    <rationale ?01M1GW6GH316EKR251T0RW0RZD>
+    把 projection 变成 append-only事件可同时保持单一 owner、模型可见性和同 epoch prefix integrity；把最新状态插回前部无法满足缓存不变量。
+    </?01M1GW6GH316EKR251T0RW0RZD>
+    <evidence ?01M1GW6GH316EKR251T0RW0RZE>
+    当前 `late_status` overlay、replace-in-place provider projection 与 G1 retained-prefix指标；G2 lifecycle facet/durable material authority。
+    </?01M1GW6GH316EKR251T0RW0RZE>
+  )>
+  <confidence ?01M1GW6GH316EKR251T0RW0RZF>
+  0.95
+  </?01M1GW6GH316EKR251T0RW0RZF>
+  <reversibility ?01M1GW6GH316EKR251T0RW0RZG>
+  moderate
+  </?01M1GW6GH316EKR251T0RW0RZG>
+)>
+
+<decision #provider-context-epoch-transition-authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?01M1GW6GH316EKR251T0RW0RZH>
+  哪些变化可以改变既有 provider prefix，谁负责推进和验证 context epoch？
+  </?01M1GW6GH316EKR251T0RW0RZH>
+  <recommendation ?01M1GW6GH316EKR251T0RW0RZJ>
+  同 epoch receipt不可变；只有一个 Conversation-domain runtime-first transition Processor 可按 closed reason 与前驱 digest 单调推进。
+  </?01M1GW6GH316EKR251T0RW0RZJ>
+  <options {  } [
+    <option { key = "immutable-receipt-cas" recommended = true } (
+      <title ?01M1GW6GH316EKR251T0RW0RZK>
+      Immutable receipt with CAS
+      </?01M1GW6GH316EKR251T0RW0RZK>
+      <description ?01M1GW6GH316EKR251T0RW0RZM>
+      compaction、rewind/fork、provider/model/profile切换、显式资源或surface revision接受各产生一个 reason-bound receipt。
+      </?01M1GW6GH316EKR251T0RW0RZM>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0RZN>
+      所有非延伸写入点都必须接入同一个 transition seam。
+      </?01M1GW6GH316EKR251T0RW0RZN>
+    )>
+    <option { key = "same-epoch-reconcile" recommended = false } (
+      <title ?01M1GW6GH316EKR251T0RW0RZP>
+      Reconcile within epoch
+      </?01M1GW6GH316EKR251T0RW0RZP>
+      <description ?01M1GW6GH316EKR251T0RW0RZQ>
+      源frontier变化后原地重算handoff与digest。
+      </?01M1GW6GH316EKR251T0RW0RZQ>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0RZR>
+      epoch identity失去含义，恢复和缓存观测无法解释前缀变化。
+      </?01M1GW6GH316EKR251T0RW0RZR>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1GW6GH316EKR251T0RW0RZS>
+    使用不可变 receipt 与 monotonic CAS；reconcile 只验证，不修复。
+    </?01M1GW6GH316EKR251T0RW0RZS>
+    <decision-text ?01M1GW6GH316EKR251T0RW0RZT>
+    Provider context epoch SHALL be owned by Conversation Domain. Immutable v2 receipt SHALL bind predecessor receipt digest、provider/model/profile、**epoch-baseline** history/prompt/fact heads、source frontier、pending delivery set、handoff、resource/surface digests、retention policy、closed reason与timestamp；ordinary append不得改写它。每个成功请求另追加 immutable `ProviderRequestAdmissionReceipt`，绑定 epoch receipt、previous admission、current descendant heads、fact range、final request digest与delivery confirmations。`reconcileActorProviderEpochProjection` SHALL validate current heads are descendants of baseline/latest admission. Any non-append divergence without transition SHALL fail before transport. One CAS command/event batch SHALL atomically bind expected prior heads/admission, next baseline heads, fact/delivery deltas, optional compaction proof and successor receipt；local persistence stages immutable material、fsyncs、publishes one head last。Compaction proof SHALL bind retained source facts、pair record digests、successful admission、successor facts and receipt，允许source pair在新epoch提交后删除。Fresh recovery reuses exact v2 receipt；corrupt/mismatched receipt fails closed。
+    </?01M1GW6GH316EKR251T0RW0RZT>
+    <rationale ?01M1GW6GH316EKR251T0RW0RZV>
+    缓存 miss 只有在物理 prefix identity 与语义 epoch identity一一对应时才可解释、恢复和预算；原地reconcile会隐藏真实边界。
+    </?01M1GW6GH316EKR251T0RW0RZV>
+    <evidence ?01M1GW6GH316EKR251T0RW0RZW>
+    当前 ProviderEpoch receipt在compaction/rewind后可同epoch更新；Mission G1要求所有非延伸变化都有持久reason。
+    </?01M1GW6GH316EKR251T0RW0RZW>
+  )>
+  <confidence ?01M1GW6GH316EKR251T0RW0RZX>
+  0.95
+  </?01M1GW6GH316EKR251T0RW0RZX>
+  <reversibility ?01M1GW6GH316EKR251T0RW0RZY>
+  low
+  </?01M1GW6GH316EKR251T0RW0RZY>
+)>
+
+<decision #legacy-overlay-migration-policy apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = false } (
+  <question ?01M1GW6GH316EKR251T0RW0RZZ>
+  已持久的 `late_status` work-context overlay、legacy Workflow stage/progress system prompt 与 v1 provider receipt 如何兼容？
+  </?01M1GW6GH316EKR251T0RW0RZZ>
+  <recommendation ?01M1GW6GH316EKR251T0RW0S00>
+  只读旧格式，通过 exact bounded importer 退休 work-context overlay，并仅为仍需模型消费的旧动态上下文投影 typed fact；需要时推进新 epoch，不双写、不从 prompt 猜 Workflow 授权。
+  </?01M1GW6GH316EKR251T0RW0S00>
+  <options {  } [
+    <option { key = "one-way-import" recommended = true } (
+      <title ?01M1GW6GH316EKR251T0RW0S01>
+      One-way exact import
+      </?01M1GW6GH316EKR251T0RW0S01>
+      <description ?01M1GW6GH316EKR251T0RW0S02>
+      验证旧schema、唯一current overlay、Actor binding与receipt完整性；work-context 不写新 fact，其他明确 provider-visible 的旧上下文才可写新 fact/receipt，随后停止旧格式。
+      </?01M1GW6GH316EKR251T0RW0S02>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S03>
+      歧义、冲突或不完整legacy现场会fail closed，需要显式修复。
+      </?01M1GW6GH316EKR251T0RW0S03>
+    )>
+    <option { key = "dual-read-write" recommended = false } (
+      <title ?01M1GW6GH316EKR251T0RW0S04>
+      Long-lived dual format
+      </?01M1GW6GH316EKR251T0RW0S04>
+      <description ?01M1GW6GH316EKR251T0RW0S05>
+      同时维护overlay与typed fact。
+      </?01M1GW6GH316EKR251T0RW0S05>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S06>
+      形成双authority并可能在恢复后再次重写prefix。
+      </?01M1GW6GH316EKR251T0RW0S06>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1GW6GH316EKR251T0RW0S07>
+    采用one-way exact import；old bytes只作为compatibility input。
+    </?01M1GW6GH316EKR251T0RW0S07>
+    <decision-text ?01M1GW6GH316EKR251T0RW0S08>
+    Importer SHALL accept only contained persisted Conversation authority with one closed current `late_status` work-context overlay, exact Actor identity and a valid v1 receipt or no receipt. A CAS migration marker SHALL bind source tree/receipt digest, nullable target fact digest, target receipt digest and status. `initial_projection` maps only for pristine authority; `model_control` maps to `provider_model_profile_switch`; legacy recovery plus overlay becomes one `legacy_context_import` successor retaining the legacy reason. It SHALL retire work-context without appending a typed fact and cease legacy writes; only another explicitly model-consumed legacy namespace may append a fact. Legacy Workflow stage/progress prompt text SHALL be removed only as part of the already-authorized lifecycle Actor migration and SHALL NOT mint capability or stage truth. Multiple/conflicting overlays、unknown reason/fields、digest mismatch、symlink/path escape或interruption SHALL converge to the exact staged target or fail closed。
+    </?01M1GW6GH316EKR251T0RW0S08>
+    <rationale ?01M1GW6GH316EKR251T0RW0S09>
+    旧会话需要恢复，但 prompt文字不能继续作为Workflow authority；one-way importer避免长期双写和隐藏prefix改写。
+    </?01M1GW6GH316EKR251T0RW0S09>
+    <evidence ?01M1GW6GH316EKR251T0RW0S0A>
+    G2 v3→v4 lifecycle importer与local immutable generation协议；当前 prompt generation late-status transform shape。
+    </?01M1GW6GH316EKR251T0RW0S0A>
+  )>
+  <confidence ?01M1GW6GH316EKR251T0RW0S0B>
+  0.9
+  </?01M1GW6GH316EKR251T0RW0S0B>
+  <reversibility ?01M1GW6GH316EKR251T0RW0S0C>
+  low
+  </?01M1GW6GH316EKR251T0RW0S0C>
+)>
+
+<decision #work-context-control-only-projection apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M1GW6GH316EKR251T0RW0S0D>
+  Actor work mode 与 task phase 是否应作为 provider-visible typed fact 进入模型消息？
+  </?01M1GW6GH316EKR251T0RW0S0D>
+  <recommendation ?01M1GW6GH316EKR251T0RW0S0E>
+  不进入；它们属于执行控制 authority。只有模型确实需要消费的动态上下文才投影为 provider context fact。
+  </?01M1GW6GH316EKR251T0RW0S0E>
+  <options {  } [
+    <option { key = "control-only" recommended = true } (
+      <title ?01M1GW6GH316EKR251T0RW0S0F>
+      Control-only work context
+      </?01M1GW6GH316EKR251T0RW0S0F>
+      <description ?01M1GW6GH316EKR251T0RW0S0G>
+      保留 Actor state、权限门禁、routing 与 compaction 语义，但不创建或发送 `work-context` 消息。
+      </?01M1GW6GH316EKR251T0RW0S0G>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S0H>
+      旧 session 需要一次显式 provider-surface epoch 迁移来移除已发送的事实。
+      </?01M1GW6GH316EKR251T0RW0S0H>
+    )>
+    <option { key = "prompt-suppression" recommended = false } (
+      <title ?01M1GW6GH316EKR251T0RW0S0J>
+      Prompt suppression
+      </?01M1GW6GH316EKR251T0RW0S0J>
+      <description ?01M1GW6GH316EKR251T0RW0S0K>
+      继续发送事实，再要求模型不要复述。
+      </?01M1GW6GH316EKR251T0RW0S0K>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S0M>
+      增加 token，不能从机制上保证协议不泄露。
+      </?01M1GW6GH316EKR251T0RW0S0M>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1GW6GH316EKR251T0RW0S0N>
+    只改消息投影逻辑，不增加提示词。
+    </?01M1GW6GH316EKR251T0RW0S0N>
+    <decision-text ?01M1GW6GH316EKR251T0RW0S0P>
+    `ActorWorkContext` SHALL remain the runtime control authority and SHALL NOT automatically mint an `ActorProviderContextFact`. Provider materialization SHALL validate the full immutable chain but exclude legacy namespace `work-context`; final-wire validators SHALL reject that namespace. The provider-surface digest SHALL include the projection policy revision, causing old receipts to advance exactly once before the changed bytes are sent. Other explicitly provider-visible fact namespaces retain the append-only protocol.
+    </?01M1GW6GH316EKR251T0RW0S0P>
+    <rationale ?01M1GW6GH316EKR251T0RW0S0Q>
+    控制事实与模型消息是不同的 authority/projection 边界；把控制状态伪装成 user message会让模型复述内部协议并污染用户意图。
+    </?01M1GW6GH316EKR251T0RW0S0Q>
+    <evidence ?01M1GW6GH316EKR251T0RW0S0R>
+    真实 Eidolon 回复出现“收到 work-context（build 模式）”和“用户继续（work-context：taskPhase=normal, workMode=build）”。
+    </?01M1GW6GH316EKR251T0RW0S0R>
+  )>
+  <confidence ?01M1GW6GH316EKR251T0RW0S0S>
+  0.98
+  </?01M1GW6GH316EKR251T0RW0S0S>
+  <reversibility ?01M1GW6GH316EKR251T0RW0S0T>
+  moderate
+  </?01M1GW6GH316EKR251T0RW0S0T>
+)>
+
+<decision #context-fact-semantic-names apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M1GW6GH316EKR251T0RW0S0V>
+  已从 replace-in-place 迁移到 append-only typed facts 的 TaskTree、provider output recovery 与 Workflow stage helper 应如何命名，并如何迁移旧 session 而不破坏同 epoch cache prefix？
+  </?01M1GW6GH316EKR251T0RW0S0V>
+  <recommendation ?01M1GW6GH316EKR251T0RW0S0W>
+  使用描述语义内容的 canonical 名称，复用唯一通用 append Effect；旧名只读兼容，并在显式 compaction epoch 通过可验证的 v2 proof 归一化。
+  </?01M1GW6GH316EKR251T0RW0S0W>
+  <options {  } [
+    <option { key = "semantic-names-one-effect" recommended = true } (
+      <title ?01M1GW6GH316EKR251T0RW0S0X>
+      Semantic names with one Effect
+      </?01M1GW6GH316EKR251T0RW0S0X>
+      <description ?01M1GW6GH316EKR251T0RW0S0Y>
+      TaskTree 使用 `task-tree-context`，输出修复使用 `provider-output-recovery`，Workflow 纯构造器使用 `buildAiWorkflowStageContext`；所有新事实走 `append_provider_context_fact`。
+      </?01M1GW6GH316EKR251T0RW0S0Y>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S0Z>
+      需要保留旧持久 DTO 的只读 importer，并升级 compaction proof 来明确绑定 namespace alias 迁移。
+      </?01M1GW6GH316EKR251T0RW0S0Z>
+    )>
+    <option { key = "rename-legacy-effect" recommended = false } (
+      <title ?01M1GW6GH316EKR251T0RW0S10>
+      Rename the legacy Effect
+      </?01M1GW6GH316EKR251T0RW0S10>
+      <description ?01M1GW6GH316EKR251T0RW0S11>
+      把 `mutable_provider_projection` 改为另一个通用 publish Effect，同时保留两套候选数据路径。
+      </?01M1GW6GH316EKR251T0RW0S11>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S12>
+      只修词面而保留重复 Effect、双 staging DTO 与双 admission 路径，不符合 DEPA 单一边界。
+      </?01M1GW6GH316EKR251T0RW0S12>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>用户要求按前述“实际功能与名字一致”的建议进行重构改名。</?>
+    <decision-text ?>New writes SHALL use `task-tree-context`、`provider-output-recovery`、`workflow-stage-context` and the single `append_provider_context_fact` Effect. `mutable_provider_projection` SHALL leave the production contract. Persisted `projectionFact`、`provider-projection` and `provider-recovery` SHALL remain read-compatible but SHALL NOT be newly emitted. Same-epoch admitted bytes SHALL remain exact. Retention SHALL count legacy/canonical aliases as one semantic family. The next explicit compaction SHALL select the latest semantic-family fact, canonicalize retained TaskTree context, drop control/recovery facts, and write `provider.context-compaction-proof/v2` with separate source/successor namespaces; v1 same-namespace proofs remain readable. `buildAiWorkflowStageContext(stage, context)` SHALL be a pure value builder without Actor/system-prompt coupling. Actual provider adapter/wire projection names SHALL remain unchanged.</?>
+    <rationale ?>语义名消除 domain fact 与 provider adapter projection 的混淆；复用一个 Effect 消除双协议；epoch-bound alias migration 同时保护旧 session、prefix cache 与可审计证明。</?>
+    <evidence ?>`TaskTreeWrite` 是 legacy mutable Effect 唯一生产者；generic append Effect 已存在；compaction v1 validator currently requires identical source/successor namespaces；revise:before coding AttractorCheck 2026-09-02。</?>
+  )>
+  <confidence ?>0.97</?>
+  <reversibility ?>moderate</?>
+)>

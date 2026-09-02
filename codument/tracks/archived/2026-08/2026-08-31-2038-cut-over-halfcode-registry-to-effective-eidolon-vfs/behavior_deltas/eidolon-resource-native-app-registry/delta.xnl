@@ -1,0 +1,39 @@
+<BehaviorPatch #track.cut-over-halfcode-registry-to-effective-eidolon-vfs.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/effective-vfs-registry-projection" } (
+      <Requirement #effective-vfs-registry-projection (
+        <Statement ?>Eidolon SHALL derive every runtime Halfcode registry snapshot from one admitted Effective Eidolon VFS revision and SHALL NOT compose Builtin、home or workspace physical layers as competing registry authorities.</?>
+        <Suites [
+          <Suite #single-revision-projection { name = "Single revision projection" } (
+            <Cases [
+              <Case #load-one-effective-tree (
+                <Given ?>one admitted Effective VFS read port contains `/.eidolon/resources`</?>
+                <When ?>the App registry loads or refreshes</?>
+                <Then ?>it SHALL compile exactly one Halfcode ResourceTree from that bound read port and record the VFS revision、tree digest and materialization receipt in the registry snapshot</?>
+              )>
+              <Case #duplicate-fqn-fails-closed (
+                <Given ?>the final Effective VFS contains duplicate or invalid Halfcode resources</?>
+                <When ?>registry projection runs</?>
+                <Then ?>projection SHALL fail without admitting a partial or winner-selected registry</?>
+              )>
+            ]>
+          )>
+          <Suite #revision-bound-source-and-freeze { name = "Revision-bound source and freeze" } (
+            <Cases [
+              <Case #source-never-rereads-overlay (
+                <Given ?>a registry snapshot and effective source were produced from revision E1</?>
+                <When ?>physical overlays change or revision E2 is admitted</?>
+                <Then ?>E1 source、dependency、profile and KindDefinition reads SHALL use the E1 read port and SHALL NOT reread physical overlay roots</?>
+              )>
+              <Case #frozen-effective-closure-recovers (
+                <Given ?>an Agent or Workflow run freezes registry R derived from Effective VFS E</?>
+                <When ?>the run is recovered after live resources change</?>
+                <Then ?>the recovered registry SHALL use the frozen effective closure and reproduce E/R content identities without global/workspace layer composition</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

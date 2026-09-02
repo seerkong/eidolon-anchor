@@ -4,7 +4,7 @@
       <Statement ?01M05F1P0E2KHBTYTNGA7EWXF7>
       系统 SHALL expose durable control-signal events as stream data and current scheduler readiness as signal/projection data without mixing the two.
       </?01M05F1P0E2KHBTYTNGA7EWXF7>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-agent-vm-rx-data-plane/control-signal-stream-and-scheduler-signal" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/ai-agent-vm-rx-data-plane/control-signal-stream-and-scheduler-signal" strength = "hint" }>
       <Suites [
         <Suite #stream-signal-separation { name = "Control data-plane separation" } (
           <Cases [

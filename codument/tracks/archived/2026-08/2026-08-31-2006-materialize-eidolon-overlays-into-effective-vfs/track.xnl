@@ -1,0 +1,63 @@
+<Track #materialize-eidolon-overlays-into-effective-vfs apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "把 Builtin、home 与 workspace intent 原子物化为唯一 revision-bound Effective Eidolon VFS" description = "递归 physical overlay projection、immutable-base rebuild、validator gate、XNL CAS、receipt/read port 与 legacy projection" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-31T16:44:59.508Z" updated_at = "2026-08-31T17:06:53.362Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #materializer { role = "output" name = "effective-vfs-materializer" domain = "code" path = "vfs://@/cell/packages/symbiont-logic/src/resource/EffectiveEidolonVfsMaterializer.ts" }>
+    <MaterialBundle #tests { role = "output" name = "effective-vfs-tests" domain = "test" path = "vfs://@/cell/packages/symbiont-logic/tests/effective_eidolon_vfs_materializer.test.ts" }>
+  ]>
+  <TaskSpace #space_materialize-eidolon-overlays-into-effective-vfs { name = "materialize-eidolon-overlays-into-effective-vfs" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze overlay and transaction behavior" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Add Effective VFS materialization RED tests" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1CBRH37GR7RFB9R0YXZ16DP>
+              Tests cover sparse physical overlays, replacement fallback versus explicit delete, stable identities, validator rejection, stale publish and immutable read ports.
+              </?01M1CBRH37GR7RFB9R0YXZ16DP>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Implement one admitted Effective VFS authority" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Project physical overlays with stable identity" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1CBRH37GR7RFB9R0YXZ16DQ>
+              Recursive home/workspace projectors reject symlinks and unsupported entries, preserve exact bytes and produce deterministic directory intents/descriptors.
+              </?01M1CBRH37GR7RFB9R0YXZ16DQ>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Plan validate and atomically publish Effective VFS" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1CBRH37GR7RFB9R0YXZ16DR>
+              Every rebuild starts from immutable Builtin, runs all validators before XNL CAS and publishes only an exact candidate readback.
+              </?01M1CBRH37GR7RFB9R0YXZ16DR>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1CBRH37GR7RFB9R0YXZ16DS>
+              Admitted/rejected host receipts close revision and digest fences; failures preserve the prior immutable read authority.
+              </?01M1CBRH37GR7RFB9R0YXZ16DS>
+            ]>
+          )>
+          <Task #P2-T3 { name = "Expose revision-bound legacy projection" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P2-T3-AC1 { checked = true } ?01M1CBRH37GR7RFB9R0YXZ16DT>
+              Legacy ResourceVfs projection is derived from one admitted read port, excludes binary masquerading and remains deeply read-only.
+              </?01M1CBRH37GR7RFB9R0YXZ16DT>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Converge contract and regression evidence" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Run targeted and package verification" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1CBRH37GR7RFB9R0YXZ16DV>
+              Focused materializer tests, existing symbiont tests, typecheck and strict Codument validation pass without changing old loader authority claims.
+              </?01M1CBRH37GR7RFB9R0YXZ16DV>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

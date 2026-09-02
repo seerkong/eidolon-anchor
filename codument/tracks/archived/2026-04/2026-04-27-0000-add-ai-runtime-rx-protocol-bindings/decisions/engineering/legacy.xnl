@@ -1,0 +1,125 @@
+<decision #track.add-ai-runtime-rx-protocol-bindings.d1 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P0" durable_candidate = false } (
+  <question ?>
+首个协议绑定目标：首个可验证入口。
+  </?>
+  <recommendation ?>
+A 或 B，按当前最活跃入口选择
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+先绑定 terminal/TUI 输出，风险最小
+      </?>
+      <description ?>
+先绑定 terminal/TUI 输出，风险最小
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+先绑定 web/composer 输出，产品价值更直接
+      </?>
+      <description ?>
+先绑定 web/composer 输出，产品价值更直接
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+先绑定 OpenAI-compatible stream，便于与参考项目对齐
+      </?>
+      <description ?>
+先绑定 OpenAI-compatible stream，便于与参考项目对齐
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+先落地不绑定具体 UI route 的 semantic protocol frame binding，位置靠近 `ai-organ-logic/src/stream`；TUI、web/composer、OpenAI-compatible 后续都从该 frame 层消费。
+    </?>
+    <decision-text ?>
+先落地不绑定具体 UI route 的 semantic protocol frame binding，位置靠近 `ai-organ-logic/src/stream`；TUI、web/composer、OpenAI-compatible 后续都从该 frame 层消费。
+    </?>
+    <rationale ?>
+当前代码已经有 `AiAgentVmPublicRxData.semanticEvents`、domain streams、usage 与 traceSummary readonly signals；先做 shared semantic frame 可以最大化复用已落地 public 数据面，避免过早被某个 UI/HTTP route 的历史输出路径牵引。
+    </?>
+    <evidence ?>
+项目可能有 TUI、terminal、web/composer、OpenAI-compatible 多个入口。
+
+Legacy provenance: codument/tracks/archived/2026-04/2026-04-27-0000-add-ai-runtime-rx-protocol-bindings/decisions.md
+
+- 背景：项目可能有 TUI、terminal、web/composer、OpenAI-compatible 多个入口。
+- 需要决定：首个可验证入口。
+- 选项：
+  - A) 先绑定 terminal/TUI 输出，风险最小
+  - B) 先绑定 web/composer 输出，产品价值更直接
+  - C) 先绑定 OpenAI-compatible stream，便于与参考项目对齐
+- 当前建议：A 或 B，按当前最活跃入口选择
+- 用户答复：按已归档 VM runtime shape 与 RxData 数据面落地结果跟进调整。
+- 最终决策：先落地不绑定具体 UI route 的 semantic protocol frame binding，位置靠近 `ai-organ-logic/src/stream`；TUI、web/composer、OpenAI-compatible 后续都从该 frame 层消费。
+- 决策理由：当前代码已经有 `AiAgentVmPublicRxData.semanticEvents`、domain streams、usage 与 traceSummary readonly signals；先做 shared semantic frame 可以最大化复用已落地 public 数据面，避免过早被某个 UI/HTTP route 的历史输出路径牵引。
+- 状态：decided
+    </?>
+  )>
+)>
+
+<decision #track.add-ai-runtime-rx-protocol-bindings.d2 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P1" durable_candidate = false } (
+  <question ?>
+messageHistory 副作用迁移策略：本 Track 是否迁移。
+  </?>
+  <recommendation ?>
+A
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+仅并行新增协议 RxData，不迁移 messageHistory
+      </?>
+      <description ?>
+仅并行新增协议 RxData，不迁移 messageHistory
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+同步迁移 messageHistory 为 RxData consumer
+      </?>
+      <description ?>
+同步迁移 messageHistory 为 RxData consumer
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+其他（可填写）
+      </?>
+      <description ?>
+其他（可填写）
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+A) 本 Track 仅并行新增协议 RxData / semantic protocol frame binding，不迁移 messageHistory。
+    </?>
+    <decision-text ?>
+A) 本 Track 仅并行新增协议 RxData / semantic protocol frame binding，不迁移 messageHistory。
+    </?>
+    <rationale ?>
+`bindVmDomainRxStreams` 已证明 conversation domain streams 可以通过 public RxData 暴露；messageHistory 仍是现有副作用路径，迁移它会扩大 blast radius，应留给后续专门 track 或具体 adapter 迁移。
+    </?>
+    <evidence ?>
+现有 `RuntimeEffects.messageHistory` 仍记录输出副作用。
+
+Legacy provenance: codument/tracks/archived/2026-04/2026-04-27-0000-add-ai-runtime-rx-protocol-bindings/decisions.md
+
+- 背景：现有 `RuntimeEffects.messageHistory` 仍记录输出副作用。
+- 需要决定：本 Track 是否迁移。
+- 选项：
+  - A) 仅并行新增协议 RxData，不迁移 messageHistory
+  - B) 同步迁移 messageHistory 为 RxData consumer
+  - C) 其他（可填写）
+- 当前建议：A
+- 用户答复：按已归档 VM runtime shape 与 RxData 数据面落地结果跟进调整。
+- 最终决策：A) 本 Track 仅并行新增协议 RxData / semantic protocol frame binding，不迁移 messageHistory。
+- 决策理由：`bindVmDomainRxStreams` 已证明 conversation domain streams 可以通过 public RxData 暴露；messageHistory 仍是现有副作用路径，迁移它会扩大 blast radius，应留给后续专门 track 或具体 adapter 迁移。
+- 状态：decided
+    </?>
+  )>
+)>

@@ -1,0 +1,25 @@
+<BehaviorPatch #track.fix-provider-switch-admission-and-recovery.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/physical-overlay-runtime-state-boundary" } (
+      <Requirement #physical-overlay-runtime-state-boundary (
+        <Statement ?>Physical home/workspace overlays SHALL project managed Eidolon configuration and resources, and SHALL reject runtime-owned state roots from traversal before materializing the Effective Eidolon VFS.</?>
+        <Suites [
+          <Suite #physical-overlay-boundary { name = "Physical overlay authority boundary" } (
+            <Cases [
+              <Case #runtime-state-roots-are-not-traversed (
+                <Given ?>home or workspace `.eidolon` contains `sessions` or `projects` trees with mutable, large or unreadable descendants.</?>
+                <When ?>the physical directory source projects an overlay.</?>
+                <Then ?>those roots SHALL be skipped before descendant traversal and SHALL contribute neither VFS nodes nor snapshot/digest cost.</?>
+              )>
+              <Case #managed-config-and-resources-remain-overlayable (
+                <Given ?>the same physical root contains runtime configuration and Halfcode resources.</?>
+                <When ?>the overlay is projected.</?>
+                <Then ?>the managed files SHALL retain stable logical paths and identities and remain available to Effective VFS consumers.</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

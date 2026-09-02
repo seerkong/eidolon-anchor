@@ -1,0 +1,225 @@
+<Mission #build-recursive-ai-data-mission-control-and-canonical-holon-runtime apiVersion="codument.tech/v1alpha1" version="1" { status = "archived" goal = "以递归 AIDataWorkflow/SubFlow、Halfcode AIAgentDefinition 自主 authoring/selection 和 canonical TaskSpace Holon actor pump，建立可恢复、可审计且无旧 VM 双 authority 的 Mission execution runtime。" description = "取消 GoalGraph 方向，让唯一 Data RunGraph 自描述主子目标与 child workflow；恢复 AI 自主创建和选择 Halfcode AgentDefinition；把旧 VM AutonomousHolonTaskRunner 的有效自治行为迁入 TaskSpace/HolonCoordinator/MemberRuntime actor，并在 Ctrl/Data 多任务、失败恢复、组织 replan E2E 后删除旧路径。" question_mode = "decision-tree" question_severity = "auto" revision = 45 created_at = "2026-08-30T05:32:11.653Z" updated_at = "2026-08-30T19:12:56.197Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "analysis" domain = "mission" path = "vfs://./analysis/" }>
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+    <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #eidolon-anchor { kind = "host" }>
+    <ProjectRef #depa-flows { kind = "external" }>
+    <ProjectRef #halfcode { kind = "external" }>
+    <ProjectRef #holon-workbench { kind = "external" }>
+  ]>
+  <ActorSets { default = "recursive-mission-control-loop" } [
+    <ActorSet #recursive-mission-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "eidolon-anchor" } (
+        <Description ?01M18K29XAV7TAFC74ZTQMVW08>
+        维护一张以递归 Data RunGraph 为执行模型的跨仓 DAG；根据真实 authority 缺口切分 bounded Track，禁止重新引入 GoalGraph、动态 catalog 第二真源或 VM Holon 兼容退路。
+        </?01M18K29XAV7TAFC74ZTQMVW08>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "eidolon-anchor" } (
+        <Description ?01M18K29XBYJ4SQWRRAJKFANP5>
+        读取 depa-flows SubFlow/AI Data checkpoint、Halfcode resource authoring/effective registry、Eidolon Agent/Conversation 与 TaskSpace/Holon actor事实、四项目 dirty state、当前 HEAD tests和 Track lifecycle；严格区分 Definition authoring、definition selection、instance creation与targeting。
+        </?01M18K29XBYJ4SQWRRAJKFANP5>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "eidolon-anchor" } (
+        <Description ?01M18K29XBYJ4SQWRRAJKFANP6>
+        逐项比较唯一 graph authority、动态资源 receipt/freeze、canonical pump parity、旧路径静态清零和 Ctrl/Data 产品 E2E；发现 API/authority 漂移时写 replan evidence并保持原成功判据，不用较小替代方案伪装收敛。
+        </?01M18K29XBYJ4SQWRRAJKFANP6>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "eidolon-anchor" } (
+        <Description ?01M18K29XBYJ4SQWRRAJKFANP7>
+        在真正 owner项目创建、绑定、实现、验证和归档 Track；通过 apply_patch保留现有 dirty hunks，并在重叠前使用 .tmp/chat.jsonl 协商；每个 operation以当前源码、fresh test、resource/checkpoint/TaskSpace receipt收口。
+        </?01M18K29XBYJ4SQWRRAJKFANP7>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_build-recursive-ai-data-mission-control-and-canonical-holon-runtime { name = "build-recursive-ai-data-mission-control-and-canonical-holon-runtime" version = "1" child_mode = "dag" } (
+    <Description ?01M18K29XBYJ4SQWRRAJKFANP8>
+    跨 depa-flows、Halfcode、Eidolon 与 Holon authority，把递归 Mission planning、动态 Worker资源和组织任务自治收敛为一个可恢复产品路径。
+    </?01M18K29XBYJ4SQWRRAJKFANP8>
+    <SubNodes [
+      <TaskGroup #G0 { name = "冻结现状、术语、authority 与删除门禁" status = "DONE" priority = "P0" order = 0 } (
+        <Gate [
+          <Criterion { checked = true } ?01M18K29XBYJ4SQWRRAJKFANP9>
+          design完整记录既有 SubFlow、autonomous admission、AIAgentDefinition freeze、Holon新旧路径代码位置和当前测试事实。
+          </?01M18K29XBYJ4SQWRRAJKFANP9>
+          <Criterion { checked = true } ?01M18K29XBYJ4SQWRRAJKFANPA>
+          decisions固化 no-GoalGraph、Halfcode资源authority、canonical TaskSpace唯一Holon runtime和dynamic catalog deferred。
+          </?01M18K29XBYJ4SQWRRAJKFANPA>
+        ]>
+        <SubNodes [
+          <Task #G0-T1 { name = "记录四项目 actual-state 代码地图与测试基线" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G0-T2 { name = "冻结术语、单一 authority、Track切片与旧路径删除门禁" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #G1 { name = "AI Data 自主递归 SubFlow 与 durable child run" status = "DONE" priority = "P0" order = 1 } (
+        <Gate [
+          <Criterion { checked = true } ?01M18K29XBYJ4SQWRRAJKFANPB>
+          Controller可经typed decision/admission把SubFlowNode加入唯一RunGraph，且patch仍由现有checkpoint owner提交。
+          </?01M18K29XBYJ4SQWRRAJKFANPB>
+          <Criterion { checked = true } ?01M18K29XBYJ4SQWRRAJKFANPC>
+          child definition/instance/run/checkpoint与completion receipt可fresh恢复；无GoalGraph或第二graph store。
+          </?01M18K29XBYJ4SQWRRAJKFANPC>
+        ]>
+        <SubNodes [
+          <Task #G1-T1 { name = "实现 autonomous AI Data SubFlow composition 与 durable child invocation Track" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #add-autonomous-ai-data-subflow-composition { state = "bound" project_ref = "depa-flows" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "Halfcode transactional runtime resource authoring" status = "DONE" priority = "P0" order = 2 } (
+        <Gate [
+          <Criterion { checked = true } ?01M18K29XBYJ4SQWRRAJKFANPD>
+          generic proposal/plan/apply/CAS/receipt链路按KindDefinition与source-shape校验并原子更新authoring authority。
+          </?01M18K29XBYJ4SQWRRAJKFANPD>
+          <Criterion { checked = true } ?01M18K29XBYJ4SQWRRAJKFANPE>
+          effective registry刷新、content identity、provenance与失败不写入行为可审计，不引入AI领域或动态catalog authority。
+          </?01M18K29XBYJ4SQWRRAJKFANPE>
+        ]>
+        <SubNodes [
+          <Task #G2-T1 { name = "实现通用 runtime resource authoring transaction Track" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #add-transactional-runtime-resource-authoring { state = "bound" project_ref = "halfcode" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G2B { name = "Halfcode authoring runtime local distribution candidate" status = "DONE" priority = "P0" order = 3 } (
+        <Gate [
+          <Criterion { checked = true } ?01M197P00S4VF1T31ETWNJ53T6>
+          新的不可变 0.2.9 本地 tarball 从公共 authoring-runtime 子路径导出 transactional resource authoring runtime 与类型。
+          </?01M197P00S4VF1T31ETWNJ53T6>
+          <Criterion { checked = true } ?01M197P00S4VF1T31ETWNJ53T7>
+          tarball-only installed-consumer 门禁通过，且没有执行 npm publish 或修改 dist-tag。
+          </?01M197P00S4VF1T31ETWNJ53T7>
+        ]>
+        <SubNodes [
+          <Task #G2B-T1 { name = "准备 Halfcode authoring runtime 0.2.9 本地分发候选" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #prepare-halfcode-authoring-runtime-distribution-candidate { state = "bound" project_ref = "halfcode" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "AIAgentDefinition 自主 authoring 与 typed selection" status = "DONE" priority = "P0" order = 4 } (
+        <Gate [
+          <Criterion { checked = true } ?01M18K29XC08Y6XG996AZVKHXM>
+          depa-flows可从Halfcode authoring receipt投影、校验和冻结新AIAgentDefinition及task proof。
+          </?01M18K29XC08Y6XG996AZVKHXM>
+          <Criterion { checked = true } ?01M18K29XC08Y6XG996AZVKHXN>
+          Controller可依据typed task requirement选择existing exact definition或请求author-new；不按名称/prompt做代码级fuzzy routing。
+          </?01M18K29XC08Y6XG996AZVKHXN>
+        ]>
+        <SubNodes [
+          <Task #G3-T1 { name = "实现 autonomous AgentDefinition authoring projection、candidate selection与admission Track" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #add-autonomous-agent-definition-authoring-and-selection { state = "bound" project_ref = "depa-flows" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "Eidolon autonomous Agent resource host integration" status = "DONE" priority = "P0" order = 4 } (
+        <Gate [
+          <Criterion { checked = true } ?01M18K29XC08Y6XG996AZVKHXP>
+          resource-managed Mission Controller能通过typed host port author/select/freeze Worker definition，再复用generic Agent runtime创建或target instance。
+          </?01M18K29XC08Y6XG996AZVKHXP>
+          <Criterion { checked = true } ?01M18K29XC08Y6XG996AZVKHXQ>
+          动态资源不修改parent frozen snapshot；checkpoint只保存exact resource/proof/instance refs和receipts，fresh recovery可继续。
+          </?01M18K29XC08Y6XG996AZVKHXQ>
+        ]>
+        <SubNodes [
+          <Task #G4-T1 { name = "集成 Controller、Halfcode authoring adapter与generic Agent runtime Track" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #integrate-autonomous-agent-resource-authoring { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "Canonical Holon TaskSpace actor pump" status = "DONE" priority = "P0" order = 5 } (
+        <Gate [
+          <Criterion { checked = true } ?01M18K29XERXB93CET1MBN4VZ7>
+          长生命周期actor从TaskSpace ready frontier自动claim/dispatch/start/settle/fail并推进依赖任务，不要求逐任务holon-process。
+          </?01M18K29XERXB93CET1MBN4VZ7>
+          <Criterion { checked = true } ?01M18K29XERXB93CET1MBN4VZ8>
+          HolonCoordinator选择MemberRuntime，TaskSpace保持唯一task owner；pump中断后由receipt/checkpoint恢复且accepted effect不重复。
+          </?01M18K29XERXB93CET1MBN4VZ8>
+        ]>
+        <SubNodes [
+          <Task #G5-T1 { name = "实现 canonical Holon TaskSpace pump与旧runner有效行为迁移 Track" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #add-canonical-holon-taskspace-pump { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G6 { name = "切换产品并删除旧 VM autonomous Holon 路径" status = "DONE" priority = "P0" order = 6 } (
+        <Gate [
+          <Criterion { checked = true } ?01M18K29XERXB93CET1MBN4VZ9>
+          所有旧runner行为均有canonical actor parity证据，product/bootstrap不再实例化旧路径。
+          </?01M18K29XERXB93CET1MBN4VZ9>
+          <Criterion { checked = true } ?01M18K29XERXB93CET1MBN4VZA>
+          AutonomousHolonTaskRunner、旧TaskTree Holon route/ownership/events与专属compatibility代码测试被删除，静态引用清零。
+          </?01M18K29XERXB93CET1MBN4VZA>
+        ]>
+        <SubNodes [
+          <Task #G6-T1 { name = "退役 VM AutonomousHolonTaskRunner 与 TaskTree compatibility Track" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #retire-vm-autonomous-holon-tasktree { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G7 { name = "Ctrl/Data 综合产品 E2E 与回归修复" status = "DONE" priority = "P0" order = 7 } (
+        <Gate [
+          <Criterion { checked = true } ?01M18K29XFAFJZRG1JC70F9S0D>
+          Ctrl/Data均覆盖多任务依赖、动态definition create/select、失败恢复、fresh reconstruction、组织replan与父Flow消费。
+          </?01M18K29XFAFJZRG1JC70F9S0D>
+          <Criterion { checked = true } ?01M18K29XFAFJZRG1JC70F9S0E>
+          E2E不逐任务调用holon-process，不预写expected patch/definition/selection；当前Ctrl replan registry drift有防回归证据。
+          </?01M18K29XFAFJZRG1JC70F9S0E>
+        ]>
+        <SubNodes [
+          <Task #G7-T1 { name = "建立 recursive AI Data 与 canonical Holon Ctrl/Data 产品 E2E Track" status = "DONE" priority = "P0" order = 0 } (
+            <TrackLink #verify-recursive-ai-data-and-canonical-holon-e2e { state = "bound" project_ref = "eidolon-anchor" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G8 { name = "Mission独立完成审计" status = "DONE" priority = "P0" order = 8 } (
+        <SubNodes [
+          <Task #G8-T1 { name = "逐条审计九项成功判据、八个Track与当前源码证据" status = "DONE" priority = "P0" order = 0 }>
+          <Task #G8-T2 { name = "运行跨仓strict validation、typecheck、focused/full regression与fresh E2E" status = "DONE" priority = "P0" order = 1 }>
+          <Task #G8-T3 { name = "确认无GoalGraph、dynamic catalog authority、旧VM Holon product path与未解释candidate" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_build-recursive-ai-data-mission-control-and-canonical-holon-runtime" } [
+      <Node #G1 [
+        <After { ref = "G0" }>
+      ]>
+      <Node #G2 [
+        <After { ref = "G0" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G1" }>
+        <After { ref = "G2" }>
+        <After { ref = "G2B" }>
+      ]>
+      <Node #G2B [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G3" }>
+      ]>
+      <Node #G5 [
+        <After { ref = "G0" }>
+      ]>
+      <Node #G6 [
+        <After { ref = "G5" }>
+      ]>
+      <Node #G7 [
+        <After { ref = "G1" }>
+        <After { ref = "G4" }>
+        <After { ref = "G6" }>
+      ]>
+      <Node #G8 [
+        <After { ref = "G7" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

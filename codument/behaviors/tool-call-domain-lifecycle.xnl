@@ -1,0 +1,249 @@
+<Behavior #tool-call-domain-lifecycle apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #single-owner (
+      <Statement ?01M1ASG3SP6ME53F13M97110BW>
+      tool call 的全生命周期事实 SHALL 由 ToolCallDomain 单独拥有；其它模块（executor 隐式 state、cooperative pendingAiGenerated、runtime-control effect evidence）SHALL NOT 持有事实真相，只能持有派生信号或 audit 副本。
+      </?01M1ASG3SP6ME53F13M97110BW>
+      <Suites [
+        <Suite #ownership { name = "Lifecycle ownership" } (
+          <Cases [
+            <Case #lifecycle-events-owned [
+              <Then ?01M1ASG3SP6ME53F13M97110BX>
+              SHALL 在 ToolCallDomain 找到唯一权威记录
+              </?01M1ASG3SP6ME53F13M97110BX>
+              <Then ?01M1ASG3SP6ME53F13M97110BY>
+              runtime-control evidence SHALL 仅包含 request_id 与对 ToolCallDomain 的引用，不重复持有 outputText 或 args 全文
+              </?01M1ASG3SP6ME53F13M97110BY>
+            ] (
+              <Given ?01M1ASG3SQRCTN26XQSM56R4RQ>
+              一次 tool call 从 LLM 产出 tool_calls 到最终 tool_result 进入 History 域
+              </?01M1ASG3SQRCTN26XQSM56R4RQ>
+              <When ?01M1ASG3SQRCTN26XQSM56R4RR>
+              追溯每个生命周期事实（planned / dispatched / gate decision / executed-or-skipped / result / failed）
+              </?01M1ASG3SQRCTN26XQSM56R4RR>
+            )>
+            <Case #executor-state-derived [
+              <Then ?01M1ASG3SQRCTN26XQSM56R4RS>
+              SHALL 从 ToolCallDomain 读取（domain 提供 derived view）
+              </?01M1ASG3SQRCTN26XQSM56R4RS>
+              <Then ?01M1ASG3SQRCTN26XQSM56R4RT>
+              SHALL NOT 通过 executor 私有 pending 数组比对
+              </?01M1ASG3SQRCTN26XQSM56R4RT>
+            ] (
+              <Given ?01M1ASG3SR8A79CFTXT109MKK8>
+              cooperative 主循环需要判断 inflight tool 是否完成
+              </?01M1ASG3SR8A79CFTXT109MKK8>
+              <When ?01M1ASG3SR8A79CFTXT109MKK9>
+              读取信号
+              </?01M1ASG3SR8A79CFTXT109MKK9>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #pairing-by-tool-call-id (
+      <Statement ?01M1ASG3SR8A79CFTXT109MKKA>
+      tool_call 与 tool_result 的配对 SHALL 通过 LLM 提供的 tool_call_id 作为透明唯一标识完成；不依赖数组位置、消息排列或其它隐式约定；ToolCallDomain SHALL 拒绝出现两次相同 tool_call_id 的 result 提交。
+      </?01M1ASG3SR8A79CFTXT109MKKA>
+      <Suites [
+        <Suite #pairing { name = "Tool call pairing" } (
+          <Cases [
+            <Case #opaque-id-pairing [
+              <Then ?01M1ASG3SR8A79CFTXT109MKKB>
+              SHALL 仅依据 tool_call_id 匹配回所属 tool_call
+              </?01M1ASG3SR8A79CFTXT109MKKB>
+              <Then ?01M1ASG3SR8A79CFTXT109MKKC>
+              SHALL NOT 依据数组下标或时间序
+              </?01M1ASG3SR8A79CFTXT109MKKC>
+            ] (
+              <Given ?01M1ASG3SR8A79CFTXT109MKKD>
+              LLM 产出 N 个 tool_calls 各带不同 tool_call_id
+              </?01M1ASG3SR8A79CFTXT109MKKD>
+              <When ?01M1ASG3SR8A79CFTXT109MKKE>
+              tool result 陆续到达
+              </?01M1ASG3SR8A79CFTXT109MKKE>
+            )>
+            <Case #no-duplicate-result (
+              <Given ?01M1ASG3SR8A79CFTXT109MKKF>
+              同一 tool_call_id 已有 result（含 deny/defer 的合成 result）
+              </?01M1ASG3SR8A79CFTXT109MKKF>
+              <When ?01M1ASG3SR8A79CFTXT109MKKG>
+              第二次 result 试图提交
+              </?01M1ASG3SR8A79CFTXT109MKKG>
+              <Then ?01M1ASG3SR8A79CFTXT109MKKH>
+              SHALL 被 ToolCallDomain 拒绝并标记为协议违例
+              </?01M1ASG3SR8A79CFTXT109MKKH>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #gate-decision-as-fact (
+      <Statement ?01M1ASG3SR8A79CFTXT109MKKJ>
+      ToolExecutionGateDecision（allow / deny / defer）的结果 SHALL 作为 ToolCallDomain 的一等公民事实存储；下游的 stopAfterTools 判断、conversation history 写入、effect evidence 记录 SHALL 通过读取该事实做决策，而非由 executor 局部计算后传递。
+      </?01M1ASG3SR8A79CFTXT109MKKJ>
+      <Suites [
+        <Suite #gate-fact { name = "Gate decision as fact" } (
+          <Cases [
+            <Case #decision-stored-in-domain [
+              <Then ?01M1ASG3SR8A79CFTXT109MKKK>
+              ToolCallDomain SHALL 持久保存该决策（含 kind, reason, waitingFor 若有）
+              </?01M1ASG3SR8A79CFTXT109MKKK>
+              <Then ?01M1ASG3SR8A79CFTXT109MKKM>
+              SHALL NOT 仅作为 tool_done event 的瞬时字段传递
+              </?01M1ASG3SR8A79CFTXT109MKKM>
+            ] (
+              <Given ?01M1ASG3SR8A79CFTXT109MKKN>
+              start_tool 触发 evaluateToolExecutionGates
+              </?01M1ASG3SR8A79CFTXT109MKKN>
+              <When ?01M1ASG3SR8A79CFTXT109MKKP>
+              评估完成
+              </?01M1ASG3SR8A79CFTXT109MKKP>
+            )>
+            <Case #downstream-reads-domain [
+              <Then ?01M1ASG3SR8A79CFTXT109MKKQ>
+              SHALL 通过 ToolCallDomain 读取 gate decision
+              </?01M1ASG3SR8A79CFTXT109MKKQ>
+              <Then ?01M1ASG3SR8A79CFTXT109MKKR>
+              SHALL NOT 通过字符串 outputText 匹配或私有标志位推断
+              </?01M1ASG3SR8A79CFTXT109MKKR>
+            ] (
+              <Given ?01M1ASG3SR8A79CFTXT109MKKS>
+              stopAfterTools 判断、emit semantic_tool_call_result、appendRuntimeControlLifecycleEvidence 等下游操作
+              </?01M1ASG3SR8A79CFTXT109MKKS>
+              <When ?01M1ASG3SR8A79CFTXT109MKKT>
+              需要确认 tool 是否实际运行
+              </?01M1ASG3SR8A79CFTXT109MKKT>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #evidence-as-audit-only (
+      <Statement ?01M1ASG3SR8A79CFTXT109MKKV>
+      runtime-control effect evidence 在 tool 生命周期中 SHALL 仅承担 audit / 恢复辅助角色：记录 request_id、handler key、对应 ToolCallDomain 事实的引用即可；SHALL NOT 复制 outputText 或 args 全文，SHALL NOT 作为下次 turn 判断 tool 是否完成的依据。
+      </?01M1ASG3SR8A79CFTXT109MKKV>
+      <Suites [
+        <Suite #evidence-boundary { name = "Evidence boundary" } (
+          <Cases [
+            <Case #evidence-payload-shape [
+              <Then ?01M1ASG3SR8A79CFTXT109MKKW>
+              SHALL 包含 effectId / handlerKey / 对应 ToolCallDomain entry 引用
+              </?01M1ASG3SR8A79CFTXT109MKKW>
+              <Then ?01M1ASG3SR8A79CFTXT109MKKX>
+              SHALL NOT 包含全文 outputText 与 args（仅可保留尺寸/校验和等审计元数据）
+              </?01M1ASG3SR8A79CFTXT109MKKX>
+            ] (
+              <Given ?01M1ASG3SR8A79CFTXT109MKKY>
+              appendRuntimeControlLifecycleEvidenceFromVm 被调用记录 tool result
+              </?01M1ASG3SR8A79CFTXT109MKKY>
+              <When ?01M1ASG3SR8A79CFTXT109MKKZ>
+              检查 payload
+              </?01M1ASG3SR8A79CFTXT109MKKZ>
+            )>
+            <Case #recovery-reads-domain (
+              <Given ?01M1ASG3SR8A79CFTXT109MKM0>
+              session 恢复后重建运行时
+              </?01M1ASG3SR8A79CFTXT109MKM0>
+              <When ?01M1ASG3SR8A79CFTXT109MKM1>
+              判断 tool 是否完成
+              </?01M1ASG3SR8A79CFTXT109MKM1>
+              <Then ?01M1ASG3SR8A79CFTXT109MKM2>
+              SHALL 从 ToolCallDomain 读取，不从 effect evidence 重建 tool result 内容
+              </?01M1ASG3SR8A79CFTXT109MKM2>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #explicit-execution-outcome (
+      <Statement ?01M1ASG3SR8A79CFTXT109MKM3>
+      工具运行结果 SHALL 能以工具无关的显式 outcome 表达 completed 或 failed；failed outcome SHALL 携带 failureKind，并由共享执行管线原样传播到 ToolCallDomain、semantic history、runtime evidence 与恢复投影，而不是依赖 output 文本或工具名称推断。
+      </?01M1ASG3SR8A79CFTXT109MKM3>
+      <Suites [
+        <Suite #outcome-propagation { name = "Explicit tool execution outcome" } (
+          <Cases [
+            <Case #explicit-failure-is-authoritative [
+              <Then ?01M1ASG3SR8A79CFTXT109MKM4>
+              ToolCallDomain SHALL 记录 failed 与对应 failureKind
+              </?01M1ASG3SR8A79CFTXT109MKM4>
+              <Then ?01M1ASG3SR8A79CFTXT109MKM5>
+              semantic tool result 与终端 history SHALL 标记 isError=true
+              </?01M1ASG3SR8A79CFTXT109MKM5>
+            ] (
+              <Given ?01M1ASG3SS374ZPJ1KW8MS8Q4V>
+              任意工具返回 failed outcome，但其可见 output 不以 `Error:` 开头
+              </?01M1ASG3SS374ZPJ1KW8MS8Q4V>
+              <When ?01M1ASG3SS374ZPJ1KW8MS8Q4W>
+              streaming 或 cooperative executor 处理该结果
+              </?01M1ASG3SS374ZPJ1KW8MS8Q4W>
+            )>
+            <Case #legacy-string-remains-compatible [
+              <Then ?01M1ASG3SS374ZPJ1KW8MS8Q4X>
+              系统 SHALL 保持现有 `Error:` 前缀兼容推断
+              </?01M1ASG3SS374ZPJ1KW8MS8Q4X>
+              <Then ?01M1ASG3SS374ZPJ1KW8MS8Q4Y>
+              显式 outcome 存在时 SHALL 优先使用显式事实
+              </?01M1ASG3SS374ZPJ1KW8MS8Q4Y>
+            ] (
+              <Given ?01M1ASG3SS374ZPJ1KW8MS8Q4Z>
+              尚未迁移的工具返回纯字符串结果
+              </?01M1ASG3SS374ZPJ1KW8MS8Q4Z>
+              <When ?01M1ASG3SS374ZPJ1KW8MS8Q50>
+              共享执行管线处理结果
+              </?01M1ASG3SS374ZPJ1KW8MS8Q50>
+            )>
+            <Case #recovery-preserves-failure (
+              <Given ?01M1ASG3SS374ZPJ1KW8MS8Q51>
+              failed tool call 已写入 ToolCallDomain 并在 session 恢复后重建结果
+              </?01M1ASG3SS374ZPJ1KW8MS8Q51>
+              <When ?01M1ASG3SS374ZPJ1KW8MS8Q52>
+              cooperative completion 或 conversation history 被恢复
+              </?01M1ASG3SS374ZPJ1KW8MS8Q52>
+              <Then ?01M1ASG3SS374ZPJ1KW8MS8Q53>
+              恢复结果 SHALL 保持 isError=true 与原 failureKind
+              </?01M1ASG3SS374ZPJ1KW8MS8Q53>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #retention-and-externalization (
+      <Statement ?01M1ASG3SS374ZPJ1KW8MS8Q54>
+      ToolCallDomain SHALL 提供保留边界：仅保留活跃/进行中记录与最近 N 条终态记录；终态记录的大 outputText SHALL 外部化到 artifacts/tool-results 并在 domain 中仅保留引用/预览；恢复路径 SHALL 能从外部化引用重建工具结果消息。
+      </?01M1ASG3SS374ZPJ1KW8MS8Q54>
+      <Suites [
+        <Suite #retention { name = "Retention and externalization" } (
+          <Cases [
+            <Case #terminal-records-pruned [
+              <Then ?01M1ASG3SS374ZPJ1KW8MS8Q55>
+              SHALL 裁剪超出窗口的终态记录
+              </?01M1ASG3SS374ZPJ1KW8MS8Q55>
+              <Then ?01M1ASG3SS374ZPJ1KW8MS8Q56>
+              SHALL 保留活跃/进行中记录
+              </?01M1ASG3SS374ZPJ1KW8MS8Q56>
+            ] (
+              <Given ?01M1ASG3SS374ZPJ1KW8MS8Q57>
+              终态工具记录数量超过保留窗口
+              </?01M1ASG3SS374ZPJ1KW8MS8Q57>
+              <When ?01M1ASG3SS374ZPJ1KW8MS8Q58>
+              运行保留裁剪
+              </?01M1ASG3SS374ZPJ1KW8MS8Q58>
+            )>
+            <Case #large-output-externalized (
+              <Given ?01M1ASG3SS374ZPJ1KW8MS8Q59>
+              工具输出超过外部化阈值
+              </?01M1ASG3SS374ZPJ1KW8MS8Q59>
+              <When ?01M1ASG3SS374ZPJ1KW8MS8Q5A>
+              记录工具结果
+              </?01M1ASG3SS374ZPJ1KW8MS8Q5A>
+              <Then ?01M1ASG3SS374ZPJ1KW8MS8Q5B>
+              SHALL 将全文写入 artifact 并仅保留引用/预览
+              </?01M1ASG3SS374ZPJ1KW8MS8Q5B>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

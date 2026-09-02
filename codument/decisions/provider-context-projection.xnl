@@ -156,3 +156,109 @@
   low
   </?01M18JF2PC062MF5P8ZAHD1E5V>
 )>
+
+<decision #work-context-control-only-projection apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" durable_candidate = true } (
+  <question ?01M1GW6GH316EKR251T0RW0S0D>
+  Actor work mode 与 task phase 是否应作为 provider-visible typed fact 进入模型消息？
+  </?01M1GW6GH316EKR251T0RW0S0D>
+  <recommendation ?01M1GW6GH316EKR251T0RW0S0E>
+  不进入；它们属于执行控制 authority。只有模型确实需要消费的动态上下文才投影为 provider context fact。
+  </?01M1GW6GH316EKR251T0RW0S0E>
+  <options {  } [
+    <option { key = "control-only" recommended = true } (
+      <title ?01M1GW6GH316EKR251T0RW0S0F>
+      Control-only work context
+      </?01M1GW6GH316EKR251T0RW0S0F>
+      <description ?01M1GW6GH316EKR251T0RW0S0G>
+      保留 Actor state、权限门禁、routing 与 compaction 语义，但不创建或发送 `work-context` 消息。
+      </?01M1GW6GH316EKR251T0RW0S0G>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S0H>
+      旧 session 需要一次显式 provider-surface epoch 迁移来移除已发送的事实。
+      </?01M1GW6GH316EKR251T0RW0S0H>
+    )>
+    <option { key = "prompt-suppression" recommended = false } (
+      <title ?01M1GW6GH316EKR251T0RW0S0J>
+      Prompt suppression
+      </?01M1GW6GH316EKR251T0RW0S0J>
+      <description ?01M1GW6GH316EKR251T0RW0S0K>
+      继续发送事实，再要求模型不要复述。
+      </?01M1GW6GH316EKR251T0RW0S0K>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S0M>
+      增加 token，不能从机制上保证协议不泄露。
+      </?01M1GW6GH316EKR251T0RW0S0M>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1GW6GH316EKR251T0RW0S0N>
+    只改消息投影逻辑，不增加提示词。
+    </?01M1GW6GH316EKR251T0RW0S0N>
+    <decision-text ?01M1GW6GH316EKR251T0RW0S0P>
+    `ActorWorkContext` SHALL remain the runtime control authority and SHALL NOT automatically mint an `ActorProviderContextFact`. Provider materialization SHALL validate the full immutable chain but exclude legacy namespace `work-context`; final-wire validators SHALL reject that namespace. The provider-surface digest SHALL include the projection policy revision, causing old receipts to advance exactly once before the changed bytes are sent. Other explicitly provider-visible fact namespaces retain the append-only protocol.
+    </?01M1GW6GH316EKR251T0RW0S0P>
+    <rationale ?01M1GW6GH316EKR251T0RW0S0Q>
+    控制事实与模型消息是不同的 authority/projection 边界；把控制状态伪装成 user message会让模型复述内部协议并污染用户意图。
+    </?01M1GW6GH316EKR251T0RW0S0Q>
+    <evidence ?01M1GW6GH316EKR251T0RW0S0R>
+    真实 Eidolon 回复出现“收到 work-context（build 模式）”和“用户继续（work-context：taskPhase=normal, workMode=build）”。
+    </?01M1GW6GH316EKR251T0RW0S0R>
+  )>
+  <confidence ?01M1GW6GH316EKR251T0RW0S0S>
+  0.98
+  </?01M1GW6GH316EKR251T0RW0S0S>
+  <reversibility ?01M1GW6GH316EKR251T0RW0S0T>
+  moderate
+  </?01M1GW6GH316EKR251T0RW0S0T>
+)>
+
+<decision #context-fact-semantic-names apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M1GW6GH316EKR251T0RW0S0V>
+  已从 replace-in-place 迁移到 append-only typed facts 的 TaskTree、provider output recovery 与 Workflow stage helper 应如何命名，并如何迁移旧 session 而不破坏同 epoch cache prefix？
+  </?01M1GW6GH316EKR251T0RW0S0V>
+  <recommendation ?01M1GW6GH316EKR251T0RW0S0W>
+  使用描述语义内容的 canonical 名称，复用唯一通用 append Effect；旧名只读兼容，并在显式 compaction epoch 通过可验证的 v2 proof 归一化。
+  </?01M1GW6GH316EKR251T0RW0S0W>
+  <options {  } [
+    <option { key = "semantic-names-one-effect" recommended = true } (
+      <title ?01M1GW6GH316EKR251T0RW0S0X>
+      Semantic names with one Effect
+      </?01M1GW6GH316EKR251T0RW0S0X>
+      <description ?01M1GW6GH316EKR251T0RW0S0Y>
+      TaskTree 使用 `task-tree-context`，输出修复使用 `provider-output-recovery`，Workflow 纯构造器使用 `buildAiWorkflowStageContext`；所有新事实走 `append_provider_context_fact`。
+      </?01M1GW6GH316EKR251T0RW0S0Y>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S0Z>
+      需要保留旧持久 DTO 的只读 importer，并升级 compaction proof 来明确绑定 namespace alias 迁移。
+      </?01M1GW6GH316EKR251T0RW0S0Z>
+    )>
+    <option { key = "rename-legacy-effect" recommended = false } (
+      <title ?01M1GW6GH316EKR251T0RW0S10>
+      Rename the legacy Effect
+      </?01M1GW6GH316EKR251T0RW0S10>
+      <description ?01M1GW6GH316EKR251T0RW0S11>
+      把 `mutable_provider_projection` 改为另一个通用 publish Effect，同时保留两套候选数据路径。
+      </?01M1GW6GH316EKR251T0RW0S11>
+      <tradeoff ?01M1GW6GH316EKR251T0RW0S12>
+      只修词面而保留重复 Effect、双 staging DTO 与双 admission 路径，不符合 DEPA 单一边界。
+      </?01M1GW6GH316EKR251T0RW0S12>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?01M1H64RXMP7SJQEGM6Y7SW9HC>
+    用户要求按前述“实际功能与名字一致”的建议进行重构改名。
+    </?01M1H64RXMP7SJQEGM6Y7SW9HC>
+    <decision-text ?01M1H64RXMP7SJQEGM6Y7SW9HD>
+    New writes SHALL use `task-tree-context`、`provider-output-recovery`、`workflow-stage-context` and the single `append_provider_context_fact` Effect. `mutable_provider_projection` SHALL leave the production contract. Persisted `projectionFact`、`provider-projection` and `provider-recovery` SHALL remain read-compatible but SHALL NOT be newly emitted. Same-epoch admitted bytes SHALL remain exact. Retention SHALL count legacy/canonical aliases as one semantic family. The next explicit compaction SHALL select the latest semantic-family fact, canonicalize retained TaskTree context, drop control/recovery facts, and write `provider.context-compaction-proof/v2` with separate source/successor namespaces; v1 same-namespace proofs remain readable. `buildAiWorkflowStageContext(stage, context)` SHALL be a pure value builder without Actor/system-prompt coupling. Actual provider adapter/wire projection names SHALL remain unchanged.
+    </?01M1H64RXMP7SJQEGM6Y7SW9HD>
+    <rationale ?01M1H64RXMP7SJQEGM6Y7SW9HE>
+    语义名消除 domain fact 与 provider adapter projection 的混淆；复用一个 Effect 消除双协议；epoch-bound alias migration 同时保护旧 session、prefix cache 与可审计证明。
+    </?01M1H64RXMP7SJQEGM6Y7SW9HE>
+    <evidence ?01M1H64RXMP7SJQEGM6Y7SW9HF>
+    `TaskTreeWrite` 是 legacy mutable Effect 唯一生产者；generic append Effect 已存在；compaction v1 validator currently requires identical source/successor namespaces；revise:before coding AttractorCheck 2026-09-02。
+    </?01M1H64RXMP7SJQEGM6Y7SW9HF>
+  )>
+  <confidence ?01M1H64RXMP7SJQEGM6Y7SW9HG>
+  0.97
+  </?01M1H64RXMP7SJQEGM6Y7SW9HG>
+  <reversibility ?01M1H64RXMP7SJQEGM6Y7SW9HH>
+  moderate
+  </?01M1H64RXMP7SJQEGM6Y7SW9HH>
+)>

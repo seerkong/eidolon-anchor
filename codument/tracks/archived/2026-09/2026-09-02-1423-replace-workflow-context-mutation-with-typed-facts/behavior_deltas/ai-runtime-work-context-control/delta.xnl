@@ -1,0 +1,76 @@
+<BehaviorPatch #track.replace-workflow-context-mutation-with-typed-facts.behavior_patch.ai-runtime-work-context-control apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-runtime-work-context-control" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-runtime-work-context-control/requirements/cache-stable-overlay" } (
+      <Requirement #cache-stable-overlay (
+        <Statement ?>系统 SHALL keep work mode 与 task phase as runtime-only Actor control and SHALL project only deliberately model-consumed dynamic context as closed append-only typed facts in the existing Conversation authority; canonical fact names SHALL describe their semantic content rather than a provider adapter operation, and the system SHALL NOT replace a dynamic system overlay ahead of chronological history.</?>
+        <Suites [
+          <Suite #prompt-cache { name = "Typed context fact cache stability" } (
+            <Cases [
+              <Case #changed-context-appends (
+                <Given ?>a provider context epoch already contains history and an admitted TaskTree、Workflow-stage or provider-output-recovery fact</?>
+                <When ?>that deliberately model-consumed context changes</?>
+                <Then ?>the system SHALL append exactly one next-revision fact bound to the prior fact digest, while every prior final-wire cache unit remains byte-equivalent and ordered</?>
+              )>
+              <Case #interleaved-fact-order-recovery (
+                <Given ?>provider-output-recovery、task-tree-context 与 workflow-stage-context namespaces 在同一 Actor history anchor 前后交错更新</?>
+                <When ?>Conversation materializes and a fresh process reconstructs the context-fact chain</?>
+                <Then ?>one Actor-global sequence and exact history anchors SHALL produce byte-identical total order independent of namespace map order</?>
+              )>
+              <Case #provider-role-profile-closed (
+                <Given ?>an explicit DeepSeek Chat、OpenAI Chat/Responses、Anthropic Messages or Claude Code profile</?>
+                <When ?>a machine-owned context fact enters the final admitted body</?>
+                <Then ?>the versioned profile SHALL encode it in its exact chronological user/text container and SHALL reject system hoisting、illegal role or tool-pair splitting</?>
+              )>
+              <Case #unchanged-context-is-idempotent (
+                <Given ?>the current canonical provider-visible context equals the last admitted fact</?>
+                <When ?>another request is built or recovered</?>
+                <Then ?>the system SHALL emit no duplicate fact and SHALL reconstruct the same provider bytes</?>
+              )>
+              <Case #no-fixed-prefix-overlay (
+                <Given ?>stable system roots and chronological conversation facts exist</?>
+                <When ?>Conversation materializes a provider request</?>
+                <Then ?>it SHALL NOT insert or replace `runtime_work_context` or another mutable status item between the stable roots and retained history</?>
+              )>
+              <Case #superseded-facts-require-epoch-compaction (
+                <Given ?>multiple append-only revisions of one context namespace exist</?>
+                <When ?>the system removes or summarizes superseded facts</?>
+                <Then ?>that rewrite SHALL occur only through an accepted compaction with an explicit new provider context epoch</?>
+              )>
+              <Case #legacy-aliases-share-retention-family (
+                <Given ?>a restored epoch contains `provider-projection` or `provider-recovery` facts and new writes use their canonical names</?>
+                <When ?>retention is measured or an epoch-advancing compaction runs</?>
+                <Then ?>legacy and canonical names SHALL share one semantic namespace family; compaction SHALL keep at most the latest TaskTree fact as `task-tree-context`, drop recovery facts, and bind any namespace change in a versioned proof</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+    <Upsert { selector = "behavior://ai-runtime-work-context-control/requirements/control-only-provider-projection" } (
+      <Requirement #control-only-provider-projection (
+        <Statement ?>`ActorWorkContext` SHALL remain runtime control authority and SHALL NOT be projected as model-visible system、developer、user or tool content; no suppression prompt SHALL be added.</?>
+        <Suites [
+          <Suite #provider-projection { name = "Control-only work context projection" } (
+            <Cases [
+              <Case #default-build-normal-is-not-a-message (
+                <Given ?>an ordinary Actor in default `build` / `normal` state</?>
+                <When ?>the provider request is materialized</?>
+                <Then ?>the final wire SHALL contain neither a `work-context` fact nor a runtime work-context overlay while runtime tool policy remains active</?>
+              )>
+              <Case #legacy-work-context-fact-is-retired-at-epoch-boundary (
+                <Given ?>a restored session whose admitted prior epoch contains a `work-context` fact</?>
+                <When ?>the first request uses the control-only projection policy</?>
+                <Then ?>the system SHALL advance exactly one `provider_surface_revision_accepted` epoch and SHALL NOT send that fact to the provider</?>
+              )>
+              <Case #provider-visible-facts-remain-visible (
+                <Given ?>a provider output recovery、TaskTree context or Workflow stage fact that the model must consume</?>
+                <When ?>the provider request is materialized</?>
+                <Then ?>the existing append-only chronological projection and closed profile validation SHALL remain unchanged</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

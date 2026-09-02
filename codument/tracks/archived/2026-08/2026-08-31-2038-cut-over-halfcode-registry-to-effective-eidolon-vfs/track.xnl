@@ -1,0 +1,67 @@
+<Track #cut-over-halfcode-registry-to-effective-eidolon-vfs apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让 Halfcode registry、source capture 与 freeze/recovery 只消费一个 admitted Effective Eidolon VFS revision" description = "用 VFS read port 替换 physical global/workspace layer composition，并完成 production consumer 与 frozen closure cut-over" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-31T17:09:31.192Z" updated_at = "2026-08-31T17:38:59.688Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #registry_adapter { role = "output" name = "effective-vfs-registry-adapter" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/resources/EidolonAppResourceRegistryAdapter.ts" }>
+    <MaterialBundle #registry_tests { role = "output" name = "registry-cutover-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/effective_vfs_resource_registry.test.ts" }>
+  ]>
+  <TaskSpace #space_cut-over-halfcode-registry-to-effective-eidolon-vfs { name = "cut-over-halfcode-registry-to-effective-eidolon-vfs" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze single-authority behavior" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Add Effective VFS registry RED tests" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1CD99K22EQ7HY5PMDP9ENFN>
+              Tests cover one-tree projection、no physical reread、duplicate fail-closed、revision-bound dependencies and frozen recovery.
+              </?01M1CD99K22EQ7HY5PMDP9ENFN>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Cut registry and source reads to Effective VFS" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Project Halfcode registry from one VFS read port" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1CD99K37B79DPJ1CA9AGKPQ>
+              Snapshot records Effective VFS provenance and keeps the authentic loaded-tree/content-identity proof surface.
+              </?01M1CD99K37B79DPJ1CA9AGKPQ>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Move source dependency and Kind reads behind the bound port" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1CD99K37B79DPJ1CA9AGKPR>
+              All resource bytes are read from the snapshot-bound port with canonical package containment and digest checks.
+              </?01M1CD99K37B79DPJ1CA9AGKPR>
+            ]>
+          )>
+          <Task #P2-T3 { name = "Freeze and recover one effective resource closure" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P2-T3-AC1 { checked = true } ?01M1CD99K37B79DPJ1CA9AGKPS>
+              New freezes persist effective revision/provenance and recovery reproduces the exact registry without layer composition.
+              </?01M1CD99K37B79DPJ1CA9AGKPS>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Cut product wiring and converge regressions" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Inject Effective VFS into production Workflow and Terminal registry" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1CD99K37B79DPJ1CA9AGKPT>
+              Runtime registry consumers receive an admitted read port and do not independently load physical resource roots.
+              </?01M1CD99K37B79DPJ1CA9AGKPT>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Run registry Agent Workflow Holon and recovery verification" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M1CD99K37B79DPJ1CA9AGKPV>
+              Focused suites、typechecks and strict Codument validation pass while preserving concurrent Holon proof additions.
+              </?01M1CD99K37B79DPJ1CA9AGKPV>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

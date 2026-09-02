@@ -1,0 +1,79 @@
+<decision #track.refactor-progressive-context-resource-loading.d1 apiVersion="codument.tech/v1alpha1" { status = "pending" priority = "P0" durable_candidate = false } (
+  <question ?>
+Resource fact owner
+  </?>
+  <recommendation ?>
+Resource fact owner
+  </?>
+  <evidence ?>
+Legacy provenance: codument/tracks/archived/2026-07/2026-07-17-2132-refactor-progressive-context-resource-loading/decisions.md
+
+- Final decision: Extend the existing Conversation/Session context asset model and its LLM Context projection relationships.
+- Reason: It already owns workspace/MCP context resources and persists with the conversation; a separate Skill-loaded domain would duplicate truth.
+- Status: confirmed
+  </?>
+)>
+
+<decision #track.refactor-progressive-context-resource-loading.d2 apiVersion="codument.tech/v1alpha1" { status = "pending" priority = "P0" durable_candidate = false } (
+  <question ?>
+Reuse and reload rule
+  </?>
+  <recommendation ?>
+Reuse and reload rule
+  </?>
+  <evidence ?>
+Legacy provenance: codument/tracks/archived/2026-07/2026-07-17-2132-refactor-progressive-context-resource-loading/decisions.md
+
+- Final decision: Reuse only when the same content revision covers the requested fragment and its delivery remains fully visible in materialized provider context. Reload after revision change, removal, or compaction.
+- Reason: Persisted observation alone does not mean the model still has the content.
+- Status: confirmed
+  </?>
+)>
+
+<decision #track.refactor-progressive-context-resource-loading.d3 apiVersion="codument.tech/v1alpha1" { status = "pending" priority = "P0" durable_candidate = false } (
+  <question ?>
+Skill compatibility boundary
+  </?>
+  <recommendation ?>
+Skill compatibility boundary
+  </?>
+  <evidence ?>
+Legacy provenance: codument/tracks/archived/2026-07/2026-07-17-2132-refactor-progressive-context-resource-loading/decisions.md
+
+- Final decision: Skill remains only as a catalog/name resolver during migration. Its document is loaded through the same local text resource component used by ordinary reads.
+- Reason: Later removal of more Skill handling must not require migrating resource state.
+- Status: confirmed
+  </?>
+)>
+
+<decision #track.refactor-progressive-context-resource-loading.d4 apiVersion="codument.tech/v1alpha1" { status = "pending" priority = "P1" durable_candidate = false } (
+  <question ?>
+Initial source scope
+  </?>
+  <recommendation ?>
+Initial source scope
+  </?>
+  <evidence ?>
+Legacy provenance: codument/tracks/archived/2026-07/2026-07-17-2132-refactor-progressive-context-resource-loading/decisions.md
+
+- Final decision: Implement local text files and Skill-resolved local documents first. Defer URL/MCP validators while keeping source contracts extensible.
+- Reason: Local files provide deterministic content revisions and cover the observed incident without guessing remote cache semantics.
+- Status: confirmed
+  </?>
+)>
+
+<decision #track.refactor-progressive-context-resource-loading.d5 apiVersion="codument.tech/v1alpha1" { status = "pending" priority = "P0" durable_candidate = false } (
+  <question ?>
+Excluded control behavior
+  </?>
+  <recommendation ?>
+Excluded control behavior
+  </?>
+  <evidence ?>
+Legacy provenance: codument/tracks/archived/2026-07/2026-07-17-2132-refactor-progressive-context-resource-loading/decisions.md
+
+- Final decision: Do not add generic loop detection, no-progress correction, repeated-call limits, or iteration guards.
+- Reason: Resource identity/revision/visibility is the requested root mechanism; generic behavioral correction is a separate concern.
+- Status: confirmed
+  </?>
+)>

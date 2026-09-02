@@ -1,0 +1,15 @@
+<BehaviorPatch #track.migrate-provider-equivalence-gate-to-context-facts.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/single-in-memory-truth/suites/truth/cases/equivalence-gate" } (
+      <Case #equivalence-gate (
+        <Given ?>Conversation provider context 从 legacy fixed system overlay 迁移为 canonical history 中按时间顺序追加的 typed context fact</?>
+        <When ?>同一脚本化输入序列的 legacy golden 与当前 domain materialization 进入 provider equivalence gate</?>
+        <Then ?>gate SHALL 显式证明 legacy overlay 与 typed fact 的 work-context 语义等价，并对稳定 system roots、普通 history 与完整 tool pairs 保持逐消息严格等价</?>
+        <Ands [
+          <And ?>gate SHALL NOT 通过重录 golden、忽略任意 role 或删除普通相邻 user 检查来接受迁移</?>
+          <And ?>只有一个可解析、machine-owned、version-tagged context fact MAY 与普通 user message 相邻；普通 user-user、malformed/duplicate facts、system hoisting 与 tool-pair splitting SHALL 被拒绝</?>
+        ]>
+      )>
+    )>
+  ]>
+)>

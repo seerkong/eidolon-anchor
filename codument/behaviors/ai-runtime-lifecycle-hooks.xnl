@@ -263,7 +263,7 @@
       <Statement ?01M05F1P0VM6SE6BKM62PPYHXC>
       系统 SHALL prevent `actor.idle.before` hooks from running as idle continuation while any wake-capable actor mailbox has pending work.
       </?01M05F1P0VM6SE6BKM62PPYHXC>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-runtime-lifecycle-hooks/idle-hook-mailbox-preemption" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/ai-runtime-lifecycle-hooks/idle-hook-mailbox-preemption" strength = "hint" }>
       <Suites [
         <Suite #idle-preemption { name = "Idle hook mailbox preemption" } (
           <Cases [

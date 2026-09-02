@@ -4,7 +4,7 @@
       <Statement ?01M05F1P3XJ8NXNQVY2PFR2AFJ>
       系统 SHALL provide a business-neutral `depa-actor-control` vendor package under the project root `vendor/` directory.
       </?01M05F1P3XJ8NXNQVY2PFR2AFJ>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/vendor-actor-control-primitives/package-boundary" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/vendor-actor-control-primitives/package-boundary" strength = "hint" }>
       <Suites [
         <Suite #package-boundary { name = "Package Boundary" } (
           <Cases [

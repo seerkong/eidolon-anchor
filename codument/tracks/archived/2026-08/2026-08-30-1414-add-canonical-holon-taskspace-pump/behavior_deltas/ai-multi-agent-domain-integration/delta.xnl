@@ -1,0 +1,65 @@
+<BehaviorPatch #track.add-canonical-holon-taskspace-pump.behavior_patch.ai-multi-agent-domain-integration apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-multi-agent-domain-integration" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-multi-agent-domain-integration/requirements/canonical-holon-taskspace-pump" } (
+      <Requirement #canonical-holon-taskspace-pump (
+        <Statement ?01M1AQEMVBZFVVKWP9EHRXNAC1>
+        Eidolon SHALL run one recoverable coordinator pump per deployment/Holon that continuously advances organization tasks through the canonical TaskSpace lifecycle and leaves all task facts under TaskSpace authority.
+        </?01M1AQEMVBZFVVKWP9EHRXNAC1>
+        <Suites [
+          <Suite #pump-lifecycle { name = "Canonical Holon task pump" } (
+            <Cases [
+              <Case #automatic-frontier (
+                <Given ?01M1AXZD309M37T1CYWX9APM2C>
+                A subscribed TaskSpace has ready organization tasks and a frozen Holon execution binding.
+                </?01M1AXZD309M37T1CYWX9APM2C>
+                <When ?01M1ARFK6HBCE491T8ZT5T29H5>
+                The coordinator actor wakes or recovers.
+                </?01M1ARFK6HBCE491T8ZT5T29H5>
+                <Then ?01M1A2HPHJ4VNHEPYV91AQ64TR>
+                It SHALL drive the canonical ready frontier through claim, start, idempotent dispatch, result handoff and settlement without a manual processHolonTask call.
+                </?01M1A2HPHJ4VNHEPYV91AQ64TR>
+              )>
+              <Case #crash-safe-attempt (
+                <Given ?01M1AQNE2GSXFSR7WT4TD5WJJD>
+                A process stops at any claim, dispatch, result, settlement or Flow-consumption boundary.
+                </?01M1AQNE2GSXFSR7WT4TD5WJJD>
+                <When ?01M1AYETXNNTFYADGV9CDS0RKJ>
+                A fresh pump reconciles the TaskSpace and durable dispatch receipts.
+                </?01M1AYETXNNTFYADGV9CDS0RKJ>
+                <Then ?01M1AGKZ409MN45QQQ59S6F3WJ>
+                It SHALL resume the same fenced attempt, SHALL NOT duplicate an accepted effect and SHALL settle or notify exactly once.
+                </?01M1AGKZ409MN45QQQ59S6F3WJ>
+              )>
+              <Case #lease-and-stale-result (
+                <Given ?01M1A83FFPXCGX08JRZ1CGSHRH>
+                A claim lease is renewed, expires or is replaced by a later attempt.
+                </?01M1A83FFPXCGX08JRZ1CGSHRH>
+                <When ?01M1AHWY3WTEH6HF19MD7NW2BS>
+                The pump receives a heartbeat or terminal result.
+                </?01M1AHWY3WTEH6HF19MD7NW2BS>
+                <Then ?01M1ACVY5WKRT0ADEA6WN3H4P7>
+                Canonical lease processors SHALL decide the transition and a stale attempt result SHALL NOT settle the current task.
+                </?01M1ACVY5WKRT0ADEA6WN3H4P7>
+              )>
+            ]>
+          )>
+          <Suite #workflow-consumption { name = "Workflow consumption" } (
+            <Cases [
+              <Case #ctrl-data-auto-consume (
+                <Given ?01M1AKGXDZM5R243EV0EV6VSAN>
+                An AI Ctrl or AI Data node delegates work to a canonical Holon TaskSpace.
+                </?01M1AKGXDZM5R243EV0EV6VSAN>
+                <When ?01M1A05R4PQT04KPG4Z8303ZMP>
+                The pump settles the task.
+                </?01M1A05R4PQT04KPG4Z8303ZMP>
+                <Then ?01M1AEH8PGCSQDSYTCY917H6S6>
+                Ctrl SHALL resume from the terminal receipt and Data SHALL consume validated material ports exactly once without owning task state.
+                </?01M1AEH8PGCSQDSYTCY917H6S6>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

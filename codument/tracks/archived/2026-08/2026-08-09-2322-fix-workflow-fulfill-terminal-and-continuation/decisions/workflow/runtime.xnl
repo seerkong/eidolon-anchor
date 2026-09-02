@@ -1,0 +1,59 @@
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.failure-authority apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M1B0NKB7QAYQVWAJAKGQDKA2>
+  Provider failure 之前已有 partial assistant content 时谁拥有终态？
+  </?01M1B0NKB7QAYQVWAJAKGQDKA2>
+  <answer {  } (
+    <raw-answer ?01M1B0NKB9VKC1GDF9V8G8TE99>
+    当前 provider failure 必须覆盖旧 partial content。
+    </?01M1B0NKB9VKC1GDF9V8G8TE99>
+    <decision-text ?01M1B0NKB9VKC1GDF9V8G8TE9A>
+    Provider terminal failure SHALL fail the actor; prior Conversation Domain output MAY be retained as evidence but MUST NOT reclassify the terminal state。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9A>
+    <rationale ?01M1B0NKB9VKC1GDF9V8G8TE9B>
+    effect terminal 是当前控制事实，历史消息只是记录。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9B>
+    <evidence ?01M1B0NKB9VKC1GDF9V8G8TE9C>
+    真实回归 sequence 68/170。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9C>
+  )>
+)>
+
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.sync-wait-single-writer apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M1B0NKB9VKC1GDF9V8G8TE9D>
+  同步 delegate tool result 由谁写入？
+  </?01M1B0NKB9VKC1GDF9V8G8TE9D>
+  <answer {  } (
+    <raw-answer ?01M1B0NKB9VKC1GDF9V8G8TE9E>
+    只有 childDone terminal message。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9E>
+    <decision-text ?01M1B0NKB9VKC1GDF9V8G8TE9F>
+    The WAIT_FOR_CHILD_DONE control return SHALL NOT commit a tool result; childDone SHALL be the sole writer of the paired success/failure tool result。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9F>
+    <rationale ?01M1B0NKB9VKC1GDF9V8G8TE9G>
+    避免空 initial result 与 terminal result 竞争。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9G>
+    <evidence ?01M1B0NKB9VKC1GDF9V8G8TE9H>
+    真实 conversation history 的空 ToolResult。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9H>
+  )>
+)>
+
+<decision #track.fix-workflow-fulfill-terminal-and-continuation.context-projection apiVersion="codument.tech/v1alpha1" { priority = "P0" status = "accepted" durable_candidate = true } (
+  <question ?01M1B0NKB9VKC1GDF9V8G8TE9J>
+  Fresh workflow actor 如何理解多轮确认？
+  </?01M1B0NKB9VKC1GDF9V8G8TE9J>
+  <answer {  } (
+    <raw-answer ?01M1B0NKB9VKC1GDF9V8G8TE9K>
+    注入 parent Conversation Domain 的结构化业务历史投影，不做关键词解释。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9K>
+    <decision-text ?01M1B0NKB9VKC1GDF9V8G8TE9M>
+    WorkflowFulfill SHALL project bounded prior user/assistant conversation by role and order; explicit authorization remains solely in current structured input。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9M>
+    <rationale ?01M1B0NKB9VKC1GDF9V8G8TE9N>
+    补齐上下文同时保持模型语义 authority 与授权边界。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9N>
+    <evidence ?01M1B0NKB9VKC1GDF9V8G8TE9P>
+    重试 actor 将趋势研究误解为 approval prebuilt。
+    </?01M1B0NKB9VKC1GDF9V8G8TE9P>
+  )>
+)>

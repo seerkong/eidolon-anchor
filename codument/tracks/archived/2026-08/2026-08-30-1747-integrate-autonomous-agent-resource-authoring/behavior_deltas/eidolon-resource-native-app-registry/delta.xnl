@@ -1,0 +1,35 @@
+<BehaviorPatch #track.integrate-autonomous-agent-resource-authoring.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/autonomous-agent-resource-authoring" } (
+      <Requirement #autonomous-agent-resource-authoring (
+        <Statement ?>Eidolon SHALL author a new workspace AIAgentDefinition only through the canonical Halfcode transaction and registry publication authority, and SHALL expose it for execution only after durable receipt reconciliation and exact task freeze.</?>
+        <Suites [
+          <Suite #author-select-freeze { name = "Autonomous AgentDefinition authoring" } (
+            <Cases [
+              <Case #existing-selection-is-read-only (
+                <Given ?>An exact compatible AIAgentDefinition already exists in the admitted effective registry.</?>
+                <When ?>The Mission Controller selects it for one typed workflow task requirement.</?>
+                <Then ?>The host SHALL produce an authentic frozen task proof without writing resource authority or creating another definition.</?>
+              )>
+              <Case #author-new-through-halfcode (
+                <Given ?>No current candidate satisfies the typed requirement and an exact Halfcode create proposal is admitted.</?>
+                <When ?>The host authors the workspace resource.</?>
+                <Then ?>It SHALL use plan/apply/CAS/refresh, reconcile the durable receipt with the admitted effective registry, and only then freeze the selected definition.</?>
+              )>
+              <Case #parent-snapshot-remains-frozen (
+                <Given ?>A workflow instance already owns a frozen parent ResourcePackage closure.</?>
+                <When ?>A Worker definition is authored into the live workspace layer.</?>
+                <Then ?>The parent closure bytes MUST remain unchanged and the new resource MUST be represented only by live-registry and workflow preparation receipts.</?>
+              )>
+              <Case #forged-or-stale-authority-fails-closed (
+                <Given ?>A proposal, path, receipt, registry revision or resource content identity is stale, forged or inconsistent.</?>
+                <When ?>The host attempts authoring reconciliation or proof recovery.</?>
+                <Then ?>No executable task proof SHALL be produced and no invalid publication candidate SHALL be admitted.</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

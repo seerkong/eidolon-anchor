@@ -1,0 +1,101 @@
+<decision #mission.long-running-turn-progress-resume.d1 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P1" durable_candidate = true } (
+  <question ?>
+Mission scope
+  </?>
+  <answer { } (
+    <raw-answer ?>
+Use a mission, not a single track, for long-running turn pause/resume.
+    </?>
+    <decision-text ?>
+Use a mission, not a single track, for long-running turn pause/resume.
+    </?>
+    <rationale ?>
+legacy source did not record this field
+    </?>
+    <evidence ?>
+The work spans runtime coordinator, persistence/recovery, terminal exec protocol, and historical replay.
+
+Legacy provenance: codument/missions/archived/2026-08-04-long-running-turn-progress-resume/decisions.md
+
+- Decision: Use a mission, not a single track, for long-running turn pause/resume.
+- Evidence: The work spans runtime coordinator, persistence/recovery, terminal exec protocol, and historical replay.
+- Confidence: 0.9
+- Reversibility: moderate
+- Durable candidate: yes
+    </?>
+  )>
+  <confidence ?>
+0.9
+  </?>
+  <reversibility ?>
+moderate
+  </?>
+)>
+
+<decision #mission.long-running-turn-progress-resume.d2 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P1" durable_candidate = true } (
+  <question ?>
+Checkpoint invariant
+  </?>
+  <answer { } (
+    <raw-answer ?>
+Full VM/runtime snapshots remain safepoint-only; progress pause/resume must use sealed closed facts instead.
+    </?>
+    <decision-text ?>
+Full VM/runtime snapshots remain safepoint-only; progress pause/resume must use sealed closed facts instead.
+    </?>
+    <rationale ?>
+legacy source did not record this field
+    </?>
+    <evidence ?>
+Existing `runtime-session-robustness` behavior and previous hardening track deferred production seal specifically to avoid dirty recovery.
+
+Legacy provenance: codument/missions/archived/2026-08-04-long-running-turn-progress-resume/decisions.md
+
+- Decision: Full VM/runtime snapshots remain safepoint-only; progress pause/resume must use sealed closed facts instead.
+- Evidence: Existing `runtime-session-robustness` behavior and previous hardening track deferred production seal specifically to avoid dirty recovery.
+- Confidence: 0.95
+- Reversibility: hard
+- Durable candidate: yes
+    </?>
+  )>
+  <confidence ?>
+0.95
+  </?>
+  <reversibility ?>
+hard
+  </?>
+)>
+
+<decision #mission.long-running-turn-progress-resume.d3 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P1" durable_candidate = true } (
+  <question ?>
+External outcome model
+  </?>
+  <answer { } (
+    <raw-answer ?>
+Target outcome states are `settled`, `paused_with_progress`, and `failed`.
+    </?>
+    <decision-text ?>
+Target outcome states are `settled`, `paused_with_progress`, and `failed`.
+    </?>
+    <rationale ?>
+legacy source did not record this field
+    </?>
+    <evidence ?>
+Current `timeout_unsettled` conflates resumable long progress with failure; headless `exec` needs deterministic protocol projection.
+
+Legacy provenance: codument/missions/archived/2026-08-04-long-running-turn-progress-resume/decisions.md
+
+- Decision: Target outcome states are `settled`, `paused_with_progress`, and `failed`.
+- Evidence: Current `timeout_unsettled` conflates resumable long progress with failure; headless `exec` needs deterministic protocol projection.
+- Confidence: 0.85
+- Reversibility: moderate
+- Durable candidate: yes
+    </?>
+  )>
+  <confidence ?>
+0.85
+  </?>
+  <reversibility ?>
+moderate
+  </?>
+)>

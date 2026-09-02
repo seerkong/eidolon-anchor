@@ -1,0 +1,216 @@
+<Track #add-provider-epoch-and-deepseek-conversation-projection apiVersion="codument.tech/v1alpha1" version="2" { status = "completed" goal = "Make provider switching protocol-correct through canonical adapter-owned wire profiles, a single conversation authority and durable provider epochs." description = "Correct the earlier provider-specific DeepSeek profile design: every DeepSeek adapter uses one deepseek-chat@1 protocol profile regardless of gateway, while provider identity remains routing and credential metadata only." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-24T18:08:11.656Z" updated_at = "2026-08-31T17:10:34.945Z" modeling_base_commit = "94436d0e142762fdadeb6fad22502bfdaca6956b" engineering_base_commit = "94436d0e142762fdadeb6fad22502bfdaca6956b" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_add-provider-epoch-and-deepseek-conversation-projection { name = "add-provider-epoch-and-deepseek-conversation-projection" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Closed DeepSeek request projection and diagnostics" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M0TGE93V45FY1DJVXKMAGKM9>
+        First reproduce the exact local admission failure, then make Chat/DeepSeek wire projection closed and diagnostics safe without changing canonical history.
+        </?01M0TGE93V45FY1DJVXKMAGKM9>
+        <Gate [
+          <Criterion { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMA>
+          The incident-shaped request is either admitted or rejected with a safe exact structural diagnostic before network send.
+          </?01M0TGE93V45FY1DJVXKMAGKMA>
+          <Criterion { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMB>
+          DeepSeek wire body contains only profile-approved provider fields.
+          </?01M0TGE93V45FY1DJVXKMAGKMB>
+        ]>
+        <SubNodes [
+          <Task #P1-T1 { name = "Establish provider request RED and incident diagnostic" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M0TGE93V45FY1DJVXKMAGKMC>
+            Add focused tests for non-own-data message fields, SiliconFlow DeepSeek request shape and the copied incident session, proving the current generic invalid_provider_request_body failure.
+            </?01M0TGE93V45FY1DJVXKMAGKMC>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMD>
+              A failing test captures the exact safe path/kind without exposing values.
+              </?01M0TGE93V45FY1DJVXKMAGKMD>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKME>
+              A failing test proves runtime-only capability/cache metadata is currently present on DeepSeek wire requests.
+              </?01M0TGE93V45FY1DJVXKMAGKME>
+              <Criterion #P1-T1-AC3 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMF>
+              The original accident session is never mutated by the harness.
+              </?01M0TGE93V45FY1DJVXKMAGKMF>
+              <Criterion #P1-T1-AC4 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMG>
+              Official and compatible profile selection is driven by an explicit versioned config field; unknown values and heuristic selection fail closed.
+              </?01M0TGE93V45FY1DJVXKMAGKMG>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Implement closed Chat projection and safe admission" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M0TGE93V45FY1DJVXKMAGKMH>
+            Rebuild role-specific wire messages from allow-listed own-data, add safe typed admission diagnostics and keep capability/cache facts outside the provider body.
+            </?01M0TGE93V45FY1DJVXKMAGKMH>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMJ>
+              Unknown/internal/undefined/accessor fields cannot enter admitted body.
+              </?01M0TGE93V45FY1DJVXKMAGKMJ>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMK>
+              Diagnostic fields contain no prompt, tool arguments/results, credentials or full body.
+              </?01M0TGE93V45FY1DJVXKMAGKMK>
+              <Criterion #P1-T2-AC3 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMM>
+              OpenAI Chat isolation and DeepSeek native reasoning roundtrip regressions remain green.
+              </?01M0TGE93V45FY1DJVXKMAGKMM>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Provider epoch and recoverable model switching" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M0TGE93V45FY1DJVXKMAGKMN>
+        Make cross-provider switching advance the existing conversation context epoch and use a provider-neutral handoff instead of replaying incompatible tool protocol.
+        </?01M0TGE93V45FY1DJVXKMAGKMN>
+        <Gate [
+          <Criterion { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMP>
+          Provider switch and fresh recovery use one durable epoch receipt bound to the canonical source frontier.
+          </?01M0TGE93V45FY1DJVXKMAGKMP>
+          <Criterion { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMQ>
+          Projection failure leaves the interactive session continuable and does not repeat tool effects.
+          </?01M0TGE93V45FY1DJVXKMAGKMQ>
+        ]>
+        <SubNodes [
+          <Task #P2-T1 { name = "Establish provider epoch and recovery RED" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M0TGE93V45FY1DJVXKMAGKMR>
+            Add tests for Codex tool history to DeepSeek handoff, DeepSeek native reasoning recovery, model switch epoch advance and post-admission failure continuation.
+            </?01M0TGE93V45FY1DJVXKMAGKMR>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMS>
+              Cross-profile switch test rejects raw incompatible tool replay and fabricated reasoning.
+              </?01M0TGE93V45FY1DJVXKMAGKMS>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMT>
+              Fresh recovery test requires stable epoch/frontier receipt and one tool effect.
+              </?01M0TGE93V45FY1DJVXKMAGKMT>
+              <Criterion #P2-T1-AC3 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMV>
+              Interactive failure test requires fiber to return to a recoverable suspended state.
+              </?01M0TGE93V45FY1DJVXKMAGKMV>
+              <Criterion #P2-T1-AC4 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMW>
+              Pending, delivered, legacy-no-delivery-fact and handoff failure/recovery cases preserve first-delivery authority without duplicate tool execution.
+              </?01M0TGE93V45FY1DJVXKMAGKMW>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Implement provider epoch handoff and retry semantics" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M0TGE93V45FY1DJVXKMAGKMX>
+            Reuse Conversation Domain contextEpoch and continuation reset, persist a closed provider projection receipt, and make local projection failure retryable without a second history owner.
+            </?01M0TGE93V45FY1DJVXKMAGKMX>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMY>
+              Provider/profile changes advance epoch exactly once and same-profile retry does not.
+              </?01M0TGE93V45FY1DJVXKMAGKMY>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKMZ>
+              Handoff is bounded, role-ordered, digest-bound and contains no provider-native tool framing.
+              </?01M0TGE93V45FY1DJVXKMAGKMZ>
+              <Criterion #P2-T2-AC3 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKN0>
+              Canonical History and ToolCallDomain bytes/facts remain unchanged by projection.
+              </?01M0TGE93V45FY1DJVXKMAGKN0>
+              <Criterion #P2-T2-AC4 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKN1>
+              Receipt identity, Conversation Domain owner slot, atomic switch order, corruption fallback and duplicate control idempotence are implemented and fresh-recovery tested.
+              </?01M0TGE93V45FY1DJVXKMAGKN1>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Incident replay and bounded verification" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M0TGE93V45FY1DJVXKMAGKN2>
+        Build the current terminal, validate the copied session with SiliconFlow DeepSeek, and run bounded provider/session regressions.
+        </?01M0TGE93V45FY1DJVXKMAGKN2>
+        <Gate [
+          <Criterion { checked = true } ?01M0TGE93V45FY1DJVXKMAGKN3>
+          The copied incident session completes a DeepSeek turn or reaches a typed remote provider failure, never local invalid_provider_request_body.
+          </?01M0TGE93V45FY1DJVXKMAGKN3>
+          <Criterion { checked = true } ?01M0TGE93V45FY1DJVXKMAGKN4>
+          Focused tests, terminal build, strict Codument validation and diff checks pass.
+          </?01M0TGE93V45FY1DJVXKMAGKN4>
+        ]>
+        <SubNodes [
+          <Task #P3-T1 { name = "Verify copied incident and regression matrix" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M0TGE93V45FY1DJVXKMAGKN5>
+            Run provider projection/driver/executor/headless tests, compile terminal, execute the copied incident session, compare original bytes/mtime, and review static ownership boundaries.
+            </?01M0TGE93V45FY1DJVXKMAGKN5>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKN6>
+              SiliconFlow DeepSeek request leaves local admission and the session remains continuable after success or typed remote failure.
+              </?01M0TGE93V45FY1DJVXKMAGKN6>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKN7>
+              No duplicate tool effect and no mutation of the original incident session is observed.
+              </?01M0TGE93V45FY1DJVXKMAGKN7>
+              <Criterion #P3-T1-AC3 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKN8>
+              Focused tests, build, strict validate and git diff --check pass.
+              </?01M0TGE93V45FY1DJVXKMAGKN8>
+              <Criterion #P3-T1-AC4 { checked = true } ?01M0TGE93V45FY1DJVXKMAGKN9>
+              Original session relative-path/size/mtime/SHA-256 manifest is identical before and after; only the named recovery copy changes.
+              </?01M0TGE93V45FY1DJVXKMAGKN9>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Adapter-owned DeepSeek protocol profile correction" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M1CA91TW2EE5WTRDHFWMBF2A>
+        Replan the compatibility-profile decision after production evidence showed that provider identity was incorrectly made semantic authority. Collapse official/compatible DeepSeek profiles into one adapter-owned deepseek-chat@1 protocol and migrate old receipts/config without losing recovery.
+        </?01M1CA91TW2EE5WTRDHFWMBF2A>
+        <Gate [
+          <Criterion { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2B>
+          Every adapter=deepseek request resolves deepseek-chat@1 without provider-specific configuration or provider-id inference.
+          </?01M1CA91TW2EE5WTRDHFWMBF2B>
+          <Criterion { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2C>
+          Legacy official/compatible receipts recover deterministically as deepseek-chat@1, and cache/cost evidence no longer excludes compatible gateways.
+          </?01M1CA91TW2EE5WTRDHFWMBF2C>
+        ]>
+        <SubNodes [
+          <Task #P4-T1 { name = "Establish canonical profile and migration RED" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1CA91TW2EE5WTRDHFWMBF2D>
+            Add focused contract/runtime tests proving provider configuration cannot select protocol semantics and both legacy profile ids normalize to deepseek-chat@1.
+            </?01M1CA91TW2EE5WTRDHFWMBF2D>
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2E>
+              DeepSeek official, SiliconFlow and iqingwa fixtures resolve the same protocol profile from the adapter.
+              </?01M1CA91TW2EE5WTRDHFWMBF2E>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2F>
+              CLI/workflow surfaces no longer request a provider-chat-profile choice.
+              </?01M1CA91TW2EE5WTRDHFWMBF2F>
+              <Criterion #P4-T1-AC3 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2G>
+              Legacy persisted profile ids are accepted only as migration inputs and are never emitted again.
+              </?01M1CA91TW2EE5WTRDHFWMBF2G>
+            ]>
+          )>
+          <Task #P4-T2 { name = "Implement adapter-owned deepseek-chat protocol" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1CA91TW2EE5WTRDHFWMBF2H>
+            Replace the duplicate DeepSeek effect bundles/profile types with deepseek-chat@1, remove configuration propagation, and unify projection, cache observation and provider epoch semantics.
+            </?01M1CA91TW2EE5WTRDHFWMBF2H>
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2J>
+              Protocol profiles remain openai-responses@1, openai-chat@1, deepseek-chat@1 and anthropic-chat@1 (plus independently owned protocols).
+              </?01M1CA91TW2EE5WTRDHFWMBF2J>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2K>
+              Provider id is used only for routing, credentials, endpoints and model catalog, never wire semantic selection.
+              </?01M1CA91TW2EE5WTRDHFWMBF2K>
+              <Criterion #P4-T2-AC3 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2M>
+              All DeepSeek gateways use identical reasoning/tool/cache request semantics and common cache-cost SLO evaluation.
+              </?01M1CA91TW2EE5WTRDHFWMBF2M>
+            ]>
+          )>
+          <Task #P4-T3 { name = "Verify migration and protocol regressions" status = "DONE" priority = "P0" order = 2 } (
+            <Description ?01M1CA91TW2EE5WTRDHFWMBF2N>
+            Run provider driver, effect bundle, epoch, cache observation and CLI/workflow regression suites plus strict Codument validation.
+            </?01M1CA91TW2EE5WTRDHFWMBF2N>
+            <Acceptance [
+              <Criterion #P4-T3-AC1 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2P>
+              Focused tests cover official and compatible provider configurations without compatibility_profile.
+              </?01M1CA91TW2EE5WTRDHFWMBF2P>
+              <Criterion #P4-T3-AC2 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2Q>
+              Old session receipts continue without provider_chat_compatibility_profile_required.
+              </?01M1CA91TW2EE5WTRDHFWMBF2Q>
+              <Criterion #P4-T3-AC3 { checked = true } ?01M1CA91TW2EE5WTRDHFWMBF2R>
+              Strict validation and diff checks pass.
+              </?01M1CA91TW2EE5WTRDHFWMBF2R>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

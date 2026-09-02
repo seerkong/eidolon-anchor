@@ -1,0 +1,152 @@
+<Track #implement-conversation-native-session-rewind-and-repair apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Replace surface-only message rewind with a Conversation-native, atomic and restart-safe rewind capability, then prove that removed future messages cannot reach later provider requests." description = "Reuse canonical fork-point proof and same-session provider-context transition persistence to move History, Prompt, Session and provider epoch authority together; migrate TUI revert, retire fake unrevert and add incident-shaped E2E coverage." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-02T11:51:38.139Z" updated_at = "2026-09-02T12:28:29.523Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #conversation_code { role = "input" name = "conversation-code" domain = "code" path = "vfs://@/cell/packages/" }>
+    <MaterialBundle #terminal_code { role = "input" name = "terminal-code" domain = "code" path = "vfs://@/terminal/packages/" }>
+    <MaterialBundle #verification { role = "output" name = "verification" domain = "test" path = "vfs://@/" }>
+  ]>
+  <TaskSpace #space_implement-conversation-native-session-rewind-and-repair { name = "implement-conversation-native-session-rewind-and-repair" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "锁定rewind契约与失败证据" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "定义rewind command proof receipt与rejection契约" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1GZTBDHWNV29821TD6TA7Z6>
+              契约不携带surface消息或路径，可表达canonical cutoff、source CAS、atomic heads与provider epoch。
+              </?01M1GZTBDHWNV29821TD6TA7Z6>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1GZTBDHWNV29821TD6TA7Z7>
+              缺失、歧义、tool pair、compaction、Prompt与并发均有typed rejection。
+              </?01M1GZTBDHWNV29821TD6TA7Z7>
+            ]>
+          )>
+          <Task #P1-T2 { name = "增加surface-only泄漏与provider-wire RED E2E" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1GZTBDHWNV29821TD6TA7Z8>
+              A/B/C回退到A后继续D的测试捕获provider request，并要求B/C不存在。
+              </?01M1GZTBDHWNV29821TD6TA7Z8>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1GZTBDHWNV29821TD6TA7Z9>
+              同进程与fresh restart均由Conversation authority得出相同结果。
+              </?01M1GZTBDHWNV29821TD6TA7Z9>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "实现Conversation rewind planner与原子事务" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "复用fork-point proof实现same-session rewind planner" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1GZTBDHWNV29821TD6TA7ZA>
+              生成rollback History、restore Prompt、lineage、heads和session selection，旧generation保持不可变。
+              </?01M1GZTBDHWNV29821TD6TA7ZA>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1GZTBDHWNV29821TD6TA7ZB>
+              跨compaction、未来Prompt basis和开放tool pair均fail closed且无mutation。
+              </?01M1GZTBDHWNV29821TD6TA7ZB>
+            ]>
+          )>
+          <Task #P2-T2 { name = "实现provider epoch successor与失效状态清理" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1GZTBDHWNV29821TD6TA7ZC>
+              epoch +1、previous receipt、new heads/frontier与history_rewind_or_fork reason全部一致。
+              </?01M1GZTBDHWNV29821TD6TA7ZC>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1GZTBDHWNV29821TD6TA7ZD>
+              旧admissions、provider facts、replay checkpoint、continuation与pending delivery不进入新frontier。
+              </?01M1GZTBDHWNV29821TD6TA7ZD>
+            ]>
+          )>
+          <Task #P2-T3 { name = "接入现有XNL transition transaction和恢复协议" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P2-T3-AC1 { checked = true } ?01M1GZTBDHWNV29821TD6TA7ZE>
+              History/Prompt/Session/provider authority在一个CAS transaction中发布，重复执行幂等。
+              </?01M1GZTBDHWNV29821TD6TA7ZE>
+              <Criterion #P2-T3-AC2 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSP>
+              fault injection与并发writer验证只产生旧态或完整新态。
+              </?01M1GZTBDJTE338J21G1EP1CSP>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "接通runtime与TUI revert" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "装配Conversation Actor rewind port与VM同步" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSQ>
+              Terminal/headless通过Conversation-owned typed port执行，commit后运行中VM从持久化authority刷新。
+              </?01M1GZTBDJTE338J21G1EP1CSQ>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSR>
+              busy turn与source authority race被串行化或明确拒绝，不发生optimistic surface splice。
+              </?01M1GZTBDJTE338J21G1EP1CSR>
+            ]>
+          )>
+          <Task #P3-T2 { name = "迁移TUI revert并补typed rejection呈现" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSS>
+              local-runtime成功提交后才hydrate和发removed events，失败时UI与source authority均不变。
+              </?01M1GZTBDJTE338J21G1EP1CSS>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M1GZTBDJTE338J21G1EP1CST>
+              missing message不回退末尾，下一轮provider wire不含被删除未来消息。
+              </?01M1GZTBDJTE338J21G1EP1CST>
+            ]>
+          )>
+          <Task #P3-T3 { name = "移除伪unrevert成功语义" status = "DONE" priority = "P1" order = 2 } (
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSV>
+              local-runtime unrevert明确返回unsupported且不修改surface或Conversation authority。
+              </?01M1GZTBDJTE338J21G1EP1CSV>
+              <Criterion #P3-T3-AC2 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSW>
+              mock模式的UI模拟不被误认为产品redo能力。
+              </?01M1GZTBDJTE338J21G1EP1CSW>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "事故回归构建与部署" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "完成incident fixture和fresh recovery矩阵" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSX>
+              真实事故形态证明目标后的消息不再进入history/runtime/provider request。
+              </?01M1GZTBDJTE338J21G1EP1CSX>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSY>
+              旧surface-only标记可诊断，无法证明的repair不修改现场。
+              </?01M1GZTBDJTE338J21G1EP1CSY>
+            ]>
+          )>
+          <Task #P4-T2 { name = "运行focused与影响面回归和严格Codument校验" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M1GZTBDJTE338J21G1EP1CSZ>
+              rewind/fork/provider transition/TUI suites全绿；正式bundle完成受影响TypeScript依赖图的解析与转译。
+              </?01M1GZTBDJTE338J21G1EP1CSZ>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M1GZTBDJTE338J21G1EP1CT0>
+              codument validate --strict通过，diff没有覆盖并行context修改。
+              </?01M1GZTBDJTE338J21G1EP1CT0>
+            ]>
+          )>
+          <Task #P4-T3 { name = "构建Eidolon并执行local install" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P4-T3-AC1 { checked = true } ?01M1GZTBDJTE338J21G1EP1CT1>
+              正式build成功且local:install完成。
+              </?01M1GZTBDJTE338J21G1EP1CT1>
+              <Criterion #P4-T3-AC2 { checked = true } ?01M1GZTBDJTE338J21G1EP1CT2>
+              安装后二进制可启动并加载版本/帮助信息。
+              </?01M1GZTBDJTE338J21G1EP1CT2>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_implement-conversation-native-session-rewind-and-repair" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

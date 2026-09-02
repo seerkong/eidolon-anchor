@@ -1,0 +1,25 @@
+<BehaviorPatch #track.fix-provider-switch-admission-and-recovery.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/provider-transition-checkpoint-recovery" } (
+      <Requirement #provider-transition-checkpoint-recovery (
+        <Statement ?>Provider transition persistence SHALL preserve a last-known-good recoverable checkpoint and SHALL surface commit failures as typed evidence; recovery MUST NOT combine provider facts from different generations.</?>
+        <Suites [
+          <Suite #provider-checkpoint { name = "Provider transition checkpoint" } (
+            <Cases [
+              <Case #no-swallowed-save-failure (
+                <Given ?>runtime progress requests a snapshot after a provider transition.</?>
+                <When ?>the snapshot callback rejects.</?>
+                <Then ?>the rejection SHALL reach runtime diagnostics/caller and MUST NOT be reduced to an empty catch.</?>
+              )>
+              <Case #last-known-good-recovery (
+                <Given ?>the newest provider generation is only partially persisted.</?>
+                <When ?>a fresh process recovers the session.</?>
+                <Then ?>it SHALL resume from the last complete generation or perform a deterministic repair before accepting new input.</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

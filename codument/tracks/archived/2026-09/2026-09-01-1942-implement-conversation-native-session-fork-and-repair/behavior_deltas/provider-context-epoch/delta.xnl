@@ -1,0 +1,30 @@
+<BehaviorPatch #track.implement-conversation-native-session-fork-and-repair.behavior_patch.provider-context-epoch apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-context-epoch" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-context-epoch/requirements/fork-initializes-independent-epoch" } (
+      <Requirement #fork-initializes-independent-epoch (
+        <Statement ?>A cross-session fork SHALL initialize a child-owned provider context epoch from the proven child baseline without reusing the parent session's request admissions、checkpoint、continuation or same-session receipt predecessor.</?>
+        <Suites [
+          <Suite #child-epoch { name = "Forked child provider epoch" } (
+            <Cases [
+              <Case #child-receipt-owns-child-identity (
+                <Given ?>a parent fork point and rebased child History/Prompt heads are accepted</?>
+                <When ?>the fork-init transaction creates the child provider receipt</?>
+                <Then ?>the receipt SHALL bind child session/Actor identity、child baseline heads、fork frontier and reason `history_rewind_or_fork`; parent receipt identity SHALL remain external provenance and MUST NOT masquerade as the child's same-session predecessor</?>
+              )>
+              <Case #provider-optimization-not-copied (
+                <Given ?>the parent has provider admissions、Responses replay checkpoint、previous response continuation、pending delivery optimization or typed context fact head</?>
+                <When ?>the child authority is forked</?>
+                <Then ?>those optimization states SHALL NOT be copied；stable semantic assets MAY be reprojected only after rebinding and validation against child anchors</?>
+              )>
+              <Case #first-child-request-rebuilds-canonical-context (
+                <Given ?>a forked child has not yet sent a provider request</?>
+                <When ?>its first request is prepared after fresh recovery</?>
+                <Then ?>the request SHALL be rebuilt from child canonical History/Prompt and admitted under the child epoch，without stateful continuation from the parent</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

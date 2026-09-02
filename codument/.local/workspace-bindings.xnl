@@ -2,6 +2,9 @@
     <Binding #eidolon-anchor { project_ref = "eidolon-anchor" workspace_path = "/Users/kongweixian/ai/eidolon/eidolon-anchor" }>
     <Binding #holon-workbench { project_ref = "holon-workbench" workspace_path = "/Users/kongweixian/infra-dev/holon-workbench.ts" }>
     <Binding #depa-flows { project_ref = "depa-flows" workspace_path = "/Users/kongweixian/infra-dev/depa-flows.ts" }>
+    <Binding #halfcode { project_ref = "halfcode" workspace_path = "/Users/kongweixian/infra-dev/halfcode-compiler.xnl" }>
     <Binding #depa-actor { project_ref = "depa-actor" workspace_path = "/Users/kongweixian/infra-dev/depa-actor" }>
     <Binding #codument-source { project_ref = "codument-source" workspace_path = "/Users/kongweixian/ai/ai-codument/codument" }>
+    <Binding #xnl { project_ref = "xnl" workspace_path = "/Users/kongweixian/lang/xnl.ts" }>
+    <Binding #halfcode-compiler { project_ref = "halfcode-compiler" workspace_path = "/Users/kongweixian/infra-dev/halfcode-compiler.xnl" }>
  ]>

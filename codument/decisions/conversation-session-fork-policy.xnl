@@ -1,0 +1,52 @@
+<decision #fork-point-proof-policy apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?01M1EJ5321NX7Z1GSY8JSW2BNF>
+  Message-level session fork跨越compaction边界，但系统无法证明目标历史点对应的准确Prompt状态时，应当如何处理？
+  </?01M1EJ5321NX7Z1GSY8JSW2BNF>
+  <recommendation ?01M1EJ5322PZ8JN1SD0SEMJ7YG>
+  明确fail closed，不创建或发布子session；不得沿用包含目标点之后信息的当前Prompt summary。
+  </?01M1EJ5322PZ8JN1SD0SEMJ7YG>
+  <options {  } [
+    <option { key = "A" recommended = true } (
+      <title ?01M1EJ5322PZ8JN1SD0SEMJ7YH>
+      证明不足时拒绝分叉
+      </?01M1EJ5322PZ8JN1SD0SEMJ7YH>
+      <description ?01M1EJ5322PZ8JN1SD0SEMJ7YJ>
+      只有exact History prefix、Prompt basis、tool-pair边界和source revision均可证明时提交fork；否则返回typed rejection。
+      </?01M1EJ5322PZ8JN1SD0SEMJ7YJ>
+      <tradeoff ?01M1EJ5322PZ8JN1SD0SEMJ7YK>
+      某些旧session无法从任意历史消息分叉，需要后续补充time-travel索引；但不会生成带未来信息或空上下文的错误child。
+      </?01M1EJ5322PZ8JN1SD0SEMJ7YK>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?01M1EJ5322PZ8JN1SD0SEMJ7YM>
+      Best-effort重建或沿用当前Prompt
+      </?01M1EJ5322PZ8JN1SD0SEMJ7YM>
+      <description ?01M1EJ5322PZ8JN1SD0SEMJ7YN>
+      在缺少历史Prompt证据时根据visible messages猜测，或直接沿用当前compaction summary。
+      </?01M1EJ5322PZ8JN1SD0SEMJ7YN>
+      <tradeoff ?01M1EJ5322PZ8JN1SD0SEMJ7YP>
+      可能把fork point之后的信息泄漏进child Prompt，形成无法审计的错误上下文，因此拒绝。
+      </?01M1EJ5322PZ8JN1SD0SEMJ7YP>
+    )>
+  ]>
+  <answer {  } (
+    <raw-answer ?01M1H67C7PYKZQ2NBRDCHJ0BR9>
+    同意同一个 Track 同时修复当前 head 分叉和从消息分叉；跨 compaction 边界无法证明准确 Prompt 状态时明确拒绝。
+    </?01M1H67C7PYKZQ2NBRDCHJ0BR9>
+    <decision-text ?01M1H67C7PYKZQ2NBRDCHJ0BRA>
+    采用proof-required/fail-closed策略；current-head和message-level fork同轨交付，后者在跨compaction证据不足时不发布child。
+    </?01M1H67C7PYKZQ2NBRDCHJ0BRA>
+    <rationale ?01M1H67C7PYKZQ2NBRDCHJ0BRB>
+    Conversation History与Prompt是独立authority，当前summary可能覆盖目标消息之后的事实；猜测会让child在语义上携带未来上下文。
+    </?01M1H67C7PYKZQ2NBRDCHJ0BRB>
+    <evidence ?01M1H67C7PYKZQ2NBRDCHJ0BRC>
+    用户于2026-09-01明确确认；历史Conversation设计要求runtime prompt view与visible history view分别由各自head重建。
+    </?01M1H67C7PYKZQ2NBRDCHJ0BRC>
+  )>
+  <confidence ?01M1H67C7PYKZQ2NBRDCHJ0BRD>
+  0.98
+  </?01M1H67C7PYKZQ2NBRDCHJ0BRD>
+  <reversibility ?01M1H67C7PYKZQ2NBRDCHJ0BRE>
+  moderate
+  </?01M1H67C7PYKZQ2NBRDCHJ0BRE>
+)>

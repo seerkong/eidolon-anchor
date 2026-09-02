@@ -1,0 +1,10 @@
+<BehaviorPatch #track.implement-conversation-native-session-rewind-and-repair.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/durable-conversation-rewind" } (
+      <Requirement #durable-conversation-rewind (
+        <Statement ?>A rewound session SHALL be reconstructible from current XNL Conversation authority after a fresh restart；same-process continuation and fresh recovery SHALL materialize the same active History and Prompt.</?>
+        <Suites [<Suite #rewind-recovery { name = "Rewind persistence recovery" } (<Cases [<Case #fresh-restart-excludes-abandoned-future (<Given ?>messages A、B、C were committed and rewind through A completed</?><When ?>a fresh runtime loads the session and continues with D</?><Then ?>History and the first provider request SHALL contain A and D but MUST NOT contain B or C</?>)>]>)>]>
+      )>
+    )>
+  ]>
+)>

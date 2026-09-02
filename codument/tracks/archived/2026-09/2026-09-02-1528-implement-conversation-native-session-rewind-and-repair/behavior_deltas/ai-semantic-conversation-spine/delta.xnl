@@ -1,0 +1,18 @@
+<BehaviorPatch #track.implement-conversation-native-session-rewind-and-repair.behavior_patch.ai-semantic-conversation-spine apiVersion="codument.tech/v1alpha1" version="1" { capability = "ai-semantic-conversation-spine" } (
+  <Mutations [
+    <Upsert { selector = "behavior://ai-semantic-conversation-spine/requirements/conversation-native-rewind" } (
+      <Requirement #conversation-native-rewind (
+        <Statement ?>Conversation Domain SHALL own message rewind as one closed transition over canonical History、Prompt、Session heads and provider-context epoch；surface projections MUST NOT create rewind truth by truncating rendered message arrays.</?>
+        <Suites [
+          <Suite #rewind-authority { name = "Conversation-native rewind" } (
+            <Cases [
+              <Case #rewind-through-canonical-message (<Given ?>an active History message uniquely resolves and its Prompt/tool boundary is provable</?><When ?>the session is rewound through that message</?><Then ?>a new rollback generation and restore Prompt SHALL become the same-session heads，and all later canonical messages MUST be unreachable from the active frontier</?>)>
+              <Case #rewind-unprovable-rejected (<Given ?>the selector is missing、ambiguous、inside an open tool pair or behind an unproven compaction boundary</?><When ?>rewind is requested</?><Then ?>the command SHALL return a typed rejection without changing any authority or surface projection</?>)>
+              <Case #rewind-publish-atomic (<Given ?>History、Prompt、Session or provider epoch publication is interrupted</?><When ?>a fresh process recovers</?><Then ?>it SHALL observe the complete old authority or complete rewound authority，never mixed heads</?>)>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

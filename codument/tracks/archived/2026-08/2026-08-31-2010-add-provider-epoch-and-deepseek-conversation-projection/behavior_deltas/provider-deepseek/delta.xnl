@@ -1,0 +1,30 @@
+<BehaviorPatch #track.add-provider-epoch-and-deepseek-conversation-projection.behavior_patch.provider-deepseek apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-deepseek" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-deepseek/requirements/product-cache-cost-e2e" } (
+      <Requirement #product-cache-cost-e2e (
+        <Statement ?>The product SHALL gate DeepSeek cache coverage and normalized input cost from one adapter-owned `deepseek-chat@1` protocol surface across official and compatible gateways; provider identity MUST NOT exclude a gateway from the common evidence model.</?>
+        <Suites [
+          <Suite #deterministic-and-live { name = "Deterministic and live cache-cost evidence" } (
+            <Cases [
+              <Case #canonical-deepseek-profile (
+                <Given ?>official DeepSeek, SiliconFlow, iqingwa or another endpoint is configured with the DeepSeek adapter.</?>
+                <When ?>the runtime projects, observes or reports a request.</?>
+                <Then ?>it SHALL emit `deepseek-chat@1`; legacy official/compatible ids MAY be read for migration but MUST NOT be emitted or used to split SLO eligibility.</?>
+              )>
+              <Case #common-live-thresholds (
+                <Given ?>three or more warmed groups run through any DeepSeek-adapter gateway with final-success usage.</?>
+                <When ?>the live report is evaluated.</?>
+                <Then ?>the same configured cache-hit and normalized-cost thresholds SHALL apply independent of provider id.</?>
+              )>
+              <Case #unknown-is-not-pass (
+                <Given ?>credentials are absent or an executed request has missing, malformed, failed-attempt or non-final usage.</?>
+                <When ?>live evidence is reported.</?>
+                <Then ?>the status SHALL be `SKIPPED/UNKNOWN` or `EXECUTED/UNKNOWN` as appropriate, and neither SHALL satisfy the live gate.</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

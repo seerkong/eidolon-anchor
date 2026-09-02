@@ -1,0 +1,49 @@
+<BehaviorPatch #track.materialize-eidolon-overlays-into-effective-vfs.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/effective-vfs-materialization-transaction" } (
+      <Requirement #effective-vfs-materialization-transaction (
+        <Statement ?>Eidolon SHALL rebuild one complete candidate from immutable Builtin plus current ordered home/workspace directory and mutation intent, validate it, and atomically publish or preserve the last admitted Effective VFS.</?>
+        <Suites [
+          <Suite #overlay-input-semantics { name = "Overlay input semantics" } (
+            <Cases [
+              <Case #physical-tree-is-sparse-intent (
+                <Given ?>a home or workspace physical .eidolon directory is absent or contains only a subset of Builtin paths</?>
+                <When ?>it is projected as directory overlay intent</?>
+                <Then ?>absence SHALL express no opinion, present files SHALL add or replace by logical path, and every projected node SHALL have deterministic content-independent identity</?>
+              )>
+              <Case #replacement-removal-falls-back (
+                <Given ?>a prior materialization replaced a Builtin file from workspace</?>
+                <When ?>the replacement is removed and the current overlays are rebuilt</?>
+                <Then ?>the new candidate SHALL contain the Builtin file while a declared FILE_DELETE mutation SHALL instead remove it</?>
+              )>
+              <Case #ordered-home-workspace-mutations (
+                <Given ?>home and workspace directory or explicit mutation intents are present</?>
+                <When ?>the overlay stack is planned</?>
+                <Then ?>declared contiguous order SHALL be authoritative, workspace later opinions SHALL win by path, and expectedId/valueBefore failures SHALL reject the entire candidate</?>
+              )>
+            ]>
+          )>
+          <Suite #atomic-admission { name = "Atomic admission" } (
+            <Cases [
+              <Case #all-validators-before-cas (
+                <Given ?>a complete candidate has been planned</?>
+                <When ?>any structural or injected semantic validator returns a diagnostic</?>
+                <Then ?>no CAS SHALL run, a rejected receipt SHALL retain the current revision, and no candidate bytes SHALL become visible</?>
+              )>
+              <Case #stale-or-failed-publish-preserves-current (
+                <Given ?>another transition wins the revision race or persistence/readback fails</?>
+                <When ?>publication is attempted</?>
+                <Then ?>the result SHALL be rejected with structured evidence and every existing revision-bound reader SHALL continue to observe its original snapshot</?>
+              )>
+              <Case #admitted-read-port-and-legacy-view (
+                <Given ?>candidate validation and CAS succeed</?>
+                <When ?>runtime receives the admitted Effective VFS</?>
+                <Then ?>its read port SHALL be immutable and revision-bound, and any legacy ResourceVfs SHALL be a read-only projection from that same revision</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

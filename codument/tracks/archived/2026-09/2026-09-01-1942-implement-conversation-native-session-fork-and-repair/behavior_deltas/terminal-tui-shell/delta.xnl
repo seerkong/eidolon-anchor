@@ -1,0 +1,30 @@
+<BehaviorPatch #track.implement-conversation-native-session-fork-and-repair.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/conversation-fork-interaction" } (
+      <Requirement #conversation-fork-interaction (
+        <Statement ?>The TUI SHALL expose current-head fork from session surfaces and message-level fork from message surfaces through the same Conversation capability，and SHALL present proof or persistence rejection without losing the active source session.</?>
+        <Suites [
+          <Suite #fork-ui { name = "Session fork interaction" } (
+            <Cases [
+              <Case #session-action-forks-current-head (
+                <Given ?>the user chooses `[分叉会话]` from a session action or command palette</?>
+                <When ?>the domain commit succeeds</?>
+                <Then ?>the TUI SHALL navigate to the committed child and show inherited history loaded from child persistence</?>
+              )>
+              <Case #message-action-forks-through-message (
+                <Given ?>the user chooses `[分叉会话]` for a visible message that maps to a canonical committed record</?>
+                <When ?>the domain commit succeeds</?>
+                <Then ?>the TUI SHALL navigate to a child whose visible history ends at the selected semantic boundary</?>
+              )>
+              <Case #fork-rejection-remains-on-source (
+                <Given ?>fork-point proof、source CAS或persistence admission fails</?>
+                <When ?>the TUI receives the typed rejection</?>
+                <Then ?>the TUI SHALL remain on the source session、display an actionable error and refresh lists without a partial child；a missing message id MUST NOT silently fall back to the current head</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

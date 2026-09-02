@@ -1,0 +1,19 @@
+<Track #add-ai-domain-observability apiVersion="codument.tech/v1alpha1" version="1" {
+  status = "completed"
+  goal = "为 AI Agent Domain 建立结构化可观测性、Trace 与 Eval 基础设施"
+  commit_mode = "manual"
+} (
+  <Ports { scope = "track" } [
+    <MaterialBundle { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle { role = "output" name = "docs" domain = "doc" path = "vfs://@/docs/" }>
+    <MaterialBundle { role = "output" name = "behavior" domain = "codument" path = "vfs://@/codument/behaviors/" }>
+  ]>
+  <TaskSpace #space_2026-05-30-2330-add-ai-domain-observability {
+    name = "2026-05-30-2330-add-ai-domain-observability"
+    version = "1"
+  } (
+    <SubNodes []>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

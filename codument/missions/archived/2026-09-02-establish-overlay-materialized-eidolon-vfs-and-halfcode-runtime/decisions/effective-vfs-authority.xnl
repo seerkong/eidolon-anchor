@@ -1,0 +1,24 @@
+<decision #effective-vfs-before-halfcode-projection apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = true } (
+  <question ?>程序内嵌资源与 home/workspace `.eidolon` 的覆盖，应在 Halfcode Registry 层按 FQN 组合，还是先通过 path overlay 与 mutation 物化为唯一最终 VFS？</?>
+  <recommendation ?>采用 Effective-VFS-first：BunFS 持有版本化 base，`.eidolon` 表达路径 replacement 和 identity-aware mutation，原子产生唯一 `/.eidolon` 最终态；Halfcode 只从该最终态做单向语义投影。</?>
+  <options [
+    <option { key = "A" recommended = true } (
+      <title ?>先物化 Effective VFS，再编译 Halfcode 资源</?>
+      <description ?>以路径、VFS node identity 与 XNL `#id` 表达 overlay，完整支持 replace/add/delete/move/rename、结构 mutation、diff/rebase、revision 与原子失败；所有 consumer 只读取最终 VFS。</?>
+      <tradeoff ?>需要跨 XNL VFS、Halfcode compiler 与 Eidolon 重构现有物理 rootDir 和 registry layer 依赖，并迁移历史 receipt。</?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>继续在 Halfcode Registry 中按 FQN 叠加资源层</?>
+      <description ?>分别加载 builtin/global/workspace ResourceTree，并让较高层相同 FQN 获胜。</?>
+      <tradeoff ?>无法自然表达 `.eidolon` 最终文件视图、跨路径 move/rename、文件删除与 XNL mutation；Registry 与 VFS 会形成两个 overlay authority。</?>
+    )>
+  ]>
+  <answer (
+    <raw-answer ?>VFS 映射到 `.eidolon` 的原始设计参考 Kubernetes overlay：放入 VFS 的就是最终生效版本；进入 VFS 前可以叠加 overlay，或者基于过往版本通过 XNL mutation/diff/apply 做扩展。</?>
+    <decision-text ?>Eidolon SHALL build one revisioned Effective VFS at logical root `/.eidolon` from an immutable BunFS base followed by explicit home and workspace overlays. Path replacement and VFS/XNL mutations SHALL be applied and validated before publication. Runtime configuration, Halfcode, Agent and Workflow consumers SHALL read only the admitted Effective VFS. Halfcode FQN SHALL remain a post-materialization semantic identity and MUST NOT become a parallel overlay authority.</?>
+    <rationale ?>该结构保持 base 对 overlay 无感、overlay 可复用、build 结果独立的 Kustomize 思想，并直接复用 XNL 的 path、stable identity、diff、strict dry-run mutation、VFS mutation、snapshot 与 revision/CAS 能力。它同时消除内嵌默认值、物理 `.eidolon` 与 effective registry 各自裁决当前资源的风险。</?>
+    <evidence ?>用户于 2026-08-31 明确修正；Eidolon `symbiont-contract/logic` ResourceVFS 的 `/.eidolon` 路径约定；XNL core/VFS mutation、diff/apply、revisioned persistence 与 snapshot tests；Halfcode CLI lite BunFS ResourceEffect/build；Halfcode compiler rootDir loader；Eidolon resource registry global/workspace layer actual state。</?>
+  )>
+  <confidence ?>high</?>
+  <reversibility ?>hard</?>
+)>

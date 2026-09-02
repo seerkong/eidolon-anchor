@@ -1,213 +1,268 @@
 <Behavior #ai-runtime-work-context-control apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #manual-work-mode (
-      <Statement ?01M18JF1PQEYQZAJ6H443H1V05>
+      <Statement ?01M1H64R1NHS2EZ7W6CPJ5C5JE>
       系统 SHALL expose AI runtime work mode as a user-controlled state with exactly `build` and `plan` values.
-      </?01M18JF1PQEYQZAJ6H443H1V05>
+      </?01M1H64R1NHS2EZ7W6CPJ5C5JE>
       <Suites [
         <Suite #slash-command { name = "Manual work mode slash command" } (
           <Cases [
             <Case #default-build (
-              <Given ?01M18JF1PQEYQZAJ6H443H1V06>
+              <Given ?01M1H64R1NHS2EZ7W6CPJ5C5JF>
               A new or migrated AI runtime actor has no explicit manual work mode state
-              </?01M18JF1PQEYQZAJ6H443H1V06>
-              <When ?01M18JF1PQEYQZAJ6H443H1V07>
+              </?01M1H64R1NHS2EZ7W6CPJ5C5JF>
+              <When ?01M1H64R1NHS2EZ7W6CPJ5C5JG>
               The actor work context is initialized
-              </?01M18JF1PQEYQZAJ6H443H1V07>
-              <Then ?01M18JF1PQEYQZAJ6H443H1V08>
+              </?01M1H64R1NHS2EZ7W6CPJ5C5JG>
+              <Then ?01M1H64R1R06W69AYWSGZRCCNV>
               The system SHALL set work mode to `build`
-              </?01M18JF1PQEYQZAJ6H443H1V08>
+              </?01M1H64R1R06W69AYWSGZRCCNV>
             )>
             <Case #set-build-plan [
-              <Then ?01M18JF1PQEYQZAJ6H443H1V09>
+              <Then ?01M1H64R1R06W69AYWSGZRCCNW>
               The system SHALL update actor work mode to the requested value
-              </?01M18JF1PQEYQZAJ6H443H1V09>
-              <Then ?01M18JF1PQEYQZAJ6H443H1V0A>
+              </?01M1H64R1R06W69AYWSGZRCCNW>
+              <Then ?01M1H64R1R06W69AYWSGZRCCNX>
               The command SHALL NOT be appended as semantic LLM conversation history
-              </?01M18JF1PQEYQZAJ6H443H1V0A>
-              <Then ?01M18JF1PQEYQZAJ6H443H1V0B>
+              </?01M1H64R1R06W69AYWSGZRCCNX>
+              <Then ?01M1H64R1R06W69AYWSGZRCCNY>
               The command SHALL NOT trigger a provider completion request
-              </?01M18JF1PQEYQZAJ6H443H1V0B>
+              </?01M1H64R1R06W69AYWSGZRCCNY>
             ] (
-              <Given ?01M18JF1PQEYQZAJ6H443H1V0C>
+              <Given ?01M1H64R1R06W69AYWSGZRCCNZ>
               The user enters `/work-mode plan` or `/work-mode build`
-              </?01M18JF1PQEYQZAJ6H443H1V0C>
-              <When ?01M18JF1PQEYQZAJ6H443H1V0D>
+              </?01M1H64R1R06W69AYWSGZRCCNZ>
+              <When ?01M1H64R1R06W69AYWSGZRCCP0>
               The runtime consumes the input
-              </?01M18JF1PQEYQZAJ6H443H1V0D>
+              </?01M1H64R1R06W69AYWSGZRCCP0>
             )>
             <Case #plan-is-permission-boundary (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM77P>
+              <Given ?01M1H64R1R06W69AYWSGZRCCP1>
               The current work mode is `plan`
-              </?01M18JF1PRGGZ7CPWZ3AFCM77P>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM77Q>
+              </?01M1H64R1R06W69AYWSGZRCCP1>
+              <When ?01M1H64R1R06W69AYWSGZRCCP2>
               The model attempts a file write, patch, edit, or destructive shell command
-              </?01M18JF1PRGGZ7CPWZ3AFCM77Q>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM77R>
+              </?01M1H64R1R06W69AYWSGZRCCP2>
+              <Then ?01M1H64R1R06W69AYWSGZRCCP3>
               The system SHALL block or route the operation through the explicit permission policy before execution
-              </?01M18JF1PRGGZ7CPWZ3AFCM77R>
+              </?01M1H64R1R06W69AYWSGZRCCP3>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #model-task-phase (
-      <Statement ?01M18JF1PRGGZ7CPWZ3AFCM77S>
+      <Statement ?01M1H64R1R06W69AYWSGZRCCP4>
       系统 SHALL expose AI runtime task phase as a model-declared state with exactly `normal` and `answer` values.
-      </?01M18JF1PRGGZ7CPWZ3AFCM77S>
+      </?01M1H64R1R06W69AYWSGZRCCP4>
       <Suites [
         <Suite #task-phase-tool { name = "Task phase control tool" } (
           <Cases [
             <Case #default-normal (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM77T>
+              <Given ?01M1H64R1R06W69AYWSGZRCCP5>
               A new user turn starts
-              </?01M18JF1PRGGZ7CPWZ3AFCM77T>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM77V>
+              </?01M1H64R1R06W69AYWSGZRCCP5>
+              <When ?01M1H64R1R06W69AYWSGZRCCP6>
               The runtime prepares actor work context
-              </?01M18JF1PRGGZ7CPWZ3AFCM77V>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM77W>
+              </?01M1H64R1R06W69AYWSGZRCCP6>
+              <Then ?01M1H64R1R06W69AYWSGZRCCP7>
               The system SHALL set task phase to `normal` unless a task phase tool call changes it
-              </?01M18JF1PRGGZ7CPWZ3AFCM77W>
+              </?01M1H64R1R06W69AYWSGZRCCP7>
             )>
             <Case #model-sets-answer [
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM77X>
+              <Then ?01M1H64R1R06W69AYWSGZRCCP8>
               The system SHALL set actor task phase to `answer`
-              </?01M18JF1PRGGZ7CPWZ3AFCM77X>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM77Y>
+              </?01M1H64R1R06W69AYWSGZRCCP8>
+              <Then ?01M1H64R1R06W69AYWSGZRCCP9>
               The tool SHALL NOT change work mode
-              </?01M18JF1PRGGZ7CPWZ3AFCM77Y>
+              </?01M1H64R1R06W69AYWSGZRCCP9>
             ] (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM77Z>
+              <Given ?01M1H64R1R06W69AYWSGZRCCPA>
               The model is ready to stop tool-driven work and produce a final answer
-              </?01M18JF1PRGGZ7CPWZ3AFCM77Z>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM780>
+              </?01M1H64R1R06W69AYWSGZRCCPA>
+              <When ?01M1H64R1R06W69AYWSGZRCCPB>
               The model calls the task phase control tool with `phase=answer`
-              </?01M18JF1PRGGZ7CPWZ3AFCM780>
+              </?01M1H64R1R06W69AYWSGZRCCPB>
             )>
             <Case #tool-after-answer-resets-normal (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM781>
+              <Given ?01M1H64R1R06W69AYWSGZRCCPC>
               The current task phase is `answer`
-              </?01M18JF1PRGGZ7CPWZ3AFCM781>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM782>
+              </?01M1H64R1R06W69AYWSGZRCCPC>
+              <When ?01M1H64R1R06W69AYWSGZRCCPD>
               The model calls a normal non-control tool
-              </?01M18JF1PRGGZ7CPWZ3AFCM782>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM783>
+              </?01M1H64R1R06W69AYWSGZRCCPD>
+              <Then ?01M1H64R1R06W69AYWSGZRCCPE>
               The system SHALL reset task phase to `normal` for that continued tool-driven work
-              </?01M18JF1PRGGZ7CPWZ3AFCM783>
+              </?01M1H64R1R06W69AYWSGZRCCPE>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #remove-legacy-inference (
-      <Statement ?01M18JF1PRGGZ7CPWZ3AFCM784>
+      <Statement ?01M1H64R1R06W69AYWSGZRCCPF>
       系统 SHALL remove legacy automatic work mode and task phase inference paths that conflict with explicit runtime control.
-      </?01M18JF1PRGGZ7CPWZ3AFCM784>
+      </?01M1H64R1R06W69AYWSGZRCCPF>
       <Suites [
         <Suite #legacy-removal { name = "Legacy inference removal" } (
           <Cases [
             <Case #old-enums-removed [
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM785>
+              <Then ?01M1H64R1R06W69AYWSGZRCCPG>
               The system SHALL normalize them to `build` and `normal`
-              </?01M18JF1PRGGZ7CPWZ3AFCM785>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM786>
+              </?01M1H64R1R06W69AYWSGZRCCPG>
+              <Then ?01M1H64R1R06W69AYWSGZRCCPH>
               The system SHALL NOT expose old enum values to prompt planning or runtime policy
-              </?01M18JF1PRGGZ7CPWZ3AFCM786>
+              </?01M1H64R1R06W69AYWSGZRCCPH>
             ] (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM787>
+              <Given ?01M1H64R1R06W69AYWSGZRCCPJ>
               Runtime work context data is serialized, recovered, or migrated
-              </?01M18JF1PRGGZ7CPWZ3AFCM787>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM788>
+              </?01M1H64R1R06W69AYWSGZRCCPJ>
+              <When ?01M1H64R1R06W69AYWSGZRCCPK>
               Old work mode or task phase values are encountered
-              </?01M18JF1PRGGZ7CPWZ3AFCM788>
+              </?01M1H64R1R06W69AYWSGZRCCPK>
             )>
             <Case #no-call-count-switching (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM789>
+              <Given ?01M1H64R1R06W69AYWSGZRCCPM>
               The model repeatedly calls tools, reads files, runs checks, or continues a turn
-              </?01M18JF1PRGGZ7CPWZ3AFCM789>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM78A>
+              </?01M1H64R1R06W69AYWSGZRCCPM>
+              <When ?01M1H64R1R06W69AYWSGZRCCPN>
               The runtime updates work context
-              </?01M18JF1PRGGZ7CPWZ3AFCM78A>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM78B>
+              </?01M1H64R1R06W69AYWSGZRCCPN>
+              <Then ?01M1H64R1R06W69AYWSGZRCCPP>
               The system SHALL NOT switch work mode or task phase based on call counts, repeated tool counts, or iteration counts
-              </?01M18JF1PRGGZ7CPWZ3AFCM78B>
+              </?01M1H64R1R06W69AYWSGZRCCPP>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #cache-stable-overlay (
-      <Statement ?01M18JF1PRGGZ7CPWZ3AFCM78C>
-      系统 SHALL project work mode、task phase 与 mutable provider context as closed append-only typed facts in the existing Conversation authority; it SHALL NOT replace a dynamic system overlay ahead of chronological history.
-      </?01M18JF1PRGGZ7CPWZ3AFCM78C>
+      <Statement ?01M1H64R1R06W69AYWSGZRCCPQ>
+      系统 SHALL keep work mode 与 task phase as runtime-only Actor control and SHALL project only deliberately model-consumed dynamic context as closed append-only typed facts in the existing Conversation authority; canonical fact names SHALL describe their semantic content rather than a provider adapter operation, and the system SHALL NOT replace a dynamic system overlay ahead of chronological history.
+      </?01M1H64R1R06W69AYWSGZRCCPQ>
       <Suites [
         <Suite #prompt-cache { name = "Typed context fact cache stability" } (
           <Cases [
             <Case #changed-context-appends (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM78D>
-              a provider context epoch already contains history and an admitted work-context fact
-              </?01M18JF1PRGGZ7CPWZ3AFCM78D>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM78E>
-              work mode or task phase changes
-              </?01M18JF1PRGGZ7CPWZ3AFCM78E>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM78F>
+              <Given ?01M1H64R1R06W69AYWSGZRCCPR>
+              a provider context epoch already contains history and an admitted TaskTree、Workflow-stage or provider-output-recovery fact
+              </?01M1H64R1R06W69AYWSGZRCCPR>
+              <When ?01M1H64R1R06W69AYWSGZRCCPS>
+              that deliberately model-consumed context changes
+              </?01M1H64R1R06W69AYWSGZRCCPS>
+              <Then ?01M1H64R1R06W69AYWSGZRCCPT>
               the system SHALL append exactly one next-revision fact bound to the prior fact digest, while every prior final-wire cache unit remains byte-equivalent and ordered
-              </?01M18JF1PRGGZ7CPWZ3AFCM78F>
+              </?01M1H64R1R06W69AYWSGZRCCPT>
             )>
             <Case #interleaved-fact-order-recovery (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM78G>
-              work、provider-projection 与 Workflow-stage namespaces 在同一 Actor history anchor 前后交错更新
-              </?01M18JF1PRGGZ7CPWZ3AFCM78G>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM78H>
+              <Given ?01M1H64R1R06W69AYWSGZRCCPV>
+              provider-output-recovery、task-tree-context 与 workflow-stage-context namespaces 在同一 Actor history anchor 前后交错更新
+              </?01M1H64R1R06W69AYWSGZRCCPV>
+              <When ?01M1H64R1R06W69AYWSGZRCCPW>
               Conversation materializes and a fresh process reconstructs the context-fact chain
-              </?01M18JF1PRGGZ7CPWZ3AFCM78H>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM78J>
+              </?01M1H64R1R06W69AYWSGZRCCPW>
+              <Then ?01M1H64R1R06W69AYWSGZRCCPX>
               one Actor-global sequence and exact history anchors SHALL produce byte-identical total order independent of namespace map order
-              </?01M18JF1PRGGZ7CPWZ3AFCM78J>
+              </?01M1H64R1R06W69AYWSGZRCCPX>
             )>
             <Case #provider-role-profile-closed (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM78K>
+              <Given ?01M1H64R1R06W69AYWSGZRCCPY>
               an explicit DeepSeek Chat、OpenAI Chat/Responses、Anthropic Messages or Claude Code profile
-              </?01M18JF1PRGGZ7CPWZ3AFCM78K>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM78M>
+              </?01M1H64R1R06W69AYWSGZRCCPY>
+              <When ?01M1H64R1R06W69AYWSGZRCCPZ>
               a machine-owned context fact enters the final admitted body
-              </?01M18JF1PRGGZ7CPWZ3AFCM78M>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM78N>
+              </?01M1H64R1R06W69AYWSGZRCCPZ>
+              <Then ?01M1H64R1R06W69AYWSGZRCCQ0>
               the versioned profile SHALL encode it in its exact chronological user/text container and SHALL reject system hoisting、illegal role or tool-pair splitting
-              </?01M18JF1PRGGZ7CPWZ3AFCM78N>
+              </?01M1H64R1R06W69AYWSGZRCCQ0>
             )>
             <Case #unchanged-context-is-idempotent (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM78P>
-              the current canonical work context equals the last admitted fact
-              </?01M18JF1PRGGZ7CPWZ3AFCM78P>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM78Q>
+              <Given ?01M1H64R1R06W69AYWSGZRCCQ1>
+              the current canonical provider-visible context equals the last admitted fact
+              </?01M1H64R1R06W69AYWSGZRCCQ1>
+              <When ?01M1H64R1R06W69AYWSGZRCCQ2>
               another request is built or recovered
-              </?01M18JF1PRGGZ7CPWZ3AFCM78Q>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM78R>
+              </?01M1H64R1R06W69AYWSGZRCCQ2>
+              <Then ?01M1H64R1R06W69AYWSGZRCCQ3>
               the system SHALL emit no duplicate fact and SHALL reconstruct the same provider bytes
-              </?01M18JF1PRGGZ7CPWZ3AFCM78R>
+              </?01M1H64R1R06W69AYWSGZRCCQ3>
             )>
             <Case #no-fixed-prefix-overlay (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM78S>
+              <Given ?01M1H64R1R06W69AYWSGZRCCQ4>
               stable system roots and chronological conversation facts exist
-              </?01M18JF1PRGGZ7CPWZ3AFCM78S>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM78T>
+              </?01M1H64R1R06W69AYWSGZRCCQ4>
+              <When ?01M1H64R1R06W69AYWSGZRCCQ5>
               Conversation materializes a provider request
-              </?01M18JF1PRGGZ7CPWZ3AFCM78T>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM78V>
+              </?01M1H64R1R06W69AYWSGZRCCQ5>
+              <Then ?01M1H64R1R06W69AYWSGZRCCQ6>
               it SHALL NOT insert or replace `runtime_work_context` or another mutable status item between the stable roots and retained history
-              </?01M18JF1PRGGZ7CPWZ3AFCM78V>
+              </?01M1H64R1R06W69AYWSGZRCCQ6>
             )>
             <Case #superseded-facts-require-epoch-compaction (
-              <Given ?01M18JF1PRGGZ7CPWZ3AFCM78W>
+              <Given ?01M1H64R1R06W69AYWSGZRCCQ7>
               multiple append-only revisions of one context namespace exist
-              </?01M18JF1PRGGZ7CPWZ3AFCM78W>
-              <When ?01M18JF1PRGGZ7CPWZ3AFCM78X>
+              </?01M1H64R1R06W69AYWSGZRCCQ7>
+              <When ?01M1H64R1R06W69AYWSGZRCCQ8>
               the system removes or summarizes superseded facts
-              </?01M18JF1PRGGZ7CPWZ3AFCM78X>
-              <Then ?01M18JF1PRGGZ7CPWZ3AFCM78Y>
+              </?01M1H64R1R06W69AYWSGZRCCQ8>
+              <Then ?01M1H64R1R06W69AYWSGZRCCQ9>
               that rewrite SHALL occur only through an accepted compaction with an explicit new provider context epoch
-              </?01M18JF1PRGGZ7CPWZ3AFCM78Y>
+              </?01M1H64R1R06W69AYWSGZRCCQ9>
+            )>
+            <Case #legacy-aliases-share-retention-family (
+              <Given ?01M1H64R1R06W69AYWSGZRCCQA>
+              a restored epoch contains `provider-projection` or `provider-recovery` facts and new writes use their canonical names
+              </?01M1H64R1R06W69AYWSGZRCCQA>
+              <When ?01M1H64R1R06W69AYWSGZRCCQB>
+              retention is measured or an epoch-advancing compaction runs
+              </?01M1H64R1R06W69AYWSGZRCCQB>
+              <Then ?01M1H64R1R06W69AYWSGZRCCQC>
+              legacy and canonical names SHALL share one semantic namespace family; compaction SHALL keep at most the latest TaskTree fact as `task-tree-context`, drop recovery facts, and bind any namespace change in a versioned proof
+              </?01M1H64R1R06W69AYWSGZRCCQC>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #control-only-provider-projection (
+      <Statement ?01M1H64R1R06W69AYWSGZRCCQD>
+      `ActorWorkContext` SHALL remain runtime control authority and SHALL NOT be projected as model-visible system、developer、user or tool content; no suppression prompt SHALL be added.
+      </?01M1H64R1R06W69AYWSGZRCCQD>
+      <Suites [
+        <Suite #provider-projection { name = "Control-only work context projection" } (
+          <Cases [
+            <Case #default-build-normal-is-not-a-message (
+              <Given ?01M1H64R1R06W69AYWSGZRCCQE>
+              an ordinary Actor in default `build` / `normal` state
+              </?01M1H64R1R06W69AYWSGZRCCQE>
+              <When ?01M1H64R1R06W69AYWSGZRCCQF>
+              the provider request is materialized
+              </?01M1H64R1R06W69AYWSGZRCCQF>
+              <Then ?01M1H64R1R06W69AYWSGZRCCQG>
+              the final wire SHALL contain neither a `work-context` fact nor a runtime work-context overlay while runtime tool policy remains active
+              </?01M1H64R1R06W69AYWSGZRCCQG>
+            )>
+            <Case #legacy-work-context-fact-is-retired-at-epoch-boundary (
+              <Given ?01M1H64R1R06W69AYWSGZRCCQH>
+              a restored session whose admitted prior epoch contains a `work-context` fact
+              </?01M1H64R1R06W69AYWSGZRCCQH>
+              <When ?01M1H64R1R06W69AYWSGZRCCQJ>
+              the first request uses the control-only projection policy
+              </?01M1H64R1R06W69AYWSGZRCCQJ>
+              <Then ?01M1H64R1R06W69AYWSGZRCCQK>
+              the system SHALL advance exactly one `provider_surface_revision_accepted` epoch and SHALL NOT send that fact to the provider
+              </?01M1H64R1R06W69AYWSGZRCCQK>
+            )>
+            <Case #provider-visible-facts-remain-visible (
+              <Given ?01M1H64R1R06W69AYWSGZRCCQM>
+              a provider output recovery、TaskTree context or Workflow stage fact that the model must consume
+              </?01M1H64R1R06W69AYWSGZRCCQM>
+              <When ?01M1H64R1R06W69AYWSGZRCCQN>
+              the provider request is materialized
+              </?01M1H64R1R06W69AYWSGZRCCQN>
+              <Then ?01M1H64R1R06W69AYWSGZRCCQP>
+              the existing append-only chronological projection and closed profile validation SHALL remain unchanged
+              </?01M1H64R1R06W69AYWSGZRCCQP>
             )>
           ]>
         )>

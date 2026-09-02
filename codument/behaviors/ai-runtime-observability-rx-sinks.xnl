@@ -4,7 +4,7 @@
       <Statement ?01M18JQ22M34M3H0R7VTZMV0PT>
       系统 SHALL persist observability XNL file sinks according to the same append-only versus replace-state classification used by session persistence.
       </?01M18JQ22M34M3H0R7VTZMV0PT>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-runtime-observability-rx-sinks/xnl-file-sink-record-streams" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/ai-runtime-observability-rx-sinks/xnl-file-sink-record-streams" strength = "hint" }>
       <Suites [
         <Suite #trace-xnl { name = "Trace XNL sinks" } (
           <Cases [

@@ -107,6 +107,31 @@ Mission 状态：`pending | active | completed | cancelled | superseded | archiv
 
 `TrackLink { state = "candidate" }` 的激活是 mission logical operation 的一部分。`question_severity = "auto"` 时，Applier 必须立即创建、激活并通过 `codument mission bind-track` 绑定 Track，不等待用户批准。
 
+## 5.1 Nested Mission
+
+`MissionLink` 只挂在叶子 `Task` 的 `()` 中，并通过 `completion_mode = "selected-tasks"` 显式选择子 Mission 的叶子 Task：
+
+```xnl
+<Task #G2-T1 { name = "Deliver repo-a compatibility" status = "ACTIVE" } (
+  <MissionLink #repo-a-evolution {
+    state = "bound"
+    project_ref = "repo-a"
+    mission_ref = "repo-a-evolution"
+    completion_mode = "selected-tasks"
+  } (
+    <SelectedTasks [
+      <TaskRef { ref = "A-G1-T1" }>
+    ]>
+  )>
+)>
+```
+
+子 Mission 必须持久化匹配的 `ParentMission { project_ref, mission_ref, link_ref }`。第一版关系严格为树：子 Mission 只能有一个 ParentMission，禁止环和共享子 Mission。父 Mission 不等待子 Mission 整体 `completed`，只等待 SelectedTasks 中所有叶子 Task 达到 `DONE`，或有受控重规划证据允许 `SUPERSEDED`。
+
+子 Mission 是其 Track 的唯一生命周期 owner。父 Mission 可以同时编排 MissionLink 和跨层 TrackLink；跨层 TrackLink 显式包含 `mission_ref` 与 `track_ref`，但只构成交付投影，不产生第二个 owner。
+
+ProjectRef 的逻辑 id 可提交；本机绝对路径只放在被 Git 忽略的 `codument/.local/workspace-bindings.xnl`。电脑切换时重新运行 `codument project bind <project-ref> <workspace-path>`，不修改 Mission revision。
+
 ## 6. 控制循环
 
 MissionPlanner 维护 desired DAG；MissionObserver 读取真实 Track、测试、资源树和报告；MissionReconciler 比较实际态并选择 ready operation；MissionApplier 执行、验证、写回状态和 evidence。

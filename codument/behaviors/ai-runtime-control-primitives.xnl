@@ -4,7 +4,7 @@
       <Statement ?01M05F1P0S4MGA41V9X8J0TCC3>
       系统 SHALL provide AI runtime control contract and logic packages separated as `ai-runtime-control-contract` and `ai-runtime-control-logic`.
       </?01M05F1P0S4MGA41V9X8J0TCC3>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/ai-runtime-control-primitives/package-layering" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/ai-runtime-control-primitives/package-layering" strength = "hint" }>
       <Suites [
         <Suite #dependency-direction { name = "Dependency Direction" } (
           <Cases [

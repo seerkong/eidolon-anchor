@@ -1,0 +1,35 @@
+<BehaviorPatch #track.implement-conversation-native-session-fork-and-repair.behavior_patch.aiagent-persistence-recovery apiVersion="codument.tech/v1alpha1" version="1" { capability = "aiagent-persistence-recovery" } (
+  <Mutations [
+    <Upsert { selector = "behavior://aiagent-persistence-recovery/requirements/durable-conversation-fork" } (
+      <Requirement #durable-conversation-fork (
+        <Statement ?>A forked or repaired session SHALL be fully reconstructible from its own current XNL Conversation authority and bounded heads after a fresh process restart; it SHALL NOT depend on parent runtime memory、surface state、transcript or legacy generation JSON.</?>
+        <Suites [
+          <Suite #fork-persistence { name = "Fork persistence and repair" } (
+            <Cases [
+              <Case #child-writes-current-xnl-authority (
+                <Given ?>a valid fork plan contains rebased child History and Prompt generations</?>
+                <When ?>the local Conversation adapter commits the child authority</?>
+                <Then ?>History messages SHALL be appended to child `conversation/history.xnl`、Prompt generations SHALL be appended to child `conversation/prompts.xnl`、bounded indexes SHALL publish the selected heads；new authoritative generation JSON or transcript files MUST NOT be created</?>
+              )>
+              <Case #fresh-restart-preserves-fork-context (
+                <Given ?>a child fork commit completed and the creating process exited</?>
+                <When ?>a fresh runtime loads the child and builds its first provider request</?>
+                <Then ?>visible history and runtime prompt SHALL contain the proven parent prefix, the request SHALL be derived from child canonical authority, and no parent process memory SHALL be required</?>
+              )>
+              <Case #repair-grafts-parent-base-before-child-tail (
+                <Given ?>an incident child has valid committed tail messages but an empty or missing fork base, and an explicit parent fork point is provable</?>
+                <When ?>repair runs first as dry-run and then commits with the same proof digest</?>
+                <Then ?>repair SHALL atomically place the rebased parent base before the preserved child tail、persist lineage and a new provider epoch、remain idempotent on retry；the original evidence copy SHALL remain recoverable</?>
+              )>
+              <Case #repair-without-proof-refused (
+                <Given ?>parent identity、fork-time heads、Prompt basis或child-tail boundary无法被唯一证明</?>
+                <When ?>repair planning runs</?>
+                <Then ?>repair SHALL refuse before writes and report the missing proof facts，MUST NOT guess from timestamps or rendered transcript alone</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

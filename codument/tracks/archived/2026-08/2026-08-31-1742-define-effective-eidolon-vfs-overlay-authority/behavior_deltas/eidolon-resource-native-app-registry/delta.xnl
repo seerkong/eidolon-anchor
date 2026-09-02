@@ -1,0 +1,67 @@
+<BehaviorPatch #track.define-effective-eidolon-vfs-overlay-authority.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Delete { selector = "behavior://eidolon-resource-native-app-registry/requirements/halfcode-backed-app-registry/suites/root-and-layer-authority/cases/separate-resource-and-authoring-roots" }>
+    <Delete { selector = "behavior://eidolon-resource-native-app-registry/requirements/halfcode-backed-app-registry/suites/root-and-layer-authority/cases/one-package-per-root" }>
+    <Delete { selector = "behavior://eidolon-resource-native-app-registry/requirements/halfcode-backed-app-registry/suites/root-and-layer-authority/cases/ordered-layer-composition" }>
+    <Delete { selector = "behavior://eidolon-resource-native-app-registry/requirements/halfcode-backed-app-registry/suites/definition-freeze/cases/legacy-vfs-is-explicit-only" }>
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/effective-eidolon-vfs-authority" } (
+      <Requirement #effective-eidolon-vfs-authority (
+        <Statement ?>Eidolon SHALL materialize Builtin、home 与 workspace overlay inputs into one revisioned Effective Eidolon VFS before RuntimeConfig, Halfcode, Agent or Workflow consumption; this admitted VFS SHALL be the only runtime file authority.</?>
+        <Suites [
+          <Suite #authority-topology { name = "Authority topology" } (
+            <Cases [
+              <Case #ordered-overlay-before-consumption (
+                <Given ?>Builtin VFS base、home overlay 与 workspace overlay inputs exist</?>
+                <When ?>Eidolon prepares runtime resources</?>
+                <Then ?>it SHALL apply overlays in Builtin → home → workspace order, validate the complete candidate and atomically publish one Effective VFS revision before any consumer reads it</?>
+              )>
+              <Case #consumers-read-effective-only (
+                <Given ?>an admitted Effective VFS revision exists</?>
+                <When ?>RuntimeConfig, Halfcode, AIAgentDefinition or Workflow runtime reads resources</?>
+                <Then ?>each consumer MUST read through a port bound to that revision and MUST NOT independently read or merge Builtin、home or workspace inputs</?>
+              )>
+              <Case #failure-preserves-last-admitted (
+                <Given ?>an overlay has stale identity/precondition, an invalid mutation, duplicate final FQN or invalid Halfcode resource closure</?>
+                <When ?>materialization or final readback runs</?>
+                <Then ?>the candidate SHALL be rejected with structured diagnostics and the last admitted Effective VFS MUST remain current without partial visibility</?>
+              )>
+            ]>
+          )>
+          <Suite #identity-and-overlay-semantics { name = "Identity and overlay semantics" } (
+            <Cases [
+              <Case #four-identity-layers (
+                <Given ?>an overlay customizes an XNL resource file</?>
+                <When ?>the candidate is materialized and compiled</?>
+                <Then ?>VFS path SHALL locate the file, VFS node id SHALL preserve file move/rename identity, XNL #id SHALL align internal mutations, and Halfcode FQN SHALL identify only the final semantic resource</?>
+              )>
+              <Case #absence-versus-delete (
+                <Given ?>a Builtin file was previously replaced by an overlay</?>
+                <When ?>the replacement disappears or an explicit FILE_DELETE mutation is applied</?>
+                <Then ?>replacement absence SHALL fall back to the base file while FILE_DELETE SHALL remove it from the final VFS</?>
+              )>
+              <Case #fqn-is-not-overlay-key (
+                <Given ?>the final Effective VFS contains two files declaring the same Halfcode FQN</?>
+                <When ?>Halfcode projects the semantic registry</?>
+                <Then ?>the projection MUST fail closed and MUST NOT choose a winner by global/workspace origin</?>
+              )>
+            ]>
+          )>
+          <Suite #revision-and-freeze { name = "Revision and freeze" } (
+            <Cases [
+              <Case #frozen-consumer-closure (
+                <Given ?>an Agent or Workflow run has frozen an Effective VFS revision and resource dependency closure</?>
+                <When ?>physical overlays later produce a new admitted revision</?>
+                <Then ?>the existing run MUST retain its frozen bytes and provider-visible prefix; only a new run or explicit resource epoch MAY select the new revision</?>
+              )>
+              <Case #legacy-map-is-projection-only (
+                <Given ?>a legacy consumer still accepts ResourceVfs path-to-text data</?>
+                <When ?>compatibility data is supplied</?>
+                <Then ?>it SHALL be derived read-only from one Effective VFS revision and MUST NOT become a second merge or write authority</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

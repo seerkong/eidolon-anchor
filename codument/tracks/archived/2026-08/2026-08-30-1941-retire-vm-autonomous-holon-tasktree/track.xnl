@@ -1,0 +1,64 @@
+<Track #retire-vm-autonomous-holon-tasktree apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Make canonical TaskSpace and the Holon coordinator/MemberRuntime chain the only autonomous Holon execution path, then remove the old VM TaskTree runtime." description = "Preserve Holon governance and assign product semantics while cutting over to frozen binding receipts, migrating parity tests, and deleting actor task boards, envelopes, signals, special lanes/workloads/events and legacy runners without retaining a writable compatibility path." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-30T14:47:07.493Z" updated_at = "2026-08-30T16:41:23.766Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior-deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #legacy-runtime { role = "input" name = "legacy-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/organization/" }>
+    <MaterialBundle #canonical-runtime { role = "output" name = "canonical-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/organization/" }>
+    <MaterialBundle #product-tools { role = "output" name = "product-tools" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/composer/AIAgent/tools/" }>
+  ]>
+  <TaskSpace #space_retire-vm-autonomous-holon-tasktree { name = "retire-vm-autonomous-holon-tasktree" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze legacy parity and deletion boundary" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "inventory every legacy writer protocol snapshot and test behavior" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "write canonical parity and fail-closed product facade tests before deletion" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Cut product assignment to canonical authority" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "introduce one receipt-only canonical Holon assignment facade" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "route HolonAssign and ActorAssign through frozen workflow resource context" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P2-T3 { name = "prove Ctrl Data and direct product surfaces never fall back to VM task state" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Remove VM autonomous task runtime" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "remove envelope relay waiters actor task boards and special event APIs" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "remove autonomous special lane workload TaskTree scope routing and snapshot restore" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P3-T3 { name = "delete runner controller assign core envelope and replace legacy tests" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Fresh recovery and static retirement audit" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "run canonical parity ordinary TaskTree member and leader-led regressions" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P4-T2 { name = "prove old snapshots cannot revive a writable autonomous VM path" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P4-T3 { name = "enforce zero legacy production references and complete independent audit" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P4-T3-AC1 { checked = true } ?01M1C42Z3Y0ZV7Y7Z8D7P0C001>
+              Product assignment, Ctrl and Data use only frozen canonical Holon bindings and TaskSpace receipts; all old VM autonomous task runtime symbols and writable compatibility paths are absent.
+              </?01M1C42Z3Y0ZV7Y7Z8D7P0C001>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_retire-vm-autonomous-holon-tasktree" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

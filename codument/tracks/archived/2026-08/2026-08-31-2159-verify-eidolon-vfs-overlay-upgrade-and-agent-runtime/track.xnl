@@ -1,0 +1,28 @@
+<Track #verify-eidolon-vfs-overlay-upgrade-and-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "验证 overlay 升级、冻结恢复、三模式 Agent 运行及真实编译安装" description = "以单一 Effective VFS 权威完成 B1→B2、ordinary/Ctrl/Data 与 BunFS compiled product 收口" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-31T18:21:52.953Z" updated_at = "2026-08-31T18:59:46.473Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_verify-eidolon-vfs-overlay-upgrade-and-agent-runtime { name = "verify-eidolon-vfs-overlay-upgrade-and-agent-runtime" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze upgrade and recovery matrix" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Verify compatible replay and fail-closed conflicts" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "Verify frozen Effective VFS recovery" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Verify executable product" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Run ordinary Ctrl and Data Agent matrix" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "Compile and locally install BunFS terminal" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Converge product evidence" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Run strict regression and publish verification report" status = "DONE" priority = "P0" order = 0 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

@@ -1,0 +1,68 @@
+<decision #track.add_provider_epoch.provider_projection_authority apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>跨 provider 会话继续应复写 canonical history，还是建立派生 provider epoch？</?>
+  <recommendation ?>保持 Conversation/ToolCall 单一 authority，以 context epoch + closed receipt表达provider投影代际。</?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>单一 authority + Provider Epoch</?>
+      <description ?>canonical facts不变，目标provider只消费绑定source frontier的派生handoff/replay。</?>
+      <tradeoff ?>跨协议切换不保证逐字原生transcript等价，但保留完整审计事实并可切回。</?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>改写或复制provider历史</?>
+      <description ?>为目标provider生成并持久化另一份会话历史。</?>
+      <tradeoff ?>形成双authority，恢复、重放和工具exact-once会漂移。</?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>用户同意根治DeepSeek切换，并授权排查分析与修复落地。</?>
+    <decision-text ?>采用Conversation/ToolCall单一authority与durable Provider Epoch投影receipt，不创建第二conversation store。</?>
+    <rationale ?>这符合现有conversation spine、DEPA事实authority边界和跨provider协议隔离。</?>
+    <evidence ?>Conversation Domain已有contextEpoch；事故中同一canonical session切回原provider可继续，表明损坏不在history authority。</?>
+  )>
+)>
+
+<decision #track.add_provider_epoch.deepseek_compatibility_profile apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>DeepSeek wire protocol profile应由provider配置选择，还是由adapter声明？</?>
+  <recommendation ?>由adapter声明canonical `deepseek-chat@1`；provider身份不得成为协议语义authority。</?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>Adapter-owned protocol profile</?>
+      <description ?>所有DeepSeek adapter实例共享deepseek-chat@1；provider仅提供连接参数。</?>
+      <tradeoff ?>网关若真正偏离协议，应实现新adapter/profile，而非复用provider名称开关。</?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>Provider-configured official/compatible profile</?>
+      <description ?>配置、CLI或workflow选择official/compatible语义。</?>
+      <tradeoff ?>把同一协议按供应商身份分叉，形成双真源并制造缺省配置故障。</?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>用户明确要求SiliconFlow、iqingwa等兼容网关完全当成官方DeepSeek，不做provider身份区分；保留协议族profile设计。</?>
+    <decision-text ?>废止official/compatible分叉，DeepSeek adapter唯一声明`deepseek-chat@1`；旧id仅用于迁移读取。</?>
+    <rationale ?>profile应描述wire protocol。provider身份是连接事实，将两者绑定会导致同协议行为、缓存SLO和恢复语义漂移。</?>
+    <evidence ?>两个既有DeepSeek effect bundle除id外行为相同；现场在没有provider compatibility_profile时发生provider_chat_compatibility_profile_required。</?>
+  )>
+)>
+
+<decision #track.add_provider_epoch.switch_failure_recovery apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>本地provider projection/admission失败后，交互fiber应失败终止还是可继续？</?>
+  <recommendation ?>网络副作用前的typed local failure记录证据后返回recoverable suspended。</?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>可恢复本地失败</?>
+      <description ?>保留未成功turn，允许切换模型/修配置/重试，复用tool exact-once事实。</?>
+      <tradeoff ?>需要明确区分local admission与远端provider terminal failure。</?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>统一终止fiber</?>
+      <description ?>所有provider错误都进入不可继续failed。</?>
+      <tradeoff ?>无网络副作用的格式错误也会封死长会话，正是本次事故。</?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>用户要求在现有事故session上修复并继续使用。</?>
+    <decision-text ?>projection/admission本地失败必须可继续；远端provider失败仍遵守既有typed retry/terminal policy。</?>
+    <rationale ?>本地请求尚未发送，也没有新tool副作用，没有理由让canonical session永久失败。</?>
+    <evidence ?>事故现场连续切换provider后仅显示invalid_provider_request_body，无法继续；切回可用provider可证明session事实仍有效。</?>
+  )>
+)>

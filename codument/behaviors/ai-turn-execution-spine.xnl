@@ -1,0 +1,200 @@
+<Behavior #ai-turn-execution-spine apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #turn-state-adt (
+      <Statement ?01M1ASG3S5KE2TQB9ABYCQTG73>
+      AI turn 的运行时状态 SHALL 由一个 discriminated union ADT（TurnState）显式表达，每个 variant 自带该阶段必要的字段；SHALL NOT 通过 phase 字符串 + 平行 inflight union + 多个 pending 数组的隐式组合表达运行时状态。
+      </?01M1ASG3S5KE2TQB9ABYCQTG73>
+      <Suites [
+        <Suite #turn-state-shape { name = "TurnState ADT shape" } (
+          <Cases [
+            <Case #variants-cover-runtime-phases [
+              <Then ?01M1ASG3S92KA6J38EY8DKSZSQ>
+              state SHALL 落入 TurnState ADT 的恰好一个 variant（drain / wait_llm / wait_tool / wait_questionnaire_parse / wait_compress / wait_human / completed / failed 等）
+              </?01M1ASG3S92KA6J38EY8DKSZSQ>
+              <Then ?01M1ASG3S92KA6J38EY8DKSZSR>
+              该 variant 自带本阶段所有必要字段（如 wait_tool 自带 opId、toolCallId、gateOutcome）
+              </?01M1ASG3S92KA6J38EY8DKSZSR>
+            ] (
+              <Given ?01M1ASG3S92KA6J38EY8DKSZSS>
+              cooperative 或 streaming 主循环处于任意运行时刻
+              </?01M1ASG3S92KA6J38EY8DKSZSS>
+              <When ?01M1ASG3S92KA6J38EY8DKSZST>
+              读取当前 turn state
+              </?01M1ASG3S92KA6J38EY8DKSZST>
+            )>
+            <Case #no-cross-variant-fields [
+              <Then ?01M1ASG3S92KA6J38EY8DKSZSV>
+              SHALL NOT 出现&quot;phase 是 wait_llm 但 inflight 是 tool&quot;这类跨 variant 不一致
+              </?01M1ASG3S92KA6J38EY8DKSZSV>
+              <Then ?01M1ASG3S92KA6J38EY8DKSZSW>
+              类型系统 SHALL 在编译期防止此类组合
+              </?01M1ASG3S92KA6J38EY8DKSZSW>
+            ] (
+              <Given ?01M1ASG3S92KA6J38EY8DKSZSX>
+              TurnState variant 已确定
+              </?01M1ASG3S92KA6J38EY8DKSZSX>
+              <When ?01M1ASG3S92KA6J38EY8DKSZSY>
+              外部代码访问运行时状态
+              </?01M1ASG3S92KA6J38EY8DKSZSY>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #turn-wait-boundary (
+      <Statement ?01M1ASG3S92KA6J38EY8DKSZSZ>
+      turn 的等待边界（provider 等待 / tool 等待 / human 等待 / questionnaire 等待 / compress 等待）SHALL 作为彼此区分的 owned 事实存在（TurnState ADT 的独立 wait variant + ai_turn_state 数据子图的 turn.wait_boundary 事实节点），各自携带其边界字段；SHALL NOT 退化为单一无差别的&quot;waiting&quot;标志。对应 mission gate G-ai-wait-message。
+      </?01M1ASG3S92KA6J38EY8DKSZSZ>
+      <Suites [
+        <Suite #wait-boundary-facts { name = "Wait boundaries as distinct owned facts" } (
+          <Cases [
+            <Case #wait-kinds-are-distinct [
+              <Then ?01M1ASG3S92KA6J38EY8DKSZT0>
+              provider / tool / human / questionnaire / compress 五类等待 SHALL 映射到五个不同的 TurnState variant（wait_llm / wait_tool / wait_human / wait_questionnaire_parse / wait_compress）
+              </?01M1ASG3S92KA6J38EY8DKSZT0>
+              <Then ?01M1ASG3S92KA6J38EY8DKSZT1>
+              每个 wait variant SHALL 携带其边界字段（wait_llm 带 providerCallId、wait_tool 带 toolCallId+gateDecision、wait_human 带 reason、wait_questionnaire_parse 带 questionnaireId、wait_compress 带 compression reason）
+              </?01M1ASG3S92KA6J38EY8DKSZT1>
+            ] (
+              <Given ?01M1ASG3S92KA6J38EY8DKSZT2>
+              turn 进入某个等待
+              </?01M1ASG3S92KA6J38EY8DKSZT2>
+              <When ?01M1ASG3S92KA6J38EY8DKSZT3>
+              读取 turn state
+              </?01M1ASG3S92KA6J38EY8DKSZT3>
+            )>
+            <Case #wait-boundary-is-owned-fact (
+              <Given ?01M1ASG3S92KA6J38EY8DKSZT4>
+              ai_turn_state 数据子图契约
+              </?01M1ASG3S92KA6J38EY8DKSZT4>
+              <When ?01M1ASG3S92KA6J38EY8DKSZT5>
+              检查 owned fact nodes
+              </?01M1ASG3S92KA6J38EY8DKSZT5>
+              <Then ?01M1ASG3S92KA6J38EY8DKSZT6>
+              SHALL 声明 turn.wait_boundary 为 ai_turn_state 的 owned authoritative_fact，并提供 turn.wait_view 读取视图
+              </?01M1ASG3S92KA6J38EY8DKSZT6>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #unified-main-loop (
+      <Statement ?01M1ASG3S92KA6J38EY8DKSZT7>
+      aiAgentLoopStreaming 与 aiAgentCooperativeStep 当前的两套主循环 SHALL 合并为单一 phase machine；streaming 入口 SHALL 退化为 cooperative phase machine 的薄包装（驱动方式不同但 phase 转换规则相同）；ToolExecutionGateDecision 评估、tool 任务派发、eventBus emit、runtime-control evidence 记录 SHALL 共用同一实现，不再两份。
+      </?01M1ASG3S92KA6J38EY8DKSZT7>
+      <Suites [
+        <Suite #loop-unification { name = "Main loop unification" } (
+          <Cases [
+            <Case #single-phase-machine [
+              <Then ?01M1ASG3S92KA6J38EY8DKSZT8>
+              SHALL 只有一份 phase 转换实现（cooperative phase machine）
+              </?01M1ASG3S92KA6J38EY8DKSZT8>
+              <Then ?01M1ASG3S92KA6J38EY8DKSZT9>
+              aiAgentLoopStreaming SHALL 在内部驱动同一 phase machine 直到 completed/failed，不复制 phase 转换逻辑
+              </?01M1ASG3S92KA6J38EY8DKSZT9>
+            ] (
+              <Given ?01M1ASG3S92KA6J38EY8DKSZTA>
+              检查 ai-organ-logic exec 主循环源码
+              </?01M1ASG3S92KA6J38EY8DKSZTA>
+              <When ?01M1ASG3S92KA6J38EY8DKSZTB>
+              枚举 phase 转换实现
+              </?01M1ASG3S92KA6J38EY8DKSZTB>
+            )>
+            <Case #shared-tool-dispatch [
+              <Then ?01M1ASG3S92KA6J38EY8DKSZTC>
+              SHALL 由同一组函数承担（每条职责一处定义）
+              </?01M1ASG3S92KA6J38EY8DKSZTC>
+              <Then ?01M1ASG3S92KA6J38EY8DKSZTD>
+              SHALL NOT 在 streaming 与 cooperative 两套代码路径上分别维护
+              </?01M1ASG3S92KA6J38EY8DKSZTD>
+            ] (
+              <Given ?01M1ASG3S92KA6J38EY8DKSZTE>
+              tool dispatch（gate 评估 + 任务派发 + emit + evidence）需要执行
+              </?01M1ASG3S92KA6J38EY8DKSZTE>
+              <When ?01M1ASG3S92KA6J38EY8DKSZTF>
+              检查实现
+              </?01M1ASG3S92KA6J38EY8DKSZTF>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #supervisor-retired (
+      <Statement ?01M1ASG3SAXX1R0EXK2ZKPGCPJ>
+      AiRuntimeTurnSupervisor SHALL 在本能力中被完全移除：文件本体、TerminalRuntime 中的 continuation hint 注入、exec warning 回调、cell 侧导出、单元测试 SHALL 一并删除。其原本试图缓解的&quot;重复读文件&quot;风险 SHALL 由本 track 的 TurnState ADT、ToolCallDomain 事实链与 ProviderCallDomain 元数据从根因消除，而非通过新的 guardrail 替换。
+      </?01M1ASG3SAXX1R0EXK2ZKPGCPJ>
+      <Suites [
+        <Suite #retire-supervisor { name = "Supervisor retirement" } (
+          <Cases [
+            <Case #no-supervisor-source [
+              <Then ?01M1ASG3SAXX1R0EXK2ZKPGCPK>
+              SHALL 不存在 AiRuntimeTurnSupervisor 类、函数或类型
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPK>
+              <Then ?01M1ASG3SAXX1R0EXK2ZKPGCPM>
+              SHALL 不存在 TerminalRuntime supervisor continuation 循环（原 1243-1281 区间）
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPM>
+              <Then ?01M1ASG3SAXX1R0EXK2ZKPGCPN>
+              SHALL 不存在 exec surface 对 supervisor warning 回调的消费点
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPN>
+            ] (
+              <Given ?01M1ASG3SAXX1R0EXK2ZKPGCPP>
+              本 track 完成后
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPP>
+              <When ?01M1ASG3SAXX1R0EXK2ZKPGCPQ>
+              检查 cell/packages/ai-organ-logic 与 terminal/packages/organ 源码树
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPQ>
+            )>
+            <Case #no-replacement-guardrail [
+              <Then ?01M1ASG3SAXX1R0EXK2ZKPGCPR>
+              SHALL NOT 引入任何&quot;deny 第 N+1 次重复 tool&quot;或类似 hint-based guardrail
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPR>
+              <Then ?01M1ASG3SAXX1R0EXK2ZKPGCPS>
+              &quot;重复读文件&quot;等行为 SHALL 仅靠 TurnState + ToolCallDomain + ProviderCallDomain 的真源唯一性来防止
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPS>
+            ] (
+              <Given ?01M1ASG3SAXX1R0EXK2ZKPGCPT>
+              supervisor 已删除
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPT>
+              <When ?01M1ASG3SAXX1R0EXK2ZKPGCPV>
+              审查本 track 引入的 lifecycle 改造
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPV>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #conformance-tests (
+      <Statement ?01M1ASG3SAXX1R0EXK2ZKPGCPW>
+      本能力 SHALL 提供 TurnState ADT 形态一致性测试、统一主循环行为等价测试（cooperative 与 streaming 入口产出相同的 providerMessages 与 turn 转换序列）、以及 supervisor 移除后既有功能不回归的测试。
+      </?01M1ASG3SAXX1R0EXK2ZKPGCPW>
+      <Suites [
+        <Suite #tests { name = "Conformance tests" } (
+          <Cases [
+            <Case #adt-shape-test (
+              <Given ?01M1ASG3SAXX1R0EXK2ZKPGCPX>
+              TurnState ADT 已定义
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPX>
+              <When ?01M1ASG3SAXX1R0EXK2ZKPGCPY>
+              对每个 variant 构造、转换、序列化进行单元测试
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPY>
+              <Then ?01M1ASG3SAXX1R0EXK2ZKPGCPZ>
+              SHALL 保证 variant 完整覆盖运行时所有可达状态
+              </?01M1ASG3SAXX1R0EXK2ZKPGCPZ>
+            )>
+            <Case #loop-equivalence-test (
+              <Given ?01M1ASG3SAXX1R0EXK2ZKPGCQ0>
+              同一脚本化输入序列分别经 streaming 入口与 cooperative 入口
+              </?01M1ASG3SAXX1R0EXK2ZKPGCQ0>
+              <When ?01M1ASG3SAXX1R0EXK2ZKPGCQ1>
+              对比产出的 providerMessages 与 turn 转换序列
+              </?01M1ASG3SAXX1R0EXK2ZKPGCQ1>
+              <Then ?01M1ASG3SAXX1R0EXK2ZKPGCQ2>
+              SHALL 逐元素等价
+              </?01M1ASG3SAXX1R0EXK2ZKPGCQ2>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

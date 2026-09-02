@@ -1,0 +1,62 @@
+<Track #verify-recursive-ai-data-and-canonical-holon-e2e apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Prove recursive AI Data mission control, dynamic Halfcode Worker resources and canonical Holon Ctrl/Data execution as one recoverable product matrix." description = "Organize current product evidence, add missing cross-boundary E2E journeys, repair actual integration gaps, and independently audit the no-GoalGraph/no-VM-fallback authority boundary." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-30T16:42:41.249Z" updated_at = "2026-08-30T18:27:52.252Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior-deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #workflow-runtime { role = "input" name = "workflow-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/" }>
+    <MaterialBundle #product-e2e { role = "output" name = "product-e2e" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/workflow/" }>
+  ]>
+  <TaskSpace #space_verify-recursive-ai-data-and-canonical-holon-e2e { name = "verify-recursive-ai-data-and-canonical-holon-e2e" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Freeze the product matrix and current evidence gaps" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "map every Mission matrix cell to current product code and executable evidence" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "define durable receipt assertions and anti-cheat gates for the missing journeys" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Prove recursive Data and dynamic Worker resource composition" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "add a parent-child AI Data journey with durable SubFlow recovery and consumption" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "cover typed select-existing and author-new Worker definitions in the executable run freeze" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P2-T3 { name = "repair any resource or child-run lifecycle gaps exposed by the journey" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Prove canonical Holon Ctrl and Data parity" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "cover Ctrl dependent tasks failure recovery fresh reconstruction replan and checkpoint consumption" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "cover Data dependent tasks failure recovery fresh reconstruction replan and MaterialPort consumption" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P3-T3 { name = "prove product assignment modes reuse canonical TaskSpace without a manual or VM fallback" status = "DONE" priority = "P0" order = 2 }>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Fresh product audit and regression closure" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "run the complete matrix typechecks strict validation and related regressions" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P4-T2 { name = "independently audit every receipt boundary and prohibited compatibility path" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M19S4FSDA8FCNGPJJZCBQ4ED>
+              Ctrl and Data evidence covers recursive child execution, dynamic Worker resources, canonical multi-task recovery/replan and parent consumption with no second graph/task authority.
+              </?01M19S4FSDA8FCNGPJJZCBQ4ED>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_verify-recursive-ai-data-and-canonical-holon-e2e" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

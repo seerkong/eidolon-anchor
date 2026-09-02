@@ -14,6 +14,7 @@
 - **事实写入磁盘**：长程实现中的实证数据、失败归因、环境约束、机制漏洞和 phase/wave 结论写入 `tracks/active/<id>/analysis/findings.md`；新会话恢复时先读它。
 - **破坏性 git 禁令**：执行代理不得使用 `git restore` / `git checkout` / `git stash` 这类会抹掉他人未提交成果的命令；只读 git 查询允许，重命名可用 `git mv`。
 - **自包含**：所有提示词/规范在 `codument/`（init 落盘），规则随项目工作区一起维护。
+- **Workspace 根**：`init` 默认创建普通 `codument/`；若该路径已是有效目录软链接，所有 Codument 读写透明作用于链接目标且保留链接，链接及目标由用户管理。
 
 ## 三阶段
 

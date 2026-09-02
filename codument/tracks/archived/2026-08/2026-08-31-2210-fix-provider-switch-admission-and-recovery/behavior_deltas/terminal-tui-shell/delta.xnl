@@ -1,0 +1,40 @@
+<BehaviorPatch #track.fix-provider-switch-admission-and-recovery.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/recoverable-provider-switch" } (
+      <Requirement #recoverable-provider-switch (
+        <Statement ?>TUI/CLI provider switching SHALL apply to the actual recovered actor through one complete provider transition; local admission or checkpoint failure SHALL remain visible and recoverable rather than silently sealing or stalling the session.</?>
+        <Suites [
+          <Suite #switch-and-recover { name = "模型切换与恢复" } (
+            <Cases [
+              <Case #codex-admission-observation-is-protocol-neutral (
+                <Given ?>Codex/OpenAI Responses transport succeeds without a DeepSeek cache observer.</?>
+                <When ?>the successful turn commits provider evidence.</?>
+                <Then ?>common final-wire admission SHALL already provide requestDigest and MUST NOT fail as provider_request_admission_observation_required.</?>
+              )>
+              <Case #checkpoint-failure-is-visible (
+                <Given ?>provider transition checkpoint persistence fails.</?>
+                <When ?>the runtime attempts to finish the turn.</?>
+                <Then ?>TUI/CLI SHALL expose a safe typed failure and preserve the last recoverable state; it MUST NOT swallow the error or appear indefinitely idle.</?>
+              )>
+              <Case #switch-back-after-failure (
+                <Given ?>one provider turn failed before a complete provider generation committed.</?>
+                <When ?>the user selects Codex or DeepSeek and continues.</?>
+                <Then ?>the next turn SHALL use that selected adapter/profile from the last complete state without duplicate tool effects or stale-provider fallback.</?>
+              )>
+              <Case #actor-target-submit-drives-recovered-turn (
+                <Given ?>a restored TUI selects the Primary actor whose durable fiber is failed.</?>
+                <When ?>the user submits a message through the actor-target surface.</?>
+                <Then ?>the runtime SHALL durably enqueue the input, revive and drive that fiber through the shared interactive-turn lifecycle, and SHALL return a refreshed terminal projection or a visible closed error; it MUST NOT return idle with a UI-only message.</?>
+              )>
+              <Case #restored-session-initialization-reports-actual-phase (
+                <Given ?>a restored session is preparing local runtime state before any MCP server startup.</?>
+                <When ?>Effective VFS, configuration or recovery initialization is still pending or fails.</?>
+                <Then ?>the TUI SHALL identify the generic local-runtime preparation phase and SHALL report MCP initialization only after the runtime enters the actual MCP phase.</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

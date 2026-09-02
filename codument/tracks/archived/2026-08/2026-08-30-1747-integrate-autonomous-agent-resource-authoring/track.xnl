@@ -1,0 +1,52 @@
+<Track #integrate-autonomous-agent-resource-authoring apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Integrate Halfcode-backed autonomous AIAgentDefinition authoring and typed selection into Eidolon, then freeze and recover the selected Worker through the existing workflow and Agent runtime authorities." description = "Add the workspace resource transaction adapter, typed host composition, run preparation receipt and fresh recovery without a GoalGraph, dynamic Capability Catalog or alternate Agent executor." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-30T12:25:25.620Z" updated_at = "2026-08-30T14:47:00.499Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior-deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #resource-host { role = "output" name = "resource-host" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/resources/" }>
+    <MaterialBundle #workflow-runtime { role = "output" name = "workflow-runtime" domain = "code" path = "vfs://@/cell/packages/ai-organ-logic/src/workflow/runtime/" }>
+  ]>
+  <TaskSpace #space_integrate-autonomous-agent-resource-authoring { name = "integrate-autonomous-agent-resource-authoring" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Workspace Halfcode transaction adapter" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "write real workspace authoring CAS receipt and publication tests" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "implement the bounded AIAgentDefinition filesystem transaction adapter" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Typed autonomous resource host" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "write existing author-new tamper and exact freeze host tests" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "compose candidate admission authoring reconciliation and run-freeze host" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "AI Data preparation and fresh recovery" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "write preparation receipt parent-snapshot and fresh-recovery tests" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P3-T2 { name = "integrate fixed Worker preparation with existing instance dispatch and checkpoint recovery" status = "DONE" priority = "P0" order = 1 }>
+          <Task #P3-T3 { name = "run focused typecheck tamper recovery and no-second-authority regression" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M19B4MQG3J4GSCT3KVR7W89Z>
+              A typed Worker requirement can select or author one Halfcode resource, freeze it without mutating the parent snapshot, and recover the same proof and Agent instance identity in a fresh runtime.
+              </?01M19B4MQG3J4GSCT3KVR7W89Z>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_integrate-autonomous-agent-resource-authoring" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

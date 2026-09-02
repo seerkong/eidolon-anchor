@@ -1,33 +1,143 @@
 <Behavior #provider-context-epoch apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #history-movement-invalidates-replay (
-      <Statement ?01M18J9RM79MCZM6D3NEDNNB2T>
+      <Statement ?01M1H67CV6G17R7HPXTX289H6F>
       Provider replay optimization SHALL be scoped by a Session-owned context epoch; history head movement, fork, rollback, and reset MUST advance the epoch and invalidate affected replay checkpoints before the next provider request.
-      </?01M18J9RM79MCZM6D3NEDNNB2T>
+      </?01M1H67CV6G17R7HPXTX289H6F>
       <Suites [
         <Suite #history-mutation { name = "History mutation invalidation" } (
           <Cases [
             <Case #rewind-invalidates-checkpoint (
-              <Given ?01M18J9RM79MCZM6D3NEDNNB2V>
+              <Given ?01M1H67CV6G17R7HPXTX289H6G>
               A Responses replay checkpoint exists for the current conversation head.
-              </?01M18J9RM79MCZM6D3NEDNNB2V>
-              <When ?01M18J9RM79MCZM6D3NEDNNB2W>
+              </?01M1H67CV6G17R7HPXTX289H6G>
+              <When ?01M1H67CV6G17R7HPXTX289H6H>
               The actor history head moves to another generation.
-              </?01M18J9RM79MCZM6D3NEDNNB2W>
-              <Then ?01M18J9RM79MCZM6D3NEDNNB2X>
+              </?01M1H67CV6G17R7HPXTX289H6H>
+              <Then ?01M1H67CV6G17R7HPXTX289H6J>
               The context epoch SHALL advance and the checkpoint SHALL be removed without changing canonical History.
-              </?01M18J9RM79MCZM6D3NEDNNB2X>
+              </?01M1H67CV6G17R7HPXTX289H6J>
             )>
             <Case #stale-result-rejected (
-              <Given ?01M18J9RM79MCZM6D3NEDNNB2Y>
+              <Given ?01M1H67CV6G17R7HPXTX289H6K>
               A provider request was prepared under an earlier context epoch.
-              </?01M18J9RM79MCZM6D3NEDNNB2Y>
-              <When ?01M18J9RM79MCZM6D3NEDNNB2Z>
+              </?01M1H67CV6G17R7HPXTX289H6K>
+              <When ?01M1H67CV6G17R7HPXTX289H6M>
               History changes before the provider result commits.
-              </?01M18J9RM79MCZM6D3NEDNNB2Z>
-              <Then ?01M18J9RM79MCZM6D3NEDNNB30>
+              </?01M1H67CV6G17R7HPXTX289H6M>
+              <Then ?01M1H67CV6G17R7HPXTX289H6N>
               The stale result SHALL NOT advance replay checkpoint or continuation state.
-              </?01M18J9RM79MCZM6D3NEDNNB30>
+              </?01M1H67CV6G17R7HPXTX289H6N>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #atomic-provider-transition (
+      <Statement ?01M1H67CV6G17R7HPXTX289H6P>
+      Provider/model control, target adapter resolution, protocol profile selection, epoch transition and snapshot reference SHALL form one ordered recoverable transition; no durable head may expose a partially committed provider generation.
+      </?01M1H67CV6G17R7HPXTX289H6P>
+      <Suites [
+        <Suite #switch-atomicity { name = "Provider switch atomicity" } (
+          <Cases [
+            <Case #target-adapter-before-profile (
+              <Given ?01M1H67CV6G17R7HPXTX289H6Q>
+              a recovered actor receives an explicit provider/model control fact.
+              </?01M1H67CV6G17R7HPXTX289H6Q>
+              <When ?01M1H67CV6G17R7HPXTX289H6R>
+              the runtime derives the target provider epoch.
+              </?01M1H67CV6G17R7HPXTX289H6R>
+              <Then ?01M1H67CV6G17R7HPXTX289H6S>
+              it SHALL refresh the target adapter before reading its protocol profile and MUST NOT reuse the previous adapter semantics.
+              </?01M1H67CV6G17R7HPXTX289H6S>
+            )>
+            <Case #receipt-head-snapshot-one-generation (
+              <Given ?01M1H67CV6G17R7HPXTX289H6T>
+              a provider transition or snapshot write fails at any commit step.
+              </?01M1H67CV6G17R7HPXTX289H6T>
+              <When ?01M1H67CV6G17R7HPXTX289H6V>
+              the process continues or recovers.
+              </?01M1H67CV6G17R7HPXTX289H6V>
+              <Then ?01M1H67CV6G17R7HPXTX289H6W>
+              receipt, transition head and session snapshot SHALL identify one last complete generation; a newer partial receipt MUST NOT become recovery authority.
+              </?01M1H67CV6G17R7HPXTX289H6W>
+            )>
+            <Case #legacy-divergence-repair (
+              <Given ?01M1H67CV6G17R7HPXTX289H6X>
+              a legacy session has a session index epoch newer than its provider transition head.
+              </?01M1H67CV6G17R7HPXTX289H6X>
+              <When ?01M1H67CV6G17R7HPXTX289H6Y>
+              fresh recovery validates canonical receipts.
+              </?01M1H67CV6G17R7HPXTX289H6Y>
+              <Then ?01M1H67CV6G17R7HPXTX289H6Z>
+              the runtime SHALL deterministically select or rebuild one complete generation and persist a typed repair receipt before provider transport.
+              </?01M1H67CV6G17R7HPXTX289H6Z>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #fork-initializes-independent-epoch (
+      <Statement ?01M1H67CV6G17R7HPXTX289H70>
+      A cross-session fork SHALL initialize a child-owned provider context epoch from the proven child baseline without reusing the parent session's request admissions、checkpoint、continuation or same-session receipt predecessor.
+      </?01M1H67CV6G17R7HPXTX289H70>
+      <Suites [
+        <Suite #child-epoch { name = "Forked child provider epoch" } (
+          <Cases [
+            <Case #child-receipt-owns-child-identity (
+              <Given ?01M1H67CV6G17R7HPXTX289H71>
+              a parent fork point and rebased child History/Prompt heads are accepted
+              </?01M1H67CV6G17R7HPXTX289H71>
+              <When ?01M1H67CV6G17R7HPXTX289H72>
+              the fork-init transaction creates the child provider receipt
+              </?01M1H67CV6G17R7HPXTX289H72>
+              <Then ?01M1H67CV6G17R7HPXTX289H73>
+              the receipt SHALL bind child session/Actor identity、child baseline heads、fork frontier and reason `history_rewind_or_fork`; parent receipt identity SHALL remain external provenance and MUST NOT masquerade as the child's same-session predecessor
+              </?01M1H67CV6G17R7HPXTX289H73>
+            )>
+            <Case #provider-optimization-not-copied (
+              <Given ?01M1H67CV6G17R7HPXTX289H74>
+              the parent has provider admissions、Responses replay checkpoint、previous response continuation、pending delivery optimization or typed context fact head
+              </?01M1H67CV6G17R7HPXTX289H74>
+              <When ?01M1H67CV6G17R7HPXTX289H75>
+              the child authority is forked
+              </?01M1H67CV6G17R7HPXTX289H75>
+              <Then ?01M1H67CV6G17R7HPXTX289H76>
+              those optimization states SHALL NOT be copied；stable semantic assets MAY be reprojected only after rebinding and validation against child anchors
+              </?01M1H67CV6G17R7HPXTX289H76>
+            )>
+            <Case #first-child-request-rebuilds-canonical-context (
+              <Given ?01M1H67CV6G17R7HPXTX289H77>
+              a forked child has not yet sent a provider request
+              </?01M1H67CV6G17R7HPXTX289H77>
+              <When ?01M1H67CV6G17R7HPXTX289H78>
+              its first request is prepared after fresh recovery
+              </?01M1H67CV6G17R7HPXTX289H78>
+              <Then ?01M1H67CV6G17R7HPXTX289H79>
+              the request SHALL be rebuilt from child canonical History/Prompt and admitted under the child epoch，without stateful continuation from the parent
+              </?01M1H67CV6G17R7HPXTX289H79>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #rewind-advances-epoch (
+      <Statement ?01M1H67CV6G17R7HPXTX289H7A>
+      A committed same-session rewind SHALL create a `history_rewind_or_fork` successor epoch bound to the rewound heads/frontier and SHALL invalidate admissions、facts、replay checkpoints、continuations and pending delivery optimization from the abandoned future.
+      </?01M1H67CV6G17R7HPXTX289H7A>
+      <Suites [
+        <Suite #rewind-epoch { name = "Rewind provider epoch" } (
+          <Cases [
+            <Case #epoch-successor-binds-rewind (
+              <Given ?01M1H67CV6G17R7HPXTX289H7B>
+              an active provider receipt and a proven retained History prefix
+              </?01M1H67CV6G17R7HPXTX289H7B>
+              <When ?01M1H67CV6G17R7HPXTX289H7C>
+              rewind commits
+              </?01M1H67CV6G17R7HPXTX289H7C>
+              <Then ?01M1H67CV6G17R7HPXTX289H7D>
+              epoch SHALL increment once、previous receipt SHALL match、new baseline heads/frontier SHALL match the rollback generation and prior optimization state SHALL be absent
+              </?01M1H67CV6G17R7HPXTX289H7D>
             )>
           ]>
         )>

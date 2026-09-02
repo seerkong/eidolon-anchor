@@ -1,0 +1,57 @@
+<decision #resumable-turn-outcome-model.d1 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P1" durable_candidate = true } (
+  <question ?>
+2026-08-04-0246-resumable-turn-outcome-model
+  </?>
+  <answer { } (
+    <raw-answer ?>
+External runtime and headless projections MUST distinguish these terminal outcomes:
+    </?>
+    <decision-text ?>
+External runtime and headless projections MUST distinguish these terminal outcomes:
+    </?>
+    <rationale ?>
+Treating every unsettled timeout as failure loses the distinction between durable,
+    </?>
+    <evidence ?>
+Legacy provenance: codument/decisions/2026-08/2026-08-04-0246-resumable-turn-outcome-model/decision.md
+
+# Decision: resumable-turn-outcome-model
+
+Decision URI: decision://resumable-turn-outcome-model
+Source: mission://long-running-turn-progress-resume
+
+# Decision: Resumable turn outcome model
+
+Date: 2026-08-04
+
+## Decision
+
+External runtime and headless projections MUST distinguish these terminal outcomes:
+
+- `settled`: the turn reached its normal completed boundary.
+- `paused_with_progress`: the turn stopped at a resumable boundary after preserving
+  completed progress.
+- `failed`: the turn ended with a non-resumable failure.
+
+## Rationale
+
+Treating every unsettled timeout as failure loses the distinction between durable,
+resumable progress and an actual terminal error. Callers need stable semantics to
+decide whether to resume, report failure, or emit final output.
+
+## Consequences
+
+- Bounded auto-resume may continue only `paused_with_progress` outcomes.
+- Resuming MUST NOT append duplicate user input.
+- Final-output projections MUST only report content allowed by the selected outcome.
+- Trace and CLI status must preserve the same outcome classification.
+
+    </?>
+  )>
+  <confidence ?>
+legacy-unrecorded
+  </?>
+  <reversibility ?>
+legacy-unrecorded
+  </?>
+)>

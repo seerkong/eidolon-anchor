@@ -1,44 +1,70 @@
 <Behavior #ai-agent-runtime apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #halfcode-agent-composition (
-      <Statement ?01M17AFKJNSTQ1K7G5DN80479E>
+      <Statement ?01M1CB800YS61ZNTPYHH9EDMTH>
       A resource Agent SHALL compile an ordered heterogeneous MessagePrefix and one frozen ContextPipeline while reusing the canonical Eidolon Actor, Conversation, provider, persistence, compaction and tool authorities.
-      </?01M17AFKJNSTQ1K7G5DN80479E>
+      </?01M1CB800YS61ZNTPYHH9EDMTH>
       <Suites [
         <Suite #halfcode-composition-cases { name = "Halfcode Agent composition" } (
           <Cases [
             <Case #resource-agent-message-prefix-splicing (
-              <Given ?01M17AFKJNSTQ1K7G5DN80479F>
+              <Given ?01M1CB800YS61ZNTPYHH9EDMTJ>
               One frozen AIAgentDefinition with ordered Message and MessageSource children.
-              </?01M17AFKJNSTQ1K7G5DN80479F>
-              <When ?01M17AFKJNSTQ1K7G5DN80479G>
+              </?01M1CB800YS61ZNTPYHH9EDMTJ>
+              <When ?01M1CB800YS61ZNTPYHH9EDMTK>
               Eidolon materializes its execution plan for a bound workspace.
-              </?01M17AFKJNSTQ1K7G5DN80479G>
-              <Then ?01M17AFKJNSTQ1K7G5DN80479H>
+              </?01M1CB800YS61ZNTPYHH9EDMTK>
+              <Then ?01M1CB800YS61ZNTPYHH9EDMTM>
               Each child SHALL emit zero or more messages in declaration order, workspace AGENTS.md SHALL emit zero or one system message, and every emitted item SHALL record frozen resource provenance.
-              </?01M17AFKJNSTQ1K7G5DN80479H>
+              </?01M1CB800YS61ZNTPYHH9EDMTM>
             )>
             <Case #resource-agent-context-pipeline-parity (
-              <Given ?01M17AFKJNSTQ1K7G5DN80479J>
+              <Given ?01M1CB800YS61ZNTPYHH9EDMTN>
               One resource Agent declares the frozen eidolon.standard-context-pipeline/v1 resource.
-              </?01M17AFKJNSTQ1K7G5DN80479J>
-              <When ?01M17AFKJNSTQ1K7G5DN80479K>
+              </?01M1CB800YS61ZNTPYHH9EDMTN>
+              <When ?01M1CB800YS61ZNTPYHH9EDMTP>
               The Agent runs, compacts, changes provider epoch, recovers, and produces another provider request.
-              </?01M17AFKJNSTQ1K7G5DN80479K>
-              <Then ?01M17AFKJNSTQ1K7G5DN80479M>
+              </?01M1CB800YS61ZNTPYHH9EDMTP>
+              <Then ?01M1CB800YS61ZNTPYHH9EDMTQ>
               The existing authorities SHALL be used exactly once and the stable MessagePrefix SHALL remain unchanged.
-              </?01M17AFKJNSTQ1K7G5DN80479M>
+              </?01M1CB800YS61ZNTPYHH9EDMTQ>
             )>
             <Case #resource-agent-context-pipeline-unknown (
-              <Given ?01M17AFKJNSTQ1K7G5DN80479N>
+              <Given ?01M1CB800YS61ZNTPYHH9EDMTR>
               An AIAgentDefinition selects an unknown or malformed context pipeline implementation.
-              </?01M17AFKJNSTQ1K7G5DN80479N>
-              <When ?01M17AFKJNSTQ1K7G5DN80479P>
+              </?01M1CB800YS61ZNTPYHH9EDMTR>
+              <When ?01M1CB800YS61ZNTPYHH9EDMTS>
               Eidolon prepares the Agent execution.
-              </?01M17AFKJNSTQ1K7G5DN80479P>
-              <Then ?01M17AFKJNSTQ1K7G5DN80479Q>
+              </?01M1CB800YS61ZNTPYHH9EDMTS>
+              <Then ?01M1CB800YS61ZNTPYHH9EDMTT>
               Preparation SHALL fail before Actor creation and no fallback or partial provider request SHALL occur.
-              </?01M17AFKJNSTQ1K7G5DN80479Q>
+              </?01M1CB800YS61ZNTPYHH9EDMTT>
+            )>
+          ]>
+        )>
+        <Suite #builtin-coding-agent { name = "Formal mature Coding Agent" } (
+          <Cases [
+            <Case #no-physical-eidolon-required (
+              <Given ?01M1CB800YS61ZNTPYHH9EDMTV>
+              no physical workspace or home .eidolon directory exists
+              </?01M1CB800YS61ZNTPYHH9EDMTV>
+              <When ?01M1CB800YS61ZNTPYHH9EDMTW>
+              Eidolon resolves the formal mature Coding Agent
+              </?01M1CB800YS61ZNTPYHH9EDMTW>
+              <Then ?01M1CB800YS61ZNTPYHH9EDMTX>
+              it SHALL resolve resource://eidolon.coding.CodeAgent from the Builtin VFS with its mature MessagePrefix, Workspace AGENTS.md source, Standard ContextPipeline and exact tools intact
+              </?01M1CB800YS61ZNTPYHH9EDMTX>
+            )>
+            <Case #testkit-does-not-own-production-agent (
+              <Given ?01M1CB800YS61ZNTPYHH9EDMTY>
+              a proposition or workflow E2E fixture needs the mature Coding Agent
+              </?01M1CB800YS61ZNTPYHH9EDMTY>
+              <When ?01M1CB800YS61ZNTPYHH9EDMTZ>
+              the fixture builds test-specific resources
+              </?01M1CB800YS61ZNTPYHH9EDMTZ>
+              <Then ?01M1CB800YS61ZNTPYHH9EDMV0>
+              it SHALL reference the formal Agent resource and MUST NOT copy or regenerate production prompt, MessagePrefix, ContextPipeline or ToolRef bytes
+              </?01M1CB800YS61ZNTPYHH9EDMV0>
             )>
           ]>
         )>

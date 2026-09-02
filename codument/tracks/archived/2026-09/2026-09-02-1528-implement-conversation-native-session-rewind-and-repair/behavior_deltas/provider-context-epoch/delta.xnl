@@ -1,0 +1,10 @@
+<BehaviorPatch #track.implement-conversation-native-session-rewind-and-repair.behavior_patch.provider-context-epoch apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider-context-epoch" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider-context-epoch/requirements/rewind-advances-epoch" } (
+      <Requirement #rewind-advances-epoch (
+        <Statement ?>A committed same-session rewind SHALL create a `history_rewind_or_fork` successor epoch bound to the rewound heads/frontier and SHALL invalidate admissions、facts、replay checkpoints、continuations and pending delivery optimization from the abandoned future.</?>
+        <Suites [<Suite #rewind-epoch { name = "Rewind provider epoch" } (<Cases [<Case #epoch-successor-binds-rewind (<Given ?>an active provider receipt and a proven retained History prefix</?><When ?>rewind commits</?><Then ?>epoch SHALL increment once、previous receipt SHALL match、new baseline heads/frontier SHALL match the rollback generation and prior optimization state SHALL be absent</?>)>]>)>]>
+      )>
+    )>
+  ]>
+)>

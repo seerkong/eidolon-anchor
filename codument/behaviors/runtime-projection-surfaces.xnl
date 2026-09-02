@@ -1,215 +1,281 @@
 <Behavior #runtime-projection-surfaces apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #surface-readonly-projection (
-      <Statement ?01M05F1P3CC9QSG0Z1E9N8Z1R5>
+      <Statement ?01M1H67CVW8QQY2X2GX286RTFD>
       runtime surfaces（TUI、actor surface、observability、derived index、CLI/headless 表现层）SHALL 只作为只读 projection / write-only sink 存在：SHALL NOT 写入、修改或销毁 domain truth（conversation/history、ToolCallDomain、ProviderCallDomain、TurnState、session 真源），SHALL NOT gate 或反向影响 live AI loop（surface 的 status/session 处理 SHALL NOT gate turn 继续；surface transcript / visible history SHALL NOT 成为 provider context 输入）。对应 gate G-surface-readonly / 005 规则五。
-      </?01M05F1P3CC9QSG0Z1E9N8Z1R5>
+      </?01M1H67CVW8QQY2X2GX286RTFD>
       <Suites [
         <Suite #readonly-invariant { name = "Surface read-only invariant" } (
           <Cases [
             <Case #no-surface-domain-writes [
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1R6>
+              <Then ?01M1H67CVX9RV24HF68KFYYZP1>
               SHALL NOT 直接构造 domain 写入器或调用 domain-truth 写 API（writeHistory/Prompt/SessionIndex、applyConversationCompaction、emit*DomainEvent、Conversation/ToolCall/ProviderCall domain 写入）
-              </?01M05F1P3CC9QSG0Z1E9N8Z1R6>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1R7>
+              </?01M1H67CVX9RV24HF68KFYYZP1>
+              <Then ?01M1H67CVX9RV24HF68KFYYZP2>
               surface 自有 sink（tui-session.json、CLI 输出/trace、observability journal）不受此约束
-              </?01M05F1P3CC9QSG0Z1E9N8Z1R7>
+              </?01M1H67CVX9RV24HF68KFYYZP2>
             ] (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1R8>
+              <Given ?01M1H67CVX9RV24HF68KFYYZP3>
               terminal surface 包（tui/organ/cli/organ-support）
-              </?01M05F1P3CC9QSG0Z1E9N8Z1R8>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1R9>
+              </?01M1H67CVX9RV24HF68KFYYZP3>
+              <When ?01M1H67CVX9RV24HF68KFYYZP4>
               边界守卫扫描 surface 源（含 TuiRuntimeClient 等真正读取/重建处，不止 entry 文件）
-              </?01M05F1P3CC9QSG0Z1E9N8Z1R9>
+              </?01M1H67CVX9RV24HF68KFYYZP4>
             )>
             <Case #no-surface-loop-gate [
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RA>
+              <Then ?01M1H67CVX9RV24HF68KFYYZP5>
               provider prompt SHALL 仅来自 vm/domain 物化（promptSource=domain_materialization），SHALL NOT 接受 surface transcript / visible history
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RA>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RB>
+              </?01M1H67CVX9RV24HF68KFYYZP5>
+              <Then ?01M1H67CVX9RV24HF68KFYYZP6>
               turn 是否继续 SHALL NOT 由 surface status/session 状态决定
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RB>
+              </?01M1H67CVX9RV24HF68KFYYZP6>
             ] (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1RC>
+              <Given ?01M1H67CVX9RV24HF68KFYYZP7>
               live AI loop 的 provider prompt 构建
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RC>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1RD>
+              </?01M1H67CVX9RV24HF68KFYYZP7>
+              <When ?01M1H67CVX9RV24HF68KFYYZP8>
               检查 provider context 物化输入
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RD>
+              </?01M1H67CVX9RV24HF68KFYYZP8>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #conversation-projection-read-port (
-      <Statement ?01M05F1P3CC9QSG0Z1E9N8Z1RE>
+      <Statement ?01M1H67CVX9RV24HF68KFYYZP9>
       surface 的 hydration 方向读取（重建可见会话状态）SHALL 经由一个类型化、只读的 projection-read port 完成，该 port 消费单一来源真源（与 persistence backplane 的单源 read 一致），SHALL NOT 由 surface 自建 repository 直读或复制单源 loader 逻辑而绕过单源/缺源硬失败。pending-questions 等 runtime_state 读取 SHALL 同样经类型化 projection-read，SHALL NOT 直接读原始文件。
-      </?01M05F1P3CC9QSG0Z1E9N8Z1RE>
+      </?01M1H67CVX9RV24HF68KFYYZP9>
       <Suites [
         <Suite #projection-read { name = "Typed projection-read port" } (
           <Cases [
             <Case #tui-hydration-through-port [
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RF>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPA>
               SHALL 经 ConversationProjectionReadPort（只读，单源）获取视图，SHALL NOT 在 surface 内自建 conversation/persistence repository 绕过单源读取
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RF>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RG>
+              </?01M1H67CVX9RV24HF68KFYYZPA>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPB>
               声明的来源不可加载时 SHALL 以单源硬失败的语义呈现，SHALL NOT 降级混源
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RG>
+              </?01M1H67CVX9RV24HF68KFYYZPB>
             ] (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1RH>
+              <Given ?01M1H67CVX9RV24HF68KFYYZPC>
               TUI 启动 hydration 需要重建可见会话状态
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RH>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1RJ>
+              </?01M1H67CVX9RV24HF68KFYYZPC>
+              <When ?01M1H67CVX9RV24HF68KFYYZPD>
               surface 读取会话真源
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RJ>
+              </?01M1H67CVX9RV24HF68KFYYZPD>
             )>
             <Case #pending-questions-through-port (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1RK>
+              <Given ?01M1H67CVX9RV24HF68KFYYZPE>
               surface 需要展示 pending questionnaires
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RK>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1RM>
+              </?01M1H67CVX9RV24HF68KFYYZPE>
+              <When ?01M1H67CVX9RV24HF68KFYYZPF>
               surface 读取 pending-questions 状态
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RM>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RN>
+              </?01M1H67CVX9RV24HF68KFYYZPF>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPG>
               SHALL 经类型化 projection-read 视图获取，SHALL NOT 直接读 runtime_state/questionnaires.xnl 原始文件
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RN>
+              </?01M1H67CVX9RV24HF68KFYYZPG>
             )>
             <Case #read-port-is-readonly (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1RP>
+              <Given ?01M1H67CVX9RV24HF68KFYYZPH>
               ConversationProjectionReadPort 契约
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RP>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1RQ>
+              </?01M1H67CVX9RV24HF68KFYYZPH>
+              <When ?01M1H67CVX9RV24HF68KFYYZPJ>
               检查其能力面
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RQ>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RR>
+              </?01M1H67CVX9RV24HF68KFYYZPJ>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPK>
               SHALL 只暴露只读视图方法，SHALL NOT 暴露任何写入/修改/销毁 domain truth 的方法
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RR>
+              </?01M1H67CVX9RV24HF68KFYYZPK>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #surface-destroy-via-domain-capability (
-      <Statement ?01M05F1P3CC9QSG0Z1E9N8Z1RS>
+      <Statement ?01M1H67CVX9RV24HF68KFYYZPM>
       surface 发起的 session 销毁（删除）SHALL 经由 domain-owned 的删除能力中介完成，surface SHALL NOT 直接对 session 真源目录/文件执行文件系统删除（rm）。对应 005 规则五（projection 不能反写/销毁上游真源）。
-      </?01M05F1P3CC9QSG0Z1E9N8Z1RS>
+      </?01M1H67CVX9RV24HF68KFYYZPM>
       <Suites [
         <Suite #destroy-mediation { name = "Destroy via domain capability" } (
           <Cases [
             <Case #session-delete-routes-through-capability [
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RT>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPN>
               SHALL 调用 domain-owned 删除能力，由其负责销毁 session 真源
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RT>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RV>
+              </?01M1H67CVX9RV24HF68KFYYZPN>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPP>
               surface SHALL NOT 直接 rm session 真源目录（含 conversation 文件）
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RV>
+              </?01M1H67CVX9RV24HF68KFYYZPP>
             ] (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1RW>
+              <Given ?01M1H67CVX9RV24HF68KFYYZPQ>
               用户在 surface 触发删除一个 session
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RW>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1RX>
+              </?01M1H67CVX9RV24HF68KFYYZPQ>
+              <When ?01M1H67CVX9RV24HF68KFYYZPR>
               surface 处理删除
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RX>
+              </?01M1H67CVX9RV24HF68KFYYZPR>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #cross-surface-domain-equivalence (
-      <Statement ?01M05F1P3CC9QSG0Z1E9N8Z1RY>
+      <Statement ?01M1H67CVX9RV24HF68KFYYZPS>
       同一条 live AI loop 在不同 surface（TUI / CLI / headless）下 SHALL 产生等价的 domain 行为与模型可见 history；surface 选择 SHALL NOT 改变 domain 结果。SHALL 提供同一 live loop、不同 surface 的 domain 等价测试作为分歧回归守护。
-      </?01M05F1P3CC9QSG0Z1E9N8Z1RY>
+      </?01M1H67CVX9RV24HF68KFYYZPS>
       <Suites [
         <Suite #surface-equivalence { name = "Cross-surface equivalence" } (
           <Cases [
             <Case #same-loop-different-surface-equivalent [
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1RZ>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPT>
               domain 真源（可见 history、tool 结果配对、turn 结果）SHALL 等价，差异仅限 surface 自有呈现
-              </?01M05F1P3CC9QSG0Z1E9N8Z1RZ>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1S0>
+              </?01M1H67CVX9RV24HF68KFYYZPT>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPV>
               SHALL NOT 出现某 surface 改变 domain 结果或单独触达 domain truth 的情况
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S0>
+              </?01M1H67CVX9RV24HF68KFYYZPV>
             ] (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1S1>
+              <Given ?01M1H67CVX9RV24HF68KFYYZPW>
               同一 profile/同一 live loop 输入
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S1>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1S2>
+              </?01M1H67CVX9RV24HF68KFYYZPW>
+              <When ?01M1H67CVX9RV24HF68KFYYZPX>
               分别经 TUI 与 CLI/headless surface 运行
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S2>
+              </?01M1H67CVX9RV24HF68KFYYZPX>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #unified-turn-surface-projection (
-      <Statement ?01M05F1P3CC9QSG0Z1E9N8Z1S3>
+      <Statement ?01M1H67CVX9RV24HF68KFYYZPY>
       TUI SHALL 由单一 turn surface projector 消费 typed control、chunk、history 与 completion observations；prompt、slash command 和 questionnaire continuation SHALL 复用同一投影状态机，SHALL NOT 各自维护平行的类别、buffer、tool part 或 reconciliation 逻辑。
-      </?01M05F1P3CC9QSG0Z1E9N8Z1S3>
+      </?01M1H67CVX9RV24HF68KFYYZPY>
       <Suites [
         <Suite #entry-equivalence { name = "三入口投影等价" } (
           <Cases [
             <Case #same-semantic-sequence-same-cards [
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1S4>
+              <Then ?01M1H67CVX9RV24HF68KFYYZPZ>
               三条入口 SHALL 产生类别与身份等价的可见卡片
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S4>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1S5>
+              </?01M1H67CVX9RV24HF68KFYYZPZ>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQ0>
               turn/toolcall/result/done 文本 MUST NOT 出现在 assistant 卡片
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S5>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1S6>
+              </?01M1H67CVX9RV24HF68KFYYZQ0>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQ1>
               think 只 SHALL 出现在 thinking 卡片，assist 只 SHALL 出现在 assistant 卡片
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S6>
+              </?01M1H67CVX9RV24HF68KFYYZQ1>
             ] (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1S7>
+              <Given ?01M1H67CVX9RV24HF68KFYYZQ2>
               相同 semantic sequence 分别经 prompt、slash command 与 questionnaire continuation 到达 TUI
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S7>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1S8>
+              </?01M1H67CVX9RV24HF68KFYYZQ2>
+              <When ?01M1H67CVX9RV24HF68KFYYZQ3>
               surface projector 处理这些 observations
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S8>
+              </?01M1H67CVX9RV24HF68KFYYZQ3>
             )>
           ]>
         )>
         <Suite #identity-reconciliation { name = "稳定身份消重" } (
           <Cases [
             <Case #live-and-durable-tool-merge [
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1S9>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQ4>
               surface SHALL 以 actorId+toolCallId 合并为一个 TOOL 卡片
-              </?01M05F1P3CC9QSG0Z1E9N8Z1S9>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1SA>
+              </?01M1H67CVX9RV24HF68KFYYZQ4>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQ5>
               durable reconciliation SHALL 更新现有 identity，MUST NOT 清空并创建随机新 identity
-              </?01M05F1P3CC9QSG0Z1E9N8Z1SA>
+              </?01M1H67CVX9RV24HF68KFYYZQ5>
             ] (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1SB>
+              <Given ?01M1H67CVX9RV24HF68KFYYZQ6>
               同一 tool call 同时由 live history observation 和 durable conversation history 提供
-              </?01M05F1P3CC9QSG0Z1E9N8Z1SB>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1SC>
+              </?01M1H67CVX9RV24HF68KFYYZQ6>
+              <When ?01M1H67CVX9RV24HF68KFYYZQ7>
               TUI 完成 continuation 或重新 hydration
-              </?01M05F1P3CC9QSG0Z1E9N8Z1SC>
+              </?01M1H67CVX9RV24HF68KFYYZQ7>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #exhaustive-conversation-role-projection (
-      <Statement ?01M05F1P3CC9QSG0Z1E9N8Z1SD>
+      <Statement ?01M1H67CVX9RV24HF68KFYYZQ8>
       TUI conversation projection SHALL exhaustive-map user、assistant、tool 与 system/internal role；仅 user SHALL 投影为 USER，tool SHALL 重建为 ToolPart/card，system/internal SHALL 隐藏或进入显式 diagnostic/context surface，MUST NOT 回退为 USER。
-      </?01M05F1P3CC9QSG0Z1E9N8Z1SD>
+      </?01M1H67CVX9RV24HF68KFYYZQ8>
       <Suites [
         <Suite #role-map { name = "角色投影" } (
           <Cases [
             <Case #tool-and-system-never-user [
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1SE>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQ9>
               tool 与 system 消息 MUST NOT 出现在 USER 卡片
-              </?01M05F1P3CC9QSG0Z1E9N8Z1SE>
-              <Then ?01M05F1P3CC9QSG0Z1E9N8Z1SF>
+              </?01M1H67CVX9RV24HF68KFYYZQ9>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQA>
               tool SHALL 保留 toolCallId 形成结构化 ToolPart
-              </?01M05F1P3CC9QSG0Z1E9N8Z1SF>
+              </?01M1H67CVX9RV24HF68KFYYZQA>
             ] (
-              <Given ?01M05F1P3CC9QSG0Z1E9N8Z1SG>
+              <Given ?01M1H67CVX9RV24HF68KFYYZQB>
               durable conversation 包含 tool 与 system 消息
-              </?01M05F1P3CC9QSG0Z1E9N8Z1SG>
-              <When ?01M05F1P3CC9QSG0Z1E9N8Z1SH>
+              </?01M1H67CVX9RV24HF68KFYYZQB>
+              <When ?01M1H67CVX9RV24HF68KFYYZQC>
               TUI hydrate 或 reconcile history
-              </?01M05F1P3CC9QSG0Z1E9N8Z1SH>
+              </?01M1H67CVX9RV24HF68KFYYZQC>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #session-fork-via-domain-capability (
+      <Statement ?01M1H67CVX9RV24HF68KFYYZQD>
+      TUI、CLI and headless surfaces SHALL request session fork through one domain-owned write capability and SHALL hydrate the result through the Conversation projection read port only after durable publication; surface-owned message arrays MUST NOT become fork input authority.
+      </?01M1H67CVX9RV24HF68KFYYZQD>
+      <Suites [
+        <Suite #fork-mediation { name = "Fork via domain capability" } (
+          <Cases [
+            <Case #surface-routes-fork-command (
+              <Given ?01M1H67CVX9RV24HF68KFYYZQE>
+              a surface offers current-session or message-level fork
+              </?01M1H67CVX9RV24HF68KFYYZQE>
+              <When ?01M1H67CVX9RV24HF68KFYYZQF>
+              the user activates the fork action
+              </?01M1H67CVX9RV24HF68KFYYZQF>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQG>
+              the surface SHALL submit source id、target id and optional message selector to the domain capability；it MUST NOT persist cloned messages、parts or session directories itself
+              </?01M1H67CVX9RV24HF68KFYYZQG>
+            )>
+            <Case #hydrate-only-after-commit (
+              <Given ?01M1H67CVX9RV24HF68KFYYZQH>
+              the domain fork command is in progress or returns rejection
+              </?01M1H67CVX9RV24HF68KFYYZQH>
+              <When ?01M1H67CVX9RV24HF68KFYYZQJ>
+              the surface decides whether to navigate to the child
+              </?01M1H67CVX9RV24HF68KFYYZQJ>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQK>
+              navigation and hydration SHALL occur only for a durable committed child receipt；rejection SHALL keep the source active and SHALL NOT expose a ghost child in session lists
+              </?01M1H67CVX9RV24HF68KFYYZQK>
+            )>
+            <Case #surface-domain-result-equivalence (
+              <Given ?01M1H67CVX9RV24HF68KFYYZQM>
+              TUI、headless helper或CLI请求相同current-head/message-level语义
+              </?01M1H67CVX9RV24HF68KFYYZQM>
+              <When ?01M1H67CVX9RV24HF68KFYYZQN>
+              surface投影fork command并消费结果
+              </?01M1H67CVX9RV24HF68KFYYZQN>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQP>
+              三种surface SHALL共享Conversation-owned port并保留相同typed receipt/rejection；MUST NOT各自实现cutoff或persistence逻辑
+              </?01M1H67CVX9RV24HF68KFYYZQP>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #session-rewind-via-domain-capability (
+      <Statement ?01M1H67CVX9RV24HF68KFYYZQQ>
+      TUI、CLI and headless surfaces SHALL request rewind through one Conversation-owned write port and hydrate only after committed publication；rendered messages、parts and indexes MUST NOT be write authority.
+      </?01M1H67CVX9RV24HF68KFYYZQQ>
+      <Suites [
+        <Suite #rewind-mediation { name = "Rewind surface mediation" } (
+          <Cases [
+            <Case #hydrate-after-commit (
+              <Given ?01M1H67CVX9RV24HF68KFYYZQR>
+              a surface requests rewind through a canonical message id
+              </?01M1H67CVX9RV24HF68KFYYZQR>
+              <When ?01M1H67CVX9RV24HF68KFYYZQS>
+              the domain returns committed or rejected
+              </?01M1H67CVX9RV24HF68KFYYZQS>
+              <Then ?01M1H67CVX9RV24HF68KFYYZQT>
+              the surface SHALL rehydrate only after committed，and rejection SHALL leave the active view unchanged
+              </?01M1H67CVX9RV24HF68KFYYZQT>
             )>
           ]>
         )>

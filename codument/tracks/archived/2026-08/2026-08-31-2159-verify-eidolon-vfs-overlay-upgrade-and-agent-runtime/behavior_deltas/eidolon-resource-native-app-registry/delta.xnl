@@ -1,0 +1,9 @@
+<BehaviorPatch #track.verify-eidolon-vfs-overlay-upgrade-and-agent-runtime.behavior_patch.eidolon-resource-native-app-registry apiVersion="codument.tech/v1alpha1" version="1" { capability = "eidolon-resource-native-app-registry" } (
+  <Mutations [
+    <Upsert { selector = "behavior://eidolon-resource-native-app-registry/requirements/effective-vfs-product-convergence" } (
+      <Requirement #effective-vfs-product-convergence (
+        <Statement ?>Eidolon SHALL replay overlays across Builtin upgrades through candidate validation, recover exact frozen VFS revisions, and resolve the formal embedded Coding Agent in ordinary, Ctrl and Data execution modes including the compiled local product.</?>
+      )>
+    )>
+  ]>
+)>

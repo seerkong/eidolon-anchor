@@ -1,0 +1,30 @@
+<Track #migrate-provider-equivalence-gate-to-context-facts apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Preserve legacy Conversation golden coverage while explicitly validating the intentional migration from a system work-context overlay to chronological typed provider context facts." description = "Add a bounded semantic migration comparator, strict context-fact-aware shape invariants, negative tests, and full ai-organ regression evidence without re-recording the legacy golden." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-31T01:17:54.050Z" updated_at = "2026-08-31T05:03:54.640Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior-deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #conversation-tests { role = "output" name = "conversation-tests" domain = "test" path = "vfs://@/cell/packages/ai-organ-logic/tests/AIAgent/conversation/" }>
+  ]>
+  <TaskSpace #space_migrate-provider-equivalence-gate-to-context-facts { name = "migrate-provider-equivalence-gate-to-context-facts" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Define bounded migration semantics" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "encode legacy overlay to typed fact semantic comparison" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P1-T2 { name = "make shape validation context-fact aware without weakening ordinary user or tool rules" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Verify targeted and full regression" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "add positive and adversarial migration gate tests" status = "DONE" priority = "P0" order = 0 }>
+          <Task #P2-T2 { name = "run targeted conversation and complete ai-organ suites" status = "DONE" priority = "P0" order = 1 }>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_migrate-provider-equivalence-gate-to-context-facts" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

@@ -4,6 +4,25 @@
     <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
     <MaterialBundle { role = "output" name = "tracks" domain = "codument" path = "vfs://@/codument/tracks/" }>
   ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+  ]>
+  <ActorSets { default = "default-control-loop" } [
+    <ActorSet #default-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?>Plan the runtime WIP inventory and shell-permission stabilization DAG without widening command authority.</?>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?>Observe dirty-worktree evidence, command normalization, risk classification, and permission test outcomes.</?>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?>Compare the implemented shell approval behavior with the mission goal and preserve unrelated runtime work.</?>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?>Apply bounded track changes and verification updates for shell permission stabilization.</?>
+      )>
+    ]>
+  ]>
   <TaskSpace #space_stabilize-runtime-wip-and-shell-approval { name = "stabilize-runtime-wip-and-shell-approval" child_mode = "dag" } (
     <Description ?01M05F1P5SNX3GD30XK64ADZWT>
     Runtime WIP and shell approval stabilization mission.
@@ -24,7 +43,7 @@
         </?01M05F1P5SNX3GD30XK64ADZWW>
         <SubNodes [
           <Task #G2-T1 { name = "Create and execute bash normalization track" status = "DONE" order = 0 } (
-            <TrackLink #update-bash-command-normalization { state = "bound" }>
+            <TrackLink #update-bash-command-normalization { state = "bound" project_ref = "host" }>
           )>
         ]>
       )>
@@ -34,7 +53,7 @@
         </?01M05F1P5SNX3GD30XK64ADZWX>
         <SubNodes [
           <Task #G3-T1 { name = "Create and execute bash risk fallback track" status = "DONE" order = 0 } (
-            <TrackLink #add-bash-risk-fallback { state = "bound" }>
+            <TrackLink #add-bash-risk-fallback { state = "bound" project_ref = "host" }>
           )>
         ]>
       )>

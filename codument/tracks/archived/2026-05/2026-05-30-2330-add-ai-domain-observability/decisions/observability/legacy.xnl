@@ -1,0 +1,313 @@
+<decision #track.add-ai-domain-observability.d1 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P0" durable_candidate = false } (
+  <question ?>
+TraceMiddleware 的挂载粒度：Middleware 的注册位置
+  </?>
+  <recommendation ?>
+**A** — 当前只有一个 graph 实例，直接挂载最简单且足够；如果未来有多个 graph，再提取工厂
+  </?>
+  <options { } [
+    <option { key = "A" recommended = false } (
+      <title ?>
+直接在 TuiA1StateGraph 构造函数中 `this.graph.use(traceMiddleware({...}))`
+      </?>
+      <description ?>
+直接在 TuiA1StateGraph 构造函数中 `this.graph.use(traceMiddleware({...}))`
+      </?>
+    )>
+    <option { key = "B" recommended = true } (
+      <title ?>
+创建一个 `createObservableGraph()` 工厂函数，自动附加所有 observability middleware，TuiA1StateGraph 改用此工厂
+      </?>
+      <description ?>
+创建一个 `createObservableGraph()` 工厂函数，自动附加所有 observability middleware，TuiA1StateGraph 改用此工厂
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+在 DataGraph 外层的 runtime/agent 层面注册，与 TUI graph 解耦
+      </?>
+      <description ?>
+在 DataGraph 外层的 runtime/agent 层面注册，与 TUI graph 解耦
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+B
+    </?>
+    <decision-text ?>
+B
+    </?>
+    <rationale ?>
+统一 observability 装配点，未来多 graph 场景可复用，避免每个 graph 手动注册 middleware
+    </?>
+    <evidence ?>
+当前 eidolon-anchor 只有一个 DataGraph 实例（TuiA1StateGraph.graph），未来可能多个。TraceMiddleware 应该挂在哪个层级？
+
+Legacy provenance: codument/tracks/archived/2026-05/2026-05-30-2330-add-ai-domain-observability/decisions.md
+
+- 背景：当前 eidolon-anchor 只有一个 DataGraph 实例（TuiA1StateGraph.graph），未来可能多个。TraceMiddleware 应该挂在哪个层级？
+- 需要决定：Middleware 的注册位置
+- 选项：
+  - A) 直接在 TuiA1StateGraph 构造函数中 `this.graph.use(traceMiddleware({...}))`
+  - B) 创建一个 `createObservableGraph()` 工厂函数，自动附加所有 observability middleware，TuiA1StateGraph 改用此工厂
+  - C) 在 DataGraph 外层的 runtime/agent 层面注册，与 TUI graph 解耦
+- 当前建议：**A** — 当前只有一个 graph 实例，直接挂载最简单且足够；如果未来有多个 graph，再提取工厂
+- 用户答复：B — 创建 createObservableGraph() 工厂函数，自动附加所有 observability middleware
+- 最终决策：B
+- 决策理由：统一 observability 装配点，未来多 graph 场景可复用，避免每个 graph 手动注册 middleware
+- 状态：confirmed
+
+---
+    </?>
+  )>
+)>
+
+<decision #track.add-ai-domain-observability.d2 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P0" durable_candidate = false } (
+  <question ?>
+Diagnostic Signal 节点的命名约定：Diagnostic signal 的命名和组织方式
+  </?>
+  <recommendation ?>
+**A** — 平铺 + 前缀最简单，StreamGraph 可通过 GraphBridge.signalToStreamNode 按需桥接；B 引入额外复杂度，C 可能丢失 DataGraph 原生的 computed 依赖追踪
+  </?>
+  <options { } [
+    <option { key = "A" recommended = false } (
+      <title ?>
+平铺在 graph 根级别，使用 `diag.` 前缀（如 `diag.modelSelection`、`diag.turnTimings`）
+      </?>
+      <description ?>
+平铺在 graph 根级别，使用 `diag.` 前缀（如 `diag.modelSelection`、`diag.turnTimings`）
+      </?>
+    )>
+    <option { key = "B" recommended = true } (
+      <title ?>
+创建一个嵌套的 diagnostic 子图/模块，通过 `mountGraph` 隔离
+      </?>
+      <description ?>
+创建一个嵌套的 diagnostic 子图/模块，通过 `mountGraph` 隔离
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+不放入 DataGraph，Diagnostic 数据完全走 StreamGraph 管线，仅在最后通过 GraphBridge 回灌少量摘要 signal
+      </?>
+      <description ?>
+不放入 DataGraph，Diagnostic 数据完全走 StreamGraph 管线，仅在最后通过 GraphBridge 回灌少量摘要 signal
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+B
+    </?>
+    <decision-text ?>
+B
+    </?>
+    <rationale ?>
+命名空间隔离，避免 diag 节点污染 TUI state 节点；子图内部可独立定义 computed，不影响主图重算范围
+    </?>
+    <evidence ?>
+Provider Diagnostic Collector 需要在 DataGraph 中创建多个 signal 节点（如 `diag.modelSelection`、`diag.turnTimings`），这些节点与 TUI state 节点（`snapshot`、`messages` 等）共存于同一个 DataGraph
+
+Legacy provenance: codument/tracks/archived/2026-05/2026-05-30-2330-add-ai-domain-observability/decisions.md
+
+- 背景：Provider Diagnostic Collector 需要在 DataGraph 中创建多个 signal 节点（如 `diag.modelSelection`、`diag.turnTimings`），这些节点与 TUI state 节点（`snapshot`、`messages` 等）共存于同一个 DataGraph
+- 需要决定：Diagnostic signal 的命名和组织方式
+- 选项：
+  - A) 平铺在 graph 根级别，使用 `diag.` 前缀（如 `diag.modelSelection`、`diag.turnTimings`）
+  - B) 创建一个嵌套的 diagnostic 子图/模块，通过 `mountGraph` 隔离
+  - C) 不放入 DataGraph，Diagnostic 数据完全走 StreamGraph 管线，仅在最后通过 GraphBridge 回灌少量摘要 signal
+- 当前建议：**A** — 平铺 + 前缀最简单，StreamGraph 可通过 GraphBridge.signalToStreamNode 按需桥接；B 引入额外复杂度，C 可能丢失 DataGraph 原生的 computed 依赖追踪
+- 用户答复：B — 创建嵌套 diagnostic 子图/模块，通过 mountGraph 隔离
+- 最终决策：B
+- 决策理由：命名空间隔离，避免 diag 节点污染 TUI state 节点；子图内部可独立定义 computed，不影响主图重算范围
+- 状态：confirmed
+
+---
+    </?>
+  )>
+)>
+
+<decision #track.add-ai-domain-observability.d3 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P1" durable_candidate = false } (
+  <question ?>
+Scene Replay 的 CLI 入口位置：CLI 命令的实现位置
+  </?>
+  <recommendation ?>
+**C** — 先实现核心函数，CLI 包装在后续 phase 完成
+  </?>
+  <options { } [
+    <option { key = "A" recommended = false } (
+      <title ?>
+在 `terminal/packages/organ/` 中新增 `src/cli/replay.ts`，作为独立 CLI 入口
+      </?>
+      <description ?>
+在 `terminal/packages/organ/` 中新增 `src/cli/replay.ts`，作为独立 CLI 入口
+      </?>
+    )>
+    <option { key = "B" recommended = true } (
+      <title ?>
+复用现有 terminal CLI 框架（如果已有）
+      </?>
+      <description ?>
+复用现有 terminal CLI 框架（如果已有）
+      </?>
+    )>
+    <option { key = "C" recommended = false } (
+      <title ?>
+先作为纯 TypeScript 函数导出（`runSceneReplay(scene, options)`），确保可编程调用；CLI wrapper 后续添加
+      </?>
+      <description ?>
+先作为纯 TypeScript 函数导出（`runSceneReplay(scene, options)`），确保可编程调用；CLI wrapper 后续添加
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+B
+    </?>
+    <decision-text ?>
+B
+    </?>
+    <rationale ?>
+`@terminal/cli` 已使用 yargs CommandModule 模式（exec/run/thread），replay 命令遵循相同模式，保持 CLI 一致性
+    </?>
+    <evidence ?>
+Scene Replay 需要 CLI 命令触发
+
+Legacy provenance: codument/tracks/archived/2026-05/2026-05-30-2330-add-ai-domain-observability/decisions.md
+
+- 背景：Scene Replay 需要 CLI 命令触发
+- 需要决定：CLI 命令的实现位置
+- 选项：
+  - A) 在 `terminal/packages/organ/` 中新增 `src/cli/replay.ts`，作为独立 CLI 入口
+  - B) 复用现有 terminal CLI 框架（如果已有）
+  - C) 先作为纯 TypeScript 函数导出（`runSceneReplay(scene, options)`），确保可编程调用；CLI wrapper 后续添加
+- 当前建议：**C** — 先实现核心函数，CLI 包装在后续 phase 完成
+- 用户答复：B — 复用现有 terminal CLI 框架（@terminal/cli，基于 yargs CommandModule）
+- 最终决策：B
+- 决策理由：`@terminal/cli` 已使用 yargs CommandModule 模式（exec/run/thread），replay 命令遵循相同模式，保持 CLI 一致性
+- 状态：confirmed
+
+---
+    </?>
+  )>
+)>
+
+<decision #track.add-ai-domain-observability.d4 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P1" durable_candidate = false } (
+  <question ?>
+Scene 文件的存储格式和位置：Scene 的存储格式和默认目录
+  </?>
+  <recommendation ?>
+**A** — JSONL 格式（每行一个事件，方便追加和流式读取）
+  </?>
+  <options { } [
+    <option { key = "A" recommended = true } (
+      <title ?>
+JSONL 文件，存储在 `codument/tracks/<track_id>/scenes/` 下
+      </?>
+      <description ?>
+JSONL 文件，存储在 `codument/tracks/<track_id>/scenes/` 下
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+单文件 JSON 数组，存储在项目根目录 `scenes/` 下
+      </?>
+      <description ?>
+单文件 JSON 数组，存储在项目根目录 `scenes/` 下
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+xnl-core TextElementNode + TREE_ADD mutation
+    </?>
+    <decision-text ?>
+xnl-core TextElementNode + TREE_ADD mutation
+    </?>
+    <rationale ?>
+xnl-core 已在项目中被引用，TextElementNode + mutation append 天然支持流式追加，applyMutations 保证写入原子性，比纯 JSONL 更具结构化和可扩展性
+    </?>
+    <evidence ?>
+录制 scene 时需要选择存储格式和默认路径
+
+Legacy provenance: codument/tracks/archived/2026-05/2026-05-30-2330-add-ai-domain-observability/decisions.md
+
+- 背景：录制 scene 时需要选择存储格式和默认路径
+- 需要决定：Scene 的存储格式和默认目录
+- 选项：
+  - A) JSONL 文件，存储在 `codument/tracks/<track_id>/scenes/` 下
+  - B) 单文件 JSON 数组，存储在项目根目录 `scenes/` 下
+- 当前建议：**A** — JSONL 格式（每行一个事件，方便追加和流式读取）
+- 用户答复：使用 xnl-core 库，xnl 语法支持类似 JSONL 的 append only 格式，写入 text node
+- 最终决策：xnl-core TextElementNode + TREE_ADD mutation
+- 决策理由：xnl-core 已在项目中被引用，TextElementNode + mutation append 天然支持流式追加，applyMutations 保证写入原子性，比纯 JSONL 更具结构化和可扩展性
+- 状态：confirmed
+
+---
+    </?>
+  )>
+)>
+
+<decision #track.add-ai-domain-observability.d5 apiVersion="codument.tech/v1alpha1" { status = "resolved" priority = "P2" durable_candidate = false } (
+  <question ?>
+持久化存储的技术选型：Node.js 端的文件写入方式
+  </?>
+  <recommendation ?>
+**C** — `AppendOnlyEventLog` 已经在 TuiA1StateGraph 中使用，保持一致的编程模型；提供 `flushToFile(path)` 方法
+  </?>
+  <options { } [
+    <option { key = "A" recommended = false } (
+      <title ?>
+Node.js `fs.appendFileSync` — 最简单
+      </?>
+      <description ?>
+Node.js `fs.appendFileSync` — 最简单
+      </?>
+    )>
+    <option { key = "B" recommended = false } (
+      <title ?>
+通过 depa-data-graph 的 `persistPlugin` + 自定义 `PersistStorage` adapter — 与现有插件体系一致
+      </?>
+      <description ?>
+通过 depa-data-graph 的 `persistPlugin` + 自定义 `PersistStorage` adapter — 与现有插件体系一致
+      </?>
+    )>
+    <option { key = "C" recommended = true } (
+      <title ?>
+使用 `AppendOnlyEventLog` + 定期 flush 到文件 — 利用已有 log 抽象
+      </?>
+      <description ?>
+使用 `AppendOnlyEventLog` + 定期 flush 到文件 — 利用已有 log 抽象
+      </?>
+    )>
+  ]>
+  <answer { } (
+    <raw-answer ?>
+C
+    </?>
+    <decision-text ?>
+C
+    </?>
+    <rationale ?>
+与 TuiA1StateGraph 已有的 AppendOnlyEventLog 编程模型一致；flushToFile 方法简洁；AppendOnlyEventLog 用于运行时 trace，xnl 用于 scene 持久化，职责分离
+    </?>
+    <evidence ?>
+JSONL 导出模式下，trace 需要写入文件系统
+
+Legacy provenance: codument/tracks/archived/2026-05/2026-05-30-2330-add-ai-domain-observability/decisions.md
+
+- 背景：JSONL 导出模式下，trace 需要写入文件系统
+- 需要决定：Node.js 端的文件写入方式
+- 选项：
+  - A) Node.js `fs.appendFileSync` — 最简单
+  - B) 通过 depa-data-graph 的 `persistPlugin` + 自定义 `PersistStorage` adapter — 与现有插件体系一致
+  - C) 使用 `AppendOnlyEventLog` + 定期 flush 到文件 — 利用已有 log 抽象
+- 当前建议：**C** — `AppendOnlyEventLog` 已经在 TuiA1StateGraph 中使用，保持一致的编程模型；提供 `flushToFile(path)` 方法
+- 用户答复：C — AppendOnlyEventLog + 定期 flush 到文件
+- 最终决策：C
+- 决策理由：与 TuiA1StateGraph 已有的 AppendOnlyEventLog 编程模型一致；flushToFile 方法简洁；AppendOnlyEventLog 用于运行时 trace，xnl 用于 scene 持久化，职责分离
+- 状态：confirmed
+    </?>
+  )>
+)>

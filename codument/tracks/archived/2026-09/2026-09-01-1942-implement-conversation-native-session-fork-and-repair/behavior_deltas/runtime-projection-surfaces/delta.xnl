@@ -1,0 +1,30 @@
+<BehaviorPatch #track.implement-conversation-native-session-fork-and-repair.behavior_patch.runtime-projection-surfaces apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-projection-surfaces" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-projection-surfaces/requirements/session-fork-via-domain-capability" } (
+      <Requirement #session-fork-via-domain-capability (
+        <Statement ?>TUI、CLI and headless surfaces SHALL request session fork through one domain-owned write capability and SHALL hydrate the result through the Conversation projection read port only after durable publication; surface-owned message arrays MUST NOT become fork input authority.</?>
+        <Suites [
+          <Suite #fork-mediation { name = "Fork via domain capability" } (
+            <Cases [
+              <Case #surface-routes-fork-command (
+                <Given ?>a surface offers current-session or message-level fork</?>
+                <When ?>the user activates the fork action</?>
+                <Then ?>the surface SHALL submit source id、target id and optional message selector to the domain capability；it MUST NOT persist cloned messages、parts or session directories itself</?>
+              )>
+              <Case #hydrate-only-after-commit (
+                <Given ?>the domain fork command is in progress or returns rejection</?>
+                <When ?>the surface decides whether to navigate to the child</?>
+                <Then ?>navigation and hydration SHALL occur only for a durable committed child receipt；rejection SHALL keep the source active and SHALL NOT expose a ghost child in session lists</?>
+              )>
+              <Case #surface-domain-result-equivalence (
+                <Given ?>TUI、headless helper或CLI请求相同current-head/message-level语义</?>
+                <When ?>surface投影fork command并消费结果</?>
+                <Then ?>三种surface SHALL共享Conversation-owned port并保留相同typed receipt/rejection；MUST NOT各自实现cutoff或persistence逻辑</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

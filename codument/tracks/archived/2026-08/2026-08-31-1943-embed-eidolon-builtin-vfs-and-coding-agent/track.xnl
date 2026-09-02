@@ -1,0 +1,81 @@
+<Track #embed-eidolon-builtin-vfs-and-coding-agent apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "把成熟 Coding Agent 迁入正式 Halfcode 资源树，并以同一稳定 XNL VFS snapshot 支撑 source 与 BunFS compiled runtime" description = "建立 mod-ai-coding 资源所有权、确定性 VFS projection、只读 Builtin source/read port、最终编译资产嵌入和 testkit 去生产副本" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-31T15:52:56.193Z" updated_at = "2026-08-31T16:43:06.586Z" modeling_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" engineering_base_commit = "7ae52ab3c6d87e4dafedec9225bea50844c54b14" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #coding_resources { role = "output" name = "builtin-coding-agent-resources" domain = "code" path = "vfs://@/cell/packages/mod-ai-coding/resources/builtin-eidolon/" }>
+    <MaterialBundle #builtin_runtime { role = "output" name = "builtin-vfs-runtime" domain = "code" path = "vfs://@/cell/packages/mod-ai-coding/src/builtin-vfs/" }>
+    <MaterialBundle #build_boundary { role = "output" name = "bunfs-compile-boundary" domain = "code" path = "vfs://@/terminal/packages/tui/scripts/build.ts" }>
+    <MaterialBundle #testkit { role = "output" name = "proposition-testkit" domain = "test" path = "vfs://@/testkit/codument-proposition/" }>
+  ]>
+  <TaskSpace #space_embed-eidolon-builtin-vfs-and-coding-agent { name = "embed-eidolon-builtin-vfs-and-coding-agent" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Formal resource ownership and stable snapshot" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Create formal mature Coding Agent ResourcePackage" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3D>
+              The package owns the mature MessagePrefix, WorkspaceAgents MessageSource, StandardContext pipeline, exact ToolRefs and complete Kind/resource closure under @cell/mod-ai-coding.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3D>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3E>
+              The semantic Agent FQN contains no builtin transport vocabulary and prompt bytes map to the mature kernel/coding sources documented in design.md.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3E>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Generate deterministic full XNL VFS snapshot" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3F>
+              Repeated generation yields byte-identical full snapshots with stable path-derived directory and file node ids.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3F>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3G>
+              Symlinks, unsafe paths, unsupported entries and stale committed output fail closed.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3G>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "One source/compiled Builtin VFS runtime" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Load one immutable Builtin base and read port" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3H>
+              Source and embedded asset ports feed one deserializer/validator and expose identical snapshot proof and read behavior.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3H>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3J>
+              The port is read-only, rejects missing/duplicate assets and never reads a physical workspace .eidolon.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3J>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Embed snapshot at final Bun compile boundary" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3K>
+              The final TUI compile embeds the required snapshot under a stable BunFS path and a compiled probe can read it with no source tree.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3K>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Prove resource closure and retire testkit ownership" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Verify source/compiled Halfcode parity" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3M>
+              Source and compiled probes report identical VFS revision, node identities, content digests and Halfcode records for eidolon.coding.CodeAgent.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3M>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Make proposition testkit consume the formal Agent" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3N>
+              The proposition testkit no longer stores or emits copied Kernel/Coding/ContextPipeline/Tool production definitions and references the formal Agent resource.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3N>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M1C8XHE66SMWPDZ5SWNFKZ3P>
+              Targeted tests, typechecks, snapshot check and strict Codument validation pass.
+              </?01M1C8XHE66SMWPDZ5SWNFKZ3P>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

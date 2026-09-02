@@ -1,0 +1,10 @@
+<BehaviorPatch #track.implement-conversation-native-session-rewind-and-repair.behavior_patch.runtime-projection-surfaces apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-projection-surfaces" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-projection-surfaces/requirements/session-rewind-via-domain-capability" } (
+      <Requirement #session-rewind-via-domain-capability (
+        <Statement ?>TUI、CLI and headless surfaces SHALL request rewind through one Conversation-owned write port and hydrate only after committed publication；rendered messages、parts and indexes MUST NOT be write authority.</?>
+        <Suites [<Suite #rewind-mediation { name = "Rewind surface mediation" } (<Cases [<Case #hydrate-after-commit (<Given ?>a surface requests rewind through a canonical message id</?><When ?>the domain returns committed or rejected</?><Then ?>the surface SHALL rehydrate only after committed，and rejection SHALL leave the active view unchanged</?>)>]>)>]>
+      )>
+    )>
+  ]>
+)>

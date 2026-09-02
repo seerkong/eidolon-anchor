@@ -1,0 +1,229 @@
+<Track #replace-workflow-context-mutation-with-typed-facts apiVersion="codument.tech/v1alpha1" version="2" { status = "completed" goal = "Keep provider-visible dynamic context append-only while separating runtime-only work context from model messages and making every non-append source change an explicit immutable provider context epoch." description = "Correct the provider-context projection boundary: Actor work mode/task phase stay runtime-only, while Workflow stage, recovery and explicit provider projections retain append-only typed facts and reason-bound epoch transitions." question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-08-25T14:11:21.921Z" updated_at = "2026-09-02T11:23:56.283Z" modeling_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" engineering_base_commit = "42a5b58f37723752164b5c6759b500c0c09881be" } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_replace-workflow-context-mutation-with-typed-facts { name = "replace-workflow-context-mutation-with-typed-facts" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "Closed context facts, epoch receipts and RED baselines" status = "DONE" priority = "P0" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "Add closed append-only context-fact contract and owner ports" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARB2>
+              Context facts are immutable closed own-data with exact Actor/session identity, Actor-global sequence, namespace revision, both predecessor digests, chronological history anchor, canonical payload digest and deterministic bytes.
+              </?01M0WNC1M5FJ6DF472EH3NARB2>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARB3>
+              One runtime-first projector and Conversation CAS append own immutable asset plus Actor fact-chain head admission; duplicate/conflicting/gapped/accessor/sparse/orphaned facts fail before prompt mutation, and interleaved namespaces fresh-recover one exact total order.
+              </?01M0WNC1M5FJ6DF472EH3NARB3>
+            ]>
+          )>
+          <Task #P1-T2 { name = "Define immutable provider epoch receipt and legacy import protocol" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARB4>
+              The immutable v2 epoch receipt binds exact predecessor, provider/model/profile, epoch-baseline history/prompt/fact heads, source frontier, pending delivery, handoff, resource/surface digests, retention policy and one closed reason; ordinary successful requests append admission receipts binding current descendant heads and final wire without mutating the epoch receipt.
+              </?01M0WNC1M5FJ6DF472EH3NARB4>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARB5>
+              Legacy late-status overlays and receipt v1 enter through a CAS-marked one-way importer with exact reason mapping; six interruption boundaries, ambiguity, tamper and dual-write recover to the exact staged target or fail closed.
+              </?01M0WNC1M5FJ6DF472EH3NARB5>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P1-G1 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARB6>
+          RED proves the legacy work-context overlay and same-epoch receipt reconciliation rewrite earlier final-wire units; GREEN keeps work context control-only, appends only deliberately provider-visible dynamic facts, rejects structural escape and preserves deterministic identity.
+          </?01M0WNC1M5FJ6DF472EH3NARB6>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "Append-only provider projection and Workflow stage facts" status = "DONE" priority = "P0" order = 1 } (
+        <SubNodes [
+          <Task #P2-T1 { name = "Retire late-status overlay and replace mutable provider projection" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARB7>
+              Work context remains runtime-only; a changed deliberately provider-visible projection appends exactly one predecessor-bound fact, while unchanged projection is idempotent and estimation-only builds perform no write.
+              </?01M0WNC1M5FJ6DF472EH3NARB7>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARB8>
+              Materialization follows exact history anchors and Actor-global sequence, never inserts ahead of retained history or splits a pending tool pair; revision-before-delivery, parallel pairs, retry and recovery preserve complete pair ownership, and removal requires epoch-advancing compaction.
+              </?01M0WNC1M5FJ6DF472EH3NARB8>
+            ]>
+          )>
+          <Task #P2-T2 { name = "Project Workflow stage context without progress prompt mutation" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARB9>
+              Stage context is loaded from the Actor-owned frozen package and appended as a closed fact bound to package and facet revision.
+              </?01M0WNC1M5FJ6DF472EH3NARB9>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARBA>
+              Stage/progress/deadline changes do not mutate system roots; provider tool schema stays at the G2 stable exact surface while execution follows the current allowlist.
+              </?01M0WNC1M5FJ6DF472EH3NARBA>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P2-G1 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARBB>
+          Ordinary, lifecycle and Ctrl/Data node journeys preserve exact prior same-epoch bytes while ordinary/node paths remain Workflow-stage-free.
+          </?01M0WNC1M5FJ6DF472EH3NARBB>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "Reason-bound provider epoch transitions" status = "DONE" priority = "P0" order = 2 } (
+        <SubNodes [
+          <Task #P3-T1 { name = "Make reconcile validation-only and add monotonic transition Processor" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARBC>
+              Append-only turns reuse an exact immutable baseline receipt and append a predecessor-bound request-admission proof; current heads must descend from baseline/latest admission, while same-epoch receipt mutation and unexplained divergence fail before transport.
+              </?01M0WNC1M5FJ6DF472EH3NARBC>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARBD>
+              The Conversation-owned transition Processor admits only epoch n+1 with exact predecessor digest and one supported reason; one CAS batch atomically binds prior/next history, prompt and fact heads, delivery deltas and successor receipt.
+              </?01M0WNC1M5FJ6DF472EH3NARBD>
+            ]>
+          )>
+          <Task #P3-T2 { name = "Wire compaction, rewind, provider and frozen revision boundaries" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M0WNC1M5FJ6DF472EH3NARBE>
+              Compaction, rewind/fork, provider/model/profile switch and accepted resource/surface revision each create exactly one persisted atomic epoch transition before changed bytes are sent.
+              </?01M0WNC1M5FJ6DF472EH3NARBE>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M0WNC1M68S9V7YBKZ5NTV193>
+              Stage/write/fsync/publish/head-CAS fault injection, retry and fresh recovery converge to exact old or new heads/receipt/facts without mixed authority; compaction proof reconstructs retained facts and first-delivery provenance after pair removal without live reread, duplicate transition or fabricated observation.
+              </?01M0WNC1M68S9V7YBKZ5NTV193>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P3-G1 { checked = true } ?01M0WNC1M68S9V7YBKZ5NTV194>
+          Every non-extension final-wire change maps to one persisted supported epoch reason; an unreasoned change fails the product gate.
+          </?01M0WNC1M68S9V7YBKZ5NTV194>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "Cross-provider cost, recovery and fresh verification" status = "DONE" priority = "P0" order = 3 } (
+        <SubNodes [
+          <Task #P4-T1 { name = "Run cross-profile final-wire and fresh recovery matrix" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M0WNC1M68S9V7YBKZ5NTV195>
+              DeepSeek official/compatible, OpenAI Chat, OpenAI Responses, Anthropic Messages and Claude Code final-body fixtures use the exact versioned role/container/cache-unit table, preserve typed-fact ordering and reject system hoisting, framing drift or illegal pair adjacency.
+              </?01M0WNC1M68S9V7YBKZ5NTV195>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M0WNC1M68S9V7YBKZ5NTV196>
+              Fresh filesystem recovery, retry, compaction, rewind and resource-revision tests preserve one Conversation authority and exact receipts.
+              </?01M0WNC1M68S9V7YBKZ5NTV196>
+            ]>
+          )>
+          <Task #P4-T2 { name = "Run G1 cost gates and fresh coding AttractorCheck" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M0WNC1M68S9V7YBKZ5NTV197>
+              Ordinary, lifecycle, Ctrl and Data production journeys plus alternating namespace updates across 32-revision/65,536-byte retention thresholds retain prefix integrity 1.0 within each epoch, emit one compaction transition at the threshold and remain at or below all ratified G1 ceilings.
+              </?01M0WNC1M68S9V7YBKZ5NTV197>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M0WNC1M68S9V7YBKZ5NTV198>
+              Scoped typecheck, product/static/strict/diff gates pass and a fresh coding AttractorCheck returns no P0/P1.
+              </?01M0WNC1M68S9V7YBKZ5NTV198>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "Separate runtime work context from provider-visible facts" status = "DONE" priority = "P0" order = 4 } (
+        <SubNodes [
+          <Task #P5-T1 { name = "Establish control-only projection RED" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P5-T1-AC1 { checked = true } ?01M1F3AAS6D7APP31RYYRQ6F72>
+              Default and explicit work context never appears in materialized provider messages, including restored legacy fact chains.
+              </?01M1F3AAS6D7APP31RYYRQ6F72>
+              <Criterion #P5-T1-AC2 { checked = true } ?01M1F3AAS6D7APP31RYYRQ6F73>
+              Provider wire validation rejects `work-context` while continuing to admit `workflow-stage-context`、`task-tree-context` and `provider-output-recovery` facts.
+              </?01M1F3AAS6D7APP31RYYRQ6F73>
+            ]>
+          )>
+          <Task #P5-T2 { name = "Implement control-only projection and epoch migration" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P5-T2-AC1 { checked = true } ?01M1F3AAS6D7APP31RYYRQ6F74>
+              `recordPromptPlanForActorExecution` records work context only as prompt metadata and never appends a provider fact; plan-mode execution gates remain enforced.
+              </?01M1F3AAS6D7APP31RYYRQ6F74>
+              <Criterion #P5-T2-AC2 { checked = true } ?01M1F3AAS6D7APP31RYYRQ6F75>
+              Projection policy participates in provider-surface identity so an old admitted session advances one durable epoch before its prior work-context bytes disappear.
+              </?01M1F3AAS6D7APP31RYYRQ6F75>
+            ]>
+          )>
+          <Task #P5-T3 { name = "Verify cross-profile projection and cache boundaries" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P5-T3-AC1 { checked = true } ?01M1F3AAS6D7APP31RYYRQ6F76>
+              Focused Conversation、executor、DeepSeek/OpenAI/Anthropic wire and legacy recovery regressions pass without adding a suppression prompt.
+              </?01M1F3AAS6D7APP31RYYRQ6F76>
+              <Criterion #P5-T3-AC2 { checked = true } ?01M1F3AAS6D7APP31RYYRQ6F77>
+              New sessions introduce no work-context cache unit; restored sessions incur at most one explicit provider-surface epoch for this migration.
+              </?01M1F3AAS6D7APP31RYYRQ6F77>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P5-G1 { checked = true } ?01M1F3AAS6D7APP31RYYRQ6F78>
+          Runtime control behavior remains intact, provider-visible work-context is absent, and cache discontinuity is explicit and bounded.
+          </?01M1F3AAS6D7APP31RYYRQ6F78>
+        ]>
+      )>
+      <TaskGroup #P6 { name = "Align context-fact names with semantic ownership" status = "DONE" priority = "P0" order = 5 } (
+        <Description ?01M1GWG8S677BWJDKJNBY3A78R>
+        Replace misleading legacy projection names with semantic context names while preserving exact old-session recovery and cache/epoch invariants.
+        </?01M1GWG8S677BWJDKJNBY3A78R>
+        <SubNodes [
+          <Task #P6-T1 { name = "Specify canonical namespaces and RED migration cases" status = "DONE" priority = "P0" order = 0 } (
+            <Acceptance [
+              <Criterion #P6-T1-AC1 { checked = true } ?01M1GWG8S677BWJDKJNBY3A78S>
+              Tests prove new writes accept `task-tree-context` and `provider-output-recovery`, reject legacy names as production Effect input, and count each legacy/canonical alias pair as one retention family.
+              </?01M1GWG8S677BWJDKJNBY3A78S>
+              <Criterion #P6-T1-AC2 { checked = true } ?01M1GWG8S677BWJDKJNBY3A78T>
+              Compaction proof tests distinguish source and successor namespaces, preserve v1 read compatibility, and fail closed on an unproved alias rewrite.
+              </?01M1GWG8S677BWJDKJNBY3A78T>
+            ]>
+          )>
+          <Task #P6-T2 { name = "Unify context Effect and implement epoch-bound alias migration" status = "DONE" priority = "P0" order = 1 } (
+            <Acceptance [
+              <Criterion #P6-T2-AC1 { checked = true } ?01M1GWG8S677BWJDKJNBY3A78V>
+              TaskTree writes use only `append_provider_context_fact`; the mutable projection Effect has no production contract or producer, while legacy `projectionFact` remains bounded read/import compatibility data.
+              </?01M1GWG8S677BWJDKJNBY3A78V>
+              <Criterion #P6-T2-AC2 { checked = true } ?01M1GWG8S677BWJDKJNBY3A78W>
+              Same-epoch old fact bytes remain unchanged; compaction keeps one latest semantic-family TaskTree fact as canonical `task-tree-context`, drops both recovery aliases, and persists a validated v2 proof.
+              </?01M1GWG8S677BWJDKJNBY3A78W>
+              <Criterion #P6-T2-AC3 { checked = true } ?01M1GWG8S677BWJDKJNBY3A78X>
+              The Workflow stage context builder is named for construction, has no Actor/system-prompt dependency, and leaves lifecycle/tool-policy mutation in explicit processors.
+              </?01M1GWG8S677BWJDKJNBY3A78X>
+            ]>
+          )>
+          <Task #P6-T3 { name = "Verify legacy recovery, cache stability and rename boundary" status = "DONE" priority = "P0" order = 2 } (
+            <Acceptance [
+              <Criterion #P6-T3-AC1 { checked = true } ?01M1GWG8S677BWJDKJNBY3A78Y>
+              Focused Conversation, executor, TaskTree, Workflow and cross-profile tests pass for new sessions and restored legacy namespace/projection DTO fixtures.
+              </?01M1GWG8S677BWJDKJNBY3A78Y>
+              <Criterion #P6-T3-AC2 { checked = true } ?01M1GWG8S677BWJDKJNBY3A78Z>
+              Static inventory finds no production write of legacy namespaces/effect and confirms genuine provider wire/profile projection concepts were not blanket-renamed.
+              </?01M1GWG8S677BWJDKJNBY3A78Z>
+              <Criterion #P6-T3-AC3 { checked = true } ?01M1GWG8S677BWJDKJNBY3A790>
+              Strict Track/decisions validation and scoped typecheck pass, or unrelated pre-existing shared-worktree failures are isolated with exact evidence.
+              </?01M1GWG8S677BWJDKJNBY3A790>
+            ]>
+          )>
+        ]>
+        <Gate [
+          <Criterion #P6-G1 { checked = true } ?01M1GWG8S677BWJDKJNBY3A791>
+          Canonical names match actual semantic roles, one append-only Effect owns new context writes, old sessions remain recoverable, and namespace migration is explicit, bounded and proof-carrying.
+          </?01M1GWG8S677BWJDKJNBY3A791>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_replace-workflow-context-mutation-with-typed-facts" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+      <Node #P5 [
+        <After { ref = "P4" }>
+      ]>
+      <Node #P6 [
+        <After { ref = "P5" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "track:after" } (
+      <AttractorCheck { use = "coding" }>
+    )>
+  ]>
+)>

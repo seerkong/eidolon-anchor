@@ -4,7 +4,7 @@
       <Statement ?01M05F1P16CM3W7M9TKB7EKSZP>
       系统 SHALL make durable control signals the source of truth for fiber wake, resume, and interrupt scheduling while keeping signal payloads bounded and separate from message history.
       </?01M05F1P16CM3W7M9TKB7EKSZP>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/durable-control-signal-scheduling" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/aiagent-fiber-orchestration/durable-control-signal-scheduling" strength = "hint" }>
       <Suites [
         <Suite #mailbox-enqueue-scheduling { name = "Mailbox enqueue scheduling" } (
           <Cases [
@@ -46,7 +46,7 @@
       <Statement ?01M05F1P16CM3W7M9TKB7EKSZZ>
       系统 SHALL model interrupt-capable messages as high-priority control signals that enter actor mailboxes and cooperatively abort current in-flight work.
       </?01M05F1P16CM3W7M9TKB7EKSZZ>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/cooperative-interrupt-control" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/aiagent-fiber-orchestration/cooperative-interrupt-control" strength = "hint" }>
       <Suites [
         <Suite #cancel-semantics { name = "Cancel semantics" } (
           <Cases [
@@ -109,7 +109,7 @@
       <Statement ?01M05F1P16CM3W7M9TKB7EKT0E>
       系统 SHALL use typed wait reasons for cooperative async boundaries and reserve generic external waiting for true idle or external-human waits.
       </?01M05F1P16CM3W7M9TKB7EKT0E>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/typed-wait-reasons" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/aiagent-fiber-orchestration/typed-wait-reasons" strength = "hint" }>
       <Suites [
         <Suite #wait-reason-classification { name = "Wait reason classification" } (
           <Cases [
@@ -147,7 +147,7 @@
       <Statement ?01M05F1P16CM3W7M9TKB7EKT0P>
       系统 SHALL treat pending wake-capable actor mailbox entries as scheduler wake truth even when the matching durable control signal has already been consumed.
       </?01M05F1P16CM3W7M9TKB7EKT0P>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/mailbox-wake-scheduling-consistency" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/aiagent-fiber-orchestration/mailbox-wake-scheduling-consistency" strength = "hint" }>
       <Suites [
         <Suite #mailbox-priority-wake { name = "Mailbox priority wake scheduling" } (
           <Cases [
@@ -200,7 +200,7 @@
       <Statement ?01M05F1P172K8CTJYXTSCCHQXJ>
       系统 SHALL normalize or actively schedule fibers whose cooperative exec state is waiting on async work while the fiber record is not suspended on the matching typed wait reason.
       </?01M05F1P172K8CTJYXTSCCHQXJ>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/cooperative-wait-state-normalization" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/aiagent-fiber-orchestration/cooperative-wait-state-normalization" strength = "hint" }>
       <Suites [
         <Suite #ready-wait-state { name = "Ready fiber cooperative wait state" } (
           <Cases [
@@ -259,7 +259,7 @@
       <Statement ?01M05F1P172K8CTJYXTSCCHQY0>
       系统 SHALL treat protocol-critical cooperative continuations as mandatory work that must be consumed before a foreground or all-lane settle operation reports a snapshot-safe boundary.
       </?01M05F1P172K8CTJYXTSCCHQY0>
-      <KnowledgeHint { target = "docs" href = "knowledge://docs/aiagent-fiber-orchestration/mandatory-continuation-settling" strength = "hint" }>
+      <KnowledgeHint { target = "docs-profile" href = "vfs://docs/aiagent-fiber-orchestration/mandatory-continuation-settling" strength = "hint" }>
       <Suites [
         <Suite #foreground-settle-boundary { name = "Foreground settle boundary" } (
           <Cases [

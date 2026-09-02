@@ -34,25 +34,24 @@ function collectTsFiles(relativeDir: string): string[] {
 }
 
 describe("cell contract package layout", () => {
-  it("places core AIAgent contracts in core-contract", () => {
+  it("places core AIAgent contracts in ai-core-contract", () => {
     const expectedFiles = [
-      "cell/packages/core-contract/src/types.ts",
-      "cell/packages/core-contract/src/LlmTypes.ts",
-      "cell/packages/core-contract/src/coordination.ts",
-      "cell/packages/core-contract/src/config/LlmConfig.ts",
-      "cell/packages/core-contract/src/plan/TaskTree.ts",
-      "cell/packages/core-contract/src/runtime/AgentConfig.ts",
-      "cell/packages/core-contract/src/runtime/AiRuntimeOuterCtx.ts",
-      "cell/packages/core-contract/src/runtime/AutonomousHolon.ts",
-      "cell/packages/core-contract/src/runtime/McpManagerLike.ts",
-      "cell/packages/core-contract/src/runtime/Questionnaire.ts",
-      "cell/packages/core-contract/src/runtime/DetachedActor.ts",
-      "cell/packages/core-contract/src/stream/ingressAdapterTypes.ts",
+      "cell/packages/ai-core-contract/src/types.ts",
+      "cell/packages/ai-core-contract/src/LlmTypes.ts",
+      "cell/packages/ai-core-contract/src/coordination.ts",
+      "cell/packages/ai-core-contract/src/plan/TaskTree.ts",
+      "cell/packages/ai-core-contract/src/runtime/AgentConfig.ts",
+      "cell/packages/ai-core-contract/src/runtime/AiRuntimeOuterCtx.ts",
+      "cell/packages/ai-core-contract/src/runtime/McpManagerLike.ts",
+      "cell/packages/ai-core-contract/src/runtime/Questionnaire.ts",
+      "cell/packages/ai-core-contract/src/runtime/DetachedActor.ts",
+      "cell/packages/ai-core-contract/src/stream/ingressAdapterTypes.ts",
     ]
 
     for (const relativePath of expectedFiles) {
       expect(fileExists(relativePath)).toBe(true)
     }
+    expect(fileExists("cell/packages/ai-core-contract/src/runtime/AutonomousHolon.ts")).toBe(false)
   })
 
   it("places engine-level low contracts in symbiont-contract without reverse dependency", () => {

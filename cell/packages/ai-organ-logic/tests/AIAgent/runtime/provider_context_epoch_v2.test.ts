@@ -2,10 +2,12 @@ import { describe, expect, it } from "bun:test";
 
 import {
   ProviderContextEpochError,
+  createLegacyProviderContextCompactionProof,
   createProviderContextCompactionProof,
   createProviderEpochReceiptV2,
   createProviderRequestAdmissionReceipt,
   importLegacyProviderContextAuthority,
+  normalizeProviderContextCompactionProof,
 } from "@cell/ai-organ-logic/conversation/ProviderContextEpochV2";
 import { computeProviderEpochReceiptIntegrityDigest } from "@cell/ai-organ-logic/conversation/ProviderEpochProjection";
 
@@ -81,7 +83,8 @@ describe("provider context epoch v2 authority", () => {
       sourceEpoch: 1,
       successorEpoch: 2,
       retained: [{
-        namespace: "workflow-stage-context",
+        sourceNamespace: "provider-projection",
+        successorNamespace: "task-tree-context",
         sourceFactDigest: digest("1"),
         namespaceRevision: 7,
         payloadDigest: digest("2"),
@@ -93,8 +96,73 @@ describe("provider context epoch v2 authority", () => {
       }],
       createdAt: "2026-08-25T14:00:00.000Z",
     });
+    expect(proof.schemaVersion).toBe("provider.context-compaction-proof/v2");
+    expect(proof.retained[0]).toMatchObject({
+      sourceNamespace: "provider-projection",
+      successorNamespace: "task-tree-context",
+    });
     expect(proof.retained[0]?.requestAdmissionDigest).toBe(digest("5"));
     expect(proof.proofDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+  });
+
+  it("keeps v1 same-namespace compaction proofs readable", () => {
+    const legacy = createLegacyProviderContextCompactionProof({
+      sessionId: "session-legacy",
+      actorKey: "actor-key-1",
+      sourceEpoch: 1,
+      successorEpoch: 2,
+      retained: [{
+        namespace: "provider-projection",
+        sourceFactDigest: digest("1"),
+        namespaceRevision: 7,
+        payloadDigest: digest("2"),
+        callRecordDigest: digest("3"),
+        resultRecordDigest: digest("4"),
+        requestAdmissionIntentDigest: digest("9"),
+        requestAdmissionDigest: digest("5"),
+        successorFactDigest: digest("6"),
+      }],
+      createdAt: "2026-08-25T14:00:00.000Z",
+    });
+    expect(legacy.schemaVersion).toBe("provider.context-compaction-proof/v1");
+    expect(normalizeProviderContextCompactionProof(legacy)).toEqual(legacy);
+  });
+
+  it("fails closed when a v2 proof rewrites a fact outside its semantic family", () => {
+    const retained = {
+      sourceFactDigest: digest("1"),
+      namespaceRevision: 7,
+      payloadDigest: digest("2"),
+      callRecordDigest: digest("3"),
+      resultRecordDigest: digest("4"),
+      requestAdmissionIntentDigest: digest("9"),
+      requestAdmissionDigest: digest("5"),
+      successorFactDigest: digest("6"),
+    };
+    const create = (
+      sourceNamespace: "work-context" | "provider-recovery" | "provider-output-recovery" | "provider-projection",
+      successorNamespace: "workflow-stage-context",
+    ) =>
+      createProviderContextCompactionProof({
+        sessionId: "session-invalid-alias-rewrite",
+        actorKey: "actor-key-1",
+        sourceEpoch: 1,
+        successorEpoch: 2,
+        retained: [{ sourceNamespace, successorNamespace, ...retained }],
+        createdAt: "2026-08-25T14:00:00.000Z",
+      });
+    expect(() => create("provider-recovery", "workflow-stage-context")).toThrow(
+      "retained namespace successor is not canonical",
+    );
+    expect(() => create("provider-output-recovery", "workflow-stage-context")).toThrow(
+      "retained namespace successor is not canonical",
+    );
+    expect(() => create("work-context", "workflow-stage-context")).toThrow(
+      "retained namespace successor is not canonical",
+    );
+    expect(() => create("provider-projection", "workflow-stage-context")).toThrow(
+      "retained namespace successor is not canonical",
+    );
   });
 
   it("imports legacy receipts once with exact reason mapping and rejects conflicts", () => {

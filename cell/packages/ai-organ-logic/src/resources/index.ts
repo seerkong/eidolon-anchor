@@ -1,3 +1,5 @@
 export * from "./EidolonAppResourceRegistryAdapter"
+export * from "./EidolonAIAgentDefinitionAuthoringAdapter"
+export * from "./EidolonAutonomousAgentResourceHost"
 export * from "./EidolonResourceRegistryError"
 export * from "./HolonExecutionBindingProjection"

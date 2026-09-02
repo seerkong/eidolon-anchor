@@ -37,7 +37,7 @@ function readCompatibleProvider(): CatalogProvider | undefined {
 
 const live = process.env.EIDOLON_DEEPSEEK_COMPATIBLE_LIVE === "1" ? test : test.skip
 
-live("records compatible-provider evidence without granting official authority", async () => {
+live("records every DeepSeek-adapter gateway under the same DeepSeek authority", async () => {
   const provider = readCompatibleProvider()
   const models = Array.isArray(provider?.models) ? provider.models : Object.values(provider?.models ?? {})
   const requestedModelId = process.env.EIDOLON_DEEPSEEK_COMPATIBLE_MODEL?.trim()
@@ -45,22 +45,21 @@ live("records compatible-provider evidence without granting official authority",
     ?? models.find((candidate) => candidate.id.includes("DeepSeek") || candidate.id.includes("deepseek"))?.id
   const result = await runProviderCacheProductLive({
     requested: true,
-    evidenceClass: "deepseek_compatible",
+    evidenceClass: "deepseek",
     ...(provider && model ? {
       groupCount: 3,
       config: {
         providerId: provider.id,
         adapterName: "deepseek",
-        profileId: "deepseek-compatible-chat@1",
+        profileId: "deepseek-chat@1",
         model,
         apiKey: provider.options.apiKey,
         baseURL: provider.options.baseURL,
       },
     } : {}),
   })
-  expect(result.gateAuthority).toBe("compatible_observation_only")
-  expect(result.evidenceClass).toBe("deepseek_compatible")
-  expect(result.gateAuthority).not.toBe("official_deepseek")
+  expect(result.gateAuthority).toBe("deepseek")
+  expect(result.evidenceClass).toBe("deepseek")
   if (provider && model) {
     expect(result.executionStatus).toBe("EXECUTED")
     expect(["PASS", "FAIL", "UNKNOWN"]).toContain(result.evidenceStatus)

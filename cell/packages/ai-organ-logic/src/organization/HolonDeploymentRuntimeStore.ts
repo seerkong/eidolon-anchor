@@ -770,7 +770,14 @@ export class FileHolonDeploymentRuntimeStore {
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
       }
-      const currentBytes = await readPhysicalFile(paths.root, paths.lock)
+      const currentBytes = await readPhysicalFile(paths.root, paths.lock).catch((error: NodeJS.ErrnoException) => {
+        // The owner may release between our EEXIST observation and readback.
+        // Retry acquisition instead of treating that normal lock handoff as a
+        // corrupted runtime boundary.
+        if (error.code === "ENOENT") return undefined
+        throw error
+      })
+      if (!currentBytes) continue
       const current = parseJsonBytes(currentBytes, normalizeLock, "runtime.lock")
       if (!pidAlive(current.pid)) {
         const claim = `${paths.lock}.claim-${randomUUID()}`

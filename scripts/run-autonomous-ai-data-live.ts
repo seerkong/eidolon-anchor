@@ -272,7 +272,7 @@ async function runProposition(
     options: { ...selected.options, apiKey: selected.apiKey, baseURL: selected.baseURL },
     runtime: {
       sessionId,
-      chatCompatibilityProfileId: "deepseek-compatible-chat@1",
+      chatCompatibilityProfileId: "deepseek-chat@1",
       requestObservationPort: {
         append: (fact) => requestFacts.push(fact),
         appendOutcome: (fact) => outcomeFacts.push(fact),

@@ -27,6 +27,7 @@ import {
   digestProviderContextClosedValue,
   digestProviderContextHistoryFrontier,
 } from "../../conversation/ProviderContextEpochV2"
+import { digestProviderSurfaceIdentity } from "../../conversation/ProviderEpoch"
 import {
   compareProviderCacheCostObservations,
   createProviderCacheCostObservation,
@@ -182,7 +183,7 @@ export type LocalWorkflowSurfaceExperimentRuntimeConfig = Readonly<{
   resourcePackage: FrozenAiWorkflowResourcePackage
   frozenActorSnapshot: FrozenActorSnapshot
   frozenConversationSnapshot: FrozenConversationSnapshot
-  providerProfileId: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
+  providerProfileId: "deepseek-chat@1"
   model: string
   lifecycleToolProfileDigest: Sha256
   lifecycleResourcePackageDigest: Sha256
@@ -574,9 +575,7 @@ async function executeFixedCandidate(
             identity: {
               schemaVersion: 1,
               providerId: "workflow-surface-experiment",
-              providerProfile: state.config.providerProfileId === "deepseek-official-chat@1"
-                ? "deepseek_official"
-                : "deepseek_compatible",
+              providerProfile: "deepseek",
               providerProfileId: state.config.providerProfileId,
               model: state.config.model,
               actorClass: "workflow_lifecycle",
@@ -835,9 +834,7 @@ async function executeFixedCandidate(
               identity: {
                 schemaVersion: 1,
                 providerId: "workflow-surface-experiment-recovery",
-                providerProfile: state.config.providerProfileId === "deepseek-official-chat@1"
-                  ? "deepseek_official"
-                  : "deepseek_compatible",
+                providerProfile: "deepseek",
                 providerProfileId: state.config.providerProfileId,
                 model: state.config.model,
                 actorClass: "workflow_lifecycle",
@@ -1091,8 +1088,7 @@ export function createLocalWorkflowSurfaceExperimentRuntime(
   if (!path.isAbsolute(config.globalRoot)) {
     throw new Error("WORKFLOW_SURFACE_RUNTIME_INVALID: absolute globalRoot is required")
   }
-  if (config.providerProfileId !== "deepseek-official-chat@1"
-    && config.providerProfileId !== "deepseek-compatible-chat@1") {
+  if (config.providerProfileId !== "deepseek-chat@1") {
     throw new Error("WORKFLOW_SURFACE_RUNTIME_INVALID: provider profile is not admitted")
   }
   if (typeof config.model !== "string" || !config.model
@@ -1370,7 +1366,7 @@ function evaluateCandidate(
         : "same_epoch_forward"
     const receipt = request.providerEpochReceipt as any
     const providerSurfaceDigest = receipt?.providerSurfaceDigest
-    const expectedProviderSurfaceDigest = digestProviderContextClosedValue({
+    const expectedProviderSurfaceDigest = digestProviderSurfaceIdentity({
       mode: "exact",
       toolNames: projection.toolNames,
     })
@@ -1412,8 +1408,8 @@ function evaluateCandidate(
       identity: {
         schemaVersion: 1,
         providerId: "workflow-surface-experiment",
-        providerProfile: "deepseek_compatible",
-        providerProfileId: "deepseek-compatible-chat@1",
+        providerProfile: "deepseek",
+        providerProfileId: "deepseek-chat@1",
         model: "deepseek-chat",
         actorClass: "workflow_lifecycle",
         contextEpoch: expectedEpoch,
@@ -1487,8 +1483,8 @@ function evaluateCandidate(
     identity: {
       schemaVersion: 1,
       providerId: "workflow-surface-experiment-recovery",
-      providerProfile: "deepseek_compatible",
-      providerProfileId: "deepseek-compatible-chat@1",
+      providerProfile: "deepseek",
+      providerProfileId: "deepseek-chat@1",
       model: "deepseek-chat",
       actorClass: "workflow_lifecycle",
       contextEpoch: Number((recoveryRequest.providerEpochReceipt as any)?.epoch),

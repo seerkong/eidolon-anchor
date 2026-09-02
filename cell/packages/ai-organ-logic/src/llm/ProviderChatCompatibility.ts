@@ -4,6 +4,7 @@ import type {
 } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 
 const PROFILE_IDS = new Set<ProviderChatCompatibilityProfileId>([
+  "deepseek-chat@1",
   "deepseek-official-chat@1",
   "deepseek-compatible-chat@1",
 ]);
@@ -15,7 +16,7 @@ function parseProfileId(
   if (typeof value !== "string" || !PROFILE_IDS.has(value as ProviderChatCompatibilityProfileId)) {
     throw new Error("invalid_provider_chat_compatibility_profile");
   }
-  return value as ProviderChatCompatibilityProfileId;
+  return "deepseek-chat@1";
 }
 
 export function resolveSelectedProviderChatCompatibilityProfile(
@@ -27,18 +28,10 @@ export function resolveSelectedProviderChatCompatibilityProfile(
   }>,
 ): ProviderChatCompatibilityProfileId | undefined {
   if (input.driverName !== "deepseek-chat") return undefined;
-  const optionProfile = parseProfileId(input.options.compatibility_profile);
-  const runtimeProfile = parseProfileId(
-    input.runtimeChatCompatibilityProfileId,
-  );
-  if (optionProfile && runtimeProfile && optionProfile !== runtimeProfile) {
-    throw new Error("provider_chat_compatibility_profile_conflict");
-  }
-  const selected = optionProfile ?? runtimeProfile;
-  if (!selected) {
-    throw new Error("provider_chat_compatibility_profile_required");
-  }
-  return selected;
+  // Provider identity and configuration are routing facts, never protocol
+  // authority. Legacy ids are accepted only to prove migration readability.
+  parseProfileId(input.runtimeChatCompatibilityProfileId);
+  return "deepseek-chat@1";
 }
 
 export function resolveProviderChatCompatibilityProfile(
@@ -54,9 +47,9 @@ export function resolveProviderChatCompatibilityProfile(
 export function chatCompatibilityProfileId(
   runtime: LlmProviderRuntime,
 ): ProviderChatCompatibilityProfileId {
-  const profile = parseProfileId(runtime.chatCompatibilityProfileId);
-  if (!profile) {
-    throw new Error("invalid_provider_chat_compatibility_profile");
-  }
-  return profile;
+  return parseProfileId(runtime.chatCompatibilityProfileId) ?? (
+    runtime.driverName === "deepseek-chat"
+      ? "deepseek-chat@1"
+      : (() => { throw new Error("invalid_provider_chat_compatibility_profile"); })()
+  );
 }

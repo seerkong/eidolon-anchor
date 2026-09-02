@@ -1,5 +1,6 @@
 import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
 import type {
+  AIDataWorkflowChildInvocationRuntimePort,
   AIDataWorkflowGraphPatch,
   AIDataWorkflowRunGraph,
   AIDataWorkflowRunNode,
@@ -11,9 +12,11 @@ import type {
   AIWorkflowRunRef,
 } from "@cell/ai-workflow-contract"
 import {
+  acceptAIDataWorkflowChildTerminalReceipt,
   applyAIDataWorkflowGraphPatch,
   commitAIDataWorkflowCheckpoint,
   createAIDataWorkflowCheckpoint,
+  createAIDataWorkflowChildInvocationIdentity,
   createAIDataWorkflowAgentNodeRuntimeBinder,
   createAIDataWorkflowRunGraph,
   createAIDataWorkflowRuntime,
@@ -21,14 +24,18 @@ import {
   findReusableAIDataWorkflowNodeResult,
   listReadyAIDataWorkflowNodes,
   loadAIDataWorkflowCheckpoint,
+  normalizeAIDataWorkflowChildInvocationObservation,
+  normalizeAIDataWorkflowChildTerminalReceipt,
   projectAIDataWorkflowRunState,
   recordAIDataWorkflowNodeResult,
+  recordAIDataWorkflowChildFreezeReceipt,
+  reserveAIDataWorkflowChildInvocation,
   restoreAIDataWorkflowRunGraph,
 } from "ai-data-workflow-logic"
 import type { AIWorkflowFlowRunCheckpoint, FlowClosedValue, FrozenAIAgentTaskBinding } from "ai-workflow-contract"
 import type { FrozenHolonTaskTarget } from "ai-workflow-contract"
 import { assertFrozenAIAgentTaskBinding } from "ai-workflow-logic/run-freeze"
-import { bindAIAgentProcessors } from "ai-workflow-logic"
+import { bindAIAgentProcessors, normalizeFlowClosedObject } from "ai-workflow-logic"
 import { createFilesystemCodeResolver } from "eager-data-flow-logic"
 import type { WorkflowAuthoringWorkspace } from "../authoring"
 import {
@@ -64,8 +71,16 @@ import {
   type AIDataAutonomousVerifierPort,
 } from "./AIDataAutonomousControlRunner"
 import { AgentExecutionContractError } from "../../agent/AgentExecutionContract"
+import {
+  readAIDataAgentPreparationReceipts,
+  writeAIDataAgentPreparationExtensions,
+  writeAIDataPreparedAgentCapabilities,
+  type AIDataPreparedAgentResource,
+} from "./AIDataAgentResourcePreparation"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
+
+class AIDataChildInvocationSuspendedError extends Error {}
 
 export type AIDataWorkflowHolonTaskFacade = Readonly<{
   proofForNode(nodeId: string): FrozenHolonTaskTarget
@@ -146,11 +161,13 @@ export class AIDataWorkflowRuntimeDriver {
     private readonly definition: ResolvedWorkflowDefinition,
     roots: { globalRoot: string; workspaceRoot: string },
     onMaterialWrite?: ConstructorParameters<typeof EidolonWorkflowEffectProvider>[3],
-    resourceRegistry?: EidolonAppResourceRegistryAdapter,
+    resourceRegistry?: Pick<EidolonAppResourceRegistryAdapter, "prepareWorkflowAgentExecution">,
     private readonly taskProofs: Readonly<Record<string, FrozenAIAgentTaskBinding>> = {},
     private readonly taskProofRefs: Readonly<Record<string, readonly `resource://${string}`[]>> = {},
     stepExtensions?: WorkflowStepExtensionAuthoredFacade,
     private readonly holonTasks?: AIDataWorkflowHolonTaskFacade,
+    private readonly preparedAgents: readonly AIDataPreparedAgentResource[] = [],
+    private readonly childInvocations?: AIDataWorkflowChildInvocationRuntimePort,
   ) {
     this.activeRunAuthority = this.runRef(descriptor.generation)
     const agentEffects = new EidolonWorkflowEffectProvider(
@@ -202,12 +219,12 @@ export class AIDataWorkflowRuntimeDriver {
       runId: this.descriptor.runId,
     })
     const instance = this.depa.load(this.descriptor.instanceId)
-    const initialStepExtensions = this.depa.initialStepExtensions(
+    const definitionStepExtensions = this.depa.initialStepExtensions(
       this.descriptor.instanceId,
       instance.descriptor.definition,
       "AIDataWorkflow",
     )
-    await createAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+    const initialCheckpoint = await createAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
       instanceId: this.descriptor.instanceId,
       definition: instance.descriptor.definition,
       graph: this.durableGraph(),
@@ -218,9 +235,36 @@ export class AIDataWorkflowRuntimeDriver {
       controllerSidecars: { status: "Pending" },
       nodeSidecars: this.nodeSidecars(),
       ai: EMPTY_AI_WORKFLOW_DURABLE_STATE,
-      stepExtensions: initialStepExtensions,
+      stepExtensions: definitionStepExtensions,
     })
-    const autonomousControl = findAIDataAutonomousControlStateInExtensions(initialStepExtensions)
+    const receipts = this.preparedAgents.map(({ receipt }) => receipt)
+    const receiptExtensions = writeAIDataAgentPreparationExtensions(definitionStepExtensions, receipts)
+    let preparedCheckpoint = initialCheckpoint
+    if (receiptExtensions !== definitionStepExtensions) {
+      preparedCheckpoint = await commitAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+        expectedVersion: preparedCheckpoint.version,
+        checkpoint: {
+          ...preparedCheckpoint,
+          version: preparedCheckpoint.version + 1,
+          stepExtensions: receiptExtensions,
+        },
+      })
+    }
+    const preparedStepExtensions = writeAIDataPreparedAgentCapabilities(
+      preparedCheckpoint.stepExtensions,
+      receipts,
+    )
+    if (preparedStepExtensions !== preparedCheckpoint.stepExtensions) {
+      preparedCheckpoint = await commitAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+        expectedVersion: preparedCheckpoint.version,
+        checkpoint: {
+          ...preparedCheckpoint,
+          version: preparedCheckpoint.version + 1,
+          stepExtensions: preparedStepExtensions,
+        },
+      })
+    }
+    const autonomousControl = findAIDataAutonomousControlStateInExtensions(preparedCheckpoint.stepExtensions)
     if (autonomousControl) {
       this.autonomousControlPhase = autonomousControl.phase
       this.assertAutonomousControlBarrier(this.graph, autonomousControl)
@@ -235,6 +279,11 @@ export class AIDataWorkflowRuntimeDriver {
       runId: this.descriptor.runId,
     })
     if (!stored) return false
+    const durablePreparations = readAIDataAgentPreparationReceipts(stored.stepExtensions)
+    const recoveredPreparations = this.preparedAgents.map(({ receipt }) => receipt)
+    if (canonicalJson(durablePreparations) !== canonicalJson(recoveredPreparations)) {
+      throw new Error("AI_DATA_AGENT_PREPARATION_CHECKPOINT_DRIFT")
+    }
     let graph = restoreAIDataWorkflowRunGraph({
       ...stored.profile.runGraph,
       binding: this.definition.binding.kind === "AIDataWorkflow" ? this.definition.binding : stored.profile.runGraph.binding,
@@ -255,6 +304,23 @@ export class AIDataWorkflowRuntimeDriver {
     this.descriptor.generation = graph.currentGeneration
     if (Object.values(graph.nodes).some((node) => node.status === "Running" && node.nodeType !== "manual")) await this.persist()
     return true
+  }
+
+  async continue(): Promise<DataRunProjection> {
+    await this.requireGraph()
+    for (const node of Object.values(this.graph!.nodes)) {
+      if (node.tag === "SubFlowNode" && node.status === "Running") {
+        this.graph = recordAIDataWorkflowNodeResult(this.graph!, node.id, {
+          nodeId: node.id,
+          generation: node.generation,
+          status: "Pending",
+          semanticFingerprint: node.semanticFingerprint,
+        })
+      }
+    }
+    await this.persist()
+    await this.advance()
+    return this.project("workflow.runResume")
   }
 
   async status(): Promise<DataRunProjection | undefined> {
@@ -427,13 +493,15 @@ export class AIDataWorkflowRuntimeDriver {
       materialRevisions: record(node.config.material_revisions) as Record<string, string>,
       effectPolicy: { operation: node.config.operation, nodeType: node.nodeType },
     })
-    const reusable = findReusableAIDataWorkflowNodeResult({
-      runId: this.descriptor.runId,
-      nodeId: node.id,
-      fingerprint,
-      policy: node.reusePolicy,
-      candidates: await this.facts.listReusableNodeCandidates(this.descriptor.runId, node.id),
-    })
+    const reusable = node.tag === "SubFlowNode"
+      ? undefined
+      : findReusableAIDataWorkflowNodeResult({
+          runId: this.descriptor.runId,
+          nodeId: node.id,
+          fingerprint,
+          policy: node.reusePolicy,
+          candidates: await this.facts.listReusableNodeCandidates(this.descriptor.runId, node.id),
+        })
     if (reusable) {
       this.graph = recordAIDataWorkflowNodeResult(this.graph!, node.id, {
         ...reusable,
@@ -467,6 +535,10 @@ export class AIDataWorkflowRuntimeDriver {
       semanticFingerprint: fingerprint,
     })
     await this.persist()
+    if (node.tag === "SubFlowNode") {
+      await this.applySubFlowNode(node.id, input)
+      return
+    }
     try {
       let output: unknown
       if (node.tag === "EntryNode") {
@@ -503,6 +575,88 @@ export class AIDataWorkflowRuntimeDriver {
     await this.persist()
   }
 
+  private async applySubFlowNode(nodeId: string, input: Record<string, unknown>): Promise<void> {
+    const node = this.graph!.nodes[nodeId]
+    if (!node || node.tag !== "SubFlowNode" || node.subflow?.kind !== "autonomous") {
+      this.graph = recordAIDataWorkflowNodeResult(this.graph!, nodeId, {
+        nodeId,
+        generation: node?.generation ?? this.graph!.currentGeneration,
+        status: "Failed",
+        semanticFingerprint: node?.semanticFingerprint,
+      })
+      await this.persist()
+      return
+    }
+    if (!this.childInvocations) {
+      this.graph = recordAIDataWorkflowNodeResult(this.graph!, nodeId, {
+        nodeId,
+        generation: node.generation,
+        status: "Failed",
+        semanticFingerprint: node.semanticFingerprint,
+      })
+      await this.persist()
+      return
+    }
+    try {
+      const identity = node.childInvocation ?? createAIDataWorkflowChildInvocationIdentity({
+        graph: this.graph!,
+        parentInstanceId: this.descriptor.instanceId,
+        nodeId,
+      })
+      this.graph = reserveAIDataWorkflowChildInvocation({ graph: this.graph!, identity })
+      await this.persist()
+      let current = this.graph!.nodes[nodeId]!
+      let freeze = current.childFreezeReceipt
+      if (!freeze) {
+        freeze = await this.childInvocations.resolveAndFreeze({ identity })
+        this.graph = recordAIDataWorkflowChildFreezeReceipt({ graph: this.graph!, nodeId, receipt: freeze })
+        await this.persist()
+        current = this.graph!.nodes[nodeId]!
+        freeze = current.childFreezeReceipt
+      }
+      if (!freeze) throw new Error(`AI_DATA_CHILD_FREEZE_RECEIPT_MISSING: ${nodeId}`)
+      let observation = normalizeAIDataWorkflowChildInvocationObservation(
+        await this.childInvocations.startOrContinue({
+          identity,
+          freeze,
+          input: normalizeFlowClosedObject(input, `aiData.child.${nodeId}.input`),
+        }),
+        identity,
+      )
+      if (observation.status === "Reserved" || observation.status === "Running") {
+        observation = normalizeAIDataWorkflowChildInvocationObservation(
+          await this.childInvocations.load({ identity, freeze }),
+          identity,
+        )
+      }
+      if (observation.status === "Reserved" || observation.status === "Running") {
+        throw new AIDataChildInvocationSuspendedError(
+          `AI Data child invocation ${nodeId} is ${observation.status}`,
+        )
+      }
+      const receipt = normalizeAIDataWorkflowChildTerminalReceipt(
+        await this.childInvocations.settle({ identity, freeze, terminalStatus: observation.status }),
+        identity,
+      )
+      this.graph = acceptAIDataWorkflowChildTerminalReceipt({ graph: this.graph!, nodeId, receipt })
+    } catch (error) {
+      if (error instanceof AIDataChildInvocationSuspendedError) {
+        await this.persist()
+        return
+      }
+      const failed = this.graph!.nodes[nodeId]
+      this.graph = recordAIDataWorkflowNodeResult(this.graph!, nodeId, {
+        nodeId,
+        generation: failed?.generation ?? this.graph!.currentGeneration,
+        status: this.autonomousControlPhase === "planning" || this.autonomousControlPhase === "executing"
+          ? "Invalidated"
+          : "Failed",
+        semanticFingerprint: failed?.semanticFingerprint,
+      })
+    }
+    await this.persist()
+  }
+
   private dynamicAgentBinding(node: AIDataWorkflowRunNode): AIDataDynamicAgentBinding | undefined {
     if (node.config.agent === undefined) return undefined
     if (!this.definition.resourceReceipt || this.definition.binding.kind !== "AIDataWorkflow") {
@@ -532,7 +686,10 @@ export class AIDataWorkflowRuntimeDriver {
           `decision.operations node '${operation.nodeId}' cannot depend on protected control barrier '${controlNodeId}'; the barrier is released only after verifier completion`,
         )
       }
-      const capability = input.state.binding.catalog.capabilities[operation.capabilityId]
+      const capabilityId = operation.op === "add-subflow" || operation.op === "rewire-subflow"
+        ? operation.subflowCapabilityId
+        : operation.capabilityId
+      const capability = input.state.binding.catalog.capabilities[capabilityId]
       const implementation = capability?.implementation
       if (!implementation || implementation.kind !== "agent") continue
       const allowedNodeIds = Object.entries(this.taskProofRefs)
@@ -713,7 +870,7 @@ export class AIDataWorkflowRuntimeDriver {
   private project(kind: DataRunProjection["kind"]): DataRunProjection {
     const status = this.statusValue()
     const returnNode = Object.values(this.graph!.nodes).find((node) => node.tag === "ReturnNode")
-    return {
+    return JSON.parse(canonicalJson({
       ok: true,
       kind,
       runtime: "depa-flows.AIDataWorkflow",
@@ -730,7 +887,7 @@ export class AIDataWorkflowRuntimeDriver {
         invalidations: this.graph!.invalidations,
       },
       ...(returnNode?.result?.output === undefined ? {} : { output: returnNode.result.output }),
-    }
+    })) as DataRunProjection
   }
 
   private async requireGraph(): Promise<void> {
@@ -758,9 +915,7 @@ export class AIDataWorkflowRuntimeDriver {
   private async decideAutonomousControl(
     input: AIDataAutonomousControllerInput,
   ): Promise<AIDataAutonomousControllerResult> {
-    if (this.definition.binding.kind !== "AIDataWorkflow"
-      || !this.definition.resourceReceipt
-      || !this.descriptor.workflowRef.startsWith("resource://")) {
+    if (this.definition.binding.kind !== "AIDataWorkflow" || !this.definition.resourceReceipt) {
       throw new Error("AI_DATA_CONTROL_RESOURCE_WORKFLOW_REQUIRED: controller execution requires a frozen resource workflow")
     }
     const binding = input.state.binding.controller

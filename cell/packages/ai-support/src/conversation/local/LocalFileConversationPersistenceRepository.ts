@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import readline from "node:readline";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { createHash, randomUUID } from "node:crypto";
 import {
   link,
   lstat,
@@ -17,8 +18,12 @@ import type {
   ActorHistoryGenerationData,
   ActorPromptGenerationData,
   ConversationArtifactRefsSnapshot,
+  ConversationForkAuthoritySnapshot,
+  ConversationForkInitializationGeneration,
+  ConversationForkInitializationHead,
   ConversationHistoryIndexSnapshot,
   ConversationProviderContextTransitionGeneration,
+  ConversationProviderContextTransitionHead,
   ConversationPersistenceRepository,
   ConversationPersistenceRepositoryFactory,
   ConversationPromptIndexSnapshot,
@@ -57,6 +62,9 @@ function isXnlDataRecordBodyItemWithTag(tag: string): (item: XnlRecordBodyItem) 
 const QUOTED_XNL_FIELD = /([A-Za-z_][A-Za-z0-9_]*)="([^"]*)"/g;
 const conversationXnlWriteQueues = new Map<string, Promise<unknown>>();
 const providerContextTransitionQueues = new Map<string, Promise<unknown>>();
+const conversationForkInitializationQueues = new Map<string, Promise<unknown>>();
+const conversationAuthorityLeaseQueues = new Map<string, Promise<unknown>>();
+const conversationAuthorityLeaseScope = new AsyncLocalStorage<ReadonlySet<string>>();
 
 async function withProviderContextTransitionLock<T>(sessionDir: string, task: () => Promise<T>): Promise<T> {
   const previous = providerContextTransitionQueues.get(sessionDir) ?? Promise.resolve();
@@ -71,6 +79,19 @@ async function withProviderContextTransitionLock<T>(sessionDir: string, task: ()
   }
 }
 
+async function withConversationForkInitializationLock<T>(sessionDir: string, task: () => Promise<T>): Promise<T> {
+  const previous = conversationForkInitializationQueues.get(sessionDir) ?? Promise.resolve();
+  const current = previous.catch(() => {}).then(task);
+  conversationForkInitializationQueues.set(sessionDir, current);
+  try {
+    return await current;
+  } finally {
+    if (conversationForkInitializationQueues.get(sessionDir) === current) {
+      conversationForkInitializationQueues.delete(sessionDir);
+    }
+  }
+}
+
 export type LocalProviderContextTransitionFaultPoint =
   | "after-stage-create"
   | "after-stage-write"
@@ -79,8 +100,20 @@ export type LocalProviderContextTransitionFaultPoint =
   | "before-head-cas"
   | "after-head-cas";
 
+export type LocalConversationForkInitializationFaultPoint =
+  | "after-stage-create"
+  | "after-stage-write"
+  | "after-stage-fsync"
+  | "after-stage-publish"
+  | "after-claim-cas"
+  | "after-journal-publish"
+  | "before-authority-publish"
+  | "after-authority-publish"
+  | "after-head-cas";
+
 export type LocalFileConversationPersistenceRepositoryOptions = Readonly<{
   providerContextTransitionFault?: (point: LocalProviderContextTransitionFaultPoint) => void;
+  conversationForkInitializationFault?: (point: LocalConversationForkInitializationFaultPoint) => void;
 }>;
 
 function codeUnitCompare(left: string, right: string): number {
@@ -102,6 +135,32 @@ export function digestConversationProviderContextTransitionGeneration(
   return `sha256:${createHash("sha256").update(canonicalJson(transition), "utf8").digest("hex")}`;
 }
 
+export function digestConversationForkInitializationGeneration(
+  generation: Omit<ConversationForkInitializationGeneration, "transactionId">,
+): `sha256:${string}` {
+  return `sha256:${createHash("sha256").update(canonicalJson(generation), "utf8").digest("hex")}`;
+}
+
+function digestConversationForkTargetAuthority(
+  generation: ConversationForkInitializationGeneration,
+): `sha256:${string}` {
+  return `sha256:${createHash("sha256").update(canonicalJson({
+    historyIndex: generation.historyIndex,
+    promptIndex: generation.promptIndex,
+    sessionIndex: generation.sessionIndex,
+    artifactRefs: generation.artifactRefs,
+    historyGenerations: generation.historyGenerations,
+    promptGenerations: generation.promptGenerations,
+    childProviderEpochReceipt: generation.childProviderEpochReceipt,
+  }), "utf8").digest("hex")}`;
+}
+
+function digestConversationForkAuthoritySnapshot(
+  snapshot: ConversationForkAuthoritySnapshot,
+): `sha256:${string}` {
+  return `sha256:${createHash("sha256").update(canonicalJson(JSON.parse(JSON.stringify(snapshot))), "utf8").digest("hex")}`;
+}
+
 function providerTransitionPaths(sessionDir: string) {
   const root = path.join(getLocalConversationPaths(sessionDir).rootDir, "provider-context-transitions");
   return {
@@ -112,13 +171,28 @@ function providerTransitionPaths(sessionDir: string) {
   };
 }
 
+function forkInitializationPaths(sessionDir: string) {
+  const root = path.join(getLocalConversationPaths(sessionDir).rootDir, "fork-initializations");
+  return {
+    root,
+    generations: path.join(root, "generations"),
+    claim: path.join(root, "claim.json"),
+    journal: path.join(root, "journal.json"),
+    head: path.join(root, "head.json"),
+  };
+}
+
 function contextAssetActorKey(asset: import("@cell/ai-organ-contract").LocalConversationContextAssetData): string | null {
-  return asset.providerContextFact?.actorKey
+  const explicit = asset.providerContextFact?.actorKey
     ?? asset.providerContextFactCandidate?.actorKey
     ?? asset.projectionFact?.actorKey
     ?? asset.toolResultDeliveryFact?.actorKey
-    ?? asset.messageDeliveryFact?.actorKey
-    ?? null;
+    ?? asset.messageDeliveryFact?.actorKey;
+  if (explicit) return explicit;
+  if (asset.replayCheckpoint && asset.source.kind === "note") {
+    return asset.source.ownerId ?? null;
+  }
+  return null;
 }
 
 function mergeActorScopedTransitionSnapshots(params: {
@@ -240,6 +314,88 @@ async function writeDurableReplace(filePath: string, value: unknown): Promise<vo
   }
   await rename(tempPath, filePath);
   await fsyncDirectory(directory);
+}
+
+function processIsAlive(pid: number): boolean {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error: any) {
+    return error?.code === "EPERM";
+  }
+}
+
+async function acquireConversationAuthorityFileLease(sessionDir: string): Promise<() => Promise<void>> {
+  // Locks live beside session directories rather than inside the target
+  // Conversation directory. Fork can therefore acquire source+target in a
+  // stable global order without making an uncommitted child visible.
+  const rootDir = path.join(path.dirname(sessionDir), ".conversation-authority-locks");
+  const lockName = createHash("sha256").update(path.resolve(sessionDir)).digest("hex");
+  const lockPath = path.join(rootDir, `${lockName}.lock`);
+  await ensureDurableDirectory(rootDir);
+  for (let attempt = 0; attempt < 1_000; attempt += 1) {
+    const token = randomUUID();
+    try {
+      const handle = await open(lockPath, "wx", 0o600);
+      try {
+        await handle.writeFile(`${JSON.stringify({ token, pid: process.pid, acquiredAt: new Date().toISOString() })}\n`, "utf8");
+        await handle.sync();
+      } finally {
+        await handle.close();
+      }
+      await fsyncDirectory(rootDir);
+      return async () => {
+        try {
+          const owner = await readJsonExact<{ token?: string }>(lockPath);
+          if (owner.token === token) await unlink(lockPath);
+        } catch (error: any) {
+          if (error?.code !== "ENOENT") throw error;
+        }
+        await fsyncDirectory(rootDir);
+      };
+    } catch (error: any) {
+      if (error?.code !== "EEXIST") throw error;
+      try {
+        const observed = await lstat(lockPath);
+        const owner = await readJsonExact<{ pid?: number }>(lockPath);
+        if (!processIsAlive(Number(owner.pid))) {
+          const current = await lstat(lockPath);
+          if (current.dev === observed.dev && current.ino === observed.ino) {
+            await unlink(lockPath);
+          }
+          continue;
+        }
+      } catch (readError: any) {
+        if (readError?.code === "ENOENT") continue;
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+  }
+  throw new Error("conversation_authority_lease_timeout");
+}
+
+async function withConversationAuthorityProcessLease<T>(
+  sessionDir: string,
+  action: () => Promise<T>,
+): Promise<T> {
+  const previous = conversationAuthorityLeaseQueues.get(sessionDir) ?? Promise.resolve();
+  const current = previous.catch(() => {}).then(async () => {
+    const release = await acquireConversationAuthorityFileLease(sessionDir);
+    try {
+      return await action();
+    } finally {
+      await release();
+    }
+  });
+  conversationAuthorityLeaseQueues.set(sessionDir, current);
+  try {
+    return await current;
+  } finally {
+    if (conversationAuthorityLeaseQueues.get(sessionDir) === current) {
+      conversationAuthorityLeaseQueues.delete(sessionDir);
+    }
+  }
 }
 
 async function readJsonExact<T>(filePath: string): Promise<T> {
@@ -978,10 +1134,254 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
   private knownPromptGenerationIds: Set<string> | null = null;
   private readonly options: LocalFileConversationPersistenceRepositoryOptions;
   private recoveringProviderContextTransition: Promise<void> | null = null;
+  private recoveringConversationForkInitialization: Promise<void> | null = null;
 
   constructor(sessionDir: string, options: LocalFileConversationPersistenceRepositoryOptions = {}) {
     this.sessionDir = sessionDir;
     this.options = options;
+  }
+
+  async withConversationAuthorityLease<T>(action: () => Promise<T>): Promise<T> {
+    const held = conversationAuthorityLeaseScope.getStore();
+    const leaseKey = path.resolve(this.sessionDir);
+    if (held?.has(leaseKey)) return await action();
+    return await withConversationAuthorityProcessLease(this.sessionDir, async () => {
+      const next = new Set(held ?? []);
+      next.add(leaseKey);
+      return await conversationAuthorityLeaseScope.run(next, action);
+    });
+  }
+
+  private conversationForkInitializationGenerationPath(transactionId: string): string {
+    if (!/^sha256:[0-9a-f]{64}$/.test(transactionId)) {
+      throw new Error("conversation_fork_initialization_generation_id_invalid");
+    }
+    return path.join(
+      forkInitializationPaths(this.sessionDir).generations,
+      `${transactionId.slice("sha256:".length)}.json`,
+    );
+  }
+
+  private assertForkInitializationGenerationExact(
+    generation: ConversationForkInitializationGeneration,
+  ): void {
+    const { transactionId, ...facts } = generation;
+    const targetSessionId = generation.sessionIndex.sessionId;
+    const binding = generation.sessionIndex.session.actorBindings[generation.providerEpoch.childActorKey];
+    if (generation.schemaVersion !== "conversation.fork-initialization-generation/v1"
+      || digestConversationForkInitializationGeneration(facts) !== transactionId) {
+      throw new Error("conversation_fork_initialization_generation_digest_mismatch");
+    }
+    if (digestConversationForkTargetAuthority(generation) !== generation.targetAuthorityDigest) {
+      throw new Error("conversation_fork_target_authority_digest_mismatch");
+    }
+    if (!targetSessionId
+      || generation.historyIndex.sessionId !== targetSessionId
+      || generation.promptIndex.sessionId !== targetSessionId
+      || generation.artifactRefs.sessionId !== targetSessionId
+      || generation.sessionIndex.session.sessionId !== targetSessionId
+      || generation.providerEpoch.childSessionId !== targetSessionId
+      || generation.childProviderEpochReceipt.sessionId !== targetSessionId
+      || generation.providerEpoch.childReceiptDigest !== generation.childProviderEpochReceipt.receiptDigest
+      || generation.providerEpoch.childActorId !== generation.childProviderEpochReceipt.actorId
+      || generation.providerEpoch.childActorKey !== generation.childProviderEpochReceipt.actorKey
+      || binding?.providerEpochReceiptV2?.receiptDigest !== generation.childProviderEpochReceipt.receiptDigest
+      || binding.providerEpochReceipt !== undefined
+      || generation.childProviderEpochReceipt.reason !== "history_rewind_or_fork") {
+      throw new Error("conversation_fork_initialization_authority_mismatch");
+    }
+    if (generation.mode === "create") {
+      if (generation.expectedTargetAuthorityDigest !== null
+        || generation.expectedTargetAuthority !== null
+        || generation.childProviderEpochReceipt.epoch !== 0
+        || generation.childProviderEpochReceipt.previousReceiptDigest !== null
+        || generation.repairEvidence !== undefined) {
+        throw new Error("conversation_fork_initialization_create_semantics_invalid");
+      }
+    } else {
+      if (!generation.expectedTargetAuthorityDigest
+        || !generation.expectedTargetAuthority
+        || generation.childProviderEpochReceipt.epoch < 1
+        || generation.childProviderEpochReceipt.previousReceiptDigest === null
+        || !generation.repairEvidence
+        || digestConversationForkAuthoritySnapshot(generation.expectedTargetAuthority)
+          !== generation.expectedTargetAuthorityDigest
+        || generation.repairEvidence.expectedTargetAuthorityDigest
+          !== generation.expectedTargetAuthorityDigest) {
+        throw new Error("conversation_fork_initialization_repair_semantics_invalid");
+      }
+    }
+    if (generation.historyGenerations.some((entry) => entry.sessionId !== targetSessionId)
+      || generation.promptGenerations.some((entry) => entry.sessionId !== targetSessionId)) {
+      throw new Error("conversation_fork_initialization_cross_session_loader_edge");
+    }
+  }
+
+  private async writeImmutableForkInitializationGeneration(
+    generation: ConversationForkInitializationGeneration,
+  ): Promise<string> {
+    const paths = forkInitializationPaths(this.sessionDir);
+    await ensureDurableDirectory(paths.root);
+    await ensureDurableDirectory(paths.generations);
+    this.options.conversationForkInitializationFault?.("after-stage-create");
+    const targetPath = this.conversationForkInitializationGenerationPath(generation.transactionId);
+    const body = `${JSON.stringify(generation, null, 2)}\n`;
+    try {
+      const existing = await readFile(targetPath, "utf8");
+      if (existing !== body) throw new Error("conversation_fork_immutable_generation_conflict");
+      return targetPath;
+    } catch (error: any) {
+      if (error?.code !== "ENOENT") throw error;
+    }
+    const tempPath = `${targetPath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const handle = await open(tempPath, "wx", 0o600);
+    try {
+      await handle.writeFile(body, "utf8");
+      this.options.conversationForkInitializationFault?.("after-stage-write");
+      await handle.sync();
+      this.options.conversationForkInitializationFault?.("after-stage-fsync");
+    } finally {
+      await handle.close();
+    }
+    try {
+      await link(tempPath, targetPath);
+    } catch (error: any) {
+      if (error?.code !== "EEXIST") throw error;
+      const existing = await readFile(targetPath, "utf8");
+      if (existing !== body) throw new Error("conversation_fork_immutable_generation_conflict");
+    } finally {
+      await unlink(tempPath).catch(() => {});
+    }
+    await fsyncDirectory(paths.generations);
+    this.options.conversationForkInitializationFault?.("after-stage-publish");
+    return targetPath;
+  }
+
+  /**
+   * Durable cross-process CAS for the target Conversation authority. The
+   * immutable generation is hard-linked into the single claim path, so two
+   * processes can never publish different fork/repair transactions for the
+   * same target even before the hydrate-gating Session/head is visible.
+   *
+   * The claim intentionally survives crashes. A retry of the same immutable
+   * transaction continues journal recovery; a different proof fails closed.
+   */
+  private async claimConversationForkInitialization(
+    generation: ConversationForkInitializationGeneration,
+    generationPath: string,
+  ): Promise<void> {
+    const paths = forkInitializationPaths(this.sessionDir);
+    try {
+      await link(generationPath, paths.claim);
+      await fsyncDirectory(paths.root);
+    } catch (error: any) {
+      if (error?.code !== "EEXIST") throw error;
+      const claimed = await readJsonExact<ConversationForkInitializationGeneration>(paths.claim);
+      this.assertForkInitializationGenerationExact(claimed);
+      if (claimed.transactionId !== generation.transactionId
+        || claimed.targetAuthorityDigest !== generation.targetAuthorityDigest) {
+        throw new Error("conversation_fork_initialization_claim_cas_conflict");
+      }
+    }
+    this.options.conversationForkInitializationFault?.("after-claim-cas");
+  }
+
+  private forkProjectionCompatible(current: unknown, pristine: unknown, target: unknown): boolean {
+    const digest = (value: unknown) => createHash("sha256").update(canonicalJson(value), "utf8").digest("hex");
+    const currentDigest = digest(current);
+    return currentDigest === digest(pristine) || currentDigest === digest(target);
+  }
+
+  private async loadHistoryGenerationWithoutRecovery(generationId: string): Promise<ActorHistoryGenerationData | null> {
+    const paths = getLocalConversationPaths(this.sessionDir);
+    const records = await readXnlRecords({ filePath: paths.historyXnlPath });
+    const messageGeneration = historyMessageRecordsToGeneration(generationId, records);
+    if (messageGeneration) return await hydrateHistoryGenerationAssets(this.sessionDir, messageGeneration);
+    for (let index = records.length - 1; index >= 0; index -= 1) {
+      if (records[index].tag !== HISTORY_GENERATION_RECORD_TAG) continue;
+      const generation = xnlRecordToHistoryGeneration(records[index]);
+      if (generation?.generationId === generationId) return generation;
+    }
+    return null;
+  }
+
+  private async loadPromptGenerationWithoutRecovery(promptGenerationId: string): Promise<ActorPromptGenerationData | null> {
+    const paths = getLocalConversationPaths(this.sessionDir);
+    const records = [
+      ...await readXnlRecords({ filePath: paths.promptsXnlPath, tag: PROMPT_GENERATION_RECORD_TAG }),
+      ...await readXnlRecords({ filePath: paths.promptsXnlPath, tag: LEGACY_PROMPT_GENERATION_RECORD_TAG }),
+    ];
+    for (let index = records.length - 1; index >= 0; index -= 1) {
+      const generation = xnlRecordToPromptGeneration(records[index]);
+      if (generation?.promptGenerationId === promptGenerationId) return generation;
+    }
+    return null;
+  }
+
+  private async applyConversationForkInitialization(
+    generation: ConversationForkInitializationGeneration,
+  ): Promise<void> {
+    this.assertForkInitializationGenerationExact(generation);
+    const paths = getLocalConversationPaths(this.sessionDir);
+    const forkPaths = forkInitializationPaths(this.sessionDir);
+    const targetSessionId = generation.sessionIndex.sessionId;
+    const currentHistory = await readJsonBestEffort(paths.historyIndexPath, createDefaultHistoryIndex(targetSessionId));
+    const currentPrompt = await readJsonBestEffort(paths.promptIndexPath, createDefaultPromptIndex(targetSessionId));
+    const currentSession = await readJsonBestEffort(paths.sessionIndexPath, createDefaultSessionIndex(targetSessionId));
+    const currentArtifacts = await readJsonBestEffort(paths.artifactRefsPath, createDefaultArtifactRefs(targetSessionId));
+    const pristineHistory = createDefaultHistoryIndex(targetSessionId);
+    const pristinePrompt = createDefaultPromptIndex(targetSessionId);
+    const pristineSession = createDefaultSessionIndex(targetSessionId);
+    const pristineArtifacts = createDefaultArtifactRefs(targetSessionId);
+    if (generation.mode === "create") {
+      const compatible = this.forkProjectionCompatible(currentHistory, pristineHistory, generation.historyIndex)
+        && this.forkProjectionCompatible(currentPrompt, pristinePrompt, generation.promptIndex)
+        && this.forkProjectionCompatible(currentSession, pristineSession, generation.sessionIndex)
+        && this.forkProjectionCompatible(currentArtifacts, pristineArtifacts, generation.artifactRefs);
+      if (!compatible) throw new Error("conversation_fork_target_authority_conflict");
+    } else {
+      const expected = generation.expectedTargetAuthority;
+      if (!expected || generation.expectedTargetAuthorityDigest === null) {
+        throw new Error("conversation_fork_repair_expected_authority_missing");
+      }
+      const compatible = this.forkProjectionCompatible(currentHistory, expected.historyIndex, generation.historyIndex)
+        && this.forkProjectionCompatible(currentPrompt, expected.promptIndex, generation.promptIndex)
+        && this.forkProjectionCompatible(currentSession, expected.sessionIndex, generation.sessionIndex)
+        && this.forkProjectionCompatible(currentArtifacts, expected.artifactRefs, generation.artifactRefs);
+      if (!compatible) throw new Error("conversation_fork_repair_target_authority_cas_conflict");
+      const [currentHistoryGenerations, currentPromptGenerations] = await Promise.all([
+        Promise.all(expected.historyGenerations.map((entry) => this.loadHistoryGenerationWithoutRecovery(entry.generationId))),
+        Promise.all(expected.promptGenerations.map((entry) => this.loadPromptGenerationWithoutRecovery(entry.promptGenerationId))),
+      ]);
+      const normalizePersisted = (value: unknown) => JSON.parse(JSON.stringify(value));
+      if (canonicalJson(normalizePersisted(currentHistoryGenerations)) !== canonicalJson(expected.historyGenerations)
+        || canonicalJson(normalizePersisted(currentPromptGenerations)) !== canonicalJson(expected.promptGenerations)) {
+        throw new Error("conversation_fork_repair_target_xnl_cas_conflict");
+      }
+    }
+
+    for (const historyGeneration of generation.historyGenerations) {
+      await this.writeHistoryGeneration(historyGeneration);
+    }
+    for (const promptGeneration of generation.promptGenerations) {
+      await this.writePromptGeneration(promptGeneration);
+    }
+    await writeDurableReplace(paths.historyIndexPath, generation.historyIndex);
+    await writeDurableReplace(paths.promptIndexPath, generation.promptIndex);
+    await writeDurableReplace(paths.artifactRefsPath, generation.artifactRefs);
+    this.options.conversationForkInitializationFault?.("before-authority-publish");
+    // Session publication is the hydrate/admission gate. Every load path first
+    // replays a surviving journal, so a published Session is never observed
+    // without its exact History, Prompt and provider receipt.
+    await writeDurableReplace(paths.sessionIndexPath, generation.sessionIndex);
+    this.options.conversationForkInitializationFault?.("after-authority-publish");
+    await writeDurableReplace(forkPaths.head, {
+      schemaVersion: "conversation.fork-initialization-head/v1",
+      transactionId: generation.transactionId,
+      targetAuthorityDigest: generation.targetAuthorityDigest,
+      childProviderEpochReceiptDigest: generation.childProviderEpochReceipt.receiptDigest,
+    } satisfies ConversationForkInitializationHead);
+    this.options.conversationForkInitializationFault?.("after-head-cas");
   }
 
   private providerContextTransitionGenerationPath(transitionId: string): string {
@@ -1102,86 +1502,83 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
   }
 
   async loadHistoryIndex(): Promise<ConversationHistoryIndexSnapshot> {
+    await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
     return await readJsonBestEffort(paths.historyIndexPath, createDefaultHistoryIndex(this.sessionDir));
   }
 
   async writeHistoryIndex(index: ConversationHistoryIndexSnapshot): Promise<void> {
-    const paths = getLocalConversationPaths(this.sessionDir);
-    await writeJsonAtomically(paths.historyIndexPath, index);
+    await this.withConversationAuthorityLease(async () => {
+      const paths = getLocalConversationPaths(this.sessionDir);
+      await writeJsonAtomically(paths.historyIndexPath, index);
+    });
   }
 
   async loadHistoryGeneration(generationId: string): Promise<ActorHistoryGenerationData | null> {
+    await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
-    const paths = getLocalConversationPaths(this.sessionDir);
-    const records = await readXnlRecords({
-      filePath: paths.historyXnlPath,
-    });
-    const messageGeneration = historyMessageRecordsToGeneration(generationId, records);
+    const messageGeneration = await this.loadHistoryGenerationWithoutRecovery(generationId);
     if (messageGeneration) {
       this.knownHistoryRecordIdsByGeneration.set(
         generationId,
         new Set(messageGeneration.messages.map((message) => message.recordId)),
       );
     }
-    if (messageGeneration) return await hydrateHistoryGenerationAssets(this.sessionDir, messageGeneration);
-    for (let index = records.length - 1; index >= 0; index -= 1) {
-      if (records[index].tag !== HISTORY_GENERATION_RECORD_TAG) continue;
-      const generation = xnlRecordToHistoryGeneration(records[index]);
-      if (generation?.generationId === generationId) return generation;
-    }
-    return null;
+    return messageGeneration;
   }
 
   async writeHistoryGeneration(generation: ActorHistoryGenerationData): Promise<void> {
-    const paths = getLocalConversationPaths(this.sessionDir);
-    await queueConversationXnlWrite(`${paths.historyXnlPath}:${generation.generationId}`, async () => {
-      const knownRecordIds = await scanExistingHistoryRecordIds({
-        filePath: paths.historyXnlPath,
-        generationId: generation.generationId,
-      });
-      this.knownHistoryRecordIdsByGeneration.set(generation.generationId, knownRecordIds);
-      for (const [sequence, entry] of generation.messages.entries()) {
-        if (knownRecordIds.has(entry.recordId)) continue;
-        const blocks = await createHistoryMessageBlocks(entry, this.sessionDir);
-        await appendXnlRecord({
+    await this.withConversationAuthorityLease(async () => {
+      const paths = getLocalConversationPaths(this.sessionDir);
+      await queueConversationXnlWrite(`${paths.historyXnlPath}:${generation.generationId}`, async () => {
+        const knownRecordIds = await scanExistingHistoryRecordIds({
           filePath: paths.historyXnlPath,
-          tag: HISTORY_MESSAGE_RECORD_TAG,
-          metadata: {
-            version: generation.version,
-            id: entry.recordId,
-            sessionId: generation.sessionId,
-            actorKey: entry.actorKey,
-            actorId: entry.actorId,
-            messageId: entry.message.messageId,
-            role: entry.message.role,
-            name: entry.message.name,
-            startAt: entry.message.startAt,
-            endAt: entry.message.endAt,
-            committedAt: entry.committedAt,
-            sequence,
-            generationId: generation.generationId,
-            parentGenerationId: generation.parentGenerationId ?? null,
-            predecessorGenerationIds: generation.predecessorGenerationIds,
-            createdReason: generation.createdReason,
-            sealed: generation.sealed,
-            messageCount: generation.messageCount,
-            generationCreatedAt: generation.createdAt,
-            generationUpdatedAt: generation.updatedAt,
-            blockCount: blocks?.length ?? 0,
-          },
-          // Legacy transcript-shaped `sourceRecords` duplicate the same text already
-          // stored in the block children, so they are intentionally not persisted.
-          // The reader keeps accepting `sourceRecords` attributes from legacy records.
-          body: blocks,
+          generationId: generation.generationId,
         });
-        knownRecordIds.add(entry.recordId);
-      }
+        this.knownHistoryRecordIdsByGeneration.set(generation.generationId, knownRecordIds);
+        for (const [sequence, entry] of generation.messages.entries()) {
+          if (knownRecordIds.has(entry.recordId)) continue;
+          const blocks = await createHistoryMessageBlocks(entry, this.sessionDir);
+          await appendXnlRecord({
+            filePath: paths.historyXnlPath,
+            tag: HISTORY_MESSAGE_RECORD_TAG,
+            metadata: {
+              version: generation.version,
+              id: entry.recordId,
+              sessionId: generation.sessionId,
+              actorKey: entry.actorKey,
+              actorId: entry.actorId,
+              messageId: entry.message.messageId,
+              role: entry.message.role,
+              name: entry.message.name,
+              startAt: entry.message.startAt,
+              endAt: entry.message.endAt,
+              committedAt: entry.committedAt,
+              sequence,
+              generationId: generation.generationId,
+              parentGenerationId: generation.parentGenerationId ?? null,
+              predecessorGenerationIds: generation.predecessorGenerationIds,
+              createdReason: generation.createdReason,
+              sealed: generation.sealed,
+              messageCount: generation.messageCount,
+              generationCreatedAt: generation.createdAt,
+              generationUpdatedAt: generation.updatedAt,
+              blockCount: blocks?.length ?? 0,
+            },
+            // Legacy transcript-shaped `sourceRecords` duplicate the same text already
+            // stored in the block children, so they are intentionally not persisted.
+            // The reader keeps accepting `sourceRecords` attributes from legacy records.
+            body: blocks,
+          });
+          knownRecordIds.add(entry.recordId);
+        }
+      });
     });
   }
 
   async listHistoryGenerationIds(): Promise<string[]> {
+    await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
     const generationIds = new Set<string>();
@@ -1202,53 +1599,45 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
   }
 
   async loadPromptIndex(): Promise<ConversationPromptIndexSnapshot> {
+    await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
     return await readJsonBestEffort(paths.promptIndexPath, createDefaultPromptIndex(this.sessionDir));
   }
 
   async writePromptIndex(index: ConversationPromptIndexSnapshot): Promise<void> {
-    const paths = getLocalConversationPaths(this.sessionDir);
-    await writeJsonAtomically(paths.promptIndexPath, index);
+    await this.withConversationAuthorityLease(async () => {
+      const paths = getLocalConversationPaths(this.sessionDir);
+      await writeJsonAtomically(paths.promptIndexPath, index);
+    });
   }
 
   async loadPromptGeneration(promptGenerationId: string): Promise<ActorPromptGenerationData | null> {
+    await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
-    const paths = getLocalConversationPaths(this.sessionDir);
-    const records = [
-      ...await readXnlRecords({
-        filePath: paths.promptsXnlPath,
-        tag: PROMPT_GENERATION_RECORD_TAG,
-      }),
-      ...await readXnlRecords({
-        filePath: paths.promptsXnlPath,
-        tag: LEGACY_PROMPT_GENERATION_RECORD_TAG,
-      }),
-    ];
-    for (let index = records.length - 1; index >= 0; index -= 1) {
-      const generation = xnlRecordToPromptGeneration(records[index]);
-      if (generation?.promptGenerationId === promptGenerationId) return generation;
-    }
-    return null;
+    return await this.loadPromptGenerationWithoutRecovery(promptGenerationId);
   }
 
   async writePromptGeneration(generation: ActorPromptGenerationData): Promise<void> {
-    const paths = getLocalConversationPaths(this.sessionDir);
-    await queueConversationXnlWrite(paths.promptsXnlPath, async () => {
-      this.knownPromptGenerationIds = await scanExistingPromptGenerationIds(paths.promptsXnlPath);
-      if (this.knownPromptGenerationIds.has(generation.promptGenerationId)) return;
-      await appendXnlRecord({
-        filePath: paths.promptsXnlPath,
-        tag: PROMPT_GENERATION_RECORD_TAG,
-        metadata: promptGenerationMetadata(generation),
-        attributes: promptGenerationAttributes(generation),
-        body: createPromptGenerationBody(generation),
+    await this.withConversationAuthorityLease(async () => {
+      const paths = getLocalConversationPaths(this.sessionDir);
+      await queueConversationXnlWrite(paths.promptsXnlPath, async () => {
+        this.knownPromptGenerationIds = await scanExistingPromptGenerationIds(paths.promptsXnlPath);
+        if (this.knownPromptGenerationIds.has(generation.promptGenerationId)) return;
+        await appendXnlRecord({
+          filePath: paths.promptsXnlPath,
+          tag: PROMPT_GENERATION_RECORD_TAG,
+          metadata: promptGenerationMetadata(generation),
+          attributes: promptGenerationAttributes(generation),
+          body: createPromptGenerationBody(generation),
+        });
+        this.knownPromptGenerationIds.add(generation.promptGenerationId);
       });
-      this.knownPromptGenerationIds.add(generation.promptGenerationId);
     });
   }
 
   async listPromptGenerationIds(): Promise<string[]> {
+    await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
     const generationIds = new Set<string>();
@@ -1270,32 +1659,144 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
   }
 
   async loadSessionIndex(): Promise<ConversationSessionIndexSnapshot> {
+    await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
     return await readJsonBestEffort(paths.sessionIndexPath, createDefaultSessionIndex(this.sessionDir));
   }
 
   async writeSessionIndex(index: ConversationSessionIndexSnapshot): Promise<void> {
-    const paths = getLocalConversationPaths(this.sessionDir);
-    await writeJsonAtomically(paths.sessionIndexPath, index);
+    await this.withConversationAuthorityLease(async () => {
+      const paths = getLocalConversationPaths(this.sessionDir);
+      await writeJsonAtomically(paths.sessionIndexPath, index);
+    });
   }
 
   async loadArtifactRefs(): Promise<ConversationArtifactRefsSnapshot> {
+    await this.recoverConversationForkInitialization();
     await this.recoverProviderContextTransitionGeneration();
     const paths = getLocalConversationPaths(this.sessionDir);
     return await readJsonBestEffort(paths.artifactRefsPath, createDefaultArtifactRefs(this.sessionDir));
   }
 
   async writeArtifactRefs(snapshot: ConversationArtifactRefsSnapshot): Promise<void> {
-    const paths = getLocalConversationPaths(this.sessionDir);
-    await writeJsonAtomically(paths.artifactRefsPath, snapshot);
+    await this.withConversationAuthorityLease(async () => {
+      const paths = getLocalConversationPaths(this.sessionDir);
+      await writeJsonAtomically(paths.artifactRefsPath, snapshot);
+    });
+  }
+
+  async commitConversationForkInitialization(
+    generation: ConversationForkInitializationGeneration,
+  ): Promise<void> {
+    await this.recoverConversationForkInitialization();
+    await this.withConversationAuthorityLease(async () => withConversationForkInitializationLock(this.sessionDir, async () => {
+      this.assertForkInitializationGenerationExact(generation);
+      const paths = forkInitializationPaths(this.sessionDir);
+      try {
+        const head = await readJsonExact<ConversationForkInitializationHead>(paths.head);
+        if (head.transactionId === generation.transactionId
+          && head.targetAuthorityDigest === generation.targetAuthorityDigest
+          && head.childProviderEpochReceiptDigest === generation.childProviderEpochReceipt.receiptDigest) {
+          return;
+        }
+        throw new Error("conversation_fork_initialization_head_cas_conflict");
+      } catch (error: any) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+      const generationPath = await this.writeImmutableForkInitializationGeneration(generation);
+      await this.claimConversationForkInitialization(generation, generationPath);
+      await writeDurableReplace(paths.journal, {
+        schemaVersion: "conversation.fork-initialization-journal/v1",
+        transactionId: generation.transactionId,
+        generationPath: path.basename(generationPath),
+      });
+      this.options.conversationForkInitializationFault?.("after-journal-publish");
+      await this.applyConversationForkInitialization(generation);
+      await rm(paths.journal, { force: true });
+      await fsyncDirectory(paths.root);
+    }));
+  }
+
+  async loadConversationForkHead(): Promise<ConversationForkInitializationHead | null> {
+    await this.recoverConversationForkInitialization();
+    const paths = forkInitializationPaths(this.sessionDir);
+    try {
+      const head = await readJsonExact<ConversationForkInitializationHead>(paths.head);
+      if (head.schemaVersion !== "conversation.fork-initialization-head/v1"
+        || !/^sha256:[0-9a-f]{64}$/.test(head.transactionId)
+        || !/^sha256:[0-9a-f]{64}$/.test(head.targetAuthorityDigest)
+        || !/^sha256:[0-9a-f]{64}$/.test(head.childProviderEpochReceiptDigest)) {
+        throw new Error("conversation_fork_initialization_head_invalid");
+      }
+      return head;
+    } catch (error: any) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+  }
+
+  async loadConversationForkInitializationGeneration(
+    transactionId: `sha256:${string}`,
+  ): Promise<ConversationForkInitializationGeneration | null> {
+    await this.recoverConversationForkInitialization();
+    try {
+      const generation = await readJsonExact<ConversationForkInitializationGeneration>(
+        this.conversationForkInitializationGenerationPath(transactionId),
+      );
+      this.assertForkInitializationGenerationExact(generation);
+      return generation;
+    } catch (error: any) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
+  }
+
+  async recoverConversationForkInitialization(): Promise<void> {
+    if (this.recoveringConversationForkInitialization) {
+      return await this.recoveringConversationForkInitialization;
+    }
+    const recover = async () => this.withConversationAuthorityLease(
+      async () => withConversationForkInitializationLock(this.sessionDir, async () => {
+      const paths = forkInitializationPaths(this.sessionDir);
+      await assertRealDirectoryOrMissing(paths.root);
+      try {
+        const journal = await readJsonExact<{
+          schemaVersion: string;
+          transactionId: string;
+          generationPath: string;
+        }>(paths.journal);
+        if (journal.schemaVersion !== "conversation.fork-initialization-journal/v1"
+          || journal.generationPath !== `${journal.transactionId.slice("sha256:".length)}.json`) {
+          throw new Error("conversation_fork_initialization_journal_invalid");
+        }
+        const generationPath = this.conversationForkInitializationGenerationPath(journal.transactionId);
+        const generation = await readJsonExact<ConversationForkInitializationGeneration>(generationPath);
+        if (generation.transactionId !== journal.transactionId) {
+          throw new Error("conversation_fork_initialization_journal_generation_mismatch");
+        }
+        await this.claimConversationForkInitialization(generation, generationPath);
+        await this.applyConversationForkInitialization(generation);
+        await rm(paths.journal, { force: true });
+        await fsyncDirectory(paths.root);
+      } catch (error: any) {
+        if (error?.code !== "ENOENT") throw error;
+      }
+      }),
+    );
+    this.recoveringConversationForkInitialization = recover();
+    try {
+      await this.recoveringConversationForkInitialization;
+    } finally {
+      this.recoveringConversationForkInitialization = null;
+    }
   }
 
   async commitProviderContextTransitionGeneration(
     transition: ConversationProviderContextTransitionGeneration,
   ): Promise<void> {
     await this.recoverProviderContextTransitionGeneration();
-    await withProviderContextTransitionLock(this.sessionDir, async () => {
+    await this.withConversationAuthorityLease(async () => withProviderContextTransitionLock(this.sessionDir, async () => {
       this.assertTransitionGenerationExact(transition);
       const generationPath = await this.writeImmutableTransitionGeneration(transition);
       const paths = providerTransitionPaths(this.sessionDir);
@@ -1307,12 +1808,30 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
       await this.applyProviderContextTransitionGeneration(transition);
       await rm(paths.journal, { force: true });
       await fsyncDirectory(paths.root);
-    });
+    }));
+  }
+
+  async loadProviderContextTransitionHead(): Promise<ConversationProviderContextTransitionHead | null> {
+    await this.recoverProviderContextTransitionGeneration();
+    const paths = providerTransitionPaths(this.sessionDir);
+    try {
+      const head = await readJsonExact<ConversationProviderContextTransitionHead>(paths.head);
+      if (head.schemaVersion !== "conversation.provider-context-transition-head/v1"
+        || !/^sha256:[0-9a-f]{64}$/.test(head.transitionId)
+        || !/^sha256:[0-9a-f]{64}$/.test(head.nextEpochReceiptDigest)) {
+        throw new Error("provider_context_transition_head_invalid");
+      }
+      return head;
+    } catch (error: any) {
+      if (error?.code === "ENOENT") return null;
+      throw error;
+    }
   }
 
   async recoverProviderContextTransitionGeneration(): Promise<void> {
     if (this.recoveringProviderContextTransition) return await this.recoveringProviderContextTransition;
-    const recover = async () => withProviderContextTransitionLock(this.sessionDir, async () => {
+    const recover = async () => this.withConversationAuthorityLease(
+      async () => withProviderContextTransitionLock(this.sessionDir, async () => {
       const paths = providerTransitionPaths(this.sessionDir);
       await assertRealDirectoryOrMissing(paths.root);
       try {
@@ -1336,7 +1855,8 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
       } catch (error: any) {
         if (error?.code !== "ENOENT") throw error;
       }
-    });
+      }),
+    );
     this.recoveringProviderContextTransition = recover();
     try {
       await this.recoveringProviderContextTransition;

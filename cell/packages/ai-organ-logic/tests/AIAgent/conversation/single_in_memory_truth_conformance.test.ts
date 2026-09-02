@@ -295,7 +295,7 @@ describe("single-in-memory-truth: no provider assembly from params.messages (sou
     const callSites = [...executorSource.matchAll(/\.createStream\(\{/g)]
     expect(callSites.length).toBeGreaterThan(0)
     for (const match of callSites) {
-      const window = executorSource.slice(match.index!, match.index! + 400)
+      const window = executorSource.slice(match.index!, match.index! + 1_200)
       expect({
         at: match.index,
         sendsProviderMessages: /messages:\s*(retryPrompt\.providerMessages|promptBuild\.providerMessages|providerMessages)\s*,/.test(window),

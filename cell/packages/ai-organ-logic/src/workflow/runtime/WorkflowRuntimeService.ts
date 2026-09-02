@@ -3,7 +3,17 @@ import { existsSync } from "node:fs"
 import path from "node:path"
 
 import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
-import type { AIDataWorkflowGraphPatch, AIWorkflowRunRef } from "@cell/ai-workflow-contract"
+import {
+  AI_DATA_CHILD_INVOCATION_SCHEMA_VERSION,
+  type AIDataWorkflowChildFreezeReceipt,
+  type AIDataWorkflowChildInvocationIdentity,
+  type AIDataWorkflowChildInvocationObservation,
+  type AIDataWorkflowChildInvocationRuntimePort,
+  type AIDataWorkflowChildTerminalReceipt,
+  type AIDataWorkflowGraphPatch,
+  type AIWorkflowRunRef,
+  type FlowClosedObject,
+} from "@cell/ai-workflow-contract"
 import {
   createAICtrlWorkflowAgentNodeRuntimeBinder,
   createAICtrlWorkflowCheckpointStore,
@@ -18,11 +28,14 @@ import {
 } from "ai-ctrl-workflow-logic"
 import {
   consumeAIDataHolonTask,
+  loadAIDataWorkflowCheckpoint,
+  normalizeAIDataWorkflowChildFreezeReceipt,
   type AIDataHolonTaskMaterialValidationInput,
 } from "ai-data-workflow-logic"
 import {
   holonTaskTargetFromNodeConfig,
   normalizeHolonTaskSnapshotReceipt,
+  normalizeHolonTaskSnapshotAdoptionReceipt,
   normalizeHolonTaskTarget,
   type FrozenHolonTaskTarget,
   type HolonTaskTarget,
@@ -34,8 +47,11 @@ import {
   canonicalHolonEffectiveSnapshotIssuanceReceiptBytes,
 } from "holarchy-core-contract"
 import { FileTaskSpaceOwner } from "task-manager-file-support"
+import type { TaskRecord, TaskSettlementReceipt } from "task-manager-contract"
 import type {
   AIWorkflowAgentTaskRef,
+  AIAgentDefinitionSelectionDecision,
+  AIAgentTaskRequirement,
   AIWorkflowAuthoredRuntimeContext,
   FrozenAIAgentTaskBinding,
 } from "ai-workflow-contract"
@@ -44,8 +60,19 @@ import { createFilesystemFlowCodeResolver } from "instant-ctrl-flow-logic"
 import type { ResumeSignal } from "work-ctrl-flow-contract"
 import { hashWorkflowSources, type WorkflowAuthoringWorkspace } from "../authoring"
 import { createWorkflowComponentForRuntime } from "../component"
-import { EidolonAppResourceRegistryAdapter } from "../../resources"
-import { EidolonWorkflowEffectProvider, StoreBackedWorkflowMaterialAccess } from "../effects"
+import {
+  EidolonAppResourceRegistryAdapter,
+  EidolonAutonomousAgentResourceHost,
+  loadFrozenEffectiveEidolonVfsReadPort,
+  type EidolonAIAgentDefinitionSelectionObservation,
+  type EidolonEffectiveVfsAuthoringPort,
+  type ResourcePackageLayerBinding,
+} from "../../resources"
+import {
+  EidolonWorkflowEffectProvider,
+  StoreBackedWorkflowMaterialAccess,
+  type EidolonWorkflowEffectProviderFaultObserver,
+} from "../effects"
 import {
   bindWorkflowStepExtensionAuthoredRuntime,
   createWorkflowStepExtensionAuthoredFacade,
@@ -73,6 +100,16 @@ import type {
 } from "./WorkflowLifecycleFacts"
 import { WorkflowMaterialService } from "./WorkflowMaterialService"
 import { createAIDataAutonomousControlExtensionCodecRegistry } from "./AIDataAutonomousControlLoop"
+import {
+  AIDataAgentResourcePreparationService,
+  EidolonFixedAgentExecutionRegistry,
+  FileAIDataAgentPreparationStore,
+  createAIDataAgentPreparationExtensionCodecRegistry,
+  mergeAIDataPreparedAgentProofs,
+  readAIDataAgentPreparationReceipts,
+  type AIDataAgentPreparationResult,
+  type AIDataPreparedAgentCapabilityInput,
+} from "./AIDataAgentResourcePreparation"
 import type { AIDataAutonomousVerifierPort } from "./AIDataAutonomousControlRunner"
 import type {
   AIDataControlAdmission,
@@ -94,8 +131,21 @@ import {
 import {
   executeHolonWorkflowTask,
   type ExecuteHolonWorkflowTaskInput,
+  type HolonWorkflowTaskProcessorRuntime,
   type HolonWorkflowTaskExecutionResult,
 } from "../../organization/HolonWorkflowTaskRuntime"
+import {
+  FileHolonTaskPumpJournal,
+  type HolonTaskPumpJournalFaultObserver,
+  type HolonTaskPumpSubscription,
+} from "../../organization/HolonTaskPumpJournal"
+import { HolonTaskSpaceCoordinatorActor } from "../../organization/HolonTaskSpaceCoordinatorActor"
+import { getOrganizationManager } from "../../organization/OrganizationManager"
+import {
+  registerCanonicalHolonAssignmentAuthority,
+  type CanonicalHolonAssignmentReceipt,
+  type CanonicalHolonAssignmentRequest,
+} from "../../organization/CanonicalHolonAssignmentFacade"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
 type CtrlController = ReturnType<typeof createAICtrlWorkflowController>
@@ -155,6 +205,19 @@ export type WorkflowRunProjection = {
   vars?: Record<string, unknown>
 }
 
+export type WorkflowRuntimeServiceOptions = Readonly<{
+  holonJournalFaults?: HolonTaskPumpJournalFaultObserver
+  holonEffectFaults?: EidolonWorkflowEffectProviderFaultObserver
+  holonPumpMaxSteps?: number
+  holonPumpWaitingProbeMs?: number
+  holonFaults?: Readonly<{
+    afterTaskSpaceSettlement?(input: Readonly<{
+      runId: string
+      settlementReceiptIds: readonly string[]
+    }>): void | Promise<void>
+  }>
+}>
+
 function stableValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stableValue)
   if (typeof value !== "object" || value === null) return value
@@ -174,6 +237,34 @@ function metadata(runtime: WorkflowRuntime): Record<string, unknown> {
 
 function nestedRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? value as Record<string, unknown> : {}
+}
+
+async function terminalTaskSettlement(
+  owner: FileTaskSpaceOwner,
+  taskSpaceId: string,
+  taskId: string,
+): Promise<Readonly<{
+  task: TaskRecord
+  receipt: TaskSettlementReceipt
+}> | undefined> {
+  const snapshot = await owner.readSnapshot(taskSpaceId)
+  const task = snapshot?.tasks.find((candidate) => candidate.taskId === taskId)
+  if (!task || !["Succeeded", "Failed", "Cancelled"].includes(task.status)) return undefined
+  const history = await owner.readHistory(taskSpaceId)
+  let terminalEvent: (typeof history)[number] | undefined
+  for (let index = history.length - 1; index >= 0; index -= 1) {
+    const event = history[index]!
+    if ("taskId" in event && event.taskId === taskId
+      && ["task.settled", "task.failed", "task.cancelled"].includes(event.kind)) {
+      terminalEvent = event
+      break
+    }
+  }
+  if (!terminalEvent) return undefined
+  const receipt = await owner.readReceiptByCommand(taskSpaceId, terminalEvent.commandId)
+  if (!receipt || receipt.kind !== "task-settlement-receipt"
+    || receipt.taskId !== taskId || receipt.status !== task.status) return undefined
+  return Object.freeze({ task, receipt })
 }
 
 function effectOwnerNodeId(request: { nodeId?: unknown; config?: unknown }): string {
@@ -257,11 +348,13 @@ function stepExtensionCodecs(runtime: WorkflowRuntime): DefinitionStepExtensionC
   const aiWorkflow = nestedRecord(metadata(runtime).aiWorkflow)
   const candidate = aiWorkflow.extensionCodecs
   if (candidate && typeof candidate === "object" && typeof (candidate as { resolve?: unknown }).resolve === "function") {
-    return createAIDataAutonomousControlExtensionCodecRegistry(
+    return createAIDataAgentPreparationExtensionCodecRegistry(createAIDataAutonomousControlExtensionCodecRegistry(
       candidate as DefinitionStepExtensionCodecRegistryPort,
-    )
+    ))
   }
-  return createAIDataAutonomousControlExtensionCodecRegistry()
+  return createAIDataAgentPreparationExtensionCodecRegistry(
+    createAIDataAutonomousControlExtensionCodecRegistry(),
+  )
 }
 
 function runRef(
@@ -288,6 +381,7 @@ type WorkflowHolonTaskContext = Readonly<{
   proofs: Readonly<Record<string, FrozenHolonTaskTarget>>
   targets: Readonly<Record<string, HolonTaskTarget>>
   taskManager: Readonly<{ owner: FileTaskSpaceOwner }>
+  journal: FileHolonTaskPumpJournal
   organizationSnapshots: Readonly<{
     readEffectiveSnapshot(input: Readonly<{
       rootHolonRef: string
@@ -303,6 +397,14 @@ type WorkflowHolonTaskContext = Readonly<{
     input: Parameters<typeof openAICtrlHolonTask>[1],
     config: Parameters<typeof openAICtrlHolonTask>[2],
   ): ReturnType<typeof openAICtrlHolonTask>
+  openAssignmentTask(
+    input: Parameters<typeof openAICtrlHolonTask>[1],
+    config: Parameters<typeof openAICtrlHolonTask>[2],
+    assignmentInput: import("holarchy-eidolon-adapter").ClosedValue,
+  ): Promise<Readonly<{
+    opened: Awaited<ReturnType<typeof openAICtrlHolonTask>>
+    subscription: HolonTaskPumpSubscription
+  }>>
   observeTask(
     input: Parameters<typeof observeAICtrlHolonTask>[1],
     config: Parameters<typeof observeAICtrlHolonTask>[2],
@@ -476,17 +578,29 @@ export class WorkflowRuntimeService {
   private readonly workspace: WorkflowAuthoringWorkspace
   private readonly catalog: ReturnType<typeof createWorkflowComponentForRuntime>["catalog"]
   private readonly resourceRegistry: EidolonAppResourceRegistryAdapter
+  private readonly resourceLayers: readonly ResourcePackageLayerBinding[]
+  private readonly effectiveVfsAuthoring?: EidolonEffectiveVfsAuthoringPort
   private readonly supportRoot: string
+  private readonly agentPreparationStore: FileAIDataAgentPreparationStore
+  private agentPreparationService?: AIDataAgentResourcePreparationService
 
-  constructor(private readonly runtime: WorkflowRuntime) {
+  constructor(
+    private readonly runtime: WorkflowRuntime,
+    private readonly options: WorkflowRuntimeServiceOptions = {},
+  ) {
     const component = createWorkflowComponentForRuntime(runtime)
     if (!component.authoring) throw new Error("Workflow authoring workspace is not bound")
     if (!component.repository) throw new Error("Workflow definition repository is not bound")
     this.workspace = component.authoring
     this.catalog = component.catalog
     this.resourceRegistry = component.resourceRegistry
+    this.resourceLayers = component.resourceLayers
+    this.effectiveVfsAuthoring = component.effectiveVfsAuthoring
     this.repository = component.repository
     this.supportRoot = factRoot(runtime, component.authoring.store.rootPath)
+    this.agentPreparationStore = new FileAIDataAgentPreparationStore(
+      path.join(this.supportRoot, "agent-preparations"),
+    )
     this.facts = new WorkflowFactStore(this.supportRoot)
     this.depa = new WorkflowDepaPersistence(this.supportRoot, stepExtensionCodecs(runtime))
     this.legacyMigration = new WorkflowLegacyMigration(this.supportRoot, this.depa)
@@ -499,6 +613,65 @@ export class WorkflowRuntimeService {
 
   async listTypes(): Promise<WorkflowDefinitionRevision[]> {
     return Promise.all((await this.repository.listResourceRefs()).map((ref) => this.repository.capture(ref)))
+  }
+
+  async observeAIDataAgentDefinition(input: Readonly<{
+    instanceId: string
+    requirement: AIAgentTaskRequirement
+  }>): Promise<EidolonAIAgentDefinitionSelectionObservation> {
+    const instance = await this.requirePreparedAIDataInstance(input.instanceId)
+    void instance
+    return (await this.liveAgentPreparationService()).observe(input.requirement)
+  }
+
+  async prepareAIDataAgentDefinition(input: Readonly<{
+    instanceId: string
+    observation: EidolonAIAgentDefinitionSelectionObservation
+    decision: AIAgentDefinitionSelectionDecision
+    nodeId: string
+    instanceName: string
+    capability: AIDataPreparedAgentCapabilityInput
+  }>): Promise<AIDataAgentPreparationResult> {
+    const instance = await this.requirePreparedAIDataInstance(input.instanceId)
+    if (!instance.workflowRef.startsWith("resource://")) {
+      throw new Error("AI_DATA_AGENT_PREPARATION_RESOURCE_WORKFLOW_REQUIRED")
+    }
+    const prepared = await (await this.liveAgentPreparationService()).prepare({
+      instanceId: instance.instanceId,
+      observation: input.observation,
+      decision: input.decision,
+      workflowRef: instance.workflowRef as `resource://${string}`,
+      nodeId: input.nodeId,
+      instanceName: input.instanceName,
+      capability: input.capability,
+    })
+    if ("receipt" in prepared) await this.agentPreparationStore.save(prepared.receipt)
+    return prepared
+  }
+
+  private async requirePreparedAIDataInstance(instanceId: string): Promise<WorkflowInstance> {
+    const instance = await this.requireInstance(instanceId)
+    if (instance.form !== "AIDataWorkflow") {
+      throw new Error("AI_DATA_AGENT_PREPARATION_DATA_WORKFLOW_REQUIRED")
+    }
+    if (instance.status !== "Prepared") {
+      throw new Error(`AI_DATA_AGENT_PREPARATION_INSTANCE_FROZEN: ${instance.instanceId}`)
+    }
+    return instance
+  }
+
+  private async liveAgentPreparationService(): Promise<AIDataAgentResourcePreparationService> {
+    if (this.agentPreparationService) return this.agentPreparationService
+    const snapshot = await this.resourceRegistry.snapshot()
+    this.agentPreparationService = new AIDataAgentResourcePreparationService(
+      new EidolonAutonomousAgentResourceHost(
+        this.resourceRegistry,
+        this.resourceLayers.length > 0 ? this.resourceLayers : snapshot.layers,
+        path.join(this.supportRoot, "agent-definition-authoring"),
+        this.effectiveVfsAuthoring,
+      ),
+    )
+    return this.agentPreparationService
   }
 
   async createInstance(input: {
@@ -727,11 +900,15 @@ export class WorkflowRuntimeService {
     const instance = await this.requireInstance(input.instanceId)
     const bindings = (await Promise.all(instance.bindingIds.map((id) => this.facts.loadMaterialBinding(id))))
       .filter((item): item is WorkflowMaterialBinding => Boolean(item))
+    const agentPreparations = instance.form === "AIDataWorkflow"
+      ? await this.agentPreparationStore.list(instance.instanceId)
+      : []
     const requestFingerprint = fingerprint({
       instanceId: instance.instanceId,
       definitionRevision: instance.definitionRevision,
       input: instance.input,
       bindings,
+      agentPreparations,
       replayOf: input.replayOf,
     })
     const requestedRunId = input.runId?.trim()
@@ -739,6 +916,21 @@ export class WorkflowRuntimeService {
       const existing = await this.facts.loadDescriptor(requestedRunId)
       if (existing) {
         if (existing.requestFingerprint !== requestFingerprint) throw new Error(`Run id conflict: ${requestedRunId}`)
+        if (this.holonAutomaticPumpEnabled()) {
+          const continued = await this.continueHolonRun(requestedRunId)
+          if (continued) return continued
+        }
+        if (existing.form === "AIDataWorkflow") {
+          const driver = await this.loadDataDriver(existing)
+          const current = await driver?.status()
+          if (current?.terminal) return this.status(requestedRunId)
+          const continued = await driver?.continue()
+          if (continued) {
+            const projection = this.attachDescriptor(existing, continued)
+            await this.synchronizeInstanceStatus(existing.runId, projection)
+            return projection
+          }
+        }
         return this.status(requestedRunId)
       }
     }
@@ -755,6 +947,7 @@ export class WorkflowRuntimeService {
           form: instance.form,
           input: instance.input,
           material_bindings: bindings,
+          agent_preparations: agentPreparations,
           requested_run_id: requestedRunId ?? null,
         },
       }
@@ -802,7 +995,10 @@ export class WorkflowRuntimeService {
       updatedAt: now,
     })
     try {
-      const result = await this.execute(descriptor, definition, instance.input)
+      let result = await this.execute(descriptor, definition, instance.input)
+      if (this.holonAutomaticPumpEnabled()) {
+        result = await this.continueHolonRun(descriptor.runId) ?? result
+      }
       await this.synchronizeInstanceStatus(descriptor.runId, result)
       return result
     } catch (error) {
@@ -860,6 +1056,137 @@ export class WorkflowRuntimeService {
     return projected
   }
 
+  /**
+   * Host lifecycle entry point for both initial execution and fresh-process
+   * recovery. Durable subscriptions discover canonical TaskSpaces; the Flow is
+   * resumed only from accepted settlement receipts.
+   */
+  async continueHolonRun(runId: string, observedAt = new Date().toISOString()): Promise<any | undefined> {
+    const descriptor = await this.facts.loadDescriptor(runId)
+    if (!descriptor) return undefined
+    const definition = await this.loadFrozenDefinition(descriptor, descriptor.form)
+    const registry = this.frozenAgentRegistry(descriptor.instanceId)
+    const context = registry
+      ? await this.workflowHolonContext(descriptor, definition, registry)
+      : undefined
+    if (!context) return undefined
+
+    for (let cycle = 0; cycle < 128; cycle += 1) {
+      let yielded = false
+      const correlations: Array<Readonly<{
+        subscription: HolonTaskPumpSubscription
+        settlement: TaskSettlementReceipt
+      }>> = []
+      for (const subscription of await context.journal.listSubscriptions(runId)) {
+        const taskSpace = await context.taskManager.owner.readSnapshot(subscription.taskSpaceId)
+        const task = taskSpace?.tasks.find((candidate) => {
+          if (candidate.taskId !== subscription.taskId) return false
+          if (candidate.profile.profileKind !== "depa.ai.organization-task") return false
+          try {
+            const receipt = normalizeHolonTaskSnapshotReceipt(candidate.profile.facts.snapshotReceipt)
+            return receipt.issuerReceiptId === subscription.snapshotReceiptId
+          } catch {
+            return false
+          }
+        })
+        if (!task) continue
+        const target = normalizeHolonTaskTarget(task.profile.facts.target)
+        const prepared = await this.workflowHolonTaskProcessorRuntime(
+          descriptor,
+          definition,
+          context,
+          subscription.nodeId,
+          target,
+          subscription.snapshotReceiptId,
+        )
+        if (prepared.deployment.deploymentId !== subscription.deploymentId) {
+          throw new Error("EIDOLON_HOLON_PUMP_SUBSCRIPTION_DEPLOYMENT_MISMATCH")
+        }
+        const coordinatorKey = `${subscription.deploymentId}\u0000${subscription.holonRef}`
+        const coordinators = this.holonCoordinatorActors()
+        let coordinator = coordinators.get(coordinatorKey)
+        if (!coordinator) {
+          coordinator = new HolonTaskSpaceCoordinatorActor({
+            deploymentId: subscription.deploymentId,
+            holonRef: subscription.holonRef,
+          }, {
+            maxTasks: 1_024,
+            maxRelations: 4_096,
+            maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
+          })
+          coordinators.set(coordinatorKey, coordinator)
+        }
+        const pumpInput = {
+          subscription,
+          leaseDurationMs: 30_000,
+          maxSteps: this.options.holonPumpMaxSteps ?? 1_024,
+          observedAt,
+        } as const
+        const pumped = await coordinator.wake(prepared.runtime, pumpInput)
+        if (pumped.status === "yielded") yielded = true
+        if (pumped.status === "waiting") {
+          coordinator.scheduleWake(pumpInput, async () => {
+            if (!this.holonAutomaticPumpEnabled()) return
+            await this.continueHolonRun(runId, new Date().toISOString())
+          }, this.options.holonPumpWaitingProbeMs ?? 100)
+        }
+        const settlement = await this.workflowHolonSubscriptionSettlement(context, subscription)
+        if (settlement) correlations.push(Object.freeze({ subscription, settlement }))
+      }
+
+      if (correlations.length > 0) {
+        await this.options.holonFaults?.afterTaskSpaceSettlement?.({
+          runId,
+          settlementReceiptIds: Object.freeze(correlations.map(({ settlement }) => settlement.receiptId)),
+        })
+      }
+
+      let projection = await this.status(runId)
+      if (projection?.terminal) return projection
+      let consumed = false
+      for (const correlation of correlations) {
+        if (descriptor.form === "AICtrlWorkflow") {
+          const handle = Array.isArray(projection?.open_wait_handles)
+            ? projection.open_wait_handles.find((candidate: any) => (
+                candidate?.signalKey === correlation.subscription.taskSpaceId
+              )) as any
+            : undefined
+          if (!handle) continue
+          projection = await this.resume(runId, {
+            signalKind: handle.signalKind,
+            signalKey: handle.signalKey,
+            resumeToken: handle.resumeToken,
+            payload: { settlementReceiptId: correlation.settlement.receiptId },
+          })
+        } else {
+          const waiting = Array.isArray(projection?.nodes)
+            ? projection.nodes.find((node: any) => node?.nodeType === "manual"
+                && node?.result?.status === "Waiting"
+                && Object.values(nestedRecord(node.inputs)).some((binding: any) => (
+                  binding?.nodeId === correlation.subscription.nodeId
+                )))
+            : undefined
+          if (!waiting) continue
+          const outputs = Array.isArray(waiting.outputs) ? waiting.outputs : []
+          if (outputs.length !== 1) {
+            throw new Error(`EIDOLON_HOLON_DATA_WAIT_OUTPUT_INVALID: ${waiting.id}`)
+          }
+          projection = await this.resumeDataNode(runId, waiting.id, {
+            [outputs[0]]: correlation.settlement.receiptId,
+          })
+        }
+        consumed = true
+        break
+      }
+      if (!consumed) {
+        if (yielded) continue
+        return projection
+      }
+      if (projection) await this.synchronizeInstanceStatus(runId, projection)
+    }
+    throw new Error(`EIDOLON_HOLON_PUMP_CONTROL_BUDGET_EXHAUSTED: ${runId}`)
+  }
+
   async processHolonTask(
     input: ProcessWorkflowHolonTaskInput,
   ): Promise<HolonWorkflowTaskExecutionResult> {
@@ -883,95 +1210,16 @@ export class WorkflowRuntimeService {
     if (!sameHolonTargetExecutableIdentity(frozenTarget, target)) {
       throw new Error("EIDOLON_HOLON_TASK_SUCCESSOR_INSTANCE_REQUIRED: task executable identity differs from the frozen Flow node")
     }
-    const deployment = await this.workflowHolonDeploymentForTask(
+    const prepared = await this.workflowHolonTaskProcessorRuntime(
       descriptor,
+      definition,
       context,
+      input.nodeId,
       target,
       snapshotReceipt.issuerReceiptId,
     )
-    const binding = deployment.definition.bindingProjection.binding
-    if (binding.adapter.kind !== "ai-agent") {
-      throw new Error(`EIDOLON_HOLON_PRODUCT_ADAPTER_UNSUPPORTED: ${binding.adapter.kind}`)
-    }
-    const agentAdapter = binding.adapter
-    const executionRegistry = deployment.definition.resourceRegistry
-    const taskProof = await executionRegistry.freezeWorkflowAgentTaskBinding({
-      workflowKind: descriptor.form,
-      workflowRef: descriptor.workflowRef as `resource://${string}`,
-      nodeId: input.nodeId,
-      agentDefinitionRef: agentAdapter.agentDefinitionRef,
-    })
-    const taskBinding = assertFrozenAIAgentTaskBinding(taskProof).task
-    const activeRun = runRef(descriptor, definition)
-    const component = createWorkflowComponentForRuntime(this.runtime)
-    if (!component.authoring) throw new Error("EIDOLON_HOLON_AUTHORING_STORE_REQUIRED")
-    const effects = new EidolonWorkflowEffectProvider(
-      this.runtime,
-      new StoreBackedWorkflowMaterialAccess(component.authoring.store),
-      this.facts,
-      (request, output) => this.captureMaterialOutput(request.run.runId, effectOwnerNodeId(request), output.path),
-      () => activeRun,
-      { workflowForm: descriptor.form, resourceRegistry: executionRegistry },
-      this.stepExtensionFacade(),
-      { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
-    )
-    const genericOwner = this.workflowHolonGenericOwner(descriptor, agentAdapter.agentDefinitionRef)
-    const adapters: HolonExecutionAdapterPorts = {
-      aiAgent: {
-        execute: async ({ invocation, runtimeRef, sessionRef, taskAttempt }) => {
-          const checkpointKey = { instanceId: descriptor.instanceId, runId: descriptor.runId }
-          const checkpoint = await this.depa.checkpointRuntime.checkpointStore.load(checkpointKey) as any
-          if (!checkpoint) throw new Error("Holon Agent execution requires the canonical Flow checkpoint")
-          const taskAttemptIdentity = JSON.stringify([
-            taskAttempt.taskSpaceId,
-            taskAttempt.taskId,
-            taskAttempt.claimId,
-            taskAttempt.attempt,
-          ])
-          const taskAttemptDigest = createHash("sha256").update(taskAttemptIdentity).digest("hex")
-          const instanceName = `holon-task-attempt-${taskAttemptDigest.slice(0, 32)}`
-          const processorRuntime = {
-            checkpointRuntime: this.depa.checkpointRuntime,
-            checkpointKey,
-            workflowKind: descriptor.form,
-            workflowRef: descriptor.workflowRef as `resource://${string}`,
-            nodeId: input.nodeId,
-            invocationKey: `holon-task-attempt:${taskAttemptDigest}`,
-            generation: descriptor.generation,
-            effects,
-            taskBinding,
-            metadata: {
-              deploymentId: deployment.deploymentId,
-              memberRuntimeRef: runtimeRef,
-              taskSpaceId: input.taskSpaceId,
-              taskId: input.taskId,
-              claimId: taskAttempt.claimId,
-              attempt: taskAttempt.attempt,
-              sessionRef,
-              holonInvocationRef: invocation.invocationRef,
-            },
-          }
-          const config = {
-            agentDefinitionRef: agentAdapter.agentDefinitionRef,
-            materialRefs: invocation.materialRefs,
-          }
-          const result = await runAgent(processorRuntime, invocation.input, { ...config, instanceName })
-          return result.output as import("holarchy-eidolon-adapter").ClosedValue
-        },
-      },
-      humanEndpoint: { execute: () => { throw new Error("EIDOLON_HOLON_HUMAN_ENDPOINT_NOT_BOUND") } },
-      service: { execute: () => { throw new Error("EIDOLON_HOLON_SERVICE_ADAPTER_NOT_BOUND") } },
-      hybrid: { execute: () => { throw new Error("EIDOLON_HOLON_HYBRID_ADAPTER_NOT_BOUND") } },
-    }
-    const actorRuntime = new EidolonHolonLocalActorRuntime(
-      deployment.store,
-      genericOwner,
-      adapters,
-      `workflow-${descriptor.runId}`,
-    )
-    await actorRuntime.recover(deployment.deploymentId)
     const executionInput: ExecuteHolonWorkflowTaskInput = {
-      deploymentId: deployment.deploymentId,
+      deploymentId: prepared.deployment.deploymentId,
       bindingRef: target.executionBinding.ref,
       holonRef: target.holon.rootHolonRef,
       taskSpaceId: input.taskSpaceId,
@@ -988,11 +1236,7 @@ export class WorkflowRuntimeService {
       leaseDurationMs: input.leaseDurationMs,
       input: input.input,
     }
-    return executeHolonWorkflowTask({
-      store: deployment.store,
-      taskManager: context.taskManager,
-      actorRuntime,
-    }, executionInput, {
+    return executeHolonWorkflowTask(prepared.runtime, executionInput, {
       maxTasks: 1_024,
       maxRelations: 4_096,
       maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
@@ -1003,8 +1247,8 @@ export class WorkflowRuntimeService {
     input: ReplanWorkflowHolonTaskInput,
   ): ReturnType<typeof replanAICtrlHolonTask> {
     const descriptor = await this.facts.loadDescriptor(input.runId)
-    if (!descriptor || descriptor.form !== "AICtrlWorkflow") {
-      throw new Error(`EIDOLON_HOLON_REPLAN_CTRL_RUN_REQUIRED: ${input.runId}`)
+    if (!descriptor || !["AICtrlWorkflow", "AIDataWorkflow"].includes(descriptor.form)) {
+      throw new Error(`EIDOLON_HOLON_REPLAN_WORKFLOW_RUN_REQUIRED: ${input.runId}`)
     }
     const definition = await this.loadFrozenDefinition(descriptor, descriptor.form)
     const frozenRegistry = this.frozenAgentRegistry(descriptor.instanceId)
@@ -1090,7 +1334,7 @@ export class WorkflowRuntimeService {
         })
       },
     })
-    return replanAICtrlHolonTask({
+    const replanned = await replanAICtrlHolonTask({
       taskManager: context.taskManager,
       organizationSnapshots,
     }, {
@@ -1109,6 +1353,23 @@ export class WorkflowRuntimeService {
       maxRelations: 4_096,
       maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
     })
+    await context.journal.subscribe({
+      deploymentId,
+      bindingRef: successorTarget.executionBinding.ref,
+      holonRef: successorTarget.holon.rootHolonRef,
+      snapshotReceiptId: replanned.successorSnapshotReceipt.issuerReceiptId,
+      taskSpaceId: input.taskSpaceId,
+      taskId: input.successorTaskId,
+      workflowInstanceId: descriptor.instanceId,
+      runId: descriptor.runId,
+      nodeId: input.nodeId,
+      input: descriptor.frozenInput as import("holarchy-eidolon-adapter").ClosedValue,
+      createdAt: input.replannedAt,
+    })
+    if (this.holonAutomaticPumpEnabled()) {
+      await this.continueHolonRun(descriptor.runId, input.replannedAt)
+    }
+    return replanned
   }
 
   async resumeDataNode(runId: string, nodeId: string, output: unknown): Promise<any | undefined> {
@@ -1361,6 +1622,7 @@ export class WorkflowRuntimeService {
       frozenRegistry ? { workflowForm: descriptor.form, resourceRegistry: frozenRegistry } : undefined,
       this.stepExtensionFacade(),
       { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
+      this.options.holonEffectFaults,
     )
     const bindAgentNode = definition.resourceReceipt
       ? createAICtrlWorkflowAgentNodeRuntimeBinder({
@@ -1404,12 +1666,39 @@ export class WorkflowRuntimeService {
   private async createDataDriver(descriptor: WorkflowRunDescriptor, definition: ResolvedWorkflowDefinition): Promise<AIDataWorkflowRuntimeDriver> {
     const component = createWorkflowComponentForRuntime(this.runtime)
     const frozenRegistry = this.frozenAgentRegistry(descriptor.instanceId)
-    const taskProofs = frozenRegistry
+    const frozenTaskProofs = frozenRegistry
       ? await this.frozenAgentTaskProofs(descriptor, definition, frozenRegistry)
       : {}
-    const taskProofRefs = frozenRegistry
+    const frozenTaskProofRefs = frozenRegistry
       ? await this.frozenAgentTaskProofRefs(descriptor, frozenRegistry)
       : {}
+    const storedCheckpoint = await loadAIDataWorkflowCheckpoint(this.depa.checkpointRuntime, {
+      instanceId: descriptor.instanceId,
+      runId: descriptor.runId,
+    })
+    const storedPreparationReceipts = await this.agentPreparationStore.list(descriptor.instanceId)
+    const checkpointPreparationReceipts = storedCheckpoint
+      ? readAIDataAgentPreparationReceipts(storedCheckpoint.stepExtensions)
+      : undefined
+    if (checkpointPreparationReceipts
+      && fingerprint(checkpointPreparationReceipts) !== fingerprint(storedPreparationReceipts)) {
+      throw new Error("AI_DATA_AGENT_PREPARATION_CHECKPOINT_AUTHORITY_MISMATCH")
+    }
+    const preparationReceipts = checkpointPreparationReceipts ?? storedPreparationReceipts
+    const preparationService = preparationReceipts.length > 0
+      ? await this.liveAgentPreparationService()
+      : undefined
+    const preparedAgents = preparationService
+      ? Object.freeze(await Promise.all(preparationReceipts.map((receipt) => preparationService.recover(receipt))))
+      : Object.freeze([])
+    const mergedProofs = mergeAIDataPreparedAgentProofs({
+      taskProofs: frozenTaskProofs,
+      taskProofRefs: frozenTaskProofRefs,
+      prepared: preparedAgents,
+    })
+    const executionRegistry = preparedAgents.length > 0
+      ? new EidolonFixedAgentExecutionRegistry(frozenRegistry, this.resourceRegistry, preparedAgents)
+      : frozenRegistry
     const holonContext = frozenRegistry
       ? await this.workflowHolonContext(descriptor, definition, frozenRegistry)
       : undefined
@@ -1422,12 +1711,184 @@ export class WorkflowRuntimeService {
       definition,
       runtimeRoots(this.runtime, this.workspace.store.rootPath),
       (request, output) => this.captureMaterialOutput(request.run.runId, effectOwnerNodeId(request), output.path),
-      frozenRegistry,
-      taskProofs,
-      taskProofRefs,
+      executionRegistry,
+      mergedProofs.taskProofs,
+      mergedProofs.taskProofRefs,
       this.stepExtensionFacade(),
       holonContext,
+      preparedAgents,
+      this.childInvocationRuntime(),
     )
+  }
+
+  private childInvocationRuntime(): AIDataWorkflowChildInvocationRuntimePort {
+    const port: AIDataWorkflowChildInvocationRuntimePort = {
+      resolveAndFreeze: (request) => this.resolveAndFreezeChildWorkflow(request.identity),
+      startOrContinue: (request) => this.startOrContinueChildWorkflow(
+        request.identity,
+        request.freeze,
+        request.input,
+      ),
+      load: (request) => this.loadChildWorkflow(request.identity, request.freeze),
+      settle: (request) => this.settleChildWorkflow(
+        request.identity,
+        request.freeze,
+        request.terminalStatus,
+      ),
+    }
+    return Object.freeze(port)
+  }
+
+  private async resolveAndFreezeChildWorkflow(
+    identity: AIDataWorkflowChildInvocationIdentity,
+  ): Promise<AIDataWorkflowChildFreezeReceipt> {
+    const existing = await this.facts.loadChildFreezeReceipt(identity.invocationKey)
+    if (existing) return normalizeAIDataWorkflowChildFreezeReceipt(existing, identity)
+    const frozen = await this.captureInstanceDefinition(identity.subflow.definitionRef)
+    if (frozen.form !== "AIDataWorkflow"
+      || `eager-data-flow://${frozen.fqn}` !== identity.subflow.flowRef) {
+      throw new Error(`AI_DATA_CHILD_DEFINITION_IDENTITY_MISMATCH: ${identity.invocationKey}`)
+    }
+    await this.facts.saveDefinitionRevision(frozen)
+    const receipt = normalizeAIDataWorkflowChildFreezeReceipt({
+      schemaVersion: AI_DATA_CHILD_INVOCATION_SCHEMA_VERSION,
+      invocationKey: identity.invocationKey,
+      childInstanceId: identity.childInstanceId,
+      childRunId: identity.childRunId,
+      definitionRef: identity.subflow.definitionRef,
+      flowRef: identity.subflow.flowRef,
+      contractDigest: identity.subflow.contractDigest,
+      definitionRevision: frozen.revision,
+      definitionDigest: frozen.revision,
+    }, identity)
+    await this.facts.saveChildFreezeReceipt(receipt)
+    return receipt
+  }
+
+  private async startOrContinueChildWorkflow(
+    identity: AIDataWorkflowChildInvocationIdentity,
+    rawFreeze: AIDataWorkflowChildFreezeReceipt,
+    input: FlowClosedObject,
+  ): Promise<AIDataWorkflowChildInvocationObservation> {
+    const freeze = normalizeAIDataWorkflowChildFreezeReceipt(rawFreeze, identity)
+    await this.ensureChildWorkflowInstance(identity, freeze, input)
+    const projection = await this.start({
+      instanceId: identity.childInstanceId,
+      runId: identity.childRunId,
+      confirmed: true,
+    })
+    return this.childWorkflowObservation(identity, projection)
+  }
+
+  private async loadChildWorkflow(
+    identity: AIDataWorkflowChildInvocationIdentity,
+    rawFreeze: AIDataWorkflowChildFreezeReceipt,
+  ): Promise<AIDataWorkflowChildInvocationObservation> {
+    const freeze = normalizeAIDataWorkflowChildFreezeReceipt(rawFreeze, identity)
+    const instance = await this.facts.loadInstance(identity.childInstanceId)
+    if (!instance) return this.childWorkflowObservation(identity, undefined)
+    if (instance.definitionRevision !== freeze.definitionRevision
+      || instance.workflowRef !== identity.subflow.definitionRef) {
+      throw new Error(`AI_DATA_CHILD_INSTANCE_FREEZE_MISMATCH: ${identity.invocationKey}`)
+    }
+    return this.childWorkflowObservation(identity, await this.status(identity.childRunId))
+  }
+
+  private async settleChildWorkflow(
+    identity: AIDataWorkflowChildInvocationIdentity,
+    rawFreeze: AIDataWorkflowChildFreezeReceipt,
+    terminalStatus: "Succeeded" | "Failed",
+  ): Promise<AIDataWorkflowChildTerminalReceipt> {
+    const freeze = normalizeAIDataWorkflowChildFreezeReceipt(rawFreeze, identity)
+    const projection = await this.result(identity.childRunId, true)
+    const observed = this.childWorkflowObservation(identity, projection)
+    if (observed.status !== terminalStatus) {
+      throw new Error(`AI_DATA_CHILD_TERMINAL_STATUS_MISMATCH: ${identity.invocationKey}`)
+    }
+    const common = {
+      schemaVersion: AI_DATA_CHILD_INVOCATION_SCHEMA_VERSION,
+      invocationKey: identity.invocationKey,
+      childInstanceId: identity.childInstanceId,
+      childRunId: identity.childRunId,
+      definitionRef: identity.subflow.definitionRef,
+      flowRef: identity.subflow.flowRef,
+      contractDigest: identity.subflow.contractDigest,
+    } as const
+    if (terminalStatus === "Succeeded") {
+      const output = nestedRecord(projection?.output) as FlowClosedObject
+      const body = { ...common, status: terminalStatus, output } as const
+      return Object.freeze({ ...body, receiptDigest: fingerprint(body) })
+    }
+    const body = {
+      ...common,
+      status: terminalStatus,
+      failureCode: "CHILD_WORKFLOW_FAILED",
+      failureMessage: `Child workflow ${identity.childRunId} failed`,
+    } as const
+    return Object.freeze({ ...body, receiptDigest: fingerprint(body) })
+  }
+
+  private async ensureChildWorkflowInstance(
+    identity: AIDataWorkflowChildInvocationIdentity,
+    freeze: AIDataWorkflowChildFreezeReceipt,
+    input: FlowClosedObject,
+  ): Promise<WorkflowInstance> {
+    const frozen = await this.facts.loadDefinitionRevision(freeze.definitionRevision)
+    if (!frozen || frozen.workflowRef !== identity.subflow.definitionRef
+      || `eager-data-flow://${frozen.fqn}` !== identity.subflow.flowRef
+      || frozen.revision !== freeze.definitionDigest) {
+      throw new Error(`AI_DATA_CHILD_FROZEN_DEFINITION_MISSING: ${identity.invocationKey}`)
+    }
+    const requestFingerprint = fingerprint({
+      workflowRef: frozen.workflowRef,
+      definitionRevision: frozen.revision,
+      input,
+    })
+    const existing = await this.facts.loadInstance(identity.childInstanceId)
+    if (existing) {
+      if (existing.requestFingerprint !== requestFingerprint
+        || existing.definitionRevision !== frozen.revision) {
+        throw new Error(`AI_DATA_CHILD_INSTANCE_CONFLICT: ${identity.invocationKey}`)
+      }
+      this.materializeInstance(existing.instanceId, frozen)
+      return existing
+    }
+    const now = Date.now()
+    const instance: WorkflowInstance = {
+      instanceId: identity.childInstanceId,
+      workflowRef: frozen.workflowRef,
+      definitionRevision: frozen.revision,
+      form: frozen.form,
+      status: "Prepared",
+      input,
+      bindingIds: [],
+      runIds: [],
+      idempotencyKey: identity.invocationKey,
+      requestFingerprint,
+      createdAt: now,
+      updatedAt: now,
+    }
+    this.materializeInstance(instance.instanceId, frozen)
+    await this.facts.saveInstance(instance)
+    return instance
+  }
+
+  private childWorkflowObservation(
+    identity: AIDataWorkflowChildInvocationIdentity,
+    projection: any | undefined,
+  ): AIDataWorkflowChildInvocationObservation {
+    const status = !projection
+      ? "Reserved" as const
+      : projection.terminal
+        ? projection.status === "Failed" ? "Failed" as const : "Succeeded" as const
+        : "Running" as const
+    return Object.freeze({
+      schemaVersion: AI_DATA_CHILD_INVOCATION_SCHEMA_VERSION,
+      invocationKey: identity.invocationKey,
+      childInstanceId: identity.childInstanceId,
+      childRunId: identity.childRunId,
+      status,
+    })
   }
 
   private async workflowHolonContext(
@@ -1489,10 +1950,42 @@ export class WorkflowRuntimeService {
       },
     })
     const holonRuntime = Object.freeze({ taskManager, organizationSnapshots })
+    const journal = new FileHolonTaskPumpJournal({
+      supportRoot: instanceRoot,
+      faults: this.options.holonJournalFaults,
+    })
+    const openTaskWithInput = async (
+      input: Parameters<typeof openAICtrlHolonTask>[1],
+      config: Parameters<typeof openAICtrlHolonTask>[2],
+      assignmentInput: import("holarchy-eidolon-adapter").ClosedValue,
+    ) => {
+      const opened = await openAICtrlHolonTask(holonRuntime, input, config)
+      const entry = Object.entries(proofs).find(([, proof]) => fingerprint(proof) === fingerprint(input.frozenTarget))
+      const target = entry && targets[entry[0]]
+      const deployment = target && deployments.get(target.executionBinding.ref)
+      if (!entry || !target || !deployment) {
+        throw new Error("EIDOLON_HOLON_PUMP_SUBSCRIPTION_TARGET_UNRESOLVED")
+      }
+      const subscription = await journal.subscribe({
+        deploymentId: deployment.deploymentId,
+        bindingRef: target.executionBinding.ref,
+        holonRef: target.holon.rootHolonRef,
+        snapshotReceiptId: opened.snapshotReceipt.issuerReceiptId,
+        taskSpaceId: input.taskSpaceId,
+        taskId: input.taskId,
+        workflowInstanceId: descriptor.instanceId,
+        runId: descriptor.runId,
+        nodeId: entry[0],
+        input: assignmentInput,
+        createdAt: input.createdAt,
+      })
+      return Object.freeze({ opened, subscription })
+    }
     const context: WorkflowHolonTaskContext = Object.freeze({
       proofs: Object.freeze(proofs),
       targets,
       taskManager,
+      journal,
       deployments,
       organizationSnapshots,
       proofForNode: (nodeId: string) => {
@@ -1500,18 +1993,217 @@ export class WorkflowRuntimeService {
         if (!proof) throw new Error(`EIDOLON_HOLON_TARGET_PROOF_REQUIRED: ${nodeId}`)
         return proof
       },
-      openTask: (input, config) => openAICtrlHolonTask(holonRuntime, input, config),
-      observeTask: (input, config) => observeAICtrlHolonTask(holonRuntime, input, config),
+      openTask: async (input, config) => {
+        return (await openTaskWithInput(
+          input,
+          config,
+          descriptor.frozenInput as import("holarchy-eidolon-adapter").ClosedValue,
+        )).opened
+      },
+      openAssignmentTask: openTaskWithInput,
+      observeTask: async (input, config) => {
+        const observed = await observeAICtrlHolonTask(holonRuntime, input, config)
+        if (observed.kind !== "waiting") return observed
+        const terminal = await terminalTaskSettlement(taskManager.owner, input.taskSpaceId, input.taskId)
+        return terminal
+          ? Object.freeze({ kind: "settled" as const, ...terminal })
+          : observed
+      },
       replanTask: (input, config) => replanAICtrlHolonTask(holonRuntime, input, config),
-      consumeTask: (input, config) => consumeAIDataHolonTask({
-        taskManager,
-        materials: {
-          validateSettlementMaterial: (materialInput) => validateHolonSettlementMaterial(registry, materialInput),
-        },
-      }, input, config),
+      consumeTask: async (input, config) => {
+        const authority = await this.workflowHolonConsumptionAuthority(
+          descriptor,
+          context,
+          input,
+        )
+        const consumptionRuntime = {
+          taskManager,
+          materials: {
+            validateSettlementMaterial: (materialInput: AIDataHolonTaskMaterialValidationInput) => (
+              validateHolonSettlementMaterial(authority.registry, materialInput)
+            ),
+          },
+        }
+        try {
+          return await consumeAIDataHolonTask(consumptionRuntime, {
+            ...input,
+            frozenTarget: authority.proof,
+            taskId: authority.taskId,
+            settlementCommandId: authority.settlementCommandId,
+          }, config)
+        } catch (error) {
+          if (!(error instanceof Error) || !error.message.includes("SETTLEMENT_RECEIPT_MISMATCH")) throw error
+          const terminal = await terminalTaskSettlement(taskManager.owner, input.taskSpaceId, authority.taskId)
+          if (!terminal) throw error
+          return consumeAIDataHolonTask(consumptionRuntime, {
+            ...input,
+            frozenTarget: authority.proof,
+            taskId: authority.taskId,
+            settlementCommandId: terminal.receipt.commandId,
+          }, config)
+        }
+      },
     })
     this.holonContexts.set(descriptor.runId, context)
+    for (const [nodeId, proof] of Object.entries(proofs)) {
+      const target = targets[nodeId]!
+      const authorityId = fingerprint({
+        kind: "eidolon.canonical-holon-assignment-authority/v1",
+        workflowInstanceId: descriptor.instanceId,
+        runId: descriptor.runId,
+        nodeId,
+        semanticFingerprint: proof.semanticFingerprint,
+      })
+      registerCanonicalHolonAssignmentAuthority(this.runtime.vm, Object.freeze({
+        authorityId,
+        rootHolonRef: target.holon.rootHolonRef,
+        assign: (request: CanonicalHolonAssignmentRequest) => this.assignCanonicalHolonTask(
+          descriptor,
+          definition,
+          context,
+          nodeId,
+          authorityId,
+          request,
+        ),
+      }))
+    }
     return context
+  }
+
+  private async assignCanonicalHolonTask(
+    descriptor: WorkflowRunDescriptor,
+    definition: ResolvedWorkflowDefinition,
+    context: WorkflowHolonTaskContext,
+    nodeId: string,
+    authorityId: string,
+    request: CanonicalHolonAssignmentRequest,
+  ): Promise<CanonicalHolonAssignmentReceipt> {
+    const frozenTarget = context.proofs[nodeId]
+    const target = context.targets[nodeId]
+    if (!frozenTarget || !target) {
+      throw new Error("EIDOLON_CANONICAL_HOLON_ASSIGNMENT_TARGET_MISSING")
+    }
+    // The facade already resolves VM aliases. This second check prevents a
+    // stale/misbound capability from crossing its frozen root Holon.
+    const organization = getOrganizationManager().getHolon(this.runtime.vm, request.holonId)
+    const rawTarget = request.target.includes(":")
+      ? request.target.slice(request.target.indexOf(":") + 1)
+      : request.target
+    if (!organization || ![
+      organization.name,
+      organization.holonId,
+      rawTarget,
+    ].includes(target.holon.rootHolonRef)) {
+      throw new Error("EIDOLON_CANONICAL_HOLON_ASSIGNMENT_TARGET_MISMATCH")
+    }
+    const assignmentId = request.requestId ?? randomUUID()
+    const identity = createHash("sha256")
+      .update(JSON.stringify([authorityId, assignmentId]))
+      .digest("hex")
+      .slice(0, 40)
+    const taskSpaceId = `holon-assignment-space-${identity}`
+    const taskId = `holon-assignment-${identity}`
+    const existingTaskSpace = await context.taskManager.owner.readSnapshot(taskSpaceId)
+    const createdAt = existingTaskSpace?.createdAt ?? new Date().toISOString()
+    const { opened, subscription } = await context.openAssignmentTask({
+      frozenTarget,
+      commandId: `open-${identity}`,
+      taskSpaceId,
+      taskId,
+      taskName: request.content.slice(0, 120) || "Holon assignment",
+      createdAt,
+    }, {
+      maxTasks: 1_024,
+      maxRelations: 4_096,
+      maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
+    }, {
+      content: request.content,
+      replyMode: request.mode,
+      target: target.holon.rootHolonRef,
+    })
+    const prepared = await this.workflowHolonTaskProcessorRuntime(
+      descriptor,
+      definition,
+      context,
+      nodeId,
+      target,
+      opened.snapshotReceipt.issuerReceiptId,
+    )
+    const coordinatorKey = `${prepared.deployment.deploymentId}\u0000${target.holon.rootHolonRef}`
+    const coordinators = this.holonCoordinatorActors()
+    let coordinator = coordinators.get(coordinatorKey)
+    if (!coordinator) {
+      coordinator = new HolonTaskSpaceCoordinatorActor({
+        deploymentId: prepared.deployment.deploymentId,
+        holonRef: target.holon.rootHolonRef,
+      }, {
+        maxTasks: 1_024,
+        maxRelations: 4_096,
+        maxLeaseDurationMs: 24 * 60 * 60 * 1_000,
+      })
+      coordinators.set(coordinatorKey, coordinator)
+    }
+    const pumpInput = {
+      subscription,
+      leaseDurationMs: 30_000,
+      maxSteps: this.options.holonPumpMaxSteps ?? 1_024,
+      observedAt: createdAt,
+    } as const
+    if (request.mode !== "final") {
+      const schedulePump = (): void => coordinator.scheduleWake(pumpInput, async () => {
+        const before = await terminalTaskSettlement(context.taskManager.owner, taskSpaceId, taskId)
+        if (before) return
+        const pumped = await coordinator.wake(prepared.runtime, {
+          ...pumpInput,
+          observedAt: new Date().toISOString(),
+        })
+        const after = await terminalTaskSettlement(context.taskManager.owner, taskSpaceId, taskId)
+        if (!after && (pumped.status === "waiting" || pumped.status === "yielded")) schedulePump()
+      }, this.options.holonPumpWaitingProbeMs ?? 100)
+      schedulePump()
+      return Object.freeze({
+        ok: true,
+        accepted: true,
+        authority_id: authorityId,
+        workflow_run_id: descriptor.runId,
+        workflow_instance_id: descriptor.instanceId,
+        node_id: nodeId,
+        task_space_id: taskSpaceId,
+        task_id: taskId,
+        open_receipt_id: opened.receipt.receiptId,
+        snapshot_receipt_id: opened.snapshotReceipt.issuerReceiptId,
+        subscription_id: subscription.subscriptionId,
+        reply_mode: request.mode,
+        completion_status: request.mode === "none" ? "not_requested" : "waiting",
+        settlement_receipt_id: null,
+        terminal_status: null,
+      })
+    }
+
+    const pumped = await coordinator.wake(prepared.runtime, pumpInput)
+    const terminal = await terminalTaskSettlement(context.taskManager.owner, taskSpaceId, taskId)
+    if (pumped.status === "terminal" && !terminal) {
+      throw new Error(`EIDOLON_CANONICAL_HOLON_TERMINAL_SETTLEMENT_MISSING: ${taskSpaceId}/${taskId}`)
+    }
+    return Object.freeze({
+      ok: true,
+      accepted: true,
+      authority_id: authorityId,
+      workflow_run_id: descriptor.runId,
+      workflow_instance_id: descriptor.instanceId,
+      node_id: nodeId,
+      task_space_id: taskSpaceId,
+      task_id: taskId,
+      open_receipt_id: opened.receipt.receiptId,
+      snapshot_receipt_id: opened.snapshotReceipt.issuerReceiptId,
+      subscription_id: subscription.subscriptionId,
+      reply_mode: request.mode,
+      completion_status: terminal
+        ? "settled"
+        : pumped.status === "waiting" ? "waiting" : "yielded",
+      settlement_receipt_id: terminal?.receipt.receiptId ?? null,
+      terminal_status: terminal?.receipt.status ?? null,
+    })
   }
 
   private async workflowHolonDeploymentForTask(
@@ -1538,6 +2230,221 @@ export class WorkflowRuntimeService {
     const store = new FileHolonDeploymentRuntimeStore({ supportRoot: instanceRoot })
     await store.open(deploymentId)
     return Object.freeze({ deploymentId, definition, store })
+  }
+
+  private async workflowHolonConsumptionAuthority(
+    descriptor: WorkflowRunDescriptor,
+    context: WorkflowHolonTaskContext,
+    input: Parameters<typeof consumeAIDataHolonTask>[1],
+  ): Promise<Readonly<{
+    proof: FrozenHolonTaskTarget
+    registry: EidolonAppResourceRegistryAdapter
+    taskId: string
+    settlementCommandId: string
+  }>> {
+    const expected = input.frozenTarget.target
+    const initialDeployment = context.deployments.get(expected.executionBinding.ref)
+    if (!initialDeployment) {
+      throw new Error("EIDOLON_HOLON_CONSUMPTION_DEPLOYMENT_MISSING")
+    }
+    const snapshot = await context.taskManager.owner.readSnapshot(input.taskSpaceId)
+    const requestedTask = snapshot?.tasks.find((candidate) => candidate.taskId === input.taskId)
+    if (!snapshot || !requestedTask || requestedTask.profile.profileKind !== "depa.ai.organization-task") {
+      throw new Error(`EIDOLON_HOLON_CONSUMPTION_TASK_MISSING: ${input.taskSpaceId}/${input.taskId}`)
+    }
+    let task = requestedTask
+    let expectedChainRoot: string | undefined
+    if (task.status !== "Succeeded") {
+      const successors = snapshot.tasks.filter((candidate) => {
+        if (candidate.status !== "Succeeded" || candidate.profile.profileKind !== "depa.ai.organization-task") return false
+        const adoptions = Array.isArray(candidate.profile.facts.snapshotAdoptions)
+          ? candidate.profile.facts.snapshotAdoptions
+          : []
+        if (adoptions.length === 0) return false
+        return normalizeHolonTaskSnapshotAdoptionReceipt(adoptions[0]).previousTaskId === input.taskId
+      })
+      if (successors.length !== 1) {
+        throw new Error("EIDOLON_HOLON_CONSUMPTION_SUCCESSOR_AMBIGUOUS")
+      }
+      task = successors[0]!
+      expectedChainRoot = input.taskId
+    }
+    const settlement = await terminalTaskSettlement(context.taskManager.owner, input.taskSpaceId, task.taskId)
+    if (!settlement || settlement.receipt.status !== "Succeeded") {
+      throw new Error(`EIDOLON_HOLON_CONSUMPTION_SETTLEMENT_MISSING: ${input.taskSpaceId}/${task.taskId}`)
+    }
+    const actual = normalizeHolonTaskTarget(task.profile.facts.target)
+    if (fingerprint(actual) === fingerprint(expected)) {
+      return Object.freeze({
+        proof: input.frozenTarget,
+        registry: initialDeployment.definition.resourceRegistry,
+        taskId: task.taskId,
+        settlementCommandId: settlement.receipt.commandId,
+      })
+    }
+    if (!sameHolonTargetExecutableIdentity(expected, actual)) {
+      throw new Error("EIDOLON_HOLON_CONSUMPTION_SUCCESSOR_INSTANCE_REQUIRED")
+    }
+
+    const receipt = normalizeHolonTaskSnapshotReceipt(task.profile.facts.snapshotReceipt)
+    const rawAdoptions = Array.isArray(task.profile.facts.snapshotAdoptions)
+      ? task.profile.facts.snapshotAdoptions
+      : []
+    let issuerReceiptId = initialDeployment.definition.definition.snapshotReceiptDigest
+    let successorTaskId: string | undefined
+    for (const value of rawAdoptions) {
+      const adoption = normalizeHolonTaskSnapshotAdoptionReceipt(value)
+      if (adoption.taskSpaceId !== input.taskSpaceId
+        || adoption.previousIssuerReceiptId !== issuerReceiptId
+        || (successorTaskId === undefined && expectedChainRoot !== undefined
+          && adoption.previousTaskId !== expectedChainRoot)
+        || (successorTaskId !== undefined && adoption.previousTaskId !== successorTaskId)
+        || adoption.executionBindingDigest !== expected.executionBinding.digest) {
+        throw new Error("EIDOLON_HOLON_CONSUMPTION_ADOPTION_CHAIN_INVALID")
+      }
+      issuerReceiptId = adoption.successorIssuerReceiptId
+      successorTaskId = adoption.successorTaskId
+    }
+    if (rawAdoptions.length === 0
+      || issuerReceiptId !== receipt.issuerReceiptId
+      || successorTaskId !== task.taskId) {
+      throw new Error("EIDOLON_HOLON_CONSUMPTION_ADOPTION_CHAIN_INCOMPLETE")
+    }
+
+    const deployment = await this.workflowHolonDeploymentForTask(
+      descriptor,
+      context,
+      actual,
+      receipt.issuerReceiptId,
+    )
+    const proof = await deployment.definition.resourceRegistry.freezeWorkflowHolonTaskTarget(actual)
+    if (fingerprint(proof.target) !== fingerprint(actual)) {
+      throw new Error("EIDOLON_HOLON_CONSUMPTION_ADOPTED_PROOF_MISMATCH")
+    }
+    return Object.freeze({
+      proof,
+      registry: deployment.definition.resourceRegistry,
+      taskId: task.taskId,
+      settlementCommandId: settlement.receipt.commandId,
+    })
+  }
+
+  private async workflowHolonTaskProcessorRuntime(
+    descriptor: WorkflowRunDescriptor,
+    definition: ResolvedWorkflowDefinition,
+    context: WorkflowHolonTaskContext,
+    nodeId: string,
+    target: HolonTaskTarget,
+    snapshotReceiptId: string,
+  ): Promise<Readonly<{
+    deployment: WorkflowHolonDeployment
+    runtime: HolonWorkflowTaskProcessorRuntime
+  }>> {
+    const deployment = await this.workflowHolonDeploymentForTask(
+      descriptor,
+      context,
+      target,
+      snapshotReceiptId,
+    )
+    const binding = deployment.definition.bindingProjection.binding
+    if (binding.adapter.kind !== "ai-agent") {
+      throw new Error(`EIDOLON_HOLON_PRODUCT_ADAPTER_UNSUPPORTED: ${binding.adapter.kind}`)
+    }
+    const agentAdapter = binding.adapter
+    const executionRegistry = deployment.definition.resourceRegistry
+    const taskProof = await executionRegistry.freezeWorkflowAgentTaskBinding({
+      workflowKind: descriptor.form,
+      workflowRef: descriptor.workflowRef as `resource://${string}`,
+      nodeId,
+      agentDefinitionRef: agentAdapter.agentDefinitionRef,
+    })
+    const taskBinding = assertFrozenAIAgentTaskBinding(taskProof).task
+    const activeRun = runRef(descriptor, definition)
+    const component = createWorkflowComponentForRuntime(this.runtime)
+    if (!component.authoring) throw new Error("EIDOLON_HOLON_AUTHORING_STORE_REQUIRED")
+    const effects = new EidolonWorkflowEffectProvider(
+      this.runtime,
+      new StoreBackedWorkflowMaterialAccess(component.authoring.store),
+      this.facts,
+      (request, output) => this.captureMaterialOutput(request.run.runId, effectOwnerNodeId(request), output.path),
+      () => activeRun,
+      { workflowForm: descriptor.form, resourceRegistry: executionRegistry },
+      this.stepExtensionFacade(),
+      { instanceId: descriptor.instanceId, workflowForm: descriptor.form },
+      this.options.holonEffectFaults,
+    )
+    const genericOwner = this.workflowHolonGenericOwner(descriptor, agentAdapter.agentDefinitionRef)
+    const adapters: HolonExecutionAdapterPorts = {
+      aiAgent: {
+        executeIdempotent: async ({ idempotencyKey, invocation, runtimeRef, taskAttempt }) => {
+          const checkpointKey = { instanceId: descriptor.instanceId, runId: descriptor.runId }
+          const checkpoint = await this.depa.checkpointRuntime.checkpointStore.load(checkpointKey) as any
+          if (!checkpoint) throw new Error("Holon Agent execution requires the canonical Flow checkpoint")
+          const logicalTaskDigest = createHash("sha256").update(idempotencyKey).digest("hex")
+          const instanceName = `holon-task-${logicalTaskDigest.slice(0, 32)}`
+          const processorRuntime = {
+            checkpointRuntime: this.depa.checkpointRuntime,
+            checkpointKey,
+            workflowKind: descriptor.form,
+            workflowRef: descriptor.workflowRef as `resource://${string}`,
+            nodeId,
+            invocationKey: idempotencyKey,
+            generation: descriptor.generation,
+            effects,
+            taskBinding,
+            metadata: {
+              deploymentId: deployment.deploymentId,
+              memberRuntimeRef: runtimeRef,
+              taskSpaceId: taskAttempt.taskSpaceId,
+              taskId: taskAttempt.taskId,
+              sessionRef: idempotencyKey,
+              holonInvocationRef: invocation.invocationRef,
+            },
+          }
+          const config = {
+            agentDefinitionRef: agentAdapter.agentDefinitionRef,
+            materialRefs: invocation.materialRefs,
+          }
+          const result = await runAgent(processorRuntime, invocation.input, { ...config, instanceName })
+          return result.output as import("holarchy-eidolon-adapter").ClosedValue
+        },
+      },
+      humanEndpoint: { executeIdempotent: () => { throw new Error("EIDOLON_HOLON_HUMAN_ENDPOINT_NOT_BOUND") } },
+      service: { executeIdempotent: () => { throw new Error("EIDOLON_HOLON_SERVICE_ADAPTER_NOT_BOUND") } },
+      hybrid: { executeIdempotent: () => { throw new Error("EIDOLON_HOLON_HYBRID_ADAPTER_NOT_BOUND") } },
+    }
+    const actorRuntime = new EidolonHolonLocalActorRuntime(
+      deployment.store,
+      genericOwner,
+      adapters,
+      `workflow-${descriptor.runId}`,
+    )
+    await actorRuntime.recover(deployment.deploymentId)
+    return Object.freeze({
+      deployment,
+      runtime: Object.freeze({
+        store: deployment.store,
+        taskManager: context.taskManager,
+        actorRuntime,
+        journal: context.journal,
+      }),
+    })
+  }
+
+  private async workflowHolonSubscriptionSettlement(
+    context: WorkflowHolonTaskContext,
+    subscription: HolonTaskPumpSubscription,
+  ): Promise<TaskSettlementReceipt | undefined> {
+    const terminal = await terminalTaskSettlement(
+      context.taskManager.owner,
+      subscription.taskSpaceId,
+      subscription.taskId,
+    )
+    if (!terminal) return undefined
+    const receipt = normalizeHolonTaskSnapshotReceipt(terminal.task.profile.facts.snapshotReceipt)
+    return receipt.issuerReceiptId === subscription.snapshotReceiptId
+      ? terminal.receipt
+      : undefined
   }
 
   private workflowHolonGenericOwner(
@@ -1582,8 +2489,26 @@ export class WorkflowRuntimeService {
     })
   }
 
+  private holonAutomaticPumpEnabled(): boolean {
+    const workflow = nestedRecord(metadata(this.runtime).aiWorkflow)
+    return workflow.holonAutomaticPump !== false
+  }
+
+  private holonCoordinatorActors(): Map<string, HolonTaskSpaceCoordinatorActor> {
+    return this.runtime.vm.actorRuntime.ensureFacet(
+      "eidolon.holon-task-space-coordinator-actors/v1",
+      () => new Map<string, HolonTaskSpaceCoordinatorActor>(),
+    )
+  }
+
   private frozenAgentRegistry(instanceId: string): EidolonAppResourceRegistryAdapter | undefined {
     const definitionDir = this.depa.load(instanceId).definitionDir
+    const effectiveRoot = path.join(definitionDir, ".agent-resources", "effective-vfs")
+    if (existsSync(effectiveRoot)) {
+      return new EidolonAppResourceRegistryAdapter({
+        effectiveVfs: () => loadFrozenEffectiveEidolonVfsReadPort(effectiveRoot),
+      })
+    }
     const layers = (["global", "workspace"] as const).flatMap((id) => {
       const rootDir = path.join(definitionDir, ".agent-resources", id)
       return existsSync(rootDir) ? [{ id, rootDir }] : []

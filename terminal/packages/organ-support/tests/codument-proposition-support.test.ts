@@ -50,7 +50,7 @@ const baseInput = {
   timeoutSeconds: 60,
   credential: {
     providerId: "deepseek",
-    profileId: "deepseek-official-chat@1",
+    profileId: "deepseek-chat@1",
     model: "deepseek-v4-flash",
   },
 }
@@ -110,7 +110,7 @@ describe("Codex-compatible proposition shim", () => {
       binding: ctrl,
     })
     expect(run).toContain("--capture-runtime-evidence")
-    expect(run).toContain("deepseek-official-chat@1")
+    expect(run).not.toContain("--provider-chat-profile")
     const compatible = buildEidolonPropositionShimArgv({
       ...common,
       invocation: { ...invocation, requestedModel: iqingwaProvider.credential.model },
@@ -118,10 +118,10 @@ describe("Codex-compatible proposition shim", () => {
       mode: "ordinary",
     })
     expect(compatible).toContain("deepseek-iqingwa/deepseek-v4-pro")
-    expect(compatible).toContain("deepseek-compatible-chat@1")
+    expect(compatible).not.toContain("--provider-chat-profile")
   })
 
-  for (const mode of ["ai_ctrl", "ai_data"] as const) it(`materializes one fixed ${mode} resource wrapper with one real Agent node`, async () => {
+  for (const mode of ["ai_ctrl", "ai_data"] as const) it(`materializes one fixed ${mode} wrapper that consumes the formal Coding Agent`, async () => {
     const cwd = await mkdtemp(path.join(tmpdir(), `eidolon-proposition-${mode}-`))
     try {
       const binding = registeredPropositionWorkflowBinding(mode, "run-1")
@@ -130,25 +130,29 @@ describe("Codex-compatible proposition shim", () => {
       const manifest = await readFile(path.join(resources, "Workflows", `${binding.directoryName}.xnl`), "utf8")
       expect(binding.definitionRef).toStartWith("resource://")
       expect(manifest).toContain(mode === "ai_ctrl" ? "<Run #execute" : "<TransformNode #execute")
-      expect(manifest).toContain("resource://local.codument.proposition.CodeAgent")
+      expect(manifest).toContain("resource://eidolon.coding.CodeAgent")
       expect(await readFile(path.join(resources, "Workflows", "flow-code", "index.ts"), "utf8"))
         .toContain("runtime.ai.effects.runAgent")
-      const agent = await readFile(path.join(resources, "Agents", "CodeAgent.xnl"), "utf8")
-      expect(agent).toContain("<MessagePrefix")
-      expect(agent).toContain("<MessageSource #workspace")
-      expect(agent).toContain("<ContextPipeline")
-      expect(agent).toContain('ref = "resource://bash"')
-      expect(agent).toContain('ref = "resource://write"')
+      expect(await Bun.file(path.join(resources, "Agents", "CodeAgent.xnl")).exists()).toBe(false)
+      expect(await Bun.file(path.join(resources, "Prompts", "KernelPrompt.xnl")).exists()).toBe(false)
+      expect(await Bun.file(path.join(resources, "ContextPipelines", "StandardContext.xnl")).exists()).toBe(false)
+      const builtinResources = path.resolve(
+        import.meta.dir,
+        "../../../../cell/packages/mod-ai-coding/resources/builtin-eidolon/.eidolon/resources",
+      )
       const prepared = await new EidolonAppResourceRegistryAdapter({
-        layers: [{ id: "workspace", rootDir: resources }],
+        layers: [
+          { id: "global", rootDir: builtinResources },
+          { id: "workspace", rootDir: resources },
+        ],
         workspaceRoot: cwd,
       }).prepareWorkflowAgentExecution({
         workflowKind: binding.kind,
         workflowRef: binding.definitionRef,
         nodeId: "execute",
-        agentDefinitionRef: "resource://local.codument.proposition.CodeAgent",
+        agentDefinitionRef: "resource://eidolon.coding.CodeAgent",
       })
-      expect(prepared.plan.messages.map((message) => message.id)).toEqual(["kernel", "coding", "mission"])
+      expect(prepared.plan.messages.map((message) => message.id)).toEqual(["kernel", "coding"])
       expect(prepared.plan.messages[0]?.content).toContain("工作循环")
       expect(prepared.plan.messages[1]?.content).toContain("你是主编码代理")
       expect(prepared.plan.contextPipeline?.implementation).toBe("eidolon.standard-context-pipeline/v1")
@@ -336,7 +340,7 @@ describe("proposition receipt persistence", () => {
       verifier: { exitCode: 0, passed: true, outputArtifact: "artifact://verify" },
       providerScope: {
         classification: "short_or_cold" as const,
-        providerClass: "official_deepseek" as const,
+        providerClass: "deepseek" as const,
         providerId: "deepseek",
         model: "deepseek-v4-flash",
         contextEpoch: 1,
@@ -398,11 +402,11 @@ describe("proposition receipt persistence", () => {
 })
 
 describe("production proposition matrix catalog", () => {
-  it("accepts compatible iQingwa receipts without borrowing official cost weights", () => {
+  it("accepts iQingwa as DeepSeek while retaining exact provider routing identity", () => {
     const scope = {
       classification: "short_or_cold" as const,
-      providerClass: "deepseek_compatible" as const,
-      providerId: "deepseek",
+      providerClass: "deepseek" as const,
+      providerId: iqingwaProvider.credential.providerId,
       model: iqingwaProvider.credential.model,
       contextEpoch: 0,
       eligibleSubsequentTurns: 0,
@@ -410,7 +414,7 @@ describe("production proposition matrix catalog", () => {
       cacheHitTokens: 0,
       cacheMissTokens: 1_000,
       outputTokens: 10,
-      normalizedInputCost: null,
+      normalizedInputCost: 1_000,
       cacheHitRatio: 0,
       cacheEligiblePrefixTokens: 0,
       cacheEligiblePrefixHitTokens: 0,
@@ -441,8 +445,8 @@ describe("production proposition matrix catalog", () => {
   it("accepts unbilled pre-accept observations by facts rather than retry-count equality", () => {
     const unbilledPreaccept = {
       classification: "incomplete_usage" as const,
-      providerClass: "deepseek_compatible" as const,
-      providerId: "deepseek",
+      providerClass: "deepseek" as const,
+      providerId: iqingwaProvider.credential.providerId,
       model: iqingwaProvider.credential.model,
       contextEpoch: 1,
       eligibleSubsequentTurns: 0,
@@ -466,6 +470,7 @@ describe("production proposition matrix catalog", () => {
       cacheHitTokens: 99_500,
       cacheMissTokens: 500,
       outputTokens: 1_000,
+      normalizedInputCost: 1_495,
       cacheHitRatio: 0.995,
       cacheEligiblePrefixTokens: 90_000,
       cacheEligiblePrefixHitTokens: 89_900,
@@ -477,7 +482,7 @@ describe("production proposition matrix catalog", () => {
       verifier: { passed: true },
       modeIdentity: { actualMode: "ordinary" },
       modeIdentities: [{ actualMode: "ordinary" }],
-      providerScope: { ...comparable, contextEpoch: null, classification: "incomplete_usage" as const },
+      providerScope: { ...comparable, contextEpoch: null },
       providerScopes: [
         unbilledPreaccept,
         { ...unbilledPreaccept, contextEpoch: 2 },
@@ -629,7 +634,7 @@ describe("production proposition matrix catalog", () => {
   it("rejects receipts whose provider scopes predate prefix and new-input evidence", () => {
     const legacyScope = {
       classification: "stable" as const,
-      providerClass: "official_deepseek" as const,
+      providerClass: "deepseek" as const,
       providerId: "deepseek",
       model: "deepseek-v4-flash",
       contextEpoch: 1,
@@ -683,7 +688,7 @@ describe("production proposition matrix catalog", () => {
     const plan = planCodumentPropositionMatrix({
       manifests,
       selection: { kind: "full" },
-      liveEvidence: "official",
+      liveEvidence: "deepseek",
       sentinelScenarioIds: ["stream-pipeline-ai-agent"],
     })
     expect(plan.cells).toHaveLength(18)

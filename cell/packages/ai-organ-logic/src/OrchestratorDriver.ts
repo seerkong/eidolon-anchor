@@ -84,7 +84,6 @@ export type RunStep = (ctx: FiberContext, helpers: {
 }) => Promise<FiberStepOutcome>;
 
 export type WaiterStoreResultMap = {
-  autonomousHolonTaskSignals: { status: string; resultText: string | null };
   leaderLedHolonRouteSignals: { resultText: string | null };
 };
 

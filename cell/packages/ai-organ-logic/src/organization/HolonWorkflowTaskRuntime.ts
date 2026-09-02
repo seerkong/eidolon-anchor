@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto"
+
 import {
   canonicalOwnDataBytes,
   canonicalOwnDataDigest,
@@ -6,11 +8,13 @@ import {
   type TaskArtifactBody,
   type TaskArtifactRef,
   type TaskClaimReceipt,
+  type TaskClaimToken,
   type TaskSettlementReceipt,
 } from "task-manager-contract"
 import {
   settleTask,
   startTask,
+  heartbeatTaskClaim,
   type TaskManagerRuntime,
   type TaskProcessorConfig,
 } from "task-manager-logic"
@@ -24,11 +28,16 @@ import {
 import type { FileHolonDeploymentRuntimeStore } from "./HolonDeploymentRuntimeStore"
 import type { EidolonHolonLocalActorRuntime } from "./HolonLocalActorRuntime"
 import { ensureHolonMemberRuntime } from "./HolonMemberRuntime"
+import {
+  createHolonTaskPumpDispatchIntent,
+  type HolonTaskPumpJournalPort,
+} from "./HolonTaskPumpJournal"
 
 export interface HolonWorkflowTaskProcessorRuntime {
   readonly store: FileHolonDeploymentRuntimeStore
   readonly taskManager: TaskManagerRuntime
   readonly actorRuntime: EidolonHolonLocalActorRuntime
+  readonly journal: HolonTaskPumpJournalPort
 }
 
 export interface ExecuteHolonWorkflowTaskInput {
@@ -106,6 +115,13 @@ export async function executeHolonWorkflowTask(
     leaseDurationMs: input.leaseDurationMs,
   }, config)
 
+  const claimedSnapshot = await runtime.taskManager.owner.readSnapshot(input.taskSpaceId)
+  const claimedTask = claimedSnapshot?.tasks.find((candidate) => candidate.taskId === input.taskId)
+  const liveAssignmentClaim = claimedTask?.activeClaim
+  if (!liveAssignmentClaim || !sameClaimAttempt(liveAssignmentClaim, assignment.claimReceipt.claim)) {
+    return invalid("EIDOLON_HOLON_TASK_ATTEMPT_STALE", "Assignment no longer owns the live TaskSpace attempt.")
+  }
+
   const member = await ensureHolonMemberRuntime({
     store: runtime.store,
     actorOwner: runtime.actorRuntime,
@@ -127,13 +143,17 @@ export async function executeHolonWorkflowTask(
     session: { mode: "task-attempt" },
   }, {})
 
+  const existingStart = await runtime.taskManager.owner.readReceiptByCommand(input.taskSpaceId, input.startCommandId)
+  const startClaim = existingStart ? assignment.claimReceipt.claim : liveAssignmentClaim
+  const startRevision = existingStart ? assignment.claimReceipt.toRevision : claimedSnapshot!.revision
+  const startedAt = laterTimestamp(input.startedAt, startClaim.heartbeatAt, 1)
   const started = await startTask(runtime.taskManager, {
     kind: "task.start",
     commandId: input.startCommandId,
     taskSpaceId: input.taskSpaceId,
-    expectedRevision: assignment.claimReceipt.toRevision,
-    claim: assignment.claimReceipt.claim,
-    occurredAt: input.startedAt,
+    expectedRevision: startRevision,
+    claim: startClaim,
+    occurredAt: startedAt,
   }, config)
   const task = started.snapshot.tasks.find((candidate) => candidate.taskId === input.taskId)
   if (!task || task.definition.kind !== "task" || task.profile.profileKind !== "depa.ai.organization-task") {
@@ -155,18 +175,69 @@ export async function executeHolonWorkflowTask(
     materialRefs: target.output.materialPortRefs,
     resultContractRef: target.output.schemaRef,
   })
-  const dispatched = await runtime.actorRuntime.dispatchMember(member.runtimeRef, invocation)
-  const materials = settlementMaterials(target.output.materialPortRefs, dispatched.output)
+  const intent = createHolonTaskPumpDispatchIntent({
+    deploymentId: input.deploymentId,
+    taskSpaceId: input.taskSpaceId,
+    taskId: input.taskId,
+    claimId: assignment.claimReceipt.claim.claimId,
+    attempt: assignment.claimReceipt.claim.attempt,
+    leaseEpoch: assignment.claimReceipt.claim.leaseEpoch,
+    invocationRef: input.invocationRef,
+    input: input.input,
+    preparedAt: assignment.claimReceipt.claim.claimedAt,
+  })
+  const dispatchStartedAt = Date.now()
+  const heartbeatAbort = new AbortController()
+  let heartbeatFailure: unknown
+  const heartbeat = maintainClaimHeartbeat(
+    runtime,
+    input,
+    task.activeClaim ?? startClaim,
+    config,
+    heartbeatAbort.signal,
+  ).catch((error) => { heartbeatFailure = error })
+  let dispatched: Awaited<ReturnType<HolonTaskPumpJournalPort["dispatch"]>>
+  try {
+    dispatched = await runtime.journal.dispatch(intent, async (idempotencyKey) => {
+      try {
+        return (await runtime.actorRuntime.dispatchMember(member.runtimeRef, invocation, idempotencyKey)).output
+      } catch (error) {
+        if (error instanceof Error && "code" in error
+          && error.code === "EIDOLON_WORKFLOW_EFFECT_PROCESS_CRASH") throw error
+        throw new HolonWorkflowTaskRuntimeError(
+          "EIDOLON_HOLON_MEMBER_EXECUTION_FAILED",
+          error instanceof Error ? error.message : String(error),
+        )
+      }
+    })
+  } finally {
+    heartbeatAbort.abort()
+    await heartbeat
+  }
+  if (heartbeatFailure) throw heartbeatFailure
+  const settlementSnapshot = await runtime.taskManager.owner.readSnapshot(input.taskSpaceId)
+  const settlementTask = settlementSnapshot?.tasks.find((candidate) => candidate.taskId === input.taskId)
+  const settlementClaim = settlementTask?.activeClaim
+  if (!settlementSnapshot || !settlementTask || settlementTask.status !== "Running"
+    || !settlementClaim || !sameClaimAttempt(settlementClaim, assignment.claimReceipt.claim)) {
+    return invalid("EIDOLON_HOLON_TASK_RESULT_STALE", "A durable result cannot settle a replaced or expired TaskSpace attempt.")
+  }
+  const elapsedSettlementAt = new Date(Date.parse(startedAt) + (Date.now() - dispatchStartedAt)).toISOString()
+  const settledAt = laterTimestamp(input.settledAt, laterTimestamp(elapsedSettlementAt, settlementClaim.heartbeatAt, 1), 1)
+  if (Date.parse(settledAt) >= Date.parse(settlementClaim.expiresAt)) {
+    return invalid("EIDOLON_HOLON_TASK_RESULT_STALE", "A durable result arrived after its live lease expired.")
+  }
+  const materials = settlementMaterials(target.output.materialPortRefs, dispatched.receipt.output)
   const settled = await settleTask(runtime.taskManager, {
     kind: "task.settle",
     commandId: input.settlementCommandId,
     taskSpaceId: input.taskSpaceId,
-    expectedRevision: started.receipt.toRevision,
-    claim: assignment.claimReceipt.claim,
-    occurredAt: input.settledAt,
+    expectedRevision: settlementSnapshot.revision,
+    claim: settlementClaim,
+    occurredAt: settledAt,
     outputArtifacts: materials.map(({ ref }) => ref),
     artifactBodies: materials.map(({ body }) => body),
-    result: deepFrozenCanonicalOwnDataClone(dispatched.output) as ImmutableJsonValue,
+    result: deepFrozenCanonicalOwnDataClone(dispatched.receipt.output) as ImmutableJsonValue,
   }, config)
   return Object.freeze({
     deploymentId: input.deploymentId,
@@ -176,8 +247,82 @@ export async function executeHolonWorkflowTask(
     memberRuntimeRef: member.runtimeRef,
     settlementReceipt: settled.receipt,
     outputArtifacts: Object.freeze(materials.map(({ ref }) => ref)),
-    replayed: settled.replayed,
+    replayed: settled.replayed || dispatched.replayed,
   })
+}
+
+async function maintainClaimHeartbeat(
+  runtime: HolonWorkflowTaskProcessorRuntime,
+  input: ExecuteHolonWorkflowTaskInput,
+  initialClaim: TaskClaimToken,
+  config: TaskProcessorConfig,
+  signal: AbortSignal,
+): Promise<void> {
+  const intervalMs = Math.max(1, Math.floor(input.leaseDurationMs / 3))
+  const startedAt = Date.now()
+  const authorityStart = Date.parse(initialClaim.heartbeatAt)
+  let claim = initialClaim
+  while (!signal.aborted) {
+    if (!await waitForHeartbeat(intervalMs, signal)) return
+    const heartbeatAt = new Date(authorityStart + (Date.now() - startedAt)).toISOString()
+    if (Date.parse(heartbeatAt) >= Date.parse(claim.expiresAt)) {
+      return invalid("EIDOLON_HOLON_TASK_ATTEMPT_STALE", "The live task lease expired before its heartbeat could commit.")
+    }
+    const snapshot = await runtime.taskManager.owner.readSnapshot(input.taskSpaceId)
+    const task = snapshot?.tasks.find((candidate) => candidate.taskId === input.taskId)
+    if (!snapshot || !task?.activeClaim || task.status !== "Running"
+      || !sameClaimAttempt(task.activeClaim, claim)) {
+      return invalid("EIDOLON_HOLON_TASK_ATTEMPT_STALE", "Heartbeat no longer owns the live TaskSpace attempt.")
+    }
+    const heartbeated = await heartbeatTaskClaim(runtime.taskManager, {
+      kind: "task.claim-heartbeat",
+      commandId: `holon-task-heartbeat-${createHash("sha256")
+        .update(`${claim.claimId}\u0000${claim.leaseEpoch}\u0000${heartbeatAt}`)
+        .digest("hex")
+        .slice(0, 40)}`,
+      taskSpaceId: input.taskSpaceId,
+      expectedRevision: snapshot.revision,
+      claim,
+      heartbeatAt,
+      extendByMs: input.leaseDurationMs,
+    }, config)
+    const renewed = heartbeated.snapshot.tasks.find((candidate) => candidate.taskId === input.taskId)?.activeClaim
+    if (!renewed) return invalid("EIDOLON_HOLON_TASK_ATTEMPT_STALE", "Heartbeat lost the renewed claim projection.")
+    claim = renewed
+  }
+}
+
+function waitForHeartbeat(delayMs: number, signal: AbortSignal): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (signal.aborted) return resolve(false)
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", abort)
+      resolve(true)
+    }, delayMs)
+    const abort = () => {
+      clearTimeout(timer)
+      resolve(false)
+    }
+    signal.addEventListener("abort", abort, { once: true })
+  })
+}
+
+function sameClaimAttempt(left: TaskClaimToken, right: TaskClaimToken): boolean {
+  return left.claimId === right.claimId
+    && left.taskSpaceId === right.taskSpaceId
+    && left.taskId === right.taskId
+    && left.assigneeRef === right.assigneeRef
+    && left.attempt === right.attempt
+    && left.leaseEpoch === right.leaseEpoch
+}
+
+function laterTimestamp(requested: string, boundary: string, offsetMs: number): string {
+  const requestedMs = Date.parse(requested)
+  const boundaryMs = Date.parse(boundary)
+  if (!Number.isFinite(requestedMs) || !Number.isFinite(boundaryMs)) {
+    return invalid("EIDOLON_HOLON_TASK_INPUT_INVALID", "Task transition timestamps must be valid ISO timestamps.")
+  }
+  return new Date(Math.max(requestedMs, boundaryMs + offsetMs)).toISOString()
 }
 
 async function replayResult(
@@ -269,7 +414,8 @@ function exactOutputValues(
 function assertRuntime(runtime: HolonWorkflowTaskProcessorRuntime): void {
   if (!runtime || typeof runtime !== "object" || typeof runtime.store?.load !== "function"
     || typeof runtime.taskManager?.owner?.readSnapshot !== "function"
-    || typeof runtime.actorRuntime?.dispatchMember !== "function") {
+    || typeof runtime.actorRuntime?.dispatchMember !== "function"
+    || typeof runtime.journal?.dispatch !== "function") {
     invalid("EIDOLON_HOLON_TASK_RUNTIME_INVALID", "Task execution runtime ports are incomplete.")
   }
 }

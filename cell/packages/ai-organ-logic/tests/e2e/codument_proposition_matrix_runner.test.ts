@@ -33,19 +33,19 @@ describe("Codument proposition matrix planning", () => {
     expect(planCodumentPropositionMatrix({
       manifests,
       selection: { kind: "cell", scenarioId: "full-only", mode: "ai_data" },
-      liveEvidence: "official",
+      liveEvidence: "deepseek",
       sentinelScenarioIds: ["sentinel"],
     }).cells.map((cell) => `${cell.manifest.scenarioId}:${cell.mode}`)).toEqual(["full-only:ai_data"])
   })
 
-  it("preserves an explicit compatible evidence class across a sentinel plan", () => {
+  it("preserves the adapter-owned DeepSeek evidence class across a sentinel plan", () => {
     const plan = planCodumentPropositionMatrix({
       manifests,
       selection: { kind: "sentinel" },
-      liveEvidence: "compatible",
+      liveEvidence: "deepseek",
       sentinelScenarioIds: ["sentinel"],
     })
-    expect(plan.liveEvidence).toBe("compatible")
+    expect(plan.liveEvidence).toBe("deepseek")
     expect(plan.cells.map((cell) => cell.mode)).toEqual(["ordinary", "ai_ctrl", "ai_data"])
   })
 
@@ -53,7 +53,7 @@ describe("Codument proposition matrix planning", () => {
     const sentinel = planCodumentPropositionMatrix({
       manifests,
       selection: { kind: "sentinel" },
-      liveEvidence: "official",
+      liveEvidence: "deepseek",
       sentinelScenarioIds: ["sentinel"],
     })
     expect(sentinel.cells.map((cell) => `${cell.manifest.scenarioId}:${cell.mode}`)).toEqual([
@@ -65,7 +65,7 @@ describe("Codument proposition matrix planning", () => {
     const full = planCodumentPropositionMatrix({
       manifests: [...manifests].reverse(),
       selection: { kind: "full" },
-      liveEvidence: "official",
+      liveEvidence: "deepseek",
       sentinelScenarioIds: ["sentinel"],
     })
     expect(full.cells).toHaveLength(6)
@@ -103,7 +103,7 @@ describe("Codument proposition matrix planning", () => {
     const plan = planCodumentPropositionMatrix({
       manifests,
       selection: { kind: "full" },
-      liveEvidence: "official",
+      liveEvidence: "deepseek",
       sentinelScenarioIds: ["sentinel"],
     })
     const calls: string[] = []

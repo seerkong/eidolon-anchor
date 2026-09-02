@@ -110,7 +110,7 @@ describe("Codument proposition cache scopes", () => {
     return {
       contextScopeId: "session-1",
       providerId: "deepseek",
-      providerProfileId: "deepseek-official-chat@1",
+      providerProfileId: "deepseek-chat@1",
       model: "deepseek-v4-flash",
       contextEpoch: 1,
       epochReason: "initial_projection",
@@ -125,7 +125,7 @@ describe("Codument proposition cache scopes", () => {
     }
   }
 
-  it("classifies a stable official long-context epoch separately", () => {
+  it("classifies a stable DeepSeek long-context epoch independent of gateway", () => {
     const result = classifyPropositionCacheScope([
       turn(),
       turn({ promptTokens: 12_100, cacheHitTokens: 12_050 }),
@@ -133,7 +133,7 @@ describe("Codument proposition cache scopes", () => {
       turn({ promptTokens: 12_300, cacheHitTokens: 12_250 }),
     ])
     expect(result.classification).toBe("comparable_long_context")
-    expect(result.providerClass).toBe("official_deepseek")
+    expect(result.providerClass).toBe("deepseek")
     expect(result.retainedPrefixIntegrity).toBe(1)
     expect(result.cacheHitRatio).toBeGreaterThan(0.995)
     expect(result.cacheEligiblePrefixHitRatio).toBeGreaterThan(0.995)
@@ -141,21 +141,21 @@ describe("Codument proposition cache scopes", () => {
     expect(result.cacheHitTokens + result.cacheMissTokens).toBeGreaterThanOrEqual(32_768)
   })
 
-  it("does not merge short, epoch-transition, compatible or invalid-prefix evidence", () => {
+  it("does not merge short, epoch-transition or invalid-prefix evidence", () => {
     expect(classifyPropositionCacheScope([turn({ promptTokens: 1_000 })]).classification).toBe("short_or_cold")
     expect(classifyPropositionCacheScope([
       turn(),
       turn({ contextEpoch: 2, epochReason: "history_compaction" }),
     ]).classification).toBe("epoch_transition")
     expect(classifyPropositionCacheScope([
-      turn({ providerId: "siliconflow", providerProfileId: "deepseek-compatible-chat@1", normalizedInputCost: null }),
-      turn({ providerId: "siliconflow", providerProfileId: "deepseek-compatible-chat@1", normalizedInputCost: null }),
-      turn({ providerId: "siliconflow", providerProfileId: "deepseek-compatible-chat@1", normalizedInputCost: null }),
-      turn({ providerId: "siliconflow", providerProfileId: "deepseek-compatible-chat@1", normalizedInputCost: null }),
+      turn({ providerId: "siliconflow", providerProfileId: "deepseek-chat@1" }),
+      turn({ providerId: "siliconflow", providerProfileId: "deepseek-chat@1" }),
+      turn({ providerId: "siliconflow", providerProfileId: "deepseek-chat@1" }),
+      turn({ providerId: "siliconflow", providerProfileId: "deepseek-chat@1" }),
     ])).toMatchObject({
-      providerClass: "deepseek_compatible",
+      providerClass: "deepseek",
       classification: "comparable_long_context",
-      normalizedInputCost: null,
+      normalizedInputCost: 320,
     })
     expect(() => classifyPropositionCacheScope([
       turn(),
@@ -233,8 +233,8 @@ describe("Codument proposition cache scopes", () => {
       identity: {
         schemaVersion: 1,
         providerId: "deepseek",
-        providerProfile: "deepseek_official",
-        providerProfileId: "deepseek-official-chat@1",
+        providerProfile: "deepseek",
+        providerProfileId: "deepseek-chat@1",
         model: "deepseek-v4-flash",
         actorClass: "ordinary",
         contextEpoch: 1,

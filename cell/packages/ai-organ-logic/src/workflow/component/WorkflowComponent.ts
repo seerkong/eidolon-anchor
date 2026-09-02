@@ -1,8 +1,11 @@
 import path from "node:path"
 import type { DefinitionStepExtensionCodecRegistryPort } from "flow-step-space-contract"
+import type { EidolonVfsReadPort } from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
 
 import {
   EidolonAppResourceRegistryAdapter,
+  type EffectiveEidolonVfsRegistrySource,
+  type EidolonEffectiveVfsAuthoringPort,
   type ResourcePackageLayerBinding,
 } from "../../resources"
 
@@ -15,6 +18,7 @@ import {
   type WorkflowAuthoringStore,
 } from "../authoring"
 import { WorkflowResourceLoader } from "../resources"
+import { createAIDataAgentPreparationExtensionCodecRegistry } from "../runtime/AIDataAgentResourcePreparation"
 import { createAIDataAutonomousControlExtensionCodecRegistry } from "../runtime/AIDataAutonomousControlLoop"
 import { WorkflowDefinitionRepository } from "../runtime/WorkflowDefinitionRepository"
 import { WorkflowCommandService } from "./WorkflowCommandService"
@@ -30,6 +34,8 @@ export class WorkflowComponent {
   readonly resourceRegistry: EidolonAppResourceRegistryAdapter
   readonly resourcePackagePublisher?: WorkflowResourcePackagePublisher
   readonly repository?: WorkflowDefinitionRepository
+  readonly effectiveVfsAuthoring?: EidolonEffectiveVfsAuthoringPort
+  readonly resourceLayers: readonly ResourcePackageLayerBinding[]
 
   constructor(options?: {
     queries?: WorkflowQueryService
@@ -41,8 +47,15 @@ export class WorkflowComponent {
     resourceRegistry?: EidolonAppResourceRegistryAdapter
     resourcePackagePublisher?: WorkflowResourcePackagePublisher
     resourceLayers?: readonly ResourcePackageLayerBinding[]
+    effectiveVfs?: EffectiveEidolonVfsRegistrySource
+    effectiveVfsAuthoring?: EidolonEffectiveVfsAuthoringPort
     repository?: WorkflowDefinitionRepository
   }) {
+    const usesEffectiveVfs = options?.effectiveVfs !== undefined
+    if (usesEffectiveVfs && options?.resourcePackagePublisher) {
+      throw new Error("WorkflowComponent cannot combine Effective VFS with a physical ResourcePackage publisher")
+    }
+    const resourceLayers = usesEffectiveVfs ? [] : options?.resourceLayers ?? []
     this.authoring = options?.authoring
     const store = this.authoring?.store
     if (!store && !options?.sessions) {
@@ -50,10 +63,14 @@ export class WorkflowComponent {
     }
     this.sessions = options?.sessions ?? new WorkflowAuthoringSessionStore(store!)
     this.catalog = options?.catalog ?? new WorkflowAuthoringCatalog()
-    this.resourceRegistry = options?.resourceRegistry ?? new EidolonAppResourceRegistryAdapter()
+    this.resourceRegistry = options?.resourceRegistry ?? new EidolonAppResourceRegistryAdapter({
+      ...(options?.effectiveVfs ? { effectiveVfs: options.effectiveVfs } : { layers: resourceLayers }),
+    })
+    this.effectiveVfsAuthoring = options?.effectiveVfsAuthoring
+    this.resourceLayers = Object.freeze([...resourceLayers])
     this.resourcePackagePublisher = options?.resourcePackagePublisher
-      ?? (options?.resourceLayers?.some((layer) => layer.id === "workspace")
-        ? new WorkflowResourcePackagePublisher(this.sessions, this.resourceRegistry, options.resourceLayers)
+      ?? (resourceLayers.some((layer) => layer.id === "workspace")
+        ? new WorkflowResourcePackagePublisher(this.sessions, this.resourceRegistry, resourceLayers)
         : undefined)
     this.repository = options?.repository ?? (this.authoring
       ? new WorkflowDefinitionRepository(
@@ -75,6 +92,8 @@ export type WorkflowComponentOptions = {
   catalog?: WorkflowAuthoringCatalog
   candidateHarness?: WorkflowCandidateAcceptanceHarness
   resourceLayers?: readonly ResourcePackageLayerBinding[]
+  effectiveVfs?: EffectiveEidolonVfsRegistrySource
+  effectiveVfsAuthoring?: EidolonEffectiveVfsAuthoringPort
   resourceRegistry?: EidolonAppResourceRegistryAdapter
   extensionCodecs?: DefinitionStepExtensionCodecRegistryPort
 }
@@ -123,6 +142,35 @@ function runtimeResourcePackageLayers(runtime: WorkflowComponentRuntimeLike): re
   })
 }
 
+function runtimeEffectiveVfs(runtime: WorkflowComponentRuntimeLike): EffectiveEidolonVfsRegistrySource | undefined {
+  const metadata = record(runtime.vm?.outerCtx?.metadata)
+  const resourcePackages = record(metadata?.resourcePackages)
+  const candidate = resourcePackages?.effectiveVfs as Partial<EidolonVfsReadPort> | (() => EidolonVfsReadPort) | undefined
+  if (typeof candidate === "function") return candidate
+  return candidate
+    && typeof candidate.stat === "function"
+    && typeof candidate.readDirectory === "function"
+    && typeof candidate.readBytes === "function"
+    && typeof candidate.snapshot === "object"
+    ? candidate as EidolonVfsReadPort
+    : undefined
+}
+
+function runtimeEffectiveVfsAuthoring(
+  runtime: WorkflowComponentRuntimeLike,
+): EidolonEffectiveVfsAuthoringPort | undefined {
+  const metadata = record(runtime.vm?.outerCtx?.metadata)
+  const resourcePackages = record(metadata?.resourcePackages)
+  const candidate = resourcePackages?.effectiveVfsAuthoring as Partial<EidolonEffectiveVfsAuthoringPort> | undefined
+  return candidate
+    && typeof candidate.workspaceResourceRoot === "string"
+    && typeof candidate.read === "function"
+    && typeof candidate.prepare === "function"
+    && typeof candidate.admit === "function"
+    ? candidate as EidolonEffectiveVfsAuthoringPort
+    : undefined
+}
+
 function runtimeStepExtensionCodecs(
   runtime: WorkflowComponentRuntimeLike,
 ): DefinitionStepExtensionCodecRegistryPort {
@@ -134,19 +182,24 @@ function runtimeStepExtensionCodecs(
     && typeof (candidate as { resolve?: unknown }).resolve === "function"
     ? candidate as DefinitionStepExtensionCodecRegistryPort
     : undefined
-  return createAIDataAutonomousControlExtensionCodecRegistry(fallback)
+  return createAIDataAgentPreparationExtensionCodecRegistry(
+    createAIDataAutonomousControlExtensionCodecRegistry(fallback),
+  )
 }
 
 export function createWorkflowComponent(options: WorkflowComponentOptions = {}): WorkflowComponent {
   const resources = options.resources ?? new WorkflowResourceLoader(
-    createAIDataAutonomousControlExtensionCodecRegistry(options.extensionCodecs),
+    createAIDataAgentPreparationExtensionCodecRegistry(
+      createAIDataAutonomousControlExtensionCodecRegistry(options.extensionCodecs),
+    ),
   )
   const store = options.store
     ?? (options.workspaceRoot ? new NodeWorkflowAuthoringStore(options.workspaceRoot) : undefined)
   const effectiveStore = store ?? new NodeWorkflowAuthoringStore(path.resolve(process.cwd(), ".eidolon", "workflows"))
   const authoring = new WorkflowAuthoringWorkspace(effectiveStore, resources)
+  const resourceLayers = options.effectiveVfs ? [] : options.resourceLayers ?? []
   const resourceRegistry = options.resourceRegistry ?? new EidolonAppResourceRegistryAdapter({
-    layers: options.resourceLayers,
+    ...(options.effectiveVfs ? { effectiveVfs: options.effectiveVfs } : { layers: resourceLayers }),
     workspaceRoot: options.workspaceRoot,
   })
   const sessions = new WorkflowAuthoringSessionStore(
@@ -155,7 +208,7 @@ export function createWorkflowComponent(options: WorkflowComponentOptions = {}):
     options.candidateHarness,
     {
       registry: resourceRegistry,
-      layers: options.resourceLayers ?? [],
+      layers: resourceLayers,
     },
   )
   return new WorkflowComponent({
@@ -164,7 +217,9 @@ export function createWorkflowComponent(options: WorkflowComponentOptions = {}):
     sessions,
     catalog: options.catalog,
     resourceRegistry,
-    resourceLayers: options.resourceLayers ?? [],
+    resourceLayers,
+    effectiveVfs: options.effectiveVfs,
+    effectiveVfsAuthoring: options.effectiveVfsAuthoring,
   })
 }
 
@@ -179,6 +234,8 @@ export function createWorkflowComponentForRuntime(
     && options.catalog === undefined
     && options.candidateHarness === undefined
     && options.resourceLayers === undefined
+    && options.effectiveVfs === undefined
+    && options.effectiveVfsAuthoring === undefined
     && options.resourceRegistry === undefined
   if (canReuseBinding) {
     const existing = COMPONENT_BY_VM.get(vm)
@@ -210,6 +267,8 @@ export function createWorkflowComponentForRuntimeBinding(
     ...options,
     workspaceRoot: runtimeWorkspaceRoot(runtime),
     resourceLayers: options.resourceLayers ?? runtimeResourcePackageLayers(runtime),
+    effectiveVfs: options.effectiveVfs ?? runtimeEffectiveVfs(runtime),
+    effectiveVfsAuthoring: options.effectiveVfsAuthoring ?? runtimeEffectiveVfsAuthoring(runtime),
     extensionCodecs: options.extensionCodecs ?? runtimeStepExtensionCodecs(runtime),
   })
 }

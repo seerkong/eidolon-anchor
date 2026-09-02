@@ -6,7 +6,6 @@ import { join } from "node:path"
 import {
   runProviderCacheProductLive,
   type ProviderCacheProductLiveConfig,
-  type ProviderCacheProductLiveEvidenceClass,
 } from "../src/llm/ProviderCacheProductLive"
 import { runProviderCacheProductMatrix } from "../src/llm/ProviderCacheProductMatrix"
 
@@ -20,7 +19,7 @@ const deterministicTests = Object.freeze([
   "tests/AIAgent/runtime/provider_context_epoch_transition.test.ts",
 ])
 
-type LiveMode = "none" | "official" | "compatible" | "all"
+type LiveMode = "none" | "deepseek" | "official" | "compatible" | "all"
 
 function canonical(value: unknown): string {
   if (value === null || typeof value !== "object") return JSON.stringify(value)
@@ -47,7 +46,7 @@ async function run(command: readonly string[], env: Record<string, string> = {})
   return stdout
 }
 
-function readLiveConfig(evidenceClass: ProviderCacheProductLiveEvidenceClass): ProviderCacheProductLiveConfig | undefined {
+function readLiveConfig(): ProviderCacheProductLiveConfig | undefined {
   const configPath = join(homedir(), ".eidolon", "llm-provider.json")
   if (!existsSync(configPath)) return undefined
   const catalog = JSON.parse(readFileSync(configPath, "utf8")) as { providers?: unknown }
@@ -56,15 +55,14 @@ function readLiveConfig(evidenceClass: ProviderCacheProductLiveEvidenceClass): P
     : catalog.providers && typeof catalog.providers === "object"
       ? Object.entries(catalog.providers).map(([id, value]) => ({ id, ...(value as object) }))
       : []
-  const provider = evidenceClass === "official_deepseek"
-    ? candidates.find((candidate: any) => candidate?.id === "deepseek")
-    : candidates.filter((candidate: any) => candidate?.id !== "deepseek" && candidate?.adapter === "deepseek")
-        .sort((left: any, right: any) => Number(right.id === "siliconflow") - Number(left.id === "siliconflow"))[0]
+  const preferredProviderId = process.env.EIDOLON_PROVIDER_CACHE_PROVIDER?.trim()
+  const deepSeekProviders = candidates.filter((candidate: any) => candidate?.adapter === "deepseek")
+  const provider = (preferredProviderId
+    ? deepSeekProviders.find((candidate: any) => candidate?.id === preferredProviderId)
+    : undefined) ?? deepSeekProviders[0]
   const models = Array.isArray(provider?.models) ? provider.models : Object.values(provider?.models ?? {})
-  const model = models.find((candidate: any) => (
-    typeof candidate?.id === "string"
-    && (evidenceClass === "official_deepseek" || /deepseek/i.test(candidate.id))
-  ))?.id
+  const model = models.find((candidate: any) => typeof candidate?.id === "string" && /deepseek/i.test(candidate.id))?.id
+    ?? models.find((candidate: any) => typeof candidate?.id === "string")?.id
   if (provider?.adapter !== "deepseek"
     || typeof provider?.options?.apiKey !== "string"
     || typeof provider?.options?.baseURL !== "string"
@@ -72,9 +70,7 @@ function readLiveConfig(evidenceClass: ProviderCacheProductLiveEvidenceClass): P
   return {
     providerId: provider.id,
     adapterName: "deepseek",
-    profileId: evidenceClass === "official_deepseek"
-      ? "deepseek-official-chat@1"
-      : "deepseek-compatible-chat@1",
+    profileId: "deepseek-chat@1",
     model,
     apiKey: provider.options.apiKey,
     baseURL: provider.options.baseURL,
@@ -82,40 +78,26 @@ function readLiveConfig(evidenceClass: ProviderCacheProductLiveEvidenceClass): P
 }
 
 const liveMode = (process.env.EIDOLON_PROVIDER_CACHE_LIVE ?? "none") as LiveMode
-if (!["none", "official", "compatible", "all"].includes(liveMode)) {
-  throw new Error("EIDOLON_PROVIDER_CACHE_LIVE must be none|official|compatible|all")
+if (!["none", "deepseek", "official", "compatible", "all"].includes(liveMode)) {
+  throw new Error("EIDOLON_PROVIDER_CACHE_LIVE must be none|deepseek")
 }
 
 await run(["bun", "test", ...deterministicTests])
 const matrix = await runProviderCacheProductMatrix({ mode: "deterministic" })
 
-let official: unknown = {
+let deepseek: unknown = {
   executionStatus: "NOT_REQUESTED",
   evidenceStatus: "UNKNOWN",
-  gateAuthority: "official_deepseek",
+  gateAuthority: "deepseek",
 }
-let compatible: unknown = {
-  executionStatus: "NOT_REQUESTED",
-  evidenceStatus: "UNKNOWN",
-  gateAuthority: "compatible_observation_only",
-}
-if (liveMode === "official" || liveMode === "all") {
-  official = await runProviderCacheProductLive({
+if (liveMode !== "none") {
+  deepseek = await runProviderCacheProductLive({
     requested: true,
-    evidenceClass: "official_deepseek",
-    config: readLiveConfig("official_deepseek"),
+    evidenceClass: "deepseek",
+    config: readLiveConfig(),
     groupCount: 3,
   })
-  console.log(`DEEPSEEK_OFFICIAL_OBSERVATION ${canonical(official)}`)
-}
-if (liveMode === "compatible" || liveMode === "all") {
-  compatible = await runProviderCacheProductLive({
-    requested: true,
-    evidenceClass: "deepseek_compatible",
-    config: readLiveConfig("deepseek_compatible"),
-    groupCount: 3,
-  })
-  console.log(`DEEPSEEK_COMPATIBLE_OBSERVATION ${canonical(compatible)}`)
+  console.log(`DEEPSEEK_OBSERVATION ${canonical(deepseek)}`)
 }
 
 const payload = Object.freeze({
@@ -150,7 +132,7 @@ const payload = Object.freeze({
     strategyProof: matrix.strategyProof,
   }),
   epochReasons: matrix.epochReasonOccurrences,
-  evidence: Object.freeze({ fixture: matrix.structuralStatus, official, compatible }),
+  evidence: Object.freeze({ fixture: matrix.structuralStatus, deepseek }),
   scenarioIds: matrix.scenarioIds,
 })
 const canonicalPayload = canonical(payload)

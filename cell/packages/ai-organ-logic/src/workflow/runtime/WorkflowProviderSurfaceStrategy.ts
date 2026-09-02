@@ -194,7 +194,7 @@ export type ClosedWorkflowSurfaceExperimentInput = Readonly<{
   frozenConversationSnapshotDigest: `sha256:${string}`
   lifecycleToolProfileDigest: `sha256:${string}`
   lifecycleResourcePackageDigest: `sha256:${string}`
-  providerProfileId: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
+  providerProfileId: "deepseek-chat@1"
   model: string
   strategySetDigest: `sha256:${string}`
   journey: typeof CLOSED_WORKFLOW_SURFACE_EXPERIMENT.journey
@@ -215,7 +215,7 @@ export function createClosedWorkflowSurfaceExperimentInput(input: {
   frozenConversationSnapshotDigest: `sha256:${string}`
   lifecycleToolProfileDigest: `sha256:${string}`
   lifecycleResourcePackageDigest: `sha256:${string}`
-  providerProfileId: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
+  providerProfileId: "deepseek-chat@1"
   model: string
 }): ClosedWorkflowSurfaceExperimentInput {
   assertExactClosedObject(input, [

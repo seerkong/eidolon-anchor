@@ -7,7 +7,9 @@ import type {
   ActorProviderContextFactDeliveryProof,
   ActorProviderContextFactHistoryAnchor,
   ActorProviderContextFactNamespace,
+  ActorProviderContextFactSemanticFamily,
   ActorProviderContextFactRuntime,
+  CanonicalActorProviderContextFactNamespace,
   Sha256Digest,
 } from "@cell/ai-organ-contract";
 
@@ -26,6 +28,14 @@ const NAMESPACES = new Set<ActorProviderContextFactNamespace>([
   "work-context",
   "provider-projection",
   "provider-recovery",
+  "task-tree-context",
+  "provider-output-recovery",
+  "workflow-stage-context",
+]);
+
+const WRITABLE_NAMESPACES = new Set<CanonicalActorProviderContextFactNamespace>([
+  "task-tree-context",
+  "provider-output-recovery",
   "workflow-stage-context",
 ]);
 
@@ -34,6 +44,30 @@ export function normalizeActorProviderContextFactNamespace(value: string): Actor
     fail("ACTOR_PROVIDER_CONTEXT_FACT_INVALID", "namespace is unsupported");
   }
   return value as ActorProviderContextFactNamespace;
+}
+
+export function normalizeWritableActorProviderContextFactNamespace(
+  value: string,
+): CanonicalActorProviderContextFactNamespace {
+  if (!WRITABLE_NAMESPACES.has(value as CanonicalActorProviderContextFactNamespace)) {
+    fail("ACTOR_PROVIDER_CONTEXT_FACT_INVALID", "namespace is not writable");
+  }
+  return value as CanonicalActorProviderContextFactNamespace;
+}
+
+export function actorProviderContextFactSemanticFamily(
+  namespace: ActorProviderContextFactNamespace,
+): ActorProviderContextFactSemanticFamily {
+  if (namespace === "provider-projection") return "task-tree-context";
+  if (namespace === "provider-recovery") return "provider-output-recovery";
+  return namespace;
+}
+
+export function canonicalActorProviderContextFactSuccessorNamespace(
+  namespace: ActorProviderContextFactNamespace,
+): ActorProviderContextFactNamespace | null {
+  const family = actorProviderContextFactSemanticFamily(namespace);
+  return family === "work-context" || family === "provider-output-recovery" ? null : family;
 }
 
 function codeUnitCompare(left: string, right: string): number {
@@ -130,7 +164,7 @@ export function measureActorProviderContextFactRetention(input: Readonly<{
   maxCanonicalFactBytesPerEpoch: number;
 }>): Readonly<{
   canonicalFactBytes: number;
-  revisionCounts: Readonly<Record<ActorProviderContextFactNamespace, number>>;
+  revisionCounts: Readonly<Record<ActorProviderContextFactSemanticFamily, number>>;
   atLimit: boolean;
   overLimit: boolean;
 }> {
@@ -142,15 +176,15 @@ export function measureActorProviderContextFactRetention(input: Readonly<{
     input.maxCanonicalFactBytesPerEpoch,
     "maxCanonicalFactBytesPerEpoch",
   );
-  const counts: Record<ActorProviderContextFactNamespace, number> = {
+  const counts: Record<ActorProviderContextFactSemanticFamily, number> = {
     "work-context": 0,
-    "provider-projection": 0,
-    "provider-recovery": 0,
+    "task-tree-context": 0,
+    "provider-output-recovery": 0,
     "workflow-stage-context": 0,
   };
   let canonicalFactBytes = 0;
   for (const fact of input.facts) {
-    counts[fact.namespace] += 1;
+    counts[actorProviderContextFactSemanticFamily(fact.namespace)] += 1;
     canonicalFactBytes += canonicalActorProviderContextFactBytes(fact).byteLength;
   }
   const namespaceCounts = Object.values(counts);
@@ -238,10 +272,9 @@ export function createActorProviderContextFact(input: Readonly<{
   const sequence = positiveInteger(input.sequence, "sequence");
   const previousFactDigest = optionalDigest(input.previousFactDigest, "previousFactDigest");
   const previousSequenceFactDigest = optionalDigest(input.previousSequenceFactDigest, "previousSequenceFactDigest");
-  // A compaction successor keeps the logical namespace revision while its
-  // predecessor crosses the epoch boundary. Initial revision one may
-  // therefore have either no predecessor (new namespace) or an exact
-  // predecessor admitted by the central compaction transition validator.
+  // A compaction successor keeps the logical semantic-family revision while
+  // its predecessor crosses the epoch boundary. A v2 compaction proof may
+  // also bind a legacy source namespace to its canonical successor namespace.
   if (namespaceRevision > 1 && previousFactDigest === null) {
     fail("ACTOR_PROVIDER_CONTEXT_FACT_INVALID", "namespace predecessor is missing");
   }

@@ -9,14 +9,6 @@ export type ToolSchema = {
   };
 };
 
-export type MutableProviderProjectionContextEffect = {
-  kind: "mutable_provider_projection";
-  logicalKey: string;
-  revision: string;
-  content: string;
-  placement: "late";
-};
-
 export type AppendProviderContextFactEffect = {
   kind: "append_provider_context_fact";
   namespace: string;
@@ -25,9 +17,7 @@ export type AppendProviderContextFactEffect = {
   payload: Readonly<Record<string, unknown>>;
 };
 
-export type ToolContextEffect =
-  | MutableProviderProjectionContextEffect
-  | AppendProviderContextFactEffect;
+export type ToolContextEffect = AppendProviderContextFactEffect;
 
 export type ToolExecutionOutcome =
   | { status: "completed" }

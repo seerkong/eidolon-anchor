@@ -3,6 +3,9 @@ import { createHash } from "node:crypto";
 import type {
   ProviderContextCompactionProof,
   ProviderContextCompactionRetainedFact,
+  ProviderContextCompactionProofV2,
+  LegacyProviderContextCompactionProof,
+  LegacyProviderContextCompactionRetainedFact,
   ProviderContextEpochTransitionReason,
   ProviderContextLegacyImportResult,
   ProviderContextLegacyMigrationMarker,
@@ -13,6 +16,10 @@ import type {
   Sha256Digest,
 } from "@cell/ai-organ-contract";
 import { computeProviderEpochReceiptIntegrityDigest } from "./ProviderEpochProjection";
+import {
+  canonicalActorProviderContextFactSuccessorNamespace,
+  normalizeActorProviderContextFactNamespace,
+} from "./ActorProviderContextFact";
 
 export class ProviderContextEpochError extends Error {
   readonly code: string;
@@ -210,22 +217,33 @@ export function createProviderRequestAdmissionReceipt(input: Omit<ProviderReques
   return Object.freeze({ ...facts, admissionDigest: sha(facts) });
 }
 
-export function createProviderContextCompactionProof(input: Omit<ProviderContextCompactionProof, "schemaVersion" | "proofDigest">): ProviderContextCompactionProof {
+export function createProviderContextCompactionProof(
+  input: Omit<ProviderContextCompactionProofV2, "schemaVersion" | "proofDigest">,
+): ProviderContextCompactionProofV2 {
   cloneClosed(input, "compactionProof");
   if (integer(input.successorEpoch, "successorEpoch", true) !== integer(input.sourceEpoch, "sourceEpoch", true) + 1) {
     fail("PROVIDER_CONTEXT_EPOCH_INVALID", "successor epoch must be source epoch plus one");
   }
-  const retained = input.retained.map((entry): ProviderContextCompactionRetainedFact => Object.freeze({
-    namespace: entry.namespace,
-    sourceFactDigest: exactDigest(entry.sourceFactDigest, "retained.sourceFactDigest"), namespaceRevision: integer(entry.namespaceRevision, "retained.namespaceRevision"),
-    payloadDigest: exactDigest(entry.payloadDigest, "retained.payloadDigest"), callRecordDigest: exactDigest(entry.callRecordDigest, "retained.callRecordDigest"),
-    resultRecordDigest: exactDigest(entry.resultRecordDigest, "retained.resultRecordDigest"),
-    requestAdmissionIntentDigest: exactDigest(entry.requestAdmissionIntentDigest, "retained.requestAdmissionIntentDigest"),
-    requestAdmissionDigest: exactDigest(entry.requestAdmissionDigest, "retained.requestAdmissionDigest"),
-    successorFactDigest: exactDigest(entry.successorFactDigest, "retained.successorFactDigest"),
-  })).sort((left, right) => codeUnitCompare(left.namespace, right.namespace));
+  const retained = input.retained.map((entry): ProviderContextCompactionRetainedFact => {
+    const sourceNamespace = normalizeActorProviderContextFactNamespace(entry.sourceNamespace);
+    const successorNamespace = normalizeActorProviderContextFactNamespace(entry.successorNamespace);
+    const expectedSuccessorNamespace = canonicalActorProviderContextFactSuccessorNamespace(sourceNamespace);
+    if (expectedSuccessorNamespace === null || successorNamespace !== expectedSuccessorNamespace) {
+      fail("PROVIDER_CONTEXT_EPOCH_INVALID", "retained namespace successor is not canonical");
+    }
+    return Object.freeze({
+      sourceNamespace,
+      successorNamespace,
+      sourceFactDigest: exactDigest(entry.sourceFactDigest, "retained.sourceFactDigest"), namespaceRevision: integer(entry.namespaceRevision, "retained.namespaceRevision"),
+      payloadDigest: exactDigest(entry.payloadDigest, "retained.payloadDigest"), callRecordDigest: exactDigest(entry.callRecordDigest, "retained.callRecordDigest"),
+      resultRecordDigest: exactDigest(entry.resultRecordDigest, "retained.resultRecordDigest"),
+      requestAdmissionIntentDigest: exactDigest(entry.requestAdmissionIntentDigest, "retained.requestAdmissionIntentDigest"),
+      requestAdmissionDigest: exactDigest(entry.requestAdmissionDigest, "retained.requestAdmissionDigest"),
+      successorFactDigest: exactDigest(entry.successorFactDigest, "retained.successorFactDigest"),
+    });
+  }).sort((left, right) => codeUnitCompare(left.successorNamespace, right.successorNamespace));
   const facts = Object.freeze({
-    schemaVersion: "provider.context-compaction-proof/v1" as const,
+    schemaVersion: "provider.context-compaction-proof/v2" as const,
     sessionId: string(input.sessionId, "sessionId"), actorKey: string(input.actorKey, "actorKey"),
     sourceEpoch: input.sourceEpoch, successorEpoch: input.successorEpoch, retained: Object.freeze(retained), createdAt: string(input.createdAt, "createdAt"),
   });
@@ -240,6 +258,51 @@ export function createProviderContextCompactionProof(input: Omit<ProviderContext
     retained: facts.retained.map(({ successorFactDigest: _successorFactDigest, ...entry }) => entry),
   };
   return Object.freeze({ ...facts, proofDigest: sha(digestFacts) });
+}
+
+export function createLegacyProviderContextCompactionProof(
+  input: Omit<LegacyProviderContextCompactionProof, "schemaVersion" | "proofDigest">,
+): LegacyProviderContextCompactionProof {
+  cloneClosed(input, "compactionProof");
+  if (integer(input.successorEpoch, "successorEpoch", true) !== integer(input.sourceEpoch, "sourceEpoch", true) + 1) {
+    fail("PROVIDER_CONTEXT_EPOCH_INVALID", "successor epoch must be source epoch plus one");
+  }
+  const retained = input.retained.map((entry): LegacyProviderContextCompactionRetainedFact => Object.freeze({
+    namespace: normalizeActorProviderContextFactNamespace(entry.namespace),
+    sourceFactDigest: exactDigest(entry.sourceFactDigest, "retained.sourceFactDigest"),
+    namespaceRevision: integer(entry.namespaceRevision, "retained.namespaceRevision"),
+    payloadDigest: exactDigest(entry.payloadDigest, "retained.payloadDigest"),
+    callRecordDigest: exactDigest(entry.callRecordDigest, "retained.callRecordDigest"),
+    resultRecordDigest: exactDigest(entry.resultRecordDigest, "retained.resultRecordDigest"),
+    requestAdmissionIntentDigest: exactDigest(entry.requestAdmissionIntentDigest, "retained.requestAdmissionIntentDigest"),
+    requestAdmissionDigest: exactDigest(entry.requestAdmissionDigest, "retained.requestAdmissionDigest"),
+    successorFactDigest: exactDigest(entry.successorFactDigest, "retained.successorFactDigest"),
+  })).sort((left, right) => codeUnitCompare(left.namespace, right.namespace));
+  const facts = Object.freeze({
+    schemaVersion: "provider.context-compaction-proof/v1" as const,
+    sessionId: string(input.sessionId, "sessionId"),
+    actorKey: string(input.actorKey, "actorKey"),
+    sourceEpoch: input.sourceEpoch,
+    successorEpoch: input.successorEpoch,
+    retained: Object.freeze(retained),
+    createdAt: string(input.createdAt, "createdAt"),
+  });
+  const digestFacts = {
+    ...facts,
+    retained: facts.retained.map(({ successorFactDigest: _successorFactDigest, ...entry }) => entry),
+  };
+  return Object.freeze({ ...facts, proofDigest: sha(digestFacts) });
+}
+
+export function normalizeProviderContextCompactionProof(
+  input: ProviderContextCompactionProof,
+): ProviderContextCompactionProof {
+  if (input.schemaVersion === "provider.context-compaction-proof/v1") {
+    const { schemaVersion: _schemaVersion, proofDigest: _proofDigest, ...facts } = input;
+    return createLegacyProviderContextCompactionProof(facts);
+  }
+  const { schemaVersion: _schemaVersion, proofDigest: _proofDigest, ...facts } = input;
+  return createProviderContextCompactionProof(facts);
 }
 
 function exactKeys(value: object, expected: readonly string[], field: string): void {

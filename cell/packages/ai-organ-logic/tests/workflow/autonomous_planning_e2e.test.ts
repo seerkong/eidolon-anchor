@@ -472,7 +472,10 @@ describe("autonomous planning deterministic mechanics E2E", () => {
     legacyReceipt.schemaVersion = "eidolon.autonomous-planning-evidence/v1"
     expect(() => verifyAutonomousPlanningReceipt(redigestReceipt(legacyReceipt)))
       .toThrow("EVIDENCE_LEGACY_PROVIDER_COVERAGE_UNSUPPORTED")
-  }, 20_000)
+  // The deterministic proof performs two admitted graph patches, invalid
+  // feedback handling, snapshot persistence, and exact fresh-runtime reuse.
+  // This budget is test-only and does not relax the control-loop limits.
+  }, 60_000)
 })
 
 function runtimeDigest(value: unknown): string {

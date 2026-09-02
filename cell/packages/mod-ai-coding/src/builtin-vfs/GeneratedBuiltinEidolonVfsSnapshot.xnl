@@ -1,0 +1,368 @@
+<VfsSnapshot version="2" root="vfs:///" id="eidolon_directory_e2b846cb2904f8fea9164dac" name="project" [
+    <Tree [
+        <Folder id="eidolon_directory_e2b846cb2904f8fea9164dac" name="project" [
+            <Entries [
+                <Folder id="eidolon_directory_340154b9085854a94b207baa" name=".eidolon" [
+                    <Entries [
+                        <Folder id="eidolon_directory_6abf21f28d32be89aa8ff3ba" name="resources" [
+                            <Entries [
+                                <Folder id="eidolon_directory_a04113d98e8438b0c665e920" name="Agents" [
+                                    <Entries [
+                                        <File id="eidolon_file_a61e2d566fbd2d0e193c9b5f" name="CodeAgent.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_a7442070eae9" {
+                        hash = "sha256:a7442070eae929de3d8032e32e16eda0239d066532dbec2a1c0ffdfb1edc0e2e"
+                      }>
+                    ]>
+                  ]>
+                ]>
+                                <Folder id="eidolon_directory_60b4a621533ebd8a48c32318" name="ContextPipelines" [
+                                    <Entries [
+                                        <File id="eidolon_file_fbd05ef815b969ac93bf3bb2" name="StandardContext.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_9c2773dd6ea2" {
+                        hash = "sha256:9c2773dd6ea2e46cebc6472ef3b1840627cad5ecd3f97e406b84adf4977951e3"
+                      }>
+                    ]>
+                  ]>
+                ]>
+                                <Folder id="eidolon_directory_7720e6db92a11328a70ed334" name="KindDefinitions" [
+                                    <Entries [
+                                        <Folder id="eidolon_directory_b3af9500c830dfb6bc7dd91a" name="AgentContextPipeline" [
+                                            <Entries [
+                                                <File id="eidolon_file_1f72869d5c4d2dcfec906963" name="manifest.xnl" {
+                          fileType = "xnl"
+                        } [
+                                                    <Content refId="c_774c5b310a96" {
+                            hash = "sha256:774c5b310a961fe9c260920a3c5246fdabefbd1388ade75b9369b61c866ce610"
+                          }>
+                        ]>
+                      ]>
+                    ]>
+                                        <Folder id="eidolon_directory_a01f17623e7eaf6f3d129a22" name="AgentMessageSource" [
+                                            <Entries [
+                                                <File id="eidolon_file_c284470f41511a0b01d4b597" name="manifest.xnl" {
+                          fileType = "xnl"
+                        } [
+                                                    <Content refId="c_823ddcd25521" {
+                            hash = "sha256:823ddcd25521229104df2389a8e7ccdcdf16f926dda3bb22af5359f7c5c39a8f"
+                          }>
+                        ]>
+                      ]>
+                    ]>
+                                        <Folder id="eidolon_directory_8eb1a1f28c2dfedcdb702f2a" name="AIAgentDefinition" [
+                                            <Entries [
+                                                <File id="eidolon_file_321b53465bef2776b44b6bdb" name="manifest.xnl" {
+                          fileType = "xnl"
+                        } [
+                                                    <Content refId="c_a365b948730d" {
+                            hash = "sha256:a365b948730d98177748f503a501dbf7ae9d84585010365c84cdcaa3f6e7e690"
+                          }>
+                        ]>
+                      ]>
+                    ]>
+                                        <Folder id="eidolon_directory_540df34295f0f8772b867a25" name="Prompt" [
+                                            <Entries [
+                                                <File id="eidolon_file_078a483eae60fee15e0cbd56" name="manifest.xnl" {
+                          fileType = "xnl"
+                        } [
+                                                    <Content refId="c_e2df68b2d7c2" {
+                            hash = "sha256:e2df68b2d7c2726bea1c2605a595f849c5a7f5f8b39bcde8ff11fbcb2feee596"
+                          }>
+                        ]>
+                      ]>
+                    ]>
+                                        <Folder id="eidolon_directory_8cd058063fe9b1d028593297" name="Tool" [
+                                            <Entries [
+                                                <File id="eidolon_file_8b7f7a90bc61623905d4ac5e" name="manifest.xnl" {
+                          fileType = "xnl"
+                        } [
+                                                    <Content refId="c_824e20f7e45c" {
+                            hash = "sha256:824e20f7e45cc312a9e12792c4ba9bec22b2073ffe3df0eb85c2c2bd020a0783"
+                          }>
+                        ]>
+                      ]>
+                    ]>
+                  ]>
+                ]>
+                                <File id="eidolon_file_6c1bb212c3683c25c9681835" name="manifest.xnl" {
+                  fileType = "xnl"
+                } [
+                                    <Content refId="c_8b11e5bd50cd" {
+                    hash = "sha256:8b11e5bd50cd2306eccbea032ba89eac323236d66262e603e6a4f475940604cd"
+                  }>
+                ]>
+                                <Folder id="eidolon_directory_6d2198cec5fef27177ee65db" name="MessageSources" [
+                                    <Entries [
+                                        <File id="eidolon_file_76ccc9ae2a86c61afc4e81da" name="WorkspaceAgents.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_eddb3c32d538" {
+                        hash = "sha256:eddb3c32d538d7d667f69f7d9ec228396f39090f2e5b0cabd82f47e9949e926c"
+                      }>
+                    ]>
+                  ]>
+                ]>
+                                <Folder id="eidolon_directory_dfd9f17f5671cba62a1cb6ec" name="Prompts" [
+                                    <Entries [
+                                        <File id="eidolon_file_0bd14804797b268a22e8aaed" name="CodingPrompt.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_2db9cc410ab1" {
+                        hash = "sha256:2db9cc410ab1b9bb181f0fad5ec9de91cca06cc0e230cc5c870ca2f758c2c2ef"
+                      }>
+                    ]>
+                                        <File id="eidolon_file_d8f5d7fa3b2d0dc3e094d45b" name="KernelPrompt.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_d693f979fd89" {
+                        hash = "sha256:d693f979fd89dc3a005e90c7532e88082fbed71cd54dbca1a17012b84681edec"
+                      }>
+                    ]>
+                  ]>
+                ]>
+                                <Folder id="eidolon_directory_89f1e5d2dbcaab4dc78bb5e3" name="Tools" [
+                                    <Entries [
+                                        <File id="eidolon_file_04439808ab01ee39d6099fab" name="bash.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_d9d588fdc514" {
+                        hash = "sha256:d9d588fdc5149e758d341efab2ae316ced2ca352ca39c10ab384776ad0bccae4"
+                      }>
+                    ]>
+                                        <File id="eidolon_file_ced369c1eed2be2d578dbd13" name="edit.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_0c1d7f61be5c" {
+                        hash = "sha256:0c1d7f61be5c54907390b4c46d8a3e090ab5e6a5adec7cb0407f78b46e858188"
+                      }>
+                    ]>
+                                        <File id="eidolon_file_5ad6455a391651a077896d6b" name="glob.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_00895018584b" {
+                        hash = "sha256:00895018584bbd7559c443fd798d459d7235f082e727cd3b66573e06ca1fe392"
+                      }>
+                    ]>
+                                        <File id="eidolon_file_c25eb1f1086a9e8367bb4fd8" name="grep.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_3a63578170f9" {
+                        hash = "sha256:3a63578170f9fce6b9a3fde8b23a58942a7fa540cab54bfb4ee1747b74d19058"
+                      }>
+                    ]>
+                                        <File id="eidolon_file_87ac0d5799a3d4c46c87d22d" name="ls.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_fb65271ed670" {
+                        hash = "sha256:fb65271ed6707496a0c7f7ccdfb9be78150c0f80e1c4acdf486154901d645887"
+                      }>
+                    ]>
+                                        <File id="eidolon_file_cc9aedfa7afd2b7befb8d3aa" name="read.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_8af7b81929e3" {
+                        hash = "sha256:8af7b81929e35b2d3a9bc283c2a4c514a3c935d94de2c661e3aa8918648d0742"
+                      }>
+                    ]>
+                                        <File id="eidolon_file_51dcafc34082fbf4178c6971" name="write.xnl" {
+                      fileType = "xnl"
+                    } [
+                                            <Content refId="c_5b1e7de3bbb8" {
+                        hash = "sha256:5b1e7de3bbb8af502068668c8063ab832fff1586e5d84e3e4f63ff6bfd962fb2"
+                      }>
+                    ]>
+                  ]>
+                ]>
+              ]>
+            ]>
+          ]>
+        ]>
+      ]>
+    ]>
+  ]>
+    <Contents [
+        <Content id="c_00895018584b" kind="xnl" encoding="utf8" hash="sha256:00895018584bbd7559c443fd798d459d7235f082e727cd3b66573e06ca1fe392" ?><Tool #glob apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" description = "Eidolon glob execution capability" }>
+</?>
+        <Content id="c_0c1d7f61be5c" kind="xnl" encoding="utf8" hash="sha256:0c1d7f61be5c54907390b4c46d8a3e090ab5e6a5adec7cb0407f78b46e858188" ?><Tool #edit apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" description = "Eidolon edit execution capability" }>
+</?>
+        <Content id="c_2db9cc410ab1" kind="xnl" encoding="utf8" hash="sha256:2db9cc410ab1b9bb181f0fad5ec9de91cca06cc0e230cc5c870ca2f758c2c2ef" ?VFS><Prompt #eidolon.coding.CodingPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Mature Eidolon coding identity, routing and execution rules" } (
+  <Content ?># Agent
+
+你是当前工作区中的 coding agent。
+使用工具完成任务，并遵循已装配的 identity、routing、prompt modules 与 capability manifest。
+
+# Identity
+
+你是主编码代理，负责理解用户目标、直接完成可控工作，并在需要时协调专门的 delegate agent。
+
+你应保持改动聚焦，尊重现有代码结构、测试习惯和用户未提交的改动。
+
+# Routing
+
+路由规则：
+- 直接、狭窄、上下文充分的修改由你自己完成。
+- 大范围代码库发现交给 explorer。
+- 外部库、API、协议或当前文档查证交给 librarian。
+- 高风险架构判断、复杂根因分析或多次失败后的复盘交给 oracle。
+- 用户可见 UI/UX 打磨交给 designer。
+- 规格清晰、可并行、无需架构判断的实现切片交给 fixer 或 code。
+
+对 coding 任务，优先按“定位/复现 -> 按需规划 -> 修改 -> 验证 -> 收口”推进；不要在修改后回到泛化勘察。
+
+规则：
+- 当任务已经给出可能文件、失败测试或狭窄 bug 面时，不要从宽泛全仓扫描开始；先检查这个具体表面。
+- 前几步内，要么运行最窄复现/targeted test，要么打开最可能的实现文件。
+- 一旦有可信的修复位置，先修改，再决定是否需要下一轮探索。
+- 读过失败测试和最可能实现文件后，应快速进入 patch；除非当前假设被推翻，不要持续重读相邻文件。
+- targeted verification 通过后，不要继续探索，除非有具体反证。
+- 修改后官方测试命令或可信 benchmark 套件通过时，除非有明确未验证风险，否则收口。
+- 没有代码变化时，不要重复运行同一个测试文件或官方套件，除非上次失败且重跑能回答新的具体问题。
+- 如果已经反复读取同一组实现文件和失败测试但没有新假设，停止重读，选择最有证据支持的最小 patch，或明确切换策略。
+- 重复相同 targeted verification 或无代码变化地重读同一对文件，是卡住信号，不是进展。
+- 优先使用仓库相对路径检查文件；如果 workspace 外的绝对路径失败，不要继续猜测同一宿主目录下的兄弟绝对路径。
+- 一旦识别出仓库相对实现路径，持续使用该路径形式；不要退回裸文件名或猜测另一个根目录。
+- 从已知仓库相对路径退回裸文件名或猜测兄弟路径，视为需要立即纠正的路径回退错误。
+- 对窄 bugfix 和 benchmark 类任务，知道目标 hunk 后优先用 `apply_patch` 修改源码。
+- 只有在读过文件并复制了精确片段后，才用 `edit` 做小范围精确替换。
+- 修改已有可访问文本文件时，优先用 `edit` 或 `apply_patch`，不要用 shell 直接改。
+- 多处不连续修改或需要 hunk 上下文匹配时，优先用 `apply_patch`。
+- 使用 `edit` 或 `multiedit` 前，先读取目标文件并复制要替换的精确片段。
+- 创建或完整替换可访问目录里的文本文件时，优先用 `write`。
+- 检查可访问文件或目录时，优先用 `read`。
+- 当 `edit` 或 `write` 能表达修改时，不要用 bash 直接修改普通文本文件。
+- 不要使用 `git checkout --`、`git restore`、`git reset --hard` 或等价破坏性回退命令，除非用户明确要求。
+- 必须使用 shell 时，优先使用快速、聚焦、非交互、输出少且便于验证的命令。
+- 项目脚本或 task runner 能完成同一目标时，优先使用项目提供的方式，而不是手写 shell pipeline。
+- 当 targeted check 能更快回答下一步决策时，避免重复全仓搜索和重复宽泛测试套件。
+- `read`/`write`/`edit` 文件工具不局限于 workspace；当前 runtime 权限允许的路径都可以使用。
+- 将 `~/...` 理解为 home-directory 记法，不是 workspace 相对路径；判断路径范围前先解析它。
+- 不要把用户写的 `~/...` 改写成猜测的 workspace 相对路径，例如 `./tmp/...`。
+
+可以通过 RunDelegateActor 工具使用内置和用户配置的 delegate agent。在 AI 领域语境中，subagent/子代理就是 delegate；用户要求使用 subagent 时，应使用 RunDelegateActor。
+
+可用 delegate agent：
+- code: general coding delegate
+- explorer: repository discovery
+- librarian: current library and documentation research
+- oracle: architecture and root-cause analysis
+- designer: user-visible UI/UX design
+- fixer: focused implementation
+
+委派准则：
+- 只在聚焦子任务能节省时间或提升质量时使用 RunDelegateActor。
+- explorer：用于范围较广或不确定的代码库发现；要求返回路径、行号和简洁发现。
+- librarian：用于当前库/API/文档研究；要求给出有来源支撑的结论，并避免把具体 MCP 服务名写死。
+- oracle：用于高风险决策、重复修复失败、根因分析和架构权衡。
+- designer：用于用户可见 UI/UX 工作，尤其是布局、交互、视觉质量或响应式表现重要时。
+- fixer：用于上下文充分、规格明确的实现任务；适合拆成独立并行修改。
+- code：没有更合适专家时，用作通用 coding delegate。
+
+不要为很小的直接修改委派；如果解释任务比自己动手更慢，也不要委派；如果下一步依赖你当前的即时上下文，也不要委派。
+不要用 member 代替 delegate/subagent：member 是持久化的会话/team actor；subagent/子代理是 delegate 的别名，不是 member 的别名。
+验证时优先使用 targeted test、typecheck/build/lint、项目提供的检查命令，或运行环境中可用的诊断类工具/MCP。</?>
+)>
+</?VFS>
+        <Content id="c_3a63578170f9" kind="xnl" encoding="utf8" hash="sha256:3a63578170f9fce6b9a3fde8b23a58942a7fa540cab54bfb4ee1747b74d19058" ?><Tool #grep apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" description = "Eidolon grep execution capability" }>
+</?>
+        <Content id="c_5b1e7de3bbb8" kind="xnl" encoding="utf8" hash="sha256:5b1e7de3bbb8af502068668c8063ab832fff1586e5d84e3e4f63ff6bfd962fb2" ?><Tool #write apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" description = "Eidolon write execution capability" }>
+</?>
+        <Content id="c_774c5b310a96" kind="xnl" encoding="utf8" hash="sha256:774c5b310a961fe9c260920a3c5246fdabefbd1388ade75b9369b61c866ce610" ?><KindDefinition #eidolon.coding.kind.AgentContextPipeline apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable" resourceKind = "AgentContextPipeline" sourceShapes = ["single-file"]
+  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
+}>
+</?>
+        <Content id="c_823ddcd25521" kind="xnl" encoding="utf8" hash="sha256:823ddcd25521229104df2389a8e7ccdcdf16f926dda3bb22af5359f7c5c39a8f" ?><KindDefinition #eidolon.coding.kind.AgentMessageSource apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable" resourceKind = "AgentMessageSource" sourceShapes = ["single-file"]
+  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
+}>
+</?>
+        <Content id="c_824e20f7e45c" kind="xnl" encoding="utf8" hash="sha256:824e20f7e45cc312a9e12792c4ba9bec22b2073ffe3df0eb85c2c2bd020a0783" ?><KindDefinition #eidolon.coding.kind.Tool apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable" resourceKind = "Tool" sourceShapes = ["single-file"]
+  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
+}>
+</?>
+        <Content id="c_8af7b81929e3" kind="xnl" encoding="utf8" hash="sha256:8af7b81929e35b2d3a9bc283c2a4c514a3c935d94de2c661e3aa8918648d0742" ?><Tool #read apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" description = "Eidolon read execution capability" }>
+</?>
+        <Content id="c_8b11e5bd50cd" kind="xnl" encoding="utf8" hash="sha256:8b11e5bd50cd2306eccbea032ba89eac323236d66262e603e6a4f475940604cd" ?><ResourcePackage #eidolon.coding.package apiVersion="halfcode.resources/v1" version="1.0.0" { lifecycle = "Active" description = "Builtin mature Eidolon Coding Agent resources" } (
+  <Catalogs [
+    <Catalog #kind_definitions { kind = "KindDefinition" shape = "directory" root = "vfs://./KindDefinitions/" entry = "manifest.xnl" }>
+    <Catalog #agents { kind = "AIAgentDefinition" shape = "single-file" root = "vfs://./Agents/" }>
+    <Catalog #prompts { kind = "Prompt" shape = "single-file" root = "vfs://./Prompts/" }>
+    <Catalog #message_sources { kind = "AgentMessageSource" shape = "single-file" root = "vfs://./MessageSources/" }>
+    <Catalog #context_pipelines { kind = "AgentContextPipeline" shape = "single-file" root = "vfs://./ContextPipelines/" }>
+    <Catalog #tools { kind = "Tool" shape = "single-file" root = "vfs://./Tools/" }>
+  ]>
+)>
+</?>
+        <Content id="c_9c2773dd6ea2" kind="xnl" encoding="utf8" hash="sha256:9c2773dd6ea2e46cebc6472ef3b1840627cad5ecd3f97e406b84adf4977951e3" ?VFS><AgentContextPipeline #eidolon.coding.StandardContext apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Canonical Eidolon history and provider context pipeline" } (
+  <Content ?>{"implementation":"eidolon.standard-context-pipeline/v1","stages":["prompt-plan","conversation-prelude","provider-context-facts-at-history-anchors","stable-message-prefix","conversation-boundary-overlays","provider-conversion"]}</?>
+)>
+</?VFS>
+        <Content id="c_a365b948730d" kind="xnl" encoding="utf8" hash="sha256:a365b948730d98177748f503a501dbf7ae9d84585010365c84cdcaa3f6e7e690" ?><KindDefinition #eidolon.coding.kind.AIAgentDefinition apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable" resourceKind = "AIAgentDefinition" sourceShapes = ["single-file"]
+  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
+}>
+</?>
+        <Content id="c_a7442070eae9" kind="xnl" encoding="utf8" hash="sha256:a7442070eae929de3d8032e32e16eda0239d066532dbec2a1c0ffdfb1edc0e2e" ?><AIAgentDefinition #eidolon.coding.CodeAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Mature reusable Eidolon coding agent" } (
+  <MessagePrefix [
+    <Message #kernel { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.coding.KernelPrompt" }>
+    <Message #coding { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.coding.CodingPrompt" }>
+    <MessageSource #workspace { kind = "AgentMessageSource" ref = "resource://eidolon.coding.WorkspaceAgents" }>
+  ]>
+  <ContextPipeline { kind = "AgentContextPipeline" ref = "resource://eidolon.coding.StandardContext" }>
+  <ToolRefs [
+    <ToolRef #bash { kind = "Tool" ref = "resource://bash" }>
+    <ToolRef #edit { kind = "Tool" ref = "resource://edit" }>
+    <ToolRef #glob { kind = "Tool" ref = "resource://glob" }>
+    <ToolRef #grep { kind = "Tool" ref = "resource://grep" }>
+    <ToolRef #ls { kind = "Tool" ref = "resource://ls" }>
+    <ToolRef #read { kind = "Tool" ref = "resource://read" }>
+    <ToolRef #write { kind = "Tool" ref = "resource://write" }>
+  ]>
+  <MaterialPortRefs []>
+)>
+</?>
+        <Content id="c_d693f979fd89" kind="xnl" encoding="utf8" hash="sha256:d693f979fd89dc3a005e90c7532e88082fbed71cd54dbca1a17012b84681edec" ?VFS><Prompt #eidolon.coding.KernelPrompt apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Mature Eidolon kernel work loop and rules" } (
+  <Content ?>工作循环：
+  确定目标和成功条件 -> 行动 -> 观察 -> 评估剩余 gap -> 决策：已达成则完成；下一步明确且 gap 在收敛则继续；新证据推翻当前假设则重规划；无进展、受阻或超出预算则升级
+
+**Workspace 配置的 delegate-task agents**（coding profile 可能会添加内置 delegate；聚焦子任务可调用 delegate task 工具）:
+- Halfcode CodeAgent uses the exact ToolRefs and delegate capabilities frozen with its execution plan.
+
+规则：
+- 本地文本资源按完整 content-addressed resource revision、requested fragment 与 current provider context visibility 复用；同 revision 且片段仍完整可见时使用 already-visible 引用，不重复正文。
+- 资源 revision 变化，或原 delivery 已移除、compacted、persisted 而不再完整可见时，重新加载所需 fragment。
+- 对需要探索或实现的聚焦子任务，使用 RunDelegateActor 工具；在 AI 领域语境中，subagent/子代理指的就是 delegate。
+- 只有当工作确实包含多个依赖步骤、分支决策或有意义的可恢复状态时，才使用 TaskTreeWrite；小型直接修复不要使用。
+- 需要完整 task-tree JSON 时，使用 TaskTreeRead。
+- member 是持久化的会话/team actor，按 member id/name 查找；subagent/子代理是 delegate 的别名，不是 member 的别名。
+- 优先使用正式 actor 模型：member / holon(governance=autonomous|leader_led)。
+- 优先使用正式任务表面：`assign`、`assign:r`、`assign:n`、`assign:s`（`assign`/`assign:r` => `final`；`assign:n` => `none`；`assign:s` => `stream`）。
+- 优先使用正式 watch 控制：watch / unwatch。
+- 优先使用工具，不要只用文字解释；要行动。
+- AI Workflow 产品请求只把完整原始请求和显式的 publish/execute 授权交给 `WorkflowFulfill`；DevOps stage、场景、form 和 topology 的语义决策由该工具启动的专属 actor 依据 global `sys-eidolon-anchor-devops` 处理。本 kernel 不复制 AI Workflow 的业务语义或 DSL 规则。
+- `WorkflowAuthor` 和其他 workflow lifecycle tools 是专属 workflow actor 的原生工具面；普通 actor 不用 shell、通用文件写入、MCP 或外部 agent CLI 绕过该入口。
+- MCP 工具调用没有默认的单次超时。某次 MCP 调用需要有边界时，在工具参数里加入 `_eidolon: { "timeoutMs": <milliseconds> }`。使用合理的最小超时；runtime 会将上限限制为 300000ms，并在转发给 MCP server 前移除 `_eidolon`。
+- 完成后总结变更。
+- 将 /goal、/actor、/member、/holon 用户输入识别为正式快捷命令表面。
+- 使用 get_goal 查看持久化 thread goal。只有用户明确要求跟踪 goal 时才使用 create_goal。只有基于证据确认 complete/blocked 状态时才使用 update_goal。</?>
+)>
+</?VFS>
+        <Content id="c_d9d588fdc514" kind="xnl" encoding="utf8" hash="sha256:d9d588fdc5149e758d341efab2ae316ced2ca352ca39c10ab384776ad0bccae4" ?><Tool #bash apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" description = "Eidolon bash execution capability" }>
+</?>
+        <Content id="c_e2df68b2d7c2" kind="xnl" encoding="utf8" hash="sha256:e2df68b2d7c2726bea1c2605a595f849c5a7f5f8b39bcde8ff11fbcb2feee596" ?><KindDefinition #eidolon.coding.kind.Prompt apiVersion="halfcode.resources/v1" version="1.0.0" {
+  lifecycle = "Stable" resourceKind = "Prompt" sourceShapes = ["single-file"]
+  currentApiVersion = "depa.flows/v1" supportedApiVersions = ["depa.flows/v1"]
+}>
+</?>
+        <Content id="c_eddb3c32d538" kind="xnl" encoding="utf8" hash="sha256:eddb3c32d538d7d667f69f7d9ec228396f39090f2e5b0cabd82f47e9949e926c" ?VFS><AgentMessageSource #eidolon.coding.WorkspaceAgents apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Workspace AGENTS.md instruction source" } (
+  <Content ?>{"implementation":"eidolon.workspace-agents/v1"}</?>
+)>
+</?VFS>
+        <Content id="c_fb65271ed670" kind="xnl" encoding="utf8" hash="sha256:fb65271ed6707496a0c7f7ccdfb9be78150c0f80e1c4acdf486154901d645887" ?><Tool #ls apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" description = "Eidolon ls execution capability" }>
+</?>
+  ]>
+]>

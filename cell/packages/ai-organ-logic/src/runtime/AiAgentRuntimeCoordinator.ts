@@ -183,7 +183,7 @@ export function createAiAgentRuntimeCoordinator(params: {
     const fibers = inspected.state.fibers as Record<string, any>;
     const isBackground = (fiberId: string) => {
       const lane = fibers[fiberId]?.lane;
-      return lane === "detached" || lane === "autonomous_holon";
+      return lane === "detached" || lane === "organization";
     };
 
     if (inspected.pendingResumes.some(isBackground)) return true;
@@ -298,12 +298,12 @@ export function createAiAgentRuntimeCoordinator(params: {
     const run = tickQueue.then(
       async () => {
         const result = await fn();
-        await saveSnapshotAfterProgress().catch(() => {});
+        await saveSnapshotAfterProgress();
         return result;
       },
       async () => {
         const result = await fn();
-        await saveSnapshotAfterProgress().catch(() => {});
+        await saveSnapshotAfterProgress();
         return result;
       },
     );

@@ -30,7 +30,11 @@ import {
   rewriteActiveHistoryGenerationMessagesInConversationDomainRuntime,
   synchronizeConversationDomainActorFromPersistence,
 } from "../../conversation/ConversationDomainRuntime"
-import { acceptActorProviderContextRevision, activateActorProviderEpoch } from "../../conversation/ProviderEpoch"
+import {
+  acceptActorProviderContextRevision,
+  activateActorProviderEpoch,
+  resolveActorProviderSurfaceDigest,
+} from "../../conversation/ProviderEpoch"
 import { digestProviderContextClosedValue, digestProviderContextHistoryFrontier } from "../../conversation/ProviderContextEpochV2"
 import { computeProviderEpochReceiptIntegrityDigest } from "../../conversation/ProviderEpochProjection"
 import { ProviderRuntimeLlmAdapter } from "../ProviderRuntimeAdapter"
@@ -309,7 +313,6 @@ async function runOrdinaryProductScenario(
       options: {
         apiKey: "fixture-only-not-reported",
         baseURL: "https://provider-cache-product.invalid/v1",
-        compatibility_profile: "deepseek-compatible-chat@1",
       },
       runtime: {
         sessionId,
@@ -353,8 +356,11 @@ async function runOrdinaryProductScenario(
       && (!Number.isSafeInteger(options.retainedMessages) || options.retainedMessages < 3)) {
       throw new Error("retainedMessages must be a safe integer greater than two")
     }
+    // The addressed turn contributes one canonical user message. Runtime
+    // work-context is control-only, so the retained provider-message bound is
+    // completed entirely by canonical seed/history messages.
     const longContextSeed = options.retainedMessages === undefined ? undefined : Array.from(
-      { length: options.retainedMessages - 2 },
+      { length: options.retainedMessages - 1 },
       (_, index) => index === 0
         ? { role: "system" as const, content: "Frozen long-context product root." }
         : {
@@ -369,7 +375,7 @@ async function runOrdinaryProductScenario(
       id: `parent-${sha(options.scenarioId).slice(-12)}`,
       agentName: "main",
       llmClient: adapter,
-      modelConfig: { model: "deepseek-chat", provider: "product-deepseek-compatible", adapter: "deepseek", options: { compatibilityProfile: "deepseek-compatible-chat@1" } },
+      modelConfig: { model: "deepseek-chat", provider: "product-deepseek-compatible", adapter: "deepseek" },
       callbacks: {
         buildToolset: () => allSchemas,
         processStream: async (_vm, actor, stream) => {
@@ -603,7 +609,7 @@ async function runOrdinaryProductScenario(
             actor: currentActor,
             sessionId,
             targetProviderId: "product-deepseek-compatible-switched",
-            targetProfileId: "deepseek-compatible-chat@1",
+            targetProfileId: "deepseek-chat@1",
             reason: "model_control",
           })
         } else {
@@ -621,12 +627,9 @@ async function runOrdinaryProductScenario(
             vm,
             actor: currentActor,
             kind: isResource ? "frozen_resource" : "provider_surface",
-            digest: digestProviderContextClosedValue(isResource
-              ? currentActor.durableMaterials ?? {}
-              : currentActor.toolPolicy.providerToolSurface ?? {
-                mode: currentActor.toolPolicy.allowedToolsMode,
-                toolNames: currentActor.toolPolicy.allowedTools,
-              }),
+            digest: isResource
+              ? digestProviderContextClosedValue(currentActor.durableMaterials ?? {})
+              : resolveActorProviderSurfaceDigest(currentActor),
           })
         }
         // Every explicit epoch transition intentionally starts a new request
@@ -869,7 +872,7 @@ async function runWorkflowNodeProductScenario(
       providerId: "product-deepseek-compatible",
       selectedModel: "deepseek-chat",
       adapterName: "deepseek",
-      options: { apiKey: "fixture-only", baseURL: "https://provider-cache-node.invalid/v1", compatibility_profile: "deepseek-compatible-chat@1" },
+      options: { apiKey: "fixture-only", baseURL: "https://provider-cache-node.invalid/v1" },
       runtime: {
         sessionId,
         requestObservationPort: { append: (entry) => appendProductTransportObservation(requestObservations, entry, kind === "ai_ctrl" ? "workflow_ctrl_node" : "workflow_data_node", sessionId), appendOutcome: () => {} },
@@ -903,7 +906,7 @@ async function runWorkflowNodeProductScenario(
       id: `parent-${kind}`,
       agentName: "main",
       llmClient: adapter,
-      modelConfig: { model: "deepseek-chat", provider: "product-deepseek-compatible", adapter: "deepseek", options: { compatibilityProfile: "deepseek-compatible-chat@1" } },
+      modelConfig: { model: "deepseek-chat", provider: "product-deepseek-compatible", adapter: "deepseek" },
       callbacks: {
         buildToolset: () => publicTools,
         processStream: async (_vm, _actor, stream) => {
@@ -1022,7 +1025,6 @@ async function runWorkflowLifecycleProductScenario(
       options: {
         apiKey: "fixture-only",
         baseURL: "https://provider-cache-lifecycle.invalid/v1",
-        compatibility_profile: "deepseek-compatible-chat@1",
       },
       runtime: {
         sessionId: options.sessionId,
@@ -1059,7 +1061,6 @@ async function runWorkflowLifecycleProductScenario(
         model: "deepseek-chat",
         provider: "product-deepseek-compatible",
         adapter: "deepseek",
-        options: { compatibilityProfile: "deepseek-compatible-chat@1" },
       },
       callbacks: {
         buildToolset: () => schemas,
@@ -1423,8 +1424,8 @@ function workflowSurfaceProductRecords(
       identity: {
         schemaVersion: 1,
         providerId: "workflow-surface-experiment",
-        providerProfile: "deepseek_compatible",
-        providerProfileId: "deepseek-compatible-chat@1",
+        providerProfile: "deepseek",
+        providerProfileId: "deepseek-chat@1",
         model: "deepseek-chat",
         actorClass: "workflow_lifecycle",
         contextEpoch: Number(epoch.epoch),
@@ -1525,7 +1526,7 @@ async function runClosedLifecycleProductScenario(
       frozenConversationSnapshotDigest: digestClosedWorkflowSurfaceValue(frozenConversationSnapshot),
       lifecycleToolProfileDigest: digestClosedWorkflowSurfaceValue(WORKFLOW_LIFECYCLE_TOOL_PROFILE),
       lifecycleResourcePackageDigest: resourcePackage.digest as `sha256:${string}`,
-      providerProfileId: "deepseek-compatible-chat@1",
+      providerProfileId: "deepseek-chat@1",
       model: "deepseek-chat",
     })
     const runtime = createLocalWorkflowSurfaceExperimentRuntime({

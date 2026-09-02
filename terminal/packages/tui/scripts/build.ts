@@ -5,6 +5,11 @@ import { tmpdir } from "os";
 import path from "path";
 import type { BunPlugin } from "bun";
 
+import {
+  builtinEidolonVfsCompileArgs,
+  injectBuiltinEidolonVfsAssetImport,
+} from "./builtin-vfs-asset";
+
 type ResolveImportPath = (specifier: string) => string | null;
 
 type BabelCoreModule = {
@@ -232,13 +237,15 @@ if (!bundleArtifact) {
 await Bun.write(bundlePath, bundleArtifact);
 
 const bundleText = await Bun.file(bundlePath).text();
-const patchedBundleText = patchOpenTuiPlatformImport(bundleText, opentuiPlatformPackage);
+const patchedBundleText = injectBuiltinEidolonVfsAssetImport(
+  patchOpenTuiPlatformImport(bundleText, opentuiPlatformPackage),
+);
 if (patchedBundleText !== bundleText) {
   await Bun.write(bundlePath, patchedBundleText);
 }
 
 const compileProc = Bun.spawn(
-  ["bun", "build", "--compile", "--target", "bun", "--outfile", outfile, bundlePath],
+  ["bun", ...builtinEidolonVfsCompileArgs(bundlePath, outfile)],
   {
     stdio: ["ignore", "inherit", "inherit"],
   }

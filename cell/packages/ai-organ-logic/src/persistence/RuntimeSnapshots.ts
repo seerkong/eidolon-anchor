@@ -43,7 +43,10 @@ import {
   assertConversationRecoverySourceComplete,
   type RuntimeRecoveryReadPort,
 } from "./RecoveryReadPort"
-import { aiAgentCooperativeStep } from "../exec/AiAgentExecutor"
+import {
+  aiAgentCooperativeStep,
+  ensureVmMessageHistoryGraphAttached,
+} from "../exec/AiAgentExecutor"
 import {
   appendLiveHistoryMessageToConversationDomainRuntime,
   bindActorConversationProjectionToVm,
@@ -91,7 +94,7 @@ import {
   type DetachedActorRecord,
 } from "../detached/DetachedActorRegistry"
 import { normalizeAiAgentLane, type AiAgentLane } from "../lane/AiAgentLane"
-import type { AiAgentWorkload } from "../lane/AiAgentWorkload"
+import { AI_AGENT_WORKLOADS, type AiAgentWorkload } from "../lane/AiAgentWorkload"
 import { getCoordinationEngine, type CoordinationRecord } from "../coordination/CoordinationEngine"
 import { getMemberManager, type MemberRecord } from "../organization/MemberManager"
 import {
@@ -215,10 +218,21 @@ function readPersistedCompletionBinding(
 function readPersistedWorkloadKind(
   fiberSnapshot: RuntimeSnapshotFiber,
 ): AiAgentWorkload {
-  if (typeof fiberSnapshot.workloadKind !== "string" || fiberSnapshot.workloadKind.length === 0) {
-    failUnsupportedRuntimeSnapshot(`fiber ${fiberSnapshot.fiberId} is missing workloadKind`)
+  const workloadKind = fiberSnapshot.workloadKind
+  if (typeof workloadKind !== "string" || workloadKind.length === 0) {
+    return failUnsupportedRuntimeSnapshot(`fiber ${fiberSnapshot.fiberId} is missing workloadKind`)
   }
-  return fiberSnapshot.workloadKind as AiAgentWorkload
+  if (!(Object.values(AI_AGENT_WORKLOADS) as readonly string[]).includes(workloadKind)) {
+    return failUnsupportedRuntimeSnapshot(
+      `fiber ${fiberSnapshot.fiberId} has unsupported workloadKind '${workloadKind}'`,
+    )
+  }
+  return workloadKind as AiAgentWorkload
+}
+
+function isRetiredAutonomousHolonFiberSnapshot(fiberSnapshot: RuntimeSnapshotFiber): boolean {
+  return fiberSnapshot.lane === "autonomous_holon"
+    || fiberSnapshot.workloadKind === "autonomous_holon_task"
 }
 
 type OrchestratorStateLike = {
@@ -922,7 +936,7 @@ function hasRecoverableProtocolWait(actor: AiAgentActor | undefined, fiberSnapsh
   const workloadKind = readPersistedWorkloadKind(fiberSnapshot)
   if (
     workloadKind === "member_turn"
-    || workloadKind === "autonomous_holon_task"
+    || workloadKind === "organization_turn"
     || workloadKind === "detached_delegate_task"
     || workloadKind === "detached_bash_task"
     || workloadKind === "detached_toolcall_task"
@@ -1659,9 +1673,15 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
   if (!loaded) {
     return null
   }
+  // Governance-only autonomous Holon actors may remain readable, but their
+  // retired VM task runners are never re-admitted as executable fibers. The
+  // canonical TaskSpace journal is the only resumable organization-task
+  // authority after the cutover.
+  const recoverableFiberSnapshots = Object.values(loaded.fibers)
+    .filter((fiberSnapshot) => !isRetiredAutonomousHolonFiberSnapshot(fiberSnapshot))
   assertPendingEffectsBelongToRecoveredInflight({
     gate: recoveryGate,
-    fibers: Object.values(loaded.fibers),
+    fibers: recoverableFiberSnapshots,
   })
   assertSupportedSnapshotShape({
     manifest: loaded.manifest as Record<string, unknown>,
@@ -1820,6 +1840,10 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
   for (const actor of Object.values(actors)) {
     bindActorConversationProjectionToVm(vm, actor)
   }
+  // Recovery constructs a fresh event bus. Attach the single conversation
+  // writer before returning the runtime so ingress arriving before the first
+  // cooperative tick cannot be silently dropped.
+  ensureVmMessageHistoryGraphAttached(vm)
 
   // A runtime-control checkpoint may close an abandoned tool effect after a
   // later turn has already advanced the fiber. In that shape there is no
@@ -1843,7 +1867,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
 
   const now = Date.now()
   const recoveryEvidence: AiRuntimeEffectLifecycleEvent[] = []
-  const restoredFibers = Object.values(loaded.fibers)
+  const restoredFibers = recoverableFiberSnapshots
     .map((fiberSnapshot) => {
       const actor = fiberSnapshot.actorKey ? actors[fiberSnapshot.actorKey] : undefined
       if (!actor) return null
@@ -1904,7 +1928,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
       deadLetterEnabled: false,
     },
     fibers: Object.fromEntries(
-      Object.values(loaded.fibers).map((fiberSnapshot) => [fiberSnapshot.fiberId, createRecoveredFiberState({ fiberSnapshot, now })]),
+      recoverableFiberSnapshots.map((fiberSnapshot) => [fiberSnapshot.fiberId, createRecoveredFiberState({ fiberSnapshot, now })]),
     ),
     deadLetters: [],
     sequence: restoredFibers.length,
@@ -1939,7 +1963,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
   }
 
   const restoredChildDoneMap = Object.fromEntries(
-    Object.values(loaded.fibers)
+    recoverableFiberSnapshots
       .map((fiberSnapshot) => {
         const completionBinding = readPersistedCompletionBinding(fiberSnapshot)
         return completionBinding
@@ -1989,7 +2013,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
       const fiber = restoredFiberByActorKey.get(actor.key)
       const fiberState = fiber ? (restoredState.fibers as any)?.[fiber.fiberId] : null
       const cached = cachedIndexes.memberRoster.members.find((entry) => entry.actorKey === actor.key || entry.actorId === actor.id)
-      const lane = (identity.lane === "autonomous_holon" ? "autonomous_holon" : "member") as MemberRecord["lane"]
+      const lane = "member" as MemberRecord["lane"]
       const lifecycleState = (
         isTerminalFiberStatus(fiberState?.status)
         ? "exited"
@@ -2027,7 +2051,7 @@ export async function recoverAiAgentRuntime(params: RecoverAiAgentRuntimeParams)
   for (const persisted of Object.values(ensureVmSessionState(vm).detachedActors)) {
     restoredTaskMap.set(persisted.taskId, { ...persisted })
   }
-  for (const fiberSnapshot of Object.values(loaded.fibers)) {
+  for (const fiberSnapshot of recoverableFiberSnapshots) {
     const completionBinding = readPersistedCompletionBinding(fiberSnapshot)
     const workload = String(readPersistedWorkloadKind(fiberSnapshot))
     const isDetached = completionBinding?.mode === "detached" || isDetachedActorWorkload(workload)

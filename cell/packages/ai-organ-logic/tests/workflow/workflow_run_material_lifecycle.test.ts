@@ -10,6 +10,7 @@ import { composeToolRegistry } from "../../src/composer/AIAgent"
 import { getWorkflowRuntimeService } from "../../src/workflow"
 import { computeFlowBundleDigest } from "work-ctrl-flow-logic"
 import contract from "./fixtures/workflow-run-material-contract.json"
+import { createAdmittedWorkflowToolTestFixture } from "./support"
 
 const roots: string[] = []
 
@@ -22,12 +23,12 @@ async function makeRuntime(existing?: { root: string; workspaceRoot: string; ses
   if (!existing) roots.push(root)
   const workspaceRoot = existing?.workspaceRoot ?? path.join(root, "workflows")
   const sessionDir = existing?.sessionDir ?? path.join(root, "session")
-  const actor = createActor({ key: "main" })
-  const toolRegistry = composeToolRegistry({ includeInternalOnly: false })
+  const { actor, toolRegistry, actorFacetRuntime } = createAdmittedWorkflowToolTestFixture("main")
   const vm = createVM({
     controlActorKey: actor.key,
     actors: { [actor.key]: actor },
     registries: { toolRegistry },
+    runtimeContext: { actorFacetRuntime },
     outerCtx: {
       workDir: root,
       metadata: {

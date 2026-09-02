@@ -33,7 +33,10 @@ export type LocalConversationSessionActorBinding = {
 export type ProviderEpochProfileId =
   | "anthropic-chat@1"
   | "claude-code@1"
+  | "deepseek-chat@1"
+  /** @deprecated persisted migration input only */
   | "deepseek-compatible-chat@1"
+  /** @deprecated persisted migration input only */
   | "deepseek-official-chat@1"
   | "openai-chat@1"
   | "openai-responses@1";

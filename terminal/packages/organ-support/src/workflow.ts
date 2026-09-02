@@ -18,7 +18,6 @@ export type NativeWorkflowToolOptions = {
   timeoutSeconds?: number
   sessionKey?: string
   captureRuntimeEvidence?: boolean
-  providerChatCompatibilityProfileId?: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
 }
 
 export type NativeWorkflowToolEvidenceResult = Readonly<{
@@ -48,7 +47,6 @@ export async function runNativeWorkflowTool(options: NativeWorkflowToolOptions):
     ephemeral: false,
     profileId: options.profile,
     entryType: "cli",
-    providerChatCompatibilityProfileId: options.providerChatCompatibilityProfileId,
     metadata: buildExecRuntimeMetadata({
       workDir,
       approvalMode: "full-auto",

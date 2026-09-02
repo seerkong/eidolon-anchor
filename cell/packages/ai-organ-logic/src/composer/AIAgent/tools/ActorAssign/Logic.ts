@@ -9,7 +9,7 @@ import {
 import { getControlRuntimeContext } from "../_controlRuntime"
 import { getOrganizationManager } from "@cell/ai-organ-logic/organization/OrganizationManager"
 import { resolveActorTarget } from "../_resolveActorTarget"
-import { queueAutonomousHolonAssign } from "../_autonomousHolonAssignCore"
+import { assignCanonicalAutonomousHolon } from "../../../../organization/CanonicalHolonAssignmentFacade"
 import { queueLeaderLedHolonAssign } from "../_leaderLedHolonAssignCore"
 import { getLatestAssistantText, parseFormalAssignMode, requireNonEmptyContent, setTargetWatchState } from "../_formalTooling"
 import type { ActorAssignInnerConfig, ActorAssignInnerInput, ActorAssignInnerOutput, ActorAssignInnerRuntime } from "./InnerTypes"
@@ -49,7 +49,7 @@ export const actorAssignCoreLogic: StdInnerLogic<
     const organizations = getOrganizationManager()
     const holon = organizations.resolveHolon(runtime.vm, targetRef)
     if (holon?.governance === "autonomous") {
-      return queueAutonomousHolonAssign({
+      return assignCanonicalAutonomousHolon({
         runtime,
         target: targetQuery,
         mode,
@@ -145,7 +145,7 @@ export const actorAssignCoreLogic: StdInnerLogic<
   }
 
   if (targetActor.identity?.kind === "holon" && targetActor.identity.governance === "autonomous") {
-    return queueAutonomousHolonAssign({
+    return assignCanonicalAutonomousHolon({
       runtime,
       target: targetQuery,
       mode,

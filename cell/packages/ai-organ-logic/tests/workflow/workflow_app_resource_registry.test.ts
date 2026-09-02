@@ -34,11 +34,16 @@ import {
 import { WorkflowFactStore } from "../../src/workflow/runtime"
 import { WorkflowRuntimeService } from "../../src/workflow/runtime"
 import { buildWorkflowNativeToolDefs } from "../../src/workflow/tools"
+import { createWorkflowLifecycleFacetEnvelope } from "../../src/workflow/runtime/WorkflowLifecycleFacet"
+import { AI_WORKFLOW_PROVIDER_TOOL_SURFACE } from "../../src/workflow/tools/WorkflowLoadStageContext/StageToolPolicy"
 import {
   createAIDataControlRuntime,
   freezeAIDataControlCapabilityCatalog,
 } from "ai-data-workflow-logic"
+import { AI_AGENT_DEFINITION_SELECTION_SCHEMA_VERSION } from "ai-workflow-contract"
+import { RESOURCE_AUTHORING_SCHEMA_VERSION } from "halfcode-compiler.xnl/authoring-runtime"
 import { createAIDataAutonomousControlState } from "../../src/workflow/runtime/AIDataAutonomousControlLoop"
+import { readAIDataAgentPreparationReceipts } from "../../src/workflow/runtime/AIDataAgentResourcePreparation"
 
 const temporaryRoots: string[] = []
 
@@ -854,6 +859,31 @@ describe("Eidolon Halfcode App resource registry", () => {
   it("returns bounded App list and detail through the native tool surface", async () => {
     const layers = await fixtureLayers()
     const parent = path.dirname(layers[0]!.rootDir)
+    const managedSkill = [
+      "---",
+      "name: sys-eidolon-anchor-devops",
+      "revision: app-resource-registry-test-v1",
+      "---",
+      "# Managed workflow skill",
+    ].join("\n")
+    const actor = createActor({
+      key: "app-resource-registry-test",
+      systemPrompts: [managedSkill],
+      runtimeFacets: [createWorkflowLifecycleFacetEnvelope({
+        strategyRevision: "hybrid/v1",
+        systemPrompts: [managedSkill],
+        toolNames: AI_WORKFLOW_PROVIDER_TOOL_SURFACE,
+        progress: {
+          stageStartedAt: 1,
+          deadlineAt: 180_001,
+          turnsSinceProgress: 0,
+          maxNoProgressTurns: 4,
+          proofRepairAttempts: 0,
+          maxProofRepairAttempts: 3,
+          lastProgressAt: 1,
+        },
+      })],
+    })
     const runtime = {
       vm: {
         outerCtx: {
@@ -864,7 +894,7 @@ describe("Eidolon Halfcode App resource registry", () => {
           },
         },
       },
-      actor: {},
+      actor,
     } as any
     const definitions = buildWorkflowNativeToolDefs()
     const list = definitions.find((definition) => definition.schema.function.name === "WorkflowListApps")!
@@ -1198,7 +1228,7 @@ describe("Eidolon Halfcode App resource registry", () => {
     }
   })
 
-  it("recovers one resource Controller and Worker as exact targeted instances across autonomous generations", async () => {
+  it("autonomously composes a SubFlow with selected and authored Worker resources in one recoverable parent", async () => {
     const layers = await fixtureLayers()
     const parent = path.dirname(layers[0]!.rootDir)
     const workspacePackage = layers.find((layer) => layer.id === "workspace")!.rootDir
@@ -1225,17 +1255,20 @@ describe("Eidolon Halfcode App resource registry", () => {
         return: { protected: true, inputSchemaRefs: { value: valueSchema }, outputSchemaRefs: {} },
       },
       capabilities: {
-        "worker-agent": {
-          capabilityId: "worker-agent",
-          tag: "TransformNode",
-          nodeType: "agent",
+        "recursive-child": {
+          capabilityId: "recursive-child",
+          tag: "SubFlowNode",
+          nodeType: "subflow",
           inputSchemaRefs: { value: valueSchema },
           outputSchemaRefs: { value: valueSchema },
-          fixedConfig: { node_type: "agent", instanceName: "worker-instance", reuse_policy: "never" },
+          fixedConfig: {},
           implementation: {
-            kind: "agent",
-            agentDefinitionRef: "resource://eidolon.fixture.AutonomousWorkerAgent",
-            taskProofRef: "resource://eidolon.fixture.AutonomousWorkerBinding",
+            kind: "subflow",
+            definitionRef: "resource://eidolon.fixture.AutonomousChild",
+            flowRef: "eager-data-flow://eidolon.fixture.AutonomousChild",
+            contractDigest: "sha256:autonomous-child-contract",
+            callGraphDigest: "sha256:autonomous-child-call-graph",
+            transitiveChildFlowRefs: [],
           },
         },
       },
@@ -1256,6 +1289,7 @@ describe("Eidolon Halfcode App resource registry", () => {
       "flow-code/autonomous.ts": `export function identity(_runtime: unknown, input: unknown) { return input }\n`,
       "Schemas/AutonomousInput.xnl": `<MessageSchema #eidolon.fixture.AutonomousInputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`,
       "Schemas/AutonomousDecision.xnl": `<MessageSchema #eidolon.fixture.AutonomousDecisionSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" } }>`,
+      "Schemas/AutonomousExistingWorkerOutput.xnl": `<MessageSchema #eidolon.fixture.AutonomousExistingWorkerOutputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
       "Schemas/AutonomousWorkerOutput.xnl": `<MessageSchema #eidolon.fixture.AutonomousWorkerOutputSchema apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" schema = { type = "object" required = ["value"] additionalProperties = false properties = { value = { type = "string" } } } }>`,
       "Policies/AutonomousSafe.xnl": `<EffectPolicy #eidolon.fixture.AutonomousSafePolicy apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" toolMode = "none" }>`,
       "Ports/AutonomousRequest.xnl": `<MaterialPort #eidolon.fixture.AutonomousRequestPort apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Stable" materialKind = "RequestMaterial" required = true cardinality = "one" } (
@@ -1270,21 +1304,16 @@ describe("Eidolon Halfcode App resource registry", () => {
   <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.AutonomousSafePolicy" }>
   <MaterialPortRefs [<MaterialPortRef #request { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>]>
 )>`,
-      "Agents/AutonomousWorker.xnl": `<AIAgentDefinition #eidolon.fixture.AutonomousWorkerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Typed autonomous worker" } (
+      "Agents/AutonomousExistingWorker.xnl": `<AIAgentDefinition #eidolon.fixture.AutonomousExistingWorkerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Pre-existing typed autonomous worker" } (
   <Messages [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
   <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
-  <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousWorkerOutputSchema" }>
+  <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousExistingWorkerOutputSchema" }>
   <ToolRefs []>
   <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.AutonomousSafePolicy" }>
-  <MaterialPortRefs [<MaterialPortRef #request { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>]>
+  <MaterialPortRefs []>
 )>`,
       "Bindings/AutonomousController.xnl": `<MaterialBinding #eidolon.fixture.AutonomousControllerBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
   <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.AutonomousData" nodeId = "control" agentDefinitionRef = "resource://eidolon.fixture.AutonomousControllerAgent" }>
-  <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>
-  <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.AutonomousRequestMaterial" }>
-)>`,
-      "Bindings/AutonomousWorker.xnl": `<MaterialBinding #eidolon.fixture.AutonomousWorkerBinding apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" } (
-  <AgentTaskRef { workflowKind = "AIDataWorkflow" workflowRef = "resource://eidolon.fixture.AutonomousData" nodeId = "worker" agentDefinitionRef = "resource://eidolon.fixture.AutonomousWorkerAgent" }>
   <PortRef { kind = "MaterialPort" ref = "resource://eidolon.fixture.AutonomousRequestPort" }>
   <MaterialRef { kind = "RequestMaterial" ref = "resource://eidolon.fixture.AutonomousRequestMaterial" }>
 )>`,
@@ -1292,6 +1321,15 @@ describe("Eidolon Halfcode App resource registry", () => {
   <FlowContract #eidolon.fixture.AutonomousData { inputPorts = ["value"] outputPorts = ["value"] }>
   <StepSpaceRef { src = "autonomous/step-space.xnl" }>
 )>`,
+      "DataWorkflows/AutonomousChild.xnl": `<AIDataWorkflow #eidolon.fixture.AutonomousChild apiVersion="depa.flows/v1" version="1.0.0" (
+  <FlowContract #eidolon.fixture.AutonomousChild { inputPorts = ["value"] outputPorts = ["value"] }>
+) [
+  <EntryNode #entry>
+  <TransformNode #prepare { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] src = "vfs://@/flow-code/autonomous-child.ts#prepare" }>
+  <ReturnNode #return { inputs = { value = "flow-port://#prepare/value" } }>
+]>
+`,
+      "flow-code/autonomous-child.ts": `export function prepare(_runtime: unknown, input: { value: unknown }) { return { value: "child:" + String(input.value) } }\n`,
       "DataWorkflows/autonomous/step-space.xnl": `<StepSpace #eidolon.fixture.AutonomousSteps apiVersion="depa.flows/v1" version="1" [
   <StepRef #entry { src = "autonomous/steps/entry.xnl" }>
   <StepRef #control { src = "autonomous/steps/control.xnl" }>
@@ -1300,10 +1338,14 @@ describe("Eidolon Halfcode App resource registry", () => {
       "DataWorkflows/autonomous/steps/entry.xnl": `<Step #entry (<Core [<EntryNode #entry>]>)>`,
       "DataWorkflows/autonomous/steps/control.xnl": `<Step #control (
   <Core [<TransformNode #control { inputs = { value = "flow-port://#entry/value" } outputs = ["value"] impl = "vfs://@/flow-code/autonomous.ts#identity" config = { node_type = "manual" } }>]>
-  <Extensions [<ExtensionRef { kind = "eidolon.ai-data-autonomous-control" src = "autonomous/steps/autonomous-control.xnl" schema = "schema://eidolon.ai-data-autonomous-control/v1" }>]>
+  <Extensions [
+    <ExtensionRef { kind = "eidolon.ai-data-autonomous-control" src = "autonomous/steps/autonomous-control.xnl" schema = "schema://eidolon.ai-data-autonomous-control/v1" }>
+    <ExtensionRef { kind = "eidolon.ai-data-agent-preparation" src = "autonomous/steps/agent-preparations.xnl" schema = "schema://eidolon.ai-data-agent-preparation/v1" }>
+  ]>
 )>`,
       "DataWorkflows/autonomous/steps/return.xnl": `<Step #return (<Core [<ReturnNode #return { inputs = { value = "flow-port://#control/value" } }>]>)>`,
       "DataWorkflows/autonomous/steps/autonomous-control.xnl": `<StepExtension #autonomous-control { kind = "eidolon.ai-data-autonomous-control" schema = "schema://eidolon.ai-data-autonomous-control/v1" value = ${JSON.stringify(JSON.stringify(controlState))} }>`,
+      "DataWorkflows/autonomous/steps/agent-preparations.xnl": `<StepExtension #agent-preparations { kind = "eidolon.ai-data-agent-preparation" schema = "schema://eidolon.ai-data-agent-preparation/v1" value = ${JSON.stringify(JSON.stringify({ schemaVersion: "eidolon.ai-data-agent-preparations/v1", receipts: [] }))} }>`,
     }
     for (const [relativePath, content] of Object.entries(files)) {
       const target = path.join(workspacePackage, relativePath)
@@ -1342,7 +1384,9 @@ describe("Eidolon Halfcode App resource registry", () => {
             }
             output = observed.graph.generation === 0
               ? { ...base, kind: "revise", operations: [{
-                  op: "add-capability", nodeId: controllerTurns === 1 ? "worker-1" : "worker", capabilityId: "worker-agent",
+                  op: controllerTurns === 1 ? "rewire-capability" : "add-capability",
+                  nodeId: controllerTurns === 1 ? "worker-1" : "worker",
+                  capabilityId: "worker-agent",
                   inputs: { value: { kind: "port", nodeId: "entry", port: "value", schemaRef: valueSchema } },
                 }] }
               : observed.graph.generation === 1
@@ -1358,11 +1402,21 @@ describe("Eidolon Halfcode App resource registry", () => {
                       op: "rewire-capability", nodeId: "worker", capabilityId: "worker-agent",
                       inputs: { value: { kind: "literal", schemaRef: valueSchema, value: "third-generation" } },
                     }] }
-                  : {
+                  : observed.graph.generation === 3
+                    ? { ...base, kind: "revise", operations: [{
+                        op: "add-subflow",
+                        nodeId: "child",
+                        subflowCapabilityId: "recursive-child",
+                        inputs: {
+                          value: { kind: "port", nodeId: "worker", port: "value", schemaRef: valueSchema },
+                        },
+                        dependsOn: ["worker"],
+                      }] }
+                    : {
                     ...base,
                     kind: "complete",
                     verifierFactId: observed.verifier.factId,
-                    outputNodeId: "worker",
+                    outputNodeId: "child",
                     outputPort: "value",
                     outputSchemaRef: valueSchema,
                   }
@@ -1396,6 +1450,130 @@ describe("Eidolon Halfcode App resource registry", () => {
       workflowRef: "resource://eidolon.fixture.AutonomousData",
       instanceId: "autonomous-resource-instance",
       initialInput: { value: "seed" },
+    })
+    await expect(access(path.join(workspacePackage, "Agents", "AutonomousWorker.xnl")))
+      .rejects.toMatchObject({ code: "ENOENT" })
+    const existingWorkerObservation = await first.observeAIDataAgentDefinition({
+      instanceId: instance.instanceId,
+      requirement: {
+        schemaVersion: AI_AGENT_DEFINITION_SELECTION_SCHEMA_VERSION,
+        requirementId: "existing-autonomous-runtime-worker",
+        objective: "Use the compatible typed Worker already governed by the Halfcode registry.",
+        inputSchemaRef: "resource://eidolon.fixture.AutonomousInputSchema",
+        outputSchemaRef: "resource://eidolon.fixture.AutonomousExistingWorkerOutputSchema",
+        requiredToolRefs: [],
+        requiredEffectPolicyRef: "resource://eidolon.fixture.AutonomousSafePolicy",
+        requiredToolMode: "none",
+        requiredMaterialPortRefs: [],
+        requiredMessageSourceRefs: [],
+      },
+    })
+    const existingCandidate = existingWorkerObservation.candidateSet.candidates.find(
+      ({ agentDefinitionRef }) => agentDefinitionRef === "resource://eidolon.fixture.AutonomousExistingWorkerAgent",
+    )!
+    expect(existingCandidate.contract).toMatchObject({
+      inputSchemaRef: "resource://eidolon.fixture.AutonomousInputSchema",
+      outputSchemaRef: "resource://eidolon.fixture.AutonomousExistingWorkerOutputSchema",
+      effectPolicyRef: "resource://eidolon.fixture.AutonomousSafePolicy",
+      effectToolMode: "none",
+    })
+    const existingWorkerPreparation = await first.prepareAIDataAgentDefinition({
+      instanceId: instance.instanceId,
+      observation: existingWorkerObservation,
+      decision: {
+        schemaVersion: existingWorkerObservation.requirement.schemaVersion,
+        mode: "select-existing",
+        requirementDigest: existingWorkerObservation.requirement.requirementDigest,
+        candidateSetDigest: existingWorkerObservation.candidateSet.candidateSetDigest,
+        candidateRef: existingCandidate.agentDefinitionRef,
+        candidateDigest: existingCandidate.candidateDigest,
+        reason: "Reuse the exact compatible Worker already present in the Halfcode registry.",
+      },
+      nodeId: "existing-worker",
+      instanceName: "existing-worker-instance",
+      capability: {
+        capabilityId: "existing-worker-agent",
+        tag: "TransformNode",
+        inputSchemaRefs: { value: valueSchema },
+        outputSchemaRefs: { value: valueSchema },
+        fixedConfig: { node_type: "agent", reuse_policy: "never" },
+      },
+    })
+    expect(existingWorkerPreparation).toMatchObject({
+      receipt: {
+        agentDefinitionRef: "resource://eidolon.fixture.AutonomousExistingWorkerAgent",
+        task: { nodeId: "existing-worker" },
+        instanceName: "existing-worker-instance",
+      },
+    })
+    expect((existingWorkerPreparation as any).receipt.authoring).toBeUndefined()
+    const workerObservation = await first.observeAIDataAgentDefinition({
+      instanceId: instance.instanceId,
+      requirement: {
+        schemaVersion: AI_AGENT_DEFINITION_SELECTION_SCHEMA_VERSION,
+        requirementId: "autonomous-runtime-worker",
+        objective: "Produce the typed autonomous worker value without undeclared effects.",
+        inputSchemaRef: "resource://eidolon.fixture.AutonomousInputSchema",
+        outputSchemaRef: "resource://eidolon.fixture.AutonomousWorkerOutputSchema",
+        requiredToolRefs: [],
+        requiredEffectPolicyRef: "resource://eidolon.fixture.AutonomousSafePolicy",
+        requiredToolMode: "none",
+        requiredMaterialPortRefs: [],
+        requiredMessageSourceRefs: [],
+      },
+    })
+    const workerAuthority = `<AIAgentDefinition #eidolon.fixture.AutonomousWorkerAgent apiVersion="depa.flows/v1" version="1.0.0" { lifecycle = "Active" description = "Runtime-authored typed autonomous worker" } (
+  <Messages [<Message #system { role = "system" promptKind = "Prompt" promptRef = "resource://eidolon.fixture.SupportPrompt" }>]>
+  <InputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousInputSchema" }>
+  <OutputSchemaRef { kind = "MessageSchema" ref = "resource://eidolon.fixture.AutonomousWorkerOutputSchema" }>
+  <ToolRefs []>
+  <EffectPolicyRef { kind = "EffectPolicy" ref = "resource://eidolon.fixture.AutonomousSafePolicy" }>
+  <MaterialPortRefs []>
+)>
+`
+    const workerPreparation = await first.prepareAIDataAgentDefinition({
+      instanceId: instance.instanceId,
+      observation: workerObservation,
+      decision: {
+        schemaVersion: workerObservation.requirement.schemaVersion,
+        mode: "author-new",
+        requirementDigest: workerObservation.requirement.requirementDigest,
+        candidateSetDigest: workerObservation.candidateSet.candidateSetDigest,
+        agentDefinitionRef: "resource://eidolon.fixture.AutonomousWorkerAgent",
+        proposal: {
+          schemaVersion: RESOURCE_AUTHORING_SCHEMA_VERSION,
+          operation: "create",
+          catalogId: "agents",
+          resourceId: "eidolon.fixture.AutonomousWorkerAgent",
+          kind: "AIAgentDefinition",
+          apiVersion: "depa.flows/v1",
+          sourceShape: "single-file",
+          documentUri: "vfs://@/Agents/AutonomousWorker.xnl",
+          authorityText: workerAuthority,
+          expected: {
+            state: "absent",
+            registryRevision: workerObservation.candidateSet.registryRevision,
+          },
+        },
+        reason: "No compatible typed Worker exists, so author one through the Halfcode transaction authority.",
+      },
+      nodeId: "worker",
+      instanceName: "worker-instance",
+      capability: {
+        capabilityId: "worker-agent",
+        tag: "TransformNode",
+        inputSchemaRefs: { value: valueSchema },
+        outputSchemaRefs: { value: valueSchema },
+        fixedConfig: { node_type: "agent", reuse_policy: "never" },
+      },
+    })
+    expect(workerPreparation).toMatchObject({
+      receipt: {
+        agentDefinitionRef: "resource://eidolon.fixture.AutonomousWorkerAgent",
+        task: { nodeId: "worker" },
+        instanceName: "worker-instance",
+        authoring: { planDigest: expect.stringMatching(/^sha256:/) },
+      },
     })
     await first.start({ instanceId: instance.instanceId, runId: "autonomous-resource-run", confirmed: true })
     await expect(first.runAutonomousControl("autonomous-resource-run", {
@@ -1455,27 +1633,55 @@ describe("Eidolon Halfcode App resource registry", () => {
         factId: `verifier-${graph.currentGeneration}`,
         goalId: goal.goalId,
         graphGeneration: graph.currentGeneration,
-        status: graph.currentGeneration >= 3 ? "passed" : "failed",
+        status: graph.currentGeneration >= 4 ? "passed" : "failed",
         verifierRef: goal.verifierRef,
         requiredOutputSchemaRef: goal.requiredOutputSchemaRef,
-        diagnostics: graph.currentGeneration >= 3 ? [] : [{ code: "NOT_READY", message: "worker needs another generation" }],
+        diagnostics: graph.currentGeneration >= 4 ? [] : [{ code: "NOT_READY", message: "worker or child needs another generation" }],
       }),
     })
     expect(completed.state).toMatchObject({
       phase: "completed",
-      iteration: 6,
+      iteration: 7,
       receipts: [
         { admissionKind: "rejected", generationBefore: 0, generationAfter: 0 },
         { admissionKind: "patch", generationBefore: 0, generationAfter: 1 },
         { admissionKind: "rejected", generationBefore: 1, generationAfter: 1 },
         { admissionKind: "patch", generationBefore: 1, generationAfter: 2 },
         { admissionKind: "patch", generationBefore: 2, generationAfter: 3 },
-        { admissionKind: "complete", generationBefore: 3, generationAfter: 3 },
+        { admissionKind: "patch", generationBefore: 3, generationAfter: 4 },
+        { admissionKind: "complete", generationBefore: 4, generationAfter: 4 },
       ],
     })
-    expect(completed.checkpoint.output).toEqual({ value: "worker-3" })
+    expect(completed.checkpoint.output).toEqual({ value: "child:worker-3" })
+    const preparationReceipts = readAIDataAgentPreparationReceipts(completed.checkpoint.stepExtensions)
+    expect(preparationReceipts.map(({ agentDefinitionRef }) => agentDefinitionRef)).toEqual([
+      "resource://eidolon.fixture.AutonomousExistingWorkerAgent",
+      "resource://eidolon.fixture.AutonomousWorkerAgent",
+    ])
+    expect(preparationReceipts[0]?.task.nodeId).toBe("existing-worker")
+    expect(preparationReceipts[0]?.authoring).toBeUndefined()
+    expect(preparationReceipts[1]?.task.nodeId).toBe("worker")
+    expect(preparationReceipts[1]?.authoring?.planDigest).toMatch(/^sha256:/)
     expect(await recovered.getInstance(instance.instanceId)).toMatchObject({ status: "Completed" })
-    expect(controllerTurns).toBe(6)
+    const child = completed.checkpoint.profile.runGraph.nodes.child
+    expect(child).toMatchObject({
+      tag: "SubFlowNode",
+      status: "Succeeded",
+      childInvocation: {
+        parentInstanceId: instance.instanceId,
+        parentRunId: "autonomous-resource-run",
+        parentNodeId: "child",
+      },
+      childFreezeReceipt: {
+        definitionRef: "resource://eidolon.fixture.AutonomousChild",
+        contractDigest: "sha256:autonomous-child-contract",
+      },
+      childTerminalReceipt: {
+        status: "Succeeded",
+        output: { value: "child:worker-3" },
+      },
+    })
+    expect(controllerTurns).toBe(7)
     expect(workerTurns).toBe(3)
     expect(controllerObservedRepairableWorkerFailure).toBe(true)
     expect(Object.values(recoveredRuntime!.vm.actors).filter((candidate) => candidate.agentName === "resource://eidolon.fixture.AutonomousControllerAgent")).toHaveLength(1)
@@ -1496,5 +1702,29 @@ describe("Eidolon Halfcode App resource registry", () => {
       "worker#2": { mode: "targeted", instanceId: ai.instanceIdByName["worker-instance"] },
       "worker#3": { mode: "targeted", instanceId: ai.instanceIdByName["worker-instance"] },
     })
+    const childFacts = {
+      childInvocation: structuredClone(child.childInvocation),
+      childFreezeReceipt: structuredClone(child.childFreezeReceipt),
+      childTerminalReceipt: structuredClone(child.childTerminalReceipt),
+    }
+    await rm(path.join(workspacePackage, "DataWorkflows", "AutonomousChild.xnl"), { force: true })
+    await rm(path.join(workspacePackage, "flow-code", "autonomous-child.ts"), { force: true })
+    const reconstructedService = new WorkflowRuntimeService({
+      vm: recoveredRuntime!.vm,
+      actor: recoveredRuntime!.controlActor,
+    } as any)
+    const reconstructed = await reconstructedService.start({
+      instanceId: instance.instanceId,
+      runId: "autonomous-resource-run",
+      confirmed: true,
+    })
+    expect(reconstructed).toMatchObject({ status: "Succeeded", output: { value: "child:worker-3" } })
+    expect(reconstructed.nodes.find((node: any) => node.id === "child")).toMatchObject(childFacts)
+    const reconstructedCheckpoint = await reconstructedService.depa.checkpointStore.load({
+      instanceId: instance.instanceId,
+      runId: "autonomous-resource-run",
+    })
+    expect(readAIDataAgentPreparationReceipts(reconstructedCheckpoint?.stepExtensions)).toEqual(preparationReceipts)
   })
+
 })

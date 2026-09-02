@@ -4,6 +4,7 @@ import {
   BUILTIN_SCENARIOS,
   SCENARIO_TOOL_ROUND,
   checkProviderMessageShapeInvariants,
+  compareAcrossWorkContextFactMigration,
   compareProviderMessageSequences,
   loadProviderEquivalenceGolden,
   normalizeProviderMessageForComparison,
@@ -17,23 +18,22 @@ import {
  * spec case single-in-memory-truth/equivalence-gate; recorded-golden form
  * since task T4.3).
  *
- * The fixture was re-recorded when the provider contract adopted a fixed
- * stable-system/dynamic/history boundary. It is a long-term regression asset
- * over the production (domain) assembly:
+ * The fixture records the provider contract from before work context moved
+ * from a fixed system overlay to runtime-only control state. It
+ * remains a long-term regression asset over stable prefix/history semantics:
  *
- *  1. golden equivalence — the providerMessages the production build ships
- *     at every boundary must stay message-by-message equivalent to the
- *     recorded legacy snapshot (normalized projection: role / content /
- *     tool_calls / tool_call_id / name; no channel excluded);
+ *  1. migration equivalence — exactly one legacy work-context overlay is
+ *     retired from the provider surface; current output contains no
+ *     work-context fact, and all other messages remain exactly equal;
  *  2. source — every boundary must be sourced from the domain
  *     materialization (promptSource === "domain_materialization"; the
  *     production providerMessages equal the adapter-prepared
  *     materialization), spec case
  *     single-in-memory-truth/provider-context-from-materialize-only;
  *  3. shape invariants — every boundary is a well-formed provider prompt
- *     (leading system message, valid roles, paired tool messages, no
- *     adjacent user messages) — asserted on the live output AND re-asserted
- *     on the golden fixtures so fixture corruption cannot pass silently;
+ *     (leading system message, valid roles, paired tool messages, no adjacent
+ *     ordinary user messages, exact typed-fact containers) — asserted on the
+ *     live output AND the golden so fixture corruption cannot pass silently;
  *  4. determinism — two runs of the scripted scenarios produce identical
  *     provider messages (no wall-clock or randomness in the assembly).
  */
@@ -69,20 +69,30 @@ describe("provider equivalence gate: golden fixtures cover every scenario", () =
   })
 })
 
-describe("provider equivalence gate: domain materialization vs recorded golden", () => {
+describe("provider equivalence gate: control-only work-context migration vs recorded golden", () => {
   for (const scenario of BUILTIN_SCENARIOS) {
-    it(`${scenario.name}: every boundary equals the recorded provider snapshot`, () => {
+    it(`${scenario.name}: every boundary preserves stable messages and work-context semantics`, () => {
       const run = firstRuns.get(scenario.name)!
       const goldenBoundaries = golden.scenarios[scenario.name]!
       run.snapshots.forEach((snapshot, index) => {
         const goldenBoundary = goldenBoundaries[index]!
+        const comparison = compareAcrossWorkContextFactMigration(
+          goldenBoundary.providerMessages,
+          snapshot.productionProviderMessages,
+        )
         expect({
           boundary: snapshot.label,
-          diff: compareProviderMessageSequences(
-            goldenBoundary.providerMessages,
-            snapshot.productionProviderMessages,
-          ),
-        }).toEqual({ boundary: snapshot.label, diff: [] })
+          legacyWorkContext: comparison.legacyWorkContext,
+          currentWorkContext: comparison.currentWorkContext,
+          stableMessageDiff: comparison.stableMessageDiff,
+          violations: comparison.violations,
+        }).toEqual({
+          boundary: snapshot.label,
+          legacyWorkContext: comparison.legacyWorkContext,
+          currentWorkContext: null,
+          stableMessageDiff: [],
+          violations: [],
+        })
       })
     })
   }
@@ -146,6 +156,88 @@ describe("provider equivalence gate: provider prompt shape invariants", () => {
       ])
       expect(normalized[assistantIndex + 1]).toMatchObject({ role: "tool", tool_call_id: "tc-readme-1" })
     }
+  })
+
+  it("allows only valid chronological context facts to separate adjacent user messages", () => {
+    const fact = (revision: number, namespace = "workflow-stage-context") => ({
+      role: "user",
+      content: `eidolon-context-fact/v1\n${JSON.stringify({
+        namespace,
+        payload: { taskPhase: "normal", workMode: "build" },
+        revision,
+      })}`,
+    })
+    expect(checkProviderMessageShapeInvariants([
+      { role: "system", content: "stable" },
+      { role: "user", content: "task" },
+      fact(1),
+      fact(1, "task-tree-context"),
+      { role: "assistant", content: "done" },
+    ])).toEqual([])
+
+    const invalidCases = [
+      {
+        name: "ordinary adjacent users",
+        messages: [
+          { role: "system", content: "stable" },
+          { role: "user", content: "one" },
+          { role: "user", content: "two" },
+        ],
+      },
+      {
+        name: "malformed tagged fact",
+        messages: [
+          { role: "system", content: "stable" },
+          { role: "user", content: "task" },
+          { role: "user", content: "eidolon-context-fact/v1\nnot-json" },
+        ],
+      },
+      {
+        name: "duplicate fact revision",
+        messages: [
+          { role: "system", content: "stable" },
+          fact(1),
+          { role: "assistant", content: "observed" },
+          fact(1),
+        ],
+      },
+      {
+        name: "system-hoisted fact",
+        messages: [
+          { role: "system", content: "stable" },
+          { ...fact(1), role: "system" },
+        ],
+      },
+    ]
+    for (const testCase of invalidCases) {
+      expect({
+        name: testCase.name,
+        violations: checkProviderMessageShapeInvariants(testCase.messages).length,
+      }).toEqual({ name: testCase.name, violations: expect.any(Number) })
+      expect(checkProviderMessageShapeInvariants(testCase.messages).length).toBeGreaterThan(0)
+    }
+  })
+
+  it("rejects a reintroduced work-context fact without hiding stable message drift", () => {
+    const legacy = [
+      { role: "system", content: "stable" },
+      {
+        role: "system",
+        content: "<runtime_work_context>\nwork_mode: plan\ntask_phase: normal\n</runtime_work_context>",
+      },
+      { role: "user", content: "task" },
+    ]
+    const current = [
+      { role: "system", content: "changed" },
+      { role: "user", content: "task" },
+      {
+        role: "user",
+        content: "eidolon-context-fact/v1\n{\"namespace\":\"work-context\",\"payload\":{\"taskPhase\":\"normal\",\"workMode\":\"build\"},\"revision\":1}",
+      },
+    ]
+    const comparison = compareAcrossWorkContextFactMigration(legacy, current)
+    expect(comparison.violations).toContain("current sequence still exposes a work-context fact")
+    expect(comparison.stableMessageDiff.length).toBeGreaterThan(0)
   })
 })
 

@@ -13,6 +13,17 @@ function tagged(value: unknown): value is string {
   return typeof value === "string" && value.startsWith(TAG);
 }
 
+function contextFactNamespace(value: string): unknown {
+  try {
+    const parsed = JSON.parse(value.slice(TAG.length));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>).namespace
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function countTagged(value: unknown): number {
   if (tagged(value)) return 1;
   if (Array.isArray(value)) return value.reduce((total, entry) => total + countTagged(entry), 0);
@@ -81,6 +92,9 @@ export function validateProviderContextFactsInFinalWire(input: Readonly<{
   }
   if (valid.length !== total) {
     throw new ProviderContextFactWireProfileError("provider_context_fact_wire_profile_mismatch");
+  }
+  if (valid.some((fact) => contextFactNamespace(fact) === "work-context")) {
+    throw new ProviderContextFactWireProfileError("provider_context_fact_namespace_not_provider_visible");
   }
   return Object.freeze({ factCount: valid.length });
 }

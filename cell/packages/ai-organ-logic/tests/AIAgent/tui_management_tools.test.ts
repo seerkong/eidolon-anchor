@@ -11,9 +11,7 @@ import { AgentRegistry } from "@cell/ai-core-logic/runtime/AgentRegistry"
 import { createVM, ensureVmRuntimeContext, ensureVmSessionState } from "@cell/ai-core-logic/runtime/runtime"
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph"
 import { createAiAgentOrchestratorDriverWithCooperative, getMemberManager } from "@cell/ai-organ-logic"
-import { createAutonomousHolonController } from "@cell/ai-organ-logic/organization/AutonomousHolonController"
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine"
-import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager"
 import { buildMemberAssignToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/MemberAssign"
 import { buildMemberCreateToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/MemberCreate"
 import { buildRunDelegateActorToolDef } from "@cell/ai-organ-logic/composer/AIAgent/tools/RunDelegateActor"
@@ -82,7 +80,6 @@ describe("TUI management tools", () => {
       fibers: [{ fiberId: `${control.key}:${control.id}`, vm, actor: control, messages: [{ role: "user", content: "hi" }], basePriority: 1 }],
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
     })
-    const controller = createAutonomousHolonController({ driver, vm, controlActor: control, members: getMemberManager() })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
 
@@ -146,7 +143,6 @@ describe("TUI management tools", () => {
     })
     const members = getMemberManager()
     members.__resetForTest?.()
-    const controller = createAutonomousHolonController({ driver, vm, controlActor: control, members: members })
     const runtimeContext2 = ensureVmRuntimeContext(vm)
     runtimeContext2.driver = driver
 
@@ -191,7 +187,6 @@ describe("TUI management tools", () => {
     })
     const members = getMemberManager()
     members.__resetForTest?.()
-    createAutonomousHolonController({ driver, vm, controlActor: control, members })
     ensureVmRuntimeContext(vm).driver = driver
 
     const spawned = JSON.parse(String(await toolRegistry.call("MemberCreate", vm, control, {
@@ -256,7 +251,6 @@ describe("TUI management tools", () => {
     })
     const members = getMemberManager()
     members.__resetForTest?.()
-    const controller = createAutonomousHolonController({ driver, vm, controlActor: control, members: members })
     const runtimeContext3 = ensureVmRuntimeContext(vm)
     runtimeContext3.driver = driver
 
@@ -266,7 +260,7 @@ describe("TUI management tools", () => {
       prompt: "you are Alice",
     })
     await toolRegistry.call("MemberAssign", vm, control, { target: "Alice", content: "ping" })
-    await driver.tickUntilBlocked({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
+    await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
     await flushMicrotasks()
 
     expect(
@@ -276,7 +270,7 @@ describe("TUI management tools", () => {
     ).toBe(true)
   })
 
-  it("supports shutdown tool and autonomous holon runtime control with member-first setup", async () => {
+  it("supports shutdown tool with member-first setup", async () => {
     const adapter = makeMockAdapter()
     const control = createActor({
       key: "control",
@@ -284,23 +278,8 @@ describe("TUI management tools", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (_vm, actor) => {
-          if (String(actor.key).startsWith("member:")) {
-            const lastUser = (actor.messages as any[]).filter((m) => m?.role === "user").slice(-1)[0]
-            const text = String(lastUser?.content ?? "")
-            const match = text.match(/TASK_ID=([^\n]+)/)
-            if (match?.[1]) {
-              TaskTreeManager.apply(actor.taskTree, { op: "update_status", task_id: match[1], status: "completed" })
-            }
-          }
-          return { role: "assistant", content: "ok" }
-        },
+        processStream: async () => ({ role: "assistant", content: "ok" }),
       },
-    })
-
-    TaskTreeManager.apply(control.taskTree, {
-      op: "replace_root",
-      tasks: [{ content: "do collective work", status: "pending", activeForm: "main" }],
     })
 
     const toolRegistry = composeToolRegistry({ includeInternalOnly: true })
@@ -320,7 +299,6 @@ describe("TUI management tools", () => {
     })
     const members = getMemberManager()
     members.__resetForTest?.()
-    const controller = createAutonomousHolonController({ driver, vm, controlActor: control, members: members })
     const runtimeContext4 = ensureVmRuntimeContext(vm)
     runtimeContext4.driver = driver
 
@@ -332,16 +310,7 @@ describe("TUI management tools", () => {
       role: "worker",
       agentType: "code",
       systemPrompt: ["work from the board"],
-      lane: "autonomous_holon",
-      shareTaskTree: true,
     })
-
-    controller.start({ idleTimeoutMs: 1000, tickIntervalMs: 10 })
-    expect(controller.status().enabled).toBe(true)
-
-    await controller.tick()
-    const status = controller.status()
-    expect(status.enabled).toBe(true)
 
     const shut = JSON.parse(String(await toolRegistry.call("ShutdownRequest", vm, control, { member_id: autoMate.memberId, reason: "done" })))
     expect(shut.ok).toBe(true)
@@ -357,8 +326,7 @@ describe("TUI management tools", () => {
     expect(rosterAfterShutdownRequest.ok).toBe(true)
     expect(requestedEntry?.memberId).toBe(autoMate.memberId)
 
-    await driver.tickUntilBackgroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
-    await driver.tickUntilBackgroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
+    await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 120, maxWallMs: 2000 })
     await flushMicrotasks()
 
     const shutdownStatus = JSON.parse(String(await toolRegistry.call("ShutdownStatus", vm, control, { request_id: shut.request_id })))
@@ -370,7 +338,7 @@ describe("TUI management tools", () => {
     expect(protocolStatus.coordination).toBe("shutdown")
   })
 
-  it("supports autonomous holon assign by natural-language task description", async () => {
+  it("fails autonomous HolonAssign closed when no frozen canonical binding is present", async () => {
     const adapter = makeMockAdapter()
     const events: any[] = []
     const control = createActor({
@@ -379,17 +347,7 @@ describe("TUI management tools", () => {
       modelConfig: { model: "mock" },
       callbacks: {
         buildToolset: () => [],
-        processStream: async (_vm, actor) => {
-          if (String(actor.key).startsWith("member:")) {
-            const lastUser = (actor.messages as any[]).filter((m) => m?.role === "user").slice(-1)[0]
-            const text = String(lastUser?.content ?? "")
-            const match = text.match(/TASK_ID=([^\n]+)/)
-            if (match?.[1]) {
-              TaskTreeManager.apply(actor.taskTree, { op: "update_status", task_id: match[1], status: "completed" })
-            }
-          }
-          return { role: "assistant", content: "ok" }
-        },
+        processStream: async () => ({ role: "assistant", content: "ok" }),
       },
     })
 
@@ -412,7 +370,6 @@ describe("TUI management tools", () => {
     })
     const members = getMemberManager()
     members.__resetForTest?.()
-    const controller = createAutonomousHolonController({ driver, vm, controlActor: control, members: members })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
 
@@ -424,8 +381,6 @@ describe("TUI management tools", () => {
       role: "worker",
       agentType: "code",
       systemPrompt: ["work from the board"],
-      lane: "autonomous_holon",
-      shareTaskTree: true,
     })
     const holon = JSON.parse(String(await toolRegistry.call("HolonCreate", vm, control, {
       governance: "autonomous",
@@ -434,37 +389,47 @@ describe("TUI management tools", () => {
     expect(holon.ok).toBe(true)
     await toolRegistry.call("HolonAdd", vm, control, { holon: holon.holon_id, member: autoMate.memberId })
 
-    controller.start({ idleTimeoutMs: 1000, tickIntervalMs: 10 })
     const dispatched = JSON.parse(String(await toolRegistry.call("HolonAssign", vm, control, {
       target: holon.holon_id,
       content: "scan the current project and explain what it does",
       mode: "final",
     })))
 
-    expect(dispatched.ok).toBe(true)
-    expect(typeof dispatched.task_id).toBe("string")
+    expect(dispatched).toMatchObject({
+      ok: false,
+      error: "canonical_holon_binding_required",
+      holon_id: holon.holon_id,
+      target_type: "holon",
+    })
+    const actorDispatched = JSON.parse(String(await toolRegistry.call("ActorAssign", vm, control, {
+      target: holon.holon_id,
+      content: "try the same work through the generic actor tool",
+      mode: "none",
+    })))
+    expect(actorDispatched).toMatchObject({
+      ok: false,
+      error: "canonical_holon_binding_required",
+      holon_id: holon.holon_id,
+      target_type: "holon",
+    })
 
-    await controller.tick()
     await flushMicrotasks()
 
     expect(
       events.some(
-        (event) => (event as any)?.event_type === "semantic_quote" && String((event as any)?.text ?? "").includes(`Holon assigned ${dispatched.task_id}`),
+        (event) => (event as any)?.event_type === "semantic_quote" && String((event as any)?.text ?? "").includes("Holon assigned"),
       ),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       events.some(
         (event) => (event as any)?.event_type === "semantic_quote" && String((event as any)?.text ?? "").includes("Member worker-auto finished"),
       ),
-    ).toBe(true)
+    ).toBe(false)
 
     const collectiveActor = vm.actors[`holon:${holon.holon_id}`]
-    expect(collectiveActor?.holonState?.governance === "autonomous"
-      ? collectiveActor.holonState.tasks?.[dispatched.task_id]
-      : undefined).toMatchObject({
-      content: "scan the current project and explain what it does",
-      status: "completed",
-    })
+    expect(collectiveActor?.holonState).toMatchObject({ governance: "autonomous", memberIds: [autoMate.memberId] })
+    expect(collectiveActor?.holonState).not.toHaveProperty("tasks")
+    expect(collectiveActor?.holonState).not.toHaveProperty("taskOwnership")
   })
 
   it("supports member create followed by collective create/add through the new tool surface", async () => {
@@ -496,7 +461,6 @@ describe("TUI management tools", () => {
     })
     const members = getMemberManager()
     members.__resetForTest?.()
-    const controller = createAutonomousHolonController({ driver, vm, controlActor: control, members: members })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
 
@@ -551,7 +515,6 @@ describe("TUI management tools", () => {
     })
     const members = getMemberManager()
     members.__resetForTest?.()
-    const controller = createAutonomousHolonController({ driver, vm, controlActor: control, members })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
 

@@ -31,22 +31,20 @@ function response(input: Readonly<{ hit?: number; miss?: number; usage?: boolean
 }
 
 function request(
-  evidenceClass: "official_deepseek" | "deepseek_compatible",
+  providerId: "deepseek" | "siliconflow",
   requested = true,
 ): ProviderCacheProductLiveRequest {
   return {
     requested,
-    evidenceClass,
+    evidenceClass: "deepseek",
     groupCount: 3,
     config: {
-      providerId: evidenceClass === "official_deepseek" ? "deepseek" : "siliconflow",
+      providerId,
       adapterName: "deepseek",
-      profileId: evidenceClass === "official_deepseek"
-        ? "deepseek-official-chat@1"
-        : "deepseek-compatible-chat@1",
-      model: evidenceClass === "official_deepseek" ? "deepseek-chat" : "deepseek-ai/DeepSeek-V4-Flash",
+      profileId: "deepseek-chat@1",
+      model: providerId === "deepseek" ? "deepseek-chat" : "deepseek-ai/DeepSeek-V4-Flash",
       apiKey: "must-never-enter-report",
-      baseURL: evidenceClass === "official_deepseek"
+      baseURL: providerId === "deepseek"
         ? "https://api.deepseek.com/v1"
         : "https://api.siliconflow.cn/v1",
     },
@@ -55,20 +53,20 @@ function request(
 
 describe("provider cache live evidence axes", () => {
   test("keeps not-requested and absent-credential states honest", async () => {
-    expect(await runProviderCacheProductLive({ requested: false, evidenceClass: "official_deepseek" }))
+    expect(await runProviderCacheProductLive({ requested: false, evidenceClass: "deepseek" }))
       .toMatchObject({ executionStatus: "NOT_REQUESTED", evidenceStatus: "UNKNOWN", reasonCode: "not_requested" })
-    expect(await runProviderCacheProductLive({ requested: true, evidenceClass: "official_deepseek" }))
+    expect(await runProviderCacheProductLive({ requested: true, evidenceClass: "deepseek" }))
       .toMatchObject({ executionStatus: "SKIPPED", evidenceStatus: "UNKNOWN", reasonCode: "credential_missing" })
   })
 
-  test("passes only three or more valid official warmed groups", async () => {
+  test("passes only three or more valid DeepSeek warmed groups", async () => {
     globalThis.fetch = (async () => response()) as typeof fetch
-    const report = await runProviderCacheProductLive(request("official_deepseek"))
+    const report = await runProviderCacheProductLive(request("deepseek"))
     expect(report).toMatchObject({
       executionStatus: "EXECUTED",
       evidenceStatus: "PASS",
-      evidenceClass: "official_deepseek",
-      gateAuthority: "official_deepseek",
+      evidenceClass: "deepseek",
+      gateAuthority: "deepseek",
       reasonCode: "thresholds_passed",
     })
     expect(report.groups).toHaveLength(3)
@@ -77,9 +75,9 @@ describe("provider cache live evidence axes", () => {
     expect(JSON.stringify(report)).not.toContain("must-never-enter-report")
   }, 30_000)
 
-  test("reports valid official threshold regressions as FAIL", async () => {
+  test("reports valid DeepSeek threshold regressions as FAIL", async () => {
     globalThis.fetch = (async () => response({ hit: 0, miss: 100 })) as typeof fetch
-    expect(await runProviderCacheProductLive(request("official_deepseek"))).toMatchObject({
+    expect(await runProviderCacheProductLive(request("deepseek"))).toMatchObject({
       executionStatus: "EXECUTED",
       evidenceStatus: "FAIL",
       reasonCode: "thresholds_failed",
@@ -88,27 +86,26 @@ describe("provider cache live evidence axes", () => {
 
   test("reports executed malformed/non-final usage and transport failures as UNKNOWN", async () => {
     globalThis.fetch = (async () => response({ usage: false })) as typeof fetch
-    expect(await runProviderCacheProductLive(request("official_deepseek"))).toMatchObject({
+    expect(await runProviderCacheProductLive(request("deepseek"))).toMatchObject({
       executionStatus: "EXECUTED",
       evidenceStatus: "UNKNOWN",
       reasonCode: "invalid_final_success_usage",
     })
     globalThis.fetch = (async () => { throw new Error("fixture transport failed") }) as typeof fetch
-    const failed = await runProviderCacheProductLive(request("official_deepseek"))
+    const failed = await runProviderCacheProductLive(request("deepseek"))
     expect(failed).toMatchObject({ executionStatus: "EXECUTED", evidenceStatus: "UNKNOWN", reasonCode: "transport_failed" })
     expect(JSON.stringify(failed)).not.toContain("fixture transport failed")
   }, 30_000)
 
-  test("keeps compatible evidence separately observable and non-authoritative", async () => {
+  test("applies the same DeepSeek evidence authority to a compatible gateway", async () => {
     globalThis.fetch = (async () => response()) as typeof fetch
-    const compatible = await runProviderCacheProductLive(request("deepseek_compatible"))
+    const compatible = await runProviderCacheProductLive(request("siliconflow"))
     expect(compatible).toMatchObject({
       executionStatus: "EXECUTED",
       evidenceStatus: "PASS",
-      evidenceClass: "deepseek_compatible",
-      gateAuthority: "compatible_observation_only",
+      evidenceClass: "deepseek",
+      gateAuthority: "deepseek",
     })
-    expect(compatible.profileId).toBe("deepseek-compatible-chat@1")
-    expect(compatible.gateAuthority).not.toBe("official_deepseek")
+    expect(compatible.profileId).toBe("deepseek-chat@1")
   }, 30_000)
 })

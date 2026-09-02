@@ -439,7 +439,6 @@ describe("workflow command", () => {
       workDir: string
       sessionKey?: string
       captureRuntimeEvidence?: boolean
-      providerChatCompatibilityProfileId?: string
     }> = []
     const invoke = async (argv: string[]) => {
       const { processLike, writes, errors } = makeProcessLike(workDir)
@@ -455,7 +454,6 @@ describe("workflow command", () => {
               workDir: options.workDir,
               sessionKey: options.sessionKey,
               captureRuntimeEvidence: options.captureRuntimeEvidence,
-              providerChatCompatibilityProfileId: options.providerChatCompatibilityProfileId,
             })
             return JSON.stringify({ ok: true, status: "Succeeded", run_id: "workflow-1" })
           },
@@ -470,7 +468,7 @@ describe("workflow command", () => {
     await invoke(["prepare", "resource://demo.data.Flow", "{\"value\":\"hello\"}", "--instance-id", "instance-1", "--session", "business-session"])
     await invoke([
       "run", "instance-1", "--run-id", "workflow-1", "--yes", "--session", "business-session",
-      "--capture-runtime-evidence", "--provider-chat-profile", "deepseek-official-chat@1",
+      "--capture-runtime-evidence",
     ])
     await invoke(["status", "workflow-1", "--session", "business-session"])
     await invoke(["events", "workflow-1", "--session", "business-session"])
@@ -526,7 +524,6 @@ describe("workflow command", () => {
     expect(calls[1].input).toEqual({ instance_id: "instance-1", run_id: "workflow-1", confirmed: true })
     expect(calls[1]).toMatchObject({
       captureRuntimeEvidence: true,
-      providerChatCompatibilityProfileId: "deepseek-official-chat@1",
     })
     expect(calls[5].input).toMatchObject({
       run_id: "workflow-1",

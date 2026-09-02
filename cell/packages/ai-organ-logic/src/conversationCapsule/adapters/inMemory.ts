@@ -29,6 +29,7 @@ type InMemoryConversationStore = {
   artifactRefs: ConversationArtifactRefsSnapshot | null;
   historyGenerations: Map<string, ActorHistoryGenerationData>;
   promptGenerations: Map<string, ActorPromptGenerationData>;
+  providerContextTransitionHead: import("@cell/ai-organ-contract").ConversationProviderContextTransitionHead | null;
 };
 
 function transitionActorKey(transition: import("@cell/ai-organ-contract").ConversationProviderContextTransitionGeneration): string {
@@ -146,6 +147,7 @@ function createEmptyStore(): InMemoryConversationStore {
     artifactRefs: null,
     historyGenerations: new Map(),
     promptGenerations: new Map(),
+    providerContextTransitionHead: null,
   };
 }
 
@@ -283,6 +285,14 @@ function createInMemoryConversationPersistenceRepository(
       store.promptIndex = clone(merged.promptIndex);
       store.sessionIndex = clone(merged.sessionIndex);
       store.artifactRefs = clone(merged.artifactRefs);
+      store.providerContextTransitionHead = {
+        schemaVersion: "conversation.provider-context-transition-head/v1",
+        transitionId: transition.transitionId,
+        nextEpochReceiptDigest: transition.nextEpochReceiptDigest,
+      };
+    },
+    async loadProviderContextTransitionHead() {
+      return store.providerContextTransitionHead ? clone(store.providerContextTransitionHead) : null;
     },
     async recoverProviderContextTransitionGeneration() {
       // One synchronous memory assignment owns the complete generation.

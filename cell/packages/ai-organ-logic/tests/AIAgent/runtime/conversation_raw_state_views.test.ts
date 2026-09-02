@@ -114,7 +114,18 @@ describe("conversation raw state views", () => {
     };
 
     const messages = materializeConversationRuntimePrompt({
-      session: { sessionId: "ses_raw" },
+      session: {
+        sessionId: "ses_raw",
+        actorBindings: {
+          main: {
+            actorKey: "main",
+            actorId: "actor-main",
+            historyHeadGenerationId: "hist-tool",
+            promptHeadGenerationId: "prompt-tool",
+          },
+        },
+        contextAssets: [],
+      },
       actorKey: "main",
       actorId: "actor-main",
       historyHeadGenerationId: "hist-tool",

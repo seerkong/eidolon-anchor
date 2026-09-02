@@ -40,5 +40,6 @@ export function applyModAiCoding(
 export const applyModSysCoding = applyModAiCoding;
 export const buildModSysCodingPromptSection = buildModAiCodingPromptSection;
 export * from "./agent";
+export * from "./builtin-vfs";
 export * from "./hooks/actorIdleObserver";
 export * from "./prompt";

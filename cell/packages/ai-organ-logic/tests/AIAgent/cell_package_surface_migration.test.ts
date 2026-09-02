@@ -256,7 +256,7 @@ describe("cell package migration surface", () => {
     expect(terminalRuntime).toContain('createShellRuntimeFacade')
     expect(terminalRuntime).toContain('recoverOrCreateShellRuntime')
 
-    const tuiRuntimeCatalogPath = path.join(repoRoot, "terminal", "packages", "tui", "src", "runtime", "TuiRuntimeCatalog.ts")
+    const tuiRuntimeCatalogPath = path.join(repoRoot, "terminal", "packages", "tui", "src", "runtime", "catalog", "TuiRuntimeCatalog.ts")
     const tuiRuntimeCatalog = readText(tuiRuntimeCatalogPath)
     expect(tuiRuntimeCatalog).not.toContain('@cell/ai-core-logic')
     expect(tuiRuntimeCatalog).not.toContain('@cell/ai-core-logic/config/LlmConfigLoader')
@@ -478,13 +478,13 @@ describe("cell package migration surface", () => {
   })
 
   it("moves core AI runtime consumers onto ai-* ownership hosts", () => {
-    const modAiKernelIndexPath = path.join(repoRoot, "cell", "packages", "mod-ai-kernel", "src", "index.ts")
-    const modAiKernelIndex = readText(modAiKernelIndexPath)
-    expect(modAiKernelIndex).toContain("@cell/ai-core-contract")
-    expect(modAiKernelIndex).toContain("@cell/ai-support")
-    expect(modAiKernelIndex).toContain("@cell/ai-organ-logic/composer/AIAgent")
-    expect(modAiKernelIndex).not.toContain("@cell/domain-ai-contract")
-    expect(modAiKernelIndex).not.toContain("@cell/domain-ai-support")
+    const modAiKernelRoot = path.join(repoRoot, "cell", "packages", "mod-ai-kernel", "src")
+    const modAiKernelSource = collectCodeFiles(modAiKernelRoot).map(readText).join("\n")
+    expect(modAiKernelSource).toContain("@cell/ai-core-contract")
+    expect(modAiKernelSource).toContain("@cell/ai-support")
+    expect(modAiKernelSource).toContain("@cell/ai-organ-logic/composer/AIAgent")
+    expect(modAiKernelSource).not.toContain("@cell/domain-ai-contract")
+    expect(modAiKernelSource).not.toContain("@cell/domain-ai-support")
 
     const modProfilesIndexPath = path.join(repoRoot, "cell", "packages", "mod-profiles", "src", "index.ts")
     const modProfilesIndex = readText(modProfilesIndexPath)
@@ -513,7 +513,7 @@ describe("cell package migration surface", () => {
     expect(terminalCoreSlashCommand).toContain("@cell/ai-core-contract")
     expect(terminalCoreSlashCommand).not.toContain("@cell/membrane")
 
-    const terminalTuiCatalogPath = path.join(repoRoot, "terminal", "packages", "tui", "src", "runtime", "TuiRuntimeCatalog.ts")
+    const terminalTuiCatalogPath = path.join(repoRoot, "terminal", "packages", "tui", "src", "runtime", "catalog", "TuiRuntimeCatalog.ts")
     const terminalTuiCatalog = readText(terminalTuiCatalogPath)
     expect(terminalTuiCatalog).not.toContain("@cell/ai-core-logic")
     expect(terminalTuiCatalog).toContain("@cell/ai-organ-logic/llm")

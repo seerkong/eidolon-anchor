@@ -91,6 +91,18 @@ function resolveExecProtocolPermissionMode(runtime: any): ExecProtocolPermission
   return "interactive";
 }
 
+export function isDangerousExecProtocolMode(runtime: any): boolean {
+  return resolveExecProtocolPermissionMode(runtime) === "dangerous";
+}
+
+const TOOL_GUARDED_BASH_FRAGMENTS = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"];
+
+export function isToolGuardedBashCommand(runtime: any, command: string): boolean {
+  return TOOL_GUARDED_BASH_FRAGMENTS
+    .filter((fragment) => fragment !== "sudo" || !isDangerousExecProtocolMode(runtime))
+    .some((fragment) => command.includes(fragment));
+}
+
 function resolveExecProtocolAdditionalWritableRoots(runtime: any): string[] {
   const metadata = runtime?.vm?.outerCtx?.metadata as Record<string, unknown> | undefined;
   const protocol = metadata?.exec_protocol as Record<string, unknown> | undefined;

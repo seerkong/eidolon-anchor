@@ -43,7 +43,7 @@ describe("provider cache lifecycle product E2E", () => {
         frozenConversationSnapshotDigest: digestClosedWorkflowSurfaceValue(frozenConversationSnapshot),
         lifecycleToolProfileDigest: digestClosedWorkflowSurfaceValue(WORKFLOW_LIFECYCLE_TOOL_PROFILE),
         lifecycleResourcePackageDigest: resourcePackage.digest as `sha256:${string}`,
-        providerProfileId: "deepseek-compatible-chat@1",
+        providerProfileId: "deepseek-chat@1",
         model: "deepseek-chat",
       })
       const runtime = createLocalWorkflowSurfaceExperimentRuntime({
@@ -88,7 +88,10 @@ describe("provider cache lifecycle product E2E", () => {
     } finally {
       fs.rmSync(globalRoot, { recursive: true, force: true })
     }
-  }, 120_000)
+  // The cross-proof deliberately executes one complete lifecycle journey and
+  // then the closed 18-scenario product matrix (which contains two more full
+  // lifecycle executions). This budget changes no provider/runtime timeout.
+  }, 300_000)
 
   test("freezes the exact epoch reason matrix and keeps reset reasonless", () => {
     expect(PROVIDER_CACHE_PRODUCT_EPOCH_REASON_MATRIX).toEqual({

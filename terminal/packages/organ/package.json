@@ -20,6 +20,7 @@
     "@cell/ai-core-logic": "workspace:*",
     "@cell/ai-support": "workspace:*",
     "@cell/membrane": "workspace:*",
+    "@cell/mod-ai-coding": "workspace:*",
     "@cell/mod-profiles": "workspace:*",
     "@cell/ai-organ-logic": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",

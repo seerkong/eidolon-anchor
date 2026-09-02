@@ -88,7 +88,7 @@ describe("closed Workflow provider-surface strategy authority", () => {
       frozenConversationSnapshotDigest: `sha256:${"2".repeat(64)}`,
       lifecycleToolProfileDigest: `sha256:${"3".repeat(64)}`,
       lifecycleResourcePackageDigest: `sha256:${"4".repeat(64)}`,
-      providerProfileId: "deepseek-compatible-chat@1",
+      providerProfileId: "deepseek-chat@1",
       model: "deepseek-chat",
     })
     expect(validateClosedWorkflowSurfaceExperimentInput(input)).toEqual(input)
@@ -134,7 +134,7 @@ describe("closed Workflow provider-surface strategy authority", () => {
       frozenConversationSnapshotDigest: `sha256:${"2".repeat(64)}`,
       lifecycleToolProfileDigest: `sha256:${"3".repeat(64)}`,
       lifecycleResourcePackageDigest: `sha256:${"4".repeat(64)}`,
-      providerProfileId: "deepseek-compatible-chat@1",
+      providerProfileId: "deepseek-chat@1",
       model: "deepseek-chat",
     })
     const forgedRuntime = {
@@ -165,7 +165,7 @@ describe("closed Workflow provider-surface strategy authority", () => {
       frozenConversationSnapshotDigest: digestClosedWorkflowSurfaceValue(frozenConversationSnapshot),
       lifecycleToolProfileDigest: digestClosedWorkflowSurfaceValue(WORKFLOW_LIFECYCLE_TOOL_PROFILE),
       lifecycleResourcePackageDigest: resourcePackage.digest as `sha256:${string}`,
-      providerProfileId: "deepseek-compatible-chat@1",
+      providerProfileId: "deepseek-chat@1",
       model: "deepseek-chat",
     })
     try {

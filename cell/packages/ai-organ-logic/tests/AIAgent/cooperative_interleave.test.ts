@@ -239,6 +239,11 @@ describe("Stage 3 cooperative stepping", () => {
   it("suspends the interactive fiber after local projection rejection without assistant history", async () => {
     const mockAdapter = {
       type: "deepseek" as const,
+      runtime: {
+        adapterName: "deepseek",
+        providerId: "projection-rejection-test",
+        chatCompatibilityProfileId: "deepseek-compatible-chat@1",
+      },
       async createStream() {
         throw new ProviderRequestAdmissionError("invalid_provider_request_body", {
           path: "$/messages/4/internal",

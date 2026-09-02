@@ -241,6 +241,145 @@ export function compareProviderMessageSequences(left: any[], right: any[]): Prov
   return diff
 }
 
+const PROVIDER_CONTEXT_FACT_TAG = "eidolon-context-fact/v1\n"
+const LEGACY_WORK_CONTEXT_PATTERN = /^<runtime_work_context>\n([\s\S]*)\n<\/runtime_work_context>$/
+
+type WorkContextSemanticValue = {
+  workMode: string
+  taskPhase: string
+}
+
+export type ProviderContextFactWireValue = {
+  namespace: string
+  revision: number
+  payload: Record<string, unknown>
+}
+
+type ProviderContextFactParseResult =
+  | { kind: "not_fact" }
+  | { kind: "invalid"; reason: string }
+  | { kind: "valid"; fact: ProviderContextFactWireValue }
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value).sort()
+  const expected = [...keys].sort()
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index])
+}
+
+function parseProviderContextFactMessage(message: any): ProviderContextFactParseResult {
+  const content = message?.content
+  if (typeof content !== "string" || !content.startsWith(PROVIDER_CONTEXT_FACT_TAG)) {
+    return { kind: "not_fact" }
+  }
+  if (String(message?.role ?? "") !== "user") {
+    return { kind: "invalid", reason: "tagged provider context fact must use role user" }
+  }
+  const messageKeys = Object.keys(message as Record<string, unknown>)
+    .filter((key) => message[key] !== undefined)
+    .sort()
+  if (messageKeys.length !== 2 || messageKeys[0] !== "content" || messageKeys[1] !== "role") {
+    return { kind: "invalid", reason: "tagged provider context fact must use the exact role/content container" }
+  }
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content.slice(PROVIDER_CONTEXT_FACT_TAG.length))
+  } catch {
+    return { kind: "invalid", reason: "tagged provider context fact payload is not JSON" }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return { kind: "invalid", reason: "tagged provider context fact payload must be an object" }
+  }
+  const record = parsed as Record<string, unknown>
+  if (!hasExactKeys(record, ["namespace", "payload", "revision"])) {
+    return { kind: "invalid", reason: "tagged provider context fact has an invalid schema" }
+  }
+  if (typeof record.namespace !== "string" || !record.namespace) {
+    return { kind: "invalid", reason: "tagged provider context fact namespace is invalid" }
+  }
+  if (!Number.isInteger(record.revision) || Number(record.revision) <= 0) {
+    return { kind: "invalid", reason: "tagged provider context fact revision is invalid" }
+  }
+  if (!record.payload || typeof record.payload !== "object" || Array.isArray(record.payload)) {
+    return { kind: "invalid", reason: "tagged provider context fact payload field is invalid" }
+  }
+  return {
+    kind: "valid",
+    fact: {
+      namespace: record.namespace,
+      revision: Number(record.revision),
+      payload: record.payload as Record<string, unknown>,
+    },
+  }
+}
+
+function parseLegacyWorkContextOverlay(message: any): WorkContextSemanticValue | null {
+  if (String(message?.role ?? "") !== "system" || typeof message?.content !== "string") return null
+  const body = LEGACY_WORK_CONTEXT_PATTERN.exec(message.content)?.[1]
+  if (!body) return null
+  const workMode = /^work_mode:\s*(\S+)\s*$/m.exec(body)?.[1] ?? ""
+  const taskPhase = /^task_phase:\s*(\S+)\s*$/m.exec(body)?.[1] ?? ""
+  return workMode && taskPhase ? { workMode, taskPhase } : null
+}
+
+function workContextFromFact(fact: ProviderContextFactWireValue): WorkContextSemanticValue | null {
+  if (fact.namespace !== "work-context") return null
+  const workMode = typeof fact.payload.workMode === "string" ? fact.payload.workMode : ""
+  const taskPhase = typeof fact.payload.taskPhase === "string" ? fact.payload.taskPhase : ""
+  return workMode && taskPhase ? { workMode, taskPhase } : null
+}
+
+export type WorkContextMigrationComparison = {
+  legacyWorkContext: WorkContextSemanticValue | null
+  currentWorkContext: WorkContextSemanticValue | null
+  currentFactRevisions: number[]
+  stableMessageDiff: ProviderMessageDiffEntry[]
+  violations: string[]
+}
+
+/**
+ * Compare a pre-migration golden with current production output without
+ * redefining strict provider-message equivalence. Exactly one legacy system
+ * overlay is retired into runtime-only control state. It must not reappear as
+ * a provider-visible fact; every other message remains on the strict
+ * normalized comparison surface.
+ */
+export function compareAcrossWorkContextFactMigration(
+  legacyMessages: any[],
+  currentMessages: any[],
+): WorkContextMigrationComparison {
+  const legacyOverlays = legacyMessages.flatMap((message) => {
+    const context = parseLegacyWorkContextOverlay(message)
+    return context ? [{ message, context }] : []
+  })
+  const currentFacts = currentMessages.flatMap((message) => {
+    const parsed = parseProviderContextFactMessage(message)
+    if (parsed.kind !== "valid") return []
+    const context = workContextFromFact(parsed.fact)
+    return context ? [{ message, fact: parsed.fact, context }] : []
+  })
+  const violations: string[] = []
+  if (legacyOverlays.length !== 1) {
+    violations.push(`legacy sequence has ${legacyOverlays.length} work-context overlays, expected 1`)
+  }
+  if (currentFacts.length > 0) {
+    violations.push("current sequence still exposes a work-context fact")
+  }
+  const legacyWorkContext = legacyOverlays.at(-1)?.context ?? null
+  const currentWorkContext = null
+  const legacyOverlayMessages = new Set(legacyOverlays.map((entry) => entry.message))
+  const currentWorkFactMessages = new Set(currentFacts.map((entry) => entry.message))
+  return {
+    legacyWorkContext,
+    currentWorkContext,
+    currentFactRevisions: currentFacts.map((entry) => entry.fact.revision),
+    stableMessageDiff: compareProviderMessageSequences(
+      legacyMessages.filter((message) => !legacyOverlayMessages.has(message)),
+      currentMessages.filter((message) => !currentWorkFactMessages.has(message)),
+    ),
+    violations,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Shape invariants of a provider message sequence
 // ---------------------------------------------------------------------------
@@ -250,8 +389,9 @@ const VALID_PROVIDER_ROLES = new Set(["system", "user", "assistant", "tool"])
 /**
  * Basic well-formedness of a provider prompt: leading system message, only
  * known roles, every tool message paired (by tool_call_id) with the
- * tool_calls of the assistant message that opens its adjacency group, no
- * directly adjacent user messages.
+ * tool_calls of the assistant message that opens its adjacency group, and no
+ * directly adjacent ordinary user messages. A valid machine-owned provider
+ * context fact is a chronological user message and is the only exception.
  */
 export function checkProviderMessageShapeInvariants(messages: any[]): string[] {
   const violations: string[] = []
@@ -263,12 +403,29 @@ export function checkProviderMessageShapeInvariants(messages: any[]): string[] {
   }
   let pendingToolCallIds = new Set<string>()
   let previousRole = ""
+  let previousWasValidContextFact = false
+  const latestContextFactRevisionByNamespace = new Map<string, number>()
   messages.forEach((message, index) => {
     const role = String(message?.role ?? "")
+    const contextFact = parseProviderContextFactMessage(message)
+    const isValidContextFact = contextFact.kind === "valid"
     if (!VALID_PROVIDER_ROLES.has(role)) {
       violations.push(`message[${index}] has invalid role "${role}"`)
     }
-    if (role === "user" && previousRole === "user") {
+    if (contextFact.kind === "invalid") {
+      violations.push(`message[${index}] ${contextFact.reason}`)
+    }
+    if (isValidContextFact) {
+      const previousRevision = latestContextFactRevisionByNamespace.get(contextFact.fact.namespace) ?? 0
+      if (contextFact.fact.revision <= previousRevision) {
+        violations.push(
+          `message[${index}] duplicates or reorders ${contextFact.fact.namespace} revision ${contextFact.fact.revision}`,
+        )
+      } else {
+        latestContextFactRevisionByNamespace.set(contextFact.fact.namespace, contextFact.fact.revision)
+      }
+    }
+    if (role === "user" && previousRole === "user" && !isValidContextFact && !previousWasValidContextFact) {
       violations.push(`message[${index}] is a user message directly after another user message`)
     }
     if (role === "assistant") {
@@ -287,6 +444,7 @@ export function checkProviderMessageShapeInvariants(messages: any[]): string[] {
       pendingToolCallIds = new Set()
     }
     previousRole = role
+    previousWasValidContextFact = isValidContextFact
   })
   return violations
 }
@@ -428,7 +586,12 @@ function applyLlmTurnOutputs(
   }
   runtime.mirrorMessages.push(assistantMessage)
   for (const toolCall of toolCalls) {
-    runtime.mirrorMessages.push({ role: "tool", tool_call_id: toolCall.id, content: toolCall.resultText })
+    runtime.mirrorMessages.push({
+      role: "tool",
+      tool_call_id: toolCall.id,
+      name: toolCall.name,
+      content: toolCall.resultText,
+    })
   }
 
   // Domain path: the same provider turn as semantic events.

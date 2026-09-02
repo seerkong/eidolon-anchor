@@ -16,6 +16,7 @@
     "@types/yargs": "^17.0.32"
   },
   "dependencies": {
+    "@cell/ai-organ-contract": "workspace:*",
     "@cell/ai-support": "workspace:*",
     "@cell/ai-runtime-control-composer": "workspace:*",
     "yargs": "^17.7.2",

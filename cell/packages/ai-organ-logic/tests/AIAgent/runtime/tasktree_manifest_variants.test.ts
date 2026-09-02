@@ -53,9 +53,10 @@ describe("tasktree_manifest_variants", () => {
     expect(replaceOut).toEqual(expect.objectContaining({
       output: expect.stringContaining("Task tree updated: task_tree@sha256:"),
       contextEffects: [expect.objectContaining({
-        kind: "mutable_provider_projection",
+        kind: "append_provider_context_fact",
+        namespace: "task-tree-context",
         logicalKey: "task_tree",
-        content: expect.stringContaining("first"),
+        payload: expect.objectContaining({ content: expect.stringContaining("first") }),
       })],
     }))
 

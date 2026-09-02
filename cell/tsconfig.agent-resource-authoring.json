@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "packages/ai-organ-logic/src/resources/EidolonAIAgentDefinitionAuthoringAdapter.ts",
+    "packages/ai-organ-logic/src/resources/EidolonAutonomousAgentResourceHost.ts",
+    "packages/ai-organ-logic/src/workflow/runtime/AIDataAgentResourcePreparation.ts",
+    "packages/ai-organ-logic/src/workflow/runtime/AIDataWorkflowRuntimeDriver.ts",
+    "packages/ai-organ-logic/src/workflow/runtime/WorkflowRuntimeService.ts",
+    "packages/ai-organ-logic/src/ambient-assets.d.ts"
+  ],
+  "exclude": []
+}

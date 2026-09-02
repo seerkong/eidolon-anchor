@@ -155,7 +155,6 @@ describe("official Chat Completions effect bundle contract", () => {
       {
         role: "assistant",
         content: "",
-        reasoning_content: "",
         tool_calls: [
           {
             id: "call_legacy",
@@ -189,10 +188,22 @@ describe("official Chat Completions effect bundle contract", () => {
       "reasoning_content",
     );
     expect(deepSeek.events).toEqual([{ event: "think", data: "inspect" }]);
-    expect(core.buildAssistantMessage(deepSeek.state)).toHaveProperty(
-      "reasoning_content",
-      "inspect",
+    expect(() => core.buildAssistantMessage(deepSeek.state)).toThrow(
+      "provider_reasoning_only_response",
     );
+    try {
+      core.buildAssistantMessage(deepSeek.state);
+    } catch (error) {
+      expect(error).toMatchObject({
+        code: "provider_reasoning_only_response",
+        observedReasoningBytes: 7,
+        continuationAssistantMessage: {
+          role: "assistant",
+          content: "",
+          reasoning_content: "inspect",
+        },
+      });
+    }
   });
 
   it("introduces no symbiont reverse dependency on the AI domain", () => {

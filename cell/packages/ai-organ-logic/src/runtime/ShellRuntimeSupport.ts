@@ -20,8 +20,7 @@ import {
 } from "../llm"
 import type { LlmProviderRuntime } from "@cell/ai-organ-contract/llm/ProviderRuntime"
 import {
-  deepSeekCompatibleChatEffectBundle,
-  deepSeekOfficialChatEffectBundle,
+  deepSeekChatEffectBundle,
 } from "../llm/ChatCompletionsEffectBundles"
 import { resolveSelectedProviderChatCompatibilityProfile } from "../llm/ProviderChatCompatibility"
 
@@ -160,7 +159,7 @@ export async function createRuntimeLlmAdapter(params: {
     const baseUrl = providerOptions.baseURL || config.baseUrl
     const apiKey = providerOptions.apiKey || config.apiKey
     if (params.useMock) {
-      const compatibilityProfile = resolveSelectedProviderChatCompatibilityProfile({
+      resolveSelectedProviderChatCompatibilityProfile({
         driverName: "deepseek-chat",
         providerId: "deepseek",
         options: providerOptions,
@@ -169,9 +168,7 @@ export async function createRuntimeLlmAdapter(params: {
       const mock = createMockOpenAI()
       return {
         type: "deepseek" as const,
-        chatCompletionsEffectBundle: compatibilityProfile === "deepseek-compatible-chat@1"
-          ? deepSeekCompatibleChatEffectBundle
-          : deepSeekOfficialChatEffectBundle,
+        chatCompletionsEffectBundle: deepSeekChatEffectBundle,
         async createStream(options: any) {
           const stream = await mock.chat.completions.create({
             model: options.model,

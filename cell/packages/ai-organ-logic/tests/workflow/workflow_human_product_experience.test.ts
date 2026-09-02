@@ -7,8 +7,8 @@ import { normalizeWorkflowFulfillmentContinuation } from "../../src/workflow/too
 import {
   AI_WORKFLOW_PROVIDER_TOOL_SURFACE,
   AI_WORKFLOW_STAGE_TOOL_POLICY,
-  applyAiWorkflowStageSystemContext,
   applyAiWorkflowStageToolPolicy,
+  buildAiWorkflowStageContext,
 } from "../../src/workflow/tools/WorkflowLoadStageContext"
 import { BUILTIN_CODING_AGENT_CONFIGS } from "@cell/mod-ai-coding/agent"
 import { createActor } from "@cell/ai-core-logic/runtime/actor"
@@ -335,10 +335,8 @@ describe("workflow human product experience", () => {
   })
 
   it("returns selected stage authority for append-only tool delivery without rewriting the root", () => {
-    const actor = { systemPrompts: ["root authority"] }
-    const coding = applyAiWorkflowStageSystemContext(actor, "coding", "coding context")
-    const testing = applyAiWorkflowStageSystemContext(actor, "testing", "testing context")
-    expect(actor.systemPrompts).toEqual(["root authority"])
+    const coding = buildAiWorkflowStageContext("coding", "coding context")
+    const testing = buildAiWorkflowStageContext("testing", "testing context")
     expect(coding).toEqual({
       kind: "eidolon.aiWorkflowStageContext",
       stage: "coding",

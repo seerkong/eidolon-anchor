@@ -94,9 +94,9 @@ export const openAIOfficialChatEffectBundle: ChatCompletionsEffectBundle =
     streamCore: chatCompletionsStreamCoreBinding,
   });
 
-export const deepSeekOfficialChatEffectBundle: ChatCompletionsEffectBundle =
+export const deepSeekChatEffectBundle: ChatCompletionsEffectBundle =
   Object.freeze({
-    id: "deepseek-official-chat",
+    id: "deepseek-chat",
     toolSchemaProjector: deepSeekChatToolSchemaProjector,
     resolveEndpoint(baseUrl?: string) {
       return resolveChatCompletionsEndpoint(baseUrl, DEEPSEEK_BASE_URL, true);
@@ -113,8 +113,7 @@ export const deepSeekOfficialChatEffectBundle: ChatCompletionsEffectBundle =
     streamCore: chatCompletionsStreamCoreBinding,
   });
 
-export const deepSeekCompatibleChatEffectBundle: ChatCompletionsEffectBundle =
-  Object.freeze({
-    ...deepSeekOfficialChatEffectBundle,
-    id: "deepseek-compatible-chat",
-  });
+/** @deprecated use deepSeekChatEffectBundle */
+export const deepSeekOfficialChatEffectBundle = deepSeekChatEffectBundle;
+/** @deprecated use deepSeekChatEffectBundle */
+export const deepSeekCompatibleChatEffectBundle = deepSeekChatEffectBundle;

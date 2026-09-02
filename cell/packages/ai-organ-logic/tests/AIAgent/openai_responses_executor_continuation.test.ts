@@ -26,7 +26,10 @@ import {
   resetActorContinuationBaseline,
   setActorWorkMode,
 } from "@cell/ai-organ-logic/runtime/ContextControlPlane";
-import { createMockProcessStream } from "./__test_support__/mockProcessStream";
+import {
+  createMockProcessStream,
+  createMockProviderCacheCostObservation,
+} from "./__test_support__/mockProcessStream";
 
 function responsesResult(
   context: ResponsesTransportRequestContext,
@@ -82,18 +85,21 @@ function responsesAdapter(params: {
         yield { ok: true };
       }
       const ordinal = params.contexts.length;
+      const requestObservation = {
+        provider_cache_cost_observation: createMockProviderCacheCostObservation(options),
+      };
       return {
         stream: stream(),
-        ...(params.omitProviderOutput
-          ? {}
+        providerOutput: Promise.resolve(params.omitProviderOutput
+          ? requestObservation
           : {
-              providerOutput: Promise.resolve(responsesResult(
+              ...responsesResult(
                 context,
                 `resp-${ordinal}`,
                 ordinal === 2,
-              )).then((result) => ({
-                ...result,
-                responseStored: params.responseStored ?? result.responseStored,
+              ),
+              ...requestObservation,
+              responseStored: params.responseStored ?? true,
                 ...(params.reconstructedOutput ? {
                   outputDecision: decideResponsesNativeOutputCompleteness({
                     schemaVersion: 1,
@@ -129,8 +135,7 @@ function responsesAdapter(params: {
                     reason: "terminal_output_conflict" as const,
                   },
                 } : {}),
-              })),
-            }),
+              }),
       };
     },
   };
@@ -149,6 +154,11 @@ function registerInspectTool(registry: ToolFuncRegistry): void {
     briefPromptXnl: "<tool name=\"inspect\" />",
     run: async () => "inspection result",
   } as any);
+}
+
+function replayCheckpoint(vm: any, sessionId: string) {
+  return getConversationSessionRawStateFromVm({ vm, sessionId })
+    ?.contextAssets?.find((asset) => asset.replayCheckpoint)?.replayCheckpoint;
 }
 
 type ContinuationInvalidationFixture = ReturnType<typeof createContinuationInvalidationFixture>;
@@ -174,6 +184,7 @@ function createContinuationInvalidationFixture(sessionId: string) {
       return {
         stream: stream(),
         providerOutput: Promise.resolve({
+          provider_cache_cost_observation: createMockProviderCacheCostObservation(options),
           schemaVersion: 1 as const,
           kind: "responses_transport_result" as const,
           plan: context.primary,
@@ -267,32 +278,6 @@ describe("Responses continuation lifecycle in both executor entries", () => {
     mutate: (fixture: ContinuationInvalidationFixture) => void;
   }> = [
     {
-      name: "provider projection revision",
-      mutate: ({ actor, vm }) => {
-        const runtime = getVmConversationDomainRuntime(vm);
-        expect(runtime).not.toBeNull();
-        upsertProviderProjectionFactToConversationDomainRuntime({
-          runtime: runtime!,
-          sessionId: String((vm.outerCtx.metadata as any).sessionId),
-          projectionFact: {
-            actorKey: actor.key,
-            projectionKey: "mutable-state",
-            revision: "revision-2",
-            content: "changed provider projection",
-            placement: "late",
-            sourceToolCalls: [],
-            observedAt: "2026-07-18T12:00:00.000Z",
-          },
-        });
-      },
-    },
-    {
-      name: "dynamic work-context system overlay",
-      mutate: ({ actor }) => {
-        setActorWorkMode({ actor, workMode: WORK_MODES.plan, source: "test-control" });
-      },
-    },
-    {
       name: "compaction baseline epoch",
       mutate: ({ actor }) => {
         const beforeEpoch = actor.continuationBaseline.baselineEpoch;
@@ -345,7 +330,7 @@ describe("Responses continuation lifecycle in both executor entries", () => {
     }]);
   });
 
-  it("invalidates dynamic context without changing stable prompt-cache routing", async () => {
+  it("keeps runtime-only work context outside stateful Responses continuation", async () => {
     const fixture = createContinuationInvalidationFixture(
       "responses-instructions-single-source",
     );
@@ -358,7 +343,7 @@ describe("Responses continuation lifecycle in both executor entries", () => {
     expect(first.instructions).toContain("Sandbox permissions:");
     expect(first.instructions).toContain("provider configured instructions");
     expect(first.instructions).toContain("stable actor system prompt");
-    expect(second.instructions).not.toBe(first.instructions);
+    expect(second.instructions).toBe(first.instructions);
 
     const configuredEnd = first.instructions!.indexOf("provider configured instructions")
       + "provider configured instructions".length;
@@ -366,13 +351,46 @@ describe("Responses continuation lifecycle in both executor entries", () => {
     expect(second.instructions!.slice(0, configuredEnd)).toBe(
       first.instructions!.slice(0, configuredEnd),
     );
-    expect(second.primary.contextDigest).not.toBe(first.primary.contextDigest);
+    expect(second.primary.contextDigest).toBe(first.primary.contextDigest);
     expect(first.primary.kind).toBe("stateless_replay");
-    expect(second.primary.kind).toBe("stateless_replay");
-    if (first.primary.kind !== "stateless_replay" || second.primary.kind !== "stateless_replay") {
-      throw new Error("expected stateless plans after dynamic invalidation");
+    expect(second.primary.kind).toBe("stateful_incremental");
+    if (first.primary.kind !== "stateless_replay" || second.primary.kind !== "stateful_incremental") {
+      throw new Error("expected append-only stateful plan after dynamic context change");
     }
-    expect(second.primary.promptCacheKey).toBe(first.primary.promptCacheKey);
+    expect(second.primary.previousResponseId).toBe("invalidation-resp-1");
+    expect(second.primary.input).toEqual([{
+      type: "message",
+      role: "user",
+      content: [{ type: "input_text", text: "second canonical user" }],
+    }]);
+    expect(JSON.stringify(second.primary.input)).not.toContain("eidolon-context-fact/v1");
+    expect(second.statelessFallback?.promptCacheKey).toBe(first.primary.promptCacheKey);
+  });
+
+  it("keeps an unadmitted provider projection revision outside the Responses request", async () => {
+    const fixture = createContinuationInvalidationFixture("responses-provider-projection-append-only");
+    const plan = await establishContinuationAndRunNextTurn(fixture, ({ actor, vm }) => {
+      const runtime = getVmConversationDomainRuntime(vm);
+      expect(runtime).not.toBeNull();
+      upsertProviderProjectionFactToConversationDomainRuntime({
+        runtime: runtime!,
+        sessionId: String((vm.outerCtx.metadata as any).sessionId),
+        projectionFact: {
+          actorKey: actor.key,
+          projectionKey: "mutable-state",
+          revision: "revision-2",
+          content: "changed provider projection",
+          placement: "late",
+          sourceToolCalls: [],
+          observedAt: "2026-07-18T12:00:00.000Z",
+        },
+      });
+    });
+    expect(plan).toEqual(expect.objectContaining({
+      kind: "stateful_incremental",
+      previousResponseId: "invalidation-resp-1",
+    }));
+    expect(JSON.stringify(plan.input)).not.toContain("changed provider projection");
   });
 
   it("changes prompt-cache routing when stable actor instructions change", async () => {
@@ -430,6 +448,7 @@ describe("Responses continuation lifecycle in both executor entries", () => {
         return {
           stream: stream(),
           providerOutput: Promise.resolve({
+            provider_cache_cost_observation: createMockProviderCacheCostObservation(input),
             schemaVersion: 1 as const,
             kind: "responses_transport_result" as const,
             plan: context.primary,
@@ -562,8 +581,7 @@ describe("Responses continuation lifecycle in both executor entries", () => {
       latestResponseId: "resp-2",
       contextDigest: contexts[1]?.statelessFallback?.contextDigest,
     }));
-    const checkpoint = getConversationSessionRawStateFromVm({ vm, sessionId: "responses-streaming" })
-      ?.contextAssets?.[0]?.replayCheckpoint;
+    const checkpoint = replayCheckpoint(vm, "responses-streaming");
     expect(checkpoint).toEqual(expect.objectContaining({
       requestKind: "stateless_replay",
       requestInput: contexts[1]?.statelessFallback?.input,
@@ -627,7 +645,6 @@ describe("Responses continuation lifecycle in both executor entries", () => {
         processStream: createMockProcessStream(async () => ({ role: "assistant", content: "looks done" })),
       },
     });
-    const before = structuredClone(actor.continuationBaseline);
     const vm = createVM({
       controlActorKey: actor.key,
       actors: { main: actor },
@@ -637,9 +654,12 @@ describe("Responses continuation lifecycle in both executor entries", () => {
 
     await aiAgentLoopStreaming({ vm, actor, messages: [{ role: "user", content: "continue" }] });
 
-    expect(actor.continuationBaseline).toEqual(before);
-    expect(getConversationSessionRawStateFromVm({ vm, sessionId: "responses-pseudo" })
-      ?.contextAssets ?? []).toEqual([]);
+    expect(actor.continuationBaseline).toEqual(expect.objectContaining({
+      latestResponseId: null,
+      contextDigest: null,
+      lastResetReason: "provider_epoch:openai-responses@1",
+    }));
+    expect(replayCheckpoint(vm, "responses-pseudo")).toBeUndefined();
   });
 
   it("does not advance baseline or write a checkpoint for an incomplete native output decision", async () => {
@@ -653,7 +673,6 @@ describe("Responses continuation lifecycle in both executor entries", () => {
         processStream: createMockProcessStream(async () => ({ role: "assistant", content: "tool call observed" })),
       },
     });
-    const before = structuredClone(actor.continuationBaseline);
     const vm = createVM({
       controlActorKey: actor.key,
       actors: { main: actor },
@@ -663,9 +682,12 @@ describe("Responses continuation lifecycle in both executor entries", () => {
 
     await aiAgentLoopStreaming({ vm, actor, messages: [{ role: "user", content: "continue" }] });
 
-    expect(actor.continuationBaseline).toEqual(before);
-    expect(getConversationSessionRawStateFromVm({ vm, sessionId: "responses-incomplete-native" })
-      ?.contextAssets ?? []).toEqual([]);
+    expect(actor.continuationBaseline).toEqual(expect.objectContaining({
+      latestResponseId: null,
+      contextDigest: null,
+      lastResetReason: "provider_epoch:openai-responses@1",
+    }));
+    expect(replayCheckpoint(vm, "responses-incomplete-native")).toBeUndefined();
   });
 
   it("advances checkpoint and baseline for a complete reconstructed event proof", async () => {
@@ -689,10 +711,7 @@ describe("Responses continuation lifecycle in both executor entries", () => {
     await aiAgentLoopStreaming({ vm, actor, messages: [{ role: "user", content: "continue" }] });
 
     expect(actor.continuationBaseline.latestResponseId).toBe("resp-1");
-    const checkpoint = getConversationSessionRawStateFromVm({
-      vm,
-      sessionId: "responses-reconstructed-native",
-    })?.contextAssets?.[0]?.replayCheckpoint;
+    const checkpoint = replayCheckpoint(vm, "responses-reconstructed-native");
     expect(checkpoint?.output.completenessProof.source).toBe("reconstructed_event_items");
   });
 
@@ -719,7 +738,6 @@ describe("Responses continuation lifecycle in both executor entries", () => {
 
     expect(actor.continuationBaseline.latestResponseId).toBeNull();
     expect(actor.continuationBaseline.contextDigest).toBe(contexts[0]?.primary.contextDigest);
-    expect(getConversationSessionRawStateFromVm({ vm, sessionId: "responses-not-stored" })
-      ?.contextAssets?.[0]?.replayCheckpoint?.output.responseId).toBe("resp-1");
+    expect(replayCheckpoint(vm, "responses-not-stored")?.output.responseId).toBe("resp-1");
   });
 });

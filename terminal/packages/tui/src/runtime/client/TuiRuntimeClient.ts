@@ -64,7 +64,10 @@ import {
   traceStreamEvent,
 } from "../../support/util/stream-diagnostics"
 
-type RuntimeBridgeFactory = (sessionID?: string) => Promise<TuiRuntimeBridge | null>
+type RuntimeBridgeFactory = (
+  sessionID?: string,
+  onInitStatus?: (status: RuntimeBridgeInitStatus) => void,
+) => Promise<TuiRuntimeBridge | null>
 
 let runtimeBridgeFactoryOverride: null | RuntimeBridgeFactory = null
 
@@ -78,7 +81,7 @@ async function getRuntimeBridge(
   onInitStatus?: (status: RuntimeBridgeInitStatus) => void,
 ): Promise<TuiRuntimeBridge> {
   if (runtimeBridgeFactoryOverride) {
-    const runtime = await runtimeBridgeFactoryOverride(sessionID)
+    const runtime = await runtimeBridgeFactoryOverride(sessionID, onInitStatus)
     if (runtime) return runtime
     if (mode === "mock") {
       return await getMockRuntimeBridge()
@@ -651,8 +654,8 @@ export function createTuiRuntimeClient(options?: {
     return catalog.defaultModel
   }
 
-  const MCP_RUNTIME_INIT_STATUS_MESSAGE = "正在初始化 MCP..."
-  const MCP_RUNTIME_INIT_STATUS_ORIGIN = "runtime:mcp-init"
+  const LOCAL_RUNTIME_INIT_STATUS_MESSAGE = "正在初始化本地 runtime..."
+  const RUNTIME_INIT_STATUS_ORIGIN = "runtime:init"
   type SessionStatus = { type: "idle" | "busy"; message?: string; origin?: string }
   type SessionState = {
     info: Session
@@ -786,6 +789,30 @@ export function createTuiRuntimeClient(options?: {
   async function emitEvent(event: Event) {
     traceStreamEvent("runtime.emit", event)
     eventEmitter.emit(clone(event))
+  }
+
+  async function emitForkRejection(rejection: { code?: string; message?: string }) {
+    const code = String(rejection.code ?? "FORK_REJECTED")
+    const detail = String(rejection.message ?? "Conversation fork was rejected")
+    await emitEvent({
+      type: "tui.toast.show",
+      properties: {
+        message: `Fork failed [${code}]: ${detail}`,
+        variant: "error",
+      },
+    } as Event)
+  }
+
+  async function emitRewindRejection(rejection: { code?: string; message?: string }) {
+    const code = String(rejection.code ?? "REWIND_REJECTED")
+    const detail = String(rejection.message ?? "Conversation rewind was rejected")
+    await emitEvent({
+      type: "tui.toast.show",
+      properties: {
+        message: `Rewind failed [${code}]: ${detail}`,
+        variant: "error",
+      },
+    } as Event)
   }
 
   function clearPendingQuestionsForSession(sessionID: string) {
@@ -1550,32 +1577,32 @@ export function createTuiRuntimeClient(options?: {
       .catch(() => {})
   }
 
-  function hasMcpRuntimeInitStatus(state: SessionState) {
-    return state.status.type === "busy" && state.status.origin === MCP_RUNTIME_INIT_STATUS_ORIGIN
+  function hasRuntimeInitStatus(state: SessionState) {
+    return state.status.type === "busy" && state.status.origin === RUNTIME_INIT_STATUS_ORIGIN
   }
 
-  function restoreMcpRuntimeInitStatus(state: SessionState, previousStatus: SessionStatus) {
-    if (!hasMcpRuntimeInitStatus(state)) return
+  function restoreRuntimeInitStatus(state: SessionState, previousStatus: SessionStatus) {
+    if (!hasRuntimeInitStatus(state)) return
     void setSessionStatus(state, previousStatus.type, previousStatus.message, previousStatus.origin)
   }
 
-  function setMcpRuntimeInitStatus(state: SessionState, message = MCP_RUNTIME_INIT_STATUS_MESSAGE) {
-    void setSessionStatus(state, "busy", message, MCP_RUNTIME_INIT_STATUS_ORIGIN)
+  function setRuntimeInitStatus(state: SessionState, message = LOCAL_RUNTIME_INIT_STATUS_MESSAGE) {
+    void setSessionStatus(state, "busy", message, RUNTIME_INIT_STATUS_ORIGIN)
   }
 
   function ensureSessionRuntime(state: SessionState): Promise<TuiRuntimeBridge> {
     if (state.runtimePromise) return state.runtimePromise
     const previousStatus = { ...state.status }
     const runtimePromise = getRuntimeBridge(state.info.id, mode, (status) => {
-      setMcpRuntimeInitStatus(state, status.message)
+      setRuntimeInitStatus(state, status.message)
     })
     state.runtimePromise = runtimePromise
     attachRuntimeNotificationBridge(state, runtimePromise)
     attachRuntimeUsageBridge(state, runtimePromise)
-    setMcpRuntimeInitStatus(state)
+    setRuntimeInitStatus(state)
     void runtimePromise.then(
-      () => restoreMcpRuntimeInitStatus(state, previousStatus),
-      () => restoreMcpRuntimeInitStatus(state, previousStatus),
+      () => restoreRuntimeInitStatus(state, previousStatus),
+      () => restoreRuntimeInitStatus(state, previousStatus),
     )
     return runtimePromise
   }
@@ -1900,7 +1927,8 @@ export function createTuiRuntimeClient(options?: {
     return index >= 0 ? index : state.messages.length - 1
   }
 
-  function cloneSessionMessagesThrough(state: SessionState, messageID?: string) {
+  /** Mock-only surface preview; never used as local-runtime fork authority. */
+  function cloneMockSessionMessagesThrough(state: SessionState, messageID?: string) {
     const cutoff = findMessageCutoffIndex(state, messageID)
     const messages = cutoff >= 0 ? state.messages.slice(0, cutoff + 1) : []
     const parts = Object.fromEntries(messages.map((message) => [message.id, clone(state.parts[message.id] ?? [])]))
@@ -2202,6 +2230,52 @@ export function createTuiRuntimeClient(options?: {
         const bestInfo = await loadBestSessionInfo(state.info.id)
         applySessionInfoToState(state, bestInfo)
         await hydrateSessionHistoryFromPersistence(state)
+        const runtime = await (state.runtimePromise ?? ensureSessionRuntime(state).catch(() => null))
+        if (!runtime?.rewindConversationSession) {
+          const rejection = {
+            code: "REWIND_TRANSACTION_CONFLICT",
+            message: "Conversation rewind capability is unavailable",
+          }
+          await emitRewindRejection(rejection)
+          return { error: rejection }
+        }
+        if (!messageID) {
+          const rejection = { code: "MESSAGE_NOT_FOUND", message: "A canonical message id is required" }
+          await emitRewindRejection(rejection)
+          return { error: rejection }
+        }
+        const previousMessages = [...state.messages]
+        const result = await runtime.rewindConversationSession({
+          schemaVersion: "conversation.session-rewind-command/v1",
+          sessionId: state.info.id,
+          selector: { kind: "through_committed_message", messageId: messageID },
+          expectedSourceAuthorityDigest: null,
+          occurredAt: new Date().toISOString(),
+        })
+        if (result.status !== "committed") {
+          await emitRewindRejection(result.rejection)
+          return { error: result.rejection }
+        }
+        state.messages.splice(0, state.messages.length)
+        state.parts = {}
+        state.historyHydrated = false
+        await hydrateSessionHistoryFromPersistence(state)
+        const retainedIDs = new Set(state.messages.map((message) => message.id))
+        for (const message of previousMessages) {
+          if (retainedIDs.has(message.id)) continue
+          await emitEvent({
+            type: "message.removed",
+            properties: { sessionID: state.info.id, messageID: message.id },
+          } as Event)
+        }
+        state.info = {
+          ...state.info,
+          revert: { messageID: result.receipt.proof.cutoffMessageId ?? messageID },
+          preview: buildSessionPreviewFromState(state),
+        }
+        touchSession(state)
+        await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
+        return { data: clone(state.info) }
       }
       const cutoff = findMessageCutoffIndex(state, messageID)
       const retainedMessages = cutoff >= 0 ? state.messages.slice(0, cutoff + 1) : []
@@ -2233,6 +2307,14 @@ export function createTuiRuntimeClient(options?: {
     },
     async unrevert({ sessionID }: { sessionID?: string } = {}) {
       const state = ensureSessionState(sessionID)
+      if (mode === "local-runtime") {
+        const rejection = {
+          code: "UNREVERT_UNSUPPORTED",
+          message: "Durable branch restore is not implemented; the rewound Conversation authority was not changed",
+        }
+        await emitRewindRejection(rejection)
+        return { error: rejection }
+      }
       state.info = { ...state.info, revert: undefined }
       await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
       return { data: clone(state.info) }
@@ -2286,9 +2368,50 @@ export function createTuiRuntimeClient(options?: {
         const bestInfo = await loadBestSessionInfo(source.info.id)
         applySessionInfoToState(source, bestInfo)
         await hydrateSessionHistoryFromPersistence(source)
+        const runtime = await (source.runtimePromise ?? ensureSessionRuntime(source).catch(() => null))
+        if (!runtime?.forkConversationSession) {
+          const rejection = {
+            code: "FORK_TRANSACTION_CONFLICT",
+            message: "Conversation fork capability is unavailable",
+          }
+          await emitForkRejection(rejection)
+          return {
+            error: rejection,
+          }
+        }
+        const targetSessionID = nextSessionId()
+        const result = await runtime.forkConversationSession({
+          schemaVersion: "conversation.session-fork-command/v1",
+          sourceSessionId: source.info.id,
+          targetSessionId: targetSessionID,
+          selector: messageID
+            ? { kind: "through_committed_message", messageId: messageID }
+            : { kind: "current_head" },
+          occurredAt: new Date().toISOString(),
+        })
+        if (result.status !== "committed") {
+          await emitForkRejection(result.rejection)
+          return { error: result.rejection }
+        }
+        const forked = createSessionState(result.receipt.targetSessionId)
+        markSessionMaterialized(forked)
+        await hydrateSessionHistoryFromPersistence(forked)
+        forked.info = {
+          ...forked.info,
+          title: source.info.title,
+          share: source.info.share,
+          preview: buildSessionPreviewFromState(forked),
+        }
+        await writeTuiSessionMetadata(forked.info.id, {
+          title: forked.info.title,
+          updatedAt: new Date().toISOString(),
+        })
+        await emitEvent({ type: "session.created", properties: { info: forked.info } } as Event)
+        await emitEvent({ type: "session.status", properties: { sessionID: forked.info.id, status: forked.status } } as Event)
+        return { data: clone(forked.info) }
       }
       const forked = createSessionState()
-      const forkedSnapshot = cloneSessionMessagesThrough(source, messageID)
+      const forkedSnapshot = cloneMockSessionMessagesThrough(source, messageID)
       forked.messages.splice(0, forked.messages.length, ...forkedSnapshot.messages)
       forked.parts = forkedSnapshot.parts
       if (source.materialized || source.messages.length > 0) {

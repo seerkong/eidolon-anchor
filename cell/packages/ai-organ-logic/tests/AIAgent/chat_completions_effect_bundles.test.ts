@@ -22,12 +22,14 @@ function sseResponse(): Response {
 }
 
 describe("official Chat Completions effect bundles", () => {
-  it("exports distinct OpenAI and DeepSeek official implementations", async () => {
+  it("exports distinct OpenAI and canonical DeepSeek protocol implementations", async () => {
     const modulePath = "@cell/ai-organ-logic/llm/ChatCompletionsEffectBundles";
     const bundles = await import(modulePath);
 
     expect(bundles.openAIOfficialChatEffectBundle.id).toBe("openai-official-chat");
-    expect(bundles.deepSeekOfficialChatEffectBundle.id).toBe("deepseek-official-chat");
+    expect(bundles.deepSeekChatEffectBundle.id).toBe("deepseek-chat");
+    expect(bundles.deepSeekOfficialChatEffectBundle).toBe(bundles.deepSeekChatEffectBundle);
+    expect(bundles.deepSeekCompatibleChatEffectBundle).toBe(bundles.deepSeekChatEffectBundle);
     expect(bundles.openAIOfficialChatEffectBundle).not.toBe(
       bundles.deepSeekOfficialChatEffectBundle,
     );
@@ -366,12 +368,12 @@ describe("official Chat Completions effect bundles", () => {
     );
   });
 
-  it("rejects conflicting duplicate DeepSeek profiles through real Shell construction", async () => {
+  it("normalizes conflicting legacy DeepSeek profile inputs through real Shell construction", async () => {
     const { createRuntimeLlmAdapter } = await import(
       "@cell/ai-organ-logic/runtime/ShellRuntimeSupport"
     );
 
-    await expect(createRuntimeLlmAdapter({
+    const adapter = await createRuntimeLlmAdapter({
       adapterType: "deepseek",
       workDir: repoRoot,
       defaults: {
@@ -385,10 +387,11 @@ describe("official Chat Completions effect bundles", () => {
       },
       overrides: { options: { compatibility_profile: "deepseek-compatible-chat@1" } },
       runtime: { chatCompatibilityProfileId: "deepseek-official-chat@1" },
-    })).rejects.toThrow("provider_chat_compatibility_profile_conflict");
+    });
+    expect(adapter?.runtime.chatCompatibilityProfileId).toBe("deepseek-chat@1");
   });
 
-  it("fails closed when the real shell DeepSeek adapter targets an undeclared third-party profile", async () => {
+  it("uses the adapter-owned DeepSeek profile for third-party gateways", async () => {
     const runtimePath = "@cell/ai-organ-logic/runtime/ShellRuntimeSupport";
     const { createRuntimeLlmAdapter } = await import(runtimePath);
     const {
@@ -403,11 +406,12 @@ describe("official Chat Completions effect bundles", () => {
       deepseek: { apiKey: "test-key", baseUrl: "https://third-party.example/v1", model: "deepseek-compatible" },
     };
 
-    await expect(createRuntimeLlmAdapter({
+    const implicit = await createRuntimeLlmAdapter({
       adapterType: "deepseek",
       workDir: repoRoot,
       defaults,
-    })).rejects.toThrow("provider_chat_compatibility_profile_required");
+    });
+    expect(implicit?.runtime.chatCompatibilityProfileId).toBe("deepseek-chat@1");
 
     const compatible = await createRuntimeLlmAdapter({
       adapterType: "deepseek",
@@ -415,7 +419,7 @@ describe("official Chat Completions effect bundles", () => {
       defaults,
       overrides: { options: { compatibility_profile: "deepseek-compatible-chat@1" } },
     });
-    expect(compatible?.runtime.chatCompatibilityProfileId).toBe("deepseek-compatible-chat@1");
+    expect(compatible?.runtime.chatCompatibilityProfileId).toBe("deepseek-chat@1");
     expect(compatible?.chatCompletionsEffectBundle).toBe(
       deepSeekCompatibleChatEffectBundle,
     );
@@ -428,16 +432,17 @@ describe("official Chat Completions effect bundles", () => {
       runtime: { chatCompatibilityProfileId: "deepseek-compatible-chat@1" },
     });
     expect(matchingDuplicate?.runtime.chatCompatibilityProfileId).toBe(
-      "deepseek-compatible-chat@1",
+      "deepseek-chat@1",
     );
 
-    await expect(createRuntimeLlmAdapter({
+    const conflictingLegacy = await createRuntimeLlmAdapter({
       adapterType: "deepseek",
       workDir: repoRoot,
       defaults,
       overrides: { options: { compatibility_profile: "deepseek-compatible-chat@1" } },
       runtime: { chatCompatibilityProfileId: "deepseek-official-chat@1" },
-    })).rejects.toThrow("provider_chat_compatibility_profile_conflict");
+    });
+    expect(conflictingLegacy?.runtime.chatCompatibilityProfileId).toBe("deepseek-chat@1");
 
     const official = await createRuntimeLlmAdapter({
       adapterType: "deepseek",
@@ -448,7 +453,7 @@ describe("official Chat Completions effect bundles", () => {
       },
       overrides: { options: { compatibility_profile: "deepseek-official-chat@1" } },
     });
-    expect(official?.runtime.chatCompatibilityProfileId).toBe("deepseek-official-chat@1");
+    expect(official?.runtime.chatCompatibilityProfileId).toBe("deepseek-chat@1");
     expect(official?.chatCompletionsEffectBundle).toBe(
       deepSeekOfficialChatEffectBundle,
     );
@@ -463,7 +468,7 @@ describe("official Chat Completions effect bundles", () => {
       "openai-official-chat",
     );
     expect(registry["deepseek-chat"].chatCompletionsEffectBundle?.id).toBe(
-      "deepseek-official-chat",
+      "deepseek-chat",
     );
     expect(registry["openai-responses"].chatCompletionsEffectBundle).toBeUndefined();
     expect(

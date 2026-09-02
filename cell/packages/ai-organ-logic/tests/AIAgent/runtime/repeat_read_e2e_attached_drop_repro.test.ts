@@ -16,6 +16,7 @@ import { processRuntimeIngressStream } from "@cell/ai-organ-logic/runtime/ShellR
 import { recoverOrCreateShellRuntime } from "@cell/ai-organ-logic/runtime/ShellRuntimeBootstrap"
 import { createShellRuntimeFacade } from "@cell/ai-organ-logic"
 import { createKernelRuntimeSupportDescriptor } from "@cell/mod-ai-kernel"
+import { createMockProviderCacheCostObservation } from "../__test_support__/mockProcessStream"
 
 /**
  * FAITHFUL END-TO-END "within-turn repeat-read non-convergence" PROBE
@@ -42,14 +43,14 @@ import { createKernelRuntimeSupportDescriptor } from "@cell/mod-ai-kernel"
  * current code (N=3 read_file ops, base messageCount=4):
  *
  *   stage                          attached(consumers)  busDone  messageCount
- *   post-recovery (instant)        0                    false    4   (line 317)
+ *   post-recovery (instant)        >0                   false    4
  *   op#1 (at tool_call_result)     >0                   false    5   sibling+ ✓
  *   op#2 (at tool_call_result)     >0                   false    7   sibling+ ✓
  *   op#3 (at tool_call_result)     >0                   false    9   sibling+ ✓
  *   after the whole turn           >0                   false    12  (=4 + 2*3 + 2)
  *
- * The resident `MessageHistoryGraph` ATTACHES during the cooperative loop
- * (ensureVmMessageHistoryGraphAttached, AiAgentExecutor.ts:4159) AND the live
+ * The resident `MessageHistoryGraph` is attached eagerly during recovery and
+ * the live
  * commits LAND at EVERY op: messageCount is already > base by op#1 and grows
  * monotonically; every assistant message AND every tool result is committed into
  * the conversation domain. The fresh sibling on the same bus ALSO commits every
@@ -66,10 +67,8 @@ import { createKernelRuntimeSupportDescriptor } from "@cell/mod-ai-kernel"
  *    early-return and NOTHING would commit — but commits DO land. Moreover the
  *    resident graph's `dispose()`/`complete()` is reachable ONLY via the detach
  *    returned by `attachMessageHistory` (AiAgentExecutor.ts:2694-2700), invoked
- *    exclusively at vm teardown — never inside a live turn — and the recovered
- *    `runtimeContext` is a FRESH in-memory facet (createEmptyVmRuntimeContext,
- *    runtime.ts:114) so it carries NO stale `persistentMessageHistoryGraphDetach`
- *    (proof: consumers===0 immediately post-recovery). T2 is mechanically
+ *    exclusively at vm teardown — never inside a live turn. Recovery installs a
+ *    fresh detach handle for the eagerly attached graph, so T2 is mechanically
  *    impossible on a single coherent recovered vm during a turn.
  *
  * ===================== THE REAL DIFFERENTIATOR (measured) =====================
@@ -170,7 +169,11 @@ function makeFakeStreamingLlm(toolTurns: number) {
   let turnIndex = 0
   return {
     type: "openai" as const,
-    async createStream(_options: any) {
+    runtime: {
+      adapterName: "openai",
+      providerId: "repeat-read-e2e",
+    },
+    async createStream(options: any) {
       const thisTurn = turnIndex
       turnIndex += 1
       async function* chunks() {
@@ -195,7 +198,12 @@ function makeFakeStreamingLlm(toolTurns: number) {
           yield { choices: [{ delta: {}, finish_reason: "stop" }] }
         }
       }
-      return { stream: chunks() }
+      return {
+        stream: chunks(),
+        providerOutput: Promise.resolve({
+          provider_cache_cost_observation: createMockProviderCacheCostObservation(options),
+        }),
+      }
     },
   }
 }
@@ -284,7 +292,11 @@ async function wireRuntime(params: {
       profileId: "test",
       systemPrompt: "you are a test agent",
     },
-    modelConfig: { model: "mock" } as any,
+    modelConfig: {
+      model: "mock",
+      adapter: "openai",
+      provider: "repeat-read-e2e",
+    } as any,
     eventBus,
     registries,
     runtimeSupport,
@@ -325,11 +337,11 @@ describe("repeat-read e2e (real recover + cooperative driver + real stream pipel
       // The real scenario: the ToolCallDomain is present and holds tool results.
       ensureVmToolCallDomain(vm)
 
-      // Immediately post-recovery, before any cooperative step: the resident
-      // graph is NOT yet a bus consumer (lazy attach) and there is no stale
-      // detach carried across recovery (so T2-via-stale-detach is impossible).
+      // Immediately post-recovery, before any cooperative step, the resident
+      // graph is already a bus consumer. Recovery must not leave an event-loss
+      // window before the first cooperative tick.
       expect(busDone(vm)).toBe(false)
-      expect(busConsumerCount(vm)).toBe(0)
+      expect(busConsumerCount(vm)).toBeGreaterThan(0)
 
       const baseCount = actorMessageCount(vm)
       const baseToolCount = toolMessages(vm).length

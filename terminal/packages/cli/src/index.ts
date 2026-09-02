@@ -6,6 +6,7 @@ import { exec } from "./commands/exec"
 import { run } from "./commands/run"
 import { replay } from "./commands/replay"
 import { sessionUpgrade } from "./commands/session-upgrade"
+import { sessionFork } from "./commands/session-fork"
 import { trace } from "./commands/trace"
 import { workflow } from "./commands/workflow"
 import { globalCommand } from "./commands/global"
@@ -18,6 +19,7 @@ async function main() {
     .command(run)
     .command(replay)
     .command(sessionUpgrade)
+    .command(sessionFork)
     .command(trace)
     .command(workflow)
     .command(globalCommand)

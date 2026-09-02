@@ -15,12 +15,19 @@ import { normalizeProviderCacheUsageTokens } from "../../src/llm/ProviderCacheUs
 import { buildBuiltinToolDefs } from "../../src/composer/AIAgent/ToolFuncBuiltin";
 
 describe("provider cache-cost observation contract", () => {
-  test("only assigns the ratified normalized input weights to official DeepSeek", () => {
+  test("assigns one normalized input cost model to every DeepSeek gateway", () => {
+    expect(resolveProviderCachePriceWeights("deepseek-chat@1")).toEqual({
+      cacheHitWeight: 0.1,
+      cacheMissWeight: 1,
+    });
     expect(resolveProviderCachePriceWeights("deepseek-official-chat@1")).toEqual({
       cacheHitWeight: 0.1,
       cacheMissWeight: 1,
     });
-    expect(resolveProviderCachePriceWeights("deepseek-compatible-chat@1")).toBeNull();
+    expect(resolveProviderCachePriceWeights("deepseek-compatible-chat@1")).toEqual({
+      cacheHitWeight: 0.1,
+      cacheMissWeight: 1,
+    });
     expect(resolveProviderCachePriceWeights("openai-chat@1")).toBeNull();
   });
 
@@ -268,8 +275,8 @@ describe("provider cache-cost observation contract", () => {
     expect(workflowToolCount).toBeGreaterThan(1);
   });
 
-  test("requires explicit official versus compatible profile identity", () => {
-    expect(() => createProviderCacheCostObservation({
+  test("normalizes legacy official versus compatible identity to one protocol profile", () => {
+    const legacy = createProviderCacheCostObservation({
       identity: {
         schemaVersion: 1,
         providerId: "siliconflow",
@@ -281,7 +288,9 @@ describe("provider cache-cost observation contract", () => {
       },
       serializedRequestBody: JSON.stringify({ model: "deepseek-ai/DeepSeek-V4-Flash", messages: [], tools: [] }),
       tokenEstimates: { toolSurfaceTokens: 0, workflowControlTokens: 0 },
-    })).toThrow("provider_cache_profile_identity_mismatch");
+    });
+    expect(legacy.identity.providerProfile).toBe("deepseek");
+    expect(legacy.identity.providerProfileId).toBe("deepseek-chat@1");
     expect(() => createProviderCacheCostObservation({
       identity: {
         schemaVersion: 1,

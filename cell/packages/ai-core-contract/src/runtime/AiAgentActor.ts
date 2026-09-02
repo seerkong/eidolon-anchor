@@ -191,29 +191,12 @@ export type DetachedTaskState = {
   error?: string;
 };
 
-export type AutonomousHolonTaskState = {
-  taskId: string;
-  initiatorActorKey: string;
-  initiatorActorId: string;
-  replyMode: "final" | "none" | "stream";
-  status: "pending" | "routed" | "completed" | "failed" | "cancelled";
-  content: string;
-  createdAt: number;
-  updatedAt: number;
-  ownerActorKey?: string;
-  ownerActorId?: string;
-  ownerMemberId?: string;
-  resultText?: string;
-};
-
 export type AutonomousHolonState = {
   governance: "autonomous";
   holonId: string;
   name: string;
   memberIds: string[];
   watchState: "watched" | "unwatched";
-  taskOwnership: Record<string, string>;
-  tasks: Record<string, AutonomousHolonTaskState>;
 };
 
 export type LeaderLedHolonRouteState = {

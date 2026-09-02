@@ -25,7 +25,10 @@ import {
   LocalFileConversationPersistenceRepositoryFactory,
   loadConversationSessionRawState,
 } from "@cell/ai-support";
-import { createMockProcessStream } from "./__test_support__/mockProcessStream";
+import {
+  createMockProcessStream,
+  createMockProviderCacheCostObservation,
+} from "./__test_support__/mockProcessStream";
 
 const LARGE_ARTIFACT_TEXT = "ARTIFACT_SELECTED_CONTENT_".repeat(1_120);
 
@@ -86,6 +89,7 @@ function makeRuntime(params: {
   compactionThresholdTokens?: number;
   compressionSummary?: string;
   actorType?: "primary" | "delegate" | "detached";
+  actorId?: string;
 }) {
   const tool = makeArtifactReadTool();
   const adapter = {
@@ -107,11 +111,17 @@ function makeRuntime(params: {
         }
         yield { ok: true };
       }
-      return { stream: stream() };
+      return {
+        stream: stream(),
+        providerOutput: Promise.resolve({
+          provider_cache_cost_observation: createMockProviderCacheCostObservation(options ?? {}),
+        }),
+      };
     },
   };
   const actor = createActor({
     key: "main",
+    id: params.actorId,
     type: params.actorType,
     llmClient: adapter,
     modelConfig: {
@@ -305,7 +315,7 @@ describe("tool result first provider delivery", () => {
     let providerTurn = 0;
     const { actor, vm } = makeRuntime({
       sessionDir,
-      sessionId: "tool-result-delivery-recovery",
+      sessionId: path.basename(sessionDir),
       providerRequests,
       processStream: () => {
         providerTurn += 1;
@@ -358,6 +368,7 @@ describe("tool result first provider delivery", () => {
       const recoveredRuntime = makeRuntime({
         sessionDir,
         sessionId: path.basename(sessionDir),
+        actorId: actor.id,
         providerRequests: recoveredProviderRequests,
         compactionThresholdTokens: 80_000,
         compressionSummary: "<state_snapshot><overall_goal>recovered delivery retry</overall_goal></state_snapshot>",

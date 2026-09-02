@@ -5,6 +5,8 @@ export * from "./conversation/ActorPromptGeneration";
 export * from "./conversation/ActorProviderContextFact";
 export * from "./conversation/ConversationDomainEvents";
 export * from "./conversation/ConversationRawState";
+export * from "./conversation/ConversationSessionFork";
+export * from "./conversation/ConversationSessionRewind";
 export * from "./conversation/LocalConversationContextAsset";
 export * from "./conversation/LocalConversationSession";
 export * from "./conversation/ProviderContextEpochV2";

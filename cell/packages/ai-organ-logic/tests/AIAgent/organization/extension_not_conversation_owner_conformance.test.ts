@@ -18,7 +18,7 @@ import { describe, expect, it } from "bun:test"
  * into the domain.
  *
  * The P3 scoping audit found this invariant ALREADY holds: the multi-agent
- * extension modules (`organization/`, `detached/`, and the holon assign cores)
+ * extension modules (`organization/`, `detached/`, and the leader-led assign core)
  * contain zero conversation-domain writer or direct-reader references — member
  * messaging flows through `driver.emitFiberSignal({ mailbox_enqueue })` + the
  * `orchestrationHistory` observability stream (not conversation truth). This is
@@ -40,7 +40,6 @@ const EXTENSION_ROOTS = [
   path.join(ORGAN_SRC, "detached"),
 ]
 const EXTENSION_FILES = [
-  path.join(ORGAN_SRC, "composer", "AIAgent", "tools", "_autonomousHolonAssignCore.ts"),
   path.join(ORGAN_SRC, "composer", "AIAgent", "tools", "_leaderLedHolonAssignCore.ts"),
 ]
 

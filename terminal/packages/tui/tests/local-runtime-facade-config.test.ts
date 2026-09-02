@@ -669,12 +669,21 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.rmSync(homeDir, { recursive: true, force: true })
   })
 
-  it("emits an MCP initialization status while starting the local runtime bridge", async () => {
+  it("distinguishes local runtime preparation from the actual MCP initialization phase", async () => {
     const { workDir, homeDir } = createTempProject()
     const bridgeStart = deferred<TuiRuntimeBridge>()
     const statusMessages: string[] = []
+    let emitInitStatus: ((status: {
+      phase: "mcp"
+      status: "starting"
+      serverTotal?: number
+      message: string
+    }) => void) | undefined
 
-    __setRuntimeBridgeFactoryForTest(async () => bridgeStart.promise)
+    __setRuntimeBridgeFactoryForTest(async (_sessionID, onInitStatus) => {
+      emitInitStatus = onInitStatus
+      return bridgeStart.promise
+    })
 
     const sdk = createTuiRuntimeClient({
       mode: "local-runtime",
@@ -694,7 +703,17 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     })
     await tick()
 
-    expect(statusMessages).toContain("正在初始化 MCP...")
+    expect(statusMessages).toContain("正在初始化本地 runtime...")
+    expect(statusMessages).not.toContain("正在初始化 MCP...")
+
+    emitInitStatus?.({
+      phase: "mcp",
+      status: "starting",
+      serverTotal: 1,
+      message: "正在初始化 MCP (1 个服务)...",
+    })
+    await tick()
+    expect(statusMessages).toContain("正在初始化 MCP (1 个服务)...")
 
     bridgeStart.resolve({
       async turn() {

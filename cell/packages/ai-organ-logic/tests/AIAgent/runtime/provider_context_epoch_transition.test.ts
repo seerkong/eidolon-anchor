@@ -8,7 +8,8 @@ import { createVM } from "@cell/ai-core-logic/runtime/runtime"
 import {
   appendLiveHistoryMessageToConversationDomainRuntime,
   appendActorProviderContextFactToConversationDomainRuntime,
-  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
+  activateProviderEpochReceiptV2InConversationDomainRuntime,
+  commitDeliveredProviderContextFactsToConversationDomainRuntime,
   commitProviderContextTransition,
   emitConversationDomainEvent,
   ensureVmConversationDomainRuntime,
@@ -19,6 +20,7 @@ import {
   activateActorProviderEpoch,
   acceptActorProviderContextRevision,
   reconcileActorProviderEpochProjection,
+  resolveActorProviderSurfaceDigest,
   validateActorProviderContextEpoch,
 } from "@cell/ai-organ-logic/conversation/ProviderEpoch"
 import { createProviderEpochReceiptV2 } from "@cell/ai-organ-logic/conversation/ProviderContextEpochV2"
@@ -29,11 +31,13 @@ import {
 import {
   digestConversationProviderContextTransitionGeneration,
   LocalFileConversationPersistenceRepository,
+  LocalFileConversationPersistenceRepositoryFactory,
   type LocalProviderContextTransitionFaultPoint,
 } from "@cell/ai-support"
 import { createInMemoryConversationPersistenceAdapter } from "@cell/ai-organ-logic/conversationCapsule/coreLogic"
+import { ensureActorProviderContextEpochBeforeTransport } from "@cell/ai-organ-logic"
 
-function fixture() {
+function fixture(options: { activate?: boolean } = {}) {
   const actor = createActor({
     key: "epoch-actor",
     id: "epoch-actor-id",
@@ -60,15 +64,17 @@ function fixture() {
     actorId: actor.id,
     message: { role: "user", content: "BASE" },
   })
-  activateActorProviderEpoch({
-    vm,
-    actor,
-    sessionId: "epoch-transition-session",
-    targetProviderId: "deepseek",
-    targetProfileId: "deepseek-official-chat@1",
-    reason: "initial_projection",
-    occurredAt: "2026-08-25T15:00:00.000Z",
-  })
+  if (options.activate !== false) {
+    activateActorProviderEpoch({
+      vm,
+      actor,
+      sessionId: "epoch-transition-session",
+      targetProviderId: "deepseek",
+      targetProfileId: "deepseek-official-chat@1",
+      reason: "initial_projection",
+      occurredAt: "2026-08-25T15:00:00.000Z",
+    })
+  }
   return { actor, vm }
 }
 
@@ -83,7 +89,7 @@ function publishAppendChildAfterAdmission(replaceAdmittedPrefix = true) {
     message: { role: "assistant", content: "LEGIT" },
     occurredAt: "2026-08-25T15:00:10.000Z",
   })
-  commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+  commitDeliveredProviderContextFactsToConversationDomainRuntime({
     runtime,
     sessionId: raw.session.sessionId,
     actorKey: actor.key,
@@ -175,7 +181,7 @@ describe("provider context epoch transition", () => {
       message: { role: "assistant", content: "LEGIT_APPEND" },
       occurredAt: "2026-08-25T15:00:10.000Z",
     })
-    commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+    commitDeliveredProviderContextFactsToConversationDomainRuntime({
       runtime,
       sessionId: raw.session.sessionId,
       actorKey: actor.key,
@@ -213,7 +219,7 @@ describe("provider context epoch transition", () => {
 
   it("rejects a second admission when an append child replaces its parent's admitted byte prefix", () => {
     const { actor, vm, runtime, sessionId } = publishAppendChildAfterAdmission()
-    expect(() => commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+    expect(() => commitDeliveredProviderContextFactsToConversationDomainRuntime({
       runtime,
       sessionId,
       actorKey: actor.key,
@@ -229,7 +235,7 @@ describe("provider context epoch transition", () => {
   it("admits a distinct append child that preserves the exact parent admission prefix", () => {
     const { actor, vm, runtime, sessionId } = publishAppendChildAfterAdmission(false)
     expect(validateActorProviderContextEpoch({ vm, actor })).toBeTruthy()
-    expect(() => commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+    expect(() => commitDeliveredProviderContextFactsToConversationDomainRuntime({
       runtime,
       sessionId,
       actorKey: actor.key,
@@ -517,6 +523,85 @@ describe("provider context epoch transition", () => {
     })
   })
 
+  it("advances one provider-surface epoch when retiring an admitted legacy work-context fact", async () => {
+    const { actor, vm } = fixture({ activate: false })
+    const runtime = ensureVmConversationDomainRuntime(vm)
+    const raw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!
+    const legacySurfaceDigest = digestProviderContextClosedValue(
+      actor.toolPolicy.providerToolSurface ?? {
+        mode: actor.toolPolicy.allowedToolsMode,
+        toolNames: actor.toolPolicy.allowedTools,
+      },
+    )
+    const receipt = createProviderEpochReceiptV2({
+      sessionId: raw.session.sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      epoch: 1,
+      previousReceiptDigest: null,
+      targetProviderId: "deepseek",
+      targetModelId: "deepseek-chat",
+      targetProfileId: "deepseek-chat@1",
+      baselineHeads: {
+        historyHeadGenerationId: raw.historyHeadGenerationId ?? "__empty_history__",
+        promptHeadGenerationId: raw.promptHeadGenerationId ?? "__empty_prompt__",
+        factHeadDigest: null,
+      },
+      sourceHistoryMessageCount: raw.activeHistoryGeneration?.messages.length ?? 0,
+      sourceFrontierDigest: digestProviderContextHistoryFrontier(raw.activeHistoryGeneration?.messages ?? []),
+      pendingDeliveryDigest: digestProviderContextClosedValue([]),
+      handoffDigest: digestProviderContextClosedValue({ kind: "legacy-work-context-projection" }),
+      frozenResourceDigest: digestProviderContextClosedValue(actor.durableMaterials ?? {}),
+      providerSurfaceDigest: legacySurfaceDigest,
+      retentionPolicy: { maxRevisionsPerNamespace: 32, maxCanonicalFactBytesPerEpoch: 65_536 },
+      reason: "initial_projection",
+      compactionProofDigest: null,
+      createdAt: "2026-08-25T15:00:00.000Z",
+    })
+    activateProviderEpochReceiptV2InConversationDomainRuntime({ runtime, receipt })
+    appendActorProviderContextFactToConversationDomainRuntime({
+      runtime,
+      sessionId: raw.session.sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      namespace: "work-context",
+      payload: { workMode: "build", taskPhase: "normal", ownerRevision: 1 },
+      occurredAt: "2026-08-25T15:00:01.000Z",
+    })
+    commitDeliveredProviderContextFactsToConversationDomainRuntime({
+      runtime,
+      sessionId: raw.session.sessionId,
+      actorKey: actor.key,
+      actorId: actor.id,
+      finalRequestDigest: digestProviderContextClosedValue({ request: "legacy-admission" }),
+      sourceRecords: [],
+      occurredAt: "2026-08-25T15:00:02.000Z",
+    })
+
+    const before = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!
+    expect(before.session.actorBindings[actor.key]?.providerContextFactHead).toBeDefined()
+    expect(before.session.actorBindings[actor.key]?.providerEpochReceiptV2?.providerSurfaceDigest)
+      .toBe(legacySurfaceDigest)
+
+    await ensureActorProviderContextEpochBeforeTransport({ vm, actor })
+
+    const after = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!
+    const migrated = after.session.actorBindings[actor.key]?.providerEpochReceiptV2!
+    expect(migrated).toMatchObject({
+      epoch: 2,
+      previousReceiptDigest: receipt.receiptDigest,
+      reason: "provider_surface_revision_accepted",
+      providerSurfaceDigest: resolveActorProviderSurfaceDigest(actor),
+    })
+    expect(after.session.actorBindings[actor.key]?.providerContextFactHead).toBeNull()
+    expect(JSON.stringify(materializeConversationRuntimeMessagesFromVm({ vm, actorKey: actor.key })))
+      .not.toContain('"namespace":"work-context"')
+
+    await ensureActorProviderContextEpochBeforeTransport({ vm, actor })
+    expect(getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!
+      .session.actorBindings[actor.key]?.providerEpochReceiptV2?.receiptDigest).toBe(migrated.receiptDigest)
+  })
+
   it("rejects an over-byte-limit fact batch before mutating the Conversation authority", () => {
     const { actor, vm } = fixture()
     const runtime = ensureVmConversationDomainRuntime(vm)
@@ -526,7 +611,7 @@ describe("provider context epoch transition", () => {
       sessionId: before.session.sessionId,
       actorKey: actor.key,
       actorId: actor.id,
-      namespace: "provider-projection",
+      namespace: "task-tree-context",
       payload: { content: "x".repeat(63_000) },
       occurredAt: "2026-08-25T15:05:00.000Z",
     })
@@ -538,7 +623,7 @@ describe("provider context epoch transition", () => {
       sessionId: before.session.sessionId,
       actorKey: actor.key,
       actorId: actor.id,
-      namespace: "provider-projection",
+      namespace: "task-tree-context",
       payload: { content: "y".repeat(2_000) },
       occurredAt: "2026-08-25T15:05:01.000Z",
     })).toThrow("provider_context_retention_compaction_required")
@@ -842,6 +927,46 @@ describe("provider context epoch transition", () => {
       expect((await fresh.loadSessionIndex()).session.actorBindings[actor.key]
         ?.providerEpochReceiptV2).toEqual(rewindReceipt)
       expect(await fresh.loadHistoryGeneration(rewindGenerationId)).toEqual(rewindGeneration)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("repairs a session receipt whose durable transition head is missing", async () => {
+    const sessionDir = fs.mkdtempSync(path.join(os.tmpdir(), "provider-context-missing-head-"))
+    try {
+      const { actor, vm } = fixture()
+      ;(vm as any).outerCtx = {
+        ...(vm as any).outerCtx,
+        metadata: { sessionId: "epoch-transition-session", sessionDir },
+        conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
+      }
+      activateActorProviderEpoch({
+        vm,
+        actor,
+        sessionId: "epoch-transition-session",
+        targetProviderId: "deepseek",
+        targetProfileId: "deepseek-chat@1",
+        reason: "model_control",
+        occurredAt: "2026-08-25T15:30:00.000Z",
+      })
+      const raw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!
+      const repository = new LocalFileConversationPersistenceRepository(sessionDir)
+      await repository.writeHistoryIndex(raw.session.historyIndex)
+      if (raw.activeHistoryGeneration) await repository.writeHistoryGeneration(raw.activeHistoryGeneration)
+      await repository.writePromptIndex(raw.session.promptIndex)
+      if (raw.promptGeneration) await repository.writePromptGeneration(raw.promptGeneration)
+      await repository.writeSessionIndex(raw.session.sessionIndex)
+
+      await ensureActorProviderContextEpochBeforeTransport({ vm, actor })
+
+      const receipt = (await repository.loadSessionIndex()).session.actorBindings[actor.key]!
+        .providerEpochReceiptV2!
+      const head = JSON.parse(fs.readFileSync(
+        path.join(sessionDir, "conversation", "provider-context-transitions", "head.json"),
+        "utf8",
+      ))
+      expect(head.nextEpochReceiptDigest).toBe(receipt.receiptDigest)
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }

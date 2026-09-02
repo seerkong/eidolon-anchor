@@ -9,7 +9,10 @@ import {
   executeStreamingSandboxedBashCommand,
   resolveSandboxBackendSelectionFromRuntime,
 } from "@cell/ai-organ-logic/sandbox"
-import { authorizeLocalToolCall } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime"
+import {
+  authorizeLocalToolCall,
+  isToolGuardedBashCommand,
+} from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime"
 import { getDetachedActorObservabilityStore } from "@cell/ai-organ-logic/detached/DetachedActorObservability"
 import path from "path"
 
@@ -67,8 +70,8 @@ export const runDetachedBashCoreLogic: StdInnerLogic<
     const cwd = path.isAbsolute(workdirRaw)
       ? workdirRaw
       : path.resolve(String(runtime.vm.outerCtx.workDir ?? process.cwd()), workdirRaw)
-    const dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"]
-    if (dangerous.some((item) => command.includes(item))) {
+    // Keep detached Bash aligned with foreground Bash: yolo exempts sudo only.
+    if (isToolGuardedBashCommand(runtime, command)) {
       return JSON.stringify({ ok: false, error: "Dangerous command blocked" })
     }
 

@@ -19,16 +19,16 @@ import {
 } from "@cell/ai-organ-logic/lane/AiAgentWorkload"
 
 describe("AIAgent lane semantics", () => {
-  it("treats interactive/member as foreground and detached/autonomous-holon as background lanes", () => {
+  it("treats interactive/member as foreground and detached/organization as background lanes", () => {
     expect(isForegroundAiAgentLane(AI_AGENT_LANES.interactive)).toBe(true)
     expect(isForegroundAiAgentLane(AI_AGENT_LANES.member)).toBe(true)
     expect(isForegroundAiAgentLane(AI_AGENT_LANES.detached)).toBe(false)
-    expect(isForegroundAiAgentLane(AI_AGENT_LANES.autonomousHolon)).toBe(false)
+    expect(isForegroundAiAgentLane(AI_AGENT_LANES.organization)).toBe(false)
 
     expect(isBackgroundAiAgentLane(AI_AGENT_LANES.interactive)).toBe(false)
     expect(isBackgroundAiAgentLane(AI_AGENT_LANES.member)).toBe(false)
     expect(isBackgroundAiAgentLane(AI_AGENT_LANES.detached)).toBe(true)
-    expect(isBackgroundAiAgentLane(AI_AGENT_LANES.autonomousHolon)).toBe(true)
+    expect(isBackgroundAiAgentLane(AI_AGENT_LANES.organization)).toBe(true)
   })
 
   it("routes sync delegate work by parent actor semantics", () => {
@@ -42,18 +42,18 @@ describe("AIAgent lane semantics", () => {
       lane: AI_AGENT_LANES.member,
     } as any
 
-    const autonomousHolonMember = createActor({ key: "member-autonomous-holon" })
-    autonomousHolonMember.identity = {
+    const secondMember = createActor({ key: "member-second" })
+    secondMember.identity = {
       kind: "member",
       memberId: "m2",
       name: "Bob",
       role: "worker",
-      lane: AI_AGENT_LANES.autonomousHolon,
+      lane: AI_AGENT_LANES.member,
     } as any
 
     expect(resolveDelegateLane(controlActor, "sync_wait")).toBe(AI_AGENT_LANES.interactive)
     expect(resolveDelegateLane(memberActor, "sync_wait")).toBe(AI_AGENT_LANES.member)
-    expect(resolveDelegateLane(autonomousHolonMember, "sync_wait")).toBe(AI_AGENT_LANES.autonomousHolon)
+    expect(resolveDelegateLane(secondMember, "sync_wait")).toBe(AI_AGENT_LANES.member)
     expect(resolveDelegateLane(controlActor, "detached")).toBe(AI_AGENT_LANES.detached)
   })
 
@@ -69,7 +69,7 @@ describe("AIAgent lane semantics", () => {
 
     expect(resolveMainFiberWorkload(AI_AGENT_LANES.interactive)).toBe(AI_AGENT_WORKLOADS.sessionTurn)
     expect(resolveMemberWorkload(AI_AGENT_LANES.member)).toBe(AI_AGENT_WORKLOADS.memberTurn)
-    expect(resolveMemberWorkload(AI_AGENT_LANES.autonomousHolon)).toBe(AI_AGENT_WORKLOADS.autonomousHolonTask)
+    expect(resolveMainFiberWorkload(AI_AGENT_LANES.organization)).toBe(AI_AGENT_WORKLOADS.organizationTurn)
 
     expect(resolveDelegateWorkload(controlActor, { mode: "sync_wait" })).toBe(AI_AGENT_WORKLOADS.syncDelegateTask)
     expect(resolveDelegateWorkload(controlActor, { mode: "detached" })).toBe(AI_AGENT_WORKLOADS.detachedDelegateTask)
@@ -88,19 +88,19 @@ describe("AIAgent lane semantics", () => {
       lane: AI_AGENT_LANES.member,
     } as any
 
-    const autonomousHolonMember = createActor({ key: "member-autonomous-holon", type: "delegate" as any })
-    autonomousHolonMember.identity = {
+    const secondMember = createActor({ key: "member-second", type: "delegate" as any })
+    secondMember.identity = {
       kind: "member",
       memberId: "m2",
       name: "Bob",
       role: "worker",
-      lane: AI_AGENT_LANES.autonomousHolon,
+      lane: AI_AGENT_LANES.member,
     } as any
 
     const delegateActor = createActor({ key: "delegate-worker", type: "delegate" as any })
 
     expect(inferFiberWorkload({ actor: memberActor, lane: AI_AGENT_LANES.member })).toBe(AI_AGENT_WORKLOADS.memberTurn)
-    expect(inferFiberWorkload({ actor: autonomousHolonMember, lane: AI_AGENT_LANES.autonomousHolon })).toBe(AI_AGENT_WORKLOADS.autonomousHolonTask)
+    expect(inferFiberWorkload({ actor: secondMember, lane: AI_AGENT_LANES.member })).toBe(AI_AGENT_WORKLOADS.memberTurn)
     expect(inferFiberWorkload({ actor: delegateActor, lane: AI_AGENT_LANES.member, kind: "delegate" })).toBe(AI_AGENT_WORKLOADS.syncDelegateTask)
   })
 })

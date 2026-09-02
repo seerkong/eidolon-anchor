@@ -229,7 +229,6 @@ describe("TerminalRuntime composer adoption", () => {
     configureTerminalRuntime({
       workDir: activeWorkdir,
       mcp: false,
-      providerChatCompatibilityProfileId: "deepseek-compatible-chat@1",
     })
     const runtime = await getTerminalRuntimeBridge("composer-adoption")
     expect(runtime).toBeTruthy()
@@ -834,6 +833,18 @@ describe("TerminalRuntime composer adoption", () => {
 
     await runtime!.setActorActiveModel?.({}, { providerID: "openai", modelID: "second-model" })
     expect(adapterPorts).toEqual([port, port])
+    const sessionDir = path.join(activeWorkdir, ".eidolon", "sessions", "composer-adoption")
+    const transitionHead = JSON.parse(fs.readFileSync(
+      path.join(sessionDir, "conversation", "provider-context-transitions", "head.json"),
+      "utf8",
+    ))
+    const sessionIndex = JSON.parse(fs.readFileSync(
+      path.join(sessionDir, "conversation", "session.index.json"),
+      "utf8",
+    ))
+    const activeBinding = sessionIndex.session.actorBindings[sessionIndex.session.activeActorKey]
+    expect(activeBinding.providerEpochReceiptV2.receiptDigest)
+      .toBe(transitionHead.nextEpochReceiptDigest)
     await runtime!.turn("after refresh")
 
     expect(requestExecutionIdentities).toHaveLength(2)

@@ -61,7 +61,6 @@ export type WorkflowAgentArgs = {
   timeout?: number
   outputTrace?: string
   captureProviderRequests?: boolean
-  providerChatProfile?: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
   json?: boolean
 }
 
@@ -78,7 +77,6 @@ export type WorkflowRuntimeArgs = {
   profile?: string
   timeout?: number
   captureRuntimeEvidence?: boolean
-  providerChatProfile?: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
   json?: boolean
   yes?: boolean
   materialRef?: string
@@ -239,7 +237,6 @@ async function callRuntimeTool(
     timeoutSeconds: args.timeout,
     sessionKey: args.session?.trim() || undefined,
     captureRuntimeEvidence: args.captureRuntimeEvidence === true,
-    providerChatCompatibilityProfileId: args.providerChatProfile,
   })
   renderRuntimeToolResult(deps, toolName, value, args.json)
 }
@@ -254,11 +251,6 @@ function withRuntimeOptions(yargs: any) {
       type: "boolean",
       default: false,
       describe: "include public Provider-cache and Workflow execution evidence in the JSON result",
-    })
-    .option("provider-chat-profile", {
-      type: "string",
-      choices: ["deepseek-official-chat@1", "deepseek-compatible-chat@1"] as const,
-      describe: "explicit Chat Completions compatibility profile for Provider evidence",
     })
     .option("json", { type: "boolean", default: false })
 }
@@ -347,7 +339,6 @@ async function runWorkflowAgent(deps: WorkflowCommandDeps, input: WorkflowAgentA
     failOnToolError: ["WorkflowFulfill"],
     outputTracePath: input.outputTrace,
     captureProviderRequests: input.captureProviderRequests,
-    providerChatCompatibilityProfileId: input.providerChatProfile,
   })
   if (input.json) {
     writeJson(deps.processLike, {
@@ -441,11 +432,6 @@ export function createWorkflowCommand(
               type: "boolean",
               default: false,
               describe: "capture complete provider request attempts in the session SQLite ledger",
-            })
-            .option("provider-chat-profile", {
-              type: "string",
-              choices: ["deepseek-official-chat@1", "deepseek-compatible-chat@1"] as const,
-              describe: "explicit versioned DeepSeek chat compatibility profile",
             })
             .option("publish", { type: "boolean", default: false, describe: "explicitly authorize publication, but not execution" })
             .option("execute", {

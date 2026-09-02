@@ -89,7 +89,7 @@ export type VmMemberRosterEntry = {
   name: string;
   role: string;
   agentType: string;
-  lane: "member" | "autonomous_holon";
+  lane: "member";
   fiberId: string;
   actorKey: string;
   actorId: string;
@@ -225,7 +225,6 @@ export type VmRuntimeContext = {
   contextResourcePresentations: Record<string, ContextResourcePresentationData>;
   heartbeatScheduler: HeartbeatSchedulerRuntimeState | null;
   threadGoalRuntime: VmThreadGoalRuntimeState;
-  autonomousHolonTaskSignals: CompletionSignalRegistryLike<string, { status: string; resultText: string | null }>;
   leaderLedHolonRouteSignals: CompletionSignalRegistryLike<string, { resultText: string | null }>;
 };
 

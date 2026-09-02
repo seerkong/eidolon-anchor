@@ -16,6 +16,11 @@ export type ResponsesProjectionCoverageProof = Readonly<{
   sourceToolOutputIds: readonly string[];
   emittedToolCallIds: readonly string[];
   emittedToolOutputIds: readonly string[];
+  omittedInterruptedToolCallIds?: readonly string[];
+}>;
+
+export type ResponsesCanonicalReplayPolicy = Readonly<{
+  interruptedToolCall?: "strict" | "omit_before_later_user";
 }>;
 
 export class ResponsesProjectionCoverageError extends Error {
@@ -52,6 +57,7 @@ function messageToolOutputIds(messages: readonly any[]): string[] {
 function createCoverageProof(
   messages: readonly any[],
   items: readonly OpenAIResponsesInputItem[],
+  omittedInterruptedToolCallIds: readonly string[] = [],
 ): ResponsesProjectionCoverageProof {
   const sourceToolCallIds = messageToolCallIds(messages);
   const sourceToolOutputIds = messageToolOutputIds(messages);
@@ -59,8 +65,9 @@ function createCoverageProof(
   const emittedToolOutputIds = items.flatMap((item) => item.type === "function_call_output" ? [item.call_id] : []);
   const emittedCallSet = new Set(emittedToolCallIds);
   const emittedOutputSet = new Set(emittedToolOutputIds);
+  const omittedCallSet = new Set(omittedInterruptedToolCallIds);
   const missingIds = [
-    ...sourceToolCallIds.filter((id) => !emittedCallSet.has(id)).map((id) => `call:${id}`),
+    ...sourceToolCallIds.filter((id) => !emittedCallSet.has(id) && !omittedCallSet.has(id)).map((id) => `call:${id}`),
     ...sourceToolOutputIds.filter((id) => !emittedOutputSet.has(id)).map((id) => `output:${id}`),
   ];
   if (missingIds.length > 0) throw new ResponsesProjectionCoverageError(missingIds);
@@ -70,17 +77,49 @@ function createCoverageProof(
     sourceToolOutputIds: Object.freeze(sourceToolOutputIds),
     emittedToolCallIds: Object.freeze(emittedToolCallIds),
     emittedToolOutputIds: Object.freeze(emittedToolOutputIds),
+    ...(omittedInterruptedToolCallIds.length > 0
+      ? { omittedInterruptedToolCallIds: Object.freeze([...omittedInterruptedToolCallIds]) }
+      : {}),
   });
+}
+
+function interruptedToolCallsSupersededByUser(messages: readonly any[]): readonly string[] {
+  const outputIds = new Set(messageToolOutputIds(messages));
+  const omitted: string[] = [];
+  let laterUserExists = false;
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message) continue;
+    if (message.role === "user") {
+      laterUserExists = true;
+      continue;
+    }
+    if (message.role !== "assistant" || !laterUserExists) continue;
+    const calls = message.tool_calls ?? message.toolCalls ?? [];
+    if (!Array.isArray(calls)) continue;
+    for (const call of calls) {
+      const id = String(call?.id ?? "").trim();
+      if (id && !outputIds.has(id) && !omitted.includes(id)) omitted.push(id);
+    }
+  }
+  return Object.freeze(omitted.reverse());
 }
 
 export function compileConversationToResponsesCanonicalReplay(
   messages: readonly any[],
+  policy: ResponsesCanonicalReplayPolicy = {},
 ): ResponsesCanonicalReplay {
-  const items = Object.freeze(buildOpenAIResponsesFullInputItems([...messages]));
+  const omittedInterruptedToolCallIds = policy.interruptedToolCall === "omit_before_later_user"
+    ? interruptedToolCallsSupersededByUser(messages)
+    : Object.freeze([] as string[]);
+  const omittedSet = new Set(omittedInterruptedToolCallIds);
+  const items = Object.freeze(buildOpenAIResponsesFullInputItems([...messages]).filter((item) => (
+    item.type !== "function_call" || !omittedSet.has(item.call_id)
+  )));
   return Object.freeze({
     kind: "responses_canonical_replay",
     items,
-    coverageProof: createCoverageProof(messages, items),
+    coverageProof: createCoverageProof(messages, items, omittedInterruptedToolCallIds),
   });
 }
 

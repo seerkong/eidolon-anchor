@@ -33,6 +33,22 @@ function stableDigest(value: unknown): `sha256:${string}` {
   return digestProviderContextClosedValue(JSON.parse(persisted));
 }
 
+export const PROVIDER_CONTEXT_PROJECTION_POLICY_REVISION = "control-only-work-context@1";
+
+export function digestProviderSurfaceIdentity(providerToolSurface: unknown): `sha256:${string}` {
+  return stableDigest({
+    contextProjectionPolicy: PROVIDER_CONTEXT_PROJECTION_POLICY_REVISION,
+    providerToolSurface,
+  });
+}
+
+export function resolveActorProviderSurfaceDigest(actor: AiAgentActor): `sha256:${string}` {
+  return digestProviderSurfaceIdentity(actor.toolPolicy.providerToolSurface ?? {
+    mode: actor.toolPolicy.allowedToolsMode,
+    toolNames: actor.toolPolicy.allowedTools,
+  });
+}
+
 function v2TransitionReason(
   reason: "initial_projection" | "model_control" | "recovery_rebuild",
 ): "initial_projection" | "provider_model_profile_switch" | "recovery_rebuild" {
@@ -49,16 +65,9 @@ export function resolveProviderEpochProfileId(
   if (adapter === "anthropic") return "anthropic-chat@1";
   if (adapter === "claude") return "claude-code@1";
   if (adapter === "deepseek") {
-    const configured = modelConfig.options?.compatibilityProfile
-      ?? modelConfig.options?.compatibility_profile;
-    if (configured === "deepseek-compatible-chat@1" || configured === "deepseek-official-chat@1") {
-      return configured;
-    }
-    if (runtimeChatCompatibilityProfileId === "deepseek-compatible-chat@1"
-      || runtimeChatCompatibilityProfileId === "deepseek-official-chat@1") {
-      return runtimeChatCompatibilityProfileId;
-    }
-    throw new Error("provider_chat_compatibility_profile_required");
+    // The adapter owns protocol semantics. Legacy configured/runtime ids are
+    // intentionally ignored after proving the selected adapter is DeepSeek.
+    return "deepseek-chat@1";
   }
   throw new Error("unsupported_provider_epoch_profile");
 }
@@ -158,10 +167,7 @@ export function activateActorProviderEpoch(params: {
       frozenResourceDigest: currentV2?.frozenResourceDigest
         ?? stableDigest(params.actor.durableMaterials ?? {}),
       providerSurfaceDigest: currentV2?.providerSurfaceDigest
-        ?? stableDigest(params.actor.toolPolicy.providerToolSurface ?? {
-          mode: params.actor.toolPolicy.allowedToolsMode,
-          toolNames: params.actor.toolPolicy.allowedTools,
-        }),
+        ?? resolveActorProviderSurfaceDigest(params.actor),
       retentionPolicy: {
         maxRevisionsPerNamespace: 32,
         maxCanonicalFactBytesPerEpoch: 65_536,

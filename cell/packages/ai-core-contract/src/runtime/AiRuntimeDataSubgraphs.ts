@@ -295,7 +295,7 @@ const MEMBER_HOLON_DATA_CONTRACT: DataSubgraphContract = {
   // owners today — the member roster lives on the VM session state
   // (VmMemberRosterEntry records: member identity / role / lane), holon
   // governance lives on the actor (HolonActorState: autonomous vs leader_led,
-  // memberIds, taskOwnership / routes), and detached tasks live on the VM
+  // memberIds / leader-led routes), and detached tasks live on the VM
   // session state (VmDetachedActorRecord delegate/subagent task records). All
   // three are live runtime truth, single writer, so they are authoritative_fact.
   // Routing the ad-hoc write points onto the writeCommands belongs to P2.

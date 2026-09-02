@@ -46,7 +46,7 @@ export function planCodumentPropositionMatrix(input: Readonly<{
   if (input.selection.kind === "deterministic") {
     return Object.freeze({ deterministic: true, liveEvidence: "none", cells: Object.freeze([]) })
   }
-  if (input.liveEvidence !== "official" && input.liveEvidence !== "compatible") {
+  if (input.liveEvidence !== "deepseek") {
     throw new Error("live proposition cells require an explicit live evidence class")
   }
 
@@ -91,7 +91,7 @@ export async function runCodumentPropositionMatrixPlan(input: Readonly<{
   }>>
 }>): Promise<readonly CodumentPropositionMatrixCellResult[]> {
   if (input.plan.deterministic || input.plan.cells.length === 0) return Object.freeze([])
-  if (input.plan.liveEvidence !== "official" && input.plan.liveEvidence !== "compatible") {
+  if (input.plan.liveEvidence !== "deepseek") {
     throw new Error("matrix execution requires an explicit live-evidence plan")
   }
   const completed = new Set(input.completedCellKeys ?? [])

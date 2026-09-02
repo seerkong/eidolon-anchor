@@ -9,8 +9,7 @@
   },
   "include": [
     "packages/ai-organ-logic/type-tests/agent-halfcode-pipeline.ts",
-    "packages/ai-organ-logic/src/ambient-assets.d.ts",
-    "../testkit/codument-proposition/agent-resources/**/*.ts"
+    "packages/ai-organ-logic/src/ambient-assets.d.ts"
   ],
   "exclude": []
 }

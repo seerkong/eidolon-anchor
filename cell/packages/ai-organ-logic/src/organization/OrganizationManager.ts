@@ -5,7 +5,6 @@ import { ensureVmRuntimeContext, ensureVmSessionState, type AiAgentVm, type VmAu
 import { AI_AGENT_LANES } from "../lane/AiAgentLane";
 import { AI_AGENT_WORKLOADS } from "../lane/AiAgentWorkload";
 import { getMemberManager } from "./MemberManager";
-import { assertLegacyHolonTaskWriteAllowed } from "./HolonLegacyTaskAuthority";
 
 export type OrganizationHolonRecord = VmAutonomousHolonRecord | VmLeaderLedHolonRecord;
 
@@ -23,7 +22,6 @@ export type OrganizationHolonRecord = VmAutonomousHolonRecord | VmLeaderLedHolon
  * single-writer funnel, no invariant is added or changed.
  */
 export function writeHolonGovernance(actor: AiAgentActor, next: HolonActorState): void {
-  assertLegacyHolonTaskWriteAllowed(actor, next);
   actor.holonState = next;
 }
 
@@ -146,8 +144,8 @@ export class OrganizationManager {
       messages: actor.messages,
       basePriority: 1,
       kind: "control",
-      lane: AI_AGENT_LANES.autonomousHolon,
-      workload: AI_AGENT_WORKLOADS.autonomousHolonTask,
+      lane: AI_AGENT_LANES.organization,
+      workload: AI_AGENT_WORKLOADS.organizationTurn,
     });
     driver.suspendFiber(fiberId, Date.now(), "external");
   }
@@ -186,8 +184,6 @@ export class OrganizationManager {
           name: record.name,
           memberIds: [...record.memberIds],
           watchState: record.watchState ?? "unwatched",
-          taskOwnership: {},
-          tasks: {},
         },
       });
       vm.actors[key] = actor;
@@ -201,12 +197,9 @@ export class OrganizationManager {
         name: record.name,
         memberIds: [...record.memberIds],
         watchState: record.watchState ?? actor.watchState ?? "unwatched",
-        taskOwnership: {},
-        tasks: {},
       });
     }
     actor.watchState = actor.holonState?.watchState ?? record.watchState ?? "unwatched";
-    this.ensureOrganizationActorFiber(vm, key, record.holonId);
     return actor;
   }
 
@@ -353,8 +346,6 @@ export class OrganizationManager {
         name: actor.holonState?.governance === "autonomous" ? actor.holonState.name : holon.name,
         memberIds: [...memberIds],
         watchState: actor.holonState?.watchState ?? actor.watchState ?? holon.watchState ?? "unwatched",
-        taskOwnership: { ...((actor.holonState?.governance === "autonomous" ? actor.holonState.taskOwnership : {}) ?? {}) },
-        tasks: Object.fromEntries(Object.entries(actor.holonState?.governance === "autonomous" ? actor.holonState.tasks : {}).map(([taskId, task]) => [taskId, { ...task }])),
       } satisfies HolonActorState;
       writeHolonGovernance(actor, nextState);
       actor.watchState = nextState.watchState;
@@ -413,8 +404,6 @@ export class OrganizationManager {
         name: actor.holonState?.governance === "autonomous" ? actor.holonState.name : holon.name,
         memberIds: [...(actor.holonState?.governance === "autonomous" ? actor.holonState.memberIds : holon.memberIds)],
         watchState,
-        taskOwnership: { ...((actor.holonState?.governance === "autonomous" ? actor.holonState.taskOwnership : {}) ?? {}) },
-        tasks: Object.fromEntries(Object.entries(actor.holonState?.governance === "autonomous" ? actor.holonState.tasks : {}).map(([taskId, task]) => [taskId, { ...task }])),
       } satisfies HolonActorState;
       writeHolonGovernance(actor, nextState);
       actor.watchState = watchState;

@@ -34,12 +34,12 @@ import {
 import {
   assertExactProviderContextHistoryPrefix,
   assertProviderContextClosedValue,
-  createProviderContextCompactionProof,
   createProviderEpochReceiptV2,
   createProviderRequestAdmissionReceipt,
   digestLegacyProviderEpochReceipt,
   digestProviderContextClosedValue,
   digestProviderContextHistoryFrontier,
+  normalizeProviderContextCompactionProof,
 } from "../../conversation/ProviderContextEpochV2";
 import {
   committedHistoryRefsToMessages,
@@ -874,8 +874,8 @@ export function commitProviderContextTransition(
       throw new Error("provider_context_transition_compaction_proof_missing");
     }
   } else {
-    const { schemaVersion: _schemaVersion, proofDigest, ...proofFacts } = input.compactionProof;
-    const exactProof = createProviderContextCompactionProof(proofFacts);
+    const proofDigest = input.compactionProof.proofDigest;
+    const exactProof = normalizeProviderContextCompactionProof(input.compactionProof);
     if (exactProof.proofDigest !== proofDigest
       || input.reason !== "history_compaction"
       || exactReceipt.compactionProofDigest !== proofDigest
@@ -885,6 +885,12 @@ export function commitProviderContextTransition(
       throw new Error("provider_context_transition_compaction_proof_conflict");
     }
     for (const retained of exactProof.retained) {
+      const sourceNamespace = "namespace" in retained
+        ? retained.namespace
+        : retained.sourceNamespace;
+      const successorNamespace = "namespace" in retained
+        ? retained.namespace
+        : retained.successorNamespace;
       const source = priorFacts.get(retained.sourceFactDigest);
       const successor = stagedFacts.get(retained.successorFactDigest);
       const delivery = source?.sourceDeliveryProofs[0];
@@ -908,14 +914,14 @@ export function commitProviderContextTransition(
         && delivery.requestAdmissionDigest === retained.requestAdmissionDigest;
       const successorProof = successor?.sourceDeliveryProofs[0];
       if (!source || !successor || !delivery
-        || source.namespace !== retained.namespace
+        || source.namespace !== sourceNamespace
         || source.namespaceRevision !== retained.namespaceRevision
         || source.payloadDigest !== retained.payloadDigest
         || delivery.callRecordDigest !== retained.callRecordDigest
         || delivery.resultRecordDigest !== retained.resultRecordDigest
         || delivery.requestAdmissionIntentDigest !== retained.requestAdmissionIntentDigest
         || (!exactFirstDelivery && !exactCompactedDelivery)
-        || successor.namespace !== source.namespace
+        || successor.namespace !== successorNamespace
         || successor.namespaceRevision !== source.namespaceRevision
         || successor.payloadDigest !== source.payloadDigest
         || successor.previousFactDigest !== source.factDigest
@@ -2690,7 +2696,7 @@ export function confirmToolResultDeliveriesToConversationDomainRuntime(params: {
   });
 }
 
-function providerProjectionAssetId(actorKey: string, projectionKey: string, revision: string): string {
+function legacyProviderProjectionAssetId(actorKey: string, projectionKey: string, revision: string): string {
   return `provider-projection:${encodeURIComponent(actorKey)}:${encodeURIComponent(projectionKey)}:${encodeURIComponent(revision)}`;
 }
 
@@ -2805,7 +2811,7 @@ export function appendActorProviderContextFactToConversationDomainRuntime(params
   return candidate;
 }
 
-export function commitDeliveredProviderProjectionFactsToConversationDomainRuntime(params: {
+export function commitDeliveredProviderContextFactsToConversationDomainRuntime(params: {
   runtime: ConversationDomainRuntime;
   sessionId: string;
   actorKey: string;
@@ -2858,7 +2864,7 @@ export function commitDeliveredProviderProjectionFactsToConversationDomainRuntim
       updatedAt: occurredAt,
     });
     candidates.push({
-      namespace: "provider-projection",
+      namespace: "task-tree-context",
       payload: {
         logicalKey: projection.projectionKey,
         revision: projection.revision,
@@ -3174,7 +3180,7 @@ export function upsertProviderContextFactCandidateToConversationDomainRuntime(pa
   return assetId;
 }
 
-export function upsertProviderProjectionFactToConversationDomainRuntime(params: {
+export function upsertLegacyProviderProjectionFactToConversationDomainRuntime(params: {
   runtime: ConversationDomainRuntime;
   sessionId: string;
   projectionFact: LocalConversationProviderProjectionFact;
@@ -3197,7 +3203,7 @@ export function upsertProviderProjectionFactToConversationDomainRuntime(params: 
     sourceToolCalls.set(sourceKey, source);
   }
   const assetId = existing?.assetId
-    ?? providerProjectionAssetId(
+    ?? legacyProviderProjectionAssetId(
       params.projectionFact.actorKey,
       params.projectionFact.projectionKey,
       params.projectionFact.revision,
@@ -3224,6 +3230,10 @@ export function upsertProviderProjectionFactToConversationDomainRuntime(params: 
   });
   return assetId;
 }
+
+/** @deprecated Persisted pre-semantic-name session compatibility only. */
+export const upsertProviderProjectionFactToConversationDomainRuntime =
+  upsertLegacyProviderProjectionFactToConversationDomainRuntime;
 
 function responsesReplayCheckpointAssetId(actorKey: string): string {
   return `responses-replay:${encodeURIComponent(actorKey)}`;

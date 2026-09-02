@@ -14,7 +14,6 @@ import type { AiAgentVm } from "@cell/ai-core-logic/runtime/runtime";
 import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor";
 import { createHash } from "node:crypto";
 import {
-  appendActorProviderContextFactToConversationDomainRuntime,
   getConversationActorRawStateFromVm,
   getVmConversationDomainRuntime,
   recordPromptRequestToConversationDomainRuntime,
@@ -469,10 +468,10 @@ export function materializeExecutionMessagesWithWorkContext(params: {
  * refactor-ai-semantic-conversation-spine, T4.3): builds that do not record a
  * prompt generation (compaction ratio gates) may run before the actor has any
  * active prompt generation, in which case the materialization carries no
- * Stage-1 system prompts and no work-context overlay yet. Complete the
- * estimate purely so the gate evaluates the provider-READY prompt: root the
- * plan's system prompts and insert the overlay unless already present. The
- * input is the domain materialization — never a raw message array.
+ * Stage-1 system prompts yet. Complete the estimate purely so the gate
+ * evaluates the provider-ready prompt by rooting the plan's system prompts.
+ * Work context remains runtime-only metadata. The input is the domain
+ * materialization — never a raw message array.
  */
 export function completeEstimationPromptMaterialization(params: {
   promptPlan: PromptPlanData;
@@ -540,37 +539,6 @@ export function recordPromptPlanForActorExecution(params: {
     },
     occurredAt: params.occurredAt,
   });
-  const refreshed = getConversationActorRawStateFromVm({
-    vm: params.vm,
-    actorKey: params.actor.key,
-    sessionId,
-  });
-  const priorWorkFact = (refreshed?.session.contextAssets ?? [])
-    .map((asset) => asset.providerContextFact)
-    .filter((fact) => fact?.actorKey === params.actor.key && fact.namespace === "work-context")
-    .sort((left, right) => (left?.namespaceRevision ?? 0) - (right?.namespaceRevision ?? 0))
-    .at(-1);
-  const semanticPayload = {
-    workMode: promptPlan.workContext.workMode,
-    taskPhase: promptPlan.workContext.taskPhase,
-  };
-  const priorPayload = priorWorkFact?.payload as Record<string, unknown> | undefined;
-  if (priorPayload?.workMode !== semanticPayload.workMode || priorPayload?.taskPhase !== semanticPayload.taskPhase) {
-    appendActorProviderContextFactToConversationDomainRuntime({
-      runtime,
-      sessionId,
-      actorKey: params.actor.key,
-      actorId: params.actor.id,
-      namespace: "work-context",
-      payload: {
-        ...semanticPayload,
-        ownerRevision: (Number(priorPayload?.ownerRevision) || 0) + 1,
-      },
-      occurredAt: params.occurredAt
-        ?? promptPlan.workContext.taskPhaseUpdatedAt
-        ?? promptPlan.workContext.workModeUpdatedAt,
-    });
-  }
   return {
     promptGenerationId,
     promptPlan,

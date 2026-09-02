@@ -1,6 +1,5 @@
 import { BoundedEventLog, LIVE_EVENT_REPLAY_LIMIT } from "@cell/symbiont-logic/stream/BoundedTimeline";
 
-import type { AutonomousHolonClaimPayload, AutonomousHolonIdleExitPayload } from "@cell/ai-core-contract/runtime/AutonomousHolon";
 import type { DetachedActorKind, DetachedActorTerminalStatus } from "@cell/ai-core-contract/runtime/DetachedActor";
 import type { QuestionnaireRequestPayload, QuestionnaireResultPayload } from "@cell/ai-core-contract/runtime/Questionnaire";
 import type { VmThreadGoalRecord } from "@cell/ai-core-contract/runtime/AiAgentVm";
@@ -373,24 +372,6 @@ export class AgentEventGraph {
     payload: { coordination: string; kind: string; requestId: string; status: string; decision?: string; from?: string },
   ): void {
     this.emitCoordinationEvent(actor, payload);
-  }
-
-  emitAutonomousHolonClaim(actor: ActorLike, payload: AutonomousHolonClaimPayload): void {
-    this.emit({
-      ...this.toBase(actor),
-      event_type: "semantic_notice",
-      message: `Autonomous holon claim: ${payload.taskId} -> ${payload.memberId}`,
-      level: "info",
-    });
-  }
-
-  emitAutonomousHolonIdleExit(actor: ActorLike, payload: AutonomousHolonIdleExitPayload): void {
-    this.emit({
-      ...this.toBase(actor),
-      event_type: "semantic_notice",
-      message: `Autonomous holon idle exit: ${payload.memberId} (${payload.idleTimeoutMs}ms)`,
-      level: "info",
-    });
   }
 
   emitThreadGoalUpdate(

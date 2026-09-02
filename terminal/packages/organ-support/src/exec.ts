@@ -5,7 +5,6 @@ import type { MessageHistoryEvent } from "@cell/ai-core-logic/stream/MessageHist
 import type { AiAgentVmUsageData } from "@cell/ai-core-contract/runtime/AiAgentVm";
 import type { ProviderCacheCostObservation } from "@cell/ai-organ-contract/llm/ProviderCacheCostObservation";
 import type { WorkflowPublicRuntimeEvidence } from "@cell/ai-organ-contract/workflow/WorkflowPublicRuntimeEvidence";
-import type { ProviderChatCompatibilityProfileId } from "@cell/ai-organ-contract/llm/ProviderRuntime";
 import {
   type ExecApprovalMode,
   ExecProtocolGraph,
@@ -41,7 +40,6 @@ export type HeadlessExecOptions = {
   /** Exact tool identities whose structured error result makes this run fail. */
   failOnToolError?: readonly string[];
   captureProviderRequests?: boolean;
-  providerChatCompatibilityProfileId?: ProviderChatCompatibilityProfileId;
   onVisibleChunk?: (chunk: string) => void | Promise<void>;
   onDiagnosticLine?: (line: string) => void | Promise<void>;
 };
@@ -376,7 +374,6 @@ export async function runHeadlessExec(options: HeadlessExecOptions): Promise<Hea
           },
         })
       : undefined,
-    providerChatCompatibilityProfileId: options.providerChatCompatibilityProfileId,
   });
 
   let runtime: Awaited<ReturnType<typeof getSessionRuntimeBridge>> = null;

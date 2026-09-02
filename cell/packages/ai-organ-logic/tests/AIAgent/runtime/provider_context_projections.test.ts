@@ -13,7 +13,7 @@ import {
 } from "@cell/ai-organ-contract";
 import {
   activateProviderEpochReceiptV2InConversationDomainRuntime,
-  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
+  commitDeliveredProviderContextFactsToConversationDomainRuntime,
   createConversationDomainRuntime,
   createProviderEpochReceiptV2,
   digestProviderContextHistoryFrontier,
@@ -488,7 +488,7 @@ describe("provider context projections", () => {
         sessionId: "session-projection",
         projectionFact: makeProjectionFact(),
       });
-      const [fact] = commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+      const [fact] = commitDeliveredProviderContextFactsToConversationDomainRuntime({
         runtime,
         sessionId: "session-projection",
         actorKey: "main",

@@ -24,11 +24,15 @@ export const taskTreeWriteCoreLogic: StdInnerLogic<
     return {
       output: `Task tree updated: task_tree@${revision}`,
       contextEffects: [{
-        kind: "mutable_provider_projection",
+        kind: "append_provider_context_fact",
+        namespace: "task-tree-context",
         logicalKey: "task_tree",
         revision,
-        content,
-        placement: "late",
+        payload: {
+          logicalKey: "task_tree",
+          revision,
+          content,
+        },
       }],
     }
   } catch (e: any) {

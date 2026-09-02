@@ -23,9 +23,9 @@ const joinTokens = (...parts: string[]) => parts.join("")
 
 describe("AIAgent shared actor coordination model", () => {
   it("exposes the formal execution kinds", () => {
-    expect(ACTOR_EXECUTION_KINDS).toEqual(["control", "delegate", "detached"])
-    expect(isActorExecutionKind("control")).toBe(true)
-    expect(isActorExecutionKind(joinTokens("pri", "mary"))).toBe(false)
+    expect(ACTOR_EXECUTION_KINDS).toEqual(["primary", "delegate", "detached"])
+    expect(isActorExecutionKind("primary")).toBe(true)
+    expect(isActorExecutionKind(joinTokens("con", "trol"))).toBe(false)
   })
 
   it("exposes the formal assign modes", () => {

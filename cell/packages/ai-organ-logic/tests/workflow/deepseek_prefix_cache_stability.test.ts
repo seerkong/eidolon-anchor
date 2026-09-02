@@ -9,8 +9,8 @@ import { recordProviderCacheUsage } from "@cell/ai-organ-logic/llm/ProviderCache
 import { createWorkflowLifecycleFacetEnvelope } from "@cell/ai-organ-logic/workflow/runtime/WorkflowLifecycleFacet"
 import {
   AI_WORKFLOW_STAGE_TOOL_POLICY,
-  applyAiWorkflowStageSystemContext,
   applyAiWorkflowStageToolPolicy,
+  buildAiWorkflowStageContext,
 } from "@cell/ai-organ-logic/workflow/tools/WorkflowLoadStageContext/StageToolPolicy"
 
 function tool(name: string) {
@@ -61,11 +61,11 @@ describe("DeepSeek prefix-cache stability", () => {
     })
     const registry = completeWorkflowSurface.map(tool)
 
-    const codingContext = applyAiWorkflowStageSystemContext(actor, "coding", "coding context")
+    const codingContext = buildAiWorkflowStageContext("coding", "coding context")
     applyAiWorkflowStageToolPolicy(actor, "coding")
     const codingSurface = names(resolveProviderToolsetForActor(actor, registry))
 
-    const testingContext = applyAiWorkflowStageSystemContext(actor, "testing", "testing context")
+    const testingContext = buildAiWorkflowStageContext("testing", "testing context")
     applyAiWorkflowStageToolPolicy(actor, "testing")
     const testingSurface = names(resolveProviderToolsetForActor(actor, registry))
 
@@ -92,7 +92,7 @@ describe("DeepSeek prefix-cache stability", () => {
     })
     delete (actor.toolPolicy as any).providerToolSurface
 
-    applyAiWorkflowStageSystemContext(actor, "testing", "testing context")
+    buildAiWorkflowStageContext("testing", "testing context")
     const afterStageMigration = actor.continuationBaseline.baselineEpoch
     applyAiWorkflowStageToolPolicy(actor, "testing")
 

@@ -49,11 +49,7 @@ export function applyAiWorkflowStageToolPolicy(
   return allowed
 }
 
-export function applyAiWorkflowStageSystemContext(
-  actor: {
-    systemPrompts?: string[]
-    continuationBaseline?: AiAgentActor["continuationBaseline"]
-  },
+export function buildAiWorkflowStageContext(
   stage: AiWorkflowStageId,
   context: string,
 ): {
@@ -62,7 +58,6 @@ export function applyAiWorkflowStageSystemContext(
   authority: "actor-durable-material:workflow-resource-package"
   context: string
 } {
-  if (!actor.systemPrompts) throw new Error("Workflow stage context requires actor system prompts")
   return {
     kind: "eidolon.aiWorkflowStageContext",
     stage,

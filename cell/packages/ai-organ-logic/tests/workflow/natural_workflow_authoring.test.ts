@@ -9,7 +9,7 @@ import {
   assembleWorkflowAuthorPrompt,
   createWorkflowComponentForRuntime,
 } from "../../src/workflow"
-import { publishWorkflowFixture } from "./support"
+import { createAdmittedWorkflowToolTestFixture, publishWorkflowFixture } from "./support"
 
 describe("natural-language workflow authoring", () => {
   it("assembles the native authoring lifecycle instead of a form-first DSL prompt", () => {
@@ -41,19 +41,20 @@ describe("natural-language workflow authoring", () => {
 
   it("exposes component-backed workspace primitives to the model tool registry", async () => {
     const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "eidolon-workspace-tool-"))
+    const admitted = createAdmittedWorkflowToolTestFixture("workflow-workspace-tool")
     const runtime = {
       vm: {
         outerCtx: { workDir: path.dirname(workspaceRoot), metadata: { aiWorkflow: { roots: { workspaceRoot } } } },
         registries: {},
       },
-      actor: {},
+      actor: admitted.actor,
     } as any
     await publishWorkflowFixture(createWorkflowComponentForRuntime(runtime), {
       form: "ai-data",
       name: "Workspace Tool",
       fqn: "demo.workflow.WorkspaceTool",
     })
-    const registry = composeToolRegistry({ includeInternalOnly: false })
+    const registry = admitted.toolRegistry
     expect(ToolFuncRegistry.get(registry, "WorkflowGetAuthoringContext")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowListAuthoringTemplates")).toBeDefined()
     expect(ToolFuncRegistry.get(registry, "WorkflowOpenAuthoringSession")).toBeDefined()

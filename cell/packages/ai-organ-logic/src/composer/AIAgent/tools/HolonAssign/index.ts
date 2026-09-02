@@ -1,5 +1,6 @@
-import { queueAutonomousHolonAssign } from "../_autonomousHolonAssignCore"
+import { assignCanonicalAutonomousHolon } from "../../../../organization/CanonicalHolonAssignmentFacade"
 import { queueLeaderLedHolonAssign } from "../_leaderLedHolonAssignCore"
+import { parseFormalAssignMode, requireNonEmptyContent } from "../_formalTooling"
 import { baseHolonToolDef, resolveHolon } from "../_holonTooling"
 
 export function buildHolonAssignToolDef() {
@@ -17,11 +18,15 @@ export function buildHolonAssignToolDef() {
     },
     async (runtime, input) => {
       const target = String((input as any)?.target ?? "").trim()
+      const mode = parseFormalAssignMode((input as any)?.mode ?? "final")
+      const content = requireNonEmptyContent((input as any)?.content)
+      if (!mode) return JSON.stringify({ ok: false, error: "invalid_assign_mode", target })
+      if (!content) return JSON.stringify({ ok: false, error: "empty_content", target })
       const holon = resolveHolon(runtime.vm as any, target)
       if (!holon) return JSON.stringify({ ok: false, error: "holon_not_found", target })
       const raw = holon.governance === "autonomous"
-        ? await queueAutonomousHolonAssign({ runtime, target, mode: (input as any)?.mode, content: (input as any)?.content })
-        : await queueLeaderLedHolonAssign({ runtime, target, mode: (input as any)?.mode, content: (input as any)?.content })
+        ? await assignCanonicalAutonomousHolon({ runtime, target, mode, content })
+        : await queueLeaderLedHolonAssign({ runtime, target, mode, content })
       const parsed = JSON.parse(String(raw))
       const updatedHolon = resolveHolon(runtime.vm as any, holon.holonId) ?? holon
       if (!parsed?.ok) {

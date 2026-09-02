@@ -31,7 +31,6 @@ import type {
   AiAgentActorContract,
   AiAgentMailboxSchema,
   AutonomousHolonState,
-  AutonomousHolonTaskState,
   DetachedTaskState,
   HolonActorState,
   LeaderLedHolonRouteState,
@@ -54,7 +53,6 @@ export type {
   AiAgentActorCallbacks,
   AiAgentMailboxSchema,
   AutonomousHolonState,
-  AutonomousHolonTaskState,
   DetachedTaskState,
   HolonActorState,
   LeaderLedHolonRouteState,
@@ -200,21 +198,21 @@ function makeActorId(): string {
 function cloneHolonState(holonState: HolonActorState): HolonActorState {
   if (holonState.governance === "autonomous") {
     return {
-      ...holonState,
+      governance: "autonomous",
+      holonId: holonState.holonId,
+      name: holonState.name,
       memberIds: [...holonState.memberIds],
-      taskOwnership: { ...holonState.taskOwnership },
-      tasks: Object.fromEntries(
-        Object.entries(holonState.tasks ?? {}).map(([taskId, task]) => [
-          taskId,
-          { ...task },
-        ]),
-      ),
+      watchState: holonState.watchState,
     };
   }
 
   return {
-    ...holonState,
+    governance: "leader_led",
+    holonId: holonState.holonId,
+    name: holonState.name,
     memberIds: [...holonState.memberIds],
+    leaderMemberId: holonState.leaderMemberId,
+    watchState: holonState.watchState,
     routes: Object.fromEntries(
       Object.entries(holonState.routes ?? {}).map(([routeId, route]) => [
         routeId,

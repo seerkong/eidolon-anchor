@@ -25,6 +25,11 @@ import type {
   HolonTaskTarget,
 } from "ai-workflow-contract"
 import type { AgentConfig } from "@cell/ai-core-contract/runtime/AgentConfig"
+import type {
+  EffectiveEidolonVfsSnapshot,
+  EidolonVfsEntry,
+  EidolonVfsReadPort,
+} from "@cell/symbiont-contract/resource/EffectiveEidolonVFS"
 import type { AgentContextPipelineBinding } from "@cell/ai-core-contract/runtime/AgentContextPipeline"
 import type {
   AgentExecutionContract,
@@ -40,12 +45,16 @@ import {
 import {
   composeLayeredResourceRegistry,
   buildResourceDependencySnapshot,
+  canonicalResourcePackageSourcePath,
   loadResourceTree,
+  loadResourceTreeFromReadPort,
   resolveEffectiveResourceContentIdentities,
   sha256Digest,
   type EffectiveResourceRegistry,
   type LoadedResourceTree,
   type ResourceContentIdentity,
+  type ResourceLayerContentIdentityInput,
+  type ResourcePackageReadPort,
   type ResourceRecord,
 } from "halfcode-compiler.xnl/resource-core"
 import { safePathLexicalIssue } from "halfcode-compiler.xnl/resource-mapping"
@@ -70,6 +79,14 @@ export type EidolonResourceRegistrySnapshot = {
   readonly schemaVersion: "eidolon.resource-registry-snapshot/v1"
   readonly registry: EffectiveResourceRegistry
   readonly contentIdentities: ReadonlyMap<string, ResourceContentIdentity>
+  /** Exact loaded trees composed into registry; retained for branded Halfcode proof projection. */
+  readonly contentIdentityLayers: readonly ResourceLayerContentIdentityInput[]
+  readonly effectiveVfs?: Readonly<{
+    readonly revision: string
+    readonly treeDigest: string
+    readonly materializationReceiptId: string
+    readonly packageRoot: "/.eidolon/resources"
+  }>
   readonly registryRevision: string
   readonly appBundles: readonly AIWorkflowAppBundleProjection[]
   readonly agentResources: AIWorkflowAgentResourceProjection
@@ -85,7 +102,9 @@ export type EidolonResourceRegistryPublicationCandidate = {
 
 export type EidolonResourceRegistryPublicationFence = {
   readonly currentSnapshot: EidolonResourceRegistrySnapshot
-  readonly loadCandidateSnapshot: () => Promise<EidolonResourceRegistryPublicationCandidate>
+  readonly loadCandidateSnapshot: (input?: {
+    readonly effectiveVfs?: EidolonVfsReadPort
+  }) => Promise<EidolonResourceRegistryPublicationCandidate>
 }
 
 export type EidolonResourceRegistryPublicationDecision<T> = {
@@ -187,6 +206,13 @@ type LoadedSnapshotGeneration = {
   readonly snapshot: EidolonResourceRegistrySnapshot
 }
 
+export type EffectiveEidolonVfsRegistrySource =
+  | EidolonVfsReadPort
+  | (() => EidolonVfsReadPort | PromiseLike<EidolonVfsReadPort>)
+
+const EFFECTIVE_VFS_LAYER_ID = "effective-vfs"
+const EFFECTIVE_VFS_PACKAGE_ROOT = "/.eidolon/resources" as const
+
 const LAYER_ORDER: Readonly<Record<ResourcePackageLayerId, number>> = Object.freeze({
   global: 0,
   workspace: 1,
@@ -194,12 +220,14 @@ const LAYER_ORDER: Readonly<Record<ResourcePackageLayerId, number>> = Object.fre
 
 export class EidolonAppResourceRegistryAdapter {
   private readonly configuredLayers: readonly ResourcePackageLayerBinding[]
+  private readonly effectiveVfsSource?: EffectiveEidolonVfsRegistrySource
   private readonly workspaceRoot: string
   private readonly effectiveSources = new WeakMap<
     EidolonEffectiveResourceSource,
     EidolonResourceRegistrySnapshot
   >()
   private current?: EidolonResourceRegistrySnapshot
+  private readonly effectiveVfsPorts = new WeakMap<EidolonResourceRegistrySnapshot, EidolonVfsReadPort>()
   private initialLoading?: Promise<EidolonResourceRegistrySnapshot>
   private registryOperationTail: Promise<void> = Promise.resolve()
   private nextLoadGeneration = 0
@@ -210,9 +238,17 @@ export class EidolonAppResourceRegistryAdapter {
 
   constructor(input: {
     readonly layers?: readonly ResourcePackageLayerBinding[]
+    readonly effectiveVfs?: EffectiveEidolonVfsRegistrySource
     readonly workspaceRoot?: string
   } = {}) {
+    if (input.effectiveVfs && input.layers && input.layers.length > 0) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_RESOURCE_AUTHORITY_AMBIGUOUS",
+        "Registry adapter accepts either one Effective VFS source or legacy physical layers, never both.",
+      )
+    }
     this.configuredLayers = normalizeLayerBindings(input.layers ?? [])
+    this.effectiveVfsSource = input.effectiveVfs
     this.workspaceRoot = path.resolve(input.workspaceRoot ?? process.cwd())
   }
 
@@ -245,6 +281,12 @@ export class EidolonAppResourceRegistryAdapter {
     return this.loadSnapshot(normalizeLayerBindings(input.layers))
   }
 
+  loadIsolatedEffectiveVfsSnapshot(
+    readPort: EidolonVfsReadPort,
+  ): Promise<EidolonResourceRegistrySnapshot> {
+    return this.loadEffectiveVfsSnapshot(readPort)
+  }
+
   async withPublicationFence<T>(
     callback: (
       fence: EidolonResourceRegistryPublicationFence,
@@ -270,9 +312,17 @@ export class EidolonAppResourceRegistryAdapter {
       await this.waitForSourceReadsToDrain()
       let candidatePromise: Promise<EidolonResourceRegistryPublicationCandidate> | undefined
       let candidate: EidolonResourceRegistryPublicationCandidate | undefined
-      const loadCandidateSnapshot = (): Promise<EidolonResourceRegistryPublicationCandidate> => {
+      const loadCandidateSnapshot = (input?: {
+        readonly effectiveVfs?: EidolonVfsReadPort
+      }): Promise<EidolonResourceRegistryPublicationCandidate> => {
         if (!candidatePromise) {
-          candidatePromise = this.loadConfiguredSnapshot().then((loaded) => {
+          const loading = input?.effectiveVfs
+            ? this.loadEffectiveVfsSnapshot(input.effectiveVfs).then((snapshot) => Object.freeze({
+                generation: ++this.nextLoadGeneration,
+                snapshot,
+              }))
+            : this.loadConfiguredSnapshot()
+          candidatePromise = loading.then((loaded) => {
             candidate = Object.freeze({
               schemaVersion: "eidolon.resource-registry-publication-candidate/v1",
               generation: loaded.generation,
@@ -476,10 +526,23 @@ export class EidolonAppResourceRegistryAdapter {
     }))
   }
 
-  /** Captures the admitted physical layers as portable instance-owned bytes. */
+  /** Captures one admitted authority as portable instance-owned bytes. */
   async captureFrozenResourceClosure(): Promise<Readonly<Record<string, string>>> {
     const snapshot = await this.snapshot()
     const files: Record<string, string> = {}
+    const effectiveVfs = this.effectiveVfsPorts.get(snapshot)
+    if (effectiveVfs && snapshot.effectiveVfs) {
+      await captureFrozenEffectiveVfs(effectiveVfs, "/.eidolon", ".agent-resources/effective-vfs/.eidolon", files)
+      files[".agent-resources/effective-vfs/provenance.json"] = `${JSON.stringify({
+        schemaVersion: "eidolon.frozen-effective-vfs/v1",
+        effectiveVfsRevision: snapshot.effectiveVfs.revision,
+        treeDigest: snapshot.effectiveVfs.treeDigest,
+        materializationReceiptId: snapshot.effectiveVfs.materializationReceiptId,
+        registryRevision: snapshot.registryRevision,
+        packageRoot: snapshot.effectiveVfs.packageRoot,
+      }, null, 2)}\n`
+      return Object.freeze(files)
+    }
     for (const layer of snapshot.layers) {
       await captureFrozenLayer(layer.rootDir, `.agent-resources/${layer.id}`, files)
     }
@@ -531,6 +594,41 @@ export class EidolonAppResourceRegistryAdapter {
           "EIDOLON_RESOURCE_SOURCE_SHAPE_UNSUPPORTED",
           `Resource '${exactId}' uses '${entry.resource.sourceShape}', expected an exact single-file authority.`,
         )
+      }
+      const effectiveVfs = this.effectiveVfsPorts.get(snapshot)
+      if (effectiveVfs) {
+        const logicalPath = entry.resource.logicalPath
+        const sourcePath = effectiveResourceSourcePath(logicalPath)
+        const bytes = await requiredVfsBytes(effectiveVfs, sourcePath, exactId)
+        const identity = snapshot.contentIdentities.get(exactId)
+        if (!identity) {
+          throw new EidolonResourceRegistryError(
+            "EIDOLON_RESOURCE_CONTENT_IDENTITY_MISSING",
+            `Resource '${exactId}' has no effective Halfcode content identity.`,
+          )
+        }
+        const observedDigest = sha256Digest(bytes)
+        if (observedDigest !== identity.authorityDigest) {
+          throw new EidolonResourceRegistryError(
+            "EIDOLON_RESOURCE_SOURCE_DIGEST_MISMATCH",
+            `Resource '${exactId}' bytes do not match Effective VFS revision ${snapshot.effectiveVfs?.revision}.`,
+          )
+        }
+        const source = decodeResourceUtf8(bytes, exactId)
+        const result = Object.freeze({
+          resource: entry.resource,
+          source,
+          logicalPath,
+          baseUri: path.posix.dirname(sourcePath),
+          layerId: EFFECTIVE_VFS_LAYER_ID,
+          packageId: entry.effectiveOrigin.packageId,
+          compositionRevision: snapshot.registry.compositionRevision,
+          registryRevision: snapshot.registryRevision,
+          authorityDigest: identity.authorityDigest,
+          contentDigest: identity.contentDigest,
+        })
+        this.effectiveSources.set(result, snapshot)
+        return result
       }
       const layer = snapshot.layers.find((candidate) => candidate.id === entry.effectiveOrigin?.layerId)
       if (!layer) {
@@ -603,6 +701,14 @@ export class EidolonAppResourceRegistryAdapter {
     }
     const exactPath = exactDependencyPath(relativePath)
     return this.withSourceRead(async () => {
+      const effectiveVfs = this.effectiveVfsPorts.get(ownerSnapshot)
+      if (effectiveVfs) {
+        const sourcePath = containedVfsDependencyPath(owner.baseUri, owner.baseUri, exactPath, "OWNER")
+        return decodeResourceUtf8(
+          await requiredVfsBytes(effectiveVfs, sourcePath, `${owner.resource.resourceId}:${exactPath}`),
+          `${owner.resource.resourceId}:${exactPath}`,
+        )
+      }
       if (this.current !== ownerSnapshot) {
         throw new EidolonResourceRegistryError(
           "EIDOLON_RESOURCE_DEPENDENCY_OWNER_STALE",
@@ -647,12 +753,32 @@ export class EidolonAppResourceRegistryAdapter {
       )
     }
     return this.withSourceRead(async () => {
-      if ((providedSnapshot ?? this.current) !== ownerSnapshot) {
+      const effectiveVfs = this.effectiveVfsPorts.get(ownerSnapshot)
+      if (!effectiveVfs && (providedSnapshot ?? this.current) !== ownerSnapshot) {
         throw new EidolonResourceRegistryError(
           "EIDOLON_RESOURCE_DEPENDENCY_OWNER_STALE",
           "Workflow profile source owner no longer belongs to the admitted registry snapshot.",
           true,
         )
+      }
+      if (effectiveVfs) {
+        const sources = await captureVfsTextSubtree(effectiveVfs, owner.baseUri)
+        sources["manifest.xnl"] = owner.source
+        const stepSources: DefinitionStepSourceReadPort = Object.freeze({
+          readSource: (refValue: string): Uint8Array => {
+            const ref = exactDependencyPath(refValue)
+            const existing = sources[ref]
+            if (existing === undefined) {
+              throw new EidolonResourceRegistryError(
+                "EIDOLON_RESOURCE_DEPENDENCY_NOT_FOUND",
+                `Workflow profile dependency '${ref}' does not exist in Effective VFS revision ${ownerSnapshot.effectiveVfs?.revision}.`,
+              )
+            }
+            return new TextEncoder().encode(existing)
+          },
+        })
+        const result = load({ sources, stepSources })
+        return Object.freeze({ result, sources: Object.freeze({ ...sources }) })
       }
       const canonicalBase = await realpath(owner.baseUri)
       const sources: Record<string, string> = { "manifest.xnl": owner.source }
@@ -719,6 +845,14 @@ export class EidolonAppResourceRegistryAdapter {
     }
     const exactPath = exactDependencyPath(packageRelativePath)
     return this.withSourceRead(async () => {
+      const effectiveVfs = this.effectiveVfsPorts.get(ownerSnapshot)
+      if (effectiveVfs) {
+        const sourcePath = containedVfsDependencyPath(EFFECTIVE_VFS_PACKAGE_ROOT, EFFECTIVE_VFS_PACKAGE_ROOT, exactPath, "PACKAGE")
+        return decodeResourceUtf8(
+          await requiredVfsBytes(effectiveVfs, sourcePath, `${owner.resource.resourceId}:${exactPath}`),
+          `${owner.resource.resourceId}:${exactPath}`,
+        )
+      }
       if (this.current !== ownerSnapshot) {
         throw new EidolonResourceRegistryError(
           "EIDOLON_RESOURCE_DEPENDENCY_OWNER_STALE",
@@ -776,7 +910,9 @@ export class EidolonAppResourceRegistryAdapter {
 
   private async loadConfiguredSnapshot(): Promise<LoadedSnapshotGeneration> {
     const generation = ++this.nextLoadGeneration
-    const snapshot = await this.loadSnapshot(this.configuredLayers)
+    const snapshot = this.effectiveVfsSource
+      ? await this.loadEffectiveVfsSnapshot(await resolveEffectiveVfsSource(this.effectiveVfsSource))
+      : await this.loadSnapshot(this.configuredLayers)
     return Object.freeze({
       schemaVersion: "eidolon.resource-registry-publication-candidate/v1",
       generation,
@@ -1049,12 +1185,15 @@ export class EidolonAppResourceRegistryAdapter {
       if (!await directoryExists(binding.rootDir)) continue
       layers.push(Object.freeze({ binding, tree: await loadResourceTree({ rootDir: binding.rootDir }) }))
     }
+    const contentIdentityLayers = Object.freeze(
+      layers.map(({ binding, tree }) => Object.freeze({ id: binding.id, tree })),
+    )
     const registry = composeLayeredResourceRegistry({
-      layers: layers.map(({ binding, tree }) => ({ id: binding.id, tree })),
+      layers: contentIdentityLayers,
     })
     const contentIdentities = resolveEffectiveResourceContentIdentities({
       registry,
-      layers: layers.map(({ binding, tree }) => ({ id: binding.id, tree })),
+      layers: contentIdentityLayers,
     })
     const roots = [...registry.byId.values()]
       .filter((entry) => entry.resource !== undefined)
@@ -1073,6 +1212,7 @@ export class EidolonAppResourceRegistryAdapter {
       schemaVersion: "eidolon.resource-registry-snapshot/v1",
       registry,
       contentIdentities,
+      contentIdentityLayers,
       registryRevision,
       appBundles: projectAIWorkflowAppBundles(registry),
       agentResources: projectAIWorkflowAgentResources(registry),
@@ -1080,6 +1220,298 @@ export class EidolonAppResourceRegistryAdapter {
       layers: Object.freeze(layers.map(({ binding }) => binding)),
     })
   }
+
+  private async loadEffectiveVfsSnapshot(
+    readPort: EidolonVfsReadPort,
+  ): Promise<EidolonResourceRegistrySnapshot> {
+    if (readPort.snapshot.rootPath !== "/.eidolon") {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_EFFECTIVE_VFS_ROOT_INVALID",
+        `Effective VFS root must be '/.eidolon', got '${readPort.snapshot.rootPath}'.`,
+      )
+    }
+    const tree = await loadResourceTreeFromReadPort({
+      port: createHalfcodeReadPort(readPort),
+      rootPath: EFFECTIVE_VFS_PACKAGE_ROOT,
+    })
+    const contentIdentityLayers = Object.freeze([
+      Object.freeze({ id: EFFECTIVE_VFS_LAYER_ID, tree }),
+    ])
+    const registry = composeLayeredResourceRegistry({ layers: contentIdentityLayers })
+    const contentIdentities = resolveEffectiveResourceContentIdentities({ registry, layers: contentIdentityLayers })
+    const roots = [...registry.byId.values()]
+      .filter((entry) => entry.resource !== undefined)
+      .map((entry) => entry.resourceId)
+    const registryRevision = roots.length === 0
+      ? registry.compositionRevision
+      : buildResourceDependencySnapshot({ registry, roots, edges: [], contentIdentities }).registryRevision
+    const kindDefinitionAuthorityDigests = await readEffectiveKindDefinitionAuthorityDigests(registry, readPort)
+    const holonExecutionBindings = await projectHolonExecutionBindings({
+      registry,
+      contentIdentities,
+      kindDefinitionAuthorityDigests,
+      registryRevision,
+    })
+    const snapshot = Object.freeze({
+      schemaVersion: "eidolon.resource-registry-snapshot/v1" as const,
+      registry,
+      contentIdentities,
+      contentIdentityLayers,
+      effectiveVfs: Object.freeze({
+        revision: readPort.snapshot.revision,
+        treeDigest: readPort.snapshot.treeDigest,
+        materializationReceiptId: readPort.snapshot.materializationReceiptId,
+        packageRoot: EFFECTIVE_VFS_PACKAGE_ROOT,
+      }),
+      registryRevision,
+      appBundles: projectAIWorkflowAppBundles(registry),
+      agentResources: projectAIWorkflowAgentResources(registry),
+      holonExecutionBindings,
+      layers: Object.freeze([]),
+    }) satisfies EidolonResourceRegistrySnapshot
+    this.effectiveVfsPorts.set(snapshot, readPort)
+    return snapshot
+  }
+}
+
+async function resolveEffectiveVfsSource(source: EffectiveEidolonVfsRegistrySource): Promise<EidolonVfsReadPort> {
+  return typeof source === "function" ? await source() : source
+}
+
+function createHalfcodeReadPort(readPort: EidolonVfsReadPort): ResourcePackageReadPort {
+  return Object.freeze({
+    async stat(sourcePath: string) {
+      const entry = await readPort.stat(canonicalResourcePackageSourcePath(sourcePath))
+      return entry ? Object.freeze({ kind: entry.kind }) : undefined
+    },
+    async readDirectory(sourcePath: string) {
+      const entries = await readPort.readDirectory(canonicalResourcePackageSourcePath(sourcePath))
+      return entries?.map((entry) => Object.freeze({
+        name: entry.logicalPath.split("/").at(-1) ?? "",
+        kind: entry.kind,
+      }))
+    },
+    async readBytes(sourcePath: string) {
+      return readPort.readBytes(canonicalResourcePackageSourcePath(sourcePath))
+    },
+  })
+}
+
+function effectiveResourceSourcePath(logicalPath: string): string {
+  const issue = safePathLexicalIssue(logicalPath, "relative-path")
+  if (issue) throw new EidolonResourceRegistryError(
+    "EIDOLON_RESOURCE_SOURCE_PATH_INVALID",
+    `Effective resource source path '${logicalPath}' is invalid: ${issue}.`,
+  )
+  return `${EFFECTIVE_VFS_PACKAGE_ROOT}/${logicalPath}`
+}
+
+async function requiredVfsBytes(
+  readPort: EidolonVfsReadPort,
+  logicalPath: string,
+  owner: string,
+): Promise<Uint8Array> {
+  const bytes = await readPort.readBytes(logicalPath)
+  if (!bytes) throw new EidolonResourceRegistryError(
+    "EIDOLON_RESOURCE_DEPENDENCY_NOT_FOUND",
+    `Effective VFS source '${logicalPath}' for '${owner}' does not exist in revision ${readPort.snapshot.revision}.`,
+  )
+  return bytes
+}
+
+function decodeResourceUtf8(bytes: Uint8Array, owner: string): string {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+  } catch {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_RESOURCE_SOURCE_UTF8_INVALID",
+      `Resource source '${owner}' is not valid UTF-8.`,
+    )
+  }
+}
+
+function containedVfsDependencyPath(
+  containmentRoot: string,
+  base: string,
+  relativePath: string,
+  scope: "OWNER" | "PACKAGE",
+): string {
+  const target = path.posix.normalize(path.posix.join(base, relativePath))
+  if (target !== containmentRoot && !target.startsWith(`${containmentRoot}/`)) {
+    throw new EidolonResourceRegistryError(
+      `EIDOLON_RESOURCE_DEPENDENCY_OUTSIDE_${scope}`,
+      `Resource dependency '${relativePath}' escapes Effective VFS boundary '${containmentRoot}'.`,
+    )
+  }
+  return target
+}
+
+async function captureVfsTextSubtree(
+  readPort: EidolonVfsReadPort,
+  rootPath: string,
+): Promise<Record<string, string>> {
+  const files: Record<string, string> = {}
+  const visit = async (directory: string, relative: string): Promise<void> => {
+    for (const entry of await readPort.readDirectory(directory) ?? []) {
+      const name = entry.logicalPath.split("/").at(-1) ?? ""
+      const nested = relative ? `${relative}/${name}` : name
+      if (entry.kind === "directory") {
+        await visit(entry.logicalPath, nested)
+        continue
+      }
+      const bytes = await requiredVfsBytes(readPort, entry.logicalPath, nested)
+      files[nested] = decodeResourceUtf8(bytes, nested)
+    }
+  }
+  await visit(rootPath, "")
+  return files
+}
+
+async function captureFrozenEffectiveVfs(
+  readPort: EidolonVfsReadPort,
+  rootPath: string,
+  prefix: string,
+  target: Record<string, string>,
+): Promise<void> {
+  const sources = await captureVfsTextSubtree(readPort, rootPath)
+  for (const [relative, source] of Object.entries(sources)) target[`${prefix}/${relative}`] = source
+  const manifest = target[`${prefix}/manifest.xnl`]
+  if (manifest) addFrozenCatalogMarkers(manifest, prefix, target)
+}
+
+function addFrozenCatalogMarkers(manifest: string, prefix: string, target: Record<string, string>): void {
+  for (const match of manifest.matchAll(/\broot\s*=\s*"vfs:\/\/\.\/([^"#?]+)"/g)) {
+    const catalogRoot = match[1]!.replace(/\/+$/, "")
+    if (!catalogRoot || path.posix.isAbsolute(catalogRoot)
+      || catalogRoot.split("/").some((segment) => !segment || segment === "." || segment === "..")) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_FROZEN_RESOURCE_CATALOG_ROOT_INVALID",
+        `Frozen resource catalog root '${catalogRoot}' is not a portable relative path.`,
+      )
+    }
+    target[`${prefix}/${catalogRoot}/.eidolon-directory`] = "eidolon.frozen-catalog-root/v1\n"
+  }
+}
+
+export function createFrozenEffectiveEidolonVfsReadPort(
+  closure: Readonly<Record<string, string>>,
+): EidolonVfsReadPort {
+  const prefix = ".agent-resources/effective-vfs/"
+  const filePrefix = `${prefix}.eidolon/`
+  const rawProvenance = closure[`${prefix}provenance.json`]
+  if (!rawProvenance) throw new EidolonResourceRegistryError(
+    "EIDOLON_FROZEN_EFFECTIVE_VFS_PROVENANCE_MISSING",
+    "Frozen Effective VFS closure requires provenance.json.",
+  )
+  let provenance: Record<string, unknown>
+  try {
+    provenance = JSON.parse(rawProvenance) as Record<string, unknown>
+  } catch (error) {
+    throw new EidolonResourceRegistryError(
+      "EIDOLON_FROZEN_EFFECTIVE_VFS_PROVENANCE_INVALID",
+      `Frozen Effective VFS provenance is invalid JSON: ${error instanceof Error ? error.message : String(error)}.`,
+    )
+  }
+  for (const field of ["effectiveVfsRevision", "treeDigest", "materializationReceiptId"] as const) {
+    if (typeof provenance[field] !== "string" || !provenance[field]) {
+      throw new EidolonResourceRegistryError(
+        "EIDOLON_FROZEN_EFFECTIVE_VFS_PROVENANCE_INVALID",
+        `Frozen Effective VFS provenance requires '${field}'.`,
+      )
+    }
+  }
+  const files = new Map<string, Uint8Array>()
+  const directories = new Set<string>(["/.eidolon", EFFECTIVE_VFS_PACKAGE_ROOT])
+  for (const [frozenPath, source] of Object.entries(closure)) {
+    if (!frozenPath.startsWith(filePrefix)) continue
+    const relative = frozenPath.slice(filePrefix.length)
+    if (!relative || relative.endsWith("/.eidolon-directory")) continue
+    const issue = safePathLexicalIssue(relative, "relative-path")
+    if (issue) throw new EidolonResourceRegistryError(
+      "EIDOLON_FROZEN_EFFECTIVE_VFS_PATH_INVALID",
+      `Frozen Effective VFS path '${relative}' is invalid: ${issue}.`,
+    )
+    const logicalPath = `/.eidolon/${relative}`
+    files.set(logicalPath, new TextEncoder().encode(source))
+    let parent = path.posix.dirname(logicalPath)
+    while (parent.startsWith("/.eidolon")) {
+      directories.add(parent)
+      if (parent === "/.eidolon") break
+      parent = path.posix.dirname(parent)
+    }
+  }
+  const revision = provenance.effectiveVfsRevision as `sha256:${string}`
+  const treeDigest = provenance.treeDigest as `sha256:${string}`
+  const snapshot = Object.freeze({
+    schemaVersion: "eidolon.effective-vfs-snapshot/v1",
+    revision,
+    baseRevision: revision,
+    rootPath: "/.eidolon",
+    treeDigest,
+    overlays: Object.freeze([]),
+    materializationReceiptId: provenance.materializationReceiptId as string,
+    admittedAt: "frozen-recovery",
+  }) satisfies EffectiveEidolonVfsSnapshot
+  const nodeId = (kind: string, logicalPath: string): string => sha256Digest(`${kind}\0${logicalPath}`).slice("sha256:".length, 32)
+  const entry = (logicalPath: string): EidolonVfsEntry | undefined => {
+    if (directories.has(logicalPath)) {
+      return Object.freeze({ kind: "directory", logicalPath, nodeId: nodeId("directory", logicalPath) })
+    }
+    const bytes = files.get(logicalPath)
+    if (!bytes) return undefined
+    return Object.freeze({
+      kind: "file",
+      logicalPath,
+      nodeId: nodeId("file", logicalPath),
+      size: bytes.byteLength,
+      fileType: logicalPath.endsWith(".xnl") ? "xnl" : "text",
+      contentDigest: sha256Digest(bytes),
+    })
+  }
+  return Object.freeze({
+    snapshot,
+    async stat(logicalPath: string) { return entry(logicalPath) },
+    async readDirectory(logicalPath: string) {
+      if (!directories.has(logicalPath)) return undefined
+      const prefixPath = `${logicalPath}/`
+      const children = new Set<string>()
+      for (const candidate of [...directories, ...files.keys()]) {
+        if (!candidate.startsWith(prefixPath)) continue
+        const relative = candidate.slice(prefixPath.length)
+        if (!relative || relative.includes("/")) continue
+        children.add(candidate)
+      }
+      return Object.freeze([...children].sort().flatMap((candidate) => {
+        const value = entry(candidate)
+        return value ? [value] : []
+      }))
+    },
+    async readBytes(logicalPath: string) {
+      const bytes = files.get(logicalPath)
+      return bytes ? new Uint8Array(bytes) : undefined
+    },
+  })
+}
+
+export async function loadFrozenEffectiveEidolonVfsReadPort(rootDir: string): Promise<EidolonVfsReadPort> {
+  const files: Record<string, string> = {}
+  await captureFrozenLayer(rootDir, ".agent-resources/effective-vfs", files)
+  return createFrozenEffectiveEidolonVfsReadPort(files)
+}
+
+async function readEffectiveKindDefinitionAuthorityDigests(
+  registry: EffectiveResourceRegistry,
+  readPort: EidolonVfsReadPort,
+): Promise<ReadonlyMap<string, `sha256:${string}`>> {
+  const digests = new Map<string, `sha256:${string}`>()
+  for (const [kind, effective] of registry.kindDefinitions) {
+    const documentUri = effective.definition.documentUri
+    if (!documentUri.startsWith("vfs://@/")) continue
+    const relative = documentUri.slice("vfs://@/".length)
+    const sourcePath = effectiveResourceSourcePath(relative)
+    digests.set(kind, sha256Digest(await requiredVfsBytes(readPort, sourcePath, effective.definition.resourceId)))
+  }
+  return digests
 }
 
 async function readKindDefinitionAuthorityDigests(

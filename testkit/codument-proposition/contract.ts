@@ -49,7 +49,7 @@ export type PropositionModeIdentity = Readonly<{
 export type PropositionProviderTurn = Readonly<{
   contextScopeId: string
   providerId: string
-  providerProfileId: "deepseek-official-chat@1" | "deepseek-compatible-chat@1" | string
+  providerProfileId: "deepseek-chat@1" | string
   model: string
   contextEpoch: number
   epochReason: string
@@ -78,7 +78,7 @@ export type PropositionCacheScopeClassification =
 
 export type PropositionCacheScope = Readonly<{
   classification: PropositionCacheScopeClassification
-  providerClass: "official_deepseek" | "deepseek_compatible" | "other"
+  providerClass: "deepseek" | "other"
   providerId: string | null
   model: string | null
   contextEpoch: number | null
@@ -141,7 +141,7 @@ export type PropositionCredentialBinding = Readonly<{
   model: string
 }>
 
-export type PropositionLiveEvidenceClass = "official" | "compatible"
+export type PropositionLiveEvidenceClass = "deepseek"
 
 export type CodumentPropositionProviderBinding = Readonly<{
   id: "official-deepseek" | "siliconflow-deepseek-flash" | "deepseek-iqingwa-v4-pro"
@@ -155,31 +155,31 @@ export const CODUMENT_PROPOSITION_PROVIDER_BINDINGS = Object.freeze({
     id: "official-deepseek",
     credential: Object.freeze({
       providerId: "deepseek",
-      profileId: "deepseek-official-chat@1",
+      profileId: "deepseek-chat@1",
       model: "deepseek/deepseek-v4-flash",
     }),
-    evidenceClass: "official",
-    expectedProviderClass: "official_deepseek",
+    evidenceClass: "deepseek",
+    expectedProviderClass: "deepseek",
   }),
   "siliconflow-deepseek-flash": Object.freeze({
     id: "siliconflow-deepseek-flash",
     credential: Object.freeze({
       providerId: "siliconflow",
-      profileId: "deepseek-compatible-chat@1",
+      profileId: "deepseek-chat@1",
       model: "siliconflow/deepseek-ai/DeepSeek-V4-Flash",
     }),
-    evidenceClass: "compatible",
-    expectedProviderClass: "deepseek_compatible",
+    evidenceClass: "deepseek",
+    expectedProviderClass: "deepseek",
   }),
   "deepseek-iqingwa-v4-pro": Object.freeze({
     id: "deepseek-iqingwa-v4-pro",
     credential: Object.freeze({
       providerId: "deepseek-iqingwa",
-      profileId: "deepseek-compatible-chat@1",
+      profileId: "deepseek-chat@1",
       model: "deepseek-iqingwa/deepseek-v4-pro",
     }),
-    evidenceClass: "compatible",
-    expectedProviderClass: "deepseek_compatible",
+    evidenceClass: "deepseek",
+    expectedProviderClass: "deepseek",
   }),
 } satisfies Readonly<Record<string, CodumentPropositionProviderBinding>>)
 

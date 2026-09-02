@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "main": "src/index.ts",
+  "scripts": {
+    "generate:builtin-vfs": "bun run tools/generate-builtin-eidolon-vfs.ts",
+    "check:builtin-vfs": "bun run tools/generate-builtin-eidolon-vfs.ts --check",
+    "test": "bun test tests"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./*": "./src/*"
@@ -11,6 +16,11 @@
   "description": "AI coding overlay for cell runtimes.",
   "dependencies": {
     "@cell/ai-composer": "workspace:*",
-    "@cell/ai-core-contract": "workspace:*"
+    "@cell/ai-core-contract": "workspace:*",
+    "@cell/symbiont-contract": "workspace:*",
+    "@cell/symbiont-logic": "workspace:*",
+    "halfcode-compiler.xnl": "0.2.9",
+    "xnl-core": "^0.1.10",
+    "xnl-vfs": "0.1.2"
   }
 }

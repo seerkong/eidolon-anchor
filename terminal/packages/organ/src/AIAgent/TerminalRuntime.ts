@@ -24,6 +24,7 @@ import {
   defaultProviderConfigPath,
   emitRuntimeDirectSlashAssistantOutput,
   forceCompressActorHistory,
+  ensureActorProviderContextEpochBeforeTransport,
   createShellRuntimeFacade,
   createShellRuntimePaths,
   bindWorkflowComponentToRuntime,
@@ -53,6 +54,13 @@ import {
   projectRuntimeTiming,
   readProviderCacheObservationProjection,
   readWorkflowPublicRuntimeEvidence,
+  digestProviderContextClosedValue,
+  createConversationSessionForkActorPort,
+  createConversationSessionForkPort,
+  createConversationSessionRewindActorPort,
+  createConversationSessionRewindPort,
+  ensureVmConversationDomainRuntime,
+  synchronizeConversationDomainActorFromPersistence,
   runWorkflowNativeHostCommand,
   setActorWorkMode,
   type LlmAdapterType,
@@ -61,7 +69,6 @@ import {
   type RuntimeTimingProjection,
   type RuntimeTimingWindow,
 } from "@cell/ai-organ-logic"
-import type { ProviderChatCompatibilityProfileId } from "@cell/ai-organ-contract/llm/ProviderRuntime"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import {
   normalizeInputContent,
@@ -88,6 +95,7 @@ import {
   type RuntimeCompositionStorageFlags,
 } from "@cell/membrane/runtime-composition"
 import { aiCodingRuntimeProfile, resolveRuntimeProfileById } from "@cell/mod-profiles"
+import { prepareEffectiveEidolonVfs } from "@cell/mod-ai-coding/builtin-vfs"
 import type { ActorSurfaceProjectionData } from "@cell/ai-core-contract/runtime/ActorSurface"
 import type { ActorModelConfig, AiAgentMailboxSchema } from "@cell/ai-core-contract/runtime/AiAgentActor"
 import { WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl"
@@ -103,7 +111,14 @@ import type { TuiControl, TuiEvent, TuiMessageCategory } from "@terminal/core/AI
 import type { ExecApprovalMode } from "../stream/ExecProtocolGraph"
 import { SemanticTerminalRuntimeBridge } from "../stream/SemanticTerminalRuntimeBridge"
 import { loadRuntimeConfigFromVfs } from "@cell/ai-support"
+import type {
+  ConversationSessionForkCommand,
+  ConversationSessionForkResult,
+  ConversationSessionRewindCommand,
+  ConversationSessionRewindResult,
+} from "@cell/ai-organ-contract"
 import { ResourceVFSLoaderOps } from "@cell/symbiont-logic/resource/ResourceVFSLoader"
+import { createLegacyResourceVfsProjectionFromReadPort } from "@cell/symbiont-logic/resource/EffectiveEidolonVfsMaterializer"
 
 export type RuntimeBridgeNotification = {
   text: string
@@ -175,7 +190,7 @@ export type TuiRuntimeBridge = {
     projection: ActorSurfaceProjectionData
   }>
   abort: () => Promise<void>
-  dispose: () => void
+  dispose: () => void | Promise<void>
   subscribeNotifications: (handler: (notification: RuntimeBridgeNotification) => void) => { unsubscribe: () => void }
   subscribeUsage?: (handler: (usage: AiAgentVmUsageData) => void) => { unsubscribe: () => void }
   subscribeHistoryEvents?: (handler: (event: RuntimeBridgeHistoryEvent) => void) => { unsubscribe: () => void }
@@ -199,6 +214,14 @@ export type TuiRuntimeBridge = {
     actorKey: string | null
     messages: ChatMessage[]
   }>
+  /** Conversation-owned durable fork command; surfaces never pass messages or paths. */
+  forkConversationSession?: (
+    command: ConversationSessionForkCommand,
+  ) => Promise<ConversationSessionForkResult>
+  /** Conversation-owned durable same-session rewind command. */
+  rewindConversationSession?: (
+    command: ConversationSessionRewindCommand,
+  ) => Promise<ConversationSessionRewindResult>
   /** Sanitized, read-only timing projection over existing runtime domains. */
   readTimingProjection?: (window: RuntimeTimingWindow) => RuntimeTimingProjection
   /** Sanitized, read-only cumulative usage projection for headless evidence. */
@@ -225,7 +248,6 @@ export type TuiRuntimeConfig = {
   /** Storage capability flags; defaults to persistent (logs and files enabled). */
   storage?: Partial<RuntimeCompositionStorageFlags>
   providerRequestObservationBindingFactory?: ProviderRequestObservationBindingFactory
-  providerChatCompatibilityProfileId?: ProviderChatCompatibilityProfileId
   attachmentResolver?: AttachmentResolverPort
 }
 
@@ -778,6 +800,21 @@ async function createRuntimeBridge(
 ): Promise<TuiRuntimeBridge | null> {
   const paths = createShellRuntimePaths(runtimeConfig.workDir)
   const normalizedRuntimeMetadata = normalizeTerminalRuntimeMetadata(paths.WORKDIR, runtimeConfig.metadata)
+  const preparedEffectiveVfs = await prepareEffectiveEidolonVfs({
+    homeEidolonRoot: resolveRuntimeAuthorityRoot(paths.WORKDIR),
+    workspaceEidolonRoot: path.join(paths.WORKDIR, ".eidolon"),
+  })
+  const resourcePackages = isPlainRecord(normalizedRuntimeMetadata.resourcePackages)
+    ? normalizedRuntimeMetadata.resourcePackages
+    : {}
+  normalizedRuntimeMetadata.resourcePackages = {
+    ...resourcePackages,
+    effectiveVfs: () => preparedEffectiveVfs.materializer.read().readPort,
+    effectiveVfsAuthoring: preparedEffectiveVfs.authoring,
+  }
+  normalizedRuntimeMetadata.runtimeConfig = loadRuntimeConfigFromVfs(
+    (await createLegacyResourceVfsProjectionFromReadPort(preparedEffectiveVfs.effective.readPort)).vfs,
+  )
   const runtimeBinding = resolveTerminalRuntimeBindingFromConfig(runtimeConfig)
   const defaultRuntimeAssemblyFactory =
     runtimeAssemblyFactoryOverride
@@ -882,9 +919,6 @@ async function createRuntimeBridge(
     sessionId: sessionKey,
     diagnostics: providerDiagnosticsCollector.runtime,
     requestObservationPort: providerRequestObservationBinding?.port ?? null,
-    ...(runtimeConfig.providerChatCompatibilityProfileId
-      ? { chatCompatibilityProfileId: runtimeConfig.providerChatCompatibilityProfileId }
-      : {}),
   }
   const llmAdapter = await createRuntimeLlmAdapter({
     adapterType,
@@ -1029,7 +1063,7 @@ async function createRuntimeBridge(
   const providerEpochReasonByActor = new WeakMap<AiAgentActor, "initial_projection" | "model_control" | "recovery_rebuild">()
   const recoveredProviderEpochReceiptByActor = new WeakMap<AiAgentActor, NonNullable<ReturnType<typeof getConversationActorRawStateFromVm>>["session"]["actorBindings"][string]["providerEpochReceiptV2"]>()
   const providerEpochActors = new Set<AiAgentActor>()
-  let reassertProviderEpochsBeforeSnapshot: (() => void) | null = null
+  let reassertProviderEpochsBeforeSnapshot: (() => Promise<void>) | null = null
   adapterStateByActor.set(actor, {
     adapterType,
     apiKey: modelConfig.apiKey,
@@ -1063,7 +1097,7 @@ async function createRuntimeBridge(
     vm,
     driver,
     saveSnapshot: async () => {
-      reassertProviderEpochsBeforeSnapshot?.()
+      await reassertProviderEpochsBeforeSnapshot?.()
       await saveSnapshot()
     },
     sealCompletedProgress,
@@ -1075,7 +1109,7 @@ async function createRuntimeBridge(
   }
   const persistSnapshot = async () => {
     if (!persistSnapshots || !sessionMaterialized) return
-    await runtimeCoordinator.saveSnapshot().catch(() => {})
+    await runtimeCoordinator.saveSnapshot()
   }
   const emitHeartbeatWakeSignal = (event: { schedule: HeartbeatSchedule; wake: HeartbeatWakePayload }) => {
     const fiberId = `${event.schedule.targetActorKey}:${event.schedule.targetActorId}`
@@ -1270,10 +1304,10 @@ async function createRuntimeBridge(
     }).catch(() => {})
   }
 
-  const reviveMainFiberForInteractiveTurnIfNeeded = () => {
-    const status = driver.getState().fibers[mainFiberId]?.status
+  const reviveFiberForInteractiveTurnIfNeeded = (fiberId: string) => {
+    const status = driver.getState().fibers[fiberId]?.status
     if (status === "failed" || status === "cancelled") {
-      driver.reviveFiber(mainFiberId, Date.now())
+      driver.reviveFiber(fiberId, Date.now())
     }
   }
 
@@ -1373,7 +1407,7 @@ async function createRuntimeBridge(
     pendingProviderEpochReason.set(actor, "model_control")
   }
 
-  const activateProviderEpochForActor = (targetActor: AiAgentActor) => {
+  const activateProviderEpochForActor = async (targetActor: AiAgentActor) => {
     const reason = pendingProviderEpochReason.get(targetActor)
       ?? (targetActor === actor ? "recovery_rebuild" : "initial_projection")
     const activated = activateActorProviderEpoch({
@@ -1391,9 +1425,10 @@ async function createRuntimeBridge(
     providerEpochReasonByActor.set(targetActor, reason)
     recoveredProviderEpochReceiptByActor.set(targetActor, activated.receipt)
     providerEpochActors.add(targetActor)
+    await ensureActorProviderContextEpochBeforeTransport({ vm, actor: targetActor })
     return activated
   }
-  reassertProviderEpochsBeforeSnapshot = () => {
+  reassertProviderEpochsBeforeSnapshot = async () => {
     for (const targetActor of providerEpochActors) {
       activateActorProviderEpoch({
         vm,
@@ -1406,31 +1441,42 @@ async function createRuntimeBridge(
         ),
         reason: providerEpochReasonByActor.get(targetActor) ?? "recovery_rebuild",
       })
+      await ensureActorProviderContextEpochBeforeTransport({ vm, actor: targetActor })
     }
   }
 
-  const runTurn = async (params: {
+  const runActorInteractiveTurn = async (targetActor: AiAgentActor, targetFiberId: string, params: {
     timeoutSeconds?: number
   } = {}) => {
-    applyActorModelConfigControlSignals(actor)
-    if (!actor.modelConfig.model || !isActorModelConfigResolvable(actor)) {
-      actor.modelConfig = resolveConfiguredActorModelConfig()
+    applyActorModelConfigControlSignals(targetActor)
+    if (!targetActor.modelConfig.model || !isActorModelConfigResolvable(targetActor)) {
+      targetActor.modelConfig = runtimeSupport.resolveActorModelConfig({
+        workDir: paths.WORKDIR,
+        agentKey: targetActor.key,
+        modelRef: targetActor === actor ? explicitRuntimeModelRef : undefined,
+        strictModelRef: targetActor === actor && Boolean(explicitRuntimeModelRef),
+        fallbackModelConfig,
+      })
     }
-    activateProviderEpochForActor(actor)
-    await refreshActorAdapterForModelConfig(actor)
-    reviveMainFiberForInteractiveTurnIfNeeded()
+    await refreshActorAdapterForModelConfig(targetActor)
+    await activateProviderEpochForActor(targetActor)
+    reviveFiberForInteractiveTurnIfNeeded(targetFiberId)
     const result = await runtimeCoordinator.runInteractiveTurn({
-      mainFiberId,
+      mainFiberId: targetFiberId,
       timeoutMs: params.timeoutSeconds && params.timeoutSeconds > 0 ? params.timeoutSeconds * 1000 : undefined,
     })
-    const mainFiber = driver.getState().fibers[mainFiberId]
-    if (mainFiber?.status === "failed") {
-      throw new Error(mainFiber.lastError || "runtime_main_fiber_failed")
+    const targetFiber = driver.getState().fibers[targetFiberId]
+    if (targetFiber?.status === "failed") {
+      throw new Error(targetFiber.lastError || "runtime_actor_fiber_failed")
     }
     if (result.status === "timeout_unsettled") {
       throw new Error(`runtime_turn_unsettled:${result.reason || "unknown"}`)
     }
   }
+
+  const runTurn = async (params: {
+    timeoutSeconds?: number
+  } = {}) => runActorInteractiveTurn(actor, mainFiberId, params)
 
   const resolveInputContent = async (input: InputContent): Promise<InputContentPart[]> => {
     const parts = normalizeInputContent(input)
@@ -1847,8 +1893,8 @@ async function createRuntimeBridge(
     if (targetActor) {
       applyActorModelConfigControlSignals(targetActor)
       pendingProviderEpochReason.set(targetActor, "model_control")
-      activateProviderEpochForActor(targetActor)
       await refreshActorAdapterForModelConfig(targetActor)
+      await activateProviderEpochForActor(targetActor)
     }
     await persistSnapshot()
     return projection
@@ -1869,17 +1915,16 @@ async function createRuntimeBridge(
     actorId?: string
   }, text: string) => {
     const projection = createDurableActorSurfaceFacade().sendActorHumanMessage(target, text)
-    const actorId = target.actorId ?? projection.selectedActorId
-    const laneId = target.laneId ?? projection.selectedLaneId
-    const actorLane = projection.actorLanes.find((lane) => lane.actorId === actorId)
-      ?? projection.actorLanes.find((lane) => lane.actorId === projection.conversationLanes.find((lane) => lane.laneId === laneId)?.actorId)
-    if (actorLane) {
-      const now = Date.now()
-      await driver.tickUntilForegroundSettled({ now, maxTicks: 20, maxWallMs: 250 }).catch(() => {})
-      await driver.tickUntilBackgroundSettled({ now, maxTicks: 20, maxWallMs: 250 }).catch(() => {})
-      await persistSnapshot()
-    }
-    return projection
+    const targetActor = findActorForSurfaceProjection(projection, target)
+    if (!targetActor) return buildActorSurfaceProjection(vm as any)
+    const targetFiberId = `${targetActor.key}:${targetActor.id}`
+    await runActorInteractiveTurn(targetActor, targetFiberId, {
+      timeoutSeconds: runtimeConfig.timeoutSeconds,
+    })
+    return buildActorSurfaceProjection(vm as any, {
+      selectedLaneId: target.laneId ?? projection.selectedLaneId,
+      selectedActorId: target.actorId ?? projection.selectedActorId,
+    })
   }
 
   const cancelActorTurn = async (request: {
@@ -1903,8 +1948,8 @@ async function createRuntimeBridge(
     return createDurableActorSurfaceFacade().submitQuestionnaireResponse(questionnaireId, responseText)
   }
 
-  const dispose = () => {
-    void persistSnapshot()
+  const dispose = async () => {
+    await persistSnapshot()
     heartbeatWorker.dispose()
     runtimeCoordinator.dispose()
     eventBusConsumer.unsubscribe()
@@ -2029,6 +2074,100 @@ async function createRuntimeBridge(
     }
   }
 
+  const conversationSessionForkCommandPort = runtimeSupport.persistence.conversationPersistenceRepositoryFactory
+    ? createConversationSessionForkPort({
+      owner: { sessionId: sessionKey, actorKey: actor.key, actorId: actor.id },
+      repositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
+      resolveSessionDir: (targetSessionId) => path.join(paths.WORKDIR, ".eidolon", "sessions", targetSessionId),
+      createChildActorId: ({ command, actorKey, actorId }) => `actor-fork-${digestProviderContextClosedValue({
+        sourceSessionId: command.sourceSessionId,
+        targetSessionId: command.targetSessionId,
+        actorKey,
+        actorId,
+      }).slice(7, 31)}`,
+      runExclusive: async (_sourceSessionId, action) => await runtimeCoordinator.enqueue(action),
+      beforeSourceRead: async () => {
+        // Seal only already-completed Conversation progress. No VM snapshot or
+        // surface projection participates in fork authority resolution.
+        await sealCompletedProgress()
+      },
+    })
+    : null
+  const conversationSessionForkPort = conversationSessionForkCommandPort
+    ? createConversationSessionForkActorPort({
+      identity: { sessionId: sessionKey, actorKey: actor.key, actorId: actor.id },
+      port: conversationSessionForkCommandPort,
+      senderId: "terminal-runtime-surface",
+    })
+    : null
+
+  const forkConversationSession = async (
+    command: ConversationSessionForkCommand,
+  ): Promise<ConversationSessionForkResult> => {
+    if (command.sourceSessionId !== sessionKey) {
+      return {
+        status: "rejected",
+        rejection: {
+          code: "SOURCE_AUTHORITY_CHANGED",
+          message: `fork source does not match owning Conversation runtime: ${command.sourceSessionId}`,
+        },
+      }
+    }
+    if (!conversationSessionForkPort) {
+      return {
+        status: "rejected",
+        rejection: { code: "FORK_TRANSACTION_CONFLICT", message: "Conversation persistence capability is unavailable" },
+      }
+    }
+    return await conversationSessionForkPort.fork(command)
+  }
+
+  const conversationSessionRewindCommandPort = runtimeSupport.persistence.conversationPersistenceRepositoryFactory
+    ? createConversationSessionRewindPort({
+      owner: { sessionId: sessionKey, actorKey: actor.key, actorId: actor.id },
+      repositoryFactory: runtimeSupport.persistence.conversationPersistenceRepositoryFactory,
+      resolveSessionDir: (targetSessionId) => path.join(paths.WORKDIR, ".eidolon", "sessions", targetSessionId),
+      runExclusive: async (_sessionId, action) => await runtimeCoordinator.enqueue(action),
+      beforeSourceRead: async () => await sealCompletedProgress(),
+      afterCommit: async ({ repository }) => {
+        await synchronizeConversationDomainActorFromPersistence({
+          runtime: ensureVmConversationDomainRuntime(vm),
+          sessionDir: path.join(paths.WORKDIR, ".eidolon", "sessions", sessionKey),
+          actorKey: actor.key,
+          repository,
+        })
+      },
+    })
+    : null
+  const conversationSessionRewindPort = conversationSessionRewindCommandPort
+    ? createConversationSessionRewindActorPort({
+      identity: { sessionId: sessionKey, actorKey: actor.key, actorId: actor.id },
+      port: conversationSessionRewindCommandPort,
+      senderId: "terminal-runtime-surface",
+    })
+    : null
+
+  const rewindConversationSession = async (
+    command: ConversationSessionRewindCommand,
+  ): Promise<ConversationSessionRewindResult> => {
+    if (command.sessionId !== sessionKey) {
+      return {
+        status: "rejected",
+        rejection: {
+          code: "SOURCE_AUTHORITY_CHANGED",
+          message: `rewind session does not match owning Conversation runtime: ${command.sessionId}`,
+        },
+      }
+    }
+    if (!conversationSessionRewindPort) {
+      return {
+        status: "rejected",
+        rejection: { code: "REWIND_TRANSACTION_CONFLICT", message: "Conversation persistence capability is unavailable" },
+      }
+    }
+    return await conversationSessionRewindPort.rewind(command)
+  }
+
   return {
     bindingDescriptor: runtimeBinding.descriptor,
     agents: async () => runtimeAgents,
@@ -2053,6 +2192,8 @@ async function createRuntimeBridge(
     loadConversationState,
     loadConversationViews,
     loadActorConversationMessages,
+    forkConversationSession,
+    rewindConversationSession,
     readTimingProjection,
     readUsageProjection,
     readProviderCacheObservations,
@@ -2090,7 +2231,7 @@ async function disposeRuntimeBridge(sessionKey: string, projection: RuntimeProje
     return
   }
   const runtime = await runtimePromise.catch(() => null)
-  runtime?.dispose()
+  await runtime?.dispose()
 }
 
 export async function getTuiRuntimeBridge(sessionKey: string, options?: { onInitStatus?: RuntimeBridgeInitStatusHandler }) {
@@ -2122,7 +2263,6 @@ export function configureTuiRuntime(config: TuiRuntimeConfig) {
   runtimeConfig.entryType = config.entryType
   runtimeConfig.storage = config.storage
   runtimeConfig.providerRequestObservationBindingFactory = config.providerRequestObservationBindingFactory
-  runtimeConfig.providerChatCompatibilityProfileId = config.providerChatCompatibilityProfileId
   runtimeConfig.attachmentResolver = config.attachmentResolver
   runtimeConfig.metadata = normalizeTerminalRuntimeMetadata(config.workDir, config.metadata)
   sessionRuntimePromises.clear()

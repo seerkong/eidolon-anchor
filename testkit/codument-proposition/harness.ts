@@ -164,10 +164,11 @@ export function verifyPropositionModeIdentity(identity: PropositionModeIdentity)
 
 function providerClass(turns: readonly PropositionProviderTurn[]): PropositionCacheScope["providerClass"] {
   if (turns.length === 0) return "other"
-  if (turns.every((turn) => turn.providerId === "deepseek" && turn.providerProfileId === "deepseek-official-chat@1")) {
-    return "official_deepseek"
-  }
-  if (turns.every((turn) => turn.providerProfileId === "deepseek-compatible-chat@1")) return "deepseek_compatible"
+  if (turns.every((turn) => (
+    turn.providerProfileId === "deepseek-chat@1"
+    || turn.providerProfileId === "deepseek-official-chat@1"
+    || turn.providerProfileId === "deepseek-compatible-chat@1"
+  ))) return "deepseek"
   return "other"
 }
 
@@ -217,7 +218,7 @@ function classifyPropositionCacheScopeWithEligibility(
         ? "comparable_long_context"
         : "short_or_cold"
   if (classification === "comparable_long_context"
-    && providerClass(turns) === "official_deepseek"
+    && providerClass(turns) === "deepseek"
     && normalizedInputCost === null) {
     throw new Error("official comparable scope requires absolute normalized input cost")
   }

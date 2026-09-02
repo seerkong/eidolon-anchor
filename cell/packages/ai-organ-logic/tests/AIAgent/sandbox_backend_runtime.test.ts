@@ -5,6 +5,7 @@ import path from "path";
 
 import { bashCoreLogic } from "@cell/ai-organ-logic/composer/AIAgent/tools/Bash/Logic";
 import { configureLocalPermissionConfigStore } from "@cell/ai-organ-logic/permissions/LocalPermissionConfig";
+import { isToolGuardedBashCommand } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime";
 import {
   createLinuxSandboxCommand,
   createMacOsSeatbeltCommand,
@@ -602,6 +603,40 @@ describe("sandbox backend runtime", () => {
 
     expect(result).toMatchObject({ output: "/workspace/project", outcome: { status: "completed" } });
     expect(calls[0]?.executable).toBe("/usr/bin/sandbox-exec");
+  });
+
+  it("removes only sudo from the Bash tool guard in yolo mode", async () => {
+    const calls: Array<{ executable: string; args: string[]; options: any }> = [];
+    const spawnSyncFn = (executable: string, args: string[] | undefined, options: any) => {
+      calls.push({ executable, args: args ?? [], options });
+      return { stdout: "sudo-ran\n", stderr: "", status: 0 } as any;
+    };
+    const yoloRuntime = runtimeWithMetadata({
+      exec_protocol: { mode: "dangerous" },
+      sandbox_permissions: { sandbox_mode: "danger-full-access" },
+    });
+    expect(isToolGuardedBashCommand(yoloRuntime, "sudo true")).toBeFalse();
+    expect(isToolGuardedBashCommand(yoloRuntime, "rm -rf /")).toBeTrue();
+    expect(isToolGuardedBashCommand(runtimeWithMetadata({}), "sudo true")).toBeTrue();
+
+    const sudoResult = await bashCoreLogic(yoloRuntime, { command: "sudo true" }, { spawnSyncFn });
+    expect(sudoResult).toMatchObject({ output: "sudo-ran", outcome: { status: "completed" } });
+    expect(calls).toHaveLength(1);
+
+    const destructiveResult = await bashCoreLogic(yoloRuntime, { command: "rm -rf /" }, { spawnSyncFn });
+    expect(destructiveResult).toBe("Error: Dangerous command blocked");
+    expect(calls).toHaveLength(1);
+
+    const standardResult = await bashCoreLogic(
+      runtimeWithMetadata({
+        exec_protocol: { mode: "full-auto" },
+        sandbox_permissions: { sandbox_mode: "workspace-write" },
+      }),
+      { command: "sudo true" },
+      { spawnSyncFn },
+    );
+    expect(standardResult).toBe("Error: Dangerous command blocked");
+    expect(calls).toHaveLength(1);
   });
 
   it("Bash tool accepts timeoutSeconds and passes milliseconds to the sandbox backend", async () => {

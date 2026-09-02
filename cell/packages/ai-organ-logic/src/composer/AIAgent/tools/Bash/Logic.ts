@@ -7,7 +7,10 @@ import {
   stdMakeNullOuterComputed,
 } from "depa-processor"
 import path from "path"
-import { authorizeLocalToolCall } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime"
+import {
+  authorizeLocalToolCall,
+  isToolGuardedBashCommand,
+} from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime"
 import { ensureVmRuntimeContext } from "@cell/ai-core-logic/runtime/runtime"
 import { getDetachedActorObservabilityStore } from "@cell/ai-organ-logic/detached/DetachedActorObservability"
 import {
@@ -86,8 +89,9 @@ export const bashCoreLogic: StdInnerLogic<BashInnerRuntime, BashInnerInput, Bash
   const cwd = path.isAbsolute(workdirRaw) ? workdirRaw : path.resolve(String(runtime.vm.outerCtx.workDir ?? process.cwd()), workdirRaw)
   const timeoutMs = resolveTimeoutMs(input?.timeoutSeconds)
   try {
-    const dangerous = ["rm -rf /", "sudo", "shutdown", "reboot", "> /dev/"]
-    if (dangerous.some((item) => command.includes(item))) {
+    // yolo removes only the explicit sudo guard. All other tool-level safety
+    // guards remain in force, even when the permission layer is bypassed.
+    if (isToolGuardedBashCommand(runtime, command)) {
       return "Error: Dangerous command blocked"
     }
     const selection = resolveSandboxBackendSelectionFromRuntime(runtime, cwd, typeof _config?.platform === "string" ? String(_config.platform) : undefined)

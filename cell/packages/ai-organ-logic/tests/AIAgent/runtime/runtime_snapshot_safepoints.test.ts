@@ -13,7 +13,10 @@ import {
   createAiAgentRuntimeCoordinator,
 } from "@cell/ai-organ-logic"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
-import { createMockProcessStream } from "../__test_support__/mockProcessStream"
+import {
+  createMockProcessStream,
+  createMockProviderCacheCostObservation,
+} from "../__test_support__/mockProcessStream"
 import {
   recoverAiAgentRuntime,
   saveAiAgentRuntimeSnapshot,
@@ -44,6 +47,16 @@ function makeTempSessionDir(): string {
   const dir = path.join(os.tmpdir(), `eidolon-runtime-safepoint-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`)
   fs.mkdirSync(dir, { recursive: true })
   return dir
+}
+
+async function waitForCondition(
+  predicate: () => boolean,
+  timeoutMs = 2_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs
+  while (!predicate() && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 5))
+  }
 }
 
 async function rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir: string): Promise<void> {
@@ -608,6 +621,42 @@ describe("runtime snapshot safepoints", () => {
     }
   })
 
+  it("surfaces a checkpoint write failure from queued runtime progress", async () => {
+    const sessionDir = makeTempSessionDir()
+    const actor = createActor({
+      key: "main",
+      id: "actor-main",
+      messages: [{ role: "user", content: "checkpoint failure" }] as any[],
+    })
+    const vm = createVM({
+      controlActorKey: "main",
+      actors: { main: actor },
+      outerCtx: { metadata: { sessionId: "session-checkpoint-error", sessionDir } },
+    })
+    const driver = createAiAgentOrchestratorDriver({
+      fibers: [{ fiberId: `${actor.key}:${actor.id}`, vm, actor, messages: actor.messages, basePriority: 1 }],
+      runStep: async () => ({ kind: "complete" as const }),
+      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
+    })
+    driver.resumeFiber(`${actor.key}:${actor.id}`, Date.now())
+    await driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 5 })
+    const coordinator = createAiAgentRuntimeCoordinator({
+      vm,
+      driver,
+      saveSnapshot: async () => {
+        throw new Error("injected_checkpoint_failure")
+      },
+    })
+
+    try {
+      await expect(coordinator.enqueue(async () => "progress"))
+        .rejects.toThrow("injected_checkpoint_failure")
+    } finally {
+      coordinator.dispose()
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("background pump does not checkpoint when no background work is pending", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "session-background-idle-no-checkpoint"
@@ -704,7 +753,7 @@ describe("runtime snapshot safepoints", () => {
 
     try {
       coordinator.startBackgroundPump()
-      await new Promise((resolve) => setTimeout(resolve, 40))
+      await waitForCondition(() => hookCalls > 0)
 
       expect(hookCalls).toBeGreaterThan(0)
       expect(saveCalls).toBe(0)
@@ -761,11 +810,24 @@ describe("runtime snapshot safepoints", () => {
       key: "main",
       id: "actor-main",
       llmClient: {
-        type: "mock",
-        createStream: async () => ({ stream: {} }),
+        type: "openai",
+        runtime: {
+          adapterName: "openai-responses",
+          providerId: "runtime-snapshot-storage-disabled-test",
+        },
+        createStream: async (options: any) => ({
+          stream: {},
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: createMockProviderCacheCostObservation(options),
+          }),
+        }),
       } as any,
-      modelConfig: { model: "mock-model" } as any,
-      messages: [{ role: "user", content: "hello?" }] as any[],
+      modelConfig: {
+        model: "mock-model",
+        adapter: "openai-responses",
+        provider: "runtime-snapshot-storage-disabled-test",
+      } as any,
+      messages: [],
       callbacks: {
         buildToolset: () => [],
         processStream: createMockProcessStream(async () => ({ role: "assistant", content: "hello from mock" })),
@@ -780,6 +842,7 @@ describe("runtime snapshot safepoints", () => {
         metadata: { sessionId, sessionDir },
       },
     })
+    actor.send("humanInput", "hello?")
     const driver = createAiAgentOrchestratorDriverWithCooperative({
       fibers: [{ fiberId: `${actor.key}:${actor.id}`, vm, actor, messages: actor.messages, basePriority: 1 }],
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },

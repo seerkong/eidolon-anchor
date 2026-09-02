@@ -27,8 +27,8 @@ export type CreateProviderCacheCostObservationInput = Readonly<{
 }>;
 
 const ACTOR_CLASSES = new Set(["ordinary", "workflow_lifecycle", "workflow_node"]);
-const PROVIDER_PROFILES = new Set(["deepseek_official", "deepseek_compatible", "other"]);
-const PROVIDER_PROFILE_IDS = new Set(["deepseek-official-chat@1", "deepseek-compatible-chat@1"]);
+const PROVIDER_PROFILES = new Set(["deepseek", "deepseek_official", "deepseek_compatible", "other"]);
+const PROVIDER_PROFILE_IDS = new Set(["deepseek-chat@1", "deepseek-official-chat@1", "deepseek-compatible-chat@1"]);
 
 const OFFICIAL_DEEPSEEK_NORMALIZED_INPUT_PRICE_WEIGHTS = Object.freeze({
   cacheHitWeight: 0.1,
@@ -36,14 +36,15 @@ const OFFICIAL_DEEPSEEK_NORMALIZED_INPUT_PRICE_WEIGHTS = Object.freeze({
 });
 
 /**
- * Relative charged-input weights approved for official DeepSeek evidence.
- * Compatible gateways own different pricing authorities and cannot silently
- * inherit the official profile's cost projection.
+ * Relative charged-input weights for the DeepSeek Chat protocol family.
+ * Gateway identity does not alter protocol/cache semantics.
  */
 export function resolveProviderCachePriceWeights(
   providerProfileId: string,
 ): ProviderCachePriceWeights | null {
-  return providerProfileId === "deepseek-official-chat@1"
+  return providerProfileId === "deepseek-chat@1"
+    || providerProfileId === "deepseek-official-chat@1"
+    || providerProfileId === "deepseek-compatible-chat@1"
     ? OFFICIAL_DEEPSEEK_NORMALIZED_INPUT_PRICE_WEIGHTS
     : null;
 }
@@ -115,17 +116,16 @@ function normalizeIdentity(value: ProviderCacheCostObservationIdentity): Provide
   if (!Number.isSafeInteger(value.contextEpoch) || value.contextEpoch < 0) {
     fail("provider_cache_observation_invalid", "identity.contextEpoch must be a non-negative safe integer.");
   }
-  const expectedProfile = value.providerProfileId === "deepseek-official-chat@1"
-    ? "deepseek_official"
-    : "deepseek_compatible";
-  if (value.providerProfile !== expectedProfile) {
+  if (value.providerProfile !== "deepseek"
+    && value.providerProfile !== "deepseek_official"
+    && value.providerProfile !== "deepseek_compatible") {
     fail("provider_cache_profile_identity_mismatch", "providerProfile must match the explicit versioned providerProfileId.");
   }
   return {
     schemaVersion: PROVIDER_CACHE_OBSERVATION_SCHEMA_VERSION,
     providerId: value.providerId,
-    providerProfile: value.providerProfile,
-    providerProfileId: value.providerProfileId,
+    providerProfile: "deepseek",
+    providerProfileId: "deepseek-chat@1",
     model: value.model,
     actorClass: value.actorClass,
     contextEpoch: value.contextEpoch,
@@ -430,6 +430,7 @@ function createUnitsForExplicitProfile(input: Readonly<{
   // Keep separate dispatch cases so a future compatible template cannot
   // silently inherit official ordering.
   switch (input.providerProfileId) {
+    case "deepseek-chat@1":
     case "deepseek-official-chat@1":
       return createDeepSeekChatV1Units(input);
     case "deepseek-compatible-chat@1":

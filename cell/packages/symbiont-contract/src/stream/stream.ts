@@ -1,6 +1,12 @@
 import type { TimelineChannel } from "depa-data-graph-core";
 import type { BoundedTimeline } from "./BoundedTimeline";
 
+/**
+ * Compatibility facade for the remaining symbiont stream contracts. Timeline
+ * ownership is delegated to depa-data-graph-core; callers should not treat
+ * this module as a second event-log or projection substrate.
+ */
+
 export type StreamEvent = { event: string; data: string };
 
 export interface OutputStreamContract {

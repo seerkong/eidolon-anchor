@@ -32,7 +32,7 @@ import { buildRunDelegateActorToolDef } from "@cell/ai-organ-logic/composer/AIAg
 import {
   appendLiveHistoryMessageToConversationDomainRuntime,
   appendActorProviderContextFactToConversationDomainRuntime,
-  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
+  commitDeliveredProviderContextFactsToConversationDomainRuntime,
   emitConversationDomainEvent,
   ensureVmConversationDomainRuntime,
   getConversationActorRawStateFromVm,
@@ -2918,7 +2918,7 @@ describe("ai_agent_loop_streaming", () => {
     });
   });
 
-  it("fresh-imports legacy v1 late-status as a typed fact before transport and never sends the old overlay", async () => {
+  it("fresh-imports legacy v1 late-status as retired runtime control and never sends it", async () => {
     const sessionDir = makeTempSessionDir();
     const sessionId = path.basename(sessionDir);
     const seedActor = createTestActor();
@@ -3018,8 +3018,8 @@ describe("ai_agent_loop_streaming", () => {
     await aiAgentLoopStreaming({ vm, actor, messages: [] });
 
     const serialized = JSON.stringify(providerBodies[0]);
-    expect(serialized).toContain("eidolon-context-fact/v1");
-    expect(serialized).toContain("LEGACY_LATE_STATUS_MUST_BE_IMPORTED");
+    expect(serialized).not.toContain("eidolon-context-fact/v1");
+    expect(serialized).not.toContain("LEGACY_LATE_STATUS_MUST_BE_IMPORTED");
     expect(providerBodies[0].some((message: any) => (
       message.role === "system" && String(message.content).includes("LEGACY_LATE_STATUS_MUST_BE_IMPORTED")
     ))).toBe(false);
@@ -3028,6 +3028,7 @@ describe("ai_agent_loop_streaming", () => {
     expect(fresh.session.actorBindings.main).toMatchObject({
       providerEpochReceiptV2: { reason: "legacy_context_import" },
       providerContextLegacyMigrationMarker: { status: "completed" },
+      providerContextFactHead: null,
     });
   });
 
@@ -3276,7 +3277,7 @@ describe("ai_agent_loop_streaming", () => {
         observedAt: "2026-08-25T18:00:02.000Z",
       },
     });
-    const [sourceFact] = commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+    const [sourceFact] = commitDeliveredProviderContextFactsToConversationDomainRuntime({
       runtime: ensureVmConversationDomainRuntime(vm),
       sessionId,
       actorKey: actor.key,
@@ -3290,7 +3291,7 @@ describe("ai_agent_loop_streaming", () => {
       sessionId,
       actorKey: actor.key,
       actorId: actor.id,
-      namespace: "provider-recovery",
+      namespace: "provider-output-recovery",
       payload: {
         logicalKey: "provider-output-recovery",
         recoveryKind: "reasoning_only_or_truncated",
@@ -3330,7 +3331,7 @@ describe("ai_agent_loop_streaming", () => {
       asset.providerContextFact?.epoch === receipt?.epoch
     )) ?? [];
     expect(successorAssets).toHaveLength(1);
-    expect(successorAssets.some((asset) => asset.providerContextFact?.namespace === "provider-recovery")).toBe(false);
+    expect(successorAssets.some((asset) => asset.providerContextFact?.namespace === "provider-output-recovery")).toBe(false);
     expect(successorAssets[0]?.providerContextFact).toMatchObject({
       namespace: sourceFact.namespace,
       namespaceRevision: sourceFact.namespaceRevision,
@@ -3420,6 +3421,10 @@ describe("ai_agent_loop_streaming", () => {
 
     await aiAgentLoopStreaming({ vm, actor, messages: [] });
     expect(observedEpochs).toEqual(observedReceiptEpochs);
+    const beforeCompaction = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
+    const beforeCompactionEpoch = beforeCompaction.session.actorBindings[actor.key]
+      ?.providerEpochReceiptV2?.epoch;
+    expect(beforeCompactionEpoch).toBeGreaterThan(0);
 
     actor.modelConfig.inputLimit = 100;
     __setCompressionDepsForTest({
@@ -3433,7 +3438,7 @@ describe("ai_agent_loop_streaming", () => {
     expect(await forceCompressActorHistory({ vm, actor })).toMatchObject({ ok: true, compacted: true });
     const compacted = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
     expect(compacted.session.actorBindings[actor.key]?.providerEpochReceiptV2).toMatchObject({
-      epoch: 2,
+      epoch: beforeCompactionEpoch! + 1,
       reason: "history_compaction",
     });
 
@@ -3527,6 +3532,9 @@ describe("ai_agent_loop_streaming", () => {
         sessionId,
         candidate: {
           actorKey: actor.key,
+          // Persisted pre-semantic-name fixture: production no longer writes
+          // this alias, but compaction must migrate it without touching the
+          // already admitted source epoch.
           namespace: "provider-projection",
           logicalKey: "retention",
           revision: projectionRevision,
@@ -3536,7 +3544,7 @@ describe("ai_agent_loop_streaming", () => {
         },
       });
       const hex = revision.toString(16).padStart(64, "0");
-      commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+      commitDeliveredProviderContextFactsToConversationDomainRuntime({
         runtime: ensureVmConversationDomainRuntime(vm),
         sessionId,
         actorKey: actor.key,
@@ -3553,7 +3561,7 @@ describe("ai_agent_loop_streaming", () => {
     const atLimit = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })!;
     expect((atLimit.session.contextAssets ?? []).filter((asset) => (
       asset.providerContextFact?.epoch === 1
-    ))).toHaveLength(33);
+    ))).toHaveLength(32);
     const seededRepository = LocalFileConversationPersistenceRepositoryFactory.createRepository(sessionDir);
     await seededRepository.writeHistoryIndex(atLimit.session.historyIndex);
     if (atLimit.activeHistoryGeneration) await seededRepository.writeHistoryGeneration(atLimit.activeHistoryGeneration);
@@ -3569,13 +3577,13 @@ describe("ai_agent_loop_streaming", () => {
     const epochTwoFacts = (after.session.contextAssets ?? []).flatMap((asset) => (
       asset.providerContextFact?.epoch === 2 ? [asset.providerContextFact] : []
     ));
-    expect(epochTwoFacts.filter((fact) => fact.namespace === "provider-projection")).toHaveLength(1);
+    expect(epochTwoFacts.filter((fact) => fact.namespace === "task-tree-context")).toHaveLength(1);
     expect(epochTwoFacts.filter((fact) => fact.namespace === "workflow-stage-context")).toHaveLength(0);
     expect(after.session.actorBindings[actor.key]!.providerRequestAdmissions).toHaveLength(1);
     expect(providerCalls).toBe(2);
 
     // Cross the next threshold in another namespace while the unchanged
-    // provider-projection fact is represented only by the prior compacted
+    // task-tree-context fact is represented only by the prior compacted
     // proof. The second compaction must reconstruct that provenance without a
     // live tool/admission reread from epoch one.
     for (let revision = 1; revision <= 32; revision += 1) {
@@ -3595,7 +3603,7 @@ describe("ai_agent_loop_streaming", () => {
         },
       });
       const hex = (revision + 64).toString(16).padStart(64, "0");
-      commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+      commitDeliveredProviderContextFactsToConversationDomainRuntime({
         runtime: ensureVmConversationDomainRuntime(vm),
         sessionId,
         actorKey: actor.key,
@@ -3617,8 +3625,7 @@ describe("ai_agent_loop_streaming", () => {
       asset.providerContextFact?.epoch === 3 ? [asset.providerContextFact] : []
     ));
     expect(epochThreeFacts.map((fact) => fact.namespace).sort()).toEqual([
-      "provider-projection",
-      "work-context",
+      "task-tree-context",
       "workflow-stage-context",
     ]);
     expect(providerCalls).toBe(3);

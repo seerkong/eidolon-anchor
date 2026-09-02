@@ -12,6 +12,8 @@
   "dependencies": {
     "@cell/symbiont-contract": "workspace:*",
     "depa-data-graph-core": "^1.0.1",
+    "xnl-core": "^0.1.10",
+    "xnl-vfs": "0.1.2",
     "xstream": "^11.14.0"
   }
 }

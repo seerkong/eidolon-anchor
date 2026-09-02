@@ -31,21 +31,25 @@ const adapter = {
   },
 }
 
-function makeProjectionTool(name = "MutableStateProducer"): ToolDef<any, ToolExecutionResultEnvelope, Record<string, unknown>> {
+function makeContextTool(name = "MutableStateProducer"): ToolDef<any, ToolExecutionResultEnvelope, Record<string, unknown>> {
   return {
     schema: {
       type: "function",
-      function: { name, description: "test projection producer", parameters: { type: "object" } },
+      function: { name, description: "test context producer", parameters: { type: "object" } },
     },
     briefPromptXnl: `<tool name="${name}" />`,
     run: async (_runtime, input) => ({
       output: `updated:${String(input?.value ?? "")}`,
       contextEffects: [{
-        kind: "mutable_provider_projection",
+        kind: "append_provider_context_fact",
+        namespace: "task-tree-context",
         logicalKey: "test_mutable_state",
         revision: `revision-${String(input?.value ?? "")}`,
-        content: `full-state:${String(input?.value ?? "")}`,
-        placement: "late",
+        payload: {
+          logicalKey: "test_mutable_state",
+          revision: `revision-${String(input?.value ?? "")}`,
+          content: `full-state:${String(input?.value ?? "")}`,
+        },
       }],
     }),
   }
@@ -90,10 +94,10 @@ function makeStreamingRuntime(params: {
   return { actor, vm }
 }
 
-function projectionSources(vm: any) {
+function contextSources(vm: any) {
   const raw = getConversationActorRawStateFromVm({ vm, actorKey: "main" })
   return raw?.session.contextAssets
-    ?.flatMap((asset) => asset.projectionFact?.sourceToolCalls ?? [])
+    ?.flatMap((asset) => asset.providerContextFactCandidate?.sourceToolCalls ?? [])
     ?? []
 }
 
@@ -113,9 +117,9 @@ async function flushAsyncWork(): Promise<void> {
   }
 }
 
-describe("provider projection execution lifecycle", () => {
-  it("admits a projection only after its complete pair, then retains the pair and appends a typed fact", async () => {
-    const tool = makeProjectionTool()
+describe("provider context fact execution lifecycle", () => {
+  it("admits context only after its complete pair, then retains the pair and appends a typed fact", async () => {
+    const tool = makeContextTool()
     let providerTurn = 0
     const { actor, vm } = makeStreamingRuntime({
       tool,
@@ -142,7 +146,7 @@ describe("provider projection execution lifecycle", () => {
     })
 
     expect(result.messages.find((message: any) => message.role === "tool")?.content).toBe("updated:1")
-    expect(projectionSources(vm)).toEqual([
+    expect(contextSources(vm)).toEqual([
       expect.objectContaining({ toolCallId: "call-generic-1", deliveryState: "delivered" }),
     ])
     const nextPrompt = buildPrompt(vm, actor, tool)
@@ -158,7 +162,7 @@ describe("provider projection execution lifecycle", () => {
     ))).toBe(false)
     const raw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })
     const typedFacts = raw?.session.contextAssets?.flatMap((asset) => (
-      asset.providerContextFact?.namespace === "provider-projection" ? [asset.providerContextFact] : []
+      asset.providerContextFact?.namespace === "task-tree-context" ? [asset.providerContextFact] : []
     )) ?? []
     expect(typedFacts).toHaveLength(1)
     const admissions = raw?.session.actorBindings[actor.key]?.providerRequestAdmissions ?? []
@@ -166,15 +170,8 @@ describe("provider projection execution lifecycle", () => {
     const allTypedFacts = raw?.session.contextAssets?.flatMap((asset) => (
       asset.providerContextFact ? [asset.providerContextFact] : []
     )) ?? []
-    const firstRequestFacts = allTypedFacts.filter((fact) => fact.sequence <= (admissions[0]?.admittedFactRange?.lastSequence ?? 0))
-    expect(firstRequestFacts.some((fact) => fact.namespace === "work-context")).toBe(true)
-    expect(admissions[0]?.admittedFactRange).toEqual({
-      previousHeadDigest: null,
-      firstSequence: 1,
-      lastSequence: firstRequestFacts.at(-1)?.sequence,
-      count: firstRequestFacts.length,
-      factDigests: firstRequestFacts.map((fact) => fact.factDigest),
-    })
+    expect(allTypedFacts.some((fact) => fact.namespace === "work-context")).toBe(false)
+    expect(admissions[0]?.admittedFactRange).toBeNull()
     expect(admissions.every((admission) => admission.finalRequestDigest === `sha256:${"a".repeat(64)}`)).toBe(true)
     expect(admissions[1]?.previousAdmissionDigest).toBe(admissions[0]?.admissionDigest)
     expect(admissions[1]?.currentHeads.factHeadDigest).toBe(typedFacts[0]?.factDigest)
@@ -191,12 +188,12 @@ describe("provider projection execution lifecycle", () => {
       requestAdmissionIntentDigest: admissions[1]?.factAppendIntentDigest,
     }))
     expect(actor.continuationBaseline).toEqual(expect.objectContaining({
-      lastResetReason: "provider_projection:fact_appended",
+      lastResetReason: "provider_context:fact_appended",
     }))
   })
 
   it("leaves a source pair pending when the provider call fails", async () => {
-    const tool = makeProjectionTool()
+    const tool = makeContextTool()
     let providerTurn = 0
     const { actor, vm } = makeStreamingRuntime({
       tool,
@@ -221,19 +218,19 @@ describe("provider projection execution lifecycle", () => {
       messages: [{ role: "user", content: "update state" }],
     })).rejects.toThrow("provider unavailable")
 
-    expect(projectionSources(vm)).toEqual([
+    expect(contextSources(vm)).toEqual([
       expect.objectContaining({ toolCallId: "call-failed-delivery", deliveryState: "pending" }),
     ])
     const retryPrompt = buildPrompt(vm, actor, tool)
     expect(JSON.stringify(retryPrompt)).toContain("call-failed-delivery")
     expect(JSON.stringify(retryPrompt)).not.toContain("full-state:2")
     expect(actor.continuationBaseline).toEqual(expect.objectContaining({
-      lastResetReason: "provider_projection:context_effect",
+      lastResetReason: "provider_context:context_effect",
     }))
   })
 
   it("leaves a source pair pending when an in-flight provider call is aborted", async () => {
-    const tool = makeProjectionTool()
+    const tool = makeContextTool()
     let providerTurn = 0
     let secondProviderStarted!: () => void
     const secondProviderStart = new Promise<void>((resolve) => {
@@ -268,7 +265,7 @@ describe("provider projection execution lifecycle", () => {
     actor.llmAbortController?.abort()
     await expect(loop).rejects.toThrow("provider aborted")
 
-    expect(projectionSources(vm)).toEqual([
+    expect(contextSources(vm)).toEqual([
       expect.objectContaining({ toolCallId: "call-aborted-delivery", deliveryState: "pending" }),
     ])
   })
@@ -329,15 +326,15 @@ describe("provider projection execution lifecycle", () => {
     expect(toolOutputs.some((output) => output.includes("current task"))).toBe(false)
 
     const raw = getConversationActorRawStateFromVm({ vm, actorKey: actor.key })
-    const projectionFacts = raw?.session.contextAssets
-      ?.flatMap((asset) => asset.projectionFact ? [asset.projectionFact] : [])
+    const contextCandidates = raw?.session.contextAssets
+      ?.flatMap((asset) => asset.providerContextFactCandidate ? [asset.providerContextFactCandidate] : [])
       ?? []
-    expect(projectionFacts).toHaveLength(2)
-    expect(projectionFacts.map((fact) => fact.content)).toEqual([
+    expect(contextCandidates).toHaveLength(2)
+    expect(contextCandidates.map((fact) => fact.payload.content)).toEqual([
       expect.stringContaining("old task"),
       expect.stringContaining("current task"),
     ])
-    expect(projectionFacts.flatMap((fact) => fact.sourceToolCalls)).toEqual([
+    expect(contextCandidates.flatMap((fact) => fact.sourceToolCalls)).toEqual([
       expect.objectContaining({ toolCallId: "call-tree-1", deliveryState: "delivered" }),
       expect.objectContaining({ toolCallId: "call-tree-2", deliveryState: "delivered" }),
     ])
@@ -351,7 +348,7 @@ describe("provider projection execution lifecycle", () => {
   })
 
   it("confirms the same generic delivery lifecycle in cooperative execution", async () => {
-    const tool = makeProjectionTool("CooperativeMutableProducer")
+    const tool = makeContextTool("CooperativeMutableProducer")
     const eventBus = new AgentEventGraph()
     let providerTurn = 0
     const actor = createActor({
@@ -414,10 +411,10 @@ describe("provider projection execution lifecycle", () => {
     for (let step = 0; step < 80; step += 1) {
       driver.tick(Date.now())
       await flushAsyncWork()
-      if (projectionSources(vm).some((source) => source.deliveryState === "delivered")) break
+      if (contextSources(vm).some((source) => source.deliveryState === "delivered")) break
     }
 
-    expect(projectionSources(vm)).toEqual([
+    expect(contextSources(vm)).toEqual([
       expect.objectContaining({ toolCallId: "call-cooperative", deliveryState: "delivered" }),
     ])
     const laterPrompt = buildPrompt(vm, actor, tool)

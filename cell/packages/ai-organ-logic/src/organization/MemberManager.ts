@@ -6,7 +6,7 @@ import { getCoordinationEngine } from "../coordination/CoordinationEngine";
 import { AI_AGENT_LANES } from "../lane/AiAgentLane";
 import { resolveMemberWorkload } from "../lane/AiAgentWorkload";
 
-export type MemberLane = "member" | "autonomous_holon";
+export type MemberLane = "member";
 export type MemberLifecycleState = "active" | "shutting_down" | "exited";
 
 export type MemberMessage = {
@@ -165,7 +165,7 @@ export class MemberManager {
     const messages: any[] = systemPrompts.map((p) => ({ role: "system", content: p }));
     const role = normalizeMemberRole(params.role);
 
-    const lane = params.lane === "autonomous_holon" ? AI_AGENT_LANES.autonomousHolon : AI_AGENT_LANES.member;
+    const lane = AI_AGENT_LANES.member;
 
     const actor = createActor({
       key,

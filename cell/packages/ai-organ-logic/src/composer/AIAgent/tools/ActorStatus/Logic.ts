@@ -9,7 +9,7 @@ import {
 import { ensureVmSessionState } from "@cell/ai-core-logic/runtime/runtime"
 import type { TaskNode } from "@cell/ai-core-contract/plan/TaskTree"
 import { getMemberManager } from "@cell/ai-organ-logic/organization/MemberManager"
-import { buildAutonomousHolonTaskScope, buildLeaderLedHolonTaskScope } from "@cell/ai-organ-logic/organization/holonRuntimeProtocol"
+import { buildLeaderLedHolonTaskScope } from "@cell/ai-organ-logic/organization/holonRuntimeProtocol"
 import { resolveActorSubject } from "../_resolveActorTarget"
 import type { ActorStatusInnerConfig, ActorStatusInnerInput, ActorStatusInnerOutput, ActorStatusInnerRuntime } from "./InnerTypes"
 
@@ -66,35 +66,6 @@ function countFormationRouteStatuses(routes: Record<string, { status?: string }>
     else if (route?.status === "failed") summary.failed += 1
     else if (route?.status === "cancelled") summary.cancelled += 1
     else if (route?.status === "routed" || route?.status === "streaming") summary.in_progress += 1
-    else summary.pending += 1
-  }
-
-  return summary
-}
-
-function countCollectiveTaskStatuses(tasks: Record<string, { status?: string }> | undefined): {
-  total: number
-  pending: number
-  in_progress: number
-  completed: number
-  failed: number
-  cancelled: number
-} {
-  const summary = {
-    total: 0,
-    pending: 0,
-    in_progress: 0,
-    completed: 0,
-    failed: 0,
-    cancelled: 0,
-  }
-
-  for (const task of Object.values(tasks ?? {})) {
-    summary.total += 1
-    if (task?.status === "completed") summary.completed += 1
-    else if (task?.status === "failed") summary.failed += 1
-    else if (task?.status === "cancelled") summary.cancelled += 1
-    else if (task?.status === "routed") summary.in_progress += 1
     else summary.pending += 1
   }
 
@@ -170,15 +141,11 @@ function resolveTaskSummary(runtime: ActorStatusInnerRuntime, target: any): {
   failed: number
   cancelled: number
 } | null {
-  if (target?.organizationKind === "holon" && target?.governance === "autonomous") {
-    return countRootTaskStatuses(runtime.vm.actors[runtime.vm.controlActorKey]?.taskTree.root.children ?? [], buildAutonomousHolonTaskScope(target.id))
-  }
+  if (target?.organizationKind === "holon" && target?.governance === "autonomous") return null
   if (target?.organizationKind === "holon" && target?.governance === "leader_led") {
     return countRootTaskStatuses(runtime.vm.actors[runtime.vm.controlActorKey]?.taskTree.root.children ?? [], buildLeaderLedHolonTaskScope(target.id))
   }
-  if (target?.identity?.kind === "holon" && target?.identity?.governance === "autonomous") {
-    return countCollectiveTaskStatuses(target.holonState?.governance === "autonomous" ? target.holonState.tasks : undefined)
-  }
+  if (target?.identity?.kind === "holon" && target?.identity?.governance === "autonomous") return null
   if (target?.identity?.kind === "holon" && target?.identity?.governance === "leader_led") {
     return countFormationRouteStatuses(target.holonState?.governance === "leader_led" ? target.holonState.routes : undefined)
   }

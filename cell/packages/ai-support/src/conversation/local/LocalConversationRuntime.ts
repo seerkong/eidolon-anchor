@@ -324,6 +324,13 @@ function currentActorProviderContextFacts(rawState: ConversationActorRawState): 
   return facts;
 }
 
+function isProviderVisibleContextFact(fact: ActorProviderContextFact): boolean {
+  // `work-context` is execution-control authority owned by the Actor. Older
+  // sessions may still contain this namespace in their immutable fact chain,
+  // but it must never be projected as model-visible user content.
+  return fact.namespace !== "work-context";
+}
+
 function insertProviderContextFactsAtHistoryAnchors(params: {
   generation: ActorHistoryGenerationData | null | undefined;
   messages: ChatMessage[];
@@ -770,7 +777,8 @@ function materializeSystemPromptStage(
 }
 
 export function materializeConversationRuntimePrompt(rawState: ConversationActorRawState): ChatMessage[] {
-  const providerContextFacts = currentActorProviderContextFacts(rawState);
+  const providerContextFacts = currentActorProviderContextFacts(rawState)
+    .filter(isProviderVisibleContextFact);
   const activeTailMessages = rawState.activeHistoryGeneration
     ? committedHistoryRefsToMessages(rawState.activeHistoryGeneration.messages)
     : [];

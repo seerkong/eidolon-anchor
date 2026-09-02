@@ -3,6 +3,7 @@ import { describe, expect, it } from "bun:test";
 import { createActor } from "@cell/ai-core-logic";
 import { TASK_PHASES, WORK_MODES } from "@cell/ai-core-contract/runtime/ContextControl";
 import {
+  appendActorProviderContextFactToConversationDomainRuntime,
   advanceActorWorkContextAfterTool,
   buildCompactionPolicyContextForActor,
   buildPromptPlanForActorExecution,
@@ -109,7 +110,7 @@ describe("context control plane", () => {
     expect(overlay).toContain("avoid_until_needed: write, edit, multiedit, apply_patch");
   });
 
-  it("records prompt plan metadata and overlay transform into conversation runtime", () => {
+  it("records work context as prompt metadata without projecting it as a model message", () => {
     const actor = createActor({ key: "main" });
     const runtime = createConversationDomainRuntime();
     const vm = {
@@ -141,18 +142,48 @@ describe("context control plane", () => {
     expect(promptState.generations[0]?.metadata?.promptPlan).toEqual(promptPlan);
     expect(promptState.generations[0]?.metadata?.workContext).toEqual(actor.workContext);
     expect(promptState.generations[0]?.transforms).toEqual([]);
-    expect(runtime.sessionStateSignal.get()["ses-1"]?.contextAssets?.at(-1)?.providerContextFact?.payload).toEqual(
-      expect.objectContaining({
-        workMode: "build",
-        taskPhase: "normal",
-        ownerRevision: 1,
-      }),
-    );
+    expect(runtime.sessionStateSignal.get()["ses-1"]?.contextAssets?.some((asset) => (
+      asset.providerContextFact?.namespace === "work-context"
+    ))).toBe(false);
     const materialized = materializeConversationRuntimeMessagesFromVm({ vm, actorKey: "main" });
-    expect(materialized.map((message) => message.role)).toEqual(["system", "user"]);
-    expect(String(materialized[1]?.content)).toContain("eidolon-context-fact/v1");
-    expect(String(materialized[1]?.content)).toContain('"workMode":"build"');
+    expect(materialized.map((message) => message.role)).toEqual(["system"]);
+    expect(JSON.stringify(materialized)).not.toContain("work-context");
+    expect(JSON.stringify(materialized)).not.toContain('"workMode":"build"');
     expect(materialized.some((message) => String(message.content ?? "").includes("<runtime_work_context>"))).toBe(false);
+  });
+
+  it("filters restored work-context facts but keeps explicitly provider-visible facts", () => {
+    const actor = createActor({ key: "main" });
+    const runtime = createConversationDomainRuntime();
+    const vm = {
+      actors: { main: actor },
+      runtimeContext: { conversationDomainRuntime: runtime },
+      outerCtx: { metadata: { sessionId: "ses-restored" } },
+    } as any;
+
+    appendActorProviderContextFactToConversationDomainRuntime({
+      runtime,
+      sessionId: "ses-restored",
+      actorKey: actor.key,
+      actorId: actor.id,
+      namespace: "work-context",
+      payload: { workMode: "build", taskPhase: "normal", ownerRevision: 1 },
+      occurredAt: "2026-09-01T00:00:00.000Z",
+    });
+    appendActorProviderContextFactToConversationDomainRuntime({
+      runtime,
+      sessionId: "ses-restored",
+      actorKey: actor.key,
+      actorId: actor.id,
+      namespace: "workflow-stage-context",
+      payload: { stage: "coding", revision: 1 },
+      occurredAt: "2026-09-01T00:00:01.000Z",
+    });
+
+    const materialized = materializeConversationRuntimeMessagesFromVm({ vm, actorKey: actor.key });
+    expect(materialized).toHaveLength(1);
+    expect(String(materialized[0]?.content)).toContain('"namespace":"workflow-stage-context"');
+    expect(JSON.stringify(materialized)).not.toContain('"namespace":"work-context"');
   });
 
   it("does not synthesize a mutable work-context system overlay in compatibility materialization", () => {

@@ -16,7 +16,6 @@ import {
 import type {
   ConversationHistoryIndexSnapshot,
   ActorPromptGenerationData,
-  LocalConversationProviderProjectionFact,
   ResponsesReplayCheckpoint,
   ResponsesTransportRequestContext,
   ResponsesTransportResult,
@@ -79,7 +78,6 @@ import { recordProviderCacheUsage } from "../llm/ProviderCacheUsage";
 import { recordProviderCacheObservationProjection } from "../llm/ProviderCacheObservationProjection";
 import { estimateProviderCacheCostTokens } from "../llm/ProviderCacheCostEstimates";
 import { resolveProviderCachePriceWeights } from "../llm/ProviderCacheCostObservation";
-import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager";
 import {
   getLocalPermissionApprovalContext,
   getWorkspaceAccessGrantContext,
@@ -88,13 +86,12 @@ import {
   replayLocalPermissionApprovedTool,
   replayWorkspaceAccessGrantApprovedTool,
 } from "@cell/ai-organ-logic/permissions/LocalPermissionRuntime";
-import { buildAutonomousHolonEnvelope, parseAutonomousHolonEnvelope } from "@cell/ai-organ-logic/organization/autonomousHolonEnvelope";
 import { buildLeaderLedHolonEnvelope, parseLeaderLedHolonEnvelope } from "@cell/ai-organ-logic/organization/leaderLedHolonEnvelope";
 import { normalizeDelegateRunMode } from "@cell/ai-organ-contract/agent/DelegateRunMode";
 import {
   appendActorProviderContextFactToConversationDomainRuntime,
   appendLiveHistoryMessageToConversationDomainRuntime,
-  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
+  commitDeliveredProviderContextFactsToConversationDomainRuntime,
   commitProviderContextTransition,
   confirmMessageDeliveriesToConversationDomainRuntime,
   confirmToolResultDeliveriesToConversationDomainRuntime,
@@ -110,7 +107,6 @@ import {
   rewriteActiveHistoryGenerationMessagesInConversationDomainRuntime,
   synchronizeConversationDomainActorFromPersistence,
   synchronizeProviderContextEpochToConversationDomainRuntime,
-  upsertProviderProjectionFactToConversationDomainRuntime,
   upsertProviderContextFactCandidateToConversationDomainRuntime,
   upsertResponsesReplayCheckpointToConversationDomainRuntime,
 } from "../conversation/ConversationDomainRuntime";
@@ -153,13 +149,16 @@ import {
 import {
   activateActorProviderEpoch,
   reconcileActorProviderEpochProjection,
+  resolveActorProviderSurfaceDigest,
   resolveProviderEpochProfileId,
   validateActorProviderContextEpoch,
 } from "../conversation/ProviderEpoch";
 import {
+  actorProviderContextFactSemanticFamily,
+  canonicalActorProviderContextFactSuccessorNamespace,
   createActorProviderContextFact,
   measureActorProviderContextFactRetention,
-  normalizeActorProviderContextFactNamespace,
+  normalizeWritableActorProviderContextFactNamespace,
 } from "../conversation/ActorProviderContextFact";
 import { retainStableProviderPromptBasisRefs } from "../conversation/ProviderPromptBasis";
 import { resolveProviderCacheActorClass } from "../llm/ProviderCacheActorAttribution";
@@ -281,18 +280,8 @@ let compressionDeps: CompressionDeps = {
   compressHistory,
 };
 
-function isAutonomousHolonActor(actor: AiAgentActor | undefined | null): boolean {
-  return actor?.identity?.kind === "holon" && actor.identity.governance === "autonomous";
-}
-
 function isLeaderLedHolonActor(actor: AiAgentActor | undefined | null): boolean {
   return actor?.identity?.kind === "holon" && actor.identity.governance === "leader_led";
-}
-
-function getAutonomousHolonState(actor: AiAgentActor | undefined | null) {
-  return actor && isAutonomousHolonActor(actor) && actor.holonState?.governance === "autonomous"
-    ? actor.holonState
-    : null;
 }
 
 function getLeaderLedHolonState(actor: AiAgentActor | undefined | null) {
@@ -821,7 +810,7 @@ function pendingMessageDeliveryIdsIncludedInPrompt(params: {
     .map((delivery) => delivery.deliveryId);
 }
 
-function pendingProviderProjectionSourceIdsIncludedInPrompt(params: {
+function pendingProviderContextSourceIdsIncludedInPrompt(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
   executionMessages: any[];
@@ -857,10 +846,10 @@ function pendingProviderProjectionSourceIdsIncludedInPrompt(params: {
  * The provider messages are sourced EXCLUSIVELY from the conversation-domain
  * materialization (MaterializationDerivation over the three domains): the
  * build records the prompt request into the LLM Context domain (Stage-1
- * system prompt snapshot from actor.systemPrompts + identity block + fresh
- * work-context overlay), then materializes the provider context from the
- * domains and prepares it for the adapter. No message array is an input to
- * this build.
+ * system prompt snapshot from actor.systemPrompts + identity block), then
+ * materializes the provider context from the domains and prepares it for the
+ * adapter. Actor work context remains runtime-only prompt metadata. No
+ * message array is an input to this build.
  */
 export function buildProviderPromptForActorTurn(params: {
   vm: AiAgentVm;
@@ -881,7 +870,7 @@ export function buildProviderPromptForActorTurn(params: {
   promptSource: "domain_materialization";
   /** P5: prompt-domain generation id for this build (null for estimation-only builds). */
   promptGenerationId: string | null;
-  pendingProviderProjectionSourceIds: string[];
+  pendingProviderContextSourceIds: string[];
   pendingToolResultDeliveryIds: string[];
   pendingMessageDeliveryIds: string[];
 } {
@@ -920,8 +909,8 @@ export function buildProviderPromptForActorTurn(params: {
 
   if (params.recordPromptPlan === false) {
     // Estimation-only build: nothing was recorded into the prompt domain, so
-    // complete the Stage-1 prompts / work-context overlay purely when the
-    // materialization does not carry them yet (first-turn ratio gates).
+    // Complete only the Stage-1 system prompts when materialization does not
+    // carry them yet (first-turn ratio gates). Work context stays control-only.
     executionMessages = completeEstimationPromptMaterialization({
       promptPlan,
       messages: executionMessages,
@@ -933,7 +922,7 @@ export function buildProviderPromptForActorTurn(params: {
     providerMessages: prepareMessagesForLlmAdapter(params.llmAdapter, executionMessages),
     promptSource: "domain_materialization",
     promptGenerationId,
-    pendingProviderProjectionSourceIds: pendingProviderProjectionSourceIdsIncludedInPrompt({
+    pendingProviderContextSourceIds: pendingProviderContextSourceIdsIncludedInPrompt({
       vm: params.vm,
       actor: params.actor,
       executionMessages,
@@ -1319,7 +1308,7 @@ function readReasoningContinuationAssistantMessage(error: unknown): Readonly<Rec
   });
 }
 
-function appendProviderRecoveryContextNudge(params: {
+function appendProviderOutputRecoveryContext(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
   llmAdapter: LlmAdapter;
@@ -1335,7 +1324,7 @@ function appendProviderRecoveryContextNudge(params: {
     sessionId: rawState?.session.sessionId ?? resolveConversationSessionId(params.vm),
     actorKey: params.actor.key,
     actorId: params.actor.id,
-    namespace: "provider-recovery",
+    namespace: "provider-output-recovery",
     payload: {
       logicalKey: "provider-output-recovery",
       recoveryKind: params.recoveryKind,
@@ -1584,8 +1573,7 @@ function resolveLoopDeps(vm: AiAgentVm, actor: AiAgentActor): {
     (llmAdapter as LlmAdapter & { chatCompletionsEffectBundle?: { id?: unknown } })
       .chatCompletionsEffectBundle?.id ?? "",
   );
-  const isDeepSeekChat = chatEffectBundleId === "deepseek-official-chat"
-    || chatEffectBundleId === "deepseek-compatible-chat";
+  const isDeepSeekChat = chatEffectBundleId === "deepseek-chat";
   if (vm.options.reasoningSplit !== undefined) {
     baseExtraBody.reasoning_split = vm.options.reasoningSplit;
   }
@@ -1672,7 +1660,7 @@ async function prepareProviderPromptForTurn(params: {
   promptPlan: any;
   providerMessages: any[];
   promptGenerationId: string | null;
-  pendingProviderProjectionSourceIds: string[];
+  pendingProviderContextSourceIds: string[];
   pendingToolResultDeliveryIds: string[];
   pendingMessageDeliveryIds: string[];
 }> {
@@ -1685,7 +1673,7 @@ async function prepareProviderPromptForTurn(params: {
   if (await compactProviderContextFactsAtRetentionBoundary({
     vm,
     actor,
-    pendingSourceToolCallIds: promptBuild.pendingProviderProjectionSourceIds,
+    pendingSourceToolCallIds: promptBuild.pendingProviderContextSourceIds,
   })) {
     promptBuild = buildProviderPromptForActorTurn({ vm, actor, tools, llmAdapter, model });
   }
@@ -1729,7 +1717,7 @@ async function prepareProviderPromptForTurn(params: {
     promptPlan,
     providerMessages,
     promptGenerationId,
-    pendingProviderProjectionSourceIds,
+    pendingProviderContextSourceIds,
     pendingToolResultDeliveryIds,
     pendingMessageDeliveryIds,
   } = promptBuild;
@@ -1738,7 +1726,7 @@ async function prepareProviderPromptForTurn(params: {
     promptPlan,
     providerMessages,
     promptGenerationId,
-    pendingProviderProjectionSourceIds,
+    pendingProviderContextSourceIds,
     pendingToolResultDeliveryIds,
     pendingMessageDeliveryIds,
   };
@@ -1878,7 +1866,7 @@ function confirmIncludedMessageDeliveries(params: {
   });
 }
 
-function markProviderProjectionSourcesDelivered(params: {
+function commitDeliveredProviderContextSources(params: {
   vm: AiAgentVm;
   actor: AiAgentActor;
   sourceToolCallIds: readonly string[];
@@ -1890,12 +1878,11 @@ function markProviderProjectionSourcesDelivered(params: {
   if (!runtime || !rawState) return;
   if (!rawState.session.actorBindings[params.actor.key]?.providerEpochReceiptV2) return;
   const observedRequestDigest = (params.transportResult as any)
-    ?.provider_cache_cost_observation?.requestDigest;
+    ?.provider_request_admission_observation?.requestDigest
+    ?? (params.transportResult as any)?.provider_cache_cost_observation?.requestDigest;
   const requestDigest = typeof observedRequestDigest === "string"
     ? observedRequestDigest
-    : (params.actor.llmClient as any)?.runtime
-      ? null
-      : params.fallbackFinalRequestDigest;
+    : params.fallbackFinalRequestDigest;
   if (typeof requestDigest !== "string" || !/^sha256:[0-9a-f]{64}$/.test(requestDigest)) {
     throw new Error("provider_request_admission_observation_required");
   }
@@ -1915,7 +1902,7 @@ function markProviderProjectionSourcesDelivered(params: {
       resultRecordDigest: digestToolCallRecord(record),
     });
   });
-  const facts = commitDeliveredProviderProjectionFactsToConversationDomainRuntime({
+  const facts = commitDeliveredProviderContextFactsToConversationDomainRuntime({
     runtime,
     sessionId: rawState.session.sessionId,
     actorKey: params.actor.key,
@@ -1926,7 +1913,7 @@ function markProviderProjectionSourcesDelivered(params: {
   if (facts.length > 0) {
     resetActorContinuationBaseline({
       actor: params.actor,
-      reason: "provider_projection:fact_appended",
+      reason: "provider_context:fact_appended",
       occurredAt: facts.at(-1)!.observedAt,
     });
   }
@@ -2078,6 +2065,7 @@ function prepareResponsesTurnRequest(params: {
   });
   const fullCanonicalInput = compileConversationToResponsesCanonicalReplay(
     params.providerMessages,
+    { interruptedToolCall: "omit_before_later_user" },
   ).items;
   const frontierCount = checkpoint?.messageFrontier.messageCount ?? params.providerMessages.length;
   const incrementalInput = compileConversationDeltaToResponsesInput(
@@ -2271,7 +2259,7 @@ async function streamProviderCompletion(params: {
   extraBody?: Record<string, unknown>;
   promptPlan: any;
   providerMessages: any[];
-  pendingProviderProjectionSourceIds: string[];
+  pendingProviderContextSourceIds: string[];
   pendingToolResultDeliveryIds: string[];
   pendingMessageDeliveryIds: string[];
   abortController: AbortController;
@@ -2290,10 +2278,10 @@ async function streamProviderCompletion(params: {
     ?? "";
   const providerCachePriceWeights = resolveProviderCachePriceWeights(String(providerCacheProfileId));
   const chatEffectBundleId = String((llmAdapter as any)?.chatCompletionsEffectBundle?.id ?? "");
-  const usesDeepSeekSemanticCompletion = providerCacheProfileId === "deepseek-official-chat@1"
+  const usesDeepSeekSemanticCompletion = providerCacheProfileId === "deepseek-chat@1"
+    || providerCacheProfileId === "deepseek-official-chat@1"
     || providerCacheProfileId === "deepseek-compatible-chat@1"
-    || chatEffectBundleId === "deepseek-official-chat"
-    || chatEffectBundleId === "deepseek-compatible-chat";
+    || chatEffectBundleId === "deepseek-chat";
   const configuredOutputBudget = Number((extraBody as Record<string, unknown> | undefined)?.max_tokens);
   const semanticCompletionMaxOutputTokens = usesDeepSeekSemanticCompletion
     && Number.isFinite(configuredOutputBudget)
@@ -2339,14 +2327,14 @@ async function streamProviderCompletion(params: {
     }
     return null;
   };
-  const createProviderStream = async (messages: any[], plan: any): Promise<{
+  const createProviderStream = async (providerMessages: any[], plan: any): Promise<{
     result: LlmStreamResult;
     preparedResponses: PreparedResponsesTurn | null;
   }> => {
     providerRequestOrdinal += 1;
     recordEstimatedProviderPromptUsage(
       vm,
-      estimateProviderRequestPromptTokens({ providerMessages: messages, tools }),
+      estimateProviderRequestPromptTokens({ providerMessages, tools }),
     );
     const requestExtraBody = {
       ...(extraBody ?? {}),
@@ -2359,14 +2347,14 @@ async function streamProviderCompletion(params: {
       actor,
       llmAdapter,
       model,
-      providerMessages: messages,
+      providerMessages,
       tools,
       promptPlan: plan,
       extraBody: requestExtraBody,
     });
     const result = await llmAdapter.createStream({
       model,
-      messages,
+      messages: providerMessages,
       tools,
       extraBody: {
         ...requestExtraBody,
@@ -2385,7 +2373,7 @@ async function streamProviderCompletion(params: {
       providerCacheCostObservation: {
         actorClass: resolveProviderCacheActorClass(actor),
         contextEpoch: resolveProviderCacheObservationContextEpoch({ vm, actor }),
-        tokenEstimates: estimateProviderCacheCostTokens(messages, tools),
+        tokenEstimates: estimateProviderCacheCostTokens(providerMessages, tools),
         ...(providerCachePriceWeights ? { priceWeights: providerCachePriceWeights } : {}),
       },
     });
@@ -2435,7 +2423,7 @@ async function streamProviderCompletion(params: {
   let completion: Awaited<ReturnType<typeof runOneCompletion>>;
   let activeProviderMessages = providerMessages;
   let activePromptPlan = promptPlan;
-  let activePendingProviderProjectionSourceIds = params.pendingProviderProjectionSourceIds;
+  let activePendingProviderContextSourceIds = params.pendingProviderContextSourceIds;
   let activePendingToolResultDeliveryIds = params.pendingToolResultDeliveryIds;
   let activePendingMessageDeliveryIds = params.pendingMessageDeliveryIds;
   const projectCurrentProviderMessages = (messages: any[], pendingToolCallIds: string[]) => {
@@ -2526,7 +2514,7 @@ async function streamProviderCompletion(params: {
 
         if (!recoveryContextInstalled) {
           activeProviderMessages = projectCurrentProviderMessages(
-            appendProviderRecoveryContextNudge({
+            appendProviderOutputRecoveryContext({
               vm,
               actor,
               llmAdapter,
@@ -2568,7 +2556,7 @@ async function streamProviderCompletion(params: {
       });
       emitToolPayloadRepairRetryDiagnostic({ llmAdapter, actor, model, stage: retryStage, error });
       activeProviderMessages = projectCurrentProviderMessages(
-        appendProviderRecoveryContextNudge({
+        appendProviderOutputRecoveryContext({
           vm,
           actor,
           llmAdapter,
@@ -2607,7 +2595,7 @@ async function streamProviderCompletion(params: {
         retryPrompt.pendingToolResultDeliveryIds,
       );
       activePromptPlan = retryPrompt.promptPlan;
-      activePendingProviderProjectionSourceIds = retryPrompt.pendingProviderProjectionSourceIds;
+      activePendingProviderContextSourceIds = retryPrompt.pendingProviderContextSourceIds;
       activePendingToolResultDeliveryIds = retryPrompt.pendingToolResultDeliveryIds;
       activePendingMessageDeliveryIds = retryPrompt.pendingMessageDeliveryIds;
       completion = await runActiveCompletionWithSemanticContinuation();
@@ -2623,7 +2611,7 @@ async function streamProviderCompletion(params: {
       model,
     });
     activeProviderMessages = projectCurrentProviderMessages(
-      appendProviderRecoveryContextNudge({
+      appendProviderOutputRecoveryContext({
         vm,
         actor,
         llmAdapter,
@@ -2650,10 +2638,10 @@ async function streamProviderCompletion(params: {
         llmAdapter,
       });
     }
-    markProviderProjectionSourcesDelivered({
+    commitDeliveredProviderContextSources({
       vm,
       actor,
-      sourceToolCallIds: activePendingProviderProjectionSourceIds,
+      sourceToolCallIds: activePendingProviderContextSourceIds,
       transportResult,
       fallbackFinalRequestDigest: digestPersistedProviderContextValue({
         schemaVersion: "provider.mock-final-wire/v1",
@@ -2698,7 +2686,7 @@ function registerToolContextEffects(params: {
     if (effect.kind === "append_provider_context_fact") {
       const candidate = {
         actorKey: params.actor.key,
-        namespace: normalizeActorProviderContextFactNamespace(effect.namespace),
+        namespace: normalizeWritableActorProviderContextFactNamespace(effect.namespace),
         logicalKey: effect.logicalKey,
         revision: effect.revision,
         payload: effect.payload,
@@ -2719,49 +2707,11 @@ function registerToolContextEffects(params: {
       changed = true;
       continue;
     }
-    if (effect.kind !== "mutable_provider_projection") continue;
-    const existing = rawState?.session.contextAssets?.find((asset) => (
-      asset.projectionFact?.actorKey === params.actor.key
-      && asset.projectionFact.projectionKey === effect.logicalKey
-      && asset.projectionFact.revision === effect.revision
-    ))?.projectionFact;
-    const sourceAlreadyRegistered = existing?.sourceToolCalls.some((source) => (
-      source.toolCallId === params.toolCallId && source.projectionRevision === effect.revision
-    )) ?? false;
-    if (
-      !existing
-      || existing.revision !== effect.revision
-      || existing.content !== effect.content
-      || existing.placement !== effect.placement
-      || !sourceAlreadyRegistered
-    ) {
-      changed = true;
-    }
-    const projectionFact: LocalConversationProviderProjectionFact = {
-      actorKey: params.actor.key,
-      projectionKey: effect.logicalKey,
-      revision: effect.revision,
-      content: effect.content,
-      placement: effect.placement,
-      sourceToolCalls: [{
-        toolCallId: params.toolCallId,
-        projectionRevision: effect.revision,
-        deliveryState: "pending",
-        deliveredAt: null,
-      }],
-      observedAt: occurredAt,
-    };
-    upsertProviderProjectionFactToConversationDomainRuntime({
-      runtime,
-      sessionId,
-      projectionFact,
-      occurredAt,
-    });
   }
   if (changed) {
     resetActorContinuationBaseline({
       actor: params.actor,
-      reason: "provider_projection:context_effect",
+      reason: "provider_context:context_effect",
       occurredAt,
     });
   }
@@ -3071,13 +3021,6 @@ function findLatestUserContentBeforeLatestAssistant(messages: readonly any[]): s
   return null;
 }
 
-function findLatestAssignedTaskId(messages: readonly any[]): string | null {
-  const content = findLatestUserContentBeforeLatestAssistant(messages);
-  if (!content) return null;
-  const match = content.match(/TASK_ID=([^\n]+)/);
-  return match?.[1] ?? null;
-}
-
 function resolveLeaderLedHolonLeaderRequest(messages: readonly any[]): {
   routeId: string
   holonId: string
@@ -3094,37 +3037,6 @@ function resolveLeaderLedHolonLeaderRequest(messages: readonly any[]): {
     holonId: parsed.payload.holonId,
     leaderMemberId: parsed.payload.leaderMemberId,
   };
-}
-
-function resolveAutonomousHolonMemberTask(messages: readonly any[]): {
-  taskId: string
-  holonId: string
-  replyMode: "final" | "none" | "stream"
-} | null {
-  const content = findLatestUserContentBeforeLatestAssistant(messages);
-  if (!content) return null;
-  const parsed = parseAutonomousHolonEnvelope(content);
-  if (!parsed || parsed.payload.kind !== "member_task") {
-    return null;
-  }
-  return {
-    taskId: parsed.payload.taskId,
-    holonId: parsed.payload.holonId,
-    replyMode: parsed.payload.replyMode,
-  };
-}
-
-function resolveOwnedBoardTask(vm: AiAgentVm, taskId: string): { ownerActorKey: string } | null {
-  for (const candidate of Object.values(vm.actors)) {
-    const state = getAutonomousHolonState(candidate);
-    if (!state) continue;
-    const ownerActorKey = state.taskOwnership?.[taskId];
-    if (ownerActorKey) {
-      return { ownerActorKey };
-    }
-  }
-
-  return null;
 }
 
 function emitActorMailboxSignal(params: {
@@ -3152,29 +3064,6 @@ function emitActorMailboxSignal(params: {
 
   params.actor.send(params.mailboxKind as any, params.payload as any);
   driver?.resumeFiber?.(fiberId, now);
-}
-
-function settleOwnedBoardTaskFromMemberResult(vm: AiAgentVm, actor: AiAgentActor): void {
-  const taskId = findLatestAssignedTaskId(actor.messages);
-  if (!taskId) return;
-
-  const ownedTask = resolveOwnedBoardTask(vm, taskId);
-  if (!ownedTask || ownedTask.ownerActorKey !== actor.key) {
-    return;
-  }
-
-  const controlActor = getControlActor(vm);
-  if (!controlActor) return;
-
-  try {
-    TaskTreeManager.apply(controlActor.taskTree, {
-      op: "update_status",
-      task_id: taskId,
-      status: "completed",
-    });
-  } catch {
-    // Ignore tasks already settled or missing during recovery races.
-  }
 }
 
 function relayMemberResultToLeaderLedHolon(vm: AiAgentVm, actor: AiAgentActor, text: string): boolean {
@@ -3253,55 +3142,6 @@ function relayLeaderLedHolonStageEventFromLeaderInbox(vm: AiAgentVm, actor: AiAg
   return true;
 }
 
-function relayMemberResultToAutonomousHolon(vm: AiAgentVm, actor: AiAgentActor, text: string): boolean {
-  if (actor.identity?.kind !== "member") return false;
-
-  const holonTask = resolveAutonomousHolonMemberTask(actor.messages);
-  if (!holonTask) {
-    return false;
-  }
-
-  const holonActor = vm.actors[getOrganizationManager().getHolonActorKey(holonTask.holonId)];
-  if (!isAutonomousHolonActor(holonActor)) {
-    return false;
-  }
-
-  const controlActor = getControlActor(vm);
-  if (controlActor) {
-    vm.eventBus?.emitQuote?.(
-      { key: controlActor.key, id: controlActor.id },
-      `Member ${actor.identity.name} finished:\n${text}`,
-      "content",
-    );
-  }
-
-  const now = Date.now();
-  const payload = {
-    from: actor.identity.name || actor.key,
-    text: buildAutonomousHolonEnvelope({
-      kind: "result",
-      taskId: holonTask.taskId,
-      holonId: holonTask.holonId,
-      ownerMemberId: actor.identity.memberId,
-      ownerActorKey: actor.key,
-      ownerActorId: actor.id,
-      text,
-    }),
-    ts: now,
-  } as any;
-
-  emitActorMailboxSignal({
-    vm,
-    actor: holonActor,
-    mailboxKind: "memberChatInbox",
-    payload,
-    idempotencyKey: `${holonActor.key}:${holonActor.id}:memberChatInbox:${now}:${actor.key}:autonomous_result`,
-    createdAt: now,
-  });
-  drainAutonomousHolonActorInbox(vm, holonActor);
-  return true;
-}
-
 function routeLeaderLedHolonMessageToActor(params: {
   vm: AiAgentVm
   actorKey: string
@@ -3327,15 +3167,6 @@ function routeLeaderLedHolonMessageToActor(params: {
     idempotencyKey: `${params.actorKey}:${params.actorId}:memberChatInbox:${now}:${params.from}`,
     createdAt: now,
   });
-}
-
-function resolveAutonomousHolonTaskWaiters(
-  vm: AiAgentVm,
-  taskId: string,
-  result: { status: string; resultText: string | null },
-): void {
-  const runtimeContext = ensureVmRuntimeContext(vm);
-  runtimeContext.autonomousHolonTaskSignals.resolve?.(taskId, result);
 }
 
 function resolveLeaderLedHolonRouteWaiters(
@@ -3460,145 +3291,6 @@ function drainLeaderLedHolonActorInbox(vm: AiAgentVm, actor: AiAgentActor): void
   }
 }
 
-function drainAutonomousHolonActorInbox(vm: AiAgentVm, actor: AiAgentActor): void {
-  const holonState = getAutonomousHolonState(actor);
-  if (!holonState) {
-    return;
-  }
-
-  const members = getMemberManager();
-  const now = Date.now();
-  for (const payload of actor.drainMailbox("memberChatInbox" as any)) {
-    const text = String((payload as any)?.text ?? "");
-    const parsed = parseAutonomousHolonEnvelope(text);
-    if (!parsed) {
-      continue;
-    }
-
-    if (parsed.payload.kind === "assign") {
-      const collectiveMembers = holonState.memberIds
-        .map((memberId) => members.getMember({ vm, memberId }))
-        .filter(Boolean) as ReturnType<typeof members.getMember>[];
-      const owner = collectiveMembers.find((member) => member?.lifecycleState === "active") ?? collectiveMembers[0] ?? null;
-      const routeStatus = owner ? "routed" : "failed";
-
-      holonState.tasks[parsed.payload.taskId] = {
-        taskId: parsed.payload.taskId,
-        initiatorActorKey: parsed.payload.initiatorActorKey,
-        initiatorActorId: parsed.payload.initiatorActorId,
-        replyMode: parsed.payload.replyMode,
-        status: routeStatus,
-        content: parsed.payload.content,
-        createdAt: holonState.tasks[parsed.payload.taskId]?.createdAt ?? now,
-        updatedAt: now,
-        ownerActorKey: owner?.actorKey,
-        ownerActorId: owner?.actorId,
-        ownerMemberId: owner?.memberId,
-      };
-      if (owner?.actorKey) {
-        holonState.taskOwnership[parsed.payload.taskId] = owner.actorKey;
-      }
-
-      if (!owner) {
-        continue;
-      }
-
-      try {
-        TaskTreeManager.apply(getControlActor(vm)!.taskTree, {
-          op: "update_status",
-          task_id: parsed.payload.taskId,
-          status: "in_progress",
-        });
-      } catch {
-        // Ignore stale or already-settled projections.
-      }
-
-      const taskText = buildAutonomousHolonEnvelope({
-        kind: "member_task",
-        taskId: parsed.payload.taskId,
-        holonId: holonState.holonId,
-        replyMode: parsed.payload.replyMode,
-      }, `TASK_ID=${parsed.payload.taskId}\n${parsed.payload.content}`.trim());
-
-      members.sendMessage({
-        vm,
-        to: owner.memberId,
-        from: holonState.name,
-        text: taskText,
-      });
-      members.markMemberActive({ vm, memberId: owner.memberId });
-
-      vm.eventBus?.emitQuote?.(
-        { key: actor.key, id: actor.id },
-        `Holon assigned ${parsed.payload.taskId} to ${owner.name}${parsed.payload.content ? `:\n${parsed.payload.content}` : ""}`,
-        "content",
-      );
-      vm.eventBus?.emitAutonomousHolonClaim?.(
-        { key: actor.key, id: actor.id },
-        { taskId: parsed.payload.taskId, memberId: owner.memberId },
-      );
-      vm.effects.orchestrationHistory?.appendEvent({
-        stream: "autonomous_holon_event",
-        kind: "autonomous_holon_claim",
-        payload: {
-          task_id: parsed.payload.taskId,
-          member_id: owner.memberId,
-        },
-      });
-      continue;
-    }
-
-    if (parsed.payload.kind !== "result") {
-      continue;
-    }
-
-    const task = holonState.tasks[parsed.payload.taskId];
-    const nextTask = {
-      taskId: parsed.payload.taskId,
-      initiatorActorKey: task?.initiatorActorKey ?? "",
-      initiatorActorId: task?.initiatorActorId ?? "",
-      replyMode: task?.replyMode ?? "none",
-      status: "completed" as const,
-      content: task?.content ?? "",
-      createdAt: task?.createdAt ?? now,
-      updatedAt: now,
-      ownerActorKey: parsed.payload.ownerActorKey,
-      ownerActorId: parsed.payload.ownerActorId,
-      ownerMemberId: parsed.payload.ownerMemberId,
-      resultText: parsed.payload.text,
-    };
-    holonState.tasks[parsed.payload.taskId] = nextTask;
-    holonState.taskOwnership[parsed.payload.taskId] = parsed.payload.ownerActorKey;
-
-    const controlActor = getControlActor(vm);
-    if (controlActor) {
-      try {
-        TaskTreeManager.apply(controlActor.taskTree, {
-          op: "update_status",
-          task_id: parsed.payload.taskId,
-          status: "completed",
-        });
-      } catch {
-        // Ignore stale or already-settled projections.
-      }
-
-      const ownerName =
-        members.getMember({ vm, memberId: parsed.payload.ownerMemberId })?.name
-        ?? parsed.payload.ownerMemberId
-      vm.eventBus?.emitQuote?.(
-        { key: controlActor.key, id: controlActor.id },
-        `Member ${ownerName} finished:\n${parsed.payload.text}`,
-        "content",
-      );
-    }
-
-    resolveAutonomousHolonTaskWaiters(vm, parsed.payload.taskId, {
-      status: nextTask.status,
-      resultText: nextTask.resultText ?? null,
-    });
-  }
-}
-
 function emitMemberResultToControl(vm: AiAgentVm, actor: AiAgentActor, messages: any[]): void {
   if (actor.identity?.kind !== "member") return;
   const controlActor = getControlActor(vm);
@@ -3619,10 +3311,6 @@ function emitMemberResultToControl(vm: AiAgentVm, actor: AiAgentActor, messages:
       return;
     }
     actor.lastMemberResultNotifiedAt = completedAt;
-    const relayedToCollective = relayMemberResultToAutonomousHolon(vm, actor, text);
-    if (!relayedToCollective) {
-      settleOwnedBoardTaskFromMemberResult(vm, actor);
-    }
     if (relayMemberResultToLeaderLedHolon(vm, actor, text)) {
       return;
     }
@@ -4593,7 +4281,7 @@ function attachMessageHistory(vm: AiAgentVm): () => void {
  * graph is attached, only which actor types trigger history persistence side
  * effects (see {@link attachMessageHistory} for that gate).
  */
-function ensureVmMessageHistoryGraphAttached(vm: AiAgentVm): void {
+export function ensureVmMessageHistoryGraphAttached(vm: AiAgentVm): void {
   const runtimeContext = ensureVmRuntimeContext(vm) as unknown as Record<string, unknown>;
   if (runtimeContext.persistentMessageHistoryGraphDetach) return;
   const detach = attachMessageHistory(vm);
@@ -4813,8 +4501,18 @@ async function persistCurrentProviderContextReceiptBeforeTransport(params: {
     ?? (persistedBinding?.providerEpochReceipt
       ? digestLegacyProviderEpochReceipt(persistedBinding.providerEpochReceipt)
       : null);
-  if (persistedDigest === receipt.receiptDigest) return;
-  if (persistedDigest !== receipt.previousReceiptDigest) {
+  const persistedHead = repository.loadProviderContextTransitionHead
+    ? await repository.loadProviderContextTransitionHead()
+    : null;
+  if (persistedDigest === receipt.receiptDigest
+    && persistedHead?.nextEpochReceiptDigest === receipt.receiptDigest) return;
+  if (persistedDigest === receipt.receiptDigest
+    && persistedHead
+    && persistedHead.nextEpochReceiptDigest !== receipt.previousReceiptDigest) {
+    throw new Error("provider_context_transition_head_session_divergence_conflict");
+  }
+  const repairingTransitionHead = persistedDigest === receipt.receiptDigest;
+  if (!repairingTransitionHead && persistedDigest !== receipt.previousReceiptDigest) {
     throw new Error("provider_context_transition_unpersisted_predecessor_conflict");
   }
   const heads = authorityHeadsFromRaw(raw, params.actor.key);
@@ -4940,46 +4638,7 @@ async function importLegacyProviderContextBeforeTransport(params: {
   const occurredAt = new Date().toISOString();
   const previousReceiptDigest = digestLegacyProviderEpochReceipt(legacyReceipt);
   const historyMessages = raw.activeHistoryGeneration?.messages ?? [];
-  const priorHead = binding.providerContextFactHead ?? null;
-  const priorFacts = (raw.session.contextAssets ?? []).flatMap((asset) => (
-    asset.providerContextFact?.actorKey === params.actor.key ? [asset.providerContextFact] : []
-  ));
-  const lastWorkFact = priorFacts
-    .filter((fact) => fact.namespace === "work-context")
-    .sort((left, right) => left.namespaceRevision - right.namespaceRevision)
-    .at(-1) ?? null;
-  const fact = legacyTexts.length === 1 ? createActorProviderContextFact({
-    sessionId: legacyReceipt.sessionId,
-    actorKey: params.actor.key,
-    actorId: params.actor.id,
-    epoch: legacyReceipt.epoch + 1,
-    namespace: "work-context",
-    namespaceRevision: (lastWorkFact?.namespaceRevision ?? 0) + 1,
-    sequence: 1,
-    previousFactDigest: lastWorkFact?.factDigest ?? null,
-    previousSequenceFactDigest: null,
-    anchor: {
-      historyGenerationId: raw.activeHistoryGeneration?.generationId ?? "__empty_history__",
-      messageCount: historyMessages.length,
-      frontierDigest: digestProviderContextHistoryFrontier(historyMessages),
-    },
-    sourceDeliveryProofs: [],
-    payload: {
-      logicalKey: "legacy-late-status",
-      legacyOverlays: legacyTexts,
-    },
-    observedAt: occurredAt,
-  }) : null;
-  const nextFactHead = fact ? Object.freeze({
-    schemaVersion: "eidolon.actor-provider-context-fact-head/v1" as const,
-    sessionId: legacyReceipt.sessionId,
-    actorKey: params.actor.key,
-    actorId: params.actor.id,
-    epoch: legacyReceipt.epoch + 1,
-    sequence: fact.sequence,
-    factDigest: fact.factDigest,
-    conversationRevision: 1,
-  }) : null;
+  const nextFactHead = null;
   if (!prompt) throw new Error("provider_context_legacy_prompt_generation_missing");
   const cleanedPromptId = `${prompt.promptGenerationId}__legacy-import-${previousReceiptDigest.slice(7, 19)}`;
   const cleanedPrompt: ActorPromptGenerationData = {
@@ -4997,17 +4656,7 @@ async function importLegacyProviderContextBeforeTransport(params: {
     updatedAt: occurredAt,
   };
   const stagedSessionIndex = structuredClone(raw.session.sessionIndex);
-  const nextAssets = fact ? [
-    ...(stagedSessionIndex.session.contextAssets ?? []), {
-      assetId: `provider-context-fact:${fact.factDigest.slice(7)}`,
-      kind: "note" as const,
-      label: `${fact.namespace}@${fact.namespaceRevision}`,
-      source: { kind: "note" as const, ownerId: params.actor.key },
-      providerContextFact: fact,
-      createdAt: occurredAt,
-      updatedAt: occurredAt,
-    },
-  ] : [...(stagedSessionIndex.session.contextAssets ?? [])];
+  const nextAssets = [...(stagedSessionIndex.session.contextAssets ?? [])];
   stagedSessionIndex.session.contextAssets = nextAssets;
   stagedSessionIndex.session.contextAssetRegistry = {
     version: stagedSessionIndex.version,
@@ -5040,7 +4689,7 @@ async function importLegacyProviderContextBeforeTransport(params: {
   const nextHeads = Object.freeze({
     historyHeadGenerationId: raw.historyHeadGenerationId ?? "__empty_history__",
     promptHeadGenerationId: cleanedPromptId,
-    factHeadDigest: fact?.factDigest ?? null,
+    factHeadDigest: null,
   });
   const mappedReason = legacyReceipt.reason === "initial_projection"
     ? "initial_projection" as const
@@ -5060,12 +4709,12 @@ async function importLegacyProviderContextBeforeTransport(params: {
     sourceHistoryMessageCount: historyMessages.length,
     sourceFrontierDigest: digestProviderContextHistoryFrontier(historyMessages),
     pendingDeliveryDigest: digestProviderContextClosedValue([]),
-    handoffDigest: digestProviderContextClosedValue({ cleanedPromptId, factDigest: fact?.factDigest ?? null }),
-    frozenResourceDigest: digestPersistedProviderContextValue(params.actor.durableMaterials ?? {}),
-    providerSurfaceDigest: digestPersistedProviderContextValue(params.actor.toolPolicy.providerToolSurface ?? {
-      mode: params.actor.toolPolicy.allowedToolsMode,
-      toolNames: params.actor.toolPolicy.allowedTools,
+    handoffDigest: digestProviderContextClosedValue({
+      cleanedPromptId,
+      retiredLegacyWorkContext: legacyTexts.length === 1,
     }),
+    frozenResourceDigest: digestPersistedProviderContextValue(params.actor.durableMaterials ?? {}),
+    providerSurfaceDigest: resolveActorProviderSurfaceDigest(params.actor),
     retentionPolicy: { maxRevisionsPerNamespace: 32, maxCanonicalFactBytesPerEpoch: 65_536 },
     reason: mappedReason,
     compactionProofDigest: null,
@@ -5079,7 +4728,7 @@ async function importLegacyProviderContextBeforeTransport(params: {
       legacyTexts,
     }),
     legacyReceipt,
-    projectedFactDigest: fact?.factDigest ?? digestProviderContextClosedValue(null),
+    projectedFactDigest: digestProviderContextClosedValue(null),
     targetReceipt: nextReceipt,
   });
   stagedSessionIndex.session.actorBindings[params.actor.key] = {
@@ -5105,7 +4754,7 @@ async function importLegacyProviderContextBeforeTransport(params: {
     stagedPromptIndex: promptIndex,
     historyGenerations: raw.activeHistoryGeneration ? [raw.activeHistoryGeneration] : [],
     promptGenerations: [cleanedPrompt],
-    appendedFactDigests: fact ? [fact.factDigest] : [],
+    appendedFactDigests: [],
     occurredAt,
   });
   return true;
@@ -5133,7 +4782,7 @@ export async function ensureActorProviderContextEpochBeforeTransport(params: {
     };
     const runtimeProfile = adapterRuntime.chatCompatibilityProfileId
       ?? (!adapterRuntime.adapterName && activationModelConfig.adapter === "deepseek"
-        ? "deepseek-official-chat@1"
+        ? "deepseek-chat@1"
         : undefined);
     activateActorProviderEpoch({
       vm: params.vm,
@@ -5273,10 +4922,7 @@ export async function ensureActorProviderContextEpochBeforeTransport(params: {
   raw = getConversationActorRawStateFromVm({ vm: params.vm, actorKey: params.actor.key });
   current = raw?.session.actorBindings[params.actor.key]?.providerEpochReceiptV2;
   if (!current) return;
-  const providerSurfaceDigest = digestPersistedProviderContextValue(params.actor.toolPolicy.providerToolSurface ?? {
-    mode: params.actor.toolPolicy.allowedToolsMode,
-    toolNames: params.actor.toolPolicy.allowedTools,
-  });
+  const providerSurfaceDigest = resolveActorProviderSurfaceDigest(params.actor);
   if (current.providerSurfaceDigest !== providerSurfaceDigest) {
     await transition("provider_surface_revision_accepted", { providerSurfaceDigest });
   }
@@ -5306,13 +4952,17 @@ async function commitV2ConversationCompaction(params: {
       fact && fact.actorKey === params.actor.key && fact.epoch === currentReceipt.epoch,
     ))
     .sort((left, right) => left.sequence - right.sequence);
-  const latestByNamespace = new Map<ActorProviderContextFactNamespace, ActorProviderContextFact>();
-  for (const fact of sourceFacts) latestByNamespace.set(fact.namespace, fact);
-  const retainedSources = [...latestByNamespace.values()].sort((left, right) => (
+  const latestBySemanticFamily = new Map<string, ActorProviderContextFact>();
+  for (const fact of sourceFacts) {
+    if (canonicalActorProviderContextFactSuccessorNamespace(fact.namespace) === null) continue;
+    latestBySemanticFamily.set(actorProviderContextFactSemanticFamily(fact.namespace), fact);
+  }
+  const retainedSources = [...latestBySemanticFamily.values()].sort((left, right) => (
     left.namespace < right.namespace ? -1 : left.namespace > right.namespace ? 1 : 0
   ));
   type RetainedProviderFact = Readonly<{
     source: ActorProviderContextFact
+    successorNamespace: ActorProviderContextFactNamespace
     delivery: Readonly<{
       callRecordDigest: Sha256Digest
       resultRecordDigest: Sha256Digest
@@ -5321,10 +4971,8 @@ async function commitV2ConversationCompaction(params: {
     }>
   }>
   const provenance = retainedSources.flatMap<RetainedProviderFact>((source) => {
-    if (source.sourceDeliveryProofs.length === 0
-      && (source.namespace === "work-context" || source.namespace === "provider-recovery")) {
-      return [];
-    }
+    const successorNamespace = canonicalActorProviderContextFactSuccessorNamespace(source.namespace);
+    if (successorNamespace === null) return [];
     if (source.sourceDeliveryProofs.length !== 1) {
       throw new Error("provider_context_compaction_delivery_provenance_not_exact");
     }
@@ -5333,22 +4981,23 @@ async function commitV2ConversationCompaction(params: {
       if (proof.proofDigest !== currentReceipt.compactionProofDigest) {
         throw new Error("provider_context_compaction_delivery_provenance_not_exact");
       }
-      return [{ source, delivery: proof }];
+      return [{ source, successorNamespace, delivery: proof }];
     }
     const admission = priorBinding.providerRequestAdmissions?.find((candidate) => (
       candidate.factAppendIntentDigest === proof.requestAdmissionIntentDigest
       && candidate.admittedFactRange?.factDigests.includes(source.factDigest)
     ));
     if (!admission) throw new Error("provider_context_compaction_delivery_admission_missing");
-    return [{ source, delivery: { ...proof, requestAdmissionDigest: admission.admissionDigest } }];
+    return [{ source, successorNamespace, delivery: { ...proof, requestAdmissionDigest: admission.admissionDigest } }];
   });
   const proofDraft = createProviderContextCompactionProof({
     sessionId: currentReceipt.sessionId,
     actorKey: params.actor.key,
     sourceEpoch: currentReceipt.epoch,
     successorEpoch: currentReceipt.epoch + 1,
-    retained: provenance.map(({ source, delivery }) => ({
-      namespace: source.namespace,
+    retained: provenance.map(({ source, successorNamespace, delivery }) => ({
+      sourceNamespace: source.namespace,
+      successorNamespace,
       sourceFactDigest: source.factDigest,
       namespaceRevision: source.namespaceRevision,
       payloadDigest: source.payloadDigest,
@@ -5366,13 +5015,13 @@ async function commitV2ConversationCompaction(params: {
   if (!nextHistoryGeneration) throw new Error("provider_context_compaction_history_generation_missing");
   const successorFacts: ActorProviderContextFact[] = [];
   let sequencePredecessor: ActorProviderContextFact | null = null;
-  for (const { source, delivery } of provenance) {
+  for (const { source, successorNamespace, delivery } of provenance) {
     const successor = createActorProviderContextFact({
       sessionId: currentReceipt.sessionId,
       actorKey: params.actor.key,
       actorId: params.actor.id,
       epoch: currentReceipt.epoch + 1,
-      namespace: source.namespace,
+      namespace: successorNamespace,
       namespaceRevision: source.namespaceRevision,
       sequence: successorFacts.length + 1,
       previousFactDigest: source.factDigest,
@@ -5402,8 +5051,9 @@ async function commitV2ConversationCompaction(params: {
     actorKey: params.actor.key,
     sourceEpoch: currentReceipt.epoch,
     successorEpoch: currentReceipt.epoch + 1,
-    retained: provenance.map(({ source, delivery }, index) => ({
-      namespace: source.namespace,
+    retained: provenance.map(({ source, successorNamespace, delivery }, index) => ({
+      sourceNamespace: source.namespace,
+      successorNamespace,
       sourceFactDigest: source.factDigest,
       namespaceRevision: source.namespaceRevision,
       payloadDigest: source.payloadDigest,
@@ -5641,7 +5291,7 @@ export async function compactProviderContextFactsAtRetentionBoundary(params: {
         && selectedSources.has(source.toolCallId)
       ));
       if (sources.length > 0) return [{
-        namespace: "provider-projection" as const,
+        namespace: "task-tree-context" as const,
         payload: {
           logicalKey: projection.projectionKey,
           revision: projection.revision,
@@ -6415,7 +6065,7 @@ export async function aiAgentLoopStreaming({
       promptPlan,
       providerMessages,
       promptGenerationId,
-      pendingProviderProjectionSourceIds,
+      pendingProviderContextSourceIds,
       pendingToolResultDeliveryIds,
       pendingMessageDeliveryIds,
     } = await prepareProviderPromptForTurn({
@@ -6464,7 +6114,7 @@ export async function aiAgentLoopStreaming({
         extraBody,
         promptPlan,
         providerMessages,
-        pendingProviderProjectionSourceIds,
+        pendingProviderContextSourceIds,
         pendingToolResultDeliveryIds,
         pendingMessageDeliveryIds,
         abortController,
@@ -6766,7 +6416,7 @@ export async function aiAgentLoopStreaming({
         hasToolCalls: Boolean(toolCalls?.length),
       });
       if (!toolCalls || !toolCalls.length) {
-        emitMemberResultToControl(vm, actor, [...actor.messages]);
+        emitMemberResultToControl(vm, actor, [...actor.messages, assistantMsg]);
         accountGoalProgress(vm, [...actor.messages]);
         return stopWith("no_tool_calls");
       }
@@ -7160,12 +6810,6 @@ export async function aiAgentCooperativeStep(params: {
   if (cancelRequested) {
     eventBus?.emitAgentTurnEnd(eventActor, "cancelled");
     resetCooperativeStateAfterCancel(state);
-    params.setState(state);
-    return { kind: "suspend", reason: "idle_external" };
-  }
-
-  if (isAutonomousHolonActor(actor)) {
-    drainAutonomousHolonActorInbox(vm, actor);
     params.setState(state);
     return { kind: "suspend", reason: "idle_external" };
   }
@@ -7703,7 +7347,7 @@ export async function aiAgentCooperativeStep(params: {
         promptPlan,
         providerMessages,
         promptGenerationId,
-        pendingProviderProjectionSourceIds,
+        pendingProviderContextSourceIds,
         pendingToolResultDeliveryIds,
         pendingMessageDeliveryIds,
       } = await prepareProviderPromptForTurn({
@@ -7772,7 +7416,7 @@ export async function aiAgentCooperativeStep(params: {
             extraBody,
             promptPlan,
             providerMessages,
-            pendingProviderProjectionSourceIds,
+            pendingProviderContextSourceIds,
             pendingToolResultDeliveryIds,
             pendingMessageDeliveryIds,
             abortController,
@@ -7921,7 +7565,7 @@ export async function aiAgentCooperativeStep(params: {
       }
 
       if (!state.toolCalls.length) {
-        emitMemberResultToControl(vm, actor, [...actor.messages]);
+        emitMemberResultToControl(vm, actor, [...actor.messages, msg]);
         if (eventBus) {
           eventBus.emitAgentTurnEnd(
             eventActor,

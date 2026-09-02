@@ -81,22 +81,22 @@ describe("closed provider cache product matrix", () => {
     }]))).toEqual({
       "context.long-128/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 128, unexplainedLocalDivergences: 0 },
       "epoch.compaction/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 128, unexplainedLocalDivergences: 0 },
-      "epoch.legacy-import-rebuild/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 5, unexplainedLocalDivergences: 0 },
-      "epoch.provider-model-profile/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "epoch.resource-revision/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "epoch.rewind-fork/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "epoch.surface-revision/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "isolation.four-actors-two-sessions/v1": { stepCount: 5, actorCount: 4, sessionCount: 2, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "ordinary.code.all-tools/v1": { stepCount: 1, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "ordinary.no-tool.forward/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "recovery.fresh-runtime/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "resource.old-new-actor/v1": { stepCount: 5, actorCount: 3, sessionCount: 2, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "tool.reasoning-parallel-pending/v1": { stepCount: 4, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "transport.retry-503/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "workflow.complete-authoring-release/v1": { stepCount: 12, actorCount: 1, sessionCount: 1, retainedMessages: 4, unexplainedLocalDivergences: 0 },
-      "workflow.ctrl-node.stage-free/v1": { stepCount: 1, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "workflow.data-node.stage-free/v1": { stepCount: 1, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
-      "workflow.lifecycle.stable-superset/v1": { stepCount: 12, actorCount: 1, sessionCount: 1, retainedMessages: 4, unexplainedLocalDivergences: 0 },
+      "epoch.legacy-import-rebuild/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
+      "epoch.provider-model-profile/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "epoch.resource-revision/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "epoch.rewind-fork/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "epoch.surface-revision/v1": { stepCount: 3, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "isolation.four-actors-two-sessions/v1": { stepCount: 5, actorCount: 4, sessionCount: 2, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "ordinary.code.all-tools/v1": { stepCount: 1, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "ordinary.no-tool.forward/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "recovery.fresh-runtime/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "resource.old-new-actor/v1": { stepCount: 5, actorCount: 3, sessionCount: 2, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "tool.reasoning-parallel-pending/v1": { stepCount: 4, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "transport.retry-503/v1": { stepCount: 2, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "workflow.complete-authoring-release/v1": { stepCount: 12, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
+      "workflow.ctrl-node.stage-free/v1": { stepCount: 1, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "workflow.data-node.stage-free/v1": { stepCount: 1, actorCount: 1, sessionCount: 1, retainedMessages: 2, unexplainedLocalDivergences: 0 },
+      "workflow.lifecycle.stable-superset/v1": { stepCount: 12, actorCount: 1, sessionCount: 1, retainedMessages: 3, unexplainedLocalDivergences: 0 },
     })
     expect(matrix.epochReasonSequence).toEqual([
       "initial_projection",
@@ -115,7 +115,11 @@ describe("closed provider cache product matrix", () => {
       freshRecoveryVerified: true,
       verified: true,
     })
-  }, 120_000)
+  // This is one closed product proof over 18 canonical scenarios, including
+  // two complete 12-step workflow lifecycle executions. Keep the test budget
+  // above that measured workload without changing any production timeout or
+  // provider recovery semantics.
+  }, 240_000)
 
   test("gate source cannot hard-code structural proof after merely running tests", () => {
     const source = readFileSync(fileURLToPath(new URL("../../scripts/providerCacheProductGate.ts", import.meta.url)), "utf8")

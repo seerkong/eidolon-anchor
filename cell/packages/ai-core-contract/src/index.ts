@@ -12,7 +12,6 @@ export * from "./runtime/ActorSurface";
 export * from "./runtime/ActorRuntimeFacet";
 export * from "./runtime/ActorDurableMaterial";
 export * from "./runtime/AiRuntimeOuterCtx";
-export * from "./runtime/AutonomousHolon";
 export * from "./runtime/DetachedActor";
 export * from "./runtime/McpManagerLike";
 export * from "./runtime/Observability";

@@ -5,6 +5,7 @@ import {
 } from "@terminal/organ/AIAgent/TerminalRuntime"
 import { makeSessionKey } from "@terminal/core/AIAgent"
 import type { TuiControl } from "@terminal/core/AIAgent/TuiStreamEvents"
+import type { ConversationSessionForkResult } from "@cell/ai-organ-contract"
 
 export type HeadlessTurnOptions = {
   workDir: string
@@ -17,6 +18,18 @@ export type HeadlessTurnOptions = {
   mcp?: boolean
   storage?: { logs?: boolean; files?: boolean }
   onChunk?: (chunk: string) => void | Promise<void>
+}
+
+export type HeadlessConversationForkOptions = {
+  workDir: string
+  sourceSessionId: string
+  targetSessionId?: string
+  messageId?: string
+  adapter?: string
+  model?: string
+  debug?: boolean
+  mcp?: boolean
+  occurredAt?: string
 }
 
 export async function readHeadlessInput(prompt?: string): Promise<string | undefined> {
@@ -76,5 +89,41 @@ export async function runHeadlessTurn(options: HeadlessTurnOptions): Promise<str
     return filteredOutput || rawOutput
   } finally {
     await disposeSessionRuntimeBridge(sessionKey)
+  }
+}
+
+/**
+ * Headless projection of the same Conversation-owned fork command used by the
+ * TUI. It does not load or copy rendered messages and returns the domain
+ * receipt/rejection unchanged.
+ */
+export async function runHeadlessConversationFork(
+  options: HeadlessConversationForkOptions,
+): Promise<ConversationSessionForkResult> {
+  configureSessionRuntime({
+    workDir: options.workDir,
+    adapter: options.adapter,
+    model: options.model,
+    debug: options.debug,
+    mcp: options.mcp,
+    entryType: "headless",
+  })
+
+  const runtime = await getSessionRuntimeBridge(options.sourceSessionId)
+  if (!runtime?.forkConversationSession) {
+    throw new Error("Conversation fork capability is unavailable")
+  }
+  try {
+    return await runtime.forkConversationSession({
+      schemaVersion: "conversation.session-fork-command/v1",
+      sourceSessionId: options.sourceSessionId,
+      targetSessionId: options.targetSessionId?.trim() || makeSessionKey(),
+      selector: options.messageId
+        ? { kind: "through_committed_message", messageId: options.messageId }
+        : { kind: "current_head" },
+      occurredAt: options.occurredAt ?? new Date().toISOString(),
+    })
+  } finally {
+    await disposeSessionRuntimeBridge(options.sourceSessionId)
   }
 }

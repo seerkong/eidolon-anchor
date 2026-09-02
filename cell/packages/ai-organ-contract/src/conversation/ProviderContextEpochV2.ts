@@ -74,7 +74,7 @@ export type ProviderRequestAdmissionReceipt = Readonly<{
   admissionDigest: Sha256Digest;
 }>;
 
-export type ProviderContextCompactionRetainedFact = Readonly<{
+export type LegacyProviderContextCompactionRetainedFact = Readonly<{
   namespace: ActorProviderContextFactNamespace;
   sourceFactDigest: Sha256Digest;
   namespaceRevision: number;
@@ -86,8 +86,32 @@ export type ProviderContextCompactionRetainedFact = Readonly<{
   successorFactDigest: Sha256Digest;
 }>;
 
-export type ProviderContextCompactionProof = Readonly<{
+export type LegacyProviderContextCompactionProof = Readonly<{
   schemaVersion: "provider.context-compaction-proof/v1";
+  sessionId: string;
+  actorKey: string;
+  sourceEpoch: number;
+  successorEpoch: number;
+  retained: readonly LegacyProviderContextCompactionRetainedFact[];
+  createdAt: string;
+  proofDigest: Sha256Digest;
+}>;
+
+export type ProviderContextCompactionRetainedFact = Readonly<{
+  sourceNamespace: ActorProviderContextFactNamespace;
+  successorNamespace: ActorProviderContextFactNamespace;
+  sourceFactDigest: Sha256Digest;
+  namespaceRevision: number;
+  payloadDigest: Sha256Digest;
+  callRecordDigest: Sha256Digest;
+  resultRecordDigest: Sha256Digest;
+  requestAdmissionIntentDigest: Sha256Digest;
+  requestAdmissionDigest: Sha256Digest;
+  successorFactDigest: Sha256Digest;
+}>;
+
+export type ProviderContextCompactionProofV2 = Readonly<{
+  schemaVersion: "provider.context-compaction-proof/v2";
   sessionId: string;
   actorKey: string;
   sourceEpoch: number;
@@ -96,6 +120,10 @@ export type ProviderContextCompactionProof = Readonly<{
   createdAt: string;
   proofDigest: Sha256Digest;
 }>;
+
+export type ProviderContextCompactionProof =
+  | LegacyProviderContextCompactionProof
+  | ProviderContextCompactionProofV2;
 
 export type ProviderContextLegacyMigrationMarker = Readonly<{
   schemaVersion: "provider.context-legacy-migration/v1";

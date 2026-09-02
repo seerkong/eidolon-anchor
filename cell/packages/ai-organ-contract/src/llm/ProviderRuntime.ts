@@ -273,7 +273,10 @@ export type LlmProviderRuntime = {
 };
 
 export type ProviderChatCompatibilityProfileId =
+  | "deepseek-chat@1"
+  /** @deprecated persisted migration input only */
   | "deepseek-official-chat@1"
+  /** @deprecated persisted migration input only */
   | "deepseek-compatible-chat@1";
 
 export type ResponsesContinuationConfig = {

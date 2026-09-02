@@ -11,7 +11,10 @@ import {
   registerPendingMessageDeliveryToConversationDomainRuntime,
 } from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime";
 import { aiAgentLoopStreaming } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
-import { createMockProcessStream } from "./__test_support__/mockProcessStream";
+import {
+  createMockProcessStream,
+  createMockProviderCacheCostObservation,
+} from "./__test_support__/mockProcessStream";
 
 function messageDeliveries(vm: any): any[] {
   const raw = getConversationActorRawStateFromVm({ vm, actorKey: "main" });
@@ -39,7 +42,12 @@ describe("asynchronous conversation message first provider delivery", () => {
         async function* stream() {
           yield { ok: true };
         }
-        return { stream: stream() };
+        return {
+          stream: stream(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: createMockProviderCacheCostObservation(options ?? {}),
+          }),
+        };
       },
     };
     const actor = createActor({

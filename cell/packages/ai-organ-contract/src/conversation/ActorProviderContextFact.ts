@@ -1,10 +1,23 @@
 export type Sha256Digest = `sha256:${string}`;
 
-export type ActorProviderContextFactNamespace =
+export type CanonicalActorProviderContextFactNamespace =
+  | "task-tree-context"
+  | "provider-output-recovery"
+  | "workflow-stage-context";
+
+/** Persisted input only. New context-fact writes must use a canonical namespace. */
+export type LegacyActorProviderContextFactNamespace =
   | "work-context"
   | "provider-projection"
-  | "provider-recovery"
-  | "workflow-stage-context";
+  | "provider-recovery";
+
+export type ActorProviderContextFactNamespace =
+  | CanonicalActorProviderContextFactNamespace
+  | LegacyActorProviderContextFactNamespace;
+
+export type ActorProviderContextFactSemanticFamily =
+  | "work-context"
+  | CanonicalActorProviderContextFactNamespace;
 
 export type ActorProviderContextFactHistoryAnchor = Readonly<{
   historyGenerationId: string;

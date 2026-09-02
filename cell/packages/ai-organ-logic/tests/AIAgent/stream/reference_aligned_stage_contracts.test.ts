@@ -131,11 +131,11 @@ describe("reference aligned stage contracts", () => {
 
   test("keeps new stage contracts isolated from removed legacy stream surface", () => {
     const repoRoot = path.resolve(import.meta.dir, "../../../../../..");
-    const lexicalPath = path.join(repoRoot, "cell/packages/core-contract/src/stream/lexical.ts");
-    const syntacticPath = path.join(repoRoot, "cell/packages/core-contract/src/stream/syntactic.ts");
-    const semanticPath = path.join(repoRoot, "cell/packages/core-contract/src/stream/semantic.ts");
-    const namingPath = path.join(repoRoot, "cell/packages/core-contract/src/stream/transcriptNaming.ts");
-    const legacyPath = path.join(repoRoot, "cell/packages/core-contract/src/StreamEvents.ts");
+    const lexicalPath = path.join(repoRoot, "cell/packages/ai-core-contract/src/stream/lexical.ts");
+    const syntacticPath = path.join(repoRoot, "cell/packages/ai-core-contract/src/stream/syntactic.ts");
+    const semanticPath = path.join(repoRoot, "cell/packages/ai-core-contract/src/stream/semantic.ts");
+    const namingPath = path.join(repoRoot, "cell/packages/ai-core-contract/src/stream/transcriptNaming.ts");
+    const legacyPath = path.join(repoRoot, "cell/packages/ai-core-contract/src/StreamEvents.ts");
 
     expect(fs.existsSync(lexicalPath)).toBe(true);
     expect(fs.existsSync(syntacticPath)).toBe(true);

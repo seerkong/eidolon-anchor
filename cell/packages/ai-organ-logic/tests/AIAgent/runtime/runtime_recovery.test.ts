@@ -22,7 +22,6 @@ import {
 } from "@cell/ai-organ-logic/conversation/ConversationDomainRuntime"
 import { aiAgentCooperativeStep, aiAgentLoopStreaming } from "@cell/ai-organ-logic/exec/AiAgentExecutor"
 import { createMockProcessStream } from "../__test_support__/mockProcessStream"
-import { createAutonomousHolonController } from "@cell/ai-organ-logic/organization/AutonomousHolonController"
 import { getDetachedActorRegistry } from "@cell/ai-organ-logic/detached/DetachedActorRegistry"
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine"
 import { getVmToolCallDomain } from "@cell/ai-organ-logic/runtime/ToolCallDomainRuntime"
@@ -1873,7 +1872,6 @@ describe("runtime recovery bootstrap", () => {
       role: "worker",
       agentType: "code",
       systemPrompt: ["you are auto"],
-      lane: "autonomous_holon",
     })
 
     members.sendMessage({ vm, to: worker.memberId, from: "main", text: "queued ping" })
@@ -1935,8 +1933,6 @@ describe("runtime recovery bootstrap", () => {
       updatedAt: Date.now(),
     }
 
-    const collectiveController = createAutonomousHolonController({ driver, vm, controlActor: root, members: members })
-    collectiveController.start({ idleTimeoutMs: 999, tickIntervalMs: 77 })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
     driver.suspendFiber(mainFiberId, Date.now(), "external")
@@ -2674,8 +2670,6 @@ describe("runtime recovery bootstrap", () => {
       updatedAt: Date.now(),
     }
 
-    const collectiveController = createAutonomousHolonController({ driver, vm, controlActor: root, members: members })
-    collectiveController.start({ idleTimeoutMs: 500, tickIntervalMs: 55 })
     const runtimeContext2 = ensureVmRuntimeContext(vm)
     runtimeContext2.driver = driver
 
@@ -2782,7 +2776,6 @@ describe("runtime recovery bootstrap", () => {
         role: "worker",
         agentType: "code",
         systemPrompt: [`you are ${params.collectiveWorkerName}`],
-        lane: "autonomous_holon",
       })
 
       const protocolEngine = getCoordinationEngine()
@@ -2795,8 +2788,6 @@ describe("runtime recovery bootstrap", () => {
         updatedAt: Date.now(),
       }
 
-      const collectiveController = createAutonomousHolonController({ driver, vm, controlActor: root, members: members })
-      collectiveController.start({ idleTimeoutMs: 999, tickIntervalMs: params.tickIntervalMs })
       const runtimeContext = ensureVmRuntimeContext(vm)
       runtimeContext.driver = driver
 
@@ -2870,8 +2861,8 @@ describe("runtime recovery bootstrap", () => {
     expect(protocolAOnA.status).toBe("pending")
     expect(protocolAOnB.ok).toBe(false)
 
-    expect(getMemberManager().listMembers({ vm: recoveredA!.vm }).filter((entry) => entry.lane === "autonomous_holon").map((entry) => entry.name)).toEqual([savedA.collectiveWorker.name])
-    expect(getMemberManager().listMembers({ vm: recoveredB!.vm }).filter((entry) => entry.lane === "autonomous_holon").map((entry) => entry.name)).toEqual([savedB.collectiveWorker.name])
+    expect(getMemberManager().listMembers({ vm: recoveredA!.vm }).map((entry) => entry.name)).toEqual(expect.arrayContaining([savedA.worker.name, savedA.collectiveWorker.name]))
+    expect(getMemberManager().listMembers({ vm: recoveredB!.vm }).map((entry) => entry.name)).toEqual(expect.arrayContaining([savedB.worker.name, savedB.collectiveWorker.name]))
   })
 
   it("restores terminal detached work from VM snapshot even when indexes are missing", async () => {
@@ -2901,8 +2892,6 @@ describe("runtime recovery bootstrap", () => {
       fibers: [{ fiberId: `${root.key}:${root.id}`, vm, actor: root, messages: root.messages, basePriority: 1 }],
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
     })
-    const members = getMemberManager()
-    const collectiveController = createAutonomousHolonController({ driver, vm, controlActor: root, members })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
 
@@ -3011,8 +3000,6 @@ describe("runtime recovery bootstrap", () => {
       fibers: [{ fiberId: `${root.key}:${root.id}`, vm, actor: root, messages: root.messages, basePriority: 1 }],
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
     })
-    const members = getMemberManager()
-    const collectiveController = createAutonomousHolonController({ driver, vm, controlActor: root, members })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
 
@@ -3059,94 +3046,6 @@ describe("runtime recovery bootstrap", () => {
     expect(authoritative).toMatchObject({ ok: true, status: "completed", output_text: "fresh" })
     expect(stale.ok).toBe(false)
     expect(recovered!.vm.sessionState.detachedActors["task-stale-only"]).toBeUndefined()
-  })
-
-  it("prefers actor-owned autonomous holon task ownership over stale vm and index mirrors during recovery", async () => {
-    const sessionDir = makeTempSessionDir()
-    const sessionId = "session-collective-ownership-authoritative"
-    const adapter = makeMockAdapter()
-    const toolRegistry = composeToolRegistry({ includeInternalOnly: true })
-
-    const root = createActor({
-      key: "main",
-      llmClient: adapter,
-      modelConfig: { model: "mock" },
-      callbacks: {
-        buildToolset: () => [],
-        processStream: createMockProcessStream(async (_vm, actor) => (
-          actor.identity?.kind === "member"
-            ? { role: "assistant", content: `${actor.identity.name} done` }
-            : { role: "assistant", content: "ok" }
-        )),
-      },
-    })
-
-    const vm = createVM({
-      controlActorKey: root.key,
-      actors: { [root.key]: root },
-      eventBus: new AgentEventGraph(),
-      registries: {
-        toolRegistry,
-        agentRegistry: new AgentRegistry({ code: { name: "code", description: "test", tools: "*", prompt: ["you are code"] } } as any),
-      },
-    })
-    const driver = createAiAgentOrchestratorDriverWithCooperative({
-      fibers: [{ fiberId: `${root.key}:${root.id}`, vm, actor: root, messages: root.messages, basePriority: 1 }],
-      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
-    })
-    const members = getMemberManager()
-    const collectiveController = createAutonomousHolonController({ driver, vm, controlActor: root, members })
-    const runtimeContext = ensureVmRuntimeContext(vm)
-    runtimeContext.driver = driver
-
-    const member = JSON.parse(String(await ToolFuncRegistry.call(toolRegistry, "MemberCreate", vm, root, {
-      name: "alice",
-      agent_type: "code",
-      prompt: "",
-    })))
-    const holon = JSON.parse(String(await ToolFuncRegistry.call(toolRegistry, "HolonCreate", vm, root, {
-      governance: "autonomous",
-      name: "research",
-    })))
-    await ToolFuncRegistry.call(toolRegistry, "HolonAdd", vm, root, { holon: "research", member: "alice" })
-    const dispatched = JSON.parse(String(await ToolFuncRegistry.call(toolRegistry, "HolonAssign", vm, root, {
-      target: "research",
-      mode: "final",
-      content: "scan the current project",
-    })))
-
-    expect(dispatched.ok).toBe(true)
-    await saveAiAgentRuntimeSnapshot({ sessionDir, sessionId, vm, driver })
-
-    const vmPath = path.join(sessionDir, "runtime_state", "vm.json")
-    const vmSnapshot = JSON.parse(fs.readFileSync(vmPath, "utf8"))
-    vmSnapshot.collective = {
-      taskOwnership: [{ taskId: dispatched.task_id, ownerActorKey: "member:stale-owner" }],
-    }
-    fs.writeFileSync(vmPath, `${JSON.stringify(vmSnapshot, null, 2)}\n`, "utf8")
-    await rewriteRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
-    await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
-
-    const recoveredToolRegistry = composeToolRegistry({ includeInternalOnly: true })
-    const recovered = await recoverAiAgentRuntime({
-      sessionDir,
-      sessionId,
-      llmClient: adapter,
-      eventBus: new AgentEventGraph(),
-      registries: {
-        toolRegistry: recoveredToolRegistry,
-        agentRegistry: new AgentRegistry({ code: { name: "code", description: "test", tools: "*", prompt: ["you are code"] } } as any),
-      },
-      actorCallbacks: {
-        buildToolset: () => [],
-        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "ok" })),
-      },
-    })
-
-    expect(recovered).toBeTruthy()
-    expect(recovered!.vm.actors[`holon:${holon.holon_id}`]?.holonState?.governance === "autonomous"
-      ? recovered!.vm.actors[`holon:${holon.holon_id}`]?.holonState.taskOwnership?.[dispatched.task_id]
-      : undefined).toBe(member.actor_key)
   })
 
   it("resumes questionnaire flow after snapshot recovery", async () => {
@@ -3245,8 +3144,6 @@ describe("runtime recovery bootstrap", () => {
       fibers: [{ fiberId, vm, actor, messages: [], basePriority: 1 }],
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
     })
-    const members = getMemberManager()
-    const collectiveController = createAutonomousHolonController({ driver, vm, controlActor: actor, members })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
 
@@ -3341,7 +3238,6 @@ describe("runtime recovery bootstrap", () => {
     })
     const members = getMemberManager()
     members.__resetForTest?.()
-    const controller = createAutonomousHolonController({ driver, vm, controlActor: root, members })
     const runtimeContext = ensureVmRuntimeContext(vm)
     runtimeContext.driver = driver
 
@@ -3361,6 +3257,24 @@ describe("runtime recovery bootstrap", () => {
     })))
     await ToolFuncRegistry.call(toolRegistry, "HolonAdd", vm, root, { holon: "research", member: "alice" })
     await ToolFuncRegistry.call(toolRegistry, "ActorWatch", vm, root, { target: "holon:research" })
+    const autonomousActorKey = `holon:${autonomousHolon.holon_id}`
+    const retiredFiberId = `${autonomousActorKey}:${autonomousHolon.holon_id}`
+    driver.spawnFiber({
+      fiberId: retiredFiberId,
+      vm,
+      actor: vm.actors[autonomousActorKey]!,
+      messages: vm.actors[autonomousActorKey]!.messages,
+      basePriority: 1,
+      kind: "control",
+      lane: "organization",
+      workload: "organization_turn",
+    })
+    driver.suspendFiber(retiredFiberId, Date.now(), "external")
+    vm.actors[autonomousActorKey]!.send("memberChatInbox", {
+      from: "legacy-controller",
+      text: "must remain audit-only and never dispatch",
+      ts: 1,
+    })
 
     const leaderLedHolon = JSON.parse(String(await ToolFuncRegistry.call(toolRegistry, "HolonCreate", vm, root, {
       governance: "leader_led",
@@ -3376,6 +3290,12 @@ describe("runtime recovery bootstrap", () => {
       vm,
       driver,
     })
+    const manifest = JSON.parse(fs.readFileSync(path.join(sessionDir, "runtime_state", "manifest.json"), "utf8"))
+    const retiredFiberPath = path.resolve(sessionDir, "runtime_state", manifest.fiberFiles[retiredFiberId])
+    const retiredFiberSnapshot = JSON.parse(fs.readFileSync(retiredFiberPath, "utf8"))
+    retiredFiberSnapshot.lane = "autonomous_holon"
+    retiredFiberSnapshot.workloadKind = "autonomous_holon_task"
+    fs.writeFileSync(retiredFiberPath, `${JSON.stringify(retiredFiberSnapshot, null, 2)}\n`, "utf8")
     await upgradeRuntimeControlCheckpointForCurrentSessionFiles(sessionDir)
 
     const recoveredToolRegistry = composeToolRegistry({ includeInternalOnly: true })
@@ -3401,6 +3321,19 @@ describe("runtime recovery bootstrap", () => {
     expect(collectiveStatus.member_ids).toContain(member.memberId)
     const collectiveActorStatus = JSON.parse(String(await ToolFuncRegistry.call(recoveredToolRegistry, "ActorStatus", recovered!.vm, recovered!.controlActor, { target: `holon:${autonomousHolon.holon_id}` })))
     expect(collectiveActorStatus.watch_state).toBe("watched")
+    expect(recovered!.vm.actors[autonomousActorKey]?.identity).toMatchObject({
+      kind: "holon",
+      governance: "autonomous",
+    })
+    expect(recovered!.vm.actors[autonomousActorKey]?.peekMailbox("memberChatInbox")).toEqual([
+      {
+        from: "legacy-controller",
+        text: "must remain audit-only and never dispatch",
+        ts: 1,
+      },
+    ])
+    expect(recovered!.driver.getState().fibers[retiredFiberId]).toBeUndefined()
+    expect(recovered!.driver.inspectRuntime().fibers[retiredFiberId]).toBeUndefined()
 
     const formationStatus = JSON.parse(String(await ToolFuncRegistry.call(recoveredToolRegistry, "HolonStatus", recovered!.vm, recovered!.controlActor, { target: "alpha" })))
     expect(formationStatus.ok).toBe(true)
@@ -3409,6 +3342,23 @@ describe("runtime recovery bootstrap", () => {
     expect(formationStatus.leader_member_id).toBe(member.memberId)
     const formationActorStatus = JSON.parse(String(await ToolFuncRegistry.call(recoveredToolRegistry, "ActorStatus", recovered!.vm, recovered!.controlActor, { target: `holon:${leaderLedHolon.holon_id}` })))
     expect(formationActorStatus.watch_state).toBe("watched")
+
+    retiredFiberSnapshot.lane = "interactive"
+    retiredFiberSnapshot.workloadKind = "unknown_legacy_task"
+    fs.writeFileSync(retiredFiberPath, `${JSON.stringify(retiredFiberSnapshot, null, 2)}\n`, "utf8")
+    await expect(recoverAiAgentRuntime({
+      sessionDir,
+      sessionId,
+      llmClient: adapter as any,
+      registries: {
+        toolRegistry: recoveredToolRegistry,
+        agentRegistry: new AgentRegistry({ code: { name: "code", description: "test", tools: "*", prompt: ["you are code"] } } as any),
+      },
+      actorCallbacks: {
+        buildToolset: () => [],
+        processStream: createMockProcessStream(async () => ({ role: "assistant", content: "must not dispatch" })),
+      },
+    })).rejects.toThrow(/unsupported workloadKind 'unknown_legacy_task'/)
   })
 
 })

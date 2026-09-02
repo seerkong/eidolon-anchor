@@ -156,7 +156,7 @@ describe("runtime profile composer", () => {
     })
 
     expect(assembly.profileId).toBe("ai-coding")
-    expect(Object.keys(assembly.agentConfigs)).toEqual(["code", "explorer", "librarian", "oracle", "designer", "fixer"])
+    expect(Object.keys(assembly.agentConfigs)).toEqual(["code", "explorer", "librarian", "oracle", "designer", "fixer", "workflow"])
     expect(assembly.agentConfigs.code?.description).toBe("默认编码执行 agent，用于通用的委派 coding 工作。")
     expect(assembly.agentConfigs.explorer?.prompt.join("\n")).toContain("只读，不做代码修改")
     expect(assembly.agentConfigs.librarian?.prompt.join("\n")).toContain("不依赖固定 MCP 名称")
@@ -190,9 +190,10 @@ describe("runtime profile composer", () => {
     expect(defaultAgentTypeSchema).toContain("\"oracle\"")
     expect(defaultAgentTypeSchema).toContain("\"designer\"")
     expect(defaultAgentTypeSchema).toContain("\"fixer\"")
+    expect(defaultAgentTypeSchema).toContain("\"workflow\"")
 
     const registries = assembly.createRegistries()
-    expect(AgentRegistry.keys(registries.agentRegistry)).toEqual(["code", "explorer", "librarian", "oracle", "designer", "fixer"])
+    expect(AgentRegistry.keys(registries.agentRegistry)).toEqual(["code", "explorer", "librarian", "oracle", "designer", "fixer", "workflow"])
     expect(ToolFuncRegistry.get(registries.toolRegistry, "ActorAssign")).toBeTruthy()
 
     const toolset = assembly.buildToolset({
@@ -249,6 +250,7 @@ describe("runtime profile composer", () => {
       "oracle",
       "designer",
       "fixer",
+      "workflow",
       "reviewer",
     ])
 

@@ -35,6 +35,45 @@ describe("provider projection architecture", () => {
     });
   });
 
+  it("omits only a superseded interrupted tool call from Responses recovery replay", () => {
+    const replay = compileConversationToResponsesCanonicalReplay([
+      { role: "user", content: "start" },
+      {
+        role: "assistant",
+        content: "I will update the task tree.",
+        toolCalls: [{ id: "call-interrupted", name: "TaskTreeWrite", input: { op: "replace_root" } }],
+      },
+      { role: "user", content: "continue after restart" },
+    ], { interruptedToolCall: "omit_before_later_user" });
+
+    expect(replay.items).toContainEqual(expect.objectContaining({
+      type: "message",
+      role: "assistant",
+    }));
+    expect(replay.items).not.toContainEqual(expect.objectContaining({
+      type: "function_call",
+      call_id: "call-interrupted",
+    }));
+    expect(replay.coverageProof.omittedInterruptedToolCallIds).toEqual(["call-interrupted"]);
+  });
+
+  it("does not omit a current unresolved tool call before a later user turn exists", () => {
+    const replay = compileConversationToResponsesCanonicalReplay([
+      { role: "user", content: "start" },
+      {
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "call-current", name: "read", input: { path: "a.ts" } }],
+      },
+    ], { interruptedToolCall: "omit_before_later_user" });
+
+    expect(replay.items).toContainEqual(expect.objectContaining({
+      type: "function_call",
+      call_id: "call-current",
+    }));
+    expect(replay.coverageProof.omittedInterruptedToolCallIds).toBeUndefined();
+  });
+
   it("proves complete canonical coverage across one hundred tool rounds", () => {
     const messages: any[] = [{ role: "user", content: "long investigation" }];
     for (let index = 0; index < 100; index += 1) {

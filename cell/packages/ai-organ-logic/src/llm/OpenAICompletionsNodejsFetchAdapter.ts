@@ -587,10 +587,8 @@ export class OpenAICompletionsNodejsFetchLlmAdapter implements LlmAdapter {
     const admittedRequest = readAdmittedProviderRequest(admitted);
     const serializedBody = admittedRequest.serializedBody;
     validateProviderContextFactsInFinalWire({
-      profileId: this.chatCompletionsEffectBundle.id === "deepseek-official-chat"
-        ? "deepseek-official-chat@1"
-        : this.chatCompletionsEffectBundle.id === "deepseek-compatible-chat"
-          ? "deepseek-compatible-chat@1"
+      profileId: this.chatCompletionsEffectBundle.id === "deepseek-chat"
+        ? "deepseek-chat@1"
           : "openai-chat@1",
       serializedBody,
     });

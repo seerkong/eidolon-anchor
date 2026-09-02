@@ -12,6 +12,7 @@ import {
   WorkflowLegacyMigration,
   getWorkflowRuntimeService,
 } from "../../src/workflow"
+import { createAdmittedWorkflowToolTestFixture } from "./support"
 
 const roots: string[] = []
 
@@ -24,12 +25,12 @@ async function makeRuntime(root?: string) {
   if (!root) roots.push(workRoot)
   const workspaceRoot = path.join(workRoot, "workspace")
   const sessionDir = path.join(workRoot, "session")
-  const actor = createActor({ key: "main" })
-  const toolRegistry = composeToolRegistry({ includeInternalOnly: false })
+  const { actor, toolRegistry, actorFacetRuntime } = createAdmittedWorkflowToolTestFixture("main")
   const vm = createVM({
     controlActorKey: actor.key,
     actors: { [actor.key]: actor },
     registries: { toolRegistry },
+    runtimeContext: { actorFacetRuntime },
     outerCtx: {
       workDir: workRoot,
       metadata: {

@@ -262,7 +262,7 @@ describe("Runtime snapshot repository", () => {
     expect(restored.recovery?.snapshotVersion).toBe(actorSnapshot.version)
   })
 
-  it("persists actor-owned detached and organization state through repository split files", async () => {
+  it("persists actor-owned detached state and organization governance through repository split files", async () => {
     const rootDir = path.join(makeTempSessionDir(), "runtime_state")
     const repository = new LocalFileRuntimeSnapshotRepository(rootDir)
 
@@ -277,23 +277,6 @@ describe("Runtime snapshot repository", () => {
         name: "research",
         memberIds: ["member-1"],
         watchState: "watched",
-        taskOwnership: { "task-1": "member:alice" },
-        tasks: {
-          "task-1": {
-            taskId: "task-1",
-            initiatorActorKey: "main",
-            initiatorActorId: "actor-main",
-            replyMode: "final",
-            status: "completed",
-            content: "scan",
-            createdAt: 1,
-            updatedAt: 2,
-            ownerActorKey: "member:alice",
-            ownerActorId: "actor-alice",
-            ownerMemberId: "member-1",
-            resultText: "done",
-          },
-        },
       },
     })
     const detached = createActor({
@@ -326,14 +309,63 @@ describe("Runtime snapshot repository", () => {
 
     const loaded = await repository.loadSnapshot()
     expect(loaded).toBeTruthy()
-    expect(loaded?.actors[collective.key]?.holonState?.governance === "autonomous"
-      ? loaded.actors[collective.key]?.holonState.taskOwnership?.["task-1"]
-      : undefined).toBe("member:alice")
-    expect(loaded?.actors[collective.key]?.holonState?.governance === "autonomous"
-      ? loaded.actors[collective.key]?.holonState.tasks?.["task-1"]?.resultText
-      : undefined).toBe("done")
+    expect(loaded?.actors[collective.key]?.holonState).toEqual(expect.objectContaining({
+      governance: "autonomous",
+      holonId: "collective-1",
+      memberIds: ["member-1"],
+      watchState: "watched",
+    }))
+    expect(loaded?.actors[collective.key]?.holonState).not.toHaveProperty("tasks")
+    expect(loaded?.actors[collective.key]?.holonState).not.toHaveProperty("taskOwnership")
     expect(loaded?.actors[detached.key]?.detachedTask?.taskId).toBe("bg-task-1")
     expect(loaded?.actors[detached.key]?.detachedTask?.outputText).toBe("done")
+  })
+
+  it("drops retired autonomous Holon task authority while hydrating an old actor snapshot", () => {
+    const holon = createActor({
+      key: "holon:legacy-autonomous",
+      id: "legacy-autonomous",
+      type: "detached" as any,
+      identity: {
+        kind: "holon",
+        holonId: "legacy-autonomous",
+        governance: "autonomous",
+        name: "legacy research",
+      } as any,
+      holonState: {
+        governance: "autonomous",
+        holonId: "legacy-autonomous",
+        name: "legacy research",
+        memberIds: ["member-1"],
+        watchState: "watched",
+      },
+    })
+    const oldSnapshot = serializeActor(holon) as any
+    oldSnapshot.holonState.tasks = {
+      "legacy-task": {
+        taskId: "legacy-task",
+        status: "pending",
+        content: "must not be revived",
+      },
+    }
+    oldSnapshot.holonState.taskOwnership = { "legacy-task": "member:alice" }
+    oldSnapshot.holonState.canonicalTaskAuthority = {
+      taskSpaceId: "legacy-space",
+      taskId: "legacy-task",
+    }
+
+    const recovered = hydrateActor(oldSnapshot)
+
+    expect(recovered.holonState).toEqual({
+      governance: "autonomous",
+      holonId: "legacy-autonomous",
+      name: "legacy research",
+      memberIds: ["member-1"],
+      watchState: "watched",
+    })
+    expect(recovered.holonState).not.toHaveProperty("tasks")
+    expect(recovered.holonState).not.toHaveProperty("taskOwnership")
+    expect(recovered.holonState).not.toHaveProperty("canonicalTaskAuthority")
   })
 
   it("writes only dirty actor and fiber files while keeping the manifest complete", async () => {

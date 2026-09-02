@@ -1,4 +1,18 @@
 import type { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
+import { createHash } from "node:crypto";
+
+/**
+ * Minimal final-request observation for in-process provider doubles. Real
+ * ProviderRuntimeLlmAdapter instances derive this from the serialized body at
+ * the transport boundary; test doubles must likewise prove which request
+ * their synthetic outcome accepted instead of relying on executor fallback.
+ */
+export function createMockProviderCacheCostObservation(request: unknown) {
+  const serialized = JSON.stringify(request);
+  return Object.freeze({
+    requestDigest: `sha256:${createHash("sha256").update(serialized).digest("hex")}`,
+  });
+}
 
 /**
  * P8 single-writer pipeline (decisions.md decision 8) test support.

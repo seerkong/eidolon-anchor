@@ -1,5 +1,9 @@
 export { spawnChildExecutionActor } from "./agent/DelegateActor";
-export { forceCompressActorHistory, validateProviderPromptInputModalities } from "./exec/AiAgentExecutor";
+export {
+  ensureActorProviderContextEpochBeforeTransport,
+  forceCompressActorHistory,
+  validateProviderPromptInputModalities,
+} from "./exec/AiAgentExecutor";
 export * from "./workflow";
 export * from "./resources";
 export {
@@ -64,8 +68,11 @@ export * from "./organization/HolonDeploymentRuntimeStore";
 export * from "./organization/HolonMemberRuntime";
 export * from "./organization/HolonCoordinator";
 export * from "./organization/HolonLocalActorRuntime";
-export * from "./organization/HolonLegacyTaskAuthority";
 export * from "./organization/HolonWorkflowTaskRuntime";
+export * from "./organization/HolonTaskPumpJournal";
+export * from "./organization/HolonTaskSpacePump";
+export * from "./organization/HolonTaskSpaceCoordinatorActor";
+export * from "./organization/CanonicalHolonAssignmentFacade";
 export {
   createEmptyConversationProjection,
   mergeConversationCompactionActorBinding,
@@ -73,6 +80,12 @@ export {
   reduceConversationDomainEvents,
 } from "./conversation/ConversationDomainProjection";
 export { loadConversationDebugSnapshot } from "./conversation/ConversationDebug";
+export * from "./conversation/ConversationSessionFork";
+export * from "./conversation/ConversationSessionForkRuntime";
+export * from "./conversation/ConversationSessionForkActor";
+export * from "./conversation/ConversationSessionRewind";
+export * from "./conversation/ConversationSessionRewindRuntime";
+export * from "./conversation/ConversationSessionRewindActor";
 export * from "./conversation/ActorProviderContextFact";
 export * from "./conversation/ProviderContextEpochV2";
 export {
@@ -81,7 +94,7 @@ export {
   appendConversationDomainEvent,
   appendActorProviderContextFactToConversationDomainRuntime,
   appendLiveHistoryMessageToConversationDomainRuntime,
-  commitDeliveredProviderProjectionFactsToConversationDomainRuntime,
+  commitDeliveredProviderContextFactsToConversationDomainRuntime,
   clearContextBlocksInConversationDomainRuntime,
   closeConversationSessionInConversationDomainRuntime,
   confirmToolResultDeliveriesToConversationDomainRuntime,
@@ -112,6 +125,7 @@ export {
   teeConversationSessionStream,
   upsertContextResourceFactToConversationDomainRuntime,
   upsertProviderContextFactCandidateToConversationDomainRuntime,
+  upsertLegacyProviderProjectionFactToConversationDomainRuntime,
   upsertProviderProjectionFactToConversationDomainRuntime,
   upsertResponsesReplayCheckpointToConversationDomainRuntime,
   updateConversationDomainFromTranscriptRecordBatch,

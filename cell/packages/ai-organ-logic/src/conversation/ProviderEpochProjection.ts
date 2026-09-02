@@ -162,7 +162,8 @@ function projectHandoff(params: {
       });
     }
     if (
-      params.targetProfileId === "deepseek-official-chat@1"
+      (params.targetProfileId === "deepseek-chat@1"
+        || params.targetProfileId === "deepseek-official-chat@1")
       && typeof assistant.reasoning_content !== "string"
       && typeof assistant.reasoningContent !== "string"
     ) {

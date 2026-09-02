@@ -62,20 +62,20 @@ export type LocalConversationContextResourceFact = {
   observedAt: string;
 };
 
-export type LocalConversationProviderProjectionSourceToolCall = {
+export type LegacyLocalConversationProviderProjectionSourceToolCall = {
   toolCallId: string;
   projectionRevision: string;
   deliveryState: "pending" | "delivered";
   deliveredAt?: string | null;
 };
 
-export type LocalConversationProviderProjectionFact = {
+export type LegacyLocalConversationProviderProjectionFact = {
   actorKey: string;
   projectionKey: string;
   revision: string;
   content: string;
   placement: "late";
-  sourceToolCalls: LocalConversationProviderProjectionSourceToolCall[];
+  sourceToolCalls: LegacyLocalConversationProviderProjectionSourceToolCall[];
   observedAt: string;
 };
 
@@ -85,7 +85,7 @@ export type LocalConversationProviderContextFactCandidate = {
   logicalKey: string;
   revision: string;
   payload: Readonly<Record<string, unknown>>;
-  sourceToolCalls: LocalConversationProviderProjectionSourceToolCall[];
+  sourceToolCalls: LegacyLocalConversationProviderProjectionSourceToolCall[];
   observedAt: string;
 };
 
@@ -125,7 +125,8 @@ export type LocalConversationContextAssetData = {
   extractedArtifactId?: string | null;
   selectedFragmentId?: string | null;
   resourceFact?: LocalConversationContextResourceFact;
-  projectionFact?: LocalConversationProviderProjectionFact;
+  /** @deprecated Legacy migration compatibility; no new records are emitted. */
+  projectionFact?: LegacyLocalConversationProviderProjectionFact;
   /** Runtime-only pending delivery candidate; never provider-visible itself. */
   providerContextFactCandidate?: LocalConversationProviderContextFactCandidate;
   /** Immutable, provider-visible append-only context fact. */
@@ -152,6 +153,14 @@ export type LocalConversationContextAssetData = {
   updatedAt: string;
   archivedAt?: string | null;
 };
+
+/** @deprecated Use providerContextFactCandidate for new writes. */
+export type LocalConversationProviderProjectionSourceToolCall =
+  LegacyLocalConversationProviderProjectionSourceToolCall;
+
+/** @deprecated Use providerContextFactCandidate for new writes. */
+export type LocalConversationProviderProjectionFact =
+  LegacyLocalConversationProviderProjectionFact;
 
 export type LocalConversationContextAssetRegistrySlot = {
   version: number;

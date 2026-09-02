@@ -149,10 +149,18 @@ export function receiptAccepted(
   // epoch admission are distinct lifecycles and need not produce a 1:1 count.
   // Any billed/integrity-bearing incomplete observation still fails closed.
   const incompleteScopesAccepted = incompleteScopes.every(isUnbilledPreacceptScope)
-  const costAccepted = provider.evidenceClass === "official"
-    ? receipt.providerScope.normalizedInputCost !== null
-      && receipt.providerScopes.every((scope) => scope.normalizedInputCost !== null)
-    : true
+  const costAccepted = receipt.providerScope.normalizedInputCost !== null
+    && receipt.providerScopes.every((scope) => (
+      scope.classification === "incomplete_usage"
+        ? isUnbilledPreacceptScope(scope)
+        : scope.normalizedInputCost !== null
+    ))
+  const routingIdentityAccepted = receipt.providerScope.providerId === provider.credential.providerId
+    && receipt.providerScope.model === provider.credential.model
+    && receipt.providerScopes.every((scope) => (
+      scope.providerId === provider.credential.providerId
+      && scope.model === provider.credential.model
+    ))
   return receipt.process.status === "completed"
     && receipt.verifier.passed
     && receipt.modeIdentities.length > 0
@@ -161,6 +169,7 @@ export function receiptAccepted(
       + receipt.providerAttempts.finalAttemptTerminalCauseOmittedCount === receipt.providerAttempts.providerCalls
     && receipt.providerScope.providerClass === provider.expectedProviderClass
     && costAccepted
+    && routingIdentityAccepted
     && providerScopeEvidenceComplete(receipt.providerScope)
     && receipt.providerScopes.length > 0
     && receipt.providerScopes.every((scope) => (

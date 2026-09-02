@@ -24,7 +24,10 @@ import {
 } from "@cell/ai-organ-logic/exec/AiAgentExecutor";
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver";
 import { LocalFileConversationPersistenceRepositoryFactory } from "@cell/ai-support";
-import { createMockProcessStream } from "./__test_support__/mockProcessStream";
+import {
+  createMockProcessStream,
+  createMockProviderCacheCostObservation,
+} from "./__test_support__/mockProcessStream";
 
 const CHEAP_COMPACTION_BUDGET_BYTES = 120_000;
 const DELEGATE_SUMMARY_PREFIX = "DETACHED_DELEGATE_INCIDENT_SUMMARY:";
@@ -127,7 +130,12 @@ describe("delegate result first-delivery incident regression", () => {
         async function* stream() {
           yield { ok: true };
         }
-        return { stream: stream() };
+        return {
+          stream: stream(),
+          providerOutput: Promise.resolve({
+            provider_cache_cost_observation: createMockProviderCacheCostObservation(options ?? {}),
+          }),
+        };
       },
     };
 
@@ -221,7 +229,7 @@ describe("delegate result first-delivery incident regression", () => {
         conversationPersistenceRepositoryFactory: LocalFileConversationPersistenceRepositoryFactory,
         metadata: {
           sessionDir,
-          sessionId: "delegate-delivery-incident",
+          sessionId: path.basename(sessionDir),
         },
       },
     });
@@ -357,11 +365,17 @@ describe("delegate result first-delivery incident regression", () => {
             }
             yield { ok: true };
           }
-          return { stream: stream() };
+          return {
+            stream: stream(),
+            providerOutput: Promise.resolve({
+              provider_cache_cost_observation: createMockProviderCacheCostObservation(options ?? {}),
+            }),
+          };
         },
       };
       const recoveredMain = createActor({
         key: "main",
+        id: main.id,
         llmClient: recoveredAdapter,
         modelConfig: {
           model: "mock",

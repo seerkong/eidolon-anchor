@@ -98,22 +98,24 @@ describe("OrchestratorDriver: orchestrator action handling", () => {
     const vm = createVM({ controlActorKey: "main", actors: { main: actor } });
     const fiberId = `${actor.key}:${actor.id}`;
 
+    let releaseStep!: (value: { kind: "suspend"; reason: "external" }) => void;
+    const stepResult = new Promise<{ kind: "suspend"; reason: "external" }>((resolve) => {
+      releaseStep = resolve;
+    });
     const driver = createAiAgentOrchestratorDriver({
       fibers: [{ fiberId, vm, actor, messages: [], basePriority: 1 }],
-      runStep: async () => ({ kind: "yield" }),
+      runStep: async () => await stepResult,
       options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
     });
 
-    // Fiber is ready; resume_fiber should be latched.
+    // The provider/tool completion can race ahead of the suspend result while
+    // the fiber is still running. That resume must be latched.
+    driver.tick(Date.now());
+    await flushMicrotasks();
+    expect(driver.getState().fibers[fiberId].status).toBe("running");
     driver.resumeFiber(fiberId, Date.now());
     await flushMicrotasks();
-
-    driver.actorRuntime.sendFrom("test", driver.orchestratorId, "fiber_result", {
-      fiberId,
-      now: Date.now(),
-      kind: "suspend",
-      reason: "external",
-    });
+    releaseStep({ kind: "suspend", reason: "external" });
     await flushMicrotasks();
 
     // Latch should immediately resume it.

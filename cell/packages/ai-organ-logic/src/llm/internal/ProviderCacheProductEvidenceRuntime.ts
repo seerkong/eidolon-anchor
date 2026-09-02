@@ -36,7 +36,7 @@ type ProviderCacheProductProductionScenarioId = typeof PROVIDER_CACHE_PRODUCT_PR
 // Package-internal authority. Public callers enter through ProviderCacheProductMatrix.
 
 type ProviderCacheProductActorClass = "ordinary" | "workflow_lifecycle" | "workflow_ctrl_node" | "workflow_data_node"
-type ProviderCacheProductProfileId = "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
+type ProviderCacheProductProfileId = "deepseek-chat@1"
 type ProviderCacheProductEpochReason =
   | "initial_projection"
   | "provider_model_profile_switch"
@@ -145,7 +145,7 @@ const ACTOR_CLASSES = new Set<ProviderCacheProductActorClass>([
   "ordinary", "workflow_lifecycle", "workflow_ctrl_node", "workflow_data_node",
 ])
 const PROFILES = new Set<ProviderCacheProductProfileId>([
-  "deepseek-official-chat@1", "deepseek-compatible-chat@1",
+  "deepseek-chat@1",
 ])
 const REASONS = new Set<ProviderCacheProductEpochReason>([
   "initial_projection", "provider_model_profile_switch", "history_compaction", "history_rewind_or_fork",
@@ -1099,7 +1099,7 @@ function verifyCanonicalIdentity(input: Readonly<{
     scenarioId: input.scenarioId,
     actorClass: input.actorClass,
     productEntry: input.productEntry,
-    providerProfileId: "deepseek-compatible-chat@1",
+    providerProfileId: "deepseek-chat@1",
     model: "deepseek-chat",
     strategyProofDigest,
     steps: scenarioShape.steps,
@@ -1217,7 +1217,7 @@ function signProductChild(input: Readonly<{
     scenarioId: input.childId,
     actorClass: input.actorClass,
     productEntry: "canonical-product-child",
-    providerProfileId: "deepseek-compatible-chat@1",
+    providerProfileId: "deepseek-chat@1",
     model: "deepseek-chat",
     strategyProofDigest: input.g4.selection.selectionDigest,
     steps: Array.from({ length: callCount }, (_, index) => Object.freeze({
@@ -1563,7 +1563,7 @@ async function runVerifiedG4StrategySelection(globalRoot: string): Promise<Verif
     frozenConversationSnapshotDigest: digestClosedWorkflowSurfaceValue(frozenConversationSnapshot),
     lifecycleToolProfileDigest: digestClosedWorkflowSurfaceValue(WORKFLOW_LIFECYCLE_TOOL_PROFILE),
     lifecycleResourcePackageDigest: resourcePackage.digest as `sha256:${string}`,
-    providerProfileId: "deepseek-compatible-chat@1",
+    providerProfileId: "deepseek-chat@1",
     model: "deepseek-chat",
   })
   const runtime = createLocalWorkflowSurfaceExperimentRuntime({

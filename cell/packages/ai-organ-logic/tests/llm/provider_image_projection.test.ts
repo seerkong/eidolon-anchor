@@ -190,7 +190,11 @@ describe("OpenAI canonical image projection", () => {
         },
       },
     })
-    await adapter.createStream({ model: "gpt-vision", messages: [{ role: "user", content: mixedContent() }], tools: [] })
+    const result = await adapter.createStream({ model: "gpt-vision", messages: [{ role: "user", content: mixedContent() }], tools: [] })
+    for await (const _chunk of result.stream) {
+      // ProviderRuntimeLlmAdapter starts transport observation when its lazy
+      // retry stream is consumed, matching the real executor path.
+    }
 
     const serialized = JSON.stringify(observations)
     expect(serialized).not.toContain("data:image")

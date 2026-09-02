@@ -435,9 +435,7 @@ describe("provider transport request observation", () => {
     };
     const adapter = createRuntimeAdapter({ driver, observations, outcomes });
 
-    await drain(
-      (
-        await adapter.createStream({
+    const secondResult = await adapter.createStream({
           model: "wire-model",
           messages: [{ role: "user", content: "read" }],
           tools: [],
@@ -509,9 +507,9 @@ describe("provider transport request observation", () => {
               ]),
             },
           },
-        })
-      ).stream,
-    );
+        });
+    await drain(secondResult.stream);
+    const secondOutput = await secondResult.providerOutput as any;
     await drain(
       (
         await adapter.createStream({
@@ -564,6 +562,8 @@ describe("provider transport request observation", () => {
       completenessStatus: "complete",
       responseId: "resp-seed",
     }));
+    expect(secondOutput.provider_request_admission_observation.requestDigest)
+      .toMatch(/^sha256:[0-9a-f]{64}$/);
   });
 
   it("records WS send and HTTP fallback as ordered transports of one provider attempt", async () => {

@@ -81,14 +81,7 @@ describe("formal organization tools", () => {
     expect(collectiveStatus.governance).toBe("autonomous")
     expect(collectiveStatus.lifecycle_state).toBe("active")
     expect(collectiveStatus.member_ids).toContain(member.member_id)
-    expect(collectiveStatus.task_summary).toEqual({
-      total: 0,
-      pending: 0,
-      in_progress: 0,
-      completed: 0,
-      failed: 0,
-      cancelled: 0,
-    })
+    expect(collectiveStatus.task_summary).toBeNull()
 
     const formation = JSON.parse(String(await registry.call("HolonCreate", vm, actor, {
       governance: "leader_led",
@@ -189,7 +182,7 @@ describe("formal organization tools", () => {
     expect(appointed.holon_id).toBe(holon.holon_id)
   })
 
-  it("uses holon-first formal assign errors for autonomous holons", async () => {
+  it("requires canonical frozen binding even when an autonomous VM Holon has no projected members", async () => {
     const registry = composeToolRegistry()
     const actor = createExecutableActor("main")
     const vm = createVM({
@@ -215,7 +208,7 @@ describe("formal organization tools", () => {
       content: "summarize the work",
     })))
     expect(formalAssign.ok).toBe(false)
-    expect(formalAssign.error).toBe("holon_has_no_members")
+    expect(formalAssign.error).toBe("canonical_holon_binding_required")
     expect(formalAssign.target_type).toBe("holon")
     expect(formalAssign.holon_id).toBe(holon.holon_id)
   })
@@ -449,7 +442,7 @@ describe("formal organization tools", () => {
     })
   })
 
-  it("queues autonomous holon work without leader forwarding and lets ActorAssign address holons", async () => {
+  it("requires a frozen canonical binding for autonomous HolonAssign and ActorAssign", async () => {
     const registry = composeToolRegistry()
     const actor = createExecutableActor("main")
     const vm = createVM({
@@ -483,47 +476,42 @@ describe("formal organization tools", () => {
       mode: "final",
       content: "triage the auth queue",
     })))
-    expect(collectiveAssign.ok).toBe(true)
+    expect(collectiveAssign.ok).toBe(false)
+    expect(collectiveAssign.error).toBe("canonical_holon_binding_required")
     expect(collectiveAssign.holon_id).toBeTruthy()
     expect(collectiveAssign.governance).toBe("autonomous")
-    expect(collectiveAssign.member_ids).toEqual([alice.member_id, bob.member_id])
-    expect(typeof collectiveAssign.task_id).toBe("string")
-    expect(collectiveAssign.reply_mode).toBe("final")
-    expect(collectiveAssign.completion_status).toBe("settled")
-    expect(collectiveAssign.status).toBe("completed")
+    expect(collectiveAssign.required_authority).toEqual([
+      "HolonEffectiveSnapshot",
+      "HolonExecutionBinding",
+      "HolonTaskTarget",
+    ])
 
     const collectiveActor = vm.actors[`holon:${collectiveAssign.holon_id}`]
-    expect(collectiveActor?.holonState?.governance === "autonomous"
-      ? collectiveActor.holonState.tasks?.[collectiveAssign.task_id]
-      : undefined).toMatchObject({
-      content: "triage the auth queue",
-      status: "completed",
-    })
+    expect(collectiveActor?.holonState).not.toHaveProperty("tasks")
+    expect(collectiveActor?.holonState).not.toHaveProperty("taskOwnership")
 
-    const actorAssignCollective = JSON.parse(String(await registry.call("HolonAssign", vm, actor, {
+    const actorAssignCollective = JSON.parse(String(await registry.call("ActorAssign", vm, actor, {
       target: "research",
       mode: "none",
       content: "collect logs and summarize blockers",
     })))
-    expect(actorAssignCollective.ok).toBe(true)
+    expect(actorAssignCollective.ok).toBe(false)
+    expect(actorAssignCollective.error).toBe("canonical_holon_binding_required")
     expect(actorAssignCollective.holon_id).toBe(collectiveAssign.holon_id)
     expect(actorAssignCollective.governance).toBe("autonomous")
-    expect(actorAssignCollective.reply_mode).toBe("none")
-    expect(actorAssignCollective.queued).toBe(true)
-    expect(typeof actorAssignCollective.task_id).toBe("string")
 
-    const collectiveStreamAssign = JSON.parse(String(await registry.call("HolonAssign", vm, actor, {
+    const collectiveStreamAssign = JSON.parse(String(await registry.call("ActorAssign", vm, actor, {
       target: "research",
       mode: "stream",
       content: "stream repo triage progress",
     })))
-    expect(collectiveStreamAssign.reply_mode).toBe("stream")
-    expect(collectiveStreamAssign.watch_state).toBe("watched")
+    expect(collectiveStreamAssign.ok).toBe(false)
+    expect(collectiveStreamAssign.error).toBe("canonical_holon_binding_required")
 
     const collectiveStatusAfterStream = JSON.parse(String(await registry.call("ActorStatus", vm, actor, { target: "holon:research" })))
-    expect(collectiveStatusAfterStream.watch_state).toBe("watched")
-    expect(collectiveStatusAfterStream.task_summary.total).toBe(3)
-    expect(collectiveStatusAfterStream.task_summary.completed).toBeGreaterThanOrEqual(1)
+    expect(collectiveStatusAfterStream.watch_state).toBe("unwatched")
+    expect(collectiveStatusAfterStream.task_summary).toBeNull()
+    expect(collectiveStatusAfterStream.member_ids).toEqual([alice.member_id, bob.member_id])
   })
 
   it("exposes holons through ActorStatus/Watch/Unwatch as organization actors", async () => {
@@ -564,14 +552,7 @@ describe("formal organization tools", () => {
     expect(collectiveStatus.member_ids).toEqual([member.member_id])
     expect(collectiveStatus.watch_state).toBe("unwatched")
     expect(collectiveStatus.lifecycle_state).toBe("active")
-    expect(collectiveStatus.task_summary).toEqual({
-      total: 0,
-      pending: 0,
-      in_progress: 0,
-      completed: 0,
-      failed: 0,
-      cancelled: 0,
-    })
+    expect(collectiveStatus.task_summary).toBeNull()
 
     const collectiveWatch = JSON.parse(String(await registry.call("ActorWatch", vm, actor, { target: "holon:research" })))
     expect(collectiveWatch.ok).toBe(true)

@@ -23,7 +23,6 @@ export type ExecArgs = {
   autoResume?: boolean
   maxContinuations?: number
   captureProviderRequests?: boolean
-  providerChatProfile?: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
   addDir?: string[]
   ephemeral?: boolean
   timeout?: number
@@ -129,11 +128,6 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           default: false,
           describe: "capture complete provider request attempts in the session SQLite ledger",
         })
-        .option("provider-chat-profile", {
-          type: "string",
-          choices: ["deepseek-official-chat@1", "deepseek-compatible-chat@1"] as const,
-          describe: "explicit versioned DeepSeek chat compatibility profile",
-        })
         .option("add-dir", {
           type: "array",
           string: true,
@@ -216,7 +210,6 @@ export function createExecCommand(deps: ExecCommandDeps = DEFAULT_EXEC_COMMAND_D
           autoResume: args.autoResume,
           maxContinuations: args.maxContinuations,
           captureProviderRequests: args.captureProviderRequests,
-          providerChatCompatibilityProfileId: args.providerChatProfile,
           onVisibleChunk: (chunk) => {
             if (!args.json) deps.processLike.stdout.write(chunk)
           },

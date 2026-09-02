@@ -13,7 +13,7 @@ import {
   WorkflowAuthoringSessionStore,
   createWorkflowComponent,
 } from "../../src/workflow"
-import { publishWorkflowFixture } from "./support"
+import { createAdmittedWorkflowToolTestFixture, publishWorkflowFixture } from "./support"
 
 const DATA_MANIFEST = `<AIDataWorkflow #demo.workflow.Feedback apiVersion="depa.flows/v1" version="1.0.0" (
   <FlowContract #demo.workflow.Feedback { inputPorts = ["input"] outputPorts = ["result"] }>
@@ -299,13 +299,14 @@ describe("workflow authoring lifecycle", () => {
 
   it("imports an explicit authoring VFS definition into read-only base and editable work facts", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "eidolon-workflow-edit-"))
+    const admitted = createAdmittedWorkflowToolTestFixture("workflow-edit")
     const runtime = {
       vm: { outerCtx: { workDir: root, metadata: { aiWorkflow: { roots: { workspaceRoot: root } } } }, registries: {} },
-      actor: {},
+      actor: admitted.actor,
     } as any
     const component = createWorkflowComponent({ workspaceRoot: root })
     await publishWorkflowFixture(component, { form: "ai-ctrl", name: "Existing", fqn: "demo.workflow.Existing" })
-    const registry = composeToolRegistry({ includeInternalOnly: false })
+    const registry = admitted.toolRegistry
     const opened = JSON.parse(String(await ToolFuncRegistry.call(
       registry,
       "WorkflowOpenAuthoringSession",

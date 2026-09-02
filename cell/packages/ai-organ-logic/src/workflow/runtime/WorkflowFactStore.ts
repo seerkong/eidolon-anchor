@@ -3,6 +3,7 @@ import path from "node:path"
 import { randomUUID } from "node:crypto"
 
 import type {
+  AIDataWorkflowChildFreezeReceipt,
   AIDataWorkflowRunGraph,
   AIDataWorkflowReuseCandidate,
   AIWorkflowNodeResult,
@@ -136,6 +137,10 @@ export class WorkflowFactStore implements WorkCtrlFlowStore, AIWorkflowStateStor
     )
   }
 
+  private childFreezePath(invocationKey: string): string {
+    return path.join(this.rootPath, "child-freezes", `${safeId(invocationKey)}.json`)
+  }
+
   materialContentRoot(revision: string): string {
     return path.join(this.rootPath, "material-content", safeId(revision))
   }
@@ -254,6 +259,26 @@ export class WorkflowFactStore implements WorkCtrlFlowStore, AIWorkflowStateStor
 
   async listRunReceipts(): Promise<WorkflowRunReceipt[]> {
     return this.listJsonDirectory<WorkflowRunReceipt>(path.join(this.rootPath, "run-receipts"))
+  }
+
+  async saveChildFreezeReceipt(receipt: AIDataWorkflowChildFreezeReceipt): Promise<void> {
+    const existing = await this.loadChildFreezeReceipt(receipt.invocationKey)
+    if (existing) {
+      if (JSON.stringify(existing) !== JSON.stringify(receipt)) {
+        throw new Error(`Child freeze receipt collision: ${receipt.invocationKey}`)
+      }
+      return
+    }
+    const created = await writeJsonExclusiveAtomic(this.childFreezePath(receipt.invocationKey), receipt)
+    if (created) return
+    const winner = await this.loadChildFreezeReceipt(receipt.invocationKey)
+    if (winner && JSON.stringify(winner) === JSON.stringify(receipt)) return
+    throw new Error(`Child freeze receipt collision: ${receipt.invocationKey}`)
+  }
+
+  loadChildFreezeReceipt(invocationKey: string): Promise<AIDataWorkflowChildFreezeReceipt | undefined> {
+    return readJson<AIDataWorkflowChildFreezeReceipt>(this.childFreezePath(invocationKey))
+      .then((receipt) => receipt ? deepFreezeJson(receipt) : undefined)
   }
 
   async saveAgentExecutionFact(fact: WorkflowAgentExecutionFact): Promise<void> {

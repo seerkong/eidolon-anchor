@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto"
 
 import type { AiAgentOneActorRuntime } from "@cell/ai-core-contract/types"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
+import type { AiAgentActor } from "@cell/ai-core-logic/runtime/actor"
 import { recordAiRuntimeEffectLifecycleEvent } from "@cell/ai-runtime-control-composer"
 import { readRuntimeControlEffectEvidence } from "@cell/ai-file-store-logic"
 import { normalizeFlowClosedValue } from "ai-workflow-logic"
@@ -23,6 +24,8 @@ import {
   spawnChildExecutionActor,
   type AddressedChildExecutionReference,
 } from "../../agent/DelegateActor"
+import { materializeConversationHistoryMessagesFromVm } from "../../conversation/ConversationDomainRuntime"
+import { getActorWorkContext } from "../../runtime/ContextControlPlane"
 import { hashWorkflowSources, type WorkflowAuthoringStore } from "../authoring"
 import type { WorkflowFactStore } from "../runtime/WorkflowFactStore"
 import type { AiWorkflowForm } from "@cell/ai-workflow-contract"
@@ -59,6 +62,19 @@ export type WorkflowPublicEvidenceBinding = Readonly<{
 }>
 
 export type WorkflowMaterialWriteResult = Readonly<{ path: string; revision: string }>
+
+export type EidolonWorkflowEffectProviderFaultObserver = Readonly<{
+  afterResourceAgentResultPersistence?(request: AIWorkflowEffectRequest, output: unknown): void | Promise<void>
+}>
+
+export class WorkflowEffectProviderProcessCrash extends Error {
+  readonly code = "EIDOLON_WORKFLOW_EFFECT_PROCESS_CRASH"
+
+  constructor(readonly causeValue: unknown) {
+    super(causeValue instanceof Error ? causeValue.message : String(causeValue))
+    this.name = "WorkflowEffectProviderProcessCrash"
+  }
+}
 
 function controlledMaterialPath(value: string): string {
   const normalized = value.trim().replace(/\\/g, "/").replace(/^\.\//, "")
@@ -139,6 +155,7 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
     private readonly agentResources?: WorkflowAgentResourceBinding,
     private readonly stepExtensions?: WorkflowStepExtensionAuthoredFacade,
     private readonly publicEvidence?: WorkflowPublicEvidenceBinding,
+    private readonly faults?: EidolonWorkflowEffectProviderFaultObserver,
   ) {}
 
   private recordNodeEvidence(input: Readonly<{
@@ -257,6 +274,11 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       const recovered = await this.readResourceAgentEffectState(request)
       if (recovered.kind === "completed") return recovered.output
       if (recovered.kind === "pending") {
+        const accepted = await this.recoverAcceptedResourceAgentDispatch(request)
+        if (accepted.found) {
+          await this.recordCompletedEffect(request, accepted.output)
+          return accepted.output
+        }
         return await this.waitForResourceAgentEffectResult(request)
       }
       if (recovered.kind === "failed") {
@@ -301,24 +323,25 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
           revision: text(materialOutput.revision),
         })
       }
-      await this.appendEvent(request, {
-        ...eventBase,
-        eventId: randomUUID(),
-        type: "workflow.effect.completed",
-        atMs: Date.now(),
-        payload: { effectId: request.effectId, operation: request.operation, output },
-      })
-      await this.recordLifecycle(request, {
-        kind: "result",
-        effectKind: "tool_call",
-        effectId: request.effectId,
-        handlerKey: `workflow:${request.operation}`,
-        resultId: `${request.effectId}:result`,
-        payload: output,
-      })
+      await this.recordCompletedEffect(request, output)
+      if (recoverResourceAgentResult) {
+        try {
+          await this.faults?.afterResourceAgentResultPersistence?.(request, output)
+        } catch (error) {
+          // Test seam for an abrupt host loss after the adapter result became
+          // durable but before the parent Agent invocation checkpoint accepted it.
+          throw new WorkflowEffectProviderProcessCrash(error)
+        }
+      }
       return output
     } catch (error) {
-      const message = String((error as Error)?.message ?? error)
+      if (error instanceof WorkflowEffectProviderProcessCrash) throw error
+      const diagnostics = Array.isArray((error as { diagnostics?: unknown })?.diagnostics)
+        ? (error as { diagnostics: readonly unknown[] }).diagnostics
+        : []
+      const message = diagnostics.length === 0
+        ? String((error as Error)?.message ?? error)
+        : `${String((error as Error)?.message ?? error)}: ${JSON.stringify(diagnostics)}`
       await this.appendEvent(request, {
         ...eventBase,
         eventId: randomUUID(),
@@ -336,6 +359,92 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       })
       throw error
     }
+  }
+
+  private async recordCompletedEffect(request: AIWorkflowEffectRequest, output: unknown): Promise<void> {
+    await this.appendEvent(request, {
+      runId: request.run.runId,
+      generation: request.run.generation,
+      nodeId: request.nodeId,
+      eventId: randomUUID(),
+      type: "workflow.effect.completed",
+      atMs: Date.now(),
+      payload: { effectId: request.effectId, operation: request.operation, output },
+    })
+    await this.recordLifecycle(request, {
+      kind: "result",
+      effectKind: "tool_call",
+      effectId: request.effectId,
+      handlerKey: `workflow:${request.operation}`,
+      resultId: `${request.effectId}:result`,
+      payload: output,
+    })
+  }
+
+  private async recoverAcceptedResourceAgentDispatch(
+    request: AIWorkflowEffectRequest,
+  ): Promise<Readonly<{ readonly found: false } | { readonly found: true; readonly output: unknown }>> {
+    const input = record(request.input)
+    const config = record(request.config)
+    if (config.typedHost !== true) return Object.freeze({ found: false })
+    const agentDefinitionRef = selectExactAgentDefinitionRef(input, config)
+    const invocationMetadata = record(config.invocationMetadata)
+    const sessionId = typeof invocationMetadata.sessionRef === "string"
+      && invocationMetadata.sessionRef.trim() === invocationMetadata.sessionRef
+      && invocationMetadata.sessionRef.length > 0
+      ? invocationMetadata.sessionRef
+      : stableWorkflowAgentSessionId(request, agentDefinitionRef, config.instanceName)
+    const candidates = (Object.values(this.runtime.vm.actors) as AiAgentActor[]).flatMap((actor) => {
+      if (actor.agentName !== agentDefinitionRef) return []
+      let messages: readonly unknown[]
+      try {
+        messages = materializeConversationHistoryMessagesFromVm({ vm: this.runtime.vm, actorKey: actor.key })
+      } catch {
+        return []
+      }
+      const assistant = [...messages].reverse().find((message) => (
+        typeof message === "object" && message !== null && (message as { role?: unknown }).role === "assistant"
+      )) as { readonly content?: unknown } | undefined
+      return assistant ? [{ actor, outputText: String(assistant.content ?? "(no content)") }] : []
+    })
+    if (candidates.length === 0) return Object.freeze({ found: false })
+    const prepared = await this.prepareResourceAgentDispatch(request)
+    const expectedOrigin = createWorkflowNodeActorOrigin({
+      runId: request.run.runId,
+      generation: request.run.generation,
+      workflowRef: request.run.workflow.ref,
+      nodeId: request.nodeId,
+      effectId: request.effectId,
+      agentDefinitionRef,
+      semanticFingerprint: prepared.receipt.semanticFingerprint,
+    })
+    const exact = candidates.filter(({ actor }) => (
+      actor.origin?.ownerDigest === expectedOrigin.ownerDigest
+      && actor.origin.subjectDigest === expectedOrigin.subjectDigest
+      && actor.origin.proofDigest === expectedOrigin.proofDigest
+    ))
+    if (exact.length !== 1) {
+      throw new Error("WORKFLOW_RESOURCE_AGENT_ACCEPTED_RESULT_AMBIGUOUS: expected one exact recovered Actor")
+    }
+    const selected = exact[0]!
+    assertWorkflowNodeActorIsolation(selected.actor)
+    const output = projectAgentExecutionOutput(prepared.plan.executionContract, selected.outputText)
+    const recoveredSessionId = getActorWorkContext(selected.actor).sessionId ?? sessionId
+    return Object.freeze({
+      found: true,
+      output: {
+        output,
+        instance: {
+          authority: "eidolon.actor-runtime/v1",
+          instanceId: selected.actor.id,
+          ...(typeof config.instanceName === "string" ? { instanceName: config.instanceName } : {}),
+          sessionId: recoveredSessionId,
+          agentDefinitionRef,
+          metadata: { actorKey: selected.actor.key },
+        },
+        hostReceipt: { effectId: request.effectId },
+      },
+    })
   }
 
   private async waitForResourceAgentEffectResult(request: AIWorkflowEffectRequest): Promise<unknown> {
@@ -582,12 +691,24 @@ export class EidolonWorkflowEffectProvider implements AIWorkflowEffectProvider, 
       throw new Error("Resource workflow ai.agent does not accept a free prompt; use the explicit payload field")
     }
     const payload = normalizeAgentExecutionValue(input.payload ?? null, "input.payload")
-    const prepared = await this.agentResources.resourceRegistry.prepareWorkflowAgentExecution({
+    const task = {
       workflowKind: this.agentResources.workflowForm,
       workflowRef: request.run.workflow.ref as `resource://${string}`,
       nodeId,
       agentDefinitionRef,
-    }, { payload })
+    } as const
+    let prepared: EidolonPreparedWorkflowAgentExecution
+    try {
+      prepared = await this.agentResources.resourceRegistry.prepareWorkflowAgentExecution(task, { payload })
+    } catch (error) {
+      const diagnostics = Array.isArray((error as { diagnostics?: unknown }).diagnostics)
+        ? (error as { diagnostics: readonly unknown[] }).diagnostics
+        : []
+      throw new Error(
+        `WORKFLOW_RESOURCE_AGENT_PREPARATION_FAILED: task=${JSON.stringify(task)} diagnostics=${JSON.stringify(diagnostics)}`,
+        { cause: error },
+      )
+    }
     if (prepared.plan.agentDefinitionRef !== agentDefinitionRef) {
       throw new Error("Prepared resource Agent plan does not match the requested Agent definition")
     }

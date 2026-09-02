@@ -8,7 +8,7 @@ import type {
   WorkflowLoadStageContextInnerOutput,
   WorkflowLoadStageContextInnerRuntime,
 } from "./InnerTypes"
-import { applyAiWorkflowStageSystemContext, applyAiWorkflowStageToolPolicy } from "./StageToolPolicy"
+import { applyAiWorkflowStageToolPolicy, buildAiWorkflowStageContext } from "./StageToolPolicy"
 import {
   enterWorkflowActorStage,
   resolveWorkflowActorBudgetConfig,
@@ -37,7 +37,7 @@ export const workflowLoadStageContextCoreLogic: StdInnerLogic<
     stageId: input.stage,
     config: resolveWorkflowActorBudgetConfig(runtime.vm.outerCtx),
   })
-  const stageContext = applyAiWorkflowStageSystemContext(runtime.actor, input.stage, context)
+  const stageContext = buildAiWorkflowStageContext(input.stage, context)
   const allowedTools = applyAiWorkflowStageToolPolicy(runtime.actor, input.stage)
   const currentFacet = readWorkflowLifecycleFacet(runtime.actor)
   if (!currentFacet) throw new Error("Workflow stage context lost lifecycle facet proof")

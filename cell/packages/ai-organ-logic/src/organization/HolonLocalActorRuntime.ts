@@ -52,6 +52,8 @@ export interface HolonGenericActorOwnerPort {
 }
 
 export interface HolonExecutionAdapterInput {
+  /** Stable key that the adapter MUST use to replay an already accepted effect. */
+  readonly idempotencyKey: string
   readonly invocation: HolonExecutionInvocation
   readonly binding: EidolonHolonExecutionBindingProjection
   readonly runtimeRef: string
@@ -60,7 +62,7 @@ export interface HolonExecutionAdapterInput {
 }
 
 export interface HolonExecutionAdapterPort {
-  execute(input: HolonExecutionAdapterInput): ClosedValue | Promise<ClosedValue>
+  executeIdempotent(input: HolonExecutionAdapterInput): ClosedValue | Promise<ClosedValue>
 }
 
 export interface HolonExecutionAdapterPorts {
@@ -79,6 +81,7 @@ export interface HolonMemberDispatchResult {
 
 type AddressedInvocation = Readonly<{
   readonly runtimeRef: string
+  readonly idempotencyKey: string
   readonly invocation: HolonExecutionInvocation
 }>
 
@@ -197,14 +200,22 @@ implements HolonCoordinatorActorOwnerPort, HolonMemberActorOwnerPort, HolonMembe
     }
   }
 
-  async dispatchMember(runtimeRef: string, invocationValue: HolonExecutionInvocation): Promise<HolonMemberDispatchResult> {
+  async dispatchMember(
+    runtimeRef: string,
+    invocationValue: HolonExecutionInvocation,
+    idempotencyKeyValue = invocationValue.invocationRef,
+  ): Promise<HolonMemberDispatchResult> {
     const invocation = normalizeHolonExecutionInvocation(invocationValue)
+    const idempotencyKey = exactString(idempotencyKeyValue, "idempotencyKey")
+    if (idempotencyKey !== invocation.invocationRef) {
+      return invalid("EIDOLON_HOLON_IDEMPOTENCY_KEY_MISMATCH", "Dispatch key must equal the frozen invocation identity.")
+    }
     const deploymentId = this.deploymentFor(runtimeRef)
     const actorAddress = address(deploymentId, "member", exactString(runtimeRef, "runtimeRef"))
     const registration = resolveActor(this.addressing, { byAddress: actorAddress }, {}, {})
     return dispatchActor(this.addressing, { byAddress: actorAddress }, {
       expectedRegistrationId: registration.receipt.registrationId,
-      input: Object.freeze({ runtimeRef, invocation }),
+      input: Object.freeze({ runtimeRef, idempotencyKey, invocation }),
     }, {})
   }
 
@@ -269,7 +280,8 @@ implements HolonCoordinatorActorOwnerPort, HolonMemberActorOwnerPort, HolonMembe
       return invalid("EIDOLON_HOLON_INVOCATION_MATERIAL_UNAUTHORIZED", "Invocation contains material outside the frozen binding.")
     }
     const session = taskSession(member.sessions as readonly Readonly<Record<string, unknown>>[], invocation)
-    const output = await adapterPort(this.adapters, definition.bindingProjection.binding.adapter).execute({
+    const output = await adapterPort(this.adapters, definition.bindingProjection.binding.adapter).executeIdempotent({
+      idempotencyKey: request.idempotencyKey,
       invocation,
       binding: definition.bindingProjection,
       runtimeRef: request.runtimeRef,

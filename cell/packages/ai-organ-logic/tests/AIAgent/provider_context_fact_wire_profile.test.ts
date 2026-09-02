@@ -16,7 +16,8 @@ import {
   validateProviderContextFactsInFinalWire,
 } from "@cell/ai-organ-logic/llm/ProviderContextFactWireProfile";
 
-const FACT = "eidolon-context-fact/v1\n{\"kind\":\"workflow-stage-context\",\"revision\":1}";
+const FACT = "eidolon-context-fact/v1\n{\"namespace\":\"workflow-stage-context\",\"payload\":{\"stage\":\"coding\"},\"revision\":1}";
+const WORK_CONTEXT_FACT = "eidolon-context-fact/v1\n{\"namespace\":\"work-context\",\"payload\":{\"taskPhase\":\"normal\",\"workMode\":\"build\"},\"revision\":1}";
 
 function sse(): Response {
   return new Response("data: [DONE]\n\n", {
@@ -25,14 +26,14 @@ function sse(): Response {
   });
 }
 
-function validBody(profileId: ProviderEpochProfileId): Record<string, unknown> {
+function validBody(profileId: ProviderEpochProfileId, fact = FACT): Record<string, unknown> {
   if (profileId === "openai-responses@1") {
-    return { input: [{ type: "message", role: "user", content: [{ type: "input_text", text: FACT }] }] };
+    return { input: [{ type: "message", role: "user", content: [{ type: "input_text", text: fact }] }] };
   }
   if (profileId === "anthropic-chat@1") {
-    return { messages: [{ role: "user", content: [{ type: "text", text: FACT }] }] };
+    return { messages: [{ role: "user", content: [{ type: "text", text: fact }] }] };
   }
-  return { messages: [{ role: "user", content: FACT }] };
+  return { messages: [{ role: "user", content: fact }] };
 }
 
 describe("provider-context fact final-wire profiles", () => {
@@ -68,6 +69,16 @@ describe("provider-context fact final-wire profiles", () => {
         profileId,
         serializedBody: JSON.stringify(body),
       })).toThrow(new ProviderContextFactWireProfileError("provider_context_fact_wire_profile_mismatch"));
+    }
+  });
+
+  it("rejects runtime-only work-context facts for every provider profile", () => {
+    for (const profileId of profiles) {
+      const serializedBody = JSON.stringify(validBody(profileId, WORK_CONTEXT_FACT));
+      expect(() => validateProviderContextFactsInFinalWire({
+        profileId,
+        serializedBody,
+      })).toThrow(new ProviderContextFactWireProfileError("provider_context_fact_namespace_not_provider_visible"));
     }
   });
 

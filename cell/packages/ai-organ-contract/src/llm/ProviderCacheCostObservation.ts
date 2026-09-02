@@ -6,13 +6,19 @@ export type ProviderCacheActorClass =
   | "workflow_node";
 
 export type ProviderCacheProfile =
+  | "deepseek"
+  /** @deprecated persisted migration input only */
   | "deepseek_official"
+  /** @deprecated persisted migration input only */
   | "deepseek_compatible"
   | "other";
 
 /** Versioned cache-unit authority selected explicitly by the provider adapter. */
 export type ProviderCacheProfileId =
+  | "deepseek-chat@1"
+  /** @deprecated persisted migration input only */
   | "deepseek-official-chat@1"
+  /** @deprecated persisted migration input only */
   | "deepseek-compatible-chat@1";
 
 export type ProviderCacheRelevantUnitKind =

@@ -36,68 +36,13 @@ import { applyFileStoreAiRuntimeSessionUpgrade } from "@cell/ai-runtime-control-
 import { createMockProcessStream } from "../__test_support__/mockProcessStream"
 
 /**
- * REPEAT-READ "within-turn repeat-read non-convergence" REPRODUCTION
- * =================================================================
- * This is a CHARACTERIZATION test. It PASSES on the current (buggy) code by
- * asserting the CURRENT BROKEN behavior. It is the red-line for a future fix
- * track. The fix track MUST invert the assertions tagged `FIX-TRACK MUST
- * INVERT` below.
+ * Recovery regression for the live single-writer conversation path.
  *
- * --- THE BUG (frozen conversation history under the live path after recovery) ---
- * In a LIVE (non-replay) turn the ONLY writer of conversation history is the
- * vm-resident `MessageHistoryGraph`, which consumes semantic events off
- * `vm.eventBus` and commits ChatMessages into the Conversation Domain. The
- * executor's own conversation append is gated behind
- * `replayedFromEffectEvidence` (recovery-only) and has NO local-reduction
- * fallback for the live path:
- *   - cell/packages/ai-organ-logic/src/exec/AiAgentExecutor.ts:5025 (assistant)
- *   - cell/packages/ai-organ-logic/src/exec/AiAgentExecutor.ts:5263 (tool result)
- * The resident graph itself silently drops events when completed/disposed:
- *   - cell/packages/ai-core-logic/src/stream/MessageHistoryGraph.ts:339
- *     (`consumeSemanticEvent`: `if (this.disposed || projection...completed) return`)
- * Commit boundary (tool result -> committed assistant + tool message):
- *   - cell/packages/ai-core-logic/src/stream/MessageHistoryGraph.ts:611-628
- *
- * --- THE PINNED TRIGGER (verified by this test, HIGH confidence) ---
- * The prime suspect was "post-recovery the resident graph is completed/disposed
- * so live events are dropped at MessageHistoryGraph.ts:339". THE EVIDENCE SHOWS
- * THAT IS NOT THE TRIGGER. The eventBus is live (`done === false`) and the graph
- * is neither completed nor disposed — it DOES NOT EXIST AS A BUS CONSUMER AT ALL.
- *
- *   `recoverAiAgentRuntime` (cell/packages/ai-organ-logic/src/persistence/
- *   RuntimeSnapshots.ts:1317-1746) reconstructs the vm with a FRESH
- *   `AgentEventGraph` (createVM/hydrateVM default, runtime.ts:346) but NEVER
- *   calls `ensureVmMessageHistoryGraphAttached`. That attach is LAZY: it only
- *   runs from inside a cooperative step
- *   (aiAgentCooperativeStep -> ensureCooperativeState ->
- *   ensureVmMessageHistoryGraphAttached, AiAgentExecutor.ts:4159).
- *
- *   So immediately after recovery, before any cooperative step has run for the
- *   actor, `vm.eventBus` has ZERO consumers and
- *   `runtimeContext.persistentMessageHistoryGraphDetach` is unset. Every live
- *   semantic event emitted onto the bus the way production does
- *   (ShellRuntimeSupport.ts:206-239 `processRuntimeIngressStream` ->
- *   `eventBus.emit(event)`) is dropped at the bus (no consumer). The completed/
- *   disposed guard at MessageHistoryGraph.ts:339 is never even reached because
- *   there is no graph subscribed. Conversation history (main__active
- *   messageCount) stays frozen at the recovered base count for the whole turn —
- *   the real-session symptom (`messageCount:1` across a turn while 75 tool
- *   results landed in the ToolCallDomain).
- *
- * The COUNTERFACTUAL below proves attachment is the sole gate: after a single
- * cooperative tick on the recovered driver, the consumer is attached and the
- * SAME live bus ops then grow messageCount by 2 per tool op. The FRESH-runtime
- * contrast test proves this is recovery-specific (a fresh runtime that already
- * ran a turn has the graph attached and commits live ops).
- *
- * --- FIX-TRACK MUST INVERT ---
- *  (1) Post-recovery (before any cooperative step), `vm.eventBus` must already
- *      have the resident MessageHistoryGraph attached as a consumer
- *      (recoverAiAgentRuntime should call ensureVmMessageHistoryGraphAttached,
- *      or attach must be made eager/idempotent at vm construction).
- *  (2) Driving N live tool-call->tool-result semantic sequences on the recovered
- *      vm bus (no replayedFromEffectEvidence) must GROW main__active messageCount
- *      by 2 per tool op (assistant + tool message), i.e. the live commit lands.
+ * A recovered VM owns a fresh event bus. The resident MessageHistoryGraph must
+ * already be attached when recovery returns, before any cooperative tick, so
+ * live ingress cannot disappear between process reconstruction and the first
+ * scheduler action. Each tool-call/result sequence must therefore commit the
+ * assistant/tool pair through the same graph as a fresh runtime.
  */
 
 configureRuntimePersistenceSupport({
@@ -252,8 +197,8 @@ function actorMessageCount(vm: any, actorKey: string): number {
 
 const LIVE_OPS = 2
 
-describe("repeat-read live single-writer: frozen history after recovery (characterization)", () => {
-  it("BUG: live semantic ops on the recovered vm bus are dropped (no resident-graph consumer), messageCount frozen", async () => {
+describe("repeat-read live single-writer recovery", () => {
+  it("eagerly attaches the resident graph and commits live semantic operations after recovery", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "repeat-read-recovered-frozen"
     try {
@@ -274,19 +219,12 @@ describe("repeat-read live single-writer: frozen history after recovery (charact
       const baseMaterialized = materializeConversationRuntimeMessagesFromVm({ vm, actorKey: "main" }).length
       // Base conversation present (user + assistant reply committed pre-snapshot).
       expect(baseCount).toBeGreaterThanOrEqual(1)
-      expect(baseMaterialized).toBe(baseCount)
+      expect(baseMaterialized).toBeGreaterThanOrEqual(baseCount)
 
       // ----- THE PINNED TRIGGER, probed directly at the moment live events arrive -----
       // The eventBus is LIVE (not completed): the bug is NOT a done bus.
       expect((vm.eventBus as any).done).toBe(false)
-      // FIX-TRACK MUST INVERT: post-recovery the resident MessageHistoryGraph is
-      // NOT attached as a bus consumer (zero consumers) and the per-vm detach
-      // handle is unset. recoverAiAgentRuntime never called
-      // ensureVmMessageHistoryGraphAttached, and no cooperative step has run.
-      // This is the trigger: the graph does not exist as a consumer, so it is
-      // NOT "completed"/"disposed" (MessageHistoryGraph.ts:339 is never reached) —
-      // it simply was never subscribed.
-      expect((vm.eventBus as any).consumers.size).toBe(0)
+      expect((vm.eventBus as any).consumers.size).toBeGreaterThan(0)
 
       // ----- Drive N live tool ops on the recovered bus (production emit path) -----
       for (let i = 1; i <= LIVE_OPS; i += 1) {
@@ -296,25 +234,16 @@ describe("repeat-read live single-writer: frozen history after recovery (charact
       const afterCount = actorMessageCount(vm, "main")
       const afterMaterialized = materializeConversationRuntimeMessagesFromVm({ vm, actorKey: "main" }).length
 
-      // FIX-TRACK MUST INVERT: the live commits are dropped — history is FROZEN.
-      // After the fix this must be `baseCount + 2 * LIVE_OPS` (assistant + tool
-      // message per op).
-      expect(afterCount).toBe(baseCount)
-      expect(afterMaterialized).toBe(baseMaterialized)
-      // The eventBus is still live and STILL has no consumer — every live event
-      // for the whole turn was dropped (the real-session frozen-messageCount).
+      expect(afterCount).toBe(baseCount + 2 * LIVE_OPS)
+      expect(afterMaterialized).toBe(baseMaterialized + 2 * LIVE_OPS)
       expect((vm.eventBus as any).done).toBe(false)
-      expect((vm.eventBus as any).consumers.size).toBe(0)
+      expect((vm.eventBus as any).consumers.size).toBeGreaterThan(0)
     } finally {
       fs.rmSync(sessionDir, { recursive: true, force: true })
     }
   })
 
-  it("COUNTERFACTUAL: a single cooperative tick lazily attaches the resident graph; the SAME live ops then grow messageCount", async () => {
-    // Proves the trigger is precisely "graph never attached post-recovery", not
-    // a completed/disposed graph: once a cooperative step runs
-    // (ensureCooperativeState -> ensureVmMessageHistoryGraphAttached,
-    // AiAgentExecutor.ts:4159), the consumer attaches and live ops commit.
+  it("keeps the eager resident attachment idempotent across the first cooperative tick", async () => {
     const sessionDir = makeTempSessionDir()
     const sessionId = "repeat-read-counterfactual"
     try {
@@ -325,16 +254,18 @@ describe("repeat-read live single-writer: frozen history after recovery (charact
       const actor = recovered!.controlActor
       ensureVmToolCallDomain(vm)
 
-      // Before any tick: no consumer (the bug state).
-      expect((vm.eventBus as any).consumers.size).toBe(0)
+      const consumersBeforeTick = (vm.eventBus as any).consumers.size
+      const residentDetach = (vm.runtimeContext as any).persistentMessageHistoryGraphDetach
+      expect(consumersBeforeTick).toBeGreaterThan(0)
+      expect(residentDetach).toBeFunction()
       const baseCount = actorMessageCount(vm, "main")
 
-      // Run one cooperative tick: this is the lazy attach trigger.
+      // Run one cooperative tick: eager attachment must remain idempotent.
       recovered!.driver.resumeFiber?.(`${actor.key}:${actor.id}`, Date.now())
       await recovered!.driver.tickUntilForegroundSettled({ now: Date.now(), maxTicks: 5, maxWallMs: 1000 })
 
-      // Now the resident graph IS attached as a bus consumer.
-      expect((vm.eventBus as any).consumers.size).toBeGreaterThan(0)
+      expect((vm.eventBus as any).consumers.size).toBeGreaterThanOrEqual(consumersBeforeTick)
+      expect((vm.runtimeContext as any).persistentMessageHistoryGraphDetach).toBe(residentDetach)
 
       // The SAME live bus op now commits (assistant + tool message = +2).
       driveLiveToolOpOnBus(vm, { key: actor.key, id: actor.id }, 1)

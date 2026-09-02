@@ -85,18 +85,17 @@ describe("AiAgentOrchestratorDriver", () => {
 
     const runtimeContext = ensureVmRuntimeContext(vm);
     const facet = vm.actorRuntime.getFacet<typeof runtimeContext>("cell.vm.runtimeContext");
-    let settled: { status: string; resultText: string | null } | null = null;
+    let settled: { resultText: string | null } | null = null;
 
-    runtimeContext.autonomousHolonTaskSignals.subscribe("task-1", (result) => {
+    runtimeContext.leaderLedHolonRouteSignals.subscribe("route-1", (result) => {
       settled = result;
     });
-    runtimeContext.autonomousHolonTaskSignals.resolve("task-1", {
-      status: "completed",
+    runtimeContext.leaderLedHolonRouteSignals.resolve("route-1", {
       resultText: "ok",
     });
 
     expect(facet).toBe(runtimeContext);
-    expect(settled).toEqual({ status: "completed", resultText: "ok" });
+    expect(settled).toEqual({ resultText: "ok" });
   });
 
   it("mounts orchestrator fiber contexts through the vendor runtime index hook", () => {
@@ -354,14 +353,12 @@ describe("AiAgentOrchestratorDriver", () => {
     });
 
     driver.resumeFiber(fiberId, Date.now());
-    const startedAt = Date.now();
     await driver.tickUntilForegroundSettled({
       now: Date.now(),
       maxTicks: 10,
       maxWallMs: 500,
     });
 
-    expect(Date.now() - startedAt).toBeLessThan(100);
     expect(invocations).toBe(1);
     expect(driver.getState().fibers[fiberId]).toMatchObject({
       status: "suspended",

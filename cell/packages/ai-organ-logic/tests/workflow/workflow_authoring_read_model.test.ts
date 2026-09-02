@@ -6,6 +6,7 @@ import path from "node:path"
 import { ToolFuncRegistry } from "@cell/ai-core-logic/runtime/ToolFuncRegistry"
 import { composeToolRegistry } from "../../src/composer/AIAgent"
 import { createWorkflowComponent } from "../../src/workflow"
+import { createAdmittedWorkflowToolTestFixture } from "./support"
 
 const MANIFEST = `<AIDataWorkflow #demo.workflow.Summary apiVersion="depa.flows/v1" version="1.0.0" (
   <FlowContract #demo.workflow.Summary { inputPorts = ["input"] outputPorts = ["result"] }>
@@ -16,6 +17,7 @@ const MANIFEST = `<AIDataWorkflow #demo.workflow.Summary apiVersion="depa.flows/
 `
 
 async function runtimeAt(workspaceRoot: string) {
+  const admitted = createAdmittedWorkflowToolTestFixture("workflow-read-model")
   return {
     vm: {
       outerCtx: {
@@ -24,7 +26,8 @@ async function runtimeAt(workspaceRoot: string) {
       },
       registries: {},
     },
-    actor: {},
+    actor: admitted.actor,
+    toolRegistry: admitted.toolRegistry,
   } as any
 }
 
@@ -39,8 +42,8 @@ describe("workflow authoring read model", () => {
         source: [{ path: "manifest.xnl", content: MANIFEST }],
       })
     }
-    const registry = composeToolRegistry({ includeInternalOnly: false })
     const runtime = await runtimeAt(workspaceRoot)
+    const registry = runtime.toolRegistry
     const first = JSON.parse(String(await ToolFuncRegistry.call(
       registry,
       "WorkflowListAuthoringSessions",
@@ -84,8 +87,8 @@ describe("workflow authoring read model", () => {
     await component.sessions.validate(session.sessionId)
     await component.sessions.dryRun(session.sessionId)
 
-    const registry = composeToolRegistry({ includeInternalOnly: false })
     const runtime = await runtimeAt(workspaceRoot)
+    const registry = runtime.toolRegistry
     const summaryText = String(await ToolFuncRegistry.call(
       registry,
       "WorkflowGetAuthoringSummary",

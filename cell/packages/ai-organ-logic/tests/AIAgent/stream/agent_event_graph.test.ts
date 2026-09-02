@@ -170,26 +170,10 @@ describe("AgentEventGraph", () => {
     expect(received[1].event_type).toBe("semantic_turn_end");
   });
 
-  it("emits autonomous holon claim and idle-exit events with member identity", () => {
+  it("does not expose retired autonomous or legacy collective event aliases", () => {
     const graph = new AgentEventGraph();
-    const received: SemanticEvent[] = [];
-
-    graph.addConsumer((event) => received.push(event));
-    graph.emitAutonomousHolonClaim(actor, { taskId: "task-1", memberId: "member-1" });
-    graph.emitAutonomousHolonIdleExit(actor, { memberId: "member-1", idleTimeoutMs: 30000 });
-
-    expect(received[0]).toMatchObject({
-      event_type: "semantic_notice",
-      message: "Autonomous holon claim: task-1 -> member-1",
-    });
-    expect(received[1]).toMatchObject({
-      event_type: "semantic_notice",
-      message: "Autonomous holon idle exit: member-1 (30000ms)",
-    });
-  });
-
-  it("does not expose legacy collective event aliases", () => {
-    const graph = new AgentEventGraph();
+    expect(typeof (graph as any).emitAutonomousHolonClaim).toBe("undefined");
+    expect(typeof (graph as any).emitAutonomousHolonIdleExit).toBe("undefined");
     expect(typeof (graph as any).emitCollectiveClaim).toBe("undefined");
     expect(typeof (graph as any).emitCollectiveIdleExit).toBe("undefined");
   });

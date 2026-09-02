@@ -11,8 +11,6 @@ import { createLocalFileOrchestrationHistoryEffects } from "@cell/ai-support";
 import { createVM } from "@cell/ai-core-logic/runtime/runtime";
 import { AgentEventGraph } from "@cell/ai-core-logic/stream/AgentEventGraph";
 import { getXnlDataUniqueChild, readXnlRecords } from "@cell/ai-file-store-logic";
-import { createAutonomousHolonTaskRunner } from "@cell/ai-organ-logic/organization/AutonomousHolonTaskRunner";
-import { TaskTreeManager } from "@cell/ai-organ-logic/plan/TaskTreeManager";
 import { createAiAgentOrchestratorDriverWithCooperative } from "@cell/ai-organ-logic/OrchestratorDriver";
 import { getCoordinationEngine } from "@cell/ai-organ-logic/coordination/CoordinationEngine";
 import { getMemberManager } from "@cell/ai-organ-logic/organization/MemberManager";
@@ -273,84 +271,4 @@ describe("orchestration_history.xnl integration", () => {
     expect(payloads.some((payload) => payload.request_id === outbound.request_id && payload.coordination === "shutdown")).toBe(true);
   });
 
-  it("records autonomous holon claim and idle-exit events to logs/orchestration_history.xnl", async () => {
-    const sessionDir = makeTempSessionDir();
-    const orchHistory = createLocalFileOrchestrationHistoryEffects({
-      sessionPathProvider: () => sessionDir,
-    });
-
-    const adapter = makeMockAdapter();
-    const root = createActor({
-      key: "control",
-      llmClient: adapter,
-      modelConfig: { model: "mock" },
-      callbacks: {
-        buildToolset: () => [],
-        processStream: async (vm, actor) => {
-          if (String(actor.key).startsWith("member:")) {
-            return { role: "assistant", content: "done" };
-          }
-          return { role: "assistant", content: "ok" };
-        },
-      },
-    });
-
-    TaskTreeManager.apply(root.taskTree, {
-      op: "replace_root",
-      tasks: [{ content: "do something", status: "pending", activeForm: "main" }],
-    });
-
-    const bus = new AgentEventGraph();
-    const vm = createVM({
-      controlActorKey: root.key,
-      actors: { [root.key]: root },
-      eventBus: bus,
-      registries: {
-        toolRegistry: composeToolRegistry(),
-        agentRegistry: new AgentRegistry({
-          code: { name: "code", description: "test agent", tools: "*", prompt: ["you are a worker"] },
-        } as any),
-      },
-      effects: {
-        orchestrationHistory: orchHistory,
-      },
-    });
-
-    const driver = createAiAgentOrchestratorDriverWithCooperative({
-      fibers: [{ fiberId: `${root.key}:${root.id}`, vm, actor: root, messages: [{ role: "user", content: "hi" }], basePriority: 1 }],
-      options: { agingStep: 0, defaultSuspendPolicy: "continue_others" },
-    });
-
-    const members = getMemberManager();
-    members.__resetForTest?.();
-    members.createMember({
-      vm,
-      driver,
-      controlActor: root,
-      name: "worker-auto",
-      role: "worker",
-      agentType: "code",
-      systemPrompt: ["you are worker"],
-      lane: "autonomous_holon",
-      shareTaskTree: true,
-    });
-
-    const runner = createAutonomousHolonTaskRunner({
-      driver,
-      vm,
-      controlActor: root,
-      members: members,
-      idleTimeoutMs: 1,
-    });
-
-    await runner.tickOnce();
-    await flushMicrotasks();
-    await new Promise((r) => setTimeout(r, 5));
-    await runner.tickOnce();
-    await flushMicrotasks();
-
-    const payloads = await readOrchestrationPayloads(sessionDir, "autonomous_holon_event");
-    expect(payloads.some((payload) => payload.kind === "autonomous_holon_claim" && payload.member_id)).toBe(true);
-    expect(payloads.some((payload) => payload.kind === "autonomous_holon_idle_exit" && payload.member_id)).toBe(true);
-  });
 });

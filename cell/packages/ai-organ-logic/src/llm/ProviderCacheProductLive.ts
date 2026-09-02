@@ -5,12 +5,12 @@ import { ProviderRuntimeLlmAdapter } from "./ProviderRuntimeAdapter"
 
 export type ProviderCacheProductLiveExecutionStatus = "NOT_REQUESTED" | "SKIPPED" | "EXECUTED"
 export type ProviderCacheProductLiveEvidenceStatus = "PASS" | "FAIL" | "UNKNOWN"
-export type ProviderCacheProductLiveEvidenceClass = "official_deepseek" | "deepseek_compatible"
+export type ProviderCacheProductLiveEvidenceClass = "deepseek"
 
 export type ProviderCacheProductLiveConfig = Readonly<{
   providerId: string
   adapterName: "deepseek"
-  profileId: "deepseek-official-chat@1" | "deepseek-compatible-chat@1"
+  profileId: "deepseek-chat@1"
   model: string
   apiKey: string
   baseURL: string
@@ -44,7 +44,7 @@ export type ProviderCacheProductLiveReport = Readonly<{
   executionStatus: ProviderCacheProductLiveExecutionStatus
   evidenceStatus: ProviderCacheProductLiveEvidenceStatus
   evidenceClass: ProviderCacheProductLiveEvidenceClass
-  gateAuthority: "official_deepseek" | "compatible_observation_only"
+  gateAuthority: "deepseek"
   reasonCode:
     | "not_requested"
     | "credential_missing"
@@ -64,9 +64,6 @@ export type ProviderCacheProductLiveReport = Readonly<{
   }> | null
 }>
 
-const OFFICIAL_PROFILE = "deepseek-official-chat@1"
-const COMPATIBLE_PROFILE = "deepseek-compatible-chat@1"
-
 function report(
   request: ProviderCacheProductLiveRequest,
   fields: Pick<ProviderCacheProductLiveReport, "executionStatus" | "evidenceStatus" | "reasonCode">
@@ -77,12 +74,10 @@ function report(
     executionStatus: fields.executionStatus,
     evidenceStatus: fields.evidenceStatus,
     evidenceClass: request.evidenceClass,
-    gateAuthority: request.evidenceClass === "official_deepseek"
-      ? "official_deepseek"
-      : "compatible_observation_only",
+    gateAuthority: "deepseek",
     reasonCode: fields.reasonCode,
     providerId: request.config?.providerId ?? null,
-    profileId: request.config?.profileId ?? null,
+    profileId: request.config ? "deepseek-chat@1" : null,
     model: request.config?.model ?? null,
     groups: Object.freeze([...(fields.groups ?? [])]),
     aggregate: fields.aggregate ? Object.freeze({ ...fields.aggregate }) : null,
@@ -101,16 +96,7 @@ function isConfigured(request: ProviderCacheProductLiveRequest): request is Prov
 }
 
 function hasExactProfile(request: ProviderCacheProductLiveRequest & { config: ProviderCacheProductLiveConfig }): boolean {
-  if (request.evidenceClass === "official_deepseek") {
-    try {
-      return request.config.providerId === "deepseek"
-        && request.config.profileId === OFFICIAL_PROFILE
-        && new URL(request.config.baseURL).hostname === "api.deepseek.com"
-    } catch {
-      return false
-    }
-  }
-  return request.config.profileId === COMPATIBLE_PROFILE
+  return request.config.profileId === "deepseek-chat@1"
 }
 
 function percentile(sorted: readonly number[], quantile: number): number {
@@ -163,7 +149,6 @@ export async function runProviderCacheProductLive(
     options: {
       apiKey: request.config.apiKey,
       baseURL: request.config.baseURL,
-      compatibility_profile: request.config.profileId,
     },
   })
   const groups: ProviderCacheProductLiveGroup[] = []

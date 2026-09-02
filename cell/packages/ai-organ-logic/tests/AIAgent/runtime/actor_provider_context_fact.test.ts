@@ -7,6 +7,7 @@ import {
   createActorProviderContextFact,
   createInMemoryActorProviderContextFactRuntime,
   measureActorProviderContextFactRetention,
+  normalizeWritableActorProviderContextFactNamespace,
   readActorProviderContextFacts,
 } from "@cell/ai-organ-logic/conversation/ActorProviderContextFact";
 
@@ -74,7 +75,7 @@ describe("Actor provider context fact authority", () => {
     expect(firstCommit.acceptedConversationRevision).toBe(1);
 
     const second = createActorProviderContextFact(invocation({
-      namespace: "provider-projection",
+      namespace: "task-tree-context",
       namespaceRevision: 1,
       sequence: 2,
       previousSequenceFactDigest: first.factDigest,
@@ -106,7 +107,7 @@ describe("Actor provider context fact authority", () => {
       epoch: 3,
     }).map((fact) => [fact.sequence, fact.namespace])).toEqual([
       [1, "work-context"],
-      [2, "provider-projection"],
+      [2, "task-tree-context"],
       [3, "work-context"],
     ]);
 
@@ -163,5 +164,42 @@ describe("Actor provider context fact authority", () => {
       maxRevisionsPerNamespace: 32,
       maxCanonicalFactBytesPerEpoch: 65_536,
     })).toMatchObject({ atLimit: true, overLimit: true });
+  });
+
+  it("admits only canonical write namespaces and shares retention across aliases", () => {
+    expect(normalizeWritableActorProviderContextFactNamespace("task-tree-context")).toBe("task-tree-context");
+    expect(normalizeWritableActorProviderContextFactNamespace("provider-output-recovery")).toBe("provider-output-recovery");
+    expect(() => normalizeWritableActorProviderContextFactNamespace("provider-projection")).toThrow(
+      ActorProviderContextFactError,
+    );
+    expect(() => normalizeWritableActorProviderContextFactNamespace("provider-recovery")).toThrow(
+      ActorProviderContextFactError,
+    );
+
+    const facts: ActorProviderContextFact[] = [];
+    let prior: ActorProviderContextFact | null = null;
+    for (let sequence = 1; sequence <= 33; sequence += 1) {
+      const namespace = sequence <= 16 ? "provider-projection" as const : "task-tree-context" as const;
+      const namespaceRevision = sequence <= 16 ? sequence : sequence - 16;
+      const namespacePrior = [...facts].reverse().find((fact) => fact.namespace === namespace) ?? null;
+      const fact = createActorProviderContextFact(invocation({
+        namespace,
+        namespaceRevision,
+        sequence,
+        previousFactDigest: namespacePrior?.factDigest ?? null,
+        previousSequenceFactDigest: prior?.factDigest ?? null,
+        payload: { sequence },
+      }));
+      facts.push(fact);
+      prior = fact;
+    }
+    const measured = measureActorProviderContextFactRetention({
+      facts,
+      maxRevisionsPerNamespace: 32,
+      maxCanonicalFactBytesPerEpoch: 1_000_000,
+    });
+    expect(measured.revisionCounts["task-tree-context"]).toBe(33);
+    expect(measured.atLimit).toBe(true);
+    expect(measured.overLimit).toBe(true);
   });
 });

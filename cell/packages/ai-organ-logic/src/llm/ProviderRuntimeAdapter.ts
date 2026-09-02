@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type {
   LlmAdapter,
   LlmGenerateOptions,
@@ -30,8 +31,7 @@ import { createProviderStreamWithRetry } from "./ProviderErrors";
 import { redactCanonicalImages } from "./CanonicalImageProjection";
 import { resolveSelectedProviderChatCompatibilityProfile } from "./ProviderChatCompatibility";
 import {
-  deepSeekCompatibleChatEffectBundle,
-  deepSeekOfficialChatEffectBundle,
+  deepSeekChatEffectBundle,
 } from "./ChatCompletionsEffectBundles";
 import type { ProviderCacheCostObservation } from "@cell/ai-organ-contract/llm/ProviderCacheCostObservation";
 import {
@@ -112,9 +112,7 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
         settings.runtime?.chatCompatibilityProfileId,
     });
     this.chatCompletionsEffectBundle = this.driver.name === "deepseek-chat"
-      ? chatCompatibilityProfileId === "deepseek-compatible-chat@1"
-        ? deepSeekCompatibleChatEffectBundle
-        : deepSeekOfficialChatEffectBundle
+      ? deepSeekChatEffectBundle
       : this.driver.chatCompletionsEffectBundle;
     this.runtime = {
       providerId: settings.providerId,
@@ -185,11 +183,13 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
           providerAttemptOrdinal,
         };
         let cacheCostObservation: ProviderCacheCostObservation | undefined;
+        let requestAdmissionObservation: Readonly<{ requestDigest: `sha256:${string}` }> | undefined;
         const transportRequestObserver = createProviderTransportRequestObserver(
           prepared,
           options,
           identity,
           (observation) => { cacheCostObservation = observation; },
+          (observation) => { requestAdmissionObservation = observation; },
         );
         captureProviderScene(prepared, "request", undefined, identity);
         const attemptResult = await this.driver.createStream({
@@ -210,7 +210,11 @@ export class ProviderRuntimeLlmAdapter implements LlmAdapter {
           sessionKey:
             options.sessionKey || deriveRuntimeSessionKey(prepared.runtime),
         });
-        return attachProviderCacheCostObservation(attemptResult, () => cacheCostObservation);
+        return attachProviderObservations(
+          attemptResult,
+          () => cacheCostObservation,
+          () => requestAdmissionObservation,
+        );
       },
       {
         stage: "stream",
@@ -289,16 +293,15 @@ function createProviderTransportRequestObserver(
   options: LlmGenerateOptions,
   identity: ProviderAttemptIdentity,
   acceptCacheCostObservation: (observation: ProviderCacheCostObservation) => void,
-): ProviderTransportRequestObserver | undefined {
+  acceptRequestAdmissionObservation: (
+    observation: Readonly<{ requestDigest: `sha256:${string}` }>,
+  ) => void,
+): ProviderTransportRequestObserver {
   const port = prepared.runtime.requestObservationPort;
   const cacheContext = options.providerCacheCostObservation;
-  const cacheProfile = prepared.runtime.chatCompatibilityProfileId === "deepseek-official-chat@1"
-    ? "deepseek_official"
-    : prepared.runtime.chatCompatibilityProfileId === "deepseek-compatible-chat@1"
-      ? "deepseek_compatible"
-      : null;
-  if (!port && (!cacheContext || !cacheProfile)) return undefined;
-
+  const cacheProfile = prepared.runtime.chatCompatibilityProfileId === "deepseek-chat@1"
+    ? "deepseek"
+    : null;
   let transportAttemptOrdinal = 0;
   return (input: ProviderTransportRequestObservationInput) => {
     transportAttemptOrdinal += 1;
@@ -309,6 +312,12 @@ function createProviderTransportRequestObserver(
       transportType: input.transportType,
     };
     try {
+      const serializedFinalWire = typeof input.requestBody === "string"
+        ? input.requestBody
+        : JSON.stringify(input.requestBody ?? null);
+      acceptRequestAdmissionObservation(Object.freeze({
+        requestDigest: `sha256:${createHash("sha256").update(serializedFinalWire).digest("hex")}`,
+      }));
       if (cacheContext && cacheProfile && typeof input.requestBody === "string") {
         try {
           acceptCacheCostObservation(createProviderCacheCostObservation({
@@ -421,30 +430,38 @@ function createProviderTransportRequestObserver(
   };
 }
 
-function attachProviderCacheCostObservation(
+function attachProviderObservations(
   result: LlmStreamResult,
   readObservation: () => ProviderCacheCostObservation | undefined,
+  readAdmissionObservation: () => Readonly<{ requestDigest: `sha256:${string}` }> | undefined,
 ): LlmStreamResult {
   const nativeOutput = result.providerOutput ?? Promise.resolve(undefined);
   return {
     ...result,
     providerOutput: nativeOutput.then((output) => {
       const structural = readObservation();
-      if (!structural) return output;
-      const finalObservation = bindProviderCacheUsageToObservation(
-        structural,
-        normalizeProviderCacheUsageTokens(output),
-      );
+      const admission = readAdmissionObservation();
+      const finalObservation = structural
+        ? bindProviderCacheUsageToObservation(
+            structural,
+            normalizeProviderCacheUsageTokens(output),
+          )
+        : undefined;
+      if (!finalObservation && !admission) return output;
       if (output && typeof output === "object" && !Array.isArray(output)) {
         const prototype = Object.getPrototypeOf(output);
         if (prototype === Object.prototype || prototype === null) {
           return Object.freeze({
             ...(output as Record<string, unknown>),
-            provider_cache_cost_observation: finalObservation,
+            ...(finalObservation ? { provider_cache_cost_observation: finalObservation } : {}),
+            ...(admission ? { provider_request_admission_observation: admission } : {}),
           });
         }
       }
-      return Object.freeze({ provider_cache_cost_observation: finalObservation });
+      return Object.freeze({
+        ...(finalObservation ? { provider_cache_cost_observation: finalObservation } : {}),
+        ...(admission ? { provider_request_admission_observation: admission } : {}),
+      });
     }),
   };
 }

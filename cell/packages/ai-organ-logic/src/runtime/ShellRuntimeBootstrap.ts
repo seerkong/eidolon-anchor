@@ -29,6 +29,10 @@ import {
   createWriteBehindPersistenceWritePort,
   type PersistenceWriteBehindPort,
 } from "../persistence/WriteBehindPersistencePort";
+import {
+  ensureVmConversationDomainRuntime,
+  synchronizeConversationDomainSessionFromPersistence,
+} from "../conversationCapsule/coreLogic";
 
 export type ShellRuntimePaths = {
   WORKDIR: string;
@@ -308,9 +312,18 @@ export async function recoverOrCreateShellRuntime(
     }
     driver = recovered.driver as ReturnType<typeof createAiAgentOrchestratorDriverWithCooperative>;
   } else {
+    const conversationRepository = conversationPersistenceRepositoryFactory?.createRepository(params.sessionDir);
+    const persistedSessionIndex = conversationRepository
+      ? await conversationRepository.loadSessionIndex()
+      : null;
+    const persistedActorKey = persistedSessionIndex?.session.activeActorKey
+      ?? Object.keys(persistedSessionIndex?.session.actorBindings ?? {})[0]
+      ?? "main";
+    const persistedActorId = persistedSessionIndex?.session.actorBindings[persistedActorKey]?.actorId;
     const profileSystemPromptProvenance = buildProfileSystemPromptProvenance(params.profileSystemPrompt, 0);
     actor = createActor({
-      key: "main",
+      key: persistedActorKey,
+      ...(persistedActorId ? { id: persistedActorId } : {}),
       llmClient: params.llmClient as any,
       modelConfig: params.modelConfig,
       systemPrompts: [params.profileSystemPrompt.systemPrompt],
@@ -346,12 +359,20 @@ export async function recoverOrCreateShellRuntime(
 
     const runtimeContext = ensureVmRuntimeContext(vm);
     runtimeContext.driver = driver;
+    if (conversationRepository && persistedActorId) {
+      await synchronizeConversationDomainSessionFromPersistence({
+        runtime: ensureVmConversationDomainRuntime(vm),
+        sessionDir: params.sessionDir,
+        actorKey: persistedActorKey,
+        repository: conversationRepository,
+      });
+    }
     profilePromptRecovery = { status: "refreshed", diagnostics: [] };
   }
 
   const mainFiberId = `${actor.key}:${actor.id}`;
   const saveSnapshot = async () => {
-    return await saveAiAgentRuntimeSnapshot({
+    await saveAiAgentRuntimeSnapshot({
       sessionDir: params.sessionDir,
       sessionId: params.sessionKey,
       vm,

@@ -131,7 +131,6 @@ export function createEmptyVmRuntimeContext(): VmRuntimeContext {
       continuationTurns: 0,
       continuationInFlight: false,
     },
-    autonomousHolonTaskSignals: createCompletionSignalRegistry<string, { status: string; resultText: string | null }>(),
     leaderLedHolonRouteSignals: createCompletionSignalRegistry<string, { resultText: string | null }>(),
   };
 }
@@ -175,9 +174,6 @@ function materializeVmRuntimeContext(runtimeContext?: Partial<VmRuntimeContext>)
       continuationInFlight: false,
       ...(runtimeContext?.threadGoalRuntime ?? {}),
     },
-    autonomousHolonTaskSignals:
-      runtimeContext?.autonomousHolonTaskSignals ??
-      createCompletionSignalRegistry<string, { status: string; resultText: string | null }>(),
     leaderLedHolonRouteSignals:
       runtimeContext?.leaderLedHolonRouteSignals ??
       createCompletionSignalRegistry<string, { resultText: string | null }>(),

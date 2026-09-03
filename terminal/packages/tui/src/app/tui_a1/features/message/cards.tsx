@@ -1,10 +1,11 @@
 /** @jsxImportSource @opentui/solid */
-import { createMemo, createSignal, For, Match, Show, Switch } from "solid-js"
+import { createEffect, createMemo, createSignal, For, Match, Show, Switch, type Accessor } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { useTerminalDimensions } from "@opentui/solid"
 import type { BoxRenderable } from "@opentui/core"
 import { tuiA1Theme as theme } from "../../theme"
 import { formatTuiA1Selection, type TuiA1Message } from "../../data"
+import { computeVirtualHistoryWindow, estimateHistoryMessageHeight } from "../../perf/virtual-history-window"
 import { resolveTuiA1ToolCard } from "./model/tool-registry"
 
 type ToolMessage = Extract<TuiA1Message, { kind: "tool" }>
@@ -63,11 +64,10 @@ export function frameLine(params: {
   return fitLine(left, right, width, "─")
 }
 
-function createFrameWidth() {
-  const dimensions = useTerminalDimensions()
+function createFrameWidth(fallbackWidth: Accessor<number>) {
   const [measuredWidth, setMeasuredWidth] = createSignal(0)
   const width = createMemo(() => {
-    const containerWidth = measuredWidth() > 0 ? measuredWidth() : dimensions().width
+    const containerWidth = measuredWidth() > 0 ? measuredWidth() : fallbackWidth()
     return Math.max(2, containerWidth - FRAME_SCROLLBAR_GUTTER_WIDTH)
   })
 
@@ -101,9 +101,10 @@ function CardFrame(props: {
   titleColor: any
   startedAt: number
   completedAt?: number
+  fallbackWidth: Accessor<number>
   children: any
 }) {
-  const frame = createFrameWidth()
+  const frame = createFrameWidth(props.fallbackWidth)
   const headerLabel = createMemo(() => [props.eyebrow, props.title].filter(Boolean).join(" "))
   const topLine = createMemo(() =>
     frameLine({
@@ -140,7 +141,7 @@ function CardFrame(props: {
   )
 }
 
-function UserCard(props: { message: UserMessage }) {
+function UserCard(props: { message: UserMessage; fallbackWidth: Accessor<number> }) {
   return (
     <CardFrame
       borderColor={theme.userBorder}
@@ -149,13 +150,14 @@ function UserCard(props: { message: UserMessage }) {
       titleColor={theme.text}
       startedAt={props.message.createdAt}
       completedAt={props.message.completedAt}
+      fallbackWidth={props.fallbackWidth}
     >
       <text fg={theme.text} content={props.message.text} />
     </CardFrame>
   )
 }
 
-function AssistantCard(props: { message: AssistantMessage }) {
+function AssistantCard(props: { message: AssistantMessage; fallbackWidth: Accessor<number> }) {
   const thinking = createMemo(() => props.message.mode === "think")
   const streaming = createMemo(() => Boolean(props.message.streaming))
   const displayText = createMemo(() => (streaming() ? streamingTextWindow(props.message.text) : props.message.text))
@@ -172,6 +174,7 @@ function AssistantCard(props: { message: AssistantMessage }) {
       titleColor={thinking() ? theme.textMuted : theme.secondary}
       startedAt={props.message.createdAt}
       completedAt={props.message.completedAt}
+      fallbackWidth={props.fallbackWidth}
     >
       <For each={displayChunks()}>
         {(chunk) => <text fg={thinking() ? theme.textMuted : theme.text} content={chunk} />}
@@ -180,12 +183,12 @@ function AssistantCard(props: { message: AssistantMessage }) {
   )
 }
 
-function SummaryToolCard(props: { message: SummaryToolMessage }) {
+function SummaryToolCard(props: { message: SummaryToolMessage; fallbackWidth: Accessor<number> }) {
   const badge = createMemo(() => (props.message.status === "running" ? " RUNNING " : " DONE "))
   const badgeFg = createMemo(() => (props.message.status === "running" ? theme.background : theme.backgroundPanel))
   const badgeBg = createMemo(() => (props.message.status === "running" ? theme.warning : theme.success))
   const inputLine = createMemo(() => formatToolInput(props.message.input))
-  const frame = createFrameWidth()
+  const frame = createFrameWidth(props.fallbackWidth)
   const topLine = createMemo(() =>
     frameLine({
       leftCorner: "╭",
@@ -241,41 +244,120 @@ function RuntimeToolCard(props: { message: RuntimeToolMessage }) {
   )
 }
 
-function MessageCard(props: { message: () => TuiA1Message; index: () => number }) {
+function MessageCard(props: {
+  message: () => TuiA1Message
+  index: () => number
+  fallbackWidth: Accessor<number>
+  onMeasured?: (messageID: string, height: number) => void
+}) {
   return (
-    <box width="100%" marginTop={props.index() === 0 ? 0 : 1}>
+    <box
+      width="100%"
+      flexShrink={0}
+      marginTop={props.index() === 0 ? 0 : 1}
+      renderAfter={function () {
+        const height = (this as BoxRenderable).height
+        if (height > 0) props.onMeasured?.(props.message().id, height)
+      }}
+    >
       <Switch>
         <Match when={props.message().kind === "user"}>
-          <UserCard message={props.message() as UserMessage} />
+          <UserCard message={props.message() as UserMessage} fallbackWidth={props.fallbackWidth} />
         </Match>
         <Match when={props.message().kind === "assistant"}>
-          <AssistantCard message={props.message() as AssistantMessage} />
+          <AssistantCard message={props.message() as AssistantMessage} fallbackWidth={props.fallbackWidth} />
         </Match>
         <Match when={props.message().kind === "tool" && (props.message() as ToolMessage).source === "runtime-part"}>
           <RuntimeToolCard message={props.message() as RuntimeToolMessage} />
         </Match>
         <Match when={props.message().kind === "tool" && (props.message() as ToolMessage).source === "summary"}>
-          <SummaryToolCard message={props.message() as SummaryToolMessage} />
+          <SummaryToolCard message={props.message() as SummaryToolMessage} fallbackWidth={props.fallbackWidth} />
         </Match>
       </Switch>
     </box>
   )
 }
 
-export function MessageCards(props: { messages: TuiA1Message[] }) {
-  const messagesById = createMemo(() => new Map(props.messages.map((message) => [message.id, message] as const)))
-  const messageIds = createMemo(() => props.messages.map((message) => message.id))
+export function MessageCards(props: {
+  messages: TuiA1Message[]
+  onGeometryChange?: () => void
+  onHeightCorrection?: (messageID: string, delta: number) => void
+  viewport?: {
+    scrollTop: Accessor<number>
+    height: Accessor<number>
+    width: Accessor<number>
+    followTail?: Accessor<boolean>
+  }
+}) {
+  const dimensions = useTerminalDimensions()
+  const fallbackWidth = createMemo(() => dimensions().width)
+  const [measuredHeights, setMeasuredHeights] = createSignal<Record<string, number>>({})
+  const measuredHeightMap = createMemo(() => new Map(Object.entries(measuredHeights())))
+  const recordMeasuredHeight = (messageID: string, height: number) => {
+    const previous = measuredHeights()[messageID]
+    if (previous === height) return
+    const message = props.messages.find((entry) => entry.id === messageID)
+    const baseline = previous ?? (message ? estimateHistoryMessageHeight(message, fallbackWidth()) : height)
+    setMeasuredHeights((current) => ({ ...current, [messageID]: height }))
+    props.onHeightCorrection?.(messageID, height - baseline)
+    queueMicrotask(() => props.onGeometryChange?.())
+  }
+  createEffect(() => {
+    const retainedIds = new Set(props.messages.map((message) => message.id))
+    setMeasuredHeights((current) => {
+      const retained = Object.fromEntries(Object.entries(current).filter(([messageID]) => retainedIds.has(messageID)))
+      return Object.keys(retained).length === Object.keys(current).length ? current : retained
+    })
+  })
+  const virtualWindow = createMemo(() => props.viewport
+    ? computeVirtualHistoryWindow({
+        messages: props.messages,
+        scrollTop: props.viewport.scrollTop(),
+        viewportHeight: props.viewport.height(),
+        width: props.viewport.width(),
+        // Tail-follow uses stable estimates and bottom-anchors the mounted
+        // window below. Browsing switches to measured geometry so corrections
+        // can preserve the user's position without moving the live tail.
+        measuredHeights: props.viewport.followTail?.() ? undefined : measuredHeightMap(),
+      })
+    : {
+        startIndex: 0,
+        endIndex: props.messages.length,
+        messages: props.messages,
+        topSpacer: 0,
+        bottomSpacer: 0,
+        totalHeight: 0,
+      })
+  const messagesById = createMemo(() => new Map(virtualWindow().messages.map((message) => [message.id, message] as const)))
+  const messageIds = createMemo(() => virtualWindow().messages.map((message) => message.id))
 
   return (
-    <For each={messageIds()}>
-      {(messageID, index) => {
-        const message = createMemo(() => messagesById().get(messageID))
-        return (
-          <Show when={message()}>
-            <MessageCard message={() => message()!} index={index} />
-          </Show>
-        )
-      }}
-    </For>
+    <box
+      width="100%"
+      flexDirection="column"
+      flexShrink={0}
+    >
+      <Show when={props.viewport && virtualWindow().topSpacer > 0}>
+        <box height={virtualWindow().topSpacer} flexShrink={0} />
+      </Show>
+      <For each={messageIds()}>
+        {(messageID, index) => {
+          const message = createMemo(() => messagesById().get(messageID))
+          return (
+            <Show when={message()}>
+              <MessageCard
+                message={() => message()!}
+                index={() => virtualWindow().startIndex + index()}
+                fallbackWidth={fallbackWidth}
+                onMeasured={recordMeasuredHeight}
+              />
+            </Show>
+          )
+        }}
+      </For>
+      <Show when={props.viewport && virtualWindow().bottomSpacer > 0}>
+        <box height={virtualWindow().bottomSpacer} flexShrink={0} />
+      </Show>
+    </box>
   )
 }

@@ -1,0 +1,30 @@
+<BehaviorPatch #track.fix-session-catalog-latency-and-dialog-lifecycle.behavior_patch.runtime-projection-surfaces apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-projection-surfaces" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-projection-surfaces/requirements/lightweight-session-catalog-projection" } (
+      <Requirement #lightweight-session-catalog-projection (
+        <Statement ?>会话目录 SHALL 由轻量、持久化且有界的 Session Summary 投影提供；列举、搜索和重命名会话 MUST NOT 为生成目录项加载完整 Conversation History，完整 history hydration 只发生在被选中的会话读取路径。</?>
+        <Suites [
+          <Suite #catalog-read-boundary { name = "Session catalog read boundary" } (
+            <Cases [
+              <Case #list-does-not-load-history (
+                <Given ?>工作区包含具有超大 history.xnl 的持久化会话，且该会话具有或缺少可选摘要字段</?>
+                <When ?>surface 列举或搜索会话目录</?>
+                <Then ?>系统 SHALL 返回基础会话信息与可用摘要，MUST NOT 调用 history projection 或实例化该会话 runtime</?>
+              )>
+              <Case #rename-does-not-hydrate-history (
+                <Given ?>持久化长会话尚未在当前进程完成 history hydration</?>
+                <When ?>用户只更新会话标题</?>
+                <Then ?>系统 SHALL 直接更新 live summary 与 sidecar，并发送 session.updated；MUST NOT 加载完整 history</?>
+              )>
+              <Case #legacy-summary-uses-bounded-edge-projection (
+                <Given ?>旧会话的 sidecar 没有 preview 或时间摘要</?>
+                <When ?>surface 首次列举该会话</?>
+                <Then ?>系统 SHALL 通过只读投影端口有界读取 history.xnl 首尾的完整 XNL 消息记录并立即展示第一条和最近一条消息，MUST NOT 完整读取 history；该会话后续完成权威 hydration 时 SHALL 回填 sidecar</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

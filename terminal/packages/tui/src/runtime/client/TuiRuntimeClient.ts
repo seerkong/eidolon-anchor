@@ -1,5 +1,5 @@
 import { createEmitter } from "@solid-primitives/event-bus"
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises"
+import { mkdir, readFile, readdir, stat } from "node:fs/promises"
 import { join as joinPath } from "node:path"
 import type {
   Event,
@@ -37,6 +37,7 @@ import type {
 import {
   committedHistoryRefsToTranscriptRecords,
   createLocalFileConversationProjectionReadPort,
+  writeJsonAtomically,
 } from "@cell/ai-support"
 import type { ConversationProjectionReadPort } from "@cell/ai-core-contract/runtime/ConversationProjectionReadPort"
 import { buildQuestionnaireProtocolQuestion, questionnaireOptionCode } from "@cell/ai-core-contract/runtime/QuestionnaireProtocol"
@@ -102,6 +103,7 @@ type LoadedRuntimeConversationState = {
   activeActorKey: string | null
   historyMessages: ChatMessage[]
   runtimeMessages: ChatMessage[]
+  model?: RuntimeModel
 }
 
 function isTextPart(part: Part): part is TextPart {
@@ -148,6 +150,21 @@ function toRuntimeInputContent(parts?: Part[]): InputContentPart[] {
 }
 
 function normalizeUserInputText(value: unknown): string {
+  if (typeof value === "string") return value.trim()
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((part) => {
+        if (!isRecord(part) || part.type !== "text") return []
+        const text = normalizeUserInputText(part.text)
+        return text ? [text] : []
+      })
+      .join("")
+      .trim()
+  }
+  if (isRecord(value)) {
+    if (value.type === "text") return normalizeUserInputText(value.text)
+    if (Array.isArray(value.parts)) return normalizeUserInputText(value.parts)
+  }
   return String(value ?? "").trim()
 }
 
@@ -165,6 +182,8 @@ const STREAM_PART_UPDATE_MAX_BUFFER_CHARS = 96
 const STREAM_FINAL_CATCHUP_CHARS_PER_FRAME = 96
 const MAX_SESSION_STATE_MESSAGES = 300
 const MAX_USER_INPUT_HISTORY = 100
+const USER_INPUT_HISTORY_PAGE_SIZE = 40
+const MAX_USER_INPUT_HISTORY_OBSERVED_BYTES = 16 * 1024 * 1024
 
 const ZERO_RUNTIME_USAGE: RuntimeUsage = {
   prompt_tokens: 0,
@@ -280,8 +299,12 @@ function firstFiniteTimestamp(values: Array<number | null | undefined>): number 
 type TuiPersistedSessionMetadata = {
   title?: string
   deleted?: boolean
+  createdAt?: string
   updatedAt?: string
+  preview?: Session["preview"]
 }
+
+const SESSION_SUMMARY_PREVIEW_MAX_CHARS = 4_096
 
 function maxFiniteTimestamp(values: Array<number | null | undefined>): number | null {
   const filtered = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0)
@@ -293,6 +316,18 @@ function normalizePreviewText(value: unknown): string {
   return String(value ?? "")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+function normalizeSessionSummaryPreview(value: unknown): Session["preview"] | undefined {
+  if (!isRecord(value)) return undefined
+  const bounded = (candidate: unknown) => {
+    const normalized = normalizePreviewText(candidate)
+    return normalized ? normalized.slice(0, SESSION_SUMMARY_PREVIEW_MAX_CHARS) : undefined
+  }
+  const initialUserMessage = bounded(value.initialUserMessage)
+  const latestMessage = bounded(value.latestMessage)
+  if (!initialUserMessage && !latestMessage) return undefined
+  return { initialUserMessage, latestMessage }
 }
 
 function previewTextFromChatMessage(message: ChatMessage | null | undefined): string {
@@ -313,10 +348,15 @@ async function loadRuntimeConversationState(
 ): Promise<LoadedRuntimeConversationState | null> {
   const state = await runtimeBridge?.loadConversationState?.().catch(() => null)
   if (state) {
+    const binding = state.activeActorKey ? state.session?.actorBindings?.[state.activeActorKey] : undefined
+    const receipt = binding?.providerEpochReceiptV2
     return {
       activeActorKey: state.activeActorKey,
       historyMessages: state.historyMessages,
       runtimeMessages: state.runtimeMessages,
+      ...(receipt?.targetProviderId && receipt.targetModelId
+        ? { model: { providerID: receipt.targetProviderId, modelID: receipt.targetModelId } }
+        : {}),
     }
   }
 
@@ -908,14 +948,33 @@ export function createTuiRuntimeClient(options?: {
     return {
       title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : undefined,
       deleted: raw.deleted === true,
+      createdAt: typeof raw.createdAt === "string" ? raw.createdAt : undefined,
       updatedAt: typeof raw.updatedAt === "string" ? raw.updatedAt : undefined,
+      preview: normalizeSessionSummaryPreview(raw.preview),
     }
   }
 
   async function writeTuiSessionMetadata(sessionID: string, metadata: TuiPersistedSessionMetadata): Promise<void> {
     if (mode !== "local-runtime") return
     await mkdir(getSessionDir(sessionID), { recursive: true })
-    await writeFile(getTuiSessionMetadataPath(sessionID), `${JSON.stringify(metadata, null, 2)}\n`, "utf8")
+    await writeJsonAtomically(getTuiSessionMetadataPath(sessionID), metadata)
+  }
+
+  async function persistSessionSummary(state: SessionState, overrides?: Partial<TuiPersistedSessionMetadata>): Promise<void> {
+    if (mode !== "local-runtime" || !state.materialized) return
+    const existing = await loadTuiSessionMetadata(state.info.id)
+    const title = !isDefaultSessionTitle(state.info.title) ? state.info.title : existing.title
+    const createdAt = new Date(state.info.time.created).toISOString()
+    const updatedAt = new Date(state.info.time.updated).toISOString()
+    await writeTuiSessionMetadata(state.info.id, {
+      ...existing,
+      ...(title ? { title } : {}),
+      deleted: false,
+      createdAt,
+      updatedAt,
+      preview: normalizeSessionSummaryPreview(state.info.preview ?? buildSessionPreviewFromState(state)),
+      ...overrides,
+    })
   }
 
   async function loadPendingQuestionsFromSnapshot(sessionID: string): Promise<QuestionRequest[]> {
@@ -1045,48 +1104,29 @@ export function createTuiRuntimeClient(options?: {
     const sessionIndex = sessionRawState?.sessionIndex ?? null
     const tuiMetadata = await loadTuiSessionMetadata(sessionID)
     if (tuiMetadata.deleted) return null
-    const controlActor = await loadPersistedControlActor(sessionDir)
-
-    const activeActorKey =
-      (sessionIndex?.session.activeActorKey && sessionIndex.session.activeActorKey.trim())
-      || Object.keys(sessionIndex?.session.actorBindings ?? {})[0]
-      || controlActor?.actorKey
-      || null
-
-    let historyMessages: ReadonlyArray<ChatMessage> = []
-    if (activeActorKey) {
-      const loaded = await conversationProjectionReadPort.loadHistoryProjection({
-        sessionDir,
-        actorKey: activeActorKey,
-      }).catch(() => ({ source: "empty" as const, messages: [] as ChatMessage[] }))
-
-      if (loaded.source === "conversation" && loaded.messages.length > 0) {
-        historyMessages = loaded.messages
-      }
-    }
-
-    const preview = buildSessionPreviewFromChatMessages(historyMessages)
-    const firstMessageTs = firstFiniteTimestamp(
-      historyMessages.flatMap((message) => [message.startAt ?? null, message.endAt ?? null]),
-    )
-    const lastMessageTs = firstFiniteTimestamp(
-      [...historyMessages]
-        .reverse()
-        .flatMap((message) => [message.endAt ?? null, message.startAt ?? null]),
-    )
+    const activeActorKey = sessionRawState?.activeActorKey
+      ?? sessionIndex?.session.activeActorKey
+      ?? Object.keys(sessionIndex?.session.actorBindings ?? {})[0]
+      ?? null
+    const boundedHistorySummary = !tuiMetadata.preview && activeActorKey
+      ? await conversationProjectionReadPort.loadHistorySummaryProjection({
+          sessionDir,
+          actorKey: activeActorKey,
+        }).catch(() => null)
+      : null
     const created =
       firstFiniteTimestamp([
+        parseIsoTimestamp(tuiMetadata.createdAt),
         parseIsoTimestamp(sessionIndex?.session.createdAt),
-        firstMessageTs,
         sessionStats?.birthtimeMs,
         sessionStats?.mtimeMs,
       ])
       ?? Date.now()
     const updated =
       firstFiniteTimestamp([
+        parseIsoTimestamp(tuiMetadata.updatedAt),
         parseIsoTimestamp(sessionIndex?.session.updatedAt),
         parseIsoTimestamp(sessionIndex?.updatedAt),
-        lastMessageTs,
         sessionStats?.mtimeMs,
         created,
       ])
@@ -1100,7 +1140,7 @@ export function createTuiRuntimeClient(options?: {
         created,
         updated,
       },
-      preview,
+      preview: tuiMetadata.preview ?? normalizeSessionSummaryPreview(boundedHistorySummary),
     }
   }
 
@@ -1109,11 +1149,13 @@ export function createTuiRuntimeClient(options?: {
     message: ChatMessage
     messageIndex: number
     actorIdentity?: string
+    model?: RuntimeModel
   }): { info: Message; parts: Part[] } {
     const role = params.message.role
     const createdAt = params.message.startAt ?? params.message.endAt ?? params.messageIndex
     const domainMessageID = String(params.message.messageId ?? "").trim()
     const stableBaseID = domainMessageID || `history:${params.actorIdentity ?? "actor"}:${params.messageIndex}:${role}`
+    const historyModel = params.model ?? catalog.defaultModel
     const messageContent = params.message.content
     const rawContent = typeof messageContent === "string" ? messageContent : ""
     const parsedToolContent = role === "tool" ? tryParseJson(rawContent) : null
@@ -1186,15 +1228,14 @@ export function createTuiRuntimeClient(options?: {
     if (role === "tool") {
       const toolCallID = String(params.message.toolCallId ?? params.message.tool_call_id ?? stableBaseID).trim()
       const toolName = String(params.message.name ?? "tool").trim() || "tool"
-      const identity = `${params.actorIdentity ?? "actor"}:${toolCallID}`
       const info: AssistantMessage = {
-        id: `tool-message:${identity}`,
+        id: stableBaseID,
         sessionID: params.sessionID,
         role: "assistant",
         time: { created: createdAt, completed: params.message.endAt ?? createdAt },
         agent: params.actorIdentity ?? "tool",
-        modelID: catalog.defaultModel.modelID,
-        providerID: catalog.defaultModel.providerID,
+        modelID: historyModel.modelID,
+        providerID: historyModel.providerID,
         mode: "history",
         path: { cwd: directory, root: directory },
         cost: 0,
@@ -1202,7 +1243,7 @@ export function createTuiRuntimeClient(options?: {
         finish: "stop",
       }
       const part: ToolPart = {
-        id: `tool-part:${identity}`,
+        id: `${stableBaseID}:tool`,
         sessionID: params.sessionID,
         messageID: info.id,
         type: "tool",
@@ -1227,8 +1268,8 @@ export function createTuiRuntimeClient(options?: {
       role,
       time: { created: createdAt, completed: params.message.endAt ?? createdAt },
       agent: "build",
-      modelID: catalog.defaultModel.modelID,
-      providerID: catalog.defaultModel.providerID,
+      modelID: historyModel.modelID,
+      providerID: historyModel.providerID,
       mode: role === "assistant" ? "history" : "internal",
       path: { cwd: directory, root: directory },
       cost: 0,
@@ -1246,7 +1287,92 @@ export function createTuiRuntimeClient(options?: {
       })
     }
     parts.push(...buildContentParts(info.id))
+    if (role === "assistant") {
+      for (const [toolIndex, toolCall] of (params.message.toolCalls ?? []).entries()) {
+        parts.push({
+          id: `${info.id}:tool:${toolIndex}`,
+          sessionID: params.sessionID,
+          messageID: info.id,
+          type: "tool",
+          tool: toolCall.name,
+          callID: toolCall.id,
+          state: { status: "pending", input: { ...toolCall.input } },
+        } as ToolPart)
+      }
+    }
     return { info, parts }
+  }
+
+  function buildHistorySessionMessages(params: {
+    sessionID: string
+    messages: readonly ChatMessage[]
+    actorIdentity?: string
+    model?: RuntimeModel
+  }): Array<{ info: Message; parts: Part[] }> {
+    const entries: Array<{ info: Message; parts: Part[] }> = []
+    const toolsByCallID = new Map<string, { entry: { info: Message; parts: Part[] }; partIndex: number }>()
+    const seenMessageIDs = new Set<string>()
+    const messages = [...params.messages].reverse().filter((message) => {
+      const messageID = String(message.messageId ?? "").trim()
+      if (!messageID) return true
+      if (seenMessageIDs.has(messageID)) return false
+      seenMessageIDs.add(messageID)
+      return true
+    }).reverse()
+
+    for (const [messageIndex, message] of messages.entries()) {
+      const entry = buildHistorySessionMessage({
+        sessionID: params.sessionID,
+        message,
+        messageIndex,
+        actorIdentity: params.actorIdentity,
+        model: params.model,
+      })
+
+      if (message.role === "tool") {
+        const resultPart = entry.parts.find((part): part is ToolPart => part.type === "tool")
+        const key = resultPart ? `${params.actorIdentity ?? "actor"}:${resultPart.callID}` : ""
+        const pending = key ? toolsByCallID.get(key) : undefined
+        if (resultPart && pending) {
+          const requestPart = pending.entry.parts[pending.partIndex]
+          if (requestPart?.type === "tool") {
+            pending.entry.parts[pending.partIndex] = {
+              ...requestPart,
+              state: {
+                ...requestPart.state,
+                ...resultPart.state,
+                input: requestPart.state.input,
+              },
+            }
+            pending.entry.info = {
+              ...pending.entry.info,
+              time: {
+                ...pending.entry.info.time,
+                completed: entry.info.time.completed ?? entry.info.time.created,
+              },
+            }
+          }
+          continue
+        }
+      }
+
+      const retainedParts: Part[] = []
+      for (const part of entry.parts) {
+        if (part.type !== "tool" || message.role === "tool") {
+          retainedParts.push(part)
+          continue
+        }
+        const key = `${params.actorIdentity ?? "actor"}:${part.callID}`
+        if (toolsByCallID.has(key)) continue
+        const partIndex = retainedParts.push(part) - 1
+        toolsByCallID.set(key, { entry, partIndex })
+      }
+      entry.parts = retainedParts
+      if (entry.parts.length === 0) continue
+      entries.push(entry)
+    }
+
+    return entries
   }
   async function hydrateSessionHistoryFromPersistence(state: SessionState) {
     if (state.historyHydrated || mode !== "local-runtime" || state.messages.length > 0) {
@@ -1257,14 +1383,12 @@ export function createTuiRuntimeClient(options?: {
     const runtimeBridge = state.runtimePromise ? await state.runtimePromise.catch(() => null) : null
     const runtimeState = await loadRuntimeConversationState(runtimeBridge)
     if (runtimeState && runtimeState.historyMessages.length > 0) {
-      const historical = runtimeState.historyMessages.map((message, messageIndex) =>
-        buildHistorySessionMessage({
-          sessionID: state.info.id,
-          message,
-          messageIndex,
-          actorIdentity: runtimeState.activeActorKey ?? undefined,
-        }),
-      )
+      const historical = buildHistorySessionMessages({
+        sessionID: state.info.id,
+        messages: runtimeState.historyMessages,
+        actorIdentity: runtimeState.activeActorKey ?? undefined,
+        model: runtimeState.model,
+      })
       state.messages.splice(0, state.messages.length, ...historical.map((entry) => entry.info))
       state.parts = Object.fromEntries(historical.map((entry) => [entry.info.id, entry.parts]))
       trimSessionMessageCache(state)
@@ -1301,14 +1425,16 @@ export function createTuiRuntimeClient(options?: {
       return
     }
 
-    const historical = loaded.messages.map((message, messageIndex) =>
-      buildHistorySessionMessage({
-        sessionID: state.info.id,
-        message,
-        messageIndex,
-        actorIdentity: activeActorKey,
-      }),
-    )
+    const binding = sessionRawState.actorBindings[activeActorKey]
+    const receipt = binding?.providerEpochReceiptV2
+    const historical = buildHistorySessionMessages({
+      sessionID: state.info.id,
+      messages: loaded.messages,
+      actorIdentity: activeActorKey,
+      model: receipt?.targetProviderId && receipt.targetModelId
+        ? { providerID: receipt.targetProviderId, modelID: receipt.targetModelId }
+        : undefined,
+    })
     state.messages.splice(0, state.messages.length, ...historical.map((entry) => entry.info))
     state.parts = Object.fromEntries(historical.map((entry) => [entry.info.id, entry.parts]))
     trimSessionMessageCache(state)
@@ -1316,7 +1442,85 @@ export function createTuiRuntimeClient(options?: {
     state.historyHydrated = true
   }
 
-  async function hydrateUserInputHistoryFromPersistence(state: SessionState) {
+  async function loadSessionHistoryPageFromPersistence(
+    state: SessionState,
+    input: { cursor?: string | null; limit?: number },
+  ) {
+    const sessionDir = getSessionDir(state.info.id)
+    const sessionRawState = await conversationProjectionReadPort.loadSessionProjection({ sessionDir })
+    const controlActor = await loadPersistedControlActor(sessionDir)
+    const activeActorKey =
+      sessionRawState.activeActorKey
+      ?? Object.keys(sessionRawState.actorBindings)[0]
+      ?? controlActor?.actorKey
+      ?? null
+    if (!activeActorKey) {
+      return {
+        data: [],
+        page: {
+          status: "ok" as const,
+          snapshotId: "empty",
+          startCursor: null,
+          hasPreviousPage: false,
+          observedBytes: 0,
+          sourceBytes: 0,
+        },
+      }
+    }
+
+    const loaded = conversationProjectionReadPort.loadHistoryPageProjection
+      ? await conversationProjectionReadPort.loadHistoryPageProjection(
+          { sessionDir, actorKey: activeActorKey },
+          { limit: input.limit, before: input.cursor },
+        )
+      : await (async () => {
+          const full = await conversationProjectionReadPort.loadHistoryProjection({
+            sessionDir,
+            actorKey: activeActorKey,
+          })
+          const limit = Math.max(1, input.limit ?? 40)
+          return {
+            status: "ok" as const,
+            source: full.source,
+            messages: full.messages.slice(-limit),
+            pageInfo: {
+              snapshotId: `legacy:${state.info.id}:${full.messages.length}`,
+              startCursor: null,
+              hasPreviousPage: false,
+            },
+            historyGenerationId: full.historyGenerationId,
+            promptGenerationId: full.promptGenerationId,
+            observedBytes: 0,
+            sourceBytes: 0,
+          }
+        })()
+    const binding = sessionRawState.actorBindings[activeActorKey]
+    const receipt = binding?.providerEpochReceiptV2
+    const historical = buildHistorySessionMessages({
+      sessionID: state.info.id,
+      messages: [...loaded.messages],
+      actorIdentity: activeActorKey,
+      model: receipt?.targetProviderId && receipt.targetModelId
+        ? { providerID: receipt.targetProviderId, modelID: receipt.targetModelId }
+        : undefined,
+    })
+    return {
+      data: historical.map((entry) => ({ info: clone(entry.info), parts: clone(entry.parts) })),
+      page: {
+        status: loaded.status,
+        snapshotId: loaded.pageInfo.snapshotId,
+        startCursor: loaded.pageInfo.startCursor,
+        hasPreviousPage: loaded.pageInfo.hasPreviousPage,
+        observedBytes: loaded.observedBytes,
+        sourceBytes: loaded.sourceBytes,
+      },
+    }
+  }
+
+  async function hydrateUserInputHistoryFromPersistence(
+    state: SessionState,
+    requestedLimit = MAX_USER_INPUT_HISTORY,
+  ) {
     if (mode !== "local-runtime") return
     const sessionDir = getSessionDir(state.info.id)
     // Projection-read port (behavior-delta `tui-hydration-through-port`): session
@@ -1332,6 +1536,37 @@ export function createTuiRuntimeClient(options?: {
       ?? controlActor?.actorKey
       ?? null
     if (!activeActorKey) return
+
+    const limit = Math.max(1, Math.min(MAX_USER_INPUT_HISTORY, Math.floor(requestedLimit)))
+    if (conversationProjectionReadPort.loadHistoryPageProjection) {
+      const entries: UserInputHistoryEntry[] = []
+      const seenCursors = new Set<string>()
+      let before: string | null | undefined
+      let observedBytes = 0
+      while (entries.length < limit && observedBytes < MAX_USER_INPUT_HISTORY_OBSERVED_BYTES) {
+        const page = await conversationProjectionReadPort.loadHistoryPageProjection(
+          { sessionDir, actorKey: activeActorKey },
+          { limit: USER_INPUT_HISTORY_PAGE_SIZE, before },
+        ).catch(() => null)
+        if (!page || page.status === "stale_cursor") break
+        observedBytes += page.observedBytes
+        const pageEntries = page.messages.flatMap((message): UserInputHistoryEntry[] => {
+          if (message.role !== "user") return []
+          const text = normalizeUserInputText(message.content)
+          if (!text) return []
+          const createdAt = message.endAt ?? message.startAt
+          return [{ text, ...(typeof createdAt === "number" ? { createdAt } : {}) }]
+        })
+        entries.unshift(...pageEntries)
+
+        const nextCursor = page.pageInfo.startCursor
+        if (!page.pageInfo.hasPreviousPage || !nextCursor || seenCursors.has(nextCursor)) break
+        seenCursors.add(nextCursor)
+        before = nextCursor
+      }
+      replaceUserInputHistory(state, entries.slice(-limit))
+      return
+    }
 
     const rawState = await conversationProjectionReadPort.loadActorProjection({
       sessionDir,
@@ -1372,13 +1607,13 @@ export function createTuiRuntimeClient(options?: {
     const existingPartsByID = new Map(
       Object.values(state.parts).flat().map((part) => [part.id, part] as const),
     )
-    const historical = loaded.messages.map((message, messageIndex) => {
-      const entry = buildHistorySessionMessage({
-        sessionID: state.info.id,
-        message,
-        messageIndex,
-        actorIdentity: target?.actorId ?? loaded.actorKey ?? undefined,
-      })
+    const runtimeState = await loadRuntimeConversationState(runtime)
+    const historical = buildHistorySessionMessages({
+      sessionID: state.info.id,
+      messages: loaded.messages,
+      actorIdentity: target?.actorId ?? loaded.actorKey ?? undefined,
+      model: runtimeState?.model,
+    }).map((entry) => {
       entry.parts = entry.parts.map((part) => {
         const existing = existingPartsByID.get(part.id)
         if (part.type !== "tool" || existing?.type !== "tool") return part
@@ -1999,6 +2234,14 @@ export function createTuiRuntimeClient(options?: {
     }
   }
 
+  function loadLiveSessionSummary(state: SessionState): Session {
+    return {
+      ...clone(state.info),
+      materialized: state.materialized,
+      preview: state.info.preview ?? buildSessionPreviewFromState(state),
+    }
+  }
+
   async function loadBestSessionInfo(sessionID?: string): Promise<Session> {
     const resolvedSessionID = resolveSessionID(sessionID)
     const state = sessions.get(resolvedSessionID) ?? null
@@ -2062,7 +2305,7 @@ export function createTuiRuntimeClient(options?: {
         merged.map(async (sessionID) => {
           const state = sessions.get(sessionID)
           const persistedInfo = await loadPersistedSessionInfo(sessionID).catch(() => null)
-          const liveInfo = state ? await loadLiveSessionInfo(state) : null
+          const liveInfo = state ? loadLiveSessionSummary(state) : null
           const liveMaterialized = state?.materialized === true || liveInfo?.materialized === true
           const persistedMaterialized = persistedInfo?.materialized === true
           if (!liveMaterialized && !persistedMaterialized) {
@@ -2158,18 +2401,45 @@ export function createTuiRuntimeClient(options?: {
         }) as SessionUpgradeApplyResult,
       }
     },
-    async messages({ sessionID }: { sessionID?: string } = {}) {
+    async messages({
+      sessionID,
+      limit,
+      page,
+      cursor,
+    }: { sessionID?: string; limit?: number; page?: boolean; cursor?: string | null } = {}) {
       const state = ensureSessionState(sessionID)
+      if (mode === "local-runtime" && !state.materialized) {
+        const persistedInfo = await loadPersistedSessionInfo(state.info.id).catch(() => null)
+        if (persistedInfo) applySessionInfoToState(state, persistedInfo)
+      }
+      if (page && mode === "local-runtime") {
+        return await loadSessionHistoryPageFromPersistence(state, { cursor, limit })
+      }
       await hydrateSessionHistoryFromPersistence(state)
       await hydrateUserInputHistoryFromPersistence(state)
       await hydratePendingQuestionsFromSnapshot(state)
+      state.info = {
+        ...state.info,
+        preview: state.info.preview ?? buildSessionPreviewFromState(state),
+      }
+      await persistSessionSummary(state)
       return {
-        data: cloneMessages(state),
+        data: typeof limit === "number" && limit > 0 ? cloneMessages(state).slice(-limit) : cloneMessages(state),
+        ...(page ? {
+          page: {
+            status: "ok" as const,
+            snapshotId: `memory:${state.info.id}:${state.messages.length}`,
+            startCursor: null,
+            hasPreviousPage: false,
+            observedBytes: 0,
+            sourceBytes: 0,
+          },
+        } : {}),
       }
     },
     async userInputs({ sessionID, limit }: { sessionID?: string; limit?: number } = {}) {
       const state = ensureSessionState(sessionID)
-      await hydrateUserInputHistoryFromPersistence(state)
+      await hydrateUserInputHistoryFromPersistence(state, limit)
       const entries = cloneUserInputHistory(state.userInputHistory)
       return {
         data: typeof limit === "number" && limit > 0 ? entries.slice(-limit) : entries,
@@ -2274,6 +2544,7 @@ export function createTuiRuntimeClient(options?: {
           preview: buildSessionPreviewFromState(state),
         }
         touchSession(state)
+        await persistSessionSummary(state)
         await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
         return { data: clone(state.info) }
       }
@@ -2322,8 +2593,8 @@ export function createTuiRuntimeClient(options?: {
     async update({ sessionID, title }: { sessionID?: string; title?: string } = {}) {
       const state = ensureSessionState(sessionID)
       if (mode === "local-runtime") {
-        const bestInfo = await loadBestSessionInfo(state.info.id)
-        applySessionInfoToState(state, bestInfo)
+        const persistedInfo = await loadPersistedSessionInfo(state.info.id).catch(() => null)
+        if (persistedInfo) applySessionInfoToState(state, persistedInfo)
       }
       const nextTitle = typeof title === "string" ? title.trim() : ""
       if (nextTitle) {
@@ -2331,16 +2602,9 @@ export function createTuiRuntimeClient(options?: {
           ...state.info,
           title: nextTitle,
         }
-        if (mode === "local-runtime") {
-          await writeTuiSessionMetadata(state.info.id, {
-            ...(await loadTuiSessionMetadata(state.info.id)),
-            title: nextTitle,
-            deleted: false,
-            updatedAt: new Date().toISOString(),
-          })
-        }
       }
       touchSession(state)
+      await persistSessionSummary(state, nextTitle ? { title: nextTitle } : undefined)
       await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
       return { data: clone(state.info) }
     },
@@ -2402,10 +2666,7 @@ export function createTuiRuntimeClient(options?: {
           share: source.info.share,
           preview: buildSessionPreviewFromState(forked),
         }
-        await writeTuiSessionMetadata(forked.info.id, {
-          title: forked.info.title,
-          updatedAt: new Date().toISOString(),
-        })
+        await persistSessionSummary(forked, { title: forked.info.title })
         await emitEvent({ type: "session.created", properties: { info: forked.info } } as Event)
         await emitEvent({ type: "session.status", properties: { sessionID: forked.info.id, status: forked.status } } as Event)
         return { data: clone(forked.info) }
@@ -2499,6 +2760,7 @@ export function createTuiRuntimeClient(options?: {
       })
       await hydratePendingQuestionsFromSnapshot(state)
       await setSessionStatus(state, "idle")
+      await persistSessionSummary(state)
       await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
       if ((projected.terminalError as { code?: unknown } | null)?.code === "unsupported_modality") {
         throw projected.terminalError
@@ -2586,6 +2848,7 @@ export function createTuiRuntimeClient(options?: {
       })
       await hydratePendingQuestionsFromSnapshot(state)
       await setSessionStatus(state, "idle")
+      await persistSessionSummary(state)
       await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
       return { data: true }
     },
@@ -2670,6 +2933,7 @@ export function createTuiRuntimeClient(options?: {
         }
         await hydratePendingQuestionsFromSnapshot(state)
         await setSessionStatus(state, "idle")
+        await persistSessionSummary(state)
         await emitEvent({ type: "session.updated", properties: { info: state.info } } as Event)
         return { data: true }
       }

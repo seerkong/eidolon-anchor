@@ -6,6 +6,7 @@ import { useKeybind } from "../../providers/keybind"
 import { useTheme } from "../../providers/theme"
 import { DialogHeader, useDialog, type DialogContext } from "./context"
 import { Log } from "../../support/util/log"
+import { scheduleRenderableFocus } from "../renderable-lifecycle"
 
 export type DialogPromptProps = {
   title: string
@@ -27,9 +28,11 @@ export function DialogPrompt(props: DialogPromptProps) {
   let initialValueSet = false
   let submitting = false
   let mounted = true
+  let cancelScheduledFocus: (() => void) | undefined
 
   onCleanup(() => {
     mounted = false
+    cancelScheduledFocus?.()
   })
 
   const submit = async () => {
@@ -71,10 +74,10 @@ export function DialogPrompt(props: DialogPromptProps) {
 
   onMount(() => {
     dialog.setSize("medium")
-    setTimeout(() => {
-      textarea.focus()
-      textarea.gotoLineEnd()
-    }, 1)
+    cancelScheduledFocus = scheduleRenderableFocus(
+      () => textarea,
+      (target) => target.gotoLineEnd(),
+    )
     if (!initialValueSet && props.value) {
       textarea.initialValue = props.value
       initialValueSet = true

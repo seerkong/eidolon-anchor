@@ -52,6 +52,44 @@ export type ConversationHistoryProjection = {
 };
 
 /**
+ * Bounded catalog projection of the first and latest visible history message.
+ * `observedBytes` makes the bounded-read contract observable without exposing
+ * adapter-specific file handles to the surface.
+ */
+export type ConversationHistorySummaryProjection = {
+  readonly source: "conversation" | "empty";
+  readonly initialUserMessage?: string;
+  readonly latestMessage?: string;
+  readonly observedBytes: number;
+  readonly sourceBytes: number;
+};
+
+/** Opaque adapter cursor. Surfaces persist/pass it but never interpret it. */
+export type ConversationHistoryPageCursor = string;
+
+export type ConversationHistoryPageQuery = {
+  readonly limit?: number;
+  readonly before?: ConversationHistoryPageCursor | null;
+};
+
+export type ConversationHistoryPageInfo = {
+  readonly snapshotId: string;
+  readonly startCursor: ConversationHistoryPageCursor | null;
+  readonly hasPreviousPage: boolean;
+};
+
+export type ConversationHistoryPageProjection = {
+  readonly status: "ok" | "stale_cursor";
+  readonly source: "conversation" | "empty";
+  readonly messages: ReadonlyArray<ChatMessage>;
+  readonly pageInfo: ConversationHistoryPageInfo;
+  readonly historyGenerationId?: string | null;
+  readonly promptGenerationId?: string | null;
+  readonly observedBytes: number;
+  readonly sourceBytes: number;
+};
+
+/**
  * Read-only view of a session's raw state (active actor, actor bindings, the
  * index snapshots). Structurally the `ConversationSessionRawState` the
  * single-source `loadConversationSessionRawState` loader returns, exposed
@@ -107,6 +145,20 @@ export interface ConversationProjectionReadPort {
     target: ConversationProjectionTarget,
   ): Promise<ConversationHistoryProjection>;
 
+  /** Load the latest or preceding bounded visible-history page. */
+  loadHistoryPageProjection?(
+    target: ConversationProjectionTarget,
+    query?: ConversationHistoryPageQuery,
+  ): Promise<ConversationHistoryPageProjection>;
+
+  /**
+   * Load a bounded summary for catalog display without materializing the full
+   * visible history. Single source: the conversation files.
+   */
+  loadHistorySummaryProjection(
+    target: ConversationProjectionTarget,
+  ): Promise<ConversationHistorySummaryProjection>;
+
   /**
    * Load the session raw-state projection (active actor / bindings / index
    * snapshots). Single source: the conversation files.
@@ -139,6 +191,7 @@ export interface ConversationProjectionReadPort {
  */
 export const CONVERSATION_PROJECTION_READ_PORT_METHODS = [
   "loadHistoryProjection",
+  "loadHistorySummaryProjection",
   "loadSessionProjection",
   "loadActorProjection",
   "loadPendingQuestionsProjection",

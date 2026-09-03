@@ -703,7 +703,11 @@ export class MCPClient {
         fullName: `mcp__${sanitizeMcpIdentifier(this.serverName)}__${sanitizeMcpIdentifier(tool.name || "")}`,
       };
       this.tools.push(t);
-      infoLog(`  - ${t.fullName}: ${t.description}`);
+      // Tool descriptions can be large. In the TUI, info-level console output
+      // is intercepted and rendered synchronously; emitting one long entry per
+      // tool can stall the UI (and its beacon) throughout MCP discovery.
+      // The connected summary remains info-level; full inventory is opt-in.
+      debugLog(`  - ${t.fullName}: ${t.description}`);
     }
   }
 

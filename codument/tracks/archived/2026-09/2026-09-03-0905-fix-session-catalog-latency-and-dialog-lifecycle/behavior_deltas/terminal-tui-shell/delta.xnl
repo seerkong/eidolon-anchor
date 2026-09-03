@@ -1,0 +1,40 @@
+<BehaviorPatch #track.fix-session-catalog-latency-and-dialog-lifecycle.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/responsive-session-catalog-interaction" } (
+      <Requirement #responsive-session-catalog-interaction (
+        <Statement ?>Terminal TUI 的会话列表、重命名与恢复交互 SHALL 对长会话保持响应；重命名成功后 SHALL 在会话列表立即展示新标题，弹窗生命周期结束后 MUST NOT 访问已销毁的 OpenTUI renderable 或 EditBuffer。</?>
+        <Suites [
+          <Suite #session-catalog-ui { name = "Responsive and lifecycle-safe session catalog" } (
+            <Cases [
+              <Case #rename-visible-without-restart (
+                <Given ?>会话列表中的一个会话被用户重命名</?>
+                <When ?>runtime 确认标题 sidecar 已更新</?>
+                <Then ?>TUI SHALL 回到会话列表并从 session.updated 投影展示新标题，无需退出或重启</?>
+              )>
+              <Case #restore-not-serialized-behind-catalog (
+                <Given ?>用户恢复一个指定会话，同时工作区还包含其他长会话</?>
+                <When ?>TUI bootstrap 加载当前会话和 session catalog</?>
+                <Then ?>当前会话的定向 hydration SHALL NOT 串行等待所有会话的目录扫描完成</?>
+              )>
+              <Case #destroyed-dialog-focus-is-ignored (
+                <Given ?>session list 或 rename prompt 安排了延迟 focus，随后 dialog 被 replace、clear 或 unmount</?>
+                <When ?>延迟回调或异步 confirm 完成</?>
+                <Then ?>系统 MUST 忽略过期回调并保持当前 dialog 焦点，MUST NOT 抛出 EditBuffer is destroyed</?>
+              )>
+              <Case #restored-history-has-content-tools-and-authoritative-model (
+                <Given ?>用户选中一个具有 compaction 历史、tool-call request/result 且 active Actor 记录为 DeepSeek provider epoch 的旧会话</?>
+                <When ?>TUI 完整恢复该会话消息</?>
+                <Then ?>系统 SHALL 展示正文、reasoning 和合并后的工具卡片，MUST NOT 展示空 ASSISTANT 卡片；消息模型标签 SHALL 使用 Actor provider epoch 的 DeepSeek provider/model 而非当前全局默认模型</?>
+              )>
+              <Case #restored-long-history-has-bounded-renderer-listeners (
+                <Given ?>用户恢复包含大量普通消息和工具摘要卡片的长会话</?>
+                <When ?>TUI 同时挂载这些历史消息卡片并响应终端尺寸</?>
+                <Then ?>CliRenderer.resize listener 数量 SHALL 保持常数，不得随消息卡片数增长或产生 MaxListenersExceededWarning</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

@@ -37,9 +37,10 @@ import {
   writeSessionAttachmentAsset,
   type XnlAppendDataRecordBody,
   type XnlDataRecordBodyItem,
+  type XnlStreamRecord,
   type XnlRecordBodyItem,
 } from "@cell/ai-file-store-logic";
-import type { InputContentPart } from "@shared/composer";
+import type { ChatMessage, InputContentPart } from "@shared/composer";
 import {
   getLocalConversationPaths,
 } from "./LocalConversationPaths";
@@ -700,6 +701,10 @@ function xnlRecordToHistoryGeneration(record: XnlConversationRecord): ActorHisto
   return bodyItem.attributes as ActorHistoryGenerationData;
 }
 
+export function historyGenerationXnlRecordToData(record: XnlStreamRecord): ActorHistoryGenerationData | null {
+  return xnlRecordToHistoryGeneration(record as XnlConversationRecord);
+}
+
 function historyMessageRecordToCommittedMessage(
   record: XnlConversationRecord,
 ): ActorHistoryGenerationData["messages"][number] | null {
@@ -808,6 +813,11 @@ function historyMessageRecordToMessage(
     message.content = contentParts.join("");
   }
   return message;
+}
+
+/** Shared decoder for bounded projection readers; keeps XNL message semantics in one place. */
+export function historyMessageXnlRecordToChatMessage(record: XnlStreamRecord): ChatMessage | null {
+  return historyMessageRecordToMessage(record as XnlConversationRecord) as ChatMessage | null;
 }
 
 function historyMessageRecordsToGeneration(
@@ -952,6 +962,10 @@ function xnlRecordToPromptGeneration(record: XnlConversationRecord): ActorPrompt
     generation.metadata = record.attributes.metadata as Record<string, unknown>;
   }
   return generation;
+}
+
+export function promptGenerationXnlRecordToData(record: XnlStreamRecord): ActorPromptGenerationData | null {
+  return xnlRecordToPromptGeneration(record as XnlConversationRecord);
 }
 
 async function createHistoryMessageBlocks(

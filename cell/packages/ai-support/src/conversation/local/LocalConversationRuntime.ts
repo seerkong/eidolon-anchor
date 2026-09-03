@@ -226,7 +226,7 @@ export function chatMessagesToCommittedHistoryRefs(params: {
   }));
 }
 
-function buildVisibleGenerationOrder(params: {
+export function buildVisibleGenerationOrder(params: {
   historyIndex: Awaited<ReturnType<ConversationPersistenceRepository["loadHistoryIndex"]>>;
   actorKey: string;
   activeGenerationId: string;
@@ -491,7 +491,7 @@ function resolveActorKey(params: {
   );
 }
 
-function resolvePromptTargetHistoryGenerationId(params: {
+export function resolvePromptTargetHistoryGenerationId(params: {
   promptGeneration?: ActorPromptGenerationData | null;
   historyIndex: ConversationSessionRawState["historyIndex"];
   actorKey: string;

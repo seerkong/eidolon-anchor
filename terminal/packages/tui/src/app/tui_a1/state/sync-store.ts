@@ -425,6 +425,7 @@ export async function bootstrapSyncStore(input: {
       })
       setStore("session", reconcile(sessions))
     })
+  const currentSessionPromise = syncCurrentSessionIfNeeded({ runtimeClient, args, store, setStore })
 
   const blockingRequests: Promise<unknown>[] = [
     runtimeClient.client.config.providers({}, { throwOnError: true }).then((x) => {
@@ -443,7 +444,6 @@ export async function bootstrapSyncStore(input: {
     }),
     runtimeClient.client.app.agents({}, { throwOnError: true }).then((x) => setStore("agent", reconcile(x.data ?? []))),
     runtimeClient.client.config.get({}, { throwOnError: true }).then((x) => setStore("config", reconcile(x.data!))),
-    ...(args.continue ? [sessionListPromise] : []),
   ]
 
   try {
@@ -451,8 +451,8 @@ export async function bootstrapSyncStore(input: {
     if (store.status !== "complete") setStore("status", "partial")
 
     await Promise.all([
-      ...(args.continue ? [] : [sessionListPromise]),
-      syncCurrentSessionIfNeeded({ runtimeClient, args, store, setStore }),
+      sessionListPromise,
+      currentSessionPromise,
       runtimeClient.client.command.list().then((x) => setStore("command", reconcile(x.data ?? []))),
       runtimeClient.client.mcp.status().then((x) => setStore("mcp", reconcile(x.data!))),
       runtimeClient.client.experimental.resource.list().then((x) => setStore("mcp_resource", reconcile(x.data ?? {}))),
@@ -505,7 +505,7 @@ export async function syncSessionData(input: {
 
   const [session, messages, todo, diff] = await Promise.all([
     runtimeClient.client.session.get({ sessionID }, { throwOnError: true }),
-    runtimeClient.client.session.messages({ sessionID, limit: 100 }),
+    runtimeClient.client.session.messages({ sessionID, limit: 100, page: true }),
     runtimeClient.client.session.todo({ sessionID }),
     runtimeClient.client.session.diff({ sessionID }),
   ])

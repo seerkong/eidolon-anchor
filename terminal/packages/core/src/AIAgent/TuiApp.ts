@@ -448,6 +448,21 @@ export type MessageWithParts = {
   parts: Part[]
 }
 
+export type SessionHistoryPageMetadata = {
+  status: "ok" | "stale_cursor"
+  snapshotId: string
+  startCursor: string | null
+  hasPreviousPage: boolean
+  observedBytes: number
+  sourceBytes: number
+}
+
+export type SessionHistoryPageResult = Promise<{
+  data?: MessageWithParts[]
+  error?: unknown
+  page?: SessionHistoryPageMetadata
+}>
+
 export type UserInputHistoryEntry = {
   text: string
   createdAt?: number
@@ -525,7 +540,10 @@ export type TuiRuntimeClient = {
     list(input?: Record<string, unknown>, options?: Record<string, unknown>): ClientResult<Session[]>
     create(input?: Record<string, unknown>, options?: Record<string, unknown>): ClientResult<Session>
     get(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<Session>
-    messages(input?: { sessionID?: string; limit?: number }, options?: Record<string, unknown>): ClientResult<MessageWithParts[]>
+    messages(
+      input?: { sessionID?: string; limit?: number; page?: boolean; cursor?: string | null },
+      options?: Record<string, unknown>,
+    ): SessionHistoryPageResult
     userInputs(input?: { sessionID?: string; limit?: number }, options?: Record<string, unknown>): ClientResult<UserInputHistoryEntry[]>
     todo(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<Todo[]>
     diff(input?: { sessionID?: string }, options?: Record<string, unknown>): ClientResult<Array<{ path: string; hunks: string }>>

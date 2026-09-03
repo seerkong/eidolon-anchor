@@ -1152,6 +1152,46 @@ describe("AI runtime control engine composition", () => {
     }
   })
 
+  it("repairs an interrupted initial runtime checkpoint before establishing the owned checkpoint", async () => {
+    const sessionDir = makeTempSessionDir()
+    try {
+      await writeJsonAtomically(path.join(sessionDir, "conversation", "history.index.json"), {
+        updatedAt: "2026-09-03T16:46:58.557Z",
+      })
+      await appendRuntimeControlEffectEvidence({
+        sessionDir,
+        event: {
+          kind: "request",
+          effectKind: "runtime_checkpoint",
+          effectId: "runtime-checkpoint:interrupted",
+          handlerKey: "runtime_concrete_checkpoint_write",
+          idempotencyKey: "runtime-checkpoint:child-session",
+          sourceCommandId: "runtime-checkpoint-command:interrupted",
+        },
+      })
+
+      const dryRun = await dryRunFileStoreAiRuntimeSessionUpgrade({ sessionDir })
+      expect(dryRun.canUpgrade).toBe(true)
+      expect(dryRun.blockers).toEqual([
+        { reason: "missing_commit_marker" },
+        { reason: "effect_pending", effectId: "runtime-checkpoint:interrupted" },
+      ])
+
+      const applied = await applyFileStoreAiRuntimeSessionUpgrade({ sessionDir })
+      expect(applied.status).toBe("applied")
+      if (applied.status !== "applied") throw new Error("expected applied")
+      expect(applied.verification).toEqual({ classification: "clean", blockers: [] })
+      expect(await readRuntimeControlEffectEvidence(sessionDir)).toContainEqual(expect.objectContaining({
+        kind: "failed",
+        effectKind: "runtime_checkpoint",
+        effectId: "runtime-checkpoint:interrupted",
+        error: "runtime_checkpoint_interrupted_before_commit",
+      }))
+    } finally {
+      cleanupSessionDir(sessionDir)
+    }
+  })
+
   it("applies a session upgrade only after a clean dry-run classification", async () => {
     const sessionDir = makeTempSessionDir()
     try {

@@ -168,6 +168,34 @@ function HomeSessionSurface() {
 }
 
 describe("tui_a1 system surfaces", () => {
+  it("returns to the session list with the updated title after renaming", async () => {
+    const setup = await testRender(() => renderSurfaceHarness(() => <DialogSessionList />), {
+      width: 120,
+      height: 40,
+      kittyKeyboard: true,
+    })
+
+    try {
+      await renderSettled(setup, 6)
+      expect(captureText(setup)).toContain("Mock Session")
+
+      setup.mockInput.pressKey("r", { ctrl: true })
+      await renderSettled(setup, 3)
+      expect(captureText(setup)).toContain("Rename Session")
+
+      await setup.mockInput.typeText(" Renamed")
+      setup.mockInput.pressEnter()
+      await renderSettled(setup, 8)
+
+      const text = captureText(setup)
+      expect(text).toContain("Sessions")
+      expect(text).toContain("Mock Session Renamed")
+      expect(text).not.toContain("Rename Session")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
   it("routes the active session back home after deleting it from the session surface", async () => {
     const setup = await testRender(() => renderSurfaceHarness(() => <DialogSessionList />), {
       width: 120,

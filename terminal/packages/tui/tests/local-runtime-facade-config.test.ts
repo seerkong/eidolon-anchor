@@ -1027,7 +1027,7 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     fs.rmSync(homeDir, { recursive: true, force: true })
   })
 
-  it("returns persisted session info from session.get before creating a blank in-memory fallback", async () => {
+  it("returns bounded persisted session previews before targeted history hydration", async () => {
     const { workDir, homeDir } = createTempProject()
     const sessionID = "persisted-get-session"
     const sessionDir = path.join(workDir, ".eidolon", "sessions", sessionID)
@@ -1075,6 +1075,11 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     expect(info.data!.preview?.initialUserMessage).toBe("persisted info question")
     expect(info.data!.preview?.latestMessage).toBe("persisted info answer")
 
+    await sdk.client.session.messages({ sessionID })
+    const hydratedInfo = await sdk.client.session.get({ sessionID })
+    expect(hydratedInfo.data!.preview?.initialUserMessage).toBe("persisted info question")
+    expect(hydratedInfo.data!.preview?.latestMessage).toBe("persisted info answer")
+
     fs.rmSync(workDir, { recursive: true, force: true })
     fs.rmSync(homeDir, { recursive: true, force: true })
   })
@@ -1112,6 +1117,17 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     sessionIndex.session.updatedAt = new Date(2300).toISOString()
     sessionIndex.updatedAt = new Date(2300).toISOString()
     await repository.writeSessionIndex(sessionIndex)
+    fs.writeFileSync(
+      path.join(sessionDir, "tui-session.json"),
+      JSON.stringify({
+        createdAt: new Date(1000).toISOString(),
+        updatedAt: new Date(2300).toISOString(),
+        preview: {
+          initialUserMessage: "How do I restore the previous session in the TUI?",
+          latestMessage: "A".repeat(160),
+        },
+      }),
+    )
 
     const sdk = createTuiRuntimeClient({
       mode: "local-runtime",
@@ -1172,8 +1188,19 @@ describe("TuiRuntimeClient local-runtime mode", () => {
     const renamed = await renamedClient.client.session.list()
     const renamedSession = renamed.data?.find((entry) => entry.id === sessionID)
     expect(renamedSession?.title).toBe("Persisted Rename")
+    // A title-only mutation stays on the lightweight path while the catalog
+    // obtains legacy previews from bounded, parser-validated history edges.
     expect(renamedSession?.preview?.initialUserMessage).toBe("rename then delete me")
     expect(renamedSession?.preview?.latestMessage).toBe("ok")
+    await renamedClient.client.session.messages({ sessionID })
+    const backfilledClient = createTuiRuntimeClient({
+      mode: "local-runtime",
+      directory: workDir,
+    })
+    const backfilled = await backfilledClient.client.session.list()
+    const backfilledSession = backfilled.data?.find((entry) => entry.id === sessionID)
+    expect(backfilledSession?.preview?.initialUserMessage).toBe("rename then delete me")
+    expect(backfilledSession?.preview?.latestMessage).toBe("ok")
 
     await renamedClient.client.session.delete({ sessionID })
 

@@ -21,6 +21,14 @@ type TuiA1Input = {
   onExit?: () => Promise<void>
 }
 
+export function createTuiA1CleanupGate(cleanup: () => Promise<void>): () => Promise<void> {
+  let pending: Promise<void> | undefined
+  return () => {
+    pending ??= cleanup()
+    return pending
+  }
+}
+
 export async function tuiA1Tui(input: TuiA1Input) {
   const directory = input.directory ?? process.cwd()
   const scrollModeOverride = process.env.EIDOLON_TUI_SCROLL_MODE
@@ -57,17 +65,17 @@ export async function tuiA1Tui(input: TuiA1Input) {
     resolveDestroyed = resolve
   })
 
-  function cleanupAfterDestroy() {
+  const cleanupAfterDestroy = createTuiA1CleanupGate(async () => {
     if (keepAlive) {
       clearInterval(keepAlive)
       keepAlive = undefined
     }
-    void runtimeForCleanup?.client.instance.dispose()
-    void flushTuiStreamDiagnostics()
-    void input.onExit?.()
+    await runtimeForCleanup?.client.instance.dispose().catch(() => {})
+    await flushTuiStreamDiagnostics().catch(() => {})
+    await input.onExit?.().catch(() => {})
     restoreTuiTerminalModes()
     resolveDestroyed?.()
-  }
+  })
 
   function TuiA1RuntimeRoot() {
     const runtime = useRuntimeClient()
@@ -80,7 +88,7 @@ export async function tuiA1Tui(input: TuiA1Input) {
         initialPrompt={input.args.prompt}
         isAttachmentFile={input.isAttachmentFile}
         attachmentResolver={input.attachmentResolver}
-        onExit={input.onExit}
+        onExit={cleanupAfterDestroy}
         selection={selection}
         selectionOverride={selectionOverride}
         sessionID={input.args.sessionID}
@@ -104,7 +112,7 @@ export async function tuiA1Tui(input: TuiA1Input) {
         useMouse: true,
         useKittyKeyboard: {},
         onDestroy: () => {
-          cleanupAfterDestroy()
+          void cleanupAfterDestroy()
         },
       } as Parameters<typeof render>[1]),
     )

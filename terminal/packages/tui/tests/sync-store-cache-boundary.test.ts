@@ -1,6 +1,21 @@
 import { describe, expect, it } from "bun:test"
 import { createStore } from "solid-js/store"
-import { applySyncEvent, createInitialSyncStore, syncSessionData } from "../src/app/tui_a1/state/sync-store"
+import {
+  applySyncEvent,
+  bootstrapSyncStore,
+  createInitialSyncStore,
+  syncSessionData,
+} from "../src/app/tui_a1/state/sync-store"
+
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
+
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve
+  })
+  return { promise, resolve }
+}
 
 function runtimeMessage(id: string, created: number) {
   return {
@@ -45,6 +60,62 @@ function createHarness() {
 }
 
 describe("sync store cache boundaries", () => {
+  it("starts targeted restored-session hydration before the catalog list settles", async () => {
+    const [store, setStore] = createStore(createInitialSyncStore())
+    const catalog = deferred<{ data: any[] }>()
+    let targetedHydrationStarted = false
+    let targetedMessagesInput: Record<string, unknown> | undefined
+    const ok = (data: unknown) => Promise.resolve({ data })
+    const runtimeClient = {
+      client: {
+        session: {
+          list: () => catalog.promise,
+          get: async () => {
+            targetedHydrationStarted = true
+            return { data: { id: "ses_1", title: "Restored", time: { created: 1, updated: 1 } } }
+          },
+          messages: (input: Record<string, unknown>) => {
+            targetedMessagesInput = input
+            return ok([])
+          },
+          todo: () => ok([]),
+          diff: () => ok([]),
+          status: () => ok({}),
+        },
+        config: {
+          providers: () => ok({ providers: [], default: {} }),
+          get: () => ok({}),
+        },
+        provider: { list: () => ok({ all: [], default: {}, connected: [] }), auth: () => ok({}) },
+        app: { agents: () => ok([]) },
+        command: { list: () => ok([]) },
+        mcp: { status: () => ok({}) },
+        experimental: { resource: { list: () => ok({}) } },
+        formatter: { status: () => ok([]) },
+        vcs: { get: () => ok({ branch: "main" }) },
+        path: { get: () => ok({ cwd: "/tmp", root: "/tmp", state: "/tmp" }) },
+      },
+    } as any
+
+    const bootstrap = bootstrapSyncStore({
+      runtimeClient,
+      args: { continue: true, sessionID: "ses_1" },
+      store,
+      setStore,
+      onError: async (error) => {
+        throw error
+      },
+    })
+
+    await tick()
+    expect(targetedHydrationStarted).toBe(true)
+    expect(targetedMessagesInput).toEqual({ sessionID: "ses_1", limit: 100, page: true })
+
+    catalog.resolve({ data: [] })
+    await bootstrap
+    expect(store.status).toBe("complete")
+  })
+
   it("prunes part buckets when old cached messages are evicted", () => {
     const harness = createHarness()
 

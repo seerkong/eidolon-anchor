@@ -10,13 +10,14 @@ import { DialogAlert } from "../../../../ui/dialog/alert"
 import { DialogConfirm } from "../../../../ui/dialog/confirm"
 import { useRoute } from "../../route/route-context"
 import { useSync } from "../../state/sync-context"
-import { createEffect, createMemo, createResource, createSignal, For, on, onMount, Show } from "solid-js"
+import { createEffect, createMemo, createResource, createSignal, For, on, onCleanup, onMount, Show } from "solid-js"
 import { Locale } from "../../../../support/util/locale"
 import { useTheme } from "../../../../providers/theme"
 import { useRuntimeClient } from "../../../../providers/runtime-client"
 import { DialogSessionRename } from "./session-rename-dialog"
 import { useKV } from "../../../../providers/kv"
 import { createDebouncedSignal } from "../../../../support/util/signal"
+import { scheduleRenderableFocus } from "../../../../ui/renderable-lifecycle"
 import "opentui-spinner/solid"
 
 const SESSION_TIME_WIDTH = 18
@@ -124,6 +125,7 @@ export function DialogSessionList() {
 
   let input: InputRenderable | undefined
   let scroll: ScrollBoxRenderable | undefined
+  let cancelScheduledFocus: (() => void) | undefined
 
   function scrollToSelected() {
     const option = active()
@@ -206,8 +208,9 @@ export function DialogSessionList() {
     setSearch("")
     setSelected(0)
     scroll?.scrollTo(0)
-    if (input) input.value = ""
-    input?.focus()
+    if (!input || input.isDestroyed) return
+    input.value = ""
+    input.focus()
   }
 
   async function forkOption(option: SessionOption) {
@@ -223,7 +226,12 @@ export function DialogSessionList() {
   }
 
   function renameOption(option: SessionOption) {
-    dialog.replace(() => <DialogSessionRename session={option.id} />)
+    dialog.replace(() => (
+      <DialogSessionRename
+        session={option.id}
+        onRenamed={() => dialog.replace(() => <DialogSessionList />)}
+      />
+    ))
   }
 
   async function deleteOption(option = active()) {
@@ -306,8 +314,10 @@ export function DialogSessionList() {
   onMount(() => {
     dialog.setSize("large")
     dialog.setPaddingTop(0)
-    setTimeout(() => input?.focus(), 1)
+    cancelScheduledFocus = scheduleRenderableFocus(() => input)
   })
+
+  onCleanup(() => cancelScheduledFocus?.())
 
   const rowBackground = (option: SessionOption, isActive: boolean) => {
     if (option.deleting) return theme.error

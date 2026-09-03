@@ -15,6 +15,7 @@ import {
   readRuntimeControlEffectEvidence,
   readRuntimeControlIngressReplayEvents,
   readXnlRecords,
+  readXnlRecordPage,
   readRealSessionDurableHeads,
   readRuntimeControlCohortCommitFile,
   readRuntimeControlHeadFile,
@@ -31,6 +32,85 @@ function makeTempDir(): string {
 }
 
 describe("AI file store logic", () => {
+  it("reads reverse XNL pages from parser-proven record boundaries", async () => {
+    const sessionDir = makeTempDir()
+    const streamPath = path.join(sessionDir, "logs", "paged.xnl")
+    try {
+      for (let index = 0; index < 80; index += 1) {
+        await appendXnlRecord({
+          filePath: streamPath,
+          tag: "EventRecord",
+          metadata: { sequence: index },
+          body: [{ kind: "text", tag: "Payload", text: `${index}:${"x".repeat(1_500)}` }],
+        })
+      }
+      const latest = await readXnlRecordPage({ filePath: streamPath, tags: "EventRecord", limit: 7 })
+      expect(latest.records.map((entry) => entry.record.metadata.sequence)).toEqual([73, 74, 75, 76, 77, 78, 79])
+      expect(latest.previousOffset).toBeGreaterThan(0)
+      expect(latest.observedBytes).toBeLessThan(latest.fileSize)
+
+      const previous = await readXnlRecordPage({
+        filePath: streamPath,
+        tags: "EventRecord",
+        limit: 7,
+        beforeOffset: latest.previousOffset,
+      })
+      expect(previous.records.map((entry) => entry.record.metadata.sequence)).toEqual([66, 67, 68, 69, 70, 71, 72])
+      expect(previous.records.every((entry) => entry.startOffset < entry.endOffset)).toBe(true)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("reports an over-budget record instead of silently advancing past it", async () => {
+    const sessionDir = makeTempDir()
+    const streamPath = path.join(sessionDir, "logs", "oversized.xnl")
+    try {
+      await appendXnlRecord({
+        filePath: streamPath,
+        tag: "EventRecord",
+        metadata: { sequence: 1 },
+        body: [{ kind: "text", tag: "Payload", text: "x".repeat(96 * 1024) }],
+      })
+      const page = await readXnlRecordPage({
+        filePath: streamPath,
+        tags: "EventRecord",
+        limit: 1,
+        windowBytes: 8 * 1024,
+        maxObservedBytes: 32 * 1024,
+      })
+      expect(page.records).toEqual([])
+      expect(page.oversizedRecord).toBe(true)
+      expect(page.previousOffset).toBeNull()
+      expect(page.observedBytes).toBe(32 * 1024)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
+  it("keeps requested records pageable across other top-level XNL tags", async () => {
+    const sessionDir = makeTempDir()
+    const streamPath = path.join(sessionDir, "logs", "mixed.xnl")
+    try {
+      await appendXnlRecord({ filePath: streamPath, tag: "HistoryMessage", metadata: { sequence: 1 } })
+      await appendXnlRecord({ filePath: streamPath, tag: "history-generation", metadata: { sequence: 2 } })
+      await appendXnlRecord({ filePath: streamPath, tag: "HistoryMessage", metadata: { sequence: 3 } })
+
+      const latest = await readXnlRecordPage({ filePath: streamPath, tags: "HistoryMessage", limit: 1 })
+      expect(latest.records.map((entry) => entry.record.metadata.sequence)).toEqual([3])
+      const previous = await readXnlRecordPage({
+        filePath: streamPath,
+        tags: "HistoryMessage",
+        limit: 1,
+        beforeOffset: latest.previousOffset,
+      })
+      expect(previous.records.map((entry) => entry.record.metadata.sequence)).toEqual([1])
+      expect(previous.oversizedRecord).toBe(false)
+    } finally {
+      fs.rmSync(sessionDir, { recursive: true, force: true })
+    }
+  })
+
   it("appends and reads top-level xnl records without a root wrapper", async () => {
     const sessionDir = makeTempDir()
     const streamPath = path.join(sessionDir, "logs", "events.xnl")

@@ -154,6 +154,116 @@ afterEach(() => {
 })
 
 describe("tui_a1 scrollbox", () => {
+  it("loads the tail page first and requests the previous cursor at the top", async () => {
+    const sessionID = "ses_paged"
+    const latest = buildRuntimeMessages(40, sessionID).map((entry, index) => ({
+      ...entry,
+      info: { ...entry.info, id: `latest-${index}` },
+      parts: entry.parts.map((part) => ({ ...part, id: `latest-${index}-text`, messageID: `latest-${index}` })),
+    }))
+    const older = buildRuntimeMessages(40, sessionID).map((entry, index) => ({
+      ...entry,
+      info: { ...entry.info, id: `older-${index}`, time: { ...entry.info.time, created: index } },
+      parts: entry.parts.map((part) => ({
+        ...part,
+        id: `older-${index}-text`,
+        messageID: `older-${index}`,
+        ...(part.type === "text" ? { text: `Older ${index}\n${"older card body ".repeat(12)}` } : {}),
+      })),
+    }))
+    const calls: Array<{ page?: boolean; cursor?: string | null }> = []
+    const runtime = createRuntimeWithUserInputHistory({ sessionID, messages: latest, userInputs: [] })
+    runtime.client.session.messages = (async (input?: { page?: boolean; cursor?: string | null }) => {
+      calls.push({ page: input?.page, cursor: input?.cursor })
+      return input?.cursor
+        ? {
+            data: older,
+            page: {
+              status: "ok",
+              snapshotId: "snapshot-1",
+              startCursor: null,
+              hasPreviousPage: false,
+              observedBytes: 4096,
+              sourceBytes: 1_000_000,
+            },
+          }
+        : {
+            data: latest,
+            page: {
+              status: "ok",
+              snapshotId: "snapshot-1",
+              startCursor: "before-latest",
+              hasPreviousPage: true,
+              observedBytes: 4096,
+              sourceBytes: 1_000_000,
+            },
+          }
+    }) as typeof runtime.client.session.messages
+
+    let scrollbox: ScrollBoxRenderable | undefined
+    const setup = await testRender(
+      () => (
+        <TuiA1View
+          directory={process.cwd()}
+          runtime={runtime}
+          sessionID={sessionID}
+          onScrollboxReady={(value) => { scrollbox = value }}
+        />
+      ),
+      { width: 120, height: 40, kittyKeyboard: true },
+    )
+    try {
+      await renderSettled(setup, 6)
+      expect(calls[0]).toEqual({ page: true, cursor: undefined })
+      expect(scrollbox).toBeTruthy()
+      expect(setup.captureCharFrame()).toContain("Message 39")
+      setup.mockInput.pressKey("HOME")
+      await tick(40)
+      await renderSettled(setup, 4)
+      expect(calls.some((call) => call.cursor === "before-latest")).toBe(true)
+      setup.mockInput.pressKey(PAGE_UP)
+      await renderSettled(setup, 3)
+      expect(setup.captureCharFrame()).toMatch(/Older \d+/)
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("mounts a useful tail window before ScrollBox layout and keeps the final card frame intact", async () => {
+    const sessionID = "ses_variable_height_tail"
+    const messages = buildRuntimeMessages(40, sessionID)
+    const finalPart = messages.at(-1)?.parts[0]
+    if (finalPart?.type === "text") {
+      finalPart.text = `Message 39\n${"中文内容".repeat(180)}`
+    }
+    const runtime = createRuntimeWithUserInputHistory({ sessionID, messages, userInputs: [] })
+
+    const setup = await testRender(
+      () => (
+        <TuiA1View
+          directory={process.cwd()}
+          runtime={runtime}
+          sessionID={sessionID}
+        />
+      ),
+      { width: 120, height: 40, kittyKeyboard: true },
+    )
+    try {
+      await renderSettled(setup, 6)
+      const frame = setup.captureCharFrame()
+      const composerOffset = frame.indexOf("COMPOSER")
+      const historyFrame = composerOffset >= 0 ? frame.slice(0, composerOffset) : frame
+      const finalMessageOffset = historyFrame.indexOf("Message 39")
+
+      expect(historyFrame).toContain("Message 39")
+      expect(historyFrame).toContain("Message 38")
+      expect(finalMessageOffset).toBeGreaterThanOrEqual(0)
+      expect(historyFrame.slice(finalMessageOffset).split("\n").some((line) => line.trimStart().startsWith("╰"))).toBe(true)
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
   it("coalesces repeated scroll-to-bottom requests into one scroll operation", async () => {
     let calls = 0
     const scrollbox = {

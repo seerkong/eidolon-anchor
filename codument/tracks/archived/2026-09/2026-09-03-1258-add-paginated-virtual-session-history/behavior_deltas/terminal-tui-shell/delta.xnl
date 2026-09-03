@@ -1,0 +1,40 @@
+<BehaviorPatch #track.add-paginated-virtual-session-history.behavior_patch.terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" { capability = "terminal-tui-shell" } (
+  <Mutations [
+    <Upsert { selector = "behavior://terminal-tui-shell/requirements/virtualized-incremental-session-history" } (
+      <Requirement #virtualized-incremental-session-history (
+        <Statement ?>Terminal TUI SHALL 以尾页首屏、上滚增量读取和 viewport/overscan window 挂载展示长会话；已加载历史总量增长时，OpenTUI message-card renderable 数 SHALL 保持有界，prepend 页面 SHALL 保持用户可见锚点。</?>
+        <Suites [
+          <Suite #incremental-history-navigation { name = "Incremental virtual history navigation" } (
+            <Cases [
+              <Case #restore-mounts-tail-window-only (
+                <Given ?>用户恢复包含大量或超长消息卡片的会话</?>
+                <When ?>TUI 展示首屏</?>
+                <Then ?>TUI SHALL 只读取最新页并仅挂载 viewport 加 overscan 窗口，MUST NOT 同时创建全部历史卡片 renderable</?>
+              )>
+              <Case #restored-tool-cards-use-bounded-previews (
+                <Given ?>恢复页包含超长 shell output、edit diff、write content 或 context resource</?>
+                <When ?>对应工具卡片首次挂载</?>
+                <Then ?>TUI SHALL 只渲染有界预览并允许显式展开，虚拟高度估算 SHALL 与折叠态一致</?>
+              )>
+              <Case #scroll-up-loads-and-keeps-anchor (
+                <Given ?>当前页仍有更早历史且用户接近滚动顶部</?>
+                <When ?>TUI 加载并 prepend 上一页</?>
+                <Then ?>请求 SHALL 去重，原可见消息 SHALL 保持在相同 viewport 位置，用户可持续上滚直至首条消息</?>
+              )>
+              <Case #live-tail-does-not-steal-old-history-position (
+                <Given ?>用户正在浏览旧历史页且 live turn 追加消息</?>
+                <When ?>分页窗口 reconcile durable/live identity</?>
+                <Then ?>TUI SHALL 去重并更新尾部状态但 MUST NOT 抢占滚动位置；仅在用户位于底部时继续 sticky follow</?>
+              )>
+              <Case #session-switch-discards-old-page-results (
+                <Given ?>上一会话的分页请求尚未完成</?>
+                <When ?>用户切换会话或 history snapshot 改变</?>
+                <Then ?>旧响应 SHALL 被代际丢弃，MUST NOT 拼接到当前会话窗口</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

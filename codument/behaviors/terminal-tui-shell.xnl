@@ -1,411 +1,543 @@
 <Behavior #terminal-tui-shell apiVersion="codument.tech/v1alpha1" version="1" (
   <Requirements [
     <Requirement #effective-model-priority (
-      <Statement ?01M1H67CWQEPRE0P4F19F76A49>
+      <Statement ?01M1MB4000V1DXCA054VA1EV92>
       系统 SHALL 在 terminal TUI 中以 source-aware 方式解析并展示当前有效模型，避免人工选择、启动参数、agent 默认、runtime 历史和配置默认之间互相拍平覆盖。
-      </?01M1H67CWQEPRE0P4F19F76A49>
+      </?01M1MB4000V1DXCA054VA1EV92>
       <Suites [
         <Suite #priority-resolution { name = "有效模型优先级" } (
           <Cases [
             <Case #manual-dialog-selection-wins [
-              <Then ?01M1H67CWQEPRE0P4F19F76A4A>
+              <Then ?01M1MB4000V1DXCA054VA1EV93>
               系统 SHALL 保持人工选择作为当前有效模型
-              </?01M1H67CWQEPRE0P4F19F76A4A>
-              <Then ?01M1H67CWQEPRE0P4F19F76A4B>
+              </?01M1MB4000V1DXCA054VA1EV93>
+              <Then ?01M1MB4000V1DXCA054VA1EV94>
               系统 SHALL 在状态条展示该人工选择后的 provider/model
-              </?01M1H67CWQEPRE0P4F19F76A4B>
+              </?01M1MB4000V1DXCA054VA1EV94>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A4C>
+              <Given ?01M1MB4000V1DXCA054VA1EV95>
               用户在 TUI 模型 dialog 中人工选择 provider/model
-              </?01M1H67CWQEPRE0P4F19F76A4C>
-              <When ?01M1H67CWQEPRE0P4F19F76A4D>
+              </?01M1MB4000V1DXCA054VA1EV95>
+              <When ?01M1MB4000V1DXCA054VA1EV96>
               agent 默认模型同步、runtime 历史投影或 recent model 随后产生不同模型候选
-              </?01M1H67CWQEPRE0P4F19F76A4D>
+              </?01M1MB4000V1DXCA054VA1EV96>
             )>
             <Case #cli-model-wins-over-config [
-              <Then ?01M1H67CWQEPRE0P4F19F76A4E>
+              <Then ?01M1MB4000V1DXCA054VA1EV97>
               系统 SHALL 使用启动参数模型作为有效模型
-              </?01M1H67CWQEPRE0P4F19F76A4E>
-              <Then ?01M1H67CWQEPRE0P4F19F76A4F>
+              </?01M1MB4000V1DXCA054VA1EV97>
+              <Then ?01M1MB4000V1DXCA054VA1EV98>
               该模型 SHALL 低于后续人工 dialog 选择的优先级
-              </?01M1H67CWQEPRE0P4F19F76A4F>
+              </?01M1MB4000V1DXCA054VA1EV98>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A4G>
+              <Given ?01M1MB4000V1DXCA054VA1EV99>
               启动参数指定了 provider/model，且配置默认或 recent model 指向另一个模型
-              </?01M1H67CWQEPRE0P4F19F76A4G>
-              <When ?01M1H67CWQEPRE0P4F19F76A4H>
+              </?01M1MB4000V1DXCA054VA1EV99>
+              <When ?01M1MB4000V1DXCA054VA1EV9A>
               TUI 初始化当前会话选择状态
-              </?01M1H67CWQEPRE0P4F19F76A4H>
+              </?01M1MB4000V1DXCA054VA1EV9A>
             )>
             <Case #agent-memory-wins-over-agent-default [
-              <Then ?01M1H67CWQEPRE0P4F19F76A4J>
+              <Then ?01M1MB4000V1DXCA054VA1EV9B>
               系统 SHALL 优先使用 agent 用户记忆中的模型覆盖值
-              </?01M1H67CWQEPRE0P4F19F76A4J>
-              <Then ?01M1H67CWQEPRE0P4F19F76A4K>
+              </?01M1MB4000V1DXCA054VA1EV9B>
+              <Then ?01M1MB4000V1DXCA054VA1EV9C>
               agent definition 默认模型 SHALL 只在缺少更高优先级来源时生效
-              </?01M1H67CWQEPRE0P4F19F76A4K>
+              </?01M1MB4000V1DXCA054VA1EV9C>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A4M>
+              <Given ?01M1MB4000V1DXCA054VA1EV9D>
               当前 agent 具有用户记忆中的 provider/model 覆盖值，且 agent definition 也声明默认模型
-              </?01M1H67CWQEPRE0P4F19F76A4M>
-              <When ?01M1H67CWQEPRE0P4F19F76A4N>
+              </?01M1MB4000V1DXCA054VA1EV9D>
+              <When ?01M1MB4000V1DXCA054VA1EV9E>
               系统解析当前有效模型
-              </?01M1H67CWQEPRE0P4F19F76A4N>
+              </?01M1MB4000V1DXCA054VA1EV9E>
             )>
             <Case #priority-order-is-stable (
-              <Given ?01M1H67CWQEPRE0P4F19F76A4P>
+              <Given ?01M1MB4000V1DXCA054VA1EV9F>
               多个模型来源同时存在
-              </?01M1H67CWQEPRE0P4F19F76A4P>
-              <When ?01M1H67CWQEPRE0P4F19F76A4Q>
+              </?01M1MB4000V1DXCA054VA1EV9F>
+              <When ?01M1MB4000V1DXCA054VA1EV9G>
               系统解析当前有效模型
-              </?01M1H67CWQEPRE0P4F19F76A4Q>
-              <Then ?01M1H67CWQEPRE0P4F19F76A4R>
+              </?01M1MB4000V1DXCA054VA1EV9G>
+              <Then ?01M1MB4000V1DXCA054VA1EV9H>
               系统 SHALL 按 user-explicit、cli-arg、agent-memory、agent-default、runtime-config、recent、provider-default 的顺序选择第一个有效模型
-              </?01M1H67CWQEPRE0P4F19F76A4R>
+              </?01M1MB4000V1DXCA054VA1EV9H>
             )>
           ]>
         )>
         <Suite #projection-and-display { name = "投影与展示" } (
           <Cases [
             <Case #runtime-history-does-not-overwrite-explicit-source [
-              <Then ?01M1H67CWQEPRE0P4F19F76A4S>
+              <Then ?01M1MB4000V1DXCA054VA1EV9J>
               系统 SHALL 只记录或使用 runtime 历史作为低优先级候选
-              </?01M1H67CWQEPRE0P4F19F76A4S>
-              <Then ?01M1H67CWQEPRE0P4F19F76A4T>
+              </?01M1MB4000V1DXCA054VA1EV9J>
+              <Then ?01M1MB4000V1DXCA054VA1EV9K>
               系统 SHALL NOT 用 runtime 历史覆盖更高优先级的有效模型
-              </?01M1H67CWQEPRE0P4F19F76A4T>
+              </?01M1MB4000V1DXCA054VA1EV9K>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A4V>
+              <Given ?01M1MB4000V1DXCA054VA1EV9M>
               runtime 历史消息中包含 provider/model 信息
-              </?01M1H67CWQEPRE0P4F19F76A4V>
-              <When ?01M1H67CWQEPRE0P4F19F76A4W>
+              </?01M1MB4000V1DXCA054VA1EV9M>
+              <When ?01M1MB4000V1DXCA054VA1EV9N>
               当前 selection 已有更高优先级来源
-              </?01M1H67CWQEPRE0P4F19F76A4W>
+              </?01M1MB4000V1DXCA054VA1EV9N>
             )>
             <Case #status-line-shows-effective-model [
-              <Then ?01M1H67CWQEPRE0P4F19F76A4X>
+              <Then ?01M1MB4000V1DXCA054VA1EV9P>
               系统 SHALL 展示 effective model resolver 的输出
-              </?01M1H67CWQEPRE0P4F19F76A4X>
-              <Then ?01M1H67CWQEPRE0P4F19F76A4Y>
+              </?01M1MB4000V1DXCA054VA1EV9P>
+              <Then ?01M1MB4000V1DXCA054VA1EV9Q>
               系统 SHALL NOT 直接展示未解析的拍平 selection 值
-              </?01M1H67CWQEPRE0P4F19F76A4Y>
+              </?01M1MB4000V1DXCA054VA1EV9Q>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A4Z>
+              <Given ?01M1MB4000V1DXCA054VA1EV9R>
               当前 TUI 有多个模型候选来源
-              </?01M1H67CWQEPRE0P4F19F76A4Z>
-              <When ?01M1H67CWQEPRE0P4F19F76A50>
+              </?01M1MB4000V1DXCA054VA1EV9R>
+              <When ?01M1MB4000V1DXCA054VA1EV9S>
               composer/input 底部状态条渲染 provider/model
-              </?01M1H67CWQEPRE0P4F19F76A50>
+              </?01M1MB4000V1DXCA054VA1EV9S>
             )>
             <Case #agent-switch-recomputes-without-model-only-overwrite-loop [
-              <Then ?01M1H67CWQEPRE0P4F19F76A51>
+              <Then ?01M1MB4000V1DXCA054VA1EV9T>
               系统 SHALL 响应 agent identity 变化重新解析候选模型
-              </?01M1H67CWQEPRE0P4F19F76A51>
-              <Then ?01M1H67CWQEPRE0P4F19F76A52>
+              </?01M1MB4000V1DXCA054VA1EV9T>
+              <Then ?01M1MB4000V1DXCA054VA1EV9V>
               系统 SHALL NOT 因 provider/model-only 变化误触发 agent 默认模型覆盖人工选择
-              </?01M1H67CWQEPRE0P4F19F76A52>
+              </?01M1MB4000V1DXCA054VA1EV9V>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A53>
+              <Given ?01M1MB4000V1DXCA054VA1EV9W>
               用户切换当前 agent
-              </?01M1H67CWQEPRE0P4F19F76A53>
-              <When ?01M1H67CWQEPRE0P4F19F76A54>
+              </?01M1MB4000V1DXCA054VA1EV9W>
+              <When ?01M1MB4000V1DXCA054VA1EV9X>
               系统根据新 agent 重新计算有效模型
-              </?01M1H67CWQEPRE0P4F19F76A54>
+              </?01M1MB4000V1DXCA054VA1EV9X>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #composer-attachment-blocks (
-      <Statement ?01M1H67CWQEPRE0P4F19F76A55>
+      <Statement ?01M1MB4000V1DXCA054VA1EV9Y>
       Terminal TUI Composer SHALL 以显式用户选择区分路径文本、文件引用与附件；当 bracketed-paste 完整解析为一个或多个存在的文件路径时，Composer SHALL 弹出“附件 / 引用 / 路径文本”三选一，且在用户选择前 MUST NOT 创建 structured part 或读取文件内容。普通非路径文本直接插入；带二进制图片 MIME 的剪贴板输入直接创建图片附件。
-      </?01M1H67CWQEPRE0P4F19F76A55>
+      </?01M1MB4000V1DXCA054VA1EV9Y>
       <Suites [
         <Suite #attachment-ingress { name = "附件输入" } (
           <Cases [
             <Case #path-candidate-requires-explicit-choice [
-              <Then ?01M1H67CWQEPRE0P4F19F76A56>
+              <Then ?01M1MB4000V1DXCA054VA1EV9Z>
               Composer SHALL 弹出简短的“附件 / 引用 / 路径文本”选择器，并将一次选择应用到本次路径集合
-              </?01M1H67CWQEPRE0P4F19F76A56>
-              <Then ?01M1H67CWQEPRE0P4F19F76A57>
+              </?01M1MB4000V1DXCA054VA1EV9Z>
+              <Then ?01M1MB4000V1DXCA054VA1EVA0>
               选择完成前 MUST NOT 读取文件内容或创建 canonical part
-              </?01M1H67CWQEPRE0P4F19F76A57>
+              </?01M1MB4000V1DXCA054VA1EVA0>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A58>
+              <Given ?01M1MB4000V1DXCA054VA1EVA1>
               bracketed-paste payload 完整解析为一个或多个存在的 Windows drive/UNC、POSIX 或 file URI 文件路径
-              </?01M1H67CWQEPRE0P4F19F76A58>
-              <When ?01M1H67CWQEPRE0P4F19F76A59>
+              </?01M1MB4000V1DXCA054VA1EVA1>
+              <When ?01M1MB4000V1DXCA054VA1EVA2>
               Composer 接收该路径集合
-              </?01M1H67CWQEPRE0P4F19F76A59>
+              </?01M1MB4000V1DXCA054VA1EVA2>
             )>
             <Case #attachment-choice-imports-value [
-              <Then ?01M1H67CWQEPRE0P4F19F76A5A>
+              <Then ?01M1MB4000V1DXCA054VA1EVA3>
               每个文件 SHALL 按值导入 session asset store 并建立附件块；图片 SHALL 依文件头识别为 image attachment
-              </?01M1H67CWQEPRE0P4F19F76A5A>
-              <Then ?01M1H67CWQEPRE0P4F19F76A5B>
+              </?01M1MB4000V1DXCA054VA1EVA3>
+              <Then ?01M1MB4000V1DXCA054VA1EVA4>
               源文件之后移动、删除或变化 MUST NOT 影响已导入附件的恢复
-              </?01M1H67CWQEPRE0P4F19F76A5B>
+              </?01M1MB4000V1DXCA054VA1EVA4>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A5C>
+              <Given ?01M1MB4000V1DXCA054VA1EVA5>
               路径候选选择器正在显示且用户选择“附件”
-              </?01M1H67CWQEPRE0P4F19F76A5C>
-              <When ?01M1H67CWQEPRE0P4F19F76A5D>
+              </?01M1MB4000V1DXCA054VA1EVA5>
+              <When ?01M1MB4000V1DXCA054VA1EVA6>
               Composer 应用选择
-              </?01M1H67CWQEPRE0P4F19F76A5D>
+              </?01M1MB4000V1DXCA054VA1EVA6>
             )>
             <Case #reference-choice-keeps-local-reference (
-              <Given ?01M1H67CWQEPRE0P4F19F76A5E>
+              <Given ?01M1MB4000V1DXCA054VA1EVA7>
               路径候选选择器正在显示且用户选择“引用”
-              </?01M1H67CWQEPRE0P4F19F76A5E>
-              <When ?01M1H67CWQEPRE0P4F19F76A5F>
+              </?01M1MB4000V1DXCA054VA1EVA7>
+              <When ?01M1MB4000V1DXCA054VA1EVA8>
               Composer 应用选择
-              </?01M1H67CWQEPRE0P4F19F76A5F>
-              <Then ?01M1H67CWQEPRE0P4F19F76A5G>
+              </?01M1MB4000V1DXCA054VA1EVA8>
+              <Then ?01M1MB4000V1DXCA054VA1EVA9>
               每个文件 SHALL 建立 file-reference part，发送时从原路径解析，因此源文件变化或移动 SHALL 影响后续读取
-              </?01M1H67CWQEPRE0P4F19F76A5G>
+              </?01M1MB4000V1DXCA054VA1EVA9>
             )>
             <Case #path-text-choice-preserves-text (
-              <Given ?01M1H67CWQEPRE0P4F19F76A5H>
+              <Given ?01M1MB4000V1DXCA054VA1EVAA>
               路径候选选择器正在显示且用户选择“路径文本”
-              </?01M1H67CWQEPRE0P4F19F76A5H>
-              <When ?01M1H67CWQEPRE0P4F19F76A5J>
+              </?01M1MB4000V1DXCA054VA1EVAA>
+              <When ?01M1MB4000V1DXCA054VA1EVAB>
               Composer 应用选择
-              </?01M1H67CWQEPRE0P4F19F76A5J>
-              <Then ?01M1H67CWQEPRE0P4F19F76A5K>
+              </?01M1MB4000V1DXCA054VA1EVAB>
+              <Then ?01M1MB4000V1DXCA054VA1EVAC>
               原始 paste payload SHALL 作为普通文本插入且 MUST NOT 读取文件内容或创建 structured part
-              </?01M1H67CWQEPRE0P4F19F76A5K>
+              </?01M1MB4000V1DXCA054VA1EVAC>
             )>
             <Case #ordinary-non-path-paste-remains-text (
-              <Given ?01M1H67CWQEPRE0P4F19F76A5M>
+              <Given ?01M1MB4000V1DXCA054VA1EVAD>
               文本 paste payload 不能完整解析为存在的文件路径集合
-              </?01M1H67CWQEPRE0P4F19F76A5M>
-              <When ?01M1H67CWQEPRE0P4F19F76A5N>
+              </?01M1MB4000V1DXCA054VA1EVAD>
+              <When ?01M1MB4000V1DXCA054VA1EVAE>
               Composer 处理 paste
-              </?01M1H67CWQEPRE0P4F19F76A5N>
-              <Then ?01M1H67CWQEPRE0P4F19F76A5P>
+              </?01M1MB4000V1DXCA054VA1EVAE>
+              <Then ?01M1MB4000V1DXCA054VA1EVAF>
               payload SHALL 按普通文本原样插入且不弹出文件意图选择器
-              </?01M1H67CWQEPRE0P4F19F76A5P>
+              </?01M1MB4000V1DXCA054VA1EVAF>
             )>
             <Case #explicit-file-reference-becomes-part (
-              <Given ?01M1H67CWQEPRE0P4F19F76A5Q>
+              <Given ?01M1MB4000V1DXCA054VA1EVAG>
               用户通过 Ctrl+O 或 `@fs:` 显式选择一个或多个文件引用
-              </?01M1H67CWQEPRE0P4F19F76A5Q>
-              <When ?01M1H67CWQEPRE0P4F19F76A5R>
+              </?01M1MB4000V1DXCA054VA1EVAG>
+              <When ?01M1MB4000V1DXCA054VA1EVAH>
               Composer 接收该显式引用入口
-              </?01M1H67CWQEPRE0P4F19F76A5R>
-              <Then ?01M1H67CWQEPRE0P4F19F76A5S>
+              </?01M1MB4000V1DXCA054VA1EVAH>
+              <Then ?01M1MB4000V1DXCA054VA1EVAJ>
               每个有效文件 SHALL 直接成为独立 file-reference part 和可见引用块，无需再次弹出意图选择器
-              </?01M1H67CWQEPRE0P4F19F76A5S>
+              </?01M1MB4000V1DXCA054VA1EVAJ>
             )>
             <Case #clipboard-image-becomes-image-attachment (
-              <Given ?01M1H67CWQEPRE0P4F19F76A5T>
+              <Given ?01M1MB4000V1DXCA054VA1EVAK>
               剪贴板输入显式携带受支持的 image MIME 与二进制内容
-              </?01M1H67CWQEPRE0P4F19F76A5T>
-              <When ?01M1H67CWQEPRE0P4F19F76A5V>
+              </?01M1MB4000V1DXCA054VA1EVAK>
+              <When ?01M1MB4000V1DXCA054VA1EVAM>
               Composer 处理 paste 命令
-              </?01M1H67CWQEPRE0P4F19F76A5V>
-              <Then ?01M1H67CWQEPRE0P4F19F76A5W>
+              </?01M1MB4000V1DXCA054VA1EVAM>
+              <Then ?01M1MB4000V1DXCA054VA1EVAN>
               图片 SHALL 成为 image attachment part，而不是路径文本或 file reference
-              </?01M1H67CWQEPRE0P4F19F76A5W>
+              </?01M1MB4000V1DXCA054VA1EVAN>
             )>
             <Case #all-entry-points-share-part-shape (
-              <Given ?01M1H67CWQEPRE0P4F19F76A5X>
+              <Given ?01M1MB4000V1DXCA054VA1EVAP>
               同一附件分别由文件选择、显式引用或剪贴板图片加入
-              </?01M1H67CWQEPRE0P4F19F76A5X>
-              <When ?01M1H67CWQEPRE0P4F19F76A5Y>
+              </?01M1MB4000V1DXCA054VA1EVAP>
+              <When ?01M1MB4000V1DXCA054VA1EVAQ>
               Composer 建立附件
-              </?01M1H67CWQEPRE0P4F19F76A5Y>
-              <Then ?01M1H67CWQEPRE0P4F19F76A5Z>
+              </?01M1MB4000V1DXCA054VA1EVAQ>
+              <Then ?01M1MB4000V1DXCA054VA1EVAR>
               附件 SHALL 使用相同的 file part identity、MIME、source range 与 extmark lifecycle
-              </?01M1H67CWQEPRE0P4F19F76A5Z>
+              </?01M1MB4000V1DXCA054VA1EVAR>
             )>
           ]>
         )>
         <Suite #atomic-editing { name = "附件块编辑与计数" } (
           <Cases [
             <Case #backspace-deletes-whole-block [
-              <Then ?01M1H67CWQEPRE0P4F19F76A60>
+              <Then ?01M1MB4000V1DXCA054VA1EVAS>
               Composer SHALL 一次删除完整虚拟范围、extmark 与对应 structured part
-              </?01M1H67CWQEPRE0P4F19F76A60>
-              <Then ?01M1H67CWQEPRE0P4F19F76A61>
+              </?01M1MB4000V1DXCA054VA1EVAS>
+              <Then ?01M1MB4000V1DXCA054VA1EVAT>
               相邻普通文本和其他附件 SHALL 保持不变
-              </?01M1H67CWQEPRE0P4F19F76A61>
+              </?01M1MB4000V1DXCA054VA1EVAT>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A62>
+              <Given ?01M1MB4000V1DXCA054VA1EVAV>
               光标位于附件虚拟块之后
-              </?01M1H67CWQEPRE0P4F19F76A62>
-              <When ?01M1H67CWQEPRE0P4F19F76A63>
+              </?01M1MB4000V1DXCA054VA1EVAV>
+              <When ?01M1MB4000V1DXCA054VA1EVAW>
               用户按 Backspace
-              </?01M1H67CWQEPRE0P4F19F76A63>
+              </?01M1MB4000V1DXCA054VA1EVAW>
             )>
             <Case #delete-deletes-whole-block (
-              <Given ?01M1H67CWQEPRE0P4F19F76A64>
+              <Given ?01M1MB4000V1DXCA054VA1EVAX>
               光标位于附件虚拟块之前或 selection 覆盖附件块
-              </?01M1H67CWQEPRE0P4F19F76A64>
-              <When ?01M1H67CWQEPRE0P4F19F76A65>
+              </?01M1MB4000V1DXCA054VA1EVAX>
+              <When ?01M1MB4000V1DXCA054VA1EVAY>
               用户按 Delete 或删除 selection
-              </?01M1H67CWQEPRE0P4F19F76A65>
-              <Then ?01M1H67CWQEPRE0P4F19F76A66>
+              </?01M1MB4000V1DXCA054VA1EVAY>
+              <Then ?01M1MB4000V1DXCA054VA1EVAZ>
               Composer SHALL 一次删除整个附件块而不留下部分文件名或孤立 part
-              </?01M1H67CWQEPRE0P4F19F76A66>
+              </?01M1MB4000V1DXCA054VA1EVAZ>
             )>
             <Case #part-count-is-canonical [
-              <Then ?01M1H67CWQEPRE0P4F19F76A67>
+              <Then ?01M1MB4000V1DXCA054VA1EVB0>
               数量 SHALL 与 reconciliation 后的 canonical structured parts 数量一致
-              </?01M1H67CWQEPRE0P4F19F76A67>
-              <Then ?01M1H67CWQEPRE0P4F19F76A68>
+              </?01M1MB4000V1DXCA054VA1EVB0>
+              <Then ?01M1MB4000V1DXCA054VA1EVB1>
               同一 UI transaction 完成后 SHALL 不显示旧计数
-              </?01M1H67CWQEPRE0P4F19F76A68>
+              </?01M1MB4000V1DXCA054VA1EVB1>
             ] (
-              <Given ?01M1H67CWQEPRE0P4F19F76A69>
+              <Given ?01M1MB4000V1DXCA054VA1EVB2>
               附件被批量插入、原子删除、历史恢复或草稿清空
-              </?01M1H67CWQEPRE0P4F19F76A69>
-              <When ?01M1H67CWQEPRE0P4F19F76A6A>
+              </?01M1MB4000V1DXCA054VA1EVB2>
+              <When ?01M1MB4000V1DXCA054VA1EVB3>
               Composer 右下角渲染 parts 数量
-              </?01M1H67CWQEPRE0P4F19F76A6A>
+              </?01M1MB4000V1DXCA054VA1EVB3>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #recoverable-provider-switch (
-      <Statement ?01M1H67CWQEPRE0P4F19F76A6B>
+      <Statement ?01M1MB4000V1DXCA054VA1EVB4>
       TUI/CLI provider switching SHALL apply to the actual recovered actor through one complete provider transition; local admission or checkpoint failure SHALL remain visible and recoverable rather than silently sealing or stalling the session.
-      </?01M1H67CWQEPRE0P4F19F76A6B>
+      </?01M1MB4000V1DXCA054VA1EVB4>
       <Suites [
         <Suite #switch-and-recover { name = "模型切换与恢复" } (
           <Cases [
             <Case #codex-admission-observation-is-protocol-neutral (
-              <Given ?01M1H67CWQEPRE0P4F19F76A6C>
+              <Given ?01M1MB4000V1DXCA054VA1EVB5>
               Codex/OpenAI Responses transport succeeds without a DeepSeek cache observer.
-              </?01M1H67CWQEPRE0P4F19F76A6C>
-              <When ?01M1H67CWQEPRE0P4F19F76A6D>
+              </?01M1MB4000V1DXCA054VA1EVB5>
+              <When ?01M1MB4000V1DXCA054VA1EVB6>
               the successful turn commits provider evidence.
-              </?01M1H67CWQEPRE0P4F19F76A6D>
-              <Then ?01M1H67CWQEPRE0P4F19F76A6E>
+              </?01M1MB4000V1DXCA054VA1EVB6>
+              <Then ?01M1MB4000V1DXCA054VA1EVB7>
               common final-wire admission SHALL already provide requestDigest and MUST NOT fail as provider_request_admission_observation_required.
-              </?01M1H67CWQEPRE0P4F19F76A6E>
+              </?01M1MB4000V1DXCA054VA1EVB7>
             )>
             <Case #checkpoint-failure-is-visible (
-              <Given ?01M1H67CWQEPRE0P4F19F76A6F>
+              <Given ?01M1MB4000V1DXCA054VA1EVB8>
               provider transition checkpoint persistence fails.
-              </?01M1H67CWQEPRE0P4F19F76A6F>
-              <When ?01M1H67CWQEPRE0P4F19F76A6G>
+              </?01M1MB4000V1DXCA054VA1EVB8>
+              <When ?01M1MB4000V1DXCA054VA1EVB9>
               the runtime attempts to finish the turn.
-              </?01M1H67CWQEPRE0P4F19F76A6G>
-              <Then ?01M1H67CWQEPRE0P4F19F76A6H>
+              </?01M1MB4000V1DXCA054VA1EVB9>
+              <Then ?01M1MB4000V1DXCA054VA1EVBA>
               TUI/CLI SHALL expose a safe typed failure and preserve the last recoverable state; it MUST NOT swallow the error or appear indefinitely idle.
-              </?01M1H67CWQEPRE0P4F19F76A6H>
+              </?01M1MB4000V1DXCA054VA1EVBA>
             )>
             <Case #switch-back-after-failure (
-              <Given ?01M1H67CWQEPRE0P4F19F76A6J>
+              <Given ?01M1MB4000V1DXCA054VA1EVBB>
               one provider turn failed before a complete provider generation committed.
-              </?01M1H67CWQEPRE0P4F19F76A6J>
-              <When ?01M1H67CWQEPRE0P4F19F76A6K>
+              </?01M1MB4000V1DXCA054VA1EVBB>
+              <When ?01M1MB4000V1DXCA054VA1EVBC>
               the user selects Codex or DeepSeek and continues.
-              </?01M1H67CWQEPRE0P4F19F76A6K>
-              <Then ?01M1H67CWQEPRE0P4F19F76A6M>
+              </?01M1MB4000V1DXCA054VA1EVBC>
+              <Then ?01M1MB4000V1DXCA054VA1EVBD>
               the next turn SHALL use that selected adapter/profile from the last complete state without duplicate tool effects or stale-provider fallback.
-              </?01M1H67CWQEPRE0P4F19F76A6M>
+              </?01M1MB4000V1DXCA054VA1EVBD>
             )>
             <Case #actor-target-submit-drives-recovered-turn (
-              <Given ?01M1H67CWQEPRE0P4F19F76A6N>
+              <Given ?01M1MB4000V1DXCA054VA1EVBE>
               a restored TUI selects the Primary actor whose durable fiber is failed.
-              </?01M1H67CWQEPRE0P4F19F76A6N>
-              <When ?01M1H67CWQEPRE0P4F19F76A6P>
+              </?01M1MB4000V1DXCA054VA1EVBE>
+              <When ?01M1MB4000V1DXCA054VA1EVBF>
               the user submits a message through the actor-target surface.
-              </?01M1H67CWQEPRE0P4F19F76A6P>
-              <Then ?01M1H67CWQEPRE0P4F19F76A6Q>
+              </?01M1MB4000V1DXCA054VA1EVBF>
+              <Then ?01M1MB4000V1DXCA054VA1EVBG>
               the runtime SHALL durably enqueue the input, revive and drive that fiber through the shared interactive-turn lifecycle, and SHALL return a refreshed terminal projection or a visible closed error; it MUST NOT return idle with a UI-only message.
-              </?01M1H67CWQEPRE0P4F19F76A6Q>
+              </?01M1MB4000V1DXCA054VA1EVBG>
             )>
             <Case #restored-session-initialization-reports-actual-phase (
-              <Given ?01M1H67CWQEPRE0P4F19F76A6R>
+              <Given ?01M1MB4000V1DXCA054VA1EVBH>
               a restored session is preparing local runtime state before any MCP server startup.
-              </?01M1H67CWQEPRE0P4F19F76A6R>
-              <When ?01M1H67CWQEPRE0P4F19F76A6S>
+              </?01M1MB4000V1DXCA054VA1EVBH>
+              <When ?01M1MB4000V1DXCA054VA1EVBJ>
               Effective VFS, configuration or recovery initialization is still pending or fails.
-              </?01M1H67CWQEPRE0P4F19F76A6S>
-              <Then ?01M1H67CWQEPRE0P4F19F76A6T>
+              </?01M1MB4000V1DXCA054VA1EVBJ>
+              <Then ?01M1MB4000V1DXCA054VA1EVBK>
               the TUI SHALL identify the generic local-runtime preparation phase and SHALL report MCP initialization only after the runtime enters the actual MCP phase.
-              </?01M1H67CWQEPRE0P4F19F76A6T>
+              </?01M1MB4000V1DXCA054VA1EVBK>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #conversation-fork-interaction (
-      <Statement ?01M1H67CWQEPRE0P4F19F76A6V>
+      <Statement ?01M1MB4000V1DXCA054VA1EVBM>
       The TUI SHALL expose current-head fork from session surfaces and message-level fork from message surfaces through the same Conversation capability，and SHALL present proof or persistence rejection without losing the active source session.
-      </?01M1H67CWQEPRE0P4F19F76A6V>
+      </?01M1MB4000V1DXCA054VA1EVBM>
       <Suites [
         <Suite #fork-ui { name = "Session fork interaction" } (
           <Cases [
             <Case #session-action-forks-current-head (
-              <Given ?01M1H67CWQEPRE0P4F19F76A6W>
+              <Given ?01M1MB4000V1DXCA054VA1EVBN>
               the user chooses `[分叉会话]` from a session action or command palette
-              </?01M1H67CWQEPRE0P4F19F76A6W>
-              <When ?01M1H67CWQEPRE0P4F19F76A6X>
+              </?01M1MB4000V1DXCA054VA1EVBN>
+              <When ?01M1MB4000V1DXCA054VA1EVBP>
               the domain commit succeeds
-              </?01M1H67CWQEPRE0P4F19F76A6X>
-              <Then ?01M1H67CWQEPRE0P4F19F76A6Y>
+              </?01M1MB4000V1DXCA054VA1EVBP>
+              <Then ?01M1MB4000V1DXCA054VA1EVBQ>
               the TUI SHALL navigate to the committed child and show inherited history loaded from child persistence
-              </?01M1H67CWQEPRE0P4F19F76A6Y>
+              </?01M1MB4000V1DXCA054VA1EVBQ>
             )>
             <Case #message-action-forks-through-message (
-              <Given ?01M1H67CWQEPRE0P4F19F76A6Z>
+              <Given ?01M1MB4000V1DXCA054VA1EVBR>
               the user chooses `[分叉会话]` for a visible message that maps to a canonical committed record
-              </?01M1H67CWQEPRE0P4F19F76A6Z>
-              <When ?01M1H67CWQEPRE0P4F19F76A70>
+              </?01M1MB4000V1DXCA054VA1EVBR>
+              <When ?01M1MB4000V1DXCA054VA1EVBS>
               the domain commit succeeds
-              </?01M1H67CWQEPRE0P4F19F76A70>
-              <Then ?01M1H67CWQEPRE0P4F19F76A71>
+              </?01M1MB4000V1DXCA054VA1EVBS>
+              <Then ?01M1MB4000V1DXCA054VA1EVBT>
               the TUI SHALL navigate to a child whose visible history ends at the selected semantic boundary
-              </?01M1H67CWQEPRE0P4F19F76A71>
+              </?01M1MB4000V1DXCA054VA1EVBT>
             )>
             <Case #fork-rejection-remains-on-source (
-              <Given ?01M1H67CWQEPRE0P4F19F76A72>
+              <Given ?01M1MB4000V1DXCA054VA1EVBV>
               fork-point proof、source CAS或persistence admission fails
-              </?01M1H67CWQEPRE0P4F19F76A72>
-              <When ?01M1H67CWQEPRE0P4F19F76A73>
+              </?01M1MB4000V1DXCA054VA1EVBV>
+              <When ?01M1MB4000V1DXCA054VA1EVBW>
               the TUI receives the typed rejection
-              </?01M1H67CWQEPRE0P4F19F76A73>
-              <Then ?01M1H67CWQEPRE0P4F19F76A74>
+              </?01M1MB4000V1DXCA054VA1EVBW>
+              <Then ?01M1MB4000V1DXCA054VA1EVBX>
               the TUI SHALL remain on the source session、display an actionable error and refresh lists without a partial child；a missing message id MUST NOT silently fall back to the current head
-              </?01M1H67CWQEPRE0P4F19F76A74>
+              </?01M1MB4000V1DXCA054VA1EVBX>
             )>
           ]>
         )>
       ]>
     )>
     <Requirement #conversation-rewind-interaction (
-      <Statement ?01M1H67CWQEPRE0P4F19F76A75>
+      <Statement ?01M1MB4000V1DXCA054VA1EVBY>
       The local-runtime TUI SHALL implement revert through a durable Conversation command；a successful revert SHALL exclude all later messages from the next provider request，a failed command SHALL show a typed error without optimistic truncation，and unrevert SHALL NOT pretend to restore domain state.
-      </?01M1H67CWQEPRE0P4F19F76A75>
+      </?01M1MB4000V1DXCA054VA1EVBY>
       <Suites [
         <Suite #rewind-ui { name = "Session rewind interaction" } (
           <Cases [
             <Case #revert-commits-before-removing-ui (
-              <Given ?01M1H67CWQEPRE0P4F19F76A76>
+              <Given ?01M1MB4000V1DXCA054VA1EVBZ>
               the user selects a message in the timeline
-              </?01M1H67CWQEPRE0P4F19F76A76>
-              <When ?01M1H67CWQEPRE0P4F19F76A77>
+              </?01M1MB4000V1DXCA054VA1EVBZ>
+              <When ?01M1MB4000V1DXCA054VA1EVC0>
               revert is activated
-              </?01M1H67CWQEPRE0P4F19F76A77>
-              <Then ?01M1H67CWQEPRE0P4F19F76A78>
+              </?01M1MB4000V1DXCA054VA1EVC0>
+              <Then ?01M1MB4000V1DXCA054VA1EVC1>
               the TUI SHALL await the domain receipt、rehydrate persisted history and only then emit removed-message projections
-              </?01M1H67CWQEPRE0P4F19F76A78>
+              </?01M1MB4000V1DXCA054VA1EVC1>
             )>
             <Case #unrevert-does-not-fake-domain-restore (
-              <Given ?01M1H67CWQEPRE0P4F19F76A79>
+              <Given ?01M1MB4000V1DXCA054VA1EVC2>
               a durable rewind completed
-              </?01M1H67CWQEPRE0P4F19F76A79>
-              <When ?01M1H67CWQEPRE0P4F19F76A7A>
+              </?01M1MB4000V1DXCA054VA1EVC2>
+              <When ?01M1MB4000V1DXCA054VA1EVC3>
               unrevert is requested in local-runtime
-              </?01M1H67CWQEPRE0P4F19F76A7A>
-              <Then ?01M1H67CWQEPRE0P4F19F76A7B>
+              </?01M1MB4000V1DXCA054VA1EVC3>
+              <Then ?01M1MB4000V1DXCA054VA1EVC4>
               the TUI SHALL report that branch restore is unsupported and MUST NOT merely clear a UI flag
-              </?01M1H67CWQEPRE0P4F19F76A7B>
+              </?01M1MB4000V1DXCA054VA1EVC4>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #responsive-session-catalog-interaction (
+      <Statement ?01M1MB4000V1DXCA054VA1EVC5>
+      Terminal TUI 的会话列表、重命名与恢复交互 SHALL 对长会话保持响应；重命名成功后 SHALL 在会话列表立即展示新标题，弹窗生命周期结束后 MUST NOT 访问已销毁的 OpenTUI renderable 或 EditBuffer。
+      </?01M1MB4000V1DXCA054VA1EVC5>
+      <Suites [
+        <Suite #session-catalog-ui { name = "Responsive and lifecycle-safe session catalog" } (
+          <Cases [
+            <Case #rename-visible-without-restart (
+              <Given ?01M1MB4000V1DXCA054VA1EVC6>
+              会话列表中的一个会话被用户重命名
+              </?01M1MB4000V1DXCA054VA1EVC6>
+              <When ?01M1MB4000V1DXCA054VA1EVC7>
+              runtime 确认标题 sidecar 已更新
+              </?01M1MB4000V1DXCA054VA1EVC7>
+              <Then ?01M1MB4000V1DXCA054VA1EVC8>
+              TUI SHALL 回到会话列表并从 session.updated 投影展示新标题，无需退出或重启
+              </?01M1MB4000V1DXCA054VA1EVC8>
+            )>
+            <Case #restore-not-serialized-behind-catalog (
+              <Given ?01M1MB4000V1DXCA054VA1EVC9>
+              用户恢复一个指定会话，同时工作区还包含其他长会话
+              </?01M1MB4000V1DXCA054VA1EVC9>
+              <When ?01M1MB4000V1DXCA054VA1EVCA>
+              TUI bootstrap 加载当前会话和 session catalog
+              </?01M1MB4000V1DXCA054VA1EVCA>
+              <Then ?01M1MB4000V1DXCA054VA1EVCB>
+              当前会话的定向 hydration SHALL NOT 串行等待所有会话的目录扫描完成
+              </?01M1MB4000V1DXCA054VA1EVCB>
+            )>
+            <Case #destroyed-dialog-focus-is-ignored (
+              <Given ?01M1MB4000V1DXCA054VA1EVCC>
+              session list 或 rename prompt 安排了延迟 focus，随后 dialog 被 replace、clear 或 unmount
+              </?01M1MB4000V1DXCA054VA1EVCC>
+              <When ?01M1MB4000V1DXCA054VA1EVCD>
+              延迟回调或异步 confirm 完成
+              </?01M1MB4000V1DXCA054VA1EVCD>
+              <Then ?01M1MB4000V1DXCA054VA1EVCE>
+              系统 MUST 忽略过期回调并保持当前 dialog 焦点，MUST NOT 抛出 EditBuffer is destroyed
+              </?01M1MB4000V1DXCA054VA1EVCE>
+            )>
+            <Case #restored-history-has-content-tools-and-authoritative-model (
+              <Given ?01M1MB4000V1DXCA054VA1EVCF>
+              用户选中一个具有 compaction 历史、tool-call request/result 且 active Actor 记录为 DeepSeek provider epoch 的旧会话
+              </?01M1MB4000V1DXCA054VA1EVCF>
+              <When ?01M1MB4000V1DXCA054VA1EVCG>
+              TUI 完整恢复该会话消息
+              </?01M1MB4000V1DXCA054VA1EVCG>
+              <Then ?01M1MB4000V1DXCA054VA1EVCH>
+              系统 SHALL 展示正文、reasoning 和合并后的工具卡片，MUST NOT 展示空 ASSISTANT 卡片；消息模型标签 SHALL 使用 Actor provider epoch 的 DeepSeek provider/model 而非当前全局默认模型
+              </?01M1MB4000V1DXCA054VA1EVCH>
+            )>
+            <Case #restored-long-history-has-bounded-renderer-listeners (
+              <Given ?01M1MB4000V1DXCA054VA1EVCJ>
+              用户恢复包含大量普通消息和工具摘要卡片的长会话
+              </?01M1MB4000V1DXCA054VA1EVCJ>
+              <When ?01M1MB4000V1DXCA054VA1EVCK>
+              TUI 同时挂载这些历史消息卡片并响应终端尺寸
+              </?01M1MB4000V1DXCA054VA1EVCK>
+              <Then ?01M1MB4000V1DXCA054VA1EVCM>
+              CliRenderer.resize listener 数量 SHALL 保持常数，不得随消息卡片数增长或产生 MaxListenersExceededWarning
+              </?01M1MB4000V1DXCA054VA1EVCM>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+    <Requirement #virtualized-incremental-session-history (
+      <Statement ?01M1MB4000V1DXCA054VA1EVCN>
+      Terminal TUI SHALL 以尾页首屏、上滚增量读取和 viewport/overscan window 挂载展示长会话；已加载历史总量增长时，OpenTUI message-card renderable 数 SHALL 保持有界，prepend 页面 SHALL 保持用户可见锚点。
+      </?01M1MB4000V1DXCA054VA1EVCN>
+      <Suites [
+        <Suite #incremental-history-navigation { name = "Incremental virtual history navigation" } (
+          <Cases [
+            <Case #restore-mounts-tail-window-only (
+              <Given ?01M1MB4000V1DXCA054VA1EVCP>
+              用户恢复包含大量或超长消息卡片的会话
+              </?01M1MB4000V1DXCA054VA1EVCP>
+              <When ?01M1MB4000V1DXCA054VA1EVCQ>
+              TUI 展示首屏
+              </?01M1MB4000V1DXCA054VA1EVCQ>
+              <Then ?01M1MB4000V1DXCA054VA1EVCR>
+              TUI SHALL 只读取最新页并仅挂载 viewport 加 overscan 窗口，MUST NOT 同时创建全部历史卡片 renderable
+              </?01M1MB4000V1DXCA054VA1EVCR>
+            )>
+            <Case #restored-tool-cards-use-bounded-previews (
+              <Given ?01M1MB4000V1DXCA054VA1EVCS>
+              恢复页包含超长 shell output、edit diff、write content 或 context resource
+              </?01M1MB4000V1DXCA054VA1EVCS>
+              <When ?01M1MB4000V1DXCA054VA1EVCT>
+              对应工具卡片首次挂载
+              </?01M1MB4000V1DXCA054VA1EVCT>
+              <Then ?01M1MB4000V1DXCA054VA1EVCV>
+              TUI SHALL 只渲染有界预览并允许显式展开，虚拟高度估算 SHALL 与折叠态一致
+              </?01M1MB4000V1DXCA054VA1EVCV>
+            )>
+            <Case #scroll-up-loads-and-keeps-anchor (
+              <Given ?01M1MB4000V1DXCA054VA1EVCW>
+              当前页仍有更早历史且用户接近滚动顶部
+              </?01M1MB4000V1DXCA054VA1EVCW>
+              <When ?01M1MB4000V1DXCA054VA1EVCX>
+              TUI 加载并 prepend 上一页
+              </?01M1MB4000V1DXCA054VA1EVCX>
+              <Then ?01M1MB4000V1DXCA054VA1EVCY>
+              请求 SHALL 去重，原可见消息 SHALL 保持在相同 viewport 位置，用户可持续上滚直至首条消息
+              </?01M1MB4000V1DXCA054VA1EVCY>
+            )>
+            <Case #live-tail-does-not-steal-old-history-position (
+              <Given ?01M1MB4000V1DXCA054VA1EVCZ>
+              用户正在浏览旧历史页且 live turn 追加消息
+              </?01M1MB4000V1DXCA054VA1EVCZ>
+              <When ?01M1MB4000V1DXCA054VA1EVD0>
+              分页窗口 reconcile durable/live identity
+              </?01M1MB4000V1DXCA054VA1EVD0>
+              <Then ?01M1MB4000V1DXCA054VA1EVD1>
+              TUI SHALL 去重并更新尾部状态但 MUST NOT 抢占滚动位置；仅在用户位于底部时继续 sticky follow
+              </?01M1MB4000V1DXCA054VA1EVD1>
+            )>
+            <Case #session-switch-discards-old-page-results (
+              <Given ?01M1MB4000V1DXCA054VA1EVD2>
+              上一会话的分页请求尚未完成
+              </?01M1MB4000V1DXCA054VA1EVD2>
+              <When ?01M1MB4000V1DXCA054VA1EVD3>
+              用户切换会话或 history snapshot 改变
+              </?01M1MB4000V1DXCA054VA1EVD3>
+              <Then ?01M1MB4000V1DXCA054VA1EVD4>
+              旧响应 SHALL 被代际丢弃，MUST NOT 拼接到当前会话窗口
+              </?01M1MB4000V1DXCA054VA1EVD4>
             )>
           ]>
         )>

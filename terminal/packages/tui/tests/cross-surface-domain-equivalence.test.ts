@@ -84,6 +84,9 @@ function sharedDomainProjectionPort(history: ConversationHistoryProjection): Con
     async loadHistoryProjection() {
       return history
     },
+    async loadHistorySummaryProjection() {
+      return { source: "empty", observedBytes: 0, sourceBytes: 0 }
+    },
     async loadSessionProjection() {
       return session
     },

@@ -330,6 +330,38 @@ function pendingNonCheckpointEffectIds(events: AiRuntimeEffectLifecycleEvent[]):
     .filter((effectId) => effectKinds.get(effectId) !== "runtime_checkpoint")
 }
 
+function pendingRuntimeCheckpointEffects(events: AiRuntimeEffectLifecycleEvent[]): Array<{
+  effectId: string
+  handlerKey: string
+}> {
+  const effectKinds = new Map<string, AiRuntimeEffectLifecycleEvent["effectKind"]>()
+  for (const event of events) effectKinds.set(event.effectId, event.effectKind)
+  return Object.values(rebuildEffectsFromLifecycleEvidence(events))
+    .filter((effect) => effectKinds.get(effect.effectId) === "runtime_checkpoint")
+    .filter((effect) => effect.status === "requested" || effect.status === "waiting" || effect.status === "dispatching")
+    .map((effect) => ({
+      effectId: effect.effectId,
+      handlerKey: effect.handlerKey || FILE_STORE_RUNTIME_CONCRETE_CHECKPOINT_HANDLER_KEY,
+    }))
+}
+
+async function terminalizeInterruptedRuntimeCheckpointEffects(sessionDir: string): Promise<void> {
+  const events = await readRuntimeControlEffectEvidence(sessionDir)
+  for (const effect of pendingRuntimeCheckpointEffects(events)) {
+    await recordAiRuntimeEffectLifecycleEvent({
+      sessionDir,
+      event: {
+        kind: "failed",
+        effectKind: "runtime_checkpoint",
+        effectId: effect.effectId,
+        handlerKey: effect.handlerKey,
+        error: "runtime_checkpoint_interrupted_before_commit",
+        retryable: true,
+      },
+    })
+  }
+}
+
 async function readPendingNonCheckpointEffectsAtSequence(params: {
   sessionDir: string
   sequence: number
@@ -490,6 +522,13 @@ export async function upgradeFileStoreAiRuntimeSessionToOwnedCheckpoint(input: {
   }
 
   await migrateLegacyAppendOnlySessionFilesToXnl({ sessionDir: input.sessionDir })
+  if (!previousCheckpoint) {
+    // A process can stop after the checkpoint request is durable but before the
+    // first cohort marker is written. The current durable heads remain the
+    // authority; close only that interrupted checkpoint attempt explicitly so
+    // the normal upgrade can establish the initial owned checkpoint.
+    await terminalizeInterruptedRuntimeCheckpointEffects(input.sessionDir)
+  }
   const migratedRecovery = await classifyFileStoreCheckpointPrefix({
     sessionDir: input.sessionDir,
     cohortId,
@@ -591,7 +630,11 @@ export async function dryRunFileStoreAiRuntimeSessionUpgrade(input: {
     commitMarkers: checkpointMarker ? { [cohortId]: checkpointMarker } : {},
     effects: rebuildEffectsFromLifecycleEvidence(effectEvidence),
   })
-  const blocking = recovery.blockers.filter((blocker) => blocker.reason !== "missing_commit_marker")
+  const pendingCheckpointIds = new Set(pendingRuntimeCheckpointEffects(effectEvidence).map((effect) => effect.effectId))
+  const blocking = recovery.blockers.filter((blocker) => (
+    blocker.reason !== "missing_commit_marker"
+    && !(blocker.reason === "effect_pending" && blocker.effectId && pendingCheckpointIds.has(blocker.effectId))
+  ))
 
   return {
     status: "dry_run",

@@ -49,6 +49,78 @@ function tool(
 }
 
 describe("tui_a1 tool card render", () => {
+  it("shares one renderer resize listener across a long list of framed messages", async () => {
+    const messages = [
+      ...Array.from({ length: 12 }, (_, index) => ({
+        id: `history-${index}`,
+        kind: "assistant" as const,
+        createdAt: now + index,
+        text: `restored message ${index}`,
+      })),
+      ...Array.from({ length: 12 }, (_, index) => ({
+        id: `summary-${index}`,
+        kind: "tool" as const,
+        source: "summary" as const,
+        tool: "history-summary",
+        createdAt: now + index,
+        status: "done" as const,
+        summary: `restored tool summary ${index}`,
+      })),
+    ]
+    const setup = await testRender(
+      () => (
+        <box width="100%" height="100%">
+          <MessageCards messages={messages as any} />
+        </box>
+      ),
+      {
+        width: 80,
+        height: 20,
+      },
+    )
+
+    try {
+      await setup.renderOnce()
+      expect(setup.renderer.listenerCount("resize")).toBeLessThanOrEqual(1)
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("mounts only the viewport/overscan message-card window", async () => {
+    const messages = Array.from({ length: 300 }, (_, index) => ({
+      id: `virtual-${index}`,
+      kind: "assistant" as const,
+      createdAt: now + index,
+      text: `virtual message ${index}`,
+    }))
+    const setup = await testRender(
+      () => (
+        <box width="100%" height="100%">
+          <MessageCards
+            messages={messages}
+            viewport={{ scrollTop: () => 0, height: () => 20, width: () => 80 }}
+          />
+        </box>
+      ),
+      { width: 80, height: 20 },
+    )
+    try {
+      await setup.renderOnce()
+      const text = setup.captureSpans().lines
+        .map((line) => line.spans.map((span) => span.text).join(""))
+        .join("\n")
+      const rendered = text.match(/virtual message \d+/g) ?? []
+      expect(rendered.length).toBeGreaterThan(0)
+      expect(rendered.length).toBeLessThan(30)
+      expect(text).toContain("virtual message 0")
+      expect(text).not.toContain("virtual message 299")
+      expect(setup.renderer.listenerCount("resize")).toBeLessThanOrEqual(1)
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
   it("renders message cards with full header and end time on open horizontal borders", async () => {
     const completedAt = now + 65_000
     const setup = await testRender(
@@ -353,6 +425,66 @@ describe("tui_a1 tool card render", () => {
       expect(text).toContain("line-24")
       expect(text).toContain("Click to expand")
       expect(text).not.toContain("line-80")
+    } finally {
+      setup.renderer.destroy()
+    }
+  })
+
+  it("bounds restored edit diffs and single-line shell output until explicitly expanded", async () => {
+    const longDiff = ["@@ -1,80 +1,80 @@", ...Array.from({ length: 80 }, (_, index) => `+line-${index + 1}`)].join("\n")
+    const longShellLine = `shell-start-${"x".repeat(8_000)}-shell-end`
+    const setup = await testRender(
+      () => (
+        <sessionContext.Provider
+          value={{
+            width: 120,
+            sessionID: "ses_1",
+            directory: process.cwd(),
+            conceal: () => false,
+            activePermissionCallID: undefined,
+            showThinking: () => true,
+            showTimestamps: () => true,
+            showDetails: () => true,
+            diffWrapMode: () => "word",
+            keybindLabel: () => "",
+            navigateToSession: () => {},
+            agentColor: () => RGBA.fromHex("#5ba8ff"),
+          }}
+        >
+          <box width="100%" height="100%">
+            <MessageCards
+              messages={[
+                tool(
+                  "long-edit",
+                  "edit",
+                  { filePath: "~/tmp/demo3/Long.java" },
+                  { diff: longDiff },
+                  "Edited file successfully.",
+                ),
+                tool(
+                  "long-shell",
+                  "bash",
+                  { command: "produce-one-huge-line" },
+                  { output: longShellLine },
+                  longShellLine,
+                ),
+              ] as any}
+            />
+          </box>
+        </sessionContext.Provider>
+      ),
+      { width: 120, height: 120 },
+    )
+
+    try {
+      await setup.renderOnce()
+      const text = setup.captureCharFrame()
+      expect(text).toContain("line-1")
+      expect(text).toContain("line-23")
+      expect(text).not.toContain("line-80")
+      expect(text).toContain("shell-start")
+      expect(text).not.toContain("shell-end")
+      expect(text.match(/Click to expand/g)?.length).toBe(2)
     } finally {
       setup.renderer.destroy()
     }

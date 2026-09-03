@@ -1010,6 +1010,12 @@ function legacyJournalCandidateOffsets(
       offsets.push(offset)
       break
     }
+    if (allowedTags.length === 0) {
+      const tagStart = offset + 1
+      let tagEnd = tagStart
+      while (tagEnd < tail.bytes.length && !isXnlTagDelimiter(tail.bytes[tagEnd])) tagEnd += 1
+      if (tagEnd > tagStart && isXnlTagDelimiter(tail.bytes[tagEnd])) offsets.push(offset)
+    }
   }
   return offsets
 }
@@ -1037,6 +1043,264 @@ function parseLegacyJournalTail(
     }
   }
   return null
+}
+
+export type XnlEdgeRecordsProjection = {
+  readonly exists: boolean
+  readonly fileSize: number
+  readonly observedBytes: number
+  readonly head: ReadonlyArray<XnlStreamRecord>
+  readonly tail: ReadonlyArray<XnlStreamRecord>
+}
+
+const DEFAULT_XNL_EDGE_WINDOW_BYTES = 64 * 1024
+
+function parseCompleteXnlRecordsFromWindow(
+  window: BoundedJournalTail,
+  allowedTags: readonly string[],
+): XnlStreamRecord[] {
+  return parseCompleteXnlRecordEntriesFromWindow(window, allowedTags).map((entry) => entry.record)
+}
+
+type ParsedXnlRecordEntry = {
+  record: XnlStreamRecord
+  startOffset: number
+  endOffset: number
+}
+
+function parseCompleteXnlRecordEntriesFromWindow(
+  window: BoundedJournalTail,
+  allowedTags: readonly string[],
+  includeAllTags = false,
+): ParsedXnlRecordEntry[] {
+  const allowed = new Set(allowedTags)
+  // Boundaries must include every top-level record, not only requested tags.
+  // Otherwise a mixed stream A -> B -> A makes the slice for A contain B too,
+  // and both valid A records disappear from pagination.
+  const offsets = legacyJournalCandidateOffsets(window, [])
+  const records: ParsedXnlRecordEntry[] = []
+  for (let index = 0; index < offsets.length; index += 1) {
+    const start = offsets[index]
+    const end = offsets[index + 1] ?? window.bytes.length
+    try {
+      const doc = parseXnl(window.bytes.subarray(start, end).toString("utf8"))
+      const nodes = Array.isArray(doc.nodes) ? doc.nodes : []
+      if (nodes.length !== 1) continue
+      const node = nodes[0] as any
+      if ((node?.kind !== "DataElement" && node?.kind !== "TextElement")
+        || (!includeAllTags && !allowed.has(node.tag))) continue
+      records.push({
+        record: xnlTopLevelNodeToRecord(node),
+        startOffset: window.startOffset + start,
+        endOffset: window.startOffset + end,
+      })
+    } catch {
+      // A window may begin/end inside a record. Only parser-proven complete
+      // top-level records are returned to callers.
+    }
+  }
+  return records
+}
+
+export type XnlRecordPageEntry = {
+  readonly record: XnlStreamRecord
+  readonly startOffset: number
+  readonly endOffset: number
+}
+
+export type XnlRecordPageProjection = {
+  readonly exists: boolean
+  readonly fileSize: number
+  readonly observedBytes: number
+  readonly records: ReadonlyArray<XnlRecordPageEntry>
+  readonly previousOffset: number | null
+  readonly hasPreviousPage: boolean
+  readonly oversizedRecord: boolean
+}
+
+const DEFAULT_XNL_PAGE_LIMIT = 40
+const DEFAULT_XNL_PAGE_MAX_OBSERVED_BYTES = 4 * 1024 * 1024
+
+/**
+ * Read one reverse page from an append-only XNL stream without materializing
+ * the whole document. `beforeOffset` is an adapter-private, parser-proven
+ * record boundary returned by a previous call. Records are returned in source
+ * order even though the file is scanned backwards.
+ */
+export async function readXnlRecordPage(input: {
+  filePath: string
+  tags: string | readonly string[]
+  beforeOffset?: number | null
+  limit?: number
+  windowBytes?: number
+  maxObservedBytes?: number
+}): Promise<XnlRecordPageProjection> {
+  const allowedTags = typeof input.tags === "string" ? [input.tags] : [...input.tags]
+  const limit = Math.max(1, Math.floor(input.limit ?? DEFAULT_XNL_PAGE_LIMIT))
+  const maxObservedBytes = Math.max(1, Math.floor(
+    input.maxObservedBytes ?? DEFAULT_XNL_PAGE_MAX_OBSERVED_BYTES,
+  ))
+  const windowBytes = Math.min(
+    maxObservedBytes,
+    Math.max(1024, Math.floor(input.windowBytes ?? DEFAULT_XNL_EDGE_WINDOW_BYTES)),
+  )
+  let handle: Awaited<ReturnType<typeof open>> | null = null
+  try {
+    handle = await open(input.filePath, "r")
+    const fileSize = (await handle.stat()).size
+    let scanEnd = Math.min(fileSize, Math.max(0, Math.floor(input.beforeOffset ?? fileSize)))
+    const newestFirst: ParsedXnlRecordEntry[] = []
+    const seenOffsets = new Set<number>()
+    let observedBytes = 0
+    let oversizedRecord = false
+
+    const readRange = async (startOffset: number, endOffset: number): Promise<BoundedJournalTail> => {
+      const length = Math.max(0, endOffset - startOffset)
+      const bytes = Buffer.allocUnsafe(length)
+      let bytesRead = 0
+      while (bytesRead < length) {
+        const result = await handle!.read(bytes, bytesRead, length - bytesRead, startOffset + bytesRead)
+        if (result.bytesRead === 0) break
+        bytesRead += result.bytesRead
+      }
+      observedBytes += bytesRead
+      return { exists: true, fileSize, startOffset, bytes: bytes.subarray(0, bytesRead) }
+    }
+
+    while (scanEnd > 0 && newestFirst.length < limit && observedBytes < maxObservedBytes) {
+      let scanStart = scanEnd
+      let accumulated = Buffer.alloc(0)
+      let entries: ParsedXnlRecordEntry[] = []
+      while (scanStart > 0 && observedBytes < maxObservedBytes) {
+        const readLength = Math.min(windowBytes, scanStart, maxObservedBytes - observedBytes)
+        const nextStart = scanStart - readLength
+        const chunk = await readRange(nextStart, scanStart)
+        accumulated = Buffer.concat([chunk.bytes, accumulated])
+        scanStart = nextStart
+        const window: BoundedJournalTail = {
+          exists: true,
+          fileSize,
+          startOffset: scanStart,
+          bytes: accumulated,
+        }
+        const boundaryEntries = parseCompleteXnlRecordEntriesFromWindow(window, allowedTags, true)
+        entries = boundaryEntries.filter((entry) => allowedTags.includes(entry.record.tag))
+        if (boundaryEntries.length > 0 || scanStart === 0) {
+          if (entries.length === 0) {
+            const oldestBoundaryStart = boundaryEntries[0]?.startOffset
+            scanEnd = oldestBoundaryStart ?? scanStart
+          }
+          break
+        }
+      }
+
+      if (entries.length === 0 && scanStart > 0 && observedBytes >= maxObservedBytes) {
+        // Do not advance past an unparsed record. The caller must surface the
+        // explicit budget condition instead of silently omitting history.
+        oversizedRecord = true
+        break
+      }
+
+      for (let index = entries.length - 1; index >= 0 && newestFirst.length < limit; index -= 1) {
+        const entry = entries[index]
+        if (seenOffsets.has(entry.startOffset)) continue
+        seenOffsets.add(entry.startOffset)
+        newestFirst.push(entry)
+      }
+
+      const oldestCompleteStart = entries[0]?.startOffset
+      if (oldestCompleteStart !== undefined && oldestCompleteStart < scanEnd) {
+        scanEnd = oldestCompleteStart
+      } else if (entries.length > 0) {
+        scanEnd = scanStart
+      }
+    }
+
+    const records = newestFirst.reverse()
+    const previousOffset = oversizedRecord ? null : (records[0]?.startOffset ?? (scanEnd > 0 ? scanEnd : null))
+    return {
+      exists: true,
+      fileSize,
+      observedBytes,
+      records,
+      previousOffset,
+      hasPreviousPage: previousOffset !== null && previousOffset > 0,
+      oversizedRecord,
+    }
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === "ENOENT") {
+      return {
+        exists: false,
+        fileSize: 0,
+        observedBytes: 0,
+        records: [],
+        previousOffset: null,
+        hasPreviousPage: false,
+        oversizedRecord: false,
+      }
+    }
+    throw error
+  } finally {
+    await handle?.close().catch(() => {})
+  }
+}
+
+/**
+ * Read parser-valid records from fixed-size head/tail windows of an append-only
+ * XNL stream. This is a projection helper: it never interprets truncated edge
+ * bytes as records and never expands the window to the full source size.
+ */
+export async function readXnlEdgeRecords(input: {
+  filePath: string
+  tags: string | readonly string[]
+  windowBytes?: number
+}): Promise<XnlEdgeRecordsProjection> {
+  const allowedTags = typeof input.tags === "string" ? [input.tags] : [...input.tags]
+  const windowBytes = Math.max(1, Math.floor(input.windowBytes ?? DEFAULT_XNL_EDGE_WINDOW_BYTES))
+  let handle: Awaited<ReturnType<typeof open>> | null = null
+  try {
+    handle = await open(input.filePath, "r")
+    const fileSize = (await handle.stat()).size
+    const headLength = Math.min(fileSize, windowBytes)
+    const tailStart = Math.max(0, fileSize - windowBytes)
+    const tailLength = fileSize - tailStart
+
+    const readWindow = async (startOffset: number, length: number): Promise<BoundedJournalTail> => {
+      const bytes = Buffer.allocUnsafe(length)
+      let bytesRead = 0
+      while (bytesRead < length) {
+        const result = await handle!.read(bytes, bytesRead, length - bytesRead, startOffset + bytesRead)
+        if (result.bytesRead === 0) break
+        bytesRead += result.bytesRead
+      }
+      return {
+        exists: true,
+        fileSize,
+        startOffset,
+        bytes: bytes.subarray(0, bytesRead),
+      }
+    }
+
+    const headWindow = await readWindow(0, headLength)
+    const sameWindow = tailStart === 0
+    const tailWindow = sameWindow ? headWindow : await readWindow(tailStart, tailLength)
+    return {
+      exists: true,
+      fileSize,
+      observedBytes: headWindow.bytes.length + (sameWindow ? 0 : tailWindow.bytes.length),
+      head: parseCompleteXnlRecordsFromWindow(headWindow, allowedTags),
+      tail: sameWindow
+        ? parseCompleteXnlRecordsFromWindow(headWindow, allowedTags)
+        : parseCompleteXnlRecordsFromWindow(tailWindow, allowedTags),
+    }
+  } catch (error) {
+    if ((error as { code?: unknown })?.code === "ENOENT") {
+      return { exists: false, fileSize: 0, observedBytes: 0, head: [], tail: [] }
+    }
+    throw error
+  } finally {
+    await handle?.close().catch(() => {})
+  }
 }
 
 function legacyJournalRecordCount(

@@ -363,6 +363,9 @@ function sharedRecoveredDomainPort(history: ConversationHistoryProjection): Conv
     async loadHistoryProjection() {
       return history
     },
+    async loadHistorySummaryProjection() {
+      return { source: "empty", observedBytes: 0, sourceBytes: 0 }
+    },
     async loadSessionProjection() {
       return {
         sessionId: INCIDENT_SESSION_ID,

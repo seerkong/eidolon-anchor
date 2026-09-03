@@ -20,6 +20,19 @@ import {
 function makeStubPort(): ConversationProjectionReadPort {
   return {
     loadHistoryProjection: async () => ({ source: "empty", messages: [] }),
+    loadHistoryPageProjection: async () => ({
+      status: "ok",
+      source: "empty",
+      messages: [],
+      pageInfo: {
+        snapshotId: "snapshot",
+        startCursor: null,
+        hasPreviousPage: false,
+      },
+      observedBytes: 0,
+      sourceBytes: 0,
+    }),
+    loadHistorySummaryProjection: async () => ({ source: "empty", observedBytes: 0, sourceBytes: 0 }),
     loadSessionProjection: async () => ({
       sessionId: "s",
       actorBindings: {},
@@ -65,14 +78,14 @@ describe("ConversationProjectionReadPort: read-only method surface", () => {
     expect(isConversationProjectionReadPort(stub)).toBe(true)
     // Adding any write-shaped method is unnecessary for conformance: the guard
     // only ever checks for the read views.
-    expect(CONVERSATION_PROJECTION_READ_PORT_METHODS.length).toBe(4)
+    expect(CONVERSATION_PROJECTION_READ_PORT_METHODS.length).toBe(5)
   })
 
   it("a value missing a read method is not a ConversationProjectionReadPort", () => {
     const notAPort = {
       loadHistoryProjection: async () => ({ source: "empty", messages: [] }),
       loadSessionProjection: async () => ({}),
-      // loadActorProjection + loadPendingQuestionsProjection missing
+      // summary/actor/pending projections missing
     }
     expect(isConversationProjectionReadPort(notAPort)).toBe(false)
   })

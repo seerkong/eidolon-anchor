@@ -1,0 +1,176 @@
+<Track #add-paginated-virtual-session-history apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让任意长度的会话都能以有界文件读取、有界 UI 挂载和连续上滚的方式快速恢复与浏览。" description = "为 Conversation projection 增加 snapshot-bound cursor 分页，使用 XNL 合法记录窗口读取，并把 TUI 会话历史升级为尾页首屏、viewport/overscan window 挂载和上滚增量加载。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-03T06:31:10.905Z" updated_at = "2026-09-03T09:58:16.164Z" modeling_base_commit = "f4eb811928db233f4a9dcc513d4821bfdeac9853" engineering_base_commit = "f4eb811928db233f4a9dcc513d4821bfdeac9853" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+    <MaterialBundle #conversation_projection { role = "input" name = "conversation-projection" domain = "code" path = "vfs://@/cell/packages/" }>
+    <MaterialBundle #terminal_tui { role = "input" name = "terminal-tui" domain = "code" path = "vfs://@/terminal/packages/" }>
+    <MaterialBundle #verification { role = "output" name = "verification" domain = "test" path = "vfs://@/" }>
+  ]>
+  <TaskSpace #space_add-paginated-virtual-session-history { name = "add-paginated-virtual-session-history" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "分页与窗口行为基线" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M1JZQEA819EKJ416CBYHH4X4>
+        先以失败测试锁定 cursor snapshot、文件观察字节、上滚请求去重、prepend anchor 和 renderable 数量上限。
+        </?01M1JZQEA819EKJ416CBYHH4X4>
+        <SubNodes [
+          <Task #P1-T1 { name = "定义分页 projection 契约与 RED cases" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4X5>
+            为只读 Port 增加 page query/result，并覆盖尾页、前页、stale cursor、visible generation 与有界读取。
+            </?01M1JZQEA819EKJ416CBYHH4X5>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4X6>
+              契约测试能证明 cursor 不透明、结果只读并携带 snapshot/page boundary。
+              </?01M1JZQEA819EKJ416CBYHH4X6>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4X7>
+              本地实现测试可检测完整 history loader 或超预算整文件读取。
+              </?01M1JZQEA819EKJ416CBYHH4X7>
+            ]>
+          )>
+          <Task #P1-T2 { name = "定义 history window 与滚动 RED cases" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4X8>
+            建立纯状态机及渲染测试，覆盖尾页、增量 prepend、anchor、overscan/spacer、会话代际和 live 去重。
+            </?01M1JZQEA819EKJ416CBYHH4X8>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4X9>
+              测试证明接近顶部只发一个 previous-page 请求且 prepend 后锚点不跳。
+              </?01M1JZQEA819EKJ416CBYHH4X9>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XA>
+              数百条已加载消息下实际挂载卡片数保持 viewport/overscan 有界。
+              </?01M1JZQEA819EKJ416CBYHH4XA>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "有界 XNL 历史分页" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M1JZQEA819EKJ416CBYHH4XB>
+        在文件逻辑与 Conversation adapter 中实现 parser-proven record paging、快照绑定与消息解码。
+        </?01M1JZQEA819EKJ416CBYHH4XB>
+        <SubNodes [
+          <Task #P2-T1 { name = "实现 XNL record page reader" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4XC>
+            按绝对记录边界倒序读取窗口，处理半记录、多窗口和受控 oversize record。
+            </?01M1JZQEA819EKJ416CBYHH4XC>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XD>
+              reader 返回正序完整记录、绝对边界和 previous cursor，绝不解析截断 XNL。
+              </?01M1JZQEA819EKJ416CBYHH4XD>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XE>
+              常规多 MB 文件的尾页/上一页 observedBytes 受页预算约束。
+              </?01M1JZQEA819EKJ416CBYHH4XE>
+            ]>
+          )>
+          <Task #P2-T2 { name = "实现 Conversation history page projection" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4XF>
+            按 actor visible generations/lineage 过滤、去重、解码，并拒绝 generation snapshot 不匹配的 cursor。
+            </?01M1JZQEA819EKJ416CBYHH4XF>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XG>
+              连续翻页可无重无漏到达第一条可见消息。
+              </?01M1JZQEA819EKJ416CBYHH4XG>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XH>
+              rewind/compaction/fork 后旧 cursor typed stale，隐藏分支尾部不泄漏。
+              </?01M1JZQEA819EKJ416CBYHH4XH>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "TUI 分页窗口与增量滚动" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M1JZQEA819EKJ416CBYHH4XJ>
+        贯通 TerminalRuntime、TuiRuntimeClient 和主视图，只读尾页首屏并以 window/spacer 挂载卡片。
+        </?01M1JZQEA819EKJ416CBYHH4XJ>
+        <SubNodes [
+          <Task #P3-T1 { name = "贯通 runtime session history page API" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4XK>
+            bridge 与 session.messages 支持 page 请求/metadata，主恢复改用尾页且兼容旧调用。
+            </?01M1JZQEA819EKJ416CBYHH4XK>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XM>
+              主视图加载会话只请求尾页，不触发完整 history UI hydration。
+              </?01M1JZQEA819EKJ416CBYHH4XM>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XN>
+              现有无 cursor 调用及命令面板行为保持兼容。
+              </?01M1JZQEA819EKJ416CBYHH4XN>
+            ]>
+          )>
+          <Task #P3-T2 { name = "实现 viewport window、spacer 与测量" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4XP>
+            按 viewport/overscan 选择消息卡片，缓存高度并用上下 spacer 保持连续滚动几何。
+            </?01M1JZQEA819EKJ416CBYHH4XP>
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XQ>
+              挂载卡片数与 viewport 成比例且 resize listener 数保持常数。
+              </?01M1JZQEA819EKJ416CBYHH4XQ>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XR>
+              变高卡片测量后 spacer 与窗口边界可稳定校正。
+              </?01M1JZQEA819EKJ416CBYHH4XR>
+            ]>
+          )>
+          <Task #P3-T3 { name = "实现上滚加载、锚点和代际取消" status = "DONE" priority = "P0" order = 2 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4XS>
+            顶部阈值加载前页，保持 prepend anchor，并丢弃切换会话或 snapshot 改变后的迟到响应。
+            </?01M1JZQEA819EKJ416CBYHH4XS>
+            <Acceptance [
+              <Criterion #P3-T3-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XT>
+              连续上滚能到达首条消息，加载中不重复发请求且视图不跳。
+              </?01M1JZQEA819EKJ416CBYHH4XT>
+              <Criterion #P3-T3-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XV>
+              浏览旧页时 live 追加不抢位置，切会话不串页。
+              </?01M1JZQEA819EKJ416CBYHH4XV>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "长会话验收与收敛" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M1JZQEA819EKJ416CBYHH4XW>
+        运行分页、窗口、现有 session/fork/rewind/TUI 回归、构建、严格校验和 coding attractor 独立检查。
+        </?01M1JZQEA819EKJ416CBYHH4XW>
+        <SubNodes [
+          <Task #P4-T1 { name = "完成长会话集成与性能回归" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4XX>
+            验证大 XNL 首屏、持续上滚、live reconcile、session switch、listener/renderable budget。
+            </?01M1JZQEA819EKJ416CBYHH4XX>
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XY>
+              focused 与影响面测试证明读取字节、缓存消息和挂载 renderable 均有界。
+              </?01M1JZQEA819EKJ416CBYHH4XY>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4XZ>
+              fork/rewind/compaction、模型身份、工具卡片和目录摘要回归全部通过。
+              </?01M1JZQEA819EKJ416CBYHH4XZ>
+            ]>
+          )>
+          <Task #P4-T2 { name = "完成 build、strict validation 与独立审查" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1JZQEA819EKJ416CBYHH4Y0>
+            运行受影响 packages build/typecheck、Codument strict validation 并处理 attractor 发现。
+            </?01M1JZQEA819EKJ416CBYHH4Y0>
+            <Acceptance [
+              <Criterion #P4-T2-AC1 { checked = true } ?01M1JZQEA819EKJ416CBYHH4Y1>
+              terminal/cell 受影响构建与测试、codument validate --strict 通过。
+              </?01M1JZQEA819EKJ416CBYHH4Y1>
+              <Criterion #P4-T2-AC2 { checked = true } ?01M1JZQEA819EKJ416CBYHH4Y2>
+              独立 coding attractor 未发现阻塞性架构、生命周期或性能 gap。
+              </?01M1JZQEA819EKJ416CBYHH4Y2>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule { max_concurrent = 1 spot_check = true } [
+    <Dag { for = "space_add-paginated-virtual-session-history" } [
+      <Node #P2 [
+        <After { ref = "P1" }>
+      ]>
+      <Node #P3 [
+        <After { ref = "P2" }>
+      ]>
+      <Node #P4 [
+        <After { ref = "P3" }>
+      ]>
+    ]>
+  ]>
+  <Hooks []>
+)>

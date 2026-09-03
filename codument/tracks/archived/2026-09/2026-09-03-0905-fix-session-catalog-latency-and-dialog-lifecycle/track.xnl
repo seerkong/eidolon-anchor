@@ -1,0 +1,173 @@
+<Track #fix-session-catalog-latency-and-dialog-lifecycle apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "让长会话的目录列举、重命名与完整恢复都保持正确、轻量和生命周期安全。" description = "以轻量 Session Summary sidecar 拆分目录投影与完整 history hydration，解耦恢复 bootstrap，修复 session list/rename prompt 的焦点生命周期竞态，并保证选中会话后完整恢复消息、工具卡片及 Actor provider/model 身份，且消息数量不会线性放大 renderer 级事件监听器。" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-02T16:25:13.477Z" updated_at = "2026-09-03T06:05:02.223Z" modeling_base_commit = "f4eb811928db233f4a9dcc513d4821bfdeac9853" engineering_base_commit = "f4eb811928db233f4a9dcc513d4821bfdeac9853" } (
+  <Ports { scope = "track" } [
+    <MaterialBundle #behavior_deltas { role = "input" name = "behavior-deltas" domain = "behavior" path = "vfs://./behavior_deltas/" }>
+  ]>
+  <TaskSpace #space_fix-session-catalog-latency-and-dialog-lifecycle { name = "fix-session-catalog-latency-and-dialog-lifecycle" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "行为基线与失败测试" status = "DONE" priority = "P0" order = 0 } (
+        <Description ?01M1HFAYG5WJZ7VACRZ0AX43ZH>
+        建立长历史目录读放大、重命名投影延迟、恢复 bootstrap 串行阻塞和销毁后 focus 的可重复失败基线。
+        </?01M1HFAYG5WJZ7VACRZ0AX43ZH>
+        <SubNodes [
+          <Task #P1-T1 { name = "添加 session summary 读边界失败测试" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1HFAYG5WJZ7VACRZ0AX43ZJ>
+            用 recording ConversationProjectionReadPort 与大 history 哨兵锁定 session.list/session.update 不应读取完整 history，并覆盖 legacy sidecar。
+            </?01M1HFAYG5WJZ7VACRZ0AX43ZJ>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX43ZK>
+              session.list 的测试能检测任何 loadHistoryProjection 调用。
+              </?01M1HFAYG5WJZ7VACRZ0AX43ZK>
+              <Criterion #P1-T1-AC2 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX43ZM>
+              session.update 的测试能检测任何 history/runtime hydration，并校验 session.updated 与 durable title。
+              </?01M1HFAYG5WJZ7VACRZ0AX43ZM>
+            ]>
+          )>
+          <Task #P1-T2 { name = "添加 bootstrap 与 dialog 生命周期失败测试" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1HFAYG5WJZ7VACRZ0AX43ZN>
+            用 deferred session list 证明定向恢复不应被目录串行阻塞，并复现 dialog replace/clear 后延迟 focus 访问销毁 renderable。
+            </?01M1HFAYG5WJZ7VACRZ0AX43ZN>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX43ZP>
+              bootstrap 测试能独立观察 current-session hydration 与 deferred catalog completion。
+              </?01M1HFAYG5WJZ7VACRZ0AX43ZP>
+              <Criterion #P1-T2-AC2 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX43ZQ>
+              dialog 测试覆盖 prompt 和 session list 的销毁后 focus，且修复前可复现异常。
+              </?01M1HFAYG5WJZ7VACRZ0AX43ZQ>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P2 { name = "轻量会话摘要投影" status = "DONE" priority = "P0" order = 1 } (
+        <Description ?01M1HFAYG5WJZ7VACRZ0AX43ZR>
+        实现有界 Session Summary sidecar、轻量目录读取、稳定边界回填和 bootstrap 解耦。
+        </?01M1HFAYG5WJZ7VACRZ0AX43ZR>
+        <SubNodes [
+          <Task #P2-T1 { name = "实现轻量 summary 读写与兼容" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1HFAYG5WJZ7VACRZ0AX43ZS>
+            扩展 tui-session.json schema，隔离目录 summary 读取与完整 history hydration，并在定向 hydration/稳定 turn 边界回填。
+            </?01M1HFAYG5WJZ7VACRZ0AX43ZS>
+            <Acceptance [
+              <Criterion #P2-T1-AC1 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX43ZT>
+              列举、搜索、重命名会话均不调用 loadHistoryProjection。
+              </?01M1HFAYG5WJZ7VACRZ0AX43ZT>
+              <Criterion #P2-T1-AC2 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX43ZV>
+              旧 sidecar 可读，完整 hydration 后写入有限长度 preview/time，Conversation authority 不变。
+              </?01M1HFAYG5WJZ7VACRZ0AX43ZV>
+            ]>
+          )>
+          <Task #P2-T2 { name = "解耦恢复 bootstrap 与 session catalog" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1HFAYG5WJZ7VACRZ0AX43ZW>
+            让指定会话的恢复准备不再串行等待完整 session list，同时保持目录最终一致地进入 sync store。
+            </?01M1HFAYG5WJZ7VACRZ0AX43ZW>
+            <Acceptance [
+              <Criterion #P2-T2-AC1 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX43ZX>
+              deferred session.list 不阻止 syncCurrentSessionIfNeeded 开始。
+              </?01M1HFAYG5WJZ7VACRZ0AX43ZX>
+              <Criterion #P2-T2-AC2 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX43ZY>
+              目录完成后仍正确 reconcile，初始化失败可观察。
+              </?01M1HFAYG5WJZ7VACRZ0AX43ZY>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P3 { name = "重命名交互与焦点生命周期" status = "DONE" priority = "P0" order = 2 } (
+        <Description ?01M1HFAYG5WJZ7VACRZ0AX43ZZ>
+        使重命名结果立即回到列表可见，并统一保护过期 dialog focus/async completion。
+        </?01M1HFAYG5WJZ7VACRZ0AX43ZZ>
+        <SubNodes [
+          <Task #P3-T1 { name = "修复 dialog renderable 生命周期" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1HFAYG5WJZ7VACRZ0AX4400>
+            取消组件级延迟 focus，在执行前检查 mounted/isDestroyed，并阻止旧 prompt 的异步完成清理新 dialog。
+            </?01M1HFAYG5WJZ7VACRZ0AX4400>
+            <Acceptance [
+              <Criterion #P3-T1-AC1 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX4401>
+              replace/clear/unmount 后的 timer 不调用已销毁 input/textarea。
+              </?01M1HFAYG5WJZ7VACRZ0AX4401>
+              <Criterion #P3-T1-AC2 { checked = true } ?01M1HFAYG5WJZ7VACRZ0AX4402>
+              旧 async confirm 完成不会关闭或抢焦点于更新的 dialog。
+              </?01M1HFAYG5WJZ7VACRZ0AX4402>
+            ]>
+          )>
+          <Task #P3-T2 { name = "完成 rename 返回列表与全量回归" status = "DONE" priority = "P0" order = 1 } (
+            <Description ?01M1HFAYG6ZDQVAZVWFCD3H7D1>
+            重命名成功后显示更新后的 session list，运行 TUI 定向测试、完整 TUI 测试与 terminal build。
+            </?01M1HFAYG6ZDQVAZVWFCD3H7D1>
+            <Acceptance [
+              <Criterion #P3-T2-AC1 { checked = true } ?01M1HFAYG6ZDQVAZVWFCD3H7D2>
+              重命名无需重启即可在列表看到新标题。
+              </?01M1HFAYG6ZDQVAZVWFCD3H7D2>
+              <Criterion #P3-T2-AC2 { checked = true } ?01M1HFAYG6ZDQVAZVWFCD3H7D3>
+              相关定向测试、terminal TUI 测试和 build 全部通过。
+              </?01M1HFAYG6ZDQVAZVWFCD3H7D3>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P4 { name = "旧会话有界首尾预览兼容" status = "DONE" priority = "P0" order = 3 } (
+        <Description ?01M1HFPREVIEWEDGE000000001>
+        修正旧会话缺失 sidecar preview 时的体验退化，通过只读投影端口从 history.xnl 有界首尾窗口提取合法、当前可见的消息记录。
+        </?01M1HFPREVIEWEDGE000000001>
+        <SubNodes [
+          <Task #P4-T1 { name = "实现有界 HistorySummaryProjection 并恢复目录预览" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1HFPREVIEWEDGE000000002>
+            为 ConversationProjectionReadPort 增加摘要读取视图，本地适配器只读取固定大小首尾窗口、丢弃截断记录并按 active visible generations 过滤；session catalog 在 sidecar 缺失时使用该视图并保持完整 history loader 零调用。
+            </?01M1HFPREVIEWEDGE000000002>
+            <Acceptance [
+              <Criterion #P4-T1-AC1 { checked = true } ?01M1HFPREVIEWEDGE000000003>
+              大 history.xnl 且无 preview sidecar 时，session.list 立即返回第一条用户消息和最近消息，读取字节数受固定窗口约束且不调用 loadHistoryProjection。
+              </?01M1HFPREVIEWEDGE000000003>
+              <Criterion #P4-T1-AC2 { checked = true } ?01M1HFPREVIEWEDGE000000004>
+              窗口边缘的半条 XNL 被忽略；fork 后第一条消息来自 lineage 根会话，rewind/fork 后最近消息仅从当前 active actor 的 visible generations 选择。
+              </?01M1HFPREVIEWEDGE000000004>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P5 { name = "完整会话恢复投影修复" status = "DONE" priority = "P0" order = 4 } (
+        <Description ?01M1HJRESTOREPROJECTION0001>
+        修复选中长会话后的完整 history 到 TUI 消息投影：消除 tool-call/tool-result ID 冲突和空卡片，并从 Conversation Actor authority 恢复 provider/model 身份。
+        </?01M1HJRESTOREPROJECTION0001>
+        <SubNodes [
+          <Task #P5-T1 { name = "还原工具消息与历史模型身份" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1HJRESTOREPROJECTION0002>
+            为 tool-call request/result 建立与实时链路一致的单卡片恢复投影，使用唯一历史消息/part ID 防止 compaction 重复记录互相删除，并以 active Actor 的 provider epoch receipt 作为缺少逐消息 provenance 时的模型身份 authority。
+            </?01M1HJRESTOREPROJECTION0002>
+            <Acceptance [
+              <Criterion #P5-T1-AC1 { checked = true } ?01M1HJRESTOREPROJECTION0003>
+              含 tool-call-only assistant 与后续 tool result 的历史恢复后 SHALL 展示有输入和结果的工具卡片，MUST NOT 生成空 ASSISTANT 卡片；经过 compaction 的重复 toolCallId MUST NOT 造成保留消息 parts 被裁剪删除。
+              </?01M1HJRESTOREPROJECTION0003>
+              <Criterion #P5-T1-AC2 { checked = true } ?01M1HJRESTOREPROJECTION0004>
+              恢复消息的 provider/model SHALL 来自该 active Actor 的 provider epoch receipt；现场 deepseek 会话 MUST NOT 被当前全局默认模型 fhl_mom/gpt-5.6-sol 覆盖。
+              </?01M1HJRESTOREPROJECTION0004>
+              <Criterion #P5-T1-AC3 { checked = true } ?01M1HJRESTOREPROJECTION0005>
+              session catalog 的有界读取边界、完整 session.messages hydration、fork/rewind 与实时消息投影回归 SHALL 保持通过。
+              </?01M1HJRESTOREPROJECTION0005>
+            ]>
+          )>
+        ]>
+      )>
+      <TaskGroup #P6 { name = "长历史渲染监听器收敛" status = "DONE" priority = "P0" order = 5 } (
+        <Description ?01M1HKRESIZELISTENER000001>
+        修复完整历史挂载时消息卡片按实例订阅 CliRenderer.resize 的监听器扇出，保持尺寸响应能力并消除 MaxListenersExceededWarning。
+        </?01M1HKRESIZELISTENER000001>
+        <SubNodes [
+          <Task #P6-T1 { name = "共享消息卡片终端尺寸订阅" status = "DONE" priority = "P0" order = 0 } (
+            <Description ?01M1HKRESIZELISTENER000002>
+            将消息卡片的 terminal dimensions 从每卡片独立 Hook 改为消息列表边界单次订阅并向下传递，同时保持容器实测宽度优先和 resize 后 frame 重排。
+            </?01M1HKRESIZELISTENER000002>
+            <Acceptance [
+              <Criterion #P6-T1-AC1 { checked = true } ?01M1HKRESIZELISTENER000003>
+              同时渲染超过十张普通或摘要工具消息卡片时，CliRenderer.resize listener 增量 SHALL 为常数且 MUST NOT 随消息数量线性增长或触发 MaxListenersExceededWarning。
+              </?01M1HKRESIZELISTENER000003>
+              <Criterion #P6-T1-AC2 { checked = true } ?01M1HKRESIZELISTENER000004>
+              消息卡片 SHALL 继续优先使用实际容器宽度构造边框，并在终端 resize 后正确使用共享 fallback 宽度；完整恢复、工具卡片及 TUI surface 回归 SHALL 通过。
+              </?01M1HKRESIZELISTENER000004>
+            ]>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

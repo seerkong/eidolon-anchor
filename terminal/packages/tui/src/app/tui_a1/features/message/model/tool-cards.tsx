@@ -90,20 +90,22 @@ function useExpandableTextPreview(raw: () => string, options?: { maxLines?: numb
   const [expanded, setExpanded] = createSignal(false)
   const maxLines = options?.maxLines ?? TOOL_TEXT_PREVIEW_LINES
   const maxChars = options?.maxChars ?? TOOL_TEXT_PREVIEW_CHARS
-  const normalized = createMemo(() => stripAnsi(String(raw() ?? "")).trim())
   const preview = createMemo(() => {
-    const text = normalized()
-    const lines = text.split("\n")
-    let limited = lines.slice(0, maxLines).join("\n")
-    let truncated = lines.length > maxLines
-    if (limited.length > maxChars) {
-      limited = limited.slice(0, maxChars)
-      truncated = true
+    const source = String(raw() ?? "")
+    if (expanded()) {
+      return { text: stripAnsi(source).trim(), truncated: false, expanded: true }
     }
+    // Bound the source before ANSI normalization and line splitting. Restored
+    // tool results can be megabytes; previewing them must not synchronously scan
+    // the entire payload on every runtime-status render.
+    const prefix = source.slice(0, maxChars + 1)
+    const lines = prefix.split("\n")
+    const limited = stripAnsi(lines.slice(0, maxLines).join("\n").slice(0, maxChars)).trim()
+    const truncated = source.length > maxChars || lines.length > maxLines
     return {
-      text: expanded() || !truncated ? text : `${limited}\n...`,
+      text: truncated ? `${limited}\n...` : limited,
       truncated,
-      expanded: expanded(),
+      expanded: false,
     }
   })
 
@@ -115,14 +117,10 @@ function useExpandableTextPreview(raw: () => string, options?: { maxLines?: numb
 
 function BashCard(props: ToolCardProps<any>) {
   const ctx = useSessionContext()
-  const output = createMemo(() => stripAnsi(props.metadata.output?.trim() ?? ""))
-  const [expanded, setExpanded] = createSignal(false)
-  const lines = createMemo(() => output().split("\n"))
-  const overflow = createMemo(() => lines().length > 10)
-  const limited = createMemo(() => {
-    if (expanded() || !overflow()) return output()
-    return [...lines().slice(0, 10), "…"].join("\n")
-  })
+  const output = useExpandableTextPreview(
+    () => props.metadata.output?.trim() ?? "",
+    { maxLines: 10, maxChars: TOOL_TEXT_PREVIEW_CHARS },
+  )
   const workdirDisplay = createMemo(() => {
     const workdir = props.input.workdir
     if (!workdir || workdir === ".") return undefined
@@ -145,12 +143,16 @@ function BashCard(props: ToolCardProps<any>) {
   return (
     <Switch>
       <Match when={props.metadata.output !== undefined}>
-        <BlockTool title={title()} part={props.part} onClick={overflow() ? () => setExpanded((prev) => !prev) : undefined}>
+        <BlockTool
+          title={title()}
+          part={props.part}
+          onClick={output.preview().truncated ? output.toggle : undefined}
+        >
           <box gap={1}>
             <text fg={theme.text}>$ {props.input.command}</text>
-            <text fg={theme.text}>{limited()}</text>
-            <Show when={overflow()}>
-              <text fg={theme.textMuted}>{expanded() ? "Click to collapse" : "Click to expand"}</text>
+            <text fg={theme.text}>{output.preview().text}</text>
+            <Show when={output.preview().truncated}>
+              <text fg={theme.textMuted}>{output.preview().expanded ? "Click to collapse" : "Click to expand"}</text>
             </Show>
           </box>
         </BlockTool>
@@ -379,7 +381,10 @@ function EditCard(props: ToolCardProps<any>) {
     return ctx.width > 120 ? "split" : "unified"
   })
   const ft = createMemo(() => filetype(props.input.filePath))
-  const diffContent = createMemo(() => props.metadata.diff)
+  const diffContent = useExpandableTextPreview(
+    () => String(props.metadata.diff ?? ""),
+    { maxLines: TOOL_TEXT_PREVIEW_LINES, maxChars: TOOL_TEXT_PREVIEW_CHARS },
+  )
   const diagnostics = createMemo(() => {
     const filePath = Filesystem.normalizePath(props.input.filePath ?? "")
     const arr = props.metadata.diagnostics?.[filePath] ?? []
@@ -388,10 +393,14 @@ function EditCard(props: ToolCardProps<any>) {
   return (
     <Switch>
       <Match when={props.metadata.diff !== undefined}>
-        <BlockTool title={`← Edit ${normalizePath(props.input.filePath!)}`} part={props.part}>
+        <BlockTool
+          title={`← Edit ${normalizePath(props.input.filePath!)}`}
+          part={props.part}
+          onClick={diffContent.preview().truncated ? diffContent.toggle : undefined}
+        >
           <box paddingLeft={1}>
             <diff
-              diff={diffContent()}
+              diff={diffContent.preview().text}
               view={view()}
               filetype={ft()}
               syntaxStyle={syntax}
@@ -410,6 +419,9 @@ function EditCard(props: ToolCardProps<any>) {
               removedLineNumberBg={theme.diffRemovedLineNumberBg}
             />
           </box>
+          <Show when={diffContent.preview().truncated}>
+            <text fg={theme.textMuted}>{diffContent.preview().expanded ? "Click to collapse" : "Click to expand"}</text>
+          </Show>
           <Show when={diagnostics().length}>
             <box>
               <For each={diagnostics()}>

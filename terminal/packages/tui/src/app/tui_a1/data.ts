@@ -303,20 +303,6 @@ export function runtimeMessagesToTuiA1Messages(
 
     flushAssistantText()
 
-    if (items.length === 0) {
-      items.push({
-        id: message.id,
-        kind: "assistant",
-        createdAt: message.time.created,
-        completedAt: message.time.completed,
-        parentID: message.parentID,
-        text: "",
-        mode: message.mode,
-        streaming: !message.time.completed,
-        selection,
-      } satisfies TuiA1Message)
-    }
-
     return items
   })
 }

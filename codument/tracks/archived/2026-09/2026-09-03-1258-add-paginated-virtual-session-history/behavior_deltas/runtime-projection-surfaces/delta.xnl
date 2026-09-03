@@ -1,0 +1,35 @@
+<BehaviorPatch #track.add-paginated-virtual-session-history.behavior_patch.runtime-projection-surfaces apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime-projection-surfaces" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime-projection-surfaces/requirements/paginated-conversation-history-projection" } (
+      <Requirement #paginated-conversation-history-projection (
+        <Statement ?>Conversation history hydration SHALL 提供只读、有界、cursor 化的分页投影；会话首屏读取 MUST NOT 先完整物化 history，cursor MUST 绑定 active actor 的可见 generation 快照，过期 cursor MUST NOT 泄漏 rewind、fork 或 compaction 后不可见的记录。</?>
+        <Suites [
+          <Suite #bounded-history-pages { name = "Bounded conversation history pages" } (
+            <Cases [
+              <Case #latest-page-is-bounded (
+                <Given ?>active actor 拥有远大于单页的持久化 XNL history</?>
+                <When ?>surface 请求无 cursor 的 history page</?>
+                <Then ?>projection SHALL 只返回最新一页正序消息和 previous-page cursor，观察字节 SHALL 受单页窗口预算约束，MUST NOT 调用完整 history materializer</?>
+              )>
+              <Case #previous-page-preserves-visible-order (
+                <Given ?>surface 持有上一页返回的 opaque cursor</?>
+                <When ?>surface 请求更早一页</?>
+                <Then ?>projection SHALL 返回无重复、正序且只属于 active actor visible generations 的消息，直至第一条时 hasPreviousPage=false</?>
+              )>
+              <Case #stale-cursor-rejected (
+                <Given ?>cursor 创建后发生 rewind、fork repair 或 compaction，使 visible generation snapshot 改变</?>
+                <When ?>surface 使用旧 cursor 请求页面</?>
+                <Then ?>projection SHALL 返回 typed stale-cursor 结果，MUST NOT 混入旧分支尾部或静默拼接不同快照</?>
+              )>
+              <Case #auxiliary-user-input-history-is-bounded (
+                <Given ?>TUI 恢复长会话并需要最近的 Composer 输入历史</?>
+                <When ?>surface 加载 user-input history</?>
+                <Then ?>surface SHALL 复用 snapshot cursor 分页投影并受条目数与观察字节预算约束，MUST NOT 为辅助输入历史完整物化 actor raw state</?>
+              )>
+            ]>
+          )>
+        ]>
+      )>
+    )>
+  ]>
+)>

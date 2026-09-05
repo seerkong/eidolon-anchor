@@ -10,10 +10,12 @@ import path from "path";
 import {
   PRESENT_CONFIG_FILE_NAME,
   PROVIDER_CONFIG_FILE_NAME,
+  resolveActorModelConfig,
+} from "@cell/ai-core-logic/llm/ModelConfigRules";
+import {
   loadPresentConfig,
   loadProviderCatalog,
-  resolveActorModelConfig,
-} from "@cell/ai-organ-logic/llm/ModelConfigOps";
+} from "./LocalModelConfigFiles";
 
 function homeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || require("os").homedir();

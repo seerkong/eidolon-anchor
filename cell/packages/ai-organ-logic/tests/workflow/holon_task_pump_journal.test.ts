@@ -1,14 +1,34 @@
 import { afterEach, describe, expect, it } from "bun:test"
 import { createHash } from "node:crypto"
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { canonicalOwnDataDigest } from "task-manager-contract"
 
 import {
-  FileHolonTaskPumpJournal,
+  createHolonTaskPumpJournal,
+  type HolonTaskPumpJournalFaultObserver,
   createHolonTaskPumpDispatchIntent,
 } from "../../src/organization/HolonTaskPumpJournal"
+
+import { FileHolonTaskPumpJournalStore } from "@cell/ai-support/organization/FileHolonTaskPumpJournalStore"
+
+function fileJournal(options: Readonly<{
+  supportRoot: string
+  lockTimeoutMs?: number
+  now?: () => number
+  faults?: HolonTaskPumpJournalFaultObserver
+}>) {
+  const now = options.now ?? Date.now
+  return createHolonTaskPumpJournal({
+    store: new FileHolonTaskPumpJournalStore({ now }, {
+      supportRoot: options.supportRoot,
+      lockTimeoutMs: options.lockTimeoutMs,
+    }),
+    now,
+    faults: options.faults,
+  })
+}
 
 const roots: string[] = []
 
@@ -39,7 +59,7 @@ function intent() {
 describe("FileHolonTaskPumpJournal", () => {
   it("persists neutral v2 subscriptions for fresh reconstruction and exact scope queries", async () => {
     const supportRoot = await root()
-    const first = new FileHolonTaskPumpJournal({ supportRoot })
+    const first = fileJournal({ supportRoot })
     const subscriptionInput = {
       admissionId: "admission-review",
       deploymentId: "deployment-review",
@@ -72,7 +92,7 @@ describe("FileHolonTaskPumpJournal", () => {
       createdAt: "2026-01-01T00:00:02.000Z",
     })
 
-    const reconstructed = new FileHolonTaskPumpJournal({ supportRoot })
+    const reconstructed = fileJournal({ supportRoot })
     expect(subscribed.schemaVersion).toBe("eidolon.holon-task-pump/v2")
     expect(replayedAtLaterObservation).toEqual(subscribed)
     expect(await reconstructed.listSubscriptions()).toEqual([subscribed])
@@ -116,7 +136,7 @@ describe("FileHolonTaskPumpJournal", () => {
     )
     await writeFile(target, bytes)
 
-    const [projected] = await new FileHolonTaskPumpJournal({ supportRoot })
+    const [projected] = await fileJournal({ supportRoot })
       .listSubscriptions("run-review")
     expect(projected).toMatchObject({
       schemaVersion: "eidolon.holon-task-pump/v2",
@@ -135,8 +155,8 @@ describe("FileHolonTaskPumpJournal", () => {
 
   it("serializes concurrent dispatch and replays one durable accepted result", async () => {
     const supportRoot = await root()
-    const first = new FileHolonTaskPumpJournal({ supportRoot })
-    const second = new FileHolonTaskPumpJournal({ supportRoot })
+    const first = fileJournal({ supportRoot })
+    const second = fileJournal({ supportRoot })
     let effects = 0
     const effect = async () => {
       effects += 1
@@ -153,7 +173,7 @@ describe("FileHolonTaskPumpJournal", () => {
     expect(left.receipt).toEqual(right.receipt)
     expect([left.replayed, right.replayed].sort()).toEqual([false, true])
 
-    const reconstructed = new FileHolonTaskPumpJournal({ supportRoot })
+    const reconstructed = fileJournal({ supportRoot })
     const replayed = await reconstructed.dispatch(intent(), async () => {
       throw new Error("durable result must suppress a repeated effect")
     })
@@ -173,21 +193,21 @@ describe("FileHolonTaskPumpJournal", () => {
       accepted.set(idempotencyKey, output)
       return output
     }
-    const faulted = new FileHolonTaskPumpJournal({
+    const faulted = fileJournal({
       supportRoot,
       faults: { afterEffect: () => { throw new Error("INJECTED_EFFECT_RESULT_CRASH") } },
     })
     await expect(faulted.dispatch(intent(), effect)).rejects.toThrow(/INJECTED_EFFECT_RESULT_CRASH/)
     expect(acceptedEffects).toBe(1)
 
-    const recovered = await new FileHolonTaskPumpJournal({ supportRoot }).dispatch(intent(), effect)
+    const recovered = await fileJournal({ supportRoot }).dispatch(intent(), effect)
     expect(recovered.receipt.output).toEqual({ summary: "durably-accepted" })
     expect(acceptedEffects).toBe(1)
   })
 
   it("rejects a re-signed intent whose closed input changed", async () => {
     const supportRoot = await root()
-    const journal = new FileHolonTaskPumpJournal({ supportRoot })
+    const journal = fileJournal({ supportRoot })
     const authentic = intent()
     await expect(journal.dispatch({
       ...authentic,
@@ -195,5 +215,90 @@ describe("FileHolonTaskPumpJournal", () => {
     }, async () => ({ summary: "must-not-run" }))).rejects.toMatchObject({
       code: "EIDOLON_HOLON_PUMP_JOURNAL_TAMPERED",
     })
+  })
+})
+
+describe("FileHolonTaskPumpJournalStore physical boundary", () => {
+  const filename = (identity: string) => createHash("sha256").update(identity, "utf8").digest("hex")
+
+  it("retains original hashed filenames, byte conflict errors, modes and listing order", async () => {
+    const supportRoot = await root()
+    const store = new FileHolonTaskPumpJournalStore({ now: Date.now }, { supportRoot })
+    const identities = ["../opaque-id", "é", "identity-A"]
+    for (const identity of identities) {
+      await store.writeImmutable("subscriptions", identity, new TextEncoder().encode(identity))
+    }
+    const directory = path.join(supportRoot, "holon-task-pump", "subscriptions")
+    const expected = identities.map((identity) => ({ name: `${filename(identity)}.json`, identity }))
+      .sort((left, right) => left.name < right.name ? -1 : left.name > right.name ? 1 : 0)
+    expect((await readdir(directory)).sort()).toEqual(expected.map((entry) => entry.name))
+    expect((await store.list("subscriptions")).map((bytes) => new TextDecoder().decode(bytes)))
+      .toEqual(expected.map((entry) => entry.identity))
+    expect((await stat(directory)).mode & 0o777).toBe(0o700)
+    expect((await stat(path.join(directory, expected[0]!.name))).mode & 0o777).toBe(0o600)
+    const identity = identities[0]!
+    const original = await store.read("subscriptions", identity)
+    await store.writeImmutable("subscriptions", identity, original)
+    await expect(store.writeImmutable("subscriptions", identity, new TextEncoder().encode("different")))
+      .rejects.toMatchObject({
+        code: "EIDOLON_HOLON_PUMP_JOURNAL_CONFLICT",
+        message: `EIDOLON_HOLON_PUMP_JOURNAL_CONFLICT: Immutable fact '${filename(identity)}.json' conflicts.`,
+      })
+    expect(await store.read("subscriptions", identity)).toEqual(original)
+    expect((await readdir(directory)).some((name) => name.endsWith(".candidate"))).toBe(false)
+    await expect(store.read("results", "missing")).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it("recovers an aged lock with no live PID and releases it after a failed operation", async () => {
+    const supportRoot = await root()
+    const locks = path.join(supportRoot, "holon-task-pump", "locks")
+    await mkdir(locks, { recursive: true })
+    const lockFile = path.join(locks, `${filename("identity")}.lock`)
+    await writeFile(lockFile, JSON.stringify({ token: "abandoned", pid: "missing" }))
+    const now = () => Date.now() + 60_000
+    const store = new FileHolonTaskPumpJournalStore({ now }, { supportRoot, lockTimeoutMs: 100 })
+    const failure = new Error("FAILED_OPERATION")
+    await expect(store.withExclusive("identity", async () => { throw failure })).rejects.toBe(failure)
+    expect(await readdir(locks)).toEqual([])
+    expect(await store.withExclusive("identity", async () => "recovered")).toBe("recovered")
+  })
+
+  it("times out against a live owner even when the lock is aged", async () => {
+    const supportRoot = await root()
+    const locks = path.join(supportRoot, "holon-task-pump", "locks")
+    await mkdir(locks, { recursive: true })
+    const lockFile = path.join(locks, `${filename("identity")}.lock`)
+    const owner = JSON.stringify({ token: "live", pid: process.pid })
+    await writeFile(lockFile, owner)
+    let time = Date.now() + 60_000
+    const store = new FileHolonTaskPumpJournalStore({ now: () => time++ }, { supportRoot, lockTimeoutMs: 1 })
+    await expect(store.withExclusive("identity", async () => "must not run")).rejects.toMatchObject({
+      code: "EIDOLON_HOLON_PUMP_JOURNAL_LOCK_TIMEOUT",
+      message: "EIDOLON_HOLON_PUMP_JOURNAL_LOCK_TIMEOUT: Dispatch result lock did not become available.",
+    })
+    expect(await readFile(lockFile, "utf8")).toBe(owner)
+  })
+
+  it("rejects changed lock ownership without deleting the replacement", async () => {
+    const supportRoot = await root()
+    const store = new FileHolonTaskPumpJournalStore({ now: Date.now }, { supportRoot })
+    const lockFile = path.join(supportRoot, "holon-task-pump", "locks", `${filename("identity")}.lock`)
+    const replacement = JSON.stringify({ token: "replacement", pid: process.pid })
+    await expect(store.withExclusive("identity", async () => {
+      await writeFile(lockFile, replacement)
+    })).rejects.toMatchObject({
+      code: "EIDOLON_HOLON_PUMP_JOURNAL_LOCK_CONFLICT",
+      message: "EIDOLON_HOLON_PUMP_JOURNAL_LOCK_CONFLICT: Dispatch lock ownership changed.",
+    })
+    expect(await readFile(lockFile, "utf8")).toBe(replacement)
+  })
+
+  it("prepares the result directory before publishing an intent", async () => {
+    const supportRoot = await root()
+    await mkdir(path.join(supportRoot, "holon-task-pump"), { recursive: true })
+    await writeFile(path.join(supportRoot, "holon-task-pump", "results"), "not a directory")
+    const journal = fileJournal({ supportRoot })
+    await expect(journal.dispatch(intent(), async () => "must not run")).rejects.toMatchObject({ code: "EEXIST" })
+    expect(await readdir(path.join(supportRoot, "holon-task-pump", "intents"))).toEqual([])
   })
 })

@@ -1,5 +1,6 @@
 import type { LlmAdapter, LlmStreamResult } from "@cell/ai-core-contract/LlmTypes";
 import { createHash } from "node:crypto";
+import { assertProviderContextEvidenceBinding } from "@cell/ai-persistence-logic/ProviderContextTransitionEvidence";
 import type { ActorRuntimeFacetEvent } from "@cell/ai-core-contract/runtime/ActorRuntimeFacet";
 import {
   applyConversationCompaction,
@@ -4541,17 +4542,33 @@ async function persistCurrentProviderContextReceiptBeforeTransport(params: {
   if (!repository.commitProviderContextTransitionGeneration) {
     throw new Error("provider_context_transition_repository_port_missing");
   }
-  const persistedSession = await repository.loadSessionIndex();
+  const evidence = repository.loadProviderContextTransitionEvidence
+    ? await repository.loadProviderContextTransitionEvidence()
+    : null;
+  const persistedSession = evidence?.sessionIndex ?? await repository.loadSessionIndex();
   const persistedBinding = persistedSession.session.actorBindings[params.actor.key];
+  if (evidence?.sessionIndexExists
+    && (persistedSession.sessionId !== receipt.sessionId || persistedSession.session.sessionId !== receipt.sessionId)) {
+    throw new Error("provider_context_transition_evidence_session_identity_conflict");
+  }
+  if (evidence && persistedBinding?.providerEpochReceiptV2) {
+    assertProviderContextEvidenceBinding(persistedBinding, {
+      sessionId: receipt.sessionId, actorKey: params.actor.key, actorId: params.actor.id,
+    });
+  }
   const persistedDigest = persistedBinding?.providerEpochReceiptV2?.receiptDigest
     ?? (persistedBinding?.providerEpochReceipt
       ? digestLegacyProviderEpochReceipt(persistedBinding.providerEpochReceipt)
       : null);
-  const persistedHead = repository.loadProviderContextTransitionHead
+  const persistedHead = evidence ? evidence.transition?.head ?? null : repository.loadProviderContextTransitionHead
     ? await repository.loadProviderContextTransitionHead()
     : null;
   if (persistedDigest === receipt.receiptDigest
     && persistedHead?.nextEpochReceiptDigest === receipt.receiptDigest) return;
+  if (persistedDigest === receipt.receiptDigest && evidence?.transition
+    && evidence.transition.actorKey !== params.actor.key
+    && persistedSession.session.actorBindings[evidence.transition.actorKey]?.providerEpochReceiptV2?.receiptDigest
+      === persistedHead?.nextEpochReceiptDigest) return;
   if (persistedDigest === receipt.receiptDigest
     && persistedHead
     && persistedHead.nextEpochReceiptDigest !== receipt.previousReceiptDigest) {

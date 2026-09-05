@@ -1,0 +1,15 @@
+<BehaviorPatch #track.realign-conversation-logic-persistence-and-composition.behavior_patch.runtime.execution-closures apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime.execution-closures" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime.execution-closures/requirements/conversation-boundary" } (
+      <Requirement #conversation-boundary (
+        <Statement ?>Conversation SHALL 通过显式 repository 契约恢复，以纯投影构造相同上下文；persistence 的选择 SHALL 属于实例 runtime 而非模块加载副作用。</?>
+        <Suites [<Suite #conversation { name = "Conversation 边界" } (
+          <Cases [
+            <Case #wire-equivalence (<Given ?>同一 raw state 与 repository</?> <When ?>迁移后构造消息</?> <Then ?>Prompt、history、tool pairs、fact anchors SHALL 与原基线一致，domain 不导入具体 support。</?>)>
+            <Case #instance-isolation (<Given ?>两个实例对同一 adapter ID 使用不同实现</?> <When ?>分别运行 capsule</?> <Then ?>每个 SHALL 使用自身注入实现；未知项报错；import 不注册全局实现。</?>)>
+          ]>
+        )>]>
+      )>
+    )>
+  ]>
+)>

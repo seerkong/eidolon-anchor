@@ -2,9 +2,7 @@ import path from "node:path"
 import { createHash } from "node:crypto"
 
 import {
-  mountHolonTaskRuntimeCapability,
   registerHolonTaskRuntimeCapabilityBinding,
-  type HolonTaskRuntimeCapabilityBinding,
   type HolonTaskRuntimeCapabilityHandle,
   type HolonTaskRuntimeCapabilityVm,
 } from "@cell/ai-organ-logic/organization/HolonTaskRuntimeCapability"
@@ -25,37 +23,11 @@ import {
 } from "@cell/ai-organ-logic/resources"
 import {
   mountLocalHolonTaskRuntimeSupport,
+  bootstrapLocalHolonTaskRuntime,
   type LocalHolonTaskRuntimeSupport,
   type LocalHolonTaskRuntimeSupportOptions,
-} from "./LocalHolonTaskRuntimeSupport"
-
-export interface LocalHolonTaskRuntimeBootstrapInput {
-  readonly vm: HolonTaskRuntimeCapabilityVm
-  readonly supportRoot: string
-  readonly registryRef: `resource://${string}`
-  readonly bindings?: readonly HolonTaskRuntimeCapabilityBinding[]
-}
-
-/**
- * Application composition boundary for the standalone Holon task runtime.
- * Logic owns the service; support owns the physical root and concrete routes.
- * Resource discovery may supply no bindings yet, but the VM still receives its
- * one stable service owner before any product or Workflow entry can use it.
- */
-export function bootstrapLocalHolonTaskRuntime(
-  input: LocalHolonTaskRuntimeBootstrapInput,
-): HolonTaskRuntimeCapabilityHandle {
-  const supportRoot = path.resolve(input.supportRoot)
-  const scope = Object.freeze({ supportRoot, registryRef: input.registryRef })
-  const mounted = mountHolonTaskRuntimeCapability(input.vm, scope)
-  for (const binding of input.bindings ?? []) {
-    const receipt = registerHolonTaskRuntimeCapabilityBinding(input.vm, scope, binding)
-    if (receipt.serviceRuntimeRef !== mounted.serviceRuntimeRef) {
-      throw new Error("EIDOLON_HOLON_TASK_BOOTSTRAP_OWNER_MISMATCH")
-    }
-  }
-  return mounted
-}
+} from "@cell/ai-organ-logic/organization/HolonTaskRuntimeComposition"
+import { createLocalHolonTaskRuntimeStorage } from "@cell/ai-support/organization/LocalHolonTaskRuntimeSupport"
 
 export interface LocalHolonTaskActorRuntimeFactoryInput {
   readonly admission: EidolonHolonTaskRuntimeDefinitionProjection
@@ -125,7 +97,10 @@ export async function openLocalHolonTaskRuntime(
 ): Promise<OpenedLocalHolonTaskRuntime> {
   const supportRoot = path.resolve(input.supportRoot)
   const scope = Object.freeze({ supportRoot, registryRef: input.registryRef })
-  const capability = bootstrapLocalHolonTaskRuntime({ vm: input.vm, ...scope })
+  const capability = bootstrapLocalHolonTaskRuntime({ vm: input.vm, ...scope }, {
+    storageFactory: createLocalHolonTaskRuntimeStorage,
+    now: Date.now,
+  })
   const support = mountLocalHolonTaskRuntimeSupport({
     vm: input.vm,
     supportRoot,

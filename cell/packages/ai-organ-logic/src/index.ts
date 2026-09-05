@@ -352,3 +352,5 @@ export type {
   ShellRuntimeEventRouting,
   ShellRuntimeFacade,
 } from "./runtime/ShellRuntimeFacade";
+export * from "./organization/HolonTaskRuntimeComposition";
+export * from "./organization/HolonTaskRuntimeRoutes";

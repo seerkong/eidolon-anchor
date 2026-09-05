@@ -24,12 +24,20 @@ import type {
   ConversationHistoryIndexSnapshot,
   ConversationProviderContextTransitionGeneration,
   ConversationProviderContextTransitionHead,
+  ConversationProviderContextTransitionEvidence,
   ConversationPersistenceRepository,
   ConversationPersistenceRepositoryFactory,
   ConversationPromptIndexSnapshot,
   ConversationSessionIndexSnapshot,
 } from "@cell/ai-organ-contract";
 import { CONVERSATION_PERSISTENCE_SCHEMA_VERSION } from "@cell/ai-organ-contract";
+import {
+  assertProviderContextTransitionSessionIdentity,
+  canonicalConversationJson as canonicalJson,
+  digestConversationProviderContextTransitionGeneration,
+  verifyProviderContextTransitionEvidence,
+} from "@cell/ai-persistence-logic/ProviderContextTransitionEvidence";
+export { digestConversationProviderContextTransitionGeneration } from "@cell/ai-persistence-logic/ProviderContextTransitionEvidence";
 import {
   appendXnlRecord,
   readSessionAttachmentAsset,
@@ -119,21 +127,6 @@ export type LocalFileConversationPersistenceRepositoryOptions = Readonly<{
 
 function codeUnitCompare(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
-}
-
-function canonicalJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record).sort(codeUnitCompare).map((key) => (
-    `${JSON.stringify(key)}:${canonicalJson(record[key])}`
-  )).join(",")}}`;
-}
-
-export function digestConversationProviderContextTransitionGeneration(
-  transition: Omit<ConversationProviderContextTransitionGeneration, "transitionId">,
-): `sha256:${string}` {
-  return `sha256:${createHash("sha256").update(canonicalJson(transition), "utf8").digest("hex")}`;
 }
 
 export function digestConversationForkInitializationGeneration(
@@ -1466,16 +1459,27 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
     return matches[0]![0];
   }
 
+  private async readProviderContextTransitionSession(
+    transition: ConversationProviderContextTransitionGeneration,
+  ): Promise<ConversationSessionIndexSnapshot> {
+    const currentSession = await readJsonExact<ConversationSessionIndexSnapshot>(getLocalConversationPaths(this.sessionDir).sessionIndexPath).catch((error) => {
+      if (error?.code === "ENOENT") return createDefaultSessionIndex(transition.sessionIndex.session.sessionId);
+      throw error;
+    });
+    assertProviderContextTransitionSessionIdentity(currentSession, transition.sessionIndex);
+    return currentSession;
+  }
+
   private async applyProviderContextTransitionGeneration(
     transition: ConversationProviderContextTransitionGeneration,
   ): Promise<void> {
     this.assertTransitionGenerationExact(transition);
     const paths = getLocalConversationPaths(this.sessionDir);
     const actorKey = this.transitionActorKey(transition);
-    const currentSession = await readJsonBestEffort(paths.sessionIndexPath, createDefaultSessionIndex(this.sessionDir));
-    const currentHistory = await readJsonBestEffort(paths.historyIndexPath, createDefaultHistoryIndex(this.sessionDir));
-    const currentPrompt = await readJsonBestEffort(paths.promptIndexPath, createDefaultPromptIndex(this.sessionDir));
-    const currentArtifacts = await readJsonBestEffort(paths.artifactRefsPath, createDefaultArtifactRefs(this.sessionDir));
+    const currentSession = await this.readProviderContextTransitionSession(transition);
+    const currentHistory = await readJsonBestEffort(paths.historyIndexPath, createDefaultHistoryIndex(currentSession.sessionId));
+    const currentPrompt = await readJsonBestEffort(paths.promptIndexPath, createDefaultPromptIndex(currentSession.sessionId));
+    const currentArtifacts = await readJsonBestEffort(paths.artifactRefsPath, createDefaultArtifactRefs(currentSession.sessionId));
     const currentBinding = currentSession.session.actorBindings[actorKey];
     if (currentBinding?.providerEpochReceipt && currentBinding.providerEpochReceiptV2) {
       throw new Error("provider_context_dual_authority_forbidden");
@@ -1771,7 +1775,18 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
       return await this.recoveringConversationForkInitialization;
     }
     const recover = async () => this.withConversationAuthorityLease(
-      async () => withConversationForkInitializationLock(this.sessionDir, async () => {
+      async () => withConversationForkInitializationLock(this.sessionDir, () => this.recoverConversationForkInitializationLocked()),
+    );
+    this.recoveringConversationForkInitialization = recover();
+    try {
+      await this.recoveringConversationForkInitialization;
+    } finally {
+      this.recoveringConversationForkInitialization = null;
+    }
+  }
+
+  /** Caller holds the authority lease and fork lock; never await an externally queued recovery promise. */
+  private async recoverConversationForkInitializationLocked(): Promise<void> {
       const paths = forkInitializationPaths(this.sessionDir);
       await assertRealDirectoryOrMissing(paths.root);
       try {
@@ -1796,14 +1811,6 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
       } catch (error: any) {
         if (error?.code !== "ENOENT") throw error;
       }
-      }),
-    );
-    this.recoveringConversationForkInitialization = recover();
-    try {
-      await this.recoveringConversationForkInitialization;
-    } finally {
-      this.recoveringConversationForkInitialization = null;
-    }
   }
 
   async commitProviderContextTransitionGeneration(
@@ -1812,6 +1819,7 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
     await this.recoverProviderContextTransitionGeneration();
     await this.withConversationAuthorityLease(async () => withProviderContextTransitionLock(this.sessionDir, async () => {
       this.assertTransitionGenerationExact(transition);
+      await this.readProviderContextTransitionSession(transition);
       const generationPath = await this.writeImmutableTransitionGeneration(transition);
       const paths = providerTransitionPaths(this.sessionDir);
       await writeDurableReplace(paths.journal, {
@@ -1842,10 +1850,55 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
     }
   }
 
+  async loadProviderContextTransitionEvidence(): Promise<ConversationProviderContextTransitionEvidence> {
+    return this.withConversationAuthorityLease(async () => {
+      await withConversationForkInitializationLock(this.sessionDir, () => this.recoverConversationForkInitializationLocked());
+      return withProviderContextTransitionLock(this.sessionDir, async () => {
+        await this.recoverProviderContextTransitionGenerationLocked();
+        const paths = providerTransitionPaths(this.sessionDir);
+        const sessionRead = await readJsonExact<ConversationSessionIndexSnapshot>(
+          getLocalConversationPaths(this.sessionDir).sessionIndexPath,
+        ).then((sessionIndex) => ({ sessionIndex, exists: true })).catch((error) => {
+          if (error?.code === "ENOENT") return { sessionIndex: createDefaultSessionIndex(this.sessionDir), exists: false };
+          throw error;
+        });
+        const head = await readJsonExact<ConversationProviderContextTransitionHead>(paths.head).catch((error) => {
+          if (error?.code === "ENOENT") return null;
+          throw error;
+        });
+        const generation = head
+          ? await readJsonExact<ConversationProviderContextTransitionGeneration>(
+            this.providerContextTransitionGenerationPath(head.transitionId),
+          ).catch((error) => {
+            if (error?.code === "ENOENT") throw new Error("provider_context_transition_head_generation_missing");
+            throw error;
+          })
+          : null;
+        return verifyProviderContextTransitionEvidence({
+          sessionIndexExists: sessionRead.exists,
+          sessionIndex: sessionRead.sessionIndex,
+          head,
+          generation,
+        });
+      });
+    });
+  }
+
   async recoverProviderContextTransitionGeneration(): Promise<void> {
     if (this.recoveringProviderContextTransition) return await this.recoveringProviderContextTransition;
     const recover = async () => this.withConversationAuthorityLease(
-      async () => withProviderContextTransitionLock(this.sessionDir, async () => {
+      async () => withProviderContextTransitionLock(this.sessionDir, () => this.recoverProviderContextTransitionGenerationLocked()),
+    );
+    this.recoveringProviderContextTransition = recover();
+    try {
+      await this.recoveringProviderContextTransition;
+    } finally {
+      this.recoveringProviderContextTransition = null;
+    }
+  }
+
+  /** Caller holds the authority lease and transition lock. */
+  private async recoverProviderContextTransitionGenerationLocked(): Promise<void> {
       const paths = providerTransitionPaths(this.sessionDir);
       await assertRealDirectoryOrMissing(paths.root);
       try {
@@ -1869,14 +1922,6 @@ export class LocalFileConversationPersistenceRepository implements ConversationP
       } catch (error: any) {
         if (error?.code !== "ENOENT") throw error;
       }
-      }),
-    );
-    this.recoveringProviderContextTransition = recover();
-    try {
-      await this.recoveringProviderContextTransition;
-    } finally {
-      this.recoveringProviderContextTransition = null;
-    }
   }
 }
 

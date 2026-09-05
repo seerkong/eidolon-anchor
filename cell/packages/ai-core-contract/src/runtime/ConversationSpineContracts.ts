@@ -135,7 +135,7 @@ export type ConversationPersistenceAdapter = {
 };
 
 export type ConversationCapsuleRuntime = {
-  persistenceDependencies?: unknown;
+  readonly persistenceAdapters: ReadonlyMap<ConversationPersistenceAdapterId, ConversationPersistenceAdapter>;
 };
 
 export type ConversationCapsuleInput = {

@@ -1,0 +1,41 @@
+<Track #realign-conversation-logic-persistence-and-composition apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "Conversation 规则与 effect 分离，运行实例显式选择 persistence" description = "保留既有 Prompt 与恢复语义，移除 domain 对 support 的依赖和加载时注册" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T13:53:52.521Z" updated_at = "2026-09-05T15:59:20.445Z" modeling_base_commit = "27324a85d666c1dda49eb9d5dce63b2bb58d08e7" engineering_base_commit = "27324a85d666c1dda49eb9d5dce63b2bb58d08e7" gap_round = 2 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_realign-conversation-logic-persistence-and-composition { name = "realign-conversation-logic-persistence-and-composition" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "归位 Conversation 闭包" status = "DONE" order = 0 child_mode = "dag" } (
+        <SubNodes [
+          <Task #P1-T1 { name = "迁移投影与 repository-port 恢复规则" status = "DONE" order = 0 } (
+            <Description ?01M1RYK25179GJ2KG1A1HYJQW2>
+            在基线下机械提取纯规则到 ai-persistence-logic，domain 仅依赖规则与 repository 契约；不改 Prompt 和持久格式。
+            </?01M1RYK25179GJ2KG1A1HYJQW2>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { status = "NOT_STARTED" checked = true } ?01M1RYK25179GJ2KG1A1HYJQW3>
+              Conversation 原始状态、provider wire、fork/rewind 回归通过；domain/derivations 不再导入 ai-support。
+              </?01M1RYK25179GJ2KG1A1HYJQW3>
+            ]>
+          )>
+          <Task #P1-T2 { name = "显式实例级 persistence 装配" status = "DONE" order = 1 } (
+            <Description ?01M1RYK25179GJ2KG1A1HYJQW4>
+            以 typed runtime registry 替换全局加载时注册，保留 enum 未知项报错和真实 file/memory 实现。
+            </?01M1RYK25179GJ2KG1A1HYJQW4>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { status = "NOT_STARTED" checked = true } ?01M1RYK25179GJ2KG1A1HYJQW5>
+              冷进程无加载时注册，两个 runtime 同 ID 不串用实现，file/memory roundtrip 和 capsule 测试通过。
+              </?01M1RYK25179GJ2KG1A1HYJQW5>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = true }>
+          )>
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

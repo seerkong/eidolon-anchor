@@ -166,8 +166,8 @@ describe("Workflow Holon task runtime adapter", () => {
       new URL("../../../ai-support/src/organization/LocalHolonTaskRuntimeSupport.ts", import.meta.url),
       "utf8",
     )
-    const compatibilitySource = await readFile(
-      new URL("../../../ai-support/src/organization/LocalWorkflowHolonTaskRuntimeSupport.ts", import.meta.url),
+    const compositionSource = await readFile(
+      new URL("../../src/organization/HolonTaskRuntimeComposition.ts", import.meta.url),
       "utf8",
     )
     expect(workflowSource).not.toMatch(/new FileTaskSpaceOwner|new FileHolonTaskPumpJournal/)
@@ -176,7 +176,10 @@ describe("Workflow Holon task runtime adapter", () => {
     expect(workflowSource).toContain("assignHolonTaskThroughMountedCapability")
     expect(canonicalSupportSource).toContain("new FileTaskSpaceOwner")
     expect(canonicalSupportSource).toContain("new FileHolonTaskPumpJournal")
-    expect(compatibilitySource).toContain("LocalHolonTaskRuntimeSupport")
-    expect(compatibilitySource).not.toContain("new FileTaskSpaceOwner")
+    expect(canonicalSupportSource).not.toContain("@cell/ai-organ-logic")
+    expect(workflowSource).not.toContain('from "@cell/ai-support"')
+    expect(workflowSource).toContain("requireHolonTaskRuntimeCapability")
+    expect(compositionSource).toContain("storageFactory({ supportRoot })")
+    expect(compositionSource).not.toContain("new FileTaskSpaceOwner")
   })
 })

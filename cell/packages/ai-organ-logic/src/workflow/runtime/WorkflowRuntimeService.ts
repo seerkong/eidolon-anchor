@@ -146,10 +146,10 @@ import {
 } from "../../organization/HolonTaskRuntimeCapability"
 import { projectFrozenWorkflowHolonTaskAdmission } from "../../organization/LegacyWorkflowHolonTaskProfileAdapter"
 import {
-  bootstrapLocalHolonTaskRuntime,
-  mountLocalWorkflowHolonTaskRuntimeSupport,
-  type LocalWorkflowHolonTaskRuntimeSupport,
-} from "@cell/ai-support"
+  mountLocalHolonTaskRuntimeSupport,
+  type LocalHolonTaskRuntimeSupport as LocalWorkflowHolonTaskRuntimeSupport,
+} from "../../organization/HolonTaskRuntimeComposition"
+import { requireHolonTaskRuntimeCapability } from "../../organization/HolonTaskRuntimeCapability"
 
 type WorkflowRuntime = AiAgentOneActorRuntime<any, any>
 type CtrlController = ReturnType<typeof createAICtrlWorkflowController>
@@ -2268,8 +2268,11 @@ export class WorkflowRuntimeService {
         .update(workspaceRoot)
         .digest("hex")}` as const,
     })
-    const capability = bootstrapLocalHolonTaskRuntime({ vm: this.runtime.vm, ...scope })
-    const support = mountLocalWorkflowHolonTaskRuntimeSupport({
+    const capability = requireHolonTaskRuntimeCapability(this.runtime.vm)
+    if (capability.scope.supportRoot !== scope.supportRoot || capability.scope.registryRef !== scope.registryRef) {
+      throw new Error("EIDOLON_HOLON_TASK_CAPABILITY_SCOPE_CONFLICT")
+    }
+    const support = mountLocalHolonTaskRuntimeSupport({
       vm: this.runtime.vm,
       supportRoot: scope.supportRoot,
       options: {

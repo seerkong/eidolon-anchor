@@ -10,6 +10,7 @@
   },
   "description": "AI-specific organization-layer contracts aligned with ai-core and ai-support ownership.",
   "dependencies": {
+    "task-manager-contract": "0.1.3",
     "@cell/ai-core-contract": "workspace:*",
     "@shared/composer": "workspace:*",
     "halfcode-compiler.xnl": "0.3.0",

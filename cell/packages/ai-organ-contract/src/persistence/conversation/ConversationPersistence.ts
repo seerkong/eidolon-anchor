@@ -98,10 +98,19 @@ export type ConversationPersistenceRepository = {
     transactionId: `sha256:${string}`,
   ) => Promise<ConversationForkInitializationGeneration | null>;
 
+  /** Recheck Session identity at publication, before staging generation/journal writes; earlier evidence can be stale. */
   commitProviderContextTransitionGeneration?: (
     transition: ConversationProviderContextTransitionGeneration,
   ) => Promise<void>;
   loadProviderContextTransitionHead?: () => Promise<ConversationProviderContextTransitionHead | null>;
+  /**
+   * One consistent observation after journal recovery: current Session and its
+   * latest head's immutable generation. Missing head is distinct from a missing
+   * referenced generation (the latter must throw). Implementations verify the
+   * reference/content/session/Actor identities, but leave current-vs-predecessor
+   * receipt classification to the caller so legitimate head repair stays possible.
+   */
+  loadProviderContextTransitionEvidence?: () => Promise<ConversationProviderContextTransitionEvidence>;
   recoverProviderContextTransitionGeneration?: () => Promise<void>;
 };
 
@@ -166,6 +175,17 @@ export type ConversationProviderContextTransitionGeneration = Readonly<{
   historyGenerations: readonly ActorHistoryGenerationData[];
   promptGenerations: readonly ActorPromptGenerationData[];
   createdAt: string;
+}>;
+
+export type ConversationProviderContextTransitionEvidence = Readonly<{
+  /** False only when sessionIndex is a synthesized default for an absent Session. */
+  sessionIndexExists: boolean;
+  sessionIndex: ConversationSessionIndexSnapshot;
+  transition: Readonly<{
+    head: ConversationProviderContextTransitionHead;
+    generation: ConversationProviderContextTransitionGeneration;
+    actorKey: string;
+  }> | null;
 }>;
 
 export type ConversationPersistenceRepositoryFactory = {

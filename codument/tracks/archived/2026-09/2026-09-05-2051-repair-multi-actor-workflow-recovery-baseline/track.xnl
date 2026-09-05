@@ -1,0 +1,41 @@
+<Track #repair-multi-actor-workflow-recovery-baseline apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "修复多 Actor Workflow 的 receipt/head 恢复误冲突，同时保持 fail-closed" description = "用最小双 Actor 红例与原自主 SubFlow 基线验证 Actor scoped authority" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T16:27:45.682Z" updated_at = "2026-09-05T17:51:05.506Z" modeling_base_commit = "27324a85d666c1dda49eb9d5dce63b2bb58d08e7" engineering_base_commit = "27324a85d666c1dda49eb9d5dce63b2bb58d08e7" gap_round = 3 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_repair-multi-actor-workflow-recovery-baseline { name = "repair-multi-actor-workflow-recovery-baseline" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "证明并修复恢复偏差" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "双 Actor 红例与已验证 head 证据修复" status = "DONE" order = 0 } (
+            <Description ?01M1S7ZDYDHAVSE40SH83Z7769>
+            先证明原错误比较，再通过明确 repository 证据区分其他 Actor 推进与真实分歧，保持原格式和 CAS。
+            </?01M1S7ZDYDHAVSE40SH83Z7769>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { checked = true } ?01M1S7ZDYE3Y94JXDGEZWW3F3K>
+              交错与恢复通过；损坏、缺失被引用记录、同 Actor 分歧拒绝；原 missing head 修复保留。
+              </?01M1S7ZDYE3Y94JXDGEZWW3F3K>
+            ]>
+          )>
+          <Task #P1-T2 { name = "原 Workflow 基线与完整闭包验收" status = "DONE" order = 1 } (
+            <Description ?01M1S7ZDYE3Y94JXDGEZWW3F3M>
+            不放宽原断言，验证自主 selected/authored Worker SubFlow 恢复与完整回归。
+            </?01M1S7ZDYE3Y94JXDGEZWW3F3M>
+            <Acceptance [
+              <Criterion #P1-T2-AC1 { checked = true } ?01M1S7ZDYE3Y94JXDGEZWW3F3N>
+              原 B1 和所有闭包矩阵全绿，noEmit 通过，未改变 Prompt/provider/task 协议。
+              </?01M1S7ZDYE3Y94JXDGEZWW3F3N>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = true }>
+          )>
+          <Hook { on = "phase:after" } (
+            <AttractorCheck { use = "coding" }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

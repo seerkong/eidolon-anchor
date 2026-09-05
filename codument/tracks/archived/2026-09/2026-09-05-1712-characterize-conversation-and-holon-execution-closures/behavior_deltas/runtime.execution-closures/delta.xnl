@@ -1,0 +1,16 @@
+<BehaviorPatch #track.characterize-conversation-and-holon-execution-closures.behavior_patch.runtime.execution-closures apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime.execution-closures" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime.execution-closures/requirements/semantic-baseline" } (
+      <Requirement #semantic-baseline (
+        <Statement ?>职责重构 SHALL 使用隔离回归矩阵，锁定消息排序、工具配对、恢复事实和任务 receipt。</?>
+        <Suites [<Suite #closure-baseline { name = "执行闭包" } (
+          <Cases [<Case #isolated-matrix (
+            <Given ?>Conversation 与 Holon 已有真实文件和协议测试</?>
+            <When ?>运行执行闭包回归入口</?>
+            <Then ?>每文件 SHALL 新进程执行，任一失败使入口失败；不请求真实 provider、不修改用户现场、不跟踪 bun.lock。</?>
+          )>]>
+        )>]>
+      )>
+    )>
+  ]>
+)>

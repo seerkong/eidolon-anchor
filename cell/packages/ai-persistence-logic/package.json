@@ -6,11 +6,17 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./ConversationProjection": "./src/ConversationProjection.ts",
+    "./ConversationRecovery": "./src/ConversationRecovery.ts",
+    "./ProviderContextTransitionEvidence": "./src/ProviderContextTransitionEvidence.ts",
     "./*": "./src/*"
   },
-  "description": "Dedicated session-persistence backplane: pure-I/O snapshot/derived-index/conversation persistence routing behind one-way ports (no ai-organ-logic live-runtime dependency).",
+  "description": "Session-persistence backplane with deterministic conversation projections and repository-driven recovery (no ai-organ-logic live-runtime dependency).",
   "dependencies": {
     "@cell/ai-core-contract": "workspace:*",
-    "@cell/ai-organ-contract": "workspace:*"
+    "@cell/ai-core-logic": "workspace:*",
+    "@cell/ai-organ-contract": "workspace:*",
+    "@cell/symbiont-logic": "workspace:*",
+    "@shared/composer": "workspace:*"
   }
 }

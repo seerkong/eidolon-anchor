@@ -43,13 +43,15 @@ import {
 } from "../../conversation/ProviderContextEpochV2";
 import {
   committedHistoryRefsToMessages,
-  loadConversationActorRawState,
-  loadConversationSessionRawState,
   materializeConversationRuntimePrompt,
   materializeConversationVisibleHistory,
   materializeConversationVisibleMessages,
   toCommittedConversationMessage,
-} from "@cell/ai-support";
+} from "@cell/ai-persistence-logic/ConversationProjection";
+import {
+  loadConversationActorRawState,
+  loadConversationSessionRawState,
+} from "@cell/ai-persistence-logic/ConversationRecovery";
 import { reduceTranscriptToMessages } from "@cell/ai-core-logic/runtime/TranscriptRecords";
 import type { TranscriptRecord } from "@cell/symbiont-logic/stream/StreamTranscript";
 import type { AiAgentVm } from "@cell/ai-core-logic";
@@ -64,7 +66,7 @@ import type {
   ConversationPromptDomainEvent,
   ConversationPromptRuntimeState,
   ConversationSessionDomainEvent,
-} from "../../conversation/ConversationDomainRuntime";
+} from "../../conversation/ConversationDomainRuntimeTypes";
 import {
   MAX_CONVERSATION_DOMAIN_EVENTS_PER_STREAM,
   MAX_MESSAGE_ASSEMBLY_REDUCED_MESSAGES,

@@ -452,6 +452,7 @@ describe("complete AIAgentDefinition Ctrl/Data product integration", () => {
           workDir: parent,
           metadata: {
             sessionDir: path.join(parent, "runtime-session"),
+            sessionId: "complete-agent-runtime-session",
             aiWorkflow: {
               roots: { workspaceRoot: path.join(parent, "workflows") },
               extensionCodecs,

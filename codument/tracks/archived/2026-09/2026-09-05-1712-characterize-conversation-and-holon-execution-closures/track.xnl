@@ -1,0 +1,28 @@
+<Track #characterize-conversation-and-holon-execution-closures apiVersion="codument.tech/v1alpha1" version="1" { status = "completed" goal = "固定 Conversation 与 Holon 执行闭包的可执行语义基线" description = "建立逐文件隔离回归入口，再开始职责迁移" question_mode = "decision-tree" question_severity = "auto" commit_mode = "manual" created_at = "2026-09-05T13:47:50.682Z" updated_at = "2026-09-05T14:12:05.225Z" modeling_base_commit = "27324a85d666c1dda49eb9d5dce63b2bb58d08e7" engineering_base_commit = "27324a85d666c1dda49eb9d5dce63b2bb58d08e7" gap_round = 2 } (
+  <Ports { scope = "track" }>
+  <TaskSpace #space_characterize-conversation-and-holon-execution-closures { name = "characterize-conversation-and-holon-execution-closures" version = "1" } (
+    <SubNodes [
+      <TaskGroup #P1 { name = "执行闭包基线" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #P1-T1 { name = "建立隔离回归矩阵与语义表征" status = "DONE" order = 0 } (
+            <Description ?01M1RXF28JXCAKTNWP2ZVPW98A>
+            添加可重复执行的专项测试入口，覆盖 Conversation、ContextPipeline、Holon 和 Workflow；不改生产行为。
+            </?01M1RXF28JXCAKTNWP2ZVPW98A>
+            <Acceptance [
+              <Criterion #P1-T1-AC1 { status = "NOT_STARTED" checked = true } ?01M1RXF28JXCAKTNWP2ZVPW98B>
+              矩阵逐文件新进程运行，失败返回非零；包含真实文件恢复与上下文语义测试。
+              </?01M1RXF28JXCAKTNWP2ZVPW98B>
+            ]>
+          )>
+        ]>
+        <Hooks [
+          <Hook { on = "phase:after" } (
+            <GapLoop { max_rounds = 5 on_exhausted = "block" verify_round = true }>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule []>
+  <Hooks []>
+)>

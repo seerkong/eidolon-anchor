@@ -13,12 +13,12 @@ import {
   committedHistoryRefsToMessages,
   materializeConversationRuntimePrompt,
   toCommittedConversationMessage,
-} from "@cell/ai-support";
+} from "@cell/ai-persistence-logic/ConversationProjection";
 
 import type {
   ConversationHistoryRuntimeState,
   ConversationPromptRuntimeState,
-} from "../../conversation/ConversationDomainRuntime";
+} from "../../conversation/ConversationDomainRuntimeTypes";
 
 /**
  * Pure reduction/projection functions of the conversation capsule. Top-level

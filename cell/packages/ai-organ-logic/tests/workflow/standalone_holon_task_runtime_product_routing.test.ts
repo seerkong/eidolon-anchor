@@ -17,7 +17,7 @@ import {
   assignCanonicalAutonomousMember,
 } from "../../src/organization/CanonicalHolonAssignmentFacade"
 import { getOrganizationManager } from "../../src/organization/OrganizationManager"
-import { bootstrapLocalHolonTaskRuntime } from "@cell/ai-support"
+import { bootstrapLocalHolonTaskRuntime } from "../../src/organization/HolonTaskRuntimeComposition"
 
 const digest = (hex: string) => `sha256:${hex.repeat(64).slice(0, 64)}` as const
 

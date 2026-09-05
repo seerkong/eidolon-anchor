@@ -10,8 +10,10 @@ import {
   conversationReducerDerivation,
   materializationDerivation,
   runConversationCapsule,
+  createInMemoryConversationPersistenceAdapter,
 } from "../../../src/conversationCapsule/coreLogic"
 import {
+  createConversationPersistenceRegistry,
   registerConversationPersistenceAdapter,
   resolveConversationPersistenceAdapter,
 } from "../../../src/conversationCapsule/adapterRegistry"
@@ -126,16 +128,17 @@ describe("conversation derivations", () => {
 describe("conversation capsule wiring", () => {
   it("persistence adapters are wired by enum id through the registry", () => {
     const adapter = { kind: "in_memory_test" } as never
-    registerConversationPersistenceAdapter("in_memory", adapter)
-    expect(resolveConversationPersistenceAdapter("in_memory")).toBe(adapter)
-    expect(() => resolveConversationPersistenceAdapter("no_such_adapter" as never)).toThrow(
+    const adapters = createConversationPersistenceRegistry()
+    registerConversationPersistenceAdapter(adapters, "in_memory", adapter)
+    expect(resolveConversationPersistenceAdapter(adapters, "in_memory")).toBe(adapter)
+    expect(() => resolveConversationPersistenceAdapter(adapters, "no_such_adapter" as never)).toThrow(
       /no_such_adapter/,
     )
   })
 
   it("the capsule entry composes from (runtime, input, config)", () => {
     const capsule = runConversationCapsule(
-      {},
+      { persistenceAdapters: createConversationPersistenceRegistry([["in_memory", createInMemoryConversationPersistenceAdapter()]]) },
       { sessionId: "session-test" },
       { persistenceAdapter: "in_memory" },
     )
@@ -143,9 +146,10 @@ describe("conversation capsule wiring", () => {
     expect(capsule.persistence).toBeDefined()
   })
 
-  it("the local_file adapter is registered by the ai-support assembly module", async () => {
-    await import("@cell/ai-support")
-    const adapter = resolveConversationPersistenceAdapter("local_file")
+  it("the local_file adapter is explicitly selected from the support factory", async () => {
+    const { LocalFileConversationPersistenceAdapter } = await import("@cell/ai-support")
+    const adapters = createConversationPersistenceRegistry([["local_file", LocalFileConversationPersistenceAdapter]])
+    const adapter = resolveConversationPersistenceAdapter(adapters, "local_file")
     expect(typeof adapter.createRepository).toBe("function")
   })
 })

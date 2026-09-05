@@ -151,17 +151,15 @@ export const materializationDerivation = assertMaterializationDerivation({
 /**
  * Stable capsule entry. `runtime` carries injected adapter dependencies,
  * `input` identifies the session, `config` selects the persistence adapter by
- * enum id; the adapter is resolved through the capsule registry (unknown ids
- * throw) and exposed on the output. "in_memory" is registered by the capsule
- * itself; "local_file" is registered by the assembly layer (ai-support).
+ * enum id; the adapter is resolved through the runtime-owned registry (unknown
+ * ids throw). The caller explicitly supplies both file and memory adapters.
  */
 export function runConversationCapsule(
   runtime: ConversationCapsuleRuntime,
   input: ConversationCapsuleInput,
   config: ConversationCapsuleConfig,
 ): ConversationCapsuleOutput {
-  void runtime;
-  const persistence = resolveConversationPersistenceAdapter(config.persistenceAdapter);
+  const persistence = resolveConversationPersistenceAdapter(runtime.persistenceAdapters, config.persistenceAdapter);
   return {
     state: initializeConversationDomainsState({ sessionId: input.sessionId }),
     persistence,

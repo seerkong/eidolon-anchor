@@ -1,0 +1,13 @@
+<BehaviorPatch #track.realign-holon-journal-support-and-runtime-composition.behavior_patch.runtime.execution-closures apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime.execution-closures" } (
+  <Mutations [
+    <Upsert { selector = "behavior://runtime.execution-closures/requirements/holon-explicit-effect-composition" } (
+      <Requirement #holon-explicit-effect-composition (
+        <Statement ?>Holon SHALL 显式组装文件效果与路由规则，保持既有持久协议、单一 task authority，support 不依赖 organ logic。</?>
+        <Suites [<Suite #holon-composition { name = "Holon 显式组合" } (<Cases [
+          <Case #recovery-equivalence (<Given ?>已有 v1/v2 journal 与 TaskSpace 现场。</?><When ?>独立或 Workflow 宿主装配并恢复。</?><Then ?>身份、首次观测、结果重放及 shared/fresh SHALL 不变，篡改冲突仍拒绝。</?>)>
+          <Case #explicit-runtime (<Given ?>规则和文件效果分别导入。</?><When ?>通过显式 runtime 选择实现。</?><Then ?>导入 SHALL 不注册全局实例，纯规则可无文件系统验证。</?>)>
+        ]>)>]>
+      )>
+    )>
+  ]>
+)>

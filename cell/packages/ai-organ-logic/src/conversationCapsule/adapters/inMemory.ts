@@ -1,4 +1,5 @@
 import type { ConversationPersistenceAdapter } from "@cell/ai-core-contract";
+import { assertProviderContextTransitionSessionIdentity, verifyProviderContextTransitionEvidence } from "@cell/ai-persistence-logic/ProviderContextTransitionEvidence";
 import {
   CONVERSATION_PERSISTENCE_SCHEMA_VERSION,
   type ActorHistoryGenerationData,
@@ -10,7 +11,6 @@ import {
   type ConversationSessionIndexSnapshot,
 } from "@cell/ai-organ-contract";
 
-import { registerConversationPersistenceAdapter } from "../adapterRegistry";
 
 /**
  * In-memory persistence adapter of the conversation capsule (enum id
@@ -30,6 +30,7 @@ type InMemoryConversationStore = {
   historyGenerations: Map<string, ActorHistoryGenerationData>;
   promptGenerations: Map<string, ActorPromptGenerationData>;
   providerContextTransitionHead: import("@cell/ai-organ-contract").ConversationProviderContextTransitionHead | null;
+  providerContextTransitionGenerations: Map<string, import("@cell/ai-organ-contract").ConversationProviderContextTransitionGeneration>;
 };
 
 function transitionActorKey(transition: import("@cell/ai-organ-contract").ConversationProviderContextTransitionGeneration): string {
@@ -57,7 +58,7 @@ function mergeActorScopedTransition(
   const currentHistory = store.historyIndex ?? defaultHistoryIndex(transition.historyIndex.sessionId);
   const currentPrompt = store.promptIndex ?? defaultPromptIndex(transition.promptIndex.sessionId);
   const currentSession = store.sessionIndex ?? defaultSessionIndex(transition.sessionIndex.sessionId);
-  const currentArtifacts = store.artifactRefs ?? defaultArtifactRefs(transition.artifactRefs.sessionId);
+  const currentArtifacts = store.artifactRefs ?? defaultArtifactRefs(currentSession.sessionId);
   const targetHistoryEntries = Object.fromEntries(Object.entries(transition.historyIndex.generations)
     .filter(([, entry]) => entry.actorKey === actorKey));
   const targetLineages = Object.fromEntries(Object.entries(transition.historyIndex.lineages)
@@ -148,6 +149,7 @@ function createEmptyStore(): InMemoryConversationStore {
     historyGenerations: new Map(),
     promptGenerations: new Map(),
     providerContextTransitionHead: null,
+    providerContextTransitionGenerations: new Map(),
   };
 }
 
@@ -254,6 +256,14 @@ function createInMemoryConversationPersistenceRepository(
       store.artifactRefs = clone(snapshot);
     },
     async commitProviderContextTransitionGeneration(transition) {
+      assertProviderContextTransitionSessionIdentity(
+        store.sessionIndex ?? defaultSessionIndex(transition.sessionIndex.session.sessionId),
+        transition.sessionIndex,
+      );
+      const existing = store.providerContextTransitionGenerations.get(transition.transitionId);
+      if (existing && JSON.stringify(existing) !== JSON.stringify(transition)) {
+        throw new Error("provider_context_transition_immutable_generation_conflict");
+      }
       const actorKey = transitionActorKey(transition);
       const currentBinding = store.sessionIndex?.session.actorBindings[actorKey];
       if (currentBinding?.providerEpochReceipt && currentBinding.providerEpochReceiptV2) {
@@ -285,6 +295,7 @@ function createInMemoryConversationPersistenceRepository(
       store.promptIndex = clone(merged.promptIndex);
       store.sessionIndex = clone(merged.sessionIndex);
       store.artifactRefs = clone(merged.artifactRefs);
+      store.providerContextTransitionGenerations.set(transition.transitionId, clone(transition));
       store.providerContextTransitionHead = {
         schemaVersion: "conversation.provider-context-transition-head/v1",
         transitionId: transition.transitionId,
@@ -293,6 +304,15 @@ function createInMemoryConversationPersistenceRepository(
     },
     async loadProviderContextTransitionHead() {
       return store.providerContextTransitionHead ? clone(store.providerContextTransitionHead) : null;
+    },
+    async loadProviderContextTransitionEvidence() {
+      const head = store.providerContextTransitionHead;
+      return verifyProviderContextTransitionEvidence(clone({
+        sessionIndexExists: store.sessionIndex !== null,
+        sessionIndex: store.sessionIndex ?? defaultSessionIndex(sessionDir),
+        head,
+        generation: head ? store.providerContextTransitionGenerations.get(head.transitionId) ?? null : null,
+      }));
     },
     async recoverProviderContextTransitionGeneration() {
       // One synchronous memory assignment owns the complete generation.
@@ -313,10 +333,3 @@ export function createInMemoryConversationPersistenceAdapter(): ConversationPers
     },
   };
 }
-
-/**
- * Default in-memory adapter registration. The adapter is IO-free, so the
- * capsule registers it at module load; the file-backed local_file adapter is
- * registered by the assembly layer (ai-support conversation assembly).
- */
-registerConversationPersistenceAdapter("in_memory", createInMemoryConversationPersistenceAdapter());

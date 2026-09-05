@@ -14,7 +14,7 @@
 | actor 地址、session、history | 通用 actor/session runtime | `MemberRuntimeRef`、`sessionRef` |
 | Ctrl/Data 图位置和节点 material | Workflow checkpoint | TaskSpace receipt/material 的观察结果 |
 
-`ai-organ-logic` 的 canonical Holon runtime 模块只定义 data、Processor 和显式 effect ports；Workflow application service 也只能取得同一个 VM support facet，不能自行创建另一套 owner。`ai-support` 组装 File TaskSpace、pump journal 和本地 deployment store；Terminal 负责把当前 VM、Halfcode registry、通用 actor/session owner 与具体 adapter 接入。不得再引入第二个 TaskSpace owner、module `WeakMap` service locator 或 VM `holonState.tasks` 写入路径。
+canonical Processor 经显式 effect ports 工作；Workflow application service 只能取得同一个 VM capability，不能自行创建另一套 owner。`ai-support` 提供 File TaskSpace、journal byte-store 和 submission writer；journal 规则与 task routes 在 `ai-organ-logic`，由显式 runtime 注入上述效果。Terminal 的 `AIAgent/LocalHolonTaskRuntimeBootstrap.ts` 负责选择文件 factory/clock，把当前 VM、Halfcode registry、通用 actor/session owner 与具体 adapter 接入。不得再引入第二个 TaskSpace owner、module `WeakMap` service locator 或 VM `holonState.tasks` 写入路径。
 
 ## Halfcode admission 与独立启动
 
@@ -33,7 +33,7 @@ admission identity 由 definition content identity、binding semantic fingerprin
 产品入口 `HolonAssign`、`MemberAssign`、`ActorAssign` 与 Ctrl/Data Workflow 最终都调用同一个 `HolonTaskRuntimeService.assign`：
 
 1. catalog 用显式 Holon、Member 或 admission selector 选择唯一 admission；
-2. support 创建或重放 canonical `eidolon.ai.holon-task` TaskSpace；
+2. logic routes 经注入的 TaskSpace owner 创建或重放 canonical `eidolon.ai.holon-task` TaskSpace；
 3. coordinator mailbox 按 `(deploymentId, holonRef)` 唤醒唯一 actor；
 4. Processor 通过 TaskSpace claim 分配 Member，并依据 frozen binding policy 创建 shared 或 `isolated-task-runtime` MemberRuntime；
 5. actor/session runtime 为每次 task attempt 提供 session，TaskSpace 和 support 不复制消息历史；
@@ -62,6 +62,8 @@ assign 与 final 是 response command；后台 wake/recovery 是 message。三�
 ## Workflow 的位置
 
 Ctrl/Data Workflow 可以提供 workflow origin、exact task identity 和 recovery scope，也可以把 terminal TaskSpace receipt/material 写回自己的 checkpoint。它不能创建另一套 coordinator、TaskSpace、journal 或 MemberRuntime policy；无 Workflow instance 时，产品 assignment 与 fresh restart 仍须完整工作。
+
+Workflow 宿主必须先显式挂载 capability 及 storageFactory/clock。WorkflowRuntimeService 不再隐式选择文件存储；缺少装配或 scope 冲突时明确拒绝。独立启动仍通过 Terminal 的 `openLocalHolonTaskRuntime` 完成整套生命周期，底层测试或其他宿主可调用 organ 的 `bootstrapLocalHolonTaskRuntime(input, { storageFactory, now })` 并注入替代实现。
 
 ## 当前验证矩阵
 

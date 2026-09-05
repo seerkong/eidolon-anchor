@@ -8,17 +8,17 @@ import {
   type ActorHistoryGenerationData,
   type ConversationPersistenceRepository,
 } from "@cell/ai-organ-contract"
-// Assembly-module load registers the local_file adapter by enum id.
-import "@cell/ai-support"
+import { LocalFileConversationPersistenceAdapter } from "@cell/ai-support"
 
 import {
+  createConversationPersistenceRegistry,
   registerConversationPersistenceAdapter,
   resolveConversationPersistenceAdapter,
 } from "../../../src/conversationCapsule/adapterRegistry"
 import { createInMemoryConversationPersistenceAdapter } from "../../../src/conversationCapsule/coreLogic"
 
 /**
- * Enum-registered persistence adapters of the conversation capsule are
+ * Explicitly selected persistence adapters of the conversation capsule are
  * actually usable: local_file wraps the existing ai-support repository
  * (real files under a temp sessionDir), in_memory is the capsule's own
  * Map-backed implementation. Both must round-trip a history generation.
@@ -72,7 +72,8 @@ describe("conversation persistence adapters (enum-registered)", () => {
   it("local_file adapter creates a working repository against a temp sessionDir", async () => {
     const sessionDir = makeTempSessionDir()
     try {
-      const adapter = resolveConversationPersistenceAdapter("local_file")
+      const adapters = createConversationPersistenceRegistry([["local_file", LocalFileConversationPersistenceAdapter]])
+      const adapter = resolveConversationPersistenceAdapter(adapters, "local_file")
       const repository = adapter.createRepository(sessionDir) as ConversationPersistenceRepository
 
       const generation = makeHistoryGeneration("hist-adapter-1")
@@ -91,8 +92,9 @@ describe("conversation persistence adapters (enum-registered)", () => {
 
   it("in_memory adapter round-trips a history generation without touching disk", async () => {
     const adapter = createInMemoryConversationPersistenceAdapter()
-    registerConversationPersistenceAdapter("in_memory", adapter)
-    const resolved = resolveConversationPersistenceAdapter("in_memory")
+    const adapters = createConversationPersistenceRegistry()
+    registerConversationPersistenceAdapter(adapters, "in_memory", adapter)
+    const resolved = resolveConversationPersistenceAdapter(adapters, "in_memory")
     expect(resolved).toBe(adapter)
 
     const sessionDir = "/virtual/in-memory-session"

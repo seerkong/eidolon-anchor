@@ -1,0 +1,11 @@
+<BehaviorPatch #track.enforce-runtime-closure-dependency-boundaries.behavior_patch.runtime.execution-closures apiVersion="codument.tech/v1alpha1" version="1" { capability = "runtime.execution-closures" } (
+  <Mutations [<Upsert { selector = "behavior://runtime.execution-closures/requirements/configuration-dependency-boundary" } (
+    <Requirement #configuration-dependency-boundary (
+      <Statement ?>共享配置和权限 SHALL 以同一纯规则实现支撑 logic/support，物理读取不反向依赖 organ logic，迁移不得改变默认行为。</?>
+      <Suites [<Suite #configuration-boundary { name = "配置依赖闭包" } (<Cases [
+        <Case #equivalent-configuration (<Given ?>相同模型和权限配置输入。</?><When ?>由默认宿主读取并解析。</?><Then ?>结果、错误、优先级和秘密处理 SHALL 与迁移前一致。</?>)>
+        <Case #reject-reverse-edge (<Given ?>源码或 manifest 引入 support 到 organ logic 的边。</?><When ?>运行边界检查。</?><Then ?>检查 SHALL 失败，不能用兼容转出口隐藏。</?>)>
+      ]>)>]>
+    )>
+  )>]>
+)>

@@ -16,7 +16,8 @@ import {
 import {
   bootstrapLocalHolonTaskRuntime,
   mountLocalHolonTaskRuntimeSupport,
-} from "@cell/ai-support"
+} from "../../src/organization/HolonTaskRuntimeComposition"
+import { createLocalHolonTaskRuntimeStorage } from "@cell/ai-support/organization/LocalHolonTaskRuntimeSupport"
 import { claimTask } from "task-manager-logic"
 
 import {
@@ -209,7 +210,7 @@ async function openHost(input: Readonly<{
     vm,
     supportRoot: input.root,
     registryRef: "resource://fixture.registry.standalone",
-  })
+  }, { storageFactory: createLocalHolonTaskRuntimeStorage, now: Date.now })
   const support = mountLocalHolonTaskRuntimeSupport({
     vm,
     supportRoot: input.root,

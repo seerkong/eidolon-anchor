@@ -1,0 +1,37 @@
+<Behavior #provider.context apiVersion="codument.tech/v1alpha1" version="1" (
+  <Requirements [
+    <Requirement #actor-scoped-transition-recovery (
+      <Statement ?01M1SC5W6BECA5WTQ0540F42QB>
+      Provider context 恢复 SHALL 区分全局最新 transition 与 Actor 自身 receipt，允许有真实持久证据的其他 Actor 交错推进，保留损坏和前驱冲突拒绝。
+      </?01M1SC5W6BECA5WTQ0540F42QB>
+      <Suites [
+        <Suite #multi-actor-recovery { name = "多 Actor 恢复" } (
+          <Cases [
+            <Case #interleaved (
+              <Given ?01M1SC5W6BECA5WTQ0540F42QC>
+              多个 Actor 共用 session persistence。
+              </?01M1SC5W6BECA5WTQ0540F42QC>
+              <When ?01M1SC5W6BECA5WTQ0540F42QD>
+              A 与 B 交错持久推进，再恢复 A。
+              </?01M1SC5W6BECA5WTQ0540F42QD>
+              <Then ?01M1SC5W6BECA5WTQ0540F42QE>
+              合法的 B head SHALL 不阻断 A，且不覆盖其他 Actor authority。
+              </?01M1SC5W6BECA5WTQ0540F42QE>
+            )>
+            <Case #corrupt-proof (
+              <Given ?01M1SC5W6BECA5WTQ0540F42QF>
+              head 所引用证据缺失、损坏或与 Actor 自身 receipt 分歧。
+              </?01M1SC5W6BECA5WTQ0540F42QF>
+              <When ?01M1SC5W6BECA5WTQ0540F42QG>
+              请求继续传输。
+              </?01M1SC5W6BECA5WTQ0540F42QG>
+              <Then ?01M1SC5W6BECA5WTQ0540F42QH>
+              系统 SHALL 拒绝，不把未知证据视作正常交错。
+              </?01M1SC5W6BECA5WTQ0540F42QH>
+            )>
+          ]>
+        )>
+      ]>
+    )>
+  ]>
+)>

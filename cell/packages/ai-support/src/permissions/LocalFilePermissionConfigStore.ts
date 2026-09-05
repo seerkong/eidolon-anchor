@@ -12,10 +12,9 @@ import { LocalPermissionConfigError } from "@cell/ai-organ-contract/permissions/
 import {
   parseLocalPermissionsConfig,
   parseWorkspaceAccessConfig,
-  resolveRequestedPath,
   serializeWorkspaceAccessConfig,
-  workspaceAccessGrantRoot,
-} from "@cell/ai-organ-logic/permissions/LocalPermissionConfig";
+} from "@cell/ai-core-logic/permissions/LocalPermissionRules";
+import { resolveRequestedPath, workspaceAccessGrantRoot } from "./LocalPermissionPaths";
 
 function resolveHomeDir(): string {
   return process.env.HOME || process.env.USERPROFILE || os.homedir();
@@ -64,7 +63,7 @@ export const LocalFilePermissionConfigStore: LocalPermissionConfigStore = {
         overrides: [],
       };
     }
-    return parseLocalPermissionsConfig(loadJsonObject(filePath), filePath);
+    return parseLocalPermissionsConfig(loadJsonObject(filePath), filePath, process.cwd());
   },
 
   loadWorkspaceAccessConfig(authorityRoot?: string): WorkspaceAccessConfig {
@@ -72,7 +71,7 @@ export const LocalFilePermissionConfigStore: LocalPermissionConfigStore = {
     if (!fs.existsSync(filePath)) {
       return { workspaces: {} };
     }
-    return parseWorkspaceAccessConfig(loadJsonObject(filePath), filePath);
+    return parseWorkspaceAccessConfig(loadJsonObject(filePath), filePath, process.cwd());
   },
 
   grantWorkspaceAccess(params): string {

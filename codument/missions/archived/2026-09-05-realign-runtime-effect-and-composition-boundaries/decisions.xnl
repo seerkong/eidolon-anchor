@@ -1,0 +1,9 @@
+<decision #mission.runtime_effect_composition.scope apiVersion="codument.tech/v1alpha1" { status = "accepted" priority = "P0" blocks = [] durable_candidate = false } (
+  <question ?>职责归位的范围、实施粒度及依赖开发策略是什么？</?>
+  <answer { } (
+    <raw-answer ?>4独立放到一个mission中：每次整理一个真实执行闭包，不全库重写或改名。bun.lock坚决不允许纳入版本管理。</?>
+    <decision-text ?>独立 peer Mission，按真实闭包逐一迁移，保持运行语义；不全库改名、不跟踪 bun.lock，保留本地未发布依赖。初始请求仅规划，后续用户已授权实施并完成；当前用户进一步授权归档及提交。</?>
+    <rationale ?>已确认的依赖方向和 IO/组装混装需要定向处理；与任务能力升级分开编排，但用共同可执行基线协调同文件接缝。</?>
+    <evidence ?>2026-09-05 用户当前明确指示；design.md 原位置到目标职责映射。</?>
+  )>
+)>

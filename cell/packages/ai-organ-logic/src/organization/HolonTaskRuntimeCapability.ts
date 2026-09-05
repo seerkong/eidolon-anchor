@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import type { HolonTaskRuntimeStorage } from "@cell/ai-organ-contract/organization/HolonTaskRuntimeStorage"
 
 import type {
   FrozenHolonTaskRuntimeAdmission,
@@ -64,7 +65,13 @@ export interface HolonTaskRuntimeCapabilityHandle {
   readonly scope: HolonTaskRuntimeCapabilityScope
   readonly service: HolonTaskRuntimeService
   readCatalog(): HolonTaskRuntimeCatalogSnapshot
+  readonly storageFactory?: HolonTaskRuntimeStorageFactory
+  readonly now?: () => number
 }
+
+export type HolonTaskRuntimeStorageFactory = (
+  config: Readonly<{ supportRoot: string }>,
+) => HolonTaskRuntimeStorage
 
 interface MountedBinding {
   readonly admission: FrozenHolonTaskRuntimeAdmission
@@ -73,6 +80,8 @@ interface MountedBinding {
 }
 
 interface HolonTaskRuntimeCapabilityFacet {
+  storageFactory?: HolonTaskRuntimeStorageFactory
+  now?: () => number
   readonly serviceRuntimeRef: `resource://${string}`
   readonly scope: HolonTaskRuntimeCapabilityScope
   catalog: HolonTaskRuntimeCatalogSnapshot
@@ -331,14 +340,25 @@ function handle(state: HolonTaskRuntimeCapabilityFacet): HolonTaskRuntimeCapabil
     scope: state.scope,
     service: state.service,
     readCatalog: () => state.catalog,
+    storageFactory: state.storageFactory,
+    now: state.now,
   })
 }
 
 export function mountHolonTaskRuntimeCapability(
   vm: HolonTaskRuntimeCapabilityVm,
   scope: HolonTaskRuntimeCapabilityScope,
+  runtime?: Readonly<{ storageFactory: HolonTaskRuntimeStorageFactory; now: () => number }>,
 ): HolonTaskRuntimeCapabilityHandle {
-  return handle(facet(vm, scope))
+  const state = facet(vm, scope)
+  if (runtime) {
+    if (state.storageFactory && (state.storageFactory !== runtime.storageFactory || state.now !== runtime.now)) {
+      return invalid("EIDOLON_HOLON_TASK_STORAGE_FACTORY_CONFLICT", "This capability already has a different storage factory.")
+    }
+    state.storageFactory = runtime.storageFactory
+    state.now = runtime.now
+  }
+  return handle(state)
 }
 
 export function requireHolonTaskRuntimeCapability(

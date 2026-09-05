@@ -1,0 +1,13 @@
+<BehaviorPatch #track.repair-multi-actor-workflow-recovery-baseline.behavior_patch.provider.context apiVersion="codument.tech/v1alpha1" version="1" { capability = "provider.context" } (
+  <Mutations [
+    <Upsert { selector = "behavior://provider.context/requirements/actor-scoped-transition-recovery" } (
+      <Requirement #actor-scoped-transition-recovery (
+        <Statement ?>Provider context 恢复 SHALL 区分全局最新 transition 与 Actor 自身 receipt，允许有真实持久证据的其他 Actor 交错推进，保留损坏和前驱冲突拒绝。</?>
+        <Suites [<Suite #multi-actor-recovery { name = "多 Actor 恢复" } (<Cases [
+          <Case #interleaved (<Given ?>多个 Actor 共用 session persistence。</?><When ?>A 与 B 交错持久推进，再恢复 A。</?><Then ?>合法的 B head SHALL 不阻断 A，且不覆盖其他 Actor authority。</?>)>
+          <Case #corrupt-proof (<Given ?>head 所引用证据缺失、损坏或与 Actor 自身 receipt 分歧。</?><When ?>请求继续传输。</?><Then ?>系统 SHALL 拒绝，不把未知证据视作正常交错。</?>)>
+        ]>)>]>
+      )>
+    )>
+  ]>
+)>

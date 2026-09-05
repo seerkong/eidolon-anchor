@@ -355,6 +355,7 @@ describe("provider context epoch transition", () => {
       const a1 = receipt("actor-a", "actor-a-id", 1, null)
       const b1 = receipt("actor-b", "actor-b-id", 1, null)
       const base = await repository.loadSessionIndex()
+      base.sessionId = sessionId
       base.session.sessionId = sessionId
       base.session.actorBindings = {
         "actor-a": { actorKey: "actor-a", actorId: "actor-a-id", providerEpochReceiptV2: a1 },
@@ -364,6 +365,9 @@ describe("provider context epoch transition", () => {
       const emptyHistory = await repository.loadHistoryIndex()
       const emptyPrompt = await repository.loadPromptIndex()
       const emptyArtifacts = await repository.loadArtifactRefs()
+      emptyHistory.sessionId = emptyPrompt.sessionId = emptyArtifacts.sessionId = sessionId
+      expect(new Set([base.sessionId, base.session.sessionId, emptyHistory.sessionId, emptyPrompt.sessionId,
+        emptyArtifacts.sessionId, a1.sessionId, b1.sessionId])).toEqual(new Set([sessionId]))
       const makeTransition = (actorKey: "actor-a" | "actor-b", previous: typeof a1, next: typeof a1) => {
         const staged = structuredClone(base)
         staged.session.activeActorKey = actorKey
@@ -663,7 +667,11 @@ describe("provider context epoch transition", () => {
         const promptIndex = await initial.loadPromptIndex()
         const sessionIndex = await initial.loadSessionIndex()
         const artifactRefs = await initial.loadArtifactRefs()
+        sessionIndex.sessionId = raw.session.sessionId
         sessionIndex.session.sessionId = raw.session.sessionId
+        historyIndex.sessionId = promptIndex.sessionId = artifactRefs.sessionId = raw.session.sessionId
+        expect(new Set([sessionIndex.sessionId, sessionIndex.session.sessionId, historyIndex.sessionId,
+          promptIndex.sessionId, artifactRefs.sessionId, current.sessionId, next.sessionId])).toEqual(new Set([raw.session.sessionId]))
         sessionIndex.session.activeActorKey = actor.key
         sessionIndex.session.actorBindings = {
           [actor.key]: {

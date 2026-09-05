@@ -10,6 +10,7 @@
   },
   "description": "Formal AI core logic host for runtime glue, runtime facades, and shell bootstrap helpers.",
   "dependencies": {
+    "@cell/ai-organ-contract": "workspace:*",
     "@cell/ai-core-contract": "workspace:*",
     "@cell/symbiont-logic": "workspace:*",
     "@cell/symbiont-contract": "workspace:*",

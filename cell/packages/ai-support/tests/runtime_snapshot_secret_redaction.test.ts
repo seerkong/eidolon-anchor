@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { parseProviderCatalogRaw, resolveActorModelConfig } from "@cell/ai-organ-logic/llm/ModelConfigOps";
+import { parseProviderCatalogRaw, resolveActorModelConfig } from "@cell/ai-core-logic/llm/ModelConfigRules";
 import { LocalFileRuntimeSnapshotRepository } from "../src/runtime/LocalFileRuntimeSnapshotRepository";
 
 const TOP_LEVEL_KEY = "sk-snapshot-top-level-secret";

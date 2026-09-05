@@ -26,3 +26,5 @@ export * from "./persistence/conversation/ConversationPersistence";
 export * from "./persistence/RuntimeDerivedIndexes";
 export * from "./stream/SemanticProtocolFrame";
 export * from "./workflow/WorkflowPublicRuntimeEvidence";
+export * from "./organization/HolonTaskPumpJournal";
+export * from "./organization/HolonTaskRuntimeStorage";

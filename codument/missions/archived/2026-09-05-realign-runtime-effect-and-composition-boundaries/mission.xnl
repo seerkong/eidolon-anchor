@@ -1,0 +1,129 @@
+<Mission #realign-runtime-effect-and-composition-boundaries apiVersion="codument.tech/v1alpha1" version="1" { status = "archived" goal = "每次归位一个真实执行闭包，分离纯逻辑、effect 实现与显式组装，消除已证实源码依赖环并保持现有运行语义" description = "独立承接用户第4项；聚焦 Conversation 与 Holon 本地闭包，保留成熟实现、既有 authority 与本地依赖开发形态，不全库重写或改名" question_mode = "decision-tree" question_severity = "auto" revision = 35 created_at = "2026-09-05T11:24:52.377Z" updated_at = "2026-09-05T18:09:57.686Z" } (
+  <Ports { scope = "mission" } [
+    <MaterialBundle { role = "state" name = "reports" domain = "mission" path = "vfs://./reports/" }>
+  ]>
+  <ProjectRefs [
+    <ProjectRef #host { kind = "host" }>
+  ]>
+  <ActorSets { default = "default-control-loop" } [
+    <ActorSet #default-control-loop [
+      <Actor { role = "MissionPlanner" project_ref = "host" } (
+        <Description ?01M1RX2G3APC4C5Y5NZ8R1HC41>
+        按实际 import/effect/authority 路径将 Conversation、Holon 和剩余组合边界切为可单独验证的真实 Tracks；不按包名机械拆分。
+        </?01M1RX2G3APC4C5Y5NZ8R1HC41>
+      )>
+      <Actor { role = "MissionObserver" project_ref = "host" } (
+        <Description ?01M1RX2G3APC4C5Y5NZ8R1HC42>
+        读取源码导入图、manifest、注册时机、Prompt/receipt goldens、冷启动与替换 port 测试；识别同一闭包在另一 Mission 中的在途修改。
+        </?01M1RX2G3APC4C5Y5NZ8R1HC42>
+      )>
+      <Actor { role = "MissionReconciler" project_ref = "host" } (
+        <Description ?01M1RX2G3APC4C5Y5NZ8R1HC43>
+        比较语义基线与迁移后结果，检查反向边是否真正删除而非用延迟 import 或 service locator 隐藏；一个闭包验证完成再迁移下一个。
+        </?01M1RX2G3APC4C5Y5NZ8R1HC43>
+      )>
+      <Actor { role = "MissionApplier" project_ref = "host" } (
+        <Description ?01M1RX2G3APC4C5Y5NZ8R1HC44>
+        创建绑定并实现 ready Track，把规则、IO、装配分别归既有正确 owner；保持 public behavior 和物理持久格式，运行专项与冷启动验证，不改 bun.lock 跟踪策略。
+        </?01M1RX2G3APC4C5Y5NZ8R1HC44>
+      )>
+    ]>
+  ]>
+  <TaskSpace #space_realign-runtime-effect-and-composition-boundaries { name = "realign-runtime-effect-and-composition-boundaries" version = "1" child_mode = "dag" } (
+    <SubNodes [
+      <TaskGroup #G1 { name = "真实闭包清单与迁移协议" status = "DONE" order = 0 } (
+        <SubNodes [
+          <Task #G1-T1 { name = "核对已确认依赖环与全部受影响入口" status = "DONE" order = 0 } (
+            <Description ?01M1RX2G3APC4C5Y5NZ8R1HC45>
+            定位 domainRuntime 到 ai-support、support 加载时注册、File journal、bootstrap、公开 exports 的实际边；建立旧位置到目标位置映射及另一 Mission 的交接点。
+            </?01M1RX2G3APC4C5Y5NZ8R1HC45>
+          )>
+          <Task #G1-T2 { name = "完成 DEPA 定向处置与验收设计" status = "DONE" order = 1 } (
+            <Description ?01M1RX2G3APC4C5Y5NZ8R1HC46>
+            为每个闭包写 authority/ports/logic/support/composition 与禁止依赖；优先现有包和显式宿主，只有确有复用闭包才 replan 新 capsule；不引入跨 Mission 整体完成依赖。
+            </?01M1RX2G3APC4C5Y5NZ8R1HC46>
+          )>
+        ]>
+      )>
+      <TaskGroup #G2 { name = "固定可执行语义基线" status = "DONE" order = 1 } (
+        <SubNodes [
+          <Task #G2-T1 { name = "固化执行闭包等价与依赖检查" status = "DONE" order = 0 } (
+            <Description ?01M1RX2G3B4EWTBKCAYBJ671CQ>
+            固定 Prompt/history/tool pairing、workspace AGENTS 与 ContextPipeline、TaskSpace/journal receipt、冷启动及替代 ports 验收；类型检查无源码旁 emit，支持本地未发布包。
+            </?01M1RX2G3B4EWTBKCAYBJ671CQ>
+            <TrackLink #characterize-conversation-and-holon-execution-closures { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G3 { name = "Conversation 规则与 persistence 装配归位" status = "DONE" order = 2 } (
+        <SubNodes [
+          <Task #G3-T1 { name = "迁移 Conversation 纯规则并显式注入 persistence" status = "DONE" order = 0 } (
+            <Description ?01M1RX2G3B4EWTBKCAYBJ671CR>
+            纯 Prompt/history 规则回 logic，文件读取恢复保留 support，去掉 domain core 的 concrete support import 与加载时注册；以真实调用者显式组合，保持消息语义。
+            </?01M1RX2G3B4EWTBKCAYBJ671CR>
+            <TrackLink #realign-conversation-logic-persistence-and-composition { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G4 { name = "Holon journal 与本地 bootstrap 归位" status = "DONE" order = 3 } (
+        <SubNodes [
+          <Task #G4-T1 { name = "迁移 File journal 并显式组合 Holon runtime" status = "DONE" order = 0 } (
+            <Description ?01M1RX2G3B4EWTBKCAYBJ671CS>
+            保留 journal contract 和 Processor 规则；具体文件 IO 进入 support，bootstrap 在显式宿主/已证实 capsule 组合；不改变 task authority、idempotency identity、shared/fresh continuity。
+            </?01M1RX2G3B4EWTBKCAYBJ671CS>
+            <TrackLink #realign-holon-journal-support-and-runtime-composition { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G5 { name = "清除剩余反向边并锁定闭包边界" status = "DONE" order = 4 } (
+        <SubNodes [
+          <Task #G5-T1 { name = "完成目标闭包的依赖与公开入口收口" status = "DONE" order = 0 } (
+            <Description ?01M1RX2G3B4EWTBKCAYBJ671CT>
+            检查所有选定闭包实际 import/manifest 环，清除兼容出口背后的剩余反向边；若环仍有真实未迁移职责则证据replan，不声称完成；保持旧名不触发无关迁移。
+            </?01M1RX2G3B4EWTBKCAYBJ671CT>
+            <TrackLink #enforce-runtime-closure-dependency-boundaries { state = "bound" project_ref = "host" }>
+          )>
+        ]>
+      )>
+      <TaskGroup #G6 { name = "整体语义等价验收" status = "DONE" order = 5 } (
+        <SubNodes [
+          <Task #G6-T0 { name = "纠正多 Actor Workflow 恢复基线偏差" status = "DONE" order = 0 } (
+            <Description ?01M1RYK20HPHT7W3WTPA0H26ZC>
+            诊断并修复基线 B1 的 transition head/session receipt 冲突；保留 fail-closed 与既有断言，不混入纯重构、不放大超时。
+            </?01M1RYK20HPHT7W3WTPA0H26ZC>
+            <TrackLink #repair-multi-actor-workflow-recovery-baseline { state = "bound" project_ref = "host" }>
+          )>
+          <Task #G6-T1 { name = "验证冷启动与迁移后完整执行闭包" status = "DONE" order = 1 } (
+            <Description ?01M1RX2G3B4EWTBKCAYBJ671CV>
+            证明受影响默认入口、独立 Holon 与 Ctrl/Data 运行、Conversation fork/rewind/provider handoff、资源旧版本恢复不回归；只对当前 Mission 选定边界声明无环，记录残余范围；更新 docs/行为，不自动提交、构建安装或发布。
+            </?01M1RX2G3B4EWTBKCAYBJ671CV>
+          )>
+        ]>
+      )>
+    ]>
+  )>
+  <Schedule [
+    <Dag { for = "space_realign-runtime-effect-and-composition-boundaries" } [
+      <Node #G2 [
+        <After { ref = "G1" }>
+      ]>
+      <Node #G3 [
+        <After { ref = "G2" }>
+      ]>
+      <Node #G4 [
+        <After { ref = "G3" }>
+      ]>
+      <Node #G5 [
+        <After { ref = "G4" }>
+      ]>
+      <Node #G6 [
+        <After { ref = "G5" }>
+      ]>
+    ]>
+  ]>
+  <Hooks [
+    <Hook { on = "mission:after-node" } (
+      <MissionReconcile { max_tracks = 10 on_limit = "checkpoint" on_drift = "replan-or-block" }>
+    )>
+  ]>
+)>

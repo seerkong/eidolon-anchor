@@ -116,9 +116,9 @@ import type { TuiControl, TuiEvent, TuiMessageCategory } from "@terminal/core/AI
 import type { ExecApprovalMode } from "../stream/ExecProtocolGraph"
 import { SemanticTerminalRuntimeBridge } from "../stream/SemanticTerminalRuntimeBridge"
 import {
-  openLocalHolonTaskRuntime,
   loadRuntimeConfigFromVfs,
 } from "@cell/ai-support"
+import { openLocalHolonTaskRuntime } from "./LocalHolonTaskRuntimeBootstrap"
 import type {
   ConversationSessionForkCommand,
   ConversationSessionForkResult,

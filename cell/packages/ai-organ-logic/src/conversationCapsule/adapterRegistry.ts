@@ -6,28 +6,31 @@ import {
 
 /**
  * Persistence adapter registry of the conversation capsule. Adapters are
- * registered and resolved by enum id (same pattern as the engine file_store
- * adapter); the composition layer wires concrete implementations in T2.3.
+ * registered and resolved by enum id within an explicitly owned runtime.
+ * Importing this module never installs an implementation or owns session state.
  */
 
-const conversationPersistenceAdapters = new Map<
-  ConversationPersistenceAdapterId,
-  ConversationPersistenceAdapter
->();
+export function createConversationPersistenceRegistry(
+  entries: Iterable<readonly [ConversationPersistenceAdapterId, ConversationPersistenceAdapter]> = [],
+): Map<ConversationPersistenceAdapterId, ConversationPersistenceAdapter> {
+  return new Map(entries);
+}
 
 export function registerConversationPersistenceAdapter(
+  adapters: Map<ConversationPersistenceAdapterId, ConversationPersistenceAdapter>,
   id: ConversationPersistenceAdapterId,
   adapter: ConversationPersistenceAdapter,
 ): void {
-  conversationPersistenceAdapters.set(id, adapter);
+  adapters.set(id, adapter);
 }
 
 export function resolveConversationPersistenceAdapter(
+  adapters: ReadonlyMap<ConversationPersistenceAdapterId, ConversationPersistenceAdapter>,
   id: ConversationPersistenceAdapterId,
 ): ConversationPersistenceAdapter {
-  const adapter = conversationPersistenceAdapters.get(id);
+  const adapter = adapters.get(id);
   if (!adapter) {
-    const registered = [...conversationPersistenceAdapters.keys()].join(", ") || "<none>";
+    const registered = [...adapters.keys()].join(", ") || "<none>";
     throw new Error(
       `Unknown conversation persistence adapter id "${id}". `
       + `Registered adapters: [${registered}]. `

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "bun:test"
 import { mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from "node:fs/promises"
+import { createHash } from "node:crypto"
 import os from "node:os"
 import path from "node:path"
 
@@ -12,8 +13,11 @@ import {
   LocalFileConversationPersistenceRepositoryFactory,
   LocalFileRuntimeDerivedIndexesStore,
   LocalFileRuntimeSnapshotRepositoryFactory,
-  openLocalHolonTaskRuntime,
 } from "@cell/ai-support"
+import { openLocalHolonTaskRuntime } from "@terminal/organ/AIAgent/LocalHolonTaskRuntimeBootstrap"
+import { createLocalHolonTaskRuntimeStorage } from "@cell/ai-support/organization/LocalHolonTaskRuntimeSupport"
+import { bootstrapLocalHolonTaskRuntime } from "../../src/organization/HolonTaskRuntimeComposition"
+import { FileHolonTaskPumpJournalStore } from "@cell/ai-support/organization/FileHolonTaskPumpJournalStore"
 
 import {
   HOLON_EXECUTION_BINDING_KIND_DEFINITION_SOURCE,
@@ -73,7 +77,7 @@ import {
 } from "../../src/organization/HolonWorkflowTaskRuntime"
 import { canonicalHolonTaskRuntimeDefinitionBytes } from "../../src/organization/HolonTaskRuntimeContract"
 import {
-  FileHolonTaskPumpJournal,
+  createHolonTaskPumpJournal,
   createHolonTaskPumpDispatchIntent,
 } from "../../src/organization/HolonTaskPumpJournal"
 import {
@@ -91,7 +95,24 @@ import {
   appendLiveHistoryMessageToConversationDomainRuntime,
   materializeConversationHistoryMessagesFromVm,
 } from "../../src/conversation/ConversationDomainRuntime"
-import { bindWorkflowComponentToRuntime, createWorkflowComponent } from "../../src/workflow"
+import { bindWorkflowComponentToRuntime as bindWorkflowComponent, createWorkflowComponent } from "../../src/workflow"
+
+function bindWorkflowComponentToRuntime(runtime: any, component: Parameters<typeof bindWorkflowComponent>[1]) {
+  bindWorkflowComponent(runtime, component)
+  const workspaceRoot = runtime.vm.outerCtx.workDir
+  bootstrapLocalHolonTaskRuntime({
+    vm: runtime.vm,
+    supportRoot: path.join(runtime.vm.outerCtx.metadata.sessionDir, "holon-task-runtime"),
+    registryRef: `resource://eidolon.effective-resource-registry/${createHash("sha256").update(workspaceRoot).digest("hex")}`,
+  }, { storageFactory: createLocalHolonTaskRuntimeStorage, now: Date.now })
+}
+
+function createFileJournal(config: { supportRoot: string }) {
+  return createHolonTaskPumpJournal({
+    store: new FileHolonTaskPumpJournalStore({ now: Date.now }, config),
+    now: Date.now,
+  })
+}
 import {
   WorkflowRuntimeService,
   workflowHolonTaskSpaceId,
@@ -1813,7 +1834,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
       store,
       taskManager,
       actorRuntime: bridge,
-      journal: new FileHolonTaskPumpJournal({ supportRoot }),
+      journal: createFileJournal({ supportRoot }),
     }
     const subscription = await runtime.journal.subscribe({
       admissionId: "workflow-admission:workflow-run-1:review-node",
@@ -1856,7 +1877,7 @@ describe("HolonExecutionBinding shared registry projection", () => {
     })
     const racedProcessorRuntime = await createHolonTaskProcessorRuntime({
       ...runtime,
-      journal: new FileHolonTaskPumpJournal({ supportRoot }),
+      journal: createFileJournal({ supportRoot }),
     }, {
       deploymentId: "workflow-task-deployment",
       workflowSessionLineage: {
@@ -2792,7 +2813,7 @@ export async function consumeB(runtime: any) {
     injectProviderResultEvidenceCrash = false
     expect(providerResultPersistenceObservations).toBe(observationsBeforeProviderCrash + 1)
     expect(providerCalls).toBe(3)
-    const [providerEffectSubscription] = await new FileHolonTaskPumpJournal({
+    const [providerEffectSubscription] = await createFileJournal({
       supportRoot: holonSupportRoot,
     }).listSubscriptions("holon-provider-effect-recovery-run")
     const providerEffectDeploymentId = providerEffectSubscription?.deploymentId

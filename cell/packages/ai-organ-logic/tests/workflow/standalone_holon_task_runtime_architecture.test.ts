@@ -33,14 +33,15 @@ describe("standalone Holon task runtime architecture", () => {
     )
     const workflow = await source("../../src/workflow/runtime/WorkflowRuntimeService.ts")
     const bootstrap = await source(
-      "../../../ai-support/src/organization/LocalHolonTaskRuntimeBootstrap.ts",
+      "../../../../../terminal/packages/organ/src/AIAgent/LocalHolonTaskRuntimeBootstrap.ts",
     )
 
     expect(terminal.match(/openLocalHolonTaskRuntime\(/g)).toHaveLength(1)
     expect(terminal).not.toContain("bootstrapLocalHolonTaskRuntime(")
     expect(workflow).not.toMatch(/new\s+FileTaskSpaceOwner|new\s+FileHolonTaskPumpJournal/)
     expect(workflow).toContain("assignHolonTaskThroughMountedCapability")
-    expect(bootstrap).toContain("mountHolonTaskRuntimeCapability")
+    expect(bootstrap).toContain("bootstrapLocalHolonTaskRuntime")
+    expect(bootstrap).toContain("storageFactory: createLocalHolonTaskRuntimeStorage")
     expect(bootstrap).toContain("mountLocalHolonTaskRuntimeSupport")
     expect(bootstrap).toContain("materializeHolonDeploymentDefinition")
   })
